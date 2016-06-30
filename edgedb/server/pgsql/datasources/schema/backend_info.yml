@@ -18,4 +18,4 @@ source: |
     SELECT
             format_version
         FROM
-            caos.backend_info
+            edgedb.backend_info

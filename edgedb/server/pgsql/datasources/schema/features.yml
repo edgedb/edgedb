@@ -19,4 +19,4 @@ source: |
             name,
             class_name
         FROM
-            caos.feature
+            edgedb.feature

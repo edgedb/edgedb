@@ -33,7 +33,7 @@ class TextSearchIndexColumn(IndexColumn):
         self.weight = weight
         self.language = language
 
-    def code(self, context):
+    async def code(self, context):
         ql = postgresql.string.quote_literal
         qi = common.quote_ident
 
@@ -183,7 +183,7 @@ class IndexExists(base.Condition):
     def __init__(self, index_name):
         self.index_name = index_name
 
-    def code(self, context):
+    async def code(self, context):
         code = '''SELECT
                        i.indexrelid
                    FROM
@@ -205,7 +205,7 @@ class CreateIndex(tables.CreateInheritableTableObject):
             self.neg_conditions.add(IndexExists((index.table_name[0],
                                                  index.name_in_catalog)))
 
-    def code(self, context):
+    async def code(self, context):
         return self.index.creation_code(context)
 
 
@@ -216,7 +216,7 @@ class RenameIndex(tables.RenameInheritableTableObject):
             self.conditions.add(IndexExists((index.table_name[0],
                                              index.name_in_catalog)))
 
-    def code(self, context):
+    async def code(self, context):
         code = 'ALTER INDEX {} RENAME TO {}'.format(
                     common.qname(self.object.table_name[0],
                                  self.object.name_in_catalog),
@@ -230,7 +230,7 @@ class RenameIndexSimple(ddl.DDLOperation):
         self.old_name = old_name
         self.new_name = new_name
 
-    def code(self, context):
+    async def code(self, context):
         code = 'ALTER INDEX {} RENAME TO {}'.format(
                     common.qname(*self.old_name),
                     common.quote_ident(self.new_name))
@@ -251,7 +251,7 @@ class DropIndex(tables.DropInheritableTableObject):
             self.conditions.add(IndexExists((index.table_name[0],
                                              index.name_in_catalog)))
 
-    def code(self, context):
+    async def code(self, context):
         return 'DROP INDEX {}'.format(
                     common.qname(self.object.table_name[0],
                                  self.object.name_in_catalog))
@@ -259,12 +259,12 @@ class DropIndex(tables.DropInheritableTableObject):
 
 class DDLTriggerBase:
     @classmethod
-    def get_inherited_indexes(cls, db, table_name, bases):
+    async def get_inherited_indexes(cls, db, table_name, bases):
         bases = ['{}.{}'.format(*base) for base in bases]
 
         ti = introspection.tables.TableIndexes(db)
-        idx_records = ti.fetch(table_list=bases, inheritable_only=True,
-                                                 include_inherited=True)
+        idx_records = await ti.fetch(table_list=bases, inheritable_only=True,
+                                     include_inherited=True)
 
         # Use a dictionary here to filter out any duplicates resulting
         # from the inclusion of inherited indexes.
@@ -284,9 +284,9 @@ class DDLTriggerCreateTable(ddl.DDLTrigger, tables.CreateTableDDLTriggerMixin,
     operations = tables.CreateTable,
 
     @classmethod
-    def after(cls, context, op):
-        return cls.apply_inheritance(context, op, cls.get_inherited_indexes,
-                                     CreateIndex)
+    async def after(cls, context, op):
+        return await cls.apply_inheritance(
+            context, op, cls.get_inherited_indexes, CreateIndex)
 
 
 class DDLTriggerAlterTable(ddl.DDLTrigger, tables.AlterTableDDLTriggerMixin,
@@ -294,21 +294,21 @@ class DDLTriggerAlterTable(ddl.DDLTrigger, tables.AlterTableDDLTriggerMixin,
     operations = tables.AlterTable,
 
     @classmethod
-    def after(cls, context, op):
-        return cls.apply_inheritance(context, op, cls.get_inherited_indexes,
-                                     CreateIndex, DropIndex)
+    async def after(cls, context, op):
+        return await cls.apply_inheritance(
+            context, op, cls.get_inherited_indexes, CreateIndex, DropIndex)
 
 
 class DDLTriggerAlterTableRename(ddl.DDLTrigger, DDLTriggerBase):
     operations = tables.AlterTableRenameTo,
 
     @classmethod
-    def after(cls, context, op):
+    async def after(cls, context, op):
         ti = introspection.tables.TableIndexes(context.db)
 
-        idx_records = ti.fetch(table_list=[op.name[0] + '.' + op.new_name],
-                               inheritable_only=True,
-                               include_inherited=True)
+        idx_records = await ti.fetch(
+            table_list=[op.name[0] + '.' + op.new_name], inheritable_only=True,
+            include_inherited=True)
 
         ops = []
         for row in idx_records:

@@ -25,8 +25,8 @@ def pack_name(name, prefix_length=0):
 
 @markup.serializer.serializer(method='as_markup')
 class BaseCommand:
-    def get_code_and_vars(self, context):
-        code = self.code(context)
+    async def get_code_and_vars(self, context):
+        code = await self.code(context)
         assert code is not None
         if isinstance(code, tuple):
             code, vars = code
@@ -36,11 +36,11 @@ class BaseCommand:
         return code, vars
 
     @debug
-    def execute(self, context):
-        code, vars = self.get_code_and_vars(context)
+    async def execute(self, context):
+        code, vars = await self.get_code_and_vars(context)
 
         if code:
-            extra = self.extra(context)
+            extra = await self.extra(context)
             extra_before = extra_after = None
 
             if isinstance(extra, dict):
@@ -51,20 +51,21 @@ class BaseCommand:
 
             if extra_before:
                 for cmd in extra_before:
-                    cmd.execute(context)
+                    await cmd.execute(context)
 
-            """LOG [caos.delta.execute] Sync command code:
+            """LOG [edgedb.delta.execute] Sync command code:
             print(code, vars)
             """
 
-            """LINE [caos.delta.execute] EXECUTING
+            """LINE [edgedb.delta.execute] EXECUTING
             repr(self)
             """
-            result = context.db.prepare(code)(*vars)
+            stmt = await context.db.prepare(code)
+            result = await stmt.get_list(*vars)
 
             if extra_after:
                 for cmd in extra_after:
-                    cmd.execute(context)
+                    await cmd.execute(context)
             return result
 
     @classmethod
@@ -74,10 +75,10 @@ class BaseCommand:
     def dump(self):
         return str(self)
 
-    def code(self, context):
+    async def code(self, context):
         return ''
 
-    def extra(self, context, *args, **kwargs):
+    async def extra(self, context, *args, **kwargs):
         return None
 
 
@@ -88,18 +89,18 @@ class Command(BaseCommand):
         self.neg_conditions = neg_conditions or set()
         self.priority = priority
 
-    def execute(self, context):
-        ok = self.check_conditions(context, self.conditions, True) and \
-             self.check_conditions(context, self.neg_conditions, False)
+    async def execute(self, context):
+        ok = await self.check_conditions(context, self.conditions, True) and \
+             await self.check_conditions(context, self.neg_conditions, False)
 
         result = None
         if ok:
-            code, vars = self.get_code_and_vars(context)
-            result = self.execute_code(context, code, vars)
+            code, vars = await self.get_code_and_vars(context)
+            result = await self.execute_code(context, code, vars)
         return result
 
-    def get_extra_commands(self, context):
-        extra = self.extra(context)
+    async def get_extra_commands(self, context):
+        extra = await self.extra(context)
         extra_before = extra_after = None
 
         if isinstance(extra, dict):
@@ -111,49 +112,50 @@ class Command(BaseCommand):
         return extra_before, extra_after
 
     @debug
-    def execute_code(self, context, code, vars):
-        extra_before, extra_after = self.get_extra_commands(context)
+    async def execute_code(self, context, code, vars):
+        extra_before, extra_after = await self.get_extra_commands(context)
 
         if extra_before:
             for cmd in extra_before:
-                cmd.execute(context)
+                await cmd.execute(context)
 
-        """LOG [caos.delta.execute] Sync command code:
+        """LOG [edgedb.delta.execute] Sync command code:
         print(code, vars)
         """
 
-        """LINE [caos.delta.execute] EXECUTING
+        """LINE [edgedb.delta.execute] EXECUTING
         repr(self)
         """
 
-        result = self._execute(context, code, vars)
+        result = await self._execute(context, code, vars)
 
-        """LINE [caos.delta.execute] EXECUTION RESULT
+        """LINE [edgedb.delta.execute] EXECUTION RESULT
         repr(result)
         """
 
         if extra_after:
             for cmd in extra_after:
-                cmd.execute(context)
+                await cmd.execute(context)
 
         return result
 
-    def _execute(self, context, code, vars):
-        if vars is not None:
-            result = context.db.prepare(code)(*vars)
-        else:
-            result = context.db.execute(code)
+    async def _execute(self, context, code, vars):
+        stmt = await context.db.prepare(code)
 
+        if vars is None:
+            vars = []
+
+        result = await stmt.get_list(*vars)
         return result
 
     @debug
-    def check_conditions(self, context, conditions, positive):
+    async def check_conditions(self, context, conditions, positive):
         result = True
         if conditions:
             for condition in conditions:
-                result = condition.execute(context)
+                result = await condition.execute(context)
 
-                """LOG [caos.delta.execute] Sync command condition result:
+                """LOG [edgedb.delta.execute] Sync command condition result:
                 print('actual:', bool(result), 'expected:', positive)
                 """
 
@@ -177,16 +179,21 @@ class CommandGroup(Command):
     def add_commands(self, cmds):
         self.commands.extend(cmds)
 
-    def _execute(self, context, code, vars):
+    async def _execute(self, context, code, vars):
         if code:
-            result = super()._execute(context, code, vars)
+            result = await super()._execute(context, code, vars)
         else:
-            result = self.execute_commands(context)
+            result = await self.execute_commands(context)
 
         return result
 
-    def execute_commands(self, context):
-        return [c.execute(context) for c in self.commands]
+    async def execute_commands(self, context):
+        result = []
+
+        for c in self.commands:
+            result.append(await c.execute(context))
+
+        return result
 
     def get_code(self, context):
         return None
@@ -211,10 +218,10 @@ class CommandGroup(Command):
 
 
 class CompositeCommandGroup(CommandGroup):
-    def code(self, context):
+    async def code(self, context):
         if self.commands:
             prefix_code = self.prefix_code(context)
-            subcommands_code = self.subcommands_code(context)
+            subcommands_code = await self.subcommands_code(context)
 
             if subcommands_code:
                 return prefix_code + ' ' + subcommands_code
@@ -223,34 +230,36 @@ class CompositeCommandGroup(CommandGroup):
     def prefix_code(self):
         return ''
 
-    def subcommands_code(self, context):
+    async def subcommands_code(self, context):
         cmds = []
         for cmd in self.commands:
             if isinstance(cmd, tuple):
                 cond = True
                 if cmd[1]:
-                    cond = cond and self.check_conditions(context, cmd[1], True)
+                    cond = cond and await \
+                        self.check_conditions(context, cmd[1], True)
                 if cmd[2]:
-                    cond = cond and self.check_conditions(context, cmd[2], False)
+                    cond = cond and await \
+                        self.check_conditions(context, cmd[2], False)
                 if cond:
-                    cmds.append(cmd[0].code(context))
+                    cmds.append(await cmd[0].code(context))
             else:
-                cmds.append(cmd.code(context))
+                cmds.append(await cmd.code(context))
         if cmds:
             return ', '.join(cmds)
         else:
             return False
 
-    def execute_commands(self, context):
+    async def execute_commands(self, context):
         # Sub-commands are always executed as part of code()
         return None
 
-    def extra(self, context):
+    async def extra(self, context):
         extra = {}
         for cmd in self.commands:
             if isinstance(cmd, tuple):
                 cmd = cmd[0]
-            cmd_extra = cmd.extra(context, self)
+            cmd_extra = await cmd.extra(context, self)
             if cmd_extra:
                 if isinstance(cmd_extra, dict):
                     extra_before = cmd_extra.get('before')
@@ -275,14 +284,15 @@ class CompositeCommandGroup(CommandGroup):
 
 
 class Condition(BaseCommand):
-    def execute(self, context):
-        code, vars = self.get_code_and_vars(context)
+    async def execute(self, context):
+        code, vars = await self.get_code_and_vars(context)
 
-        """LOG [caos.delta.execute] Sync command condition:
+        """LOG [edgedb.delta.execute] Sync command condition:
         print(code, vars)
         """
 
-        return context.db.prepare(code)(*vars)
+        stmt = await context.db.prepare(code)
+        return await stmt.get_list(*vars)
 
 
 class Echo(Command):
@@ -290,10 +300,10 @@ class Echo(Command):
         super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
         self._msg = msg
 
-    def code(self, context):
+    async def code(self, context):
         return None, ()
 
-    def execute_code(self, context, code, vars):
+    async def execute_code(self, context, code, vars):
         print(self._msg)
 
 
@@ -304,7 +314,7 @@ class Query(Command):
         self.params = params
         self.type = type
 
-    def code(self, context):
+    async def code(self, context):
         return self.text, self.params
 
 

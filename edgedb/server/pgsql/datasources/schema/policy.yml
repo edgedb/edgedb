@@ -23,7 +23,7 @@ source: |
             a.title        AS title,
             a.description  AS description
         FROM
-            caos.action a
+            edgedb.action a
         WHERE
             %(name)s::text IS NULL OR a.name LIKE %(name)s::text
 ...
@@ -47,7 +47,7 @@ source: |
             e.title        AS title,
             e.description  AS description
         FROM
-            caos.event e
+            edgedb.event e
         WHERE
             %(name)s::text IS NULL OR e.name LIKE %(name)s::text
 ...
@@ -74,14 +74,14 @@ source: |
             (SELECT
                 array_agg(a.name)
              FROM
-                caos.action a
+                edgedb.action a
              WHERE
                 a.id = any(p.actions)
             )              AS actions
         FROM
-            caos.policy p
-            INNER JOIN caos.metaobject o ON o.id = p.subject
-            INNER JOIN caos.event e ON e.id = p.event
+            edgedb.policy p
+            INNER JOIN edgedb.metaobject o ON o.id = p.subject
+            INNER JOIN edgedb.event e ON e.id = p.event
         WHERE
             %(name)s::text IS NULL OR p.name LIKE %(name)s::text
 ...

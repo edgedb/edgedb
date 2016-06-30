@@ -12,6 +12,7 @@ from edgedb.lang.caosql import ast as qlast
 
 from . import atoms
 from . import constraints
+from . import database as s_db
 from . import delta as sd
 from edgedb.lang.common import enum
 from . import indexes
@@ -22,7 +23,6 @@ from . import named
 from . import objects as so
 from . import pointers
 from . import policy
-from . import realm
 from . import sources
 
 
@@ -203,13 +203,13 @@ class CreateLink(LinkCommand, named.CreateNamedPrototype):
                     )
                 ))
 
-                alter_realm_ctx = context.get(realm.RealmCommandContext)
+                alter_db_ctx = context.get(s_db.DatabaseCommandContext)
 
-                for cc in alter_realm_ctx.op(concepts.CreateConcept):
+                for cc in alter_db_ctx.op(concepts.CreateConcept):
                     if cc.prototype_name == create_virt_parent.prototype_name:
                         break
                 else:
-                    alter_realm_ctx.op.add(create_virt_parent)
+                    alter_db_ctx.op.add(create_virt_parent)
             else:
                 target = so.PrototypeRef(
                     prototype_name=sn.Name(
@@ -515,13 +515,13 @@ class AlterTarget(sd.Command):
                 )
             ))
 
-            alter_realm_ctx = context.get(realm.RealmCommandContext)
+            alter_db_ctx = context.get(s_db.DatabaseCommandContext)
 
-            for cc in alter_realm_ctx.op(concepts.CreateConcept):
+            for cc in alter_db_ctx.op(concepts.CreateConcept):
                 if cc.prototype_name == create_virt_parent.prototype_name:
                     break
             else:
-                alter_realm_ctx.op.add(create_virt_parent)
+                alter_db_ctx.op.add(create_virt_parent)
         else:
             target = so.PrototypeRef(
                 prototype_name=sn.Name(

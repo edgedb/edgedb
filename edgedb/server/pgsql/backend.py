@@ -17,10 +17,10 @@ import pickle
 import re
 import uuid
 
-import postgresql
-import postgresql.copyman
-
 from importkit.import_ import get_object
+
+import asyncpg
+
 from edgedb.lang.common.algos import topological
 from edgedb.lang.common.debug import debug
 from edgedb.lang.common.nlang import morphology
@@ -55,7 +55,6 @@ from edgedb.server.pgsql import common
 from edgedb.server.pgsql import dbops
 from edgedb.server.pgsql import delta as delta_cmds
 from edgedb.server.pgsql import deltadbops
-from edgedb.server.pgsql import driver
 
 from . import datasources
 from .datasources import introspection
@@ -67,8 +66,6 @@ from . import astexpr
 from . import parser
 from . import types
 from . import transformer
-from . import pool
-from . import session
 from . import schemamech
 from . import deltarepo as pgsql_deltarepo
 
@@ -129,15 +126,15 @@ class Cursor:
 
 class Query(backend_query.Query):
     def __init__(self, chunks, arg_index, argmap, result_types, argument_types,
-                 context_vars, scrolling_cursor=False, offset=None, limit=None, query_type=None,
-                 record_info=None, output_format=None):
+                 context_vars, scrolling_cursor=False, offset=None, limit=None,
+                 query_type=None, record_info=None, output_format=None):
         self.chunks = chunks
         self.text = ''.join(chunks)
         self.argmap = argmap
         self.arg_index = arg_index
         self.result_types = result_types
-        self.argument_types = collections.OrderedDict((k, argument_types[k]) for k in argmap
-                                                      if k in argument_types)
+        self.argument_types = collections.OrderedDict(
+            (k, argument_types[k]) for k in argmap if k in argument_types)
         self.context_vars = context_vars
 
         self.scrolling_cursor = scrolling_cursor
@@ -164,7 +161,7 @@ class Query(backend_query.Query):
 
     def get_output_format_info(self):
         if self.output_format == 'json':
-            return driver.JSON_OUTPUT_FORMAT
+            return ('json', 1)
         else:
             return ('caosobj', 1)
 
@@ -198,16 +195,17 @@ class PreparedQuery:
             for record in query.record_info:
                 session.backend._register_record_info(record)
 
-        # PreparedStatement.rows() is a streaming iterator that uses scrolling cursor
-        # internally to stream data from the database.  Since PostgreSQL only allows DECLARE
-        # with SELECT or VALUES, but not UPDATE ... RETURNING or DELETE ... RETURNING, we
-        # must use a single transaction fetch, that does not use cursors, for non-SELECT
-        # queries.
+        # PreparedStatement.rows() is a streaming iterator that uses scrolling
+        # cursor internally to stream data from the database.  Since PostgreSQL
+        # only allows DECLARE with SELECT or VALUES, but not UPDATE ...
+        # RETURNING or DELETE ... RETURNING, we must use a single transaction
+        # fetch, that does not use cursors, for non-SELECT queries.
         if issubclass(self.query.query_type, pg_ast.SelectQueryNode):
             self._native_iter = self.statement.rows
         else:
             if self.query.scrolling_cursor:
-                raise edgedb_error.EdgeDBError('cannot create scrolling cursor for non-SELECT query')
+                raise edgedb_error.EdgeDBError(
+                    'cannot create scrolling cursor for non-SELECT query')
 
             self._native_iter = self.statement
 
@@ -245,7 +243,7 @@ class PreparedQuery:
             else:
                 return self._native_iter(*vars)
 
-        except postgresql.exceptions.Error as e:
+        except asyncpg.PostgresError as e:
             raise ErrorMech._interpret_db_error(
                 self._session, self._constr_mech, e) from e
 
@@ -309,7 +307,7 @@ class PreparedQuery:
 
 class ErrorMech:
     error_res = {
-        postgresql.exceptions.ICVError: collections.OrderedDict((
+        asyncpg.IntegrityConstraintViolationError: collections.OrderedDict((
             ('link_mapping',
              re.compile(r'^.*"(?P<constr_name>.*_link_mapping_idx)".*$')),
             ('constraint',
@@ -321,7 +319,7 @@ class ErrorMech:
 
     @classmethod
     def _interpret_db_error(cls, session, constr_mech, err):
-        if isinstance(err, postgresql.exceptions.ICVError):
+        if isinstance(err, asyncpg.ICVError):
             connection = session.get_connection()
             proto_schema = session.proto_schema
             source = pointer = None
@@ -403,8 +401,8 @@ class CaosQLAdapter:
         self.transformer = IRCompiler()
         self.current_portal = None
 
-    def transform(self, query, scrolling_cursor=False, context=None, *, proto_schema,
-                                                                        output_format=None):
+    def transform(self, query, scrolling_cursor=False, context=None, *,
+                  proto_schema, output_format=None):
         if scrolling_cursor:
             offset = query.offset
             limit = query.limit
@@ -416,9 +414,9 @@ class CaosQLAdapter:
             query.limit = None
 
         qchunks, argmap, arg_index, query_type, record_info = \
-                                        self.transformer.transform(query, self.session.backend,
-                                                                   self.session.proto_schema,
-                                                                   output_format=output_format)
+            self.transformer.transform(query, self.session.backend,
+                                       self.session.proto_schema,
+                                       output_format=output_format)
 
         if scrolling_cursor:
             query.offset = offset
@@ -441,15 +439,18 @@ class CaosQLAdapter:
         for k, v in query.argument_types.items():
             if v is not None: # XXX get_expr_type
                 if isinstance(v, tuple):
-                    name = 'type' if isinstance(v[1], s_obj.PrototypeClass) else v[1].name
+                    name = 'type' if isinstance(v[1], s_obj.PrototypeClass) \
+                            else v[1].name
                     argtypes[k] = (v[0], name)
                 else:
-                    name = 'type' if isinstance(v, s_obj.PrototypeClass) else v.name
+                    name = 'type' if isinstance(v, s_obj.PrototypeClass) \
+                           else v.name
                     argtypes[k] = name
             else:
                 argtypes[k] = v
 
-        return Query(chunks=qchunks, arg_index=arg_index, argmap=argmap, result_types=restypes,
+        return Query(chunks=qchunks, arg_index=arg_index, argmap=argmap,
+                     result_types=restypes,
                      argument_types=argtypes, context_vars=query.context_vars,
                      scrolling_cursor=scrolling_cursor,
                      offset=offset, limit=limit, query_type=query_type,
@@ -458,8 +459,9 @@ class CaosQLAdapter:
 
 class Backend(s_deltarepo.DeltaProvider):
 
-    typlen_re = re.compile(r"(?P<type>.*) \( (?P<length>\d+ (?:\s*,\s*(\d+))*) \)$",
-                           re.X)
+    typlen_re = re.compile(r"""
+        (?P<type>.*) \( (?P<length>\d+ (?:\s*,\s*(\d+))*) \)$
+    """, re.X)
 
     search_idx_name_re = re.compile(r"""
         .*_(?P<language>\w+)_(?P<index_class>\w+)_search_idx$
@@ -470,18 +472,12 @@ class Backend(s_deltarepo.DeltaProvider):
     link_target_colname = common.quote_ident(
                                 common.caos_name_to_pg_name('std.target'))
 
-    def __init__(self, connection_uri):
-        connector = driver.connector(connection_uri)
-        async_connector = driver.connector(connection_uri, async=True)
-
+    def __init__(self, connection):
         self.features = None
         self.backend_info = None
         self.modules = None
 
         self.schema = so.ProtoSchema()
-
-        self.connection_pool = pool.ConnectionPool(connector, backend=self)
-        self.async_connection_pool = pool.ConnectionPool(async_connector, backend=self)
 
         self._constr_mech = schemamech.ConstraintMech()
         self._type_mech = schemamech.TypeMech()
@@ -502,11 +498,9 @@ class Backend(s_deltarepo.DeltaProvider):
         self.type_expr = astexpr.TypeExpr()
         self.constant_expr = None
 
-        self.connection = connector(pool=self.connection_pool)
-        self.connection.connect()
+        self.connection = connection
 
         repo = pgsql_deltarepo.MetaDeltaRepository(self.connection)
-        self._init_introspection_cache()
         super().__init__(repo)
 
     def get_constr_mech(self):
@@ -518,14 +512,18 @@ class Backend(s_deltarepo.DeltaProvider):
         if self.backend_info is None:
             self.backend_info = self.read_backend_info()
 
-        if self.backend_info['format_version'] < delta_cmds.BACKEND_FORMAT_VERSION:
+        bver = self.backend_info['format_version']
+
+        if bver < delta_cmds.BACKEND_FORMAT_VERSION:
             need_upgrade = True
             self.upgrade_backend(connection)
 
-        elif self.backend_info['format_version'] > delta_cmds.BACKEND_FORMAT_VERSION:
-            msg = 'unsupported backend format version: %d' % self.backend_info['format_version']
-            details = 'The largest supported backend format version is %d' \
-                        % delta_cmds.BACKEND_FORMAT_VERSION
+        elif bver > delta_cmds.BACKEND_FORMAT_VERSION:
+            msg = 'unsupported backend format version: {:d}'.format(
+                self.backend_info['format_version'])
+            details = 'The largest supported backend ' \
+                      'format version is {:d}'.format(
+                            delta_cmds.BACKEND_FORMAT_VERSION)
             raise s_err.SchemaError(msg, details=details)
 
         if need_upgrade:
@@ -536,64 +534,70 @@ class Backend(s_deltarepo.DeltaProvider):
         else:
             self._read_and_init_features(connection)
 
-
     def reset_connection(self, connection):
         for feature_class_name in self.features.values():
             feature_class = get_object(feature_class_name)
             feature_class.reset_connection(connection)
-
 
     def _read_and_init_features(self, connection):
         if self.features is None:
             self.features = self.read_features(connection)
         self.init_features(connection)
 
-
-    def _init_introspection_cache(self):
-        self.backend_info = self.read_backend_info()
+    async def _init_introspection_cache(self):
+        self.backend_info = await self.read_backend_info()
 
         if self.backend_info['initialized']:
-            self._type_mech.init_cache(self.connection)
-            self._constr_mech.init_cache(self.connection)
-            self.table_id_to_proto_name_cache, self.proto_name_to_table_id_cache = self._init_relid_cache()
-            self.domain_to_atom_map = self._init_atom_map_cache()
-            # Concept map needed early for type filtering operations in schema queries
-            self.get_concept_map(force_reload=True)
+            await self._type_mech.init_cache(self.connection)
+            await self._constr_mech.init_cache(self.connection)
+            t2pn, pn2t = await self._init_relid_cache()
+            self.table_id_to_proto_name_cache = t2pn
+            self.proto_name_to_table_id_cache = pn2t
+            self.domain_to_atom_map = await self._init_atom_map_cache()
+            # Concept map needed early for type filtering operations
+            # in schema queries
+            await self.get_concept_map(force_reload=True)
 
-
-    def _init_relid_cache(self):
-        link_tables = introspection.tables.TableList(self.connection).fetch(schema_name='caos%',
-                                                                            table_pattern='%_link')
+    async def _init_relid_cache(self):
+        ds = introspection.tables.TableList(self.connection)
+        link_tables = await ds.fetch(schema_name='edgedb%',
+                                     table_pattern='%_link')
         link_tables = {(t['schema'], t['name']): t for t in link_tables}
 
-        records = introspection.types.TypesList(self.connection).fetch(schema_name='caos%',
-                                                                       type_name='%_record',
-                                                                       include_arrays=False)
+        ds = introspection.types.TypesList(self.connection)
+        records = await ds.fetch(schema_name='edgedb%', type_name='%_record',
+                                 include_arrays=False)
         records = {(t['schema'], t['name']): t for t in records}
 
-        links_list = datasources.schema.links.ConceptLinks(self.connection).fetch()
-        links_list = collections.OrderedDict((sn.Name(r['name']), r) for r in links_list)
+        ds = datasources.schema.links.ConceptLinks(self.connection)
+        links_list = await ds.fetch()
+        links_list = collections.OrderedDict(
+                        (sn.Name(r['name']), r) for r in links_list)
 
         table_id_to_proto_name_cache = {}
         proto_name_to_table_id_cache = {}
 
         for link_name, link in links_list.items():
-            link_table_name = common.link_name_to_table_name(link_name, catenate=False)
+            link_table_name = common.link_name_to_table_name(
+                                link_name, catenate=False)
             t = link_tables.get(link_table_name)
             if t:
                 table_id_to_proto_name_cache[t['oid']] = link_name
                 table_id_to_proto_name_cache[t['typoid']] = link_name
                 proto_name_to_table_id_cache[link_name] = t['typoid']
 
-        tables = introspection.tables.TableList(self.connection).fetch(schema_name='caos%',
-                                                                       table_pattern='%_data')
+        ds = introspection.tables.TableList(self.connection)
+        tables = await ds.fetch(schema_name='edgedb%', table_pattern='%_data')
         tables = {(t['schema'], t['name']): t for t in tables}
 
-        concept_list = datasources.schema.concepts.ConceptList(self.connection).fetch()
-        concept_list = collections.OrderedDict((sn.Name(row['name']), row) for row in concept_list)
+        ds = datasources.schema.concepts.ConceptList(self.connection)
+        concept_list = await ds.fetch()
+        concept_list = collections.OrderedDict(
+            (sn.Name(row['name']), row) for row in concept_list)
 
         for name, row in concept_list.items():
-            table_name = common.concept_name_to_table_name(name, catenate=False)
+            table_name = common.concept_name_to_table_name(
+                            name, catenate=False)
             table = tables.get(table_name)
 
             if not table:
@@ -607,13 +611,17 @@ class Backend(s_deltarepo.DeltaProvider):
 
         return table_id_to_proto_name_cache, proto_name_to_table_id_cache
 
+    def table_name_to_object_name(self, table_name):
+        return self.table_cache.get(table_name)
 
-    def _init_atom_map_cache(self):
-        domains = introspection.domains.DomainsList(self.connection).fetch(schema_name='caos%',
-                                                                           domain_name='%_domain')
-        domains = {(d['schema'], d['name']): self.normalize_domain_descr(d) for d in domains}
+    async def _init_atom_map_cache(self):
+        ds = introspection.domains.DomainsList(self.connection)
+        domains = await ds.fetch(schema_name='edgedb%', domain_name='%_domain')
+        domains = {(d['schema'], d['name']): self.normalize_domain_descr(d)
+                   for d in domains}
 
-        atom_list = datasources.schema.atoms.AtomList(self.connection).fetch()
+        ds = datasources.schema.atoms.AtomList(self.connection)
+        atom_list = await ds.fetch()
 
         domain_to_atom_map = {}
 
@@ -627,64 +635,38 @@ class Backend(s_deltarepo.DeltaProvider):
 
         return domain_to_atom_map
 
-
-    def init_features(self, connection):
-        for feature_class_name in self.features.values():
-            feature_class = get_object(feature_class_name)
-            feature_class.init_feature(connection)
-
-
-    def upgrade_backend(self, connection):
+    async def upgrade_backend(self, connection):
         with self.connection.xact():
             context = delta_cmds.CommandContext(connection)
             upgrade = delta_cmds.UpgradeBackend(self.backend_info)
-            upgrade.execute(context)
+            await upgrade.execute(context)
             self.backend_info = self.read_backend_info()
 
-
-    def get_session_pool(self, realm, async=False):
-        if async:
-            return session.AsyncSessionPool(self, realm)
-        else:
-            return session.SessionPool(self, realm)
-
-
-    def free_resources(self):
-        self.parser.cleanup()
-        import gc
-        gc.collect()
-
-
-    def getschema(self):
+    async def getschema(self):
         if not self.schema.modules:
-            if self.backend_info['initialized']:
-                self._init_introspection_cache()
+            await self._init_introspection_cache()
+            await self.read_modules(self.schema)
+            await self.read_attributes(self.schema)
+            await self.read_actions(self.schema)
+            await self.read_events(self.schema)
+            await self.read_atoms(self.schema)
+            await self.read_concepts(self.schema)
+            await self.read_links(self.schema)
+            await self.read_link_properties(self.schema)
+            await self.read_policies(self.schema)
+            await self.read_attribute_values(self.schema)
+            await self.read_constraints(self.schema)
 
-                self.read_modules(self.schema)
-                self.read_attributes(self.schema)
-                self.read_actions(self.schema)
-                self.read_events(self.schema)
-                self.read_atoms(self.schema)
-                self.read_concepts(self.schema)
-                self.read_links(self.schema)
-                self.read_link_properties(self.schema)
-                self.read_policies(self.schema)
-                self.read_attribute_values(self.schema)
-                self.read_constraints(self.schema)
-
-                self.order_attributes(self.schema)
-                self.order_actions(self.schema)
-                self.order_events(self.schema)
-                self.order_atoms(self.schema)
-                self.order_link_properties(self.schema)
-                self.order_links(self.schema)
-                self.order_concepts(self.schema)
-                self.order_policies(self.schema)
-
-                self.free_resources()
+            await self.order_attributes(self.schema)
+            await self.order_actions(self.schema)
+            await self.order_events(self.schema)
+            await self.order_atoms(self.schema)
+            await self.order_link_properties(self.schema)
+            await self.order_links(self.schema)
+            await self.order_concepts(self.schema)
+            await self.order_policies(self.schema)
 
         return self.schema
-
 
     def adapt_delta(self, delta):
         return delta_cmds.CommandMeta.adapt(delta)
@@ -703,11 +685,22 @@ class Backend(s_deltarepo.DeltaProvider):
         """
         return delta
 
+    async def run_delta_command(self, delta):
+        proto_schema = await self.getschema()
 
-    def execute_delta_plan(self, plan, session=None):
-        connection = session.get_connection() if session else self.connection
-        plan.execute(delta_cmds.CommandContext(connection, session=session))
+        # Apply and adapt delta, build native delta plan
+        plan = self.process_delta(delta, proto_schema)
 
+        context = delta_cmds.CommandContext(self.connection, None)
+
+        try:
+            await plan.execute(context)
+        except Exception as e:
+            msg = 'failed to apply delta to data backend'
+            raise RuntimeError(msg) from e
+
+        await self.invalidate_schema_cache()
+        await self.getschema()
 
     @debug
     def apply_delta(self, delta, session, source_deltarepo):
@@ -810,7 +803,7 @@ class Backend(s_deltarepo.DeltaProvider):
                      comment=d.comment, deltas=[plan])
         raise sd.DeltaError(msg, delta=d) from e
 
-    def _update_repo(self, session, deltas):
+    async def _update_repo(self, session, deltas):
         table = deltadbops.DeltaLogTable()
         records = []
         for d in deltas:
@@ -823,7 +816,7 @@ class Backend(s_deltarepo.DeltaProvider):
             records.append(rec)
 
         context = delta_cmds.CommandContext(session.get_connection(), session)
-        dbops.Insert(table, records=records).execute(context)
+        await dbops.Insert(table, records=records).execute(context)
 
         table = deltadbops.DeltaRefTable()
         rec = table.record(
@@ -831,15 +824,13 @@ class Backend(s_deltarepo.DeltaProvider):
                 ref='HEAD'
               )
         condition = [('ref', str('HEAD'))]
-        dbops.Merge(table, record=rec, condition=condition).execute(context)
+        await dbops.Merge(table, record=rec, condition=condition).execute(context)
 
-
-    def invalidate_schema_cache(self):
+    async def invalidate_schema_cache(self):
         self.schema = so.ProtoSchema()
-        self.backend_info = self.read_backend_info()
-        self.features = self.read_features(self.connection)
+        self.backend_info = await self.read_backend_info()
+        self.features = await self.read_features(self.connection)
         self.invalidate_transient_cache()
-
 
     def invalidate_transient_cache(self):
         self._constr_mech.invalidate_schema_cache()
@@ -861,7 +852,7 @@ class Backend(s_deltarepo.DeltaProvider):
         query = '''SELECT c.name
                    FROM
                        %s AS e
-                       INNER JOIN caos.concept AS c ON c.id = e.concept_id
+                       INNER JOIN edgedb.concept AS c ON c.id = e.concept_id
                    WHERE e."std.id" = $1
                 ''' % (common.concept_name_to_table_name(concept))
         ps = session.get_prepared_statement(query)
@@ -947,39 +938,17 @@ class Backend(s_deltarepo.DeltaProvider):
 
         return [i[1] for i in toplevel]
 
-
-    def get_link_map(self, session):
-        if not self.link_cache:
-            cl_ds = datasources.schema.links.ConceptLinks(session.get_connection())
-
-            for row in cl_ds.fetch():
-                self.link_cache[row['name']] = row['id']
-
-        return self.link_cache
-
-
-    def get_link_property_map(self, session):
-        if not self.link_property_cache:
-            cl_ds = datasources.schema.links.LinkProperties(session.get_connection())
-
-            for row in cl_ds.fetch():
-                self.link_property_cache[row['name']] = row['id']
-
-        return self.link_property_cache
-
-
-    def get_concept_map(self, session=None, force_reload=False):
-        connection = session.get_connection() if session is not None else self.connection
+    async def get_concept_map(self, force_reload=False):
+        connection = self.connection
 
         if not self.concept_cache or force_reload:
             cl_ds = datasources.schema.concepts.ConceptList(connection)
 
-            for row in cl_ds.fetch():
+            for row in await cl_ds.fetch():
                 self.concept_cache[row['name']] = row['id']
                 self.concept_cache[row['id']] = sn.Name(row['name'])
 
         return self.concept_cache
-
 
     def get_concept_id(self, concept):
         concept_id = None
@@ -995,138 +964,168 @@ class Backend(s_deltarepo.DeltaProvider):
 
         return concept_id
 
-
     def source_name_from_relid(self, table_oid):
         return self.table_id_to_proto_name_cache.get(table_oid)
-
 
     def typrelid_for_source_name(self, source_name):
         return self.proto_name_to_table_id_cache.get(source_name)
 
+    def compile(self, query_ir, scrolling_cursor=False, context=None, *,
+                      output_format=None):
+        if scrolling_cursor:
+            offset = query_ir.offset
+            limit = query_ir.limit
+        else:
+            offset = limit = None
 
-    def caosqladapter(self, session):
-        return CaosQLAdapter(session)
+        if scrolling_cursor:
+            query_ir.offset = None
+            query_ir.limit = None
 
+        ir_compiler = IRCompiler()
 
-    def read_modules(self, schema):
-        schemas = introspection.schemas.SchemasList(self.connection).fetch(schema_name='caos%')
-        schemas = {s['name'] for s in schemas if not s['name'].startswith('caos_aux_')}
+        qchunks, argmap, arg_index, query_type, record_info = \
+            ir_compiler.transform(query_ir, self, self.schema,
+                                  output_format=output_format)
 
-        context = delta_cmds.CommandContext(self.connection)
-        cond = dbops.TableExists(name=('caos', 'module'))
-        module_index_exists = cond.execute(context)
+        if scrolling_cursor:
+            query_ir.offset = offset
+            query_ir.limit = limit
 
-        if 'caos' in schemas and module_index_exists:
-            modules = datasources.schema.modules.ModuleList(self.connection).fetch()
-            modules = {m['schema_name']: {'name': m['name'], 'imports': m['imports']}
-                       for m in modules}
+        restypes = {}
 
-            recorded_schemas = set(modules.keys())
+        for k, v in query_ir.result_types.items():
+            if v[0] is not None:  # XXX get_expr_type
+                if isinstance(v[0], tuple):
+                    typ = (v[0][0], v[0][1].name)
+                else:
+                    typ = v[0].name
+                restypes[k] = (typ, v[1])
+            else:
+                restypes[k] = v
 
-            # Sanity checks
-            extra_schemas = schemas - recorded_schemas - {'caos'}
-            missing_schemas = recorded_schemas - schemas
+        argtypes = {}
 
-            if extra_schemas:
-                msg = 'internal metadata incosistency'
-                details = 'Extraneous data schemas exist: %s' \
-                            % (', '.join('"%s"' % s for s in extra_schemas))
-                raise s_err.SchemaError(msg, details=details)
+        for k, v in query_ir.argument_types.items():
+            if v is not None:  # XXX get_expr_type
+                if isinstance(v, tuple):
+                    name = 'type' if isinstance(v[1], s_obj.PrototypeClass) \
+                            else v[1].name
+                    argtypes[k] = (v[0], name)
+                else:
+                    name = 'type' if isinstance(v, s_obj.PrototypeClass) \
+                           else v.name
+                    argtypes[k] = name
+            else:
+                argtypes[k] = v
 
-            if missing_schemas:
-                msg = 'internal metadata incosistency'
-                details = 'Missing schemas for modules: %s' \
-                            % (', '.join('"%s"' % s for s in extra_schemas))
-                raise s_err.SchemaError(msg, details=details)
+        return Query(chunks=qchunks, arg_index=arg_index, argmap=argmap,
+                     result_types=restypes,
+                     argument_types=argtypes,
+                     context_vars=query_ir.context_vars,
+                     scrolling_cursor=scrolling_cursor,
+                     offset=offset, limit=limit, query_type=query_type,
+                     record_info=record_info, output_format=output_format)
 
-            mods = []
+    async def read_modules(self, schema):
+        ds = introspection.schemas.SchemasList(self.connection)
+        schemas = await ds.fetch(schema_name='edgedb%')
+        schemas = {s['name'] for s in schemas
+                             if not s['name'].startswith('caos_aux_')}
 
-            for module in modules.values():
-                mod = s_mod.ProtoModule(
-                        name=module['name'],
-                        imports=frozenset(module['imports'] or ()))
-                self.schema.add_module(mod)
-                mods.append(mod)
+        ds = datasources.schema.modules.ModuleList(self.connection)
+        modules = await ds.fetch()
+        modules = {m['schema_name']:
+                        {'name': m['name'], 'imports': m['imports']}
+                   for m in modules}
 
-            for mod in mods:
-                for imp_name in mod.imports:
-                    if not self.schema.has_module(imp_name):
-                        # Must be a foreign module, import it directly
-                        try:
-                            impmod = importlib.import_module(imp_name)
-                        except ImportError:
-                            # Module has moved, create a dummy
-                            impmod = so.DummyModule(imp_name)
+        recorded_schemas = set(modules.keys())
 
-                        self.schema.add_module(impmod)
+        # Sanity checks
+        extra_schemas = schemas - recorded_schemas - {'edgedb'}
+        missing_schemas = recorded_schemas - schemas
 
+        if extra_schemas:
+            msg = 'internal metadata incosistency'
+            details = 'Extraneous data schemas exist: %s' \
+                        % (', '.join('"%s"' % s for s in extra_schemas))
+            raise s_err.SchemaError(msg, details=details)
 
-    def read_features(self, connection):
+        if missing_schemas:
+            msg = 'internal metadata incosistency'
+            details = 'Missing schemas for modules: %s' \
+                        % (', '.join('"%s"' % s for s in extra_schemas))
+            raise s_err.SchemaError(msg, details=details)
+
+        mods = []
+
+        for module in modules.values():
+            mod = s_mod.ProtoModule(
+                    name=module['name'],
+                    imports=frozenset(module['imports'] or ()))
+            self.schema.add_module(mod)
+            mods.append(mod)
+
+        for mod in mods:
+            for imp_name in mod.imports:
+                if not self.schema.has_module(imp_name):
+                    # Must be a foreign module, import it directly
+                    try:
+                        impmod = importlib.import_module(imp_name)
+                    except ImportError:
+                        # Module has moved, create a dummy
+                        impmod = so.DummyModule(imp_name)
+
+                    self.schema.add_module(impmod)
+
+    async def read_features(self, connection):
         try:
-            features = datasources.schema.features.FeatureList(connection).fetch()
+            ds = datasources.schema.features.FeatureList(connection)
+            features = await ds.fetch()
             return {f['name']: f['class_name'] for f in features}
-        except (postgresql.exceptions.SchemaNameError, postgresql.exceptions.UndefinedTableError):
+        except (asyncpg.SchemaNameError, asyncpg.UndefinedTableError):
             return {}
 
+    async def read_backend_info(self):
+        ds = datasources.schema.backend_info.BackendInfo(self.connection)
+        info = await ds.fetch()
+        info = dict(info[0].items())
+        info['initialized'] = True
+        return info
 
-    def read_backend_info(self):
-        try:
-            info = datasources.schema.backend_info.BackendInfo(self.connection).fetch()[0]
-            info['initialized'] = True
-            return info
-        except (postgresql.exceptions.SchemaNameError, postgresql.exceptions.UndefinedTableError):
-            # Two possibilities: either this is a fresh empty db, or it's ancient
-            # enough not to have backend metainformation.
-            #
-            schemas_ds = datasources.introspection.schemas.SchemasList(self.connection)
-            caos_schema = schemas_ds.fetch(schema_name='caos')
-            if caos_schema:
-                # Ancient db
-                return {
-                    'format_version': 0,
-                    'initialized': True,
-                }
-            else:
-                # Empty db
-                return {
-                    'format_version': delta_cmds.BACKEND_FORMAT_VERSION,
-                    'initialized': False,
-                }
+    async def read_atoms(self, schema):
+        ds = introspection.domains.DomainsList(self.connection)
+        domains = await ds.fetch(schema_name='edgedb%', domain_name='%_domain')
+        domains = {(d['schema'], d['name']): self.normalize_domain_descr(d)
+                   for d in domains}
 
-
-    def read_atoms(self, schema):
-        domains = introspection.domains.DomainsList(self.connection).fetch(schema_name='caos%',
-                                                                           domain_name='%_domain')
-        domains = {(d['schema'], d['name']): self.normalize_domain_descr(d) for d in domains}
-
-        seqs = introspection.sequences.SequencesList(self.connection).fetch(
-                                                schema_name='caos%', sequence_pattern='%_sequence')
+        ds = introspection.sequences.SequencesList(self.connection)
+        seqs = await ds.fetch(schema_name='edgedb%',
+                              sequence_pattern='%_sequence')
         seqs = {(s['schema'], s['name']): s for s in seqs}
 
         seen_seqs = set()
 
-        atom_list = datasources.schema.atoms.AtomList(self.connection).fetch()
+        ds = datasources.schema.atoms.AtomList(self.connection)
+        atom_list = await ds.fetch()
 
         basemap = {}
 
         for row in atom_list:
             name = sn.Name(row['name'])
 
-            atom_data = {'name': name,
-                         'title': self.hstore_to_word_combination(row['title']),
-                         'description': row['description'],
-                         'is_abstract': row['is_abstract'],
-                         'is_final': row['is_final'],
-                         'base': row['base'],
-                         'default': row['default'],
-                         'attributes': row['attributes'] or {}
-                         }
+            atom_data = {
+                'name': name,
+                'title': self.hstore_to_word_combination(row['title']),
+                'description': row['description'],
+                'is_abstract': row['is_abstract'],
+                'is_final': row['is_final'],
+                'base': row['base'],
+                'default': row['default'],
+                'attributes': row['attributes'] or {}
+            }
 
             self.atom_cache[name] = atom_data
-
-            domain_name = common.atom_name_to_domain_name(name, catenate=False)
-            domain = domains.get(domain_name)
-
             atom_data['default'] = self.unpack_default(row['default'])
 
             if atom_data['base']:
@@ -1150,13 +1149,15 @@ class Backend(s_deltarepo.DeltaProvider):
             else:
                 atom.bases = [schema.get(sn.Name(basename))]
 
-        sequence = schema.get('std.sequence')
+        sequence = schema.get('std.sequence', None)
         for atom in schema('atom'):
-            if atom.issubclass(sequence):
-                seq_name = common.atom_name_to_sequence_name(atom.name, catenate=False)
+            if sequence is not None and atom.issubclass(sequence):
+                seq_name = common.atom_name_to_sequence_name(
+                                atom.name, catenate=False)
                 if seq_name not in seqs:
                     msg = 'internal metadata incosistency'
-                    details = 'Missing sequence for sequence atom "%s"' % atom.name
+                    details = 'Missing sequence for sequence atom {!r}'.format(
+                        atom.name)
                     raise s_err.SchemaError(msg, details=details)
                 seen_seqs.add(seq_name)
 
@@ -1167,14 +1168,13 @@ class Backend(s_deltarepo.DeltaProvider):
                         % (', '.join(common.qname(*t) for t in extra_seqs))
             raise s_err.SchemaError(msg, details=details)
 
-
-    def order_atoms(self, schema):
+    async def order_atoms(self, schema):
         for atom in schema(type='atom'):
             atom.acquire_ancestor_inheritance(schema)
 
-
-    def read_constraints(self, schema):
-        constraints_list = datasources.schema.constraints.Constraints(self.connection).fetch()
+    async def read_constraints(self, schema):
+        ds = datasources.schema.constraints.Constraints(self.connection)
+        constraints_list = await ds.fetch()
         constraints_list = collections.OrderedDict((sn.Name(r['name']), r)
                                                     for r in constraints_list)
 
@@ -1197,13 +1197,15 @@ class Backend(s_deltarepo.DeltaProvider):
             basemap[name] = bases
 
             if r['paramtypes']:
-                paramtypes = {n: self.unpack_typeref(v, schema) for n, v in r['paramtypes'].items()}
+                paramtypes = {n: self.unpack_typeref(v, schema)
+                              for n, v in r['paramtypes'].items()}
             else:
                 paramtypes = None
 
             if r['inferredparamtypes']:
-                inferredparamtypes = {n: self.unpack_typeref(v, schema)
-                                      for n, v in r['inferredparamtypes'].items()}
+                inferredparamtypes = {
+                    n: self.unpack_typeref(v, schema)
+                    for n, v in r['inferredparamtypes'].items()}
             else:
                 inferredparamtypes = None
 
@@ -1242,10 +1244,8 @@ class Backend(s_deltarepo.DeltaProvider):
         for constraint in schema(type='constraint'):
             constraint.acquire_ancestor_inheritance(schema)
 
-
-    def order_constraints(self, schema):
+    async def order_constraints(self, schema):
         pass
-
 
     def unpack_typeref(self, typeref, protoschema):
         try:
@@ -1261,7 +1261,6 @@ class Backend(s_deltarepo.DeltaProvider):
 
         return type
 
-
     def unpack_default(self, value):
         result = []
         if value is not None:
@@ -1273,7 +1272,6 @@ class Backend(s_deltarepo.DeltaProvider):
                     item = val['value']
                 result.append(item)
         return result
-
 
     def interpret_search_index(self, index):
         m = self.search_idx_name_re.match(index.name)
@@ -1289,24 +1287,24 @@ class Backend(s_deltarepo.DeltaProvider):
 
         if columns is None:
             msg = 'could not interpret index {!r}'.format(str(index.name))
-            details = 'Could not match expression:\n{}'.format(markup.dumps(tree))
+            details = 'Could not match expression:\n{}'.format(
+                        markup.dumps(tree))
             hint = 'Take a look at the matching pattern and adjust'
             raise s_err.SchemaError(msg, details=details, hint=hint)
 
         return index_class, language, columns
-
 
     def interpret_search_indexes(self, table_name, indexes):
         for idx_data in indexes:
             index = dbops.Index.from_introspection(table_name, idx_data)
             yield self.interpret_search_index(index)
 
-
-    def read_search_indexes(self):
+    async def read_search_indexes(self):
         indexes = {}
-        index_ds = datasources.introspection.tables.TableIndexes(self.connection)
-        idx_data = index_ds.fetch(schema_pattern='caos%',
-                                  index_pattern='%_search_idx')
+        index_ds = datasources.introspection.tables.TableIndexes(
+            self.connection)
+        idx_data = await index_ds.fetch(schema_pattern='edgedb%',
+                                        index_pattern='%_search_idx')
 
         for row in idx_data:
             table_name = tuple(row['table_name'])
@@ -1322,7 +1320,6 @@ class Backend(s_deltarepo.DeltaProvider):
 
         return indexes
 
-
     def interpret_index(self, index):
         index_expression = index.expr
 
@@ -1332,17 +1329,17 @@ class Backend(s_deltarepo.DeltaProvider):
 
         return self.parser.parse(index_expression)
 
-
     def interpret_indexes(self, table_name, indexes):
-         for idx_data in indexes:
+        for idx_data in indexes:
             idx = dbops.Index.from_introspection(table_name, idx_data)
             yield idx, self.interpret_index(idx)
 
-    def read_indexes(self):
+    async def read_indexes(self):
         indexes = {}
-        index_ds = datasources.introspection.tables.TableIndexes(self.connection)
-        idx_data = index_ds.fetch(schema_pattern='caos%',
-                                  index_pattern='%_reg_idx')
+        index_ds = datasources.introspection.tables.TableIndexes(
+            self.connection)
+        idx_data = await index_ds.fetch(schema_pattern='edgedb%',
+                                        index_pattern='%_reg_idx')
 
         for row in idx_data:
             table_name = tuple(row['table_name'])
@@ -1350,7 +1347,6 @@ class Backend(s_deltarepo.DeltaProvider):
                                                              row['indexes']))
 
         return indexes
-
 
     def interpret_sql(self, expr, source=None):
         try:
@@ -1374,23 +1370,24 @@ class Backend(s_deltarepo.DeltaProvider):
 
         return result
 
-
-    def read_pointer_target_column(self, schema, pointer, constraints_cache):
+    async def read_pointer_target_column(self, schema, pointer,
+                                         constraints_cache):
         ptr_stor_info = types.get_pointer_storage_info(
                             pointer, schema=schema, resolve_type=False)
-        cols = self._type_mech.get_table_columns(ptr_stor_info.table_name,
-                                                 connection=self.connection)
+        cols = await self._type_mech.get_table_columns(
+            ptr_stor_info.table_name, connection=self.connection)
 
         col = cols.get(ptr_stor_info.column_name)
 
         if not col:
             msg = 'internal metadata inconsistency'
-            details = ('Record for "%s" hosted by "%s" exists, but corresponding table column '
-                       'is missing' % (pointer.normal_name(), pointer.source.name))
+            details = ('Record for {!r} hosted by {!r} exists, but ' +
+                       'the corresponding table column is missing').format(
+                            pointer.normal_name(), pointer.source.name)
             raise s_err.SchemaError(msg, details=details)
 
-        return self._get_pointer_column_target(schema, pointer.source, pointer.normal_name(), col)
-
+        return self._get_pointer_column_target(
+            schema, pointer.source, pointer.normal_name(), col)
 
     def _get_pointer_column_target(self, schema, source, pointer_name, col):
         if col['column_type_schema'] == 'pg_catalog':
@@ -1410,30 +1407,32 @@ class Backend(s_deltarepo.DeltaProvider):
 
         return target, col['column_required']
 
-
-    def _get_pointer_attribute_target(self, schema, source, pointer_name, attr):
+    def _get_pointer_attribute_target(self, schema, source,
+                                      pointer_name, attr):
         if attr['attribute_type_schema'] == 'pg_catalog':
             col_type_schema = common.caos_module_name_to_schema_name('std')
             col_type = attr['attribute_type_formatted']
         else:
             col_type_schema = attr['attribute_type_schema']
-            col_type = attr['attribute_type_formatted'] or attr['attribute_type']
+            col_type = attr['attribute_type_formatted'] or \
+                            attr['attribute_type']
 
         if attr['attribute_default'] is not None:
-            atom_default = self.interpret_sql(attr['attribute_default'], source)
+            atom_default = self.interpret_sql(
+                attr['attribute_default'], source)
         else:
             atom_default = None
 
         if attr['attribute_type_composite_id']:
             # composite record
-            source_name = self.source_name_from_relid(attr['attribute_type_composite_id'])
+            source_name = self.source_name_from_relid(
+                attr['attribute_type_composite_id'])
             target = schema.get(source_name)
         else:
             target = self.atom_from_pg_type(col_type, col_type_schema,
                                             atom_default, schema)
 
         return target, attr['attribute_required']
-
 
     def verify_ptr_const_defaults(self, schema, ptr, tab_default):
         schema_default = None
@@ -1453,8 +1452,8 @@ class Backend(s_deltarepo.DeltaProvider):
         if tab_default is None:
             if schema_default:
                 msg = 'internal metadata inconsistency'
-                details = ('Literal default for pointer "%s" is present in the schema, but not '
-                           'in the table') % ptr.name
+                details = ('Literal default for pointer {!r} is present in ' +
+                           'the schema, but not in the table').format(ptr.name)
                 raise s_err.SchemaError(msg, details=details)
             else:
                 return
@@ -1463,33 +1462,38 @@ class Backend(s_deltarepo.DeltaProvider):
 
         if tab_default is not None and not ptr.default:
             msg = 'internal metadata inconsistency'
-            details = ('Literal default for pointer "%s" is present in the table, but not '
-                       'in schema declaration') % ptr.name
+            details = ('Literal default for pointer {!r} is present in ' +
+                       'the table, but not in schema declaration').format(
+                            ptr.name)
             raise s_err.SchemaError(msg, details=details)
 
         if not isinstance(table_default, s_expr.ExpressionText):
             typ = ptr.target.get_topmost_base()
             typ_t = s_types.BaseTypeMeta.get_implementation(typ.name)
+            assert typ_t, 'missing implementation for {}'.format(typ.name)
             table_default = typ_t(table_default)
             schema_default = typ_t(schema_default)
 
         if schema_default != table_default:
             msg = 'internal metadata inconsistency'
-            details = ('Value mismatch in literal default pointer link "%s": %r in the '
-                       'table vs. %r in the schema') % (ptr.name, table_default, schema_default)
+            details = (
+                'Value mismatch in literal default pointer link ' +
+                '{!r}: {!r} in the table vs. {!r} in the schema'
+            ).format(ptr.name, table_default, schema_default)
             raise s_err.SchemaError(msg, details=details)
 
-
-    def read_links(self, schema):
-
-        link_tables = introspection.tables.TableList(self.connection).fetch(schema_name='caos%',
-                                                                            table_pattern='%_link')
+    async def read_links(self, schema):
+        ds = introspection.tables.TableList(self.connection)
+        link_tables = await ds.fetch(schema_name='edgedb%',
+                                     table_pattern='%_link')
         link_tables = {(t['schema'], t['name']): t for t in link_tables}
 
-        links_list = datasources.schema.links.ConceptLinks(self.connection).fetch()
-        links_list = collections.OrderedDict((sn.Name(r['name']), r) for r in links_list)
+        ds = datasources.schema.links.ConceptLinks(self.connection)
+        links_list = await ds.fetch()
+        links_list = collections.OrderedDict(
+            (sn.Name(r['name']), r) for r in links_list)
 
-        concept_indexes = self.read_search_indexes()
+        concept_indexes = await self.read_search_indexes()
         basemap = {}
 
         for name, r in links_list.items():
@@ -1512,37 +1516,45 @@ class Backend(s_deltarepo.DeltaProvider):
             else:
                 spectargets = None
 
-            r['default'] = self.unpack_default(r['default'])
+            default = self.unpack_default(r['default'])
 
             required = r['required']
 
-            loading = s_pointers.PointerLoading(r['loading']) if r['loading'] else None
+            if r['loading']:
+                loading = s_pointers.PointerLoading(r['loading'])
+            else:
+                loading = None
 
-            exposed_behaviour = s_pointers.PointerExposedBehaviour(r['exposed_behaviour']) \
-                                        if r['exposed_behaviour'] else None
+            if r['exposed_behaviour']:
+                exposed_behaviour = \
+                    s_pointers.PointerExposedBehaviour(r['exposed_behaviour'])
+            else:
+                exposed_behaviour = None
 
             basemap[name] = bases
 
-            link = s_links.Link(name=name, source=source, target=target,
-                              spectargets=spectargets,
-                              mapping=s_links.LinkMapping(r['mapping']),
-                              exposed_behaviour=exposed_behaviour,
-                              required=required,
-                              title=title, description=description,
-                              is_abstract=r['is_abstract'],
-                              is_final=r['is_final'],
-                              readonly=r['readonly'],
-                              loading=loading,
-                              default=r['default'])
+            link = s_links.Link(
+                name=name, source=source, target=target,
+                spectargets=spectargets,
+                mapping=s_links.LinkMapping(r['mapping']),
+                exposed_behaviour=exposed_behaviour,
+                required=required,
+                title=title, description=description,
+                is_abstract=r['is_abstract'],
+                is_final=r['is_final'],
+                readonly=r['readonly'],
+                loading=loading,
+                default=default)
 
             if spectargets:
-                # Multiple specified targets, target is a virtual derived object
+                # Multiple specified targets,
+                # target is a virtual derived object
                 target = link.create_common_target(schema, spectargets)
 
             link_search = None
 
             if isinstance(target, s_atoms.Atom):
-                target, required = self.read_pointer_target_column(
+                target, required = await self.read_pointer_target_column(
                                             schema, link, None)
 
                 concept_schema, concept_table = \
@@ -1579,9 +1591,8 @@ class Backend(s_deltarepo.DeltaProvider):
         for link in schema(type='link'):
             link.acquire_ancestor_inheritance(schema)
 
-
-    def order_links(self, schema):
-        indexes = self.read_indexes()
+    async def order_links(self, schema):
+        indexes = await self.read_indexes()
 
         sql_decompiler = transformer.Decompiler()
 
@@ -1610,25 +1621,29 @@ class Backend(s_deltarepo.DeltaProvider):
                                         index_sql, link)
                         caosql_tree = caosql.decompile_ir(
                                         caos_tree, return_statement=True)
-                        expr = caosql.generate_source(caosql_tree, pretty=False)
+                        expr = caosql.generate_source(caosql_tree,
+                                                      pretty=False)
                         schema_name = index.get_metadata('schemaname')
-                        index = s_indexes.SourceIndex(name=sn.Name(schema_name),
-                                                  subject=link, expr=expr)
+                        index = s_indexes.SourceIndex(
+                                    name=sn.Name(schema_name),
+                                    subject=link, expr=expr)
                         link.add_index(index)
                         schema.add(index)
             elif link.atomic():
                 ptr_stor_info = types.get_pointer_storage_info(
                                     link, schema=schema)
-                cols = self._type_mech.get_table_columns(ptr_stor_info.table_name,
-                                                         connection=self.connection)
+                cols = await self._type_mech.get_table_columns(
+                                ptr_stor_info.table_name,
+                                connection=self.connection)
                 col = cols[ptr_stor_info.column_name]
                 self.verify_ptr_const_defaults(
                     schema, link, col['column_default'])
 
-
-    def read_link_properties(self, schema):
-        link_props = datasources.schema.links.LinkProperties(self.connection).fetch()
-        link_props = collections.OrderedDict((sn.Name(r['name']), r) for r in link_props)
+    async def read_link_properties(self, schema):
+        ds = datasources.schema.links.LinkProperties(self.connection)
+        link_props = await ds.fetch()
+        link_props = collections.OrderedDict(
+            (sn.Name(r['name']), r) for r in link_props)
         basemap = {}
 
         for name, r in link_props.items():
@@ -1650,23 +1665,28 @@ class Backend(s_deltarepo.DeltaProvider):
             required = r['required']
             target = None
 
-            loading = s_pointers.PointerLoading(r['loading']) if r['loading'] else None
+            if r['loading']:
+                loading = s_pointers.PointerLoading(r['loading'])
+            else:
+                loading = None
 
             basemap[name] = bases
 
-            prop = s_lprops.LinkProperty(name=name,
-                                      source=source, target=target,
-                                      required=required,
-                                      title=title, description=description,
-                                      readonly=r['readonly'],
-                                      loading=loading,
-                                      default=default)
+            prop = s_lprops.LinkProperty(
+                name=name,
+                source=source, target=target,
+                required=required,
+                title=title, description=description,
+                readonly=r['readonly'],
+                loading=loading,
+                default=default)
 
             if source and bases[0] not in {'std.target',
                                            'std.source'}:
-                # The property is attached to a link, check out link table columns for
-                # target information.
-                target, required = self.read_pointer_target_column(schema, prop, None)
+                # The property is attached to a link, check out
+                # link table columns for target information.
+                target, required = \
+                    await self.read_pointer_target_column(schema, prop, None)
             else:
                 if bases:
                     if bases[0] == 'std.target' and source is not None:
@@ -1688,10 +1708,10 @@ class Backend(s_deltarepo.DeltaProvider):
             except KeyError:
                 pass
             else:
-                prop.bases = [schema.get(b, type=s_lprops.LinkProperty) for b in bases]
+                prop.bases = [schema.get(b, type=s_lprops.LinkProperty)
+                              for b in bases]
 
-
-    def order_link_properties(self, schema):
+    async def order_link_properties(self, schema):
         g = {}
 
         for prop in schema(type='link_property'):
@@ -1699,80 +1719,78 @@ class Backend(s_deltarepo.DeltaProvider):
             if prop.bases:
                 g[prop.name]['merge'].extend(b.name for b in prop.bases)
 
-        topological.normalize(g, merger=s_lprops.LinkProperty.merge, schema=schema)
+        topological.normalize(g, merger=s_lprops.LinkProperty.merge,
+                              schema=schema)
 
         for prop in schema(type='link_property'):
             if not prop.generic() and prop.source.generic():
-                source_table_name = common.get_table_name(prop.source, catenate=False)
-                cols = self._type_mech.get_table_columns(source_table_name,
-                                                         connection=self.connection)
+                source_table_name = common.get_table_name(prop.source,
+                                                          catenate=False)
+                cols = await self._type_mech.get_table_columns(
+                    source_table_name, connection=self.connection)
                 col_name = common.caos_name_to_pg_name(prop.normal_name())
                 col = cols[col_name]
                 self.verify_ptr_const_defaults(
                     schema, prop, col['column_default'])
 
-
-    def read_attributes(self, schema):
-        attributes_ds = datasources.schema.attributes.Attributes(self.connection)
-        attributes = attributes_ds.fetch()
+    async def read_attributes(self, schema):
+        attributes_ds = datasources.schema.attributes.Attributes(
+            self.connection)
+        attributes = await attributes_ds.fetch()
 
         for r in attributes:
-            name = caos.name.Name(r['name'])
+            name = sn.Name(r['name'])
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']
             type = pickle.loads(r['type'])
 
-            attribute = s_attrs.Attribute(name=name, title=title, description=description,
-                                        type=type)
+            attribute = s_attrs.Attribute(
+                name=name, title=title, description=description, type=type)
             schema.add(attribute)
 
-
-    def order_attributes(self, schema):
+    async def order_attributes(self, schema):
         pass
 
-
-    def read_attribute_values(self, schema):
-        attributes_ds = datasources.schema.attributes.AttributeValues(self.connection)
-        attributes = attributes_ds.fetch()
+    async def read_attribute_values(self, schema):
+        attributes_ds = datasources.schema.attributes.AttributeValues(
+            self.connection)
+        attributes = await attributes_ds.fetch()
 
         for r in attributes:
-            name = caos.name.Name(r['name'])
+            name = sn.Name(r['name'])
             subject = schema.get(r['subject_name'])
             attribute = schema.get(r['attribute_name'])
             value = pickle.loads(r['value'])
 
-            attribute = s_attrs.AttributeValue(name=name, subject=subject, attribute=attribute,
-                                             value=value)
+            attribute = s_attrs.AttributeValue(
+                name=name, subject=subject, attribute=attribute, value=value)
             subject.add_attribute(attribute)
             schema.add(attribute)
 
-
-    def read_actions(self, schema):
+    async def read_actions(self, schema):
         actions_ds = datasources.schema.policy.Actions(self.connection)
-        actions = actions_ds.fetch()
+        actions = await actions_ds.fetch()
 
         for r in actions:
-            name = caos.name.Name(r['name'])
+            name = sn.Name(r['name'])
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']
 
             action = s_policy.Action(name=name, title=title,
-                                  description=description)
+                                     description=description)
             schema.add(action)
 
-
-    def order_actions(self, schema):
+    async def order_actions(self, schema):
         pass
 
-
-    def read_events(self, schema):
+    async def read_events(self, schema):
         events_ds = datasources.schema.policy.Events(self.connection)
-        events = events_ds.fetch()
+        events = await events_ds.fetch()
 
         basemap = {}
 
         for r in events:
-            name = caos.name.Name(r['name'])
+            name = sn.Name(r['name'])
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']
 
@@ -1785,7 +1803,8 @@ class Backend(s_deltarepo.DeltaProvider):
 
             basemap[name] = bases
 
-            event = s_policy.Event(name=name, title=title, description=description)
+            event = s_policy.Event(name=name, title=title,
+                                   description=description)
             schema.add(event)
 
         for event in schema(type='event'):
@@ -1799,45 +1818,48 @@ class Backend(s_deltarepo.DeltaProvider):
         for event in schema(type='event'):
             event.acquire_ancestor_inheritance(schema)
 
-
-    def order_events(self, schema):
+    async def order_events(self, schema):
         pass
 
-
-    def read_policies(self, schema):
+    async def read_policies(self, schema):
         policies_ds = datasources.schema.policy.Policies(self.connection)
-        policies = policies_ds.fetch()
+        policies = await policies_ds.fetch()
 
         for r in policies:
-            name = caos.name.Name(r['name'])
+            name = sn.Name(r['name'])
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']
-            policy = s_policy.Policy(name=name, title=title, description=description,
-                                  subject=schema.get(r['subject']),
-                                  event=schema.get(r['event']),
-                                  actions=[schema.get(a) for a in r['actions']])
+            policy = s_policy.Policy(
+                name=name, title=title, description=description,
+                subject=schema.get(r['subject']),
+                event=schema.get(r['event']),
+                actions=[schema.get(a) for a in r['actions']])
             schema.add(policy)
             policy.subject.add_policy(policy)
 
-
-    def order_policies(self, schema):
+    async def order_policies(self, schema):
         pass
 
-    def get_type_attributes(self, type_name, connection=None, cache='auto'):
-        return self._type_mech.get_type_attributes(type_name, connection, cache)
+    async def get_type_attributes(self, type_name, connection=None,
+                                  cache='auto'):
+        return await self._type_mech.get_type_attributes(
+            type_name, connection, cache)
 
-    def read_concepts(self, schema):
-        tables = introspection.tables.TableList(self.connection).fetch(schema_name='caos%',
-                                                                       table_pattern='%_data')
+    async def read_concepts(self, schema):
+        ds = introspection.tables.TableList(self.connection)
+        tables = await ds.fetch(schema_name='edgedb%', table_pattern='%_data')
         tables = {(t['schema'], t['name']): t for t in tables}
 
-        concept_list = datasources.schema.concepts.ConceptList(self.connection).fetch()
-        concept_list = collections.OrderedDict((sn.Name(row['name']), row) for row in concept_list)
+        ds = datasources.schema.concepts.ConceptList(self.connection)
+        concept_list = await ds.fetch()
+        concept_list = collections.OrderedDict(
+            (sn.Name(row['name']), row) for row in concept_list)
 
         visited_tables = set()
 
-        table_to_concept_map = {common.concept_name_to_table_name(n, catenate=False): c \
-                                                                for n, c in concept_list.items()}
+        self.table_cache.update({
+            common.concept_name_to_table_name(n, catenate=False): c
+            for n, c in concept_list.items()})
 
         basemap = {}
 
@@ -1848,26 +1870,28 @@ class Backend(s_deltarepo.DeltaProvider):
                        'is_abstract': row['is_abstract'],
                        'is_final': row['is_final']}
 
-            table_name = common.concept_name_to_table_name(name, catenate=False)
+            table_name = common.concept_name_to_table_name(name,
+                                                           catenate=False)
             table = tables.get(table_name)
 
             if not table:
                 msg = 'internal metadata incosistency'
-                details = 'Record for concept "%s" exists but the table is missing' % name
+                details = 'Record for concept {!r} exists but ' \
+                          'the table is missing'.format(name)
                 raise s_err.SchemaError(msg, details=details)
 
             visited_tables.add(table_name)
 
-            bases = self.pg_table_inheritance_to_bases(
+            bases = await self.pg_table_inheritance_to_bases(
                             table['name'], table['schema'],
-                            table_to_concept_map)
+                            self.table_cache)
 
             basemap[name] = bases
 
             concept = s_concepts.Concept(name=name, title=concept['title'],
-                                    description=concept['description'],
-                                    is_abstract=concept['is_abstract'],
-                                    is_final=concept['is_final'])
+                                         description=concept['description'],
+                                         is_abstract=concept['is_abstract'],
+                                         is_final=concept['is_final'])
 
             schema.add(concept)
 
@@ -1886,9 +1910,8 @@ class Backend(s_deltarepo.DeltaProvider):
                         % (', '.join('"%s.%s"' % t for t in tabdiff))
             raise s_err.SchemaError(msg, details=details)
 
-
-    def order_concepts(self, schema):
-        indexes = self.read_indexes()
+    async def order_concepts(self, schema):
+        indexes = await self.read_indexes()
 
         sql_decompiler = transformer.Decompiler()
 
@@ -1898,7 +1921,8 @@ class Backend(s_deltarepo.DeltaProvider):
             if concept.bases:
                 g[concept.name]["merge"].extend(b.name for b in concept.bases)
 
-        topological.normalize(g, merger=s_concepts.Concept.merge, schema=schema)
+        topological.normalize(g, merger=s_concepts.Concept.merge,
+                              schema=schema)
 
         for concept in schema(type='concept'):
             concept.finalize(schema)
@@ -1918,16 +1942,16 @@ class Backend(s_deltarepo.DeltaProvider):
                     expr = caosql.generate_source(caosql_tree, pretty=False)
                     schema_name = index.get_metadata('schemaname')
                     index = s_indexes.SourceIndex(name=sn.Name(schema_name),
-                                              subject=concept,
-                                              expr=expr)
+                                                  subject=concept,
+                                                  expr=expr)
                     concept.add_index(index)
                     schema.add(index)
-
 
     def normalize_domain_descr(self, d):
         if d['basetype'] is not None:
             typname, typmods = self.parse_pg_type(d['basetype_full'])
-            result = self.pg_type_to_atom_name_and_constraints(typname, typmods)
+            result = self.pg_type_to_atom_name_and_constraints(
+                typname, typmods)
             if result:
                 base, constr = result
 
@@ -1936,62 +1960,27 @@ class Backend(s_deltarepo.DeltaProvider):
 
         return d
 
-
-    def sequence_next(self, seqcls):
-        name = common.atom_name_to_sequence_name(seqcls.__sx_prototype__.name)
-        name = postgresql.string.quote_literal(name)
-        return self.runquery("SELECT nextval(%s)" % name, return_stmt=True).first()
-
-
-    @debug
-    def runquery(self, query, params=None, connection=None, return_stmt=False):
-        connection = connection or self.connection
-        ps = connection.prepare(query)
-
-        """LOG [caos.service.sql] Issued SQL
-        print(query)
-        print(params)
-        """
-
-        if return_stmt:
-            return ps
-        else:
-            if params:
-                return ps.rows(*params)
-            else:
-                return ps.rows()
-
-
-    @debug
-    def execquery(self, query, connection=None):
-        connection = connection or self.connection
-        """LOG [caos.service.sql] Issued SQL
-        print(query)
-        """
-        connection.execute(query)
-
-
-    def pg_table_inheritance(self, table_name, schema_name):
+    async def pg_table_inheritance(self, table_name, schema_name):
         inheritance = introspection.tables.TableInheritance(self.connection)
-        inheritance = inheritance.fetch(table_name=table_name, schema_name=schema_name, max_depth=1)
+        inheritance = await inheritance.fetch(table_name=table_name,
+                                              schema_name=schema_name,
+                                              max_depth=1)
         return tuple(i[:2] for i in inheritance[1:])
 
-
-    def pg_table_inheritance_to_bases(self, table_name, schema_name, table_to_concept_map):
+    async def pg_table_inheritance_to_bases(self, table_name, schema_name,
+                                            table_to_concept_map):
         bases = []
 
-        for table in self.pg_table_inheritance(table_name, schema_name):
-            base = table_to_concept_map[table[:2]]
+        for table in await self.pg_table_inheritance(table_name, schema_name):
+            base = table_to_concept_map[tuple(table[:2])]
             bases.append(base['name'])
 
         return tuple(bases)
-
 
     def parse_pg_type(self, type_expr):
         tree = self.parser.parse('None::' + type_expr)
         typname, typmods = self.type_expr.match(tree)
         return typname, typmods
-
 
     def pg_type_to_atom_name_and_constraints(self, typname, typmods):
         typeconv = types.base_type_name_map_r.get(typname)
@@ -2000,10 +1989,10 @@ class Backend(s_deltarepo.DeltaProvider):
                 name = typeconv
                 constraints = ()
             else:
-                name, constraints = typeconv(self.connection, typname, *typmods)
+                name, constraints = typeconv(self.connection, typname,
+                                             *typmods)
             return name, constraints
         return None
-
 
     def atom_from_pg_type(self, type_expr, atom_schema, atom_default, schema):
 
@@ -2023,7 +2012,8 @@ class Backend(s_deltarepo.DeltaProvider):
 
         if not atom:
 
-            typeconv = self.pg_type_to_atom_name_and_constraints(typname, typmods)
+            typeconv = self.pg_type_to_atom_name_and_constraints(
+                typname, typmods)
             if typeconv:
                 name, _ = typeconv
                 atom = schema.get(name)
@@ -2032,17 +2022,14 @@ class Backend(s_deltarepo.DeltaProvider):
         assert atom
         return atom
 
-
     def hstore_to_word_combination(self, hstore):
         if hstore:
             return morphology.WordCombination.from_dict(hstore)
         else:
             return None
 
-
     def _register_record_info(self, record_info):
         self._record_mapping_cache[record_info.id] = record_info
-
 
     def _get_record_info_by_id(self, record_id):
         return self._record_mapping_cache.get(record_id)

@@ -439,8 +439,11 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
 
         with context():
             context.current.location = 'optarget_shaper'
-            graph.opselector = self._process_select_targets(
-                                    context, caosql_tree.targets)
+            if caosql_tree.targets:
+                graph.opselector = self._process_select_targets(
+                                        context, caosql_tree.targets)
+            else:
+                graph.opselector = []
 
         if caosql_tree.pathspec:
             with context():
@@ -563,10 +566,6 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
 
             targetexpr = self._process_path(context, tpath,
                                             path_tip=graph.optarget)
-
-            if not isinstance(targetexpr, irast.AtomicRefSimple):
-                msg = 'operation update list can only reference atoms'
-                raise errors.CaosQLError(msg)
 
             if isinstance(value, qlast.ConstantNode):
                 v = self._process_constant(context, value)
@@ -1534,6 +1533,29 @@ def compile_to_ir(expr, schema, *, anchors=None, arg_types=None,
     print(expr)
     """
     tree = parser.parse(expr, module_aliases)
+
+    """LOG [caosql.compile] CaosQL AST:
+    from edgedb.lang.common import markup
+    markup.dump(tree)
+    """
+    trans = CaosQLCompiler(schema, module_aliases)
+
+    ir = trans.transform(tree, arg_types, module_aliases=module_aliases,
+                         anchors=anchors, security_context=security_context)
+
+    """LOG [caosql.compile] Caos IR:
+    from edgedb.lang.common import markup
+    markup.dump(ir)
+    """
+
+    return ir
+
+
+@debug.debug
+def compile_ast_to_ir(tree, schema, *, anchors=None, arg_types=None,
+                                       security_context=None,
+                                       module_aliases=None):
+    """Compile given CaosQL AST into Caos IR"""
 
     """LOG [caosql.compile] CaosQL AST:
     from edgedb.lang.common import markup

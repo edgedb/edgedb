@@ -18,6 +18,7 @@ from edgedb.lang.schema import attributes as s_attrs
 from edgedb.lang.schema import atoms as s_atoms
 from edgedb.lang.schema import concepts as s_concepts
 from edgedb.lang.schema import constraints as s_constr
+from edgedb.lang.schema import database as s_db
 from edgedb.lang.schema import delta as sd
 from edgedb.lang.schema import error as s_err
 from edgedb.lang.schema import expr as s_expr
@@ -30,7 +31,6 @@ from edgedb.lang.schema import named as s_named
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import policy as s_policy
-from edgedb.lang.schema import realm as s_realm
 
 from metamagic import json
 
@@ -69,12 +69,12 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
             self.pgops.add(op)
 
     @debug
-    def execute(self, context):
-        """LINE [caos.delta.execute] EXECUTING
+    async def execute(self, context):
+        """LINE [edgedb.delta.execute] EXECUTING
         repr(self)
         """
         for op in sorted(self.pgops, key=lambda i: getattr(i, 'priority', 0), reverse=True):
-            op.execute(context)
+            await op.execute(context)
 
     @classmethod
     def as_markup(cls, self, *, ctx):
@@ -300,13 +300,13 @@ class AttributeValueCommand(metaclass=CommandMeta):
             subj = updates.get('subject')
             if subj:
                 rec.subject = dbops.Query(
-                    '(SELECT id FROM caos.metaobject WHERE name = $1)',
+                    '(SELECT id FROM edgedb.metaobject WHERE name = $1)',
                     [subj[1]], type='integer')
 
             attribute = updates.get('attribute')
             if attribute:
                 rec.attribute = dbops.Query(
-                    '(SELECT id FROM caos.metaobject WHERE name = $1)',
+                    '(SELECT id FROM edgedb.metaobject WHERE name = $1)',
                     [attribute[1]], type='integer')
 
             value = updates.get('value')
@@ -351,7 +351,7 @@ class ConstraintCommand(metaclass=CommandMeta):
             subj = updates.get('subject')
             if subj:
                 rec.subject = dbops.Query(
-                    '(SELECT id FROM caos.metaobject WHERE name = $1)',
+                    '(SELECT id FROM edgedb.metaobject WHERE name = $1)',
                     [subj[1]], type='integer')
 
             for ptn in 'paramtypes', 'inferredparamtypes':
@@ -962,8 +962,8 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                         alter_table.add_operation(alter_type)
 
     def apply_base_delta(self, orig_source, source, schema, context):
-        realm = context.get(s_realm.RealmCommandContext)
-        orig_source.bases = [realm.op._renames.get(b, b) for b in orig_source.bases]
+        db_ctx = context.get(s_db.DatabaseCommandContext)
+        orig_source.bases = [db_ctx.op._renames.get(b, b) for b in orig_source.bases]
 
         dropped_bases = {b.name for b in orig_source.bases} - {b.name for b in source.bases}
 
@@ -1206,7 +1206,7 @@ class CreateConcept(ConceptMetaCommand, adapts=s_concepts.CreateConcept):
                         self.prototype_name + '.concept_id_check')
 
         constr_expr = dbops.Query("""
-            SELECT 'concept_id = ' || id FROM caos.concept WHERE name = $1
+            SELECT 'concept_id = ' || id FROM edgedb.concept WHERE name = $1
         """, [concept.name], type='text')
 
         cid_constraint = dbops.CheckConstraint(
@@ -1253,10 +1253,10 @@ class RenameConcept(ConceptMetaCommand, adapts=s_concepts.RenameConcept):
         concept = context.get(s_concepts.ConceptCommandContext)
         assert concept
 
-        realm = context.get(s_realm.RealmCommandContext)
-        assert realm
+        db_ctx = context.get(s_db.DatabaseCommandContext)
+        assert db_ctx
 
-        realm.op._renames[concept.original_proto] = proto
+        db_ctx.op._renames[concept.original_proto] = proto
 
         concept.op.attach_alter_table(context)
 
@@ -1407,20 +1407,20 @@ class PolicyCommand(metaclass=CommandMeta):
             subj = updates.get('subject')
             if subj:
                 rec.subject = dbops.Query(
-                    '(SELECT id FROM caos.metaobject WHERE name = $1)',
+                    '(SELECT id FROM edgedb.metaobject WHERE name = $1)',
                     [subj[1]], type='integer')
 
             event = updates.get('event')
             if event:
                 rec.event = dbops.Query(
-                    '(SELECT id FROM caos.metaobject WHERE name = $1)',
+                    '(SELECT id FROM edgedb.metaobject WHERE name = $1)',
                     [event[1]], type='integer')
 
             actions = updates.get('actions')
             if actions:
                 rec.actions = dbops.Query(
                     '''(SELECT array_agg(id)
-                        FROM caos.metaobject
+                        FROM edgedb.metaobject
                         WHERE name = any($1::text[]))''',
                     [actions[1]], type='integer[]')
 
@@ -1486,12 +1486,12 @@ class PointerMetaCommand(MetaCommand):
                 source = host.proto.name
 
             if source:
-                rec.source_id = dbops.Query('(SELECT id FROM caos.metaobject WHERE name = $1)',
+                rec.source_id = dbops.Query('(SELECT id FROM edgedb.metaobject WHERE name = $1)',
                                             [str(source)], type='integer')
 
             target = updates.get('target')
             if target:
-                rec.target_id = dbops.Query('(SELECT id FROM caos.metaobject WHERE name = $1)',
+                rec.target_id = dbops.Query('(SELECT id FROM edgedb.metaobject WHERE name = $1)',
                                             [str(target[1])],
                                             type='integer')
 
@@ -1614,7 +1614,7 @@ class PointerMetaCommand(MetaCommand):
                 if new_name == 'std.target' and pointer.atomic():
                     new_name += '@atom'
 
-                if new_name.endswith('caos.builtins.source') and not host.proto.generic():
+                if new_name.endswith('std.source') and not host.proto.generic():
                     pass
                 else:
                     old_col_name = common.caos_name_to_pg_name(old_name)
@@ -1772,7 +1772,7 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
 
     def schedule_mapping_update(self, link, schema, context):
         if self.has_table(link, schema):
-            mapping_indexes = context.get(s_realm.RealmCommandContext).op.update_mapping_indexes
+            mapping_indexes = context.get(s_db.DatabaseCommandContext).op.update_mapping_indexes
             ops = mapping_indexes.links.get(link.name)
             if not ops:
                 mapping_indexes.links[link.name] = ops = []
@@ -1780,7 +1780,7 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
             self.pgops.add(ScheduleLinkMappingUpdate())
 
     def cancel_mapping_update(self, link, schema, context):
-        mapping_indexes = context.get(s_realm.RealmCommandContext).op.update_mapping_indexes
+        mapping_indexes = context.get(s_db.DatabaseCommandContext).op.update_mapping_indexes
         mapping_indexes.links.pop(link.name, None)
         self.pgops.add(CancelLinkMappingUpdate())
 
@@ -2060,7 +2060,7 @@ class CreateLinkProperty(LinkPropertyMetaCommand, adapts=s_lprops.CreateLinkProp
 
         concept = context.get(s_concepts.ConceptCommandContext)
         # Priority is set to 2 to make sure that INSERT is run after the host link
-        # is INSERTed into caos.link.
+        # is INSERTed into edgedb.link.
         #
         self.pgops.add(dbops.Insert(table=self.table, records=[rec], priority=2))
 
@@ -2214,7 +2214,7 @@ class UpdateMappingIndexes(MetaCommand):
                                   (?P<type_id>\d+))
                               \s* \)
                            ''', re.X)
-        self.schema_exists = dbops.SchemaExists(name='caos')
+        self.schema_exists = dbops.SchemaExists(name='edgedb')
 
     def interpret_index(self, index, link_map):
         index_name = index.name
@@ -2261,13 +2261,13 @@ class UpdateMappingIndexes(MetaCommand):
         for link_name, indexes in grouped:
             yield link_name, tuple(i[1] for i in indexes)
 
-    def apply(self, schema, context):
+    async def apply(self, schema, context):
         db = context.db
-        if self.schema_exists.execute(context):
+        if await self.schema_exists.execute(context):
             link_map = context._get_link_map(reverse=True)
             index_ds = datasources.introspection.tables.TableIndexes(db)
             indexes = {}
-            idx_data = index_ds.fetch(schema_pattern='caos%',
+            idx_data = index_ds.fetch(schema_pattern='edgedb%',
                                       index_pattern='%_link_mapping_idx')
             for row in idx_data:
                 table_name = tuple(row['table_name'])
@@ -2450,136 +2450,21 @@ class DeleteModule(CompositePrototypeMetaCommand, adapts=s_mod.DeleteModule):
         return module
 
 
-class AlterRealm(MetaCommand, adapts=s_realm.AlterRealm):
+class CreateDatabase(MetaCommand, adapts=s_db.CreateDatabase):
+    def apply(self, schema, context):
+        s_db.CreateDatabase.apply(self, schema, context)
+        self.pgops.add(dbops.CreateDatabase(dbops.Database(self.name)))
+
+
+class AlterDatabase(MetaCommand, adapts=s_db.AlterDatabase):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._renames = {}
 
     def apply(self, schema, context):
-        self.pgops.add(dbops.CreateSchema(name='caos', priority=-3))
-
-        featuretable = deltadbops.FeatureTable()
-        self.pgops.add(dbops.CreateTable(table=featuretable,
-                                         neg_conditions=[dbops.TableExists(name=featuretable.name)],
-                                         priority=-3))
-
-        backendinfotable = deltadbops.BackendInfoTable()
-        self.pgops.add(dbops.CreateTable(table=backendinfotable,
-                                         neg_conditions=[dbops.TableExists(name=backendinfotable.name)],
-                                         priority=-3))
-
-        self.pgops.add(deltadbops.EnableFeature(feature=features.UuidFeature(),
-                                                neg_conditions=[dbops.FunctionExists(('caos', 'uuid_nil'))],
-                                                priority=-2))
-
-        self.pgops.add(deltadbops.EnableFeature(feature=features.HstoreFeature(),
-                                                neg_conditions=[dbops.TypeExists(('caos', 'hstore'))],
-                                                priority=-2))
-
-        self.pgops.add(deltadbops.EnableFeature(feature=features.CryptoFeature(),
-                                                neg_conditions=[dbops.FunctionExists(('caos', 'gen_random_bytes'))],
-                                                priority=-2))
-
-        self.pgops.add(deltadbops.EnableFeature(feature=features.FuzzystrmatchFeature(),
-                                                neg_conditions=[dbops.FunctionExists(('caos', 'levenshtein'))],
-                                                priority=-2))
-
-        self.pgops.add(deltadbops.EnableFeature(feature=features.ProductAggregateFeature(),
-                                                neg_conditions=[dbops.FunctionExists(('caos', 'agg_product'))],
-                                                priority=-2))
-
-        self.pgops.add(deltadbops.EnableFeature(feature=features.KnownRecordMarkerFeature(),
-                                                neg_conditions=[dbops.DomainExists(('caos', 'known_record_marker_t'))],
-                                                priority=-2))
-
-        deltalogtable = deltadbops.DeltaLogTable()
-        self.pgops.add(dbops.CreateTable(table=deltalogtable,
-                                         neg_conditions=[dbops.TableExists(name=deltalogtable.name)],
-                                         priority=-1))
-
-        deltareftable = deltadbops.DeltaRefTable()
-        self.pgops.add(dbops.CreateTable(table=deltareftable,
-                                         neg_conditions=[dbops.TableExists(name=deltareftable.name)],
-                                         priority=-1))
-
-        moduletable = deltadbops.ModuleTable()
-        self.pgops.add(dbops.CreateTable(table=moduletable,
-                                         neg_conditions=[dbops.TableExists(name=moduletable.name)],
-                                         priority=-1))
-
-        metatable = deltadbops.MetaObjectTable()
-        self.pgops.add(dbops.CreateTable(table=metatable,
-                                         neg_conditions=[dbops.TableExists(name=metatable.name)],
-                                         priority=-1))
-
-        attributetable = deltadbops.AttributeTable()
-        self.pgops.add(dbops.CreateTable(table=attributetable,
-                                         neg_conditions=[dbops.TableExists(name=attributetable.name)],
-                                         priority=-1))
-
-        attrvaltable = deltadbops.AttributeValueTable()
-        self.pgops.add(dbops.CreateTable(table=attrvaltable,
-                                         neg_conditions=[dbops.TableExists(name=attrvaltable.name)],
-                                         priority=-1))
-
-        constrtable = deltadbops.ConstraintTable()
-        self.pgops.add(dbops.CreateTable(table=constrtable,
-                                         neg_conditions=[dbops.TableExists(name=constrtable.name)],
-                                         priority=-1))
-
-        actiontable = deltadbops.ActionTable()
-        self.pgops.add(dbops.CreateTable(table=actiontable,
-                                         neg_conditions=[dbops.TableExists(name=actiontable.name)],
-                                         priority=-1))
-
-        eventtable = deltadbops.EventTable()
-        self.pgops.add(dbops.CreateTable(table=eventtable,
-                                         neg_conditions=[dbops.TableExists(name=eventtable.name)],
-                                         priority=-1))
-
-        policytable = deltadbops.PolicyTable()
-        self.pgops.add(dbops.CreateTable(table=policytable,
-                                         neg_conditions=[dbops.TableExists(name=policytable.name)],
-                                         priority=-1))
-
-        atomtable = deltadbops.AtomTable()
-        self.pgops.add(dbops.CreateTable(table=atomtable,
-                                         neg_conditions=[dbops.TableExists(name=atomtable.name)],
-                                         priority=-1))
-
-        concepttable = deltadbops.ConceptTable()
-        self.pgops.add(dbops.CreateTable(table=concepttable,
-                                         neg_conditions=[dbops.TableExists(name=concepttable.name)],
-                                         priority=-1))
-
-        linktable = deltadbops.LinkTable()
-        self.pgops.add(dbops.CreateTable(table=linktable,
-                                         neg_conditions=[dbops.TableExists(name=linktable.name)],
-                                         priority=-1))
-
-        linkproptable = deltadbops.LinkPropertyTable()
-        self.pgops.add(dbops.CreateTable(table=linkproptable,
-                                         neg_conditions=[dbops.TableExists(name=linkproptable.name)],
-                                         priority=-1))
-
-        computabletable = deltadbops.ComputableTable()
-        self.pgops.add(dbops.CreateTable(table=computabletable,
-                                         neg_conditions=[dbops.TableExists(name=computabletable.name)],
-                                         priority=-1))
-
-        entity_modstat_type = deltadbops.EntityModStatType()
-        self.pgops.add(dbops.CreateCompositeType(type=entity_modstat_type,
-                                                 neg_conditions=[dbops.CompositeTypeExists(name=entity_modstat_type.name)],
-                                                 priority=-1))
-
-        link_endpoints_type = deltadbops.LinkEndpointsType()
-        self.pgops.add(dbops.CreateCompositeType(type=link_endpoints_type,
-                                                 neg_conditions=[dbops.CompositeTypeExists(name=link_endpoints_type.name)],
-                                                 priority=-1))
-
         self.update_mapping_indexes = UpdateMappingIndexes()
 
-        s_realm.AlterRealm.apply(self, schema, context)
+        s_db.AlterDatabase.apply(self, schema, context)
         MetaCommand.apply(self, schema)
 
         self.update_mapping_indexes.apply(schema, context)
@@ -2590,9 +2475,9 @@ class AlterRealm(MetaCommand, adapts=s_realm.AlterRealm):
     def is_material(self):
         return True
 
-    def execute(self, context):
+    async def execute(self, context):
         for op in self.serialize_ops():
-            op.execute(context)
+            await op.execute(context)
 
     def serialize_ops(self):
         queues = {}
@@ -2611,6 +2496,12 @@ class AlterRealm(MetaCommand, adapts=s_realm.AlterRealm):
                 queue.append(op)
 
 
+class DropDatabase(MetaCommand, adapts=s_db.DropDatabase):
+    def apply(self, schema, context):
+        s_db.CreateDatabase.apply(self, schema, context)
+        self.pgops.add(dbops.DropDatabase(self.name))
+
+
 class UpgradeBackend(MetaCommand):
     def __init__(self, backend_info, **kwargs):
         super().__init__(**kwargs)
@@ -2618,12 +2509,12 @@ class UpgradeBackend(MetaCommand):
         self.actual_version = backend_info['format_version']
         self.current_version = BACKEND_FORMAT_VERSION
 
-    def execute(self, context):
+    async def execute(self, context):
         for version in range(self.actual_version, self.current_version):
             print('Upgrading PostgreSQL backend metadata to version {}'.format(version + 1))
             getattr(self, 'update_to_version_{}'.format(version + 1))(context)
         op = self.update_backend_info()
-        op.execute(context)
+        await op.execute(context)
 
     @classmethod
     def update_backend_info(cls):

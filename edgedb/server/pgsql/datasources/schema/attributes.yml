@@ -24,7 +24,7 @@ source: |
             a.description  AS description,
             a.type         AS type
         FROM
-            caos.attribute a
+            edgedb.attribute a
         WHERE
             %(name)s::text IS NULL OR a.name LIKE %(name)s::text
 ...
@@ -50,9 +50,9 @@ source: |
             attr.name      AS attribute_name,
             a.value        AS value
         FROM
-            caos.attribute_value a
-            INNER JOIN caos.metaobject subj ON (subj.id = a.subject)
-            INNER JOIN caos.metaobject attr ON (attr.id = a.attribute)
+            edgedb.attribute_value a
+            INNER JOIN edgedb.metaobject subj ON (subj.id = a.subject)
+            INNER JOIN edgedb.metaobject attr ON (attr.id = a.attribute)
         WHERE
             %(name)s::text IS NULL OR a.name LIKE %(name)s::text
 ...

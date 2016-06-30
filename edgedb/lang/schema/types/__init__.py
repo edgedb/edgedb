@@ -16,4 +16,5 @@ from . import int
 from . import none
 from . import numeric
 from . import sequence
+from . import string
 from . import uuid

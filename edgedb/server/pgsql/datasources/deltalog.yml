@@ -26,7 +26,7 @@ source: |
                                 0           AS "offset",
                                 log.parents AS "parents"
                             FROM
-                                caos.deltalog log
+                                edgedb.deltalog log
                             WHERE
                                 log.id = %(rev_id)s
                       UNION ALL
@@ -35,7 +35,7 @@ source: |
                                 l."offset" + 1    AS "offset",
                                 log.parents AS "parents"
                             FROM
-                                caos.deltalog log,
+                                edgedb.deltalog log,
                                 deltalog l
                             WHERE
                                 log.id = any(l.parents)

@@ -18,7 +18,7 @@ class DomainExists(base.Condition):
     def __init__(self, name):
         self.name = name
 
-    def code(self, context):
+    async def code(self, context):
         code = '''SELECT
                         domain_name
                     FROM
@@ -34,7 +34,7 @@ class CreateDomain(ddl.SchemaObjectOperation):
                                                       priority=priority)
         self.base = base
 
-    def code(self, context):
+    async def code(self, context):
         return 'CREATE DOMAIN %s AS %s' % (common.qname(*self.name), self.base)
 
 
@@ -58,7 +58,7 @@ class AlterDomainSetSchema(ddl.DDLOperation):
         self.name = name
         self.new_schema = new_schema
 
-    def code(self, context):
+    async def code(self, context):
         code = 'ALTER DOMAIN {} SET SCHEMA {}'.format(common.qname(*self.name),
                                                       common.quote_ident(self.new_schema))
         return code
@@ -70,7 +70,7 @@ class AlterDomainRenameTo(ddl.DDLOperation):
         self.name = name
         self.new_name = new_name
 
-    def code(self, context):
+    async def code(self, context):
         code = 'ALTER DOMAIN {} RENAME TO {}'.format(common.qname(*self.name),
                                                      common.quote_ident(self.new_name))
         return code
@@ -81,11 +81,11 @@ class AlterDomain(ddl.DDLOperation):
         super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
         self.name = name
 
-    def code(self, context):
+    async def code(self, context):
         return 'ALTER DOMAIN %s ' % common.qname(*self.name)
 
     def __repr__(self):
-        return '<caos.sync.%s %s>' % (self.__class__.__name__, self.name)
+        return '<edgedb.sync.%s %s>' % (self.__class__.__name__, self.name)
 
 
 class AlterDomainAlterDefault(AlterDomain):
@@ -93,8 +93,8 @@ class AlterDomainAlterDefault(AlterDomain):
         super().__init__(name)
         self.default = default
 
-    def code(self, context):
-        code = super().code(context)
+    async def code(self, context):
+        code = await super().code(context)
         if self.default is None:
             code += ' DROP DEFAULT ';
         else:
@@ -108,8 +108,8 @@ class AlterDomainAlterNull(AlterDomain):
         super().__init__(name)
         self.null = null
 
-    def code(self, context):
-        code = super().code(context)
+    async def code(self, context):
+        code = await super().code(context)
         if self.null:
             code += ' DROP NOT NULL ';
         else:
@@ -130,15 +130,15 @@ class DomainConstraint(constraints.Constraint):
 
 
 class AlterDomainAddConstraint(AlterDomainAlterConstraint):
-    def code(self, context):
-        code = super().code(context)
+    async def code(self, context):
+        code = await super().code(context)
         constr_name = self._constraint.constraint_name()
-        constr_code = self._constraint.constraint_code(context)
+        constr_code = await self._constraint.constraint_code(context)
         code += ' ADD CONSTRAINT {} {}'.format(constr_name, constr_code)
         return code
 
-    def extra(self, context):
-        return self._constraint.extra(context)
+    async def extra(self, context):
+        return await self._constraint.extra(context)
 
 
 class AlterDomainRenameConstraint(AlterDomainAlterConstraint):
@@ -148,8 +148,8 @@ class AlterDomainRenameConstraint(AlterDomainAlterConstraint):
                          neg_conditions=neg_conditions, priority=priority)
         self._new_constraint = new_constraint
 
-    def code(self, context):
-        code = super().code(context)
+    async def code(self, context):
+        code = await super().code(context)
         name = self._constraint.constraint_name()
         new_name = self._new_constraint.constraint_name()
         code += ' RENAME CONSTRAINT {} TO {}'.format(name, new_name)
@@ -158,12 +158,12 @@ class AlterDomainRenameConstraint(AlterDomainAlterConstraint):
 
 
 class AlterDomainDropConstraint(AlterDomainAlterConstraint):
-    def code(self, context):
-        code = super().code(context)
+    async def code(self, context):
+        code = await super().code(context)
         code += ' DROP CONSTRAINT {}'.format(self._constraint.constraint_name())
         return code
 
 
 class DropDomain(ddl.SchemaObjectOperation):
-    def code(self, context):
+    async def code(self, context):
         return 'DROP DOMAIN %s' % common.qname(*self.name)

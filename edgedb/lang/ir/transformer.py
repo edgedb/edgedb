@@ -1491,7 +1491,7 @@ class TreeTransformer:
 
         self.unify_paths(expr.paths, mode=expr.__class__, merge_filters=merge_filters)
 
-        """LOG [caos.graph.merge] UNIFICATION RESULT
+        """LOG [edgedb.graph.merge] UNIFICATION RESULT
         self._dump(expr)
         """
 
@@ -1521,7 +1521,7 @@ class TreeTransformer:
                 continue
 
             if issubclass(mode, irast.Disjunction):
-                """LOG [caos.graph.merge] ADDING
+                """LOG [edgedb.graph.merge] ADDING
                 print(' ' * self.nest, 'ADDING', result, path, getattr(result, 'id', '??'), getattr(path, 'id', '??'), merge_filters)
                 self.nest += 2
 
@@ -1532,12 +1532,12 @@ class TreeTransformer:
                 result = self.add_paths(result, path, merge_filters=merge_filters)
                 assert result
 
-                """LOG [caos.graph.merge] ADDITION RESULT
+                """LOG [edgedb.graph.merge] ADDITION RESULT
                 self.nest -= 2
                 self._dump(result)
                 """
             else:
-                """LOG [caos.graph.merge] INTERSECTING
+                """LOG [edgedb.graph.merge] INTERSECTING
                 print(' ' * self.nest, result, path, getattr(result, 'id', '??'), getattr(path, 'id', '??'), merge_filters)
                 self.nest += 2
                 """
@@ -1545,7 +1545,7 @@ class TreeTransformer:
                 result = self.intersect_paths(result, path, merge_filters=merge_filters)
                 assert result
 
-                """LOG [caos.graph.merge] INTERSECTION RESULT
+                """LOG [edgedb.graph.merge] INTERSECTION RESULT
                 self._dump(result)
                 self.nest -= 2
                 """
@@ -2029,7 +2029,7 @@ class TreeTransformer:
               and (not link or (link.link_proto == other_link.link_proto
                                 and link.direction == other_link.direction)))
 
-        """LOG [caos.graph.merge] MATCH PREFIXES
+        """LOG [edgedb.graph.merge] MATCH PREFIXES
         print(' ' * self.nest, our, other, ignore_filters)
         print(' ' * self.nest, '   PATHS: ', our_id)
         print(' ' * self.nest, '      *** ', other_id)
@@ -2048,7 +2048,7 @@ class TreeTransformer:
             else:
                 result = other_node
 
-        """LOG [caos.graph.merge] MATCH PREFIXES RESULT
+        """LOG [edgedb.graph.merge] MATCH PREFIXES RESULT
         print(' ' * self.nest, '    ----> ', result)
         """
 

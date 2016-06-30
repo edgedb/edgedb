@@ -51,7 +51,7 @@ class PointerVector(sn.Name):
         return result
 
     def __repr__(self):
-        return '<caos.schema.PointerVector {}>'.format(self)
+        return '<edgedb.schema.PointerVector {}>'.format(self)
 
     def __mm_serialize__(self):
         return dict(

@@ -20,4 +20,4 @@ source: |
             schema_name,
             imports
         FROM
-            caos.module
+            edgedb.module

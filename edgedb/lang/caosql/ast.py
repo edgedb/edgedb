@@ -120,6 +120,14 @@ class RenameNode(DDLNode):
     __fields = [('new_name', PrototypeRefNode)]
 
 
+class CreateDatabaseNode(CreateObjectNode):
+    pass
+
+
+class DropDatabaseNode(DropObjectNode):
+    pass
+
+
 class CreateModuleNode(CreateObjectNode):
     pass
 

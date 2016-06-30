@@ -16,7 +16,7 @@ class FunctionExists(base.Condition):
         self.name = name
         self.args = args
 
-    def code(self, context):
+    async def code(self, context):
         code = '''SELECT
                         p.proname
                     FROM
@@ -45,7 +45,7 @@ class CreateFunction(ddl.DDLOperation):
         self.volatility = volatility
         self.language = language
 
-    def code(self, context):
+    async def code(self, context):
         code = '''CREATE FUNCTION %(name)s(%(args)s)
                   RETURNS %(return)s
                   LANGUAGE %(lang)s
@@ -93,7 +93,7 @@ class AlterFunctionReplaceText(ddl.DDLOperation):
         self.args = args
         self.new_text = new_text
 
-    def code(self, context):
+    async def code(self, context):
         code = '''SELECT
                         $4::text AS text,
                         l.lanname AS lang,
@@ -143,7 +143,7 @@ class AlterFunctionSetSchema(ddl.DDLOperation):
         self.args = args
         self.new_schema = new_schema
 
-    def code(self, context):
+    async def code(self, context):
         code = 'ALTER FUNCTION %s(%s) SET SCHEMA %s' % \
                 (common.qname(*self.name),
                  ', '.join(common.quote_ident(a) for a in self.args),
@@ -158,7 +158,7 @@ class AlterFunctionRenameTo(ddl.DDLOperation):
         self.args = args
         self.new_name = new_name
 
-    def code(self, context):
+    async def code(self, context):
         code = 'ALTER FUNCTION %s(%s) RENAME TO %s' % \
                 (common.qname(*self.name),
                  ', '.join(common.quote_ident(a) for a in self.args),
@@ -181,7 +181,7 @@ class DropFunction(ddl.DDLOperation):
         self.name = name
         self.args = args
 
-    def code(self, context):
+    async def code(self, context):
         code = 'DROP FUNCTION%s %s(%s)' % \
                 (' IF EXISTS' if self.conditional else '',
                  common.qname(*self.name),

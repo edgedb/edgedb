@@ -6,9 +6,16 @@
 ##
 
 
-from edgedb.lang.common.pgsql import Config
-
 from . import ast
+from . import backend
 from . import codegen
 from . import common
-from . import json
+
+
+async def open_database(pgconn):
+    await pgconn.set_builtin_type_codec('hstore', schema='edgedb',
+                                        codec_name='pg_contrib.hstore')
+
+    bk = backend.Backend(pgconn)
+    await bk.getschema()
+    return bk

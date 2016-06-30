@@ -18,6 +18,12 @@ from .expressions import *
 
 
 class DDLStmt(Nonterm):
+    def reduce_CreateDatabaseStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_DropDatabaseStmt(self, *kids):
+        self.val = kids[0].val
+
     def reduce_CreateActionStmt(self, *kids):
         self.val = kids[0].val
 
@@ -251,6 +257,27 @@ class AlterInheriting(Nonterm):
 
     def reduce_AlterFinal(self, *kids):
         self.val = kids[0].val
+
+
+#
+# CREATE DATABASE
+#
+class CreateDatabaseStmt(Nonterm):
+    def reduce_OptAliasBlock_CREATE_DATABASE_IDENT_OptCreateCommandsBlock(self, *kids):
+        self.val = qlast.CreateDatabaseNode(
+            name=qlast.PrototypeRefNode(name=kids[3].val),
+            commands=kids[4].val
+        )
+
+
+#
+# DROP DATABASE
+#
+class DropDatabaseStmt(Nonterm):
+    def reduce_OptAliasBlock_DROP_DATABASE_IDENT(self, *kids):
+        self.val = qlast.DropDatabaseNode(
+            name=qlast.PrototypeRefNode(name=kids[3].val),
+        )
 
 
 #

@@ -6,56 +6,40 @@
 ##
 
 
-from postgresql.driver.dbapi20 import Cursor as CompatCursor
+import re
+
 from edgedb.server.datasources.base import Datasource, DatasourceError
-from edgedb.lang.common.debug import debug
 
 
-class SqlDatasourceError(DatasourceError): pass
+class SqlDatasourceError(DatasourceError):
+    pass
 
 
 class Sql(Datasource):
     def __init__(self, connection):
         super().__init__()
-
         self.connection = connection
 
-        self.cache = {}
-        self.caching = 'cache' in self.descriptor and self.descriptor['cache'] == 'memory'
+    def _convert_query(self, query, params):
+        pmap = {}
+        plist = []
 
-    @debug
-    def fetch(self, **params):
-        cursor = CompatCursor(self.connection)
+        def _repl(match):
+            argname = match.group(1)
+            try:
+                argnum = pmap[argname]
+            except KeyError:
+                argnum = len(pmap)
+                pmap[argname] = argnum
+                plist.append(params[argname])
+
+            return '${:d}'.format(argnum + 1)
+
+        return re.sub(r'%\(([a-zA-Z]\w*)\)\w', _repl, query), plist
+
+    async def fetch(self, **params):
         params, extra_filters = self._filter_params(params)
-
-        key = None
-        if self.caching:
-            key = str(params)
-            if key in self.cache:
-                return self.cache[key]
-
         query = self.descriptor['source']
-
-        query, pxf, nparams = cursor._convert_query(query)
-        """LOG [caos.service.sql] Datasource Fetch
-        print('%s.%s' % (self.__class__.__module__, self.__class__.__name__))
-        print(query)
-        if params:
-            print(pxf(params))
-        """
-        ps = self.connection.prepare(query)
-        if params:
-            rows = ps(*pxf(params))
-        else:
-            rows = ps()
-
-        if 'filters' in self.descriptor and self.descriptor['filters'] is not None:
-            for filter in self.descriptor['filters']:
-                if 'format' in filter:
-                    if filter['format'] == 'dict':
-                        rows = [dict((key, row[key]) for key in row.keys()) for row in rows]
-
-        if self.caching:
-            self.cache[key] = rows
-
-        return rows
+        query, plist = self._convert_query(query, params)
+        ps = await self.connection.prepare(query)
+        return await ps.get_list(*plist)

@@ -26,7 +26,7 @@ class Insert(DMLOperation):
         self.records = records
         self.returning = returning
 
-    def code(self, context):
+    async def code(self, context):
         cols = [(c.name, c.type) for c in self.table.columns(writable_only=True)]
         l = len(cols)
 
@@ -75,7 +75,7 @@ class Insert(DMLOperation):
         else:
             vals = (('(%s)' % ', '.join('%s=%r' % (col, v) for col, v in row.items())) for row in self.records)
             vals = ', '.join(vals)
-        return '<caos.sync.%s %s (%s)>' % (self.__class__.__name__, self.table.name, vals)
+        return '<edgedb.sync.%s %s (%s)>' % (self.__class__.__name__, self.table.name, vals)
 
 
 class Update(DMLOperation):
@@ -92,7 +92,7 @@ class Update(DMLOperation):
         self.include_children = include_children
 
 
-    def code(self, context):
+    async def code(self, context):
         e = common.quote_ident
 
         placeholders = []
@@ -161,12 +161,12 @@ class Update(DMLOperation):
     def __repr__(self):
         expr = ','.join('%s=%s' % (f, getattr(self.record, f)) for f in self.fields)
         where = ','.join('%s=%s' % (c[0], c[1]) for c in self.condition) if self.condition else ''
-        return '<caos.sync.%s %s %s (%s)>' % (self.__class__.__name__, self.table.name, expr, where)
+        return '<edgedb.sync.%s %s %s (%s)>' % (self.__class__.__name__, self.table.name, expr, where)
 
 
 class Merge(Update):
-    def code(self, context):
-        code = super().code(context)
+    async def code(self, context):
+        code = await super().code(context)
 
         if not self.returning:
             if self.condition:
@@ -178,12 +178,12 @@ class Merge(Update):
             code = (code[0] + ' RETURNING %s' % returning, code[1])
         return code
 
-    def execute(self, context):
-        result = super().execute(context)
+    async def execute(self, context):
+        result = await super().execute(context)
 
         if not result:
             op = Insert(self.table, records=[self.record])
-            result = op.execute(context)
+            result = await op.execute(context)
 
         return result
 
@@ -196,7 +196,7 @@ class Delete(DMLOperation):
         self.condition = condition
         self.include_children = include_children
 
-    def code(self, context):
+    async def code(self, context):
         e = common.quote_ident
         where = ' AND '.join('%s = $%d' % (e(c[0]), i + 1) for i, c in enumerate(self.condition))
 
@@ -211,7 +211,7 @@ class Delete(DMLOperation):
 
     def __repr__(self):
         where = ','.join('%s=%s' % (c[0], c[1]) for c in self.condition)
-        return '<caos.sync.%s %s (%s)>' % (self.__class__.__name__, self.table.name, where)
+        return '<edgedb.sync.%s %s (%s)>' % (self.__class__.__name__, self.table.name, where)
 
 
 class CopyFrom(DMLOperation):
@@ -222,12 +222,12 @@ class CopyFrom(DMLOperation):
         self.producer = producer
         self.format = format
 
-    def code(self, context):
+    async def code(self, context):
         code = 'COPY %s FROM STDIN WITH (FORMAT "%s")' % (common.qname(*self.table.name), self.format)
         return code, ()
 
-    def execute(self, context):
-        code, vars = self.code(context)
+    async def execute(self, context):
+        code, vars = await self.code(context)
         receive_stmt = context.db.prepare(code)
         receiver = postgresql.copyman.StatementReceiver(receive_stmt)
 

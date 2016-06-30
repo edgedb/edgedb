@@ -19,7 +19,7 @@ from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.common import datastructures
 from edgedb.lang.common import functional
 
-from edgedb.server.pgsql import common, Config
+from edgedb.server.pgsql import common
 from edgedb.server.pgsql import dbops
 from edgedb.server.pgsql.dbops import catalogs as pg_catalogs
 
@@ -52,7 +52,7 @@ class CallDeltaHook(dbops.Command):
         self.stage = stage
         self.op = op
 
-    def execute(self, context):
+    async def execute(self, context):
         try:
             self.op.call_hook(context.session, stage=self.stage, hook=self.hook)
         except sd.DeltaHookNotFoundError:
@@ -72,7 +72,7 @@ class ConstraintCommon:
         name = '{};{}'.format(self._constraint.name, 'schemaconstr')
         return name
 
-    def extra(self, context):
+    async def extra(self, context):
         text = self.raw_constraint_name()
         cmd = dbops.Comment(object=self, text=text)
         return [cmd]
@@ -93,7 +93,7 @@ class SchemaConstraintDomainConstraint(ConstraintCommon, dbops.DomainConstraint)
         self._exprdata = exprdata
         self._constraint = constraint
 
-    def extra(self, context):
+    async def extra(self, context):
         # There seems to be no direct way to COMMENT on a domain constraint.
         # See http://www.postgresql.org/message-id/5310157.yWWCtg2qIU@klinga.prans.org
         # Work this around by updating pg_description directly.
@@ -128,7 +128,7 @@ class SchemaConstraintDomainConstraint(ConstraintCommon, dbops.DomainConstraint)
 
         return [cmd]
 
-    def constraint_code(self, context):
+    async def constraint_code(self, context):
         if len(self._exprdata) == 1:
             expr = self._exprdata[0]['exprdata']['plain']
         else:
@@ -150,7 +150,7 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
         self._scope = scope
         self._type = type
 
-    def constraint_code(self, context):
+    async def constraint_code(self, context):
         ql = postgresql.string.quote_literal
 
         if self._scope == 'row':
@@ -288,8 +288,8 @@ class MultiConstraintItem:
 
 
 class AlterTableAddMultiConstraint(dbops.AlterTableAddConstraint):
-    def code(self, context):
-        exprs = self.constraint.constraint_code(context)
+    async def code(self, context):
+        exprs = await self.constraint.constraint_code(context)
 
         if isinstance(exprs, list) and len(exprs) > 1:
             chunks = []
@@ -309,10 +309,10 @@ class AlterTableAddMultiConstraint(dbops.AlterTableAddConstraint):
 
         return code
 
-    def extra(self, context, alter_table):
+    async def extra(self, context, alter_table):
         comments = []
 
-        exprs = self.constraint.constraint_code(context)
+        exprs = await self.constraint.constraint_code(context)
         constr_name = self.constraint.raw_constraint_name()
 
         if isinstance(exprs, list) and len(exprs) > 1:
@@ -344,11 +344,11 @@ class AlterTableRenameMultiConstraint(dbops.AlterTableBaseMixin,
         self.constraint = constraint
         self.new_constraint = new_constraint
 
-    def execute(self, context):
+    async def execute(self, context):
         c = self.constraint
         nc = self.new_constraint
 
-        exprs = self.constraint.constraint_code(context)
+        exprs = await self.constraint.constraint_code(context)
 
         if isinstance(exprs, list) and len(exprs) > 1:
             for i, expr in enumerate(exprs):
@@ -368,12 +368,12 @@ class AlterTableRenameMultiConstraint(dbops.AlterTableBaseMixin,
 
             self.add_command(ac)
 
-        return super().execute(context)
+        return await super().execute(context)
 
-    def extra(self, context):
+    async def extra(self, context):
         comments = []
 
-        exprs = self.new_constraint.constraint_code(context)
+        exprs = await self.new_constraint.constraint_code(context)
         constr_name = self.new_constraint.raw_constraint_name()
 
         if isinstance(exprs, list) and len(exprs) > 1:
@@ -390,8 +390,8 @@ class AlterTableRenameMultiConstraint(dbops.AlterTableBaseMixin,
 
 
 class AlterTableDropMultiConstraint(dbops.AlterTableDropConstraint):
-    def code(self, context):
-        exprs = self.constraint.constraint_code(context)
+    async def code(self, context):
+        exprs = await self.constraint.constraint_code(context)
 
         if isinstance(exprs, list) and len(exprs) > 1:
             chunks = []
@@ -628,10 +628,10 @@ class AlterTableRenameInheritableConstraint(AlterTableInheritableConstraintBase)
                                      self.__class__.__name__,
                                      self._constraint)
 
-    def execute(self, context):
+    async def execute(self, context):
         if not self._constraint.is_abstract:
             self.rename_constraint(self._constraint, self._new_constraint)
-        super().execute(context)
+        await super().execute(context)
 
 
 class AlterTableAlterInheritableConstraint(AlterTableInheritableConstraintBase):
@@ -644,9 +644,9 @@ class AlterTableAlterInheritableConstraint(AlterTableInheritableConstraintBase):
                                      self.__class__.__name__,
                                      self._constraint)
 
-    def execute(self, context):
+    async def execute(self, context):
         self.alter_constraint(self._constraint, self._new_constraint)
-        super().execute(context)
+        await super().execute(context)
 
 
 class AlterTableDropInheritableConstraint(AlterTableInheritableConstraintBase):
@@ -655,10 +655,10 @@ class AlterTableDropInheritableConstraint(AlterTableInheritableConstraintBase):
                                      self.__class__.__name__,
                                      self._constraint)
 
-    def execute(self, context):
+    async def execute(self, context):
         if not self._constraint.is_abstract:
             self.drop_constraint(self._constraint)
-        super().execute(context)
+        await super().execute(context)
 
 
 class MappingIndex(dbops.Index):
@@ -700,7 +700,7 @@ class MappingIndex(dbops.Index):
 
 class DeltaRefTable(dbops.Table):
     def __init__(self, name=None):
-        name = name or ('caos', 'deltaref')
+        name = name or ('edgedb', 'deltaref')
         super().__init__(name=name)
 
         self.__columns = datastructures.OrderedSet([
@@ -717,7 +717,7 @@ class DeltaRefTable(dbops.Table):
 
 class DeltaLogTable(dbops.Table):
     def __init__(self, name=None):
-        name = name or ('caos', 'deltalog')
+        name = name or ('edgedb', 'deltalog')
         super().__init__(name=name)
 
         self.__columns = datastructures.OrderedSet([
@@ -739,7 +739,7 @@ class DeltaLogTable(dbops.Table):
 
 class ModuleTable(dbops.Table):
     def __init__(self, name=None):
-        name = name or ('caos', 'module')
+        name = name or ('edgedb', 'module')
         super().__init__(name=name)
 
         self.__columns = datastructures.OrderedSet([
@@ -757,7 +757,7 @@ class ModuleTable(dbops.Table):
 
 class MetaObjectTable(dbops.Table):
     def __init__(self, name=None):
-        name = name or ('caos', 'metaobject')
+        name = name or ('edgedb', 'metaobject')
         super().__init__(name=name)
 
         self.__columns = datastructures.OrderedSet([
@@ -765,7 +765,7 @@ class MetaObjectTable(dbops.Table):
             dbops.Column(name='name', type='text', required=True),
             dbops.Column(name='is_abstract', type='boolean', required=True, default=False),
             dbops.Column(name='is_final', type='boolean', required=True, default=False),
-            dbops.Column(name='title', type='caos.hstore'),
+            dbops.Column(name='title', type='edgedb.hstore'),
             dbops.Column(name='description', type='text')
         ])
 
@@ -779,12 +779,12 @@ class MetaObjectTable(dbops.Table):
 
 class AttributeTable(MetaObjectTable):
     def __init__(self):
-        super().__init__(name=('caos', 'attribute'))
-        self.bases = [('caos', 'metaobject')]
+        super().__init__(name=('edgedb', 'attribute'))
+        self.bases = [('edgedb', 'metaobject')]
 
         self.constraints = set([
-            dbops.PrimaryKey(('caos', 'attribute'), columns=('id',)),
-            dbops.UniqueConstraint(('caos', 'attribute'), columns=('name',))
+            dbops.PrimaryKey(('edgedb', 'attribute'), columns=('id',)),
+            dbops.UniqueConstraint(('edgedb', 'attribute'), columns=('name',))
         ])
 
         self.__columns = datastructures.OrderedSet([
@@ -796,12 +796,12 @@ class AttributeTable(MetaObjectTable):
 
 class AttributeValueTable(MetaObjectTable):
     def __init__(self):
-        super().__init__(name=('caos', 'attribute_value'))
-        self.bases = [('caos', 'metaobject')]
+        super().__init__(name=('edgedb', 'attribute_value'))
+        self.bases = [('edgedb', 'metaobject')]
 
         self.constraints = set([
-            dbops.PrimaryKey(('caos', 'attribute_value'), columns=('id',)),
-            dbops.UniqueConstraint(('caos', 'attribute_value'), columns=('name',))
+            dbops.PrimaryKey(('edgedb', 'attribute_value'), columns=('id',)),
+            dbops.UniqueConstraint(('edgedb', 'attribute_value'), columns=('name',))
         ])
 
         self.__columns = datastructures.OrderedSet([
@@ -815,12 +815,12 @@ class AttributeValueTable(MetaObjectTable):
 
 class ConstraintTable(MetaObjectTable):
     def __init__(self):
-        super().__init__(name=('caos', 'constraint'))
-        self.bases = [('caos', 'metaobject')]
+        super().__init__(name=('edgedb', 'constraint'))
+        self.bases = [('edgedb', 'metaobject')]
 
         self.constraints = set([
-            dbops.PrimaryKey(('caos', 'constraint'), columns=('id',)),
-            dbops.UniqueConstraint(('caos', 'constraint'), columns=('name',))
+            dbops.PrimaryKey(('edgedb', 'constraint'), columns=('id',)),
+            dbops.UniqueConstraint(('edgedb', 'constraint'), columns=('name',))
         ])
 
         self.__columns = datastructures.OrderedSet([
@@ -831,8 +831,8 @@ class ConstraintTable(MetaObjectTable):
             dbops.Column(name='localfinalexpr', type='text'),
             dbops.Column(name='finalexpr', type='text'),
             dbops.Column(name='errmessage', type='text'),
-            dbops.Column(name='paramtypes', type='caos.hstore'),
-            dbops.Column(name='inferredparamtypes', type='caos.hstore'),
+            dbops.Column(name='paramtypes', type='edgedb.hstore'),
+            dbops.Column(name='inferredparamtypes', type='edgedb.hstore'),
             dbops.Column(name='args', type='bytea')
         ])
 
@@ -841,20 +841,20 @@ class ConstraintTable(MetaObjectTable):
 
 class AtomTable(MetaObjectTable):
     def __init__(self):
-        super().__init__(name=('caos', 'atom'))
+        super().__init__(name=('edgedb', 'atom'))
 
-        self.bases = [('caos', 'metaobject')]
+        self.bases = [('edgedb', 'metaobject')]
 
         self.__columns = datastructures.OrderedSet([
             dbops.Column(name='base', type='text'),
-            dbops.Column(name='constraints', type='caos.hstore'),
+            dbops.Column(name='constraints', type='edgedb.hstore'),
             dbops.Column(name='default', type='text'),
-            dbops.Column(name='attributes', type='caos.hstore')
+            dbops.Column(name='attributes', type='edgedb.hstore')
         ])
 
         self.constraints = set([
-            dbops.PrimaryKey(('caos', 'atom'), columns=('id',)),
-            dbops.UniqueConstraint(('caos', 'atom'), columns=('name',))
+            dbops.PrimaryKey(('edgedb', 'atom'), columns=('id',)),
+            dbops.UniqueConstraint(('edgedb', 'atom'), columns=('name',))
         ])
 
         self._columns = self.columns()
@@ -862,13 +862,13 @@ class AtomTable(MetaObjectTable):
 
 class ConceptTable(MetaObjectTable):
     def __init__(self):
-        super().__init__(name=('caos', 'concept'))
+        super().__init__(name=('edgedb', 'concept'))
 
-        self.bases = [('caos', 'metaobject')]
+        self.bases = [('edgedb', 'metaobject')]
 
         self.constraints = set([
-            dbops.PrimaryKey(('caos', 'concept'), columns=('id',)),
-            dbops.UniqueConstraint(('caos', 'concept'), columns=('name',))
+            dbops.PrimaryKey(('edgedb', 'concept'), columns=('id',)),
+            dbops.UniqueConstraint(('edgedb', 'concept'), columns=('name',))
         ])
 
         self._columns = self.columns()
@@ -876,9 +876,9 @@ class ConceptTable(MetaObjectTable):
 
 class LinkTable(MetaObjectTable):
     def __init__(self):
-        super().__init__(name=('caos', 'link'))
+        super().__init__(name=('edgedb', 'link'))
 
-        self.bases = [('caos', 'metaobject')]
+        self.bases = [('edgedb', 'metaobject')]
 
         self.__columns = datastructures.OrderedSet([
             dbops.Column(name='source_id', type='integer'),
@@ -891,13 +891,13 @@ class LinkTable(MetaObjectTable):
             dbops.Column(name='loading', type='text'),
             dbops.Column(name='base', type='text[]'),
             dbops.Column(name='default', type='text'),
-            dbops.Column(name='constraints', type='caos.hstore'),
-            dbops.Column(name='abstract_constraints', type='caos.hstore')
+            dbops.Column(name='constraints', type='edgedb.hstore'),
+            dbops.Column(name='abstract_constraints', type='edgedb.hstore')
         ])
 
         self.constraints = set([
-            dbops.PrimaryKey(('caos', 'link'), columns=('id',)),
-            dbops.UniqueConstraint(('caos', 'link'), columns=('name',))
+            dbops.PrimaryKey(('edgedb', 'link'), columns=('id',)),
+            dbops.UniqueConstraint(('edgedb', 'link'), columns=('name',))
         ])
 
         self._columns = self.columns()
@@ -905,9 +905,9 @@ class LinkTable(MetaObjectTable):
 
 class LinkPropertyTable(MetaObjectTable):
     def __init__(self):
-        super().__init__(name=('caos', 'link_property'))
+        super().__init__(name=('edgedb', 'link_property'))
 
-        self.bases = [('caos', 'metaobject')]
+        self.bases = [('edgedb', 'metaobject')]
 
         self.__columns = datastructures.OrderedSet([
             dbops.Column(name='source_id', type='integer'),
@@ -917,13 +917,13 @@ class LinkPropertyTable(MetaObjectTable):
             dbops.Column(name='loading', type='text'),
             dbops.Column(name='base', type='text[]'),
             dbops.Column(name='default', type='text'),
-            dbops.Column(name='constraints', type='caos.hstore'),
-            dbops.Column(name='abstract_constraints', type='caos.hstore')
+            dbops.Column(name='constraints', type='edgedb.hstore'),
+            dbops.Column(name='abstract_constraints', type='edgedb.hstore')
         ])
 
         self.constraints = set([
-            dbops.PrimaryKey(('caos', 'link_property'), columns=('id',)),
-            dbops.UniqueConstraint(('caos', 'link_property'), columns=('name',))
+            dbops.PrimaryKey(('edgedb', 'link_property'), columns=('id',)),
+            dbops.UniqueConstraint(('edgedb', 'link_property'), columns=('name',))
         ])
 
         self._columns = self.columns()
@@ -931,9 +931,9 @@ class LinkPropertyTable(MetaObjectTable):
 
 class ComputableTable(MetaObjectTable):
     def __init__(self):
-        super().__init__(name=('caos', 'computable'))
+        super().__init__(name=('edgedb', 'computable'))
 
-        self.bases = [('caos', 'metaobject')]
+        self.bases = [('edgedb', 'metaobject')]
 
         self.__columns = datastructures.OrderedSet([
             dbops.Column(name='source_id', type='integer'),
@@ -943,8 +943,8 @@ class ComputableTable(MetaObjectTable):
         ])
 
         self.constraints = set([
-            dbops.PrimaryKey(('caos', 'computable'), columns=('id',)),
-            dbops.UniqueConstraint(('caos', 'computable'), columns=('name',))
+            dbops.PrimaryKey(('edgedb', 'computable'), columns=('id',)),
+            dbops.UniqueConstraint(('edgedb', 'computable'), columns=('name',))
         ])
 
         self._columns = self.columns()
@@ -952,7 +952,7 @@ class ComputableTable(MetaObjectTable):
 
 class FeatureTable(dbops.Table):
     def __init__(self, name=None):
-        name = name or ('caos', 'feature')
+        name = name or ('edgedb', 'feature')
         super().__init__(name=name)
 
         self.__columns = datastructures.OrderedSet([
@@ -969,27 +969,27 @@ class FeatureTable(dbops.Table):
 
 class ActionTable(MetaObjectTable):
     def __init__(self):
-        super().__init__(name=('caos', 'action'))
-        self.bases = [('caos', 'metaobject')]
+        super().__init__(name=('edgedb', 'action'))
+        self.bases = [('edgedb', 'metaobject')]
 
         self.constraints = set([
-            dbops.PrimaryKey(('caos', 'action'), columns=('id',)),
-            dbops.UniqueConstraint(('caos', 'action'), columns=('name',))
+            dbops.PrimaryKey(('edgedb', 'action'), columns=('id',)),
+            dbops.UniqueConstraint(('edgedb', 'action'), columns=('name',))
         ])
 
 
 class EventTable(MetaObjectTable):
     def __init__(self):
-        super().__init__(name=('caos', 'event'))
-        self.bases = [('caos', 'metaobject')]
+        super().__init__(name=('edgedb', 'event'))
+        self.bases = [('edgedb', 'metaobject')]
 
         self.__columns = datastructures.OrderedSet([
             dbops.Column(name='base', type='text[]')
         ])
 
         self.constraints = set([
-            dbops.PrimaryKey(('caos', 'event'), columns=('id',)),
-            dbops.UniqueConstraint(('caos', 'event'), columns=('name',))
+            dbops.PrimaryKey(('edgedb', 'event'), columns=('id',)),
+            dbops.UniqueConstraint(('edgedb', 'event'), columns=('name',))
         ])
 
         self._columns = self.columns()
@@ -997,10 +997,10 @@ class EventTable(MetaObjectTable):
 
 class PolicyTable(MetaObjectTable):
     def __init__(self, name=None):
-        name = name or ('caos', 'policy')
+        name = name or ('edgedb', 'policy')
         super().__init__(name=name)
 
-        self.bases = [('caos', 'metaobject')]
+        self.bases = [('edgedb', 'metaobject')]
 
         self.__columns = datastructures.OrderedSet([
             dbops.Column(name='subject', type='integer', required=True),
@@ -1009,8 +1009,8 @@ class PolicyTable(MetaObjectTable):
         ])
 
         self.constraints = set([
-            dbops.PrimaryKey(('caos', 'policy'), columns=('id',)),
-            dbops.UniqueConstraint(('caos', 'policy'), columns=('name',))
+            dbops.PrimaryKey(('edgedb', 'policy'), columns=('id',)),
+            dbops.UniqueConstraint(('edgedb', 'policy'), columns=('name',))
         ])
 
         self._columns = self.columns()
@@ -1018,7 +1018,7 @@ class PolicyTable(MetaObjectTable):
 
 class BackendInfoTable(dbops.Table):
     def __init__(self, name=None):
-        name = name or ('caos', 'backend_info')
+        name = name or ('edgedb', 'backend_info')
         super().__init__(name=name)
 
         self.__columns = datastructures.OrderedSet([
@@ -1030,7 +1030,7 @@ class BackendInfoTable(dbops.Table):
 
 class EntityModStatType(dbops.CompositeType):
     def __init__(self):
-        super().__init__(name=('caos', 'entity_modstat_rec_t'))
+        super().__init__(name=('edgedb', 'entity_modstat_rec_t'))
 
         self.__columns = datastructures.OrderedSet([
             dbops.Column(name='std.id', type='uuid'),
@@ -1042,7 +1042,7 @@ class EntityModStatType(dbops.CompositeType):
 
 class LinkEndpointsType(dbops.CompositeType):
     def __init__(self):
-        super().__init__(name=('caos', 'link_endpoints_rec_t'))
+        super().__init__(name=('edgedb', 'link_endpoints_rec_t'))
 
         self.__columns = datastructures.OrderedSet([
             dbops.Column(name='source_id', type='uuid'),
@@ -1053,37 +1053,19 @@ class LinkEndpointsType(dbops.CompositeType):
 
 
 class Feature:
-    def __init__(self, name, schema='caos'):
+    def __init__(self, name, schema='edgedb'):
         self.name = name
         self.schema = schema
 
     def get_extension_name(self):
         return self.name
 
-    def code(self, context):
+    async def code(self, context):
         pg_ver = context.db.version_info
 
-        if pg_ver[:2] <= (9, 0):
-            return self._manual_extension_code(context)
-        else:
-            name = common.quote_ident(self.get_extension_name())
-            schema = common.quote_ident(self.schema)
-            return 'CREATE EXTENSION {} WITH SCHEMA {}'.format(name, schema)
-
-    def _manual_extension_code(self, context):
-        source = self.get_source(context)
-
-        with open(source, 'r') as f:
-            code = re.sub(r'SET\s+search_path\s*=\s*[^;]+;',
-                          'SET search_path = %s;' % common.quote_ident(self.schema),
-                          f.read())
-        return code
-
-    def get_source(self, context):
-        pg_config_path = Config.get_pg_config_path()
-        config = postgresql.installation.pg_config_dictionary(pg_config_path)
-        installation = postgresql.installation.Installation(config)
-        return self.source % {'pgpath': installation.sharedir}
+        name = common.quote_ident(self.get_extension_name())
+        schema = common.quote_ident(self.schema)
+        return 'CREATE EXTENSION {} WITH SCHEMA {}'.format(name, schema)
 
     @classmethod
     def init_feature(cls, db):
@@ -1101,10 +1083,10 @@ class EnableFeature(dbops.DDLOperation):
         self.feature = feature
         self.opid = feature.name
 
-    def code(self, context):
+    async def code(self, context):
         return self.feature.code(context)
 
-    def extra(self, context, *args, **kwargs):
+    async def extra(self, context, *args, **kwargs):
         table = FeatureTable()
         record = table.record()
         record.name = self.feature.name
@@ -1112,9 +1094,9 @@ class EnableFeature(dbops.DDLOperation):
                                        self.feature.__class__.__name__)
         return [dbops.Insert(table, records=[record])]
 
-    def execute(self, context):
-        super().execute(context)
-        self.feature.init_feature(context.db)
+    async def execute(self, context):
+        await super().execute(context)
+        await self.feature.init_feature(context.db)
 
     def __repr__(self):
-        return '<caos.sync.%s %s>' % (self.__class__.__name__, self.feature.name)
+        return '<edgedb.sync.%s %s>' % (self.__class__.__name__, self.feature.name)

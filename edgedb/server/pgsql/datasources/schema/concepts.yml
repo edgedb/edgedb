@@ -26,6 +26,6 @@ source: |
             c.is_abstract AS is_abstract,
             c.is_final AS is_final
         FROM
-            caos.concept c
+            edgedb.concept c
         WHERE
             %(name)s::text IS NULL OR c.name = %(name)s::text

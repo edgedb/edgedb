@@ -455,10 +455,10 @@ class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
     def _delta_sets(cls, old, new, context=None, *,
                                    old_schema=None, new_schema=None):
         from edgedb.lang.schema import named as s_named
-        from edgedb.lang.schema import realm as s_realm
+        from edgedb.lang.schema import database as s_db
 
-        adds_mods = s_realm.AlterRealm()
-        dels = s_realm.AlterRealm()
+        adds_mods = s_db.AlterDatabase()
+        dels = s_db.AlterDatabase()
 
         if old is None:
             for n in new:
@@ -491,7 +491,7 @@ class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
 
         comparison = sorted(comparison, key=lambda item: item[0], reverse=True)
 
-        """LOG [caos.delta.comp] Index comparison
+        """LOG [edgedb.delta.comp] Index comparison
         from edgedb.lang.common import markup
         markup.dump(comparison)
         """

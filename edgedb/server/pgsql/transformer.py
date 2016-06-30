@@ -27,7 +27,7 @@ from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import utils as s_utils
 
 from edgedb.server import pgsql
-from edgedb.server.pgsql import common, session as pg_session, driver as pg_driver
+from edgedb.server.pgsql import common
 from edgedb.server.pgsql import types as pg_types
 from edgedb.server.pgsql import exceptions as pg_errors
 
@@ -307,7 +307,8 @@ class Decompiler(ast.visitor.NodeVisitor):
         elif expr.name == 'now':
             fname = ('datetime', 'current_datetime')
             args = [self._process_expr(context, a) for a in expr.args]
-        elif expr.name == ('caos', 'uuid_generate_v1mc'):
+        elif expr.name in (('edgedb', 'uuid_generate_v1mc'),
+                            'uuid_generate_v1mc'):
             fname = ('uuid', 'generate_v1mc')
             args = [self._process_expr(context, a) for a in expr.args]
         else:
@@ -606,16 +607,12 @@ class IRCompilerBase:
                 else:
                     attr_name = ptr_name
 
-                    if (isinstance(e, irast.MetaRef)
-                            and context.current.output_format == 'json'):
-                        attr_name = '$sxcls{}$'.format(attr_name)
-
                 attribute_map.append(attr_name)
                 my_elements.append(element)
 
         proto_class = expr.concept.get_canonical_class()
         proto_class_name = '{}.{}'.format(proto_class.__module__, proto_class.__name__)
-        marker = pg_session.RecordInfo(attribute_map=attribute_map,
+        marker = common.RecordInfo(attribute_map=attribute_map,
                                        virtuals_map=virtuals_map,
                                        proto_class=proto_class_name,
                                        proto_name=expr.concept.name,
@@ -625,7 +622,7 @@ class IRCompilerBase:
         context.current.backend._register_record_info(marker)
 
         marker = pgsql.ast.ConstantNode(value=marker.id)
-        marker_type = pgsql.ast.TypeNode(name='caos.known_record_marker_t')
+        marker_type = pgsql.ast.TypeNode(name='edgedb.known_record_marker_t')
         marker = pgsql.ast.TypeCastNode(expr=marker, type=marker_type)
 
         my_elements.insert(0, marker)
@@ -724,7 +721,7 @@ class IRCompilerBase:
             elif expr.name == ('agg', 'sum'):
                 name = 'sum'
             elif expr.name == ('agg', 'product'):
-                name = common.qname('caos', 'agg_product')
+                name = common.qname('edgedb', 'agg_product')
             elif expr.name == ('agg', 'avg'):
                 name = 'avg'
             elif expr.name == ('agg', 'min'):
@@ -823,7 +820,7 @@ class IRCompilerBase:
             elif expr.name == ('datetime', 'current_datetime'):
                 result = pgsql.ast.FunctionCallNode(name='current_timestamp', noparens=True)
             elif expr.name == ('uuid', 'generate_v1mc'):
-                name = common.qname('caos', 'uuid_generate_v1mc')
+                name = common.qname('edgedb', 'uuid_generate_v1mc')
             elif expr.name == ('str', 'replace'):
                 name = 'replace'
             elif expr.name == ('str', 'len'):
@@ -843,7 +840,7 @@ class IRCompilerBase:
             elif expr.name in (('str', 'trim'), ('str', 'ltrim'), ('str', 'rtrim')):
                 name = expr.name[1]
             elif expr.name == ('str', 'levenshtein'):
-                name = common.qname('caos', 'levenshtein')
+                name = common.qname('edgedb', 'levenshtein')
 
             elif expr.name == ('re', 'match'):
                 subq = pgsql.ast.SelectQueryNode()
@@ -899,7 +896,7 @@ class IRCompilerBase:
 
             elif expr.name == ('rand', 'bytes'):
                 args[0] = pgsql.ast.TypeCastNode(expr=args[0], type=pgsql.ast.TypeNode(name='int'))
-                name = common.qname('caos', 'gen_random_bytes')
+                name = common.qname('edgedb', 'gen_random_bytes')
 
             elif expr.name == ('rand', 'random'):
                 name = 'random'
@@ -1335,7 +1332,7 @@ class IRCompiler(IRCompilerBase):
             qtree = self._transform_tree(context, query)
             argmap = context.current.argmap
 
-            """LOG [caos.query] SQL Tree
+            """LOG [edgedb.query] SQL Tree
             self._dump(qtree)
             """
 
@@ -1344,7 +1341,7 @@ class IRCompiler(IRCompilerBase):
             qchunks = codegen.result
             arg_index = codegen.param_index
 
-            """LOG [caos.query]
+            """LOG [edgedb.query]
             from edgedb.lang.common import markup
             qtext = ''.join(qchunks)
             markup.dump_code(qtext, lexer='sql', header='SQL Query')
@@ -1695,7 +1692,7 @@ class IRCompiler(IRCompilerBase):
                             targets=[pgsql.ast.SelectExprNode(
                                 expr=pgsql.ast.FieldRefNode(field='id'))],
                             fromlist=[pgsql.ast.TableNode(name='concept',
-                                                          schema='caos')],
+                                                          schema='edgedb')],
                             where=pgsql.ast.BinOpNode(
                                 op=ast.ops.EQ,
                                 left=pgsql.ast.FieldRefNode(field='name'),
@@ -1866,7 +1863,7 @@ class IRCompiler(IRCompilerBase):
                                                           direction=recptr_direction,
                                                           target=child_end.concept.name)
 
-                marker = pg_session.RecordInfo(attribute_map=attribute_map,
+                marker = common.RecordInfo(attribute_map=attribute_map,
                                                recursive_link=recursive_attr,
                                                proto_class=proto_class_name,
                                                proto_name=child_end.concept.name)
@@ -1875,7 +1872,7 @@ class IRCompiler(IRCompilerBase):
                 context.current.backend._register_record_info(marker)
 
                 marker = pgsql.ast.ConstantNode(value=marker.id)
-                marker_type = pgsql.ast.TypeNode(name='caos.known_record_marker_t')
+                marker_type = pgsql.ast.TypeNode(name='edgedb.known_record_marker_t')
                 marker = pgsql.ast.TypeCastNode(expr=marker, type=marker_type)
 
                 subexpr = pgsql.ast.RowExprNode(args=[marker, subexpr])
@@ -2077,7 +2074,7 @@ class IRCompiler(IRCompilerBase):
     def _process_update_expr(self, context, updexpr, props_only, operation,
                              query, scope_cte):
         caos_link = pgsql.ast.TableNode(
-                            schema='caos', name='link',
+                            schema='edgedb', name='link',
                             alias=context.current.genalias(hint='l'))
 
         updtarget = updexpr.expr
@@ -2390,13 +2387,13 @@ class IRCompiler(IRCompilerBase):
                 row_args.append(fieldref)
                 attribute_map.append(target.alias)
 
-        marker = pg_session.RecordInfo(attribute_map=attribute_map)
+        marker = common.RecordInfo(attribute_map=attribute_map)
 
         context.current.record_info[marker.id] = marker
         context.current.backend._register_record_info(marker)
 
         marker = pgsql.ast.ConstantNode(value=marker.id)
-        marker_type = pgsql.ast.TypeNode(name='caos.known_record_marker_t')
+        marker_type = pgsql.ast.TypeNode(name='edgedb.known_record_marker_t')
         marker = pgsql.ast.TypeCastNode(expr=marker, type=marker_type)
 
         row_args.insert(0, marker)
@@ -3241,7 +3238,7 @@ class IRCompiler(IRCompilerBase):
                 result = pgsql.ast.SequenceNode(elements=elements)
             else:
                 if context.current.output_format == 'json':
-                    elements.insert(0, pgsql.ast.ConstantNode(value=pg_driver.FREEFORM_RECORD_ID))
+                    elements.insert(0, pgsql.ast.ConstantNode(value=common.FREEFORM_RECORD_ID))
                 result = pgsql.ast.RowExprNode(args=elements)
 
         elif isinstance(expr, irast.Record):
@@ -3743,7 +3740,7 @@ class IRCompiler(IRCompilerBase):
                     raise ValueError(msg)
 
                 datatable = pgsql.ast.TableNode(name=metatable,
-                                                schema='caos',
+                                                schema='edgedb',
                                                 concepts=None,
                                                 alias=context.current.genalias(hint='metaobject'))
 
@@ -3773,7 +3770,7 @@ class IRCompiler(IRCompilerBase):
                     # which is stored as an hstore in the database.  Direct reference
                     # defaults to the "singular" form
                     hstore_key = pgsql.ast.ConstantNode(value='singular')
-                    op = 'operator(caos.->)'
+                    op = 'operator(edgedb.->)'
                     fieldref = pgsql.ast.BinOpNode(left=fieldref, right=hstore_key, op=op)
 
                 alias = context.current.genalias(hint=metaref_name)
@@ -4171,7 +4168,7 @@ class IRCompiler(IRCompilerBase):
                     concept_name_ref = query.concept_node_map[sqlpath.caosnode].get(('schema', 'name'))
                     if not concept_name_ref:
                         datatable = pgsql.ast.TableNode(name='metaobject',
-                                                        schema='caos',
+                                                        schema='edgedb',
                                                         concepts=None,
                                                         alias=context.current.genalias(hint='metaobject'))
                         query.fromlist.append(pgsql.ast.FromExprNode(expr=datatable))

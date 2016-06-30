@@ -15,7 +15,7 @@ class CreateSequence(ddl.SchemaObjectOperation):
     def __init__(self, name):
         super().__init__(name)
 
-    def code(self, context):
+    async def code(self, context):
         return 'CREATE SEQUENCE %s' % common.qname(*self.name)
 
 
@@ -47,7 +47,7 @@ class AlterSequenceSetSchema(ddl.DDLOperation):
         self.name = name
         self.new_schema = new_schema
 
-    def code(self, context):
+    async def code(self, context):
         code = 'ALTER SEQUENCE %s SET SCHEMA %s' % \
                 (common.qname(*self.name),
                  common.quote_ident(self.new_schema))
@@ -64,7 +64,7 @@ class AlterSequenceRenameTo(ddl.DDLOperation):
         self.name = name
         self.new_name = new_name
 
-    def code(self, context):
+    async def code(self, context):
         code = 'ALTER SEQUENCE %s RENAME TO %s' % \
                 (common.qname(*self.name),
                  common.quote_ident(self.new_name))
@@ -79,6 +79,5 @@ class DropSequence(ddl.SchemaObjectOperation):
     def __init__(self, name):
         super().__init__(name)
 
-    def code(self, context):
+    async def code(self, context):
         return 'DROP SEQUENCE %s' % common.qname(*self.name)
-

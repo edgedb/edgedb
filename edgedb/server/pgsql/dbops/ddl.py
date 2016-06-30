@@ -55,29 +55,29 @@ class DDLTrigger(metaclass=DDLTriggerMeta):
     operations = None
 
     @classmethod
-    def before(cls, context, op):
+    async def before(cls, context, op):
         pass
 
     @classmethod
-    def after(cls, context, op):
+    async def after(cls, context, op):
         pass
 
 
 class DDLOperation(base.Command):
-    def execute(self, context):
+    async def execute(self, context):
         triggers = DDLTriggerMeta.get_triggers(self.__class__)
 
         for trigger in triggers:
-            cmd = trigger.before(context, self)
+            cmd = await trigger.before(context, self)
             if cmd:
-                cmd.execute(context)
+                await cmd.execute(context)
 
-        result = super().execute(context)
+        result = await super().execute(context)
 
         for trigger in triggers:
-            cmd = trigger.after(context, self)
+            cmd = await trigger.after(context, self)
             if cmd:
-                cmd.execute(context)
+                await cmd.execute(context)
 
         return result
 
@@ -90,7 +90,7 @@ class SchemaObjectOperation(DDLOperation):
         self.opid = name
 
     def __repr__(self):
-        return '<caos.sync.%s %s>' % (self.__class__.__name__, self.name)
+        return '<edgedb.sync.%s %s>' % (self.__class__.__name__, self.name)
 
 
 class Comment(DDLOperation):
@@ -100,7 +100,7 @@ class Comment(DDLOperation):
         self.object = object
         self.text = text
 
-    def code(self, context):
+    async def code(self, context):
         object_type = self.object.get_type()
         object_id = self.object.get_id()
 
@@ -115,7 +115,7 @@ class GetMetadata(base.Command):
         super().__init__()
         self.object = object
 
-    def code(self, context):
+    async def code(self, context):
         code = '''
             SELECT
                 substr(description, 5)::json
@@ -128,12 +128,12 @@ class GetMetadata(base.Command):
 
         oid = self.object.get_oid()
         if isinstance(oid, base.Command):
-            oid = oid.execute(context)[0]
+            oid = await oid.execute(context)[0]
 
         return code, oid
 
-    def _execute(self, context, code, vars):
-        result = super()._execute(context, code, vars)
+    async def _execute(self, context, code, vars):
+        result = await super()._execute(context, code, vars)
 
         if result:
             result = result[0][0]
@@ -149,9 +149,7 @@ class PutMetadata(DDLOperation):
         self.object = object
         self.metadata = metadata
 
-    def _execute(self, context, code, vars):
-        db = context.db
-
+    async def _execute(self, context, code, vars):
         metadata = self.metadata
         desc = '$CMR{}'.format(json.dumps(metadata))
 
@@ -162,7 +160,7 @@ class PutMetadata(DDLOperation):
                     type=object_type, id=object_id,
                     text=postgresql.string.quote_literal(desc))
 
-        result = base.Query(code).execute(context)
+        result = await base.Query(code).execute(context)
 
         return result
 
@@ -175,9 +173,7 @@ class PutMetadata(DDLOperation):
 
 
 class SetMetadata(PutMetadata):
-    def _execute(self, context, code, vars):
-        db = context.db
-
+    async def _execute(self, context, code, vars):
         metadata = self.metadata
         desc = '$CMR{}'.format(json.dumps(metadata))
 
@@ -188,16 +184,14 @@ class SetMetadata(PutMetadata):
                     type=object_type, id=object_id,
                     text=postgresql.string.quote_literal(desc))
 
-        result = base.Query(code).execute(context)
+        result = await base.Query(code).execute(context)
 
         return result
 
 
 class UpdateMetadata(PutMetadata):
-    def _execute(self, context, code, vars):
-        db = context.db
-
-        metadata = GetMetadata(self.object).execute(context)
+    async def _execute(self, context, code, vars):
+        metadata = await GetMetadata(self.object).execute(context)
 
         if metadata is None:
             metadata = {}
@@ -213,14 +207,14 @@ class UpdateMetadata(PutMetadata):
                     type=object_type, id=object_id,
                     text=postgresql.string.quote_literal(desc))
 
-        result = base.Query(code).execute(context)
+        result = await base.Query(code).execute(context)
 
         return result
 
 
 class CreateObject(DDLOperation):
-    def extra(self, context):
-        ops = super().extra(context)
+    async def extra(self, context):
+        ops = await super().extra(context)
 
         if self.object.metadata:
             if ops is None:
@@ -240,8 +234,8 @@ class RenameObject(DDLOperation):
         self.altered_object.rename(new_name)
         self.new_name = new_name
 
-    def extra(self, context):
-        ops = super().extra(context)
+    async def extra(self, context):
+        ops = await super().extra(context)
 
         if self.altered_object.metadata:
             if ops is None:
@@ -255,8 +249,8 @@ class RenameObject(DDLOperation):
 
 
 class AlterObject(DDLOperation):
-    def extra(self, context):
-        ops = super().extra(context)
+    async def extra(self, context):
+        ops = await super().extra(context)
 
         if self.object.metadata:
             if ops is None:

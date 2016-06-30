@@ -9,7 +9,7 @@
 from edgedb.lang import caosql
 from edgedb.lang import schema as so
 from edgedb.lang.schema import delta as sd
-from edgedb.lang.schema import realm as s_realm
+from edgedb.lang.schema import database as s_db
 
 from edgedb.lang.common.debug import debug
 
@@ -24,16 +24,16 @@ class MetaDeltaRepository:
         if d.script:
             delta_script = caosql.parse_block(d.script)
 
-            alter_realm = s_realm.AlterRealm()
+            alter_db = s_db.AlterDatabase()
             context = sd.CommandContext()
 
-            with context(s_realm.RealmCommandContext(alter_realm)):
+            with context(s_db.DatabaseCommandContext(alter_db)):
                 for ddl in delta_script:
                     ddl = caosql.deoptimize(ddl)
                     cmd = sd.Command.from_ast(ddl, context=context)
-                    alter_realm.add(cmd)
+                    alter_db.add(cmd)
 
-            d.deltas = [alter_realm]
+            d.deltas = [alter_db]
 
         return d
 
@@ -109,7 +109,7 @@ class MetaDeltaRepository:
             d.upgrade(context, schema)
             d.apply(schema)
             d.checksum = schema.get_checksum()
-            """LOG [caos.delta.recordchecksums]
+            """LOG [edgedb.delta.recordchecksums]
             d.checksum_details = schema.get_checksum_details()
             """
             self.write_delta(d)
@@ -170,7 +170,7 @@ class MetaDeltaRepository:
         v1, v1_schema, v2, v2_schema, d = self._cumulative_delta(ref1, ref2)
 
         if d is None and (preprocess is not None or postprocess is not None):
-            d = s_realm.AlterRealm()
+            d = s_db.AlterDatabase()
 
         if d is not None:
             parent_id = v1.id if v1 else None
@@ -178,7 +178,7 @@ class MetaDeltaRepository:
             checksum = v2_schema.get_checksum()
             checksum_details = None
 
-            """LOG [caos.delta.recordchecksums]
+            """LOG [edgedb.delta.recordchecksums]
             checksum_details = v2_schema.get_checksum_details()
             """
 

@@ -29,9 +29,9 @@ from . import utils
 
 
 def delta_schemas(schema1, schema2):
-    from . import modules, objects as so, realm
+    from . import modules, objects as so, database
 
-    result = realm.AlterRealm()
+    result = database.AlterDatabase()
 
     my_modules = set(schema1.modules)
     other_modules = set(schema2.modules)

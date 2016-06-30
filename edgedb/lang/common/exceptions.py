@@ -122,6 +122,10 @@ class DefaultExceptionContext(ExceptionContext):
         self.hint = hint
 
 
+class EdgeDBExceptionContext(ExceptionContext):
+    pass
+
+
 def excepthook(exctype, exc, tb):
     try:
         from edgedb.lang.common import markup
@@ -157,3 +161,142 @@ def uninstall_excepthook():
     """Installs python's plain ``sys.excepthook`` back"""
 
     sys.excepthook = _old_excepthook
+
+
+class CaosBackendError(EdgeDBError):
+    pass
+
+
+class ObjectError(EdgeDBError):
+    def __init__(self, msg, *, details=None, object):
+        super().__init__(msg, details=details)
+        self.object = object
+
+
+class SourceError(ObjectError):
+    pass
+
+
+class PointerErrorContext(EdgeDBExceptionContext):
+    def __init__(self, source, pointer, pointer_proto):
+        super().__init__()
+        self.source, self.pointer = source, pointer
+
+        if pointer_proto is not None:
+            self.pointer_proto = pointer_proto
+        elif pointer is not None:
+            self.pointer_proto = pointer.__sx_prototype__
+        else:
+            self.pointer_proto = None
+
+    @classmethod
+    def as_markup(cls, self, *, ctx):
+        me = markup.elements
+
+        body = []
+        body.append(me.doc.Text(text='SOURCE: {!r}'.format(self.source)))
+        body.append(me.doc.Text(text='POINTER: {!r}'.
+                                format(self.pointer or self.pointer_proto)))
+
+        return me.lang.ExceptionContext(title=self.title, body=body)
+
+
+class PointerError(ObjectError):
+    def __init__(self, msg, *, details=None, pointer, pointer_proto=None,
+                 source):
+        super().__init__(msg, details=details, object=pointer)
+        self.set_pointer_context(source, pointer, pointer_proto)
+
+    def set_pointer_context(self, source, pointer, pointer_proto):
+        ctx = PointerErrorContext(source, pointer, pointer_proto)
+        _replace_context(self, ctx)
+        self.source = source
+        self.pointer = pointer
+        self.pointer_proto = ctx.pointer_proto
+
+
+class AtomError(EdgeDBError):
+    pass
+
+
+class CorrectnessError(EdgeDBError):
+    pass
+
+
+class AtomValueErrorContext(EdgeDBExceptionContext):
+    def __init__(self, value):
+        super().__init__()
+        self.value = value
+        self.title = 'Atom value details'
+
+    @classmethod
+    def as_markup(cls, self, *, ctx):
+        me = markup.elements
+
+        body = []
+        body.append(me.doc.Text(text='VALUE: {!r}'.format(self.value)))
+
+        return me.lang.ExceptionContext(title=self.title, body=body)
+
+
+class AtomValueError(PointerError, CorrectnessError, ValueError):
+    def __init__(self, msg, *, details=None, pointer=None, source=None, value=None):
+        super().__init__(msg, details=details, pointer=pointer, source=source)
+        self.value = value
+        if value is not None:
+            _replace_context(self, AtomValueErrorContext(value))
+
+
+class LinkTargetError(PointerError, CorrectnessError, TypeError):
+    def __init__(self, msg, *, details=None, pointer=None, source=None,
+                               expected_types=None, received_type):
+        super().__init__(msg, details=details, pointer=pointer, source=source)
+        self.expected_types = expected_types
+        self.received_type = received_type
+
+
+class AtomConstraintViolationError(AtomValueError):
+    def __init__(self, msg, *, constraint, **kwargs):
+        super().__init__(msg, **kwargs)
+        self.constraint = constraint
+
+
+class ExistenceError(CorrectnessError, ValueError):
+    pass
+
+
+class LinkExistenceError(PointerError, ExistenceError):
+    pass
+
+
+class LinkMappingCardinalityViolationError(PointerError, CorrectnessError, ValueError):
+    pass
+
+
+class PointerReferenceError(EdgeDBError, AttributeError):
+    pass
+
+
+class PointerConstraintViolationError(PointerError, CorrectnessError, ValueError):
+    def __init__(self, msg, *, pointer, pointer_proto=None, source,
+                               constraint, value=None, **kwargs):
+        super().__init__(msg, pointer=pointer, pointer_proto=pointer_proto,
+                         source=source, **kwargs)
+        self.constraint = constraint
+        self.value = value
+
+
+class PointerConstraintUniqueViolationError(PointerConstraintViolationError):
+    pass
+
+
+class StorageError(EdgeDBError):
+    pass
+
+
+class UninterpretedStorageError(StorageError):
+    pass
+
+
+class SessionRequiredError(EdgeDBError):
+    pass

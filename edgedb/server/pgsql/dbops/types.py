@@ -29,7 +29,7 @@ class TypeExists(base.Condition):
     def __init__(self, name):
         self.name = name
 
-    def code(self, context):
+    async def code(self, context):
         code = '''SELECT
                         typname
                     FROM
@@ -47,7 +47,7 @@ class CompositeTypeAttributeExists(base.Condition):
         self.type_name = type_name
         self.attribute_name = attribute_name
 
-    def code(self, context):
+    async def code(self, context):
         code = '''SELECT
                         attribute_name
                     FROM
@@ -63,7 +63,7 @@ class CreateCompositeType(ddl.SchemaObjectOperation):
                          priority=priority)
         self.type = type
 
-    def code(self, context):
+    async def code(self, context):
         elems = [c.code(context, short=True) for c in self.type.columns()]
 
         name = common.qname(*self.type.name)
@@ -106,7 +106,7 @@ class AlterCompositeType(AlterCompositeTypeBaseMixin, base.CompositeCommandGroup
 
 class AlterCompositeTypeAddAttribute(composites.AlterCompositeAddAttribute,
                                      AlterCompositeTypeFragment):
-    def code(self, context):
+    async def code(self, context):
         return 'ADD {} {}'.format(self.get_attribute_term(),
                                   self.attribute.code(context, short=True))
 
@@ -126,7 +126,7 @@ class AlterCompositeTypeSetSchema(AlterCompositeTypeBase):
         super().__init__(name, **kwargs)
         self.schema = schema
 
-    def code(self, context):
+    async def code(self, context):
         code = super().prefix_code(context)
         code += ' SET SCHEMA %s ' % common.quote_ident(self.schema)
         return code
@@ -137,7 +137,7 @@ class AlterCompositeTypeRenameTo(AlterCompositeTypeBase):
         super().__init__(name, **kwargs)
         self.new_name = new_name
 
-    def code(self, context):
+    async def code(self, context):
         code = super().prefix_code(context)
         code += ' RENAME TO %s ' % common.quote_ident(self.new_name)
         return code
@@ -155,5 +155,5 @@ class DropCompositeType(ddl.SchemaObjectOperation):
                                priority=priority)
         self.cascade = cascade
 
-    def code(self, context):
+    async def code(self, context):
         return 'DROP TYPE {}{}'.format(common.qname(*self.name), ' CASCADE' if self.cascade else '')

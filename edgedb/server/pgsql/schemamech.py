@@ -37,25 +37,28 @@ class ConstraintMech:
     def __init__(self):
         self._constraints_cache = None
 
-    def init_cache(self, connection):
-        self._constraints_cache = self._populate_constraint_cache(connection)
+    async def init_cache(self, connection):
+        self._constraints_cache = \
+            await self._populate_constraint_cache(connection)
 
     def invalidate_schema_cache(self):
         self._constraints_cache = None
 
-    def _populate_constraint_cache(self, connection):
+    async def _populate_constraint_cache(self, connection):
         constraints_ds = introspection.constraints.Constraints(connection)
 
         constraints = {}
-        for row in constraints_ds.fetch(schema_pattern='caos%',
-                                        constraint_pattern='%;schemaconstr%'):
+        rows = await constraints_ds.fetch(schema_pattern='edgedb%',
+                                          constraint_pattern='%;schemaconstr%')
+        for row in rows:
             constraints[row['constraint_name']] = row
 
         return constraints
 
-    def constraint_name_from_pg_name(self, connection, pg_name):
+    async def constraint_name_from_pg_name(self, connection, pg_name):
         if self._constraints_cache is None:
-            self._constraints_cache = self._populate_constraint_cache(connection)
+            self._constraints_cache = \
+                await self._populate_constraint_cache(connection)
 
         try:
             cdata = self._constraints_cache[pg_name]
@@ -68,7 +71,8 @@ class ConstraintMech:
 
     @classmethod
     def _get_unique_refs(cls, tree):
-        # Check if the expression is not exists(<arg>) [and not exists (<arg>)...]
+        # Check if the expression is
+        #   not exists(<arg>) [and not exists (<arg>)...]
         expr = tree.selector[0].expr
 
         astexpr = irastexpr.ExistsConjunctionExpr()
@@ -116,7 +120,8 @@ class ConstraintMech:
             ptr_info = types.get_pointer_storage_info(
                             ptr, source=src, resolve_type=False)
 
-            # See if any of the refs are hosted in pointer tables and others are not...
+            # See if any of the refs are hosted in pointer tables and others
+            # are not...
             if ptr_info.table_type == 'link':
                 link_biased[ref] = ptr_info
             else:
@@ -138,11 +143,13 @@ class ConstraintMech:
 
         ref_tables = {}
 
-        for ref, ptr_info in itertools.chain(concept_biased.items(), link_biased.items()):
+        for ref, ptr_info in itertools.chain(concept_biased.items(),
+                                             link_biased.items()):
             ptr, src = ref_ptrs[ref]
 
             try:
-                ref_tables[ptr_info.table_name].append((ref, ptr, src, ptr_info))
+                ref_tables[ptr_info.table_name].append(
+                    (ref, ptr, src, ptr_info))
             except KeyError:
                 ref_tables[ptr_info.table_name] = [(ref, ptr, src, ptr_info)]
 
@@ -412,60 +419,67 @@ class TypeMech:
         self._column_cache = None
         self._table_cache = None
 
-    def init_cache(self, connection):
-        self._load_table_columns(('caos_%', None), connection)
+    async def init_cache(self, connection):
+        await self._load_table_columns(('edgedb_%', None), connection)
 
-    def _load_table_columns(self, table_name, connection):
+    async def _load_table_columns(self, table_name, connection):
         cols = introspection.tables.TableColumns(connection)
-        cols = cols.fetch(table_name=table_name[1], schema_name=table_name[0])
+        cols = await cols.fetch(table_name=table_name[1],
+                                schema_name=table_name[0])
 
         if self._column_cache is None:
             self._column_cache = {}
 
         for col in cols:
+            key = (col['table_schema'], col['table_name'])
+
             try:
-                table_cols = self._column_cache[(col['table_schema'], col['table_name'])]
+                table_cols = self._column_cache[key]
             except KeyError:
                 table_cols = collections.OrderedDict()
-                self._column_cache[(col['table_schema'], col['table_name'])] = table_cols
+                self._column_cache[key] = table_cols
 
             table_cols[col['column_name']] = col
 
-    def get_table_columns(self, table_name, connection=None, cache='auto'):
+    async def get_table_columns(self, table_name, connection=None,
+                                cache='auto'):
         if cache is not None and self._column_cache is not None:
             cols = self._column_cache.get(table_name)
         else:
             cols = None
 
         if cols is None and cache != 'always':
-            cols = self._load_table_columns(table_name, connection)
+            cols = await self._load_table_columns(table_name, connection)
 
         return self._column_cache.get(table_name)
 
-    def _load_type_attributes(self, type_name, connection):
+    async def _load_type_attributes(self, type_name, connection):
         cols = introspection.types.CompositeTypeAttributes(connection)
-        cols = cols.fetch(type_name=type_name[1], schema_name=type_name[0])
+        cols = await cols.fetch(type_name=type_name[1],
+                                schema_name=type_name[0])
 
         if self._column_cache is None:
             self._column_cache = {}
 
         for col in cols:
+            key = (col['type_schema'], col['type_name'])
+
             try:
-                type_attrs = self._column_cache[(col['type_schema'], col['type_name'])]
+                type_attrs = self._column_cache[key]
             except KeyError:
                 type_attrs = collections.OrderedDict()
-                self._column_cache[(col['type_schema'], col['type_name'])] = type_attrs
+                self._column_cache[key] = type_attrs
 
             type_attrs[col['attribute_name']] = col
 
-    def get_type_attributes(self, type_name, connection, cache='auto'):
+    async def get_type_attributes(self, type_name, connection, cache='auto'):
         if cache is not None and self._column_cache is not None:
             cols = self._column_cache.get(type_name)
         else:
             cols = None
 
         if cols is None and cache != 'always':
-            self._load_type_attributes(type_name, connection)
+            await self._load_type_attributes(type_name, connection)
 
         return self._column_cache.get(type_name)
 

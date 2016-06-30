@@ -27,6 +27,6 @@ source: |
             c.default AS default,
             c.attributes AS attributes
         FROM
-            caos.atom c
+            edgedb.atom c
         ORDER BY
             c.id

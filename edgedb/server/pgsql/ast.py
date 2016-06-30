@@ -9,7 +9,7 @@
 import weakref
 
 from edgedb.lang.common import datastructures, ast
-from edgedb.lang.ir import ast as irast
+from edgedb.lang.caosql import ast as qlast
 
 
 class Base(ast.AST):
@@ -253,10 +253,10 @@ INTERSECT = PgSQLSetOperator('INTERSECT')
 EXCEPT = PgSQLSetOperator('EXCEPT')
 
 
-SortAsc = irast.SortAsc
-SortDesc = irast.SortDesc
-SortDefault = irast.SortDefault
+SortAsc = qlast.SortAsc
+SortDesc = qlast.SortDesc
+SortDefault = qlast.SortDefault
 
 
-NullsFirst = irast.NonesFirst
-NullsLast = irast.NonesLast
+NullsFirst = qlast.NonesFirst
+NullsLast = qlast.NonesLast

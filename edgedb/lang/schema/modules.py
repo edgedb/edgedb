@@ -34,6 +34,16 @@ class ModuleCommand(named.NamedPrototypeCommand):
     prototype_name = so.Field(str)
 
     @classmethod
+    def _protoname_from_ast(cls, astnode, context):
+        if astnode.name.module:
+            prototype_name = sn.Name(module=astnode.name.module,
+                                     name=astnode.name.name)
+        else:
+            prototype_name = astnode.name.name
+
+        return prototype_name
+
+    @classmethod
     def _get_prototype_class(cls):
         return ProtoModule
 

@@ -6,8 +6,6 @@
 ##
 
 
-from edgedb.lang.schema.types import geo as geo_objects
-
 from edgedb.lang.schema import atoms as s_atoms
 from edgedb.lang.schema import concepts as s_concepts
 from edgedb.lang.schema import error as s_err

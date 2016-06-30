@@ -16,7 +16,7 @@ from .grammar import lexer
 
 class CaosQLParserBase(parsing.Parser):
     def get_debug(self):
-        return 'caos.lang.caosql.parser' in debug.channels
+        return 'edgedb.lang.caosql.parser' in debug.channels
 
     def get_exception(self, native_err, context):
         return CaosQLQueryError(native_err.args[0], context=context)

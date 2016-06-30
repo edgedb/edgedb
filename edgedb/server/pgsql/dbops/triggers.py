@@ -21,7 +21,7 @@ class TriggerExists(base.Condition):
         self.trigger_name = trigger_name
         self.table_name = table_name
 
-    def code(self, context):
+    async def code(self, context):
         code = '''SELECT
                         tg.tgname
                     FROM
@@ -154,7 +154,7 @@ class CreateTrigger(tables.CreateInheritableTableObject):
             self.neg_conditions.add(TriggerExists(self.trigger.name,
                                                   self.trigger.table_name))
 
-    def code(self, context):
+    async def code(self, context):
         return '''
             CREATE {constr}TRIGGER {trigger_name} {timing} {events}
                    ON {table_name}
@@ -181,7 +181,7 @@ class AlterTriggerRenameTo(tables.RenameInheritableTableObject):
             self.conditions.add(TriggerExists(self.trigger.name,
                                               self.trigger.table_name))
 
-    def code(self, context):
+    async def code(self, context):
         return 'ALTER TRIGGER %s ON %s RENAME TO %s' % \
                 (common.quote_ident(self.trigger.name),
                  common.qname(*self.trigger.table_name),
@@ -196,7 +196,7 @@ class DropTrigger(tables.DropInheritableTableObject):
             self.conditions.add(TriggerExists(self.trigger.name,
                                               self.trigger.table_name))
 
-    def code(self, context):
+    async def code(self, context):
         return 'DROP TRIGGER %(trigger_name)s ON %(table_name)s' % \
                 {'trigger_name': common.quote_ident(self.trigger.name),
                  'table_name': common.qname(*self.trigger.table_name)}
@@ -208,7 +208,7 @@ class DisableTrigger(ddl.DDLOperation):
         self.trigger = trigger
         self.self_only = self_only
 
-    def code(self, context):
+    async def code(self, context):
         return 'ALTER TABLE{only} {table_name} DISABLE TRIGGER {trigger_name}'\
                 .format(trigger_name=common.quote_ident(self.trigger.name),
                         table_name=common.qname(*self.trigger.table_name),
@@ -223,11 +223,11 @@ class DisableTrigger(ddl.DDLOperation):
 
 class DDLTriggerBase:
     @classmethod
-    def get_inherited_triggers(cls, db, table_name, bases):
+    async def get_inherited_triggers(cls, db, table_name, bases):
         bases = ['{}.{}'.format(*base) for base in bases]
 
         tc = introspection.tables.TableTriggers(db)
-        trig_records = tc.fetch(table_list=bases, inheritable_only=True)
+        trig_records = await tc.fetch(table_list=bases, inheritable_only=True)
 
         triggers = []
         for row in trig_records:
@@ -244,10 +244,10 @@ class DDLTriggerCreateTable(ddl.DDLTrigger, tables.CreateTableDDLTriggerMixin,
     operations = tables.CreateTable,
 
     @classmethod
-    def after(cls, context, op):
+    async def after(cls, context, op):
         # Apply inherited triggers
-        return cls.apply_inheritance(context, op, cls.get_inherited_triggers,
-                                     CreateTrigger)
+        return await cls.apply_inheritance(
+            context, op, cls.get_inherited_triggers, CreateTrigger)
 
 
 class DDLTriggerAlterTable(ddl.DDLTrigger, tables.AlterTableDDLTriggerMixin,
@@ -255,6 +255,7 @@ class DDLTriggerAlterTable(ddl.DDLTrigger, tables.AlterTableDDLTriggerMixin,
     operations = tables.AlterTable,
 
     @classmethod
-    def after(cls, context, op):
-        return cls.apply_inheritance(context, op, cls.get_inherited_triggers,
-                                     CreateTrigger, DropTrigger)
+    async def after(cls, context, op):
+        return await cls.apply_inheritance(
+            context, op, cls.get_inherited_triggers,
+            CreateTrigger, DropTrigger)

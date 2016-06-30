@@ -1,0 +1,1 @@
+EDGEDB_PORT = 5656

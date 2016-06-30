@@ -92,15 +92,16 @@ class CompositeAttributeCommand:
 
 
 class AlterCompositeAddAttribute(CompositeAttributeCommand):
-    def code(self, context):
-        return 'ADD {} {}'.format(self.get_attribute_term(), self.attribute.code(context))
+    async def code(self, context):
+        return 'ADD {} {}'.format(self.get_attribute_term(),
+                                  self.attribute.code(context))
 
-    def extra(self, context, alter_type):
-        return self.attribute.extra(context, alter_type)
+    async def extra(self, context, alter_type):
+        return await self.attribute.extra(context, alter_type)
 
 
 class AlterCompositeDropAttribute(CompositeAttributeCommand):
-    def code(self, context):
+    async def code(self, context):
         attrname = common.qname(self.attribute.name)
         return 'DROP {} {}'.format(self.get_attribute_term(), attrname)
 
@@ -110,7 +111,7 @@ class AlterCompositeAlterAttributeType:
         self.attribute_name = attribute_name
         self.new_type = new_type
 
-    def code(self, context):
+    async def code(self, context):
         attrterm = self.get_attribute_term()
         attrname = common.quote_ident(str(self.attribute_name))
         return 'ALTER {} {} SET DATA TYPE {}'.format(attrterm, attrname, self.new_type)
@@ -128,7 +129,7 @@ class AlterCompositeRenameAttribute:
         self.old_attr_name = old_attr_name
         self.new_attr_name = new_attr_name
 
-    def code(self, context):
+    async def code(self, context):
         code = super().prefix_code(context)
         attrterm = self.get_attribute_term()
         old_attr_name = common.quote_ident(str(self.old_attr_name))

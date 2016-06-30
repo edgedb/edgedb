@@ -35,8 +35,8 @@ source: |
             a.args         AS args,
             subj.name      AS subject
         FROM
-            caos.constraint a
-            LEFT JOIN caos.metaobject subj ON (subj.id = a.subject)
+            edgedb.constraint a
+            LEFT JOIN edgedb.metaobject subj ON (subj.id = a.subject)
         WHERE
             %(name)s::text IS NULL OR a.name LIKE %(name)s::text
 ...

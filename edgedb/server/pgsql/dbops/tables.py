@@ -86,7 +86,7 @@ class Column(base.DBObject):
             code += ' {} {}'.format('NOT NULL' if self.required else '', default)
         return code
 
-    def extra(self, context, alter_table):
+    async def extra(self, context, alter_table):
         if self.comment is not None:
             col = TableColumn(table_name=alter_table.name, column=self)
             cmd = ddl.Comment(object=col, text=self.comment)
@@ -110,7 +110,7 @@ class TableColumn(base.DBObject):
 
 
 class TableConstraint(constraints.Constraint):
-    def extra(self, context):
+    async def extra(self, context):
         return None
 
     def rename_extra(self, context, new_name):
@@ -128,7 +128,7 @@ class PrimaryKey(TableConstraint):
         super().__init__(table_name)
         self.columns = columns
 
-    def constraint_code(self, context):
+    async def constraint_code(self, context):
         code = 'PRIMARY KEY (%s)' % ', '.join(common.quote_ident(c) for c in self.columns)
         return code
 
@@ -138,7 +138,7 @@ class UniqueConstraint(TableConstraint):
         super().__init__(table_name)
         self.columns = columns
 
-    def constraint_code(self, context):
+    async def constraint_code(self, context):
         code = 'UNIQUE (%s)' % ', '.join(common.quote_ident(c) for c in self.columns)
         return code
 
@@ -149,9 +149,10 @@ class CheckConstraint(TableConstraint):
         self.expr = expr
         self.inherit = inherit
 
-    def constraint_code(self, context):
+    async def constraint_code(self, context):
         if isinstance(self.expr, base.Query):
-            expr = context.db.prepare(self.expr.text).first(*self.expr.params)
+            stmt = await context.db.prepare(self.expr.text)
+            expr = await stmt.get_value(*self.expr.params)
         else:
             expr = self.expr
 
@@ -165,7 +166,7 @@ class TableExists(base.Condition):
     def __init__(self, name):
         self.name = name
 
-    def code(self, context):
+    async def code(self, context):
         code = '''SELECT
                         tablename
                     FROM
@@ -180,7 +181,7 @@ class TableInherits(base.Condition):
         self.name = name
         self.parent_name = parent_name
 
-    def code(self, context):
+    async def code(self, context):
         code = '''SELECT
                         c.relname
                     FROM
@@ -201,7 +202,7 @@ class ColumnExists(base.Condition):
         self.table_name = table_name
         self.column_name = column_name
 
-    def code(self, context):
+    async def code(self, context):
         code = '''SELECT
                         column_name
                     FROM
@@ -218,9 +219,10 @@ class CreateTable(ddl.SchemaObjectOperation):
         self.table = table
         self.temporary = temporary
 
-    def code(self, context):
+    async def code(self, context):
         elems = [c.code(context) for c in self.table.columns(only_self=True)]
-        elems += [c.constraint_code(context) for c in self.table.constraints]
+        for c in self.table.constraints:
+            elems.append(await c.constraint_code(context))
 
         name = common.qname(*self.table.name)
         cols = ', '.join(c for c in elems)
@@ -238,9 +240,9 @@ class CreateTableDDLTriggerMixin:
     """Utility mixin to provide functions to propagate inherited objects"""
 
     @classmethod
-    def apply_inheritance(cls, context, op, list_inherited_objects,
+    async def apply_inheritance(cls, context, op, list_inherited_objects,
                                             CreateObject):
-        objects = list_inherited_objects(
+        objects = await list_inherited_objects(
                         context.db, op.table.name, op.table.bases)
         if objects:
             cmd = base.CommandGroup()
@@ -290,8 +292,9 @@ class AlterTableDDLTriggerMixin:
     """Utility mixin to provide functions to propagate inherited objects"""
 
     @classmethod
-    def apply_inheritance(cls, context, op, list_inherited_objects,
-                                            CreateObject, DropObject):
+    async def apply_inheritance(
+            cls, context, op, list_inherited_objects,
+            CreateObject, DropObject):
         dropped_parents = []
         added_parents = []
         ops = []
@@ -306,13 +309,13 @@ class AlterTableDDLTriggerMixin:
                 dropped_parents.append(cmd.parent_name)
 
         if dropped_parents:
-            objects_to_drop = list_inherited_objects(
+            objects_to_drop = await list_inherited_objects(
                                 context.db, op.name, dropped_parents)
         else:
             objects_to_drop = []
 
         if added_parents:
-            objects_to_add = list_inherited_objects(
+            objects_to_add = await list_inherited_objects(
                                 context.db, op.name, added_parents)
         else:
             objects_to_add = []
@@ -342,7 +345,7 @@ class AlterTableAddParent(AlterTableFragment):
         super().__init__(**kwargs)
         self.parent_name = parent_name
 
-    def code(self, context):
+    async def code(self, context):
         return 'INHERIT %s' % common.qname(*self.parent_name)
 
     def __repr__(self):
@@ -353,7 +356,7 @@ class AlterTableDropParent(AlterTableFragment):
     def __init__(self, parent_name):
         self.parent_name = parent_name
 
-    def code(self, context):
+    async def code(self, context):
         return 'NO INHERIT %s' % common.qname(*self.parent_name)
 
     def __repr__(self):
@@ -377,7 +380,7 @@ class AlterTableAlterColumnNull(AlterTableFragment):
         self.column_name = column_name
         self.null = null
 
-    def code(self, context):
+    async def code(self, context):
         return 'ALTER COLUMN %s %s NOT NULL' % \
                 (common.quote_ident(str(self.column_name)), 'DROP' if self.null else 'SET')
 
@@ -391,7 +394,7 @@ class AlterTableAlterColumnDefault(AlterTableFragment):
         self.column_name = column_name
         self.default = default
 
-    def code(self, context):
+    async def code(self, context):
         if self.default is None:
             return 'ALTER COLUMN %s DROP DEFAULT' % (common.quote_ident(str(self.column_name)),)
         else:
@@ -415,7 +418,7 @@ class TableConstraintExists(base.Condition):
         self.table_name = table_name
         self.constraint_name = constraint_name
 
-    def code(self, context):
+    async def code(self, context):
         code = '''SELECT
                         True
                     FROM
@@ -432,16 +435,16 @@ class AlterTableAddConstraint(AlterTableFragment, TableConstraintCommand):
         assert not isinstance(constraint, list)
         self.constraint = constraint
 
-    def code(self, context):
+    async def code(self, context):
         code = 'ADD '
         name = self.constraint.constraint_name()
         if name:
             code += 'CONSTRAINT {} '.format(name)
 
-        return code + self.constraint.constraint_code(context)
+        return code + await self.constraint.constraint_code(context)
 
-    def extra(self, context, alter_table):
-        return self.constraint.extra(context)
+    async def extra(self, context, alter_table):
+        return await self.constraint.extra(context)
 
     def __repr__(self):
         return '<%s.%s %r>' % (self.__class__.__module__, self.__class__.__name__,
@@ -455,7 +458,7 @@ class AlterTableRenameConstraintSimple(AlterTableBase, TableConstraintCommand):
         self.old_name = old_name
         self.new_name = new_name
 
-    def code(self, context):
+    async def code(self, context):
         code = self.prefix_code(context)
         code += ' RENAME CONSTRAINT {} TO {}'.format(
                         common.quote_ident(self.old_name),
@@ -471,7 +474,7 @@ class AlterTableDropConstraint(AlterTableFragment, TableConstraintCommand):
     def __init__(self, constraint):
         self.constraint = constraint
 
-    def code(self, context):
+    async def code(self, context):
         return 'DROP CONSTRAINT ' + self.constraint.constraint_name()
 
     def __repr__(self):
@@ -484,7 +487,7 @@ class AlterTableSetSchema(AlterTableBase):
         super().__init__(name, **kwargs)
         self.schema = schema
 
-    def code(self, context):
+    async def code(self, context):
         code = super().prefix_code(context)
         code += ' SET SCHEMA %s ' % common.quote_ident(self.schema)
         return code
@@ -495,7 +498,7 @@ class AlterTableRenameTo(AlterTableBase):
         super().__init__(name, **kwargs)
         self.new_name = new_name
 
-    def code(self, context):
+    async def code(self, context):
         code = super().prefix_code(context)
         code += ' RENAME TO %s ' % common.quote_ident(self.new_name)
         return code
@@ -506,19 +509,19 @@ class AlterTableRenameColumn(composites.AlterCompositeRenameAttribute, AlterTabl
 
 
 class DropTable(ddl.SchemaObjectOperation):
-    def code(self, context):
+    async def code(self, context):
         return 'DROP TABLE %s' % common.qname(*self.name)
 
 
 class CreateInheritableTableObject(ddl.CreateObject):
-    """Base creation operation class for objects with managed inheritance"""
+    """Base creation operation class for objects with managed """
 
     def __init__(self, object, **kwargs):
         super().__init__(**kwargs)
         self.object = object
 
-    def extra(self, context):
-        ops = super().extra(context)
+    async def extra(self, context):
+        ops = await super().extra(context)
 
         if self.object.inherit:
             if ops is None:
@@ -549,10 +552,10 @@ class CreateInheritableTableObject(ddl.CreateObject):
 
 
 class RenameInheritableTableObject(ddl.RenameObject):
-    """Base rename operation class for objects with managed inheritance"""
+    """Base rename operation class for objects with managed """
 
-    def extra(self, context):
-        ops = super().extra(context)
+    async def extra(self, context):
+        ops = await super().extra(context)
 
         if self.object.inherit:
             if ops is None:
@@ -584,14 +587,14 @@ class RenameInheritableTableObject(ddl.RenameObject):
 
 
 class DropInheritableTableObject(ddl.DDLOperation):
-    """Base drop operation class for objects with managed inheritance"""
+    """Base drop operation class for objects with managed """
 
     def __init__(self, object, **kwargs):
         super().__init__(**kwargs)
         self.object = object
 
-    def extra(self, context):
-        ops = super().extra(context)
+    async def extra(self, context):
+        ops = await super().extra(context)
 
         if self.object.inherit:
             if ops is None:

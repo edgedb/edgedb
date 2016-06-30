@@ -13,12 +13,11 @@ import base64
 
 import postgresql
 
+from edgedb.lang.common.algos import persistent_hash
+
 from edgedb.lang.schema import concepts as s_concepts
 from edgedb.lang.schema import links as s_links
 from edgedb.lang.schema import objects as s_obj
-
-from . import driver
-from .driver import io as custom_type_io
 
 
 def quote_ident(text):
@@ -35,7 +34,7 @@ def qname(*parts):
     return '.'.join([quote_ident(q) for q in parts])
 
 
-def caos_module_name_to_schema_name(module, prefix='caos_'):
+def caos_module_name_to_schema_name(module, prefix='edgedb_'):
     return caos_name_to_pg_name(prefix + module, len(prefix))
 
 
@@ -58,7 +57,7 @@ def caos_name_to_pg_name(name, prefix_length=0):
     return name
 
 
-def convert_name(name, suffix, catenate=True, prefix='caos_'):
+def convert_name(name, suffix, catenate=True, prefix='edgedb_'):
     schema = caos_module_name_to_schema_name(name.module, prefix=prefix)
     name = caos_name_to_pg_name('%s_%s' % (name.name, suffix))
 
@@ -68,19 +67,19 @@ def convert_name(name, suffix, catenate=True, prefix='caos_'):
         return schema, name
 
 
-def atom_name_to_domain_name(name, catenate=True, prefix='caos_'):
+def atom_name_to_domain_name(name, catenate=True, prefix='edgedb_'):
     return convert_name(name, 'domain', catenate)
 
 
-def atom_name_to_sequence_name(name, catenate=True, prefix='caos_'):
+def atom_name_to_sequence_name(name, catenate=True, prefix='edgedb_'):
     return convert_name(name, 'sequence', catenate)
 
 
-def concept_name_to_table_name(name, catenate=True, prefix='caos_'):
+def concept_name_to_table_name(name, catenate=True, prefix='edgedb_'):
     return convert_name(name, 'data', catenate)
 
 
-def concept_name_to_record_name(name, catenate=False, prefix='caos_'):
+def concept_name_to_record_name(name, catenate=False, prefix='edgedb_'):
     return convert_name(name, 'concept_record', catenate)
 
 
@@ -142,3 +141,37 @@ def py_type_to_pg_type(typ):
             return 'int'
         else:
             return _type_index[typ]
+
+
+class RecordInfo:
+    def __init__(self, *, attribute_map, proto_class=None, proto_name=None, is_xvalue=False,
+                          recursive_link=False, virtuals_map=None):
+        self.attribute_map = attribute_map
+        self.virtuals_map = virtuals_map
+        self.proto_class = proto_class
+        self.proto_name = proto_name
+        self.is_xvalue = is_xvalue
+        self.recursive_link = recursive_link
+        self.id = str(persistent_hash.persistent_hash(self))
+
+    def persistent_hash(self):
+        return persistent_hash.persistent_hash((tuple(self.attribute_map),
+                                                frozenset(self.virtuals_map.items())
+                                                    if self.virtuals_map else None,
+                                                self.proto_class,
+                                                self.proto_name, self.is_xvalue,
+                                                self.recursive_link))
+
+    def __mm_serialize__(self):
+        return dict(
+            attribute_map=self.attribute_map,
+            virtuals_map=self.virtuals_map,
+            proto_class=self.proto_class,
+            proto_name=self.proto_name,
+            is_xvalue=self.is_xvalue,
+            recursive_link=self.recursive_link,
+            id=self.id
+        )
+
+
+FREEFORM_RECORD_ID = '6e51108d-7440-47f7-8c65-dc4d43fd90d2'

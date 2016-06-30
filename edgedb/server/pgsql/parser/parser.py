@@ -28,7 +28,7 @@ class PgSQLParser(parsing.Parser):
         return pgsql
 
     def get_debug(self):
-        return 'caos.pgsql.parser' in debug.channels
+        return 'edgedb.pgsql.parser' in debug.channels
 
     def get_exception(self, native_err, context):
         return PgSQLParserError(native_err.args[0], context=context)

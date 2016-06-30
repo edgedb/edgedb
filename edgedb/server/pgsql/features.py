@@ -16,7 +16,7 @@ from edgedb.server.pgsql import deltadbops
 class UuidFeature(deltadbops.Feature):
     source = '%(pgpath)s/contrib/uuid-ossp.sql'
 
-    def __init__(self, schema='caos'):
+    def __init__(self, schema='edgedb'):
         super().__init__(name='uuid', schema=schema)
 
     def get_extension_name(self):
@@ -26,13 +26,13 @@ class UuidFeature(deltadbops.Feature):
 class HstoreFeature(deltadbops.Feature):
     source = '%(pgpath)s/contrib/hstore.sql'
 
-    def __init__(self, schema='caos'):
+    def __init__(self, schema='edgedb'):
         super().__init__(name='hstore', schema=schema)
 
     @classmethod
     def init_feature(cls, db):
         try:
-            db.typio.identify(contrib_hstore='caos.hstore')
+            db.typio.identify(contrib_hstore='edgedb.hstore')
         except postgresql.exceptions.SchemaNameError:
             pass
 
@@ -40,22 +40,22 @@ class HstoreFeature(deltadbops.Feature):
 class CryptoFeature(deltadbops.Feature):
     source = '%(pgpath)s/contrib/pgcrypto.sql'
 
-    def __init__(self, schema='caos'):
+    def __init__(self, schema='edgedb'):
         super().__init__(name='pgcrypto', schema=schema)
 
 
 class FuzzystrmatchFeature(deltadbops.Feature):
     source = '%(pgpath)s/contrib/fuzzystrmatch.sql'
 
-    def __init__(self, schema='caos'):
+    def __init__(self, schema='edgedb'):
         super().__init__(name='fuzzystrmatch', schema=schema)
 
 
 class ProductAggregateFeature(deltadbops.Feature):
-    def __init__(self, schema='caos'):
+    def __init__(self, schema='edgedb'):
         super().__init__(name='agg_product', schema=schema)
 
-    def code(self, context):
+    async def code(self, context):
         return """
             CREATE AGGREGATE {schema}.agg_product(double precision) (SFUNC=float8mul, STYPE=double precision, INITCOND=1);
             CREATE AGGREGATE {schema}.agg_product(numeric) (SFUNC=numeric_mul, STYPE=numeric, INITCOND=1);
@@ -63,10 +63,10 @@ class ProductAggregateFeature(deltadbops.Feature):
 
 
 class KnownRecordMarkerFeature(deltadbops.Feature):
-    def __init__(self, schema='caos'):
+    def __init__(self, schema='edgedb'):
         super().__init__(name='known_record_marker_t', schema=schema)
 
-    def code(self, context):
+    async def code(self, context):
         return """
             CREATE DOMAIN {schema}.known_record_marker_t AS text;
         """.format(schema=self.schema)
@@ -80,7 +80,7 @@ class KnownRecordMarkerFeature(deltadbops.Feature):
                 pg_type t INNER JOIN pg_namespace ns ON t.typnamespace = ns.oid
             WHERE
                 t.typname = 'known_record_marker_t'
-                AND ns.nspname = 'caos'
+                AND ns.nspname = 'edgedb'
         ''')
         oid = ps.first()
         if oid is not None:

@@ -38,5 +38,5 @@ class Constraint(base.DBObject):
         else:
             return self._constraint_name
 
-    def constraint_code(self):
+    async def constraint_code(self):
         raise NotImplementedError
