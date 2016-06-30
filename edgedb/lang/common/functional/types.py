@@ -11,7 +11,7 @@ import inspect
 import warnings
 import itertools
 
-from metamagic.exceptions import MetamagicError
+from edgedb.lang.common.exceptions import EdgeDBError
 from . import tools
 
 
@@ -22,11 +22,11 @@ class ChecktypeExempt:
     __slots__ = ()
 
 
-class CheckerError(MetamagicError):
+class CheckerError(EdgeDBError):
     pass
 
 
-class ChecktypesError(MetamagicError):
+class ChecktypesError(EdgeDBError):
     pass
 
 

@@ -9,12 +9,12 @@
 import itertools
 import types
 
-from metamagic.utils import ast
-from metamagic.utils import functional
+from edgedb.lang.common import ast
+from edgedb.lang.common import functional
 
-from metamagic.caos.lang.schema import error as s_err
-from metamagic.caos.lang.schema import objects as s_obj
-from metamagic.caos.lang.schema import pointers as s_pointers
+from edgedb.lang.schema import error as s_err
+from edgedb.lang.schema import objects as s_obj
+from edgedb.lang.schema import pointers as s_pointers
 
 
 class TypeRules:
@@ -243,7 +243,7 @@ def proto_name_from_type(typ):
     NoneType = type(None)
 
     if item_type is None or item_type is NoneType:
-        proto_name = 'metamagic.caos.builtins.none'
+        proto_name = 'std.none'
 
     elif isinstance(item_type, s_obj.ProtoNode):
         proto_name = item_type.name

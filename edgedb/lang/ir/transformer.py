@@ -9,29 +9,26 @@
 import collections
 import itertools
 
-from metamagic.caos import error as caos_error
+from edgedb.lang.ir import ast as irast
+from edgedb.lang.ir import utils as irutils
+from edgedb.lang.ir.utils import LinearPath
 
-from metamagic.caos.lang.ir import ast as irast
-from metamagic.caos.lang.ir import utils as irutils
-from metamagic.caos.lang.ir.utils import LinearPath
+from edgedb.lang.schema import atoms as s_atoms
+from edgedb.lang.schema import concepts as s_concepts
+from edgedb.lang.schema import expr as s_expr
+from edgedb.lang.schema import hooks as s_hooks
+from edgedb.lang.schema import links as s_links
+from edgedb.lang.schema import lproperties as s_lprops
+from edgedb.lang.schema import name as sn
+from edgedb.lang.schema import objects as s_obj
+from edgedb.lang.schema import pointers as s_pointers
+from edgedb.lang.schema import types as s_types
 
-from metamagic.caos.lang.schema import atoms as s_atoms
-from metamagic.caos.lang.schema import concepts as s_concepts
-from metamagic.caos.lang.schema import expr as s_expr
-from metamagic.caos.lang.schema import hooks as s_hooks
-from metamagic.caos.lang.schema import links as s_links
-from metamagic.caos.lang.schema import lproperties as s_lprops
-from metamagic.caos.lang.schema import name as sn
-from metamagic.caos.lang.schema import objects as s_obj
-from metamagic.caos.lang.schema import pointers as s_pointers
-from metamagic.caos.lang.schema import types as s_types
-
-from metamagic.utils.algos import boolean
-from metamagic.utils import datastructures, ast, debug, markup
-from metamagic.utils.datastructures import Void
-from metamagic.utils.functional import checktypes
-
-from metamagic import exceptions
+from edgedb.lang.common import exceptions as edgedb_error
+from edgedb.lang.common.algos import boolean
+from edgedb.lang.common import datastructures, ast, debug, markup
+from edgedb.lang.common.datastructures import Void
+from edgedb.lang.common.functional import checktypes
 
 
 class PathIndex(dict):
@@ -75,7 +72,7 @@ class PathIndex(dict):
     """
 
 
-class TreeError(exceptions.MetamagicError):
+class TreeError(edgedb_error.EdgeDBError):
     pass
 
 
@@ -352,7 +349,7 @@ class TreeTransformer:
                     self._rewrite_with_caosql_expr(expr, caosql_expr, anchors)
 
     def _rewrite_with_caosql_expr(self, expr, caosql_expr, anchors):
-        from metamagic.caos.lang import caosql
+        from edgedb.lang import caosql
 
         schema = self.context.current.proto_schema
         ir = caosql.compile_fragment_to_ir(caosql_expr, schema,
@@ -417,8 +414,7 @@ class TreeTransformer:
 
             if 'lang_rewrite' not in expr.rewrite_flags:
                 schema = self.context.current.proto_schema
-                localizable = schema.get('metamagic.caos.extras.l10n.localizable',
-                                         default=None)
+                localizable = schema.get('std.localizable', default=None)
 
                 link_proto = expr.link_proto
 
@@ -426,10 +422,10 @@ class TreeTransformer:
                     cvars = self.context.current.context_vars
 
                     lang = irast.Constant(index='__context_lang',
-                                             type=schema.get('metamagic.caos.builtins.str'))
+                                             type=schema.get('std.str'))
                     cvars['lang'] = 'en-US'
 
-                    propn = sn.Name('metamagic.caos.extras.l10n.lang')
+                    propn = sn.Name('std.lang')
 
                     for langprop in expr.proprefs:
                         if langprop.name == propn:
@@ -599,9 +595,9 @@ class TreeTransformer:
 
         if pathspec is not None:
             must_have_links = (
-                sn.Name('metamagic.caos.builtins.id'),
-                sn.Name('metamagic.caos.builtins.mtime'),
-                sn.Name('metamagic.caos.builtins.ctime')
+                sn.Name('std.id'),
+                sn.Name('std.mtime'),
+                sn.Name('std.ctime')
             )
 
             recurse_links = {(l, s_pointers.PointerDirection.Outbound):
@@ -739,7 +735,7 @@ class TreeTransformer:
                         link_node.target = newstep
                         atomrefs.append(newstep)
                 else:
-                    ptr_name = sn.Name('metamagic.caos.builtins.target')
+                    ptr_name = sn.Name('std.target')
                     prop_id = LinearPath(ref.id)
                     prop_id.add(root_link_proto, s_pointers.PointerDirection.Outbound, None)
                     prop_proto = link.pointers[ptr_name]
@@ -772,7 +768,7 @@ class TreeTransformer:
             if link.has_user_defined_properties():
                 if recurse_spec.pathspec is not None:
                     must_have_props = (
-                        sn.Name('metamagic.caos.builtins.linkid'),
+                        sn.Name('std.linkid'),
                     )
 
                     recurse_props = {propn: irast.PtrPathSpec(ptr_proto=link.pointers[propn])
@@ -939,7 +935,7 @@ class TreeTransformer:
             assert len(concepts) == 1
 
             ref = p if len(expr.paths) == 1 else expr
-            link_name = sn.Name('metamagic.caos.builtins.id')
+            link_name = sn.Name('std.id')
             link_proto = schema.get(link_name)
             target_proto = link_proto.target
             id = LinearPath(ref.id)
@@ -2180,9 +2176,9 @@ class TreeTransformer:
                                                          id=id))
 
                 if not cols:
-                    raise caos_error.CaosError('%s call on concept %s without any search configuration'\
-                                               % (node.name, ref.concept.name),
-                                               hint='Configure search for "%s"' % ref.concept.name)
+                    raise edgedb_error.EdgeDBError('%s call on concept %s without any search configuration'\
+                                                    % (node.name, ref.concept.name),
+                                                    hint='Configure search for "%s"' % ref.concept.name)
 
                 ref.atomrefs.update(cols)
                 vector = irast.Sequence(elements=cols)
@@ -2201,7 +2197,7 @@ class TreeTransformer:
 
         elif node.name == 'type':
             if len(node.args) != 1:
-                raise caos_error.CaosError('type() function takes exactly one argument, {} given'
+                raise edgedb_error.EdgeDBError('type() function takes exactly one argument, {} given'
                                            .format(len(node.args)))
 
             arg = next(iter(node.args))
@@ -2209,7 +2205,7 @@ class TreeTransformer:
             if isinstance(arg, irast.Disjunction):
                 arg = next(iter(arg.paths))
             elif not isinstance(arg, irast.EntitySet):
-                raise caos_error.CaosError('type() function only supports concept arguments')
+                raise edgedb_error.EdgeDBError('type() function only supports concept arguments')
 
             node = irast.FunctionCall(name=node.name, args=[arg])
             return node
@@ -2436,7 +2432,7 @@ class TreeTransformer:
 
                     right_exprs = self.get_multipath(right)
 
-                    id_col = sn.Name('metamagic.caos.builtins.id')
+                    id_col = sn.Name('std.id')
                     lrefs = [irast.AtomicRefSimple(ref=p, name=id_col)
                                 for p in left_exprs.paths]
                     rrefs = [irast.AtomicRefSimple(ref=p, name=id_col)
@@ -2474,7 +2470,7 @@ class TreeTransformer:
                     #       <const_id> IN <path>
                     #       <path> = <const_id>
 
-                    id_col = sn.Name('metamagic.caos.builtins.id')
+                    id_col = sn.Name('std.id')
 
                     # <Constant> IN <EntitySet> is interpreted as a membership
                     # check of entity with ID represented by Constant in the EntitySet,
@@ -2510,7 +2506,7 @@ class TreeTransformer:
                             err = '%s operator called on concept %s without any search configuration'\
                                                        % (op, p.concept.name)
                             hint = 'Configure search for "%s"' % p.concept.name
-                            raise caos_error.CaosError(err, hint=hint)
+                            raise edgedb_error.EdgeDBError(err, hint=hint)
 
                         # A SEARCH operation on an entity set is always an inline filter ATM
                         paths.add(irast.AtomicRefExpr(expr=newbinop(p, right)))
@@ -2670,7 +2666,7 @@ class TreeTransformer:
 
                 schema = self.context.current.proto_schema
                 if isinstance(op, (ast.ops.ComparisonOperator, ast.ops.EquivalenceOperator)):
-                    result_type = schema.get('metamagic.caos.builtins.bool')
+                    result_type = schema.get('std.bool')
                 else:
                     if l.type == r.type:
                         result_type = l.type

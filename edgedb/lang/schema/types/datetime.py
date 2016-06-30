@@ -8,13 +8,13 @@
 
 import datetime
 
-from metamagic.utils import ast
+from edgedb.lang.common import ast
 
-from metamagic.caos import error as caos_exc
-from metamagic.caos.lang.caosql import quote as caosql_quote
+from edgedb.lang.common import exceptions as edgedb_error
+from edgedb.lang.caosql import quote as caosql_quote
 
-from metamagic.utils.datetime import DateTime, Date, Time, TimeDelta
-from metamagic.utils.algos.persistent_hash import persistent_hash
+from edgedb.lang.common.datetime import DateTime, Date, Time, TimeDelta
+from edgedb.lang.common.algos.persistent_hash import persistent_hash
 
 from . import base as s_types
 
@@ -22,7 +22,7 @@ from . import base as s_types
 _add_impl = s_types.BaseTypeMeta.add_implementation
 _add_map = s_types.BaseTypeMeta.add_mapping
 
-_add_map(DateTime, 'metamagic.caos.builtins.datetime')
+_add_map(DateTime, 'std.datetime')
 
 
 class DateTime(DateTime):
@@ -30,7 +30,7 @@ class DateTime(DateTime):
         try:
             return super().__new__(cls, value, format=format)
         except ValueError as e:
-            raise caos_exc.AtomValueError(e.args[0]) from e
+            raise edgedb_error.AtomValueError(e.args[0]) from e
 
     def __sub__(self, other):
         if isinstance(other, datetime.datetime):
@@ -68,8 +68,8 @@ class DateTime(DateTime):
         else:
             return self.strftime('%Y-%m-%dT%H:%M:%S%z')
 
-_add_map(DateTime, 'metamagic.caos.builtins.datetime')
-_add_impl('metamagic.caos.builtins.datetime', DateTime)
+_add_map(DateTime, 'std.datetime')
+_add_impl('std.datetime', DateTime)
 
 
 class Date(Date):
@@ -77,17 +77,17 @@ class Date(Date):
         try:
             return super().__new__(cls, value, format=format)
         except ValueError as e:
-            raise caos_exc.AtomValueError(e.args[0]) from e
+            raise edgedb_error.AtomValueError(e.args[0]) from e
 
     def __str__(self):
         # ISO 8601 makes the most sense as a default representation
         return self.strftime('%Y-%m-%d')
 
-_add_impl('metamagic.caos.builtins.date', Date)
-_add_map(Date, 'metamagic.caos.builtins.date')
+_add_impl('std.date', Date)
+_add_map(Date, 'std.date')
 
 
-_add_map(Time, 'metamagic.caos.builtins.time')
+_add_map(Time, 'std.time')
 
 
 class Time(Time):
@@ -95,13 +95,13 @@ class Time(Time):
         try:
             return super().__new__(cls, value, format=format)
         except ValueError as e:
-            raise caos_exc.AtomValueError(e.args[0]) from e
+            raise edgedb_error.AtomValueError(e.args[0]) from e
 
-_add_impl('metamagic.caos.builtins.time', Time)
-_add_map(Time, 'metamagic.caos.builtins.time')
+_add_impl('std.time', Time)
+_add_map(Time, 'std.time')
 
 
-_add_map(TimeDelta, 'metamagic.caos.builtins.timedelta')
+_add_map(TimeDelta, 'std.timedelta')
 
 
 class TimeDelta(TimeDelta):
@@ -119,10 +119,10 @@ class TimeDelta(TimeDelta):
                                    hour=hour, minute=minute, second=second,
                                    microsecond=microsecond)
         except ValueError as e:
-            raise caos_exc.AtomValueError(e.args[0]) from e
+            raise edgedb_error.AtomValueError(e.args[0]) from e
 
     def __mm_caosql__(self):
-        return 'cast ({} as [metamagic.caos.builtins.timedelta])'\
+        return 'cast ({} as [std.timedelta])'\
                     .format(caosql_quote.quote_literal(str(self)))
 
     def persistent_hash(self):
@@ -171,11 +171,11 @@ class TimeDelta(TimeDelta):
 
         return format.format(**items)
 
-_add_map(TimeDelta, 'metamagic.caos.builtins.timedelta')
-_add_impl('metamagic.caos.builtins.timedelta', TimeDelta)
+_add_map(TimeDelta, 'std.timedelta')
+_add_impl('std.timedelta', TimeDelta)
 
-s_types.TypeRules.add_rule(ast.ops.ADD, (DateTime, DateTime), 'metamagic.caos.builtins.datetime')
-s_types.TypeRules.add_rule(ast.ops.ADD, (DateTime, Time), 'metamagic.caos.builtins.datetime')
-s_types.TypeRules.add_rule(ast.ops.ADD, (Time, DateTime), 'metamagic.caos.builtins.datetime')
+s_types.TypeRules.add_rule(ast.ops.ADD, (DateTime, DateTime), 'std.datetime')
+s_types.TypeRules.add_rule(ast.ops.ADD, (DateTime, Time), 'std.datetime')
+s_types.TypeRules.add_rule(ast.ops.ADD, (Time, DateTime), 'std.datetime')
 
-s_types.TypeRules.add_rule(ast.ops.SUB, (DateTime, DateTime), 'metamagic.caos.builtins.timedelta')
+s_types.TypeRules.add_rule(ast.ops.SUB, (DateTime, DateTime), 'std.timedelta')

@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.utils.functional import cachedproperty, checktypes
+from edgedb.lang.common.functional import cachedproperty, checktypes
 
 
 __all__ = ['Point', 'Rectangle']

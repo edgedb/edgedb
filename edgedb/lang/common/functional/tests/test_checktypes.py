@@ -11,9 +11,9 @@ import sys
 import warnings
 import functools
 
-from metamagic.utils import functional
-from metamagic.utils.functional import types
-from metamagic.utils.debug import assert_raises
+from edgedb.lang.common import functional
+from edgedb.lang.common.functional import types
+from edgedb.lang.common.debug import assert_raises
 
 
 class TestUtilsFunctionalChecktypes:

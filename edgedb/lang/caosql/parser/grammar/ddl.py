@@ -9,8 +9,8 @@
 import collections
 import types
 
-from metamagic.caos.lang.caosql import ast as qlast
-from metamagic.utils.parsing import ListNonterm
+from edgedb.lang.caosql import ast as qlast
+from edgedb.lang.common.parsing import ListNonterm
 
 from .precedence import *
 from .tokens import *

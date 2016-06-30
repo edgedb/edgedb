@@ -6,20 +6,12 @@
 ##
 
 
-from metamagic.caos.datasources.schemas.base import Base
+from edgedb.server.datasources.schemas.base import Base
 
 
 class Sql(Base):
     def check(self, node):
-        cls = 'metamagic.caos.datasources.sql.Sql'
-        tag = 'tag:importkit.magic.io,2009/importkit/class/derive:%s' % cls
-        self.push_tag(node, tag)
-        return super().check(node)
-
-
-class Python(Base):
-    def check(self, node):
-        cls = 'metamagic.caos.datasources.python.Python'
+        cls = 'edgedb.server.datasources.sql.Sql'
         tag = 'tag:importkit.magic.io,2009/importkit/class/derive:%s' % cls
         self.push_tag(node, tag)
         return super().check(node)
@@ -27,15 +19,7 @@ class Python(Base):
 
 class Yaml(Base):
     def check(self, node):
-        cls = 'metamagic.caos.datasources.yaml.Yaml'
-        tag = 'tag:importkit.magic.io,2009/importkit/class/derive:%s' % cls
-        self.push_tag(node, tag)
-        return super().check(node)
-
-
-class CaosQL(Base):
-    def check(self, node):
-        cls = 'metamagic.caos.datasources.caosql.CaosQL'
+        cls = 'edgedb.server.datasources.yaml.Yaml'
         tag = 'tag:importkit.magic.io,2009/importkit/class/derive:%s' % cls
         self.push_tag(node, tag)
         return super().check(node)

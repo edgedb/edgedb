@@ -6,8 +6,8 @@
 ##
 
 
-from metamagic.utils import slots
-from metamagic.utils.debug import assert_raises
+from edgedb.lang.common import slots
+from edgedb.lang.common.debug import assert_raises
 
 
 class TestUtilsSlotsMeta:

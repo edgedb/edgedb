@@ -8,12 +8,11 @@
 
 import collections
 
-from metamagic.caos import types as caos_types
-from metamagic.caos.lang.ir import ast as irast
-from metamagic.caos.lang.ir import transformer as irtransformer
-from metamagic.caos.lang.caosql import ast as qlast
+from edgedb.lang.ir import ast as irast
+from edgedb.lang.ir import transformer as irtransformer
+from edgedb.lang.caosql import ast as qlast
 
-from metamagic.utils import ast
+from edgedb.lang.common import ast
 
 
 class IRDecompilerContext:
@@ -47,7 +46,7 @@ class IRDecompiler(irtransformer.TreeTransformer):
                 pathspec = [qlast.SelectPathSpecNode(expr=noderef.steps[-1])]
 
             for propref in expr.elements[1].elements:
-                if propref.ptr_proto.get_loading_behaviour() == caos_types.EagerLoading:
+                if propref.ptr_proto.get_loading_behaviour() == 'eager':
                     continue
 
                 propref = self._process_expr(context, propref)
@@ -371,7 +370,7 @@ class IRDecompiler(irtransformer.TreeTransformer):
                 # Skip transformed references to a multiatom link, as those are not actual
                 # property refs.
                 #
-                if expr.name != 'metamagic.caos.builtins.target' or expr.ref.source is None:
+                if expr.name != 'std.target' or expr.ref.source is None:
                     link = qlast.LinkNode(name=expr.name.name, namespace=expr.name.module,
                                           type='property')
                     link = qlast.LinkPropExprNode(expr=link)

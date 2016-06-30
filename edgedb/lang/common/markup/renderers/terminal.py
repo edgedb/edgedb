@@ -9,8 +9,8 @@
 import sys
 import contextlib
 
-from metamagic.utils import term
-from metamagic.utils.markup.format import xrepr
+from edgedb.lang.common import term
+from edgedb.lang.common.markup.format import xrepr
 
 from .. import elements
 from . import styles as styles_module

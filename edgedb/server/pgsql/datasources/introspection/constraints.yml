@@ -6,7 +6,7 @@
 ##
 
 
-%SCHEMA metamagic.caos.datasources.schemas.Sql
+%SCHEMA edgedb.server.datasources.schemas.Sql
 %NAME Constraints
 ---
 params:

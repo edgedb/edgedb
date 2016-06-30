@@ -10,11 +10,9 @@ import argparse
 import os
 import sys
 
-from metamagic.exceptions import MetamagicError
-from metamagic import bootstrap
-
-from metamagic.utils import datastructures
-from metamagic.utils import debug, config
+from edgedb.lang.common.exceptions import EdgeDBError
+from edgedb.lang.common import datastructures
+from edgedb.lang.common import debug, config
 
 from . import reqs
 
@@ -33,7 +31,7 @@ class CommandMeta(config.ConfigurableMeta):
                 if issubclass(cls, CommandMeta.main_command):
                     CommandMeta.main_command = cls
                 elif not issubclass(CommandMeta.main_command, cls):
-                    raise MetamagicError('Main command is already defined by {} which {} does not' \
+                    raise EdgeDBError('Main command is already defined by {} which {} does not' \
                                         ' subclass from'.format(CommandMeta.main_command, cls))
             else:
                 CommandMeta.main_command = cls
@@ -122,14 +120,13 @@ class MainCommand(CommandGroup, name='__main__'):
                                  '[auto, on, off]')
 
     def create_parser(self, parser):
-        bootstrap.init_early_args(parser)
         return parser
 
     def __call__(self, args, unknown_args):
         if args.debug:
             debug.channels.update(args.debug)
 
-        with config.inline({'metamagic.utils.shell.MainCommand.colorize': args.color}):
+        with config.inline({'edgedb.lang.common.shell.MainCommand.colorize': args.color}):
             result = super().__call__(args, unknown_args)
 
         return result

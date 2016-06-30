@@ -12,11 +12,11 @@ import itertools
 import re
 import types
 
-from metamagic.utils.algos import persistent_hash as phash
-from metamagic.utils.algos import topological
-from metamagic.utils.datastructures import OrderedSet
-from metamagic.utils.datastructures import struct
-from metamagic.utils.datastructures import typed
+from edgedb.lang.common.algos import persistent_hash as phash
+from edgedb.lang.common.algos import topological
+from edgedb.lang.common.datastructures import OrderedSet
+from edgedb.lang.common.datastructures import struct
+from edgedb.lang.common.datastructures import typed
 
 from . import error as s_err
 from . import name as sn
@@ -393,7 +393,7 @@ class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
         return val
 
     def delta_properties(self, delta, other, reverse=False, context=None):
-        from metamagic.caos.lang.schema import delta as sd
+        from edgedb.lang.schema import delta as sd
 
         old, new = (other, self) if not reverse else (self, other)
 
@@ -454,8 +454,8 @@ class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
     # @debug.debug
     def _delta_sets(cls, old, new, context=None, *,
                                    old_schema=None, new_schema=None):
-        from metamagic.caos.lang.schema import named as s_named
-        from metamagic.caos.lang.schema import realm as s_realm
+        from edgedb.lang.schema import named as s_named
+        from edgedb.lang.schema import realm as s_realm
 
         adds_mods = s_realm.AlterRealm()
         dels = s_realm.AlterRealm()
@@ -492,7 +492,7 @@ class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
         comparison = sorted(comparison, key=lambda item: item[0], reverse=True)
 
         """LOG [caos.delta.comp] Index comparison
-        from metamagic.utils import markup
+        from edgedb.lang.common import markup
         markup.dump(comparison)
         """
 

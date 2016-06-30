@@ -6,10 +6,10 @@
 ##
 
 
-from metamagic.utils import parsing, debug
+from edgedb.lang.common import parsing, debug
 
-from metamagic.caos.lang.caosql.errors import CaosQLQueryError
-from metamagic.caos.lang.caosql.parser.errors import CaosQLSyntaxError
+from edgedb.lang.caosql.errors import CaosQLQueryError
+from edgedb.lang.caosql.parser.errors import CaosQLSyntaxError
 
 from .grammar import lexer
 

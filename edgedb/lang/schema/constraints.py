@@ -8,9 +8,9 @@
 
 import itertools
 
-from metamagic.caos.lang.ir import utils as ir_utils
-from metamagic.caos.lang import caosql
-from metamagic.caos.lang.caosql import ast as qlast
+from edgedb.lang.ir import utils as ir_utils
+from edgedb.lang import caosql
+from edgedb.lang.caosql import ast as qlast
 
 from . import delta as sd
 from . import derivable
@@ -386,22 +386,18 @@ class Constraint(primary.Prototype, derivable.DerivablePrototype):
 
         return constraint
 
-    def get_metaclass(self, proto_schema):
-        from metamagic.caos.constraint import ConstraintMeta
-        return ConstraintMeta
-
     @classmethod
     def _dummy_subject(cls):
         from . import atoms
 
         # Point subject placeholder to a dummy pointer to make CaosQL
         # pipeline happy.
-        return atoms.Atom(name=sn.Name('metamagic.caos.builtins._subject_tgt'))
+        return atoms.Atom(name=sn.Name('std._subject_tgt'))
 
     @classmethod
     def _parse_constraint_expr(cls, schema, module_aliases, expr, subject,
                                     inline_anchors=False):
-        from metamagic.caos.lang.caosql import utils as caosql_utils
+        from edgedb.lang.caosql import utils as caosql_utils
 
         ir, caosql_tree, _ = caosql_utils.normalize_tree(
                                     expr, schema,
@@ -440,7 +436,7 @@ class Constraint(primary.Prototype, derivable.DerivablePrototype):
 
     @classmethod
     def process_specialized_constraint(cls, schema, constraint):
-        from metamagic.caos.lang.caosql import utils as caosql_utils
+        from edgedb.lang.caosql import utils as caosql_utils
 
         assert constraint.subject is not None
 

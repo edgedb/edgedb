@@ -8,8 +8,8 @@
 
 import inspect
 
-from metamagic.utils.functional import dispatch
-from metamagic.utils.debug import assert_raises
+from edgedb.lang.common.functional import dispatch
+from edgedb.lang.common.debug import assert_raises
 
 
 class TestUtilsFunctionalDispatch:

@@ -8,7 +8,7 @@
 
 import difflib
 
-from metamagic.utils.datastructures import Field, typed
+from edgedb.lang.common.datastructures import Field, typed
 from . import base
 
 

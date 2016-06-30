@@ -8,7 +8,7 @@
 
 import threading
 
-from metamagic.utils import slots
+from edgedb.lang.common import slots
 
 
 __all__ = 'HEAD',

@@ -6,8 +6,8 @@
 ##
 
 
-from metamagic.utils.debug import assert_raises
-from metamagic.utils.term import Style16, Style256
+from edgedb.lang.common.debug import assert_raises
+from edgedb.lang.common.term import Style16, Style256
 
 
 class TestUtilsIOTermStyle:

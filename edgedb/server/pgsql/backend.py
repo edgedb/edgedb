@@ -21,44 +21,41 @@ import postgresql
 import postgresql.copyman
 
 from importkit.import_ import get_object
-from metamagic.utils.algos import topological
-from metamagic.utils.debug import debug
-from metamagic.utils.nlang import morphology
-from metamagic.utils import markup
+from edgedb.lang.common.algos import topological
+from edgedb.lang.common.debug import debug
+from edgedb.lang.common.nlang import morphology
+from edgedb.lang.common import markup
 
-from metamagic import caos
+from edgedb.lang.common import exceptions as edgedb_error
 
-from metamagic.caos import backends
-from metamagic.caos import error as caos_error
+from edgedb.lang import schema as so
+from edgedb.lang.schema import delta as sd
 
-from metamagic.caos.lang import schema as so
-from metamagic.caos.lang.schema import delta as sd
+from edgedb.lang.schema import attributes as s_attrs
+from edgedb.lang.schema import atoms as s_atoms
+from edgedb.lang.schema import concepts as s_concepts
+from edgedb.lang.schema import constraints as s_constr
+from edgedb.lang.schema import deltarepo as s_deltarepo
+from edgedb.lang.schema import error as s_err
+from edgedb.lang.schema import expr as s_expr
+from edgedb.lang.schema import indexes as s_indexes
+from edgedb.lang.schema import links as s_links
+from edgedb.lang.schema import lproperties as s_lprops
+from edgedb.lang.schema import modules as s_mod
+from edgedb.lang.schema import name as sn
+from edgedb.lang.schema import objects as s_obj
+from edgedb.lang.schema import pointers as s_pointers
+from edgedb.lang.schema import policy as s_policy
+from edgedb.lang.schema import types as s_types
 
-from metamagic.caos.lang.schema import attributes as s_attrs
-from metamagic.caos.lang.schema import atoms as s_atoms
-from metamagic.caos.lang.schema import concepts as s_concepts
-from metamagic.caos.lang.schema import constraints as s_constr
-from metamagic.caos.lang.schema import deltarepo as s_deltarepo
-from metamagic.caos.lang.schema import error as s_err
-from metamagic.caos.lang.schema import expr as s_expr
-from metamagic.caos.lang.schema import indexes as s_indexes
-from metamagic.caos.lang.schema import links as s_links
-from metamagic.caos.lang.schema import lproperties as s_lprops
-from metamagic.caos.lang.schema import modules as s_mod
-from metamagic.caos.lang.schema import name as sn
-from metamagic.caos.lang.schema import objects as s_obj
-from metamagic.caos.lang.schema import pointers as s_pointers
-from metamagic.caos.lang.schema import policy as s_policy
-from metamagic.caos.lang.schema import types as s_types
+from edgedb.lang import caosql
 
-from metamagic.caos.lang import caosql
-
-from metamagic.caos.backends import query as backend_query
-from metamagic.caos.backends.pgsql import common
-from metamagic.caos.backends.pgsql import dbops
-from metamagic.caos.backends.pgsql import delta as delta_cmds
-from metamagic.caos.backends.pgsql import deltadbops
-from metamagic.caos.backends.pgsql import driver
+from edgedb.server import query as backend_query
+from edgedb.server.pgsql import common
+from edgedb.server.pgsql import dbops
+from edgedb.server.pgsql import delta as delta_cmds
+from edgedb.server.pgsql import deltadbops
+from edgedb.server.pgsql import driver
 
 from . import datasources
 from .datasources import introspection
@@ -210,7 +207,7 @@ class PreparedQuery:
             self._native_iter = self.statement.rows
         else:
             if self.query.scrolling_cursor:
-                raise caos_error.CaosError('cannot create scrolling cursor for non-SELECT query')
+                raise edgedb_error.EdgeDBError('cannot create scrolling cursor for non-SELECT query')
 
             self._native_iter = self.statement
 
@@ -343,13 +340,13 @@ class ErrorMech:
                     error_info = (type, m.group('constr_name'))
                     break
             else:
-                return caos.error.UninterpretedStorageError(err.message)
+                return edgedb_error.UninterpretedStorageError(err.message)
 
             error_type, error_data = error_info
 
             if error_type == 'link_mapping':
                 err = 'link mapping cardinality violation'
-                errcls = caos.error.LinkMappingCardinalityViolationError
+                errcls = edgedb_error.LinkMappingCardinalityViolationError
                 return errcls(err, source=source, pointer=pointer)
 
             elif error_type == 'constraint':
@@ -358,14 +355,9 @@ class ErrorMech:
                         connection, error_data)
 
                 if constraint_name is None:
-                    return caos.error.UninterpretedStorageError(err.message)
+                    return edgedb_error.UninterpretedStorageError(err.message)
 
-                # XXX: decouple
-                from metamagic.caos import classfactory as caos_clsfactory
-                class_factory = caos_clsfactory.get_schema_class_factory(
-                    proto_schema)
-
-                constraint = class_factory.get_class(constraint_name)
+                constraint = constraint_name
                 # Unfortunately, Postgres does not include the offending
                 # value in exceptions consistently.
                 offending_value = None
@@ -379,22 +371,22 @@ class ErrorMech:
 
             elif error_type == 'id':
                 msg = 'unique link constraint violation'
-                errcls = caos.error.PointerConstraintUniqueViolationError
+                errcls = edgedb_error.PointerConstraintUniqueViolationError
                 constraint = cls._get_id_constraint(proto_schema)
                 return errcls(msg=msg, source=source, pointer=pointer,
                               constraint=constraint)
         else:
-            return caos.error.UninterpretedStorageError(err.message)
+            return edgedb_error.UninterpretedStorageError(err.message)
 
     @classmethod
     def _get_id_constraint(cls, proto_schema):
-        BObj = proto_schema.get('metamagic.caos.builtins.BaseObject')
-        BObj_id = BObj.pointers['metamagic.caos.builtins.id']
-        unique = proto_schema.get('metamagic.caos.builtins.unique')
+        BObj = proto_schema.get('std.BaseObject')
+        BObj_id = BObj.pointers['std.id']
+        unique = proto_schema.get('std.unique')
 
         name = s_constr.Constraint.generate_specialized_name(
                 BObj_id.name, unique.name)
-        name = caos.Name(name=name, module='metamagic.caos.builtins')
+        name = sn.Name(name=name, module='std')
         constraint = s_constr.Constraint(name=name, bases=[unique],
                                          subject=BObj_id)
         constraint.acquire_ancestor_inheritance(proto_schema)
@@ -474,9 +466,9 @@ class Backend(s_deltarepo.DeltaProvider):
     """, re.X)
 
     link_source_colname = common.quote_ident(
-                                common.caos_name_to_pg_name('metamagic.caos.builtins.source'))
+                                common.caos_name_to_pg_name('std.source'))
     link_target_colname = common.quote_ident(
-                                common.caos_name_to_pg_name('metamagic.caos.builtins.target'))
+                                common.caos_name_to_pg_name('std.target'))
 
     def __init__(self, connection_uri):
         connector = driver.connector(connection_uri)
@@ -580,7 +572,7 @@ class Backend(s_deltarepo.DeltaProvider):
         records = {(t['schema'], t['name']): t for t in records}
 
         links_list = datasources.schema.links.ConceptLinks(self.connection).fetch()
-        links_list = collections.OrderedDict((caos.Name(r['name']), r) for r in links_list)
+        links_list = collections.OrderedDict((sn.Name(r['name']), r) for r in links_list)
 
         table_id_to_proto_name_cache = {}
         proto_name_to_table_id_cache = {}
@@ -598,7 +590,7 @@ class Backend(s_deltarepo.DeltaProvider):
         tables = {(t['schema'], t['name']): t for t in tables}
 
         concept_list = datasources.schema.concepts.ConceptList(self.connection).fetch()
-        concept_list = collections.OrderedDict((caos.Name(row['name']), row) for row in concept_list)
+        concept_list = collections.OrderedDict((sn.Name(row['name']), row) for row in concept_list)
 
         for name, row in concept_list.items():
             table_name = common.concept_name_to_table_name(name, catenate=False)
@@ -626,7 +618,7 @@ class Backend(s_deltarepo.DeltaProvider):
         domain_to_atom_map = {}
 
         for row in atom_list:
-            name = caos.Name(row['name'])
+            name = sn.Name(row['name'])
 
             domain_name = common.atom_name_to_domain_name(name, catenate=False)
 
@@ -699,14 +691,14 @@ class Backend(s_deltarepo.DeltaProvider):
 
     @debug
     def process_delta(self, delta, schema, session=None):
-        """LOG [caos.delta.plan] Delta Plan
+        """LOG [edgedb.delta.plan] Delta Plan
             markup.dump(delta)
         """
         delta = self.adapt_delta(delta)
         connection = session.get_connection() if session else self.connection
         context = delta_cmds.CommandContext(connection, session=session)
         delta.apply(schema, context)
-        """LOG [caos.delta.plan.pgsql] PgSQL Delta Plan
+        """LOG [edgedb.delta.plan.pgsql] PgSQL Delta Plan
             markup.dump(delta)
         """
         return delta
@@ -731,7 +723,7 @@ class Backend(s_deltarepo.DeltaProvider):
             self.connection = session.get_connection()
 
             for d in deltas:
-                """LINE [caos.delta.apply] Applying delta
+                """LINE [edgedb.delta.apply] Applying delta
                     '{:032x}'.format(d.id)
                 """
 
@@ -791,7 +783,7 @@ class Backend(s_deltarepo.DeltaProvider):
 
                     delta_checksums = introspected_checksums = None
 
-                    """LOG [caos.delta.recordchecksums]
+                    """LOG [edgedb.delta.recordchecksums]
                     delta_checksums = d.checksum_details
                     introspected_checksums = \
                         introspected_schema.get_checksum_details()
@@ -865,17 +857,17 @@ class Backend(s_deltarepo.DeltaProvider):
 
 
     def concept_name_from_id(self, id, session):
-        concept = caos.Name('metamagic.caos.builtins.BaseObject')
+        concept = sn.Name('std.BaseObject')
         query = '''SELECT c.name
                    FROM
                        %s AS e
                        INNER JOIN caos.concept AS c ON c.id = e.concept_id
-                   WHERE e."metamagic.caos.builtins.id" = $1
+                   WHERE e."std.id" = $1
                 ''' % (common.concept_name_to_table_name(concept))
         ps = session.get_prepared_statement(query)
         concept_name = ps.first(id)
         if concept_name:
-            concept_name = caos.Name(concept_name)
+            concept_name = sn.Name(concept_name)
         return concept_name
 
 
@@ -903,7 +895,7 @@ class Backend(s_deltarepo.DeltaProvider):
                  if l in valid_link_names or getattr(l, 'direction', s_pointers.PointerDirection.Outbound)
                                              == s_pointers.PointerDirection.Inbound}
 
-        return session._merge(links['metamagic.caos.builtins.id'], concept_cls, links)
+        return session._merge(links['std.id'], concept_cls, links)
 
 
     def _rebuild_tree_from_list(self, session, items, connecting_attribute):
@@ -911,7 +903,7 @@ class Backend(s_deltarepo.DeltaProvider):
         # maintaining total order.
         #
         updates = {}
-        uuid = session.schema.metamagic.caos.builtins.BaseObject.id
+        uuid = session.schema.std.BaseObject.id
 
         toplevel = []
 
@@ -984,7 +976,7 @@ class Backend(s_deltarepo.DeltaProvider):
 
             for row in cl_ds.fetch():
                 self.concept_cache[row['name']] = row['id']
-                self.concept_cache[row['id']] = caos.Name(row['name'])
+                self.concept_cache[row['id']] = sn.Name(row['name'])
 
         return self.concept_cache
 
@@ -1118,7 +1110,7 @@ class Backend(s_deltarepo.DeltaProvider):
         basemap = {}
 
         for row in atom_list:
-            name = caos.Name(row['name'])
+            name = sn.Name(row['name'])
 
             atom_data = {'name': name,
                          'title': self.hstore_to_word_combination(row['title']),
@@ -1156,9 +1148,9 @@ class Backend(s_deltarepo.DeltaProvider):
             except KeyError:
                 pass
             else:
-                atom.bases = [schema.get(caos.Name(basename))]
+                atom.bases = [schema.get(sn.Name(basename))]
 
-        sequence = schema.get('metamagic.caos.builtins.sequence')
+        sequence = schema.get('std.sequence')
         for atom in schema('atom'):
             if atom.issubclass(sequence):
                 seq_name = common.atom_name_to_sequence_name(atom.name, catenate=False)
@@ -1183,7 +1175,7 @@ class Backend(s_deltarepo.DeltaProvider):
 
     def read_constraints(self, schema):
         constraints_list = datasources.schema.constraints.Constraints(self.connection).fetch()
-        constraints_list = collections.OrderedDict((caos.Name(r['name']), r)
+        constraints_list = collections.OrderedDict((sn.Name(r['name']), r)
                                                     for r in constraints_list)
 
         basemap = {}
@@ -1194,9 +1186,9 @@ class Backend(s_deltarepo.DeltaProvider):
             if r['subject']:
                 bases = (s_constr.Constraint.normalize_name(name),)
             elif r['base']:
-                bases = tuple(caos.Name(b) for b in r['base'])
-            elif name != 'metamagic.caos.builtins.constraint':
-                bases = (caos.Name('metamagic.caos.builtins.constraint'),)
+                bases = tuple(sn.Name(b) for b in r['base'])
+            elif name != 'std.constraint':
+                bases = (sn.Name('std.constraint'),)
 
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']
@@ -1402,7 +1394,7 @@ class Backend(s_deltarepo.DeltaProvider):
 
     def _get_pointer_column_target(self, schema, source, pointer_name, col):
         if col['column_type_schema'] == 'pg_catalog':
-            col_type_schema = common.caos_module_name_to_schema_name('metamagic.caos.builtins')
+            col_type_schema = common.caos_module_name_to_schema_name('std')
             col_type = col['column_type_formatted']
         else:
             col_type_schema = col['column_type_schema']
@@ -1421,7 +1413,7 @@ class Backend(s_deltarepo.DeltaProvider):
 
     def _get_pointer_attribute_target(self, schema, source, pointer_name, attr):
         if attr['attribute_type_schema'] == 'pg_catalog':
-            col_type_schema = common.caos_module_name_to_schema_name('metamagic.caos.builtins')
+            col_type_schema = common.caos_module_name_to_schema_name('std')
             col_type = attr['attribute_type_formatted']
         else:
             col_type_schema = attr['attribute_type_schema']
@@ -1495,7 +1487,7 @@ class Backend(s_deltarepo.DeltaProvider):
         link_tables = {(t['schema'], t['name']): t for t in link_tables}
 
         links_list = datasources.schema.links.ConceptLinks(self.connection).fetch()
-        links_list = collections.OrderedDict((caos.Name(r['name']), r) for r in links_list)
+        links_list = collections.OrderedDict((sn.Name(r['name']), r) for r in links_list)
 
         concept_indexes = self.read_search_indexes()
         basemap = {}
@@ -1507,8 +1499,8 @@ class Backend(s_deltarepo.DeltaProvider):
                 bases = (s_links.Link.normalize_name(name),)
             elif r['base']:
                 bases = tuple(sn.Name(b) for b in r['base'])
-            elif name != 'metamagic.caos.builtins.link':
-                bases = (sn.Name('metamagic.caos.builtins.link'),)
+            elif name != 'std.link':
+                bases = (sn.Name('std.link'),)
 
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']
@@ -1620,7 +1612,7 @@ class Backend(s_deltarepo.DeltaProvider):
                                         caos_tree, return_statement=True)
                         expr = caosql.generate_source(caosql_tree, pretty=False)
                         schema_name = index.get_metadata('schemaname')
-                        index = s_indexes.SourceIndex(name=caos.Name(schema_name),
+                        index = s_indexes.SourceIndex(name=sn.Name(schema_name),
                                                   subject=link, expr=expr)
                         link.add_index(index)
                         schema.add(index)
@@ -1636,7 +1628,7 @@ class Backend(s_deltarepo.DeltaProvider):
 
     def read_link_properties(self, schema):
         link_props = datasources.schema.links.LinkProperties(self.connection).fetch()
-        link_props = collections.OrderedDict((caos.Name(r['name']), r) for r in link_props)
+        link_props = collections.OrderedDict((sn.Name(r['name']), r) for r in link_props)
         basemap = {}
 
         for name, r in link_props.items():
@@ -1645,9 +1637,9 @@ class Backend(s_deltarepo.DeltaProvider):
             if r['source_id']:
                 bases = (s_lprops.LinkProperty.normalize_name(name),)
             elif r['base']:
-                bases = tuple(caos.Name(b) for b in r['base'])
-            elif name != 'metamagic.caos.builtins.link_property':
-                bases = (caos.Name('metamagic.caos.builtins.link_property'),)
+                bases = tuple(sn.Name(b) for b in r['base'])
+            elif name != 'std.link_property':
+                bases = (sn.Name('std.link_property'),)
 
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']
@@ -1670,16 +1662,16 @@ class Backend(s_deltarepo.DeltaProvider):
                                       loading=loading,
                                       default=default)
 
-            if source and bases[0] not in {'metamagic.caos.builtins.target',
-                                           'metamagic.caos.builtins.source'}:
+            if source and bases[0] not in {'std.target',
+                                           'std.source'}:
                 # The property is attached to a link, check out link table columns for
                 # target information.
                 target, required = self.read_pointer_target_column(schema, prop, None)
             else:
                 if bases:
-                    if bases[0] == 'metamagic.caos.builtins.target' and source is not None:
+                    if bases[0] == 'std.target' and source is not None:
                         target = source.target
-                    elif bases[0] == 'metamagic.caos.builtins.source' and source is not None:
+                    elif bases[0] == 'std.source' and source is not None:
                         target = source.source
 
             prop.target = target
@@ -1785,9 +1777,9 @@ class Backend(s_deltarepo.DeltaProvider):
             description = r['description']
 
             if r['base']:
-                bases = tuple(caos.Name(b) for b in r['base'])
-            elif name != 'metamagic.caos.builtins.event':
-                bases = (caos.Name('metamagic.caos.builtins.event'),)
+                bases = tuple(sn.Name(b) for b in r['base'])
+            elif name != 'std.event':
+                bases = (sn.Name('std.event'),)
             else:
                 bases = tuple()
 
@@ -1840,7 +1832,7 @@ class Backend(s_deltarepo.DeltaProvider):
         tables = {(t['schema'], t['name']): t for t in tables}
 
         concept_list = datasources.schema.concepts.ConceptList(self.connection).fetch()
-        concept_list = collections.OrderedDict((caos.Name(row['name']), row) for row in concept_list)
+        concept_list = collections.OrderedDict((sn.Name(row['name']), row) for row in concept_list)
 
         visited_tables = set()
 
@@ -1925,7 +1917,7 @@ class Backend(s_deltarepo.DeltaProvider):
                                     ir_tree, return_statement=True)
                     expr = caosql.generate_source(caosql_tree, pretty=False)
                     schema_name = index.get_metadata('schemaname')
-                    index = s_indexes.SourceIndex(name=caos.Name(schema_name),
+                    index = s_indexes.SourceIndex(name=sn.Name(schema_name),
                                               subject=concept,
                                               expr=expr)
                     concept.add_index(index)
@@ -2004,7 +1996,7 @@ class Backend(s_deltarepo.DeltaProvider):
     def pg_type_to_atom_name_and_constraints(self, typname, typmods):
         typeconv = types.base_type_name_map_r.get(typname)
         if typeconv:
-            if isinstance(typeconv, caos.Name):
+            if isinstance(typeconv, sn.Name):
                 name = typeconv
                 constraints = ()
             else:
@@ -2020,7 +2012,7 @@ class Backend(s_deltarepo.DeltaProvider):
             domain_name = typname[-1]
         else:
             domain_name = typname
-            if atom_schema != common.caos_module_name_to_schema_name('metamagic.caos.builtins'):
+            if atom_schema != common.caos_module_name_to_schema_name('std'):
                 typname = (atom_schema, typname)
         atom_name = self.domain_to_atom_map.get((atom_schema, domain_name))
 

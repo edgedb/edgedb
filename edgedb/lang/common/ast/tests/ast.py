@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.utils import ast
+from edgedb.lang.common import ast
 
 
 class Base(ast.AST):

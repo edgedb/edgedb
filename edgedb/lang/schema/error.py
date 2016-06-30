@@ -6,10 +6,10 @@
 ##
 
 
-from metamagic.exceptions import MetamagicError
+from edgedb.lang.common.exceptions import EdgeDBError
 
 
-class SchemaError(MetamagicError):
+class SchemaError(EdgeDBError):
     def __init__(self, msg=None, *, hint=None, details=None, context=None):
         super().__init__(msg, hint=hint, details=details)
         self.context = context

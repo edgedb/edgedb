@@ -9,7 +9,7 @@
 """A limited implementation of Multiple Dispatch pattern."""
 
 
-from metamagic.utils.datastructures.registry import WeakObjectRegistry
+from edgedb.lang.common.datastructures.registry import WeakObjectRegistry
 
 
 _TYPE_HANDLER = 1

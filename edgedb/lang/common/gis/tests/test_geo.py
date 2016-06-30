@@ -6,8 +6,8 @@
 ##
 
 
-from metamagic.utils.debug import assert_raises
-from metamagic.utils.gis.proto import geometry, point, curve, surface
+from edgedb.lang.common.debug import assert_raises
+from edgedb.lang.common.gis.proto import geometry, point, curve, surface
 
 
 class TestUtilsGis:

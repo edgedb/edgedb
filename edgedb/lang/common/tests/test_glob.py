@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.utils import glob
+from edgedb.lang.common import glob
 
 
 class TestUtilsGlob:

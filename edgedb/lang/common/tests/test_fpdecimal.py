@@ -7,8 +7,8 @@
 
 
 import decimal
-from metamagic.utils import fpdecimal
-from metamagic.utils.debug import assert_raises
+from edgedb.lang.common import fpdecimal
+from edgedb.lang.common.debug import assert_raises
 
 
 class TestDecimal:

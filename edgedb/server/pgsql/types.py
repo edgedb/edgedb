@@ -6,75 +6,55 @@
 ##
 
 
-from metamagic.caos.lang.schema.types import geo as geo_objects
+from edgedb.lang.schema.types import geo as geo_objects
 
-from metamagic.caos.lang.schema import atoms as s_atoms
-from metamagic.caos.lang.schema import concepts as s_concepts
-from metamagic.caos.lang.schema import error as s_err
-from metamagic.caos.lang.schema import lproperties as s_lprops
-from metamagic.caos.lang.schema import name as sn
-from metamagic.caos.lang.schema import types as s_types
+from edgedb.lang.schema import atoms as s_atoms
+from edgedb.lang.schema import concepts as s_concepts
+from edgedb.lang.schema import error as s_err
+from edgedb.lang.schema import lproperties as s_lprops
+from edgedb.lang.schema import name as sn
+from edgedb.lang.schema import types as s_types
 
 from . import common
 
 
-def parse_geo_type(connection, type_name, *type_mods):
-    if type_mods:
-        cls = geo_objects.GeometryMeta.class_from_name(type_mods[0])
-        if cls is None:
-            details = 'Could not find matching atom for GIS type %s(%s)' % \
-                        (type_name, ', '.join(type_mods))
-            raise s_err.SchemaError('internal metadata error', details=details)
-        return s_types.proto_name_from_type(cls), ()
-    else:
-        details = 'Could not find matching atom for GIS type %s(%s)' % \
-                        (type_name, ', '.join(type_mods))
-        raise s_err.SchemaError('internal metadata error', details=details)
-
-
 base_type_name_map = {
-    sn.Name('metamagic.caos.builtins.str'): 'text',
-    sn.Name('metamagic.caos.builtins.int'): 'bigint',
-    sn.Name('metamagic.caos.builtins.sequence'): 'text',
-    sn.Name('metamagic.caos.builtins.none'): 'text',
-    sn.Name('metamagic.caos.builtins.decimal'): 'numeric',
-    sn.Name('metamagic.caos.builtins.bool'): 'boolean',
-    sn.Name('metamagic.caos.builtins.float'): 'double precision',
-    sn.Name('metamagic.caos.builtins.uuid'): 'uuid',
-    sn.Name('metamagic.caos.builtins.datetime'): 'timestamp with time zone',
-    sn.Name('metamagic.caos.builtins.date'): 'date',
-    sn.Name('metamagic.caos.builtins.time'): 'time without time zone',
-    sn.Name('metamagic.caos.builtins.timedelta'): 'interval',
-    sn.Name('metamagic.caos.builtins.bytes'): 'bytea',
-
-    sn.Name('metamagic.caos.geo.point'): 'caos_aux_feat_gis.geography(POINT)',
-    sn.Name('metamagic.caos.geo.linestring'): 'caos_aux_feat_gis.geography(LINESTRING)',
-    sn.Name('metamagic.caos.geo.polygon'): 'caos_aux_feat_gis.geography(POLYGON)'
+    sn.Name('std.str'): 'text',
+    sn.Name('std.int'): 'bigint',
+    sn.Name('std.sequence'): 'text',
+    sn.Name('std.none'): 'text',
+    sn.Name('std.decimal'): 'numeric',
+    sn.Name('std.bool'): 'boolean',
+    sn.Name('std.float'): 'double precision',
+    sn.Name('std.uuid'): 'uuid',
+    sn.Name('std.datetime'): 'timestamp with time zone',
+    sn.Name('std.date'): 'date',
+    sn.Name('std.time'): 'time without time zone',
+    sn.Name('std.timedelta'): 'interval',
+    sn.Name('std.bytes'): 'bytea',
 }
 
 base_type_name_map_r = {
-    'character varying': sn.Name('metamagic.caos.builtins.str'),
-    'character': sn.Name('metamagic.caos.builtins.str'),
-    'text': sn.Name('metamagic.caos.builtins.str'),
-    'numeric': sn.Name('metamagic.caos.builtins.decimal'),
-    'integer': sn.Name('metamagic.caos.builtins.int'),
-    'bigint': sn.Name('metamagic.caos.builtins.int'),
-    'int8': sn.Name('metamagic.caos.builtins.int'),
-    'smallint': sn.Name('metamagic.caos.builtins.int'),
-    'boolean': sn.Name('metamagic.caos.builtins.bool'),
-    'bool': sn.Name('metamagic.caos.builtins.bool'),
-    'double precision': sn.Name('metamagic.caos.builtins.float'),
-    'float8': sn.Name('metamagic.caos.builtins.float'),
-    'uuid': sn.Name('metamagic.caos.builtins.uuid'),
-    'timestamp with time zone': sn.Name('metamagic.caos.builtins.datetime'),
-    'timestamptz': sn.Name('metamagic.caos.builtins.datetime'),
-    'date': sn.Name('metamagic.caos.builtins.date'),
-    'time without time zone': sn.Name('metamagic.caos.builtins.time'),
-    'time': sn.Name('metamagic.caos.builtins.time'),
-    'interval': sn.Name('metamagic.caos.builtins.timedelta'),
-    'bytea': sn.Name('metamagic.caos.builtins.bytes'),
-
-    ('caos_aux_feat_gis', 'geography'): parse_geo_type
+    'character varying': sn.Name('std.str'),
+    'character': sn.Name('std.str'),
+    'text': sn.Name('std.str'),
+    'numeric': sn.Name('std.decimal'),
+    'integer': sn.Name('std.int'),
+    'bigint': sn.Name('std.int'),
+    'int8': sn.Name('std.int'),
+    'smallint': sn.Name('std.int'),
+    'boolean': sn.Name('std.bool'),
+    'bool': sn.Name('std.bool'),
+    'double precision': sn.Name('std.float'),
+    'float8': sn.Name('std.float'),
+    'uuid': sn.Name('std.uuid'),
+    'timestamp with time zone': sn.Name('std.datetime'),
+    'timestamptz': sn.Name('std.datetime'),
+    'date': sn.Name('std.date'),
+    'time without time zone': sn.Name('std.time'),
+    'time': sn.Name('std.time'),
+    'interval': sn.Name('std.timedelta'),
+    'bytea': sn.Name('std.bytes'),
 }
 
 
@@ -138,7 +118,7 @@ class PointerStorageInfo:
     @classmethod
     def _pointer_table_info(cls, pointer):
         table = common.get_table_name(pointer, catenate=False)
-        col_name = 'metamagic.caos.builtins.target'
+        col_name = 'std.target'
 
         if pointer.atomic():
             col_name += '@atom'
@@ -184,7 +164,7 @@ class PointerStorageInfo:
         if source is None:
             source = pointer.source
 
-        if is_prop and pointer.normal_name() == 'metamagic.caos.builtins.target':
+        if is_prop and pointer.normal_name() == 'std.target':
             # Normalize link@target to link
             pointer = source
             is_prop = False

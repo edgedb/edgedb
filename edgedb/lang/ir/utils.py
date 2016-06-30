@@ -6,11 +6,11 @@
 ##
 
 
-from metamagic.utils import ast
+from edgedb.lang.common import ast
 
-from metamagic.caos.lang.schema import objects as s_obj
-from metamagic.caos.lang.schema import types as s_types
-from metamagic.caos.lang.schema import utils as s_utils
+from edgedb.lang.schema import objects as s_obj
+from edgedb.lang.schema import types as s_types
+from edgedb.lang.schema import utils as s_utils
 
 from . import ast as irast
 
@@ -41,20 +41,20 @@ def infer_arg_types(ir, schema):
             continue
 
         if isinstance(binop.op, irast.CaosMatchOperator):
-            typ = schema.get('metamagic.caos.builtins.str')
+            typ = schema.get('std.str')
 
         elif isinstance(binop.op, (ast.ops.ComparisonOperator,
                                    ast.ops.ArithmeticOperator)):
             typ = infer_type(expr, schema)
 
         elif isinstance(binop.op, ast.ops.MembershipOperator) and not reversed:
-            from metamagic.caos.lang.schema import objects as s_obj
+            from edgedb.lang.schema import objects as s_obj
 
             elem_type = infer_type(expr, schema)
             typ = s_obj.Set(element_type=elem_type)
 
         elif isinstance(binop.op, ast.ops.BooleanOperator):
-            typ = schema.get('metamagic.caos.builtins.bool')
+            typ = schema.get('std.bool')
 
         else:
             msg = 'cannot infer expr type: unsupported operator: {!r}'\
@@ -80,7 +80,7 @@ def infer_arg_types(ir, schema):
 
 def infer_type(ir, schema):
     if isinstance(ir, irast.MetaRef):
-        result = schema.get('metamagic.caos.builtins.str')
+        result = schema.get('std.str')
 
     elif isinstance(ir, irast.AtomicRefSimple):
         if isinstance(ir.ref, irast.PathCombination):
@@ -140,7 +140,7 @@ def infer_type(ir, schema):
         if isinstance(ir.op, (ast.ops.ComparisonOperator,
                                 ast.ops.EquivalenceOperator,
                                 ast.ops.MembershipOperator)):
-            result = schema.get('metamagic.caos.builtins.bool')
+            result = schema.get('std.bool')
         else:
             left_type = infer_type(ir.left, schema)
             right_type = infer_type(ir.right, schema)
@@ -176,7 +176,7 @@ def infer_type(ir, schema):
             result = None
 
     elif isinstance(ir, irast.ExistPred):
-        result = schema.get('metamagic.caos.builtins.bool')
+        result = schema.get('std.bool')
 
     else:
         result = None

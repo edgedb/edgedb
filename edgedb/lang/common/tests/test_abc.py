@@ -6,8 +6,8 @@
 ##
 
 
-from metamagic.utils import abc
-from metamagic.utils.debug import assert_raises
+from edgedb.lang.common import abc
+from edgedb.lang.common.debug import assert_raises
 
 
 class TestAbc:

@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.caos.datasources.base import Datasource, DatasourceError
+from edgedb.server.datasources.base import Datasource, DatasourceError
 
 class YamlDatasourceError(DatasourceError): pass
 class Yaml(Datasource):

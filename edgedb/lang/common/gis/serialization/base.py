@@ -6,12 +6,12 @@
 ##
 
 
-from metamagic.exceptions import MetamagicError
+from edgedb.lang.common.exceptions import EdgeDBError
 
 
 class Serializer:
     pass
 
 
-class SerializerError(MetamagicError):
+class SerializerError(EdgeDBError):
     pass

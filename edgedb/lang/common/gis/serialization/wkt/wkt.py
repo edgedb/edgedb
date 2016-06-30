@@ -6,9 +6,9 @@
 ##
 
 
-from metamagic.utils import parsing
+from edgedb.lang.common import parsing
 
-from metamagic.utils.gis.proto.errors import GeometryError
+from edgedb.lang.common.gis.proto.errors import GeometryError
 from .errors import WKTSyntaxError
 
 

@@ -6,12 +6,11 @@
 ##
 
 
-from metamagic.utils import ast
-from metamagic.utils import parsing
+from edgedb.lang.common import ast
+from edgedb.lang.common import parsing
 
-from metamagic.caos.lang.caosql import ast as qlast
-from metamagic.caos.lang.ir import ast as irast
-from metamagic.caos import types as caos_types
+from edgedb.lang.caosql import ast as qlast
+from edgedb.lang.ir import ast as irast
 
 from ..errors import CaosQLSyntaxError
 
@@ -916,10 +915,12 @@ class OptLinkTargetExpr(Nonterm):
 
 class LinkDirection(Nonterm):
     def reduce_LANGBRACKET(self, *kids):
-        self.val = caos_types.InboundDirection
+        from edgedb.lang.schema import pointers as s_pointers
+        self.val = s_pointers.PointerDirection.Inbound
 
     def reduce_RANGBRACKET(self, *kids):
-        self.val = caos_types.OutboundDirection
+        from edgedb.lang.schema import pointers as s_pointers
+        self.val = s_pointers.PointerDirection.Outbound
 
 
 class OptFilterClause(Nonterm):
@@ -1008,10 +1009,10 @@ class FuncArgList(Nonterm):
 
 class AnyFqLinkPropName(Nonterm):
     def reduce_AnyFqNodeName(self, *kids):
-        self.val = qlast.LinkNode(name=kids[0].val.name,
-                                  namespace=kids[0].val.module,
-                                  direction=caos_types.OutboundDirection,
-                                  type='property')
+        from edgedb.lang.schema import pointers as s_pointers
+        self.val = qlast.LinkNode(
+            name=kids[0].val.name, namespace=kids[0].val.module,
+            direction=s_pointers.PointerDirection.Outbound, type='property')
 
 
 class FqNodeName(Nonterm):

@@ -8,9 +8,9 @@
 
 import base64
 
-from metamagic.utils.algos.persistent_hash import persistent_hash
+from edgedb.lang.common.algos.persistent_hash import persistent_hash
 
-from metamagic.caos.lang.caosql import ast as qlast
+from edgedb.lang.caosql import ast as qlast
 
 from . import delta as sd
 from . import expr

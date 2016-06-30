@@ -9,19 +9,19 @@
 import collections
 import itertools
 
-from metamagic.caos.lang.ir import ast as irast
-from metamagic.caos.lang.ir import astexpr as irastexpr
-from metamagic.caos.lang.ir import utils as ir_utils
-from metamagic.caos.lang import caosql
+from edgedb.lang.ir import ast as irast
+from edgedb.lang.ir import astexpr as irastexpr
+from edgedb.lang.ir import utils as ir_utils
+from edgedb.lang import caosql
 
-from metamagic.caos.lang.schema import atoms as s_atoms
-from metamagic.caos.lang.schema import concepts as s_concepts
-from metamagic.caos.lang.schema import error as s_err
-from metamagic.caos.lang.schema import links as s_links
-from metamagic.caos.lang.schema import name as sn
-from metamagic.caos.lang.schema import types as s_types
+from edgedb.lang.schema import atoms as s_atoms
+from edgedb.lang.schema import concepts as s_concepts
+from edgedb.lang.schema import error as s_err
+from edgedb.lang.schema import links as s_links
+from edgedb.lang.schema import name as sn
+from edgedb.lang.schema import types as s_types
 
-from metamagic.utils import ast
+from edgedb.lang.common import ast
 
 from .datasources import introspection
 from . import ast as pg_ast
@@ -484,9 +484,9 @@ class TypeMech:
             if isinstance(prototype, s_links.Link):
                 cols.extend([
                     dbops.Column(name='link_type_id', type='int'),
-                    dbops.Column(name='metamagic.caos.builtins.linkid', type='uuid'),
-                    dbops.Column(name='metamagic.caos.builtins.source', type='uuid'),
-                    dbops.Column(name='metamagic.caos.builtins.target', type='uuid')
+                    dbops.Column(name='std.linkid', type='uuid'),
+                    dbops.Column(name='std.source', type='uuid'),
+                    dbops.Column(name='std.target', type='uuid')
                 ])
 
             elif isinstance(prototype, s_concepts.Concept):
@@ -506,16 +506,16 @@ class TypeMech:
                 if not pointer.singular():
                     continue
 
-                if pointer_name == 'metamagic.caos.builtins.source':
+                if pointer_name == 'std.source':
                     continue
 
-                if pointer_name == 'metamagic.caos.builtins.linkid':
+                if pointer_name == 'std.linkid':
                     continue
 
                 ptr_stor_info = types.get_pointer_storage_info(
                                     pointer, schema=proto_schema)
 
-                if ptr_stor_info.column_name == 'metamagic.caos.builtins.target':
+                if ptr_stor_info.column_name == 'std.target':
                     continue
 
                 if ptr_stor_info.table_type == expected_table_type:

@@ -13,15 +13,15 @@ related to the Caos schema."""
 import re
 import postgresql.installation
 
-from metamagic.caos.lang.schema import delta as sd
-from metamagic.caos.lang.schema import objects as s_obj
+from edgedb.lang.schema import delta as sd
+from edgedb.lang.schema import objects as s_obj
 
-from metamagic.utils import datastructures
-from metamagic.utils import functional
+from edgedb.lang.common import datastructures
+from edgedb.lang.common import functional
 
-from metamagic.caos.backends.pgsql import common, Config
-from metamagic.caos.backends.pgsql import dbops
-from metamagic.caos.backends.pgsql.dbops import catalogs as pg_catalogs
+from edgedb.server.pgsql import common, Config
+from edgedb.server.pgsql import dbops
+from edgedb.server.pgsql.dbops import catalogs as pg_catalogs
 
 
 class SchemaDBObjectMeta(functional.Adapter, type(s_obj.BasePrototype)):
@@ -1033,8 +1033,8 @@ class EntityModStatType(dbops.CompositeType):
         super().__init__(name=('caos', 'entity_modstat_rec_t'))
 
         self.__columns = datastructures.OrderedSet([
-            dbops.Column(name='metamagic.caos.builtins.id', type='uuid'),
-            dbops.Column(name='metamagic.caos.builtins.mtime', type='timestamptz'),
+            dbops.Column(name='std.id', type='uuid'),
+            dbops.Column(name='std.mtime', type='timestamptz'),
         ])
 
         self._columns = self.columns()

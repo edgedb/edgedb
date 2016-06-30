@@ -13,9 +13,9 @@ import base64
 
 import postgresql
 
-from metamagic.caos.lang.schema import concepts as s_concepts
-from metamagic.caos.lang.schema import links as s_links
-from metamagic.caos.lang.schema import objects as s_obj
+from edgedb.lang.schema import concepts as s_concepts
+from edgedb.lang.schema import links as s_links
+from edgedb.lang.schema import objects as s_obj
 
 from . import driver
 from .driver import io as custom_type_io
@@ -110,7 +110,7 @@ def py_type_to_pg_type(typ):
         postgres_io_mods = {'postgresql.types.io.{}'.format(m) for m in
                             postgresql.types.io.io_modules}
 
-        caos_io_mods = {'metamagic.caos.backends.pgsql.driver.io.{}'.format(m) for m in
+        caos_io_mods = {'edgedb.server.pgsql.driver.io.{}'.format(m) for m in
                         custom_type_io.io_modules}
 
         for mod in itertools.chain(postgres_io_mods, caos_io_mods):

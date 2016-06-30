@@ -6,8 +6,8 @@
 ##
 
 
-from metamagic.utils.gis.serialization import wkb
-from metamagic.caos.lang.schema.types import geo as geo_objects
+from edgedb.lang.common.gis.serialization import wkb
+from edgedb.lang.schema.types import geo as geo_objects
 
 
 def postgis_factory(oid, typio):

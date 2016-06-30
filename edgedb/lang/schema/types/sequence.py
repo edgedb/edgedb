@@ -32,18 +32,8 @@ class Sequence(str):
 
     @classmethod
     def _fetch_next(cls):  # XXX
-        from metamagic.caos import session as caos_session
-
-        session = caos_session.Session.from_object(cls)
-        value = session.sequence_next(cls)
-
-        pattern = cls.__sx_prototype__.get_attribute(
-            'metamagic.caos.builtins.pattern')
-        if pattern:
-            value = pattern.value.format(value)
-
-        return value
+        raise NotImplementedError
 
 
-_add_impl('metamagic.caos.builtins.sequence', Sequence)
-_add_map(Sequence, 'metamagic.caos.builtins.sequence')
+_add_impl('std.sequence', Sequence)
+_add_map(Sequence, 'std.sequence')

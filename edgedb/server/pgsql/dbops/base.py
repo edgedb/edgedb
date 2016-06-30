@@ -9,8 +9,8 @@
 import base64
 import hashlib
 
-from metamagic.utils import markup
-from metamagic.utils.debug import debug
+from edgedb.lang.common import markup
+from edgedb.lang.common.debug import debug
 
 
 def pack_name(name, prefix_length=0):

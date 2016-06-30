@@ -9,16 +9,17 @@
 import itertools
 import weakref
 
-from metamagic.exceptions import MetamagicError
-from metamagic.utils import ast
-from metamagic.utils.datastructures import typed
+from edgedb.lang.common.exceptions import EdgeDBError
+from edgedb.lang.common import ast
+from edgedb.lang.common.datastructures import typed
 
-from metamagic.caos.lang.schema import enum as s_enum
-from metamagic.caos.lang.schema import name as sn
-from metamagic.caos.lang.schema import objects as so
+from edgedb.lang.schema import name as sn
+from edgedb.lang.schema import objects as so
+
+from edgedb.lang.caosql import ast as qlast
 
 
-class ASTError(MetamagicError):
+class ASTError(EdgeDBError):
     pass
 
 
@@ -380,25 +381,10 @@ class ExistPred(Expr): __fields = ['expr', 'outer']
 class AtomicExistPred(ExistPred): pass
 
 
-class SortOrder(s_enum.StrEnum):
-    Asc = 'ASC'
-    Desc = 'DESC'
-
-SortAsc = SortOrder.Asc
-SortDesc = SortOrder.Desc
-SortDefault = SortAsc
-
-
-class NonesOrder(s_enum.StrEnum):
-    First = 'first'
-    Last = 'last'
-
-NonesFirst = NonesOrder.First
-NonesLast = NonesOrder.Last
 
 
 class SortExpr(Base):
-    __fields = ['expr', 'direction', ('nones_order', NonesOrder, None)]
+    __fields = ['expr', 'direction', ('nones_order', qlast.NonesOrder, None)]
 
 class SelectorExpr(Base): __fields = ['expr', 'name', 'autoname']
 class UpdateExpr(Base): __fields = ['expr', 'value']
@@ -437,30 +423,3 @@ class TypeCast(Expr):
 
 class CompositeType(Base):
     __fields = ['node', 'pathspec']
-
-
-class CaosOperator(ast.ops.Operator):
-    pass
-
-class TextSearchOperator(CaosOperator):
-    pass
-
-SEARCH = TextSearchOperator('@@')
-SEARCHEX = TextSearchOperator('@@!')
-
-class CaosComparisonOperator(CaosOperator, ast.ops.ComparisonOperator):
-    pass
-
-class CaosMatchOperator(CaosComparisonOperator):
-    pass
-
-LIKE = CaosMatchOperator('like')
-ILIKE = CaosMatchOperator('ilike')
-
-
-class SetOperator(CaosOperator):
-    pass
-
-UNION = SetOperator('UNION')
-INTERSECT = SetOperator('INTERSECT')
-EXCEPT = SetOperator('EXCEPT')

@@ -10,7 +10,7 @@ import copy
 import collections
 
 
-from metamagic.utils import markup
+from edgedb.lang.common import markup
 
 
 class ASTError(Exception):

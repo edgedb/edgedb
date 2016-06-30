@@ -11,7 +11,7 @@ import os
 import importlib
 import inspect
 
-from metamagic.utils import shell
+from edgedb.lang.common import shell
 
 
 class RunCommand(shell.Command, name='run', expose=True):
@@ -20,7 +20,7 @@ class RunCommand(shell.Command, name='run', expose=True):
         self.app_kwargs = None
 
     def get_parser(self, subparsers, **kwargs):
-        parser = super().get_parser(subparsers, description='Run python script in metamagic context.')
+        parser = super().get_parser(subparsers, description='Run python script in edgedb context.')
 
         parser.add_argument('--callable', dest='callable', default='main',
                             help='name of function/callable to execute, default to "main(*args)"')

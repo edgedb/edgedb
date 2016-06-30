@@ -8,8 +8,8 @@
 
 import re
 
-from metamagic.utils import lexer
-from metamagic.utils.datastructures import xvalue
+from edgedb.lang.common import lexer
+from edgedb.lang.common.datastructures import xvalue
 
 from .errors import WKTSyntaxError
 

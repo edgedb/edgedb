@@ -7,8 +7,8 @@
 
 
 import time
-from metamagic.utils.datastructures.expiringdict import ExpiringDict
-from metamagic.utils.debug import assert_raises
+from edgedb.lang.common.datastructures.expiringdict import ExpiringDict
+from edgedb.lang.common.debug import assert_raises
 
 class TestUtilsDSExpiringDict:
     def test_utils_ds_expiringdict_1(self):

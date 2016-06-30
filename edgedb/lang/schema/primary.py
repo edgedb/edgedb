@@ -9,8 +9,8 @@
 import importlib
 import types
 
-from metamagic.utils.nlang import morphology
-from metamagic.utils.functional import get_safe_attrname
+from edgedb.lang.common.nlang import morphology
+from edgedb.lang.common.functional import get_safe_attrname
 
 from . import name as sn
 from . import objects as so
@@ -27,9 +27,9 @@ class Prototype(referencing.ReferencingPrototype):
         from . import lproperties as lprops
 
         if name == 'id':
-            atom_name = 'metamagic.caos.builtins.int'
+            atom_name = 'std.int'
         else:
-            atom_name = 'metamagic.caos.builtins.str'
+            atom_name = 'std.str'
 
         target = schema.get(atom_name)
 

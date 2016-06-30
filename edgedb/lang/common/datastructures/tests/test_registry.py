@@ -8,8 +8,8 @@
 
 import gc
 
-from metamagic.utils.datastructures.registry import WeakObjectRegistry
-from metamagic.utils.debug import assert_raises
+from edgedb.lang.common.datastructures.registry import WeakObjectRegistry
+from edgedb.lang.common.debug import assert_raises
 
 
 class Obj:

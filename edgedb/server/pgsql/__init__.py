@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.utils.pgsql import Config
+from edgedb.lang.common.pgsql import Config
 
 from . import ast
 from . import codegen

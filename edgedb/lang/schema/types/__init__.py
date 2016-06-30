@@ -12,7 +12,6 @@ from .base import proto_name_from_type, normalize_type
 from . import boolean
 from . import bytes
 from . import datetime
-from . import geo
 from . import int
 from . import none
 from . import numeric

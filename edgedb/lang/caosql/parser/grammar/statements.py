@@ -6,9 +6,9 @@
 ##
 
 
-from metamagic.utils import parsing
+from edgedb.lang.common import parsing
 
-from metamagic.caos.lang.caosql import ast as qlast
+from edgedb.lang.caosql import ast as qlast
 
 from .precedence import *
 from .tokens import *

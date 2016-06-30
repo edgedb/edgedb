@@ -6,7 +6,7 @@
 ##
 
 
-%SCHEMA metamagic.caos.datasources.schemas.Sql
+%SCHEMA edgedb.server.datasources.schemas.Sql
 %NAME Actions
 ---
 params:
@@ -29,7 +29,7 @@ source: |
 ...
 
 
-%SCHEMA metamagic.caos.datasources.schemas.Sql
+%SCHEMA edgedb.server.datasources.schemas.Sql
 %NAME Events
 ---
 params:
@@ -53,7 +53,7 @@ source: |
 ...
 
 
-%SCHEMA metamagic.caos.datasources.schemas.Sql
+%SCHEMA edgedb.server.datasources.schemas.Sql
 %NAME Policies
 ---
 params:

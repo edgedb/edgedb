@@ -6,10 +6,9 @@
 ##
 
 
-from metamagic.caos.lang.ir import ast as irast
-from metamagic.caos.lang.schema import enum as s_enum
+from edgedb.lang.common import enum as s_enum
 
-from metamagic.utils import ast
+from edgedb.lang.common import ast
 
 
 class RootNode(ast.AST): __fields = ['children']
@@ -369,8 +368,28 @@ class NoneTestNode(ast.AST): __fields = ['expr']
 class CaosQLOperator(ast.ops.Operator):
     pass
 
-class CaosQLMatchOperator(CaosQLOperator, irast.CaosMatchOperator):
+class TextSearchOperator(CaosQLOperator):
     pass
+
+SEARCH = TextSearchOperator('@@')
+SEARCHEX = TextSearchOperator('@@!')
+
+
+class CaosQLComparisonOperator(CaosQLOperator, ast.ops.ComparisonOperator):
+    pass
+
+
+class CaosQLMatchOperator(CaosQLComparisonOperator):
+    pass
+
+
+class SetOperator(CaosQLOperator):
+    pass
+
+UNION = SetOperator('UNION')
+INTERSECT = SetOperator('INTERSECT')
+EXCEPT = SetOperator('EXCEPT')
+
 
 AND = ast.ops.AND
 OR = ast.ops.OR
@@ -392,12 +411,21 @@ IS_OF = CaosQLOperator('IS OF')
 IS_NOT_OF = CaosQLOperator('IS NOT OF')
 
 
-SortAsc = irast.SortAsc
-SortDesc = irast.SortDesc
-SortDefault = irast.SortDefault
+class SortOrder(s_enum.StrEnum):
+    Asc = 'ASC'
+    Desc = 'DESC'
 
-NonesFirst = irast.NonesFirst
-NonesLast = irast.NonesLast
+SortAsc = SortOrder.Asc
+SortDesc = SortOrder.Desc
+SortDefault = SortAsc
+
+
+class NonesOrder(s_enum.StrEnum):
+    First = 'first'
+    Last = 'last'
+
+NonesFirst = NonesOrder.First
+NonesLast = NonesOrder.Last
 
 
 class SetOperator(CaosQLOperator):

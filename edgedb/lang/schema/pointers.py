@@ -6,15 +6,15 @@
 ##
 
 
-from metamagic.utils import datastructures as ds
+from edgedb.lang.common import datastructures as ds
 
-from metamagic.caos.lang import caosql
-from metamagic.caos.lang.caosql import ast as qlast
+from edgedb.lang import caosql
+from edgedb.lang.caosql import ast as qlast
 
 from . import constraints
 from . import delta as sd
 from . import derivable
-from . import enum
+from edgedb.lang.common import enum
 from . import error as schema_error
 from . import expr as sexpr
 from . import name as sn
@@ -405,23 +405,23 @@ class BasePointer(primary.Prototype, derivable.DerivablePrototype):
         return self.readonly and bool(self.default) and \
                 not self.is_id_pointer() and \
                 not self.normal_name() in {
-                    'metamagic.caos.builtins.ctime',
-                    'metamagic.caos.builtins.mtime',
+                    'std.ctime',
+                    'std.mtime',
                 }
 
     def is_id_pointer(self):
-        return self.normal_name() in {'metamagic.caos.builtins.linkid',
-                                      'metamagic.caos.builtins.id'}
+        return self.normal_name() in {'std.linkid',
+                                      'std.id'}
 
     def is_endpoint_pointer(self):
-        return self.normal_name() in {'metamagic.caos.builtins.source',
-                                      'metamagic.caos.builtins.target'}
+        return self.normal_name() in {'std.source',
+                                      'std.target'}
 
     def is_special_pointer(self):
-        return self.normal_name() in {'metamagic.caos.builtins.source',
-                                      'metamagic.caos.builtins.target',
-                                      'metamagic.caos.builtins.linkid',
-                                      'metamagic.caos.builtins.id'}
+        return self.normal_name() in {'std.source',
+                                      'std.target',
+                                      'std.linkid',
+                                      'std.id'}
 
 
 class Pointer(BasePointer, constraints.ConsistencySubject,

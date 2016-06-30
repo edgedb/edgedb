@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.utils import parsing
+from edgedb.lang.common import parsing
 
 
 class PrecedenceMeta(parsing.PrecedenceMeta):

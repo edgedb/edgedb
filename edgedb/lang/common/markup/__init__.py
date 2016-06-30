@@ -11,8 +11,8 @@ import sys
 from . import elements, serializer, renderers
 from .serializer import serialize, Context
 from .serializer import base as _base_serializer
-from metamagic.exceptions import ExceptionContext as _ExceptionContext
-from metamagic.utils import abc
+from edgedb.lang.common.exceptions import ExceptionContext as _ExceptionContext
+from edgedb.lang.common import abc
 
 
 @serializer.serializer(method='as_markup')

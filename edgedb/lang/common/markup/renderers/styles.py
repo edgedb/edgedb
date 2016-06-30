@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.utils.term import Style16, Style256
+from edgedb.lang.common.term import Style16, Style256
 
 
 class StylesTable:

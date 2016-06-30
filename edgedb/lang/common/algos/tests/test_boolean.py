@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.utils.algos import boolean
+from edgedb.lang.common.algos import boolean
 
 
 def test_algos_boolean_minimize():

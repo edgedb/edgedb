@@ -13,7 +13,7 @@ class TestWKBJP(jpt_base.BaseJPlusTest):
     def test_utils_gis_wkbjp_1(self):
         self.run_test(source='''
 
-        from metamagic.utils.gis.serialization import wkbjp
+        from edgedb.lang.common.gis.serialization import wkbjp
 
         wkbt = '0101000020E61000009A99999999D945409A99999999D95340'
 

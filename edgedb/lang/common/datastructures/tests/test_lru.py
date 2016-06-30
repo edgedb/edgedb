@@ -6,8 +6,8 @@
 ##
 
 
-from metamagic.utils.datastructures.lru import LRUDict
-from metamagic.utils.debug import assert_raises
+from edgedb.lang.common.datastructures.lru import LRUDict
+from edgedb.lang.common.debug import assert_raises
 
 
 class TestUtilsDSLru:

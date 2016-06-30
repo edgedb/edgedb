@@ -10,7 +10,6 @@ import copyreg
 import uuid
 
 
-from metamagic.caos import types as caos_types
 from importkit import meta as lang_meta
 from importkit.import_ import get_object
 
@@ -137,66 +136,6 @@ def reduce_datasource(cls, restore=_restore_datasource):
     return restore, (metacls, cls.__name__, cls.__module__, bases, cls.descriptor)
 
 copyreg.pickle(DatasourceMeta, reduce_datasource)
-
-
-class CaosDatasource(Datasource):
-    def __init__(self, session):
-        super().__init__()
-        self.session = session
-
-        self._init_arg_types()
-
-    def _init_arg_types(self):
-        arg_types = {}
-
-        for arg_name, arg in self.params.items():
-            if isinstance(arg['type'], (list, tuple)):
-                arg_type = self.session.proto_schema.get(arg['type'][0])
-                arg_type = (list, arg_type)
-            else:
-                arg_type = self.session.proto_schema.get(arg['type'])
-            arg_types[arg_name] = arg_type
-
-        self._arg_types = arg_types
-
-    def check_type(self, name, value, typ):
-        if typ == 'any' or value is None:
-            return value
-
-        is_sequence = isinstance(typ, (tuple, list))
-
-        if is_sequence:
-            typ = typ[0]
-
-        type = self.session.schema.get(typ)
-
-        values = (value,) if not is_sequence else value
-        result = []
-
-        for val in values:
-            if isinstance(val, type):
-                result.append(val)
-            elif isinstance(type, caos_types.AtomClass) and issubclass(type, val.__class__):
-                result.append(val)
-            else:
-                result.append(self.coerce_default_value(name, val, typ))
-
-        if not is_sequence:
-            return result[0]
-
-        return result
-
-    def coerce_default_value(self, name, value, type):
-        if type == 'any' or value is None:
-            return value
-        type = self.session.schema.get(type)
-        if isinstance(value, type):
-            return value
-        elif isinstance(type, caos_types.AtomClass):
-            value = type(value)
-        else:
-            raise DatasourceError('could not coerce default value for "%s" parameter' % name)
-        return value
 
 
 class Result:

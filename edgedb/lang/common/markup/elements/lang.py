@@ -8,8 +8,8 @@
 
 import linecache
 
-from metamagic.utils.datastructures import Field
-from metamagic.utils.datastructures import typed
+from edgedb.lang.common.datastructures import Field
+from edgedb.lang.common.datastructures import typed
 from . import base
 
 

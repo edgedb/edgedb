@@ -6,7 +6,7 @@
 ##
 
 
-%SCHEMA metamagic.caos.datasources.schemas.Sql
+%SCHEMA edgedb.server.datasources.schemas.Sql
 %NAME ConceptLink
 ---
 params:
@@ -34,7 +34,7 @@ source: |
 
 ...
 
-%SCHEMA metamagic.caos.datasources.schemas.Sql
+%SCHEMA edgedb.server.datasources.schemas.Sql
 %NAME ConceptLinks
 ---
 params:
@@ -92,7 +92,7 @@ source: |
             l.id, l.target_id NULLS FIRST
 ...
 
-%SCHEMA metamagic.caos.datasources.schemas.Sql
+%SCHEMA edgedb.server.datasources.schemas.Sql
 %NAME LinkProperties
 ---
 params:
@@ -146,7 +146,7 @@ source: |
 
 ...
 
-%SCHEMA metamagic.caos.datasources.schemas.Sql
+%SCHEMA edgedb.server.datasources.schemas.Sql
 %NAME Computables
 ---
 params:

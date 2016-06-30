@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.caos.lang.caosql import ast as qlast
+from edgedb.lang.caosql import ast as qlast
 
 from . import constraints
 from . import delta as sd
@@ -180,10 +180,6 @@ class Concept(sources.Source, constraints.ConsistencySubject, so.ProtoNode):
                                                         if not b.is_virtual]))
             if own is not None and ro:
                 own._merge_policies(schema, ro, force_first=True)
-
-    def get_metaclass(self, proto_schema):
-        from metamagic.caos.concept import ConceptMeta
-        return ConceptMeta
 
     class ReversePointerResolver:
         @classmethod

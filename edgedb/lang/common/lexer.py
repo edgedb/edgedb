@@ -10,8 +10,8 @@ import re
 
 from importkit import context as lang_context
 from importkit.context import SourcePoint
-from metamagic.utils.datastructures import xvalue
-from metamagic.utils import markup
+from edgedb.lang.common.datastructures import xvalue
+from edgedb.lang.common import markup
 
 
 

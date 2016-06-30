@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.utils.parsing import ListNonterm
+from edgedb.lang.common.parsing import ListNonterm
 
 from .precedence import *
 from .tokens import *

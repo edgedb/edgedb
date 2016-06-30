@@ -7,8 +7,8 @@
 
 
 from postgresql.driver.dbapi20 import Cursor as CompatCursor
-from metamagic.caos.datasources.base import Datasource, DatasourceError
-from metamagic.utils.debug import debug
+from edgedb.server.datasources.base import Datasource, DatasourceError
+from edgedb.lang.common.debug import debug
 
 
 class SqlDatasourceError(DatasourceError): pass

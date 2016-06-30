@@ -8,8 +8,8 @@
 
 import sys
 
-from metamagic.utils import ast
-from metamagic.utils.ast import match as astmatch
+from edgedb.lang.common import ast
+from edgedb.lang.common.ast import match as astmatch
 from  . import ast as tast
 
 

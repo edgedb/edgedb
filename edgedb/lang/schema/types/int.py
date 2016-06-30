@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.caos import error
+from edgedb.lang.common import exceptions as edgedb_error
 
 from . import base as s_types
 
@@ -20,22 +20,22 @@ class Int(int):
         try:
             value = super().__new__(cls, value)
         except ValueError as e:
-            raise error.AtomValueError(e.args[0]) from e
+            raise edgedb_error.AtomValueError(e.args[0]) from e
 
         if not -0x7FFFFFFFFFFFFFFF <= value <= 0x7FFFFFFFFFFFFFFF:
-            raise error.AtomValueError('value is out of Int range')
+            raise edgedb_error.AtomValueError('value is out of Int range')
         return value
 
-_add_impl('metamagic.caos.builtins.int', Int)
-_add_map(Int, 'metamagic.caos.builtins.int')
-_add_map(int, 'metamagic.caos.builtins.int')
+_add_impl('std.int', Int)
+_add_map(Int, 'std.int')
+_add_map(int, 'std.int')
 
 
 class IntTypeInfo(s_types.TypeInfo, type=Int):
-    def intop(self, other: int) -> 'metamagic.caos.builtins.int':
+    def intop(self, other: int) -> 'std.int':
         pass
 
-    def float_result(self, other: int) -> 'metamagic.caos.builtins.float':
+    def float_result(self, other: int) -> 'std.float':
         pass
 
     __add__ = intop

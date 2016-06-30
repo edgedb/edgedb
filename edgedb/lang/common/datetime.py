@@ -16,11 +16,9 @@ import dateutil.parser
 import dateutil.relativedelta
 import dateutil.tz
 
-from metamagic.utils import config
 
-
-class DateTimeConfig(metaclass=config.ConfigurableMeta):
-    local_timezone = config.cvalue(type=str, default=None, doc='Default local time-zone')
+class DateTimeConfig:
+    local_timezone = None
 
 
 class DateTime(datetime.datetime):

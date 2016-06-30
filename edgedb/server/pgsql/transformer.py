@@ -11,29 +11,29 @@ import itertools
 import functools
 import re
 
-from metamagic import exceptions as base_err
+from edgedb.lang.common import exceptions as edgedb_error
 
-from metamagic.caos.lang import caosql
+from edgedb.lang import caosql
 
-from metamagic.caos.lang.ir import ast as irast
-from metamagic.caos.lang.ir import utils as irutils
+from edgedb.lang.ir import ast as irast
+from edgedb.lang.ir import utils as irutils
 
-from metamagic.caos.lang.schema import atoms as s_atoms
-from metamagic.caos.lang.schema import concepts as s_concepts
-from metamagic.caos.lang.schema import links as s_links
-from metamagic.caos.lang.schema import name as sn
-from metamagic.caos.lang.schema import objects as s_obj
-from metamagic.caos.lang.schema import pointers as s_pointers
-from metamagic.caos.lang.schema import utils as s_utils
+from edgedb.lang.schema import atoms as s_atoms
+from edgedb.lang.schema import concepts as s_concepts
+from edgedb.lang.schema import links as s_links
+from edgedb.lang.schema import name as sn
+from edgedb.lang.schema import objects as s_obj
+from edgedb.lang.schema import pointers as s_pointers
+from edgedb.lang.schema import utils as s_utils
 
-from metamagic.caos.backends import pgsql
-from metamagic.caos.backends.pgsql import common, session as pg_session, driver as pg_driver
-from metamagic.caos.backends.pgsql import types as pg_types
-from metamagic.caos.backends.pgsql import exceptions as pg_errors
+from edgedb.server import pgsql
+from edgedb.server.pgsql import common, session as pg_session, driver as pg_driver
+from edgedb.server.pgsql import types as pg_types
+from edgedb.server.pgsql import exceptions as pg_errors
 
-from metamagic.utils import ast, markup
-from metamagic.utils.debug import debug
-from metamagic.utils.datastructures import OrderedSet
+from edgedb.lang.common import ast, markup
+from edgedb.lang.common.debug import debug
+from edgedb.lang.common.datastructures import OrderedSet
 
 from . import types
 
@@ -278,7 +278,7 @@ class Decompiler(ast.visitor.NodeVisitor):
 
                         if ptr_info.table_type == 'concept':
                             # Singular pointer promoted into source table
-                            name = sn.Name('metamagic.caos.builtins.target')
+                            name = sn.Name('std.target')
                         else:
                             name = context.current.attmap[expr.field][0]
 
@@ -322,7 +322,7 @@ class IRCompilerBase:
             # Virtual concepts are represented as a UNION of selects from their children,
             # which is, for most purposes, equivalent to SELECTing from a parent table.
             #
-            idptr = sn.Name('metamagic.caos.builtins.id')
+            idptr = sn.Name('std.id')
             idcol = common.caos_name_to_pg_name(idptr)
             atomrefs = {idptr: irast.AtomicRefSimple(ref=node, name=idptr)}
             atomrefs.update({f.name: f for f in node.atomrefs})
@@ -534,13 +534,13 @@ class IRCompilerBase:
 
         link_proto = link_node.link_proto
         if link_proto is None:
-            link_proto = context.current.proto_schema.get('metamagic.caos.builtins.link')
+            link_proto = context.current.proto_schema.get('std.link')
 
         for ptr in link_proto.get_special_pointers():
             proprefs[ptr] = irast.LinkPropRefSimple(ref=link_node, name=ptr)
 
         if not link_proto.generic() and link_proto.atomic():
-            atom_target = sn.Name("metamagic.caos.builtins.target@atom")
+            atom_target = sn.Name("std.target@atom")
             proprefs[atom_target] = irast.LinkPropRefSimple(ref=link_node, name=atom_target)
 
         proprefs.update({f.name: f for f in link_node.proprefs})
@@ -911,7 +911,7 @@ class IRCompilerBase:
 
                 if isinstance(arg_type, s_atoms.Atom):
                     b = arg_type.get_topmost_base()
-                    is_string = b.name == 'metamagic.caos.builtins.str'
+                    is_string = b.name == 'std.str'
 
                 one = pgsql.ast.ConstantNode(value=1)
                 index = pgsql.ast.BinOpNode(left=args[1], op=ast.ops.ADD, right=one)
@@ -935,7 +935,7 @@ class IRCompilerBase:
 
                 if isinstance(arg_type, s_atoms.Atom):
                     b = arg_type.get_topmost_base()
-                    is_string = b.name == 'metamagic.caos.builtins.str'
+                    is_string = b.name == 'std.str'
 
                 if is_string:
                     upper_bound = pgsql.ast.FunctionCallNode(name='char_length',
@@ -1185,7 +1185,7 @@ class IRCompilerBase:
             expr_type = None
 
         schema = context.current.proto_schema
-        int_proto = schema.get('metamagic.caos.builtins.int')
+        int_proto = schema.get('std.int')
 
         pg_expr = self._process_expr(context, expr.expr, cte)
 
@@ -1345,7 +1345,7 @@ class IRCompiler(IRCompilerBase):
             arg_index = codegen.param_index
 
             """LOG [caos.query]
-            from metamagic.utils import markup
+            from edgedb.lang.common import markup
             qtext = ''.join(qchunks)
             markup.dump_code(qtext, lexer='sql', header='SQL Query')
             """
@@ -1357,7 +1357,7 @@ class IRCompiler(IRCompilerBase):
                 args = []
             err = IRCompilerInternalError(*args)
             err_ctx = IRCompilerErrorContext(tree=query)
-            base_err._replace_context(err, err_ctx)
+            edgedb_error._replace_context(err, err_ctx)
             raise err from e
 
         return qchunks, argmap, arg_index, type(qtree), tuple(context.current.record_info.values())
@@ -1368,12 +1368,12 @@ class IRCompiler(IRCompilerBase):
             codegen.visit(qtree)
         except pgsql.codegen.SQLSourceGeneratorError as e:
             ctx = pgsql.codegen.SQLSourceGeneratorContext(qtree, codegen.result)
-            base_err._add_context(e, ctx)
+            edgedb_error._add_context(e, ctx)
             raise
         except Exception as e:
             ctx = pgsql.codegen.SQLSourceGeneratorContext(qtree, codegen.result)
             err = pgsql.codegen.SQLSourceGeneratorError('error while generating SQL source')
-            base_err._add_context(err, ctx)
+            edgedb_error._add_context(err, ctx)
             raise err from e
 
         return codegen
@@ -1481,13 +1481,13 @@ class IRCompiler(IRCompilerBase):
                 ref_map = {prop.ref.link_proto: query.fromexpr}
                 context.current.link_node_map[prop.ref] = {'local_ref_map': ref_map}
 
-                sprop_name = common.caos_name_to_pg_name('metamagic.caos.builtins.source')
+                sprop_name = common.caos_name_to_pg_name('std.source')
                 sref = pgsql.ast.FieldRefNode(table=query.fromexpr,
                                               field=sprop_name,
                                               origin=query.fromexpr,
                                               origin_field=sprop_name)
 
-                idprop_name = common.caos_name_to_pg_name('metamagic.caos.builtins.linkid')
+                idprop_name = common.caos_name_to_pg_name('std.linkid')
                 idref = pgsql.ast.FieldRefNode(table=query.fromexpr,
                                               field=idprop_name,
                                               origin=query.fromexpr,
@@ -1509,9 +1509,9 @@ class IRCompiler(IRCompilerBase):
                 context.current.ctemap[query] = {graph.optarget.ref: query}
 
                 filter = pgsql.ast.FieldRefNode(table=query.fromexpr,
-                                                field='metamagic.caos.builtins.id',
+                                                field='std.id',
                                                 origin=query.fromexpr,
-                                                origin_field='metamagic.caos.builtins.id')
+                                                origin_field='std.id')
 
                 sref = idref = filter
 
@@ -1523,9 +1523,9 @@ class IRCompiler(IRCompilerBase):
                 context.current.ctemap[query] = {graph.optarget: query}
 
                 filter = pgsql.ast.FieldRefNode(table=query.fromexpr,
-                                                field='metamagic.caos.builtins.id',
+                                                field='std.id',
                                                 origin=query.fromexpr,
-                                                origin_field='metamagic.caos.builtins.id')
+                                                origin_field='std.id')
 
             query.where = pgsql.ast.BinOpNode(left=filter, op='IN', right=context.current.query)
 
@@ -1910,7 +1910,7 @@ class IRCompiler(IRCompilerBase):
             pspec = typ.pathspec
 
         props = [p.ptr_proto.normal_name() for p in pspec]
-        tgt_col = props.index('metamagic.caos.builtins.target')
+        tgt_col = props.index('std.target')
 
         upd_props = [p.ptr_proto.normal_name() for p in pspec
                      if not p.ptr_proto.is_special_pointer()]
@@ -1981,13 +1981,13 @@ class IRCompiler(IRCompilerBase):
             # Target-only update
             #
             data = updval
-            props = ['metamagic.caos.builtins.target']
+            props = ['std.target']
 
         e = pgsql.common.caos_name_to_pg_name
 
         spec_cols = {e(prop): i for i, prop in enumerate(props)}
 
-        if (props == ['metamagic.caos.builtins.target'] and
+        if (props == ['std.target'] and
                 props_only and not target_is_atom):
             # No property upates and the target value is stored
             # in the source table, so we don't need to modify
@@ -2019,14 +2019,14 @@ class IRCompiler(IRCompilerBase):
         row = pgsql.ast.SequenceNode()
 
         for col in tab_cols:
-            if (col == 'metamagic.caos.builtins.target' and
+            if (col == 'std.target' and
                     (props_only or target_is_atom)):
                 expr = pgsql.ast.TypeCastNode(
                         expr=pgsql.ast.ConstantNode(value=None),
                         type=pgsql.ast.TypeNode(name='uuid'))
             else:
-                if col == 'metamagic.caos.builtins.target@atom':
-                    col = 'metamagic.caos.builtins.target'
+                if col == 'std.target@atom':
+                    col = 'std.target'
 
                 data_idx = spec_cols.get(col)
                 if data_idx is None:
@@ -2145,10 +2145,10 @@ class IRCompiler(IRCompilerBase):
                         field='id'
                     )
                 ),
-            'metamagic.caos.builtins.source':
+            'std.source':
                 pgsql.ast.FieldRefNode(
                     table=scope_cte,
-                    field='metamagic.caos.builtins.id'
+                    field='std.id'
                 )
         }
 
@@ -2157,19 +2157,19 @@ class IRCompiler(IRCompilerBase):
             delcte = pgsql.ast.DeleteQueryNode(
                 fromexpr=target_tab,
                 where=pgsql.ast.BinOpNode(
-                    left=col_data['metamagic.caos.builtins.source'],
+                    left=col_data['std.source'],
                     op=ast.ops.EQ,
                     right=pgsql.ast.FieldRefNode(
                         table=target_tab,
-                        field='metamagic.caos.builtins.source'
+                        field='std.source'
                     )
                 ),
                 alias=context.current.genalias(hint='d'),
                 using=[scope_cte],
                 targets=[
                     pgsql.ast.SelectExprNode(
-                        expr=col_data['metamagic.caos.builtins.source'],
-                        alias='metamagic.caos.builtins.id'
+                        expr=col_data['std.source'],
+                        alias='std.id'
                     )
                 ]
             )
@@ -2201,8 +2201,8 @@ class IRCompiler(IRCompilerBase):
                     targets=[
                         pgsql.ast.SelectExprNode(
                             expr=pgsql.ast.FieldRefNode(
-                                field='metamagic.caos.builtins.source'),
-                            alias='metamagic.caos.builtins.id'
+                                field='std.source'),
+                            alias='std.id'
                         )
                     ])
 
@@ -2210,13 +2210,13 @@ class IRCompiler(IRCompilerBase):
                 data.alias = context.current.genalias(hint='q')
                 updcte.where = pgsql.ast.BinOpNode(
                     left=pgsql.ast.FieldRefNode(
-                            field='metamagic.caos.builtins.linkid'),
+                            field='std.linkid'),
                     op=ast.ops.IN,
                     right=pgsql.ast.SelectQueryNode(
                         targets=[
                             pgsql.ast.SelectExprNode(
                                 expr=pgsql.ast.FieldRefNode(
-                                    field='metamagic.caos.builtins.linkid'
+                                    field='std.linkid'
                                 )
                             )
                         ],
@@ -2231,8 +2231,8 @@ class IRCompiler(IRCompilerBase):
                     targets=[
                         pgsql.ast.SelectExprNode(
                             expr=pgsql.ast.FieldRefNode(
-                                field='metamagic.caos.builtins.source'),
-                            alias='metamagic.caos.builtins.id'
+                                field='std.source'),
+                            alias='std.id'
                         )
                     ])
 
@@ -2250,7 +2250,7 @@ class IRCompiler(IRCompilerBase):
                 updcte.on_conflict = pgsql.ast.OnConflictNode(
                     action='update',
                     infer=[pgsql.ast.FieldRefNode(
-                            field='metamagic.caos.builtins.linkid')],
+                            field='std.linkid')],
                     targets=[update_clause]
                 )
 
@@ -2284,7 +2284,7 @@ class IRCompiler(IRCompilerBase):
         return wrapper
 
     def _generate_recursive_query(self, context, query, recurse_link, recurse_depth):
-        idptr = sn.Name('metamagic.caos.builtins.id')
+        idptr = sn.Name('std.id')
 
         child_end = recurse_link.source
         parent_end = recurse_link.target
@@ -2507,7 +2507,7 @@ class IRCompiler(IRCompilerBase):
     def _pull_outerbonds(self, context, outer_ref, target_rel):
         pulled_bonds = []
 
-        oref = context.current.concept_node_map[outer_ref]['metamagic.caos.builtins.id']
+        oref = context.current.concept_node_map[outer_ref]['std.id']
         target_rel.targets.append(oref)
 
         refexpr = pgsql.ast.FieldRefNode(table=target_rel, field=oref.alias,
@@ -2551,7 +2551,7 @@ class IRCompiler(IRCompilerBase):
             else:
                 raise ValueError('invalid inner reference in subquery bond')
 
-        idcol = 'metamagic.caos.builtins.id'
+        idcol = 'std.id'
 
         if ((context_l.direct_subquery_ref or inline) and context_l.location == 'nodefilter'):
             outer_ref = context_l.concept_node_map[outer_ref]
@@ -2640,7 +2640,7 @@ class IRCompiler(IRCompilerBase):
                 if subquery.outerbonds:
                     for outer_ref, inner_ref in subquery.outerbonds:
                         outer_ref = context.current.concept_node_map[outer_ref]
-                        outer_ref = outer_ref['metamagic.caos.builtins.id']
+                        outer_ref = outer_ref['std.id']
 
                         subquery.targets.append(inner_ref)
                         if subquery.aggregates:
@@ -2754,7 +2754,7 @@ class IRCompiler(IRCompilerBase):
                 expr = None
 
         if isinstance(expr, irast.EntitySet):
-            return expr.concept.name == 'metamagic.caos.builtins.BaseObject'
+            return expr.concept.name == 'std.BaseObject'
 
         return False
 
@@ -3127,7 +3127,7 @@ class IRCompiler(IRCompilerBase):
                                         expr.left, context.current.proto_schema)
                         if isinstance(left_type, s_obj.ProtoNode):
                             if isinstance(left_type, s_concepts.Concept):
-                                left_type = left_type.pointers['metamagic.caos.builtins.id'].target
+                                left_type = left_type.pointers['std.id'].target
                             left_type = types.pg_type_from_atom(context.current.proto_schema,
                                                                 left_type, topbase=True)
                             right.type = left_type + '[]'
@@ -3184,7 +3184,7 @@ class IRCompiler(IRCompilerBase):
                         if left_type and right_type:
                             if isinstance(left_type, s_obj.ProtoNode):
                                 if isinstance(left_type, s_concepts.Concept):
-                                    left_type = left_type.pointers['metamagic.caos.builtins.id'].target
+                                    left_type = left_type.pointers['std.id'].target
                                 left_type = types.pg_type_from_atom(context.current.proto_schema,
                                                                     left_type, topbase=True)
                             elif not isinstance(left_type, s_obj.ProtoObject) and \
@@ -3194,7 +3194,7 @@ class IRCompiler(IRCompilerBase):
 
                             if isinstance(right_type, s_obj.ProtoNode):
                                 if isinstance(right_type, s_concepts.Concept):
-                                    right_type = right_type.pointers['metamagic.caos.builtins.id'].target
+                                    right_type = right_type.pointers['std.id'].target
                                 right_type = types.pg_type_from_atom(context.current.proto_schema,
                                                                     right_type, topbase=True)
                             elif not isinstance(right_type, s_obj.ProtoObject) and \
@@ -3332,10 +3332,9 @@ class IRCompiler(IRCompilerBase):
 
             schema = context.current.proto_schema
 
-            if expr.name == 'metamagic.caos.builtins.target':
-                localizable = schema.get('metamagic.caos.extras.l10n.localizable',
-                                         default=None)
-                str_t = schema.get('metamagic.caos.builtins.str')
+            if expr.name == 'std.target':
+                localizable = schema.get('std.localizable', default=None)
+                str_t = schema.get('std.str')
 
                 link_proto = expr.ptr_proto.source
 
@@ -3441,7 +3440,7 @@ class IRCompiler(IRCompilerBase):
                 else:
                     mapslot[field] = fieldref
 
-                if field == 'metamagic.caos.builtins.id':
+                if field == 'std.id':
                     bondref = pgsql.ast.FieldRefNode(table=target_rel, field=ref.alias,
                                                      origin=ref.expr.origin,
                                                      origin_field=ref.expr.origin_field)
@@ -3503,7 +3502,7 @@ class IRCompiler(IRCompilerBase):
 
         fromnode = step_cte.fromlist[0] if step_cte.fromlist else pgsql.ast.FromExprNode()
 
-        id_field = common.caos_name_to_pg_name('metamagic.caos.builtins.id')
+        id_field = common.caos_name_to_pg_name('std.id')
 
         if caos_path_tip and isinstance(caos_path_tip.concept, s_concepts.Concept):
             concept_table = self._relation_from_concepts(context, caos_path_tip, step_cte)
@@ -3548,11 +3547,11 @@ class IRCompiler(IRCompilerBase):
 
             # Set up references according to link direction
             #
-            src_col = common.caos_name_to_pg_name('metamagic.caos.builtins.source')
+            src_col = common.caos_name_to_pg_name('std.source')
             source_ref = pgsql.ast.FieldRefNode(table=map_rel, field=src_col,
                                                 origin=map_rel, origin_field=src_col)
 
-            tgt_col = common.caos_name_to_pg_name('metamagic.caos.builtins.target')
+            tgt_col = common.caos_name_to_pg_name('std.target')
             target_ref = pgsql.ast.FieldRefNode(table=map_rel, field=tgt_col,
                                                 origin=map_rel, origin_field=tgt_col)
 
@@ -3641,7 +3640,7 @@ class IRCompiler(IRCompilerBase):
         if caos_path_tip and isinstance(caos_path_tip.concept, s_concepts.Concept):
             # Process references to atoms.
             #
-            atomrefs = {'metamagic.caos.builtins.id'} | {f.name for f in caos_path_tip.atomrefs}
+            atomrefs = {'std.id'} | {f.name for f in caos_path_tip.atomrefs}
 
             context.current.concept_node_map.setdefault(caos_path_tip, {})
             step_cte.concept_node_map.setdefault(caos_path_tip, {})
@@ -3853,7 +3852,7 @@ class IRCompiler(IRCompilerBase):
             outer_ref = caos_path_tip.reference
 
             inner_ref = context.current.concept_node_map[caos_path_tip]
-            inner_ref = inner_ref['metamagic.caos.builtins.id']
+            inner_ref = inner_ref['std.id']
 
             context.current.query.outerbonds.append((outer_ref, inner_ref))
 
@@ -3866,7 +3865,7 @@ class IRCompiler(IRCompilerBase):
             has_bonds = step_cte.bonds(caos_path_tip.id)
             if not has_bonds:
                 bond = pgsql.ast.FieldRefNode(table=step_cte,
-                                              field=aliases['metamagic.caos.builtins.id'])
+                                              field=aliases['std.id'])
                 step_cte.addbond(caos_path_tip.id, bond)
 
         return step_cte
@@ -3886,7 +3885,7 @@ class IRCompiler(IRCompilerBase):
 
         concept_table = self._relation_from_concepts(context, caos_path_tip, sql_path_tip)
 
-        field_name = 'metamagic.caos.builtins.id'
+        field_name = 'std.id'
         innerref = pgsql.ast.FieldRefNode(table=concept_table, field=field_name,
                                           origin=concept_table, origin_field=field_name)
         outerref = self.get_cte_fieldref_for_set(context, caos_path_tip, field_name,

@@ -13,7 +13,7 @@ import inspect
 from types import MethodType as _method
 from functools import partial
 
-from metamagic.exceptions import MetamagicError
+from edgedb.lang.common.exceptions import EdgeDBError
 
 
 __all__ = ('get_argsspec', 'apply_decorator', 'decorate', 'isdecorated',
@@ -103,7 +103,7 @@ class Decorator(BaseDecorator):
         decorate(self, func)
 
     def handle_args(self, *args, **kwargs):
-        raise MetamagicError('decorator %r does not support any arguments' % self.__class__.__name__)
+        raise EdgeDBError('decorator %r does not support any arguments' % self.__class__.__name__)
 
     def __get__(self, obj, cls=None):
         if obj is None:

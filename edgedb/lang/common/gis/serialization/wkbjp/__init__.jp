@@ -9,7 +9,7 @@
 export parseBytes, parseString
 
 
-from metamagic.utils.lang.jplus import byteutils, ieee754
+from edgedb.lang.common.lang.jplus import byteutils, ieee754
 
 
 GEOMETRYTYPE = 0

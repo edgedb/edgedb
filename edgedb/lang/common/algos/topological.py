@@ -8,7 +8,7 @@
 
 from collections import defaultdict, OrderedDict
 
-from metamagic.utils.datastructures import OrderedSet
+from edgedb.lang.common.datastructures import OrderedSet
 
 
 class UnresolvedReferenceError(Exception):

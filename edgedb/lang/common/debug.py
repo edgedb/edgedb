@@ -17,10 +17,9 @@ import contextlib
 import cProfile
 import time
 
-from metamagic import bootstrap
-from metamagic.utils.functional import decorate
-from metamagic.exceptions import MultiError
-from metamagic.utils.datastructures import Void
+from edgedb.lang.common.functional import decorate
+from edgedb.lang.common.exceptions import MultiError
+from edgedb.lang.common.datastructures import Void
 
 
 """A collection of useful debugging routines"""
@@ -74,7 +73,7 @@ def _dump_header(title):
 
 
 class debug:
-    enabled = bootstrap.debug_enabled
+    enabled = False
     active = False
 
     def __new__(cls, func):
@@ -116,13 +115,13 @@ class debug:
                             # We want to use the first.
                             lineno = node.lineno - len(comment) + 1
 
-                            text = 'import metamagic.utils.debug, os as _os_\n' \
-                                   'if metamagic.utils.debug.channels & %r:\n' \
+                            text = 'import edgedb.lang.common.debug, os as _os_\n' \
+                                   'if edgedb.lang.common.debug.channels & %r:\n' \
                                    '    pass\n' % tags
 
                             if title:
                                 if type == 'LOG':
-                                    text += '    print(metamagic.utils.debug._dump_header(%r))\n' % title
+                                    text += '    print(edgedb.lang.common.debug._dump_header(%r))\n' % title
                                 else:
                                     text += '    print(_os_.getpid(), %r, %s)' % (title, ', '.join(comment[1:]))
 
@@ -208,7 +207,7 @@ def profiler(filename=None, sort='time'):
 
     .. code-block:: python
 
-        from metamagic.utils.debug import profiler
+        from edgedb.lang.common.debug import profiler
 
         with profiler():
             your_code()
@@ -460,7 +459,7 @@ def timeit(target):
 
     .. code-block:: python
 
-        from metamagic.utils.debug import timeit
+        from edgedb.lang.common.debug import timeit
 
     1) in a "with" statement:
         >>> with timeit('long list'):

@@ -8,7 +8,7 @@
 
 import collections
 
-from metamagic.utils import ast
+from edgedb.lang.common import ast
 
 from . import ast as qlast
 from . import codegen

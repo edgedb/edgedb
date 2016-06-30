@@ -10,8 +10,8 @@ import abc
 import numbers
 import uuid
 
-from metamagic.utils import datetime
-from metamagic.utils.gis import proto as gis_proto
+from edgedb.lang.common import datetime
+from edgedb.lang.common.gis import proto as gis_proto
 
 
 class Literal(metaclass=abc.ABCMeta):

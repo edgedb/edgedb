@@ -11,8 +11,8 @@
 
 import collections
 
-from metamagic.utils import ast
-from metamagic.utils.functional import adapter
+from edgedb.lang.common import ast
+from edgedb.lang.common.functional import adapter
 
 
 class MatchASTMeta(adapter.Adapter, ast.MetaAST):

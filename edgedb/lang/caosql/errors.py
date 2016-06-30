@@ -6,11 +6,11 @@
 ##
 
 
-from metamagic.exceptions import MetamagicError
-from metamagic.utils.parsing import ParserError
+from edgedb.lang.common.exceptions import EdgeDBError
+from edgedb.lang.common.parsing import ParserError
 
 
-class CaosQLError(MetamagicError):
+class CaosQLError(EdgeDBError):
     pass
 
 

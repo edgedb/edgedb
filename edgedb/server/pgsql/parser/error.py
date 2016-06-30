@@ -6,8 +6,8 @@
 ##
 
 
-from metamagic.exceptions import MetamagicError
-from metamagic.utils import parsing
+from edgedb.lang.common.exceptions import EdgeDBError
+from edgedb.lang.common import parsing
 
 class PgSQLParserError(parsing.ParserError):
     pass

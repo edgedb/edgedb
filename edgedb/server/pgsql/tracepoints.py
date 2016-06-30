@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.utils.tracepoints import Trace
+from edgedb.lang.common.tracepoints import Trace
 
 
 class Query(Trace):

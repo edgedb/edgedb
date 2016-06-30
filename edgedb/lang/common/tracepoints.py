@@ -9,8 +9,8 @@
 import contextlib
 from time import perf_counter
 
-from metamagic.utils import markup, config
-from metamagic.utils.localcontext import HEAD as _HEAD
+from edgedb.lang.common import markup, config
+from edgedb.lang.common.localcontext import HEAD as _HEAD
 
 
 def _get_local_trace():

@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.utils.datastructures import typed, struct
+from edgedb.lang.common.datastructures import typed, struct
 from . import base
 
 

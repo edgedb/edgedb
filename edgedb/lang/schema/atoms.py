@@ -6,9 +6,9 @@
 ##
 
 
-from metamagic.utils.functional import hybridmethod
+from edgedb.lang.common.functional import hybridmethod
 
-from metamagic.caos.lang.caosql import ast as qlast
+from edgedb.lang.caosql import ast as qlast
 
 from . import attributes
 from . import constraints
@@ -176,13 +176,13 @@ class Atom(primary.Prototype, constraints.ConsistencySubject,
             N = sn.Name
 
             # Add dependency on all built-in atoms unconditionally
-            deps.add(N(module='metamagic.caos.builtins', name='str'))
-            deps.add(N(module='metamagic.caos.builtins', name='bytes'))
-            deps.add(N(module='metamagic.caos.builtins', name='int'))
-            deps.add(N(module='metamagic.caos.builtins', name='float'))
-            deps.add(N(module='metamagic.caos.builtins', name='decimal'))
-            deps.add(N(module='metamagic.caos.builtins', name='bool'))
-            deps.add(N(module='metamagic.caos.builtins', name='uuid'))
+            deps.add(N(module='std', name='str'))
+            deps.add(N(module='std', name='bytes'))
+            deps.add(N(module='std', name='int'))
+            deps.add(N(module='std', name='float'))
+            deps.add(N(module='std', name='decimal'))
+            deps.add(N(module='std', name='bool'))
+            deps.add(N(module='std', name='uuid'))
 
             for constraint in self.constraints.values():
                 for ptypes in (constraint.paramtypes,
@@ -200,16 +200,6 @@ class Atom(primary.Prototype, constraints.ConsistencySubject,
                                     deps.add(ptype.name)
 
         return deps
-
-    def get_metaclass(self, schema):
-        from metamagic.caos.atom import AtomMeta
-
-        base = self.get_topmost_base()
-        if issubclass(type(base), AtomMeta):
-            metaclass = type(base)
-        else:
-            metaclass = AtomMeta
-        return metaclass
 
     @hybridmethod
     def copy(scope, obj=None):

@@ -6,8 +6,8 @@
 ##
 
 
-from metamagic.caos.lang.schema import deltarepo
-from metamagic.caos.lang.schema import delta as sd
+from edgedb.lang.schema import deltarepo
+from edgedb.lang.schema import delta as sd
 
 from . import common
 from . import dbops, deltadbops, delta

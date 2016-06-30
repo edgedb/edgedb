@@ -6,7 +6,7 @@
 ##
 
 
-%SCHEMA metamagic.caos.datasources.schemas.Sql
+%SCHEMA edgedb.server.datasources.schemas.Sql
 %NAME Attributes
 ---
 params:
@@ -30,7 +30,7 @@ source: |
 ...
 
 
-%SCHEMA metamagic.caos.datasources.schemas.Sql
+%SCHEMA edgedb.server.datasources.schemas.Sql
 %NAME AttributeValues
 ---
 params:

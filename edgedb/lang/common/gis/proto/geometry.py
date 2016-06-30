@@ -6,8 +6,8 @@
 ##
 
 
-from metamagic.utils.gis import serialization
-from metamagic.utils.gis.serialization import wkb, wkt
+from edgedb.lang.common.gis import serialization
+from edgedb.lang.common.gis.serialization import wkb, wkt
 from . import factory
 from . import meta
 from .errors import GeometryError

@@ -6,8 +6,8 @@
 ##
 
 
-from metamagic.utils.algos.persistent_hash import persistent_hash
-from metamagic.utils.functional import hybridmethod
+from edgedb.lang.common.algos.persistent_hash import persistent_hash
+from edgedb.lang.common.functional import hybridmethod
 
 from . import error as schema_error
 from . import indexes

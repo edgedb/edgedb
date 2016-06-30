@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.caos.backends import pool
+from edgedb.server import pool
 
 
 class ConnectionPool(pool.ConnectionPool):

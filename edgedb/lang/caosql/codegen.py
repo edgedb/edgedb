@@ -8,14 +8,14 @@
 
 import itertools
 
-from metamagic.exceptions import MetamagicError
-from metamagic.utils.ast import codegen, AST
+from edgedb.lang.common.exceptions import EdgeDBError
+from edgedb.lang.common.ast import codegen, AST
 
 from . import ast as caosql_ast
 from . import quote as caosql_quote
 
 
-class CaosQLSourceGeneratorError(MetamagicError):
+class CaosQLSourceGeneratorError(EdgeDBError):
     pass
 
 

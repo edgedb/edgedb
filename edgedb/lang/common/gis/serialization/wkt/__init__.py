@@ -6,11 +6,11 @@
 ##
 
 
-from metamagic.utils import parsing, debug
+from edgedb.lang.common import parsing, debug
 from .errors import WKTSyntaxError
 from ..base import Serializer, SerializerError
 
-from metamagic.utils.gis.proto.abc import GeometryContainer
+from edgedb.lang.common.gis.proto.abc import GeometryContainer
 
 from . import lexer
 

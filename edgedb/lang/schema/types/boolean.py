@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.utils import ast
+from edgedb.lang.common import ast
 
 from . import base as s_types
 
@@ -32,15 +32,15 @@ class Bool(int):
 
 
 s_types.BaseTypeMeta.add_implementation(
-    'metamagic.caos.builtins.bool', Bool)
+    'std.bool', Bool)
 s_types.BaseTypeMeta.add_mapping(
-    Bool, 'metamagic.caos.builtins.bool')
+    Bool, 'std.bool')
 s_types.BaseTypeMeta.add_mapping(
-    bool, 'metamagic.caos.builtins.bool')
+    bool, 'std.bool')
 
 s_types.TypeRules.add_rule(
-    ast.ops.OR, (Bool, Bool), 'metamagic.caos.builtins.bool')
+    ast.ops.OR, (Bool, Bool), 'std.bool')
 s_types.TypeRules.add_rule(
-    ast.ops.AND, (Bool, Bool), 'metamagic.caos.builtins.bool')
+    ast.ops.AND, (Bool, Bool), 'std.bool')
 s_types.TypeRules.add_rule(
-    ast.ops.NOT, (Bool,), 'metamagic.caos.builtins.bool')
+    ast.ops.NOT, (Bool,), 'std.bool')

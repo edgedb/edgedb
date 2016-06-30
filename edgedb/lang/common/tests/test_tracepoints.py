@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.utils import tracepoints
+from edgedb.lang.common import tracepoints
 
 
 def test_utils_tracepoints_slots():

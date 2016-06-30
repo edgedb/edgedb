@@ -14,7 +14,7 @@
 import sys
 
 
-from metamagic.utils import ast, parsing
+from edgedb.lang.common import ast, parsing
 from .. import ast as pgast
 
 from . import keywords

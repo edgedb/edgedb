@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.caos.lang.caosql import ast as qlast
+from edgedb.lang.caosql import ast as qlast
 
 from . import delta as sd
 from . import derivable
@@ -75,11 +75,11 @@ class CreateEvent(named.CreateNamedPrototype, EventCommand):
         bases = super()._protobases_from_ast(astnode, context)
         if not bases:
             name = '{}.{}'.format(astnode.name.module, astnode.name.name)
-            if name != 'metamagic.caos.builtins.event':
+            if name != 'std.event':
                 bases = so.PrototypeList([
                     so.PrototypeRef(
                         prototype_name=sn.Name(
-                            module='metamagic.caos.builtins',
+                            module='std',
                             name='event'
                         )
                     )
@@ -284,10 +284,6 @@ class Action(primary.Prototype):
         delete=DeleteAction
     )
 
-    def get_metaclass(self, proto_schema):
-        from metamagic.caos.policy import ActionMeta
-        return ActionMeta
-
 
 class ActionSet(so.PrototypeSet, type=Action):
     pass
@@ -302,10 +298,6 @@ class Event(primary.Prototype):
         rename=RenameEvent,
         delete=DeleteEvent
     )
-
-    def get_metaclass(self, proto_schema):
-        from metamagic.caos.policy import EventMeta
-        return EventMeta
 
 
 class Policy(derivable.DerivablePrototype):

@@ -30,13 +30,13 @@ class persistent_hash(int):
         hash = None
 
         if value is None:
-            hash = cls.str_hash('__metamagic__NONE__')
+            hash = cls.str_hash('__edgedb__NONE__')
         elif isinstance(value, str):
             hash = cls.str_hash(value)
         elif isinstance(value, bytes):
             hash = cls.bytes_hash(value)
         elif isinstance(value, bool):
-            hash = cls.str_hash('__metamagic__TRUE__' if value else '__metamagic__FALSE__')
+            hash = cls.str_hash('__edgedb__TRUE__' if value else '__edgedb__FALSE__')
         elif isinstance(value, int):
             hash = cls.int_hash(value)
         elif isinstance(value, float):

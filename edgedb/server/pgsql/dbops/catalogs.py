@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.utils import datastructures
+from edgedb.lang.common import datastructures
 
 from . import tables
 

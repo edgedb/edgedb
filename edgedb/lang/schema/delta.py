@@ -9,22 +9,22 @@
 import collections
 import re
 
-from metamagic.exceptions import MetamagicError
-from metamagic import caos, exceptions as base_err
-from metamagic.caos import debug as caos_debug
-from metamagic.caos.lang import caosql
-from metamagic.caos.lang.caosql import ast as qlast
+from edgedb.lang.common.exceptions import EdgeDBError
+from edgedb.lang.common import exceptions as base_err
+from edgedb.lang.common import debug as edgedb_debug
+from edgedb.lang import caosql
+from edgedb.lang.caosql import ast as qlast
 
-from metamagic.utils import datastructures, functional, markup
-from metamagic.utils.datastructures import Field
-from metamagic.utils.datastructures import typed
-from metamagic.utils.datastructures import OrderedIndex
-from metamagic.utils.nlang import morphology
-from metamagic.utils.algos.persistent_hash import persistent_hash
-from metamagic.utils.debug import debug
+from edgedb.lang.common import datastructures, functional, markup
+from edgedb.lang.common.datastructures import Field
+from edgedb.lang.common.datastructures import typed
+from edgedb.lang.common.datastructures import OrderedIndex
+from edgedb.lang.common.nlang import morphology
+from edgedb.lang.common.algos.persistent_hash import persistent_hash
 
 from . import objects as so
 from . import expr as s_expr
+from . import name as s_name
 from . import utils
 
 
@@ -122,13 +122,13 @@ class DeltaExceptionSchemaContext(markup.MarkupExceptionContext):
         body.append(me.doc.Section(
                         title=title, body=[markup.serialize(delta, ctx=ctx)]))
 
-        diff = caos_debug.get_schema_hash_diff(self.schema1, self.schema2,
-                                               a_title=self.schema1_title,
-                                               b_title=self.schema2_title)
+        diff = edgedb_debug.get_schema_hash_diff(self.schema1, self.schema2,
+                                                 a_title=self.schema1_title,
+                                                 b_title=self.schema2_title)
 
         body.append(me.doc.Section(title='Schema Hash Diff', body=[diff]))
 
-        diff = caos_debug.get_list_diff(
+        diff = edgedb_debug.get_list_diff(
                     self.schema1_checksums or [],
                     self.schema2_checksums or [],
                     a_title=self.schema1_title,
@@ -137,9 +137,9 @@ class DeltaExceptionSchemaContext(markup.MarkupExceptionContext):
         body.append(me.doc.Section(title='Schema Object Hashes Diff',
                                    body=[diff]))
 
-        diff = caos_debug.get_schema_text_diff(self.schema1, self.schema2,
-                                               a_title=self.schema1_title,
-                                               b_title=self.schema2_title)
+        diff = edgedb_debug.get_schema_text_diff(self.schema1, self.schema2,
+                                                 a_title=self.schema1_title,
+                                                 b_title=self.schema2_title)
 
         body.append(me.doc.Section(title='Schema Text Diff', body=[diff]))
 
@@ -162,7 +162,7 @@ class DeltaExceptionContext(markup.MarkupExceptionContext):
         return markup.elements.lang.ExceptionContext(title=title, body=body)
 
 
-class DeltaError(MetamagicError):
+class DeltaError(EdgeDBError):
     def __init__(self, msg=None, *, hint=None, details=None, delta=None):
         super().__init__(msg, hint=hint, details=details)
         self.delta = delta
@@ -267,11 +267,10 @@ class Delta(datastructures.MixedStruct, metaclass=DeltaMeta):
         kwargs['id'] = persistent_hash('%s%s%s' % hash_items)
         super().__init__(**kwargs)
 
-    @debug
     def apply(self, schema):
         ''
 
-        """LINE [caos.delta.progress] APPLYING
+        """LINE [delta.progress] APPLYING
         '{:032x}'.format(self.id)
         """
 
@@ -808,7 +807,7 @@ class AlterPrototypeProperty(Command):
                         if len(v.args) == 2:
                             # collection
                             subtype = so.PrototypeRef(
-                                prototype_name=caos.Name(v.args[1].value))
+                                prototype_name=s_name.Name(v.args[1].value))
                             if v.args[0].value == 'set':
                                 ct = so.Set
                             elif v.args[0].value == 'list':
@@ -820,7 +819,7 @@ class AlterPrototypeProperty(Command):
                             v = ct(element_type=subtype)
                         else:
                             v = so.PrototypeRef(
-                                    prototype_name=caos.Name(v.args[0].value))
+                                    prototype_name=s_name.Name(v.args[0].value))
                     elif isinstance(v, qlast.TypeCastNode):
                         v = v.expr.value
                     elif isinstance(v, qlast.UnaryOpNode):

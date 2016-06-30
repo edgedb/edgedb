@@ -7,7 +7,7 @@
 
 
 import ast
-from metamagic.utils.ast import match
+from edgedb.lang.common.ast import match
 
 from . import ast as tast
 from . import astmatch as tastmatch

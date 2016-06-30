@@ -9,12 +9,11 @@
 import numbers
 import postgresql.string
 
-from metamagic import exceptions as sx_errors
-from metamagic.caos.backends.pgsql import common
-from metamagic.caos.backends.pgsql import ast as pgast
-from metamagic.utils.ast import codegen
-from metamagic.utils.datastructures import xvalue
-from metamagic.utils import markup
+from edgedb.server.pgsql import common
+from edgedb.server.pgsql import ast as pgast
+from edgedb.lang.common.ast import codegen
+from edgedb.lang.common import markup
+from edgedb.lang.common import exceptions as edgedb_error
 
 
 class SQLSourceGeneratorContext(markup.MarkupExceptionContext):
@@ -37,12 +36,12 @@ class SQLSourceGeneratorContext(markup.MarkupExceptionContext):
         return me.lang.ExceptionContext(title=self.title, body=body)
 
 
-class SQLSourceGeneratorError(sx_errors.MetamagicError):
+class SQLSourceGeneratorError(edgedb_error.EdgeDBError):
     def __init__(self, msg, *, node=None, details=None, hint=None):
         super().__init__(msg, details=details, hint=hint)
         if node is not None:
             ctx = SQLSourceGeneratorContext(node)
-            sx_errors._add_context(self, ctx)
+            edgedb_error._add_context(self, ctx)
 
 
 class SQLSourceGenerator(codegen.SourceGenerator):
@@ -59,7 +58,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
                                      pretty=pretty)
         except SQLSourceGeneratorError as e:
             ctx = SQLSourceGeneratorContext(node)
-            sx_errors._add_context(e, ctx)
+            edgedb_error._add_context(e, ctx)
             raise
 
     def generic_visit(self, node):

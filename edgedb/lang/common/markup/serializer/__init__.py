@@ -6,12 +6,9 @@
 ##
 
 
-from metamagic.utils import config
-
-class settings(config.Configurable):
-    censor_sensitive_vars = config.cvalue(type=bool, default=True)
-    censor_list = config.cvalue(type=list, default=['secret', 'password'])
-del config
+class settings:
+    censor_sensitive_vars = True
+    censor_list = ['secret', 'password']
 
 
 from .base import serialize, serializer, serialize_traceback_point, Context

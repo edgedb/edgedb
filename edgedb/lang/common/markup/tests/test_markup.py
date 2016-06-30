@@ -8,11 +8,11 @@
 
 import collections
 
-from metamagic.utils import markup
-from metamagic.utils.markup.format import xrepr
+from edgedb.lang.common import markup
+from edgedb.lang.common.markup.format import xrepr
 
 
-from metamagic.utils.datastructures import Field
+from edgedb.lang.common.datastructures import Field
 class SpecialList(list): pass
 class _SpecialListNode(markup.elements.base.Markup):
     pass
@@ -44,7 +44,7 @@ class TestUtilsMarkup:
         return markup.serialize(exc, ctx=markup.Context())
 
     def test_utils_markup_renderers_dhtml(self):
-        from metamagic.utils.markup.renderers import dhtml
+        from edgedb.lang.common.markup.renderers import dhtml
 
         html = dhtml.render_html(self._get_test_markup())
 
@@ -52,7 +52,7 @@ class TestUtilsMarkup:
         assert 'ValueError' in html
 
     def test_utils_markup_renderers_json(self):
-        from metamagic.utils.markup.renderers import json
+        from edgedb.lang.common.markup.renderers import json
 
         rendered = json.render(self._get_test_markup())
         assert 'foobar: spam ham!' in rendered
@@ -104,7 +104,7 @@ class TestUtilsMarkup:
         assert not isinstance(markup.elements.base.Markup(), markup.elements.lang.TreeNode)
         assert not issubclass(markup.elements.base.Markup, markup.elements.lang.TreeNode)
 
-        from metamagic.utils.markup.serializer.base import OVERFLOW_BARIER, Context
+        from edgedb.lang.common.markup.serializer.base import OVERFLOW_BARIER, Context
 
         def gen(deep):
             if deep > 0:

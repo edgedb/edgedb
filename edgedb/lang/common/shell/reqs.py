@@ -6,10 +6,10 @@
 ##
 
 
-from metamagic.exceptions import MetamagicError
+from edgedb.lang.common.exceptions import EdgeDBError
 
 
-class UnsatisfiedRequirementError(MetamagicError):
+class UnsatisfiedRequirementError(EdgeDBError):
     pass
 
 

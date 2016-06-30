@@ -6,7 +6,7 @@
 ##
 
 
-%SCHEMA metamagic.caos.datasources.schemas.Sql
+%SCHEMA edgedb.server.datasources.schemas.Sql
 %NAME TableColumns
 ---
 params:
@@ -54,7 +54,7 @@ source: |
 ...
 
 
-%SCHEMA metamagic.caos.datasources.schemas.Sql
+%SCHEMA edgedb.server.datasources.schemas.Sql
 %NAME TableInheritance
 ---
 params:
@@ -110,7 +110,7 @@ source: |
 ...
 
 
-%SCHEMA metamagic.caos.datasources.schemas.Sql
+%SCHEMA edgedb.server.datasources.schemas.Sql
 %NAME TableDescendants
 ---
 params:
@@ -166,7 +166,7 @@ source: |
 ...
 
 
-%SCHEMA metamagic.caos.datasources.schemas.Sql
+%SCHEMA edgedb.server.datasources.schemas.Sql
 %NAME TableList
 ---
 params:
@@ -207,7 +207,7 @@ source: |
 ...
 
 
-%SCHEMA metamagic.caos.datasources.schemas.Sql
+%SCHEMA edgedb.server.datasources.schemas.Sql
 %NAME TableIndexes
 ---
 params:
@@ -311,7 +311,7 @@ source: |
 ...
 
 
-%SCHEMA metamagic.caos.datasources.schemas.Sql
+%SCHEMA edgedb.server.datasources.schemas.Sql
 %NAME TableConstraints
 ---
 params:
@@ -432,7 +432,7 @@ source: |
 ...
 
 
-%SCHEMA metamagic.caos.datasources.schemas.Sql
+%SCHEMA edgedb.server.datasources.schemas.Sql
 %NAME TableTriggers
 ---
 params:

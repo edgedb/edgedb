@@ -6,14 +6,14 @@
 ##
 
 
-from metamagic.utils.functional import hybridmethod
+from edgedb.lang.common.functional import hybridmethod
 
-from metamagic.caos.lang.caosql import ast as qlast
+from edgedb.lang.caosql import ast as qlast
 
 from . import atoms
 from . import constraints
 from . import delta as sd
-from . import enum
+from edgedb.lang.common import enum
 from . import indexes
 from . import inheriting
 from . import lproperties
@@ -111,11 +111,11 @@ class CreateLink(LinkCommand, named.CreateNamedPrototype):
         else:
             bases = super()._protobases_from_ast(astnode, context)
             if not bases:
-                if proto_name != 'metamagic.caos.builtins.link':
+                if proto_name != 'std.link':
                     bases = so.PrototypeList([
                         so.PrototypeRef(
                             prototype_name=sn.Name(
-                                module='metamagic.caos.builtins',
+                                module='std',
                                 name='link'
                             )
                         )
@@ -225,7 +225,7 @@ class CreateLink(LinkCommand, named.CreateNamedPrototype):
                 )
             )
 
-            base_prop_name = sn.Name('metamagic.caos.builtins.source')
+            base_prop_name = sn.Name('std.source')
             s_name = lproperties.LinkProperty.generate_specialized_name(
                         cmd.prototype_name, base_prop_name)
             src_prop_name = sn.Name(name=s_name,
@@ -276,7 +276,7 @@ class CreateLink(LinkCommand, named.CreateNamedPrototype):
 
             cmd.add(src_prop)
 
-            base_prop_name = sn.Name('metamagic.caos.builtins.target')
+            base_prop_name = sn.Name('std.target')
             s_name = lproperties.LinkProperty.generate_specialized_name(
                         cmd.prototype_name, base_prop_name)
             tgt_prop_name = sn.Name(name=s_name,
@@ -375,8 +375,8 @@ class CreateLink(LinkCommand, named.CreateNamedPrototype):
 
         for op in self(lproperties.LinkPropertyCommand):
             name = op.prototype_class.normalize_name(op.prototype_name)
-            if name not in {'metamagic.caos.builtins.source',
-                            'metamagic.caos.builtins.target'}:
+            if name not in {'std.source',
+                            'std.target'}:
                 self._append_subcmd_ast(node, op, context)
 
         if not concept:
@@ -722,9 +722,9 @@ class Link(pointers.Pointer, sources.Source):
 
     @classmethod
     def get_special_pointers(cls):
-        return (sn.Name('metamagic.caos.builtins.linkid'),
-                sn.Name('metamagic.caos.builtins.source'),
-                sn.Name('metamagic.caos.builtins.target'))
+        return (sn.Name('std.linkid'),
+                sn.Name('std.source'),
+                sn.Name('std.target'))
 
     def get_exposed_behaviour(self):
         if self.exposed_behaviour is not None:
@@ -744,7 +744,7 @@ class Link(pointers.Pointer, sources.Source):
                              mark_derived=mark_derived,
                              add_to_schema=add_to_schema, **kwargs)
 
-        src_n = sn.Name('metamagic.caos.builtins.source')
+        src_n = sn.Name('std.source')
         if src_n not in ptr.pointers:
             source_pbase = schema.get(src_n)
             source_p = source_pbase.get_derived(
@@ -754,7 +754,7 @@ class Link(pointers.Pointer, sources.Source):
 
             ptr.add_pointer(source_p)
 
-        tgt_n = sn.Name('metamagic.caos.builtins.target')
+        tgt_n = sn.Name('std.target')
         if tgt_n not in ptr.pointers:
             target_pbase = schema.get(tgt_n)
             target_p = target_pbase.get_derived(
@@ -785,10 +785,6 @@ class Link(pointers.Pointer, sources.Source):
             self.merge_defaults(other)
 
         return self
-
-    def get_metaclass(self, proto_schema):
-        from metamagic.caos.link import LinkMeta
-        return LinkMeta
 
     def singular(self, direction=pointers.PointerDirection.Outbound):
         if direction == pointers.PointerDirection.Outbound:

@@ -6,17 +6,15 @@
 ##
 
 
-import postgresql.exceptions
-
-
-from metamagic.caos import error as caos_error
-
-from metamagic.exceptions import MetamagicError, _replace_context
-from metamagic.utils import markup
 from importkit import context as lang_context
 
+from edgedb.lang.common import exceptions as edgedb_error
 
-class BackendError(caos_error.CaosBackendError):
+from edgedb.lang.common.exceptions import _replace_context
+from edgedb.lang.common import markup
+
+
+class BackendError(edgedb_error.CaosBackendError):
     pass
 
 

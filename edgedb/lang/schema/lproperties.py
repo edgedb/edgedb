@@ -6,9 +6,9 @@
 ##
 
 
-from metamagic.utils.functional import hybridmethod
+from edgedb.lang.common.functional import hybridmethod
 
-from metamagic.caos.lang.caosql import ast as qlast
+from edgedb.lang.caosql import ast as qlast
 
 from . import atoms
 from . import constraints
@@ -61,11 +61,11 @@ class CreateLinkProperty(LinkPropertyCommand, named.CreateNamedPrototype):
         else:
             bases = super()._protobases_from_ast(astnode, context)
             if not bases:
-                if proto_name != 'metamagic.caos.builtins.link_property':
+                if proto_name != 'std.link_property':
                     bases = so.PrototypeList([
                         so.PrototypeRef(
                             prototype_name=sn.Name(
-                                module='metamagic.caos.builtins',
+                                module='std',
                                 name='link_property'
                             )
                         )
@@ -317,10 +317,10 @@ class LinkProperty(pointers.Pointer):
 
         ptr = super().derive(schema, source, target, **kwargs)
 
-        if ptr.normal_name() == 'metamagic.caos.builtins.source':
+        if ptr.normal_name() == 'std.source':
             ptr.target = source.source
 
-        if ptr.normal_name() == 'metamagic.caos.builtins.target':
+        if ptr.normal_name() == 'std.target':
             ptr.target = source.target
 
         return ptr
@@ -337,10 +337,6 @@ class LinkProperty(pointers.Pointer):
             self.required = max(self.required, other.required)
             self.merge_defaults(other)
         return self
-
-    def get_metaclass(self, proto_schema):
-        from metamagic.caos.link import LinkPropertyMeta
-        return LinkPropertyMeta
 
     def atomic(self):
         assert not self.generic(), \

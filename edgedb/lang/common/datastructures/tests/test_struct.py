@@ -8,8 +8,8 @@
 
 import pickle
 
-from metamagic.utils.datastructures.struct import Struct, MixedStruct, Field
-from metamagic.utils.debug import assert_raises
+from edgedb.lang.common.datastructures.struct import Struct, MixedStruct, Field
+from edgedb.lang.common.debug import assert_raises
 
 
 class PickleTest(Struct):

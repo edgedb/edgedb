@@ -6,8 +6,8 @@
 ##
 
 
-from metamagic.utils.debug import assert_raises
-from metamagic.utils.nlang.morphology import Singular, Plural, WordCombination
+from edgedb.lang.common.debug import assert_raises
+from edgedb.lang.common.nlang.morphology import Singular, Plural, WordCombination
 
 
 class TestNLangMorphology(object):

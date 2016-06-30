@@ -9,7 +9,7 @@
 import sys
 import types
 
-from metamagic.utils import parsing
+from edgedb.lang.common import parsing
 
 from . import keywords
 from . import precedence

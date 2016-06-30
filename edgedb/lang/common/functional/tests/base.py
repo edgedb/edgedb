@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.utils import functional
+from edgedb.lang.common import functional
 
 
 def wrap(func):

@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.utils.markup.elements import code as code_el
+from edgedb.lang.common.markup.elements import code as code_el
 
 
 try:

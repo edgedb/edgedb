@@ -6,4 +6,4 @@
 ##
 
 
-from metamagic.utils.shell.ui import menu
+from edgedb.lang.common.shell.ui import menu

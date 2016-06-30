@@ -9,9 +9,8 @@
 import uuid
 
 
-from metamagic.caos import error as caos_exc
-
-from metamagic.utils.algos.persistent_hash import persistent_hash
+from edgedb.lang.common import exceptions as edgedb_error
+from edgedb.lang.common.algos.persistent_hash import persistent_hash
 
 from . import base as s_types
 
@@ -32,12 +31,12 @@ class UUID(uuid.UUID):
                 super().__init__(hex, bytes, bytes_le, fields, int, version)
 
         except ValueError as e:
-            raise caos_exc.AtomValueError(e.args[0]) from e
+            raise edgedb_error.AtomValueError(e.args[0]) from e
 
     def persistent_hash(self):
         return persistent_hash(self.int)
 
 
-_add_impl('metamagic.caos.builtins.uuid', UUID)
-_add_map(UUID, 'metamagic.caos.builtins.uuid')
-_add_map(uuid.UUID, 'metamagic.caos.builtins.uuid')
+_add_impl('std.uuid', UUID)
+_add_map(UUID, 'std.uuid')
+_add_map(uuid.UUID, 'std.uuid')

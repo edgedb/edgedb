@@ -6,12 +6,12 @@
 ##
 
 
-from metamagic.caos.lang import caosql
-from metamagic.caos.lang import schema as so
-from metamagic.caos.lang.schema import delta as sd
-from metamagic.caos.lang.schema import realm as s_realm
+from edgedb.lang import caosql
+from edgedb.lang import schema as so
+from edgedb.lang.schema import delta as sd
+from edgedb.lang.schema import realm as s_realm
 
-from metamagic.utils.debug import debug
+from edgedb.lang.common.debug import debug
 
 
 class MetaDeltaRepository:

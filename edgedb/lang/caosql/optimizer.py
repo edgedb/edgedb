@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.caos.lang.caosql import ast as qlast
+from edgedb.lang.caosql import ast as qlast
 
 
 class ContextLevel:
@@ -357,7 +357,7 @@ class CaosQLOptimizer:
         if context.current.deoptimize:
             return context.current.namespaces.get(module, module)
         else:
-            if module == 'metamagic.caos.builtins' and strip_builtins:
+            if module == 'std' and strip_builtins:
                 return None
 
             if '.' in module:

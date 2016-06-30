@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.utils.algos.packing.rectangles import Point, Rectangle
+from edgedb.lang.common.algos.packing.rectangles import Point, Rectangle
 
 
 class TestRectangles:

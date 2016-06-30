@@ -6,9 +6,9 @@
 ##
 
 
-from metamagic.utils.debug import assert_raises
+from edgedb.lang.common.debug import assert_raises
 
-from metamagic.utils.algos.packing.rectangles import *
+from edgedb.lang.common.algos.packing.rectangles import *
 
 
 class TestRectanglePacking:

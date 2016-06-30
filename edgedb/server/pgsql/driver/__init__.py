@@ -21,20 +21,18 @@ from postgresql.protocol import element3 as element
 
 from metamagic import json
 
-from metamagic.caos.lang.schema.types import numeric, string
-from metamagic.caos.backends import pool as caos_pool
-from metamagic.caos import CaosError
-from metamagic.utils import datetime as sx_datetime
-from metamagic.utils.datastructures import Void, xvalue
+from edgedb.lang.schema.types import numeric, string
+from edgedb.server import pool as caos_pool
+from edgedb.lang.common import exceptions as edgedb_error
+from edgedb.lang.common import datetime as sx_datetime
+from edgedb.lang.common.datastructures import Void, xvalue
 
-from metamagic.caos.backends.pgsql import exceptions as backend_exc
-from metamagic.caos.backends.pgsql.driver import io as pg_types_io
-
-from metamagic.spin.green import postgres as green_postgres
+from edgedb.server.pgsql import exceptions as backend_exc
+from edgedb.server.pgsql.driver import io as pg_types_io
 
 from .. import session as pg_caos_session
 
-from metamagic.utils import tracepoints
+from edgedb.lang.common import tracepoints
 from .. import tracepoints as pgsql_trace
 
 
@@ -401,15 +399,3 @@ class Connection(pq3.Connection, caos_pool.Connection):
     def close(self):
         self._prepared_statements.clear()
         super().close()
-
-
-class Driver(green_postgres.Driver):
-    def __init__(self):
-        super().__init__(typio=TypeIO, connection=Connection)
-
-
-driver = Driver()
-
-
-def connector(iri, async=False):
-    return green_postgres.connector(iri, async=async, driver=driver)

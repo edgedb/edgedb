@@ -8,7 +8,7 @@
 
 import postgresql.string
 
-from metamagic.utils import datastructures
+from edgedb.lang.common import datastructures
 
 from .. import common
 from ..datasources import introspection

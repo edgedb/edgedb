@@ -12,11 +12,11 @@ import types
 
 import parsing
 
-from metamagic.exceptions import MetamagicError, _add_context
+from edgedb.lang.common.exceptions import EdgeDBError, _add_context
 from importkit import context as lang_context
-from metamagic.utils.datastructures import xvalue
-from metamagic.utils import markup
-from metamagic.utils import lexer
+from edgedb.lang.common.datastructures import xvalue
+from edgedb.lang.common import markup
+from edgedb.lang.common import lexer
 
 
 class TokenMeta(type):
@@ -338,7 +338,7 @@ class ParserContext(lang_context.SourceContext, markup.MarkupExceptionContext):
         return self.buffer[start:end], before
 
 
-class ParserError(MetamagicError):
+class ParserError(EdgeDBError):
     def __init__(self, msg=None, *, hint=None, details=None, token=None, lineno=None, expr=None,
                                context=None):
         if msg is None:
@@ -398,7 +398,7 @@ class Parser:
         '''Return an initialized lexer.
 
         The lexer must implement 'setinputstr' and 'token' methods.
-        A lexer derived from metamagic.utils.lexer.Lexer will satisfy these
+        A lexer derived from edgedb.lang.common.lexer.Lexer will satisfy these
         criteria.
         '''
         raise NotImplementedError

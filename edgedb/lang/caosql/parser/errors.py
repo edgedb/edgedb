@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.caos.lang.caosql.errors import CaosQLError
+from edgedb.lang.caosql.errors import CaosQLError
 
 
 class CaosQLSyntaxError(CaosQLError):

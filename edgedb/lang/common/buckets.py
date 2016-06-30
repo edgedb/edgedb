@@ -9,7 +9,7 @@
 import logging
 import weakref
 
-from metamagic.utils import abc, config
+from edgedb.lang.common import abc, config
 
 
 class BucketMeta(abc.AbstractMeta, config.ConfigurableMeta):
@@ -22,7 +22,7 @@ class BucketMeta(abc.AbstractMeta, config.ConfigurableMeta):
 
 
 class Bucket(metaclass=BucketMeta):
-    logger = logging.getLogger('metamagic.node')
+    logger = logging.getLogger('edgedb.bucket')
 
     def __new__(cls, *args, **kwargs):
         if super().__new__ is object.__new__:

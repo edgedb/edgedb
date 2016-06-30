@@ -12,8 +12,8 @@ import sys
 
 from importkit.import_ import module as module_types
 
-from metamagic.utils.datastructures import Void
-from metamagic.utils.algos.persistent_hash import persistent_hash
+from edgedb.lang.common.datastructures import Void
+from edgedb.lang.common.algos.persistent_hash import persistent_hash
 
 from .error import SchemaError
 from . import modules as schema_module
@@ -32,7 +32,7 @@ class ProtoSchema:
 
     @classmethod
     def get_builtins_module(cls):
-        return 'metamagic.caos.builtins'
+        return 'std'
 
     def __init__(self):
         self.modules = collections.OrderedDict()
@@ -311,11 +311,11 @@ class ProtoSchema:
         from . import concepts, lproperties, links
 
         if issubclass(cls, concepts.Concept):
-            name = 'metamagic.caos.builtins.BaseObject'
+            name = 'std.BaseObject'
         elif issubclass(cls, links.Link):
-            name = 'metamagic.caos.builtins.link'
+            name = 'std.link'
         elif issubclass(cls, lproperties.LinkProperty):
-            name = 'metamagic.caos.builtins.link_property'
+            name = 'std.link_property'
         else:
             assert False, 'get_root_class: unexpected object type: %r' % type
 

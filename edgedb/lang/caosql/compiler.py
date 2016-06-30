@@ -10,25 +10,25 @@
 
 import itertools
 
-from metamagic.caos.lang.ir import ast as irast
-from metamagic.caos.lang.ir import transformer as irtransformer
-from metamagic.caos.lang.ir import utils as irutils
+from edgedb.lang.ir import ast as irast
+from edgedb.lang.ir import transformer as irtransformer
+from edgedb.lang.ir import utils as irutils
 
-from metamagic.caos.lang.schema import atoms as s_atoms
-from metamagic.caos.lang.schema import concepts as s_concepts
-from metamagic.caos.lang.schema import links as s_links
-from metamagic.caos.lang.schema import lproperties as s_lprops
-from metamagic.caos.lang.schema import name as sn
-from metamagic.caos.lang.schema import objects as s_obj
-from metamagic.caos.lang.schema import pointers as s_pointers
-from metamagic.caos.lang.schema import types as s_types
+from edgedb.lang.schema import atoms as s_atoms
+from edgedb.lang.schema import concepts as s_concepts
+from edgedb.lang.schema import links as s_links
+from edgedb.lang.schema import lproperties as s_lprops
+from edgedb.lang.schema import name as sn
+from edgedb.lang.schema import objects as s_obj
+from edgedb.lang.schema import pointers as s_pointers
+from edgedb.lang.schema import types as s_types
 
-from metamagic.caos.lang.caosql import ast as qlast
-from metamagic.caos.lang.caosql import errors
-from metamagic.caos.lang.caosql import parser
+from edgedb.lang.caosql import ast as qlast
+from edgedb.lang.caosql import errors
+from edgedb.lang.caosql import parser
 
-from metamagic.utils import ast
-from metamagic.utils import debug
+from edgedb.lang.common import ast
+from edgedb.lang.common import debug
 
 
 class ParseContextLevel(object):
@@ -429,7 +429,7 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
         tgt = graph.optarget = self._process_select_where(
                                 context, caosql_tree.subject)
 
-        idname = sn.Name('metamagic.caos.builtins.id')
+        idname = sn.Name('std.id')
         idref = irast.AtomicRefSimple(
                     name=idname, ref=tgt,
                     ptr_proto=tgt.concept.pointers[idname])
@@ -501,7 +501,7 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
         tgt = graph.optarget = self._process_select_where(
                                 context, caosql_tree.subject)
 
-        idname = sn.Name('metamagic.caos.builtins.id')
+        idname = sn.Name('std.id')
         idref = irast.AtomicRefSimple(
                     name=idname, ref=tgt,
                     ptr_proto=tgt.concept.pointers[idname])
@@ -657,9 +657,9 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
                                 context, caosql_tree.subject)
 
         if (isinstance(tgt, irast.LinkPropRefSimple)
-                and tgt.name == 'metamagic.caos.builtins.target'):
+                and tgt.name == 'std.target'):
 
-            idpropname = sn.Name('metamagic.caos.builtins.linkid')
+            idpropname = sn.Name('std.linkid')
             idprop_proto = tgt.ref.link_proto.pointers[idpropname]
             idref = irast.LinkPropRefSimple(name=idpropname,
                                                ref=tgt.ref,
@@ -670,7 +670,7 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
             graph.selector.append(selexpr)
 
         elif isinstance(tgt, irast.AtomicRefSimple):
-            idname = sn.Name('metamagic.caos.builtins.id')
+            idname = sn.Name('std.id')
             idref = irast.AtomicRefSimple(name=idname, ref=tgt.ref,
                                              ptr_proto=tgt.ptr_proto)
             tgt.ref.atomrefs.add(idref)
@@ -678,7 +678,7 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
             graph.selector.append(selexpr)
 
         else:
-            idname = sn.Name('metamagic.caos.builtins.id')
+            idname = sn.Name('std.id')
             idref = irast.AtomicRefSimple(
                         name=idname, ref=tgt,
                         ptr_proto=tgt.concept.pointers[idname])
@@ -1271,7 +1271,7 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
 
                     if not link_proto.singular():
                         ptr_name = sn.Name(
-                                        'metamagic.caos.builtins.target')
+                                        'std.target')
                         ptr_proto = link_proto.pointers[ptr_name]
                         atomref = irast.LinkPropRefSimple(
                                         name=ptr_name, ref=link,
@@ -1356,7 +1356,7 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
             pref_id = irutils.LinearPath(path_tip.source.id)
             pref_id.add(link_proto, s_pointers.PointerDirection.Outbound,
                         link_proto.target)
-            ptr_proto = link_proto.pointers['metamagic.caos.builtins.target']
+            ptr_proto = link_proto.pointers['std.target']
             ptr_name = ptr_proto.normal_name()
             propref = irast.LinkPropRefSimple(
                         name=ptr_name, ref=path_tip, id=pref_id,
@@ -1419,7 +1419,7 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
 
     def _normalize_concept(self, context, concept, namespace):
         if concept == '%':
-            concept = self.proto_schema.get(name='metamagic.caos.builtins.BaseObject')
+            concept = self.proto_schema.get(name='std.BaseObject')
         else:
             if namespace:
                 name = sn.Name(name=concept, module=namespace)
@@ -1536,7 +1536,7 @@ def compile_to_ir(expr, schema, *, anchors=None, arg_types=None,
     tree = parser.parse(expr, module_aliases)
 
     """LOG [caosql.compile] CaosQL AST:
-    from metamagic.utils import markup
+    from edgedb.lang.common import markup
     markup.dump(tree)
     """
     trans = CaosQLCompiler(schema, module_aliases)
@@ -1545,7 +1545,7 @@ def compile_to_ir(expr, schema, *, anchors=None, arg_types=None,
                          anchors=anchors, security_context=security_context)
 
     """LOG [caosql.compile] Caos IR:
-    from metamagic.utils import markup
+    from edgedb.lang.common import markup
     markup.dump(ir)
     """
 

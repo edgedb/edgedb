@@ -6,8 +6,8 @@
 ##
 
 
-from metamagic.utils.datastructures import immutables
-from metamagic.utils.debug import assert_raises
+from edgedb.lang.common.datastructures import immutables
+from edgedb.lang.common.debug import assert_raises
 
 
 class TestDatastructImmutables:

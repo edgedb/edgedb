@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.utils.parsing import ParserError
+from edgedb.lang.common.parsing import ParserError
 
 
 class WKTSyntaxError(ParserError):

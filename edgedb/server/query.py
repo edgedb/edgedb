@@ -8,7 +8,7 @@
 
 import collections
 
-from metamagic.caos.lang.schema import objects as s_obj
+from edgedb.lang.schema import objects as s_obj
 
 
 class Query:

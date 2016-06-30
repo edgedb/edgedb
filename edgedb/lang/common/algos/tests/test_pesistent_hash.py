@@ -8,7 +8,7 @@
 
 import uuid
 
-from metamagic.utils.algos.persistent_hash import persistent_hash
+from edgedb.lang.common.algos.persistent_hash import persistent_hash
 
 
 def test_utils_algos_persistent_hash_1():

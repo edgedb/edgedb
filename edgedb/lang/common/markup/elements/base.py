@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.utils.datastructures import Struct, Field, typed
+from edgedb.lang.common.datastructures import Struct, Field, typed
 
 
 class MarkupMeta(type(Struct)):

@@ -11,10 +11,10 @@ import ctypes.util
 import os
 import sys
 
-from metamagic.exceptions import MetamagicError
+from edgedb.lang.common.exceptions import EdgeDBError
 
 
-class FileMagicError(MetamagicError):
+class FileMagicError(EdgeDBError):
     pass
 
 

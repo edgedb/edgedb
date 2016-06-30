@@ -8,8 +8,8 @@
 
 import collections
 
-from metamagic.utils.functional import hybridmethod
-from metamagic.utils import datastructures as ds
+from edgedb.lang.common.functional import hybridmethod
+from edgedb.lang.common import datastructures as ds
 
 from . import error as schema_error
 from . import inheriting

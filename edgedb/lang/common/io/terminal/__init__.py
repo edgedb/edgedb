@@ -11,16 +11,16 @@ import sys
 import builtins
 
 
-from metamagic.exceptions import MetamagicError
-from metamagic.utils.io.terminal.color import colorize, colorstr, dummycolorstr
-from metamagic.utils.datastructures import xvalue
+from edgedb.lang.common.exceptions import EdgeDBError
+from edgedb.lang.common.io.terminal.color import colorize, colorstr, dummycolorstr
+from edgedb.lang.common.datastructures import xvalue
 
 
 def isatty(file):
     return os.isatty(file.fileno())
 
 
-class TerminalError(MetamagicError):
+class TerminalError(EdgeDBError):
     pass
 
 

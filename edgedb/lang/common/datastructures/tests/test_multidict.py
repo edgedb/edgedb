@@ -6,8 +6,8 @@
 ##
 
 
-from metamagic.utils.datastructures import Multidict, CombinedMultidict
-from metamagic.utils.debug import assert_raises
+from edgedb.lang.common.datastructures import Multidict, CombinedMultidict
+from edgedb.lang.common.debug import assert_raises
 
 
 class TestDatastructMultidict:

@@ -8,8 +8,8 @@
 
 import pickle
 
-from metamagic.utils.datastructures.typed import TypedDict, TypedList, StrList, TypedSet
-from metamagic.utils.debug import assert_raises
+from edgedb.lang.common.datastructures.typed import TypedDict, TypedList, StrList, TypedSet
+from edgedb.lang.common.debug import assert_raises
 
 
 # StrDict and StrList are declared here (not in tests that use them)

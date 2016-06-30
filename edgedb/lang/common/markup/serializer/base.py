@@ -11,12 +11,12 @@ import decimal
 import collections
 import weakref
 
-from metamagic.utils.functional.dispatch import TypeDispatcher
+from edgedb.lang.common.functional.dispatch import TypeDispatcher
 from .. import elements
 
-from metamagic import exceptions
-from metamagic.utils.markup.format import xrepr
-from metamagic.utils import debug
+from edgedb.lang.common import exceptions
+from edgedb.lang.common.markup.format import xrepr
+from edgedb.lang.common import debug
 
 from . import settings
 

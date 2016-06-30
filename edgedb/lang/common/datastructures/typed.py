@@ -10,7 +10,7 @@ import abc
 import builtins
 import collections
 
-from metamagic.utils.datastructures.marker import Void
+from edgedb.lang.common.datastructures.marker import Void
 
 
 __all__ = 'TypedList', 'TypedDict', 'OrderedTypedDict'

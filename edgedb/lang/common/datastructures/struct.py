@@ -8,7 +8,7 @@
 
 import collections
 
-from metamagic.utils.functional import hybridmethod
+from edgedb.lang.common.functional import hybridmethod
 from .marker import Void
 
 
@@ -130,7 +130,7 @@ class Struct(metaclass=StructMeta):
 
     .. code-block:: pycon
 
-        >>> from metamagic.utils.datastructures import Struct, Field
+        >>> from edgedb.lang.common.datastructures import Struct, Field
 
         >>> class MyStruct(Struct):
         ...    name = Field(type=str)

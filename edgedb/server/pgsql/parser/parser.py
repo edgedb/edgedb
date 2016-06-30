@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.utils import debug, parsing
+from edgedb.lang.common import debug, parsing
 from .error import PgSQLParserError
 
 from . import lexer

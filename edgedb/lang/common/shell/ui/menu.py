@@ -9,7 +9,7 @@
 import collections
 import types
 
-from metamagic.utils.functional import decorate
+from edgedb.lang.common.functional import decorate
 
 
 class MenuMeta(type):
