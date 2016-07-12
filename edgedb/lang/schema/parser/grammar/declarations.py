@@ -10,7 +10,7 @@ from edgedb.lang.common import parsing
 from edgedb.lang.caosql.parser.parser import CaosQLExpressionParser
 from edgedb.lang.common.exceptions import _get_context
 
-from .. import ast as esast
+from edgedb.lang.schema import ast as esast
 
 from .tokens import *
 

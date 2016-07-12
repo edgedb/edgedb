@@ -3,12 +3,17 @@ import atexit
 import functools
 import inspect
 import json
+import os
+import re
 import textwrap
 import unittest
 
 
 from edgedb.server import cluster as edgedb_cluster
 from edgedb.client import exceptions as edgeclient_exc
+from edgedb.lang.schema.parser import parser
+from edgedb.lang.schema import codegen
+from edgedb.lang.common import markup
 
 
 class TestCaseMeta(type(unittest.TestCase)):
@@ -178,3 +183,75 @@ class QueryTestCaseMeta(TestCaseMeta):
 
 class QueryTestCase(DatabaseTestCase, metaclass=QueryTestCaseMeta):
     pass
+
+
+
+class ParserTestMeta(type(unittest.TestCase)):
+    def __new__(mcls, name, bases, dct):
+        dct = dict(dct)
+
+        for attr, meth in tuple(dct.items()):
+            if attr.startswith('test_') and meth.__doc__:
+
+                @functools.wraps(meth)
+                def wrapper(self, meth=meth, doc=meth.__doc__):
+                    spec = getattr(meth, 'test_spec', {})
+                    spec['test_name'] = meth.__name__
+                    self._run_test(source=doc, spec=spec)
+
+                dct[attr] = wrapper
+
+        return super().__new__(mcls, name, bases, dct)
+
+
+class BaseParserTest(unittest.TestCase, metaclass=ParserTestMeta):
+    def _run_test(self, *, source, spec=None):
+        if spec and 'must_fail' in spec:
+            with debug.assert_raises(*spec['must_fail'][0],
+                                     **spec['must_fail'][1]):
+
+                return self.run_test(source=source, spec=spec)
+
+        else:
+            return self.run_test(source=source, spec=spec)
+
+    def run_test(self, *, source, spec):
+        raise NotImplementedError
+
+
+class ParserTest(BaseParserTest):
+    re_filter = re.compile(r'[\s\'"()]+|(#.*?\n)')
+    parser_cls = parser.EdgeSchemaParser
+
+    def get_parser(self, *, spec):
+        return self.__class__.parser_cls()
+
+    def assert_equal(self, expected, result):
+        expected_stripped = self.re_filter.sub('', expected).lower()
+        result_stripped = self.re_filter.sub('', result).lower()
+
+        assert expected_stripped == result_stripped, \
+            '[test]expected: {}\n[test] != returned: {}'.format(
+                expected, result)
+
+    def run_test(self, *, source, spec):
+        debug = bool(os.environ.get('DEBUG_ESCHEMA'))
+
+        if debug:
+            markup.dump_code(source, lexer='edgeschema')
+
+        p = self.get_parser(spec=spec)
+
+        esast = p.parse(source)
+
+        if debug:
+            markup.dump(esast)
+
+        processed_src = codegen.EdgeSchemaSourceGenerator.to_source(esast)
+
+        if debug:
+            markup.dump_code(processed_src, lexer='edgeschema')
+
+        expected_src = source
+
+        self.assert_equal(expected_src, processed_src)
