@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2012 MagicStack Inc.
+# Copyright (c) 2008-2012, 2016 MagicStack Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -11,76 +11,124 @@ from edgedb.lang.common import enum as s_enum
 from edgedb.lang.common import ast
 
 
-class RootNode(ast.AST): __fields = ['children']
+class Base(ast.AST):
+    pass
 
-class IndirectionNode(ast.AST):
+
+class RootNode(Base):
+    __fields = ['children']
+
+
+class IndirectionNode(Base):
     __fields = ['arg', 'indirection']
 
-class IndexNode(ast.AST):
+
+class IndexNode(Base):
     __fields = ['index']
 
-class SliceNode(ast.AST):
+
+class SliceNode(Base):
     __fields = ['start', 'stop']
 
-class ArgListNode(ast.AST): __fields = ['name', ('args', list)]
-class BinOpNode(ast.AST):  __fields = ['left', 'op', 'right']
 
-class WindowSpecNode(ast.AST):
+class ArgListNode(Base):
+    __fields = ['name', ('args', list)]
+
+
+class BinOpNode(Base):
+    __fields = ['left', 'op', 'right']
+
+
+class WindowSpecNode(Base):
     __fields = [('orderby', list), ('partition', list)]
 
-class NamedArgNode(ast.AST):
+
+class NamedArgNode(Base):
     __fields = [('name', str), 'arg']
 
-class FunctionCallNode(ast.AST):
+
+class FunctionCallNode(Base):
     __fields = ['func', ('args', list), ('agg_sort', list),
                 'agg_filter', 'window']
 
-class VarNode(ast.AST): __fields = ['name']
-class PathVarNode(VarNode): pass
-class ConstantNode(ast.AST): __fields = ['value', 'index']
-class DefaultValueNode(ast.AST): pass
 
-class UnaryOpNode(ast.AST): __fields = ['op', 'operand']
-
-class PostfixOpNode(ast.AST): __fields = ['op', 'operand']
-
-class PathNode(ast.AST): __fields = [('steps', list), 'quantifier', 'pathspec']
-
-class PathDisjunctionNode(ast.AST): __fields = ['left', 'right']
-
-class PathStepNode(ast.AST): __fields = ['namespace', 'expr', 'link_expr']
-
-class TypeIndirection(ast.AST): pass
-
-class LinkNode(ast.AST): __fields = ['name', 'namespace', 'direction', 'target', 'type']
-
-class LinkExprNode(ast.AST): __fields = ['expr']
-
-class LinkPropExprNode(ast.AST): __fields = ['expr']
-
-class StatementNode(ast.AST):
-    __fields = [('namespaces', list), ('aliases', list)]
-
-class PrototypeRefNode(ast.AST):
-    __fields = ['name', 'module']
+class VarNode(Base):
+    __fields = ['name']
 
 
-class PositionNode(ast.AST):
-    __fields = ['ref', 'position']
+class PathVarNode(VarNode):
+    pass
 
 
-class ExpressionTextNode(ast.AST):
+class ConstantNode(Base):
+    __fields = ['value', 'index']
+
+
+class DefaultValueNode(Base):
+    pass
+
+
+class UnaryOpNode(Base):
+    __fields = ['op', 'operand']
+
+
+class PostfixOpNode(Base):
+    __fields = ['op', 'operand']
+
+
+class PathNode(Base):
+    __fields = [('steps', list), 'quantifier', 'pathspec']
+
+
+class PathDisjunctionNode(Base):
+    __fields = ['left', 'right']
+
+
+class PathStepNode(Base):
+    __fields = ['namespace', 'expr', 'link_expr']
+
+
+class TypeIndirection(Base):
+    pass
+
+
+class LinkNode(Base):
+    __fields = ['name', 'namespace', 'direction', 'target', 'type']
+
+
+class LinkExprNode(Base):
     __fields = ['expr']
 
 
-class DDLNode(ast.AST):
+class LinkPropExprNode(Base):
+    __fields = ['expr']
+
+
+class StatementNode(Base):
+    __fields = [('namespaces', list), ('aliases', list)]
+
+
+class PrototypeRefNode(Base):
+    __fields = ['name', 'module']
+
+
+class PositionNode(Base):
+    __fields = ['ref', 'position']
+
+
+class ExpressionTextNode(Base):
+    __fields = ['expr']
+
+
+class DDLNode(Base):
     pass
+
 
 class CompositeDDLNode(StatementNode, DDLNode):
     pass
 
 
-class AlterSchemaNode(ast.AST):
+class AlterSchemaNode(Base):
     __fields = ['commands']
 
 
@@ -208,7 +256,7 @@ class DropConcreteLinkPropertyNode(AlterObjectNode):
     pass
 
 
-class SetSpecialFieldNode(ast.AST):
+class SetSpecialFieldNode(Base):
     __fields = ['name', 'value', ('as_expr', bool)]
 
 
@@ -319,62 +367,96 @@ class UpdateQueryNode(StatementNode):
     __fields = ['subject', ('pathspec', list), 'where',
                 ('targets', list), ('cges', list)]
 
-class UpdateExprNode(ast.AST):
+
+class UpdateExprNode(Base):
     __fields = ['expr', 'value']
+
 
 class DeleteQueryNode(StatementNode):
     __fields = ['subject', 'where',
                 ('targets', list), ('cges', list)]
 
-class SubqueryNode(ast.AST):
+
+class SubqueryNode(Base):
     __fields = ['expr']
 
-class CGENode(ast.AST):
+
+class CGENode(Base):
     __fields = ['expr', 'alias']
 
-class NamespaceAliasDeclNode(ast.AST):
+
+class NamespaceAliasDeclNode(Base):
     __fields = ['namespace', 'alias']
 
-class ExpressionAliasDeclNode(ast.AST):
+
+class ExpressionAliasDeclNode(Base):
     __fields = ['expr', 'alias']
 
-class SortExprNode(ast.AST): __fields = ['path', 'direction', 'nones_order']
 
-class PredicateNode(ast.AST): __fields = ['expr']
+class SortExprNode(Base):
+    __fields = ['path', 'direction', 'nones_order']
 
-class ExistsPredicateNode(PredicateNode): pass
 
-class SelectExprNode(ast.AST): __fields = ['expr', 'alias']
+class PredicateNode(Base):
+    __fields = ['expr']
 
-class SelectPathSpecNode(ast.AST):
+
+class ExistsPredicateNode(PredicateNode):
+    pass
+
+
+class SelectExprNode(Base):
+    __fields = ['expr', 'alias']
+
+
+class SelectPathSpecNode(Base):
     __fields = ['expr', 'pathspec', 'recurse', 'where', 'orderby', 'offset',
                 'limit', 'compexpr']
 
-class SelectTypeRefNode(ast.AST):
+
+class SelectTypeRefNode(Base):
     __fields = ['attrs']
 
-class PointerGlobNode(ast.AST): __fields = ['filters', 'type']
 
-class PointerGlobFilter(ast.AST): __fields = ['property', 'value', 'any']
+class PointerGlobNode(Base):
+    __fields = ['filters', 'type']
 
-class FromExprNode(ast.AST): __fields = ['expr', 'alias']
 
-class SequenceNode(ast.AST): __fields = [('elements', list)]
+class PointerGlobFilter(Base):
+    __fields = ['property', 'value', 'any']
 
-class MappingNode(ast.AST):
+
+class FromExprNode(Base):
+    __fields = ['expr', 'alias']
+
+
+class SequenceNode(Base):
+    __fields = [('elements', list)]
+
+
+class MappingNode(Base):
     __fields = [('items', list)]
 
-class TypeNameNode(ast.AST):
-    __fields = [('maintype', str), ('subtype', ast.AST, None)]
 
-class TypeCastNode(ast.AST): __fields = ['expr', ('type', TypeNameNode)]
+class TypeNameNode(Base):
+    __fields = [('maintype', str), ('subtype', Base, None)]
 
-class TypeRefNode(ast.AST): __fields = ['expr']
 
-class NoneTestNode(ast.AST): __fields = ['expr']
+class TypeCastNode(Base):
+    __fields = ['expr', ('type', TypeNameNode)]
+
+
+class TypeRefNode(Base):
+    __fields = ['expr']
+
+
+class NoneTestNode(Base):
+    __fields = ['expr']
+
 
 class CaosQLOperator(ast.ops.Operator):
     pass
+
 
 class TextSearchOperator(CaosQLOperator):
     pass
