@@ -11,7 +11,9 @@ from edgedb.lang.common import ast, parsing
 
 class Base(ast.AST):
     ns = 'eschema'
-    __fields = [('context', parsing.ParserContext)]
+    __fields = [('context', parsing.ParserContext, parsing.ParserContext,
+                 True, None, True  # this last True is "hidden" attribute
+                 )]
 
     def _extra_repr(self):
         return ''

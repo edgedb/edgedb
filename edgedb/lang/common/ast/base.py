@@ -159,6 +159,8 @@ def _serialize_to_markup(ast, *, ctx):
     node = markup.elements.lang.TreeNode(id=id(ast), name=type(ast).__name__)
 
     for fieldname, field in iter_fields(ast):
+        if ast._fields[fieldname].hidden:
+            continue
         node.add_child(label=fieldname, node=markup.serialize(field, ctx=ctx))
 
     return node
