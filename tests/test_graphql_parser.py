@@ -16,7 +16,7 @@ from edgedb.server import _testbase as tb
 
 
 class ParserTest(tb.BaseParserTest):
-    re_filter = re.compile(r'[\s\(),]+|(#.*?\n)')
+    re_filter = re.compile(r'[\s,]+|(#.*?\n)')
     parser_cls = parser.GraphQLParser
 
     def get_parser(self, *, spec):
@@ -575,3 +575,28 @@ class TestGraphQLParser(ParserTest):
         query { ...someFragment @false }
         query { ...someFragment @null }
         """
+
+    def test_graphql_parser_comments01(self):
+        """
+        # some comment
+        query noFragments {
+            user(id: 4) {
+                friends(first: 10) {  # end of line comment
+                    # user id
+                    id
+                    # full name
+                    name
+                    # avatar
+                    profilePic(size: 50)
+                }
+                mutualFriends(
+                    # commenting on arguments
+                    first: 10
+                ) {
+                    id
+                    name
+                    profilePic(size: 50)
+                }
+            }
+        }
+       """
