@@ -422,3 +422,156 @@ class TestGraphQLParser(ParserTest):
             }
         }
        """
+
+    def test_graphql_parser_names01(self):
+        r"""
+        {
+            on
+            fragment
+            query
+            mutation
+            subscription
+            true
+            false
+            null
+        }
+        """
+
+    def test_graphql_parser_names02(self):
+        r"""
+        {
+            on: on_ok
+            fragment: fragment_ok
+            query: query_ok
+            mutation: mutation_ok
+            subscription: subscription_ok
+            true: true_ok
+            false: false_ok
+            null: null_ok
+        }
+        """
+
+    def test_graphql_parser_names03(self):
+        r"""
+        {
+            on_ok: on
+            fragment_ok: fragment
+            query_ok: query
+            mutation_ok: mutation
+            subscription_ok: subscription
+            true_ok: true
+            false_ok: false
+            null_ok: null
+        }
+        """
+
+    def test_graphql_parser_names04(self):
+        r"""
+        {
+            foo(someObj: {
+                on: 42
+                fragment: 42
+                query: 42
+                mutation: 42
+                subscription: 42
+                true: 42
+                false: 42
+                null: 42
+            }) {
+                id
+            }
+        }
+        """
+
+    def test_graphql_parser_names05(self):
+        r"""
+        {
+            foo(
+                on: 42
+                fragment: 42
+                query: 42
+                mutation: 42
+                subscription: 42
+                true: 42
+                false: 42
+                null: 42
+            ) {
+                id
+            }
+        }
+        """
+
+    def test_graphql_parser_names06(self):
+        r"""
+        fragment name_on on on {id}
+        fragment name_fragment on fragment {id}
+        fragment name_query on query {id}
+        fragment name_mutation on mutation {id}
+        fragment name_subscription on subscription {id}
+        fragment name_true on true {id}
+        fragment name_false on false {id}
+        fragment name_null on null {id}
+        """
+
+    def test_graphql_parser_names07(self):
+        r"""
+        fragment fragment on fragmentFoo {id}
+        fragment query on queryFoo {id}
+        fragment mutation on mutationFoo {id}
+        fragment subscription on subscriptionFoo {id}
+        fragment true on trueFoo {id}
+        fragment false on falseFoo {id}
+        fragment null on nullFoo {id}
+        """
+
+    def test_graphql_parser_names08(self):
+        r"""
+        query { ... on on {id} }
+        query { ... on fragment {id} }
+        query { ... on query {id} }
+        query { ... on mutation {id} }
+        query { ... on subscription {id} }
+        query { ... on true {id} }
+        query { ... on false {id} }
+        query { ... on null {id} }
+        """
+
+    def test_graphql_parser_names09(self):
+        r"""
+        query { ... not_on on on {id} }
+        query { ... fragment on fragmentFoo {id} }
+        query { ... query on queryFoo {id} }
+        query { ... mutation on mutationFoo {id} }
+        query { ... subscription on subscriptionFoo {id} }
+        query { ... true on trueFoo {id} }
+        query { ... false on falseFoo {id} }
+        query { ... null on nullFoo {id} }
+        """
+
+    def test_graphql_parser_names10(self):
+        r"""
+        query (
+            $on: on on
+            $fragment: fragment fragment
+            $query: query query
+            $mutation: mutation mutation
+            $subscription: subscription subscription
+            $true: true true
+            $false: false false
+            $null: null NULL
+        ) {
+            id
+        }
+        """
+
+    def test_graphql_parser_names11(self):
+        r"""
+        query { ...someFragment @on }
+        query { ...someFragment @fragment }
+        query { ...someFragment @query }
+        query { ...someFragment @mutation }
+        query { ...someFragment @subscription }
+        query { ...someFragment @true }
+        query { ...someFragment @false }
+        query { ...someFragment @null }
+        """

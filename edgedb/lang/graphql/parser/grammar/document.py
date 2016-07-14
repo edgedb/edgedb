@@ -10,6 +10,7 @@ from edgedb.lang.common import parsing
 from edgedb.lang.graphql import ast as gqlast
 
 from .tokens import *
+from . import keywords
 
 
 def get_context(*kids):
@@ -45,6 +46,44 @@ class Nonterm(parsing.Nonterm):
     pass
 
 
+class NameTokNontermMeta(parsing.NontermMeta):
+    def __new__(mcls, name, bases, dct, *, exceptions=tuple()):
+        if name != 'NameTokNonTerm':
+            prod = NameTokNonTerm._reduce_token
+
+            tokens = ['IDENT']
+            tokens.extend([
+                tok for tok in
+                keywords.by_type[keywords.UNRESERVED_KEYWORD].values()
+                if tok not in exceptions])
+
+            for tok in tokens:
+                dct['reduce_' + tok] = prod
+
+        cls = super().__new__(mcls, name, bases, dct)
+        return cls
+
+    def __init__(cls, name, bases, dct, *, exceptions=tuple()):
+        super().__init__(name, bases, dct)
+
+
+class NameTokNonTerm(Nonterm, metaclass=NameTokNontermMeta):
+    def _reduce_token(self, kid):
+        self.val = kid
+
+
+class NameTok(NameTokNonTerm):
+    pass
+
+
+class NameNotONTok(NameTokNonTerm, exceptions=('ON',)):
+    pass
+
+
+class NameNotBoolTok(NameTokNonTerm, exceptions=('TRUE', 'FALSE')):
+    pass
+
+
 class DefaultValue(Nonterm):
     def reduce_INTEGER(self, kid):
         self.val = gqlast.IntegerLiteral(value=kid.normalized_value,
@@ -66,8 +105,10 @@ class DefaultValue(Nonterm):
         self.val = gqlast.StringLiteral(value=kid.normalized_value,
                                         context=get_context(kid))
 
-    def reduce_IDENT(self, kid):
-        self.val = gqlast.EnumLiteral(value=kid.val,
+    def reduce_NameNotBoolTok(self, kid):
+        if kid.val.val == 'null':
+            raise Exception('parse error')
+        self.val = gqlast.EnumLiteral(value=kid.val.val,
                                       context=get_context(kid))
 
     def reduce_LSBRACKET_RSBRACKET(self, *kids):
@@ -101,8 +142,8 @@ class ValueList(parsing.ListNonterm, element=Value):
 
 
 class ObjectField(Nonterm):
-    def reduce_IDENT_COLON_Value(self, *kids):
-        self.val = gqlast.ObjectField(name=kids[0].val, value=kids[2].val,
+    def reduce_NameTok_COLON_Value(self, *kids):
+        self.val = gqlast.ObjectField(name=kids[0].val.val, value=kids[2].val,
                                       context=get_context(*kids))
 
 
@@ -119,8 +160,8 @@ class OptValue(Nonterm):
 
 
 class OptNameTok(Nonterm):
-    def reduce_IDENT(self, kid):
-        self.val = kid
+    def reduce_NameTok(self, kid):
+        self.val = kid.val
 
     def reduce_empty(self):
         self.val = None
@@ -171,9 +212,9 @@ class QueryTypeTok(Nonterm):
 
 
 class Fragment(Nonterm):
-    def reduce_FRAGMENT_IDENT_TypeCondition_OptDirectives_SelectionSet(self,
-                                                                       *kids):
-        self.val = gqlast.FragmentDefinition(name=kids[1].val,
+    def reduce_FRAGMENT_NameNotONTok_TypeCondition_OptDirectives_SelectionSet(
+            self, *kids):
+        self.val = gqlast.FragmentDefinition(name=kids[1].val.val,
                                              on=kids[2].val,
                                              directives=kids[3].val,
                                              selection_set=kids[4].val,
@@ -203,17 +244,17 @@ class Field(Nonterm):
 
 
 class AliasedField(Nonterm):
-    def reduce_IDENT(self, kid):
-        self.val = gqlast.Field(name=kid.val, context=get_context(kid))
+    def reduce_NameTok(self, kid):
+        self.val = gqlast.Field(name=kid.val.val, context=get_context(kid))
 
-    def reduce_IDENT_COLON_IDENT(self, *kids):
-        self.val = gqlast.Field(alias=kids[0].val, name=kids[2].val,
+    def reduce_NameTok_COLON_NameTok(self, *kids):
+        self.val = gqlast.Field(alias=kids[0].val.val, name=kids[2].val.val,
                                 context=get_context(*kids))
 
 
 class FragmentSpread(Nonterm):
-    def reduce_ELLIPSIS_IDENT_OptDirectives(self, *kids):
-        self.val = gqlast.FragmentSpread(name=kids[1].val,
+    def reduce_ELLIPSIS_NameNotONTok_OptDirectives(self, *kids):
+        self.val = gqlast.FragmentSpread(name=kids[1].val.val,
                                          directives=kids[2].val,
                                          context=get_context(*kids))
 
@@ -256,8 +297,8 @@ class Arguments(Nonterm):
 
 
 class Argument(Nonterm):
-    def reduce_IDENT_COLON_Value(self, *kids):
-        self.val = gqlast.Argument(name=kids[0].val, value=kids[2].val,
+    def reduce_NameTok_COLON_Value(self, *kids):
+        self.val = gqlast.Argument(name=kids[0].val.val, value=kids[2].val,
                                    context=get_context(*kids))
 
 
@@ -274,8 +315,9 @@ class OptDirectives(Nonterm):
 
 
 class Directive(Nonterm):
-    def reduce_AT_IDENT_OptArgs(self, *kids):
-        self.val = gqlast.Directive(name=kids[1].val, arguments=kids[2].val,
+    def reduce_AT_NameTok_OptArgs(self, *kids):
+        self.val = gqlast.Directive(name=kids[1].val.val,
+                                    arguments=kids[2].val,
                                     context=get_context(*kids))
 
 
@@ -292,8 +334,8 @@ class OptTypeCondition(Nonterm):
 
 
 class TypeCondition(Nonterm):
-    def reduce_ON_IDENT(self, *kids):
-        self.val = kids[1].val
+    def reduce_ON_NameTok(self, *kids):
+        self.val = kids[1].val.val
 
 
 class OptVariables(Nonterm):
@@ -322,12 +364,12 @@ class VariableList(parsing.ListNonterm, element=Variable):
 
 
 class VarType(Nonterm):
-    def reduce_IDENT(self, kid):
-        self.val = gqlast.VariableType(name=kid.val,
+    def reduce_NameTok(self, kid):
+        self.val = gqlast.VariableType(name=kid.val.val,
                                        context=get_context(kid))
 
-    def reduce_IDENT_BANG(self, kid):
-        self.val = gqlast.VariableType(name=kid.val,
+    def reduce_NameTok_BANG(self, kid):
+        self.val = gqlast.VariableType(name=kid.val.val,
                                        nullable=False,
                                        context=get_context(kid))
 
