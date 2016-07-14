@@ -171,6 +171,25 @@ class Document(Nonterm):
     "%start"
 
     def reduce_Definitions(self, kid):
+        short = None
+        frags = 0
+        for defn in kid.val:
+            if (short is None and
+                    isinstance(defn, gqlast.OperationDefinition) and
+                    defn.type is None and
+                    defn.name is None and
+                    not defn.variables and
+                    not defn.directives):
+                short = defn
+            elif isinstance(defn, gqlast.FragmentDefinition):
+                frags += 1
+
+        if short is not None and len(kid.val) - frags > 1:
+            # we have more than one query definition, so short form is not
+            # allowed
+            #
+            raise Exception('parse error')
+
         self.val = gqlast.Document(definitions=kid.val,
                                    context=get_context(kid))
 
