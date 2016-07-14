@@ -47,11 +47,11 @@ class Nonterm(parsing.Nonterm):
 
 class DefaultValue(Nonterm):
     def reduce_INTEGER(self, kid):
-        self.val = gqlast.IntegerLiteral(value=kid.val,
+        self.val = gqlast.IntegerLiteral(value=kid.normalized_value,
                                          context=get_context(kid))
 
     def reduce_FLOAT(self, kid):
-        self.val = gqlast.FloatLiteral(value=kid.val,
+        self.val = gqlast.FloatLiteral(value=kid.normalized_value,
                                        context=get_context(kid))
 
     def reduce_TRUE(self, kid):
@@ -63,7 +63,7 @@ class DefaultValue(Nonterm):
                                          context=get_context(kid))
 
     def reduce_STRING(self, kid):
-        self.val = gqlast.StringLiteral(value=kid.val,
+        self.val = gqlast.StringLiteral(value=kid.normalized_value,
                                         context=get_context(kid))
 
     def reduce_IDENT(self, kid):
@@ -118,7 +118,7 @@ class OptValue(Nonterm):
         self.val = None
 
 
-class OptName(Nonterm):
+class OptNameTok(Nonterm):
     def reduce_IDENT(self, kid):
         self.val = kid
 
@@ -147,7 +147,7 @@ class Definitions(parsing.ListNonterm, element=Definition):
 
 
 class Query(Nonterm):
-    def reduce_QueryType_OptName_OptVariables_OptDirectives_SelectionSet(
+    def reduce_QueryTypeTok_OptNameTok_OptVariables_OptDirectives_SelectionSet(
             self, *kids):
         self.val = gqlast.OperationDefinition(
             type=kids[0].val.val,
@@ -162,7 +162,7 @@ class Query(Nonterm):
                                               context=get_context(kid))
 
 
-class QueryType(Nonterm):
+class QueryTypeTok(Nonterm):
     def reduce_QUERY(self, kid):
         self.val = kid
 

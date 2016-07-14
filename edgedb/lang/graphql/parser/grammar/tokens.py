@@ -6,6 +6,7 @@
 ##
 
 
+import ast
 import sys
 import types
 
@@ -103,15 +104,21 @@ class T_BANG(Token):
 
 
 class T_FLOAT(Token):
-    pass
+    @property
+    def normalized_value(self):
+        return float(self.val)
 
 
 class T_INTEGER(Token):
-    pass
+    @property
+    def normalized_value(self):
+        return int(self.val)
 
 
 class T_STRING(Token):
-    pass
+    @property
+    def normalized_value(self):
+        return ast.literal_eval(self.val).replace('\/', '/')
 
 
 class T_IDENT(Token):

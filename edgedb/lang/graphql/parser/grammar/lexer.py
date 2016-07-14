@@ -98,13 +98,13 @@ class GraphQLLexer(lexer.Lexer):
              next_state=STATE_KEEP,
              regexp=r'@'),
 
+        Rule(token='INTEGER',
+             next_state=STATE_KEEP,
+             regexp=r'-?(?:0|[1-9][0-9]*)(?![eE.0-9])'),
+
         Rule(token='FLOAT',
              next_state=STATE_KEEP,
              regexp=r'-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?'),
-
-        Rule(token='INTEGER',
-             next_state=STATE_KEEP,
-             regexp=r'-?(?:0|[1-9][0-9]*)'),
 
         Rule(token='STRING',
              next_state=STATE_KEEP,

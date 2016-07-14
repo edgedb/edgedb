@@ -16,7 +16,7 @@ from edgedb.server import _testbase as tb
 
 
 class ParserTest(tb.BaseParserTest):
-    re_filter = re.compile(r'[\s\'"(),]+|(#.*?\n)')
+    re_filter = re.compile(r'[\s\(),]+|(#.*?\n)')
     parser_cls = parser.GraphQLParser
 
     def get_parser(self, *, spec):
@@ -301,7 +301,7 @@ class TestGraphQLParser(ParserTest):
         {
             foo(id: 4) {
                 id
-                bar(x: 23.1e-8, y: -42.1e33, z: -999e12)
+                bar(x: 2.31e-08, y: -4.21e+33, z: -9e+12)
             }
         }
        """
@@ -311,7 +311,8 @@ class TestGraphQLParser(ParserTest):
         {
             foo(id: 4) {
                 id
-                bar(name: "something", description: "\b\f\n\r\t blah \uA09F")
+                bar(name: "\"something\"",
+                    description: "\\\/\b\f\n\r\t 'blah' \u279b")
             }
         }
        """
