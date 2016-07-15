@@ -14,9 +14,9 @@ from edgedb.lang.common.datastructures import xvalue
 from edgedb.lang.common import markup
 
 
-
 class LexError(Exception):
-    def __init__(self, msg, *, line=None, col=None, filename=None, format=True):
+    def __init__(self, msg, *,
+                 line=None, col=None, filename=None, format=True):
         if format and '{' in msg:
             position = self._format_position(line, col, filename)
             msg = msg.format(line=line, col=col, filename=filename,
@@ -35,7 +35,8 @@ class LexError(Exception):
         return position
 
 
-class UnknownTokenError(LexError): pass
+class UnknownTokenError(LexError):
+    pass
 
 
 class Rule:
@@ -171,7 +172,7 @@ class Lexer:
         end_pos = SourcePoint(self.lineno, self.column, self.start)
 
         return xvalue(txt, type=rule_token, text=txt, start=start_pos,
-                           end=end_pos, filename=self.filename)
+                      end=end_pos, filename=self.filename)
 
     def lex(self):
         """Lexes the src.
@@ -182,7 +183,6 @@ class Lexer:
         May raise UnknownTokenError exception."""
 
         src = self.inputstr
-        re_states = self.re_states
 
         start_tok = self.get_start_token()
         if start_tok is not None:
@@ -224,8 +224,8 @@ class Lexer:
     def token(self):
         '''Return the next token produced by the lexer.
 
-        The token is an xvalue with the following attributes: type, text, start,
-        end, and filename.
+        The token is an xvalue with the following attributes: type,
+        text, start, end, and filename.
         '''
 
         if self._token_stream is None:
