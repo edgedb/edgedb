@@ -8,6 +8,7 @@
 
 from edgedb.lang.common import parsing
 from edgedb.lang.graphql import ast as gqlast
+from edgedb.lang.graphql.parser.errors import GraphQLParserError
 
 from .tokens import *
 from . import keywords
@@ -107,7 +108,8 @@ class DefaultValue(Nonterm):
 
     def reduce_NameNotBoolTok(self, kid):
         if kid.val.val == 'null':
-            raise Exception('parse error')
+            raise GraphQLParserError("'null' not allowed as value",
+                                     context=get_context(kid))
         self.val = gqlast.EnumLiteral(value=kid.val.val,
                                       context=get_context(kid))
 
@@ -188,7 +190,8 @@ class Document(Nonterm):
             # we have more than one query definition, so short form is not
             # allowed
             #
-            raise Exception('parse error')
+            raise GraphQLParserError('short form is not allowed here',
+                                     context=short.context)
 
         self.val = gqlast.Document(definitions=kid.val,
                                    context=get_context(kid))

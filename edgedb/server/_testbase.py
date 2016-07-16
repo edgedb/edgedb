@@ -178,37 +178,3 @@ class QueryTestCaseMeta(TestCaseMeta):
 
 class QueryTestCase(DatabaseTestCase, metaclass=QueryTestCaseMeta):
     pass
-
-
-
-class ParserTestMeta(type(unittest.TestCase)):
-    def __new__(mcls, name, bases, dct):
-        dct = dict(dct)
-
-        for attr, meth in tuple(dct.items()):
-            if attr.startswith('test_') and meth.__doc__:
-
-                @functools.wraps(meth)
-                def wrapper(self, meth=meth, doc=meth.__doc__):
-                    spec = getattr(meth, 'test_spec', {})
-                    spec['test_name'] = meth.__name__
-                    self._run_test(source=doc, spec=spec)
-
-                dct[attr] = wrapper
-
-        return super().__new__(mcls, name, bases, dct)
-
-
-class BaseParserTest(unittest.TestCase, metaclass=ParserTestMeta):
-    def _run_test(self, *, source, spec=None):
-        if spec and 'must_fail' in spec:
-            with debug.assert_raises(*spec['must_fail'][0],
-                                     **spec['must_fail'][1]):
-
-                return self.run_test(source=source, spec=spec)
-
-        else:
-            return self.run_test(source=source, spec=spec)
-
-    def run_test(self, *, source, spec):
-        raise NotImplementedError

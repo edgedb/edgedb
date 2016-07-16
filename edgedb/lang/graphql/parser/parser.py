@@ -8,6 +8,7 @@
 
 from edgedb.lang.common import parsing
 from .grammar import lexer
+from .errors import GraphQLParserError
 
 
 class GraphQLParser(parsing.Parser):
@@ -17,6 +18,9 @@ class GraphQLParser(parsing.Parser):
 
     def get_lexer(self):
         return lexer.GraphQLLexer()
+
+    def get_exception(self, native_err, context):
+        return GraphQLParserError(native_err.args[0], context=context)
 
     def process_lex_token(self, mod, tok):
         if tok.attrs['type'] in {'NL', 'WS', 'COMMENT', 'COMMA'}:

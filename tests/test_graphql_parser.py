@@ -6,54 +6,11 @@
 ##
 
 
-import os
-import re
-
-from edgedb.lang.common import markup
-from edgedb.lang.graphql import codegen
-from edgedb.lang.graphql.parser import parser
-from edgedb.server import _testbase as tb
+from edgedb.lang.graphql import _testbase as tb
+from edgedb.lang.graphql.parser.errors import GraphQLParserError
 
 
-class ParserTest(tb.BaseParserTest):
-    re_filter = re.compile(r'[\s,]+|(#.*?\n)')
-    parser_cls = parser.GraphQLParser
-
-    def get_parser(self, *, spec):
-        return self.__class__.parser_cls()
-
-    def assert_equal(self, expected, result):
-        expected_stripped = self.re_filter.sub('', expected).lower()
-        result_stripped = self.re_filter.sub('', result).lower()
-
-        assert expected_stripped == result_stripped, \
-            '[test]expected: {}\n[test] != returned: {}'.format(
-                expected, result)
-
-    def run_test(self, *, source, spec):
-        debug = bool(os.environ.get('DEBUG_GRAPHQL'))
-
-        if debug:
-            markup.dump_code(source, lexer='graphql')
-
-        p = self.get_parser(spec=spec)
-
-        esast = p.parse(source)
-
-        if debug:
-            markup.dump(esast)
-
-        processed_src = codegen.GraphQLSourceGenerator.to_source(esast)
-
-        if debug:
-            markup.dump_code(processed_src, lexer='graphql')
-
-        expected_src = source
-
-        self.assert_equal(expected_src, processed_src)
-
-
-class TestGraphQLParser(ParserTest):
+class TestGraphQLParser(tb.ParserTest):
     def test_graphql_parser_empty01(self):
         """"""
 
@@ -63,6 +20,20 @@ class TestGraphQLParser(ParserTest):
     def test_graphql_parser_short02(self):
         """
         {id, name, description}
+        """
+
+    @tb.must_fail(GraphQLParserError)
+    def test_graphql_parser_short03(self):
+        """
+        {id}
+        {name}
+        """
+
+    @tb.must_fail(GraphQLParserError)
+    def test_graphql_parser_short04(self):
+        """
+        query {id}
+        {name}
         """
 
     def test_graphql_parser_field01(self):
@@ -419,6 +390,28 @@ class TestGraphQLParser(ParserTest):
                             }]
                         }
                     })
+            }
+        }
+       """
+
+    @tb.must_fail(GraphQLParserError)
+    def test_graphql_parser_values13(self):
+        r"""
+        {
+            foo(id: null) {
+                id
+                bar(param: NULL)
+            }
+        }
+       """
+
+    @tb.must_fail(GraphQLParserError)
+    def test_graphql_parser_values14(self):
+        r"""
+        {
+            foo(id: NULL) {
+                id
+                bar(param: null)
             }
         }
        """
