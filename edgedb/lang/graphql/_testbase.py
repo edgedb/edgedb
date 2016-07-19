@@ -16,17 +16,15 @@ from edgedb.lang.graphql.parser import parser
 
 
 class ParserTest(BaseParserTest):
-    re_filter = re.compile(rb'''(?x)
-        [\s,]+ | (\#.*?\n) | (\xef\xbb\xbf) | (\xfe\xff) | (\xff\xfe)
-    ''')
+    re_filter = re.compile(r'''[\s,]+|(\#.*?\n)''')
     parser_cls = parser.GraphQLParser
 
     def get_parser(self, *, spec):
         return self.__class__.parser_cls()
 
     def assert_equal(self, expected, result):
-        expected_stripped = self.re_filter.sub(b'', expected).lower()
-        result_stripped = self.re_filter.sub(b'', result).lower()
+        expected_stripped = self.re_filter.sub('', expected).lower()
+        result_stripped = self.re_filter.sub('', result).lower()
 
         assert expected_stripped == result_stripped, \
             '[test]expected: {}\n[test] != returned: {}'.format(
@@ -34,20 +32,12 @@ class ParserTest(BaseParserTest):
 
     def run_test(self, *, source, spec):
         debug = bool(os.environ.get('DEBUG_GRAPHQL'))
-        if type(source) is bytes:
-            bsource = source
-        else:
-            bsource = source.encode()
-
         if debug:
-            if type(source) is bytes:
-                print(source)
-            else:
-                markup.dump_code(source, lexer='graphql')
+            markup.dump_code(source, lexer='graphql')
 
         p = self.get_parser(spec=spec)
 
-        esast = p.parse(bsource)
+        esast = p.parse(source)
 
         if debug:
             markup.dump(esast)
@@ -57,6 +47,6 @@ class ParserTest(BaseParserTest):
         if debug:
             markup.dump_code(processed_src, lexer='graphql')
 
-        expected_src = bsource
+        expected_src = source
 
-        self.assert_equal(expected_src, processed_src.encode())
+        self.assert_equal(expected_src, processed_src)

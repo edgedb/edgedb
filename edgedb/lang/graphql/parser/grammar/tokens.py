@@ -23,10 +23,6 @@ class TokenMeta(parsing.TokenMeta):
 class Token(parsing.Token, metaclass=TokenMeta,
             precedence_class=precedence.PrecedenceMeta):
 
-    def __init__(self, parser, val, context=None):
-        val = val.decode()
-        super().__init__(parser, val, context)
-
     @property
     def type(self):
         return self.__class__.__name__[2:]

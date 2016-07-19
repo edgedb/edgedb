@@ -15,20 +15,17 @@ class TestGraphQLParser(tb.ParserTest):
     def test_graphql_parser_empty01(self):
         """"""
 
+    @tb.must_fail(UnknownTokenError, line=1, col=1)
     def test_graphql_parser_empty02(self):
-        self._run_test(
-            source=b"""\v""",
-            spec={'must_fail': [(UnknownTokenError,), dict(line=1, col=1)]})
+        """\v"""
 
+    @tb.must_fail(UnknownTokenError, line=1, col=1)
     def test_graphql_parser_empty03(self):
-        self._run_test(
-            source=b"""\f""",
-            spec={'must_fail': [(UnknownTokenError,), dict(line=1, col=1)]})
+        """\f"""
 
+    @tb.must_fail(UnknownTokenError, line=1, col=1)
     def test_graphql_parser_empty04(self):
-        self._run_test(
-            source=b"""\xa0""",
-            spec={'must_fail': [(UnknownTokenError,), dict(line=1, col=1)]})
+        """\xa0"""
 
     @tb.must_fail(UnknownTokenError, line=2, col=1)
     def test_graphql_parser_empty05(self):
@@ -49,69 +46,61 @@ class TestGraphQLParser(tb.ParserTest):
     def test_graphql_parser_empty08(self):
         """..."""
 
+    @tb.must_fail(UnknownTokenError, line=2, col=21)
     def test_graphql_parser_string01(self):
         # XXX: the string isn't parsed, but the error is too obscure
-        self._run_test(
-            source=b"""
-            { field(arg:"\b") }
-            """,
-            spec={'must_fail': [(UnknownTokenError,), dict(line=2, col=25)]})
+        """
+        { field(arg:"\b") }
+        """
 
+    @tb.must_fail(UnknownTokenError, line=2, col=21)
     def test_graphql_parser_string02(self):
         # XXX: the string isn't parsed, but the error is too obscure
-        self._run_test(
-            source=Rb"""
-            { field(arg:"\x") }
-            """,
-            spec={'must_fail': [(UnknownTokenError,), dict(line=2, col=25)]})
+        R"""
+        { field(arg:"\x") }
+        """
 
+    @tb.must_fail(UnknownTokenError, line=2, col=21)
     def test_graphql_parser_string03(self):
         # XXX: the string isn't parsed, but the error is too obscure
-        self._run_test(
-            source=Rb"""
-            { field(arg:"\u1") }
-            """,
-            spec={'must_fail': [(UnknownTokenError,), dict(line=2, col=25)]})
+        R"""
+        { field(arg:"\u1") }
+        """
 
+    @tb.must_fail(UnknownTokenError, line=2, col=21)
     def test_graphql_parser_string04(self):
         # XXX: the string isn't parsed, but the error is too obscure
-        self._run_test(
-            source=Rb"""
-            { field(arg:"\u0XX1") }
-            """,
-            spec={'must_fail': [(UnknownTokenError,), dict(line=2, col=25)]})
+        R"""
+        { field(arg:"\u0XX1") }
+        """
 
+    @tb.must_fail(UnknownTokenError, line=2, col=21)
     def test_graphql_parser_string05(self):
         # XXX: the string isn't parsed, but the error is too obscure
-        self._run_test(
-            source=Rb"""
-            { field(arg:"\uXXXX") }
-            """,
-            spec={'must_fail': [(UnknownTokenError,), dict(line=2, col=25)]})
+        R"""
+        { field(arg:"\uXXXX") }
+        """
 
+    @tb.must_fail(UnknownTokenError, line=2, col=21)
     def test_graphql_parser_string06(self):
         # XXX: the string isn't parsed, but the error is too obscure
-        self._run_test(
-            source=Rb"""
-            { field(arg:"\uFXXX") }
-            """,
-            spec={'must_fail': [(UnknownTokenError,), dict(line=2, col=25)]})
+        R"""
+        { field(arg:"\uFXXX") }
+        """
 
+    @tb.must_fail(UnknownTokenError, line=2, col=21)
     def test_graphql_parser_string07(self):
         # XXX: the string isn't parsed, but the error is too obscure
-        self._run_test(
-            source=Rb"""
-            { field(arg:"\uXXXF") }
-            """,
-            spec={'must_fail': [(UnknownTokenError,), dict(line=2, col=25)]})
+        R"""
+        { field(arg:"\uXXXF") }
+        """
 
+    @tb.must_fail(UnknownTokenError, line=2, col=34)
     def test_graphql_parser_string08(self):
         # XXX: the string isn't parsed, but the error is too obscure
-        self._run_test(
-            source=Rb"""
-            { field(arg:"\uFEFF\n") };
-            """,
-            spec={'must_fail': [(UnknownTokenError,), dict(line=2, col=38)]})
+        R"""
+        { field(arg:"\uFEFF\n") };
+        """
 
     def test_graphql_parser_short01(self):
         """{id}"""
@@ -341,28 +330,8 @@ class TestGraphQLParser(tb.ParserTest):
         query myQuery { \a }
         """
 
-    def test_graphql_parser_query08(self):
-        self._run_test(source=b"""
-        \xef\xbb\xbfquery myquery { field }
-        """)
-
-    def test_graphql_parser_query09(self):
-        self._run_test(source=b"""
-        query myquery\xef\xbb\xbf{ field }
-        """)
-
-    def test_graphql_parser_query10(self):
-        self._run_test(source=b"""
-        \xef\xbb\xbfquery myquery { field };
-        """, spec={'must_fail': [(UnknownTokenError,), dict(line=2, col=35)]})
-
-    def test_graphql_parser_query11(self):
-        self._run_test(source=b"""
-        \xefquery myquery { field };
-        """, spec={'must_fail': [(UnknownTokenError,), dict(line=2, col=9)]})
-
     @tb.must_fail(GraphQLParserError, line=2, col=9)
-    def test_graphql_parser_query12(self):
+    def test_graphql_parser_query08(self):
         """
         notanoperation Foo { field }
         """
