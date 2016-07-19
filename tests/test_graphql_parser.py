@@ -8,11 +8,110 @@
 
 from edgedb.lang.graphql import _testbase as tb
 from edgedb.lang.graphql.parser.errors import GraphQLParserError
+from edgedb.lang.common.lexer import UnknownTokenError
 
 
 class TestGraphQLParser(tb.ParserTest):
     def test_graphql_parser_empty01(self):
         """"""
+
+    def test_graphql_parser_empty02(self):
+        self._run_test(
+            source=b"""\v""",
+            spec={'must_fail': [(UnknownTokenError,), dict(line=1, col=1)]})
+
+    def test_graphql_parser_empty03(self):
+        self._run_test(
+            source=b"""\f""",
+            spec={'must_fail': [(UnknownTokenError,), dict(line=1, col=1)]})
+
+    def test_graphql_parser_empty04(self):
+        self._run_test(
+            source=b"""\xa0""",
+            spec={'must_fail': [(UnknownTokenError,), dict(line=1, col=1)]})
+
+    @tb.must_fail(UnknownTokenError, line=2, col=1)
+    def test_graphql_parser_empty05(self):
+        """\r\n;"""
+
+    @tb.must_fail(UnknownTokenError, line=1, col=1)
+    def test_graphql_parser_empty06(self):
+        '''"'''
+
+    @tb.must_fail(UnknownTokenError, line=2, col=9)
+    def test_graphql_parser_empty07(self):
+        """
+        "
+        "
+        """
+
+    @tb.must_fail(GraphQLParserError, line=1, col=1)
+    def test_graphql_parser_empty08(self):
+        """..."""
+
+    def test_graphql_parser_string01(self):
+        # XXX: the string isn't parsed, but the error is too obscure
+        self._run_test(
+            source=b"""
+            { field(arg:"\b") }
+            """,
+            spec={'must_fail': [(UnknownTokenError,), dict(line=2, col=25)]})
+
+    def test_graphql_parser_string02(self):
+        # XXX: the string isn't parsed, but the error is too obscure
+        self._run_test(
+            source=Rb"""
+            { field(arg:"\x") }
+            """,
+            spec={'must_fail': [(UnknownTokenError,), dict(line=2, col=25)]})
+
+    def test_graphql_parser_string03(self):
+        # XXX: the string isn't parsed, but the error is too obscure
+        self._run_test(
+            source=Rb"""
+            { field(arg:"\u1") }
+            """,
+            spec={'must_fail': [(UnknownTokenError,), dict(line=2, col=25)]})
+
+    def test_graphql_parser_string04(self):
+        # XXX: the string isn't parsed, but the error is too obscure
+        self._run_test(
+            source=Rb"""
+            { field(arg:"\u0XX1") }
+            """,
+            spec={'must_fail': [(UnknownTokenError,), dict(line=2, col=25)]})
+
+    def test_graphql_parser_string05(self):
+        # XXX: the string isn't parsed, but the error is too obscure
+        self._run_test(
+            source=Rb"""
+            { field(arg:"\uXXXX") }
+            """,
+            spec={'must_fail': [(UnknownTokenError,), dict(line=2, col=25)]})
+
+    def test_graphql_parser_string06(self):
+        # XXX: the string isn't parsed, but the error is too obscure
+        self._run_test(
+            source=Rb"""
+            { field(arg:"\uFXXX") }
+            """,
+            spec={'must_fail': [(UnknownTokenError,), dict(line=2, col=25)]})
+
+    def test_graphql_parser_string07(self):
+        # XXX: the string isn't parsed, but the error is too obscure
+        self._run_test(
+            source=Rb"""
+            { field(arg:"\uXXXF") }
+            """,
+            spec={'must_fail': [(UnknownTokenError,), dict(line=2, col=25)]})
+
+    def test_graphql_parser_string08(self):
+        # XXX: the string isn't parsed, but the error is too obscure
+        self._run_test(
+            source=Rb"""
+            { field(arg:"\uFEFF\n") };
+            """,
+            spec={'must_fail': [(UnknownTokenError,), dict(line=2, col=38)]})
 
     def test_graphql_parser_short01(self):
         """{id}"""
@@ -22,18 +121,24 @@ class TestGraphQLParser(tb.ParserTest):
         {id, name, description}
         """
 
-    @tb.must_fail(GraphQLParserError)
+    @tb.must_fail(GraphQLParserError, line=2, col=9)
     def test_graphql_parser_short03(self):
         """
         {id}
         {name}
         """
 
-    @tb.must_fail(GraphQLParserError)
+    @tb.must_fail(GraphQLParserError, line=3, col=9)
     def test_graphql_parser_short04(self):
         """
         query {id}
         {name}
+        """
+
+    @tb.must_fail(GraphQLParserError, line=2, col=18)
+    def test_graphql_parser_short05(self):
+        """
+        { field: {} }
         """
 
     def test_graphql_parser_field01(self):
@@ -113,7 +218,7 @@ class TestGraphQLParser(tb.ParserTest):
                 foo
             }
         }
-       """
+        """
 
     def test_graphql_parser_inline_fragment02(self):
         """
@@ -122,7 +227,7 @@ class TestGraphQLParser(tb.ParserTest):
                 foo
             }
         }
-       """
+        """
 
     def test_graphql_parser_inline_fragment03(self):
         """
@@ -131,7 +236,7 @@ class TestGraphQLParser(tb.ParserTest):
                 foo
             }
         }
-       """
+        """
 
     def test_graphql_parser_inline_fragment04(self):
         """
@@ -140,7 +245,7 @@ class TestGraphQLParser(tb.ParserTest):
                 foo
             }
         }
-       """
+        """
 
     def test_graphql_parser_inline_fragment05(self):
         """
@@ -149,7 +254,7 @@ class TestGraphQLParser(tb.ParserTest):
                 foo
             }
         }
-       """
+        """
 
     def test_graphql_parser_fragment01(self):
         """
@@ -158,7 +263,7 @@ class TestGraphQLParser(tb.ParserTest):
             name
             profilePic(size: 50)
         }
-       """
+        """
 
     def test_graphql_parser_fragment02(self):
         """
@@ -167,7 +272,14 @@ class TestGraphQLParser(tb.ParserTest):
             name
             profilePic(size: 50)
         }
-       """
+        """
+
+    @tb.must_fail(GraphQLParserError, line=3, col=28)
+    def test_graphql_parser_fragment03(self):
+        """
+        { ...MissingOn }
+        fragment MissingOn Type
+        """
 
     def test_graphql_parser_query01(self):
         """
@@ -175,7 +287,7 @@ class TestGraphQLParser(tb.ParserTest):
             id
             name
         }
-       """
+        """
 
     def test_graphql_parser_query02(self):
         """
@@ -183,7 +295,7 @@ class TestGraphQLParser(tb.ParserTest):
             id
             name
         }
-       """
+        """
 
     def test_graphql_parser_query03(self):
         """
@@ -191,7 +303,7 @@ class TestGraphQLParser(tb.ParserTest):
             id
             name
         }
-       """
+        """
 
     def test_graphql_parser_query04(self):
         """
@@ -209,7 +321,51 @@ class TestGraphQLParser(tb.ParserTest):
                 }
             }
         }
-       """
+        """
+
+    @tb.must_fail(GraphQLParserError, line=2, col=23)
+    def test_graphql_parser_query05(self):
+        r"""
+        query myquery on type { field }
+        """
+
+    @tb.must_fail(UnknownTokenError, line=2, col=32)
+    def test_graphql_parser_query06(self):
+        r"""
+        query myquery { field };
+        """
+
+    @tb.must_fail(UnknownTokenError, line=2, col=25)
+    def test_graphql_parser_query07(self):
+        r"""
+        query myQuery { \a }
+        """
+
+    def test_graphql_parser_query08(self):
+        self._run_test(source=b"""
+        \xef\xbb\xbfquery myquery { field }
+        """)
+
+    def test_graphql_parser_query09(self):
+        self._run_test(source=b"""
+        query myquery\xef\xbb\xbf{ field }
+        """)
+
+    def test_graphql_parser_query10(self):
+        self._run_test(source=b"""
+        \xef\xbb\xbfquery myquery { field };
+        """, spec={'must_fail': [(UnknownTokenError,), dict(line=2, col=35)]})
+
+    def test_graphql_parser_query11(self):
+        self._run_test(source=b"""
+        \xefquery myquery { field };
+        """, spec={'must_fail': [(UnknownTokenError,), dict(line=2, col=9)]})
+
+    @tb.must_fail(GraphQLParserError, line=2, col=9)
+    def test_graphql_parser_query12(self):
+        """
+        notanoperation Foo { field }
+        """
 
     def test_graphql_parser_mutation01(self):
         """
@@ -220,7 +376,7 @@ class TestGraphQLParser(tb.ParserTest):
                 }
             }
         }
-       """
+        """
 
     def test_graphql_parser_mutation02(self):
         """
@@ -231,7 +387,7 @@ class TestGraphQLParser(tb.ParserTest):
                 }
             }
         }
-       """
+        """
 
     def test_graphql_parser_mutation03(self):
         """
@@ -242,7 +398,15 @@ class TestGraphQLParser(tb.ParserTest):
                 }
             }
         }
-       """
+        """
+
+    def test_graphql_parser_subscription01(self):
+        """
+        subscription {
+            id
+            name
+        }
+        """
 
     def test_graphql_parser_values01(self):
         """
@@ -255,7 +419,7 @@ class TestGraphQLParser(tb.ParserTest):
                 }
             }
         }
-       """
+        """
 
     def test_graphql_parser_values02(self):
         """
@@ -265,7 +429,7 @@ class TestGraphQLParser(tb.ParserTest):
                 bar(x: 23.1, y: -42.1, z: -999)
             }
         }
-       """
+        """
 
     def test_graphql_parser_values03(self):
         """
@@ -275,7 +439,7 @@ class TestGraphQLParser(tb.ParserTest):
                 bar(x: 2.31e-08, y: -4.21e+33, z: -9e+12)
             }
         }
-       """
+        """
 
     def test_graphql_parser_values04(self):
         r"""
@@ -283,10 +447,11 @@ class TestGraphQLParser(tb.ParserTest):
             foo(id: 4) {
                 id
                 bar(name: "\"something\"",
+                    more: "",
                     description: "\\\/\b\f\n\r\t 'blah' \u279b")
             }
         }
-       """
+        """
 
     def test_graphql_parser_values05(self):
         r"""
@@ -296,7 +461,7 @@ class TestGraphQLParser(tb.ParserTest):
                 bar(param: MOBILE_WEB)
             }
         }
-       """
+        """
 
     def test_graphql_parser_values06(self):
         r"""
@@ -306,7 +471,7 @@ class TestGraphQLParser(tb.ParserTest):
                 bar(array: [])
             }
         }
-       """
+        """
 
     def test_graphql_parser_values07(self):
         r"""
@@ -316,7 +481,7 @@ class TestGraphQLParser(tb.ParserTest):
                 bar(array: [1, "two", 3])
             }
         }
-       """
+        """
 
     def test_graphql_parser_values08(self):
         r"""
@@ -326,7 +491,7 @@ class TestGraphQLParser(tb.ParserTest):
                 bar(array: {})
             }
         }
-       """
+        """
 
     def test_graphql_parser_values09(self):
         r"""
@@ -339,7 +504,7 @@ class TestGraphQLParser(tb.ParserTest):
                     })
             }
         }
-       """
+        """
 
     def test_graphql_parser_values10(self):
         r"""
@@ -360,22 +525,22 @@ class TestGraphQLParser(tb.ParserTest):
                     })
             }
         }
-       """
+        """
 
     def test_graphql_parser_values11(self):
         """
-        query getZuckProfile($devicePicSize: Int 42) {
+        query getZuckProfile($devicePicSize: Int = 42) {
             user(id: 4) {
                 id
                 name
                 profilePic(size: $devicePicSize)
             }
         }
-       """
+        """
 
     def test_graphql_parser_values12(self):
         r"""
-        query myQuery($special: Int 42) {
+        query myQuery($special: Int = 42) {
             foo(id: 4) {
                 id
                 bar(map: {
@@ -392,9 +557,9 @@ class TestGraphQLParser(tb.ParserTest):
                     })
             }
         }
-       """
+        """
 
-    @tb.must_fail(GraphQLParserError)
+    @tb.must_fail(GraphQLParserError, line=3, col=21)
     def test_graphql_parser_values13(self):
         r"""
         {
@@ -403,9 +568,9 @@ class TestGraphQLParser(tb.ParserTest):
                 bar(param: NULL)
             }
         }
-       """
+        """
 
-    @tb.must_fail(GraphQLParserError)
+    @tb.must_fail(GraphQLParserError, line=5, col=28)
     def test_graphql_parser_values14(self):
         r"""
         {
@@ -414,7 +579,37 @@ class TestGraphQLParser(tb.ParserTest):
                 bar(param: null)
             }
         }
-       """
+        """
+
+    def test_graphql_parser_values15(self):
+        r"""
+        {
+            field(complex: { a: { b: [ $var ] } })
+        }
+        """
+
+    def test_graphql_parser_values16(self):
+        r"""
+        query Foo($x: Complex = { a: { b: [ "var" ] } }) {
+            field
+        }
+        """
+
+    @tb.must_fail(GraphQLParserError, line=2, col=45)
+    def test_graphql_parser_values17(self):
+        r"""
+        query Foo($x: Complex = { a: { b: [ $var ] } }) {
+            field
+        }
+        """
+
+    @tb.must_fail(GraphQLParserError, line=3, col=49)
+    def test_graphql_parser_values18(self):
+        r"""
+        {
+            fieldWithNullableStringInput(input: null)
+        }
+        """
 
     def test_graphql_parser_names01(self):
         r"""
@@ -544,14 +739,14 @@ class TestGraphQLParser(tb.ParserTest):
     def test_graphql_parser_names10(self):
         r"""
         query (
-            $on: on on
-            $fragment: fragment fragment
-            $query: query query
-            $mutation: mutation mutation
-            $subscription: subscription subscription
-            $true: true true
-            $false: false false
-            $null: null NULL
+            $on: on = on
+            $fragment: fragment = fragment
+            $query: query = query
+            $mutation: mutation = mutation
+            $subscription: subscription = subscription
+            $true: true = true
+            $false: false = false
+            $null: null = NULL
         ) {
             id
         }
@@ -567,6 +762,24 @@ class TestGraphQLParser(tb.ParserTest):
         query { ...someFragment @true }
         query { ...someFragment @false }
         query { ...someFragment @null }
+        """
+
+    @tb.must_fail(GraphQLParserError, line=2, col=21)
+    def test_graphql_parser_names12(self):
+        r"""
+        { ... on on on {id} }
+        """
+
+    @tb.must_fail(GraphQLParserError, line=2, col=18)
+    def test_graphql_parser_names13(self):
+        r"""
+        fragment on on on {id}
+        """
+
+    @tb.must_fail(GraphQLParserError, line=2, col=18)
+    def test_graphql_parser_names14(self):
+        r"""
+        { ... on }
         """
 
     def test_graphql_parser_comments01(self):
@@ -592,4 +805,4 @@ class TestGraphQLParser(tb.ParserTest):
                 }
             }
         }
-       """
+        """

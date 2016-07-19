@@ -58,7 +58,7 @@ class Rule:
                                      self.regexp)
 
 
-def group(*literals, _re_alpha=re.compile(r'[^\W\d_]')):
+def group(*literals, _re_alpha=re.compile(r'[^\W\d_]'), asbytes=False):
     rx = []
     for l in literals:
         if r'\b' not in l:
@@ -66,7 +66,11 @@ def group(*literals, _re_alpha=re.compile(r'[^\W\d_]')):
         if _re_alpha.match(l):
             l = r'\b' + l + r'\b'
         rx.append(l)
-    return ' | '.join(rx)
+    result = ' | '.join(rx)
+    if asbytes:
+        result = result.encode()
+
+    return result
 
 
 class ParserContext(lang_context.SourceContext, markup.MarkupExceptionContext):
@@ -107,6 +111,8 @@ class Lexer:
     NL = frozenset()
     MULTILINE_TOKENS = frozenset()
     RE_FLAGS = re.X | re.M
+    asbytes = False
+    _NL = '\n'
 
     def __init__(self):
         self.reset()
@@ -115,14 +121,26 @@ class Lexer:
         for state, rules in self.states.items():
             res = []
             for rule in rules:
-                res.append('(?P<{}>{})'.format(rule.id, rule.regexp))
+                if self.asbytes:
+                    res.append(b'(?P<%b>%b)' % (rule.id.encode(), rule.regexp))
+                else:
+                    res.append('(?P<{}>{})'.format(rule.id, rule.regexp))
 
-            res.append('(?P<err>.)')
+            if self.asbytes:
+                res.append(b'(?P<err>.)')
+            else:
+                res.append('(?P<err>.)')
 
-            full_re = ' | '.join(res)
+            if self.asbytes:
+                full_re = b' | '.join(res)
+            else:
+                full_re = ' | '.join(res)
             re_states[state] = re.compile(full_re, self.RE_FLAGS)
 
         self.re_states = re_states
+
+        if self.asbytes:
+            self._NL = b'\n'
 
     def reset(self):
         self.lineno = 1
@@ -160,11 +178,11 @@ class Lexer:
             self.lineno += 1
             self.column = 1
 
-        elif rule_token in self.MULTILINE_TOKENS and '\n' in txt:
+        elif rule_token in self.MULTILINE_TOKENS and self._NL in txt:
             # Advance line & col according to how many new lines
             # are in comments/strings/etc.
-            self.lineno += txt.count('\n')
-            self.column = len(txt.rsplit('\n', 1)[1]) + 1
+            self.lineno += txt.count(self._NL)
+            self.column = len(txt.rsplit(self._NL, 1)[1]) + 1
         else:
             self.column += len_txt
 

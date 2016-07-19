@@ -112,7 +112,7 @@ class GraphQLSourceGenerator(codegen.SourceGenerator):
         self.write(': ')
         self.visit(node.type)
         if node.value:
-            self.write(' ')
+            self.write(' = ')
             self.visit(node.value)
 
     def visit_VariableType(self, node):

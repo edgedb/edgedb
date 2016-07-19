@@ -16,6 +16,7 @@ graphql_keywords = {
     "mutation": ("MUTATION", UNRESERVED_KEYWORD),
     "on": ("ON", UNRESERVED_KEYWORD),
     "query": ("QUERY", UNRESERVED_KEYWORD),
+    "subscription": ("SUBSCRIPTION", UNRESERVED_KEYWORD),
 }
 
 

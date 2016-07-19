@@ -23,7 +23,7 @@ class GraphQLParser(parsing.Parser):
         return GraphQLParserError(native_err.args[0], context=context)
 
     def process_lex_token(self, mod, tok):
-        if tok.attrs['type'] in {'NL', 'WS', 'COMMENT', 'COMMA'}:
+        if tok.attrs['type'] in {'NL', 'WS', 'COMMENT', 'COMMA', 'UBOM'}:
             return None
         else:
             return super().process_lex_token(mod, tok)

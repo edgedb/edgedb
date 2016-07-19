@@ -339,17 +339,23 @@ class ParserContext(lang_context.SourceContext, markup.MarkupExceptionContext):
 
 
 class ParserError(EdgeDBError):
-    def __init__(self, msg=None, *, hint=None, details=None, token=None, lineno=None, expr=None,
-                               context=None):
+    def __init__(self, msg=None, *, hint=None, details=None, token=None,
+                 line=None, col=None, expr=None, context=None):
         if msg is None:
             msg = 'syntax error at or near "%s"' % token
         super().__init__(msg, hint=hint, details=details)
 
         self.token = token
-        self.lineno = lineno
+        if line is not None:
+            self.line = line
+        if col is not None:
+            self.col = col
         self.expr = expr
         if context:
             _add_context(self, context)
+            if line is None and col is None:
+                self.line = context.start.line
+                self.col = context.start.column
 
 
 class Parser:

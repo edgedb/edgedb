@@ -43,6 +43,19 @@ def get_context(*kids):
                                  end=end.context.end)
 
 
+def check_const(expr):
+    if isinstance(expr, gqlast.Variable):
+        raise GraphQLParserError(
+            'unexpected variable, must be a constant value',
+            context=expr.context)
+    elif isinstance(expr, gqlast.ListLiteral):
+        for val in expr.value:
+            check_const(val)
+    elif isinstance(expr, gqlast.ObjectLiteral):
+        for field in expr.value:
+            check_const(field.value)
+
+
 class Nonterm(parsing.Nonterm):
     pass
 
@@ -85,7 +98,7 @@ class NameNotBoolTok(NameTokNonTerm, exceptions=('TRUE', 'FALSE')):
     pass
 
 
-class DefaultValue(Nonterm):
+class BaseValue(Nonterm):
     def reduce_INTEGER(self, kid):
         self.val = gqlast.IntegerLiteral(value=kid.normalized_value,
                                          context=get_context(kid))
@@ -131,7 +144,7 @@ class DefaultValue(Nonterm):
 
 
 class Value(Nonterm):
-    def reduce_DefaultValue(self, kid):
+    def reduce_BaseValue(self, kid):
         self.val = kid.val
 
     def reduce_VAR(self, kid):
@@ -154,7 +167,7 @@ class ObjectFieldList(parsing.ListNonterm, element=ObjectField):
 
 
 class OptValue(Nonterm):
-    def reduce_DefaultValue(self, kid):
+    def reduce_BaseValue(self, kid):
         self.val = kid.val
 
     def reduce_empty(self):
@@ -230,6 +243,9 @@ class QueryTypeTok(Nonterm):
         self.val = kid
 
     def reduce_MUTATION(self, kid):
+        self.val = kid
+
+    def reduce_SUBSCRIPTION(self, kid):
         self.val = kid
 
 
@@ -374,7 +390,7 @@ class Variables(Nonterm):
 
 
 class Variable(Nonterm):
-    def reduce_VAR_COLON_VarType_OptValue(self, *kids):
+    def reduce_VAR_COLON_VarType_DefaultValue(self, *kids):
         self.val = gqlast.VariableDefinition(name=kids[0].val,
                                              type=kids[2].val,
                                              value=kids[3].val,
@@ -405,3 +421,12 @@ class VarType(Nonterm):
                                        list=True,
                                        nullable=False,
                                        context=get_context(*kids))
+
+
+class DefaultValue(Nonterm):
+    def reduce_EQUAL_BaseValue(self, *kids):
+        check_const(kids[1].val)
+        self.val = kids[1].val
+
+    def reduce_empty(self):
+        self.val = None
