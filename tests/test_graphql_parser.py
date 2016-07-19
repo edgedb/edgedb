@@ -417,7 +417,7 @@ class TestGraphQLParser(tb.ParserTest):
                 id
                 bar(name: "\"something\"",
                     more: "",
-                    description: "\\\/\b\f\n\r\t 'blah' \u279b")
+                    description: "\\\/\b\f\n\r\t 'blah' спам")
             }
         }
         """
@@ -577,6 +577,30 @@ class TestGraphQLParser(tb.ParserTest):
         r"""
         {
             fieldWithNullableStringInput(input: null)
+        }
+        """
+
+    @tb.must_fail(UnknownTokenError, line=3, col=49)
+    def test_graphql_parser_values19(self):
+        r"""
+        {
+            fieldWithNullableStringInput(input: .123)
+        }
+        """
+
+    @tb.must_fail(UnknownTokenError, line=3, col=49)
+    def test_graphql_parser_values20(self):
+        r"""
+        {
+            fieldWithNullableStringInput(input: 0123)
+        }
+        """
+
+    @tb.must_fail(UnknownTokenError, line=3, col=49)
+    def test_graphql_parser_values21(self):
+        r"""
+        {
+            fieldWithNullableStringInput(input: +123)
         }
         """
 

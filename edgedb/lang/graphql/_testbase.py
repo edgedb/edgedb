@@ -50,3 +50,27 @@ class ParserTest(BaseParserTest):
         expected_src = source
 
         self.assert_equal(expected_src, processed_src)
+
+
+class VarsValueTest(BaseParserTest):
+    parser_cls = parser.GraphQLParser
+
+    def get_parser(self):
+        return self.__class__.parser_cls()
+
+    def run_test(self, *, source, spec):
+        debug = bool(os.environ.get('DEBUG_GRAPHQL'))
+        if debug:
+            markup.dump_code(source, lexer='graphql')
+
+        p = self.get_parser()
+
+        esast = p.parse(source)
+
+        if debug:
+            markup.dump(esast)
+
+        for var in esast.definitions[0].variables:
+            asttype, val = spec[var.name]
+            self.assertIsInstance(var.value, asttype)
+            self.assertEqual(var.value.value, val)

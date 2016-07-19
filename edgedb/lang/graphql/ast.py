@@ -33,20 +33,17 @@ class LiteralNode(Base):
 
 
 class StringLiteral(LiteralNode):
-    def toascii(self):
-        # convert the string to bytes
-        #
-        value = self.value.encode('ascii', errors='backslashreplace')
+    def tosource(self):
+        value = self.value
         # generic substitutions for '\b' and '\f'
         #
-        value = value.replace(b'\b', b'\\b').replace(b'\f', b'\\f')
+        value = value.replace('\b', '\\b').replace('\f', '\\f')
         value = repr(value)
         # escape \b \f \u1234 and \/ correctly
         #
         value = re.sub(r'\\\\([fb])', r'\\\1', value)
         value = re.sub(r'\\\\(u[0-9a-fA-F]{4})', r'\\\1', value)
         value = value.replace('/', '\/')
-        value = value[1:]  # remove leading 'b' from repr
 
         if value[0] == "'":
             # need to change quotation style

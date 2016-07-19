@@ -132,7 +132,7 @@ class GraphQLSourceGenerator(codegen.SourceGenerator):
         self._visit_arguments(node)
 
     def visit_StringLiteral(self, node):
-        self.write(node.toascii())
+        self.write(node.tosource())
 
     def visit_IntegerLiteral(self, node):
         self.write(str(node.value))
