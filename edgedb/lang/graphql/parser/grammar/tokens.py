@@ -43,10 +43,6 @@ class T_NL(Token):
     pass
 
 
-class T_UBOM(Token):
-    pass
-
-
 class T_COMMA(Token):
     pass
 
