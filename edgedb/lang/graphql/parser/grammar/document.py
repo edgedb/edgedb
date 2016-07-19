@@ -8,7 +8,8 @@
 
 from edgedb.lang.common import parsing
 from edgedb.lang.graphql import ast as gqlast
-from edgedb.lang.graphql.parser.errors import GraphQLParserError
+from edgedb.lang.graphql.parser.errors import (GraphQLParserError,
+                                               GraphQLUniquenessError)
 
 from .tokens import *
 from . import keywords
@@ -45,9 +46,8 @@ def get_context(*kids):
 
 def check_const(expr):
     if isinstance(expr, gqlast.Variable):
-        raise GraphQLParserError(
-            'unexpected variable, must be a constant value',
-            context=expr.context)
+        raise GraphQLParserError.from_parsed(
+            'unexpected variable, must be a constant value', expr)
     elif isinstance(expr, gqlast.ListLiteral):
         for val in expr.value:
             check_const(val)
@@ -121,8 +121,8 @@ class BaseValue(Nonterm):
 
     def reduce_NameNotBoolTok(self, kid):
         if kid.val.val == 'null':
-            raise GraphQLParserError("'null' not allowed as value",
-                                     context=get_context(kid))
+            raise GraphQLParserError.from_parsed(
+                "'null' not allowed as value", kid.val)
         self.val = gqlast.EnumLiteral(value=kid.val.val,
                                       context=get_context(kid))
 
@@ -187,24 +187,34 @@ class Document(Nonterm):
 
     def reduce_Definitions(self, kid):
         short = None
-        frags = 0
+        fragnames = set()
+        opnames = set()
         for defn in kid.val:
-            if (short is None and
-                    isinstance(defn, gqlast.OperationDefinition) and
-                    defn.type is None and
-                    defn.name is None and
-                    not defn.variables and
-                    not defn.directives):
-                short = defn
-            elif isinstance(defn, gqlast.FragmentDefinition):
-                frags += 1
+            if isinstance(defn, gqlast.OperationDefinition):
+                if defn.name is not None:
+                    if defn.name not in opnames:
+                        opnames.add(defn.name)
+                    else:
+                        raise GraphQLUniquenessError.from_ast(defn,
+                                                              'operation')
 
-        if short is not None and len(kid.val) - frags > 1:
+                elif (short is None and
+                        defn.type is None and
+                        not defn.variables and
+                        not defn.directives):
+                    short = defn
+            elif isinstance(defn, gqlast.FragmentDefinition):
+                if defn.name not in fragnames:
+                    fragnames.add(defn.name)
+                else:
+                    raise GraphQLUniquenessError.from_ast(defn, 'fragment')
+
+        if short is not None and len(kid.val) - len(fragnames) > 1:
             # we have more than one query definition, so short form is not
             # allowed
             #
-            raise GraphQLParserError('short form is not allowed here',
-                                     context=short.context)
+            raise GraphQLParserError.from_parsed(
+                'short form is not allowed here', short)
 
         self.val = gqlast.Document(definitions=kid.val,
                                    context=get_context(kid))
@@ -332,6 +342,14 @@ class OptArgs(Nonterm):
 class Arguments(Nonterm):
     def reduce_LPAREN_ArgumentList_RPAREN(self, *kids):
         self.val = kids[1].val
+        # validate argument name uniqueness
+        #
+        argnames = set()
+        for arg in self.val:
+            if arg.name not in argnames:
+                argnames.add(arg.name)
+            else:
+                raise GraphQLUniquenessError.from_ast(arg)
 
 
 class Argument(Nonterm):
@@ -387,6 +405,14 @@ class OptVariables(Nonterm):
 class Variables(Nonterm):
     def reduce_LPAREN_VariableList_RPAREN(self, *kids):
         self.val = kids[1].val
+        # validate argument name uniqueness
+        #
+        variables = set()
+        for var in self.val:
+            if var.name not in variables:
+                variables.add(var.name)
+            else:
+                raise GraphQLUniquenessError.from_ast(var)
 
 
 class Variable(Nonterm):

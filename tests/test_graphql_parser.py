@@ -7,7 +7,8 @@
 
 
 from edgedb.lang.graphql import _testbase as tb
-from edgedb.lang.graphql.parser.errors import GraphQLParserError
+from edgedb.lang.graphql.parser.errors import (GraphQLParserError,
+                                               GraphQLUniquenessError)
 from edgedb.lang.common.lexer import UnknownTokenError
 
 
@@ -336,6 +337,13 @@ class TestGraphQLParser(tb.ParserTest):
         notanoperation Foo { field }
         """
 
+    @tb.must_fail(GraphQLUniquenessError, line=3, col=9)
+    def test_graphql_parser_query09(self):
+        """
+        query myQuery { id }
+        query myQuery { id }
+        """
+
     def test_graphql_parser_mutation01(self):
         """
         mutation {
@@ -369,12 +377,26 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
+    @tb.must_fail(GraphQLUniquenessError, line=3, col=9)
+    def test_graphql_parser_mutation04(self):
+        """
+        mutation myQuery { id }
+        query myQuery { id }
+        """
+
     def test_graphql_parser_subscription01(self):
         """
         subscription {
             id
             name
         }
+        """
+
+    @tb.must_fail(GraphQLUniquenessError, line=3, col=9)
+    def test_graphql_parser_subscription02(self):
+        """
+        mutation myQuery { id }
+        subscription myQuery { id }
         """
 
     def test_graphql_parser_values01(self):
@@ -773,6 +795,34 @@ class TestGraphQLParser(tb.ParserTest):
     def test_graphql_parser_names14(self):
         r"""
         { ... on }
+        """
+
+    @tb.must_fail(GraphQLUniquenessError, line=2, col=32)
+    def test_graphql_parser_names15(self):
+        r"""
+        query myQuery($x: Int, $x: Int) { id }
+        """
+
+    @tb.must_fail(GraphQLUniquenessError, line=2, col=32)
+    def test_graphql_parser_names16(self):
+        r"""
+        query myQuery($x: Int, $x: Float) { id }
+        """
+
+    @tb.must_fail(GraphQLUniquenessError, line=3, col=23)
+    def test_graphql_parser_names17(self):
+        r"""
+        {
+            foo(x: 1, x: 2)
+        }
+        """
+
+    @tb.must_fail(GraphQLUniquenessError, line=3, col=23)
+    def test_graphql_parser_names18(self):
+        r"""
+        {
+            foo(x: 1, x: "one")
+        }
         """
 
     def test_graphql_parser_comments01(self):
