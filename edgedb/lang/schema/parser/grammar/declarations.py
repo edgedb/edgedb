@@ -15,14 +15,14 @@ from edgedb.lang.schema import ast as esast
 from .tokens import *
 
 
-edgeqlParser = CaosQLExpressionParser()
+edgeql_parser = CaosQLExpressionParser()
 
 
 def parseEdgeQL(expression):
     ctx = expression.context
 
     try:
-        return edgeqlParser.parse(expression.value)
+        return edgeql_parser.parse(expression.value)
     except parsing.ParserError as err:
         err_ctx = _get_context(err, parsing.ParserContext)
 
