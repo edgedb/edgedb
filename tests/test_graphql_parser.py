@@ -180,27 +180,6 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_spread01(self):
-        """
-        {
-            ...someFields
-        }
-        """
-
-    def test_graphql_parser_spread02(self):
-        """
-        {
-            ...someFields @skip(if: true)
-        }
-        """
-
-    def test_graphql_parser_spread03(self):
-        """
-        {
-            ...someFields @skip(if: true), @include(if: false)
-        }
-        """
-
     def test_graphql_parser_inline_fragment01(self):
         """
         {
@@ -253,6 +232,8 @@ class TestGraphQLParser(tb.ParserTest):
             name
             profilePic(size: 50)
         }
+
+        { ... friendFields }
         """
 
     def test_graphql_parser_fragment02(self):
@@ -262,13 +243,80 @@ class TestGraphQLParser(tb.ParserTest):
             name
             profilePic(size: 50)
         }
+
+        { ... friendFields }
+        """
+
+    def test_graphql_parser_fragment03(self):
+        """
+        fragment someFields on User { id }
+
+        {
+            ...someFields @skip(if: true)
+        }
+        """
+
+    def test_graphql_parser_fragment04(self):
+        """
+        fragment someFields on User { id }
+
+        {
+            ...someFields @skip(if: true), @include(if: false)
+        }
         """
 
     @tb.must_fail(GraphQLParserError, line=3, col=28)
-    def test_graphql_parser_fragment03(self):
+    def test_graphql_parser_fragment05(self):
         """
         { ...MissingOn }
-        fragment MissingOn Type
+        fragment MissingOn Type {name}
+        """
+
+    @tb.must_fail(GraphQLParserError, line=2, col=9)
+    def test_graphql_parser_fragment06(self):
+        """
+        {...Missing}
+        """
+
+    @tb.must_fail(GraphQLParserError, line=2, col=9)
+    def test_graphql_parser_fragment07(self):
+        """
+        fragment Missing on Type {name}
+        """
+
+    @tb.must_fail(GraphQLParserError, line=2, col=9)
+    def test_graphql_parser_fragment08(self):
+        """
+        fragment cyclceFrag on Type {
+            ...cyclceFrag
+        }
+
+        {... cyclceFrag}
+        """
+
+    @tb.must_fail(GraphQLParserError, line=2, col=9)
+    def test_graphql_parser_fragment09(self):
+        """
+        fragment cyclceFrag on Type {
+            ...otherFrag
+        }
+
+        fragment otherFrag on Type {
+            ...cyclceFrag
+        }
+
+        {... cyclceFrag}
+        """
+
+    @tb.must_fail(GraphQLParserError, line=2, col=9)
+    def test_graphql_parser_fragment10(self):
+        """
+        fragment A on Type {...B}
+        fragment B on Type {...C}
+        fragment C on Type {...D}
+        fragment D on Type {...A}
+
+        {... C}
         """
 
     def test_graphql_parser_query01(self):
@@ -574,7 +622,7 @@ class TestGraphQLParser(tb.ParserTest):
 
     def test_graphql_parser_values15(self):
         r"""
-        {
+        query myQuery($var: Int) {
             field(complex: { a: { b: [ $var ] } })
         }
         """
@@ -623,6 +671,96 @@ class TestGraphQLParser(tb.ParserTest):
         r"""
         {
             fieldWithNullableStringInput(input: +123)
+        }
+        """
+
+    @tb.must_fail(GraphQLParserError, line=2, col=9)
+    def test_graphql_parser_scope01(self):
+        r"""
+        {
+            fieldWithNullableStringInput(input: $var)
+        }
+        """
+
+    def test_graphql_parser_scope02(self):
+        r"""
+        fragment goodVar on User {name(first: $var)}
+
+        query ($var: String) {
+            fieldWithNullableStringInput(input: $var)
+            ... goodVar
+        }
+        """
+
+    @tb.must_fail(GraphQLParserError, line=5, col=9)
+    def test_graphql_parser_scope03(self):
+        r"""
+        fragment goodVar on User {name(first: $var)}
+        fragment badVar on User {name(first: $bad)}
+
+        query ($var: String) {
+            fieldWithNullableStringInput(input: $var)
+            ... goodVar
+            ... badVar
+        }
+        """
+
+    @tb.must_fail(GraphQLParserError, line=12, col=9)
+    def test_graphql_parser_scope04(self):
+        r"""
+        fragment goodVar on User {
+            name(first: $var)
+            ... midVar
+        }
+        fragment midVar on User {
+            id
+            ... badVar
+        }
+        fragment badVar on User {description(first: $bad)}
+
+        query ($var: String) {
+            fieldWithNullableStringInput(input: $var)
+            ... goodVar
+        }
+        """
+
+    def test_graphql_parser_scope05(self):
+        r"""
+        fragment goodVar on User {
+            name(first: $var)
+            ... midVar
+        }
+        fragment midVar on User {
+            id
+            ... badVar
+        }
+        fragment badVar on User {description(first: $bad)}
+
+        query ($var: String, $bad: String) {
+            fieldWithNullableStringInput(input: $var)
+            ... goodVar
+        }
+        """
+
+    @tb.must_fail(GraphQLParserError, line=16, col=9)
+    def test_graphql_parser_scope06(self):
+        r"""
+        fragment goodVar on User {
+            name(first: $var)
+            ... midVar
+        }
+        fragment midVar on User {
+            id
+            ... badVar
+        }
+        fragment badVar on User {description(first: $bad)}
+
+        query ($var: String, $bad: String) {
+            fieldWithNullableStringInput(input: $var)
+            ... goodVar
+        }
+        query badQuery {
+            ... midVar
         }
         """
 
@@ -714,6 +852,17 @@ class TestGraphQLParser(tb.ParserTest):
         fragment name_true on true {id}
         fragment name_false on false {id}
         fragment name_null on null {id}
+
+        {
+            ... name_on
+            ... name_fragment
+            ... name_query
+            ... name_mutation
+            ... name_subscription
+            ... name_true
+            ... name_false
+            ... name_null
+        }
         """
 
     def test_graphql_parser_names07(self):
@@ -725,6 +874,16 @@ class TestGraphQLParser(tb.ParserTest):
         fragment true on trueFoo {id}
         fragment false on falseFoo {id}
         fragment null on nullFoo {id}
+
+        {
+            ... fragment
+            ... query
+            ... mutation
+            ... subscription
+            ... true
+            ... false
+            ... null
+        }
         """
 
     def test_graphql_parser_names08(self):
@@ -741,12 +900,21 @@ class TestGraphQLParser(tb.ParserTest):
 
     def test_graphql_parser_names09(self):
         r"""
-        query { ... not_on on on {id} }
-        query { ... fragment on fragmentFoo {id} }
-        query { ... query on queryFoo {id} }
-        query { ... mutation on mutationFoo {id} }
-        query { ... subscription on subscriptionFoo {id} }
-        query { ... true on trueFoo {id} }
+        # fragment not_on on Foo {name}
+        # fragment fragment on Foo {name}
+        # fragment query on Foo {name}
+        # fragment mutation on Foo {name}
+        # fragment subscription on Foo {name}
+        # fragment true on Foo {name}
+        fragment false on Foo {name}
+        fragment null on Foo {name}
+
+        # query { ... not_on on on {id} }
+        # query { ... fragment on fragmentFoo {id} }
+        # query { ... query on queryFoo {id} }
+        # query { ... mutation on mutationFoo {id} }
+        # query { ... subscription on subscriptionFoo {id} }
+        # query { ... true on trueFoo {id} }
         query { ... false on falseFoo {id} }
         query { ... null on nullFoo {id} }
         """
@@ -769,6 +937,8 @@ class TestGraphQLParser(tb.ParserTest):
 
     def test_graphql_parser_names11(self):
         r"""
+        fragment someFragment on Foo {id}
+
         query { ...someFragment @on }
         query { ...someFragment @fragment }
         query { ...someFragment @query }
