@@ -264,7 +264,7 @@ class Cluster:
             SELECT True FROM pg_catalog.pg_database WHERE datname = $1
         ''')
 
-        return await st.get_value(edgedb_defines.EDGEDB_TEMPLATE_DB)
+        return await st.fetchval(edgedb_defines.EDGEDB_TEMPLATE_DB)
 
     def _test_connection(self, timeout=60):
         self._connection_addr = None

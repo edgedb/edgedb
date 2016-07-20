@@ -152,7 +152,7 @@ class CheckConstraint(TableConstraint):
     async def constraint_code(self, context):
         if isinstance(self.expr, base.Query):
             stmt = await context.db.prepare(self.expr.text)
-            expr = await stmt.get_value(*self.expr.params)
+            expr = await stmt.fetchval(*self.expr.params)
         else:
             expr = self.expr
 

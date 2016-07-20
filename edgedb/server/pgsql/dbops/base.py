@@ -61,7 +61,7 @@ class BaseCommand:
             repr(self)
             """
             stmt = await context.db.prepare(code)
-            result = await stmt.get_list(*vars)
+            result = await stmt.fetch(*vars)
 
             if extra_after:
                 for cmd in extra_after:
@@ -145,7 +145,7 @@ class Command(BaseCommand):
         if vars is None:
             vars = []
 
-        result = await stmt.get_list(*vars)
+        result = await stmt.fetch(*vars)
         return result
 
     @debug
@@ -292,7 +292,7 @@ class Condition(BaseCommand):
         """
 
         stmt = await context.db.prepare(code)
-        return await stmt.get_list(*vars)
+        return await stmt.fetch(*vars)
 
 
 class Echo(Command):

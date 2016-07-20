@@ -42,4 +42,4 @@ class Sql(Datasource):
         query = self.descriptor['source']
         query, plist = self._convert_query(query, params)
         ps = await self.connection.prepare(query)
-        return await ps.get_list(*plist)
+        return await ps.fetch(*plist)

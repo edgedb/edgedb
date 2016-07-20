@@ -21,7 +21,7 @@ async def execute_plan(plan, backend):
     elif isinstance(plan, edgedb_query.Query):
         try:
             ps = await backend.connection.prepare(plan.text)
-            return [dict(r.items()) for r in await ps.get_list()]
+            return [dict(r.items()) for r in await ps.fetch()]
 
         except asyncpg.PostgresError as e:
             _error = _translate_pg_error(plan, backend, e)
