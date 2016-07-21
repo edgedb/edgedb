@@ -62,7 +62,7 @@ class Spec(Base):
     __fields = [
         ('required', bool, False),
         'name',
-        'type',
+        'target',
         ('attributes', list, list),
         ('constraints', list, list),
         # only links will actually allow policies
@@ -73,7 +73,7 @@ class Spec(Base):
         if base is not None:
             kwargs['required'] = kwargs.get('required', base.required)
             kwargs['name'] = kwargs.get('name', base.name)
-            kwargs['type'] = kwargs.get('type', base.type)
+            kwargs['target'] = kwargs.get('target', base.target)
             kwargs['attributes'] = kwargs.get('attributes', base.attributes)
             kwargs['constraints'] = kwargs.get('constraints', base.constraints)
             kwargs['policies'] = kwargs.get('policies', base.policies)
@@ -153,7 +153,7 @@ class AtomDeclaration(Declaration):
 
 
 class AttributeDeclaration(Declaration):
-    __fields = ['type']
+    __fields = ['target']
 
 
 class ConceptDeclaration(Declaration):

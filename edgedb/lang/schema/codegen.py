@@ -86,16 +86,16 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         self.write(node.__class__.__name__.lower() + ' ')
         self.visit(node.name)
 
-        if isinstance(node.type, eqlast.Base):
+        if isinstance(node.target, eqlast.Base):
             self.write(':=')
             self.new_lines = 1
             self.indentation += 1
-            self.visit(node.type)
+            self.visit(node.target)
             self.indentation -= 1
             self.new_lines = 2
-        elif node.type:
+        elif node.target:
             self.write(' -> ')
-            self.visit(node.type)
+            self.visit(node.target)
             self._visit_specs(node)
         else:
             self._visit_specs(node)
@@ -151,6 +151,7 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
             self.visit_Attribute(node)
         else:
             self.visit(node.name)
+            self.new_lines = 2
 
     def visit_Attribute(self, node):
         self.visit(node.name)

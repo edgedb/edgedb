@@ -232,19 +232,19 @@ class AttributeDeclaration(Nonterm):
     def reduce_ATTRIBUTE_NameAndExtends_DeclarationSpecsBlob(
             self, *kids):
         attributes = []
-        attr_type = None
+        attr_target = None
 
         for spec in kids[2].val:
             if isinstance(spec, esast.Attribute):
-                if spec.name == 'type':
-                    attr_type = spec.value
+                if spec.name == 'target':
+                    attr_target = spec.value
                 else:
                     attributes.append(spec)
             else:
                 raise Exception('parse error')
 
         self.val = esast.AttributeDeclaration(kids[1].val,
-                                              type=attr_type,
+                                              target=attr_target,
                                               attributes=attributes,
                                               context=get_context(*kids))
 
@@ -431,7 +431,7 @@ class LinkProperty(Nonterm):
 
 class Spec(Nonterm):
     def reduce_ObjectName_NL(self, *kids):
-        self.val = esast.Spec(name=kids[0].val, type=None,
+        self.val = esast.Spec(name=kids[0].val, target=None,
                               context=get_context(*kids))
 
     def reduce_ObjectName_DeclarationSpecsBlob(self, *kids):
@@ -439,7 +439,7 @@ class Spec(Nonterm):
                                 context=get_context(*kids))
 
     def reduce_ObjectName_ARROW_ObjectName_NL(self, *kids):
-        self.val = esast.Spec(name=kids[0].val, type=kids[2].val,
+        self.val = esast.Spec(name=kids[0].val, target=kids[2].val,
                               context=get_context(*kids))
 
     def reduce_ObjectName_ARROW_ObjectName_DeclarationSpecsBlob(
@@ -450,16 +450,16 @@ class Spec(Nonterm):
     def reduce_ObjectName_TURNSTILE_RawString_NL(self, *kids):
         self.val = esast.Spec(
             name=kids[0].val,
-            type=parseEdgeQL(kids[2].val),
+            target=parseEdgeQL(kids[2].val),
             context=get_context(*kids))
 
     def reduce_ObjectName_TURNSTILE_NL_INDENT_RawString_NL_DEDENT(self, *kids):
         self.val = esast.Spec(
             name=kids[0].val,
-            type=parseEdgeQL(kids[4].val),
+            target=parseEdgeQL(kids[4].val),
             context=get_context(*kids))
 
-    def _processdecl_specs(self, name, type, specs, context):
+    def _processdecl_specs(self, name, target, specs, context):
         constraints = []
         attributes = []
         policies = []
@@ -474,7 +474,7 @@ class Spec(Nonterm):
             else:
                 raise Exception('parse error')
 
-        self.val = esast.Spec(name=name.val, type=type.val,
+        self.val = esast.Spec(name=name.val, target=target.val,
                               attributes=attributes,
                               constraints=constraints,
                               policies=policies,
