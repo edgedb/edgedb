@@ -27,21 +27,12 @@ STATE_WS_INSENSITIVE = 2
 STATE_RAW_STRING = 3
 
 
-re_alpha = r'[^\W\d_]'
 re_decdigit = r"[0-9]"
 re_decdigit_ = r"[0-9_]"
-re_decdigitnonzero = r"[1-9]"
-re_hexdigit = r"[0-9a-fA-F]"
-re_hexdigit_ = r"[0-9a-fA-F_]"
-
-re_intpart1 = r"(?:{dec1}{dec_}*{dec}|{dec1}|0)".format(
-    dec1=re_decdigitnonzero, dec_=re_decdigit_, dec=re_decdigit)
-
 re_intpart = r"(?:{dec}(?:{dec_}*{dec})?)".format(dec_=re_decdigit_,
                                                   dec=re_decdigit)
 re_exppart = r"(?:[eE](?:[\+\-])?{int})".format(int=re_intpart)
-re_octdigit = r"[0-7]"
-re_octdigit_ = r"[0-7_]"
+re_dquote = r'\$([A-Za-z\200-\377_][0-9]*)*\$'
 
 
 Rule = lexer.Rule
@@ -122,6 +113,10 @@ class EdgeSchemaLexer(lexer.Lexer):
              next_state=STATE_KEEP,
              regexp=r'[1*][1*]'),
 
+        Rule(token='ICONST',
+             next_state=STATE_KEEP,
+             regexp=r'\d+(?![eE.0-9])'),
+
         Rule(token='FCONST',
              next_state=STATE_KEEP,
              regexp=r'''
@@ -139,10 +134,6 @@ class EdgeSchemaLexer(lexer.Lexer):
                     \.\d+)
              '''),
 
-        Rule(token='ICONST',
-             next_state=STATE_KEEP,
-             regexp=r'\d+'),
-
         Rule(token='DOT',
              next_state=STATE_KEEP,
              regexp=r'\.'),
@@ -150,14 +141,18 @@ class EdgeSchemaLexer(lexer.Lexer):
         Rule(token='STRING',
              next_state=STATE_KEEP,
              regexp=r'''
-                    (?:r)?(?P<Q>(\"|\'))
+                (?P<Q>
                     # capture the opening quote in group Q
-
-                        ((\\.)|[^\\\n])*?
-
-                    (?P=Q)             # match closing quote type
-                                       # with whatever is in Q
-                '''),
+                    (
+                        ' |
+                        {dollar_quote}
+                    )
+                )
+                (?:
+                    .*?
+                )
+                (?P=Q)      # match closing quote type with whatever is in Q
+             '''.format(dollar_quote=re_dquote)),
 
         Rule(token='IDENT',
              next_state=STATE_KEEP,

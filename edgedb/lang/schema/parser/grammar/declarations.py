@@ -82,14 +82,16 @@ class ObjectName(Nonterm):
 
 class Value(Nonterm):
     def reduce_ICONST(self, kid):
-        self.val = esast.IntegerLiteral(value=kid.val,
+        self.val = esast.IntegerLiteral(value=kid.normalized_value,
                                         context=get_context(kid))
 
     def reduce_FCONST(self, kid):
-        self.val = esast.FloatLiteral(value=kid.val, context=get_context(kid))
+        self.val = esast.FloatLiteral(value=kid.normalized_value,
+                                      context=get_context(kid))
 
     def reduce_STRING(self, kid):
-        self.val = esast.StringLiteral(value=kid.val, context=get_context(kid))
+        self.val = esast.StringLiteral(value=kid.normalized_value,
+                                       context=get_context(kid))
 
     def reduce_TRUE(self, kid):
         self.val = esast.BooleanLiteral(value=True, context=get_context(kid))

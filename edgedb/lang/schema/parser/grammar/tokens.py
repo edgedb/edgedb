@@ -6,6 +6,7 @@
 ##
 
 
+import ast
 import sys
 import types
 
@@ -95,15 +96,21 @@ class T_ARROW(Token):
 
 
 class T_ICONST(Token):
-    pass
+    @property
+    def normalized_value(self):
+        return int(self.val)
 
 
 class T_FCONST(Token):
-    pass
+    @property
+    def normalized_value(self):
+        return float(self.val)
 
 
 class T_STRING(Token):
-    pass
+    @property
+    def normalized_value(self):
+        return ast.literal_eval(self.val)
 
 
 class T_RAWSTRING(Token):

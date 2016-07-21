@@ -16,7 +16,7 @@ from edgedb.lang.schema.parser import parser
 
 
 class ParserTest(BaseParserTest):
-    re_filter = re.compile(r'[\s\'"()]+|(#.*?\n)')
+    re_filter = re.compile(r'[\s\'"()]+|(#.*?\n)|SELECT')
     parser_cls = parser.EdgeSchemaParser
 
     def get_parser(self, *, spec):

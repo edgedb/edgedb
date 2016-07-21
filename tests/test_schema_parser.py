@@ -117,51 +117,49 @@ atom issue_num_t extends int:
     def test_eschema_parser_atom03(self):
         """
 atom basic extends int:
-    title: "Basic Atom"
+    title: 'Basic Atom'
+    default: 2
     constraint min: 0
     constraint max: 123456
     constraint must_be_even
-    default: 2
         """
 
     def test_eschema_parser_atom04(self):
         """
 atom basic extends int:
 
-    title: "Basic Atom"
+    title: 'Basic Atom'
+    default: 2
 
     constraint min: 0
     constraint max: 123456
     constraint expr:= subject % 2 = 0
-
-    default: 2
         """
 
     def test_eschema_parser_atom05(self):
         """
 atom basic extends int:
 
-    title: "Basic Atom"
+    title: 'Basic Atom'
+    default: 2
 
-    constraint min: 0
-    constraint max: 123456
     constraint expr:=
         subject % 2 = 0
-
-    default: 2
+    constraint min: 0
+    constraint max: 123456
         """
 
     def test_eschema_parser_atom06(self):
         """
 atom basic extends int:
 
-    title: "Basic Atom"
+    title: 'Basic Atom'
+    default: 2
 
     constraint min: 0
     constraint max: 123456
     constraint expr:= subject % 2 = 0
 
-    default: 2
 
 atom inherits_default extends basic
 
@@ -210,7 +208,7 @@ constraint maxlength extends max, length:
     def test_eschema_parser_linkproperty01(self):
         """
 linkproperty foo:
-    title: "Sample property"
+    title: 'Sample property'
         """
 
     def test_eschema_parser_linkproperty02(self):
@@ -221,16 +219,16 @@ linkproperty bar extends foo
     def test_eschema_parser_linkproperty03(self):
         """
 linkproperty bar extends foo:
-    title: "Another property"
+    title: 'Another property'
         """
 
     def test_eschema_parser_linkproperty04(self):
         """
 linkproperty foo:
-    title: "Sample property"
+    title: 'Sample property'
 
 linkproperty bar extends foo:
-    title: "Another property"
+    title: 'Another property'
         """
 
     def test_eschema_parser_action01(self):
@@ -283,17 +281,17 @@ link coollink:
     def test_eschema_parser_link05(self):
         """
 linkproperty foo:
-    title: "Sample property"
+    title: 'Sample property'
 
 linkproperty bar extends foo:
-    title: "Another property"
+    title: 'Another property'
 
 link coollink:
     linkproperty foo -> int:
+        default: 2
         constraint min: 0
         constraint max: 123456
         constraint expr := subject % 2 = 0
-        default: 2
 
     linkproperty bar -> int
 
