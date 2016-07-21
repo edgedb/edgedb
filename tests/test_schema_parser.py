@@ -120,6 +120,7 @@ atom basic extends int:
     title: "Basic Atom"
     constraint min: 0
     constraint max: 123456
+    constraint must_be_even
     default: 2
         """
 

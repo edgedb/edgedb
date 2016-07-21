@@ -84,7 +84,7 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         if node.required:
             self.write('required ')
         self.write(node.__class__.__name__.lower() + ' ')
-        self.write(node.name)
+        self.visit(node.name)
 
         if isinstance(node.type, eqlast.Base):
             self.write(':=')
@@ -121,13 +121,11 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
     def visit_LinkPropertyDeclaration(self, node):
         self._visit_Declaration(node)
 
-    def visit_Identifier(self, node):
+    def visit_ObjectName(self, node):
+        if node.module:
+            self.write(node.module)
+            self.write('::')
         self.write(node.name)
-
-    def visit_DotExpression(self, node):
-        self.visit(node.left)
-        self.write('.')
-        self.visit(node.right)
 
     def visit_NamespaceExpression(self, node):
         self.visit(node.left)
@@ -149,10 +147,13 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
 
     def visit_Constraint(self, node):
         self.write('constraint ')
-        self.visit_Attribute(node)
+        if node.value is not None:
+            self.visit_Attribute(node)
+        else:
+            self.visit(node.name)
 
     def visit_Attribute(self, node):
-        self.write(node.name)
+        self.visit(node.name)
         if isinstance(node.value, eqlast.Base):
             self.write(':=')
             self.new_lines = 1

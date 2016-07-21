@@ -63,26 +63,24 @@ class Nonterm(parsing.Nonterm):
 
 class DotName(Nonterm):
     def reduce_IDENT(self, kid):
-        self.val = esast.Identifier(name=kid.val, context=get_context(kid))
+        self.val = esast.ObjectName(name=None, module=kid.val,
+                                    context=get_context(kid))
 
     def reduce_DotName_DOT_IDENT(self, *kids):
-        self.val = esast.DotExpression(
-            left=kids[0].val,
-            right=esast.Identifier(name=kids[2].val,
-                                   context=get_context(kids[2])),
-            context=get_context(*kids))
+        self.val = kids[0].val
+        self.val.module += '.' + kids[2].val
+        self.context = get_context(*kids)
 
 
-class QualName(Nonterm):
+class ObjectName(Nonterm):
     def reduce_IDENT(self, kid):
-        self.val = esast.Identifier(name=kid.val, context=get_context(kid))
+        self.val = esast.ObjectName(name=kid.val,
+                                    context=get_context(kid))
 
     def reduce_DotName_DOUBLECOLON_IDENT(self, *kids):
-        self.val = esast.NamespaceExpression(
-            left=kids[0].val,
-            right=esast.Identifier(name=kids[2].val,
-                                   context=get_context(kids[2])),
-            context=get_context(*kids))
+        self.val = kids[0].val
+        self.val.name = kids[2].val
+        self.context = get_context(*kids)
 
 
 class Value(Nonterm):
@@ -187,11 +185,11 @@ class ActionDeclaration(Nonterm):
         self.val = esast.ActionDeclaration(kids[1].val,
                                            context=get_context(*kids))
 
-    def reduce_ACTION_NameAndExtends_COLON_NL_INDENT_DeclarationSpecs_DEDENT(
+    def reduce_ACTION_NameAndExtends_DeclarationSpecsBlob(
             self, *kids):
         attributes = []
 
-        for spec in kids[5].val:
+        for spec in kids[2].val:
             if isinstance(spec, esast.Attribute):
                 attributes.append(spec)
             else:
@@ -207,12 +205,12 @@ class AtomDeclaration(Nonterm):
         self.val = esast.AtomDeclaration(kids[1].val,
                                          context=get_context(*kids))
 
-    def reduce_ATOM_NameAndExtends_COLON_NL_INDENT_DeclarationSpecs_DEDENT(
+    def reduce_ATOM_NameAndExtends_DeclarationSpecsBlob(
             self, *kids):
         constraints = []
         attributes = []
 
-        for spec in kids[5].val:
+        for spec in kids[2].val:
             if isinstance(spec, esast.Attribute):
                 attributes.append(spec)
             elif isinstance(spec, esast.Constraint):
@@ -231,12 +229,12 @@ class AttributeDeclaration(Nonterm):
         self.val = esast.AttributeDeclaration(kids[1].val,
                                               context=get_context(*kids))
 
-    def reduce_ATTRIBUTE_NameAndExtends_COLON_NL_INDENT_DeclarationSpecs_DEDENT(
+    def reduce_ATTRIBUTE_NameAndExtends_DeclarationSpecsBlob(
             self, *kids):
         attributes = []
         attr_type = None
 
-        for spec in kids[5].val:
+        for spec in kids[2].val:
             if isinstance(spec, esast.Attribute):
                 if spec.name == 'type':
                     attr_type = spec.value
@@ -256,13 +254,13 @@ class ConceptDeclaration(Nonterm):
         self.val = esast.ConceptDeclaration(kids[1].val,
                                             context=get_context(*kids))
 
-    def reduce_CONCEPT_NameAndExtends_COLON_NL_INDENT_DeclarationSpecs_DEDENT(
+    def reduce_CONCEPT_NameAndExtends_DeclarationSpecsBlob(
             self, *kids):
         constraints = []
         links = []
         attributes = []
 
-        for spec in kids[5].val:
+        for spec in kids[2].val:
             if isinstance(spec, esast.Attribute):
                 attributes.append(spec)
             elif isinstance(spec, esast.Constraint):
@@ -284,11 +282,11 @@ class ConstraintDeclaration(Nonterm):
         self.val = esast.ConstraintDeclaration(kids[1].val,
                                                context=get_context(*kids))
 
-    def reduce_CONSTRAINT_NameAndExtends_COLON_NL_INDENT_DeclarationSpecs_DEDENT(
+    def reduce_CONSTRAINT_NameAndExtends_DeclarationSpecsBlob(
             self, *kids):
         attributes = []
 
-        for spec in kids[5].val:
+        for spec in kids[2].val:
             if isinstance(spec, esast.Attribute):
                 attributes.append(spec)
             else:
@@ -304,14 +302,14 @@ class LinkDeclaration(Nonterm):
         self.val = esast.LinkDeclaration(kids[1].val,
                                          context=get_context(*kids))
 
-    def reduce_LINK_NameAndExtends_COLON_NL_INDENT_DeclarationSpecs_DEDENT(
+    def reduce_LINK_NameAndExtends_DeclarationSpecsBlob(
             self, *kids):
         constraints = []
         properties = []
         policies = []
         attributes = []
 
-        for spec in kids[5].val:
+        for spec in kids[2].val:
             if isinstance(spec, esast.Attribute):
                 attributes.append(spec)
             elif isinstance(spec, esast.Constraint):
@@ -336,11 +334,11 @@ class LinkPropertyDeclaration(Nonterm):
         self.val = esast.LinkPropertyDeclaration(kids[1].val,
                                                  context=get_context(*kids))
 
-    def reduce_LINKPROPERTY_NameAndExtends_COLON_NL_INDENT_DeclarationSpecs_DEDENT(
+    def reduce_LINKPROPERTY_NameAndExtends_DeclarationSpecsBlob(
             self, *kids):
         attributes = []
 
-        for spec in kids[5].val:
+        for spec in kids[2].val:
             if isinstance(spec, esast.Attribute):
                 attributes.append(spec)
             else:
@@ -356,11 +354,11 @@ class EventDeclaration(Nonterm):
         self.val = esast.EventDeclaration(kids[1].val,
                                           context=get_context(*kids))
 
-    def reduce_EVENT_NameAndExtends_COLON_NL_INDENT_DeclarationSpecs_DEDENT(
+    def reduce_EVENT_NameAndExtends_DeclarationSpecsBlob(
             self, *kids):
         attributes = []
 
-        for spec in kids[5].val:
+        for spec in kids[2].val:
             if isinstance(spec, esast.Attribute):
                 attributes.append(spec)
             else:
@@ -379,7 +377,7 @@ class NameAndExtends(Nonterm):
         self.val = esast.Declaration(name=kid.val, context=get_context(kid))
 
 
-class ExtendsList(parsing.ListNonterm, element=QualName, separator=T_COMMA):
+class ExtendsList(parsing.ListNonterm, element=ObjectName, separator=T_COMMA):
     pass
 
 
@@ -414,6 +412,11 @@ class DeclarationSpecBase(Nonterm):
         self.val = kid.val
 
 
+class DeclarationSpecsBlob(Nonterm):
+    def reduce_COLON_NL_INDENT_DeclarationSpecs_DEDENT(self, *kids):
+        self.val = kids[3].val
+
+
 class Link(Nonterm):
     def reduce_LINK_Spec(self, *kids):
         self.val = esast.Link(kids[1].val, context=get_context(*kids))
@@ -427,30 +430,30 @@ class LinkProperty(Nonterm):
 
 
 class Spec(Nonterm):
-    def reduce_IDENT_NL(self, *kids):
+    def reduce_ObjectName_NL(self, *kids):
         self.val = esast.Spec(name=kids[0].val, type=None,
                               context=get_context(*kids))
 
-    def reduce_IDENT_COLON_NL_INDENT_DeclarationSpecs_DEDENT(self, *kids):
-        self._processdecl_specs(kids[0], None, kids[4],
+    def reduce_ObjectName_DeclarationSpecsBlob(self, *kids):
+        self._processdecl_specs(kids[0], None, kids[1],
                                 context=get_context(*kids))
 
-    def reduce_IDENT_ARROW_QualName_NL(self, *kids):
+    def reduce_ObjectName_ARROW_ObjectName_NL(self, *kids):
         self.val = esast.Spec(name=kids[0].val, type=kids[2].val,
                               context=get_context(*kids))
 
-    def reduce_IDENT_ARROW_QualName_COLON_NL_INDENT_DeclarationSpecs_DEDENT(
+    def reduce_ObjectName_ARROW_ObjectName_DeclarationSpecsBlob(
             self, *kids):
-        self._processdecl_specs(kids[0], kids[2], kids[6],
+        self._processdecl_specs(kids[0], kids[2], kids[3],
                                 context=get_context(*kids))
 
-    def reduce_IDENT_TURNSTILE_RawString_NL(self, *kids):
+    def reduce_ObjectName_TURNSTILE_RawString_NL(self, *kids):
         self.val = esast.Spec(
             name=kids[0].val,
             type=parseEdgeQL(kids[2].val),
             context=get_context(*kids))
 
-    def reduce_IDENT_TURNSTILE_NL_INDENT_RawString_NL_DEDENT(self, *kids):
+    def reduce_ObjectName_TURNSTILE_NL_INDENT_RawString_NL_DEDENT(self, *kids):
         self.val = esast.Spec(
             name=kids[0].val,
             type=parseEdgeQL(kids[4].val),
@@ -479,32 +482,36 @@ class Spec(Nonterm):
 
 
 class Policy(Nonterm):
-    def reduce_ON_QualName_QualName_NL(self, *kids):
+    def reduce_ON_ObjectName_ObjectName_NL(self, *kids):
         self.val = esast.Policy(event=kids[1].val, action=kids[2].val,
                                 context=get_context(*kids))
 
 
 class Constraint(Nonterm):
+    def reduce_CONSTRAINT_ObjectName_NL(self, *kids):
+        self.val = esast.Constraint(name=kids[1].val,
+                                    context=get_context(*kids))
+
     def reduce_CONSTRAINT_Attribute(self, *kids):
         self.val = esast.Constraint(kids[1].val, context=get_context(*kids))
 
 
 class Attribute(Nonterm):
-    def reduce_IDENT_COLON_Value_NL(self, *kids):
+    def reduce_ObjectName_COLON_Value_NL(self, *kids):
         self.val = esast.Attribute(name=kids[0].val, value=kids[2].val,
                                    context=get_context(*kids))
 
-    def reduce_IDENT_COLON_NL_INDENT_Value_NL_DEDENT(self, *kids):
+    def reduce_ObjectName_COLON_NL_INDENT_Value_NL_DEDENT(self, *kids):
         self.val = esast.Attribute(name=kids[0].val, value=kids[4].val,
                                    context=get_context(*kids))
 
-    def reduce_IDENT_TURNSTILE_RawString_NL(self, *kids):
+    def reduce_ObjectName_TURNSTILE_RawString_NL(self, *kids):
         self.val = esast.Attribute(
             name=kids[0].val,
             value=parseEdgeQL(kids[2].val),
             context=get_context(*kids))
 
-    def reduce_IDENT_TURNSTILE_NL_INDENT_RawString_NL_DEDENT(self, *kids):
+    def reduce_ObjectName_TURNSTILE_NL_INDENT_RawString_NL_DEDENT(self, *kids):
         self.val = esast.Attribute(
             name=kids[0].val,
             value=parseEdgeQL(kids[4].val),

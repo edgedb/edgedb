@@ -61,7 +61,7 @@ class Declaration(Base):
 class Spec(Base):
     __fields = [
         ('required', bool, False),
-        ('name', str),
+        'name',
         'type',
         ('attributes', list, list),
         ('constraints', list, list),
@@ -112,15 +112,11 @@ class BooleanLiteral(LiteralNode):
     pass
 
 
-class Identifier(Base):
-    __fields = ['name']
+class ObjectName(Base):
+    __fields = ['name', ('module', str, None)]
 
     def _extra_repr(self):
         return ' {!r}'.format(self.name)
-
-
-class DotExpression(QualName):
-    __fields = ['left', 'right']
 
 
 class NamespaceExpression(QualName):
