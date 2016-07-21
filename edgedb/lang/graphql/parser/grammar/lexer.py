@@ -28,7 +28,7 @@ class GraphQLLexer(lexer.Lexer):
     start_state = STATE_BASE
 
     NL = 'NL'
-    RE_FLAGS = re.X | re.M | re.I
+    RE_FLAGS = re.X | re.M
 
     # Basic keywords
     keyword_rules = [Rule(token=tok[0],
