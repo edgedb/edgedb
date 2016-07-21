@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2014 MagicStack Inc.
+# Copyright (c) 2014, 2016 MagicStack Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -20,17 +20,19 @@ STATE_KEEP = 0
 STATE_BASE = 1
 
 
-re_exppart          = r"(?:[eE](?:[+\-])?[0-9]+)"
-re_self             = r'[,()\[\].@;:+\-*/%^<>=]'
-re_opchars          = r'[~!\#&|`?+\-*/^<>=]'
-re_opchars_caosql   = r'[~!\#&|`?]'
-re_opchars_sql      = r'[+\-*/^<>=]'
-re_ident_start      = r"[A-Za-z\200-\377_%]"
-re_ident_cont       = r"[A-Za-z\200-\377_0-9\$%]"
-re_caosql_special   = r'[\{\}$]'
+re_exppart = r"(?:[eE](?:[+\-])?[0-9]+)"
+re_self = r'[,()\[\].@;:+\-*/%^<>=]'
+re_opchars = r'[~!\#&|`?+\-*/^<>=]'
+re_opchars_caosql = r'[~!\#&|`?]'
+re_opchars_sql = r'[+\-*/^<>=]'
+re_ident_start = r"[A-Za-z\200-\377_%]"
+re_ident_cont = r"[A-Za-z\200-\377_0-9\$%]"
+re_caosql_special = r'[\{\}$]'
+re_dquote = r'\$([A-Za-z\200-\377_][0-9]*)*\$'
 
 
 clean_string = re.compile(r"'(?:\s|\n)+'")
+string_quote = re.compile(re_dquote)
 
 Rule = lexer.Rule
 
@@ -47,7 +49,7 @@ class CaosQLLexer(lexer.Lexer):
     keyword_rules = [Rule(token=tok[0],
                           next_state=STATE_KEEP,
                           regexp=lexer.group(val))
-                                 for val, tok in caosql_keywords.items()]
+                     for val, tok in caosql_keywords.items()]
 
     common_rules = keyword_rules + [
         Rule(token='WS',
@@ -142,12 +144,23 @@ class CaosQLLexer(lexer.Lexer):
         Rule(token='SCONST',
              next_state=STATE_KEEP,
              regexp=r'''
-                '(?:
-                    [^']
-                    |
-                    ' (?:\s|\n)* '
-                )*'
-             '''),
+                (?P<Q>
+                    # capture the opening quote in group Q
+                    (
+                        ' |
+                        {dollar_quote}
+                    )
+                )
+                (?:
+                    .*?
+                )
+                (?P=Q)      # match closing quote type with whatever is in Q
+
+                (
+                    (?:\s|\n)*  # whitespace in between strings
+                    (?P=Q).*?(?P=Q)
+                )*
+             '''.format(dollar_quote=re_dquote)),
 
         # quoted identifier
         Rule(token='QIDENT',
@@ -189,7 +202,21 @@ class CaosQLLexer(lexer.Lexer):
             tok.value = txt[:-1].split('"', 1)[1]
 
         elif rule_token == 'SCONST':
-            tok.value = clean_string.sub('', txt[1:-1].replace("''", "'"))
+            # the process of string normalization is slightly different for
+            # regular '-quoted strings and $$-quoted ones
+            #
+            if txt[0] == "'":
+                tok.value = clean_string.sub('', txt[1:-1].replace("''", "'"))
+            else:
+                # Because of implicit string concatenation there may
+                # be more than one pair of dollar quotes in the txt.
+                # We want to grab every other chunk from splitting the
+                # txt with the quote.
+                #
+                quote = string_quote.match(txt).group(0)
+                tok.value = ''.join((
+                    part for n, part in enumerate(txt.split(quote))
+                    if n % 2 == 1))
 
         return tok
 
