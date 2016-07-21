@@ -211,10 +211,10 @@ class AtomDeclaration(Nonterm):
         attributes = []
 
         for spec in kids[2].val:
-            if isinstance(spec, esast.Attribute):
-                attributes.append(spec)
-            elif isinstance(spec, esast.Constraint):
+            if isinstance(spec, esast.Constraint):
                 constraints.append(spec)
+            elif isinstance(spec, esast.Attribute):
+                attributes.append(spec)
             else:
                 raise Exception('parse error')
 
@@ -261,10 +261,10 @@ class ConceptDeclaration(Nonterm):
         attributes = []
 
         for spec in kids[2].val:
-            if isinstance(spec, esast.Attribute):
-                attributes.append(spec)
-            elif isinstance(spec, esast.Constraint):
+            if isinstance(spec, esast.Constraint):
                 constraints.append(spec)
+            elif isinstance(spec, esast.Attribute):
+                attributes.append(spec)
             elif isinstance(spec, esast.Link):
                 links.append(spec)
             else:
@@ -310,10 +310,10 @@ class LinkDeclaration(Nonterm):
         attributes = []
 
         for spec in kids[2].val:
-            if isinstance(spec, esast.Attribute):
-                attributes.append(spec)
-            elif isinstance(spec, esast.Constraint):
+            if isinstance(spec, esast.Constraint):
                 constraints.append(spec)
+            elif isinstance(spec, esast.Attribute):
+                attributes.append(spec)
             elif isinstance(spec, esast.LinkProperty):
                 properties.append(spec)
             elif isinstance(spec, esast.Policy):
@@ -465,10 +465,10 @@ class Spec(Nonterm):
         policies = []
 
         for spec in specs.val:
-            if isinstance(spec, esast.Attribute):
-                attributes.append(spec)
-            elif isinstance(spec, esast.Constraint):
+            if isinstance(spec, esast.Constraint):
                 constraints.append(spec)
+            elif isinstance(spec, esast.Attribute):
+                attributes.append(spec)
             elif isinstance(spec, esast.Policy):
                 policies.append(spec)
             else:

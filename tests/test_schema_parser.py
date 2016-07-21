@@ -308,3 +308,10 @@ event self_deleted:
     title: 'Deleted'
 
         """
+
+    def test_eschema_parser_link06(self):
+        """
+link time_estimate:
+   linkproperty unit -> str:
+       constraint must_be_even: 0
+        """
