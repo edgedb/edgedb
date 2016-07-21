@@ -7,10 +7,12 @@
 
 
 import ast
+import re
 import sys
 import types
 
 from edgedb.lang.common import parsing
+from edgedb.lang.graphql.parser.errors import InvalidStringTokenError
 
 from . import keywords
 from . import precedence
@@ -110,8 +112,27 @@ class T_INTEGER(Token):
     def normalized_value(self):
         return int(self.val)
 
+invalid_str = re.compile(r'''(?x)
+    (\\u(?![0-9A-Fa-f]{4})) |
+    ([\n\f\v\b]) |
+    (\\[^"/bfnrtu\\])
+    ''')
+
 
 class T_STRING(Token):
+    def __init__(self, parser, val, context=None):
+        # validate the string value before proceeding
+        #
+        invalid = invalid_str.search(val, 1, len(val) - 1)
+        if invalid:
+            context.start.column += invalid.start()
+            context.end.line = context.start.line
+            context.end.column = context.start.column + len(invalid.group())
+            raise InvalidStringTokenError(
+                "invalid {!r} within string token".format(invalid.group()),
+                context=context)
+        super().__init__(parser, val, context)
+
     @property
     def normalized_value(self):
         return ast.literal_eval(self.val).replace('\/', '/')

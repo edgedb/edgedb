@@ -9,7 +9,7 @@
 import re
 
 from edgedb.lang.common import lexer
-
+from edgedb.lang.graphql.parser.errors import UnterminatedStringError
 from .keywords import graphql_keywords
 
 
@@ -113,12 +113,8 @@ class GraphQLLexer(lexer.Lexer):
         Rule(token='STRING',
              next_state=STATE_KEEP,
              regexp=r'''
-                    (?:r)?"
-                        (\\["/bfnrt\\] |
-                         \\u[0-9A-Fa-f]{4} |
-                         [^\\\n\f\v\b]
-                         )*?
-                    "
+                    (?:r)?" [^\n]*
+                    (?<!\\)"
              '''),
 
         Rule(token='IDENT',
@@ -138,3 +134,17 @@ class GraphQLLexer(lexer.Lexer):
     states = {
         STATE_BASE: list(common_rules),
     }
+
+    def handle_error(self, txt):
+        # check if this is unterminated string instead of a generic error
+        #
+        if txt == '"':
+
+            pos = re.compile(r'$', self.RE_FLAGS).search(self.inputstr,
+                                                         self.start).start()
+            pos += self.column - self.start
+            raise UnterminatedStringError(
+                'unterminated string token {position}',
+                line=self.lineno, col=pos, filename=self.filename)
+
+        super().handle_error(txt)

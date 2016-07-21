@@ -8,7 +8,9 @@
 
 from edgedb.lang.graphql import _testbase as tb
 from edgedb.lang.graphql.parser.errors import (GraphQLParserError,
-                                               GraphQLUniquenessError)
+                                               GraphQLUniquenessError,
+                                               UnterminatedStringError,
+                                               InvalidStringTokenError)
 from edgedb.lang.common.lexer import UnknownTokenError
 
 
@@ -32,11 +34,11 @@ class TestGraphQLParser(tb.ParserTest):
     def test_graphql_parser_empty05(self):
         """\r\n;"""
 
-    @tb.must_fail(UnknownTokenError, line=1, col=1)
+    @tb.must_fail(UnterminatedStringError, line=1, col=2)
     def test_graphql_parser_empty06(self):
         '''"'''
 
-    @tb.must_fail(UnknownTokenError, line=2, col=9)
+    @tb.must_fail(UnterminatedStringError, line=2, col=10)
     def test_graphql_parser_empty07(self):
         """
         "
@@ -47,60 +49,66 @@ class TestGraphQLParser(tb.ParserTest):
     def test_graphql_parser_empty08(self):
         """..."""
 
-    @tb.must_fail(UnknownTokenError, line=2, col=21)
+    @tb.must_fail(InvalidStringTokenError, line=2, col=22)
     def test_graphql_parser_string01(self):
-        # XXX: the string isn't parsed, but the error is too obscure
         """
         { field(arg:"\b") }
         """
 
-    @tb.must_fail(UnknownTokenError, line=2, col=21)
+    @tb.must_fail(InvalidStringTokenError, line=2, col=22)
     def test_graphql_parser_string02(self):
-        # XXX: the string isn't parsed, but the error is too obscure
         R"""
         { field(arg:"\x") }
         """
 
-    @tb.must_fail(UnknownTokenError, line=2, col=21)
+    @tb.must_fail(InvalidStringTokenError, line=2, col=22)
     def test_graphql_parser_string03(self):
-        # XXX: the string isn't parsed, but the error is too obscure
         R"""
         { field(arg:"\u1") }
         """
 
-    @tb.must_fail(UnknownTokenError, line=2, col=21)
+    @tb.must_fail(InvalidStringTokenError, line=2, col=22)
     def test_graphql_parser_string04(self):
-        # XXX: the string isn't parsed, but the error is too obscure
         R"""
         { field(arg:"\u0XX1") }
         """
 
-    @tb.must_fail(UnknownTokenError, line=2, col=21)
+    @tb.must_fail(InvalidStringTokenError, line=2, col=22)
     def test_graphql_parser_string05(self):
-        # XXX: the string isn't parsed, but the error is too obscure
         R"""
         { field(arg:"\uXXXX") }
         """
 
-    @tb.must_fail(UnknownTokenError, line=2, col=21)
+    @tb.must_fail(InvalidStringTokenError, line=2, col=25)
     def test_graphql_parser_string06(self):
-        # XXX: the string isn't parsed, but the error is too obscure
         R"""
-        { field(arg:"\uFXXX") }
+        { field(arg:"foo\uFXXX") }
         """
 
-    @tb.must_fail(UnknownTokenError, line=2, col=21)
+    @tb.must_fail(InvalidStringTokenError, line=2, col=22)
     def test_graphql_parser_string07(self):
-        # XXX: the string isn't parsed, but the error is too obscure
         R"""
         { field(arg:"\uXXXF") }
         """
 
     @tb.must_fail(UnknownTokenError, line=2, col=34)
     def test_graphql_parser_string08(self):
-        # XXX: the string isn't parsed, but the error is too obscure
         R"""
         { field(arg:"\uFEFF\n") };
+        """
+
+    @tb.must_fail(UnterminatedStringError, line=2, col=29)
+    def test_graphql_parser_string09(self):
+        """
+        { field(arg:"foo') }
+        """
+
+    @tb.must_fail(UnterminatedStringError, line=3, col=23)
+    def test_graphql_parser_string10(self):
+        r"""
+        { field(
+            arg:"foo \
+        ) }
         """
 
     def test_graphql_parser_short01(self):

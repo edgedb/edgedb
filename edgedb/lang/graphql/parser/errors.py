@@ -6,6 +6,7 @@
 ##
 
 
+from edgedb.lang.common.lexer import LexError
 from edgedb.lang.common.parsing import ParserError
 from edgedb.lang.graphql.errors import GraphQLError
 
@@ -25,3 +26,11 @@ class GraphQLUniquenessError(GraphQLParserError):
         return GraphQLUniquenessError(
             "{} with name '{}' already exists".format(entity, node.name),
             context=node.context)
+
+
+class InvalidStringTokenError(GraphQLParserError):
+    pass
+
+
+class UnterminatedStringError(LexError):
+    pass
