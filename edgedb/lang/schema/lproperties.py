@@ -340,7 +340,7 @@ class LinkProperty(pointers.Pointer):
 
     def atomic(self):
         assert not self.generic(), \
-               "atomicity is not determined for generic pointers"
+            "atomicity is not determined for generic pointers"
         return isinstance(self.target, atoms.Atom)
 
     def singular(self, direction=pointers.PointerDirection.Outbound):
@@ -361,5 +361,9 @@ class LinkProperty(pointers.Pointer):
 
         result.source = obj.source
         result.target = obj.target
-        result.default = obj.default[:]
+        result.default = obj.default
         return result
+
+    @classmethod
+    def get_default_base_name(self):
+        return 'std.linkproperty'

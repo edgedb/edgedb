@@ -2745,8 +2745,8 @@ class TreeTransformer:
             elif isinstance(selexpr.expr, (irast.EntitySet, irast.AtomicRefSimple,
                                            irast.LinkPropRefSimple, irast.Record)):
                 expr_kind = 'path'
-            elif isinstance(selexpr.expr, irast.AtomicRefExpr) and \
-                                                                  selexpr.expr.ptr_proto is not None:
+            elif (isinstance(selexpr.expr, irast.AtomicRefExpr) and
+                    selexpr.expr.ptr_proto is not None):
                 # RefExpr represents a computable
                 expr_kind = 'path'
             elif isinstance(selexpr.expr, irast.PathCombination):

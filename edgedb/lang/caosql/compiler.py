@@ -1523,6 +1523,14 @@ def compile_fragment_to_ir(expr, schema, *, anchors=None, location=None,
                                     location=location)
 
 
+def compile_ast_fragment_to_ir(tree, schema, *, anchors=None, location=None,
+                               module_aliases=None):
+    """Compile given CaosQL AST fragment into Caos IR"""
+    trans = CaosQLCompiler(schema, module_aliases)
+    return trans.transform_fragment(tree, (), anchors=anchors,
+                                    location=location)
+
+
 @debug.debug
 def compile_to_ir(expr, schema, *, anchors=None, arg_types=None,
                                    security_context=None,

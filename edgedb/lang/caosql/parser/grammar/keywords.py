@@ -29,6 +29,7 @@ caosql_keywords = {
     "create": ("CREATE", RESERVED_KEYWORD),
     "database": ("DATABASE", UNRESERVED_KEYWORD),
     "delete": ("DELETE", RESERVED_KEYWORD),
+    "delta": ("DELTA", UNRESERVED_KEYWORD),
     "desc": ("DESC", RESERVED_KEYWORD),
     "distinct": ("DISTINCT", RESERVED_KEYWORD),
     "drop": ("DROP", RESERVED_KEYWORD),

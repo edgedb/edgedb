@@ -30,7 +30,7 @@ class ParserTest(BaseParserTest):
             '[test]expected: {}\n[test] != returned: {}'.format(
                 expected, result)
 
-    def run_test(self, *, source, spec):
+    def run_test(self, *, source, spec, expected=None):
         debug = bool(os.environ.get('DEBUG_GRAPHQL'))
         if debug:
             markup.dump_code(source, lexer='graphql')
@@ -58,7 +58,7 @@ class VarsValueTest(BaseParserTest):
     def get_parser(self):
         return self.__class__.parser_cls()
 
-    def run_test(self, *, source, spec):
+    def run_test(self, *, source, spec, expected=None):
         debug = bool(os.environ.get('DEBUG_GRAPHQL'))
         if debug:
             markup.dump_code(source, lexer='graphql')

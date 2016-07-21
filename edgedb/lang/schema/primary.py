@@ -20,7 +20,8 @@ from . import types as s_types
 
 
 class Prototype(referencing.ReferencingPrototype):
-    title = so.Field(morphology.WordCombination, default=None, compcoef=0.909)
+    title = so.Field(morphology.WordCombination, default=None, compcoef=0.909,
+                     coerce=True)
     description = so.Field(str, default=None, compcoef=0.909)
 
     def get_type_property(self, name, schema):

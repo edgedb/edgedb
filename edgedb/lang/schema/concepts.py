@@ -241,3 +241,7 @@ class Concept(sources.Source, constraints.ConsistencySubject, so.ProtoNode):
                 if getattr(link, 'search', None):
                     yield link_name, link_set
                     break
+
+    @classmethod
+    def get_default_base_name(self):
+        return sn.Name(module='std', name='Object')

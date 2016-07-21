@@ -1262,15 +1262,13 @@ class Backend(s_deltarepo.DeltaProvider):
         return type
 
     def unpack_default(self, value):
-        result = []
+        result = None
         if value is not None:
-            values = json.loads(value)
-            for val in values:
-                if val['type'] == 'expr':
-                    item = s_expr.ExpressionText(val['value'])
-                else:
-                    item = val['value']
-                result.append(item)
+            val = json.loads(value)
+            if val['type'] == 'expr':
+                result = s_expr.ExpressionText(val['value'])
+            else:
+                result = val['value']
         return result
 
     def interpret_search_index(self, index):
@@ -1437,17 +1435,14 @@ class Backend(s_deltarepo.DeltaProvider):
     def verify_ptr_const_defaults(self, schema, ptr, tab_default):
         schema_default = None
 
-        if ptr.default:
-            for d in ptr.default:
-                if isinstance(d, s_expr.ExpressionText):
-                    default_value = schemamech.ptr_default_to_col_default(
-                        schema, ptr, d)
-                    if default_value is not None:
-                        schema_default = d
-                        break
-                else:
-                    schema_default = d
-                    break
+        if ptr.default is not None:
+            if isinstance(ptr.default, s_expr.ExpressionText):
+                default_value = schemamech.ptr_default_to_col_default(
+                    schema, ptr, ptr.default)
+                if default_value is not None:
+                    schema_default = ptr.default
+            else:
+                schema_default = ptr.default
 
         if tab_default is None:
             if schema_default:

@@ -158,7 +158,7 @@ class Atom(primary.Prototype, constraints.ConsistencySubject,
            attributes.AttributeSubject, so.ProtoNode):
     _type = 'atom'
 
-    default = so.Field(expr.ExpressionList, default=expr.ExpressionList,
+    default = so.Field(expr.ExpressionText, default=None,
                        coerce=True, compcoef=0.909)
 
     delta_driver = sd.DeltaDriver(
@@ -210,7 +210,7 @@ class Atom(primary.Prototype, constraints.ConsistencySubject,
             cls = obj.__class__
 
         result = super(Atom, scope).copy(obj)
-        result.default = obj.default[:]
+        result.default = obj.default
         return result
 
     def coerce(self, value, schema):

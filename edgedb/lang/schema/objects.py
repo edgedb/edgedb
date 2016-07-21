@@ -608,7 +608,7 @@ class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
         return self
 
     def finalize(self, schema, bases=None):
-        pass
+        self.setdefaults()
 
 
 class PrototypeRef(BasePrototype):
@@ -816,19 +816,12 @@ class SchemaType(BasePrototype):
 
     def _init(self):
         if self.element_type:
-            name = 'schema_type_{}_{}'.format(self.main_type,
-                                              self.element_type)
-
             if self.main_type == 'tuple':
                 self._typ = tuple
 
             self._elemtyp = getattr(builtins, self.element_type)
-
-            self._validator = types.new_class(name, (typed.TypedList,),
-                                              dict(type=self._elemtyp))
         else:
             self._typ = getattr(builtins, self.main_type)
-            self._validator = self._typ
 
     def __eq__(self, other):
         if isinstance(other, SchemaType):
@@ -842,8 +835,14 @@ class SchemaType(BasePrototype):
         return hash(self.hash_criteria())
 
     def coerce(self, value):
-        vv = self._validator(value)
-        if self._typ is not self._validator:
+        if self.element_type is not None:
+            coll = []
+
+            for item in value:
+                coll.append(self._elemtyp(item))
+
+            vv = self._typ(coll)
+        else:
             vv = self._typ(vv)
 
         if self.constraints:

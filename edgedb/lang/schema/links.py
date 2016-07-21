@@ -735,8 +735,29 @@ class Link(pointers.Pointer, sources.Source):
             else:
                 return pointers.PointerExposedBehaviour.Set
 
+    def init_std_props(self, schema, *, mark_derived=False,
+                       add_to_schema=False):
+
+        src_n = sn.Name('std.source')
+        if src_n not in self.pointers:
+            source_pbase = schema.get(src_n)
+            source_p = source_pbase.get_derived(
+                schema, self, self.source, mark_derived=mark_derived,
+                add_to_schema=add_to_schema)
+
+            self.add_pointer(source_p)
+
+        tgt_n = sn.Name('std.target')
+        if tgt_n not in self.pointers:
+            target_pbase = schema.get(tgt_n)
+            target_p = target_pbase.get_derived(
+                schema, self, self.target, mark_derived=mark_derived,
+                add_to_schema=add_to_schema)
+
+            self.add_pointer(target_p)
+
     def derive(self, schema, source, target=None, *,
-                     mark_derived=False, add_to_schema=False, **kwargs):
+               mark_derived=False, add_to_schema=False, **kwargs):
         if target is None:
             target = self.target
 
@@ -744,25 +765,8 @@ class Link(pointers.Pointer, sources.Source):
                              mark_derived=mark_derived,
                              add_to_schema=add_to_schema, **kwargs)
 
-        src_n = sn.Name('std.source')
-        if src_n not in ptr.pointers:
-            source_pbase = schema.get(src_n)
-            source_p = source_pbase.get_derived(
-                            schema, ptr, ptr.source,
-                            mark_derived=mark_derived,
-                            add_to_schema=add_to_schema)
-
-            ptr.add_pointer(source_p)
-
-        tgt_n = sn.Name('std.target')
-        if tgt_n not in ptr.pointers:
-            target_pbase = schema.get(tgt_n)
-            target_p = target_pbase.get_derived(
-                            schema, ptr, ptr.target,
-                            mark_derived=mark_derived,
-                            add_to_schema=add_to_schema)
-
-            ptr.add_pointer(target_p)
+        ptr.init_std_props(schema, mark_derived=mark_derived,
+                           add_to_schema=add_to_schema)
 
         return ptr
 
@@ -824,6 +828,10 @@ class Link(pointers.Pointer, sources.Source):
 
         result.source = obj.source
         result.target = obj.target
-        result.default = obj.default[:]
+        result.default = obj.default
 
         return result
+
+    @classmethod
+    def get_default_base_name(self):
+        return 'std.link'

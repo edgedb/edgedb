@@ -6,6 +6,7 @@
 ##
 
 
-from . import ast
-from .codegen import generate_source
-from .parser import parse, parse_fragment
+from . import ast  # NOQA
+from .codegen import generate_source  # NOQA
+from .parser import parse, parse_fragment  # NOQA
+from .translator import translate  # NOQA

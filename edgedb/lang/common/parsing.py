@@ -173,6 +173,12 @@ class ListNonterm(Nonterm, metaclass=ListNontermMeta, element=None):
 
         self.val = tail
 
+    def __iter__(self):
+        return iter(self.val)
+
+    def __len__(self):
+        return len(self.val)
+
 
 def precedence(precedence):
     """Decorator to set production precedence"""

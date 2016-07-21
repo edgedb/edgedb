@@ -7,6 +7,7 @@
 
 
 import functools
+import textwrap
 import unittest
 
 
@@ -38,7 +39,23 @@ class ParserTestMeta(type(unittest.TestCase)):
                 def wrapper(self, meth=meth, doc=meth.__doc__):
                     spec = getattr(meth, 'test_spec', {})
                     spec['test_name'] = meth.__name__
-                    self._run_test(source=doc, spec=spec)
+
+                    if doc:
+                        output = error = None
+
+                        source, _, output = doc.partition('\n% OK %')
+
+                        if not output:
+                            source, _, error = doc.partition('\n% ERROR %')
+
+                            if not error:
+                                output = None
+                            else:
+                                output = error
+                    else:
+                        source = output = None
+
+                    self._run_test(source=source, spec=spec, expected=output)
 
                 dct[attr] = wrapper
 
@@ -46,10 +63,11 @@ class ParserTestMeta(type(unittest.TestCase)):
 
 
 class BaseParserTest(unittest.TestCase, metaclass=ParserTestMeta):
-    def _run_test(self, *, source, spec=None):
+    def _run_test(self, *, source, spec=None, expected=None):
         if spec and 'must_fail' in spec:
             with self.assertRaises(*spec['must_fail'][0]) as cm:
-                return self.run_test(source=source, spec=spec)
+                return self.run_test(source=source, spec=spec,
+                                     expected=expected)
 
             if cm.exception:
                 exc = cm.exception
@@ -59,7 +77,7 @@ class BaseParserTest(unittest.TestCase, metaclass=ParserTestMeta):
             return
 
         else:
-            return self.run_test(source=source, spec=spec)
+            return self.run_test(source=source, spec=spec, expected=expected)
 
-    def run_test(self, *, source, spec):
+    def run_test(self, *, source, spec, expected=None):
         raise NotImplementedError

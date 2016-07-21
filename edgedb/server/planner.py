@@ -8,21 +8,12 @@
 
 from edgedb.lang import caosql
 from edgedb.lang.caosql import ast as qlast
-from edgedb.lang.schema import database as s_db
-from edgedb.lang.schema import delta as s_delta
+from edgedb.lang.schema import ddl as s_ddl
 
 
 def plan_statement(stmt, backend):
     if isinstance(stmt, qlast.DDLNode):
-        ddl = caosql.deoptimize(stmt)
-        alter_db = s_db.AlterDatabase()
-        context = s_delta.CommandContext()
-
-        with context(s_db.DatabaseCommandContext(alter_db)):
-            cmd = s_delta.Command.from_ast(ddl, context=context)
-            alter_db.add(cmd)
-
-        return alter_db
+        return s_ddl.delta_from_ddl(stmt)
 
     else:
         ir = caosql.compile_ast_to_ir(stmt, schema=backend.schema)

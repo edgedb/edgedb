@@ -155,14 +155,12 @@ class NamedPrototypeMetaCommand(PrototypeMetaCommand, s_named.NamedPrototypeComm
 
     def pack_default(self, value):
         if value is not None:
-            vals = []
-            for item in value:
-                if isinstance(item, s_expr.ExpressionText):
-                    valtype = 'expr'
-                else:
-                    valtype = 'literal'
-                vals.append({'type': valtype, 'value': item})
-            result = json.dumps(vals)
+            if isinstance(value, s_expr.ExpressionText):
+                valtype = 'expr'
+            else:
+                valtype = 'literal'
+            val = {'type': valtype, 'value': value}
+            result = json.dumps(val)
         else:
             result = None
         return result
@@ -577,15 +575,15 @@ class CreateAtom(AtomMetaCommand, adapts=s_atoms.CreateAtom):
         default = updates.get('default')
         if default:
             default = default[1]
-            if len(default) > 0 and \
-                not isinstance(default[0], s_expr.ExpressionText):
+            if (default is not None and
+                    not isinstance(default, s_expr.ExpressionText)):
                 # We only care to support literal defaults here.  Supporting
                 # defaults based on queries has no sense on the database level
                 # since the database forbids queries for DEFAULT and pre-
                 # calculating the value does not make sense either since the
                 # whole point of query defaults is for them to be dynamic.
                 self.pgops.add(dbops.AlterDomainAlterDefault(
-                    name=new_domain_name, default=default[0]))
+                    name=new_domain_name, default=default))
 
         return atom
 
@@ -665,11 +663,11 @@ class AlterAtom(AtomMetaCommand, adapts=s_atoms.AlterAtom):
                 if default_delta:
                     default_delta = default_delta[1]
 
-                    if not default_delta or \
-                           isinstance(default_delta[0], s_expr.ExpressionText):
+                    if default_delta is None or \
+                           isinstance(default_delta, s_expr.ExpressionText):
                         new_default = None
                     else:
-                        new_default = default_delta[0]
+                        new_default = default_delta
 
                     adad = dbops.AlterDomainAlterDefault(name=domain_name, default=new_default)
                     op.pgops.add(adad)
@@ -864,10 +862,9 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                 continue
 
             default = None
-            ld = list(filter(lambda i: not isinstance(i, s_expr.ExpressionText),
-                             pointer.default))
-            if ld:
-                default = ld[0]
+
+            if not isinstance(pointer.default, s_expr.ExpressionText):
+                default = pointer.default
 
             if default is not None:
                 alter_table = self.get_alter_table(context, priority=3, contained=True)
@@ -1557,16 +1554,13 @@ class PointerMetaCommand(MetaCommand):
 
         if default:
             default = default[1]
-            if default:
-                for d in default:
-                    if isinstance(d, s_expr.ExpressionText):
-                        default_value = schemamech.ptr_default_to_col_default(
-                            schema, link, d)
-                        if default_value is not None:
-                            break
-                    else:
-                        default_value = postgresql.string.quote_literal(str(d))
-                        break
+            if default is not None:
+                if isinstance(default, s_expr.ExpressionText):
+                    default_value = schemamech.ptr_default_to_col_default(
+                        schema, link, default)
+                else:
+                    default_value = postgresql.string.quote_literal(
+                        str(default))
 
         return default_value
 
@@ -1581,10 +1575,8 @@ class PointerMetaCommand(MetaCommand):
             if not default:
                 new_default = None
             else:
-                ld = list(filter(lambda i: not isinstance(i, s_expr.ExpressionText),
-                                 default))
-                if ld:
-                    new_default = ld[0]
+                if not isinstance(default, s_expr.ExpressionText):
+                    new_default = default
                 else:
                     have_new_default = False
 

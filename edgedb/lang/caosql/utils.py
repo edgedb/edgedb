@@ -33,10 +33,9 @@ def inline_constants(caosql_tree, values, types):
 
 
 def normalize_tree(expr, schema, *, module_aliases=None, anchors=None,
-                                    inline_anchors=False):
-    ir = compiler.compile_to_ir(expr, schema,
-                                module_aliases=module_aliases,
-                                anchors=anchors)
+                   inline_anchors=False):
+    ir = compiler.compile_ast_to_ir(
+        expr, schema, module_aliases=module_aliases, anchors=anchors)
     caosql_tree = decompiler.decompile_ir(ir, inline_anchors=inline_anchors)
 
     source = codegen.generate_source(caosql_tree, pretty=False)
@@ -45,9 +44,10 @@ def normalize_tree(expr, schema, *, module_aliases=None, anchors=None,
 
 
 def normalize_expr(expr, schema, *, module_aliases=None, anchors=None,
-                                    inline_anchors=False):
+                   inline_anchors=False):
+    tree = parser.parse(expr, module_aliases)
     _, _, expr = normalize_tree(
-        expr, schema, module_aliases=module_aliases, anchors=anchors,
-                      inline_anchors=inline_anchors)
+        tree, schema, module_aliases=module_aliases, anchors=anchors,
+        inline_anchors=inline_anchors)
 
     return expr

@@ -395,15 +395,18 @@ class Constraint(primary.Prototype, derivable.DerivablePrototype):
         return atoms.Atom(name=sn.Name('std._subject_tgt'))
 
     @classmethod
-    def _parse_constraint_expr(cls, schema, module_aliases, expr, subject,
-                                    inline_anchors=False):
+    def _normalize_constraint_expr(cls, schema, module_aliases, expr, subject,
+                                   inline_anchors=False):
         from edgedb.lang.caosql import utils as caosql_utils
 
+        if isinstance(expr, str):
+            tree = caosql.parse(expr, module_aliases)
+        else:
+            tree = expr
+
         ir, caosql_tree, _ = caosql_utils.normalize_tree(
-                                    expr, schema,
-                                    module_aliases=module_aliases,
-                                    anchors={'subject': subject},
-                                    inline_anchors=inline_anchors)
+            tree, schema, module_aliases=module_aliases,
+            anchors={'subject': subject}, inline_anchors=inline_anchors)
 
         arg_types = ir_utils.infer_arg_types(ir, schema)
 
@@ -419,7 +422,7 @@ class Constraint(primary.Prototype, derivable.DerivablePrototype):
     @classmethod
     def normalize_constraint_expr(cls, schema, module_aliases, expr):
         subject = cls._dummy_subject()
-        caosql_tree, tree, arg_types = cls._parse_constraint_expr(
+        caosql_tree, tree, arg_types = cls._normalize_constraint_expr(
             schema, module_aliases, expr, subject)
 
         expr = caosql.generate_source(caosql_tree, pretty=False)
@@ -429,13 +432,13 @@ class Constraint(primary.Prototype, derivable.DerivablePrototype):
     @classmethod
     def normalize_constraint_subject_expr(cls, schema, module_aliases, expr):
         subject = cls._dummy_subject()
-        caosql_tree, _, _ = cls._parse_constraint_expr(
+        caosql_tree, _, _ = cls._normalize_constraint_expr(
             schema, module_aliases, expr, subject)
         expr = caosql.generate_source(caosql_tree, pretty=False)
         return expr
 
     @classmethod
-    def process_specialized_constraint(cls, schema, constraint):
+    def process_specialized_constraint(cls, schema, constraint, params):
         from edgedb.lang.caosql import utils as caosql_utils
 
         assert constraint.subject is not None
@@ -447,25 +450,25 @@ class Constraint(primary.Prototype, derivable.DerivablePrototype):
             # Special case for zero-argument exprs, where the subject is an
             # argument, e.g. unique constraints.
             #
-            *_, arg_types = cls._parse_constraint_expr(
+            *_, arg_types = cls._normalize_constraint_expr(
                 schema, {}, constraint.expr, subject)
 
-            if not arg_types and constraint._params:
-                subjectexpr = constraint._params.pop('param')
+            if not arg_types and params:
+                subjectexpr = params.pop('param')
                 constraint.subjectexpr = subjectexpr
 
         if subjectexpr:
-            _, subject, _ = cls._parse_constraint_expr(
+            _, subject, _ = cls._normalize_constraint_expr(
                 schema, {}, subjectexpr, subject)
 
         expr = constraint.get_field_value('expr')
         if not expr:
-            err = 'missing constraint expression in {!r}'.format(
-                        constraint.name)
+            err = 'missing constraint expression in ' \
+                  '{!r}'.format(constraint.name)
             raise ValueError(err)
 
-        caosql_tree, tree, arg_types = cls._parse_constraint_expr(
-                                          schema, {}, constraint.expr, subject)
+        caosql_tree, tree, arg_types = cls._normalize_constraint_expr(
+            schema, {}, constraint.expr, subject)
 
         constraint.expr = cls.normalize_constraint_expr(schema, {}, expr)
 
@@ -475,31 +478,31 @@ class Constraint(primary.Prototype, derivable.DerivablePrototype):
         else:
             all_arg_types = arg_types
 
-        params = {}
+        args = {}
 
-        if constraint._params:
+        if params:
             fmtparams = {}
             exprparams = {}
 
-            for pn, pv in constraint._params.items():
+            for pn, pv in params.items():
                 try:
                     arg_type = all_arg_types[pn]
                 except KeyError:
                     # XXX: warn
                     pass
                 else:
-                    param = arg_type.coerce(pv, schema)
-                    params[pn] = param
+                    arg = arg_type.coerce(pv, schema)
+                    args[pn] = arg
 
-                    if isinstance(param, (frozenset, tuple)):
+                    if isinstance(arg, (frozenset, tuple)):
                         # This assumes that the datatype in this collection
                         # is orderable.  If this ever breaks, use OrderedSet.
-                        param = list(sorted(param))
-                        fmtparams[pn] = ', '.join(param)
+                        param = list(sorted(arg))
+                        fmtparams[pn] = ', '.join(arg)
                     else:
-                        fmtparams[pn] = str(param)
+                        fmtparams[pn] = str(arg)
 
-                    exprparams[pn] = param
+                    exprparams[pn] = arg
 
             caosql_utils.inline_constants(caosql_tree, exprparams,
                                           all_arg_types)
@@ -512,7 +515,7 @@ class Constraint(primary.Prototype, derivable.DerivablePrototype):
         constraint.localfinalexpr = text
         constraint.finalexpr = text
         constraint.inferredparamtypes = arg_types
-        constraint.args = params or None
+        constraint.args = args or None
 
 
 class ConsistencySubject(referencing.ReferencingPrototype):

@@ -6,6 +6,8 @@
 ##
 
 
+import os
+
 from edgedb.lang.common import parsing, debug
 
 from edgedb.lang.caosql.errors import CaosQLQueryError
@@ -16,7 +18,7 @@ from .grammar import lexer
 
 class CaosQLParserBase(parsing.Parser):
     def get_debug(self):
-        return 'edgedb.lang.caosql.parser' in debug.channels
+        return bool(os.environ.get('EDGEDB_DEBUG_EDGEQL_PARSER'))
 
     def get_exception(self, native_err, context):
         return CaosQLQueryError(native_err.args[0], context=context)

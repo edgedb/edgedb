@@ -423,3 +423,7 @@ class TypeCast(Expr):
 
 class CompositeType(Base):
     __fields = ['node', 'pathspec']
+
+
+TextSearchOperator = qlast.TextSearchOperator
+CaosMatchOperator = qlast.CaosQLMatchOperator

@@ -118,17 +118,9 @@ def infer_type(ir, schema):
 
     elif isinstance(ir, irast.FunctionCall):
         argtypes = tuple(infer_type(arg, schema) for arg in ir.args)
-        result = s_types.TypeRules.get_result(ir.name, argtypes, schema)
 
-        if result is None:
-            fcls = s_types.FunctionMeta.get_function_class(ir.name)
-            if fcls:
-                signature = fcls.get_signature(argtypes, schema=schema)
-                if signature and signature[2]:
-                    if isinstance(signature[2], tuple):
-                        result = (signature[2][0], schema.get(signature[2][1]))
-                    else:
-                        result = schema.get(signature[2])
+        func_obj = schema.get(ir.name)
+        result = func_obj.returntype
 
     elif isinstance(ir, irast.Constant):
         if ir.expr:

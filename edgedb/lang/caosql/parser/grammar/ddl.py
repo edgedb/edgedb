@@ -12,9 +12,9 @@ import types
 from edgedb.lang.caosql import ast as qlast
 from edgedb.lang.common.parsing import ListNonterm
 
-from .precedence import *
-from .tokens import *
-from .expressions import *
+from .precedence import *  # NOQA
+from .tokens import *  # NOQA
+from .expressions import *  # NOQA
 
 
 class DDLStmt(Nonterm):
@@ -22,6 +22,9 @@ class DDLStmt(Nonterm):
         self.val = kids[0].val
 
     def reduce_DropDatabaseStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_CreateDeltaStmt(self, *kids):
         self.val = kids[0].val
 
     def reduce_CreateActionStmt(self, *kids):
@@ -102,6 +105,7 @@ class DDLStmt(Nonterm):
 
 def _new_nonterm(clsname, clsdict={}, clskwds={}, clsbases=(Nonterm,)):
     mod = sys.modules[__name__]
+
     def clsexec(ns):
         ns['__module__'] = __name__
         for k, v in clsdict.items():
@@ -131,7 +135,6 @@ def commands_block(parent, *commands, opt=True):
     if parent is None:
         parent = ''
 
-    clsname = parent + 'Command'
     clsdict = collections.OrderedDict()
 
     # Command := Command1 | Command2 ...
@@ -260,6 +263,41 @@ class AlterInheriting(Nonterm):
 
     def reduce_AlterFinal(self, *kids):
         self.val = kids[0].val
+
+
+# DELTAS
+
+class OptDeltaParents(Nonterm):
+    def reduce_empty(self):
+        self.val = None
+
+    def reduce_FROM_NodeNameList(self, *kids):
+        self.val = kids[0].val
+
+
+class OptDeltaTarget(Nonterm):
+    def reduce_empty(self):
+        self.val = None
+
+    def reduce_TO_SCONST(self, *kids):
+        self.val = kids[1].val
+
+
+#
+# CREATE DELTA
+#
+class CreateDeltaStmt(Nonterm):
+    def reduce_CreateDelta(self, *kids):
+        r"""%reduce OptAliasBlock CREATE DELTA NodeName \
+                    OptDeltaParents OptDeltaTarget \
+        """
+        self.val = qlast.CreateDeltaNode(
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
+            name=kids[3].val,
+            parents=kids[4].val,
+            target=kids[5].val,
+        )
 
 
 #

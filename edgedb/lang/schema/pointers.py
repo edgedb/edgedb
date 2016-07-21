@@ -109,6 +109,7 @@ class PointerCommand(sd.PrototypeCommand):
 
     @classmethod
     def _parse_default(cls, cmd):
+        return
         for sub in cmd(sd.AlterPrototypeProperty):
             if sub.property == 'default':
                 if isinstance(sub.new_value, sexpr.ExpressionText):
@@ -137,24 +138,16 @@ class PointerCommand(sd.PrototypeCommand):
 
     def _encode_default(self, context, node, op):
         if op.new_value:
-            if len(op.new_value) > 1:
-                exprs = []
+            expr = op.new_value
+            if not isinstance(expr, sexpr.ExpressionText):
+                expr_t = qlast.SelectQueryNode(
+                    targets=[qlast.SelectExprNode(
+                        expr=qlast.ConstantNode(value=expr)
+                    )]
+                )
+                expr = caosql.generate_source(expr_t, pretty=False)
 
-                for expr in op.new_value:
-                    if not isinstance(expr, sexpr.ExpressionText):
-                        expr_t = qlast.SelectQueryNode(
-                            targets=[qlast.SelectExprNode(
-                                expr=qlast.ConstantNode(value=expr)
-                            )]
-                        )
-                        expr = caosql.generate_source(expr_t, pretty=False)
-
-                    exprs.append(expr)
-
-                op.new_value = sexpr.ExpressionText(
-                                    ' UNION '.join(exprs) + ' LIMIT 1')
-            else:
-                op.new_value = op.new_value[0]
+                op.new_value = sexpr.ExpressionText(expr)
             super()._apply_field_ast(context, node, op)
 
 
@@ -430,7 +423,7 @@ class Pointer(BasePointer, constraints.ConsistencySubject,
     required = so.Field(bool, default=False, compcoef=0.909)
     readonly = so.Field(bool, default=False, compcoef=0.909)
     loading = so.Field(PointerLoading, default=None, compcoef=0.909)
-    default = so.Field(sexpr.ExpressionList, default=sexpr.ExpressionList,
+    default = so.Field(sexpr.ExpressionText, default=None,
                        coerce=True, compcoef=0.909)
 
     def generic(self):
@@ -451,7 +444,7 @@ class Pointer(BasePointer, constraints.ConsistencySubject,
     def merge_defaults(self, other):
         if not self.default:
             if other.default:
-                self.default = other.default[:]
+                self.default = other.default
 
     def normalize_defaults(self):
-        self.default[:] = sexpr.ExpressionList(ds.OrderedSet(self.default))
+        pass
