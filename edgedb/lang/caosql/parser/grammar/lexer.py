@@ -166,7 +166,6 @@ class CaosQLLexer(lexer.Lexer):
         Rule(token='QIDENT',
              next_state=STATE_KEEP,
              regexp=r'''
-                    (?:U&)?
                     "(?:
                         [^"]
                         |
