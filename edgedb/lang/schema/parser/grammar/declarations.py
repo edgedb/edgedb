@@ -7,22 +7,19 @@
 
 
 from edgedb.lang.common import parsing
-from edgedb.lang.caosql.parser.parser import CaosQLExpressionParser
 from edgedb.lang.common.exceptions import _get_context
 
+from edgedb.lang import caosql
 from edgedb.lang.schema import ast as esast
 
 from .tokens import *
 
 
-edgeql_parser = CaosQLExpressionParser()
-
-
-def parseEdgeQL(expression):
+def parse_edgeql(expression):
     ctx = expression.context
 
     try:
-        return edgeql_parser.parse(expression.value)
+        return caosql.parse(expression.value)
     except parsing.ParserError as err:
         err_ctx = _get_context(err, parsing.ParserContext)
 
@@ -450,13 +447,13 @@ class Spec(Nonterm):
     def reduce_ObjectName_TURNSTILE_RawString_NL(self, *kids):
         self.val = esast.Spec(
             name=kids[0].val,
-            target=parseEdgeQL(kids[2].val),
+            target=parse_edgeql(kids[2].val),
             context=get_context(*kids))
 
     def reduce_ObjectName_TURNSTILE_NL_INDENT_RawString_NL_DEDENT(self, *kids):
         self.val = esast.Spec(
             name=kids[0].val,
-            target=parseEdgeQL(kids[4].val),
+            target=parse_edgeql(kids[4].val),
             context=get_context(*kids))
 
     def _processdecl_specs(self, name, target, specs, context):
@@ -508,11 +505,11 @@ class Attribute(Nonterm):
     def reduce_ObjectName_TURNSTILE_RawString_NL(self, *kids):
         self.val = esast.Attribute(
             name=kids[0].val,
-            value=parseEdgeQL(kids[2].val),
+            value=parse_edgeql(kids[2].val),
             context=get_context(*kids))
 
     def reduce_ObjectName_TURNSTILE_NL_INDENT_RawString_NL_DEDENT(self, *kids):
         self.val = esast.Attribute(
             name=kids[0].val,
-            value=parseEdgeQL(kids[4].val),
+            value=parse_edgeql(kids[4].val),
             context=get_context(*kids))
