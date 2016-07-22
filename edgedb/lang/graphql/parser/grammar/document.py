@@ -6,42 +6,13 @@
 ##
 
 
-from edgedb.lang.common import parsing
+from edgedb.lang.common import parsing, context
 from edgedb.lang.graphql import ast as gqlast
 from edgedb.lang.graphql.parser.errors import (GraphQLParserError,
                                                GraphQLUniquenessError)
 
 from .tokens import *
 from . import keywords
-
-
-def get_context(*kids):
-    start = end = None
-    # find non-empty start and end
-    #
-    for kid in kids:
-        if kid.val:
-            start = kid
-            break
-    for kid in reversed(kids):
-        if kid.val:
-            end = kid
-            break
-
-    if isinstance(start.val, list):
-        start = start.val[-1]
-    if isinstance(end.val, list):
-        end = end.val[-1]
-
-    if isinstance(start, Nonterm):
-        start = start.val
-    if isinstance(end, Nonterm):
-        end = end.val
-
-    return parsing.ParserContext(name=start.context.name,
-                                 buffer=start.context.buffer,
-                                 start=start.context.start,
-                                 end=end.context.end)
 
 
 def check_const(expr):
@@ -56,11 +27,11 @@ def check_const(expr):
             check_const(field.value)
 
 
-class Nonterm(parsing.Nonterm):
+class Nonterm(context.Nonterm):
     pass
 
 
-class NameTokNontermMeta(parsing.NontermMeta):
+class NameTokNontermMeta(context.ContextNontermMeta):
     def __new__(mcls, name, bases, dct, *, exceptions=tuple()):
         if name != 'NameTokNonTerm':
             prod = NameTokNonTerm._reduce_token
@@ -100,47 +71,37 @@ class NameNotBoolTok(NameTokNonTerm, exceptions=('TRUE', 'FALSE')):
 
 class BaseValue(Nonterm):
     def reduce_INTEGER(self, kid):
-        self.val = gqlast.IntegerLiteral(value=kid.normalized_value,
-                                         context=get_context(kid))
+        self.val = gqlast.IntegerLiteral(value=kid.normalized_value)
 
     def reduce_FLOAT(self, kid):
-        self.val = gqlast.FloatLiteral(value=kid.normalized_value,
-                                       context=get_context(kid))
+        self.val = gqlast.FloatLiteral(value=kid.normalized_value)
 
     def reduce_TRUE(self, kid):
-        self.val = gqlast.BooleanLiteral(value=True,
-                                         context=get_context(kid))
+        self.val = gqlast.BooleanLiteral(value=True)
 
     def reduce_FALSE(self, kid):
-        self.val = gqlast.BooleanLiteral(value=False,
-                                         context=get_context(kid))
+        self.val = gqlast.BooleanLiteral(value=False)
 
     def reduce_STRING(self, kid):
-        self.val = gqlast.StringLiteral(value=kid.normalized_value,
-                                        context=get_context(kid))
+        self.val = gqlast.StringLiteral(value=kid.normalized_value)
 
     def reduce_NameNotBoolTok(self, kid):
         if kid.val.val == 'null':
             raise GraphQLParserError.from_parsed(
                 "'null' not allowed as value", kid.val)
-        self.val = gqlast.EnumLiteral(value=kid.val.val,
-                                      context=get_context(kid))
+        self.val = gqlast.EnumLiteral(value=kid.val.val)
 
     def reduce_LSBRACKET_RSBRACKET(self, *kids):
-        self.val = gqlast.ListLiteral(value=[],
-                                      context=get_context(*kids))
+        self.val = gqlast.ListLiteral(value=[])
 
     def reduce_LSBRACKET_ValueList_RSBRACKET(self, *kids):
-        self.val = gqlast.ListLiteral(value=kids[1].val,
-                                      context=get_context(*kids))
+        self.val = gqlast.ListLiteral(value=kids[1].val)
 
     def reduce_LCBRACKET_RCBRACKET(self, *kids):
-        self.val = gqlast.ObjectLiteral(value={},
-                                        context=get_context(*kids))
+        self.val = gqlast.ObjectLiteral(value={})
 
     def reduce_LCBRACKET_ObjectFieldList_RCBRACKET(self, *kids):
-        self.val = gqlast.ObjectLiteral(value=kids[1].val,
-                                        context=get_context(*kids))
+        self.val = gqlast.ObjectLiteral(value=kids[1].val)
 
 
 class Value(Nonterm):
@@ -148,8 +109,7 @@ class Value(Nonterm):
         self.val = kid.val
 
     def reduce_VAR(self, kid):
-        self.val = gqlast.Variable(value=kid.val,
-                                   context=get_context(kid))
+        self.val = gqlast.Variable(value=kid.val)
 
 
 class ValueList(parsing.ListNonterm, element=Value):
@@ -158,8 +118,7 @@ class ValueList(parsing.ListNonterm, element=Value):
 
 class ObjectField(Nonterm):
     def reduce_NameTok_COLON_Value(self, *kids):
-        self.val = gqlast.ObjectField(name=kids[0].val.val, value=kids[2].val,
-                                      context=get_context(*kids))
+        self.val = gqlast.ObjectField(name=kids[0].val.val, value=kids[2].val)
 
 
 class ObjectFieldList(parsing.ListNonterm, element=ObjectField):
@@ -216,8 +175,7 @@ class Document(Nonterm):
             raise GraphQLParserError.from_parsed(
                 'short form is not allowed here', short)
 
-        self.val = gqlast.Document(definitions=kid.val,
-                                   context=get_context(kid))
+        self.val = gqlast.Document(definitions=kid.val)
 
 
 class Definition(Nonterm):
@@ -240,12 +198,10 @@ class Query(Nonterm):
             name=kids[1].val.val if kids[1].val else None,
             variables=kids[2].val,
             directives=kids[3].val,
-            selection_set=kids[4].val,
-            context=get_context(*kids))
+            selection_set=kids[4].val)
 
     def reduce_SelectionSet(self, kid):
-        self.val = gqlast.OperationDefinition(selection_set=kid.val,
-                                              context=get_context(kid))
+        self.val = gqlast.OperationDefinition(selection_set=kid.val)
 
 
 class QueryTypeTok(Nonterm):
@@ -265,14 +221,12 @@ class Fragment(Nonterm):
         self.val = gqlast.FragmentDefinition(name=kids[1].val.val,
                                              on=kids[2].val,
                                              directives=kids[3].val,
-                                             selection_set=kids[4].val,
-                                             context=get_context(*kids))
+                                             selection_set=kids[4].val)
 
 
 class SelectionSet(Nonterm):
     def reduce_LCBRACKET_Selections_RCBRACKET(self, *kids):
-        self.val = gqlast.SelectionSet(selections=kids[1].val,
-                                       context=get_context(*kids))
+        self.val = gqlast.SelectionSet(selections=kids[1].val)
 
 
 class OptSelectionSet(Nonterm):
@@ -293,18 +247,16 @@ class Field(Nonterm):
 
 class AliasedField(Nonterm):
     def reduce_NameTok(self, kid):
-        self.val = gqlast.Field(name=kid.val.val, context=get_context(kid))
+        self.val = gqlast.Field(name=kid.val.val)
 
     def reduce_NameTok_COLON_NameTok(self, *kids):
-        self.val = gqlast.Field(alias=kids[0].val.val, name=kids[2].val.val,
-                                context=get_context(*kids))
+        self.val = gqlast.Field(alias=kids[0].val.val, name=kids[2].val.val)
 
 
 class FragmentSpread(Nonterm):
     def reduce_ELLIPSIS_NameNotONTok_OptDirectives(self, *kids):
         self.val = gqlast.FragmentSpread(name=kids[1].val.val,
-                                         directives=kids[2].val,
-                                         context=get_context(*kids))
+                                         directives=kids[2].val)
 
 
 class InlineFragment(Nonterm):
@@ -312,8 +264,7 @@ class InlineFragment(Nonterm):
                                                                     *kids):
         self.val = gqlast.InlineFragment(selection_set=kids[3].val,
                                          on=kids[1].val,
-                                         directives=kids[2].val,
-                                         context=get_context(*kids))
+                                         directives=kids[2].val)
 
 
 class Selection(Nonterm):
@@ -354,8 +305,7 @@ class Arguments(Nonterm):
 
 class Argument(Nonterm):
     def reduce_NameTok_COLON_Value(self, *kids):
-        self.val = gqlast.Argument(name=kids[0].val.val, value=kids[2].val,
-                                   context=get_context(*kids))
+        self.val = gqlast.Argument(name=kids[0].val.val, value=kids[2].val)
 
 
 class ArgumentList(parsing.ListNonterm, element=Argument):
@@ -373,8 +323,7 @@ class OptDirectives(Nonterm):
 class Directive(Nonterm):
     def reduce_AT_NameTok_OptArgs(self, *kids):
         self.val = gqlast.Directive(name=kids[1].val.val,
-                                    arguments=kids[2].val,
-                                    context=get_context(*kids))
+                                    arguments=kids[2].val)
 
 
 class Directives(parsing.ListNonterm, element=Directive):
@@ -419,8 +368,7 @@ class Variable(Nonterm):
     def reduce_VAR_COLON_VarType_DefaultValue(self, *kids):
         self.val = gqlast.VariableDefinition(name=kids[0].val,
                                              type=kids[2].val,
-                                             value=kids[3].val,
-                                             context=get_context(*kids))
+                                             value=kids[3].val)
 
 
 class VariableList(parsing.ListNonterm, element=Variable):
@@ -429,24 +377,20 @@ class VariableList(parsing.ListNonterm, element=Variable):
 
 class VarType(Nonterm):
     def reduce_NameTok(self, kid):
-        self.val = gqlast.VariableType(name=kid.val.val,
-                                       context=get_context(kid))
+        self.val = gqlast.VariableType(name=kid.val.val)
 
     def reduce_NameTok_BANG(self, kid):
         self.val = gqlast.VariableType(name=kid.val.val,
-                                       nullable=False,
-                                       context=get_context(kid))
+                                       nullable=False)
 
     def reduce_LSBRACKET_VarType_RSBRACKET(self, *kids):
         self.val = gqlast.VariableType(name=kids[1].val,
-                                       list=True,
-                                       context=get_context(*kids))
+                                       list=True)
 
     def reduce_LSBRACKET_VarType_RSBRACKET_BANG(self, *kids):
         self.val = gqlast.VariableType(name=kids[1].val,
                                        list=True,
-                                       nullable=False,
-                                       context=get_context(*kids))
+                                       nullable=False)
 
 
 class DefaultValue(Nonterm):

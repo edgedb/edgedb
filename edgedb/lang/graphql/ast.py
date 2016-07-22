@@ -13,7 +13,7 @@ from edgedb.lang.common import ast, parsing
 
 class Base(ast.AST):
     ns = 'graphql'
-    __fields = [('context', parsing.ParserContext, parsing.ParserContext,
+    __fields = [('context', parsing.ParserContext, None,
                  True, None, True  # this last True is "hidden" attribute
                  )]
 

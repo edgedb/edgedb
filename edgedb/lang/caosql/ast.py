@@ -8,11 +8,13 @@
 
 from edgedb.lang.common import enum as s_enum
 
-from edgedb.lang.common import ast
+from edgedb.lang.common import ast, parsing
 
 
 class Base(ast.AST):
-    pass
+    __fields = [('context', parsing.ParserContext, None,
+                 True, None, True  # this last True is "hidden" attribute
+                 )]
 
 
 class RootNode(Base):
