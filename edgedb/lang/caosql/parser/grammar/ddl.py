@@ -96,6 +96,9 @@ class DDLStmt(Nonterm):
     def reduce_DropModuleStmt(self, *kids):
         self.val = kids[0].val
 
+    def reduce_CreateFunctionStmt(self, *kids):
+        self.val = kids[0].val
+
 
 def _new_nonterm(clsname, clsdict={}, clskwds={}, clsbases=(Nonterm,)):
     mod = sys.modules[__name__]
@@ -1087,4 +1090,69 @@ class DropModuleStmt(Nonterm):
             namespaces = kids[0].val[0],
             aliases = kids[0].val[1],
             name = kids[3].val
+        )
+
+
+#
+# FUNCTIONS
+#
+
+
+class OptDefault(Nonterm):
+    def reduce_empty(self):
+        self.val = None
+
+    def reduce_EQUALS_Constant(self, *kids):
+        self.val = kids[1].val
+
+
+class OptArgMode(Nonterm):
+    def reduce_empty(self):
+        self.val = None
+
+    def reduce_IN(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_OUT(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_INOUT(self, *kids):
+        self.val = kids[0].val
+
+
+class FuncDeclArg(Nonterm):
+    def reduce_OptArgMode_IDENT_TypeName_OptDefault(self, *kids):
+        self.val = qlast.FuncArgNode(
+            name=kids[2].val,
+            mode=kids[0].val,
+            default=kids[3].val
+        )
+
+
+class FuncDeclArgList(ListNonterm, element=FuncDeclArg):
+    pass
+
+
+class CreateFunctionArgs(Nonterm):
+    def reduce_LPAREN_RPAREN(self, *kids):
+        self.val = []
+
+    def reduce_LPAREN_FuncDeclArgList_RPAREN(self, *kids):
+        self.val = kids[1].val
+
+
+#
+# CREATE FUNCTION
+#
+class CreateFunctionStmt(Nonterm):
+    def reduce_CreateFunction(self, *kids):
+        r"""%reduce OptAliasBlock CREATE FUNCTION NodeName \
+                CreateFunctionArgs RETURNING TypeName \
+        """
+        self.val = qlast.CreateFunctionNode(
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
+            name=kids[3].val,
+            args=kids[4].val,
+            returning=kids[6].val
         )

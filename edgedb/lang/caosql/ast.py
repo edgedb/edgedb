@@ -354,6 +354,22 @@ class DropAttributeValueNode(DropObjectNode):
     pass
 
 
+class FuncArgNode(Base):
+    __fields = ['name', 'mode', 'default']
+
+
+class CreateFunctionNode(CreateObjectNode):
+    __fields = ['args', 'returning']
+
+
+class AlterFunctionNode(AlterObjectNode):
+    __fields = ['value']
+
+
+class DropFunctionNode(DropObjectNode):
+    pass
+
+
 class SelectQueryNode(StatementNode):
     __fields = ['distinct', ('targets', list), 'where',
                 ('groupby', list), ('orderby', list), 'offset', 'limit',
