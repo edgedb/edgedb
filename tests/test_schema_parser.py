@@ -88,6 +88,12 @@ concept Foo:
            default: 'minute'
        """
 
+    def test_eschema_parser_concept09(self):
+        """
+concept LogEntry extends OwnedObject, Text:
+    required link attachment -> Post, File, User
+        """
+
     def test_eschema_parser_ws01(self):
         """
 concept LogEntry extends    OwnedObject,    Text:

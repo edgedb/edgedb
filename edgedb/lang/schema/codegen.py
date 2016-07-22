@@ -95,7 +95,14 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
             self.new_lines = 2
         elif node.target:
             self.write(' -> ')
-            self.visit(node.target)
+            if isinstance(node.target, list):
+                for qname in node.target[:-1]:
+                    self.visit(qname)
+                    self.write(', ')
+                self.visit(node.target[-1])
+            else:
+                self.visit(node.target)
+
             self._visit_specs(node)
         else:
             self._visit_specs(node)

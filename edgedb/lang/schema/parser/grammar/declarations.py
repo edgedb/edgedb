@@ -368,7 +368,7 @@ class EventDeclaration(Nonterm):
 
 
 class NameAndExtends(Nonterm):
-    def reduce_IDENT_EXTENDS_ExtendsList(self, *kids):
+    def reduce_IDENT_EXTENDS_NameList(self, *kids):
         self.val = esast.Declaration(name=kids[0].val, extends=kids[2].val,
                                      context=get_context(*kids))
 
@@ -376,7 +376,7 @@ class NameAndExtends(Nonterm):
         self.val = esast.Declaration(name=kid.val, context=get_context(kid))
 
 
-class ExtendsList(parsing.ListNonterm, element=ObjectName, separator=T_COMMA):
+class NameList(parsing.ListNonterm, element=ObjectName, separator=T_COMMA):
     pass
 
 
@@ -437,11 +437,11 @@ class Spec(Nonterm):
         self._processdecl_specs(kids[0], None, kids[1],
                                 context=get_context(*kids))
 
-    def reduce_ObjectName_ARROW_ObjectName_NL(self, *kids):
+    def reduce_ObjectName_ARROW_NameList_NL(self, *kids):
         self.val = esast.Specialization(name=kids[0].val, target=kids[2].val,
                                         context=get_context(*kids))
 
-    def reduce_ObjectName_ARROW_ObjectName_DeclarationSpecsBlob(
+    def reduce_ObjectName_ARROW_NameList_DeclarationSpecsBlob(
             self, *kids):
         self._processdecl_specs(kids[0], kids[2], kids[3],
                                 context=get_context(*kids))
@@ -476,8 +476,13 @@ class Spec(Nonterm):
             else:
                 raise Exception('parse error')
 
+        if target:
+            target = target.val
+            if len(target) == 1:
+                target = target[0]
+
         self.val = esast.Specialization(
-            name=name.val, target=target.val if target else None,
+            name=name.val, target=target,
             attributes=attributes,
             constraints=constraints,
             policies=policies,
