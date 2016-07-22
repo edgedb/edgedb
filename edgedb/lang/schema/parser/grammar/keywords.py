@@ -20,6 +20,7 @@ edge_schema_keywords = {
     "extends": ("EXTENDS", RESERVED_KEYWORD),
     "false": ("FALSE", RESERVED_KEYWORD),
     "final": ("FINAL", UNRESERVED_KEYWORD),
+    "index": ("INDEX", UNRESERVED_KEYWORD),
     "link": ("LINK", UNRESERVED_KEYWORD),
     "linkproperty": ("LINKPROPERTY", UNRESERVED_KEYWORD),
     "on": ("ON", UNRESERVED_KEYWORD),

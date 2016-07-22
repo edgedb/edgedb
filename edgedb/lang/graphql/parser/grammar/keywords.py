@@ -12,11 +12,11 @@ UNRESERVED_KEYWORD, RESERVED_KEYWORD = keyword_types
 graphql_keywords = {
     "false": ("FALSE", UNRESERVED_KEYWORD),
     "fragment": ("FRAGMENT", UNRESERVED_KEYWORD),
-    "true": ("TRUE", UNRESERVED_KEYWORD),
     "mutation": ("MUTATION", UNRESERVED_KEYWORD),
     "on": ("ON", UNRESERVED_KEYWORD),
     "query": ("QUERY", UNRESERVED_KEYWORD),
     "subscription": ("SUBSCRIPTION", UNRESERVED_KEYWORD),
+    "true": ("TRUE", UNRESERVED_KEYWORD),
 }
 
 

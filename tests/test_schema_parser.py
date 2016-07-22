@@ -94,6 +94,13 @@ concept LogEntry extends OwnedObject, Text:
     required link attachment -> Post, File, User
         """
 
+    def test_eschema_parser_index01(self):
+        """
+concept LogEntry extends OwnedObject, Text:
+    required link owner -> User
+    index test_index:= SELECT datetime::current_datetime()
+        """
+
     def test_eschema_parser_ws01(self):
         """
 concept LogEntry extends    OwnedObject,    Text:

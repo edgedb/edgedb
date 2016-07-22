@@ -209,12 +209,15 @@ class ConceptDeclaration(Nonterm):
         constraints = []
         links = []
         attributes = []
+        indexes = []
 
         for spec in kids[2].val:
             if isinstance(spec, esast.Constraint):
                 constraints.append(spec)
             elif isinstance(spec, esast.Attribute):
                 attributes.append(spec)
+            elif isinstance(spec, esast.Index):
+                indexes.append(spec)
             elif isinstance(spec, esast.Link):
                 links.append(spec)
             else:
@@ -223,6 +226,7 @@ class ConceptDeclaration(Nonterm):
         self.val = esast.ConceptDeclaration(kids[1].val,
                                             attributes=attributes,
                                             constraints=constraints,
+                                            indexes=indexes,
                                             links=links)
 
 
@@ -350,10 +354,21 @@ class DeclarationSpecBase(Nonterm):
     def reduce_Attribute(self, kid):
         self.val = kid.val
 
+    def reduce_Index(self, kid):
+        self.val = kid.val
+
 
 class DeclarationSpecsBlob(Nonterm):
     def reduce_COLON_NL_INDENT_DeclarationSpecs_DEDENT(self, *kids):
         self.val = kids[3].val
+
+
+class TurnstileBlob(Nonterm):
+    def reduce_TURNSTILE_RawString_NL(self, *kids):
+        self.val = parse_edgeql(kids[1].val)
+
+    def reduce_TURNSTILE_NL_INDENT_RawString_NL_DEDENT(self, *kids):
+        self.val = parse_edgeql(kids[3].val)
 
 
 class Link(Nonterm):
@@ -382,15 +397,8 @@ class Spec(Nonterm):
             self, *kids):
         self._processdecl_specs(kids[0], kids[2], kids[3])
 
-    def reduce_ObjectName_TURNSTILE_RawString_NL(self, *kids):
-        self.val = esast.Specialization(
-            name=kids[0].val,
-            target=parse_edgeql(kids[2].val))
-
-    def reduce_ObjectName_TURNSTILE_NL_INDENT_RawString_NL_DEDENT(self, *kids):
-        self.val = esast.Specialization(
-            name=kids[0].val,
-            target=parse_edgeql(kids[4].val))
+    def reduce_ObjectName_TurnstileBlob(self, *kids):
+        self.val = esast.Specialization(name=kids[0].val, target=kids[1].val)
 
     def _processdecl_specs(self, name, target, specs):
         constraints = []
@@ -428,6 +436,11 @@ class Policy(Nonterm):
         self.val = esast.Policy(event=kids[1].val, action=kids[2].val)
 
 
+class Index(Nonterm):
+    def reduce_INDEX_ObjectName_TurnstileBlob(self, *kids):
+        self.val = esast.Index(name=kids[1].val, expression=kids[2].val)
+
+
 class Constraint(Nonterm):
     def reduce_CONSTRAINT_ObjectName_NL(self, *kids):
         self.val = esast.Constraint(name=kids[1].val)
@@ -443,12 +456,5 @@ class Attribute(Nonterm):
     def reduce_ObjectName_COLON_NL_INDENT_Value_NL_DEDENT(self, *kids):
         self.val = esast.Attribute(name=kids[0].val, value=kids[4].val)
 
-    def reduce_ObjectName_TURNSTILE_RawString_NL(self, *kids):
-        self.val = esast.Attribute(
-            name=kids[0].val,
-            value=parse_edgeql(kids[2].val))
-
-    def reduce_ObjectName_TURNSTILE_NL_INDENT_RawString_NL_DEDENT(self, *kids):
-        self.val = esast.Attribute(
-            name=kids[0].val,
-            value=parse_edgeql(kids[4].val))
+    def reduce_ObjectName_TurnstileBlob(self, *kids):
+        self.val = esast.Attribute(name=kids[0].val, value=kids[1].val)

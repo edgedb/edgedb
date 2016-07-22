@@ -55,6 +55,8 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
                 self._visit_list(node.constraints)
             if hasattr(node, 'policies'):
                 self._visit_list(node.policies)
+            if hasattr(node, 'indexes'):
+                self._visit_list(node.indexes)
             self.indentation -= 1
         self.new_lines = 2
 
@@ -87,12 +89,7 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         self.visit(node.name)
 
         if isinstance(node.target, eqlast.Base):
-            self.write(':=')
-            self.new_lines = 1
-            self.indentation += 1
-            self.visit(node.target)
-            self.indentation -= 1
-            self.new_lines = 2
+            self._visit_turnstile(node.target)
         elif node.target:
             self.write(' -> ')
             if isinstance(node.target, list):
@@ -106,6 +103,14 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
             self._visit_specs(node)
         else:
             self._visit_specs(node)
+
+    def _visit_turnstile(self, node):
+        self.write(':=')
+        self.new_lines = 1
+        self.indentation += 1
+        self.visit(node)
+        self.indentation -= 1
+        self.new_lines = 2
 
     def visit_ActionDeclaration(self, node):
         self._visit_Declaration(node)
@@ -152,6 +157,11 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         self.visit(node.action)
         self.new_lines = 1
 
+    def visit_Index(self, node):
+        self.write('index ')
+        self.visit(node.name)
+        self._visit_turnstile(node.expression)
+
     def visit_Constraint(self, node):
         self.write('constraint ')
         if node.value is not None:
@@ -163,12 +173,7 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
     def visit_Attribute(self, node):
         self.visit(node.name)
         if isinstance(node.value, eqlast.Base):
-            self.write(':=')
-            self.new_lines = 1
-            self.indentation += 1
-            self.visit(node.value)
-            self.indentation -= 1
-            self.new_lines = 2
+            self._visit_turnstile(node.value)
         else:
             self.write(': ')
             self.visit(node.value)

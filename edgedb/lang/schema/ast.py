@@ -34,6 +34,8 @@ class Declaration(Base):
     __fields = [
         ('abstract', bool, False),
         ('final', bool, False),
+        # only links will actually allow indexes
+        ('indexes', list, list),
         ('name', str),
         ('extends', list, list),
         # usually there are some attributes allowed, e.g. "description"
@@ -48,6 +50,7 @@ class Declaration(Base):
         if base is not None:
             kwargs['abstract'] = kwargs.get('abstract', base.abstract)
             kwargs['final'] = kwargs.get('final', base.final)
+            kwargs['indexes'] = kwargs.get('indexes', base.indexes)
             kwargs['name'] = kwargs.get('name', base.name)
             kwargs['extends'] = kwargs.get('extends', base.extends)
             kwargs['attributes'] = kwargs.get('attributes', base.attributes)
@@ -189,3 +192,7 @@ class LinkProperty(Specialization):
 
 class Policy(Base):
     __fields = ['event', 'action']
+
+
+class Index(Base):
+    __fields = ['name', 'expression',]
