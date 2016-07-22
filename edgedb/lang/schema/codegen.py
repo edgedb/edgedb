@@ -80,7 +80,7 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
             self._visit_extends(node.extends)
         self._visit_specs(node)
 
-    def _visit_Spec(self, node):
+    def _visit_Specialization(self, node):
         if node.required:
             self.write('required ')
         self.write(node.__class__.__name__.lower() + ' ')
@@ -133,10 +133,10 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         self.visit(node.right)
 
     def visit_Link(self, node):
-        self._visit_Spec(node)
+        self._visit_Specialization(node)
 
     def visit_LinkProperty(self, node):
-        self._visit_Spec(node)
+        self._visit_Specialization(node)
 
     def visit_Policy(self, node):
         self.write('on ')

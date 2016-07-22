@@ -58,7 +58,7 @@ class Declaration(Base):
         super().__init__(**kwargs)
 
 
-class Spec(Base):
+class Specialization(Base):
     __fields = [
         ('required', bool, False),
         'name',
@@ -67,6 +67,8 @@ class Spec(Base):
         ('constraints', list, list),
         # only links will actually allow policies
         ('policies', list, list),
+        # only links will actually allow properties
+        ('properties', list, list),
     ]
 
     def __init__(self, base=None, **kwargs):
@@ -77,6 +79,7 @@ class Spec(Base):
             kwargs['attributes'] = kwargs.get('attributes', base.attributes)
             kwargs['constraints'] = kwargs.get('constraints', base.constraints)
             kwargs['policies'] = kwargs.get('policies', base.policies)
+            kwargs['properties'] = kwargs.get('properties', base.properties)
             kwargs['context'] = kwargs.get('context', base.context)
 
         super().__init__(**kwargs)
@@ -176,11 +179,11 @@ class LinkPropertyDeclaration(Declaration):
     pass
 
 
-class Link(Spec):
+class Link(Specialization):
     pass
 
 
-class LinkProperty(Spec):
+class LinkProperty(Specialization):
     pass
 
 

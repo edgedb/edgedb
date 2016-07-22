@@ -80,6 +80,14 @@ concept Issue extends foo.bar::NamedObject, OwnedObject, Text:
         mapping: **
         """
 
+    def test_eschema_parser_concept08(self):
+        """
+concept Foo:
+    link time_estimate -> int:
+       linkproperty unit:
+           default: 'minute'
+       """
+
     def test_eschema_parser_ws01(self):
         """
 concept LogEntry extends    OwnedObject,    Text:

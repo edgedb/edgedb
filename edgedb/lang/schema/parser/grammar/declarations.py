@@ -423,23 +423,23 @@ class Link(Nonterm):
 
 class LinkProperty(Nonterm):
     def reduce_LINKPROPERTY_Spec(self, *kids):
-        if kids[1].val.policies:
+        if kids[1].val.policies or kids[1].val.properties:
             raise Exception('parse error')
         self.val = esast.LinkProperty(kids[1].val, context=get_context(*kids))
 
 
 class Spec(Nonterm):
     def reduce_ObjectName_NL(self, *kids):
-        self.val = esast.Spec(name=kids[0].val, target=None,
-                              context=get_context(*kids))
+        self.val = esast.Specialization(name=kids[0].val, target=None,
+                                        ntext=get_context(*kids))
 
     def reduce_ObjectName_DeclarationSpecsBlob(self, *kids):
         self._processdecl_specs(kids[0], None, kids[1],
                                 context=get_context(*kids))
 
     def reduce_ObjectName_ARROW_ObjectName_NL(self, *kids):
-        self.val = esast.Spec(name=kids[0].val, target=kids[2].val,
-                              context=get_context(*kids))
+        self.val = esast.Specialization(name=kids[0].val, target=kids[2].val,
+                                        context=get_context(*kids))
 
     def reduce_ObjectName_ARROW_ObjectName_DeclarationSpecsBlob(
             self, *kids):
@@ -447,13 +447,13 @@ class Spec(Nonterm):
                                 context=get_context(*kids))
 
     def reduce_ObjectName_TURNSTILE_RawString_NL(self, *kids):
-        self.val = esast.Spec(
+        self.val = esast.Specialization(
             name=kids[0].val,
             target=parse_edgeql(kids[2].val),
             context=get_context(*kids))
 
     def reduce_ObjectName_TURNSTILE_NL_INDENT_RawString_NL_DEDENT(self, *kids):
-        self.val = esast.Spec(
+        self.val = esast.Specialization(
             name=kids[0].val,
             target=parse_edgeql(kids[4].val),
             context=get_context(*kids))
@@ -462,22 +462,27 @@ class Spec(Nonterm):
         constraints = []
         attributes = []
         policies = []
+        properties = []
 
         for spec in specs.val:
             if isinstance(spec, esast.Constraint):
                 constraints.append(spec)
             elif isinstance(spec, esast.Attribute):
                 attributes.append(spec)
+            elif isinstance(spec, esast.LinkProperty):
+                properties.append(spec)
             elif isinstance(spec, esast.Policy):
                 policies.append(spec)
             else:
                 raise Exception('parse error')
 
-        self.val = esast.Spec(name=name.val, target=target.val,
-                              attributes=attributes,
-                              constraints=constraints,
-                              policies=policies,
-                              context=context)
+        self.val = esast.Specialization(
+            name=name.val, target=target.val if target else None,
+            attributes=attributes,
+            constraints=constraints,
+            policies=policies,
+            properties=properties,
+            context=context)
 
 
 class Policy(Nonterm):
