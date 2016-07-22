@@ -8,35 +8,48 @@
 
 import types
 from edgedb.lang.common import ast, parsing
+from importkit import context as lang_context
+
+
+def _get_start_context(items):
+    ctx = val = None
+    # find non-empty start and end
+    #
+    for item in items:
+        if isinstance(item, parsing.Nonterm):
+            val = item.val
+        else:
+            val = item
+
+        if isinstance(val, (list, tuple)):
+            ctx = _get_start_context(val)
+            if ctx:
+                return ctx
+        else:
+            ctx = getattr(val, 'context', None)
+            if ctx:
+                return ctx
+
+    return None
 
 
 def get_context(*kids):
-    start = end = None
-    # find non-empty start and end
-    #
-    for kid in kids:
-        if kid.val:
-            start = kid
-            break
-    for kid in reversed(kids):
-        if kid.val:
-            end = kid
-            break
+    start_ctx = _get_start_context(kids)
+    end_ctx = _get_start_context(reversed(kids))
 
-    if isinstance(start.val, (list, tuple)):
-        start = start.val[0]
-    if isinstance(end.val, (list, tuple)):
-        end = end.val[-1]
+    if not start_ctx:
+        return None
 
-    if isinstance(start, parsing.Nonterm):
-        start = start.val
-    if isinstance(end, parsing.Nonterm):
-        end = end.val
-
-    return parsing.ParserContext(name=start.context.name,
-                                 buffer=start.context.buffer,
-                                 start=start.context.start,
-                                 end=end.context.end)
+    return parsing.ParserContext(name=start_ctx.name,
+                                 buffer=start_ctx.buffer,
+                                 start=lang_context.SourcePoint(
+                                     start_ctx.start.line,
+                                     start_ctx.start.column,
+                                     start_ctx.start.pointer),
+                                 end=lang_context.SourcePoint(
+                                     end_ctx.end.line,
+                                     end_ctx.end.column,
+                                     end_ctx.end.pointer))
 
 
 def has_context(func):
@@ -44,17 +57,21 @@ def has_context(func):
 
     def wrapper(*args, **kwargs):
         result = func(*args, **kwargs)
-        if isinstance(args[0], parsing.Nonterm):
+        _parsing = isinstance(args[0], parsing.Nonterm)  # "parsing" style
+        if _parsing:
             obj, *args = args
             obj = obj.val
         else:
             obj = result
 
-        if len(args) == 1 and args[0] is obj:
+        if len(args) == 1:
             # apparently it's a production rule that just returns its
             # only arg, so don't need to change the context
             #
-            return result
+            if _parsing and getattr(args[0], 'val', None) is obj:
+                return result
+            elif not _parsing and args[0] is obj:
+                return result
 
         if hasattr(obj, 'context'):
             obj.context = get_context(*args)
@@ -64,6 +81,9 @@ def has_context(func):
 
 
 def rebase_context(base, context):
+    if not context:
+        return
+
     context.name = base.name
     context.buffer = base.buffer
 

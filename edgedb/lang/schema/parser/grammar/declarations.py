@@ -24,6 +24,8 @@ def parse_edgeql(expression):
         context.rebase_context(ctx, _get_context(err, parsing.ParserContext))
         raise err
 
+    context.rebase_ast_context(ctx, node)
+
     return node
 
 
@@ -363,7 +365,10 @@ class DeclarationSpecsBlob(Nonterm):
         self.val = kids[3].val
 
 
-class TurnstileBlob(Nonterm):
+# this Nonterminal should NOT automatically compute context as it
+# relies on an external parser
+#
+class TurnstileBlob(parsing.Nonterm):
     def reduce_TURNSTILE_RawString_NL(self, *kids):
         self.val = parse_edgeql(kids[1].val)
 

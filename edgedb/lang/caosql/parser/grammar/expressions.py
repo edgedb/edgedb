@@ -7,7 +7,7 @@
 
 
 from edgedb.lang.common import ast
-from edgedb.lang.common import parsing
+from edgedb.lang.common import parsing, context
 
 from edgedb.lang.caosql import ast as qlast
 from edgedb.lang.ir import ast as irast
@@ -20,7 +20,7 @@ from .precedence import *
 from .tokens import *
 
 
-class Nonterm(parsing.Nonterm):
+class Nonterm(context.Nonterm):
     pass
 
 
@@ -1152,7 +1152,7 @@ class ParamName(Nonterm):
         self.val = kids[0].val
 
 
-class KeywordMeta(parsing.NontermMeta):
+class KeywordMeta(context.ContextNontermMeta):
     def __new__(mcls, name, bases, dct, *, type):
         result = super().__new__(mcls, name, bases, dct)
 
