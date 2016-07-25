@@ -6,8 +6,8 @@
 ##
 
 
-from edgedb.lang import caosql
-from edgedb.lang.caosql import ast as qlast
+from edgedb.lang import edgeql
+from edgedb.lang.edgeql import ast as qlast
 
 from . import delta as sd
 from . import derivable
@@ -65,7 +65,7 @@ class CreateSourceIndex(SourceIndexCommand, named.CreateNamedPrototype):
             sd.AlterPrototypeProperty(
                 property='expr',
                 new_value=expr.ExpressionText(
-                    caosql.generate_source(astnode.expr, pretty=False))
+                    edgeql.generate_source(astnode.expr, pretty=False))
             )
         ))
 

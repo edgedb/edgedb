@@ -14,7 +14,7 @@ from edgedb.lang.common.exceptions import _replace_context
 from edgedb.lang.common import markup
 
 
-class BackendError(edgedb_error.CaosBackendError):
+class BackendError(edgedb_error.EdgeDBBackendError):
     pass
 
 

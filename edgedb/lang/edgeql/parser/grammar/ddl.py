@@ -9,7 +9,7 @@
 import collections
 import types
 
-from edgedb.lang.caosql import ast as qlast
+from edgedb.lang.edgeql import ast as qlast
 from edgedb.lang.common.parsing import ListNonterm
 
 from .precedence import *  # NOQA

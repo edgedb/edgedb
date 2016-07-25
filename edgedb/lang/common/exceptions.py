@@ -163,7 +163,7 @@ def uninstall_excepthook():
     sys.excepthook = _old_excepthook
 
 
-class CaosBackendError(EdgeDBError):
+class EdgeDBBackendError(EdgeDBError):
     pass
 
 

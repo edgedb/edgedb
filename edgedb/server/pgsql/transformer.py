@@ -13,7 +13,7 @@ import re
 
 from edgedb.lang.common import exceptions as edgedb_error
 
-from edgedb.lang import caosql
+from edgedb.lang import edgeql
 
 from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
@@ -47,7 +47,7 @@ class IRCompilerInternalError(IRCompilerError):
 
 
 class IRCompilerErrorContext(markup.MarkupExceptionContext):
-    title = 'Caos PgSQL IR Compiler Error Context'
+    title = 'EdgeDB PgSQL IR Compiler Error Context'
 
     def __init__(self, tree):
         super().__init__()
@@ -61,7 +61,7 @@ class IRCompilerErrorContext(markup.MarkupExceptionContext):
 
 class Alias(str):
     def __new__(cls, value=''):
-        return super(Alias, cls).__new__(cls, pgsql.common.caos_name_to_pg_name(value))
+        return super(Alias, cls).__new__(cls, pgsql.common.edgedb_name_to_pg_name(value))
 
     def __add__(self, other):
         return Alias(super().__add__(other))
@@ -177,7 +177,7 @@ class TransformerContextLevel:
 
             alias = hint + str(self.aliascnt[hint])
         elif alias in self.vars:
-            raise caosql.CaosQLError('Path var redefinition: % is already used' %  alias)
+            raise edgeql.EdgeQLError('Path var redefinition: % is already used' %  alias)
 
         return Alias(alias)
 
@@ -249,7 +249,7 @@ class Decompiler(ast.visitor.NodeVisitor):
 
             for l in local_to_source.pointers.values():
                 name = l.normal_name()
-                colname = common.caos_name_to_pg_name(l.normal_name())
+                colname = common.edgedb_name_to_pg_name(l.normal_name())
                 source = context.current.source.get_pointer_origin(name, farthest=True)
                 context.current.attmap[colname] = (name, source)
 
@@ -324,11 +324,11 @@ class IRCompilerBase:
             # which is, for most purposes, equivalent to SELECTing from a parent table.
             #
             idptr = sn.Name('std.id')
-            idcol = common.caos_name_to_pg_name(idptr)
+            idcol = common.edgedb_name_to_pg_name(idptr)
             atomrefs = {idptr: irast.AtomicRefSimple(ref=node, name=idptr)}
             atomrefs.update({f.name: f for f in node.atomrefs})
 
-            cols = [(aref, common.caos_name_to_pg_name(aref)) for aref in atomrefs]
+            cols = [(aref, common.edgedb_name_to_pg_name(aref)) for aref in atomrefs]
 
             schema = context.current.proto_schema
 
@@ -422,7 +422,7 @@ class IRCompilerBase:
                 union_list.append(qry)
 
             if len(union_list) > 1:
-                relation = pgsql.ast.SelectQueryNode(caosnode=node, concepts=children,
+                relation = pgsql.ast.SelectQueryNode(edgedbnode=node, concepts=children,
                                                      op=pgsql.ast.UNION)
                 self._setop_from_list(relation, union_list, pgsql.ast.UNION)
             else:
@@ -440,7 +440,7 @@ class IRCompilerBase:
                                            schema=table_schema_name,
                                            concepts=frozenset({node.concept}),
                                            alias=context.current.genalias(hint=table_name),
-                                           caosnode=node)
+                                           edgedbnode=node)
         return relation
 
     def _relation_from_concepts(self, context, node, parent_cte):
@@ -471,7 +471,7 @@ class IRCompilerBase:
 
         else:
             if proprefs:
-                cols = [(pref, common.caos_name_to_pg_name(pref)) for pref in proprefs]
+                cols = [(pref, common.edgedb_name_to_pg_name(pref)) for pref in proprefs]
             else:
                 cols = []
 
@@ -548,7 +548,7 @@ class IRCompilerBase:
 
         relation = self._relation_from_link_proto(context, link_proto, link_node.direction,
                                                                        proprefs)
-        relation.caosnode = link_node
+        relation.edgedbnode = link_node
         return relation
 
     def _process_record(self, context, expr, cte):
@@ -991,13 +991,13 @@ class IRCompilerBase:
             elif expr.name == ('geo', 'covers'):
                 # _st_covers instead of st_covers, because Postgres chokes on && operator
                 # inside st_covers for some reason.
-                name = common.qname('caos_aux_feat_gis', '_st_covers')
-                context.current.search_path.append('caos_aux_feat_gis')
+                name = common.qname('edgedb_aux_feat_gis', '_st_covers')
+                context.current.search_path.append('edgedb_aux_feat_gis')
 
             elif expr.name == ('geo', 'distance'):
                 args = self._geo_convert_to_geometry(context, args)
-                name = common.qname('caos_aux_feat_gis', 'st_distance_sphere')
-                context.current.search_path.append('caos_aux_feat_gis')
+                name = common.qname('edgedb_aux_feat_gis', 'st_distance_sphere')
+                context.current.search_path.append('edgedb_aux_feat_gis')
 
             elif isinstance(expr.name, tuple):
                 assert False, 'unsupported function %s' % (expr.name,)
@@ -1162,7 +1162,7 @@ class IRCompilerBase:
                                             type=const_type)
 
         if expr.substitute_for:
-            result.origin_field = common.caos_name_to_pg_name(expr.substitute_for)
+            result.origin_field = common.edgedb_name_to_pg_name(expr.substitute_for)
 
         return result
 
@@ -1240,7 +1240,7 @@ class SimpleIRCompiler(IRCompilerBase):
 
         elif isinstance(expr, irast.EntitySet):
             if isinstance(expr.concept, s_atoms.Atom):
-                field_name = common.caos_name_to_pg_name(expr.concept.name)
+                field_name = common.edgedb_name_to_pg_name(expr.concept.name)
                 result = pgsql.ast.FieldRefNode(table=None, field=field_name, origin=None,
                                                 origin_field=field_name)
             else:
@@ -1250,7 +1250,7 @@ class SimpleIRCompiler(IRCompilerBase):
             result = self._process_expr(context, expr.expr)
 
         elif isinstance(expr, irast.AtomicRefSimple):
-            field_name = common.caos_name_to_pg_name(expr.name)
+            field_name = common.edgedb_name_to_pg_name(expr.name)
 
             if not context.current.local:
                 table = self._relation_from_concepts(context, expr.ref, context.current.query)
@@ -1478,13 +1478,13 @@ class IRCompiler(IRCompilerBase):
                 ref_map = {prop.ref.link_proto: query.fromexpr}
                 context.current.link_node_map[prop.ref] = {'local_ref_map': ref_map}
 
-                sprop_name = common.caos_name_to_pg_name('std.source')
+                sprop_name = common.edgedb_name_to_pg_name('std.source')
                 sref = pgsql.ast.FieldRefNode(table=query.fromexpr,
                                               field=sprop_name,
                                               origin=query.fromexpr,
                                               origin_field=sprop_name)
 
-                idprop_name = common.caos_name_to_pg_name('std.linkid')
+                idprop_name = common.edgedb_name_to_pg_name('std.linkid')
                 idref = pgsql.ast.FieldRefNode(table=query.fromexpr,
                                               field=idprop_name,
                                               origin=query.fromexpr,
@@ -1980,7 +1980,7 @@ class IRCompiler(IRCompilerBase):
             data = updval
             props = ['std.target']
 
-        e = pgsql.common.caos_name_to_pg_name
+        e = pgsql.common.edgedb_name_to_pg_name
 
         spec_cols = {e(prop): i for i, prop in enumerate(props)}
 
@@ -2073,7 +2073,7 @@ class IRCompiler(IRCompilerBase):
 
     def _process_update_expr(self, context, updexpr, props_only, operation,
                              query, scope_cte):
-        caos_link = pgsql.ast.TableNode(
+        edgedb_link = pgsql.ast.TableNode(
                             schema='edgedb', name='link',
                             alias=context.current.genalias(hint='l'))
 
@@ -2089,12 +2089,12 @@ class IRCompiler(IRCompilerBase):
 
         lname_to_id = pgsql.ast.CTENode(
             fromlist=[
-                caos_link
+                edgedb_link
             ],
             targets=[
                 pgsql.ast.SelectExprNode(
                     expr=pgsql.ast.FieldRefNode(
-                        table=caos_link,
+                        table=edgedb_link,
                         field='id'
                     ),
                     alias='id'
@@ -2102,7 +2102,7 @@ class IRCompiler(IRCompilerBase):
             ],
             where=pgsql.ast.BinOpNode(
                 left=pgsql.ast.FieldRefNode(
-                    table=caos_link,
+                    table=edgedb_link,
                     field='name'
                 ),
                 op=ast.ops.EQ,
@@ -2486,7 +2486,7 @@ class IRCompiler(IRCompilerBase):
             outerbonds = self._pull_outerbonds(context, outer_ref, query)
             self._connect_subquery_outerbonds(context, outerbonds, wrapper)
 
-            callback = functools.partial(self._inject_relation_from_caosnode, context, wrapper)
+            callback = functools.partial(self._inject_relation_from_edgedbnode, context, wrapper)
 
             try:
                 context.current.ctemap[query][outer_ref]
@@ -2515,8 +2515,8 @@ class IRCompiler(IRCompilerBase):
 
         return pulled_bonds
 
-    def _inject_relation_from_caosnode(self, context, query, caosnode):
-        cte = context.current.ctemap[query][caosnode]
+    def _inject_relation_from_edgedbnode(self, context, query, edgedbnode):
+        cte = context.current.ctemap[query][edgedbnode]
         return self._inject_relation(context, query, cte)
 
     def _inject_relation(self, context, query, rel):
@@ -2688,7 +2688,7 @@ class IRCompiler(IRCompilerBase):
         selexprs = []
 
         for expr in selector:
-            alias = common.caos_name_to_pg_name(expr.name or expr.autoname)
+            alias = common.edgedb_name_to_pg_name(expr.name or expr.autoname)
             pgexpr = self._process_expr(context, expr.expr, query)
             selexprs.append((pgexpr, alias))
 
@@ -2728,7 +2728,7 @@ class IRCompiler(IRCompilerBase):
             sortexpr = self._process_expr(context, expr)
             query.groupby.append(sortexpr)
 
-    def get_caos_path_root(self, expr):
+    def get_edgedb_path_root(self, expr):
         result = expr
         while result.rlink:
             result = result.rlink.source
@@ -2767,13 +2767,13 @@ class IRCompiler(IRCompilerBase):
 
         return isinstance(expr, (irast.PathCombination, irast.EntitySet))
 
-    def get_cte_fieldref_for_set(self, context, caos_node, link_name, schema=False, map=None):
+    def get_cte_fieldref_for_set(self, context, edgedb_node, link_name, schema=False, map=None):
         """Return FieldRef node corresponding to the specified atom or schema value set.
 
         Arguments:
             - context: Current context
-            - caos_node: A irast.EntitySet node
-            - field_name: The name of the atomic link of entities represented by caos_node
+            - edgedb_node: A irast.EntitySet node
+            - field_name: The name of the atomic link of entities represented by edgedb_node
             - schema: If True, field_name is a reference to concept metadata instead of the
                     atom data. Default: False.
             - map: Optional AtomicRef->FieldRef mapping to look search in.  If not specified,
@@ -2781,15 +2781,15 @@ class IRCompiler(IRCompilerBase):
 
         Return:
             A pgsql.ast.FieldRef node representing a set of atom/schema values for the specified,
-            caos_node and field_name.
+            edgedb_node and field_name.
         """
 
         if map is None:
             map = context.current.concept_node_map
 
-        cte_refs = map[caos_node]
+        cte_refs = map[edgedb_node]
 
-        field_name = common.caos_name_to_pg_name(link_name)
+        field_name = common.edgedb_name_to_pg_name(link_name)
         ref = None
 
         ref_key = ('schema', link_name) if schema else link_name
@@ -2820,7 +2820,7 @@ class IRCompiler(IRCompilerBase):
                                              origin=ref_table, origin_field=field_name)
 
         if ref is None:
-            msg = 'could not resolve "{}"."{}" as table field'.format(caos_node.concept.name,
+            msg = 'could not resolve "{}"."{}" as table field'.format(edgedb_node.concept.name,
                                                                       ref_key)
             raise LookupError(msg)
 
@@ -2834,7 +2834,7 @@ class IRCompiler(IRCompilerBase):
             # array elements.
             #
             schema = context.current.proto_schema
-            link = caos_node.concept.resolve_pointer(
+            link = edgedb_node.concept.resolve_pointer(
                             schema, link_name,
                             look_in_children=True)
             pgtype = types.pg_type_from_atom(
@@ -3044,7 +3044,7 @@ class IRCompiler(IRCompilerBase):
 
         elif isinstance(expr, irast.EntitySet):
             if context.current.unwind_rlinks:
-                root = self.get_caos_path_root(expr)
+                root = self.get_edgedb_path_root(expr)
             else:
                 root = expr
             self._process_graph(context, cte or context.current.query, root)
@@ -3357,7 +3357,7 @@ class IRCompiler(IRCompilerBase):
         result = []
 
         for expr in exprs:
-            conv = pgsql.ast.FunctionCallNode(name=common.qname('caos_aux_feat_gis', 'geometry'),
+            conv = pgsql.ast.FunctionCallNode(name=common.qname('edgedb_aux_feat_gis', 'geometry'),
                                               args=[expr])
             result.append(conv)
 
@@ -3422,7 +3422,7 @@ class IRCompiler(IRCompilerBase):
         return join
 
     def _pull_fieldrefs(self, context, target_rel, source_rel):
-        for caosnode, refs in source_rel.concept_node_map.items():
+        for edgedbnode, refs in source_rel.concept_node_map.items():
             for field, ref in refs.items():
                 refexpr = pgsql.ast.FieldRefNode(table=source_rel, field=ref.alias,
                                                  origin=ref.expr.origin,
@@ -3431,9 +3431,9 @@ class IRCompiler(IRCompilerBase):
                 fieldref = pgsql.ast.SelectExprNode(expr=refexpr, alias=ref.alias)
                 target_rel.targets.append(fieldref)
 
-                mapslot = target_rel.concept_node_map.get(caosnode)
+                mapslot = target_rel.concept_node_map.get(edgedbnode)
                 if not mapslot:
-                    target_rel.concept_node_map[caosnode] = {field: fieldref}
+                    target_rel.concept_node_map[edgedbnode] = {field: fieldref}
                 else:
                     mapslot[field] = fieldref
 
@@ -3441,10 +3441,10 @@ class IRCompiler(IRCompilerBase):
                     bondref = pgsql.ast.FieldRefNode(table=target_rel, field=ref.alias,
                                                      origin=ref.expr.origin,
                                                      origin_field=ref.expr.origin_field)
-                    target_rel.addbond(caosnode.id, bondref)
-                context.current.concept_node_map[caosnode][field].expr.table = target_rel
+                    target_rel.addbond(edgedbnode.id, bondref)
+                context.current.concept_node_map[edgedbnode][field].expr.table = target_rel
 
-        for caoslink, refs in source_rel.link_node_map.items():
+        for edgedblink, refs in source_rel.link_node_map.items():
             for field, ref in refs.items():
                 refexpr = pgsql.ast.FieldRefNode(table=source_rel, field=ref.alias,
                                                  origin=ref.expr.origin,
@@ -3453,10 +3453,10 @@ class IRCompiler(IRCompilerBase):
                 fieldref = pgsql.ast.SelectExprNode(expr=refexpr, alias=ref.alias)
                 target_rel.targets.append(fieldref)
 
-                target_rel.link_node_map.setdefault(caoslink, {})[field] = fieldref
-                context.current.link_node_map[caoslink][field].expr.table = target_rel
+                target_rel.link_node_map.setdefault(edgedblink, {})[field] = fieldref
+                context.current.link_node_map[edgedblink][field].expr.table = target_rel
 
-    def caos_path_to_sql_path(self, context, root_cte, step_cte, caos_path_tip, sql_path_tip, link,
+    def edgedb_path_to_sql_path(self, context, root_cte, step_cte, edgedb_path_tip, sql_path_tip, link,
                                                                                         weak=False):
         """
         Generates a Common Table Expression for a given step in the path
@@ -3464,9 +3464,9 @@ class IRCompiler(IRCompilerBase):
         @param context: parse context
         @param root_cte: root CTE
         @param step_cte: parent CTE
-        @param caos_path_tip: Caos path step node
+        @param edgedb_path_tip: EdgeDB path step node
         @param sql_path_tip: current position in parent CTE join chain
-        @param link: Caos link node
+        @param link: EdgeDB link node
         @param weak:
         """
 
@@ -3479,36 +3479,36 @@ class IRCompiler(IRCompilerBase):
                 return
 
         if not step_cte:
-            if caos_path_tip.pathvar:
-                # If the path caos_path_tip has been assigned a named pointer, re-use it in the
+            if edgedb_path_tip.pathvar:
+                # If the path edgedb_path_tip has been assigned a named pointer, re-use it in the
                 # CTE alias.
                 #
-                cte_alias = context.current.genalias(hint=caos_path_tip.pathvar)
+                cte_alias = context.current.genalias(hint=edgedb_path_tip.pathvar)
             else:
-                cte_alias = context.current.genalias(hint=str(caos_path_tip.id))
+                cte_alias = context.current.genalias(hint=str(edgedb_path_tip.id))
 
-            if caos_path_tip.filter or caos_path_tip.rlink:
-                step_cte = pgsql.ast.CTENode(concepts=frozenset({caos_path_tip.concept}),
-                                             alias=cte_alias, caosnode=caos_path_tip)
+            if edgedb_path_tip.filter or edgedb_path_tip.rlink:
+                step_cte = pgsql.ast.CTENode(concepts=frozenset({edgedb_path_tip.concept}),
+                                             alias=cte_alias, edgedbnode=edgedb_path_tip)
             else:
-                step_cte = pgsql.ast.SelectQueryNode(concepts=frozenset({caos_path_tip.concept}),
-                                                     alias=cte_alias, caosnode=caos_path_tip)
+                step_cte = pgsql.ast.SelectQueryNode(concepts=frozenset({edgedb_path_tip.concept}),
+                                                     alias=cte_alias, edgedbnode=edgedb_path_tip)
 
         ctemap = context.current.ctemap.setdefault(root_cte, {})
-        ctemap[caos_path_tip] = step_cte
+        ctemap[edgedb_path_tip] = step_cte
 
         fromnode = step_cte.fromlist[0] if step_cte.fromlist else pgsql.ast.FromExprNode()
 
-        id_field = common.caos_name_to_pg_name('std.id')
+        id_field = common.edgedb_name_to_pg_name('std.id')
 
-        if caos_path_tip and isinstance(caos_path_tip.concept, s_concepts.Concept):
-            concept_table = self._relation_from_concepts(context, caos_path_tip, step_cte)
+        if edgedb_path_tip and isinstance(edgedb_path_tip.concept, s_concepts.Concept):
+            concept_table = self._relation_from_concepts(context, edgedb_path_tip, step_cte)
 
             bond = pgsql.ast.FieldRefNode(table=concept_table, field=id_field,
                                           origin=concept_table, origin_field=id_field)
-            concept_table.addbond(caos_path_tip.id, bond)
+            concept_table.addbond(edgedb_path_tip.id, bond)
 
-            tip_concepts = frozenset((caos_path_tip.concept,))
+            tip_concepts = frozenset((edgedb_path_tip.concept,))
         else:
             assert sql_path_tip
             concept_table = None
@@ -3529,7 +3529,7 @@ class IRCompiler(IRCompilerBase):
             join = fromnode.expr if fromnode.expr else sql_path_tip
 
             map_join_type = 'left' if weak else 'inner'
-            tip_pathvar = caos_path_tip.pathvar if caos_path_tip else None
+            tip_pathvar = edgedb_path_tip.pathvar if edgedb_path_tip else None
             linkmap_key = link_proto, link.direction, link.source, tip_pathvar
 
             try:
@@ -3544,11 +3544,11 @@ class IRCompiler(IRCompilerBase):
 
             # Set up references according to link direction
             #
-            src_col = common.caos_name_to_pg_name('std.source')
+            src_col = common.edgedb_name_to_pg_name('std.source')
             source_ref = pgsql.ast.FieldRefNode(table=map_rel, field=src_col,
                                                 origin=map_rel, origin_field=src_col)
 
-            tgt_col = common.caos_name_to_pg_name('std.target')
+            tgt_col = common.edgedb_name_to_pg_name('std.target')
             target_ref = pgsql.ast.FieldRefNode(table=map_rel, field=tgt_col,
                                                 origin=map_rel, origin_field=tgt_col)
 
@@ -3601,7 +3601,7 @@ class IRCompiler(IRCompilerBase):
 
                 cond_expr = pgsql.ast.BinOpNode(left=map_tgt_ref, op='=', right=target_id_field)
 
-                prev_bonds = join.bonds(caos_path_tip.id)
+                prev_bonds = join.bonds(edgedb_path_tip.id)
 
                 # We use inner join for target relations to make sure this join relation is
                 # not producing dangling links, either as a result of partial data, or query
@@ -3616,7 +3616,7 @@ class IRCompiler(IRCompilerBase):
                 else:
                     pre_map_join = map_join.copy()
                     new_map_join = self._simple_join(context, pre_map_join, concept_table,
-                                                     caos_path_tip.id,
+                                                     edgedb_path_tip.id,
                                                      type='inner',
                                                      condition=cond_expr)
                     map_join.copyfrom(new_map_join)
@@ -3624,7 +3624,7 @@ class IRCompiler(IRCompilerBase):
                 join.updatebonds(concept_table)
 
                 if prev_bonds:
-                    join.addbond(caos_path_tip.id, prev_bonds[-1])
+                    join.addbond(edgedb_path_tip.id, prev_bonds[-1])
 
             fromnode.expr = join
 
@@ -3634,22 +3634,22 @@ class IRCompiler(IRCompilerBase):
                 #
                 self._pull_fieldrefs(context, step_cte, sql_path_tip)
 
-        if caos_path_tip and isinstance(caos_path_tip.concept, s_concepts.Concept):
+        if edgedb_path_tip and isinstance(edgedb_path_tip.concept, s_concepts.Concept):
             # Process references to atoms.
             #
-            atomrefs = {'std.id'} | {f.name for f in caos_path_tip.atomrefs}
+            atomrefs = {'std.id'} | {f.name for f in edgedb_path_tip.atomrefs}
 
-            context.current.concept_node_map.setdefault(caos_path_tip, {})
-            step_cte.concept_node_map.setdefault(caos_path_tip, {})
+            context.current.concept_node_map.setdefault(edgedb_path_tip, {})
+            step_cte.concept_node_map.setdefault(edgedb_path_tip, {})
             aliases = {}
 
-            concept = caos_path_tip.concept
+            concept = edgedb_path_tip.concept
             proto_schema = context.current.proto_schema
 
             ref_map = {n: [concept_table] for n, p in concept.pointers.items() if p.atomic()}
             joined_atomref_sources = {concept: concept_table}
 
-            computables = context.current.computable_map.get(caos_path_tip, {})
+            computables = context.current.computable_map.get(edgedb_path_tip, {})
 
             for field in atomrefs:
                 try:
@@ -3676,7 +3676,7 @@ class IRCompiler(IRCompilerBase):
                     for source in sources:
                         if source not in joined_atomref_sources:
                             atomref_table = self._table_from_concept(context, source,
-                                                                     caos_path_tip, step_cte)
+                                                                     edgedb_path_tip, step_cte)
                             joined_atomref_sources[source] = atomref_table
                             left = pgsql.ast.FieldRefNode(table=concept_table, field=id_field)
                             right = pgsql.ast.FieldRefNode(table=atomref_table, field=id_field)
@@ -3687,7 +3687,7 @@ class IRCompiler(IRCompilerBase):
                                                               condition=joincond)
                     ref_map[field] = atomref_tables = [joined_atomref_sources[c] for c in sources]
 
-                colname = common.caos_name_to_pg_name(field)
+                colname = common.edgedb_name_to_pg_name(field)
 
                 fieldrefs = [pgsql.ast.FieldRefNode(table=atomref_table, field=colname,
                                                     origin=atomref_table, origin_field=colname)
@@ -3706,14 +3706,14 @@ class IRCompiler(IRCompilerBase):
                 selectnode = pgsql.ast.SelectExprNode(expr=refexpr, alias=aliases[field])
                 step_cte.targets.append(selectnode)
 
-                step_cte.concept_node_map[caos_path_tip][field] = selectnode
+                step_cte.concept_node_map[edgedb_path_tip][field] = selectnode
 
                 # Record atom references in the global map in case they have to be pulled up later
                 #
                 refexpr = pgsql.ast.FieldRefNode(table=step_cte, field=selectnode.alias,
                                                  origin=atomref_tables, origin_field=colname)
                 selectnode = pgsql.ast.SelectExprNode(expr=refexpr, alias=selectnode.alias)
-                context.current.concept_node_map[caos_path_tip][field] = selectnode
+                context.current.concept_node_map[edgedb_path_tip][field] = selectnode
 
                 try:
                     computable = computables[field]
@@ -3729,14 +3729,14 @@ class IRCompiler(IRCompilerBase):
 
             # Process references to class attributes.
             #
-            metarefs = {'id'} | {f.name for f in caos_path_tip.metarefs}
+            metarefs = {'id'} | {f.name for f in edgedb_path_tip.metarefs}
 
             if len(metarefs) > 1:
-                if isinstance(caos_path_tip.concept, s_concepts.Concept):
+                if isinstance(edgedb_path_tip.concept, s_concepts.Concept):
                     metatable = 'concept'
                 else:
                     msg ='unexpected path tip type when resolving metarefs: {}' \
-                                .format(caos_path_tip.concept)
+                                .format(edgedb_path_tip.concept)
                     raise ValueError(msg)
 
                 datatable = pgsql.ast.TableNode(name=metatable,
@@ -3777,7 +3777,7 @@ class IRCompiler(IRCompilerBase):
                 selectnode = pgsql.ast.SelectExprNode(expr=fieldref,
                                                       alias=step_cte.alias + ('_schema_' + alias))
                 step_cte.targets.append(selectnode)
-                step_cte.concept_node_map[caos_path_tip][('schema', metaref)] = selectnode
+                step_cte.concept_node_map[edgedb_path_tip][('schema', metaref)] = selectnode
 
                 ##
                 # Record schema references in the global map in case they have to be pulled up later
@@ -3785,9 +3785,9 @@ class IRCompiler(IRCompilerBase):
                 refexpr = pgsql.ast.FieldRefNode(table=step_cte, field=selectnode.alias,
                                                  origin=srctable, origin_field=metaref_name)
                 selectnode = pgsql.ast.SelectExprNode(expr=refexpr, alias=selectnode.alias)
-                context.current.concept_node_map[caos_path_tip][('schema', metaref)] = selectnode
+                context.current.concept_node_map[edgedb_path_tip][('schema', metaref)] = selectnode
 
-        if caos_path_tip and caos_path_tip.filter:
+        if edgedb_path_tip and edgedb_path_tip.filter:
             ##
             # Switch context to node filter and make the concept table available for
             # atoms in filter expression to reference.
@@ -3795,7 +3795,7 @@ class IRCompiler(IRCompilerBase):
 
             weak_filter = weak
 
-            parent_expr = caos_path_tip.filter.parent
+            parent_expr = edgedb_path_tip.filter.parent
 
             if isinstance(parent_expr, irast.InlineFilter):
                 expr = parent_expr.parent
@@ -3804,8 +3804,8 @@ class IRCompiler(IRCompilerBase):
 
             context.push()
             context.current.location = 'nodefilter'
-            context.current.concept_node_map[caos_path_tip] = {'local_ref_map': ref_map}
-            expr = self._process_expr(context, caos_path_tip.filter)
+            context.current.concept_node_map[edgedb_path_tip] = {'local_ref_map': ref_map}
+            expr = self._process_expr(context, edgedb_path_tip.filter)
             if expr:
                 if weak_filter:
                     step_cte.where_weak = self.extend_predicate(step_cte.where_weak, expr,
@@ -3842,13 +3842,13 @@ class IRCompiler(IRCompilerBase):
                 selectnode = pgsql.ast.SelectExprNode(expr=refexpr, alias=selectnode.alias)
                 context.current.link_node_map.setdefault(link, {})[propref.name] = selectnode
 
-        if caos_path_tip and caos_path_tip.reference:
+        if edgedb_path_tip and edgedb_path_tip.reference:
             # Do not attempt to resolve the outer reference here since it may have not
             # been processed yet.
             #
-            outer_ref = caos_path_tip.reference
+            outer_ref = edgedb_path_tip.reference
 
-            inner_ref = context.current.concept_node_map[caos_path_tip]
+            inner_ref = context.current.concept_node_map[edgedb_path_tip]
             inner_ref = inner_ref['std.id']
 
             context.current.query.outerbonds.append((outer_ref, inner_ref))
@@ -3856,14 +3856,14 @@ class IRCompiler(IRCompilerBase):
         if is_root:
             step_cte.fromlist.append(fromnode)
 
-        if caos_path_tip and isinstance(caos_path_tip.concept, s_concepts.Concept):
-            step_cte._source_graph = caos_path_tip
+        if edgedb_path_tip and isinstance(edgedb_path_tip.concept, s_concepts.Concept):
+            step_cte._source_graph = edgedb_path_tip
 
-            has_bonds = step_cte.bonds(caos_path_tip.id)
+            has_bonds = step_cte.bonds(edgedb_path_tip.id)
             if not has_bonds:
                 bond = pgsql.ast.FieldRefNode(table=step_cte,
                                               field=aliases['std.id'])
-                step_cte.addbond(caos_path_tip.id, bond)
+                step_cte.addbond(edgedb_path_tip.id, bond)
 
         return step_cte
 
@@ -3875,21 +3875,21 @@ class IRCompiler(IRCompilerBase):
                 expr.strong = strong
             return expr
 
-    def init_filter_cte(self, context, sql_path_tip, caos_path_tip):
+    def init_filter_cte(self, context, sql_path_tip, edgedb_path_tip):
         cte = pgsql.ast.SelectQueryNode()
         fromnode = pgsql.ast.FromExprNode()
         cte.fromlist.append(fromnode)
 
-        concept_table = self._relation_from_concepts(context, caos_path_tip, sql_path_tip)
+        concept_table = self._relation_from_concepts(context, edgedb_path_tip, sql_path_tip)
 
         field_name = 'std.id'
         innerref = pgsql.ast.FieldRefNode(table=concept_table, field=field_name,
                                           origin=concept_table, origin_field=field_name)
-        outerref = self.get_cte_fieldref_for_set(context, caos_path_tip, field_name,
+        outerref = self.get_cte_fieldref_for_set(context, edgedb_path_tip, field_name,
                                                  map=sql_path_tip.concept_node_map)
 
         bond = (innerref, outerref)
-        concept_table.addbond(caos_path_tip.id, bond)
+        concept_table.addbond(edgedb_path_tip.id, bond)
         fromnode.expr = concept_table
 
         target = pgsql.ast.SelectExprNode(expr=pgsql.ast.ConstantNode(value=True))
@@ -3918,7 +3918,7 @@ class IRCompiler(IRCompilerBase):
 
         return cardinality_ok
 
-    def _process_conjunction(self, context, cte, sql_path_tip, caos_path_tip, conjunction,
+    def _process_conjunction(self, context, cte, sql_path_tip, edgedb_path_tip, conjunction,
                                                                parent_cte, weak=False):
         sql_path = sql_path_tip
 
@@ -3931,20 +3931,20 @@ class IRCompiler(IRCompilerBase):
                 link_target = link.target if isinstance(link.target, irast.EntitySet) else None
 
                 if cardinality_ok:
-                    sql_path = self.caos_path_to_sql_path(context, item_cte, parent_cte,
+                    sql_path = self.edgedb_path_to_sql_path(context, item_cte, parent_cte,
                                                           link_target, sql_path, link, weak)
 
                     sql_path = self._process_path(context, item_cte, sql_path, link_target, weak)
                 else:
                     item_cte = self.init_filter_cte(context, parent_cte or sql_path_tip,
-                                                             caos_path_tip)
+                                                             edgedb_path_tip)
                     pred = pgsql.ast.ExistsNode(expr=item_cte)
                     op = ast.ops.OR if weak else ast.ops.AND
                     sql_path_tip.where = self.extend_predicate(sql_path_tip.where, pred, op)
 
                     with context(TransformerContext.NEW):
                         context.current.ignore_cardinality = True
-                        sql_path = self.caos_path_to_sql_path(context, item_cte, item_cte,
+                        sql_path = self.edgedb_path_to_sql_path(context, item_cte, item_cte,
                                                               link_target, sql_path, link, weak)
 
                         self._process_path(context, item_cte, sql_path, link_target, weak)
@@ -3954,7 +3954,7 @@ class IRCompiler(IRCompilerBase):
 
         return sql_path
 
-    def _process_disjunction(self, context, cte, sql_path_tip, caos_path_tip, disjunction):
+    def _process_disjunction(self, context, cte, sql_path_tip, edgedb_path_tip, disjunction):
         need_union = False
         sql_paths = []
 
@@ -3965,14 +3965,14 @@ class IRCompiler(IRCompilerBase):
                 link_target = link.target if isinstance(link.target, irast.EntitySet) else None
 
                 if self._check_join_cardinality(context, link):
-                    sql_path = self.caos_path_to_sql_path(context, item_cte, sql_path_tip,
+                    sql_path = self.edgedb_path_to_sql_path(context, item_cte, sql_path_tip,
                                                           link_target, sql_path_tip, link,
                                                           weak=True)
                     sql_path = self._process_path(context, item_cte, sql_path, link_target,
                                                                           weak=True)
                     sql_paths.append(sql_path)
                 else:
-                    item_cte = self.init_filter_cte(context, sql_path_tip, caos_path_tip)
+                    item_cte = self.init_filter_cte(context, sql_path_tip, edgedb_path_tip)
                     pred = pgsql.ast.ExistsNode(expr=item_cte)
                     op = ast.ops.OR
                     sql_path_tip.where_weak = self.extend_predicate(sql_path_tip.where_weak,
@@ -3980,7 +3980,7 @@ class IRCompiler(IRCompilerBase):
 
                     with context(TransformerContext.NEW):
                         context.current.ignore_cardinality = True
-                        sql_path = self.caos_path_to_sql_path(context, item_cte, item_cte,
+                        sql_path = self.edgedb_path_to_sql_path(context, item_cte, item_cte,
                                                               link_target, sql_path_tip, link,
                                                               weak=True)
 
@@ -3988,7 +3988,7 @@ class IRCompiler(IRCompilerBase):
 
             elif isinstance(link, irast.Conjunction):
                 sql_path = self._process_conjunction(context, cte, sql_path_tip,
-                                                     caos_path_tip, link, None, weak=True)
+                                                     edgedb_path_tip, link, None, weak=True)
                 sql_paths.append(sql_path)
                 need_union = True
             else:
@@ -4001,41 +4001,41 @@ class IRCompiler(IRCompilerBase):
 
         return result
 
-    def _process_path(self, context, root_cte, sql_path_tip, caos_path_tip, weak=False):
-        if not sql_path_tip and isinstance(caos_path_tip, irast.EntitySet):
+    def _process_path(self, context, root_cte, sql_path_tip, edgedb_path_tip, weak=False):
+        if not sql_path_tip and isinstance(edgedb_path_tip, irast.EntitySet):
             # Bootstrap the SQL path
-            sql_path_tip = self.caos_path_to_sql_path(context, root_cte,
-                                                      step_cte=None, caos_path_tip=caos_path_tip,
+            sql_path_tip = self.edgedb_path_to_sql_path(context, root_cte,
+                                                      step_cte=None, edgedb_path_tip=edgedb_path_tip,
                                                       sql_path_tip=None, link=None)
 
-        if isinstance(caos_path_tip, irast.Disjunction):
-            disjunction = caos_path_tip
+        if isinstance(edgedb_path_tip, irast.Disjunction):
+            disjunction = edgedb_path_tip
             conjunction = None
-        elif isinstance(caos_path_tip, irast.Conjunction):
+        elif isinstance(edgedb_path_tip, irast.Conjunction):
             disjunction = None
-            conjunction = caos_path_tip
+            conjunction = edgedb_path_tip
         else:
-            if caos_path_tip:
-                disjunction = caos_path_tip.disjunction
-                conjunction = caos_path_tip.conjunction
+            if edgedb_path_tip:
+                disjunction = edgedb_path_tip.disjunction
+                conjunction = edgedb_path_tip.conjunction
             else:
                 disjunction = conjunction = None
 
         if conjunction and conjunction.paths:
-            sql_path_tip = self._process_conjunction(context, root_cte, sql_path_tip, caos_path_tip,
+            sql_path_tip = self._process_conjunction(context, root_cte, sql_path_tip, edgedb_path_tip,
                                                               conjunction, sql_path_tip, weak)
-            if isinstance(caos_path_tip, irast.EntitySet):
+            if isinstance(edgedb_path_tip, irast.EntitySet):
                 # Path conjunction works as a strong filter and, thus, the CTE corresponding
-                # to the given Caos node must only be referenced with those conjunctions
+                # to the given EdgeDB node must only be referenced with those conjunctions
                 # included.
                 #
                 ctemap = context.current.ctemap.setdefault(root_cte, {})
-                ctemap[caos_path_tip] = sql_path_tip
+                ctemap[edgedb_path_tip] = sql_path_tip
 
 
         if disjunction and disjunction.paths:
-            if isinstance(caos_path_tip, irast.EntitySet):
-                result = self._process_disjunction(context, root_cte, sql_path_tip, caos_path_tip,
+            if isinstance(edgedb_path_tip, irast.EntitySet):
+                result = self._process_disjunction(context, root_cte, sql_path_tip, edgedb_path_tip,
                                                    disjunction)
             else:
                 sql_paths = []
@@ -4065,15 +4065,15 @@ class IRCompiler(IRCompilerBase):
         # First, analyze the given sqlpaths
         #
         for sqlpath in sql_paths:
-            for caosnode, refs in sqlpath.concept_node_map.items():
+            for edgedbnode, refs in sqlpath.concept_node_map.items():
                 ##
                 # Generate a natural union of all fields produced by given sqlpaths.
                 #
 
-                if caosnode not in fieldmap:
-                    fieldmap[caosnode] = collections.OrderedDict()
+                if edgedbnode not in fieldmap:
+                    fieldmap[edgedbnode] = collections.OrderedDict()
                 for field, ref in refs.items():
-                    fieldmap[caosnode][field] = ref
+                    fieldmap[edgedbnode][field] = ref
 
             ##
             # Enumerate and count references to the CTEs used in sqlpaths.  This is needed
@@ -4105,8 +4105,8 @@ class IRCompiler(IRCompilerBase):
 
         ##
         # Second, transform each sqlpath into a sub-query with a correct order of fields that
-        # can UNION properly.  Fields originated from the same Caos node are placed into the
-        # same column.  If an sqlpath does not include the needed Caos node, a NULL placeholder
+        # can UNION properly.  Fields originated from the same EdgeDB node are placed into the
+        # same column.  If an sqlpath does not include the needed EdgeDB node, a NULL placeholder
         # is used.  This effectively creates a natural outer join of fields produced by all
         # provided sqlpaths which represents a sparse array of matched graph paths.
         #
@@ -4118,11 +4118,11 @@ class IRCompiler(IRCompilerBase):
             query.fromlist.append(pgsql.ast.FromExprNode(expr=sqlpath))
 
             joinmap = sqlpath.concept_node_map
-            for caosnode, fields in fieldmap.items():
+            for edgedbnode, fields in fieldmap.items():
                 for field, ref in fields.items():
                     selexpr = None
-                    if caosnode in joinmap:
-                        fieldref = joinmap[caosnode].get(field)
+                    if edgedbnode in joinmap:
+                        fieldref = joinmap[edgedbnode].get(field)
 
                         if fieldref:
                             if isinstance(fieldref.expr, pgsql.ast.ConstantNode):
@@ -4138,18 +4138,18 @@ class IRCompiler(IRCompilerBase):
                         selexpr = pgsql.ast.SelectExprNode(expr=placeholder, alias=ref.alias)
 
                     query.targets.append(selexpr)
-                    if caosnode not in query.concept_node_map:
-                        query.concept_node_map[caosnode] = {}
-                    query.concept_node_map[caosnode][field] = selexpr
+                    if edgedbnode not in query.concept_node_map:
+                        query.concept_node_map[edgedbnode] = {}
+                    query.concept_node_map[edgedbnode][field] = selexpr
 
                     fieldref = pgsql.ast.FieldRefNode(table=result, field=selexpr.alias)
                     selexpr = pgsql.ast.SelectExprNode(expr=fieldref, alias=selexpr.alias)
 
-                    if caosnode not in result.concept_node_map:
-                        result.concept_node_map[caosnode] = {}
-                    result.concept_node_map[caosnode][field] = selexpr
+                    if edgedbnode not in result.concept_node_map:
+                        result.concept_node_map[edgedbnode] = {}
+                    result.concept_node_map[edgedbnode][field] = selexpr
 
-                    context.current.concept_node_map[caosnode][field] = selexpr
+                    context.current.concept_node_map[edgedbnode][field] = selexpr
 
 
             path_concepts = sqlpath.concepts.union(*[c.children(context.current.proto_schema)
@@ -4165,7 +4165,7 @@ class IRCompiler(IRCompilerBase):
                 if len(concept_filter) == 0:
                     pass
                 else:
-                    concept_name_ref = query.concept_node_map[sqlpath.caosnode].get(('schema', 'name'))
+                    concept_name_ref = query.concept_node_map[sqlpath.edgedbnode].get(('schema', 'name'))
                     if not concept_name_ref:
                         datatable = pgsql.ast.TableNode(name='metaobject',
                                                         schema='edgedb',
@@ -4173,7 +4173,7 @@ class IRCompiler(IRCompilerBase):
                                                         alias=context.current.genalias(hint='metaobject'))
                         query.fromlist.append(pgsql.ast.FromExprNode(expr=datatable))
 
-                        left = query.concept_node_map[sqlpath.caosnode][('schema', 'id')]
+                        left = query.concept_node_map[sqlpath.edgedbnode][('schema', 'id')]
                         right = pgsql.ast.FieldRefNode(table=datatable, field='id')
                         whereexpr = pgsql.ast.BinOpNode(op='=', left=left.expr, right=right)
                         query.where = self.extend_predicate(query.where, whereexpr)

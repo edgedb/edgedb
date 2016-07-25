@@ -70,7 +70,7 @@ class PgSQLLexer(lexer.Lexer):
         Rule(token='Op',
              next_state=STATE_KEEP,
              regexp=r'''
-                # CAOSQL-specific multi-char ops
+                # EdgeQL-specific multi-char ops
                 {opchar_pg} (?:{opchar}(?!/\*|--))+
                 |
                 (?:{opchar}(?!/\*|--))+ {opchar_pg} (?:{opchar}(?!/\*|--))*

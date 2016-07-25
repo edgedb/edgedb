@@ -6,8 +6,8 @@
 ##
 
 
-from edgedb.lang import caosql
-from edgedb.lang.caosql import ast as qlast
+from edgedb.lang import edgeql
+from edgedb.lang.edgeql import ast as qlast
 from edgedb.lang.graphql import ast as gqlast
 from edgedb.lang.graphql import parser as gqlparser
 
@@ -97,4 +97,4 @@ def translate(schema, graphql):
     parser = gqlparser.GraphQLParser()
     gqltree = parser.parse(graphql)
     edgeql_tree = GraphQLTranslator(schema).translate(gqltree)
-    return caosql.generate_source(edgeql_tree)
+    return edgeql.generate_source(edgeql_tree)

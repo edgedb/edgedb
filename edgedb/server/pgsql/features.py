@@ -88,7 +88,7 @@ class KnownRecordMarkerFeature(deltadbops.Feature):
 
 
 class GisFeature(deltadbops.Feature):
-    def __init__(self, schema='caos_aux_feat_gis'):
+    def __init__(self, schema='edgedb_aux_feat_gis'):
         super().__init__(name='postgis', schema=schema)
 
     @classmethod
@@ -97,7 +97,7 @@ class GisFeature(deltadbops.Feature):
 
         for typ in ('box2d', 'box3d', 'geometry', 'geography'):
             try:
-                db.typio.identify(contrib_postgis='{}.{}'.format('caos_aux_feat_gis', typ))
+                db.typio.identify(contrib_postgis='{}.{}'.format('edgedb_aux_feat_gis', typ))
             except postgresql.exceptions.SchemaNameError:
                 pass
 
@@ -105,5 +105,5 @@ class GisFeature(deltadbops.Feature):
     def reset_connection(cls, connection):
         search_path = connection.settings['search_path']
 
-        if 'caos_aux_feat_gis' not in search_path:
-            connection.settings['search_path'] = search_path + ',caos_aux_feat_gis'
+        if 'edgedb_aux_feat_gis' not in search_path:
+            connection.settings['search_path'] = search_path + ',edgedb_aux_feat_gis'

@@ -10,7 +10,7 @@ import collections
 
 from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import transformer as irtransformer
-from edgedb.lang.caosql import ast as qlast
+from edgedb.lang.edgeql import ast as qlast
 
 from edgedb.lang.common import ast
 
@@ -20,18 +20,18 @@ class IRDecompilerContext:
 
 
 class IRDecompiler(irtransformer.TreeTransformer):
-    def transform(self, caos_tree, inline_anchors=False, return_statement=False):
+    def transform(self, edgedb_tree, inline_anchors=False, return_statement=False):
         context = IRDecompilerContext()
         context.inline_anchors = inline_anchors
-        caosql_tree = self._process_expr(context, caos_tree)
+        edgeql_tree = self._process_expr(context, edgedb_tree)
 
         if return_statement:
-            if not isinstance(caosql_tree, qlast.StatementNode):
+            if not isinstance(edgeql_tree, qlast.StatementNode):
                 selnode = qlast.SelectQueryNode()
-                selnode.targets = [qlast.SelectExprNode(expr=caosql_tree)]
-                caosql_tree = selnode
+                selnode.targets = [qlast.SelectExprNode(expr=edgeql_tree)]
+                edgeql_tree = selnode
 
-        return caosql_tree
+        return edgeql_tree
 
     def _pathspec_from_record(self, context, expr):
         pathspec = []
@@ -259,7 +259,7 @@ class IRDecompiler(irtransformer.TreeTransformer):
                     elements = []
 
                     for v in value:
-                        if isinstance(v, caos_types.ProtoObject):
+                        if isinstance(v, edgedb_types.ProtoObject):
                             v = qlast.PrototypeRefNode(module=v.name.module, name=v.name.name)
                         elements.append(v)
 

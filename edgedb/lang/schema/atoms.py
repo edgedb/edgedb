@@ -8,7 +8,7 @@
 
 from edgedb.lang.common.functional import hybridmethod
 
-from edgedb.lang.caosql import ast as qlast
+from edgedb.lang.edgeql import ast as qlast
 
 from . import attributes
 from . import constraints

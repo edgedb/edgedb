@@ -6,7 +6,7 @@
 ##
 
 
-from edgedb.lang import caosql
+from edgedb.lang import edgeql
 from edgedb.lang.schema import database as s_db
 from edgedb.lang.schema import delta as s_delta
 
@@ -30,11 +30,11 @@ def delta_from_ddl(stmts):
     alter_db = s_db.AlterDatabase()
     context = s_delta.CommandContext()
 
-    if isinstance(stmts, caosql.ast.Base):
+    if isinstance(stmts, edgeql.ast.Base):
         stmts = [stmts]
 
     for stmt in stmts:
-        ddl = caosql.deoptimize(stmt)
+        ddl = edgeql.deoptimize(stmt)
 
         with context(s_db.DatabaseCommandContext(alter_db)):
             cmd = s_delta.Command.from_ast(ddl, context=context)
@@ -58,6 +58,6 @@ def ddl_text_from_delta(delta):
     text = []
     for command in commands:
         delta_ast = ddl_from_delta(command)
-        text.append(caosql.generate_source(caosql.optimize(delta_ast)))
+        text.append(edgeql.generate_source(edgeql.optimize(delta_ast)))
 
     return '\n'.join(text)

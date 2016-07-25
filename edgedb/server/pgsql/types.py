@@ -108,7 +108,7 @@ class PointerStorageInfo:
     def _source_table_info(cls, pointer):
         table = common.get_table_name(pointer.source, catenate=False)
         ptr_name = pointer.normal_name()
-        col_name = common.caos_name_to_pg_name(ptr_name)
+        col_name = common.edgedb_name_to_pg_name(ptr_name)
         table_type = 'concept'
 
         return table, table_type, col_name
@@ -122,7 +122,7 @@ class PointerStorageInfo:
             col_name += '@atom'
 
         table_type = 'link'
-        col_name = common.caos_name_to_pg_name(col_name)
+        col_name = common.edgedb_name_to_pg_name(col_name)
 
         return table, table_type, col_name
 
@@ -170,7 +170,7 @@ class PointerStorageInfo:
         if is_prop:
             table = common.get_table_name(source, catenate=False)
             table_type = 'link'
-            col_name = common.caos_name_to_pg_name(pointer.normal_name())
+            col_name = common.edgedb_name_to_pg_name(pointer.normal_name())
         else:
             if cls._storable_in_source(pointer) and not link_bias:
                 table, table_type, col_name = cls._source_table_info(pointer)

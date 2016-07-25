@@ -9,7 +9,7 @@
 from edgedb.lang.common import parsing, context
 from edgedb.lang.common.exceptions import _get_context
 
-from edgedb.lang import caosql
+from edgedb.lang import edgeql
 from edgedb.lang.schema import ast as esast
 
 from .tokens import *
@@ -19,7 +19,7 @@ def parse_edgeql(expression):
     ctx = expression.context
 
     try:
-        node = caosql.parse(expression.value)
+        node = edgeql.parse(expression.value)
     except parsing.ParserError as err:
         context.rebase_context(ctx, _get_context(err, parsing.ParserContext))
         raise err

@@ -17,9 +17,9 @@ from . import decompiler
 from . import parser
 
 
-def inline_constants(caosql_tree, values, types):
+def inline_constants(edgeql_tree, values, types):
     flt = lambda n: isinstance(n, qlast.ConstantNode) and n.index in values
-    constants = ast.find_children(caosql_tree, flt)
+    constants = ast.find_children(edgeql_tree, flt)
 
     for constant in constants:
         value = values[constant.index]
@@ -36,11 +36,11 @@ def normalize_tree(expr, schema, *, module_aliases=None, anchors=None,
                    inline_anchors=False):
     ir = compiler.compile_ast_to_ir(
         expr, schema, module_aliases=module_aliases, anchors=anchors)
-    caosql_tree = decompiler.decompile_ir(ir, inline_anchors=inline_anchors)
+    edgeql_tree = decompiler.decompile_ir(ir, inline_anchors=inline_anchors)
 
-    source = codegen.generate_source(caosql_tree, pretty=False)
+    source = codegen.generate_source(edgeql_tree, pretty=False)
 
-    return ir, caosql_tree, source
+    return ir, edgeql_tree, source
 
 
 def normalize_expr(expr, schema, *, module_aliases=None, anchors=None,

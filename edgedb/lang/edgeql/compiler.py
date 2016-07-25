@@ -5,7 +5,7 @@
 # See LICENSE for details.
 ##
 
-"""CaosQL to IR compiler"""
+"""EdgeQL to IR compiler"""
 
 
 import itertools
@@ -23,9 +23,9 @@ from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import types as s_types
 
-from edgedb.lang.caosql import ast as qlast
-from edgedb.lang.caosql import errors
-from edgedb.lang.caosql import parser
+from edgedb.lang.edgeql import ast as qlast
+from edgedb.lang.edgeql import errors
+from edgedb.lang.edgeql import parser
 
 from edgedb.lang.common import ast
 from edgedb.lang.common import debug
@@ -157,7 +157,7 @@ class ParseContextWrapper(object):
         self.context.pop()
 
 
-class CaosQLCompiler(irtransformer.TreeTransformer):
+class EdgeQLCompiler(irtransformer.TreeTransformer):
     def __init__(self, proto_schema, module_aliases=None):
         self.proto_schema = proto_schema
         self.module_aliases = module_aliases
@@ -179,36 +179,36 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
 
         return context
 
-    def transform(self, caosql_tree, arg_types, module_aliases=None,
+    def transform(self, edgeql_tree, arg_types, module_aliases=None,
                         anchors=None, security_context=None):
         context = self._init_context(arg_types, module_aliases, anchors,
                                      security_context=security_context)
 
-        if isinstance(caosql_tree, qlast.SelectQueryNode):
-            stree = self._transform_select(context, caosql_tree, arg_types)
-        elif isinstance(caosql_tree, qlast.InsertQueryNode):
-            stree = self._transform_insert(context, caosql_tree, arg_types)
-        elif isinstance(caosql_tree, qlast.UpdateQueryNode):
-            stree = self._transform_update(context, caosql_tree, arg_types)
-        elif isinstance(caosql_tree, qlast.DeleteQueryNode):
-            stree = self._transform_delete(context, caosql_tree, arg_types)
+        if isinstance(edgeql_tree, qlast.SelectQueryNode):
+            stree = self._transform_select(context, edgeql_tree, arg_types)
+        elif isinstance(edgeql_tree, qlast.InsertQueryNode):
+            stree = self._transform_insert(context, edgeql_tree, arg_types)
+        elif isinstance(edgeql_tree, qlast.UpdateQueryNode):
+            stree = self._transform_update(context, edgeql_tree, arg_types)
+        elif isinstance(edgeql_tree, qlast.DeleteQueryNode):
+            stree = self._transform_delete(context, edgeql_tree, arg_types)
         else:
-            msg = 'unexpected statement type: {!r}'.format(caosql_tree)
+            msg = 'unexpected statement type: {!r}'.format(edgeql_tree)
             raise ValueError(msg)
 
         self.apply_fixups(stree)
         self.apply_rewrites(stree)
         return stree
 
-    def transform_fragment(self, caosql_tree, arg_types, module_aliases=None, anchors=None,
+    def transform_fragment(self, edgeql_tree, arg_types, module_aliases=None, anchors=None,
                                  location=None):
         context = self._init_context(arg_types, module_aliases, anchors)
         context.current.location = location or 'generator'
 
-        if isinstance(caosql_tree, qlast.SelectQueryNode):
-            stree = self._transform_select(context, caosql_tree, arg_types)
+        if isinstance(edgeql_tree, qlast.SelectQueryNode):
+            stree = self._transform_select(context, edgeql_tree, arg_types)
         else:
-            stree = self._process_expr(context, caosql_tree)
+            stree = self._process_expr(context, edgeql_tree)
 
         return stree
 
@@ -268,7 +268,7 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
 
             context.current.anchors[anchor] = step
 
-    def _transform_select(self, context, caosql_tree, arg_types):
+    def _transform_select(self, context, edgeql_tree, arg_types):
         self.arg_types = arg_types or {}
 
         graph = context.current.graph = irast.GraphExpr()
@@ -279,10 +279,10 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
         with context():
             context.current.location = 'generator'
 
-            for alias_decl in caosql_tree.namespaces:
+            for alias_decl in edgeql_tree.namespaces:
                 namespaces[alias_decl.alias] = alias_decl.namespace
 
-            for alias_decl in caosql_tree.aliases:
+            for alias_decl in edgeql_tree.aliases:
                 expr = self._process_expr(context, alias_decl.expr)
                 if isinstance(expr, irast.Path):
                     expr.pathvar = alias_decl.alias
@@ -292,25 +292,25 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
         if context.current.module_aliases:
             context.current.namespaces.update(context.current.module_aliases)
 
-        if caosql_tree.cges:
+        if edgeql_tree.cges:
             graph.cges = []
 
-            for cge in caosql_tree.cges:
+            for cge in edgeql_tree.cges:
                 with context(ParseContext.SUBQUERY):
                     _cge = self._transform_select(context, cge.expr, arg_types)
                 context.current.cge_map[cge.alias] = _cge
                 graph.cges.append(irast.CommonGraphExpr(expr=_cge, alias=cge.alias))
 
-        if caosql_tree.op:
-            graph.set_op = irast.SetOperator(caosql_tree.op)
+        if edgeql_tree.op:
+            graph.set_op = irast.SetOperator(edgeql_tree.op)
             graph.set_op_larg = self._transform_select(
-                                    context, caosql_tree.op_larg, arg_types)
+                                    context, edgeql_tree.op_larg, arg_types)
             graph.set_op_rarg = self._transform_select(
-                                    context, caosql_tree.op_rarg, arg_types)
+                                    context, edgeql_tree.op_rarg, arg_types)
         else:
-            graph.generator = self._process_select_where(context, caosql_tree.where)
+            graph.generator = self._process_select_where(context, edgeql_tree.where)
 
-            graph.grouper = self._process_grouper(context, caosql_tree.groupby)
+            graph.grouper = self._process_grouper(context, edgeql_tree.groupby)
             if graph.grouper:
                 groupgraph = irast.Disjunction(paths=frozenset(graph.grouper))
                 context.current.groupprefixes = self.extract_prefixes(groupgraph)
@@ -328,17 +328,17 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
                         # Make sure we don't dip into subqueries
                         raise ast.SkipNode()
 
-                for node in itertools.chain(caosql_tree.orderby or [],
-                                            caosql_tree.targets or []):
+                for node in itertools.chain(edgeql_tree.orderby or [],
+                                            edgeql_tree.targets or []):
                     if ast.find_children(node, checker, force_traversal=True):
                         context.current.groupprefixes = {True: True}
                         break
 
             graph.selector = self._process_select_targets(
-                                context, caosql_tree.targets)
+                                context, edgeql_tree.targets)
 
-            if (len(caosql_tree.targets) == 1
-                  and isinstance(caosql_tree.targets[0].expr, qlast.PathNode)
+            if (len(edgeql_tree.targets) == 1
+                  and isinstance(edgeql_tree.targets[0].expr, qlast.PathNode)
                   and not graph.generator):
                 # This is a node selector query, ensure it is treated as
                 # a generator path even in potential absense of an explicit
@@ -361,15 +361,15 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
                         ast.find_children(expr, augmenter, force_traversal=True)
 
 
-        graph.sorter = self._process_sorter(context, caosql_tree.orderby)
-        if caosql_tree.offset:
-            graph.offset = irast.Constant(value=caosql_tree.offset.value,
-                                             index=caosql_tree.offset.index,
+        graph.sorter = self._process_sorter(context, edgeql_tree.orderby)
+        if edgeql_tree.offset:
+            graph.offset = irast.Constant(value=edgeql_tree.offset.value,
+                                             index=edgeql_tree.offset.index,
                                              type=context.current.proto_schema.get('int'))
 
-        if caosql_tree.limit:
-            graph.limit = irast.Constant(value=caosql_tree.limit.value,
-                                             index=caosql_tree.limit.index,
+        if edgeql_tree.limit:
+            graph.limit = irast.Constant(value=edgeql_tree.limit.value,
+                                             index=edgeql_tree.limit.index,
                                              type=context.current.proto_schema.get('int'))
 
         context.current.location = 'top'
@@ -403,23 +403,23 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
 
         return graph
 
-    def _transform_insert(self, context, caosql_tree, arg_types):
+    def _transform_insert(self, context, edgeql_tree, arg_types):
         self.arg_types = arg_types or {}
 
         graph = context.current.graph = irast.GraphExpr()
         graph.op = 'insert'
 
-        if caosql_tree.namespaces:
-            for ns in caosql_tree.namespaces:
+        if edgeql_tree.namespaces:
+            for ns in edgeql_tree.namespaces:
                 context.current.namespaces[ns.alias] = ns.namespace
 
         if context.current.module_aliases:
             context.current.namespaces.update(context.current.module_aliases)
 
-        if caosql_tree.cges:
+        if edgeql_tree.cges:
             graph.cges = []
 
-            for cge in caosql_tree.cges:
+            for cge in edgeql_tree.cges:
                 with context(ParseContext.SUBQUERY):
                     _cge = self._transform_select(context, cge.expr, arg_types)
                 context.current.cge_map[cge.alias] = _cge
@@ -427,7 +427,7 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
                     irast.CommonGraphExpr(expr=_cge, alias=cge.alias))
 
         tgt = graph.optarget = self._process_select_where(
-                                context, caosql_tree.subject)
+                                context, edgeql_tree.subject)
 
         idname = sn.Name('std.id')
         idref = irast.AtomicRefSimple(
@@ -439,17 +439,17 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
 
         with context():
             context.current.location = 'optarget_shaper'
-            if caosql_tree.targets:
+            if edgeql_tree.targets:
                 graph.opselector = self._process_select_targets(
-                                        context, caosql_tree.targets)
+                                        context, edgeql_tree.targets)
             else:
                 graph.opselector = []
 
-        if caosql_tree.pathspec:
+        if edgeql_tree.pathspec:
             with context():
                 context.current.location = 'opvalues'
                 graph.opvalues = self._process_insert_values(
-                    context, graph, caosql_tree.pathspec)
+                    context, graph, edgeql_tree.pathspec)
 
         context.current.location = 'top'
 
@@ -478,23 +478,23 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
 
         return graph
 
-    def _transform_update(self, context, caosql_tree, arg_types):
+    def _transform_update(self, context, edgeql_tree, arg_types):
         self.arg_types = arg_types or {}
 
         graph = context.current.graph = irast.GraphExpr()
         graph.op = 'update'
 
-        if caosql_tree.namespaces:
-            for ns in caosql_tree.namespaces:
+        if edgeql_tree.namespaces:
+            for ns in edgeql_tree.namespaces:
                 context.current.namespaces[ns.alias] = ns.namespace
 
         if context.current.module_aliases:
             context.current.namespaces.update(context.current.module_aliases)
 
-        if caosql_tree.cges:
+        if edgeql_tree.cges:
             graph.cges = []
 
-            for cge in caosql_tree.cges:
+            for cge in edgeql_tree.cges:
                 with context(ParseContext.SUBQUERY):
                     _cge = self._transform_select(context, cge.expr, arg_types)
                 context.current.cge_map[cge.alias] = _cge
@@ -502,7 +502,7 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
                     irast.CommonGraphExpr(expr=_cge, alias=cge.alias))
 
         tgt = graph.optarget = self._process_select_where(
-                                context, caosql_tree.subject)
+                                context, edgeql_tree.subject)
 
         idname = sn.Name('std.id')
         idref = irast.AtomicRefSimple(
@@ -513,17 +513,17 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
         graph.selector.append(selexpr)
 
         graph.generator = self._process_select_where(
-                            context, caosql_tree.where)
+                            context, edgeql_tree.where)
 
         with context():
             context.current.location = 'optarget_shaper'
             graph.opselector = self._process_select_targets(
-                                    context, caosql_tree.targets)
+                                    context, edgeql_tree.targets)
 
         with context():
             context.current.location = 'opvalues'
             graph.opvalues = self._process_update_values(context, graph,
-                                                         caosql_tree.pathspec)
+                                                         edgeql_tree.pathspec)
 
         context.current.location = 'top'
 
@@ -627,25 +627,25 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
 
         if not ok:
             msg = "update expression can only reference local atoms"
-            raise errors.CaosQLError(msg)
+            raise errors.EdgeQLError(msg)
 
-    def _transform_delete(self, context, caosql_tree, arg_types):
+    def _transform_delete(self, context, edgeql_tree, arg_types):
         self.arg_types = arg_types or {}
 
         graph = context.current.graph = irast.GraphExpr()
         graph.op = 'delete'
 
-        if caosql_tree.namespaces:
-            for ns in caosql_tree.namespaces:
+        if edgeql_tree.namespaces:
+            for ns in edgeql_tree.namespaces:
                 context.current.namespaces[ns.alias] = ns.namespace
 
         if context.current.module_aliases:
             context.current.namespaces.update(context.current.module_aliases)
 
-        if caosql_tree.cges:
+        if edgeql_tree.cges:
             graph.cges = []
 
-            for cge in caosql_tree.cges:
+            for cge in edgeql_tree.cges:
                 with context(ParseContext.SUBQUERY):
                     _cge = self._transform_select(context, cge.expr, arg_types)
                 context.current.cge_map[cge.alias] = _cge
@@ -653,7 +653,7 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
                     irast.CommonGraphExpr(expr=_cge, alias=cge.alias))
 
         tgt = graph.optarget = self._process_select_where(
-                                context, caosql_tree.subject)
+                                context, edgeql_tree.subject)
 
         if (isinstance(tgt, irast.LinkPropRefSimple)
                 and tgt.name == 'std.target'):
@@ -686,10 +686,10 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
             graph.selector.append(selexpr)
 
         graph.generator = self._process_select_where(
-                            context, caosql_tree.where)
+                            context, edgeql_tree.where)
 
         graph.opselector = self._process_select_targets(
-                                context, caosql_tree.targets)
+                                context, edgeql_tree.targets)
 
         context.current.location = 'top'
 
@@ -745,7 +745,7 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
 
                 if len(node.selector) > 1:
                     err = ('subquery must return only one column')
-                    raise errors.CaosQLError(err)
+                    raise errors.EdgeQLError(err)
 
                 node.referrers.append(context.current.location)
                 context.current.graph.subgraphs.add(node)
@@ -783,7 +783,7 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
                     if p.id not in context.current.groupprefixes:
                         err = ('node reference "%s" must appear in the GROUP BY expression or '
                                'used in an aggregate function ') % p.id
-                        raise errors.CaosQLError(err)
+                        raise errors.EdgeQLError(err)
 
             if (context.current.location not in {'generator', 'selector', 'opvalues'} \
                             and not context.current.in_func_call) or context.current.in_aggregate:
@@ -982,7 +982,7 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
                         else:
                             msg = 'invalid pointer property in pointer glob: {!r}'. \
                                                                 format(ptrspec_flt.property)
-                            raise errors.CaosQLError(msg)
+                            raise errors.EdgeQLError(msg)
                         filter_exprs.append(ptrspec_flt)
 
                 if ptrspec.type == 'link':
@@ -993,7 +993,7 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
                 elif ptrspec.type == 'property':
                     if rlink_proto is None:
                         msg = 'link properties are not available at this point in path'
-                        raise errors.CaosQLError(msg)
+                        raise errors.EdgeQLError(msg)
 
                     for ptr_name, ptr in rlink_proto.pointers.items():
                         if ptr.is_special_pointer():
@@ -1004,7 +1004,7 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
 
                 else:
                     msg = 'unexpected pointer spec type'
-                    raise errors.CaosQLError(msg)
+                    raise errors.EdgeQLError(msg)
 
                 result = self._merge_pathspecs(result, glob_specs, target_most_generic=False)
 
@@ -1031,7 +1031,7 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
                             ptrsource = source
                         else:
                             msg = 'link properties are not available at this point in path'
-                            raise errors.CaosQLError(msg)
+                            raise errors.EdgeQLError(msg)
                     else:
                         ptrsource = rlink_proto
 
@@ -1110,7 +1110,7 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
             if isinstance(node, (qlast.PathNode, qlast.PathStepNode)):
                 if isinstance(node, qlast.PathNode):
                     if len(node.steps) > 1:
-                        raise errors.CaosQLError('unsupported subpath expression')
+                        raise errors.EdgeQLError('unsupported subpath expression')
 
                     tip = self._get_path_tip(node)
 
@@ -1191,7 +1191,7 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
                 if isinstance(typeref, irast.PathCombination):
                     if len(typeref.paths) > 1:
                         msg = "type() argument must not be a path combination"
-                        raise errors.CaosQLError(msg)
+                        raise errors.EdgeQLError(msg)
                     typeref = next(iter(typeref.paths))
 
             elif isinstance(tip, qlast.LinkExprNode) and typeref:
@@ -1216,7 +1216,7 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
                                             link_expr.target.module)
                 else:
                     msg = "complex link expressions are not supported yet"
-                    raise errors.CaosQLError()
+                    raise errors.EdgeQLError()
 
                 linkname = (link_expr.namespace, link_expr.name)
 
@@ -1310,7 +1310,7 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
                             msg = 'invalid reference: {}.{}'\
                                         .format(path_tip.ptr_proto,
                                                 link_expr.name)
-                            raise errors.CaosQLReferenceError(msg)
+                            raise errors.EdgeQLReferenceError(msg)
 
                         link = path_tip.ref
                         target = link.target
@@ -1412,7 +1412,7 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
                              direction=direction,
                              ptr_name=pointer_name,
                              far_endpoint=far_endpoint_str)
-            raise errors.CaosQLReferenceError(msg)
+            raise errors.EdgeQLReferenceError(msg)
 
         return ptr
 
@@ -1515,18 +1515,18 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
 
 def compile_fragment_to_ir(expr, schema, *, anchors=None, location=None,
                                             module_aliases=None):
-    """Compile given CaosQL expression fragment into Caos IR"""
+    """Compile given EdgeQL expression fragment into EdgeDB IR"""
 
     tree = parser.parse_fragment(expr)
-    trans = CaosQLCompiler(schema, module_aliases)
+    trans = EdgeQLCompiler(schema, module_aliases)
     return trans.transform_fragment(tree, (), anchors=anchors,
                                     location=location)
 
 
 def compile_ast_fragment_to_ir(tree, schema, *, anchors=None, location=None,
                                module_aliases=None):
-    """Compile given CaosQL AST fragment into Caos IR"""
-    trans = CaosQLCompiler(schema, module_aliases)
+    """Compile given EdgeQL AST fragment into EdgeDB IR"""
+    trans = EdgeQLCompiler(schema, module_aliases)
     return trans.transform_fragment(tree, (), anchors=anchors,
                                     location=location)
 
@@ -1535,23 +1535,23 @@ def compile_ast_fragment_to_ir(tree, schema, *, anchors=None, location=None,
 def compile_to_ir(expr, schema, *, anchors=None, arg_types=None,
                                    security_context=None,
                                    module_aliases=None):
-    """Compile given CaosQL statement into Caos IR"""
+    """Compile given EdgeQL statement into EdgeDB IR"""
 
-    """LOG [caosql.compile] CaosQL TEXT:
+    """LOG [edgeql.compile] EdgeQL TEXT:
     print(expr)
     """
     tree = parser.parse(expr, module_aliases)
 
-    """LOG [caosql.compile] CaosQL AST:
+    """LOG [edgeql.compile] EdgeQL AST:
     from edgedb.lang.common import markup
     markup.dump(tree)
     """
-    trans = CaosQLCompiler(schema, module_aliases)
+    trans = EdgeQLCompiler(schema, module_aliases)
 
     ir = trans.transform(tree, arg_types, module_aliases=module_aliases,
                          anchors=anchors, security_context=security_context)
 
-    """LOG [caosql.compile] Caos IR:
+    """LOG [edgeql.compile] EdgeDB IR:
     from edgedb.lang.common import markup
     markup.dump(ir)
     """
@@ -1563,18 +1563,18 @@ def compile_to_ir(expr, schema, *, anchors=None, arg_types=None,
 def compile_ast_to_ir(tree, schema, *, anchors=None, arg_types=None,
                                        security_context=None,
                                        module_aliases=None):
-    """Compile given CaosQL AST into Caos IR"""
+    """Compile given EdgeQL AST into EdgeDB IR"""
 
-    """LOG [caosql.compile] CaosQL AST:
+    """LOG [edgeql.compile] EdgeQL AST:
     from edgedb.lang.common import markup
     markup.dump(tree)
     """
-    trans = CaosQLCompiler(schema, module_aliases)
+    trans = EdgeQLCompiler(schema, module_aliases)
 
     ir = trans.transform(tree, arg_types, module_aliases=module_aliases,
                          anchors=anchors, security_context=security_context)
 
-    """LOG [caosql.compile] Caos IR:
+    """LOG [edgeql.compile] EdgeDB IR:
     from edgedb.lang.common import markup
     markup.dump(ir)
     """

@@ -6,7 +6,7 @@
 ##
 
 
-from edgedb.lang.caosql import ast as qlast
+from edgedb.lang.edgeql import ast as qlast
 
 from . import constraints
 from . import delta as sd

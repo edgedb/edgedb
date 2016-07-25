@@ -10,7 +10,7 @@ import textwrap
 
 from edgedb.lang.common.exceptions import EdgeDBError
 from edgedb.lang.common.ast import codegen
-from edgedb.lang.caosql import (generate_source as edgeql_source,
+from edgedb.lang.edgeql import (generate_source as edgeql_source,
                                 ast as eqlast)
 
 

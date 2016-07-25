@@ -12,7 +12,7 @@ import itertools
 from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import astexpr as irastexpr
 from edgedb.lang.ir import utils as ir_utils
-from edgedb.lang import caosql
+from edgedb.lang import edgeql
 
 from edgedb.lang.schema import atoms as s_atoms
 from edgedb.lang.schema import concepts as s_concepts
@@ -156,7 +156,7 @@ class ConstraintMech:
         return ref_tables
 
     @classmethod
-    def _caosql_ref_to_pg_constr(cls, subject, tree, schema, link_bias):
+    def _edgeql_ref_to_pg_constr(cls, subject, tree, schema, link_bias):
         ircompiler = transformer.SimpleIRCompiler()
         sql_tree = ircompiler.transform(tree, protoschema=schema,
                                         local=True, link_bias=link_bias)
@@ -179,7 +179,7 @@ class ConstraintMech:
         if isinstance(subject, s_atoms.Atom):
             # Domain constraint, replace <atom_name> with VALUE
 
-            subject_pg_name = common.caos_name_to_pg_name(subject.name)
+            subject_pg_name = common.edgedb_name_to_pg_name(subject.name)
 
             for ref in refs:
                 if ref.field != subject_pg_name:
@@ -217,7 +217,7 @@ class ConstraintMech:
     def schema_constraint_to_backend_constraint(cls, subject, constraint, schema):
         assert constraint.subject is not None
 
-        ir = caosql.compile_to_ir(constraint.finalexpr, schema,
+        ir = edgeql.compile_to_ir(constraint.finalexpr, schema,
                                   anchors={'subject': subject})
 
         terminal_refs = ir_utils.get_terminal_references(ir)
@@ -245,7 +245,7 @@ class ConstraintMech:
 
         if unique_expr_refs:
             for ref in unique_expr_refs:
-                exprdata = cls._caosql_ref_to_pg_constr(subject, ref, schema,
+                exprdata = cls._edgeql_ref_to_pg_constr(subject, ref, schema,
                                                         link_bias)
                 exprs.append(exprdata)
 
@@ -253,7 +253,7 @@ class ConstraintMech:
             pg_constr_data['type'] = 'unique'
             pg_constr_data['subject_db_name'] = subject_db_name
         else:
-            exprdata = cls._caosql_ref_to_pg_constr(subject, ir, schema,
+            exprdata = cls._edgeql_ref_to_pg_constr(subject, ir, schema,
                                                     link_bias)
             exprs.append(exprdata)
 
@@ -544,7 +544,7 @@ class TypeMech:
 
 def ptr_default_to_col_default(schema, ptr, expr):
     try:
-        ir = caosql.compile_to_ir(expr, schema)
+        ir = edgeql.compile_to_ir(expr, schema)
     except s_err.SchemaError:
         # Referene errors mean that is is a non-constant default
         # referring to a not-yet-existing objects.

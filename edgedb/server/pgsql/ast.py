@@ -9,7 +9,7 @@
 import weakref
 
 from edgedb.lang.common import datastructures, ast
-from edgedb.lang.caosql import ast as qlast
+from edgedb.lang.edgeql import ast as qlast
 
 
 class Base(ast.AST):
@@ -61,7 +61,7 @@ class TableFuncElement(Base):
     __fields = ['name', 'type']
 
 class RelationNode(Base):
-    __fields = [('concepts', frozenset), 'alias', ('_bonds', dict), 'caosnode',
+    __fields = [('concepts', frozenset), 'alias', ('_bonds', dict), 'edgedbnode',
                 ('outerbonds', list), ('proxyouterbonds', dict), ('aggregates', bool),
                 'coldef']
 

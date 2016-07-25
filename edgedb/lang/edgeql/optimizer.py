@@ -6,7 +6,7 @@
 ##
 
 
-from edgedb.lang.caosql import ast as qlast
+from edgedb.lang.edgeql import ast as qlast
 
 
 class ContextLevel:
@@ -87,11 +87,11 @@ class ContextWrapper:
         self.context.pop()
 
 
-class CaosQLOptimizer:
-    def transform(self, caosql_tree, deoptimize=False):
+class EdgeQLOptimizer:
+    def transform(self, edgeql_tree, deoptimize=False):
         context = Context()
         context.current.deoptimize = deoptimize
-        self._process_expr(context, caosql_tree)
+        self._process_expr(context, edgeql_tree)
 
         nses = []
         for alias, fq_name in context.current.namespaces.items():
@@ -99,12 +99,12 @@ class CaosQLOptimizer:
                                                 alias=alias)
             nses.append(decl)
 
-        if caosql_tree.namespaces is not None:
-            caosql_tree.namespaces[:] = nses
+        if edgeql_tree.namespaces is not None:
+            edgeql_tree.namespaces[:] = nses
         else:
-            caosql_tree.namespaces = nses
+            edgeql_tree.namespaces = nses
 
-        return caosql_tree
+        return edgeql_tree
 
     def _process_expr(self, context, expr):
         if isinstance(expr, qlast.SelectQueryNode):
@@ -377,15 +377,15 @@ class CaosQLOptimizer:
                 return module
 
 
-def optimize(caosql_tree):
-    """Perform optimizations on CaosQL AST tree"""
+def optimize(edgeql_tree):
+    """Perform optimizations on EdgeQL AST tree"""
 
-    optimizer = CaosQLOptimizer()
-    return optimizer.transform(caosql_tree)
+    optimizer = EdgeQLOptimizer()
+    return optimizer.transform(edgeql_tree)
 
 
-def deoptimize(caosql_tree):
-    """Reverse optimizations on CaosQL AST tree"""
+def deoptimize(edgeql_tree):
+    """Reverse optimizations on EdgeQL AST tree"""
 
-    optimizer = CaosQLOptimizer()
-    return optimizer.transform(caosql_tree, deoptimize=True)
+    optimizer = EdgeQLOptimizer()
+    return optimizer.transform(edgeql_tree, deoptimize=True)

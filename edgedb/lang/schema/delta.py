@@ -12,8 +12,8 @@ import re
 from edgedb.lang.common.exceptions import EdgeDBError
 from edgedb.lang.common import exceptions as base_err
 from edgedb.lang.common import debug as edgedb_debug
-from edgedb.lang import caosql
-from edgedb.lang.caosql import ast as qlast
+from edgedb.lang import edgeql
+from edgedb.lang.edgeql import ast as qlast
 
 from edgedb.lang.common import datastructures, functional, markup
 from edgedb.lang.common.datastructures import Field
@@ -148,7 +148,7 @@ class DeltaExceptionSchemaContext(markup.MarkupExceptionContext):
 
 
 class DeltaExceptionContext(markup.MarkupExceptionContext):
-    title = 'Caos Delta Context'
+    title = 'EdgeDB Delta Context'
 
     def __init__(self, delta):
         super().__init__
@@ -358,7 +358,7 @@ class CommandMeta(functional.Adapter, datastructures.MixedStructMeta):
             for astnode in astnodes:
                 existing = mapping.get(astnode)
                 if existing:
-                    msg = ('duplicate CaosQL AST node to command mapping: ' +
+                    msg = ('duplicate EdgeQL AST node to command mapping: ' +
                            '{!r} is already declared for {!r}')
                     raise TypeError(msg.format(astnode, existing))
 
@@ -788,7 +788,7 @@ class AlterPrototypeProperty(Command):
 
         if astnode.as_expr:
             new_value = s_expr.ExpressionText(
-                caosql.generate_source(astnode.value, pretty=False))
+                edgeql.generate_source(astnode.value, pretty=False))
         else:
             if isinstance(astnode.value, qlast.ConstantNode):
                 new_value = astnode.value.value
@@ -823,7 +823,7 @@ class AlterPrototypeProperty(Command):
                     elif isinstance(v, qlast.TypeCastNode):
                         v = v.expr.value
                     elif isinstance(v, qlast.UnaryOpNode):
-                        v = caosql.generate_source(v)
+                        v = edgeql.generate_source(v)
                         # Remove the space between the operator and the operand
                         v = ''.join(v.split(' ', maxsplit=1))
                     else:

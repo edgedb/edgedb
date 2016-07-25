@@ -48,7 +48,7 @@ from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import policy as s_policy
 from edgedb.lang.schema import types as s_types
 
-from edgedb.lang import caosql
+from edgedb.lang import edgeql
 
 from edgedb.server import query as backend_query
 from edgedb.server.pgsql import common
@@ -163,7 +163,7 @@ class Query(backend_query.Query):
         if self.output_format == 'json':
             return ('json', 1)
         else:
-            return ('caosobj', 1)
+            return ('edgedbobj', 1)
 
     def get_output_metadata(self):
         return {'record_info': self.record_info}
@@ -392,7 +392,7 @@ class ErrorMech:
         return constraint
 
 
-class CaosQLAdapter:
+class EdgeQLAdapter:
     cache = {}
 
     def __init__(self, session):
@@ -468,9 +468,9 @@ class Backend(s_deltarepo.DeltaProvider):
     """, re.X)
 
     link_source_colname = common.quote_ident(
-                                common.caos_name_to_pg_name('std.source'))
+                                common.edgedb_name_to_pg_name('std.source'))
     link_target_colname = common.quote_ident(
-                                common.caos_name_to_pg_name('std.target'))
+                                common.edgedb_name_to_pg_name('std.target'))
 
     def __init__(self, connection):
         self.features = None
@@ -1031,7 +1031,7 @@ class Backend(s_deltarepo.DeltaProvider):
         ds = introspection.schemas.SchemasList(self.connection)
         schemas = await ds.fetch(schema_name='edgedb%')
         schemas = {s['name'] for s in schemas
-                             if not s['name'].startswith('caos_aux_')}
+                             if not s['name'].startswith('edgedb_aux_')}
 
         ds = datasources.schema.modules.ModuleList(self.connection)
         modules = await ds.fetch()
@@ -1361,9 +1361,9 @@ class Backend(s_deltarepo.DeltaProvider):
 
         if result is None:
             sql_decompiler = transformer.Decompiler()
-            caos_tree = sql_decompiler.transform(expr_tree, source)
-            caosql_tree = caosql.decompile_ir(caos_tree, return_statement=True)
-            result = caosql.generate_source(caosql_tree, pretty=False)
+            edgedb_tree = sql_decompiler.transform(expr_tree, source)
+            edgeql_tree = edgeql.decompile_ir(edgedb_tree, return_statement=True)
+            result = edgeql.generate_source(edgeql_tree, pretty=False)
             result = s_expr.ExpressionText(result)
 
         return result
@@ -1389,7 +1389,7 @@ class Backend(s_deltarepo.DeltaProvider):
 
     def _get_pointer_column_target(self, schema, source, pointer_name, col):
         if col['column_type_schema'] == 'pg_catalog':
-            col_type_schema = common.caos_module_name_to_schema_name('std')
+            col_type_schema = common.edgedb_module_name_to_schema_name('std')
             col_type = col['column_type_formatted']
         else:
             col_type_schema = col['column_type_schema']
@@ -1408,7 +1408,7 @@ class Backend(s_deltarepo.DeltaProvider):
     def _get_pointer_attribute_target(self, schema, source,
                                       pointer_name, attr):
         if attr['attribute_type_schema'] == 'pg_catalog':
-            col_type_schema = common.caos_module_name_to_schema_name('std')
+            col_type_schema = common.edgedb_module_name_to_schema_name('std')
             col_type = attr['attribute_type_formatted']
         else:
             col_type_schema = attr['attribute_type_schema']
@@ -1612,11 +1612,11 @@ class Backend(s_deltarepo.DeltaProvider):
                         if index.get_metadata('ddl:inherited'):
                             continue
 
-                        caos_tree = sql_decompiler.transform(
+                        edgedb_tree = sql_decompiler.transform(
                                         index_sql, link)
-                        caosql_tree = caosql.decompile_ir(
-                                        caos_tree, return_statement=True)
-                        expr = caosql.generate_source(caosql_tree,
+                        edgeql_tree = edgeql.decompile_ir(
+                                        edgedb_tree, return_statement=True)
+                        expr = edgeql.generate_source(edgeql_tree,
                                                       pretty=False)
                         schema_name = index.get_metadata('schemaname')
                         index = s_indexes.SourceIndex(
@@ -1723,7 +1723,7 @@ class Backend(s_deltarepo.DeltaProvider):
                                                           catenate=False)
                 cols = await self._type_mech.get_table_columns(
                     source_table_name, connection=self.connection)
-                col_name = common.caos_name_to_pg_name(prop.normal_name())
+                col_name = common.edgedb_name_to_pg_name(prop.normal_name())
                 col = cols[col_name]
                 self.verify_ptr_const_defaults(
                     schema, prop, col['column_default'])
@@ -1932,9 +1932,9 @@ class Backend(s_deltarepo.DeltaProvider):
 
                     ir_tree = sql_decompiler.transform(
                                     index_sql, concept)
-                    caosql_tree = caosql.decompile_ir(
+                    edgeql_tree = edgeql.decompile_ir(
                                     ir_tree, return_statement=True)
-                    expr = caosql.generate_source(caosql_tree, pretty=False)
+                    expr = edgeql.generate_source(edgeql_tree, pretty=False)
                     schema_name = index.get_metadata('schemaname')
                     index = s_indexes.SourceIndex(name=sn.Name(schema_name),
                                                   subject=concept,
@@ -1996,7 +1996,7 @@ class Backend(s_deltarepo.DeltaProvider):
             domain_name = typname[-1]
         else:
             domain_name = typname
-            if atom_schema != common.caos_module_name_to_schema_name('std'):
+            if atom_schema != common.edgedb_module_name_to_schema_name('std'):
                 typname = (atom_schema, typname)
         atom_name = self.domain_to_atom_map.get((atom_schema, domain_name))
 

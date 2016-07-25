@@ -11,17 +11,17 @@ import itertools
 from edgedb.lang.common.exceptions import EdgeDBError
 from edgedb.lang.common.ast import codegen, AST
 
-from . import ast as caosql_ast
-from . import quote as caosql_quote
+from . import ast as edgeql_ast
+from . import quote as edgeql_quote
 
 
-class CaosQLSourceGeneratorError(EdgeDBError):
+class EdgeQLSourceGeneratorError(EdgeDBError):
     pass
 
 
-class CaosQLSourceGenerator(codegen.SourceGenerator):
+class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def generic_visit(self, node):
-        raise CaosQLSourceGeneratorError('No method to generate code for %s' % node.__class__.__name__)
+        raise EdgeQLSourceGeneratorError('No method to generate code for %s' % node.__class__.__name__)
 
     def _visit_namespaces(self, node):
         if node.namespaces or node.aliases:
@@ -284,7 +284,7 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
     def visit_PathNode(self, node):
         for i, e in enumerate(node.steps):
             if i > 0:
-                if not isinstance(e, caosql_ast.LinkPropExprNode):
+                if not isinstance(e, edgeql_ast.LinkPropExprNode):
                     self.write('.')
             self.visit(e)
 
@@ -392,16 +392,16 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
     def visit_ConstantNode(self, node):
         if node.value is not None:
             try:
-                caosql_repr = node.value.__mm_caosql__
+                edgeql_repr = node.value.__mm_edgeql__
             except AttributeError:
                 if isinstance(node.value, str):
-                    self.write(caosql_quote.quote_literal(node.value))
+                    self.write(edgeql_quote.quote_literal(node.value))
                 elif isinstance(node.value, AST):
                     self.visit(node.value)
                 else:
                     self.write(str(node.value))
             else:
-                self.write(caosql_repr())
+                self.write(edgeql_repr())
 
         elif node.index is not None:
             self.write('$')
@@ -624,7 +624,7 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
         elif node.name == 'is_final':
             self.write('FINAL')
         else:
-            raise CaosQLSourceGeneratorError(
+            raise EdgeQLSourceGeneratorError(
                     'unknown special field: {!r}'.format(node.name))
 
     def visit_AlterAddInheritNode(self, node):
@@ -677,7 +677,7 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
     def visit_CreateAttributeValueNode(self, node):
         self.write('SET ')
         self.visit(node.name)
-        if isinstance(node.value, caosql_ast.ExpressionTextNode) or node.as_expr:
+        if isinstance(node.value, edgeql_ast.ExpressionTextNode) or node.as_expr:
             self.write(' := ')
         else:
             self.write(' = ')
@@ -828,4 +828,4 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
         self.visit_list(node.actions)
 
 
-generate_source = CaosQLSourceGenerator.to_source
+generate_source = EdgeQLSourceGenerator.to_source

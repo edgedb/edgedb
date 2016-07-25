@@ -12,7 +12,7 @@ import pickle
 import postgresql.string
 import re
 
-from edgedb.lang import caosql
+from edgedb.lang import edgeql
 
 from edgedb.lang.schema import attributes as s_attrs
 from edgedb.lang.schema import atoms as s_atoms
@@ -541,7 +541,7 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
                 name = item_proto.name
 
             table_name = common.get_table_name(host_proto, catenate=False)
-            column_name = common.caos_name_to_pg_name(name)
+            column_name = common.edgedb_name_to_pg_name(name)
 
             alter_type = dbops.AlterTableAlterColumnType(column_name, target_type)
             alter_table = dbops.AlterTable(table_name)
@@ -706,7 +706,7 @@ class UpdateSearchIndexes(MetaCommand):
 
     def get_index_name(self, host_table_name, language, index_class='default'):
         name = '%s_%s_%s_search_idx' % (host_table_name[1], language, index_class)
-        return common.caos_name_to_pg_name(name)
+        return common.edgedb_name_to_pg_name(name)
 
     def apply(self, schema, context):
         if isinstance(self.host, s_concepts.Concept):
@@ -717,7 +717,7 @@ class UpdateSearchIndexes(MetaCommand):
             for link_name in names:
                 for link in self.host.pointers[link_name]:
                     if getattr(link, 'search', None):
-                        column_name = common.caos_name_to_pg_name(link_name)
+                        column_name = common.edgedb_name_to_pg_name(link_name)
                         columns.append(dbops.TextSearchIndexColumn(column_name, link.search.weight,
                                                                    'english'))
 
@@ -868,7 +868,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
 
             if default is not None:
                 alter_table = self.get_alter_table(context, priority=3, contained=True)
-                column_name = common.caos_name_to_pg_name(pointer_name)
+                column_name = common.edgedb_name_to_pg_name(pointer_name)
                 alter_table.add_operation(dbops.AlterTableAlterColumnDefault(column_name=column_name,
                                                                              default=default))
 
@@ -1093,7 +1093,7 @@ class CreateSourceIndex(SourceIndexCommand, adapts=s_indexes.CreateSourceIndex):
         if not source:
             source = context.get(s_concepts.ConceptCommandContext)
         table_name = common.get_table_name(source.proto, catenate=False)
-        ir = caosql.compile_fragment_to_ir(index.expr, schema,
+        ir = edgeql.compile_fragment_to_ir(index.expr, schema,
                                            location='selector')
 
         ircompiler = transformer.SimpleIRCompiler()
@@ -1199,7 +1199,7 @@ class CreateConcept(ConceptMetaCommand, adapts=s_concepts.CreateConcept):
 
         fields = self.create_object(schema, concept)
 
-        constr_name = common.caos_name_to_pg_name(
+        constr_name = common.edgedb_name_to_pg_name(
                         self.prototype_name + '.concept_id_check')
 
         constr_expr = dbops.Query("""
@@ -1267,8 +1267,8 @@ class RenameConcept(ConceptMetaCommand, adapts=s_concepts.RenameConcept):
 
         # Need to update all bits that reference concept name
 
-        old_constr_name = common.caos_name_to_pg_name(self.prototype_name + '.concept_id_check')
-        new_constr_name = common.caos_name_to_pg_name(self.new_name + '.concept_id_check')
+        old_constr_name = common.edgedb_name_to_pg_name(self.prototype_name + '.concept_id_check')
+        new_constr_name = common.edgedb_name_to_pg_name(self.new_name + '.concept_id_check')
 
         alter_table = self.get_alter_table(context, manual=True)
         rc = dbops.AlterTableRenameConstraintSimple(
@@ -1530,7 +1530,7 @@ class PointerMetaCommand(MetaCommand):
 
         alter_table = context.get(s_concepts.ConceptCommandContext).op.get_alter_table(context,
                                                                                        priority=1)
-        column_name = common.caos_name_to_pg_name(ptr.normal_name())
+        column_name = common.edgedb_name_to_pg_name(ptr.normal_name())
 
         if isinstance(new_target, s_atoms.Atom):
             target_type = types.pg_type_from_atom(schema, new_target)
@@ -1584,7 +1584,7 @@ class PointerMetaCommand(MetaCommand):
                 source_ctx, pointer_ctx = CompositePrototypeMetaCommand.\
                                                 get_source_and_pointer_ctx(schema, context)
                 alter_table = source_ctx.op.get_alter_table(context, contained=True, priority=3)
-                column_name = common.caos_name_to_pg_name(pointer.normal_name())
+                column_name = common.edgedb_name_to_pg_name(pointer.normal_name())
                 alter_table.add_operation(dbops.AlterTableAlterColumnDefault(column_name=column_name,
                                                                              default=new_default))
 
@@ -1609,8 +1609,8 @@ class PointerMetaCommand(MetaCommand):
                 if new_name.endswith('std.source') and not host.proto.generic():
                     pass
                 else:
-                    old_col_name = common.caos_name_to_pg_name(old_name)
-                    new_col_name = common.caos_name_to_pg_name(new_name)
+                    old_col_name = common.edgedb_name_to_pg_name(old_name)
+                    new_col_name = common.edgedb_name_to_pg_name(new_name)
 
                     ptr_stor_info = types.get_pointer_storage_info(
                                         pointer, schema=schema)
@@ -1675,8 +1675,8 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
         constraints = []
         columns = []
 
-        src_col = common.caos_name_to_pg_name('std.source')
-        tgt_col = common.caos_name_to_pg_name('std.target')
+        src_col = common.edgedb_name_to_pg_name('std.source')
+        tgt_col = common.edgedb_name_to_pg_name('std.target')
 
         if link.name == 'std.link':
             columns.append(dbops.Column(name=src_col, type='uuid', required=True,
@@ -1721,7 +1721,7 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
 
         ct = dbops.CreateTable(table=table)
 
-        index_name = common.caos_name_to_pg_name(str(link.name)  + 'target_id_default_idx')
+        index_name = common.edgedb_name_to_pg_name(str(link.name)  + 'target_id_default_idx')
         index = dbops.Index(index_name, new_table_name, unique=False)
         index.add_columns([tgt_col])
         ci = dbops.CreateIndex(index)
@@ -1936,7 +1936,7 @@ class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
                         and ptr_stor_info.table_type == 'concept'
                         and link.required != self.old_link.required):
                     alter_table = context.get(s_concepts.ConceptCommandContext).op.get_alter_table(context)
-                    column_name = common.caos_name_to_pg_name(link.normal_name())
+                    column_name = common.edgedb_name_to_pg_name(link.normal_name())
                     alter_table.add_operation(dbops.AlterTableAlterColumnNull(column_name=column_name,
                                                                               null=not link.required))
 
@@ -2090,7 +2090,7 @@ class AlterLinkProperty(LinkPropertyMetaCommand, adapts=s_lprops.AlterLinkProper
                 src_ctx = context.get(s_links.LinkCommandContext)
                 src_op = src_ctx.op
                 alter_table = src_op.get_alter_table(context, priority=5)
-                column_name = common.caos_name_to_pg_name(prop.normal_name())
+                column_name = common.edgedb_name_to_pg_name(prop.normal_name())
                 if prop.required:
                     table = src_op._type_mech.get_table(src_ctx.proto, schema)
                     rec = table.record(**{column_name:dbops.Default()})
@@ -2126,7 +2126,7 @@ class DeleteLinkProperty(LinkPropertyMetaCommand, adapts=s_lprops.DeleteLinkProp
         if link:
             alter_table = link.op.get_alter_table(context)
 
-            column_name = common.caos_name_to_pg_name(property.normal_name())
+            column_name = common.edgedb_name_to_pg_name(property.normal_name())
             # We don't really care about the type -- we're dropping the thing
             column_type = 'text'
 
@@ -2388,7 +2388,7 @@ class CreateModule(CompositePrototypeMetaCommand, adapts=s_mod.CreateModule):
         module = s_mod.CreateModule.apply(self, schema, context)
 
         module_name = module.name
-        schema_name = common.caos_module_name_to_schema_name(module_name)
+        schema_name = common.edgedb_module_name_to_schema_name(module_name)
         condition = dbops.SchemaExists(name=schema_name)
 
         cmd = dbops.CommandGroup(neg_conditions={condition})
@@ -2429,7 +2429,7 @@ class DeleteModule(CompositePrototypeMetaCommand, adapts=s_mod.DeleteModule):
         module = s_mod.DeleteModule.apply(self, schema, context)
 
         module_name = module.name
-        schema_name = common.caos_module_name_to_schema_name(module_name)
+        schema_name = common.edgedb_module_name_to_schema_name(module_name)
         condition = dbops.SchemaExists(name=schema_name)
 
         cmd = dbops.CommandGroup()

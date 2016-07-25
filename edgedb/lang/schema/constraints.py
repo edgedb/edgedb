@@ -9,8 +9,8 @@
 import itertools
 
 from edgedb.lang.ir import utils as ir_utils
-from edgedb.lang import caosql
-from edgedb.lang.caosql import ast as qlast
+from edgedb.lang import edgeql
+from edgedb.lang.edgeql import ast as qlast
 
 from . import delta as sd
 from . import derivable
@@ -390,21 +390,21 @@ class Constraint(primary.Prototype, derivable.DerivablePrototype):
     def _dummy_subject(cls):
         from . import atoms
 
-        # Point subject placeholder to a dummy pointer to make CaosQL
+        # Point subject placeholder to a dummy pointer to make EdgeQL
         # pipeline happy.
         return atoms.Atom(name=sn.Name('std._subject_tgt'))
 
     @classmethod
     def _normalize_constraint_expr(cls, schema, module_aliases, expr, subject,
                                    inline_anchors=False):
-        from edgedb.lang.caosql import utils as caosql_utils
+        from edgedb.lang.edgeql import utils as edgeql_utils
 
         if isinstance(expr, str):
-            tree = caosql.parse(expr, module_aliases)
+            tree = edgeql.parse(expr, module_aliases)
         else:
             tree = expr
 
-        ir, caosql_tree, _ = caosql_utils.normalize_tree(
+        ir, edgeql_tree, _ = edgeql_utils.normalize_tree(
             tree, schema, module_aliases=module_aliases,
             anchors={'subject': subject}, inline_anchors=inline_anchors)
 
@@ -415,31 +415,31 @@ class Constraint(primary.Prototype, derivable.DerivablePrototype):
             msg = 'invalid constraint expression: must be a simple expression'
             raise ValueError(msg)
 
-        caos_tree = sel[0].expr
+        edgedb_tree = sel[0].expr
 
-        return caosql_tree.targets[0].expr, caos_tree, arg_types
+        return edgeql_tree.targets[0].expr, edgedb_tree, arg_types
 
     @classmethod
     def normalize_constraint_expr(cls, schema, module_aliases, expr):
         subject = cls._dummy_subject()
-        caosql_tree, tree, arg_types = cls._normalize_constraint_expr(
+        edgeql_tree, tree, arg_types = cls._normalize_constraint_expr(
             schema, module_aliases, expr, subject)
 
-        expr = caosql.generate_source(caosql_tree, pretty=False)
+        expr = edgeql.generate_source(edgeql_tree, pretty=False)
         # XXX: check that expr has boolean result
         return expr
 
     @classmethod
     def normalize_constraint_subject_expr(cls, schema, module_aliases, expr):
         subject = cls._dummy_subject()
-        caosql_tree, _, _ = cls._normalize_constraint_expr(
+        edgeql_tree, _, _ = cls._normalize_constraint_expr(
             schema, module_aliases, expr, subject)
-        expr = caosql.generate_source(caosql_tree, pretty=False)
+        expr = edgeql.generate_source(edgeql_tree, pretty=False)
         return expr
 
     @classmethod
     def process_specialized_constraint(cls, schema, constraint, params):
-        from edgedb.lang.caosql import utils as caosql_utils
+        from edgedb.lang.edgeql import utils as edgeql_utils
 
         assert constraint.subject is not None
 
@@ -467,7 +467,7 @@ class Constraint(primary.Prototype, derivable.DerivablePrototype):
                   '{!r}'.format(constraint.name)
             raise ValueError(err)
 
-        caosql_tree, tree, arg_types = cls._normalize_constraint_expr(
+        edgeql_tree, tree, arg_types = cls._normalize_constraint_expr(
             schema, {}, constraint.expr, subject)
 
         constraint.expr = cls.normalize_constraint_expr(schema, {}, expr)
@@ -504,13 +504,13 @@ class Constraint(primary.Prototype, derivable.DerivablePrototype):
 
                     exprparams[pn] = arg
 
-            caosql_utils.inline_constants(caosql_tree, exprparams,
+            edgeql_utils.inline_constants(edgeql_tree, exprparams,
                                           all_arg_types)
 
             constraint.errmessage = constraint.errmessage.format(
                 subject='{subject}', **fmtparams)
 
-        text = caosql.generate_source(caosql_tree, pretty=False)
+        text = edgeql.generate_source(edgeql_tree, pretty=False)
 
         constraint.localfinalexpr = text
         constraint.finalexpr = text

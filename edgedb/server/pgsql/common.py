@@ -34,17 +34,17 @@ def qname(*parts):
     return '.'.join([quote_ident(q) for q in parts])
 
 
-def caos_module_name_to_schema_name(module, prefix='edgedb_'):
-    return caos_name_to_pg_name(prefix + module, len(prefix))
+def edgedb_module_name_to_schema_name(module, prefix='edgedb_'):
+    return edgedb_name_to_pg_name(prefix + module, len(prefix))
 
 
-def caos_name_to_pg_name(name, prefix_length=0):
+def edgedb_name_to_pg_name(name, prefix_length=0):
     """
-    Convert Caos name to a valid PostgresSQL column name
+    Convert EdgeDB name to a valid PostgresSQL column name
 
     PostgreSQL has a limit of 63 characters for column names.
 
-    @param name: Caos name to convert
+    @param name: EdgeDB name to convert
     @return: PostgreSQL column name
     """
 
@@ -58,8 +58,8 @@ def caos_name_to_pg_name(name, prefix_length=0):
 
 
 def convert_name(name, suffix, catenate=True, prefix='edgedb_'):
-    schema = caos_module_name_to_schema_name(name.module, prefix=prefix)
-    name = caos_name_to_pg_name('%s_%s' % (name.name, suffix))
+    schema = edgedb_module_name_to_schema_name(name.module, prefix=prefix)
+    name = edgedb_name_to_pg_name('%s_%s' % (name.name, suffix))
 
     if catenate:
         return qname(schema, name)
@@ -109,10 +109,10 @@ def py_type_to_pg_type(typ):
         postgres_io_mods = {'postgresql.types.io.{}'.format(m) for m in
                             postgresql.types.io.io_modules}
 
-        caos_io_mods = {'edgedb.server.pgsql.driver.io.{}'.format(m) for m in
+        edgedb_io_mods = {'edgedb.server.pgsql.driver.io.{}'.format(m) for m in
                         custom_type_io.io_modules}
 
-        for mod in itertools.chain(postgres_io_mods, caos_io_mods):
+        for mod in itertools.chain(postgres_io_mods, edgedb_io_mods):
             try:
                 mod = importlib.import_module(mod)
             except ImportError:

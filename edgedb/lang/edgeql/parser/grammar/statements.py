@@ -8,7 +8,7 @@
 
 from edgedb.lang.common import parsing
 
-from edgedb.lang.caosql import ast as qlast
+from edgedb.lang.edgeql import ast as qlast
 
 from .precedence import *
 from .tokens import *

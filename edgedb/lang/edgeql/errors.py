@@ -10,19 +10,19 @@ from edgedb.lang.common.exceptions import EdgeDBError
 from edgedb.lang.common.parsing import ParserError
 
 
-class CaosQLError(EdgeDBError):
+class EdgeQLError(EdgeDBError):
     pass
 
 
-class CaosQLQueryError(ParserError, CaosQLError):
+class EdgeQLQueryError(ParserError, EdgeQLError):
     pass
 
 
-class CaosQLExpressionError(CaosQLError):
+class EdgeQLExpressionError(EdgeQLError):
     pass
 
 
-class CaosQLReferenceError(CaosQLError):
+class EdgeQLReferenceError(EdgeQLError):
     def __init__(self, msg, *, hint=None, details=None, source=None, pointer=None):
         super().__init__(msg, hint=hint, details=details)
         self.source = source

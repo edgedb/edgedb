@@ -8,8 +8,8 @@
 
 from edgedb.lang.common import datastructures as ds
 
-from edgedb.lang import caosql
-from edgedb.lang.caosql import ast as qlast
+from edgedb.lang import edgeql
+from edgedb.lang.edgeql import ast as qlast
 
 from . import constraints
 from . import delta as sd
@@ -113,7 +113,7 @@ class PointerCommand(sd.PrototypeCommand):
         for sub in cmd(sd.AlterPrototypeProperty):
             if sub.property == 'default':
                 if isinstance(sub.new_value, sexpr.ExpressionText):
-                    expr = caosql.parse(sub.new_value)
+                    expr = edgeql.parse(sub.new_value)
 
                     if expr.op == qlast.UNION:
                         candidates = []
@@ -125,7 +125,7 @@ class PointerCommand(sd.PrototypeCommand):
                             if isinstance(cexpr, qlast.ConstantNode):
                                 deflt.append(cexpr.value)
                             else:
-                                text = caosql.generate_source(candidate,
+                                text = edgeql.generate_source(candidate,
                                                               pretty=False)
                                 deflt.append(sexpr.ExpressionText(text))
                     else:
@@ -145,7 +145,7 @@ class PointerCommand(sd.PrototypeCommand):
                         expr=qlast.ConstantNode(value=expr)
                     )]
                 )
-                expr = caosql.generate_source(expr_t, pretty=False)
+                expr = edgeql.generate_source(expr_t, pretty=False)
 
                 op.new_value = sexpr.ExpressionText(expr)
             super()._apply_field_ast(context, node, op)

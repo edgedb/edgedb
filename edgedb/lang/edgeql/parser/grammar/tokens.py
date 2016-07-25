@@ -128,7 +128,7 @@ def _gen_keyword_tokens():
         ns['__module__'] = __name__
         return ns
 
-    for val, (token, typ) in keywords.caosql_keywords.items():
+    for val, (token, typ) in keywords.edgeql_keywords.items():
         clsname = 'T_{}'.format(token)
         clskwds = dict(metaclass=parsing.TokenMeta, token=token)
         cls = types.new_class(clsname, (Token,), clskwds, clsexec)

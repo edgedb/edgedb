@@ -472,26 +472,26 @@ class NoneTestNode(Base):
     __fields = ['expr']
 
 
-class CaosQLOperator(ast.ops.Operator):
+class EdgeQLOperator(ast.ops.Operator):
     pass
 
 
-class TextSearchOperator(CaosQLOperator):
+class TextSearchOperator(EdgeQLOperator):
     pass
 
 SEARCH = TextSearchOperator('@@')
 SEARCHEX = TextSearchOperator('@@!')
 
 
-class CaosQLComparisonOperator(CaosQLOperator, ast.ops.ComparisonOperator):
+class EdgeQLComparisonOperator(EdgeQLOperator, ast.ops.ComparisonOperator):
     pass
 
 
-class CaosQLMatchOperator(CaosQLComparisonOperator):
+class EdgeQLMatchOperator(EdgeQLComparisonOperator):
     pass
 
 
-class SetOperator(CaosQLOperator):
+class SetOperator(EdgeQLOperator):
     pass
 
 UNION = SetOperator('UNION')
@@ -504,19 +504,19 @@ OR = ast.ops.OR
 NOT = ast.ops.NOT
 IN = ast.ops.IN
 NOT_IN = ast.ops.NOT_IN
-LIKE = CaosQLMatchOperator('~~')
-NOT_LIKE = CaosQLMatchOperator('!~~')
-ILIKE = CaosQLMatchOperator('~~*')
-NOT_ILIKE = CaosQLMatchOperator('!~~*')
+LIKE = EdgeQLMatchOperator('~~')
+NOT_LIKE = EdgeQLMatchOperator('!~~')
+ILIKE = EdgeQLMatchOperator('~~*')
+NOT_ILIKE = EdgeQLMatchOperator('!~~*')
 
-REMATCH = CaosQLMatchOperator('~')
-REIMATCH = CaosQLMatchOperator('~*')
+REMATCH = EdgeQLMatchOperator('~')
+REIMATCH = EdgeQLMatchOperator('~*')
 
-RENOMATCH = CaosQLMatchOperator('!~')
-RENOIMATCH = CaosQLMatchOperator('!~*')
+RENOMATCH = EdgeQLMatchOperator('!~')
+RENOIMATCH = EdgeQLMatchOperator('!~*')
 
-IS_OF = CaosQLOperator('IS OF')
-IS_NOT_OF = CaosQLOperator('IS NOT OF')
+IS_OF = EdgeQLOperator('IS OF')
+IS_NOT_OF = EdgeQLOperator('IS NOT OF')
 
 
 class SortOrder(s_enum.StrEnum):
@@ -536,7 +536,7 @@ NonesFirst = NonesOrder.First
 NonesLast = NonesOrder.Last
 
 
-class SetOperator(CaosQLOperator):
+class SetOperator(EdgeQLOperator):
     pass
 
 UNION = SetOperator('UNION')

@@ -6,10 +6,10 @@
 ##
 
 
-from edgedb.lang.caosql.errors import CaosQLError
+from edgedb.lang.edgeql.errors import EdgeQLError
 
 
-class CaosQLSyntaxError(CaosQLError):
+class EdgeQLSyntaxError(EdgeQLError):
     def __init__(self, token, lineno, expr=None):
         self.token = token
         self.expr = expr

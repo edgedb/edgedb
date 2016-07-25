@@ -6,14 +6,14 @@
 ##
 
 
-from .parser import CaosQLExpressionParser, CaosQLBlockParser
-from .errors import CaosQLSyntaxError
+from .parser import EdgeQLExpressionParser, EdgeQLBlockParser
+from .errors import EdgeQLSyntaxError
 
 from .. import ast as qlast
 
 
 def parse_fragment(expr):
-    parser = CaosQLExpressionParser()
+    parser = EdgeQLExpressionParser()
     return parser.parse(expr)
 
 
@@ -40,5 +40,5 @@ def parse(expr, module_aliases=None):
 
 
 def parse_block(expr):
-    parser = CaosQLBlockParser()
+    parser = EdgeQLBlockParser()
     return parser.parse(expr)

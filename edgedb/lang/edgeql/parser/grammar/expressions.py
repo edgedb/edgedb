@@ -9,10 +9,10 @@
 from edgedb.lang.common import ast
 from edgedb.lang.common import parsing, context
 
-from edgedb.lang.caosql import ast as qlast
+from edgedb.lang.edgeql import ast as qlast
 from edgedb.lang.ir import ast as irast
 
-from ..errors import CaosQLSyntaxError
+from ..errors import EdgeQLSyntaxError
 
 from . import keywords
 
@@ -950,7 +950,7 @@ class FuncApplication(Nonterm):
             if len(args) != 1:
                 msg = 'type() takes exactly one argument, {} given' \
                             .format(len(args))
-                raise CaosQLSyntaxError(msg)
+                raise EdgeQLSyntaxError(msg)
             self.val = qlast.TypeRefNode(expr=args[0])
         else:
             self.val = qlast.FunctionCallNode(func=func_name, args=args,

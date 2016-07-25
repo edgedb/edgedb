@@ -9,7 +9,7 @@
 keyword_types = range(1, 4)
 UNRESERVED_KEYWORD, RESERVED_KEYWORD, TYPE_FUNC_NAME_KEYWORD = keyword_types
 
-caosql_keywords = {
+edgeql_keywords = {
     "abstract": ("ABSTRACT", UNRESERVED_KEYWORD),
     "action": ("ACTION", UNRESERVED_KEYWORD),
     "after": ("AFTER", UNRESERVED_KEYWORD),
@@ -94,5 +94,5 @@ caosql_keywords = {
 
 by_type = {typ: {} for typ in keyword_types}
 
-for val, spec in caosql_keywords.items():
+for val, spec in edgeql_keywords.items():
     by_type[spec[1]][val] = spec[0]

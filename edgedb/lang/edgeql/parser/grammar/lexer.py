@@ -10,10 +10,10 @@ import re
 
 from edgedb.lang.common import lexer
 
-from .keywords import caosql_keywords
+from .keywords import edgeql_keywords
 
 
-__all__ = ('CaosQLLexer',)
+__all__ = ('EdgeQLLexer',)
 
 
 STATE_KEEP = 0
@@ -23,11 +23,11 @@ STATE_BASE = 1
 re_exppart = r"(?:[eE](?:[+\-])?[0-9]+)"
 re_self = r'[,()\[\].@;:+\-*/%^<>=]'
 re_opchars = r'[~!\#&|`?+\-*/^<>=]'
-re_opchars_caosql = r'[~!\#&|`?]'
+re_opchars_edgeql = r'[~!\#&|`?]'
 re_opchars_sql = r'[+\-*/^<>=]'
 re_ident_start = r"[A-Za-z\200-\377_%]"
 re_ident_cont = r"[A-Za-z\200-\377_0-9\$%]"
-re_caosql_special = r'[\{\}$]'
+re_edgeql_special = r'[\{\}$]'
 re_dquote = r'\$([A-Za-z\200-\377_][0-9]*)*\$'
 
 
@@ -37,7 +37,7 @@ string_quote = re.compile(re_dquote)
 Rule = lexer.Rule
 
 
-class CaosQLLexer(lexer.Lexer):
+class EdgeQLLexer(lexer.Lexer):
 
     start_state = STATE_BASE
 
@@ -49,7 +49,7 @@ class CaosQLLexer(lexer.Lexer):
     keyword_rules = [Rule(token=tok[0],
                           next_state=STATE_KEEP,
                           regexp=lexer.group(val))
-                     for val, tok in caosql_keywords.items()]
+                     for val, tok in edgeql_keywords.items()]
 
     common_rules = keyword_rules + [
         Rule(token='WS',
@@ -99,21 +99,21 @@ class CaosQLLexer(lexer.Lexer):
         Rule(token='OP',
              next_state=STATE_KEEP,
              regexp=r'''
-                # CAOSQL-specific multi-char ops
-                {opchar_caos} (?:{opchar}(?!/\*|--))+
+                # EdgeQL-specific multi-char ops
+                {opchar_edgedb} (?:{opchar}(?!/\*|--))+
                 |
-                (?:{opchar}(?!/\*|--))+ {opchar_caos} (?:{opchar}(?!/\*|--))*
+                (?:{opchar}(?!/\*|--))+ {opchar_edgedb} (?:{opchar}(?!/\*|--))*
                 |
                 # SQL-only multi-char ops cannot end in + or -
                 (?:{opchar_sql}(?!/\*|--))+[*/^<>=]
-             '''.format(opchar_caos=re_opchars_caosql,
+             '''.format(opchar_edgedb=re_opchars_edgeql,
                         opchar=re_opchars,
                         opchar_sql=re_opchars_sql)),
 
-        # CAOS-/PgSQL single char ops
+        # EdgeQL/PgSQL single char ops
         Rule(token='OP',
              next_state=STATE_KEEP,
-             regexp=re_opchars_caosql),
+             regexp=re_opchars_edgeql),
 
         # SQL ops
         Rule(token='self',
@@ -182,7 +182,7 @@ class CaosQLLexer(lexer.Lexer):
 
         Rule(token='self',
              next_state=STATE_KEEP,
-             regexp=re_caosql_special),
+             regexp=re_edgeql_special),
     ]
 
     states = {

@@ -11,7 +11,7 @@ import datetime
 from edgedb.lang.common import ast
 
 from edgedb.lang.common import exceptions as edgedb_error
-from edgedb.lang.caosql import quote as caosql_quote
+from edgedb.lang.edgeql import quote as edgeql_quote
 
 from edgedb.lang.common.datetime import DateTime, Date, Time, TimeDelta
 from edgedb.lang.common.algos.persistent_hash import persistent_hash
@@ -121,9 +121,9 @@ class TimeDelta(TimeDelta):
         except ValueError as e:
             raise edgedb_error.AtomValueError(e.args[0]) from e
 
-    def __mm_caosql__(self):
+    def __mm_edgeql__(self):
         return 'cast ({} as [std.timedelta])'\
-                    .format(caosql_quote.quote_literal(str(self)))
+                    .format(edgeql_quote.quote_literal(str(self)))
 
     def persistent_hash(self):
         return persistent_hash((self.weekday, self.years, self.months, self.days, self.hours,

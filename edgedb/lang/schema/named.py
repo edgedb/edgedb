@@ -10,7 +10,7 @@ import base64
 
 from edgedb.lang.common.algos.persistent_hash import persistent_hash
 
-from edgedb.lang.caosql import ast as qlast
+from edgedb.lang.edgeql import ast as qlast
 
 from . import delta as sd
 from . import expr

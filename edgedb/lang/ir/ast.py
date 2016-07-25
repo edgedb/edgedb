@@ -16,7 +16,7 @@ from edgedb.lang.common.datastructures import typed
 from edgedb.lang.schema import name as sn
 from edgedb.lang.schema import objects as so
 
-from edgedb.lang.caosql import ast as qlast
+from edgedb.lang.edgeql import ast as qlast
 
 
 class ASTError(EdgeDBError):
@@ -426,4 +426,4 @@ class CompositeType(Base):
 
 
 TextSearchOperator = qlast.TextSearchOperator
-CaosMatchOperator = qlast.CaosQLMatchOperator
+EdgeDBMatchOperator = qlast.EdgeQLMatchOperator

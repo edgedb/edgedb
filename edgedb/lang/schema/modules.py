@@ -13,7 +13,7 @@ import re
 from edgedb.lang.common.algos.persistent_hash import persistent_hash
 from edgedb.lang.common.datastructures import OrderedSet
 
-from edgedb.lang.caosql import ast as qlast
+from edgedb.lang.edgeql import ast as qlast
 
 from . import delta as sd
 from .error import SchemaError

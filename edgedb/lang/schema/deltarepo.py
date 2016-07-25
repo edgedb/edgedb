@@ -6,7 +6,7 @@
 ##
 
 
-from edgedb.lang import caosql
+from edgedb.lang import edgeql
 from edgedb.lang import schema as so
 from edgedb.lang.schema import delta as sd
 from edgedb.lang.schema import database as s_db
@@ -22,14 +22,14 @@ class MetaDeltaRepository:
     def load_delta(self, id, compat_mode=False):
         d = self.read_delta(id, compat_mode=compat_mode)
         if d.script:
-            delta_script = caosql.parse_block(d.script)
+            delta_script = edgeql.parse_block(d.script)
 
             alter_db = s_db.AlterDatabase()
             context = sd.CommandContext()
 
             with context(s_db.DatabaseCommandContext(alter_db)):
                 for ddl in delta_script:
-                    ddl = caosql.deoptimize(ddl)
+                    ddl = edgeql.deoptimize(ddl)
                     cmd = sd.Command.from_ast(ddl, context=context)
                     alter_db.add(cmd)
 

@@ -13,7 +13,7 @@ import itertools
 from edgedb.lang.common import datastructures
 from edgedb.lang.common.algos import topological
 
-from edgedb.lang import caosql
+from edgedb.lang import edgeql
 
 from . import ast as s_ast
 from . import std as s_std
@@ -79,7 +79,7 @@ class DeclarationLoader:
                 attr_name = self._get_ref_name(attrdecl.name)
 
                 if (hasattr(type(obj), attr_name) and
-                        not isinstance(attrdecl.value, caosql.ast.Base)):
+                        not isinstance(attrdecl.value, edgeql.ast.Base)):
                     value = self._get_literal_value(attrdecl.value)
                     # This is a builtin attribute, not an expression,
                     # simply set it on object.
@@ -229,7 +229,7 @@ class DeclarationLoader:
                 try:
                     expr = s_constr.Constraint.normalize_constraint_expr(
                         self._schema, module_aliases, expr)
-                except (ValueError, caosql.CaosQLQueryError) as e:
+                except (ValueError, edgeql.EdgeQLQueryError) as e:
                     raise s_err.SchemaError(e.args[0], context=decl) from None
 
                 constraint.expr = expr
@@ -239,7 +239,7 @@ class DeclarationLoader:
                 try:
                     subjexpr = s_constr.Constraint.normalize_constraint_expr(
                         self._schema, module_aliases, subjexpr)
-                except (ValueError, caosql.CaosQLQueryError) as e:
+                except (ValueError, edgeql.EdgeQLQueryError) as e:
                     raise s_err.SchemaError(e.args[0], context=decl) from None
 
                 constraint.subjectexpr = subjexpr
@@ -427,7 +427,7 @@ class DeclarationLoader:
 
             der_name = s_name.Name(name=local_name, module=subject.name.module)
 
-            _, _, index_expr = caosql.utils.normalize_tree(
+            _, _, index_expr = edgeql.utils.normalize_tree(
                 indexdecl.expression, self._schema,
                 module_aliases=module_aliases, anchors={'self': subject},
                 inline_anchors=True)
@@ -475,7 +475,7 @@ class DeclarationLoader:
                     name=link_genname, module=concept.name.module)
 
                 if linkdecl.target:
-                    if isinstance(linkdecl.target, caosql.ast.SelectQueryNode):
+                    if isinstance(linkdecl.target, edgeql.ast.SelectQueryNode):
                         # This is a computable, but we cannot interpret
                         # the expression yet, so set the target to none
                         # temporarily.
@@ -555,7 +555,7 @@ class DeclarationLoader:
     def _normalize_link_expressions(self, link, linkdecl):
         """Interpret and validate EdgeQL expressions in link declaration."""
         for propdecl in linkdecl.properties:
-            if isinstance(propdecl.target, caosql.ast.SelectQueryNode):
+            if isinstance(propdecl.target, edgeql.ast.SelectQueryNode):
                 # Computable
                 prop_name = self._get_ref_name(propdecl.name)
                 generic_prop = self._schema.get(prop_name)
@@ -569,7 +569,7 @@ class DeclarationLoader:
     def _normalize_concept_expressions(self, concept, conceptdecl):
         """Interpret and validate EdgeQL expressions in concept declaration."""
         for linkdecl in conceptdecl.links:
-            if isinstance(linkdecl.target, caosql.ast.SelectQueryNode):
+            if isinstance(linkdecl.target, edgeql.ast.SelectQueryNode):
                 # Computable
                 link_name = self._get_ref_name(linkdecl.name)
                 generic_link = self._schema.get(link_name)
@@ -580,7 +580,7 @@ class DeclarationLoader:
     def _normalize_ptr_default(self, expr, source, ptr):
         module_aliases = {None: source.name.module}
 
-        ir, _, expr_text = caosql.utils.normalize_tree(
+        ir, _, expr_text = edgeql.utils.normalize_tree(
             expr, self._schema, module_aliases=module_aliases,
             anchors={'self': source})
 

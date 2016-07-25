@@ -46,7 +46,7 @@ class TypeRules:
 
         if not is_subclass and isinstance(arg, s_obj.ProtoObject):
             if not isinstance(sig_arg, s_obj.ProtoObject):
-                sig_arg_typ = BaseTypeMeta.type_to_caos_builtin(sig_arg)
+                sig_arg_typ = BaseTypeMeta.type_to_edgedb_builtin(sig_arg)
                 if not sig_arg_typ:
                     return False
                 else:
@@ -165,18 +165,18 @@ class BaseTypeMeta:
     mixin_map = {}
 
     @classmethod
-    def add_mapping(cls, type, caos_builtin_name):
-        cls.base_type_map[type] = caos_builtin_name
+    def add_mapping(cls, type, edgedb_builtin_name):
+        cls.base_type_map[type] = edgedb_builtin_name
 
     @classmethod
-    def add_implementation(cls, caos_name, type):
-        existing = cls.implementation_map.get(caos_name)
+    def add_implementation(cls, edgedb_name, type):
+        existing = cls.implementation_map.get(edgedb_name)
         if existing is not None:
             msg = ('cannot set {!r} as implementation: {!r} is already ' +
-                   'implemented by {!r}').format(type, caos_name, existing)
+                   'implemented by {!r}').format(type, edgedb_name, existing)
             raise ValueError(msg)
 
-        cls.implementation_map[caos_name] = type
+        cls.implementation_map[edgedb_name] = type
 
     @classmethod
     def add_meta_implementation(cls, schema_type, type):
@@ -189,16 +189,16 @@ class BaseTypeMeta:
         cls.meta_implementation_map[schema_type] = type
 
     @classmethod
-    def add_mixin(cls, caos_name, type):
+    def add_mixin(cls, edgedb_name, type):
         try:
-            mixins = cls.mixin_map[caos_name]
+            mixins = cls.mixin_map[edgedb_name]
         except KeyError:
-            mixins = cls.mixin_map[caos_name] = []
+            mixins = cls.mixin_map[edgedb_name] = []
 
         mixins.append(type)
 
     @classmethod
-    def type_to_caos_builtin(cls, type):
+    def type_to_edgedb_builtin(cls, type):
         for t in type.__mro__:
             try:
                 return cls.base_type_map[t]
@@ -206,16 +206,16 @@ class BaseTypeMeta:
                 continue
 
     @classmethod
-    def get_implementation(cls, caos_name):
-        return cls.implementation_map.get(caos_name)
+    def get_implementation(cls, edgedb_name):
+        return cls.implementation_map.get(edgedb_name)
 
     @classmethod
     def get_meta_implementation(cls, schema_type):
         return cls.meta_implementation_map.get(schema_type)
 
     @classmethod
-    def get_mixins(cls, caos_name):
-        mixins = cls.mixin_map.get(caos_name)
+    def get_mixins(cls, edgedb_name):
+        mixins = cls.mixin_map.get(edgedb_name)
         return tuple(mixins) if mixins else tuple()
 
 
@@ -255,7 +255,7 @@ def proto_name_from_type(typ):
         proto_name = item_type
 
     else:
-        proto_name = BaseTypeMeta.type_to_caos_builtin(item_type)
+        proto_name = BaseTypeMeta.type_to_edgedb_builtin(item_type)
 
     if not proto_name:
         if isinstance(item_type, type):

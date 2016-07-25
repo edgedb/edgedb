@@ -8,7 +8,7 @@
 
 import importlib
 
-from edgedb.lang.caosql import ast as qlast
+from edgedb.lang.edgeql import ast as qlast
 
 
 from . import delta as sd

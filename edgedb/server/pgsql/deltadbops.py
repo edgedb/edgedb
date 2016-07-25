@@ -7,7 +7,7 @@
 
 
 """Abstractions for low-level database DDL and DML operations and structures
-related to the Caos schema."""
+related to the EdgeDB schema."""
 
 
 import re
@@ -62,7 +62,7 @@ class CallDeltaHook(dbops.Command):
 class ConstraintCommon:
     def constraint_name(self, quote=True):
         name = self.raw_constraint_name()
-        name = common.caos_name_to_pg_name(name)
+        name = common.edgedb_name_to_pg_name(name)
         return common.quote_ident(name) if quote else name
 
     def schema_constraint_name(self):
@@ -191,13 +191,13 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
 
     def numbered_constraint_name(self, i, quote=True):
         raw_name = self.raw_constraint_name()
-        name = common.caos_name_to_pg_name('{}#{}'.format(raw_name, i))
+        name = common.edgedb_name_to_pg_name('{}#{}'.format(raw_name, i))
         return common.quote_ident(name) if quote else name
 
     def get_trigger_procname(self):
-        schema = common.caos_module_name_to_schema_name(
+        schema = common.edgedb_module_name_to_schema_name(
             self.schema_constraint_name().module)
-        proc_name = common.caos_name_to_pg_name(
+        proc_name = common.edgedb_name_to_pg_name(
             self.raw_constraint_name() + '_trigproc')
         return schema, proc_name
 
@@ -279,7 +279,7 @@ class MultiConstraintItem:
 
     def get_id(self):
         raw_name = self.constraint.raw_constraint_name()
-        name = common.caos_name_to_pg_name('{}#{}'.format(raw_name, self.index))
+        name = common.edgedb_name_to_pg_name('{}#{}'.format(raw_name, self.index))
         name = common.quote_ident(name)
 
         return '{} ON {} {}'.format(name,
@@ -428,7 +428,7 @@ class AlterTableInheritableConstraintBase(dbops.AlterTableBaseMixin,
 
         cname = constraint.raw_constraint_name()
 
-        ins_trigger_name = common.caos_name_to_pg_name(cname + '_instrigger')
+        ins_trigger_name = common.edgedb_name_to_pg_name(cname + '_instrigger')
         ins_trigger = dbops.Trigger(
                             name=ins_trigger_name, table_name=table_name,
                             events=('insert',), procedure=proc_name,
@@ -439,7 +439,7 @@ class AlterTableInheritableConstraintBase(dbops.AlterTableBaseMixin,
         disable_ins_trigger = dbops.DisableTrigger(ins_trigger, self_only=True)
         cmds.append(disable_ins_trigger)
 
-        upd_trigger_name = common.caos_name_to_pg_name(cname + '_updtrigger')
+        upd_trigger_name = common.edgedb_name_to_pg_name(cname + '_updtrigger')
         condition = constraint.get_trigger_condition()
 
         upd_trigger = dbops.Trigger(
@@ -462,8 +462,8 @@ class AlterTableInheritableConstraintBase(dbops.AlterTableBaseMixin,
         cname = constraint.raw_constraint_name()
         ncname = new_constr.raw_constraint_name()
 
-        ins_trigger_name = common.caos_name_to_pg_name(cname + '_instrigger')
-        new_ins_trg_name = common.caos_name_to_pg_name(ncname + '_instrigger')
+        ins_trigger_name = common.edgedb_name_to_pg_name(cname + '_instrigger')
+        new_ins_trg_name = common.edgedb_name_to_pg_name(ncname + '_instrigger')
 
         ins_trigger = dbops.Trigger(
                             name=ins_trigger_name, table_name=table_name,
@@ -474,8 +474,8 @@ class AlterTableInheritableConstraintBase(dbops.AlterTableBaseMixin,
                             ins_trigger,
                             new_name=new_ins_trg_name)
 
-        upd_trigger_name = common.caos_name_to_pg_name(cname + '_updtrigger')
-        new_upd_trg_name = common.caos_name_to_pg_name(ncname + '_updtrigger')
+        upd_trigger_name = common.edgedb_name_to_pg_name(cname + '_updtrigger')
+        new_upd_trg_name = common.edgedb_name_to_pg_name(ncname + '_updtrigger')
 
         upd_trigger = dbops.Trigger(
                             name=upd_trigger_name, table_name=table_name,
@@ -491,7 +491,7 @@ class AlterTableInheritableConstraintBase(dbops.AlterTableBaseMixin,
     def drop_constr_trigger(self, table_name, constraint):
         cname = constraint.raw_constraint_name()
 
-        ins_trigger_name = common.caos_name_to_pg_name(cname + '_instrigger')
+        ins_trigger_name = common.edgedb_name_to_pg_name(cname + '_instrigger')
         ins_trigger = dbops.Trigger(
                             name=ins_trigger_name, table_name=table_name,
                             events=('insert',), procedure='null',
@@ -499,7 +499,7 @@ class AlterTableInheritableConstraintBase(dbops.AlterTableBaseMixin,
 
         drop_ins_trigger = dbops.DropTrigger(ins_trigger)
 
-        upd_trigger_name = common.caos_name_to_pg_name(cname + '_updtrigger')
+        upd_trigger_name = common.edgedb_name_to_pg_name(cname + '_updtrigger')
         upd_trigger = dbops.Trigger(
                             name=upd_trigger_name, table_name=table_name,
                             events=('update',), procedure='null',
@@ -592,7 +592,7 @@ class AlterTableInheritableConstraintBase(dbops.AlterTableBaseMixin,
             # Drop trigger function
             #
             proc_name = constraint.raw_constraint_name() + '_trigproc'
-            proc_name = self.name[0], common.caos_name_to_pg_name(proc_name)
+            proc_name = self.name[0], common.edgedb_name_to_pg_name(proc_name)
 
             self.add_commands(self.drop_constr_trigger_function(proc_name))
 
@@ -675,7 +675,7 @@ class MappingIndex(dbops.Index):
         id_str = '_'.join(str(i) for i in ids)
 
         name = '%s_%s_%s_link_mapping_idx' % (self.name_prefix, id_str, self.mapping)
-        name = common.caos_name_to_pg_name(name)
+        name = common.edgedb_name_to_pg_name(name)
         predicate = 'link_type_id IN (%s)' % ', '.join(str(id) for id in ids)
 
         code = 'CREATE %(unique)s INDEX %(name)s ON %(table)s (%(cols)s) %(predicate)s' % \

@@ -10,30 +10,30 @@ import os
 
 from edgedb.lang.common import parsing, debug
 
-from edgedb.lang.caosql.errors import CaosQLQueryError
-from edgedb.lang.caosql.parser.errors import CaosQLSyntaxError
+from edgedb.lang.edgeql.errors import EdgeQLQueryError
+from edgedb.lang.edgeql.parser.errors import EdgeQLSyntaxError
 
 from .grammar import lexer
 
 
-class CaosQLParserBase(parsing.Parser):
+class EdgeQLParserBase(parsing.Parser):
     def get_debug(self):
         return bool(os.environ.get('EDGEDB_DEBUG_EDGEQL_PARSER'))
 
     def get_exception(self, native_err, context):
-        return CaosQLQueryError(native_err.args[0], context=context)
+        return EdgeQLQueryError(native_err.args[0], context=context)
 
     def get_lexer(self):
-        return lexer.CaosQLLexer()
+        return lexer.EdgeQLLexer()
 
 
-class CaosQLExpressionParser(CaosQLParserBase):
+class EdgeQLExpressionParser(EdgeQLParserBase):
     def get_parser_spec_module(self):
         from .grammar import single
         return single
 
 
-class CaosQLBlockParser(CaosQLParserBase):
+class EdgeQLBlockParser(EdgeQLParserBase):
     def get_parser_spec_module(self):
         from .grammar import block
         return block

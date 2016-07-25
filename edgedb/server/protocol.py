@@ -11,7 +11,7 @@ import enum
 import json
 
 
-from edgedb.lang import caosql
+from edgedb.lang import edgeql
 from edgedb.server import pgsql as backend
 from edgedb.server import executor
 from edgedb.server import planner
@@ -104,7 +104,7 @@ class Protocol(asyncio.Protocol):
         })
 
     async def _run_script(self, script):
-        statements = caosql.parse_block(script)
+        statements = edgeql.parse_block(script)
         plans = []
         for statement in statements:
             plan = planner.plan_statement(statement, self.backend)

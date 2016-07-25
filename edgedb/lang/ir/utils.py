@@ -40,7 +40,7 @@ def infer_arg_types(ir, schema):
         if arg.index is None:
             continue
 
-        if isinstance(binop.op, irast.CaosMatchOperator):
+        if isinstance(binop.op, irast.EdgeDBMatchOperator):
             typ = schema.get('std.str')
 
         elif isinstance(binop.op, (ast.ops.ComparisonOperator,

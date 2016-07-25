@@ -6,8 +6,8 @@
 ##
 
 
-from edgedb.lang.caosql import ast as qlast
-from edgedb.lang.caosql import astmatch as qlastmatch
+from edgedb.lang.edgeql import ast as qlast
+from edgedb.lang.edgeql import astmatch as qlastmatch
 
 from . import delta as sd
 from . import derivable

@@ -339,20 +339,20 @@ class TreeTransformer:
                 if type == 'computable' and expr.link_proto.is_pure_computable():
                     deflt = expr.link_proto.default[0]
                     if isinstance(deflt, s_expr.ExpressionText):
-                        caosql_expr = deflt
+                        edgeql_expr = deflt
                     else:
-                        caosql_expr = "'" + str(deflt).replace("'", "''") + "'"
+                        edgeql_expr = "'" + str(deflt).replace("'", "''") + "'"
                         target_type = expr.link_proto.target.name
-                        caosql_expr = 'CAST ({} AS [{}])'.format(caosql_expr, target_type)
+                        edgeql_expr = 'CAST ({} AS [{}])'.format(edgeql_expr, target_type)
 
                     anchors = {'self': expr.source.concept}
-                    self._rewrite_with_caosql_expr(expr, caosql_expr, anchors)
+                    self._rewrite_with_edgeql_expr(expr, edgeql_expr, anchors)
 
-    def _rewrite_with_caosql_expr(self, expr, caosql_expr, anchors):
-        from edgedb.lang import caosql
+    def _rewrite_with_edgeql_expr(self, expr, edgeql_expr, anchors):
+        from edgedb.lang import edgeql
 
         schema = self.context.current.proto_schema
-        ir = caosql.compile_fragment_to_ir(caosql_expr, schema,
+        ir = edgeql.compile_fragment_to_ir(edgeql_expr, schema,
                                            anchors=anchors)
 
         node = expr.source
