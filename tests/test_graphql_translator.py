@@ -8,10 +8,13 @@
 
 import os
 import re
+import textwrap
 
 from edgedb.lang import _testbase as lang_tb
 from edgedb.lang.common import markup
 from edgedb.lang import graphql as edge_graphql
+
+from edgedb.lang.schema import declarative as s_decl
 
 
 class TranslatorTest(lang_tb.BaseParserTest):
@@ -28,13 +31,56 @@ class TranslatorTest(lang_tb.BaseParserTest):
     def run_test(self, *, source, spec, expected=None):
         debug = bool(os.environ.get('DEBUG_GRAPHQL'))
         if debug:
-            markup.dump_code(source, lexer='graphql')
+            print('\n--- GRAPHQL ---')
+            markup.dump_code(textwrap.dedent(source).strip(), lexer='graphql')
 
-        result = edge_graphql.translate(source)
+        result = edge_graphql.translate(self.schema, source)
 
         if debug:
-            markup.dump_code(result, lexer='graphql')
+            print('\n--- EDGEQL ---')
+            markup.dump_code(result, lexer='edgeql')
 
-        expected_src = source
+        self.assert_equal(expected, result)
 
-        self.assert_equal(expected_src, result)
+    def setUp(self):
+        schema_text = textwrap.dedent(self.SCHEMA)
+        self.schema = s_decl.load_module_declarations(
+            [('test', schema_text)])
+
+
+class TestGraphQLTranslation(TranslatorTest):
+    SCHEMA = r"""
+        concept Group:
+            required link name -> str
+
+        concept User:
+            required link name -> str
+            link groups -> Group:
+                mapping: **
+    """
+
+    def test_graphql_translation_01(self):
+        r"""
+        query @edgedb(module: "test") {
+            User {
+                name,
+                groups {
+                    id
+                    name
+                }
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                name,
+                groups[
+                    id,
+                    name
+                ]
+            ]
+        """
