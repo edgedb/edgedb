@@ -96,6 +96,12 @@ class Schema(Nonterm):
     def reduce_DeclarationList(self, kid):
         self.val = esast.Schema(declarations=kid.val)
 
+    def reduce_NL_INDENT_DeclarationList_DEDENT(self, *kids):
+        self.val = esast.Schema(declarations=kids[2].val)
+
+    def reduce_INDENT_DeclarationList_DEDENT(self, *kids):
+        self.val = esast.Schema(declarations=kids[1].val)
+
 
 class Declaration(Nonterm):
     def reduce_ABSTRACT_DeclarationBase(self, *kids):
