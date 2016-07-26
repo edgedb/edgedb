@@ -682,6 +682,16 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
+    def test_graphql_parser_values22(self):
+        r"""
+        {
+            foo(bar: ["spam", "ham"]) {
+                id
+                name
+            }
+        }
+        """
+
     @tb.must_fail(GraphQLParserError, line=2, col=9)
     def test_graphql_parser_scope01(self):
         r"""

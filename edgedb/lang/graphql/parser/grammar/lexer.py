@@ -113,7 +113,7 @@ class GraphQLLexer(lexer.Lexer):
         Rule(token='STRING',
              next_state=STATE_KEEP,
              regexp=r'''
-                    (?:r)?" [^\n]*
+                    (?:r)?" [^\n]*?
                     (?<!\\)"
              '''),
 
