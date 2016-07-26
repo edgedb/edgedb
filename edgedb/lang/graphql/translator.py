@@ -13,6 +13,12 @@ from edgedb.lang.graphql import ast as gqlast
 from edgedb.lang.graphql import parser as gqlparser
 
 
+GQL_OPS_MAP = {
+    '__eq': ast.ops.EQ, '__ne': ast.ops.NE,
+    '__in': ast.ops.IN, '__ni': ast.ops.NOT_IN,
+}
+
+
 class GraphQLTranslator:
     def __init__(self, schema):
         self.schema = schema
@@ -142,12 +148,12 @@ class GraphQLTranslator:
         args = [
             qlast.BinOpNode(
                 left=qlast.PathNode(
-                    steps=[qlast.PathStepNode(expr=selset.name), left],
+                    steps=[qlast.PathStepNode(expr=selset.name)] + left,
                 ),
-                op=ast.ops.EQ,
+                op=op,
                 right=right
             )
-            for left, right in self._process_arguments(selset.arguments)]
+            for left, op, right in self._process_arguments(selset.arguments)]
 
         return self._join_expressions(args)
 
@@ -162,28 +168,49 @@ class GraphQLTranslator:
                            qlast.LinkExprNode(
                                expr=qlast.LinkNode(
                                    name=field.name
-                               )),
-                           left],
+                               ))] + left,
                 ),
-                op=ast.ops.EQ,
+                op=op,
                 right=right
             )
-            for left, right in self._process_arguments(field.arguments)]
+            for left, op, right in self._process_arguments(field.arguments)]
 
         return self._join_expressions(args)
 
     def _process_arguments(self, args):
-        return [
-            (
-                qlast.LinkExprNode(
-                    expr=qlast.LinkNode(
-                        name=arg.name
-                    )
-                ),
-                qlast.ConstantNode(index=arg.value.value[1:])
-                if isinstance(arg.value, gqlast.Variable) else
-                qlast.ConstantNode(value=arg.value.value)
-            ) for arg in args]
+        result = []
+        for arg in args:
+            if arg.name[-4:] in GQL_OPS_MAP:
+                op = GQL_OPS_MAP[arg.name[-4:]]
+                name_parts = arg.name[:-4]
+            else:
+                op = ast.ops.EQ
+                name_parts = arg.name
+
+            name = [qlast.LinkExprNode(
+                expr=qlast.LinkNode(
+                    name=part
+                )
+            ) for part in name_parts.split('__')]
+
+            value = self._process_literal(arg.value)
+
+            result.append((name, op, value))
+
+        return result
+
+    def _process_literal(self, literal):
+        if isinstance(literal, gqlast.ListLiteral):
+            return qlast.SequenceNode(elements=[
+                self._process_literal(el) for el in literal.value
+            ])
+        elif isinstance(literal, gqlast.ObjectLiteral):
+            raise Exception(
+                "don't know how to translate an Object literal to EdgeQL")
+        elif isinstance(literal, gqlast.Variable):
+            return qlast.ConstantNode(index=literal.value[1:])
+        else:
+            return qlast.ConstantNode(value=literal.value)
 
     def _join_expressions(self, exprs, op=ast.ops.AND):
         if len(exprs) == 1:

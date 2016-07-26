@@ -481,6 +481,146 @@ class TestGraphQLTranslation(TranslatorTest):
             ]
         """
 
+    def test_graphql_translation_arguments04(self):
+        r"""
+        query @edgedb(module: "test") {
+            User(groups__name: "admin") {
+                name,
+                groups {
+                    id
+                    name
+                }
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                name,
+                groups [
+                    id,
+                    name
+                ]
+            ]
+        WHERE
+            (User.groups.name = 'admin')
+        """
+
+    def test_graphql_translation_arguments05(self):
+        r"""
+        query @edgedb(module: "test") {
+            User(groups__name__in: ["admin", "support"]) {
+                name,
+                groups {
+                    id
+                    name
+                }
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                name,
+                groups [
+                    id,
+                    name
+                ]
+            ]
+        WHERE
+            (User.groups.name IN ('admin', 'support'))
+        """
+
+    def test_graphql_translation_arguments06(self):
+        r"""
+        query @edgedb(module: "test") {
+            User(groups__name__ni: ["admin", "support"]) {
+                name,
+                groups {
+                    id
+                    name
+                }
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                name,
+                groups [
+                    id,
+                    name
+                ]
+            ]
+        WHERE
+            (User.groups.name NOT IN ('admin', 'support'))
+        """
+
+    def test_graphql_translation_arguments07(self):
+        r"""
+        query @edgedb(module: "test") {
+            User(groups__name__ne: "admin") {
+                name,
+                groups {
+                    id
+                    name
+                }
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                name,
+                groups [
+                    id,
+                    name
+                ]
+            ]
+        WHERE
+            (User.groups.name != 'admin')
+        """
+
+    def test_graphql_translation_arguments08(self):
+        r"""
+        query @edgedb(module: "test") {
+            User(groups__name__eq: "admin") {
+                name,
+                groups {
+                    id
+                    name
+                }
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                name,
+                groups [
+                    id,
+                    name
+                ]
+            ]
+        WHERE
+            (User.groups.name = 'admin')
+        """
+
     def test_graphql_translation_variables01(self):
         r"""
         query($name: String) @edgedb(module: "test") {
