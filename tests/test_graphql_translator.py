@@ -55,11 +55,12 @@ class TestGraphQLTranslation(TranslatorTest):
 
         concept User:
             required link name -> str
+            required link active -> bool
             link groups -> Group:
                 mapping: **
     """
 
-    def test_graphql_translation_01(self):
+    def test_graphql_translation_query01(self):
         r"""
         query @edgedb(module: "test") {
             User {
@@ -79,6 +80,401 @@ class TestGraphQLTranslation(TranslatorTest):
             User[
                 name,
                 groups[
+                    id,
+                    name
+                ]
+            ]
+        """
+
+    def test_graphql_translation_fragment01(self):
+        r"""
+        fragment groupFrag on Group {
+            id
+            name
+        }
+
+        query @edgedb(module: "test") {
+            User {
+                name,
+                groups {
+                    ... groupFrag
+                }
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                name,
+                groups[
+                    id,
+                    name
+                ]
+            ]
+        """
+
+    def test_graphql_translation_fragment02(self):
+        r"""
+        fragment userFrag1 on User {
+            name
+            ... userFrag2
+        }
+
+        fragment userFrag2 on User {
+            groups {
+                ... groupFrag
+            }
+        }
+
+        fragment groupFrag on Group {
+            id
+            name
+        }
+
+        query @edgedb(module: "test") {
+            User {
+                ... userFrag1
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                name,
+                groups[
+                    id,
+                    name
+                ]
+            ]
+        """
+
+    def test_graphql_translation_fragment03(self):
+        r"""
+        fragment userFrag2 on User {
+            groups {
+                ... groupFrag
+            }
+        }
+
+        fragment groupFrag on Group {
+            id
+            name
+        }
+
+        query @edgedb(module: "test") {
+            User {
+                ... {
+                    name
+                    ... userFrag2
+                }
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                name,
+                groups[
+                    id,
+                    name
+                ]
+            ]
+        """
+
+    def test_graphql_translation_fragment04(self):
+        r"""
+        fragment userFrag1 on User {
+            name
+            ... {
+                groups {
+                    ... groupFrag
+                }
+            }
+        }
+
+        fragment groupFrag on Group {
+            id
+            name
+        }
+
+        query @edgedb(module: "test") {
+            User {
+                ... userFrag1
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                name,
+                groups[
+                    id,
+                    name
+                ]
+            ]
+        """
+
+    def test_graphql_translation_directives01(self):
+        r"""
+        query @edgedb(module: "test") {
+            User {
+                name @include(if: true),
+                groups @include(if: false) {
+                    id
+                    name
+                }
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                name,
+            ]
+        """
+
+    def test_graphql_translation_directives02(self):
+        r"""
+        query @edgedb(module: "test") {
+            User {
+                name @skip(if: true),
+                groups @skip(if: false) {
+                    id @skip(if: false)
+                    name @skip(if: true)
+                }
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                groups[
+                    id,
+                ]
+            ]
+        """
+
+    def test_graphql_translation_directives03(self):
+        r"""
+        query @edgedb(module: "test") {
+            User {
+                name @skip(if: true), @include(if: true),
+
+                groups @skip(if: false), @include(if: true) {
+                    id @skip(if: false), @include(if: true)
+                    name @skip(if: true), @include(if: true)
+                }
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                groups[
+                    id,
+                ]
+            ]
+        """
+
+    def test_graphql_translation_directives04(self):
+        r"""
+        fragment userFrag1 on User {
+            name
+            ... {
+                groups @include(if: false) {
+                    ... groupFrag
+                }
+            }
+        }
+
+        fragment groupFrag on Group {
+            id
+            name
+        }
+
+        query @edgedb(module: "test") {
+            User {
+                ... userFrag1
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                name,
+            ]
+        """
+
+    def test_graphql_translation_directives05(self):
+        r"""
+        fragment userFrag1 on User {
+            name
+            ... @skip(if: true) {
+                groups {
+                    ... groupFrag
+                }
+            }
+        }
+
+        fragment groupFrag on Group {
+            id
+            name
+        }
+
+        query @edgedb(module: "test") {
+            User {
+                ... userFrag1
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                name,
+            ]
+        """
+
+    def test_graphql_translation_directives06(self):
+        r"""
+        fragment userFrag1 on User {
+            name
+            ... {
+                groups {
+                    ... groupFrag @skip(if: true)
+                    id
+                }
+            }
+        }
+
+        fragment groupFrag on Group {
+            name
+        }
+
+        query @edgedb(module: "test") {
+            User {
+                ... userFrag1
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                name,
+                groups [
+                    id,
+                ]
+            ]
+        """
+
+    def test_graphql_translation_arguments01(self):
+        r"""
+        query @edgedb(module: "test") {
+            User(name: "John") {
+                name,
+                groups {
+                    id
+                    name
+                }
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                name,
+                groups[
+                    id,
+                    name
+                ]
+            ]
+        WHERE
+            (User.name = 'John')
+        """
+
+    def test_graphql_translation_arguments02(self):
+        r"""
+        query @edgedb(module: "test") {
+            User(name: "John", active: true) {
+                name,
+                groups {
+                    id
+                    name
+                }
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                name,
+                groups[
+                    id,
+                    name
+                ]
+            ]
+        WHERE
+            (
+                (User.name = 'John') AND
+                (User.active = True)
+            )
+        """
+
+    def test_graphql_translation_arguments03(self):
+        r"""
+        query @edgedb(module: "test") {
+            User {
+                name,
+                groups(name: "admin") {
+                    id
+                    name
+                }
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                name,
+                (groups WHERE (User.groups.name = 'admin')) [
                     id,
                     name
                 ]
