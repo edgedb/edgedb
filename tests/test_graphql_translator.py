@@ -480,3 +480,31 @@ class TestGraphQLTranslation(TranslatorTest):
                 ]
             ]
         """
+
+    def test_graphql_translation_variables01(self):
+        r"""
+        query($name: String) @edgedb(module: "test") {
+            User(name: $name) {
+                name,
+                groups {
+                    id
+                    name
+                }
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                name,
+                groups[
+                    id,
+                    name
+                ]
+            ]
+        WHERE
+            (User.name = $name)
+        """

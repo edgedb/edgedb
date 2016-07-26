@@ -162,8 +162,7 @@ class GraphQLTranslator:
                            qlast.LinkExprNode(
                                expr=qlast.LinkNode(
                                    name=field.name
-                               )
-                           ),
+                               )),
                            left],
                 ),
                 op=ast.ops.EQ,
@@ -181,6 +180,8 @@ class GraphQLTranslator:
                         name=arg.name
                     )
                 ),
+                qlast.ConstantNode(index=arg.value.value[1:])
+                if isinstance(arg.value, gqlast.Variable) else
                 qlast.ConstantNode(value=arg.value.value)
             ) for arg in args]
 
