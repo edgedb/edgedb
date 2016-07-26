@@ -698,75 +698,14 @@ class MappingIndex(dbops.Index):
                   'pred': predicate}
 
 
-class DeltaRefTable(dbops.Table):
+class SchemaObjectTable(dbops.Table):
     def __init__(self, name=None):
-        name = name or ('edgedb', 'deltaref')
-        super().__init__(name=name)
-
-        self.__columns = datastructures.OrderedSet([
-            dbops.Column(name='id', type='varchar', required=True),
-            dbops.Column(name='ref', type='text', required=True)
-        ])
-
-        self.constraints = set([
-            dbops.PrimaryKey(name, columns=('ref',))
-        ])
-
-        self._columns = self.columns()
-
-
-class DeltaLogTable(dbops.Table):
-    def __init__(self, name=None):
-        name = name or ('edgedb', 'deltalog')
-        super().__init__(name=name)
-
-        self.__columns = datastructures.OrderedSet([
-            dbops.Column(name='id', type='varchar', required=True),
-            dbops.Column(name='parents', type='varchar[]', required=False),
-            dbops.Column(name='checksum', type='varchar', required=True),
-            dbops.Column(name='commit_date', type='timestamp with time zone', required=True,
-                                                                    default='CURRENT_TIMESTAMP'),
-            dbops.Column(name='committer', type='text', required=True),
-            dbops.Column(name='comment', type='text', required=False)
-        ])
-
-        self.constraints = set([
-            dbops.PrimaryKey(name, columns=('id',))
-        ])
-
-        self._columns = self.columns()
-
-
-class ModuleTable(dbops.Table):
-    def __init__(self, name=None):
-        name = name or ('edgedb', 'module')
-        super().__init__(name=name)
-
-        self.__columns = datastructures.OrderedSet([
-            dbops.Column(name='name', type='text', required=True),
-            dbops.Column(name='schema_name', type='text', required=True),
-            dbops.Column(name='imports', type='varchar[]', required=False)
-        ])
-
-        self.constraints = set([
-            dbops.PrimaryKey(name, columns=('name',)),
-        ])
-
-        self._columns = self.columns()
-
-
-class MetaObjectTable(dbops.Table):
-    def __init__(self, name=None):
-        name = name or ('edgedb', 'metaobject')
+        name = name or ('edgedb', 'object')
         super().__init__(name=name)
 
         self.__columns = datastructures.OrderedSet([
             dbops.Column(name='id', type='serial', required=True, readonly=True),
             dbops.Column(name='name', type='text', required=True),
-            dbops.Column(name='is_abstract', type='boolean', required=True, default=False),
-            dbops.Column(name='is_final', type='boolean', required=True, default=False),
-            dbops.Column(name='title', type='edgedb.hstore'),
-            dbops.Column(name='description', type='text')
         ])
 
         self.constraints = set([
@@ -777,10 +716,93 @@ class MetaObjectTable(dbops.Table):
         self._columns = self.columns()
 
 
-class AttributeTable(MetaObjectTable):
+class DeltaTable(SchemaObjectTable):
+    def __init__(self, name=None):
+        super().__init__(name=('edgedb', 'delta'))
+        self.bases = [('edgedb', 'object')]
+
+        self.__columns = datastructures.OrderedSet([
+            dbops.Column(name='module_id', type='integer', required=True),
+            dbops.Column(name='parents', type='varchar[]', required=False),
+            dbops.Column(name='deltabin', type='bytea', required=True),
+            dbops.Column(name='deltasrc', type='text', required=True),
+            dbops.Column(name='checksum', type='varchar', required=True),
+            dbops.Column(name='commitdate', type='timestamp with time zone',
+                         required=True, default='CURRENT_TIMESTAMP'),
+            dbops.Column(name='comment', type='text', required=False)
+        ])
+
+        self._columns = self.columns()
+
+
+class ModuleTable(SchemaObjectTable):
+    def __init__(self, name=None):
+        super().__init__(name=('edgedb', 'module'))
+        self.bases = [('edgedb', 'object')]
+
+        self.__columns = datastructures.OrderedSet([
+            dbops.Column(name='schema_name', type='text', required=True),
+            dbops.Column(name='imports', type='varchar[]', required=False)
+        ])
+
+        self._columns = self.columns()
+
+
+class PrimarySchemaObjectTable(SchemaObjectTable):
+    def __init__(self, name=None):
+        name = name or ('edgedb', 'primaryobject')
+        super().__init__(name=name)
+        self.bases = [('edgedb', 'object')]
+
+        self.__columns = datastructures.OrderedSet([
+            dbops.Column(name='is_abstract', type='boolean',
+                         required=True, default=False),
+            dbops.Column(name='is_final', type='boolean',
+                         required=True, default=False),
+            dbops.Column(name='title', type='edgedb.hstore'),
+            dbops.Column(name='description', type='text')
+        ])
+
+        self._columns = self.columns()
+
+
+class InheritingSchemaObjectTable(PrimarySchemaObjectTable):
+    def __init__(self, name=None):
+        name = name or ('edgedb', 'inheritingobject')
+        super().__init__(name=name)
+        self.bases = [('edgedb', 'primaryobject')]
+
+        self.__columns = datastructures.OrderedSet([
+            dbops.Column(name='bases', type='integer[]'),
+        ])
+
+        self._columns = self.columns()
+
+
+class FunctionTable(PrimarySchemaObjectTable):
+    def __init__(self):
+        super().__init__(name=('edgedb', 'function'))
+        self.bases = [('edgedb', 'primaryobject')]
+
+        self.constraints = set([
+            dbops.PrimaryKey(('edgedb', 'function'), columns=('id',)),
+            dbops.UniqueConstraint(('edgedb', 'function'), columns=('name',))
+        ])
+
+        self.__columns = datastructures.OrderedSet([
+            dbops.Column(name='paramtypes', type='jsonb'),
+            dbops.Column(name='paramkinds', type='jsonb'),
+            dbops.Column(name='paramdefaults', type='jsonb'),
+            dbops.Column(name='returntype', type='integer', required=True)
+        ])
+
+        self._columns = self.columns()
+
+
+class AttributeTable(PrimarySchemaObjectTable):
     def __init__(self):
         super().__init__(name=('edgedb', 'attribute'))
-        self.bases = [('edgedb', 'metaobject')]
+        self.bases = [('edgedb', 'primaryobject')]
 
         self.constraints = set([
             dbops.PrimaryKey(('edgedb', 'attribute'), columns=('id',)),
@@ -794,10 +816,10 @@ class AttributeTable(MetaObjectTable):
         self._columns = self.columns()
 
 
-class AttributeValueTable(MetaObjectTable):
+class AttributeValueTable(PrimarySchemaObjectTable):
     def __init__(self):
         super().__init__(name=('edgedb', 'attribute_value'))
-        self.bases = [('edgedb', 'metaobject')]
+        self.bases = [('edgedb', 'primaryobject')]
 
         self.constraints = set([
             dbops.PrimaryKey(('edgedb', 'attribute_value'), columns=('id',)),
@@ -813,10 +835,10 @@ class AttributeValueTable(MetaObjectTable):
         self._columns = self.columns()
 
 
-class ConstraintTable(MetaObjectTable):
+class ConstraintTable(InheritingSchemaObjectTable):
     def __init__(self):
         super().__init__(name=('edgedb', 'constraint'))
-        self.bases = [('edgedb', 'metaobject')]
+        self.bases = [('edgedb', 'inheritingobject')]
 
         self.constraints = set([
             dbops.PrimaryKey(('edgedb', 'constraint'), columns=('id',)),
@@ -824,7 +846,6 @@ class ConstraintTable(MetaObjectTable):
         ])
 
         self.__columns = datastructures.OrderedSet([
-            dbops.Column(name='base', type='text[]'),
             dbops.Column(name='subject', type='integer'),
             dbops.Column(name='expr', type='text'),
             dbops.Column(name='subjectexpr', type='text'),
@@ -839,14 +860,13 @@ class ConstraintTable(MetaObjectTable):
         self._columns = self.columns()
 
 
-class AtomTable(MetaObjectTable):
+class AtomTable(InheritingSchemaObjectTable):
     def __init__(self):
         super().__init__(name=('edgedb', 'atom'))
 
-        self.bases = [('edgedb', 'metaobject')]
+        self.bases = [('edgedb', 'inheritingobject')]
 
         self.__columns = datastructures.OrderedSet([
-            dbops.Column(name='base', type='text'),
             dbops.Column(name='constraints', type='edgedb.hstore'),
             dbops.Column(name='default', type='text'),
             dbops.Column(name='attributes', type='edgedb.hstore')
@@ -860,11 +880,11 @@ class AtomTable(MetaObjectTable):
         self._columns = self.columns()
 
 
-class ConceptTable(MetaObjectTable):
+class ConceptTable(InheritingSchemaObjectTable):
     def __init__(self):
         super().__init__(name=('edgedb', 'concept'))
 
-        self.bases = [('edgedb', 'metaobject')]
+        self.bases = [('edgedb', 'inheritingobject')]
 
         self.constraints = set([
             dbops.PrimaryKey(('edgedb', 'concept'), columns=('id',)),
@@ -874,22 +894,21 @@ class ConceptTable(MetaObjectTable):
         self._columns = self.columns()
 
 
-class LinkTable(MetaObjectTable):
+class LinkTable(InheritingSchemaObjectTable):
     def __init__(self):
         super().__init__(name=('edgedb', 'link'))
 
-        self.bases = [('edgedb', 'metaobject')]
+        self.bases = [('edgedb', 'inheritingobject')]
 
         self.__columns = datastructures.OrderedSet([
-            dbops.Column(name='source_id', type='integer'),
-            dbops.Column(name='target_id', type='integer'),
+            dbops.Column(name='source', type='integer'),
+            dbops.Column(name='target', type='integer'),
             dbops.Column(name='spectargets', type='text[]'),
             dbops.Column(name='mapping', type='char(2)', required=True),
             dbops.Column(name='exposed_behaviour', type='text'),
             dbops.Column(name='required', type='boolean', required=True, default=False),
             dbops.Column(name='readonly', type='boolean', required=True, default=False),
             dbops.Column(name='loading', type='text'),
-            dbops.Column(name='base', type='text[]'),
             dbops.Column(name='default', type='text'),
             dbops.Column(name='constraints', type='edgedb.hstore'),
             dbops.Column(name='abstract_constraints', type='edgedb.hstore')
@@ -903,19 +922,18 @@ class LinkTable(MetaObjectTable):
         self._columns = self.columns()
 
 
-class LinkPropertyTable(MetaObjectTable):
+class LinkPropertyTable(InheritingSchemaObjectTable):
     def __init__(self):
         super().__init__(name=('edgedb', 'link_property'))
 
-        self.bases = [('edgedb', 'metaobject')]
+        self.bases = [('edgedb', 'inheritingobject')]
 
         self.__columns = datastructures.OrderedSet([
-            dbops.Column(name='source_id', type='integer'),
-            dbops.Column(name='target_id', type='integer'),
+            dbops.Column(name='source', type='integer'),
+            dbops.Column(name='target', type='integer'),
             dbops.Column(name='required', type='boolean', required=True, default=False),
             dbops.Column(name='readonly', type='boolean', required=True, default=False),
             dbops.Column(name='loading', type='text'),
-            dbops.Column(name='base', type='text[]'),
             dbops.Column(name='default', type='text'),
             dbops.Column(name='constraints', type='edgedb.hstore'),
             dbops.Column(name='abstract_constraints', type='edgedb.hstore')
@@ -929,22 +947,44 @@ class LinkPropertyTable(MetaObjectTable):
         self._columns = self.columns()
 
 
-class ComputableTable(MetaObjectTable):
+class ActionTable(PrimarySchemaObjectTable):
     def __init__(self):
-        super().__init__(name=('edgedb', 'computable'))
+        super().__init__(name=('edgedb', 'action'))
+        self.bases = [('edgedb', 'primaryobject')]
 
-        self.bases = [('edgedb', 'metaobject')]
+        self.constraints = set([
+            dbops.PrimaryKey(('edgedb', 'action'), columns=('id',)),
+            dbops.UniqueConstraint(('edgedb', 'action'), columns=('name',))
+        ])
+
+
+class EventTable(InheritingSchemaObjectTable):
+    def __init__(self):
+        super().__init__(name=('edgedb', 'event'))
+        self.bases = [('edgedb', 'inheritingobject')]
+
+        self.constraints = set([
+            dbops.PrimaryKey(('edgedb', 'event'), columns=('id',)),
+            dbops.UniqueConstraint(('edgedb', 'event'), columns=('name',))
+        ])
+
+
+class PolicyTable(PrimarySchemaObjectTable):
+    def __init__(self, name=None):
+        name = name or ('edgedb', 'policy')
+        super().__init__(name=name)
+
+        self.bases = [('edgedb', 'primaryobject')]
 
         self.__columns = datastructures.OrderedSet([
-            dbops.Column(name='source_id', type='integer'),
-            dbops.Column(name='target_id', type='integer'),
-            dbops.Column(name='expression', type='text'),
-            dbops.Column(name='is_local', type='bool')
+            dbops.Column(name='subject', type='integer', required=True),
+            dbops.Column(name='event', type='integer', required=True),
+            dbops.Column(name='actions', type='integer[]', required=True)
         ])
 
         self.constraints = set([
-            dbops.PrimaryKey(('edgedb', 'computable'), columns=('id',)),
-            dbops.UniqueConstraint(('edgedb', 'computable'), columns=('name',))
+            dbops.PrimaryKey(('edgedb', 'policy'), columns=('id',)),
+            dbops.UniqueConstraint(('edgedb', 'policy'), columns=('name',))
         ])
 
         self._columns = self.columns()
@@ -962,55 +1002,6 @@ class FeatureTable(dbops.Table):
 
         self.constraints = set([
             dbops.PrimaryKey(name, columns=('name',)),
-        ])
-
-        self._columns = self.columns()
-
-
-class ActionTable(MetaObjectTable):
-    def __init__(self):
-        super().__init__(name=('edgedb', 'action'))
-        self.bases = [('edgedb', 'metaobject')]
-
-        self.constraints = set([
-            dbops.PrimaryKey(('edgedb', 'action'), columns=('id',)),
-            dbops.UniqueConstraint(('edgedb', 'action'), columns=('name',))
-        ])
-
-
-class EventTable(MetaObjectTable):
-    def __init__(self):
-        super().__init__(name=('edgedb', 'event'))
-        self.bases = [('edgedb', 'metaobject')]
-
-        self.__columns = datastructures.OrderedSet([
-            dbops.Column(name='base', type='text[]')
-        ])
-
-        self.constraints = set([
-            dbops.PrimaryKey(('edgedb', 'event'), columns=('id',)),
-            dbops.UniqueConstraint(('edgedb', 'event'), columns=('name',))
-        ])
-
-        self._columns = self.columns()
-
-
-class PolicyTable(MetaObjectTable):
-    def __init__(self, name=None):
-        name = name or ('edgedb', 'policy')
-        super().__init__(name=name)
-
-        self.bases = [('edgedb', 'metaobject')]
-
-        self.__columns = datastructures.OrderedSet([
-            dbops.Column(name='subject', type='integer', required=True),
-            dbops.Column(name='event', type='integer', required=True),
-            dbops.Column(name='actions', type='integer[]', required=True)
-        ])
-
-        self.constraints = set([
-            dbops.PrimaryKey(('edgedb', 'policy'), columns=('id',)),
-            dbops.UniqueConstraint(('edgedb', 'policy'), columns=('name',))
         ])
 
         self._columns = self.columns()

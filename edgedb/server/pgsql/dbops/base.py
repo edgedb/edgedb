@@ -53,13 +53,12 @@ class BaseCommand:
                 for cmd in extra_before:
                     await cmd.execute(context)
 
-            """LOG [edgedb.delta.execute] Sync command code:
-            print(code, vars)
+            """LOG [delta.execute] Executing DDL:
+            print(repr(self))
+            print('CODE:', code)
+            print('VARS:', vars)
             """
 
-            """LINE [edgedb.delta.execute] EXECUTING
-            repr(self)
-            """
             stmt = await context.db.prepare(code)
             result = await stmt.fetch(*vars)
 
@@ -89,6 +88,7 @@ class Command(BaseCommand):
         self.neg_conditions = neg_conditions or set()
         self.priority = priority
 
+    @debug
     async def execute(self, context):
         ok = await self.check_conditions(context, self.conditions, True) and \
              await self.check_conditions(context, self.neg_conditions, False)
@@ -96,6 +96,12 @@ class Command(BaseCommand):
         result = None
         if ok:
             code, vars = await self.get_code_and_vars(context)
+            """LOG [delta.execute] Executing DDL:
+            print(repr(self))
+            print()
+            print('CODE:', code)
+            print('VARS:', vars)
+            """
             result = await self.execute_code(context, code, vars)
         return result
 
@@ -119,19 +125,7 @@ class Command(BaseCommand):
             for cmd in extra_before:
                 await cmd.execute(context)
 
-        """LOG [edgedb.delta.execute] Sync command code:
-        print(code, vars)
-        """
-
-        """LINE [edgedb.delta.execute] EXECUTING
-        repr(self)
-        """
-
         result = await self._execute(context, code, vars)
-
-        """LINE [edgedb.delta.execute] EXECUTION RESULT
-        repr(result)
-        """
 
         if extra_after:
             for cmd in extra_after:
@@ -154,10 +148,6 @@ class Command(BaseCommand):
         if conditions:
             for condition in conditions:
                 result = await condition.execute(context)
-
-                """LOG [edgedb.delta.execute] Sync command condition result:
-                print('actual:', bool(result), 'expected:', positive)
-                """
 
                 if bool(result) ^ positive:
                     result = False
@@ -286,10 +276,6 @@ class CompositeCommandGroup(CommandGroup):
 class Condition(BaseCommand):
     async def execute(self, context):
         code, vars = await self.get_code_and_vars(context)
-
-        """LOG [edgedb.delta.execute] Sync command condition:
-        print(code, vars)
-        """
 
         stmt = await context.db.prepare(code)
         return await stmt.fetch(*vars)

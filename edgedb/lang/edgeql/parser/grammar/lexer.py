@@ -152,7 +152,7 @@ class EdgeQLLexer(lexer.Lexer):
                     )
                 )
                 (?:
-                    .*?
+                    (.|\n)*?
                 )
                 (?P=Q)      # match closing quote type with whatever is in Q
 

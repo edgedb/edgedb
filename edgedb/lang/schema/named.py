@@ -112,21 +112,7 @@ class NamedPrototypeCommand(sd.PrototypeCommand):
 
 
 class CreateOrAlterNamedPrototype(NamedPrototypeCommand):
-    def extract_object_references(self):
-        props = self.get_struct_properties()
-        base = props.get('base')
-        refs = set()
-        if base is not None:
-            if isinstance(base, tuple):
-                refs.update(base)
-            else:
-                refs.add(base)
-
-        for v in props.values():
-            if isinstance(v, so.PrototypeRef):
-                refs.add(v.prototype_name)
-
-        return refs
+    pass
 
 
 class CreateNamedPrototype(CreateOrAlterNamedPrototype, sd.CreatePrototype):

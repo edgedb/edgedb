@@ -22,7 +22,8 @@ source: |
             c.description AS description,
             c.is_abstract AS is_abstract,
             c.is_final AS is_final,
-            c.base AS base,
+            (SELECT array_agg(name) FROM edgedb.object
+             WHERE id = any(c.bases)) AS bases,
             c.constraints AS constraints,
             c.default AS default,
             c.attributes AS attributes

@@ -170,11 +170,35 @@ class RenameNode(DDLNode):
     __fields = [('new_name', PrototypeRefNode)]
 
 
-class CreateDatabaseNode(CreateObjectNode):
+class DeltaNode:
     pass
 
 
-class DropDatabaseNode(DropObjectNode):
+class CreateDeltaNode(CreateObjectNode, DeltaNode):
+    __fields = [('parents', list), 'target']
+
+
+class AlterDeltaNode(AlterObjectNode, DeltaNode):
+    pass
+
+
+class DropDeltaNode(DropObjectNode, DeltaNode):
+    pass
+
+
+class CommitDeltaNode(ObjectDDLNode, DeltaNode):
+    pass
+
+
+class DatabaseNode:
+    pass
+
+
+class CreateDatabaseNode(CreateObjectNode, DatabaseNode):
+    pass
+
+
+class DropDatabaseNode(DropObjectNode, DatabaseNode):
     pass
 
 

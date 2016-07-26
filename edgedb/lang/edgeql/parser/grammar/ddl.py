@@ -27,6 +27,22 @@ class DDLStmt(Nonterm):
     def reduce_CreateDeltaStmt(self, *kids):
         self.val = kids[0].val
 
+    def reduce_AlterDeltaStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_DropDeltaStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_CommitDeltaStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_InnerDDLStmt(self, *kids):
+        self.val = kids[0].val
+
+
+# DDL statements that are allowed inside CREATE DATABASE and CREATE DELTA
+#
+class InnerDDLStmt(Nonterm):
     def reduce_CreateActionStmt(self, *kids):
         self.val = kids[0].val
 
@@ -100,6 +116,18 @@ class DDLStmt(Nonterm):
         self.val = kids[0].val
 
     def reduce_CreateFunctionStmt(self, *kids):
+        self.val = kids[0].val
+
+
+class InnerDDLStmtBlock(ListNonterm, element=InnerDDLStmt):
+    pass
+
+
+class OptInnerDDLStmtBlock(Nonterm):
+    def reduce_empty(self):
+        self.val = None
+
+    def reduce_InnerDDLStmtBlock(self, *kids):
         self.val = kids[0].val
 
 
@@ -280,14 +308,34 @@ class OptDeltaTarget(Nonterm):
         self.val = None
 
     def reduce_TO_SCONST(self, *kids):
-        self.val = kids[1].val
+        self.val = kids[1]
 
+
+#
+# DELTAS
+#
 
 #
 # CREATE DELTA
 #
 class CreateDeltaStmt(Nonterm):
-    def reduce_CreateDelta(self, *kids):
+    def _parse_schema_decl(self, expression):
+        from edgedb.lang.common.exceptions import _get_context
+        from edgedb.lang.schema import parser
+
+        ctx = expression.context
+
+        try:
+            node = parser.parse(expression.val)
+        except parsing.ParserError as err:
+            context.rebase_context(
+                ctx, _get_context(err, parsing.ParserContext))
+            raise err
+        else:
+            context.rebase_ast_context(ctx, node)
+            return node
+
+    def reduce_CreateDelta_TO(self, *kids):
         r"""%reduce OptAliasBlock CREATE DELTA NodeName \
                     OptDeltaParents OptDeltaTarget \
         """
@@ -296,7 +344,61 @@ class CreateDeltaStmt(Nonterm):
             aliases=kids[0].val[1],
             name=kids[3].val,
             parents=kids[4].val,
-            target=kids[5].val,
+            target=(self._parse_schema_decl(kids[5].val)
+                    if kids[5].val is not None else None),
+        )
+
+    def reduce_CreateDelta_Commands(self, *kids):
+        r"""%reduce OptAliasBlock CREATE DELTA NodeName \
+                    OptDeltaParents LBRACE InnerDDLStmtBlock RBRACE \
+        """
+        self.val = qlast.CreateDeltaNode(
+            namespaces=kids[0].val[0],
+            name=kids[3].val,
+            parents=kids[4].val,
+            commands=kids[6].val
+        )
+
+
+#
+# ALTER DELTA
+#
+commands_block(
+    'AlterDelta',
+    RenameStmt,
+    opt=False
+)
+
+
+class AlterDeltaStmt(Nonterm):
+    def reduce_AlterDelta(self, *kids):
+        r"""%reduce OptAliasBlock ALTER DELTA NodeName \
+                    AlterDeltaCommandsBlock \
+        """
+        self.val = qlast.AlterDeltaNode(
+            namespaces=kids[0].val[0],
+            name=kids[3].val,
+            commands=kids[4].val
+        )
+
+
+#
+# DROP DELTA
+#
+class DropDeltaStmt(Nonterm):
+    def reduce_OptAliasBlock_DROP_DELTA_NodeName(self, *kids):
+        self.val = qlast.DropDeltaNode(
+            namespaces=kids[0].val[0],
+            name=kids[3].val,
+        )
+
+
+# COMMIT DELTA
+class CommitDeltaStmt(Nonterm):
+    def reduce_OptAliasBlock_COMMIT_DELTA_NodeName(self, *kids):
+        self.val = qlast.CommitDeltaNode(
+            namespaces=kids[0].val[0],
+            name=kids[3].val,
         )
 
 
@@ -304,10 +406,9 @@ class CreateDeltaStmt(Nonterm):
 # CREATE DATABASE
 #
 class CreateDatabaseStmt(Nonterm):
-    def reduce_OptAliasBlock_CREATE_DATABASE_IDENT_OptCreateCommandsBlock(self, *kids):
+    def reduce_OptAliasBlock_CREATE_DATABASE_IDENT(self, *kids):
         self.val = qlast.CreateDatabaseNode(
-            name=qlast.PrototypeRefNode(name=kids[3].val),
-            commands=kids[4].val
+            name=qlast.PrototypeRefNode(name=kids[3].val)
         )
 
 

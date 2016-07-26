@@ -47,7 +47,7 @@ class Insert(DMLOperation):
                     if val and isinstance(val, base.Query):
                         vals.extend(val.params)
                         qtext = re.sub(r'\$(\d+)', lambda m: '$%s' % (int(m.groups(1)[0]) + i - 1), val.text)
-                        placeholder_row.append('(%s)::%s' % (qtext, val.type))
+                        placeholder_row.append('(%s)%s' % (qtext, '::{}'.format(val.type) if val.type is not None else ''))
                         i += len(val.params)
                     elif val is base.Default:
                         placeholder_row.append('DEFAULT')

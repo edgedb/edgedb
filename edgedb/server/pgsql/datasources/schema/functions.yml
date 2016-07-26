@@ -1,0 +1,38 @@
+##
+# Copyright (c) 2008-2016 MagicStack Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
+%SCHEMA edgedb.server.datasources.schemas.Sql
+%NAME FunctionList
+---
+params:
+
+filters:
+    - format: dict
+
+source: |
+    SELECT
+            f.id AS id,
+            f.name AS name,
+            f.title AS title,
+            f.description AS description,
+            f.is_abstract AS is_abstract,
+            f.is_final AS is_final,
+            (SELECT jsonb_object(array_agg(pt.key), array_agg(o.name))
+             FROM
+                jsonb_each_text(f.paramtypes) pt
+                INNER JOIN edgedb.object o
+                    ON o.id = pt.value::int
+            ) AS paramtypes,
+            f.paramkinds,
+            f.paramdefaults,
+            (SELECT name FROM edgedb.object WHERE id = f.returntype)
+                AS returntype
+        FROM
+            edgedb.function f
+        ORDER BY
+            f.id

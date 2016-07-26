@@ -305,11 +305,11 @@ class Decompiler(ast.visitor.NodeVisitor):
             fname = ('str', expr.name)
             args = [self._process_expr(context, a) for a in expr.args]
         elif expr.name == 'now':
-            fname = ('datetime', 'current_datetime')
+            fname = ('std', 'current_datetime')
             args = [self._process_expr(context, a) for a in expr.args]
         elif expr.name in (('edgedb', 'uuid_generate_v1mc'),
                             'uuid_generate_v1mc'):
-            fname = ('uuid', 'generate_v1mc')
+            fname = ('std', 'uuid_generate_v1mc')
             args = [self._process_expr(context, a) for a in expr.args]
         else:
             raise ValueError('unexpected function: {}'.format(expr.name))
@@ -815,11 +815,11 @@ class IRCompilerBase:
                 name = 'date_part'
             elif expr.name == ('datetime', 'truncate'):
                 name = 'date_trunc'
-            elif expr.name == ('datetime', 'current_time'):
+            elif expr.name == ('std', 'current_time'):
                 result = pgsql.ast.FunctionCallNode(name='current_time', noparens=True)
-            elif expr.name == ('datetime', 'current_datetime'):
+            elif expr.name == ('std', 'current_datetime'):
                 result = pgsql.ast.FunctionCallNode(name='current_timestamp', noparens=True)
-            elif expr.name == ('uuid', 'generate_v1mc'):
+            elif expr.name == ('std', 'uuid_generate_v1mc'):
                 name = common.qname('edgedb', 'uuid_generate_v1mc')
             elif expr.name == ('str', 'replace'):
                 name = 'replace'
@@ -3742,7 +3742,7 @@ class IRCompiler(IRCompilerBase):
                 datatable = pgsql.ast.TableNode(name=metatable,
                                                 schema='edgedb',
                                                 concepts=None,
-                                                alias=context.current.genalias(hint='metaobject'))
+                                                alias=context.current.genalias(hint='object'))
 
                 left = pgsql.ast.FieldRefNode(table=concept_table, field='concept_id')
                 right = pgsql.ast.FieldRefNode(table=datatable, field='id')
@@ -4167,10 +4167,10 @@ class IRCompiler(IRCompilerBase):
                 else:
                     concept_name_ref = query.concept_node_map[sqlpath.edgedbnode].get(('schema', 'name'))
                     if not concept_name_ref:
-                        datatable = pgsql.ast.TableNode(name='metaobject',
+                        datatable = pgsql.ast.TableNode(name='object',
                                                         schema='edgedb',
                                                         concepts=None,
-                                                        alias=context.current.genalias(hint='metaobject'))
+                                                        alias=context.current.genalias(hint='object'))
                         query.fromlist.append(pgsql.ast.FromExprNode(expr=datatable))
 
                         left = query.concept_node_map[sqlpath.edgedbnode][('schema', 'id')]

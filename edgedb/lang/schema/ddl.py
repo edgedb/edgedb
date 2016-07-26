@@ -26,6 +26,12 @@ from . import modules  # NOQA
 from . import policy  # NOQA
 
 
+def cmd_from_ddl(stmt, context=None):
+    ddl = edgeql.deoptimize(stmt)
+    cmd = s_delta.Command.from_ast(ddl, context=context)
+    return cmd
+
+
 def delta_from_ddl(stmts):
     alter_db = s_db.AlterDatabase()
     context = s_delta.CommandContext()
@@ -34,11 +40,8 @@ def delta_from_ddl(stmts):
         stmts = [stmts]
 
     for stmt in stmts:
-        ddl = edgeql.deoptimize(stmt)
-
         with context(s_db.DatabaseCommandContext(alter_db)):
-            cmd = s_delta.Command.from_ast(ddl, context=context)
-            alter_db.add(cmd)
+            alter_db.add(cmd_from_ddl(stmt, context))
 
     return alter_db
 

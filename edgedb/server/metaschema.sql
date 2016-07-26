@@ -26,59 +26,103 @@ CREATE AGGREGATE agg_product(numeric) (
 );
 
 
-CREATE TABLE metaobject (
+CREATE TABLE object (
     id serial NOT NULL PRIMARY KEY,
-    name text NOT NULL UNIQUE,
-    is_abstract boolean DEFAULT false NOT NULL,
-    is_final boolean DEFAULT false NOT NULL,
-    title hstore,
-    description text
+    name text NOT NULL UNIQUE
 );
 
 
-CREATE TABLE action (
+CREATE TABLE module (
+    schema_name text NOT NULL,
+    imports character varying[],
+
+    PRIMARY KEY (id)
+) INHERITS (object);
+
+
+CREATE TABLE delta (
+    module_id integer NOT NULL REFERENCES module(id),
+    parents character varying[],
+    deltabin bytea NOT NULL,
+    deltasrc text NOT NULL,
+    checksum character varying NOT NULL,
+    commitdate timestamp with time zone DEFAULT now() NOT NULL,
+    comment text,
+
+    PRIMARY KEY (id)
+) INHERITS (object);
+
+
+CREATE TABLE primaryobject (
+    is_abstract boolean DEFAULT false NOT NULL,
+    is_final boolean DEFAULT false NOT NULL,
+    title hstore,
+    description text,
+
+    PRIMARY KEY (id)
 )
-INHERITS (metaobject);
+INHERITS (object);
+
+
+CREATE TABLE function (
+    paramtypes jsonb,
+    paramkinds jsonb,
+    paramdefaults jsonb,
+    returntype integer,
+
+    PRIMARY KEY (id),
+    UNIQUE (name)
+)
+INHERITS (primaryobject);
+
+
+CREATE TABLE action (
+    PRIMARY KEY (id)
+)
+INHERITS (primaryobject);
+
+
+CREATE TABLE inheritingobject (
+    bases integer[]
+)
+INHERITS (primaryobject);
 
 
 CREATE TABLE atom (
-    base text,
     constraints hstore,
     "default" text,
-    attributes hstore
+    attributes hstore,
+
+    PRIMARY KEY (id)
 )
-INHERITS (metaobject);
+INHERITS (inheritingobject);
 
 
 CREATE TABLE attribute (
-    type bytea NOT NULL
+    type bytea NOT NULL,
+
+    PRIMARY KEY (id)
 )
-INHERITS (metaobject);
+INHERITS (inheritingobject);
 
 
 CREATE TABLE attribute_value (
     subject integer NOT NULL,
     attribute integer NOT NULL,
-    value bytea
+    value bytea,
+
+    PRIMARY KEY (id)
 )
-INHERITS (metaobject);
-
-
-CREATE TABLE backend_info (
-    format_version integer NOT NULL
-);
-
-
-INSERT INTO backend_info (format_version) VALUES (30);
+INHERITS (primaryobject);
 
 
 CREATE TABLE concept (
+    PRIMARY KEY (id)
 )
-INHERITS (metaobject);
+INHERITS (inheritingobject);
 
 
 CREATE TABLE "constraint" (
-    base text[],
     subject integer,
     expr text,
     subjectexpr text,
@@ -89,29 +133,51 @@ CREATE TABLE "constraint" (
     inferredparamtypes hstore,
     args bytea
 )
-INHERITS (metaobject);
-
-
-CREATE TABLE deltalog (
-    id character varying NOT NULL,
-    parents character varying[],
-    checksum character varying NOT NULL,
-    commit_date timestamp with time zone DEFAULT now() NOT NULL,
-    committer text NOT NULL,
-    comment text
-);
-
-
-CREATE TABLE deltaref (
-    id character varying NOT NULL,
-    ref text NOT NULL
-);
+INHERITS (inheritingobject);
 
 
 CREATE TABLE event (
-    base text[]
 )
-INHERITS (metaobject);
+INHERITS (inheritingobject);
+
+
+CREATE TABLE link (
+    source integer,
+    target integer,
+    mapping character(2) NOT NULL,
+    exposed_behaviour text,
+    required boolean DEFAULT false NOT NULL,
+    readonly boolean DEFAULT false NOT NULL,
+    loading text,
+    "default" text,
+    constraints hstore,
+    abstract_constraints hstore,
+    spectargets text[]
+)
+INHERITS (inheritingobject);
+
+
+CREATE TABLE link_property (
+    source integer,
+    target integer,
+    required boolean DEFAULT false NOT NULL,
+    readonly boolean DEFAULT false NOT NULL,
+    loading text,
+    "default" text,
+    constraints hstore,
+    abstract_constraints hstore
+)
+INHERITS (inheritingobject);
+
+
+CREATE TABLE policy (
+    subject integer NOT NULL,
+    event integer,
+    actions integer[]
+)
+INHERITS (primaryobject);
+
+SET search_path = DEFAULT;
 
 
 CREATE TABLE feature (
@@ -120,49 +186,9 @@ CREATE TABLE feature (
 );
 
 
-CREATE TABLE link (
-    source_id integer,
-    target_id integer,
-    mapping character(2) NOT NULL,
-    exposed_behaviour text,
-    required boolean DEFAULT false NOT NULL,
-    readonly boolean DEFAULT false NOT NULL,
-    loading text,
-    base text[],
-    "default" text,
-    constraints hstore,
-    abstract_constraints hstore,
-    spectargets text[]
-)
-INHERITS (metaobject);
-
-
-CREATE TABLE link_property (
-    source_id integer,
-    target_id integer,
-    required boolean DEFAULT false NOT NULL,
-    readonly boolean DEFAULT false NOT NULL,
-    loading text,
-    base text[],
-    "default" text,
-    constraints hstore,
-    abstract_constraints hstore
-)
-INHERITS (metaobject);
-
-
-CREATE TABLE module (
-    name text NOT NULL,
-    schema_name text NOT NULL,
-    imports character varying[]
+CREATE TABLE backend_info (
+    format_version integer NOT NULL
 );
 
 
-CREATE TABLE policy (
-    subject integer NOT NULL,
-    event integer,
-    actions integer[]
-)
-INHERITS (metaobject);
-
-SET search_path = DEFAULT;
+INSERT INTO backend_info (format_version) VALUES (30);

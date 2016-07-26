@@ -19,16 +19,14 @@ filters:
 source: |
     SELECT
             l.id,
-            l.source_id,
             sc.name AS source,
-            l.target_id,
             tc.name AS target,
             l.name AS name,
             l.mapping
         FROM
             edgedb.link l
-            INNER JOIN edgedb.concept sc ON l.source_id = sc.id
-            INNER JOIN edgedb.concept tc ON l.target_id = tc.id
+            INNER JOIN edgedb.concept sc ON l.source = sc.id
+            INNER JOIN edgedb.concept tc ON l.target = tc.id
         WHERE
             %(name)s = l.name
 
@@ -60,13 +58,12 @@ filters:
 source: |
     SELECT
             l.id,
-            l.source_id,
             sc.name AS source,
-            l.target_id,
             tc.name AS target,
             l.spectargets AS spectargets,
             l.name AS name,
-            l.base AS base,
+            (SELECT array_agg(name) FROM edgedb.object
+             WHERE id = any(l.bases)) AS bases,
             l.mapping,
             l.exposed_behaviour,
             l.required,
@@ -81,15 +78,15 @@ source: |
             l.default
         FROM
             edgedb.link l
-            LEFT JOIN edgedb.metaobject sc ON l.source_id = sc.id
-            LEFT JOIN edgedb.metaobject tc ON l.target_id = tc.id
+            LEFT JOIN edgedb.object sc ON l.source = sc.id
+            LEFT JOIN edgedb.object tc ON l.target = tc.id
         WHERE
             (%(source_concept)s::text IS NULL OR %(source_concept)s::text = sc.name)
             AND (%(target_concept)s::text IS NULL OR %(target_concept)s::text = tc.name)
             AND (%(name)s::text IS NULL OR %(name)s::text = l.name)
-            AND (%(include_specialized)s::bool OR l.source_id IS NULL)
+            AND (%(include_specialized)s::bool OR l.source IS NULL)
         ORDER BY
-            l.id, l.target_id NULLS FIRST
+            l.id, l.target NULLS FIRST
 ...
 
 %SCHEMA edgedb.server.datasources.schemas.Sql
@@ -119,30 +116,29 @@ source: |
     SELECT
             p.id            AS id,
             p.name          AS name,
-            p.base          AS base,
+            (SELECT array_agg(name) FROM edgedb.object
+             WHERE id = any(p.bases)) AS bases,
             p.title         AS title,
             p.description   AS description,
             p.required      AS required,
             p.readonly      AS readonly,
             p.loading       AS loading,
             p.default       AS default,
-            p.source_id     AS source_id,
-            p.target_id     AS target_id,
             p.constraints   AS constraints,
             p.abstract_constraints AS abstract_constraints,
             l.name          AS source,
             a.name          AS target
         FROM
             edgedb.link_property p
-            LEFT JOIN edgedb.link l ON l.id = p.source_id
-            LEFT JOIN edgedb.metaobject a ON a.id = p.target_id
+            LEFT JOIN edgedb.link l ON l.id = p.source
+            LEFT JOIN edgedb.object a ON a.id = p.target
         WHERE
             (%(source)s::text IS NULL OR %(source)s::text = l.name)
             AND (%(target)s::text IS NULL OR %(target)s::text = a.name)
             AND (%(name)s::text IS NULL OR %(name)s::text = p.name)
-            AND (%(include_specialized)s::bool OR p.source_id IS NULL)
+            AND (%(include_specialized)s::bool OR p.source IS NULL)
         ORDER BY
-            p.id, p.target_id NULLS FIRST
+            p.id, p.target NULLS FIRST
 
 ...
 
@@ -167,18 +163,16 @@ source: |
             p.name          AS name,
             p.title         AS title,
             p.description   AS description,
-            p.source_id     AS source_id,
-            p.target_id     AS target_id,
             s.name          AS source,
             t.name          AS target,
             p.expression    AS expression,
             p.is_local      AS is_local
         FROM
             edgedb.computable p
-            LEFT JOIN edgedb.metaobject s ON s.id = p.source_id
-            LEFT JOIN edgedb.metaobject t ON t.id = p.target_id
+            LEFT JOIN edgedb.object s ON s.id = p.source
+            LEFT JOIN edgedb.object t ON t.id = p.target
         WHERE
             (%(source)s::text IS NULL OR %(source)s::text = s.name)
             AND (%(name)s::text IS NULL OR %(name)s::text = p.name)
         ORDER BY
-            p.id, p.target_id NULLS FIRST
+            p.id, p.target NULLS FIRST

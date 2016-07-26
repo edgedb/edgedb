@@ -35,9 +35,13 @@ from edgedb.lang.schema import attributes as s_attrs
 from edgedb.lang.schema import atoms as s_atoms
 from edgedb.lang.schema import concepts as s_concepts
 from edgedb.lang.schema import constraints as s_constr
+from edgedb.lang.schema import database as s_db
+from edgedb.lang.schema import ddl as s_ddl
 from edgedb.lang.schema import deltarepo as s_deltarepo
+from edgedb.lang.schema import deltas as s_deltas
 from edgedb.lang.schema import error as s_err
 from edgedb.lang.schema import expr as s_expr
+from edgedb.lang.schema import functions as s_funcs
 from edgedb.lang.schema import indexes as s_indexes
 from edgedb.lang.schema import links as s_links
 from edgedb.lang.schema import lproperties as s_lprops
@@ -650,6 +654,7 @@ class Backend(s_deltarepo.DeltaProvider):
             await self.read_actions(self.schema)
             await self.read_events(self.schema)
             await self.read_atoms(self.schema)
+            await self.read_functions(self.schema)
             await self.read_concepts(self.schema)
             await self.read_links(self.schema)
             await self.read_link_properties(self.schema)
@@ -661,6 +666,7 @@ class Backend(s_deltarepo.DeltaProvider):
             await self.order_actions(self.schema)
             await self.order_events(self.schema)
             await self.order_atoms(self.schema)
+            await self.order_functions(self.schema)
             await self.order_link_properties(self.schema)
             await self.order_links(self.schema)
             await self.order_concepts(self.schema)
@@ -673,23 +679,62 @@ class Backend(s_deltarepo.DeltaProvider):
 
     @debug
     def process_delta(self, delta, schema, session=None):
-        """LOG [edgedb.delta.plan] Delta Plan
+        """LOG [delta.plan] Delta Plan
             markup.dump(delta)
         """
         delta = self.adapt_delta(delta)
         connection = session.get_connection() if session else self.connection
         context = delta_cmds.CommandContext(connection, session=session)
         delta.apply(schema, context)
-        """LOG [edgedb.delta.plan.pgsql] PgSQL Delta Plan
+        """LOG [delta.plan.pgsql] PgSQL Delta Plan
             markup.dump(delta)
         """
         return delta
 
-    async def run_delta_command(self, delta):
+    async def run_delta_command(self, delta_cmd):
+        schema = await self.getschema()
+        context = sd.CommandContext()
+        with context(s_deltas.DeltaCommandContext(delta_cmd)):
+            delta = delta_cmd.apply(schema, context)
+
+            if isinstance(delta_cmd, s_deltas.CommitDelta):
+                ddl_plan = s_db.AlterDatabase()
+
+                if delta.commands:
+                    ddl_plan.update(delta.commands)
+                    schema0 = schema.copy()
+                else:
+                    schema0 = schema
+
+                if delta.target is not None:
+                    diff = sd.delta_schemas(delta.target, schema0)
+                    ddl_plan.update(diff)
+
+                await self.run_ddl_command(ddl_plan)
+                await self._commit_delta(delta, ddl_plan)
+
+    async def _commit_delta(self, delta, ddl_plan):
+        table = deltadbops.DeltaTable()
+        rec = table.record(
+            name=delta.name,
+            module_id=dbops.Query('''
+                SELECT id FROM edgedb.module WHERE name = $1
+            ''', params=[delta.name.module]),
+            parents=dbops.Query('''
+                SELECT array_agg(id) FROM edgedb.delta WHERE name = any($1)
+            ''', params=[[parent.name for parent in delta.parents]]),
+            checksum=(await self.getschema()).get_checksum(),
+            deltabin=b'1',
+            deltasrc=s_ddl.ddl_text_from_delta(ddl_plan)
+        )
+        context = delta_cmds.CommandContext(self.connection, None)
+        await dbops.Insert(table, records=[rec]).execute(context)
+
+    async def run_ddl_command(self, ddl_plan):
         proto_schema = await self.getschema()
 
         # Apply and adapt delta, build native delta plan
-        plan = self.process_delta(delta, proto_schema)
+        plan = self.process_delta(ddl_plan, proto_schema)
 
         context = delta_cmds.CommandContext(self.connection, None)
 
@@ -700,7 +745,7 @@ class Backend(s_deltarepo.DeltaProvider):
             raise RuntimeError(msg) from e
 
         await self.invalidate_schema_cache()
-        await self.getschema()
+        self.schema = await self.getschema()
 
     @debug
     def apply_delta(self, delta, session, source_deltarepo):
@@ -802,29 +847,6 @@ class Backend(s_deltarepo.DeltaProvider):
         d = sd.Delta(parent_id=d.parent_id, checksum=d.checksum,
                      comment=d.comment, deltas=[plan])
         raise sd.DeltaError(msg, delta=d) from e
-
-    async def _update_repo(self, session, deltas):
-        table = deltadbops.DeltaLogTable()
-        records = []
-        for d in deltas:
-            rec = table.record(
-                    id='%x' % d.id,
-                    parents=['%x' % d.parent_id] if d.parent_id else None,
-                    checksum='%x' % d.checksum,
-                    committer=os.getenv('LOGNAME', '<unknown>')
-                  )
-            records.append(rec)
-
-        context = delta_cmds.CommandContext(session.get_connection(), session)
-        await dbops.Insert(table, records=records).execute(context)
-
-        table = deltadbops.DeltaRefTable()
-        rec = table.record(
-                id='%x' % d.id,
-                ref='HEAD'
-              )
-        condition = [('ref', str('HEAD'))]
-        await dbops.Merge(table, record=rec, condition=condition).execute(context)
 
     async def invalidate_schema_cache(self):
         self.schema = so.ProtoSchema()
@@ -1120,7 +1142,7 @@ class Backend(s_deltarepo.DeltaProvider):
                 'description': row['description'],
                 'is_abstract': row['is_abstract'],
                 'is_final': row['is_final'],
-                'base': row['base'],
+                'bases': row['bases'],
                 'default': row['default'],
                 'attributes': row['attributes'] or {}
             }
@@ -1128,8 +1150,8 @@ class Backend(s_deltarepo.DeltaProvider):
             self.atom_cache[name] = atom_data
             atom_data['default'] = self.unpack_default(row['default'])
 
-            if atom_data['base']:
-                basemap[name] = atom_data['base']
+            if atom_data['bases']:
+                basemap[name] = atom_data['bases']
 
             atom = s_atoms.Atom(name=name,
                                 default=atom_data['default'],
@@ -1172,6 +1194,35 @@ class Backend(s_deltarepo.DeltaProvider):
         for atom in schema(type='atom'):
             atom.acquire_ancestor_inheritance(schema)
 
+    async def read_functions(self, schema):
+        ds = datasources.schema.functions.FunctionList(self.connection)
+        func_list = await ds.fetch()
+
+        for row in func_list:
+            name = sn.Name(row['name'])
+
+            func_data = {
+                'name': name,
+                'title': self.hstore_to_word_combination(row['title']),
+                'description': row['description'],
+                'is_abstract': row['is_abstract'],
+                'is_final': row['is_final'],
+                'paramtypes': so.PrototypeDict({
+                    k: schema.get(v) for k, v in json.loads(row['paramtypes'])
+                }) if row['paramtypes'] else None,
+                'paramkinds': (json.loads(row['paramkinds'])
+                               if row['paramkinds'] else None),
+                'paramdefaults': (json.loads(row['paramdefaults'])
+                                  if row['paramdefaults'] else None),
+                'returntype': schema.get(row['returntype'])
+            }
+
+            func = s_funcs.Function(**func_data)
+            schema.add(func)
+
+    async def order_functions(self, schema):
+        pass
+
     async def read_constraints(self, schema):
         ds = datasources.schema.constraints.Constraints(self.connection)
         constraints_list = await ds.fetch()
@@ -1185,8 +1236,8 @@ class Backend(s_deltarepo.DeltaProvider):
 
             if r['subject']:
                 bases = (s_constr.Constraint.normalize_name(name),)
-            elif r['base']:
-                bases = tuple(sn.Name(b) for b in r['base'])
+            elif r['bases']:
+                bases = tuple(sn.Name(b) for b in r['bases'])
             elif name != 'std.constraint':
                 bases = (sn.Name('std.constraint'),)
 
@@ -1494,10 +1545,10 @@ class Backend(s_deltarepo.DeltaProvider):
         for name, r in links_list.items():
             bases = tuple()
 
-            if r['source_id']:
+            if r['source']:
                 bases = (s_links.Link.normalize_name(name),)
-            elif r['base']:
-                bases = tuple(sn.Name(b) for b in r['base'])
+            elif r['bases']:
+                bases = tuple(sn.Name(b) for b in r['bases'])
             elif name != 'std.link':
                 bases = (sn.Name('std.link'),)
 
@@ -1644,12 +1695,12 @@ class Backend(s_deltarepo.DeltaProvider):
         for name, r in link_props.items():
             bases = ()
 
-            if r['source_id']:
+            if r['source']:
                 bases = (s_lprops.LinkProperty.normalize_name(name),)
-            elif r['base']:
-                bases = tuple(sn.Name(b) for b in r['base'])
-            elif name != 'std.link_property':
-                bases = (sn.Name('std.link_property'),)
+            elif r['bases']:
+                bases = tuple(sn.Name(b) for b in r['bases'])
+            elif name != 'std.linkproperty':
+                bases = (sn.Name('std.linkproperty'),)
 
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']
@@ -1789,8 +1840,8 @@ class Backend(s_deltarepo.DeltaProvider):
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']
 
-            if r['base']:
-                bases = tuple(sn.Name(b) for b in r['base'])
+            if r['bases']:
+                bases = tuple(sn.Name(b) for b in r['bases'])
             elif name != 'std.event':
                 bases = (sn.Name('std.event'),)
             else:

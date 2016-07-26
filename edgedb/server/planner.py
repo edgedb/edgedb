@@ -12,11 +12,15 @@ from edgedb.lang.schema import ddl as s_ddl
 
 
 def plan_statement(stmt, backend):
-    if isinstance(stmt, qlast.DDLNode):
+    if isinstance(stmt, qlast.DatabaseNode):
+        return s_ddl.cmd_from_ddl(stmt)
+
+    elif isinstance(stmt, qlast.DeltaNode):
+        return s_ddl.cmd_from_ddl(stmt)
+
+    elif isinstance(stmt, qlast.DDLNode):
         return s_ddl.delta_from_ddl(stmt)
 
     else:
         ir = edgeql.compile_ast_to_ir(stmt, schema=backend.schema)
-        query = backend.compile(ir, output_format='json')
-
-        return query
+        return backend.compile(ir, output_format='json')

@@ -24,7 +24,8 @@ source: |
             a.description  AS description,
             a.is_abstract  AS is_abstract,
             a.is_final     AS is_final,
-            a.base         AS base,
+            (SELECT array_agg(name) FROM edgedb.object
+             WHERE id = any(a.bases)) AS bases,
             a.expr         AS expr,
             a.subjectexpr  AS subjectexpr,
             a.localfinalexpr AS localfinalexpr,
@@ -36,7 +37,7 @@ source: |
             subj.name      AS subject
         FROM
             edgedb.constraint a
-            LEFT JOIN edgedb.metaobject subj ON (subj.id = a.subject)
+            LEFT JOIN edgedb.object subj ON (subj.id = a.subject)
         WHERE
             %(name)s::text IS NULL OR a.name LIKE %(name)s::text
 ...

@@ -217,7 +217,7 @@ class DeclarationLoader:
                 default_base = self._schema.get(default_base_name)
                 bases.append(default_base)
 
-        return bases
+        return s_obj.PrototypeList(bases)
 
     def _init_constraints(self, constraints):
         module_aliases = {}
@@ -623,7 +623,18 @@ class DeclarationLoader:
 
 
 def load_module_declarations(declarations):
-    """Create a schema a and populate it with provided declarations."""
+    """Create a schema and populate it with provided declarations."""
+    schema = s_std.load_std_schema()
+    loader = DeclarationLoader(schema)
+
+    for module_name, decl_ast in declarations:
+        loader.load_module(module_name, decl_ast)
+
+    return schema
+
+
+def parse_module_declarations(declarations):
+    """Create a schema and populate it with provided declarations."""
     schema = s_std.load_std_schema()
     loader = DeclarationLoader(schema)
 

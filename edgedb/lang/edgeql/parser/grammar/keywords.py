@@ -24,6 +24,7 @@ edgeql_keywords = {
     "before": ("BEFORE", UNRESERVED_KEYWORD),
     "by": ("BY", UNRESERVED_KEYWORD),
     "cast": ("CAST", RESERVED_KEYWORD),
+    "commit": ("COMMIT", RESERVED_KEYWORD),
     "concept": ("CONCEPT", UNRESERVED_KEYWORD),
     "constraint": ("CONSTRAINT", UNRESERVED_KEYWORD),
     "create": ("CREATE", RESERVED_KEYWORD),

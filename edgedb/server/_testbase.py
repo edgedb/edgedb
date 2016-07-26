@@ -111,8 +111,17 @@ class ConnectedTestCase(ClusterTestCase):
 class DatabaseTestCase(ConnectedTestCase):
     def setUp(self):
         super().setUp()
+        self.admin_conn = self.con
         script = 'CREATE DATABASE edgedb_test'
-        script += '\nCREATE MODULE test'
+
+        self.loop.run_until_complete(
+            self.admin_conn.execute(script))
+
+        self.con = self.loop.run_until_complete(
+            self.cluster.connect(database='edgedb_test', user='edgedb',
+                                 loop=self.loop))
+
+        script = '\nCREATE MODULE test'
         if self.SETUP:
             script += '\n' + self.SETUP
 
@@ -123,15 +132,23 @@ class DatabaseTestCase(ConnectedTestCase):
         script = ''
 
         if self.TEARDOWN:
-            script = self.TEARDOWN
-
-        script += '\n' + 'DROP DATABASE edgedb_test'
+            script = self.TEARDOWN.strip()
 
         try:
-            self.loop.run_until_complete(
-                self.con.execute(script))
+            if script:
+                self.loop.run_until_complete(
+                    self.con.execute(script))
         finally:
-            super().tearDown()
+            self.con.close()
+            self.con = self.admin_conn
+
+            script = 'DROP DATABASE edgedb_test'
+
+            try:
+                self.loop.run_until_complete(
+                    self.admin_conn.execute(script))
+            finally:
+                super().tearDown()
 
 
 class QueryTestCaseMeta(TestCaseMeta):
@@ -177,4 +194,5 @@ class QueryTestCaseMeta(TestCaseMeta):
 
 
 class QueryTestCase(DatabaseTestCase, metaclass=QueryTestCaseMeta):
-    pass
+    SETUP = None
+    TEARDOWN = None

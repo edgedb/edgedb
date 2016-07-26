@@ -381,97 +381,101 @@ class Command(datastructures.MixedStruct, metaclass=CommandMeta):
             result.ops.add(type(cls).adapt(op))
         return result
 
-    def get_struct_properties(self, schema=None, include_old_value=False,
-                                    allow_unresolved_refs=False,
-                                    include_unresolved=False):
-        flds = self.prototype_class._fields
+    def _resolve_ref(self, ref, schema, allow_unresolved_refs=False,
+                     resolve=True):
+        try:
+            proto_name = ref.prototype_name
+        except AttributeError:
+            # Not a ref
+            return ref, None
+        else:
+            obj = None
+
+            if allow_unresolved_refs:
+                obj = schema.get(proto_name, default=None)
+            else:
+                obj = schema.get(proto_name)
+
+            return obj, ref
+
+    def get_struct_properties(self, schema,
+                              include_old_value=False,
+                              allow_unresolved_refs=False):
         result = {}
         unresolved = {}
+
         for op in self(AlterPrototypeProperty):
-            field = flds.get(op.property)
-            if field:
-                value = op.new_value
+            try:
+                field = self.prototype_class.get_field(op.property)
+            except KeyError:
+                continue
 
-                if (isinstance(field.type[0], so.PrototypeClass)
-                        and isinstance(op.new_value, so.PrototypeRef)):
-                    if schema is not None:
-                        if allow_unresolved_refs:
-                            obj = schema.get(op.new_value.prototype_name,
-                                             default=None)
-                            if obj is not None:
-                                value = obj
-                            else:
-                                if not include_unresolved:
-                                    unresolved[op.property] = value
-                                    continue
-                        else:
-                            value = schema.get(value.prototype_name)
+            value = op.new_value
+            ftype = field.type[0]
 
-                elif issubclass(field.type[0], typed.AbstractTypedMapping):
-                    if (issubclass(field.type[0].valuetype,
-                                   so.ProtoObject)
-                            and schema is not None):
-                        vals = {}
+            if (isinstance(ftype, so.PrototypeClass)
+                    and isinstance(op.new_value, so.PrototypeRef)):
 
-                        for k, val in value.items():
-                            try:
-                                proto_name = val.prototype_name
-                            except AttributeError:
-                                pass
-                            else:
-                                if allow_unresolved_refs:
-                                    obj = schema.get(proto_name, default=None)
-                                    if obj is not None:
-                                        val = obj
-                                    else:
-                                        if not include_unresolved:
-                                            unresolved[op.property] = value
-                                            continue
-                                else:
-                                    val = schema.get(proto_name)
+                value, ref = self._resolve_ref(
+                    value, schema, allow_unresolved_refs)
+                if value is None:
+                    unresolved[op.property] = ref
 
-                            vals[k] = val
+            elif issubclass(ftype, typed.AbstractTypedMapping):
+                if issubclass(ftype.valuetype, so.ProtoObject):
+                    vals = {}
 
-                        value = field.type[0](vals)
+                    for k, val in value.items():
+                        val, ref = self._resolve_ref(
+                            val, schema, allow_unresolved_refs)
+                        if val is None:
+                            unresolved[op.property] = value
+                            continue
 
-                elif issubclass(field.type[0], (typed.AbstractTypedSequence,
-                                                typed.AbstractTypedSet)):
-                    if (issubclass(field.type[0].type, so.ProtoObject)
-                            and schema is not None):
-                        vals = []
+                        vals[k] = val
 
-                        for val in value:
-                            try:
-                                proto_name = val.prototype_name
-                            except AttributeError:
-                                pass
-                            else:
-                                if allow_unresolved_refs:
-                                    obj = schema.get(proto_name, default=None)
-                                    if obj is not None:
-                                        val = obj
-                                    else:
-                                        if not include_unresolved:
-                                            unresolved[op.property] = value
-                                            continue
-                                else:
-                                    val = schema.get(proto_name)
-
-                            vals.append(val)
-
-                        value = field.type[0](vals)
-                else:
-                    value = self.adapt_value(field, op.new_value)
-
-                if include_old_value:
-                    if op.old_value is not None:
-                        old_value = self.adapt_value(field, op.old_value)
+                    if op.property in unresolved:
+                        ctype = so.PrototypeDict
                     else:
-                        old_value = None
-                    value = (old_value, value)
-                result[op.property] = value
+                        ctype = ftype
 
-        if allow_unresolved_refs and not include_unresolved:
+                    value = ctype(vals)
+
+            elif issubclass(ftype, (typed.AbstractTypedSequence,
+                                    typed.AbstractTypedSet)):
+                if issubclass(ftype.type, so.ProtoObject):
+                    vals = []
+
+                    for val in value:
+                        val, ref = self._resolve_ref(
+                            val, schema, allow_unresolved_refs)
+                        if val is None:
+                            unresolved[op.property] = value
+                            continue
+
+                        vals.append(val)
+
+                    if op.property in unresolved:
+                        if issubclass(ftype, typed.AbstractTypedSet):
+                            ctype = so.PrototypeSet
+                        else:
+                            ctype = so.PrototypeList
+                    else:
+                        ctype = ftype
+
+                    value = ctype(vals)
+            else:
+                value = self.adapt_value(field, op.new_value)
+
+            if include_old_value:
+                if op.old_value is not None:
+                    old_value = self.adapt_value(field, op.old_value)
+                else:
+                    old_value = None
+                value = (old_value, value)
+            result[op.property] = value
+
+        if allow_unresolved_refs:
             return result, unresolved
         else:
             return result
@@ -584,6 +588,10 @@ class Command(datastructures.MixedStruct, metaclass=CommandMeta):
         return '<{}.{}{}>'.format(self.__class__.__module__,
                                   self.__class__.__name__,
                                   (' ' + flds) if flds else '')
+
+
+class CommandList(typed.TypedList, type=Command):
+    pass
 
 
 class CommandGroup(Command):
@@ -704,10 +712,10 @@ class PrototypeCommand(Command):
 
 
 class Ghost(PrototypeCommand):
-    """A special class to represent deleted delta commands"""
+    """A special class to represent deleted delta commands."""
 
     def upgrade(self, context, format_ver, schema):
-        """Remove self on during any upgrade"""
+        """Remove self on during any upgrade."""
         super().upgrade(context, format_ver, schema)
 
         parent_ctx = context.get(CommandContextToken)

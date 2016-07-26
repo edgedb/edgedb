@@ -9,14 +9,18 @@
 import asyncpg
 
 from edgedb.lang.schema import delta as s_delta
+from edgedb.lang.schema import deltas as s_deltas
 
 from edgedb.server import query as edgedb_query
 from edgedb.server import exceptions as edgedb_exc
 
 
 async def execute_plan(plan, backend):
-    if isinstance(plan, s_delta.Command):
+    if isinstance(plan, s_deltas.DeltaCommand):
         return await backend.run_delta_command(plan)
+
+    elif isinstance(plan, s_delta.Command):
+        return await backend.run_ddl_command(plan)
 
     elif isinstance(plan, edgedb_query.Query):
         try:

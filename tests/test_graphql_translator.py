@@ -55,7 +55,7 @@ class TranslatorTest(lang_tb.BaseParserTest):
 
     def setUp(self):
         schema_text = textwrap.dedent(self.SCHEMA)
-        self.schema = s_decl.load_module_declarations(
+        self.schema = s_decl.parse_module_declarations(
             [('test', schema_text)])
 
 

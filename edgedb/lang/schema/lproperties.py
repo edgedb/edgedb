@@ -61,12 +61,12 @@ class CreateLinkProperty(LinkPropertyCommand, named.CreateNamedPrototype):
         else:
             bases = super()._protobases_from_ast(astnode, context)
             if not bases:
-                if proto_name != 'std.link_property':
+                if proto_name != 'std.linkproperty':
                     bases = so.PrototypeList([
                         so.PrototypeRef(
                             prototype_name=sn.Name(
                                 module='std',
-                                name='link_property'
+                                name='linkproperty'
                             )
                         )
                     ])

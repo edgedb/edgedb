@@ -238,7 +238,10 @@ class Cluster:
             conn.terminate()
 
     async def _init_std_schema(self, loop):
-        stdschema = os.path.join(os.path.dirname(__file__), 'std.eql')
+        from edgedb.lang import schema as edgedb_schema
+
+        stdschema = os.path.join(os.path.dirname(edgedb_schema.__file__),
+                                 '_std.eql')
         with open(stdschema, 'r') as f:
             stdschema_script = f.read()
 

@@ -68,7 +68,7 @@ class LoaderTest(BaseSchemaTest):
             markup.dump_code(source, lexer='edgeschema')
 
         empty_schema = s_std.load_std_schema()
-        loaded_schema = s_decl.load_module_declarations([('test', source)])
+        loaded_schema = s_decl.parse_module_declarations([('test', source)])
 
         schema_diff = s_delta.delta_schemas(loaded_schema, empty_schema)
         ddl_text = s_ddl.ddl_text_from_delta(schema_diff)

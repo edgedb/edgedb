@@ -25,7 +25,18 @@ from edgedb.lang.common.datastructures import Void
 """A collection of useful debugging routines"""
 
 
-channels = set()
+def _init_debug_channels():
+    channels = set()
+
+    for k, v in os.environ.items():
+        if k.startswith('EDGEDB_DEBUG_') and v:
+            channel = k[len('EDGEDB_DEBUG_'):].lower().replace('_', '.')
+            channels.add(channel)
+
+    return channels
+
+channels = _init_debug_channels()
+
 
 class DebugDecoratorParseError(Exception): pass
 
@@ -73,7 +84,7 @@ def _dump_header(title):
 
 
 class debug:
-    enabled = False
+    enabled = bool(channels)
     active = False
 
     def __new__(cls, func):

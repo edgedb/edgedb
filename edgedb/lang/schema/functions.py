@@ -78,8 +78,3 @@ class Function(named.NamedPrototype):
         rename=RenameFunction,
         delete=DeleteFunction
     )
-
-    @hybridmethod
-    def copy(scope, obj=None):
-        result = super(Function, scope).copy(obj)
-        return result

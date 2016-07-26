@@ -543,7 +543,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.ref)
 
     def _ddl_visit_bases(self, node):
-        if node.bases:
+        if getattr(node, 'bases', None):
             self.write(' INHERITING ')
             if len(node.bases) > 1:
                 self.write('(')
@@ -637,6 +637,31 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_AlterDropInheritNode(self, node):
         self.write('DROP INHERIT ')
         self.visit_list(node.bases)
+
+    def visit_CreateDatabaseNode(self, node):
+        self._visit_CreateObjectNode(node, 'DATABASE')
+
+    def visit_AlterDatabaseNode(self, node):
+        self._visit_AlterObjectNode(node, 'DATABASE')
+
+    def visit_DropDatabaseNode(self, node):
+        self._visit_DropObjectNode(node, 'DATABASE')
+
+    def visit_CreateDeltaNode(self, node):
+        self._visit_CreateObjectNode(node, 'DELTA')
+
+    def visit_CommitDeltaNode(self, node):
+        self._visit_namespaces(node)
+        self.write('COMMIT DELTA')
+        self.write(' ')
+        self.visit(node.name)
+        self.new_lines = 1
+
+    def visit_AlterDeltaNode(self, node):
+        self._visit_AlterObjectNode(node, 'DELTA')
+
+    def visit_DropDeltaNode(self, node):
+        self._visit_DropObjectNode(node, 'DELTA')
 
     def visit_CreateModuleNode(self, node):
         self._visit_CreateObjectNode(node, 'MODULE')
@@ -826,6 +851,15 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.event)
         self.write(' TO ')
         self.visit_list(node.actions)
+
+    def visit_CreateFunctionNode(self, node):
+        self._visit_CreateObjectNode(node, 'FUNCTION')
+
+    def visit_AlterFunctionNode(self, node):
+        self._visit_AlterObjectNode(node, 'FUNCTION')
+
+    def visit_DropFunctionNode(self, node):
+        self._visit_DropObjectNode(node, 'FUNCTION')
 
 
 generate_source = EdgeQLSourceGenerator.to_source

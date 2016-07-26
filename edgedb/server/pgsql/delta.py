@@ -22,6 +22,7 @@ from edgedb.lang.schema import database as s_db
 from edgedb.lang.schema import delta as sd
 from edgedb.lang.schema import error as s_err
 from edgedb.lang.schema import expr as s_expr
+from edgedb.lang.schema import functions as s_funcs
 from edgedb.lang.schema import indexes as s_indexes
 from edgedb.lang.schema import links as s_links
 from edgedb.lang.schema import lproperties as s_lprops
@@ -70,7 +71,7 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
 
     @debug
     async def execute(self, context):
-        """LINE [edgedb.delta.execute] EXECUTING
+        """LINE [delta.execute] EXECUTING
         repr(self)
         """
         for op in sorted(self.pgops, key=lambda i: getattr(i, 'priority', 0), reverse=True):
@@ -103,17 +104,85 @@ class NamedPrototypeMetaCommand(PrototypeMetaCommand, s_named.NamedPrototypeComm
         super().__init__(**kwargs)
         self._type_mech = schemamech.TypeMech()
 
-    def _serialize_refs(self, value):
+    def _serialize_field(self, value):
+        recvalue = None
+
         if isinstance(value, s_obj.PrototypeRef):
             result = value.prototype_name
 
+        elif isinstance(value, s_named.NamedPrototype):
+            result = value.name
+
         elif isinstance(value, (s_obj.PrototypeSet, s_obj.PrototypeList)):
-            result = [v.prototype_name for v in value]
+            result = []
+
+            for v in value:
+                if isinstance(v, s_obj.PrototypeRef):
+                    v = v.prototype_name
+                elif isinstance(v, s_named.NamedPrototype):
+                    v = v.name
+
+                result.append(v)
+
+        elif isinstance(value, s_obj.PrototypeDict):
+            result = {}
+
+            for k, v in value:
+                if isinstance(v, s_obj.PrototypeRef):
+                    v = v.prototype_name
+                elif isinstance(v, s_named.NamedPrototype):
+                    v = v.name
+
+                result[k] = v
+
+        elif isinstance(value, dict):
+            # Other dicts are JSON'ed by default
+            result = value
+            recvalue = json.dumps(value)
 
         else:
             result = value
 
-        return result
+        if result is not value and recvalue is None:
+            names = result
+            if isinstance(names, list):
+                recvalue = dbops.Query(
+                    '''(SELECT array_agg(id) FROM edgedb.object
+                       WHERE name = any($1))''',
+                    [names], type='integer[]')
+
+            elif isinstance(names, dict):
+                flattened = list(itertools.chain.from_iterable(names.items()))
+
+                keys = [f for f in flattened[0::2]]
+                names = [f for f in flattened[1::2]]
+                jbo_args = ('${:d}, q.ids[{:d}]'.format(i + 2, i + 1)
+                            for i in range(len(flattened) / 2))
+
+                recvalue = dbops.Query(
+                    '''(SELECT
+                            jsonb_build_object({json_seq})
+                        FROM
+                            (SELECT
+                                array_agg(id) AS ids
+                            FROM
+                                edgedb.object
+                            WHERE
+                                name = any($1)
+                            ) AS q
+                        )
+                    '''.format(json_seq=', '.join(jbo_args)),
+                    [names] + keys, type='jsonb')
+
+            else:
+                recvalue = dbops.Query(
+                    '''(SELECT id FROM edgedb.object
+                       WHERE name = $1)''',
+                    [names], type='integer')
+        else:
+            recvalue = result
+
+        return result, recvalue
 
     def fill_record(self, schema, rec=None, obj=None):
         updates = {}
@@ -121,20 +190,17 @@ class NamedPrototypeMetaCommand(PrototypeMetaCommand, s_named.NamedPrototypeComm
         myrec = self.table.record()
 
         if not obj:
-            fields = self.get_struct_properties(include_old_value=True)
+            fields = self.get_struct_properties(schema, include_old_value=True)
 
             for name, value in fields.items():
-                if name == 'bases':
-                    name = 'base'
-
-                v0 = self._serialize_refs(value[0])
-                v1 = self._serialize_refs(value[1])
+                v0, _ = self._serialize_field(value[0])
+                v1, refqry = self._serialize_field(value[1])
 
                 updates[name] = (v0, v1)
                 if hasattr(myrec, name):
                     if not rec:
                         rec = self.table.record()
-                    setattr(rec, name, v1)
+                    setattr(rec, name, refqry)
         else:
             for field in obj.__class__._fields:
                 value = getattr(obj, field)
@@ -249,6 +315,34 @@ class AlterPrototypeProperty(MetaCommand, adapts=sd.AlterPrototypeProperty):
     pass
 
 
+class FunctionCommand:
+    table = deltadbops.FunctionTable()
+
+
+class CreateFunction(FunctionCommand,
+                     CreateNamedPrototype,
+                     adapts=s_funcs.CreateFunction):
+    pass
+
+
+class RenameFunction(FunctionCommand,
+                      RenameNamedPrototype,
+                      adapts=s_funcs.RenameFunction):
+    pass
+
+
+class AlterFunction(FunctionCommand,
+                    AlterNamedPrototype,
+                    adapts=s_funcs.AlterFunction):
+    pass
+
+
+class DeleteFunction(FunctionCommand,
+                     DeleteNamedPrototype,
+                     adapts=s_funcs.DeleteFunction):
+    pass
+
+
 class AttributeCommand:
     table = deltadbops.AttributeTable()
 
@@ -298,13 +392,13 @@ class AttributeValueCommand(metaclass=CommandMeta):
             subj = updates.get('subject')
             if subj:
                 rec.subject = dbops.Query(
-                    '(SELECT id FROM edgedb.metaobject WHERE name = $1)',
+                    '(SELECT id FROM edgedb.object WHERE name = $1)',
                     [subj[1]], type='integer')
 
             attribute = updates.get('attribute')
             if attribute:
                 rec.attribute = dbops.Query(
-                    '(SELECT id FROM edgedb.metaobject WHERE name = $1)',
+                    '(SELECT id FROM edgedb.object WHERE name = $1)',
                     [attribute[1]], type='integer')
 
             value = updates.get('value')
@@ -349,7 +443,7 @@ class ConstraintCommand(metaclass=CommandMeta):
             subj = updates.get('subject')
             if subj:
                 rec.subject = dbops.Query(
-                    '(SELECT id FROM edgedb.metaobject WHERE name = $1)',
+                    '(SELECT id FROM edgedb.object WHERE name = $1)',
                     [subj[1]], type='integer')
 
             for ptn in 'paramtypes', 'inferredparamtypes':
@@ -479,17 +573,6 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
 
     def fill_record(self, schema, rec=None, obj=None):
         rec, updates = super().fill_record(schema, rec, obj)
-        base = updates.get('base')
-
-        if base:
-            if not rec:
-                rec = self.table.record()
-
-            if base[1]:
-                rec.base = str(base[1][0])
-            else:
-                rec.base = None
-
         default = updates.get('default')
         if default:
             if not rec:
@@ -1181,7 +1264,8 @@ class ConceptMetaCommand(CompositePrototypeMetaCommand):
 
 class CreateConcept(ConceptMetaCommand, adapts=s_concepts.CreateConcept):
     def apply(self, schema, context=None):
-        concept_props = self.get_struct_properties(include_old_value=False)
+        concept_props = self.get_struct_properties(
+            schema, include_old_value=False)
         is_virtual = concept_props.get('is_virtual')
         if is_virtual:
             return s_concepts.CreateConcept.apply(self, schema, context)
@@ -1225,7 +1309,7 @@ class CreateConcept(ConceptMetaCommand, adapts=s_concepts.CreateConcept):
             dbops.AlterTableAddConstraint(constraint))
 
         bases = (common.concept_name_to_table_name(sn.Name(p), catenate=False)
-                 for p in fields['base'][1])
+                 for p in fields['bases'][1])
         concept_table.bases = list(bases)
 
         self.affirm_pointer_defaults(concept, schema, context)
@@ -1404,20 +1488,20 @@ class PolicyCommand(metaclass=CommandMeta):
             subj = updates.get('subject')
             if subj:
                 rec.subject = dbops.Query(
-                    '(SELECT id FROM edgedb.metaobject WHERE name = $1)',
+                    '(SELECT id FROM edgedb.object WHERE name = $1)',
                     [subj[1]], type='integer')
 
             event = updates.get('event')
             if event:
                 rec.event = dbops.Query(
-                    '(SELECT id FROM edgedb.metaobject WHERE name = $1)',
+                    '(SELECT id FROM edgedb.object WHERE name = $1)',
                     [event[1]], type='integer')
 
             actions = updates.get('actions')
             if actions:
                 rec.actions = dbops.Query(
                     '''(SELECT array_agg(id)
-                        FROM edgedb.metaobject
+                        FROM edgedb.object
                         WHERE name = any($1::text[]))''',
                     [actions[1]], type='integer[]')
 
@@ -1473,30 +1557,6 @@ class PointerMetaCommand(MetaCommand):
         if updates:
             if not rec:
                 rec = self.table.record()
-
-            host = self.get_host(schema, context)
-
-            source = updates.get('source')
-            if source:
-                source = source[1]
-            elif host:
-                source = host.proto.name
-
-            if source:
-                rec.source_id = dbops.Query('(SELECT id FROM edgedb.metaobject WHERE name = $1)',
-                                            [str(source)], type='integer')
-
-            target = updates.get('target')
-            if target:
-                rec.target_id = dbops.Query('(SELECT id FROM edgedb.metaobject WHERE name = $1)',
-                                            [str(target[1])],
-                                            type='integer')
-
-            if rec.base:
-                if isinstance(rec.base, sn.Name):
-                    rec.base = str(rec.base)
-                else:
-                    rec.base = tuple(str(b) for b in rec.base)
 
         default = updates.get('default')
         if default:
@@ -2459,7 +2519,7 @@ class AlterDatabase(MetaCommand, adapts=s_db.AlterDatabase):
         s_db.AlterDatabase.apply(self, schema, context)
         MetaCommand.apply(self, schema)
 
-        self.update_mapping_indexes.apply(schema, context)
+        # self.update_mapping_indexes.apply(schema, context)
         self.pgops.add(self.update_mapping_indexes)
 
         self.pgops.add(UpgradeBackend.update_backend_info())

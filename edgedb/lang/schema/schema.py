@@ -39,12 +39,22 @@ class ProtoSchema:
         self.foreign_modules = collections.OrderedDict()
         self.module_aliases = {}
         self.module_aliases_r = {}
+        self.deltas = collections.OrderedDict()
 
         self.builtins_module = self.get_builtins_module()
 
         self._policy_schema = None
         self._virtual_inheritance_cache = {}
         self._inheritance_cache = {}
+
+    def copy(self):
+        result = type(self)()
+        result.modules = collections.OrderedDict((
+            (name, mod.copy()) for name, mod in self.modules.items))
+        result.deltas = self.deltas.copy()
+        result.module_aliases = self.module_aliases.copy()
+        result.module_aliases_r = self.module_aliases_r.copy()
+        return result
 
     def add_module(self, proto_module, alias=Void):
         """Add a module to the schema
@@ -92,6 +102,30 @@ class ProtoSchema:
         else:
             del self.module_aliases_r[module_name]
             del self.module_aliases[alias]
+
+    def add_delta(self, delta):
+        """Add a delta to the schema.
+
+        :param Delta delta: Delta object to add to the schema.
+        """
+        name = delta.name
+        self.deltas[name] = delta
+
+    def get_delta(self, name):
+        return self.deltas[name]
+
+    def delete_delta(self, delta):
+        """Remove the delta from the schema.
+
+        :param name: Either a string name of the delta or a Delta object
+                     thet should be dropped from the schema.
+        """
+        if isinstance(delta, str):
+            delta_name = delta
+        else:
+            delta_name = delta.name
+
+        del self.deltas[delta_name]
 
     def add(self, obj):
         try:
@@ -315,7 +349,7 @@ class ProtoSchema:
         elif issubclass(cls, links.Link):
             name = 'std.link'
         elif issubclass(cls, lproperties.LinkProperty):
-            name = 'std.link_property'
+            name = 'std.linkproperty'
         else:
             assert False, 'get_root_class: unexpected object type: %r' % type
 

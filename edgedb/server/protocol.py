@@ -18,6 +18,9 @@ from edgedb.server import planner
 
 from edgedb.lang.schema import database as s_db
 from edgedb.lang.schema import delta as s_delta
+from edgedb.lang.schema import deltas as s_deltas
+
+from edgedb.lang.common.debug import debug
 
 
 class ConnectionState(enum.Enum):
@@ -32,7 +35,8 @@ class ProtocolError(Exception):
 
 def is_ddl(plan):
     return isinstance(plan, s_delta.Command) and \
-            not isinstance(plan, s_db.CreateDatabase)
+            not isinstance(plan, s_db.DatabaseCommand) and \
+            not isinstance(plan, s_deltas.DeltaCommand)
 
 
 class Protocol(asyncio.Protocol):
@@ -103,20 +107,17 @@ class Protocol(asyncio.Protocol):
             }
         })
 
+    @debug
     async def _run_script(self, script):
         statements = edgeql.parse_block(script)
-        plans = []
-        for statement in statements:
-            plan = planner.plan_statement(statement, self.backend)
-
-            if plans and is_ddl(plans[-1]) and is_ddl(plan):
-                plans[-1].update(plan)
-            else:
-                plans.append(plan)
 
         results = []
 
-        for plan in plans:
+        for statement in statements:
+            """LOG [statement] Executing EdgeQL statement
+            print(edgeql.generate_source(statement, pretty=True))
+            """
+            plan = planner.plan_statement(statement, self.backend)
             results.append(await executor.execute_plan(plan, self.backend))
 
         return results
