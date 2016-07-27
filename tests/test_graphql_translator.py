@@ -17,8 +17,17 @@ from edgedb.lang import graphql as edge_graphql
 from edgedb.lang.schema import declarative as s_decl
 
 
+def with_variables(**kwargs):
+    kwargs = {'$' + name: val for name, val in kwargs.items()}
+
+    def wrap(func):
+        lang_tb._set_spec(func, 'variables', kwargs)
+        return func
+    return wrap
+
+
 class TranslatorTest(lang_tb.BaseParserTest):
-    re_filter = re.compile(r'''[\s,]+|(\#.*?\n)''')
+    re_filter = re.compile(r'''[\s,]+''')
 
     def assert_equal(self, expected, result):
         expected_stripped = self.re_filter.sub('', expected).lower()
@@ -34,7 +43,8 @@ class TranslatorTest(lang_tb.BaseParserTest):
             print('\n--- GRAPHQL ---')
             markup.dump_code(textwrap.dedent(source).strip(), lexer='graphql')
 
-        result = edge_graphql.translate(self.schema, source)
+        result = edge_graphql.translate(self.schema, source,
+                                        spec.get('variables'))
 
         if debug:
             print('\n--- EDGEQL ---')
@@ -391,6 +401,79 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                name,
+                groups [
+                    id,
+                ]
+            ]
+        """
+
+    @with_variables(nogroup=False)
+    def test_graphql_translation_directives07(self):
+        r"""
+        fragment userFrag1 on User {
+            name
+            ... {
+                groups {
+                    ... groupFrag @skip(if: $nogroup)
+                    id
+                }
+            }
+        }
+
+        fragment groupFrag on Group {
+            name
+        }
+
+        query ($nogroup: Boolean = false) @edgedb(module: "test") {
+            User {
+                ... userFrag1
+            }
+        }
+
+% OK %
+        # critical variables: $nogroup=False
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                name,
+                groups [
+                    name,
+                    id,
+                ]
+            ]
+        """
+
+    @with_variables(nogroup=True, irrelevant='foo')
+    def test_graphql_translation_directives08(self):
+        r"""
+        fragment userFrag1 on User {
+            name
+            ... {
+                groups {
+                    ... groupFrag @skip(if: $nogroup)
+                    id
+                }
+            }
+        }
+
+        fragment groupFrag on Group {
+            name
+        }
+
+        query ($nogroup: Boolean = false) @edgedb(module: "test") {
+            User {
+                ... userFrag1
+            }
+        }
+
+% OK %
+        # critical variables: $nogroup=True
         USING
             NAMESPACE test
         SELECT

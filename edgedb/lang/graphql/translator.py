@@ -23,31 +23,47 @@ class GraphQLTranslator:
     def __init__(self, schema):
         self.schema = schema
 
-    def translate(self, gqltree):
+    def translate(self, gqltree, variables):
         self._fragments = {
             f.name: f for f in gqltree.definitions
             if isinstance(f, gqlast.FragmentDefinition)
         }
 
+        # create a dict of variables that will be marked as critical or not
+        #
+        variables = {name: [val, False] for name, val in variables.items()}
+
         for definition in gqltree.definitions:
             if isinstance(definition, gqlast.OperationDefinition):
-                query = self._process_definition(definition)
+                query = self._process_definition(definition, variables)
 
-        return query
+        # produce the list of variables critical to the shape of the query
+        #
+        critvars = [(name, val) for name, (val, crit) in variables.items()
+                    if crit]
+        critvars.sort(key=lambda x: x[0])
 
-    def _should_include(self, directives):
+        return query, critvars
+
+    def _should_include(self, directives, variables):
         for directive in directives:
-            if (directive.name == 'include' and
-                    not [a.value.value for a in directive.arguments
-                         if a.name == 'if'][0]):
-                return False
-            elif (directive.name == 'skip' and
-                    [a.value.value for a in directive.arguments
-                     if a.name == 'if'][0]):
-                return False
+            if directive.name in ('include', 'skip'):
+                cond = [a.value for a in directive.arguments
+                        if a.name == 'if'][0]
+                if isinstance(cond, gqlast.Variable):
+                    var = variables[cond.value]
+                    cond = var[0]
+                    var[1] = True  # mark the variable as critical
+                else:
+                    cond = cond.value
+
+                if directive.name == 'include' and cond is False:
+                    return False
+                elif directive.name == 'skip' and cond is True:
+                    return False
         return True
 
-    def _process_definition(self, definition):
+    def _process_definition(self, definition, variables):
         query = None
 
         if definition.type is None or definition.type == 'query':
@@ -65,7 +81,7 @@ class GraphQLTranslator:
                         )
                     ],
                     targets=[
-                        self._process_selset(selset)
+                        self._process_selset(selset, variables)
                     ],
                     where=self._process_select_where(selset)
                 )
@@ -85,7 +101,7 @@ class GraphQLTranslator:
 
         return query
 
-    def _process_selset(self, selset):
+    def _process_selset(self, selset, variables):
         concept = selset.name
 
         expr = qlast.SelectExprNode(
@@ -93,29 +109,31 @@ class GraphQLTranslator:
                 steps=[qlast.PathStepNode(expr=concept)],
                 pathspec=self._process_pathspec(
                     [selset.name],
-                    selset.selection_set.selections)
+                    selset.selection_set.selections,
+                    variables)
             )
         )
 
         return expr
 
-    def _process_pathspec(self, base, selections):
+    def _process_pathspec(self, base, selections, variables):
         pathspec = []
 
         for sel in selections:
-            if not self._should_include(sel.directives):
+            if not self._should_include(sel.directives, variables):
                 continue
 
             if isinstance(sel, gqlast.Field):
-                pathspec.append(self._process_field(base, sel))
+                pathspec.append(self._process_field(base, sel, variables))
             elif isinstance(sel, gqlast.InlineFragment):
-                pathspec.extend(self._process_inline_fragment(base, sel))
+                pathspec.extend(self._process_inline_fragment(
+                    base, sel, variables))
             elif isinstance(sel, gqlast.FragmentSpread):
-                pathspec.extend(self._process_spread(base, sel))
+                pathspec.extend(self._process_spread(base, sel, variables))
 
         return pathspec
 
-    def _process_field(self, base, field):
+    def _process_field(self, base, field, variables):
         base = base + [field.name]
         spec = qlast.SelectPathSpecNode(
             expr=qlast.LinkExprNode(
@@ -129,18 +147,21 @@ class GraphQLTranslator:
         if field.selection_set is not None:
             spec.pathspec = self._process_pathspec(
                 base,
-                field.selection_set.selections)
+                field.selection_set.selections,
+                variables)
 
         return spec
 
-    def _process_inline_fragment(self, base, inline_frag):
+    def _process_inline_fragment(self, base, inline_frag, variables):
         return self._process_pathspec(base,
-                                      inline_frag.selection_set.selections)
+                                      inline_frag.selection_set.selections,
+                                      variables)
 
-    def _process_spread(self, base, spread):
+    def _process_spread(self, base, spread, variables):
         return self._process_pathspec(
             base,
-            self._fragments[spread.name].selection_set.selections)
+            self._fragments[spread.name].selection_set.selections,
+            variables)
 
     def _process_select_where(self, selset):
         if not selset.arguments:
@@ -227,8 +248,16 @@ class GraphQLTranslator:
         return result
 
 
-def translate(schema, graphql):
+def translate(schema, graphql, variables=None):
+    if variables is None:
+        variables = {}
     parser = gqlparser.GraphQLParser()
     gqltree = parser.parse(graphql)
-    edgeql_tree = GraphQLTranslator(schema).translate(gqltree)
-    return edgeql.generate_source(edgeql_tree)
+    edgeql_tree, critvars = GraphQLTranslator(schema).translate(gqltree,
+                                                                variables)
+    code = edgeql.generate_source(edgeql_tree)
+    if critvars:
+        crit = ['{}={!r}'.format(name, val) for name, val in critvars]
+        code = '# critical variables: {}\n{}'.format(', '.join(crit), code)
+
+    return code
