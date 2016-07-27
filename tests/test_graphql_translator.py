@@ -690,3 +690,47 @@ class TestGraphQLTranslation(TranslatorTest):
         WHERE
             (User.name = $name)
         """
+
+    def test_graphql_translation_variables02(self):
+        r"""
+        query(
+            $names: [String]!,
+            $groups: [String]!,
+            $setting: String
+        ) @edgedb(module: "test") {
+            User(name__in: $names, groups__name__in: $groups) {
+                name,
+                groups {
+                    id
+                    name
+                    settings(name: $setting) {
+                        name
+                        value
+                    }
+                }
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                name,
+                groups[
+                    id,
+                    name
+                    (settings WHERE
+                            (User.groups.settings.name = $setting)) [
+                        name,
+                        value
+                    ]
+                ]
+            ]
+        WHERE
+            (
+                (User.name IN $names) AND
+                (User.groups.name IN $groups)
+            )
+        """
