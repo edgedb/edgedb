@@ -52,6 +52,12 @@ class TestGraphQLTranslation(TranslatorTest):
     SCHEMA = r"""
         concept Group:
             required link name -> str
+            link settings -> Setting:
+                mapping: 1*
+
+        concept Setting:
+            required link name -> str
+            required link value -> str
 
         concept User:
             required link name -> str
@@ -619,6 +625,42 @@ class TestGraphQLTranslation(TranslatorTest):
             ]
         WHERE
             (User.groups.name = 'admin')
+        """
+
+    def test_graphql_translation_arguments09(self):
+        r"""
+        query @edgedb(module: "test") {
+            User {
+                name,
+                groups {
+                    id
+                    name
+                    settings(name__in: ["level", "description"]) {
+                        name
+                        value
+                    }
+                }
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                name,
+                groups [
+                    id,
+                    name,
+                    (settings WHERE
+                            (User.groups.settings.name IN
+                                ('level', 'description'))) [
+                        name,
+                        value
+                    ]
+                ]
+            ]
         """
 
     def test_graphql_translation_variables01(self):

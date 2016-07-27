@@ -92,14 +92,14 @@ class GraphQLTranslator:
             expr=qlast.PathNode(
                 steps=[qlast.PathStepNode(expr=concept)],
                 pathspec=self._process_pathspec(
-                    selset.name,
+                    [selset.name],
                     selset.selection_set.selections)
             )
         )
 
         return expr
 
-    def _process_pathspec(self, root, selections):
+    def _process_pathspec(self, base, selections):
         pathspec = []
 
         for sel in selections:
@@ -107,77 +107,73 @@ class GraphQLTranslator:
                 continue
 
             if isinstance(sel, gqlast.Field):
-                pathspec.append(self._process_field(root, sel))
+                pathspec.append(self._process_field(base, sel))
             elif isinstance(sel, gqlast.InlineFragment):
-                pathspec.extend(self._process_inline_fragment(root, sel))
+                pathspec.extend(self._process_inline_fragment(base, sel))
             elif isinstance(sel, gqlast.FragmentSpread):
-                pathspec.extend(self._process_spread(root, sel))
+                pathspec.extend(self._process_spread(base, sel))
 
         return pathspec
 
-    def _process_field(self, root, field):
+    def _process_field(self, base, field):
+        base = base + [field.name]
         spec = qlast.SelectPathSpecNode(
             expr=qlast.LinkExprNode(
                 expr=qlast.LinkNode(
                     name=field.name
                 )
             ),
-            where=self._process_path_where(root, field)
+            where=self._process_path_where(base, field.arguments)
         )
 
         if field.selection_set is not None:
             spec.pathspec = self._process_pathspec(
-                root,
+                base,
                 field.selection_set.selections)
 
         return spec
 
-    def _process_inline_fragment(self, root, inline_frag):
-        return self._process_pathspec(root,
+    def _process_inline_fragment(self, base, inline_frag):
+        return self._process_pathspec(base,
                                       inline_frag.selection_set.selections)
 
-    def _process_spread(self, root, spread):
+    def _process_spread(self, base, spread):
         return self._process_pathspec(
-            root,
+            base,
             self._fragments[spread.name].selection_set.selections)
 
     def _process_select_where(self, selset):
         if not selset.arguments:
             return None
 
+        def get_path_prefix():
+            return [qlast.PathStepNode(expr=selset.name)]
+
         args = [
-            qlast.BinOpNode(
-                left=qlast.PathNode(
-                    steps=[qlast.PathStepNode(expr=selset.name)] + left,
-                ),
-                op=op,
-                right=right
-            )
-            for left, op, right in self._process_arguments(selset.arguments)]
+            qlast.BinOpNode(left=left, op=op, right=right)
+            for left, op, right in self._process_arguments(get_path_prefix,
+                                                           selset.arguments)]
 
         return self._join_expressions(args)
 
-    def _process_path_where(self, root, field):
-        if not field.arguments:
+    def _process_path_where(self, base, arguments):
+        if not arguments:
             return None
 
+        def get_path_prefix():
+            prefix = [qlast.PathStepNode(expr=base[0])]
+            prefix.extend([qlast.LinkExprNode(expr=qlast.LinkNode(name=name))
+                           for name in base[1:]])
+            return prefix
+
         args = [
-            qlast.BinOpNode(
-                left=qlast.PathNode(
-                    steps=[qlast.PathStepNode(expr=root),
-                           qlast.LinkExprNode(
-                               expr=qlast.LinkNode(
-                                   name=field.name
-                               ))] + left,
-                ),
-                op=op,
-                right=right
-            )
-            for left, op, right in self._process_arguments(field.arguments)]
+            qlast.BinOpNode(left=left, op=op, right=right)
+            for left, op, right in self._process_arguments(
+                get_path_prefix, arguments)]
 
         return self._join_expressions(args)
 
-    def _process_arguments(self, args):
+    def _process_arguments(self, get_path_prefix, args):
         result = []
         for arg in args:
             if arg.name[-4:] in GQL_OPS_MAP:
@@ -187,11 +183,11 @@ class GraphQLTranslator:
                 op = ast.ops.EQ
                 name_parts = arg.name
 
-            name = [qlast.LinkExprNode(
-                expr=qlast.LinkNode(
-                    name=part
-                )
-            ) for part in name_parts.split('__')]
+            name = get_path_prefix()
+            name.extend([
+                qlast.LinkExprNode(expr=qlast.LinkNode(name=part))
+                for part in name_parts.split('__')])
+            name = qlast.PathNode(steps=name)
 
             value = self._process_literal(arg.value)
 
