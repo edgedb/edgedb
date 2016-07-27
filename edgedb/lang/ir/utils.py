@@ -15,6 +15,26 @@ from edgedb.lang.schema import utils as s_utils
 from . import ast as irast
 
 
+class PathIndex(dict):
+    """Graph path mapping path identifiers to AST nodes."""
+
+    def update(self, other):
+        for k, v in other.items():
+            if k in self:
+                super().__getitem__(k).update(v)
+            else:
+                self[k] = v
+
+    def __setitem__(self, key, value):
+        if not isinstance(key, (LinearPath, str)):
+            raise TypeError('Invalid key type for PathIndex: %s' % key)
+
+        if not isinstance(value, set):
+            value = {value}
+
+        super().__setitem__(key, value)
+
+
 def infer_arg_types(ir, schema):
     def flt(n):
         if isinstance(n, irast.BinOp):
@@ -539,9 +559,7 @@ def walk_path_towards_root(expr, trail):
 
 
 def get_path_id(node, join=None):
-    """Return a LinearPath by walking the given expression's link chain
-    """
-
+    """Return a LinearPath by walking the given expression's link chain."""
     path = LinearPath()
 
     concept = node.__sx_prototype__
@@ -556,3 +574,83 @@ def get_path_id(node, join=None):
     # Since we walked backwards, the final path needs to be reversed
     path.reverse()
     return path
+
+
+def extract_prefixes(expr, prefixes=None):
+    prefixes = prefixes if prefixes is not None else PathIndex()
+
+    if isinstance(expr, irast.PathCombination):
+        for path in expr.paths:
+            extract_prefixes(path, prefixes)
+
+    elif isinstance(expr, (irast.EntitySet, irast.AtomicRefSimple)):
+        key = expr.get_id()
+
+        if key:
+            # XXX AtomicRefs with PathCombinations in ref don't have an id
+            if key not in prefixes:
+                prefixes[key] = {expr}
+            else:
+                prefixes[key].add(expr)
+
+        if isinstance(expr, irast.EntitySet) and expr.rlink:
+            extract_prefixes(expr.rlink.source, prefixes)
+        elif isinstance(expr, irast.AtomicRefSimple):
+            extract_prefixes(expr.ref, prefixes)
+
+    elif isinstance(expr, irast.EntityLink):
+        extract_prefixes(expr.target or expr.source, prefixes)
+
+    elif isinstance(expr, irast.LinkPropRefSimple):
+        extract_prefixes(expr.ref, prefixes)
+
+    elif isinstance(expr, irast.BinOp):
+        extract_prefixes(expr.left, prefixes)
+        extract_prefixes(expr.right, prefixes)
+
+    elif isinstance(expr, irast.UnaryOp):
+        extract_prefixes(expr.expr, prefixes)
+
+    elif isinstance(expr, irast.ExistPred):
+        extract_prefixes(expr.expr, prefixes)
+
+    elif isinstance(expr, (irast.InlineFilter, irast.InlinePropFilter)):
+        extract_prefixes(expr.ref, prefixes)
+        extract_prefixes(expr.expr, prefixes)
+
+    elif isinstance(expr, (irast.AtomicRefExpr, irast.LinkPropRefExpr)):
+        extract_prefixes(expr.expr, prefixes)
+
+    elif isinstance(expr, irast.FunctionCall):
+        for arg in expr.args:
+            extract_prefixes(arg, prefixes)
+        for sortexpr in expr.agg_sort:
+            extract_prefixes(sortexpr.expr, prefixes)
+        if expr.agg_filter:
+            extract_prefixes(expr.agg_filter, prefixes)
+        for partition_expr in expr.partition:
+            extract_prefixes(partition_expr, prefixes)
+
+    elif isinstance(expr, irast.TypeCast):
+        extract_prefixes(expr.expr, prefixes)
+
+    elif isinstance(expr, irast.NoneTest):
+        extract_prefixes(expr.expr, prefixes)
+
+    elif isinstance(expr, (irast.Sequence, irast.Record)):
+        for path in expr.elements:
+            extract_prefixes(path, prefixes)
+
+    elif isinstance(expr, irast.Constant):
+        pass
+
+    elif isinstance(expr, irast.GraphExpr):
+        pass
+
+    elif isinstance(expr, irast.SubgraphRef):
+        extract_prefixes(expr.ref, prefixes)
+
+    else:
+        assert False, 'unexpected node: "%r"' % expr
+
+    return prefixes

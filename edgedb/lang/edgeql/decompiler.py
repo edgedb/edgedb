@@ -9,7 +9,6 @@
 import collections
 
 from edgedb.lang.ir import ast as irast
-from edgedb.lang.ir import transformer as irtransformer
 from edgedb.lang.edgeql import ast as qlast
 
 from edgedb.lang.common import ast
@@ -19,7 +18,7 @@ class IRDecompilerContext:
     pass
 
 
-class IRDecompiler(irtransformer.TreeTransformer):
+class IRDecompiler:
     def transform(self, edgedb_tree, inline_anchors=False, return_statement=False):
         context = IRDecompilerContext()
         context.inline_anchors = inline_anchors
