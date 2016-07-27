@@ -692,6 +692,26 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
+    def test_graphql_parser_var01(self):
+        r"""
+        query ($name: String!) {
+            User(name: $name) {
+                id
+                name
+            }
+        }
+        """
+
+    def test_graphql_parser_var02(self):
+        r"""
+        query ($names: [String]!) {
+            User(name__in: $names) {
+                id
+                name
+            }
+        }
+        """
+
     @tb.must_fail(GraphQLParserError, line=2, col=9)
     def test_graphql_parser_scope01(self):
         r"""

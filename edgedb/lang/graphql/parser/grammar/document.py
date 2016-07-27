@@ -379,8 +379,8 @@ class VarType(Nonterm):
     def reduce_NameTok(self, kid):
         self.val = gqlast.VariableType(name=kid.val.val)
 
-    def reduce_NameTok_BANG(self, kid):
-        self.val = gqlast.VariableType(name=kid.val.val,
+    def reduce_NameTok_BANG(self, *kids):
+        self.val = gqlast.VariableType(name=kids[0].val.val,
                                        nullable=False)
 
     def reduce_LSBRACKET_VarType_RSBRACKET(self, *kids):
