@@ -13,6 +13,7 @@ import textwrap
 from edgedb.lang import _testbase as lang_tb
 from edgedb.lang.common import markup
 from edgedb.lang import graphql as edge_graphql
+from edgedb.lang.graphql.errors import GraphQLValidationError
 
 from edgedb.lang.schema import declarative as s_decl
 
@@ -74,6 +75,8 @@ class TestGraphQLTranslation(TranslatorTest):
             required link active -> bool
             link groups -> Group:
                 mapping: **
+            required link age -> int
+            required link score -> float
     """
 
     def test_graphql_translation_query01(self):
@@ -586,6 +589,28 @@ class TestGraphQLTranslation(TranslatorTest):
             ]
         """
 
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_directives10(self):
+        r"""
+        query @edgedb(module: "test") {
+            User {
+                name @include(if: "true"),
+                id
+            }
+        }
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_directives11(self):
+        r"""
+        query ($val: String = "true") @edgedb(module: "test") {
+            User {
+                name @include(if: $val),
+                id
+            }
+        }
+        """
+
     def test_graphql_translation_arguments01(self):
         r"""
         query @edgedb(module: "test") {
@@ -878,8 +903,8 @@ class TestGraphQLTranslation(TranslatorTest):
     def test_graphql_translation_variables02(self):
         r"""
         query(
-            $names: [String]!,
-            $groups: [String]!,
+            $names: [String],
+            $groups: [String],
             $setting: String
         ) @edgedb(module: "test") {
             User(name__in: $names, groups__name__in: $groups) {
@@ -919,6 +944,427 @@ class TestGraphQLTranslation(TranslatorTest):
             )
         """
 
+    def test_graphql_translation_variables03(self):
+        r"""
+        query($val: Int = 3) @edgedb(module: "test") {
+            User(score: $val) {
+                id,
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                id,
+            ]
+        WHERE
+            (User.score = $val)
+        """
+
+    def test_graphql_translation_variables04(self):
+        r"""
+        query($val: Boolean = true) @edgedb(module: "test") {
+            User {
+                name @include(if: $val),
+                groups @skip(if: $val) {
+                    id
+                    name
+                }
+            }
+        }
+
+% OK %
+
+        # critical variables: $val=True
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                name,
+            ]
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_variables05(self):
+        r"""
+        query($val: Boolean! = true) @edgedb(module: "test") {
+            User {
+                name @include(if: $val),
+                id
+            }
+        }
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_variables06(self):
+        r"""
+        query($val: Boolean!) @edgedb(module: "test") {
+            User {
+                name @include(if: $val),
+                id
+            }
+        }
+        """
+
+    def test_graphql_translation_variables07(self):
+        r"""
+        query($val: String = "John") @edgedb(module: "test") {
+            User(name: $val) {
+                id,
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                id,
+            ]
+        WHERE
+            (User.name = $val)
+        """
+
+    def test_graphql_translation_variables08(self):
+        r"""
+        query($val: Int = 20) @edgedb(module: "test") {
+            User(age: $val) {
+                id,
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                id,
+            ]
+        WHERE
+            (User.age = $val)
+        """
+
+    def test_graphql_translation_variables09(self):
+        r"""
+        query($val: Float = 3.5) @edgedb(module: "test") {
+            User(score: $val) {
+                id,
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                id,
+            ]
+        WHERE
+            (User.score = $val)
+        """
+
+    def test_graphql_translation_variables10(self):
+        r"""
+        query($val: Int = 3) @edgedb(module: "test") {
+            User(score: $val) {
+                id,
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                id,
+            ]
+        WHERE
+            (User.score = $val)
+        """
+
+    def test_graphql_translation_variables11(self):
+        r"""
+        query($val: Float = 3) @edgedb(module: "test") {
+            User(score: $val) {
+                id,
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                id,
+            ]
+        WHERE
+            (User.score = $val)
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_variables12(self):
+        r"""
+        query($val: Boolean = 1) @edgedb(module: "test") {
+            User {
+                name @include(if: $val),
+                id
+            }
+        }
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_variables13(self):
+        r"""
+        query($val: Boolean = "1") @edgedb(module: "test") {
+            User {
+                name @include(if: $val),
+                id
+            }
+        }
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_variables14(self):
+        r"""
+        query($val: Boolean = 1.3) @edgedb(module: "test") {
+            User {
+                name @include(if: $val),
+                id
+            }
+        }
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_variables15(self):
+        r"""
+        query($val: String = 1) @edgedb(module: "test") {
+            User(name: $val) {
+                id
+            }
+        }
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_variables16(self):
+        r"""
+        query($val: String = 1.1) @edgedb(module: "test") {
+            User(name: $val) {
+                id
+            }
+        }
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_variables17(self):
+        r"""
+        query($val: String = true) @edgedb(module: "test") {
+            User(name: $val) {
+                id
+            }
+        }
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_variables18(self):
+        r"""
+        query($val: Int = 1.1) @edgedb(module: "test") {
+            User(age: $val) {
+                id
+            }
+        }
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_variables19(self):
+        r"""
+        query($val: Int = "1") @edgedb(module: "test") {
+            User(age: $val) {
+                id
+            }
+        }
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_variables20(self):
+        r"""
+        query($val: Int = true) @edgedb(module: "test") {
+            User(age: $val) {
+                id
+            }
+        }
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_variables21(self):
+        r"""
+        query($val: Float = "1") @edgedb(module: "test") {
+            User(score: $val) {
+                id
+            }
+        }
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_variables22(self):
+        r"""
+        query($val: Float = true) @edgedb(module: "test") {
+            User(score: $val) {
+                id
+            }
+        }
+        """
+
+    def test_graphql_translation_variables23(self):
+        r"""
+        query($val: ID = "1") @edgedb(module: "test") {
+            User(id: $val) {
+                name
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                name,
+            ]
+        WHERE
+            (User.id = $val)
+        """
+
+    def test_graphql_translation_variables24(self):
+        r"""
+        query($val: ID = 1) @edgedb(module: "test") {
+            User(id: $val) {
+                name
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                name,
+            ]
+        WHERE
+            (User.id = $val)
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_variables25(self):
+        r"""
+        query($val: ID = 1.1) @edgedb(module: "test") {
+            User(id: $val) {
+                name
+            }
+        }
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_variables26(self):
+        r"""
+        query($val: ID = true) @edgedb(module: "test") {
+            User(id: $val) {
+                name
+            }
+        }
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_variables27(self):
+        r"""
+        query($val: [String] = "Foo") @edgedb(module: "test") {
+            User(name__in: $val) {
+                id
+            }
+        }
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    @with_variables(val='Foo')
+    def test_graphql_translation_variables28(self):
+        r"""
+        query($val: [String]) @edgedb(module: "test") {
+            User(name__in: $val) {
+                id
+            }
+        }
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_variables29(self):
+        r"""
+        query($val: [String]!) @edgedb(module: "test") {
+            User(name__in: $val) {
+                id
+            }
+        }
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_variables30(self):
+        r"""
+        query($val: String!) @edgedb(module: "test") {
+            User(name: $val) {
+                id
+            }
+        }
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_variables31(self):
+        r"""
+        query($val: [String] = ["Foo", 123]) @edgedb(module: "test") {
+            User(name__in: $val) {
+                id
+            }
+        }
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    @with_variables(val=["Foo", 123])
+    def test_graphql_translation_variables32(self):
+        r"""
+        query($val: [String]) @edgedb(module: "test") {
+            User(name__in: $val) {
+                id
+            }
+        }
+        """
+
+    def test_graphql_translation_variables33(self):
+        r"""
+        query($val: [String] = ["Foo", "Bar"]) @edgedb(module: "test") {
+            User(name__in: $val) {
+                id
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                id,
+            ]
+        WHERE
+            (User.name IN $val)
+
+        """
+
     def test_graphql_translation_enum01(self):
         r"""
         query @edgedb(module: "test") {
@@ -940,4 +1386,413 @@ class TestGraphQLTranslation(TranslatorTest):
             ]
         WHERE
             (Group.name = 'admin')
+        """
+
+    def test_graphql_translation_type01(self):
+        r"""
+        query @edgedb(module: "test") {
+            User(name: "John") {
+                id,
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                id,
+            ]
+        WHERE
+            (User.name = 'John')
+        """
+
+    def test_graphql_translation_type02(self):
+        r"""
+        query @edgedb(module: "test") {
+            User(age: 20) {
+                id,
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                id,
+            ]
+        WHERE
+            (User.age = 20)
+        """
+
+    def test_graphql_translation_type03(self):
+        r"""
+        query @edgedb(module: "test") {
+            User(score: 3.5) {
+                id,
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                id,
+            ]
+        WHERE
+            (User.score = 3.5)
+        """
+
+    def test_graphql_translation_type04(self):
+        r"""
+        query @edgedb(module: "test") {
+            User(score: 3) {
+                id,
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                id,
+            ]
+        WHERE
+            (User.score = 3)
+        """
+
+    @with_variables(val="John")
+    def test_graphql_translation_type05(self):
+        r"""
+        query($val: String!) @edgedb(module: "test") {
+            User(name: $val) {
+                id,
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                id,
+            ]
+        WHERE
+            (User.name = $val)
+        """
+
+    @with_variables(val=20)
+    def test_graphql_translation_type06(self):
+        r"""
+        query($val: Int!) @edgedb(module: "test") {
+            User(age: $val) {
+                id,
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                id,
+            ]
+        WHERE
+            (User.age = $val)
+        """
+
+    @with_variables(val=3.5)
+    def test_graphql_translation_type07(self):
+        r"""
+        query($val: Float!) @edgedb(module: "test") {
+            User(score: $val) {
+                id,
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                id,
+            ]
+        WHERE
+            (User.score = $val)
+        """
+
+    @with_variables(val=3)
+    def test_graphql_translation_type08(self):
+        r"""
+        query($val: Int!) @edgedb(module: "test") {
+            User(score: $val) {
+                id,
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                id,
+            ]
+        WHERE
+            (User.score = $val)
+        """
+
+    def test_graphql_translation_type09(self):
+        r"""
+        query @edgedb(module: "test") {
+            User(name__in: ["John", "Jane"]) {
+                id,
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                id,
+            ]
+        WHERE
+            (User.name IN ('John', 'Jane'))
+        """
+
+    def test_graphql_translation_type10(self):
+        r"""
+        query @edgedb(module: "test") {
+            User(age__in: [10, 20, 30, 40]) {
+                id,
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                id,
+            ]
+        WHERE
+            (User.age IN (10, 20, 30, 40))
+        """
+
+    def test_graphql_translation_type11(self):
+        r"""
+        query @edgedb(module: "test") {
+            User(score__in: [3.5, 3.6, 3.7]) {
+                id,
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                id,
+            ]
+        WHERE
+            (User.score IN (3.5, 3.6, 3.7))
+        """
+
+    def test_graphql_translation_type12(self):
+        r"""
+        query @edgedb(module: "test") {
+            User(score__in: [1, 2, 3]) {
+                id,
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                id,
+            ]
+        WHERE
+            (User.score IN (1, 2, 3))
+        """
+
+    @with_variables(val=["John", "Jane"])
+    def test_graphql_translation_type13(self):
+        r"""
+        query($val: [String]!) @edgedb(module: "test") {
+            User(name__in: $val) {
+                id,
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                id,
+            ]
+        WHERE
+            (User.name IN $val)
+        """
+
+    @with_variables(val=[10, 20])
+    def test_graphql_translation_type14(self):
+        r"""
+        query($val: [Int]!) @edgedb(module: "test") {
+            User(age__in: $val) {
+                id,
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                id,
+            ]
+        WHERE
+            (User.age IN $val)
+        """
+
+    @with_variables(val=[3, 3.5, 4])
+    def test_graphql_translation_type15(self):
+        r"""
+        query($val: [Float]!) @edgedb(module: "test") {
+            User(score__in: $val) {
+                id,
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                id,
+            ]
+        WHERE
+            (User.score IN $val)
+        """
+
+    @with_variables(val=[1, 2, 3])
+    def test_graphql_translation_type16(self):
+        r"""
+        query($val: [Int]!) @edgedb(module: "test") {
+            User(score__in: $val) {
+                id,
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                id,
+            ]
+        WHERE
+            (User.score IN $val)
+        """
+
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_type17(self):
+        r"""
+        query @edgedb(module: "test") {
+            User(name: 42) {
+                id,
+            }
+        }
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_type18(self):
+        r"""
+        query @edgedb(module: "test") {
+            User(age: 20.5) {
+                id,
+            }
+        }
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_type19(self):
+        r"""
+        query @edgedb(module: "test") {
+            User(score: "3.5") {
+                id,
+            }
+        }
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_type20(self):
+        r"""
+        query @edgedb(module: "test") {
+            User(active: 0) {
+                id,
+            }
+        }
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_type21(self):
+        r"""
+        query @edgedb(module: "test") {
+            User(name__in: ["John", 42]) {
+                id,
+            }
+        }
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_type22(self):
+        r"""
+        query @edgedb(module: "test") {
+            User(age__in: [1, 20.5]) {
+                id,
+            }
+        }
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_type23(self):
+        r"""
+        query @edgedb(module: "test") {
+            User(score__in: [1, "3.5"]) {
+                id,
+            }
+        }
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_type24(self):
+        r"""
+        query @edgedb(module: "test") {
+            User(active__in: [true, 0]) {
+                id,
+            }
+        }
         """

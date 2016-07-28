@@ -11,3 +11,7 @@ from edgedb.lang.common.exceptions import EdgeDBError
 
 class GraphQLError(EdgeDBError):
     pass
+
+
+class GraphQLValidationError(GraphQLError):
+    pass

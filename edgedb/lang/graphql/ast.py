@@ -31,6 +31,9 @@ class Base(ast.AST):
 class LiteralNode(Base):
     __fields = ['value']
 
+    def topython(self):
+        return self.value
+
 
 class StringLiteral(LiteralNode):
     def tosource(self):
@@ -71,11 +74,13 @@ class EnumLiteral(LiteralNode):
 
 
 class ListLiteral(LiteralNode):
-    pass
+    def topython(self):
+        return [val.topython() for val in self.value]
 
 
 class ObjectLiteral(LiteralNode):
-    pass
+    def topython(self):
+        return {field.name: field.value.topython() for field in self.value}
 
 
 class Variable(Base):
