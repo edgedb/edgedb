@@ -145,7 +145,7 @@ class Document(Nonterm):
     "%start"
 
     def reduce_Definitions(self, kid):
-        short = None
+        short = unnamed = None
         fragnames = set()
         opnames = set()
         for defn in kid.val:
@@ -161,19 +161,29 @@ class Document(Nonterm):
                         defn.type is None and
                         not defn.variables and
                         not defn.directives):
-                    short = defn
+                    short = unnamed = defn
+                elif unnamed is None:
+                    unnamed = defn
+
             elif isinstance(defn, gqlast.FragmentDefinition):
                 if defn.name not in fragnames:
                     fragnames.add(defn.name)
                 else:
                     raise GraphQLUniquenessError.from_ast(defn, 'fragment')
 
-        if short is not None and len(kid.val) - len(fragnames) > 1:
-            # we have more than one query definition, so short form is not
-            # allowed
-            #
-            raise GraphQLParserError.from_parsed(
-                'short form is not allowed here', short)
+        if len(kid.val) - len(fragnames) > 1:
+            if short is not None:
+                # we have more than one query definition, so short
+                # form is not allowed
+                #
+                raise GraphQLParserError.from_parsed(
+                    'short form is not allowed here', short)
+            elif unnamed is not None:
+                # we have more than one query definition, so unnamed operations
+                # are not allowed
+                #
+                raise GraphQLParserError.from_parsed(
+                    'unnamed operation is not allowed here', unnamed)
 
         self.val = gqlast.Document(definitions=kid.val)
 

@@ -400,6 +400,13 @@ class TestGraphQLParser(tb.ParserTest):
         query myQuery { id }
         """
 
+    @tb.must_fail(GraphQLParserError, line=2, col=9)
+    def test_graphql_parser_query10(self):
+        """
+        query { id }
+        query myQuery { id }
+        """
+
     def test_graphql_parser_mutation01(self):
         """
         mutation {
@@ -712,6 +719,23 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
+    def test_graphql_parser_var03(self):
+        r"""
+        query A($atOtherHomes: Boolean) {
+          ...HouseTrainedFragment
+        }
+
+        query B($atOtherHomes: Boolean) {
+          ...HouseTrainedFragment
+        }
+
+        fragment HouseTrainedFragment on Base {
+          dog {
+            isHousetrained(atOtherHomes: $atOtherHomes)
+          }
+        }
+        """
+
     @tb.must_fail(GraphQLParserError, line=2, col=9)
     def test_graphql_parser_scope01(self):
         r"""
@@ -793,7 +817,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         fragment badVar on User {description(first: $bad)}
 
-        query ($var: String, $bad: String) {
+        query goodQuery ($var: String, $bad: String) {
             fieldWithNullableStringInput(input: $var)
             ... goodVar
         }
@@ -926,14 +950,14 @@ class TestGraphQLParser(tb.ParserTest):
 
     def test_graphql_parser_names08(self):
         r"""
-        query { ... on on {id} }
-        query { ... on fragment {id} }
-        query { ... on query {id} }
-        query { ... on mutation {id} }
-        query { ... on subscription {id} }
-        query { ... on true {id} }
-        query { ... on false {id} }
-        query { ... on null {id} }
+        query A { ... on on {id} }
+        query B { ... on fragment {id} }
+        query C { ... on query {id} }
+        query D { ... on mutation {id} }
+        query E { ... on subscription {id} }
+        query F { ... on true {id} }
+        query G { ... on false {id} }
+        query H { ... on null {id} }
         """
 
     def test_graphql_parser_names09(self):
@@ -947,14 +971,14 @@ class TestGraphQLParser(tb.ParserTest):
         fragment false on Foo {name}
         fragment null on Foo {name}
 
-        # query { ... not_on on on {id} }
-        # query { ... fragment on fragmentFoo {id} }
-        # query { ... query on queryFoo {id} }
-        # query { ... mutation on mutationFoo {id} }
-        # query { ... subscription on subscriptionFoo {id} }
-        # query { ... true on trueFoo {id} }
-        query { ... false on falseFoo {id} }
-        query { ... null on nullFoo {id} }
+        # query A { ... not_on on on {id} }
+        # query B { ... fragment on fragmentFoo {id} }
+        # query C { ... query on queryFoo {id} }
+        # query D { ... mutation on mutationFoo {id} }
+        # query E { ... subscription on subscriptionFoo {id} }
+        # query F { ... true on trueFoo {id} }
+        query G { ... false on falseFoo {id} }
+        query H { ... null on nullFoo {id} }
         """
 
     def test_graphql_parser_names10(self):
@@ -977,14 +1001,14 @@ class TestGraphQLParser(tb.ParserTest):
         r"""
         fragment someFragment on Foo {id}
 
-        query { ...someFragment @on }
-        query { ...someFragment @fragment }
-        query { ...someFragment @query }
-        query { ...someFragment @mutation }
-        query { ...someFragment @subscription }
-        query { ...someFragment @true }
-        query { ...someFragment @false }
-        query { ...someFragment @null }
+        query A { ...someFragment @on }
+        query B { ...someFragment @fragment }
+        query C { ...someFragment @query }
+        query D { ...someFragment @mutation }
+        query E { ...someFragment @subscription }
+        query F { ...someFragment @true }
+        query G { ...someFragment @false }
+        query H { ...someFragment @null }
         """
 
     @tb.must_fail(GraphQLParserError, line=2, col=21)
