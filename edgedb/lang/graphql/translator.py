@@ -29,21 +29,28 @@ class GraphQLTranslator:
             if isinstance(f, gqlast.FragmentDefinition)
         }
 
-        # create a dict of variables that will be marked as critical or not
-        #
-        variables = {name: [val, False] for name, val in variables.items()}
+        result = {}
 
         for definition in gqltree.definitions:
             if isinstance(definition, gqlast.OperationDefinition):
-                query = self._process_definition(definition, variables)
 
-        # produce the list of variables critical to the shape of the query
-        #
-        critvars = [(name, val) for name, (val, crit) in variables.items()
-                    if crit]
-        critvars.sort(key=lambda x: x[0])
+                # create a dict of variables that will be marked as
+                # critical or not
+                #
+                inputvars = {name: [val, False]
+                             for name, val in variables.items()}
+                query = self._process_definition(definition, inputvars)
 
-        return query, critvars
+                # produce the list of variables critical to the shape
+                # of the query
+                #
+                critvars = [(name, val)
+                            for name, (val, crit) in inputvars.items() if crit]
+                critvars.sort()
+
+                result[definition.name] = query, critvars
+
+        return result
 
     def _should_include(self, directives, variables):
         for directive in directives:
@@ -253,11 +260,15 @@ def translate(schema, graphql, variables=None):
         variables = {}
     parser = gqlparser.GraphQLParser()
     gqltree = parser.parse(graphql)
-    edgeql_tree, critvars = GraphQLTranslator(schema).translate(gqltree,
-                                                                variables)
-    code = edgeql.generate_source(edgeql_tree)
-    if critvars:
-        crit = ['{}={!r}'.format(name, val) for name, val in critvars]
-        code = '# critical variables: {}\n{}'.format(', '.join(crit), code)
+    edge_forest_map = GraphQLTranslator(schema).translate(gqltree, variables)
 
-    return code
+    code = []
+    for name, (tree, critvars) in sorted(edge_forest_map.items()):
+        if name:
+            code.append('# query {}'.format(name))
+        if critvars:
+            crit = ['{}={!r}'.format(name, val) for name, val in critvars]
+            code.append('# critical variables: {}'.format(', '.join(crit)))
+        code.append(edgeql.generate_source(tree))
+
+    return '\n'.join(code)

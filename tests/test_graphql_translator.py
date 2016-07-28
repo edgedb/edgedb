@@ -102,6 +102,52 @@ class TestGraphQLTranslation(TranslatorTest):
             ]
         """
 
+    def test_graphql_translation_query02(self):
+        r"""
+        query users @edgedb(module: "test") {
+            User {
+                id,
+                name,
+                groups {
+                    id
+                    name
+                }
+            }
+        }
+
+        query settings @edgedb(module: "test") {
+            Setting {
+                name,
+                value,
+            }
+        }
+
+% OK %
+
+        # query settings
+        USING
+            NAMESPACE test
+        SELECT
+            Setting[
+                name,
+                value
+            ]
+
+        # query users
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                id,
+                name,
+                groups[
+                    id,
+                    name
+                ]
+            ]
+
+        """
+
     def test_graphql_translation_fragment01(self):
         r"""
         fragment groupFrag on Group {
@@ -485,6 +531,61 @@ class TestGraphQLTranslation(TranslatorTest):
             ]
         """
 
+    @with_variables(nogroup=True, novalue=False)
+    def test_graphql_translation_directives09(self):
+        r"""
+        fragment userFrag1 on User {
+            name
+            ... {
+                groups {
+                    ... groupFrag @skip(if: $nogroup)
+                    id
+                }
+            }
+        }
+
+        fragment groupFrag on Group {
+            name
+        }
+
+        query users($nogroup: Boolean = false) @edgedb(module: "test") {
+            User {
+                ... userFrag1
+            }
+        }
+
+        query settings($novalue: Boolean = false) @edgedb(module: "test") {
+            Setting {
+                name
+                value @skip(if: $novalue)
+            }
+        }
+
+% OK %
+
+        # query settings
+        # critical variables: $novalue=False
+        USING
+            NAMESPACE test
+        SELECT
+            Setting[
+                name,
+                value
+            ]
+
+        # query users
+        # critical variables: $nogroup=True
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                name,
+                groups [
+                    id,
+                ]
+            ]
+        """
+
     def test_graphql_translation_arguments01(self):
         r"""
         query @edgedb(module: "test") {
@@ -816,4 +917,27 @@ class TestGraphQLTranslation(TranslatorTest):
                 (User.name IN $names) AND
                 (User.groups.name IN $groups)
             )
+        """
+
+    def test_graphql_translation_enum01(self):
+        r"""
+        query @edgedb(module: "test") {
+            # this is an ENUM that gets simply converted to a string in EdgeQL
+            Group(name: admin) {
+                id,
+                name,
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            Group[
+                id,
+                name,
+            ]
+        WHERE
+            (Group.name = 'admin')
         """
