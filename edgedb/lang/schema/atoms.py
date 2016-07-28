@@ -213,9 +213,14 @@ class Atom(primary.Prototype, constraints.ConsistencySubject,
         result.default = obj.default
         return result
 
-    def coerce(self, value, schema):
+    def get_implementation_type(self):
+        """Get the underlying Python type that is used to implement this Atom.
+        """
         base_proto = self.get_topmost_base()
-        base_t = s_types.BaseTypeMeta.get_implementation(base_proto.name)
+        return s_types.BaseTypeMeta.get_implementation(base_proto.name)
+
+    def coerce(self, value, schema):
+        base_t = self.get_implementation_type()
 
         if not isinstance(value, base_t):
             return base_t(value)
