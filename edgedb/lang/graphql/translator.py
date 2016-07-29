@@ -46,6 +46,7 @@ class GraphQLTranslator:
             f.name: f for f in gqltree.definitions
             if isinstance(f, gqlast.FragmentDefinition)
         }
+        self._validated_fragments = {}
 
         result = {}
 
@@ -62,8 +63,8 @@ class GraphQLTranslator:
                 # produce the list of variables critical to the shape
                 # of the query
                 #
-                critvars = [(name, val)
-                            for name, (val, crit) in self._vars.items() if crit]
+                critvars = [(name, val) for name, (val, crit)
+                            in self._vars.items() if crit]
                 critvars.sort()
 
                 result[definition.name] = query, critvars
@@ -157,6 +158,7 @@ class GraphQLTranslator:
 
             module = self._get_module(definition.directives)
             for selset in definition.selection_set.selections:
+                self._path = [[[module, None]]]
                 selquery = qlast.SelectQueryNode(
                     namespaces=[
                         qlast.NamespaceAliasDeclNode(
@@ -186,6 +188,7 @@ class GraphQLTranslator:
 
     def _process_selset(self, selset):
         concept = selset.name
+        self._path[0][0] = (self._path[0][0][0], concept)
 
         try:
             self.schema.get(concept)
@@ -197,14 +200,13 @@ class GraphQLTranslator:
             expr=qlast.PathNode(
                 steps=[qlast.PathStepNode(expr=concept)],
                 pathspec=self._process_pathspec(
-                    [selset.name],
                     selset.selection_set.selections)
             )
         )
 
         return expr
 
-    def _process_pathspec(self, base, selections):
+    def _process_pathspec(self, selections):
         pathspec = []
 
         for sel in selections:
@@ -212,53 +214,73 @@ class GraphQLTranslator:
                 continue
 
             if isinstance(sel, gqlast.Field):
-                pathspec.append(self._process_field(base, sel))
+                pathspec.append(self._process_field(sel))
             elif isinstance(sel, gqlast.InlineFragment):
-                pathspec.extend(self._process_inline_fragment(base, sel))
+                pathspec.extend(self._process_inline_fragment(sel))
             elif isinstance(sel, gqlast.FragmentSpread):
-                pathspec.extend(self._process_spread(base, sel))
+                pathspec.extend(self._process_spread(sel))
 
         return pathspec
 
-    def _process_field(self, base, field):
-        base = base + [field.name]
+    def _process_field(self, field):
+        base = self._path[-1]
+        base.append(field.name)
+
+        # validate the field
+        #
+        target = baseType = self.schema.get(base[0])
+        for step in base[1:]:
+            target = target.resolve_pointer(self.schema, step)
+            if target is None:
+                raise GraphQLValidationError(
+                    "field {!r} is invalid for {}".format(
+                        step, baseType.name.name))
+            target = target.target
+
         spec = qlast.SelectPathSpecNode(
             expr=qlast.LinkExprNode(
                 expr=qlast.LinkNode(
                     name=field.name
                 )
             ),
-            where=self._process_path_where(base, field.arguments)
+            where=self._process_path_where(field.arguments)
         )
 
         if field.selection_set is not None:
             spec.pathspec = self._process_pathspec(
-                base,
                 field.selection_set.selections)
+        base.pop()
 
         return spec
 
-    def _process_inline_fragment(self, base, inline_frag):
-        self._validate_fragment_type(base, inline_frag)
-        return self._process_pathspec(base,
-                                      inline_frag.selection_set.selections)
+    def _process_inline_fragment(self, inline_frag):
+        self._validate_fragment_type(inline_frag)
+        result = self._process_pathspec(inline_frag.selection_set.selections)
+        if inline_frag.on is not None:
+            self._path.pop()
+        return result
 
-    def _process_spread(self, base, spread):
+    def _process_spread(self, spread):
         frag = self._fragments[spread.name]
-        self._validate_fragment_type(base, frag)
-        return self._process_pathspec(base, frag.selection_set.selections)
+        self._validate_fragment_type(frag)
+        result = self._process_pathspec(frag.selection_set.selections)
+        self._path.pop()
+        return result
 
-    def _validate_fragment_type(self, base, frag):
+    def _validate_fragment_type(self, frag):
         # validate the fragment type w.r.t. the base
         #
         if frag.on is None:
             return
 
+        prevbase = self._path[-1]
+
         fragmodule = self._get_module(frag.directives)
         fragType = self.schema.get((fragmodule, frag.on))
+        self._path.append([(fragmodule, frag.on)])
 
-        baseType = self.schema.get(base[0])
-        for step in base[1:]:
+        baseType = self.schema.get(prevbase[0])
+        for step in prevbase[1:]:
             baseType = baseType.resolve_pointer(self.schema,
                                                 step).target
 
@@ -294,14 +316,18 @@ class GraphQLTranslator:
 
         return self._join_expressions(args)
 
-    def _process_path_where(self, base, arguments):
+    def _process_path_where(self, arguments):
         if not arguments:
             return None
 
         def get_path_prefix():
-            prefix = [qlast.PathStepNode(expr=base[0])]
+            path = [step
+                    for steps in self._path
+                    for step in steps]
+            path = path[0:1] + [step for step in path if type(step) is str]
+            prefix = [qlast.PathStepNode(expr=path[0][1])]
             prefix.extend([qlast.LinkExprNode(expr=qlast.LinkNode(name=name))
-                           for name in base[1:]])
+                           for name in path[1:]])
             return prefix
 
         args = [

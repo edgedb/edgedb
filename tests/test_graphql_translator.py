@@ -165,6 +165,36 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_query04(self):
+        r"""
+        query @edgedb(module: "test") {
+            User {
+                name,
+                bogus,
+                groups {
+                    id
+                    name
+                }
+            }
+        }
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_query05(self):
+        r"""
+        query @edgedb(module: "test") {
+            NamedObject {
+                name,
+                age,
+                groups {
+                    id
+                    name
+                }
+            }
+        }
+        """
+
     def test_graphql_translation_fragment01(self):
         r"""
         fragment groupFrag on Group @edgedb(module: "test") {
@@ -1972,5 +2002,96 @@ class TestGraphQLTranslation(TranslatorTest):
             NamedObject[
                 id,
                 name,
+            ]
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_fragment_type08(self):
+        r"""
+        fragment frag on NamedObject @edgedb(module: "test") {
+            id,
+            name,
+            age,
+        }
+
+        query @edgedb(module: "test") {
+            User {
+                ... frag
+            }
+        }
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_fragment_type09(self):
+        r"""
+        query @edgedb(module: "test") {
+            User {
+                ... on NamedObject {
+                    id,
+                    name,
+                    age,
+
+                }
+            }
+        }
+        """
+
+    def test_graphql_translation_fragment_type10(self):
+        r"""
+        fragment namedFrag on NamedObject @edgedb(module: "test") {
+            id,
+            name,
+            ... userFrag
+        }
+
+        fragment userFrag on User @edgedb(module: "test") {
+            age
+        }
+
+        query @edgedb(module: "test") {
+            NamedObject {
+                ... namedFrag
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            NamedObject[
+                id,
+                name,
+                age,
+            ]
+        """
+
+    def test_graphql_translation_fragment_type11(self):
+        r"""
+        fragment namedFrag on NamedObject @edgedb(module: "test") {
+            id,
+            name,
+            ... userFrag
+        }
+
+        fragment userFrag on User @edgedb(module: "test") {
+            age
+        }
+
+        query @edgedb(module: "test") {
+            User {
+                ... namedFrag
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                id,
+                name,
+                age,
             ]
         """
