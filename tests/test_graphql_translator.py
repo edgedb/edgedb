@@ -61,17 +61,17 @@ class TranslatorTest(lang_tb.BaseParserTest):
 
 class TestGraphQLTranslation(TranslatorTest):
     SCHEMA = r"""
-        concept Group:
+        abstract concept NamedObject:
             required link name -> str
+
+        concept Group extends NamedObject:
             link settings -> Setting:
                 mapping: 1*
 
-        concept Setting:
-            required link name -> str
+        concept Setting extends NamedObject:
             required link value -> str
 
-        concept User:
-            required link name -> str
+        concept User extends NamedObject:
             required link active -> bool
             link groups -> Group:
                 mapping: **
@@ -151,9 +151,23 @@ class TestGraphQLTranslation(TranslatorTest):
 
         """
 
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_query03(self):
+        r"""
+        query @edgedb(module: "test") {
+            Bogus {
+                name,
+                groups {
+                    id
+                    name
+                }
+            }
+        }
+        """
+
     def test_graphql_translation_fragment01(self):
         r"""
-        fragment groupFrag on Group {
+        fragment groupFrag on Group @edgedb(module: "test") {
             id
             name
         }
@@ -183,18 +197,18 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_fragment02(self):
         r"""
-        fragment userFrag1 on User {
+        fragment userFrag1 on User @edgedb(module: "test") {
             name
             ... userFrag2
         }
 
-        fragment userFrag2 on User {
+        fragment userFrag2 on User @edgedb(module: "test") {
             groups {
                 ... groupFrag
             }
         }
 
-        fragment groupFrag on Group {
+        fragment groupFrag on Group @edgedb(module: "test") {
             id
             name
         }
@@ -221,13 +235,13 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_fragment03(self):
         r"""
-        fragment userFrag2 on User {
+        fragment userFrag2 on User @edgedb(module: "test") {
             groups {
                 ... groupFrag
             }
         }
 
-        fragment groupFrag on Group {
+        fragment groupFrag on Group @edgedb(module: "test") {
             id
             name
         }
@@ -257,7 +271,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_fragment04(self):
         r"""
-        fragment userFrag1 on User {
+        fragment userFrag1 on User @edgedb(module: "test") {
             name
             ... {
                 groups {
@@ -266,7 +280,7 @@ class TestGraphQLTranslation(TranslatorTest):
             }
         }
 
-        fragment groupFrag on Group {
+        fragment groupFrag on Group @edgedb(module: "test") {
             id
             name
         }
@@ -364,7 +378,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_directives04(self):
         r"""
-        fragment userFrag1 on User {
+        fragment userFrag1 on User @edgedb(module: "test") {
             name
             ... {
                 groups @include(if: false) {
@@ -373,7 +387,7 @@ class TestGraphQLTranslation(TranslatorTest):
             }
         }
 
-        fragment groupFrag on Group {
+        fragment groupFrag on Group @edgedb(module: "test") {
             id
             name
         }
@@ -396,7 +410,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_directives05(self):
         r"""
-        fragment userFrag1 on User {
+        fragment userFrag1 on User @edgedb(module: "test") {
             name
             ... @skip(if: true) {
                 groups {
@@ -405,7 +419,7 @@ class TestGraphQLTranslation(TranslatorTest):
             }
         }
 
-        fragment groupFrag on Group {
+        fragment groupFrag on Group @edgedb(module: "test") {
             id
             name
         }
@@ -428,7 +442,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_directives06(self):
         r"""
-        fragment userFrag1 on User {
+        fragment userFrag1 on User @edgedb(module: "test") {
             name
             ... {
                 groups {
@@ -438,7 +452,7 @@ class TestGraphQLTranslation(TranslatorTest):
             }
         }
 
-        fragment groupFrag on Group {
+        fragment groupFrag on Group @edgedb(module: "test") {
             name
         }
 
@@ -464,7 +478,7 @@ class TestGraphQLTranslation(TranslatorTest):
     @with_variables(nogroup=False)
     def test_graphql_translation_directives07(self):
         r"""
-        fragment userFrag1 on User {
+        fragment userFrag1 on User @edgedb(module: "test") {
             name
             ... {
                 groups {
@@ -474,7 +488,7 @@ class TestGraphQLTranslation(TranslatorTest):
             }
         }
 
-        fragment groupFrag on Group {
+        fragment groupFrag on Group @edgedb(module: "test") {
             name
         }
 
@@ -501,7 +515,7 @@ class TestGraphQLTranslation(TranslatorTest):
     @with_variables(nogroup=True, irrelevant='foo')
     def test_graphql_translation_directives08(self):
         r"""
-        fragment userFrag1 on User {
+        fragment userFrag1 on User @edgedb(module: "test") {
             name
             ... {
                 groups {
@@ -511,7 +525,7 @@ class TestGraphQLTranslation(TranslatorTest):
             }
         }
 
-        fragment groupFrag on Group {
+        fragment groupFrag on Group @edgedb(module: "test") {
             name
         }
 
@@ -537,7 +551,7 @@ class TestGraphQLTranslation(TranslatorTest):
     @with_variables(nogroup=True, novalue=False)
     def test_graphql_translation_directives09(self):
         r"""
-        fragment userFrag1 on User {
+        fragment userFrag1 on User @edgedb(module: "test") {
             name
             ... {
                 groups {
@@ -547,7 +561,7 @@ class TestGraphQLTranslation(TranslatorTest):
             }
         }
 
-        fragment groupFrag on Group {
+        fragment groupFrag on Group @edgedb(module: "test") {
             name
         }
 
@@ -1388,7 +1402,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (Group.name = 'admin')
         """
 
-    def test_graphql_translation_type01(self):
+    def test_graphql_translation_arg_type01(self):
         r"""
         query @edgedb(module: "test") {
             User(name: "John") {
@@ -1408,7 +1422,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (User.name = 'John')
         """
 
-    def test_graphql_translation_type02(self):
+    def test_graphql_translation_arg_type02(self):
         r"""
         query @edgedb(module: "test") {
             User(age: 20) {
@@ -1428,7 +1442,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (User.age = 20)
         """
 
-    def test_graphql_translation_type03(self):
+    def test_graphql_translation_arg_type03(self):
         r"""
         query @edgedb(module: "test") {
             User(score: 3.5) {
@@ -1448,7 +1462,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (User.score = 3.5)
         """
 
-    def test_graphql_translation_type04(self):
+    def test_graphql_translation_arg_type04(self):
         r"""
         query @edgedb(module: "test") {
             User(score: 3) {
@@ -1469,7 +1483,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @with_variables(val="John")
-    def test_graphql_translation_type05(self):
+    def test_graphql_translation_arg_type05(self):
         r"""
         query($val: String!) @edgedb(module: "test") {
             User(name: $val) {
@@ -1490,7 +1504,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @with_variables(val=20)
-    def test_graphql_translation_type06(self):
+    def test_graphql_translation_arg_type06(self):
         r"""
         query($val: Int!) @edgedb(module: "test") {
             User(age: $val) {
@@ -1511,7 +1525,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @with_variables(val=3.5)
-    def test_graphql_translation_type07(self):
+    def test_graphql_translation_arg_type07(self):
         r"""
         query($val: Float!) @edgedb(module: "test") {
             User(score: $val) {
@@ -1532,7 +1546,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @with_variables(val=3)
-    def test_graphql_translation_type08(self):
+    def test_graphql_translation_arg_type08(self):
         r"""
         query($val: Int!) @edgedb(module: "test") {
             User(score: $val) {
@@ -1552,7 +1566,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (User.score = $val)
         """
 
-    def test_graphql_translation_type09(self):
+    def test_graphql_translation_arg_type09(self):
         r"""
         query @edgedb(module: "test") {
             User(name__in: ["John", "Jane"]) {
@@ -1572,7 +1586,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (User.name IN ('John', 'Jane'))
         """
 
-    def test_graphql_translation_type10(self):
+    def test_graphql_translation_arg_type10(self):
         r"""
         query @edgedb(module: "test") {
             User(age__in: [10, 20, 30, 40]) {
@@ -1592,7 +1606,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (User.age IN (10, 20, 30, 40))
         """
 
-    def test_graphql_translation_type11(self):
+    def test_graphql_translation_arg_type11(self):
         r"""
         query @edgedb(module: "test") {
             User(score__in: [3.5, 3.6, 3.7]) {
@@ -1612,7 +1626,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (User.score IN (3.5, 3.6, 3.7))
         """
 
-    def test_graphql_translation_type12(self):
+    def test_graphql_translation_arg_type12(self):
         r"""
         query @edgedb(module: "test") {
             User(score__in: [1, 2, 3]) {
@@ -1633,7 +1647,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @with_variables(val=["John", "Jane"])
-    def test_graphql_translation_type13(self):
+    def test_graphql_translation_arg_type13(self):
         r"""
         query($val: [String]!) @edgedb(module: "test") {
             User(name__in: $val) {
@@ -1654,7 +1668,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @with_variables(val=[10, 20])
-    def test_graphql_translation_type14(self):
+    def test_graphql_translation_arg_type14(self):
         r"""
         query($val: [Int]!) @edgedb(module: "test") {
             User(age__in: $val) {
@@ -1675,7 +1689,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @with_variables(val=[3, 3.5, 4])
-    def test_graphql_translation_type15(self):
+    def test_graphql_translation_arg_type15(self):
         r"""
         query($val: [Float]!) @edgedb(module: "test") {
             User(score__in: $val) {
@@ -1696,7 +1710,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @with_variables(val=[1, 2, 3])
-    def test_graphql_translation_type16(self):
+    def test_graphql_translation_arg_type16(self):
         r"""
         query($val: [Int]!) @edgedb(module: "test") {
             User(score__in: $val) {
@@ -1716,9 +1730,8 @@ class TestGraphQLTranslation(TranslatorTest):
             (User.score IN $val)
         """
 
-
     @lang_tb.must_fail(GraphQLValidationError)
-    def test_graphql_translation_type17(self):
+    def test_graphql_translation_arg_type17(self):
         r"""
         query @edgedb(module: "test") {
             User(name: 42) {
@@ -1728,7 +1741,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @lang_tb.must_fail(GraphQLValidationError)
-    def test_graphql_translation_type18(self):
+    def test_graphql_translation_arg_type18(self):
         r"""
         query @edgedb(module: "test") {
             User(age: 20.5) {
@@ -1738,7 +1751,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @lang_tb.must_fail(GraphQLValidationError)
-    def test_graphql_translation_type19(self):
+    def test_graphql_translation_arg_type19(self):
         r"""
         query @edgedb(module: "test") {
             User(score: "3.5") {
@@ -1748,7 +1761,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @lang_tb.must_fail(GraphQLValidationError)
-    def test_graphql_translation_type20(self):
+    def test_graphql_translation_arg_type20(self):
         r"""
         query @edgedb(module: "test") {
             User(active: 0) {
@@ -1758,7 +1771,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @lang_tb.must_fail(GraphQLValidationError)
-    def test_graphql_translation_type21(self):
+    def test_graphql_translation_arg_type21(self):
         r"""
         query @edgedb(module: "test") {
             User(name__in: ["John", 42]) {
@@ -1768,7 +1781,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @lang_tb.must_fail(GraphQLValidationError)
-    def test_graphql_translation_type22(self):
+    def test_graphql_translation_arg_type22(self):
         r"""
         query @edgedb(module: "test") {
             User(age__in: [1, 20.5]) {
@@ -1778,7 +1791,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @lang_tb.must_fail(GraphQLValidationError)
-    def test_graphql_translation_type23(self):
+    def test_graphql_translation_arg_type23(self):
         r"""
         query @edgedb(module: "test") {
             User(score__in: [1, "3.5"]) {
@@ -1788,11 +1801,176 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @lang_tb.must_fail(GraphQLValidationError)
-    def test_graphql_translation_type24(self):
+    def test_graphql_translation_arg_type24(self):
         r"""
         query @edgedb(module: "test") {
             User(active__in: [true, 0]) {
                 id,
             }
         }
+        """
+
+    def test_graphql_translation_fragment_type01(self):
+        r"""
+        fragment userFrag on User @edgedb(module: "test") {
+            id,
+            name,
+        }
+
+        query @edgedb(module: "test") {
+            User {
+                ... userFrag
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                id,
+                name,
+            ]
+        """
+
+    def test_graphql_translation_fragment_type02(self):
+        r"""
+        fragment namedFrag on NamedObject @edgedb(module: "test") {
+            id,
+            name,
+        }
+
+        query @edgedb(module: "test") {
+            User {
+                ... namedFrag
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                id,
+                name,
+            ]
+        """
+
+    def test_graphql_translation_fragment_type03(self):
+        r"""
+        fragment namedFrag on NamedObject @edgedb(module: "test") {
+            id,
+            name,
+        }
+
+        fragment userFrag on User @edgedb(module: "test") {
+            ... namedFrag
+            age
+        }
+
+        query @edgedb(module: "test") {
+            User {
+                ... userFrag
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            User[
+                id,
+                name,
+                age,
+            ]
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_fragment_type04(self):
+        r"""
+        fragment userFrag on User @edgedb(module: "test") {
+            id,
+            name,
+        }
+
+        query @edgedb(module: "test") {
+            Group {
+                ... userFrag
+            }
+        }
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_fragment_type05(self):
+        r"""
+        fragment userFrag on User @edgedb(module: "test") {
+            id,
+            name,
+        }
+
+        fragment groupFrag on Group @edgedb(module: "test") {
+            ... userFrag
+        }
+
+        query @edgedb(module: "test") {
+            User {
+                ... userFrag
+                groups {
+                    ... groupFrag
+                }
+            }
+        }
+        """
+
+    def test_graphql_translation_fragment_type06(self):
+        r"""
+        fragment userFrag on User @edgedb(module: "test") {
+           name,
+           age,
+        }
+
+        query @edgedb(module: "test") {
+            NamedObject {
+                id,
+                ... userFrag
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            NamedObject[
+                id,
+                name,
+                age,
+            ]
+        """
+
+    def test_graphql_translation_fragment_type07(self):
+        r"""
+        fragment frag on NamedObject @edgedb(module: "test") {
+            id,
+            name,
+        }
+
+        query @edgedb(module: "test") {
+            NamedObject {
+                ... frag
+            }
+        }
+
+% OK %
+
+        USING
+            NAMESPACE test
+        SELECT
+            NamedObject[
+                id,
+                name,
+            ]
         """

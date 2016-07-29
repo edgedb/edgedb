@@ -10,7 +10,7 @@ from edgedb.lang import edgeql
 from edgedb.lang.common import ast
 from edgedb.lang.edgeql import ast as qlast
 from edgedb.lang.graphql import ast as gqlast, parser as gqlparser
-from edgedb.lang.schema import types as s_types
+from edgedb.lang.schema import types as s_types, error as s_error
 
 from .errors import GraphQLValidationError
 
@@ -55,28 +55,37 @@ class GraphQLTranslator:
                 # create a dict of variables that will be marked as
                 # critical or not
                 #
-                inputvars = {name: [val, False]
-                             for name, val in variables.items()}
-                query = self._process_definition(definition, inputvars)
+                self._vars = {name: [val, False]
+                              for name, val in variables.items()}
+                query = self._process_definition(definition)
 
                 # produce the list of variables critical to the shape
                 # of the query
                 #
                 critvars = [(name, val)
-                            for name, (val, crit) in inputvars.items() if crit]
+                            for name, (val, crit) in self._vars.items() if crit]
                 critvars.sort()
 
                 result[definition.name] = query, critvars
 
         return result
 
-    def _should_include(self, directives, variables):
+    def _get_module(self, directives):
+        module = None
+        for directive in directives:
+            if directive.name == 'edgedb':
+                args = {a.name: a.value.value for a in directive.arguments}
+                module = args['module']
+
+        return module
+
+    def _should_include(self, directives):
         for directive in directives:
             if directive.name in ('include', 'skip'):
                 cond = [a.value for a in directive.arguments
                         if a.name == 'if'][0]
                 if isinstance(cond, gqlast.Variable):
-                    var = variables[cond.value]
+                    var = self._vars[cond.value]
                     cond = var[0]
                     var[1] = True  # mark the variable as critical
                 else:
@@ -94,9 +103,11 @@ class GraphQLTranslator:
 
         return True
 
-    def _populate_variable_defaults(self, declarations, variables):
+    def _populate_variable_defaults(self, declarations):
         if not declarations:
             return
+
+        variables = self._vars
 
         for decl in declarations:
             # it is invalid to declare a non-nullable variable with a default
@@ -136,20 +147,15 @@ class GraphQLTranslator:
                         GQL_TYPE_NAMES_MAP[decl.type.name],
                         as_sequence=False)
 
-    def _process_definition(self, definition, variables):
+    def _process_definition(self, definition):
         query = None
 
         if definition.type is None or definition.type == 'query':
             # populate input variables with defaults, where applicable
             #
-            self._populate_variable_defaults(definition.variables, variables)
+            self._populate_variable_defaults(definition.variables)
 
-            module = None
-            for directive in definition.directives:
-                args = {a.name: a.value.value for a in directive.arguments}
-                if directive.name == 'edgedb':
-                    module = args['module']
-
+            module = self._get_module(definition.directives)
             for selset in definition.selection_set.selections:
                 selquery = qlast.SelectQueryNode(
                     namespaces=[
@@ -158,9 +164,9 @@ class GraphQLTranslator:
                         )
                     ],
                     targets=[
-                        self._process_selset(selset, variables)
+                        self._process_selset(selset)
                     ],
-                    where=self._process_select_where(selset, variables)
+                    where=self._process_select_where(selset)
                 )
 
                 if query is None:
@@ -178,39 +184,43 @@ class GraphQLTranslator:
 
         return query
 
-    def _process_selset(self, selset, variables):
+    def _process_selset(self, selset):
         concept = selset.name
+
+        try:
+            self.schema.get(concept)
+        except s_error.SchemaError:
+            raise GraphQLValidationError(
+                "{!r} does not exist in the schema".format(concept))
 
         expr = qlast.SelectExprNode(
             expr=qlast.PathNode(
                 steps=[qlast.PathStepNode(expr=concept)],
                 pathspec=self._process_pathspec(
                     [selset.name],
-                    selset.selection_set.selections,
-                    variables)
+                    selset.selection_set.selections)
             )
         )
 
         return expr
 
-    def _process_pathspec(self, base, selections, variables):
+    def _process_pathspec(self, base, selections):
         pathspec = []
 
         for sel in selections:
-            if not self._should_include(sel.directives, variables):
+            if not self._should_include(sel.directives):
                 continue
 
             if isinstance(sel, gqlast.Field):
-                pathspec.append(self._process_field(base, sel, variables))
+                pathspec.append(self._process_field(base, sel))
             elif isinstance(sel, gqlast.InlineFragment):
-                pathspec.extend(self._process_inline_fragment(
-                    base, sel, variables))
+                pathspec.extend(self._process_inline_fragment(base, sel))
             elif isinstance(sel, gqlast.FragmentSpread):
-                pathspec.extend(self._process_spread(base, sel, variables))
+                pathspec.extend(self._process_spread(base, sel))
 
         return pathspec
 
-    def _process_field(self, base, field, variables):
+    def _process_field(self, base, field):
         base = base + [field.name]
         spec = qlast.SelectPathSpecNode(
             expr=qlast.LinkExprNode(
@@ -218,29 +228,59 @@ class GraphQLTranslator:
                     name=field.name
                 )
             ),
-            where=self._process_path_where(base, field.arguments, variables)
+            where=self._process_path_where(base, field.arguments)
         )
 
         if field.selection_set is not None:
             spec.pathspec = self._process_pathspec(
                 base,
-                field.selection_set.selections,
-                variables)
+                field.selection_set.selections)
 
         return spec
 
-    def _process_inline_fragment(self, base, inline_frag, variables):
+    def _process_inline_fragment(self, base, inline_frag):
+        self._validate_fragment_type(base, inline_frag)
         return self._process_pathspec(base,
-                                      inline_frag.selection_set.selections,
-                                      variables)
+                                      inline_frag.selection_set.selections)
 
-    def _process_spread(self, base, spread, variables):
-        return self._process_pathspec(
-            base,
-            self._fragments[spread.name].selection_set.selections,
-            variables)
+    def _process_spread(self, base, spread):
+        frag = self._fragments[spread.name]
+        self._validate_fragment_type(base, frag)
+        return self._process_pathspec(base, frag.selection_set.selections)
 
-    def _process_select_where(self, selset, variables):
+    def _validate_fragment_type(self, base, frag):
+        # validate the fragment type w.r.t. the base
+        #
+        if frag.on is None:
+            return
+
+        fragmodule = self._get_module(frag.directives)
+        fragType = self.schema.get((fragmodule, frag.on))
+
+        baseType = self.schema.get(base[0])
+        for step in base[1:]:
+            baseType = baseType.resolve_pointer(self.schema,
+                                                step).target
+
+        # XXX: fragment and base type must be directly related. We
+        # don't actually care about the exact details of this because
+        # we can let EdgeQL do the actual resolving, but that has a
+        # side-effect of including "null" fields where technically
+        # GraphQL should have stripped them. This can be marked, traced,
+        # and stripped in post-processing though.
+        #
+        if (not baseType.issubclass(fragType) and
+                not fragType.issubclass(baseType)):
+            if frag.name:
+                msg = "fragment {!r} is incompatible with {!r}".format(
+                    frag.name, baseType.name.name)
+            else:
+                msg = "inline fragment is incompatible with {!r}".format(
+                    frag.name, baseType.name.name)
+
+            raise GraphQLValidationError(msg)
+
+    def _process_select_where(self, selset):
         if not selset.arguments:
             return None
 
@@ -250,12 +290,11 @@ class GraphQLTranslator:
         args = [
             qlast.BinOpNode(left=left, op=op, right=right)
             for left, op, right in self._process_arguments(get_path_prefix,
-                                                           selset.arguments,
-                                                           variables)]
+                                                           selset.arguments)]
 
         return self._join_expressions(args)
 
-    def _process_path_where(self, base, arguments, variables):
+    def _process_path_where(self, base, arguments):
         if not arguments:
             return None
 
@@ -268,11 +307,11 @@ class GraphQLTranslator:
         args = [
             qlast.BinOpNode(left=left, op=op, right=right)
             for left, op, right in self._process_arguments(
-                get_path_prefix, arguments, variables)]
+                get_path_prefix, arguments)]
 
         return self._join_expressions(args)
 
-    def _process_arguments(self, get_path_prefix, args, variables):
+    def _process_arguments(self, get_path_prefix, args):
         result = []
         for arg in args:
             if arg.name[-4:] in GQL_OPS_MAP:
@@ -292,7 +331,7 @@ class GraphQLTranslator:
             if getattr(value, 'index', None):
                 # check the variable value
                 #
-                check_value = variables[arg.value.value][0]
+                check_value = self._vars[arg.value.value][0]
             elif isinstance(value, qlast.SequenceNode):
                 check_value = [el.value for el in value.elements]
             else:
