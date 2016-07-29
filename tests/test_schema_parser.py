@@ -351,3 +351,47 @@ link time_estimate:
    linkproperty unit -> str:
        constraint must_be_even: 0
         """
+
+    def test_eschema_parser_import01(self):
+        """
+        import foo
+
+        concept Bar extends foo::Foo:
+            link text -> str
+        """
+
+    def test_eschema_parser_import02(self):
+        """
+        import mylib.util.foo
+
+        concept Bar extends mylib.util.foo::Foo:
+            link text -> str
+        """
+
+    def test_eschema_parser_import03(self):
+        """
+        import foo as bar
+
+        concept Bar extends bar::Foo:
+            link text -> str
+        """
+
+    def test_eschema_parser_import04(self):
+        """
+        import mylib.util.foo as bar
+
+        concept Bar extends bar::Foo:
+            link text -> str
+        """
+
+    def test_eschema_parser_import05(self):
+        """
+        import mylib.util.foo as foo, mylib.special.foo as sfoo
+        import (
+            # ignore indentation because of parentheses
+    otherlib.bar as bar,
+    otherlib.ham as spam)
+
+        concept Bar extends foo::Foo, sfoo::Foo, bar::Bar, spam::Ham:
+            link text -> str
+        """

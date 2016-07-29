@@ -12,6 +12,7 @@ UNRESERVED_KEYWORD, RESERVED_KEYWORD = keyword_types
 edge_schema_keywords = {
     "abstract": ("ABSTRACT", RESERVED_KEYWORD),
     "action": ("ACTION", UNRESERVED_KEYWORD),
+    "as": ("AS", UNRESERVED_KEYWORD),
     "atom": ("ATOM", UNRESERVED_KEYWORD),
     "attribute": ("ATTRIBUTE", UNRESERVED_KEYWORD),
     "concept": ("CONCEPT", UNRESERVED_KEYWORD),
@@ -21,6 +22,7 @@ edge_schema_keywords = {
     "false": ("FALSE", RESERVED_KEYWORD),
     "final": ("FINAL", UNRESERVED_KEYWORD),
     "index": ("INDEX", UNRESERVED_KEYWORD),
+    "import": ("IMPORT", UNRESERVED_KEYWORD),
     "link": ("LINK", UNRESERVED_KEYWORD),
     "linkproperty": ("LINKPROPERTY", UNRESERVED_KEYWORD),
     "on": ("ON", UNRESERVED_KEYWORD),

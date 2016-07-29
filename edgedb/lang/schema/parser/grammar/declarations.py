@@ -103,7 +103,27 @@ class Schema(Nonterm):
         self.val = esast.Schema(declarations=kids[1].val)
 
 
+class ImportModule(Nonterm):
+    def reduce_DotName(self, kid):
+        self.val = esast.ImportModule(module=kid.val.module)
+
+    def reduce_DotName_AS_IDENT(self, *kids):
+        self.val = esast.ImportModule(module=kids[0].val.module,
+                                      alias=kids[2].val)
+
+
+class ImportModuleList(parsing.ListNonterm, element=ImportModule,
+                       separator=T_COMMA):
+    pass
+
+
 class Declaration(Nonterm):
+    def reduce_IMPORT_ImportModuleList_NL(self, *kids):
+        self.val = esast.Import(modules=kids[1].val)
+
+    def reduce_IMPORT_LPAREN_ImportModuleList_RPAREN_NL(self, *kids):
+        self.val = esast.Import(modules=kids[2].val)
+
     def reduce_ABSTRACT_DeclarationBase(self, *kids):
         self.val = kids[1].val
         self.val.abstract = True

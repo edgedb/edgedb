@@ -60,9 +60,11 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
             self.indentation -= 1
         self.new_lines = 2
 
-    def _visit_list(self, items):
+    def _visit_list(self, items, separator=None):
         for item in items:
             self.visit(item)
+            if separator and item is not items[-1]:
+                self.write(separator)
 
     def _visit_qualifier(self, node):
         if node.abstract:
@@ -73,6 +75,17 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
     def visit_Schema(self, node):
         for decl in node.declarations:
             self.visit(decl)
+
+    def visit_Import(self, node):
+        self.write('import ')
+        self._visit_list(node.modules, separator=', ')
+        self.new_lines = 1
+
+    def visit_ImportModule(self, node):
+        self.write(node.module)
+        if node.alias:
+            self.write(' as ')
+            self.write(node.alias)
 
     def _visit_Declaration(self, node):
         self._visit_qualifier(node)

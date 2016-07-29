@@ -119,7 +119,7 @@ class BooleanLiteral(LiteralNode):
 
 
 class ObjectName(Base):
-    __fields = ['name', ('module', str, None)]
+    __fields = [('name', str), ('module', str, None)]
 
     def _extra_repr(self):
         return ' {!r}'.format(self.name)
@@ -195,4 +195,12 @@ class Policy(Base):
 
 
 class Index(Base):
-    __fields = ['name', 'expression',]
+    __fields = ['name', 'expression']
+
+
+class Import(Base):
+    __fields = [('modules', list, list)]
+
+
+class ImportModule(Base):
+    __fields = [('module', str), ('alias', str, None)]
