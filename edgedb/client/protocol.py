@@ -83,12 +83,12 @@ class Protocol(asyncio.Protocol):
             if self._connect_waiter is not None:
                 self._connect_waiter.set_exception(
                     exceptions.Error(message['data']['message'],
-                                     code=message['data']['code']))
+                                     code=int(message['data']['code'])))
                 self._connect_waiter = None
             elif self._waiter is not None:
                 self._waiter.set_exception(
                     exceptions.Error(message['data']['message'],
-                                     code=message['data']['code']))
+                                     code=int(message['data']['code'])))
                 self._waiter = None
 
         elif message['__type__'] == 'result':

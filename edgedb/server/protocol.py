@@ -35,8 +35,8 @@ class ProtocolError(Exception):
 
 def is_ddl(plan):
     return isinstance(plan, s_delta.Command) and \
-            not isinstance(plan, s_db.DatabaseCommand) and \
-            not isinstance(plan, s_deltas.DeltaCommand)
+        not isinstance(plan, s_db.DatabaseCommand) and \
+        not isinstance(plan, s_deltas.DeltaCommand)
 
 
 class Protocol(asyncio.Protocol):
@@ -118,7 +118,20 @@ class Protocol(asyncio.Protocol):
             print(edgeql.generate_source(statement, pretty=True))
             """
             plan = planner.plan_statement(statement, self.backend)
-            results.append(await executor.execute_plan(plan, self.backend))
+            result = await executor.execute_plan(plan, self.backend)
+            if result is not None and isinstance(result, list):
+                loaded = []
+                for row in result:
+                    if isinstance(row, str):
+                        # JSON result
+                        row = json.loads(row)
+                    loaded.append(row)
+                result = loaded
+
+            """LOG [result] Statement result
+            print(result)
+            """
+            results.append(result)
 
         return results
 
@@ -128,8 +141,6 @@ class Protocol(asyncio.Protocol):
         except asyncio.CancelledError:
             return
         except Exception as e:
-            import traceback
-            traceback.print_exc()
             self.send_error(e)
             return
 
@@ -145,8 +156,6 @@ class Protocol(asyncio.Protocol):
         except asyncio.CancelledError:
             return
         except Exception as e:
-            import traceback
-            traceback.print_exc()
             self.send_error(e)
             return
 
@@ -163,8 +172,6 @@ class Protocol(asyncio.Protocol):
         except asyncio.CancelledError:
             return
         except Exception as e:
-            import traceback
-            traceback.print_exc()
             self.send_error(e)
             return
 

@@ -610,24 +610,34 @@ class IRCompilerBase:
                 attribute_map.append(attr_name)
                 my_elements.append(element)
 
-        proto_class = expr.concept.get_canonical_class()
-        proto_class_name = '{}.{}'.format(proto_class.__module__, proto_class.__name__)
-        marker = common.RecordInfo(attribute_map=attribute_map,
-                                       virtuals_map=virtuals_map,
-                                       proto_class=proto_class_name,
-                                       proto_name=expr.concept.name,
-                                       is_xvalue=expr.linkprop_xvalue)
+        if context.current.output_format == 'json':
+            keyvals = []
+            for i, pgexpr in enumerate(my_elements):
+                keyvals.append(pgsql.ast.ConstantNode(
+                    value=str(attribute_map[i])))
+                keyvals.append(pgexpr)
 
-        context.current.record_info[marker.id] = marker
-        context.current.backend._register_record_info(marker)
+            result = pgsql.ast.FunctionCallNode(
+                name='jsonb_build_object', args=keyvals)
+        else:
+            proto_class = expr.concept.get_canonical_class()
+            proto_class_name = '{}.{}'.format(proto_class.__module__, proto_class.__name__)
+            marker = common.RecordInfo(attribute_map=attribute_map,
+                                           virtuals_map=virtuals_map,
+                                           proto_class=proto_class_name,
+                                           proto_name=expr.concept.name,
+                                           is_xvalue=expr.linkprop_xvalue)
 
-        marker = pgsql.ast.ConstantNode(value=marker.id)
-        marker_type = pgsql.ast.TypeNode(name='edgedb.known_record_marker_t')
-        marker = pgsql.ast.TypeCastNode(expr=marker, type=marker_type)
+            context.current.record_info[marker.id] = marker
+            context.current.backend._register_record_info(marker)
 
-        my_elements.insert(0, marker)
+            marker = pgsql.ast.ConstantNode(value=marker.id)
+            marker_type = pgsql.ast.TypeNode(name='edgedb.known_record_marker_t')
+            marker = pgsql.ast.TypeCastNode(expr=marker, type=marker_type)
 
-        result = pgsql.ast.RowExprNode(args=my_elements)
+            my_elements.insert(0, marker)
+
+            result = pgsql.ast.RowExprNode(args=my_elements)
 
         if testref is not None:
             when_cond = pgsql.ast.NullTestNode(expr=testref)
@@ -2692,18 +2702,15 @@ class IRCompiler(IRCompilerBase):
             pgexpr = self._process_expr(context, expr.expr, query)
             selexprs.append((pgexpr, alias))
 
-        if (context.current.output_format == 'json'
-                                        and not context.current.in_subquery):
-            elems = []
-            for pgexpr, alias in selexprs:
-                alias_c = pgsql.ast.ConstantNode(value=str(alias))
-                elems.append(pgsql.ast.RowExprNode(args=[alias_c, pgexpr]))
-
+        if context.current.output_format == 'json':
             # Target list may be empty if selector is a set op product
-            if elems:
-                target = pgsql.ast.SelectExprNode(expr=pgsql.ast.RowExprNode(args=elems))
-                target = pgsql.ast.FunctionCallNode(name='row_to_json', args=[target])
-                query.targets.append(pgsql.ast.SelectExprNode(expr=target))
+            if selexprs:
+                target = pgsql.ast.SelectExprNode(
+                    expr=pgsql.ast.FunctionCallNode(name='to_json',
+                                                    args=[pgexpr]),
+                    alias=alias
+                )
+                query.targets.append(target)
 
         else:
             for pgexpr, alias in selexprs:

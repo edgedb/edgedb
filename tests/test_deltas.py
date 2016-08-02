@@ -6,12 +6,15 @@
 ##
 
 
+import uuid
+
+from edgedb.lang.common import datetime
+
 from edgedb.server import _testbase as tb
 
 
 class TestDeltas(tb.QueryTestCase):
-    async def _test_delta_simple(self):
-        """
+    async def test_delta_simple(self, input="""
         CREATE DELTA [test.d1] TO $$
             concept NamedObject:
                 required link name -> str
@@ -23,11 +26,26 @@ class TestDeltas(tb.QueryTestCase):
             name := 'Test'
         ]
 
-        SELECT [test.NamedObject]
-        WHERE [test.NamedObject].name = 'Test'
+        SELECT
+            [test.NamedObject][
+                name
+            ]
+        WHERE
+            [test.NamedObject].name = 'Test'
 
+        """) -> [
 
-        % OK %
+        None,
 
-        {"result": "aaa"}
-        """
+        None,
+
+        [],
+
+        [{
+            'std.id': uuid.UUID,
+            'std.ctime': datetime.DateTime,
+            'std.mtime': datetime.DateTime,
+            'test.name': 'Test',
+        }]
+    ]:
+        pass

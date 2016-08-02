@@ -6,6 +6,7 @@
 ##
 
 
+from edgedb.client import exceptions as exc
 from edgedb.server import _testbase as tb
 
 
@@ -44,13 +45,9 @@ class TestInsert(tb.QueryTestCase):
     TEARDOWN = """
     """
 
-    async def test_insert_fail_1(self):
-        """
+    async def test_insert_fail_1(self, input="""
         INSERT [test.InsertTest]
-
-        % ERROR %
-
-        {
-            "code": "23502"
-        }
-        """
+        """) -> \
+            tb.Error(exc.Error, 'violates not-null constraint',
+                     {'code': 23502}):
+        pass

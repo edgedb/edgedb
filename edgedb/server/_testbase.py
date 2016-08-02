@@ -2,7 +2,7 @@ import asyncio
 import atexit
 import functools
 import inspect
-import json
+import pprint
 import textwrap
 import unittest
 
@@ -151,44 +151,76 @@ class DatabaseTestCase(ConnectedTestCase):
                 super().tearDown()
 
 
+class nullable:
+    def __init__(self, value):
+        self.value = value
+
+
+class Error:
+    def __init__(self, cls, message, shape):
+        self._message = message
+        self._class = cls
+        self._shape = shape
+
+    @property
+    def message(self):
+        return self._message
+
+    @property
+    def cls(self):
+        return self._class
+
+    @property
+    def shape(self):
+        return self._shape
+
+
 class QueryTestCaseMeta(TestCaseMeta):
     @classmethod
     def wrap(mcls, meth):
-        doc = meth.__doc__
+        sig = inspect.signature(meth)
 
-        if not doc:
-            # No docstring, run directly
+        if not sig.parameters:
+            # No input parameter, run directly
             return meth
 
-        doc = textwrap.dedent(doc)
+        if 'input' not in sig.parameters:
+            raise TypeError(
+                'missing expected "input" param in {!r}'.format(meth))
 
-        output = error = None
+        queries = sig.parameters['input'].default
 
-        query, _, output = doc.partition('\n% OK %')
+        if not queries or not isinstance(queries, str) or not queries.strip():
+            raise TypeError(
+                'missing expected string default in "input" param in '
+                '{!r}'.format(meth))
 
-        if not output:
-            query, _, error = doc.partition('\n% ERROR %')
+        queries = textwrap.dedent(queries)
 
-            if not error:
-                raise TypeError('missing expected output in {!r}'.format(meth))
-            else:
-                output = json.loads(error)
+        output = sig.return_annotation
+        if output is inspect.Signature.empty:
+            raise TypeError(
+                'missing expected return annotation in '
+                '{!r}'.format(meth))
+
+        if isinstance(output, Error):
+            expected_shape = output.shape
         else:
-            output = json.loads(output)
+            expected_shape = output
 
         @functools.wraps(meth)
         async def wrapper(self):
             try:
-                res = await self.con.execute(query)
+                res = await self.con.execute(queries)
             except edgeclient_exc.Error as e:
-                if error is None:
+                if not isinstance(output, Error):
                     raise
                 else:
-                    res = {
-                        'code': e.code
-                    }
+                    with self.assertRaisesRegex(output.cls, output.message):
+                        raise
+                    res = vars(e)
 
-            self.assertEqual(res, output)
+            self.assert_data_shape(res, expected_shape)
 
         return super().wrap(wrapper)
 
@@ -196,3 +228,93 @@ class QueryTestCaseMeta(TestCaseMeta):
 class QueryTestCase(DatabaseTestCase, metaclass=QueryTestCaseMeta):
     SETUP = None
     TEARDOWN = None
+
+    def assert_data_shape(self, data, shape, message=None):
+        _void = object()
+
+        def _assert_type_shape(data, shape):
+            if shape in (int, float):
+                if not isinstance(data, shape):
+                    self.fail('{}: expected {}, got {!r}'.format(
+                        message, shape, data))
+            else:
+                try:
+                    shape(data)
+                except (ValueError, TypeError):
+                    self.fail(
+                        '{}: expected {}, got {!r}'.format(
+                            message, shape, data))
+
+        def _assert_dict_shape(data, shape):
+            for sk, sv in shape.items():
+                if not data or sk not in data:
+                    self.fail(
+                        '{}: key {!r} is missing\n{}'.format(
+                            message, sk, pprint.pformat(data)))
+
+                _assert_data_shape(data[sk], sv)
+
+        def _list_shape_iter(shape):
+            last_shape = _void
+
+            for item in shape:
+                if item is Ellipsis:
+                    if last_shape is _void:
+                        raise ValueError(
+                            'invalid shape spec: Ellipsis cannot be the'
+                            'first element')
+
+                    while True:
+                        yield last_shape
+
+                last_shape = item
+
+                yield item
+
+        def _assert_list_shape(data, shape):
+            if not isinstance(data, list):
+                self.fail('{}: expected list'.format(message))
+
+            if not data and shape:
+                self.fail(
+                    '{}: expected non-empty list'.format(message))
+
+            shape_iter = _list_shape_iter(shape)
+
+            for el in data:
+                try:
+                    el_shape = next(shape_iter)
+                except StopIteration:
+                    self.fail(
+                        '{}: unexpected trailing elements in list'.format(
+                            message))
+
+                _assert_data_shape(el, el_shape)
+
+        def _assert_data_shape(data, shape):
+            if isinstance(shape, nullable):
+                if data is None:
+                    return
+                else:
+                    shape = shape.value
+
+            if isinstance(shape, list):
+                return _assert_list_shape(data, shape)
+            elif isinstance(shape, dict):
+                return _assert_dict_shape(data, shape)
+            elif isinstance(shape, type):
+                return _assert_type_shape(data, shape)
+            elif isinstance(shape, (str, int, float)):
+                if data != shape:
+                    self.fail(
+                        '{}: {} != {}'.format(message, data, shape))
+            elif shape is None:
+                if data is not None:
+                    self.fail(
+                        '{}: {!r} is expected to be None'.format(message, data)
+                    )
+            else:
+                raise ValueError('unsupported shape type {}'.format(shape))
+
+        message = message or 'data shape differs'
+        return _assert_data_shape(data, shape)

@@ -14,7 +14,10 @@ from edgedb.lang.schema import deltas as s_deltas
 from edgedb.server import query as edgedb_query
 from edgedb.server import exceptions as edgedb_exc
 
+from edgedb.lang.common.debug import debug
 
+
+@debug
 async def execute_plan(plan, backend):
     if isinstance(plan, s_deltas.DeltaCommand):
         return await backend.run_delta_command(plan)
@@ -23,9 +26,13 @@ async def execute_plan(plan, backend):
         return await backend.run_ddl_command(plan)
 
     elif isinstance(plan, edgedb_query.Query):
+        """LOG [sql] SQL QUERY
+        print(plan.text)
+        """
+
         try:
             ps = await backend.connection.prepare(plan.text)
-            return [dict(r.items()) for r in await ps.fetch()]
+            return [r[0] for r in await ps.fetch()]
 
         except asyncpg.PostgresError as e:
             _error = _translate_pg_error(plan, backend, e)
