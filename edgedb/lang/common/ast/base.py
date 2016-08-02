@@ -18,13 +18,16 @@ class ASTError(Exception):
 
 
 class Field:
-    def __init__(self, name, type_, default, traverse, child_traverse=None, field_hidden=False):
+    def __init__(self, name, type_, default, traverse, child_traverse=None,
+                 field_hidden=False):
         self.name = name
         self.type = type_
         self.default = default
         self.traverse = traverse
-        self.child_traverse = child_traverse if child_traverse is not None else traverse
+        self.child_traverse = \
+            child_traverse if child_traverse is not None else traverse
         self.hidden = field_hidden
+
 
 class MetaAST(type):
     def __init__(cls, name, bases, dct):
@@ -64,8 +67,10 @@ class MetaAST(type):
                         field_hidden = field[5]
 
                 if field_name not in fields:
-                    fields[field_name] = Field(field_name, field_type, field_default,
-                                               field_traverse, field_child_traverse, field_hidden)
+                    fields[field_name] = Field(field_name, field_type,
+                                               field_default, field_traverse,
+                                               field_child_traverse,
+                                               field_hidden)
 
         cls._fields = fields
 
@@ -101,7 +106,7 @@ class AST(object, metaclass=MetaAST):
             self.parent = kwargs['parent']
 
     def _init_fields(self, values):
-        for field_name, field  in self.__class__._fields.items():
+        for field_name, field in self.__class__._fields.items():
             if field_name in values:
                 value = values[field_name]
             elif field.default is not None:
@@ -138,20 +143,16 @@ class AST(object, metaclass=MetaAST):
                 self.check_field_type(field, value)
 
     def check_field_type(self, field, value):
-        if field.type and value is not None and not isinstance(value, field.type):
+        if (field.type and value is not None and
+                not isinstance(value, field.type)):
             raise TypeError('%s.%s.%s: expected %s but got %s'
                             % (self.__class__.__module__,
                                self.__class__.__name__,
-                               field.name, field.type.__name__, value.__class__.__name__))
+                               field.name, field.type.__name__,
+                               value.__class__.__name__))
 
     def dump(self):
         markup.dump(self)
-
-    def __copy__(self):
-        copied = self.__class__()
-        for field, value in iter_fields(self):
-            setattr(copied, field, value)
-        return copied
 
 
 @markup.serializer.serializer(handles=AST)
