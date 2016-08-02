@@ -17,6 +17,7 @@ from . import name as sn
 from . import named
 from . import objects as so
 from . import schema as s_schema
+from . import std as s_std
 
 
 class Delta(named.NamedPrototype):
@@ -61,7 +62,8 @@ class CreateDelta(named.CreateNamedPrototype, DeltaCommand):
         cmd = super()._cmd_tree_from_ast(astnode, context)
 
         if astnode.target is not None:
-            target = s_decl.load_module_declarations([
+            target = s_std.load_std_schema()
+            s_decl.load_module_declarations(target, [
                 (cmd.prototype_name.module, astnode.target)
             ])
 

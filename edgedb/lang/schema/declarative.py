@@ -52,6 +52,8 @@ class DeclarationLoader:
         module = s_mod.ProtoModule(name=module_name)
         self._schema.add_module(module, alias=None)
 
+        self._process_imports(decl_ast)
+
         order = s_schema.ProtoSchema.global_dep_order
         objects = collections.OrderedDict(
             (t, collections.OrderedDict()) for t in order)
@@ -63,6 +65,8 @@ class DeclarationLoader:
             try:
                 objcls = _DECL_MAP[type(decl)]
             except KeyError:
+                if isinstance(decl, s_ast.Import):
+                    continue
                 msg = 'unexpected declaration type: {!r}'.format(decl)
                 raise TypeError(msg) from None
 
@@ -147,6 +151,17 @@ class DeclarationLoader:
         self._schema.reorder(itertools.chain(
             attributes, attrvals, actions, events, constraints,
             atoms, linkprops, indexes, links, concepts))
+
+    def _process_imports(self, tree):
+        for decl in tree.declarations:
+            if isinstance(decl, s_ast.Import):
+                for mod in decl.modules:
+                    if not self._schema.has_module(mod.module):
+                        raise s_err.SchemaError(
+                            'cannot find module {!r}'.format(mod.module),
+                            context=mod.context)
+                    if mod.alias is not None:
+                        self._schema.set_module_alias(mod.module, mod.alias)
 
     def _merge_and_sort(self, objects, depsfn=None):
         g = {}
@@ -622,9 +637,8 @@ class DeclarationLoader:
                     context=expr.context)
 
 
-def load_module_declarations(declarations):
+def load_module_declarations(schema, declarations):
     """Create a schema and populate it with provided declarations."""
-    schema = s_std.load_std_schema()
     loader = DeclarationLoader(schema)
 
     for module_name, decl_ast in declarations:
@@ -633,9 +647,8 @@ def load_module_declarations(declarations):
     return schema
 
 
-def parse_module_declarations(declarations):
+def parse_module_declarations(schema, declarations):
     """Create a schema and populate it with provided declarations."""
-    schema = s_std.load_std_schema()
     loader = DeclarationLoader(schema)
 
     for module_name, declaration in declarations:

@@ -8,6 +8,7 @@
 
 import os
 import re
+import textwrap
 
 from edgedb.lang._testbase import BaseParserTest
 from edgedb.lang.common import markup
@@ -68,7 +69,8 @@ class LoaderTest(BaseSchemaTest):
             markup.dump_code(source, lexer='edgeschema')
 
         empty_schema = s_std.load_std_schema()
-        loaded_schema = s_decl.parse_module_declarations([('test', source)])
+        loaded_schema = s_std.load_std_schema()
+        s_decl.parse_module_declarations(loaded_schema, [('test', source)])
 
         schema_diff = s_delta.delta_schemas(loaded_schema, empty_schema)
         ddl_text = s_ddl.ddl_text_from_delta(schema_diff)
@@ -77,3 +79,21 @@ class LoaderTest(BaseSchemaTest):
             print(ddl_text)
 
         self.assert_equal(expected, ddl_text)
+
+
+class SchemaTest(BaseParserTest):
+    def setUp(self):
+        super().setUp()
+
+        self.schema = s_std.load_std_schema()
+
+        decls = []
+
+        for n, v in vars(self.__class__).items():
+            m = re.match('^SCHEMA(?:_([A-Z]+))?', n)
+            if m:
+                module_name = (m.group(1) or 'test').lower().replace('__', '.')
+                schema_text = textwrap.dedent(v)
+                decls.append((module_name, schema_text))
+
+        s_decl.parse_module_declarations(self.schema, decls)

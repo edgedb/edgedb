@@ -11,11 +11,10 @@ import re
 import textwrap
 
 from edgedb.lang import _testbase as lang_tb
+from edgedb.lang.schema import _testbase as schema_tb
 from edgedb.lang.common import markup
 from edgedb.lang import graphql as edge_graphql
 from edgedb.lang.graphql.errors import GraphQLValidationError
-
-from edgedb.lang.schema import declarative as s_decl
 
 
 def with_variables(**kwargs):
@@ -27,7 +26,7 @@ def with_variables(**kwargs):
     return wrap
 
 
-class TranslatorTest(lang_tb.BaseParserTest):
+class TranslatorTest(schema_tb.SchemaTest):
     re_filter = re.compile(r'''[\s,]+''')
 
     def assert_equal(self, expected, result):
@@ -52,11 +51,6 @@ class TranslatorTest(lang_tb.BaseParserTest):
             markup.dump_code(result, lexer='edgeql')
 
         self.assert_equal(expected, result)
-
-    def setUp(self):
-        schema_text = textwrap.dedent(self.SCHEMA)
-        self.schema = s_decl.parse_module_declarations(
-            [('test', schema_text)])
 
 
 class TestGraphQLTranslation(TranslatorTest):
