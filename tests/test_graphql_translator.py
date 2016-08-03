@@ -146,7 +146,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=3, col=13)
     def test_graphql_translation_query03(self):
         r"""
         query @edgedb(module: "test") {
@@ -160,7 +160,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=5, col=17)
     def test_graphql_translation_query04(self):
         r"""
         query @edgedb(module: "test") {
@@ -175,7 +175,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=5, col=17)
     def test_graphql_translation_query05(self):
         r"""
         query @edgedb(module: "test") {
@@ -604,7 +604,7 @@ class TestGraphQLTranslation(TranslatorTest):
             ]
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=4, col=22)
     def test_graphql_translation_directives10(self):
         r"""
         query @edgedb(module: "test") {
@@ -615,7 +615,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=4, col=22)
     def test_graphql_translation_directives11(self):
         r"""
         query ($val: String = "true") @edgedb(module: "test") {
@@ -977,7 +977,7 @@ class TestGraphQLTranslation(TranslatorTest):
             ]
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=2, col=15)
     def test_graphql_translation_variables05(self):
         r"""
         query($val: Boolean! = true) @edgedb(module: "test") {
@@ -988,7 +988,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=2, col=15)
     def test_graphql_translation_variables06(self):
         r"""
         query($val: Boolean!) @edgedb(module: "test") {
@@ -1089,7 +1089,7 @@ class TestGraphQLTranslation(TranslatorTest):
             ([test.User].score = $val)
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=2, col=15)
     def test_graphql_translation_variables12(self):
         r"""
         query($val: Boolean = 1) @edgedb(module: "test") {
@@ -1100,7 +1100,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=2, col=15)
     def test_graphql_translation_variables13(self):
         r"""
         query($val: Boolean = "1") @edgedb(module: "test") {
@@ -1111,7 +1111,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=2, col=15)
     def test_graphql_translation_variables14(self):
         r"""
         query($val: Boolean = 1.3) @edgedb(module: "test") {
@@ -1122,7 +1122,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=2, col=15)
     def test_graphql_translation_variables15(self):
         r"""
         query($val: String = 1) @edgedb(module: "test") {
@@ -1132,7 +1132,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=2, col=15)
     def test_graphql_translation_variables16(self):
         r"""
         query($val: String = 1.1) @edgedb(module: "test") {
@@ -1142,7 +1142,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=2, col=15)
     def test_graphql_translation_variables17(self):
         r"""
         query($val: String = true) @edgedb(module: "test") {
@@ -1152,7 +1152,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=2, col=15)
     def test_graphql_translation_variables18(self):
         r"""
         query($val: Int = 1.1) @edgedb(module: "test") {
@@ -1162,7 +1162,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=2, col=15)
     def test_graphql_translation_variables19(self):
         r"""
         query($val: Int = "1") @edgedb(module: "test") {
@@ -1172,7 +1172,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=2, col=15)
     def test_graphql_translation_variables20(self):
         r"""
         query($val: Int = true) @edgedb(module: "test") {
@@ -1182,7 +1182,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=2, col=15)
     def test_graphql_translation_variables21(self):
         r"""
         query($val: Float = "1") @edgedb(module: "test") {
@@ -1192,7 +1192,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=2, col=15)
     def test_graphql_translation_variables22(self):
         r"""
         query($val: Float = true) @edgedb(module: "test") {
@@ -1238,7 +1238,7 @@ class TestGraphQLTranslation(TranslatorTest):
             ([test.User].id = $val)
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=2, col=15)
     def test_graphql_translation_variables25(self):
         r"""
         query($val: ID = 1.1) @edgedb(module: "test") {
@@ -1248,7 +1248,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=2, col=15)
     def test_graphql_translation_variables26(self):
         r"""
         query($val: ID = true) @edgedb(module: "test") {
@@ -1258,7 +1258,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=2, col=15)
     def test_graphql_translation_variables27(self):
         r"""
         query($val: [String] = "Foo") @edgedb(module: "test") {
@@ -1268,7 +1268,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=2, col=15)
     @with_variables(val='Foo')
     def test_graphql_translation_variables28(self):
         r"""
@@ -1279,7 +1279,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=2, col=15)
     def test_graphql_translation_variables29(self):
         r"""
         query($val: [String]!) @edgedb(module: "test") {
@@ -1289,7 +1289,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=2, col=15)
     def test_graphql_translation_variables30(self):
         r"""
         query($val: String!) @edgedb(module: "test") {
@@ -1299,7 +1299,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=2, col=15)
     def test_graphql_translation_variables31(self):
         r"""
         query($val: [String] = ["Foo", 123]) @edgedb(module: "test") {
@@ -1309,7 +1309,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=2, col=15)
     @with_variables(val=["Foo", 123])
     def test_graphql_translation_variables32(self):
         r"""
@@ -1656,7 +1656,7 @@ class TestGraphQLTranslation(TranslatorTest):
             ([test.User].score IN $val)
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=3, col=18)
     def test_graphql_translation_arg_type17(self):
         r"""
         query @edgedb(module: "test") {
@@ -1666,7 +1666,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=3, col=18)
     def test_graphql_translation_arg_type18(self):
         r"""
         query @edgedb(module: "test") {
@@ -1676,7 +1676,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=3, col=18)
     def test_graphql_translation_arg_type19(self):
         r"""
         query @edgedb(module: "test") {
@@ -1686,7 +1686,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=3, col=18)
     def test_graphql_translation_arg_type20(self):
         r"""
         query @edgedb(module: "test") {
@@ -1696,7 +1696,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=3, col=18)
     def test_graphql_translation_arg_type21(self):
         r"""
         query @edgedb(module: "test") {
@@ -1706,7 +1706,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=3, col=18)
     def test_graphql_translation_arg_type22(self):
         r"""
         query @edgedb(module: "test") {
@@ -1716,7 +1716,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=3, col=18)
     def test_graphql_translation_arg_type23(self):
         r"""
         query @edgedb(module: "test") {
@@ -1726,7 +1726,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=3, col=18)
     def test_graphql_translation_arg_type24(self):
         r"""
         query @edgedb(module: "test") {
@@ -1808,7 +1808,7 @@ class TestGraphQLTranslation(TranslatorTest):
             ]
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=9, col=17)
     def test_graphql_translation_fragment_type04(self):
         r"""
         fragment userFrag on User @edgedb(module: "test") {
@@ -1823,7 +1823,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=8, col=13)
     def test_graphql_translation_fragment_type05(self):
         r"""
         fragment userFrag on User @edgedb(module: "test") {
@@ -1891,7 +1891,7 @@ class TestGraphQLTranslation(TranslatorTest):
             ]
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=5, col=13)
     def test_graphql_translation_fragment_type08(self):
         r"""
         fragment frag on NamedObject @edgedb(module: "test") {
@@ -1907,7 +1907,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=7, col=21)
     def test_graphql_translation_fragment_type09(self):
         r"""
         query @edgedb(module: "test") {
@@ -1916,7 +1916,6 @@ class TestGraphQLTranslation(TranslatorTest):
                     id,
                     name,
                     age,
-
                 }
             }
         }
@@ -2008,7 +2007,7 @@ class TestGraphQLTranslation(TranslatorTest):
             ]
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=8, col=13)
     def test_graphql_translation_import02(self):
         r"""
         fragment groupFrag on Group @edgedb(module: "test") {
@@ -2128,7 +2127,7 @@ class TestGraphQLTranslation(TranslatorTest):
             ]
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=6, col=17)
     def test_graphql_translation_duplicates05(self):
         r"""
         query @edgedb(module: "test") {
@@ -2141,7 +2140,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=8, col=17)
     def test_graphql_translation_duplicates06(self):
         r"""
         query @edgedb(module: "test") {
@@ -2155,7 +2154,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @lang_tb.must_fail(GraphQLValidationError)
+    @lang_tb.must_fail(GraphQLValidationError, line=3, col=13)
     def test_graphql_translation_duplicates07(self):
         r"""
         fragment f1 on User @edgedb(module: "test") {

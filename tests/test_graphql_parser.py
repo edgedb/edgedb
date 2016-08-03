@@ -280,7 +280,7 @@ class TestGraphQLParser(tb.ParserTest):
         fragment MissingOn Type {name}
         """
 
-    @tb.must_fail(GraphQLParserError, line=2, col=9)
+    @tb.must_fail(GraphQLParserError, line=2, col=10)
     def test_graphql_parser_fragment06(self):
         """
         {...Missing}

@@ -6,7 +6,7 @@
 ##
 
 
-from edgedb.lang.common.exceptions import EdgeDBError
+from edgedb.lang.common.exceptions import EdgeDBError, _add_context
 
 
 class GraphQLError(EdgeDBError):
@@ -14,4 +14,12 @@ class GraphQLError(EdgeDBError):
 
 
 class GraphQLValidationError(GraphQLError):
-    pass
+    def __init__(self, msg, *, context=None):
+        super().__init__(msg)
+
+        if context:
+            _add_context(self, context)
+            self.line = context.start.line
+            self.col = context.start.column
+        else:
+            self.line = self.col = self.context = None

@@ -42,27 +42,46 @@ class Validator(NodeVisitor):
         for opnode in opnodes:
             op = self._ops[id(opnode)]
 
-            op['all_spreads'] = set(op['spreads'])
-            for fragname in op['spreads']:
+            op['all_spreads'] = set(op['spreads'].keys())
+            for fragname, spread in op['spreads'].items():
                 try:
                     frag = self._fragments[fragname]
                 except KeyError:
                     raise GraphQLParserError(
                         "undefined fragment '{}' used in operation".format(
                             fragname),
-                        context=opnode.context)
+                        context=spread.context)
                 op['all_spreads'] |= frag['all_spreads']
                 frag['used_in_spead'] = True
 
             for fragname in op['all_spreads']:
                 frag = self._fragments[fragname]
-                op['usedvars'] |= frag['usedvars']
+                op['usedvars'].update(
+                    {k: v for k, v in frag['usedvars'].items()
+                     if k not in op['usedvars']})
 
             vardefs = {var.name for var in opnode.variables or ()}
-            if not vardefs.issuperset(op['usedvars']):
+            if not vardefs.issuperset(op['usedvars'].keys()):
+                uvars = [v for k, v in op['usedvars'].items()
+                         if k not in vardefs]
+                uvars.sort(key=lambda x: (x.context.start.line,
+                                          x.context.start.column))
+                uvar = uvars[0]
+                if opnode.name:
+                    op_str = "{!r} ".format(opnode.name)
+                else:
+                    op_str = ""
+                op_str += "at {}, {}".format(
+                    opnode.context.start.line,
+                    opnode.context.start.column)
+
                 raise GraphQLParserError(
-                    "undefined variable(s) {} used in operation".format(
-                        op['usedvars'] - vardefs),
+                    "undefined variable {!r} (at {}, {}) used in operation {}"
+                    .format(
+                        uvar.value,
+                        uvar.context.start.line,
+                        uvar.context.start.column,
+                        op_str),
                     context=opnode.context)
 
         # detect unused fragments
@@ -98,20 +117,22 @@ class Validator(NodeVisitor):
                 self._fragments[spread]['all_spreads']
 
     def visit_FragmentDefinition(self, node):
-        self._curroot = {'usedvars': set(), 'spreads': set()}
+        self._curroot = {'usedvars': {}, 'spreads': {}}
         self._fragments[node.name] = self._curroot
         self.generic_visit(node)
 
     def visit_OperationDefinition(self, node):
-        self._curroot = {'usedvars': set(), 'spreads': set()}
+        self._curroot = {'usedvars': {}, 'spreads': {}}
         self._ops[id(node)] = self._curroot
         self.generic_visit(node)
 
     def visit_Variable(self, node):
-        self._curroot['usedvars'].add(node.value)
+        val = self._curroot['usedvars'].get(node.value, node)
+        self._curroot['usedvars'][node.value] = val
 
     def visit_FragmentSpread(self, node):
-        self._curroot['spreads'].add(node.name)
+        val = self._curroot['spreads'].get(node.name, node)
+        self._curroot['spreads'][node.name] = val
 
 
 class GraphQLParser(parsing.Parser):

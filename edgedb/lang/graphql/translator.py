@@ -96,7 +96,7 @@ class GraphQLTranslator:
                 if not isinstance(cond, bool):
                     raise GraphQLValidationError(
                         "'if' argument of {} directive must be a Boolean"
-                        .format(directive.name))
+                        .format(directive.name), context=directive.context)
 
                 if directive.name == 'include' and cond is False:
                     return False
@@ -117,7 +117,7 @@ class GraphQLTranslator:
             if decl.value is not None and not decl.type.nullable:
                 raise GraphQLValidationError(
                     "variable {!r} cannot be non-nullable and have a default"
-                    .format(decl.name))
+                    .format(decl.name), context=decl.context)
 
             if not variables.get(decl.name):
                 if decl.value is None:
@@ -133,20 +133,23 @@ class GraphQLTranslator:
                 if not decl.type.nullable:
                     raise GraphQLValidationError(
                         "non-nullable variable {!r} is missing a value"
-                        .format(decl.name))
+                        .format(decl.name), context=decl.context)
             else:
                 if decl.type.list:
                     if not isinstance(val, list):
                         raise GraphQLValidationError(
-                            "variable {!r} should be a List".format(decl.name))
+                            "variable {!r} should be a List".format(decl.name),
+                            context=decl.context)
                     self._validate_value(
                         decl.name, val,
                         GQL_TYPE_NAMES_MAP[decl.type.name.name],
+                        context=decl.context,
                         as_sequence=True)
                 else:
                     self._validate_value(
                         decl.name, val,
                         GQL_TYPE_NAMES_MAP[decl.type.name],
+                        context=decl.context,
                         as_sequence=False)
 
     def _process_definition(self, definition):
@@ -158,13 +161,13 @@ class GraphQLTranslator:
             self._populate_variable_defaults(definition.variables)
 
             module = self._get_module(definition.directives)
-            for selset in definition.selection_set.selections:
+            for selection in definition.selection_set.selections:
                 self._path = [[[module, None]]]
                 selquery = qlast.SelectQueryNode(
                     targets=[
-                        self._process_selset(selset)
+                        self._process_selset(selection)
                     ],
-                    where=self._process_select_where(selset)
+                    where=self._process_select_where(selection)
                 )
 
                 if query is None:
@@ -182,8 +185,8 @@ class GraphQLTranslator:
 
         return query
 
-    def _process_selset(self, selset):
-        concept = selset.name
+    def _process_selset(self, selection):
+        concept = selection.name
         base = self._path[0][0] = (self._path[0][0][0], concept)
         self._fields.append({})
 
@@ -192,13 +195,13 @@ class GraphQLTranslator:
         except s_error.SchemaError:
             raise GraphQLValidationError(
                 "{!r} does not exist in the schema module {!r}".format(
-                    base[1], base[0]))
+                    base[1], base[0]), context=selection.context)
 
         expr = qlast.SelectExprNode(
             expr=qlast.PathNode(
                 steps=[qlast.PathStepNode(namespace=base[0], expr=base[1])],
                 pathspec=self._process_pathspec(
-                    selset.selection_set.selections)
+                    selection.selection_set.selections)
             )
         )
 
@@ -235,7 +238,8 @@ class GraphQLTranslator:
         if dup:
             if dup != field:
                 raise GraphQLValidationError(
-                    "field {!r} has ambiguous definition".format(field.name))
+                    "field {!r} has ambiguous definition".format(field.name),
+                    context=field.context)
             else:
 
                 return
@@ -250,7 +254,7 @@ class GraphQLTranslator:
             if target is None:
                 raise GraphQLValidationError(
                     "field {!r} is invalid for {}".format(
-                        step, baseType.name.name))
+                        step, baseType.name.name), context=field.context)
             target = target.target
 
         spec = qlast.SelectPathSpecNode(
@@ -272,7 +276,7 @@ class GraphQLTranslator:
         return spec
 
     def _process_inline_fragment(self, inline_frag):
-        self._validate_fragment_type(inline_frag)
+        self._validate_fragment_type(inline_frag, inline_frag)
         result = self._process_pathspec(inline_frag.selection_set.selections)
         if inline_frag.on is not None:
             self._path.pop()
@@ -280,12 +284,12 @@ class GraphQLTranslator:
 
     def _process_spread(self, spread):
         frag = self._fragments[spread.name]
-        self._validate_fragment_type(frag)
+        self._validate_fragment_type(frag, spread)
         result = self._process_pathspec(frag.selection_set.selections)
         self._path.pop()
         return result
 
-    def _validate_fragment_type(self, frag):
+    def _validate_fragment_type(self, frag, spread):
         # validate the fragment type w.r.t. the base
         #
         if frag.on is None:
@@ -318,7 +322,7 @@ class GraphQLTranslator:
                 msg = "inline fragment is incompatible with {!r}".format(
                     frag.name, baseType.name.name)
 
-            raise GraphQLValidationError(msg)
+            raise GraphQLValidationError(msg, context=spread.context)
 
     def _process_select_where(self, selset):
         if not selset.arguments:
@@ -387,15 +391,16 @@ class GraphQLTranslator:
             # or a sequence to validate
             #
             if op in (ast.ops.IN, ast.ops.NOT_IN):
-                self._validate_arg(name, check_value, as_sequence=True)
+                self._validate_arg(name, check_value,
+                                   context=arg.context, as_sequence=True)
             else:
-                self._validate_arg(name, check_value)
+                self._validate_arg(name, check_value, context=arg.context)
 
             result.append((name, op, value))
 
         return result
 
-    def _validate_arg(self, path, value, *, as_sequence=False):
+    def _validate_arg(self, path, value, *, context, as_sequence=False):
         # None is always valid argument for our case, simply means
         # that no filtering is necessary
         #
@@ -409,13 +414,15 @@ class GraphQLTranslator:
         base_t = target.get_implementation_type()
 
         self._validate_value(step.expr.name, value, base_t,
-                             as_sequence=as_sequence)
+                             context=context, as_sequence=as_sequence)
 
-    def _validate_value(self, name, value, base_t, *, as_sequence=False):
+    def _validate_value(self, name, value, base_t, *, context,
+                        as_sequence=False):
         if as_sequence:
             if not isinstance(value, list):
                 raise GraphQLValidationError(
-                    "argument {!r} should be a List".format(name))
+                    "argument {!r} should be a List".format(name),
+                    context=context)
         else:
             value = [value]
 
@@ -423,7 +430,7 @@ class GraphQLTranslator:
             if not issubclass(base_t, PY_COERCION_MAP[type(val)]):
                 raise GraphQLValidationError(
                     "value {!r} is not of type {} accepted by {!r}".format(
-                        val, base_t, name))
+                        val, base_t, name), context=context)
 
     def _process_literal(self, literal):
         if isinstance(literal, gqlast.ListLiteral):
@@ -432,7 +439,8 @@ class GraphQLTranslator:
             ])
         elif isinstance(literal, gqlast.ObjectLiteral):
             raise GraphQLValidationError(
-                "don't know how to translate an Object literal to EdgeQL")
+                "don't know how to translate an Object literal to EdgeQL",
+                context=literal.context)
         elif isinstance(literal, gqlast.Variable):
             return qlast.ConstantNode(index=literal.value[1:])
         else:
