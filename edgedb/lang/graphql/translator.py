@@ -40,6 +40,7 @@ GQL_TYPE_NAMES_MAP = {
 class GraphQLTranslator:
     def __init__(self, schema):
         self.schema = schema
+        self._fields = []
 
     def translate(self, gqltree, variables):
         self._fragments = {
@@ -184,6 +185,7 @@ class GraphQLTranslator:
     def _process_selset(self, selset):
         concept = selset.name
         base = self._path[0][0] = (self._path[0][0][0], concept)
+        self._fields.append({})
 
         try:
             self.schema.get(base)
@@ -200,6 +202,8 @@ class GraphQLTranslator:
             )
         )
 
+        self._fields.pop()
+
         return expr
 
     def _process_pathspec(self, selections):
@@ -210,7 +214,9 @@ class GraphQLTranslator:
                 continue
 
             if isinstance(sel, gqlast.Field):
-                pathspec.append(self._process_field(sel))
+                spec = self._process_field(sel)
+                if spec is not None:
+                    pathspec.append(spec)
             elif isinstance(sel, gqlast.InlineFragment):
                 pathspec.extend(self._process_inline_fragment(sel))
             elif isinstance(sel, gqlast.FragmentSpread):
@@ -221,6 +227,20 @@ class GraphQLTranslator:
     def _process_field(self, field):
         base = self._path[-1]
         base.append(field.name)
+
+        # if this field is a duplicate, that is not identical to the
+        # original, throw an exception
+        #
+        dup = self._fields[-1].get(field.name)
+        if dup:
+            if dup != field:
+                raise GraphQLValidationError(
+                    "field {!r} has ambiguous definition".format(field.name))
+            else:
+
+                return
+        else:
+            self._fields[-1][field.name] = field
 
         # validate the field
         #
@@ -243,8 +263,10 @@ class GraphQLTranslator:
         )
 
         if field.selection_set is not None:
+            self._fields.append({})
             spec.pathspec = self._process_pathspec(
                 field.selection_set.selections)
+            self._fields.pop()
         base.pop()
 
         return spec

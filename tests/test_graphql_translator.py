@@ -2038,3 +2038,141 @@ class TestGraphQLTranslation(TranslatorTest):
                 ],
             ]
         """
+
+    def test_graphql_translation_duplicates01(self):
+        r"""
+        query @edgedb(module: "test") {
+            User {
+                id
+                name
+                name
+                name
+            }
+        }
+
+% OK %
+
+        SELECT
+            [test.User][
+                id,
+                name,
+            ]
+        """
+
+    def test_graphql_translation_duplicates02(self):
+        r"""
+        query @edgedb(module: "test") {
+            User {
+                name @include(if: true)
+                id
+                name @include(if: true)
+            }
+        }
+
+% OK %
+
+        SELECT
+            [test.User][
+                name,
+                id,
+            ]
+        """
+
+    def test_graphql_translation_duplicates03(self):
+        r"""
+        query @edgedb(module: "test") {
+            User {
+                ... @skip(if: false) {
+                    name @include(if: true)
+                }
+                id
+                name @include(if: true)
+            }
+        }
+
+% OK %
+
+        SELECT
+            [test.User][
+                name,
+                id,
+            ]
+        """
+
+    def test_graphql_translation_duplicates04(self):
+        r"""
+        fragment f1 on User @edgedb(module: "test") {
+            name @include(if: true)
+        }
+
+        fragment f2 on User @edgedb(module: "test") {
+            id
+            name @include(if: true)
+            ... f1
+        }
+
+        query @edgedb(module: "test") {
+            User {
+                ... f2
+                id
+                name @include(if: true)
+            }
+        }
+
+% OK %
+
+        SELECT
+            [test.User][
+                id,
+                name,
+            ]
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_duplicates05(self):
+        r"""
+        query @edgedb(module: "test") {
+            User {
+                id
+                name
+                name @include(if: true)
+                name @skip(if: false)
+            }
+        }
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_duplicates06(self):
+        r"""
+        query @edgedb(module: "test") {
+            User {
+                ... @skip(if: false) {
+                    name @include(if: true)
+                }
+                id
+                name
+            }
+        }
+        """
+
+    @lang_tb.must_fail(GraphQLValidationError)
+    def test_graphql_translation_duplicates07(self):
+        r"""
+        fragment f1 on User @edgedb(module: "test") {
+            name @skip(if: false)
+        }
+
+        fragment f2 on User @edgedb(module: "test") {
+            id
+            name @include(if: true)
+            ... f1
+        }
+
+        query @edgedb(module: "test") {
+            User {
+                ... f2
+                id
+                name @include(if: true)
+            }
+        }
+        """
