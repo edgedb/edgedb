@@ -160,11 +160,6 @@ class GraphQLTranslator:
             for selset in definition.selection_set.selections:
                 self._path = [[[module, None]]]
                 selquery = qlast.SelectQueryNode(
-                    namespaces=[
-                        qlast.NamespaceAliasDeclNode(
-                            namespace=module
-                        )
-                    ],
                     targets=[
                         self._process_selset(selset)
                     ],
@@ -188,17 +183,18 @@ class GraphQLTranslator:
 
     def _process_selset(self, selset):
         concept = selset.name
-        self._path[0][0] = (self._path[0][0][0], concept)
+        base = self._path[0][0] = (self._path[0][0][0], concept)
 
         try:
-            self.schema.get(concept)
+            self.schema.get(base)
         except s_error.SchemaError:
             raise GraphQLValidationError(
-                "{!r} does not exist in the schema".format(concept))
+                "{!r} does not exist in the schema module {!r}".format(
+                    base[1], base[0]))
 
         expr = qlast.SelectExprNode(
             expr=qlast.PathNode(
-                steps=[qlast.PathStepNode(expr=concept)],
+                steps=[qlast.PathStepNode(namespace=base[0], expr=base[1])],
                 pathspec=self._process_pathspec(
                     selset.selection_set.selections)
             )
@@ -307,7 +303,8 @@ class GraphQLTranslator:
             return None
 
         def get_path_prefix():
-            return [qlast.PathStepNode(expr=selset.name)]
+            base = self._path[0][0]
+            return [qlast.PathStepNode(namespace=base[0], expr=base[1])]
 
         args = [
             qlast.BinOpNode(left=left, op=op, right=right)
@@ -325,7 +322,8 @@ class GraphQLTranslator:
                     for steps in self._path
                     for step in steps]
             path = path[0:1] + [step for step in path if type(step) is str]
-            prefix = [qlast.PathStepNode(expr=path[0][1])]
+            prefix = [qlast.PathStepNode(namespace=path[0][0],
+                                         expr=path[0][1])]
             prefix.extend([qlast.LinkExprNode(expr=qlast.LinkNode(name=name))
                            for name in path[1:]])
             return prefix
@@ -382,7 +380,7 @@ class GraphQLTranslator:
         if value is None:
             return
 
-        target = self.schema.get(path.steps[0].expr)
+        target = self.schema.get((path.steps[0].namespace, path.steps[0].expr))
         for step in path.steps[1:]:
             target = target.resolve_pointer(self.schema,
                                             step.expr.name).target

@@ -29,8 +29,6 @@ def _set_spec(func, name, attrs):
 
 class ParserTestMeta(type(unittest.TestCase)):
     def __new__(mcls, name, bases, dct):
-        dct = dict(dct)
-
         for attr, meth in tuple(dct.items()):
             if attr.startswith('test_') and meth.__doc__:
 

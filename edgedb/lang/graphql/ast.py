@@ -20,6 +20,17 @@ class Base(ast.AST):
     def _extra_repr(self):
         return ''
 
+    def __eq__(self, other):
+        if type(self) is not type(other):
+            return False
+
+        for field, value in ast.iter_fields(self):
+            if not self._fields[field].hidden:
+                if getattr(self, field) != getattr(other, field):
+                    return False
+
+        return True
+
     def __repr__(self):
         ar = self._extra_repr()
         return '<{}.{} at {:#x}{}>'.format(self.__class__.ns,

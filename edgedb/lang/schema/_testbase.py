@@ -6,11 +6,12 @@
 ##
 
 
+import collections
 import os
 import re
 import textwrap
 
-from edgedb.lang._testbase import BaseParserTest
+from edgedb.lang._testbase import ParserTestMeta, BaseParserTest
 from edgedb.lang.common import markup
 from edgedb.lang.schema import codegen
 from edgedb.lang.schema.parser import parser
@@ -81,19 +82,28 @@ class LoaderTest(BaseSchemaTest):
         self.assert_equal(expected, ddl_text)
 
 
-class SchemaTest(BaseParserTest):
-    def setUp(self):
-        super().setUp()
+class BaseSchemaTestMeta(ParserTestMeta):
+    @classmethod
+    def __prepare__(mcls, name, bases, **kwargs):
+        return collections.OrderedDict()
 
-        self.schema = s_std.load_std_schema()
-
+    def __new__(mcls, name, bases, dct):
         decls = []
 
-        for n, v in vars(self.__class__).items():
-            m = re.match('^SCHEMA(?:_([A-Z]+))?', n)
+        for n, v in dct.items():
+            m = re.match(r'^SCHEMA(?:_(\w+))?', n)
             if m:
-                module_name = (m.group(1) or 'test').lower().replace('__', '.')
+                module_name = (m.group(1) or 'test').lower().replace(
+                    '__', '.')
                 schema_text = textwrap.dedent(v)
                 decls.append((module_name, schema_text))
+        dct['_decls'] = decls
 
-        s_decl.parse_module_declarations(self.schema, decls)
+        return super().__new__(mcls, name, bases, dct)
+
+
+class SchemaTest(BaseParserTest, metaclass=BaseSchemaTestMeta):
+    def setUp(self):
+        super().setUp()
+        self.schema = s_std.load_std_schema()
+        s_decl.parse_module_declarations(self.schema, self._decls)
