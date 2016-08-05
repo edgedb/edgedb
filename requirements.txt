@@ -1,0 +1,8 @@
+asyncpg
+importkit
+pyyaml
+pytest
+python-dateutil
+metamagic.json
+Parsing
+py-postgresql
