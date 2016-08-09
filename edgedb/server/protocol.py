@@ -9,6 +9,7 @@
 import asyncio
 import enum
 import json
+import sys
 
 
 from edgedb.lang import edgeql
@@ -99,10 +100,13 @@ class Protocol(asyncio.Protocol):
         self.transport.write(json.dumps(msg).encode('utf-8'))
 
     def send_error(self, err):
+        import traceback
+        traceback.print_exception(
+            type(err), err, err.__traceback__, file=sys.stderr)
         self.send_message({
             '__type__': 'error',
             'data': {
-                'code': getattr(err, 'code', None),
+                'code': getattr(err, 'code', 0),
                 'message': str(err)
             }
         })
