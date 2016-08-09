@@ -41,13 +41,14 @@ class PointerExposedBehaviour(enum.StrEnum):
 
 
 class PointerVector(sn.Name):
-    __slots__ = ('module', 'name', 'direction', 'target')
+    __slots__ = ('module', 'name', 'direction', 'target', 'is_linkprop')
 
     def __new__(cls, name, module=None, direction=PointerDirection.Outbound,
-                target=None):
+                target=None, is_linkprop=False):
         result = super().__new__(cls, name, module=module)
         result.direction = direction
         result.target = target
+        result.is_linkprop = is_linkprop
         return result
 
     def __repr__(self):

@@ -16,7 +16,6 @@ from edgedb.lang.common.algos import topological
 from edgedb.lang import edgeql
 
 from . import ast as s_ast
-from . import std as s_std
 from . import parser as s_parser
 
 from . import atoms as s_atoms
@@ -31,7 +30,6 @@ from . import modules as s_mod
 from . import name as s_name
 from . import objects as s_obj
 from . import schema as s_schema
-from . import sources as s_sources
 
 
 _DECL_MAP = {
@@ -296,8 +294,9 @@ class DeclarationLoader:
     def _parse_link_props(self, link, linkdecl):
         for propdecl in linkdecl.properties:
             prop_name = self._get_ref_name(propdecl.name)
-            prop_base = self._schema.get(prop_name, type=s_lprops.LinkProperty,
-                                         default=None,)
+            prop_base = self._schema.get(prop_name,
+                                         type=s_lprops.LinkProperty,
+                                         default=None)
             prop_target = None
 
             if prop_base is None:
@@ -314,20 +313,20 @@ class DeclarationLoader:
                     prop_qname = s_name.Name(
                         name=prop_name, module=link.name.module)
 
-                    prop_base = self._schema.get(
+                    std_lprop = self._schema.get(
                         s_lprops.LinkProperty.get_default_base_name())
 
-                    propdef = s_lprops.LinkProperty(
-                        name=prop_qname, bases=[prop_base])
+                    prop_base = s_lprops.LinkProperty(
+                        name=prop_qname, bases=[std_lprop])
 
-                    self._schema.add(propdef)
+                    self._schema.add(prop_base)
                 else:
                     prop_qname = s_name.Name(prop_name)
             else:
                 prop_qname = prop_base.name
 
             if propdecl.target is not None:
-                target_name = self._get_ref_name(propdecl.target)
+                target_name = self._get_ref_name(propdecl.target[0])
                 prop_target = self._schema.get(target_name)
 
             elif not link.generic():
@@ -454,15 +453,11 @@ class DeclarationLoader:
             self._schema.add(index)
 
     def _init_concepts(self, concepts):
-        link_target_map = {}
-
         for concept, conceptdecl in concepts.items():
             for linkdecl in conceptdecl.links:
                 link_name = self._get_ref_name(linkdecl.name)
                 link_base = self._schema.get(link_name, type=s_links.Link,
                                              default=None)
-                link_attrs = {}
-
                 if link_base is None:
                     # The link has not been defined globally.
                     if not s_name.Name.is_qualified(link_name):
@@ -472,93 +467,52 @@ class DeclarationLoader:
                         link_qname = s_name.Name(
                             name=link_name, module=concept.name.module)
 
-                        link_base = self._schema.get(
+                        std_link = self._schema.get(
                             s_links.Link.get_default_base_name())
 
-                        linkdef = s_links.Link(
-                            name=link_qname, bases=[link_base])
+                        link_base = s_links.Link(
+                            name=link_qname, bases=[std_link])
 
-                        self._schema.add(linkdef)
+                        self._schema.add(link_base)
                     else:
                         link_qname = s_name.Name(link_name)
                 else:
                     link_qname = link_base.name
 
-                link_genname = s_links.Link.generate_specialized_name(
-                    concept.name, link_qname)
-                link_dername = s_name.Name(
-                    name=link_genname, module=concept.name.module)
+                if isinstance(linkdecl.target, edgeql.ast.SelectQueryNode):
+                    # This is a computable, but we cannot interpret
+                    # the expression yet, so set the target to none
+                    # temporarily.
+                    _tnames = ['std.none']
 
-                if linkdecl.target:
-                    if isinstance(linkdecl.target, edgeql.ast.SelectQueryNode):
-                        # This is a computable, but we cannot interpret
-                        # the expression yet, so set the target to none
-                        # temporarily.
-                        _tnames = ['std.none']
-                        link_attrs['readonly'] = True
-
-                    elif isinstance(linkdecl.target, list):
-                        _tnames = [self._get_ref_name(t) for t in
-                                   linkdecl.target]
-                    else:
-                        _tnames = [self._get_ref_name(linkdecl.target)]
-
-                    targets = []
-                    for t in _tnames:
-                        target = self._schema.get(t)
-                        targets.append(target.name)
-
-                    if len(targets) == 1:
-                        target_name = targets[0]
-                    else:
-                        target_name = s_sources.Source.gen_virt_parent_name(
-                            targets, module=link_qname.module)
+                elif isinstance(linkdecl.target, list):
+                    _tnames = [self._get_ref_name(t) for t in
+                               linkdecl.target]
                 else:
-                    targets = []
-                    target_name = None
+                    _tnames = [self._get_ref_name(linkdecl.target)]
 
-                link = s_links.Link(
-                    name=link_dername, source=concept,
-                    bases=[self._schema.get(link_qname)],
-                    **link_attrs
-                )
+                if len(_tnames) == 1:
+                    # Usual case, just one target
+                    spectargets = None
+                    target = self._schema.get(_tnames[0])
+                else:
+                    # Multiple explicit targets, create common virtual
+                    # parent and use it as target.
+                    spectargets = s_obj.PrototypeSet(
+                        self._schema.get(t) for t in _tnames)
+                    target = link_base.create_common_target(
+                        self._schema, spectargets)
+                    target.is_derived = True
 
-                link_target_map[link] = (target_name, targets)
+                link = link_base.derive(
+                    self._schema, concept, target, add_to_schema=True)
+
+                if isinstance(linkdecl.target, edgeql.ast.SelectQueryNode):
+                    # Computables are always readonly.
+                    link.readonly = True
 
                 self._parse_link_props(link, linkdecl)
-                self._schema.add(link)
                 concept.add_pointer(link)
-
-        for concept, conceptdecl in concepts.items():
-            for link_name, link in concept.own_pointers.items():
-                target_name, targets = link_target_map[link]
-
-                if len(targets) > 1:
-                    link.spectargets = s_obj.PrototypeSet(
-                        self._schema.get(t) for t in targets
-                    )
-
-                    target = self._schema.get(target_name, default=None,
-                                              type=s_concepts.Concept)
-                    if target is None:
-                        target = link.get_common_target(
-                            self._schema, link.spectargets)
-                        target.is_derived = True
-
-                        existing = self._schema.get(
-                            target.name, default=None, type=s_concepts.Concept)
-
-                        if existing is None:
-                            self._schema.add(target)
-                        else:
-                            target = existing
-
-                    link.target = target
-
-                elif targets:
-                    link.target = self._schema.get(target_name)
-
-                link.init_std_props(self._schema, add_to_schema=True)
 
         for concept, conceptdecl in concepts.items():
             if conceptdecl.indexes:
