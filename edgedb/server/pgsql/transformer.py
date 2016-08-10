@@ -558,63 +558,60 @@ class IRCompilerBase:
         testref = None
         schema = context.current.proto_schema
 
-        if expr.linkprop_xvalue:
-            for e in expr.elements:
-                element = self._process_expr(context, e, cte)
-                my_elements.append(element)
+        for i, e in enumerate(expr.elements):
+            element = self._process_expr(context, e, cte)
+            ptr_direction = s_pointers.PointerDirection.Outbound
+            ptr_target = None
 
-            if context.current.output_format == 'json':
-                attribute_map = ['t', 'p']
-            else:
-                attribute_map = ['value', 'attrs']
-            testref = my_elements[0]
-        else:
-            for e in expr.elements:
-                element = self._process_expr(context, e, cte)
-                ptr_direction = s_pointers.PointerDirection.Outbound
-                ptr_target = None
-
-                if isinstance(e, irast.MetaRef):
-                    ptr_name = e.name
-                    testref = element
-                elif isinstance(e, irast.BaseRef):
-                    ptr_name = e.ptr_proto.normal_name()
-                    ptr_target = e.ptr_proto.target
-                elif isinstance(e, (irast.Record, irast.SubgraphRef)):
-                    ptr_name = e.rlink.link_proto.normal_name()
-                    ptr_direction = e.rlink.direction or s_pointers.PointerDirection.Outbound
-                    if ptr_direction == s_pointers.PointerDirection.Outbound:
-                        ptr_target = e.rlink.link_proto.target
-                    else:
-                        ptr_target = e.rlink.link_proto.source
-
-                if isinstance(ptr_name, sn.Name):
-                    if (ptr_direction == s_pointers.PointerDirection.Inbound
-                            and ptr_target.is_virtual and ptr_target.is_derived):
-                        ptr_origins = set()
-
-                        for c in ptr_target.children(schema):
-                            c_ptr = c.pointers.get(ptr_name)
-                            if c_ptr is not None:
-                                ptr_origin = c.get_pointer_origin(ptr_name)
-                                ptr_origins.add(ptr_origin.name)
-
-                        virtuals_map[ptr_target.name + '::' + ptr_name] = tuple(ptr_origins)
-
-                    attr_name = s_pointers.PointerVector(name=ptr_name.name, module=ptr_name.module,
-                                                         direction=ptr_direction,
-                                                         target=ptr_target.name)
+            if isinstance(e, irast.MetaRef):
+                ptr_name = e.name
+                testref = element
+            elif isinstance(e, irast.BaseRef):
+                ptr_name = e.ptr_proto.normal_name()
+                ptr_target = e.ptr_proto.target
+            elif isinstance(e, (irast.Record, irast.SubgraphRef)):
+                ptr_name = e.rlink.link_proto.normal_name()
+                ptr_direction = e.rlink.direction or \
+                    s_pointers.PointerDirection.Outbound
+                if ptr_direction == s_pointers.PointerDirection.Outbound:
+                    ptr_target = e.rlink.link_proto.target
                 else:
-                    attr_name = ptr_name
+                    ptr_target = e.rlink.link_proto.source
 
-                attribute_map.append(attr_name)
-                my_elements.append(element)
+            if isinstance(ptr_name, sn.Name):
+                if (ptr_direction == s_pointers.PointerDirection.Inbound
+                        and ptr_target.is_virtual and ptr_target.is_derived):
+                    ptr_origins = set()
+
+                    for c in ptr_target.children(schema):
+                        c_ptr = c.pointers.get(ptr_name)
+                        if c_ptr is not None:
+                            ptr_origin = c.get_pointer_origin(ptr_name)
+                            ptr_origins.add(ptr_origin.name)
+
+                    virtuals_map[ptr_target.name + '::' + ptr_name] = \
+                        tuple(ptr_origins)
+
+                attr_name = s_pointers.PointerVector(
+                    name=ptr_name.name, module=ptr_name.module,
+                    direction=ptr_direction, target=ptr_target.name,
+                    is_linkprop=isinstance(e, irast.LinkPropRef))
+            else:
+                attr_name = ptr_name
+
+            attribute_map.append(attr_name)
+            my_elements.append(element)
 
         if context.current.output_format == 'json':
             keyvals = []
             for i, pgexpr in enumerate(my_elements):
-                keyvals.append(pgsql.ast.ConstantNode(
-                    value=str(attribute_map[i])))
+                key = attribute_map[i]
+                if isinstance(key, s_pointers.PointerVector):
+                    if key.is_linkprop:
+                        key = '@' + key.name
+                    else:
+                        key = key.name
+                keyvals.append(pgsql.ast.ConstantNode(value=key))
                 keyvals.append(pgexpr)
 
             result = pgsql.ast.FunctionCallNode(
@@ -625,8 +622,7 @@ class IRCompilerBase:
             marker = common.RecordInfo(attribute_map=attribute_map,
                                            virtuals_map=virtuals_map,
                                            proto_class=proto_class_name,
-                                           proto_name=expr.concept.name,
-                                           is_xvalue=expr.linkprop_xvalue)
+                                           proto_name=expr.concept.name)
 
             context.current.record_info[marker.id] = marker
             context.current.backend._register_record_info(marker)
@@ -3305,15 +3301,21 @@ class IRCompiler(IRCompilerBase):
 
             cte_refs = context.current.link_node_map[link]
             local_ref_map = cte_refs.get('local_ref_map')
-            if local_ref_map:
-                cteref = local_ref_map[expr.ref.link_proto]
 
-                proto_schema = context.current.proto_schema
-                stor_info = types.get_pointer_storage_info(expr.ptr_proto,
-                                                           resolve_type=False)
-                colname = stor_info.column_name
-                fieldref = pgsql.ast.FieldRefNode(table=cteref, field=colname,
-                                                  origin=cteref, origin_field=colname)
+            stor_info = types.get_pointer_storage_info(expr.ptr_proto,
+                                                       resolve_type=False)
+            colname = stor_info.column_name
+
+            if stor_info.table_type == "concept":
+                fieldref = self.get_cte_fieldref_for_set(
+                    context, link.source, link.link_proto.normal_name(), False)
+
+            elif local_ref_map:
+                table = local_ref_map[expr.ref.link_proto]
+                fieldref = pgsql.ast.FieldRefNode(
+                    table=table, field=colname,
+                    origin=table, origin_field=colname)
+
             else:
                 fieldref = cte_refs.get(expr.name)
                 assert fieldref, 'Reference to an inaccessible link table node %s' % expr.name

@@ -363,8 +363,11 @@ class Expr(Base):
 class Sequence(Expr): __fields = [('elements', list), ('is_array', bool)]
 
 class Record(Expr):
-    __fields = [('elements', list), 'concept', ('rlink', EntityLink, None, False),
-                ('linkprop_xvalue', bool)]
+    __fields = [
+        ('elements', list),
+        'concept',
+        ('rlink', EntityLink, None, False)
+    ]
 
 class BinOp(Expr):
     __fields = ['left', 'right', 'op', ('aggregates', bool), ('strong', bool)]

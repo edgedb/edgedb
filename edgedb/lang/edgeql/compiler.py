@@ -1494,9 +1494,6 @@ class EdgeQLCompiler:
     def _process_select_targets(self, context, targets):
         selector = list()
 
-        is_path_selector = (len(targets) == 1 and
-                            isinstance(targets[0].expr, qlast.PathNode))
-
         with context():
             context.current.location = 'selector'
             for target in targets:
@@ -1526,8 +1523,7 @@ class EdgeQLCompiler:
                     expr = self.entityref_to_record(
                         expr,
                         self.proto_schema,
-                        pathspec=pathspec,
-                        select_linkprops=is_path_selector)
+                        pathspec=pathspec)
 
                 t = irast.SelectorExpr(expr=expr, **params)
                 selector.append(t)
@@ -1972,7 +1968,6 @@ class EdgeQLCompiler:
                             *,
                             pathspec=None,
                             prefixes=None,
-                            select_linkprops=False,
                             _visited_records=None,
                             _recurse=True):
         """Convert an EntitySet node into an Record."""
@@ -1993,7 +1988,7 @@ class EdgeQLCompiler:
                 path_rlink = p.rlink
 
         recurse_links = None
-        recurse_metarefs = ['id', 'name']
+        recurse_metarefs = []
 
         concepts = {c.concept for c in expr.paths}
         assert len(concepts) == 1
@@ -2017,14 +2012,13 @@ class EdgeQLCompiler:
         else:
             ptrs = concept.pointers
 
+        implicit_links = (sn.Name('std.id'),)
+
+        recurse_links = {(l, s_pointers.PointerDirection.Outbound):
+                         irast.PtrPathSpec(ptr_proto=ptrs[l])
+                         for l in implicit_links}
+
         if pathspec is not None:
-            must_have_links = (sn.Name('std.id'), sn.Name('std.mtime'),
-                               sn.Name('std.ctime'))
-
-            recurse_links = {(l, s_pointers.PointerDirection.Outbound):
-                             irast.PtrPathSpec(ptr_proto=ptrs[l])
-                             for l in must_have_links}
-
             for ps in pathspec:
                 if isinstance(ps.ptr_proto, s_links.Link):
                     k = ps.ptr_proto.normal_name(), ps.ptr_direction
@@ -2033,15 +2027,6 @@ class EdgeQLCompiler:
                 elif isinstance(ps.ptr_proto, s_lprops.TypeProperty):
                     # metaref
                     recurse_metarefs.append(ps.ptr_proto.normal_name().name)
-
-        if recurse_links is None:
-            recurse_links = {}
-            for pn, p in ptrs.items():
-                lb = p.get_loading_behaviour()
-                if (lb == s_pointers.PointerLoading.Eager and
-                        p.target not in _visited_records):
-                    k = pn, s_pointers.PointerDirection.Outbound
-                    recurse_links[k] = irast.PtrPathSpec(ptr_proto=p)
 
         for (link_name, link_direction), recurse_spec in recurse_links.items():
             el = None
@@ -2212,13 +2197,7 @@ class EdgeQLCompiler:
             prop_elements = []
             if link.has_user_defined_properties():
                 if recurse_spec.pathspec is not None:
-                    must_have_props = (sn.Name('std.linkid'), )
-
-                    recurse_props = {
-                        propn:
-                        irast.PtrPathSpec(ptr_proto=link.pointers[propn])
-                        for propn in must_have_props
-                    }
+                    recurse_props = {}
 
                     for ps in recurse_spec.pathspec:
                         if (isinstance(ps.ptr_proto, s_lprops.LinkProperty) and
@@ -2226,15 +2205,6 @@ class EdgeQLCompiler:
                             recurse_props[ps.ptr_proto.normal_name()] = ps
                 else:
                     recurse_props = {}
-
-                    for pn, p in link.pointers.items():
-                        lb = p.get_loading_behaviour()
-                        if (lb == s_pointers.PointerLoading.Eager
-                                and not p.is_endpoint_pointer()):
-                            recurse_props[pn] = irast.PtrPathSpec(ptr_proto=p)
-
-                proprec = irast.Record(
-                    elements=prop_elements, concept=root_link_proto)
 
                 for prop_name, prop_proto in link.pointers.items():
                     if prop_name not in recurse_props:
@@ -2252,17 +2222,19 @@ class EdgeQLCompiler:
                     link_node.proprefs.add(prop_ref)
 
                 if prop_elements:
-                    xvalue_elements = [el, proprec]
-                    if isinstance(link_node.target, irast.AtomicRefSimple):
-                        ln = link_node.link_proto.normal_name()
-                        concept = link_node.source.concept.pointers[ln]
-                    else:
-                        concept = link_node.target.concept
-                    el = irast.Record(
-                        elements=xvalue_elements,
-                        concept=concept,
-                        rlink=link_node,
-                        linkprop_xvalue=True)
+                    if not isinstance(el, irast.Record):
+                        std_tgt = link_proto.pointers['std.target']
+                        std_tgt_ref = irast.LinkPropRefSimple(
+                            name=std_tgt.normal_name(),
+                            id=full_path_id,
+                            ptr_proto=std_tgt,
+                            ref=link_node)
+                        link_node.proprefs.add(std_tgt_ref)
+                        el = irast.Record(elements=[std_tgt_ref],
+                                          concept=target_proto,
+                                          rlink=link_node)
+
+                    el.elements.extend(prop_elements)
 
             if not link.atomic() or prop_elements:
                 lref.conjunction.update(link_node)
@@ -2349,49 +2321,6 @@ class EdgeQLCompiler:
         elements.extend(metarefs)
         expr = rec
 
-        if path_rlink is not None and select_linkprops:
-            # Linked selector paths must fetch links pointing to it
-            link_node = path_rlink
-            link = path_rlink.link_proto
-            root_link_proto = schema.get(link.normal_name())
-
-            recurse_props = {
-                pn: irast.PtrPathSpec(ptr_proto=p)
-                for pn, p in link.pointers.items()
-                if p.get_loading_behaviour() == s_pointers.PointerLoading.Eager
-                and not p.is_endpoint_pointer()
-            }
-
-            prop_elements = []
-            proprec = irast.Record(
-                elements=prop_elements, concept=root_link_proto)
-
-            for prop_name, prop_proto in link.pointers.items():
-                if prop_name not in recurse_props:
-                    continue
-
-                prop_id = irutils.LinearPath(ref.id)
-                prop_id.add(root_link_proto,
-                            s_pointers.PointerDirection.Outbound, None)
-                prop_ref = irast.LinkPropRefSimple(
-                    name=prop_name,
-                    id=p.id,
-                    ptr_proto=prop_proto,
-                    ref=link_node)
-                prop_elements.append(prop_ref)
-                link_node.proprefs.add(prop_ref)
-
-            xvalue_elements = [expr, proprec]
-            if isinstance(link_node.target, irast.AtomicRefSimple):
-                ln = link_node.link_proto.normal_name()
-                concept = link_node.source.concept.pointers[ln]
-            else:
-                concept = link_node.target.concept
-            expr = irast.Record(
-                elements=xvalue_elements,
-                concept=concept,
-                rlink=link_node,
-                linkprop_xvalue=True)
         return expr
 
     def entityref_to_idref(self, expr, schema):

@@ -58,7 +58,8 @@ class PointerVector(sn.Name):
         return dict(
             name=str(self),
             direction=self.direction,
-            target=self.target
+            target=self.target,
+            is_linkprop=self.is_linkprop,
         )
 
     def __hash__(self):

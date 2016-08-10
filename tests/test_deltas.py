@@ -8,8 +8,6 @@
 
 import uuid
 
-from edgedb.lang.common import datetime
-
 from edgedb.server import _testbase as tb
 
 
@@ -18,6 +16,9 @@ class TestDeltas(tb.QueryTestCase):
         # setup delta
         #
         CREATE DELTA {test::d1} TO $$
+            link name:
+                linkproperty lang -> str
+
             concept NamedObject:
                 required link name -> str
         $$;
@@ -32,7 +33,9 @@ class TestDeltas(tb.QueryTestCase):
 
         SELECT
             {test::NamedObject} {
-                name
+                name[
+                    @lang
+                ]
             }
         WHERE
             {test::NamedObject}.name = 'Test';
@@ -46,10 +49,8 @@ class TestDeltas(tb.QueryTestCase):
         [],
 
         [{
-            'std.id': uuid.UUID,
-            'std.ctime': datetime.DateTime,
-            'std.mtime': datetime.DateTime,
-            'test.name': 'Test',
+            'id': uuid.UUID,
+            'name': {'@target': 'Test', '@lang': None},
         }]
     ]:
         pass

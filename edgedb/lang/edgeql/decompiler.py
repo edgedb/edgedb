@@ -35,117 +35,100 @@ class IRDecompiler:
     def _pathspec_from_record(self, context, expr):
         pathspec = []
 
-        if expr.linkprop_xvalue:
-            if isinstance(expr.elements[0], irast.LinkPropRefSimple):
-                return []
-            elif isinstance(expr.elements[0], irast.Record):
-                pathspec = self._pathspec_from_record(context, expr.elements[0])
-            else:
-                noderef = self._process_expr(context, expr.elements[0])
-                pathspec = [qlast.SelectPathSpecNode(expr=noderef.steps[-1])]
+        ptr_iters = set()
 
-            for propref in expr.elements[1].elements:
-                if propref.ptr_proto.get_loading_behaviour() == 'eager':
+        for el in expr.elements:
+            if el.rewrite_original:
+                el = el.rewrite_original
+
+            if isinstance(el, irast.MetaRef):
+                continue
+
+            elif isinstance(el, (irast.AtomicRefSimple, irast.LinkPropRefSimple)):
+                rlink = el.rlink if isinstance(el, irast.AtomicRefSimple) else el.ref
+
+                trigger = rlink.pathspec_trigger
+                if trigger is None:
                     continue
 
-                propref = self._process_expr(context, propref)
-                pathspec.append(qlast.SelectPathSpecNode(expr=propref))
+                if isinstance(trigger, irast.PointerIteratorPathSpecTrigger):
+                    ptr_iters.add(frozenset(trigger.filters.items()))
+                elif isinstance(trigger, irast.ExplicitPathSpecTrigger):
+                    refpath = self._process_expr(context, el)
+                    sitem = qlast.SelectPathSpecNode(expr=refpath.steps[-1])
+                else:
+                    msg = 'unexpected pathspec trigger in record ref: {!r}'.format(trigger)
+                    raise ValueError(msg)
 
-        else:
-            ptr_iters = set()
+            elif isinstance(el, irast.SubgraphRef):
+                rlink = el.rlink
 
-            for el in expr.elements:
-                if el.rewrite_original:
-                    el = el.rewrite_original
-
-                if isinstance(el, irast.MetaRef):
+                trigger = rlink.pathspec_trigger
+                if trigger is None:
                     continue
+                elif isinstance(trigger, irast.PointerIteratorPathSpecTrigger):
+                    ptr_iters.add(frozenset(trigger.filters.items()))
+                    continue
+                elif not isinstance(trigger, irast.ExplicitPathSpecTrigger):
+                    msg = 'unexpected pathspec trigger in record ref: {!r}'.format(trigger)
+                    raise ValueError(msg)
 
-                elif isinstance(el, (irast.AtomicRefSimple, irast.LinkPropRefSimple)):
-                    rlink = el.rlink if isinstance(el, irast.AtomicRefSimple) else el.ref
+                target = el.rlink.target.concept.name
+                target = qlast.PrototypeRefNode(name=target.name, module=target.module)
 
-                    trigger = rlink.pathspec_trigger
-                    if trigger is None:
-                        continue
+                refpath = qlast.LinkNode(name=el.rlink.link_proto.normal_name().name,
+                                         namespace=el.rlink.link_proto.normal_name().module,
+                                         target=target, direction=el.rlink.direction)
+                refpath = qlast.LinkExprNode(expr=refpath)
+                sitem = qlast.SelectPathSpecNode(expr=refpath)
+                rec = el.ref.selector[0].expr
 
-                    if isinstance(trigger, irast.PointerIteratorPathSpecTrigger):
-                        ptr_iters.add(frozenset(trigger.filters.items()))
-                    elif isinstance(trigger, irast.ExplicitPathSpecTrigger):
-                        refpath = self._process_expr(context, el)
-                        sitem = qlast.SelectPathSpecNode(expr=refpath.steps[-1])
-                    else:
-                        msg = 'unexpected pathspec trigger in record ref: {!r}'.format(trigger)
-                        raise ValueError(msg)
+                if isinstance(rec, irast.Record):
+                    sitem.pathspec = self._pathspec_from_record(context, rec)
 
-                elif isinstance(el, irast.SubgraphRef):
-                    rlink = el.rlink
-
-                    trigger = rlink.pathspec_trigger
-                    if trigger is None:
-                        continue
-                    elif isinstance(trigger, irast.PointerIteratorPathSpecTrigger):
-                        ptr_iters.add(frozenset(trigger.filters.items()))
-                        continue
-                    elif not isinstance(trigger, irast.ExplicitPathSpecTrigger):
-                        msg = 'unexpected pathspec trigger in record ref: {!r}'.format(trigger)
-                        raise ValueError(msg)
-
-                    target = el.rlink.target.concept.name
-                    target = qlast.PrototypeRefNode(name=target.name, module=target.module)
-
-                    refpath = qlast.LinkNode(name=el.rlink.link_proto.normal_name().name,
-                                             namespace=el.rlink.link_proto.normal_name().module,
-                                             target=target, direction=el.rlink.direction)
-                    refpath = qlast.LinkExprNode(expr=refpath)
-                    sitem = qlast.SelectPathSpecNode(expr=refpath)
-                    rec = el.ref.selector[0].expr
-
-                    if isinstance(rec, irast.Record):
-                        sitem.pathspec = self._pathspec_from_record(context, rec)
-
-                    elif isinstance(rec, irast.LinkPropRefSimple):
-                        proprefpath = self._process_expr(context, rec)
-                        sitem = qlast.SelectPathSpecNode(expr=proprefpath.steps[-1])
-
-                    else:
-                        raise ValueError('unexpected node in subgraph ref: {!r}'.format(rec))
-
-                elif isinstance(el, irast.Record):
-                    rlink = el.rlink
-
-                    trigger = rlink.pathspec_trigger
-
-                    if trigger is None:
-                        continue
-                    elif isinstance(trigger, irast.PointerIteratorPathSpecTrigger):
-                        ptr_iters.add(frozenset(trigger.filters.items()))
-                        continue
-                    elif not isinstance(trigger, irast.ExplicitPathSpecTrigger):
-                        msg = 'unexpected pathspec trigger in record ref: {!r}'.format(trigger)
-                        raise ValueError(msg)
-
-                    target = el.concept.name
-                    target = qlast.PrototypeRefNode(name=target.name, module=target.module)
-
-                    refpath = qlast.LinkNode(name=el.rlink.link_proto.normal_name().name,
-                                             namespace=el.rlink.link_proto.normal_name().module,
-                                             target=target, direction=el.rlink.direction)
-                    refpath = qlast.LinkExprNode(expr=refpath)
-                    sitem = qlast.SelectPathSpecNode(expr=refpath)
-                    sitem.pathspec = self._pathspec_from_record(context, el)
+                elif isinstance(rec, irast.LinkPropRefSimple):
+                    proprefpath = self._process_expr(context, rec)
+                    sitem = qlast.SelectPathSpecNode(expr=proprefpath.steps[-1])
 
                 else:
-                    raise ValueError('unexpected node in record: {!r}'.format(el))
+                    raise ValueError('unexpected node in subgraph ref: {!r}'.format(rec))
 
-                pathspec.append(sitem)
+            elif isinstance(el, irast.Record):
+                rlink = el.rlink
 
-            for ptr_iter in ptr_iters:
-                filters = []
-                for prop, val in ptr_iter:
-                    flt = qlast.PointerGlobFilter(property=prop, value=val, any=val is None)
-                    filters.append(flt)
+                trigger = rlink.pathspec_trigger
 
-                pathspec.append(qlast.PointerGlobNode(filters=filters))
+                if trigger is None:
+                    continue
+                elif isinstance(trigger, irast.PointerIteratorPathSpecTrigger):
+                    ptr_iters.add(frozenset(trigger.filters.items()))
+                    continue
+                elif not isinstance(trigger, irast.ExplicitPathSpecTrigger):
+                    msg = 'unexpected pathspec trigger in record ref: {!r}'.format(trigger)
+                    raise ValueError(msg)
+
+                target = el.concept.name
+                target = qlast.PrototypeRefNode(name=target.name, module=target.module)
+
+                refpath = qlast.LinkNode(name=el.rlink.link_proto.normal_name().name,
+                                         namespace=el.rlink.link_proto.normal_name().module,
+                                         target=target, direction=el.rlink.direction)
+                refpath = qlast.LinkExprNode(expr=refpath)
+                sitem = qlast.SelectPathSpecNode(expr=refpath)
+                sitem.pathspec = self._pathspec_from_record(context, el)
+
+            else:
+                raise ValueError('unexpected node in record: {!r}'.format(el))
+
+            pathspec.append(sitem)
+
+        for ptr_iter in ptr_iters:
+            filters = []
+            for prop, val in ptr_iter:
+                flt = qlast.PointerGlobFilter(property=prop, value=val, any=val is None)
+                filters.append(flt)
+
+            pathspec.append(qlast.PointerGlobNode(filters=filters))
 
         return pathspec
 
