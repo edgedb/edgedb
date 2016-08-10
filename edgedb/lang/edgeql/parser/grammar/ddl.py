@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2015 MagicStack Inc.
+# Copyright (c) 2015-2016 MagicStack Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -145,6 +145,16 @@ def _new_nonterm(clsname, clsdict={}, clskwds={}, clsbases=(Nonterm,)):
     return cls
 
 
+class Semicolons(Nonterm):
+    # one or more semicolons
+    #
+    def reduce_SEMICOLON(self, tok):
+        self.val = tok
+
+    def reduce_Semicolons_SEMICOLON(self, *kids):
+        self.val = kids[0].val
+
+
 class ProductionHelper:
     def _passthrough(self, cmd):
         self.val = cmd.val
@@ -155,7 +165,10 @@ class ProductionHelper:
     def _empty(self):
         self.val = None
 
-    def _block(self, lbrace, cmdlist, rbrace):
+    def _block(self, lbrace, cmdlist, sc2, rbrace):
+        self.val = cmdlist.val
+
+    def _block2(self, lbrace, sc1, cmdlist, sc2, rbrace):
         self.val = cmdlist.val
 
 
@@ -173,16 +186,19 @@ def commands_block(parent, *commands, opt=True):
 
     cmd = _new_nonterm(parent + 'Command', clsdict=clsdict)
 
-    # CommandsList := Command [Command ...]
+    # CommandsList := Command [; Command ...]
     cmdlist = _new_nonterm(parent + 'CommandsList', clsbases=(ListNonterm,),
-                           clskwds=dict(element=cmd))
+                           clskwds=dict(element=cmd, separator=Semicolons))
 
     # CommandsBlock :=
     #
-    #   { CommandsList }
+    #   { [ ; ] CommandsList ; }
     clsdict = collections.OrderedDict()
-    clsdict['reduce_LBRACE_' + cmdlist.__name__ + '_RBRACE'] = \
+    clsdict['reduce_LBRACE_' + cmdlist.__name__ + '_Semicolons_RBRACE'] = \
         ProductionHelper._block
+    clsdict['reduce_LBRACE_Semicolons_' + cmdlist.__name__ +
+            '_Semicolons_RBRACE'] = \
+        ProductionHelper._block2
     if not opt:
         #
         #   | Command

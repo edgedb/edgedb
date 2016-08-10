@@ -112,7 +112,7 @@ class DatabaseTestCase(ConnectedTestCase):
     def setUp(self):
         super().setUp()
         self.admin_conn = self.con
-        script = 'CREATE DATABASE edgedb_test'
+        script = 'CREATE DATABASE edgedb_test;'
 
         self.loop.run_until_complete(
             self.admin_conn.execute(script))
@@ -121,7 +121,7 @@ class DatabaseTestCase(ConnectedTestCase):
             self.cluster.connect(database='edgedb_test', user='edgedb',
                                  loop=self.loop))
 
-        script = '\nCREATE MODULE test'
+        script = '\nCREATE MODULE test;'
         if self.SETUP:
             script += '\n' + self.SETUP
 
@@ -142,7 +142,7 @@ class DatabaseTestCase(ConnectedTestCase):
             self.con.close()
             self.con = self.admin_conn
 
-            script = 'DROP DATABASE edgedb_test'
+            script = 'DROP DATABASE edgedb_test;'
 
             try:
                 self.loop.run_until_complete(

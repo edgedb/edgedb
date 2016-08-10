@@ -1,225 +1,225 @@
-CREATE MODULE std
+CREATE MODULE std;
 
 CREATE ACTION [std.restrict] {
-    SET title = 'Abort the event if a pointer exists'
-}
+    SET title = 'Abort the event if a pointer exists';
+};
 
 CREATE ACTION [std.cascade] {
-    SET title = 'Cascade the event through the pointer'
-}
+    SET title = 'Cascade the event through the pointer';
+};
 
 CREATE ACTION [std.delete_pointer] {
-    SET title = 'Delete pointer'
-}
+    SET title = 'Delete pointer';
+};
 
 CREATE ACTION [std.ignore] {
-    SET title = 'Ignore the event'
-}
+    SET title = 'Ignore the event';
+};
 
 CREATE ACTION [std.delete_source] {
-    SET title = 'Delete pointer target'
-}
+    SET title = 'Delete pointer target';
+};
 
 CREATE ACTION [std.delete_orphan_target] {
-    SET title = 'Delete target if no instances of the inbound pointer to it exist'
-}
+    SET title = 'Delete target if no instances of the inbound pointer to it exist';
+};
 
 CREATE ACTION [std.cascade_loaded] {
-    SET title = 'Cascade the event through the pointer if target is loaded to the local session'
-}
+    SET title = 'Cascade the event through the pointer if target is loaded to the local session';
+};
 
 CREATE ACTION [std.delete_target] {
-    SET title = 'Delete pointer target'
-}
+    SET title = 'Delete pointer target';
+};
 
-CREATE EVENT [std.event]
+CREATE EVENT [std.event];
 
-CREATE EVENT [std.cascade_base] INHERITING [std.event]
+CREATE EVENT [std.cascade_base] INHERITING [std.event];
 
-CREATE EVENT [std.cascade_session_detach] INHERITING [std.cascade_base]
+CREATE EVENT [std.cascade_session_detach] INHERITING [std.cascade_base];
 
-CREATE EVENT [std.cascade_serialize] INHERITING [std.cascade_base]
+CREATE EVENT [std.cascade_serialize] INHERITING [std.cascade_base];
 
-CREATE EVENT [std.internal] INHERITING [std.event]
+CREATE EVENT [std.internal] INHERITING [std.event];
 
-CREATE EVENT [std.deleted] INHERITING [std.internal]
+CREATE EVENT [std.deleted] INHERITING [std.internal];
 
-CREATE EVENT [std.source_deleted] INHERITING [std.deleted]
+CREATE EVENT [std.source_deleted] INHERITING [std.deleted];
 
-CREATE EVENT [std.self_deleted] INHERITING [std.deleted]
+CREATE EVENT [std.self_deleted] INHERITING [std.deleted];
 
-CREATE EVENT [std.cascade_session_attach] INHERITING [std.cascade_base]
+CREATE EVENT [std.cascade_session_attach] INHERITING [std.cascade_base];
 
-CREATE EVENT [std.cascade_copy] INHERITING [std.cascade_base]
+CREATE EVENT [std.cascade_copy] INHERITING [std.cascade_base];
 
-CREATE EVENT [std.target_deleted] INHERITING [std.deleted]
+CREATE EVENT [std.target_deleted] INHERITING [std.deleted];
 
-CREATE ATTRIBUTE [std.pattern] str
+CREATE ATTRIBUTE [std.pattern] str;
 
-CREATE ATTRIBUTE [std.precision] tuple<int>
+CREATE ATTRIBUTE [std.precision] tuple<int>;
 
-CREATE ATTRIBUTE [std.rounding] str WHERE (value IN ('ceiling', '05up', 'up', 'half-even', 'half-up', 'floor', 'down', 'half-down'))
+CREATE ATTRIBUTE [std.rounding] str WHERE (value IN ('ceiling', '05up', 'up', 'half-even', 'half-up', 'floor', 'down', 'half-down'));
 
 CREATE CONSTRAINT [std.constraint] {
-    SET errmessage = 'invalid {subject}'
-}
+    SET errmessage = 'invalid {subject}';
+};
 
 CREATE CONSTRAINT [std.max] INHERITING [std.constraint] {
-    SET errmessage = 'Maximum allowed value for {subject} is {param}.'
-    SET expr := ((subject <= $param))
-}
+    SET errmessage = 'Maximum allowed value for {subject} is {param}.';
+    SET expr := ((subject <= $param));
+};
 
 CREATE CONSTRAINT [std.enum] INHERITING [std.constraint] {
-    SET errmessage = '{subject} must be one of: {param}.'
-    SET expr := ((subject IN $param))
-}
+    SET errmessage = '{subject} must be one of: {param}.';
+    SET expr := ((subject IN $param));
+};
 
 CREATE CONSTRAINT [std.min] INHERITING [std.constraint] {
-    SET errmessage = 'Minimum allowed value for {subject} is {param}.'
-    SET expr := ((subject >= $param))
-}
+    SET errmessage = 'Minimum allowed value for {subject} is {param}.';
+    SET expr := ((subject >= $param));
+};
 
 CREATE CONSTRAINT [std.minexclusive] INHERITING [std.min] {
-    SET errmessage = '{subject} must be greater than {param}.'
-    SET expr := ((subject > $param))
-}
+    SET errmessage = '{subject} must be greater than {param}.';
+    SET expr := ((subject > $param));
+};
 
 CREATE CONSTRAINT [std.length] INHERITING [std.constraint] {
-    SET errmessage = 'invalid {subject}'
-    SET subjectexpr := (str::len(CAST(subject AS [std.str])))
-}
+    SET errmessage = 'invalid {subject}';
+    SET subjectexpr := (str::len(CAST(subject AS [std.str])));
+};
 
 CREATE CONSTRAINT [std.minlength] INHERITING ([std.min], [std.length]) {
-    SET errmessage = '{subject} must be no shorter than {param} characters.'
-    SET expr := ((subject >= $param))
-    SET subjectexpr := (str::len(CAST(subject AS [std.str])))
-}
+    SET errmessage = '{subject} must be no shorter than {param} characters.';
+    SET expr := ((subject >= $param));
+    SET subjectexpr := (str::len(CAST(subject AS [std.str])));
+};
 
 CREATE CONSTRAINT [std.regexp] INHERITING [std.constraint] {
-    SET errmessage = 'invalid {subject}'
-    SET expr := ((subject ~ $param))
-}
+    SET errmessage = 'invalid {subject}';
+    SET expr := ((subject ~ $param));
+};
 
 CREATE CONSTRAINT [std.maxlength] INHERITING ([std.max], [std.length]) {
-    SET errmessage = '{subject} must be no longer than {param} characters.'
-    SET expr := ((subject <= $param))
-    SET subjectexpr := (str::len(CAST(subject AS [std.str])))
-}
+    SET errmessage = '{subject} must be no longer than {param} characters.';
+    SET expr := ((subject <= $param));
+    SET subjectexpr := (str::len(CAST(subject AS [std.str])));
+};
 
 CREATE CONSTRAINT [std.maxexclusive] INHERITING [std.max] {
-    SET errmessage = '{subject} must be less than {param}.'
-    SET expr := ((subject < $param))
-}
+    SET errmessage = '{subject} must be less than {param}.';
+    SET expr := ((subject < $param));
+};
 
 CREATE CONSTRAINT [std.unique] INHERITING [std.constraint] {
-    SET errmessage = 'invalid {subject}'
-    SET expr := (not EXISTS (subject))
-}
+    SET errmessage = 'invalid {subject}';
+    SET expr := (not EXISTS (subject));
+};
 
-CREATE ATOM [std.bytes]
+CREATE ATOM [std.bytes];
 
-CREATE ATOM [std.datetime]
+CREATE ATOM [std.datetime];
 
-CREATE ATOM [std.decimal]
+CREATE ATOM [std.decimal];
 
-CREATE ATOM [std.uuid]
+CREATE ATOM [std.uuid];
 
-CREATE ATOM [std.str]
+CREATE ATOM [std.str];
 
-CREATE ATOM [std.timedelta]
+CREATE ATOM [std.timedelta];
 
-CREATE ATOM [std.date]
+CREATE ATOM [std.date];
 
-CREATE ATOM [std.time]
+CREATE ATOM [std.time];
 
-CREATE ABSTRACT ATOM [std.sequence]
+CREATE ABSTRACT ATOM [std.sequence];
 
-CREATE ATOM [std.int]
+CREATE ATOM [std.int];
 
-CREATE FINAL ATOM [std.none]
+CREATE FINAL ATOM [std.none];
 
-CREATE ATOM [std.float]
+CREATE ATOM [std.float];
 
-CREATE ATOM [std.bool]
+CREATE ATOM [std.bool];
 
 
-CREATE FUNCTION [std.current_datetime]() RETURNING [std.datetime]
+CREATE FUNCTION [std.current_datetime]() RETURNING [std.datetime];
 
-CREATE FUNCTION [std.uuid_generate_v1mc]() RETURNING [std.uuid]
+CREATE FUNCTION [std.uuid_generate_v1mc]() RETURNING [std.uuid];
 
 
 CREATE LINK PROPERTY [std.linkproperty] {
-    SET readonly = False
-    SET title = 'Base link property'
-}
+    SET readonly = False;
+    SET title = 'Base link property';
+};
 
 CREATE LINK PROPERTY [std.source] {
-    SET readonly = False
-    SET title = 'Link source'
-}
+    SET readonly = False;
+    SET title = 'Link source';
+};
 
 CREATE LINK PROPERTY [std.target] {
-    SET readonly = False
-    SET title = 'Link target'
-}
+    SET readonly = False;
+    SET title = 'Link target';
+};
 
 CREATE LINK PROPERTY [std.linkid] {
-    SET readonly = False
-    SET title = 'Base link property'
-}
+    SET readonly = False;
+    SET title = 'Base link property';
+};
 
 CREATE LINK [std.link] {
-    SET mapping = '11'
-    SET readonly = False
+    SET mapping = '11';
+    SET readonly = False;
     CREATE REQUIRED LINK PROPERTY [std.linkid] TO [std.uuid] {
-        SET default := (SELECT std::uuid_generate_v1mc())
-        SET loading = 'eager'
-        SET readonly = True
-        SET title = 'Base link property'
-    }
-    CREATE POLICY FOR [std.cascade_session_detach] TO [std.cascade_loaded]
-    CREATE POLICY FOR [std.cascade_serialize] TO [std.cascade_loaded]
-    CREATE POLICY FOR [std.source_deleted] TO [std.restrict]
-    CREATE POLICY FOR [std.self_deleted] TO [std.ignore]
-    CREATE POLICY FOR [std.cascade_session_attach] TO [std.cascade_loaded]
-    CREATE POLICY FOR [std.target_deleted] TO [std.restrict]
-    CREATE POLICY FOR [std.cascade_copy] TO [std.ignore]
-}
+        SET default := (SELECT std::uuid_generate_v1mc());
+        SET loading = 'eager';
+        SET readonly = True;
+        SET title = 'Base link property';
+    };
+    CREATE POLICY FOR [std.cascade_session_detach] TO [std.cascade_loaded];
+    CREATE POLICY FOR [std.cascade_serialize] TO [std.cascade_loaded];
+    CREATE POLICY FOR [std.source_deleted] TO [std.restrict];
+    CREATE POLICY FOR [std.self_deleted] TO [std.ignore];
+    CREATE POLICY FOR [std.cascade_session_attach] TO [std.cascade_loaded];
+    CREATE POLICY FOR [std.target_deleted] TO [std.restrict];
+    CREATE POLICY FOR [std.cascade_copy] TO [std.ignore];
+};
 
 CREATE LINK [std.ctime] INHERITING [std.link] {
-    SET mapping = '11'
-    SET readonly = False
-}
+    SET mapping = '11';
+    SET readonly = False;
+};
 
 CREATE LINK [std.mtime] INHERITING [std.link] {
-    SET mapping = '11'
-    SET readonly = False
-}
+    SET mapping = '11';
+    SET readonly = False;
+};
 
 CREATE LINK [std.id] INHERITING [std.link] {
-    SET mapping = '11'
-    SET readonly = False
-}
+    SET mapping = '11';
+    SET readonly = False;
+};
 
 CREATE CONCEPT [std.BaseObject] {
-    SET is_virtual = False
+    SET is_virtual = False;
     CREATE REQUIRED LINK [std.id] TO [std.uuid] {
-        SET default := (SELECT std::uuid_generate_v1mc())
-        SET mapping = '11'
-        SET readonly = True
-    }
-}
+        SET default := (SELECT std::uuid_generate_v1mc());
+        SET mapping = '11';
+        SET readonly = True;
+    };
+};
 
 CREATE CONCEPT [std.Object] INHERITING [std.BaseObject] {
-    SET is_virtual = False
+    SET is_virtual = False;
     CREATE LINK [std.ctime] TO [std.datetime] {
-        SET default := (SELECT std::current_datetime())
-        SET mapping = '11'
-        SET readonly = True
-    }
+        SET default := (SELECT std::current_datetime());
+        SET mapping = '11';
+        SET readonly = True;
+    };
     CREATE LINK [std.mtime] TO [std.datetime] {
-        SET default := (SELECT std::current_datetime())
-        SET mapping = '11'
-        SET readonly = True
-    }
-}
+        SET default := (SELECT std::current_datetime());
+        SET mapping = '11';
+        SET readonly = True;
+    };
+};

@@ -1,12 +1,10 @@
 ##
-# Copyright (c) 2008-2015 MagicStack Inc.
+# Copyright (c) 2008-2016 MagicStack Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
 ##
 
-
-from edgedb.lang.common import parsing
 
 from edgedb.lang.edgeql import ast as qlast
 

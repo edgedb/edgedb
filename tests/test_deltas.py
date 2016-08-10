@@ -18,20 +18,20 @@ class TestDeltas(tb.QueryTestCase):
         CREATE DELTA [test.d1] TO $$
             concept NamedObject:
                 required link name -> str
-        $$
+        $$;
 
-        COMMIT DELTA [test.d1]
+        COMMIT DELTA [test.d1];
 
         INSERT [test.NamedObject] [
             name := 'Test'
-        ]
+        ];
 
         SELECT
             [test.NamedObject][
                 name
             ]
         WHERE
-            [test.NamedObject].name = 'Test'
+            [test.NamedObject].name = 'Test';
 
         """) -> [
 

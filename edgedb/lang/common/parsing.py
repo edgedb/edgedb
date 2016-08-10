@@ -124,6 +124,8 @@ class ListNontermMeta(NontermMeta):
         if name != 'ListNonterm':
             if isinstance(separator, TokenMeta):
                 separator = separator._token
+            elif isinstance(separator, NontermMeta):
+                separator = separator.__name__
 
             tokens = [name]
             if separator:
@@ -136,8 +138,8 @@ class ListNontermMeta(NontermMeta):
 
             tokens.append(element)
 
-            prod = ListNonterm._reduce_list_separated if separator else \
-                        ListNonterm._reduce_list
+            prod = (ListNonterm._reduce_list_separated if separator else
+                    ListNonterm._reduce_list)
             dct['reduce_' + '_'.join(tokens)] = prod
             dct['reduce_' + element] = ListNonterm._reduce_el
 
