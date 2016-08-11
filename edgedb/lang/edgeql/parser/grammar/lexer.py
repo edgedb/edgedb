@@ -42,7 +42,7 @@ class EdgeQLLexer(lexer.Lexer):
     start_state = STATE_BASE
 
     NL = 'NL'
-    MULTILINE_TOKENS = frozenset(('COMMENT', 'SCONST'))
+    MULTILINE_TOKENS = frozenset(('SCONST',))
     RE_FLAGS = re.X | re.M | re.I
 
     # Basic keywords
@@ -62,10 +62,7 @@ class EdgeQLLexer(lexer.Lexer):
 
         Rule(token='COMMENT',
              next_state=STATE_KEEP,
-             regexp=r'''
-                    (?:/\*(?:.|\n)*?\*/)
-                    | (?:--.*?$)
-                '''),
+             regexp=r'''\#.*?$'''),
 
         Rule(token='COLONEQUALS',
              next_state=STATE_KEEP,

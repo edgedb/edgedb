@@ -15,6 +15,8 @@ from edgedb.server import _testbase as tb
 
 class TestDeltas(tb.QueryTestCase):
     async def test_delta_simple(self, input="""
+        # setup delta
+        #
         CREATE DELTA [test.d1] TO $$
             concept NamedObject:
                 required link name -> str
@@ -22,6 +24,8 @@ class TestDeltas(tb.QueryTestCase):
 
         COMMIT DELTA [test.d1];
 
+        # test updated schema
+        #
         INSERT [test.NamedObject] [
             name := 'Test'
         ];
