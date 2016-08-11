@@ -12,6 +12,12 @@ CREATE EXTENSION "uuid-ossp" WITH SCHEMA edgedb;
 CREATE DOMAIN known_record_marker_t AS text;
 
 
+CREATE TYPE type_t AS (
+    type integer,
+    collection text
+);
+
+
 CREATE AGGREGATE agg_product(double precision) (
     SFUNC = float8mul,
     STYPE = double precision,
@@ -99,7 +105,7 @@ INHERITS (inheritingobject);
 
 
 CREATE TABLE attribute (
-    type bytea NOT NULL,
+    type type_t NOT NULL,
 
     PRIMARY KEY (id)
 )

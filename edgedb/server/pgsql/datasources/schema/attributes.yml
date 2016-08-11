@@ -18,13 +18,15 @@ filters:
 
 source: |
     SELECT
-            a.id           AS id,
-            a.name         AS name,
-            a.title        AS title,
-            a.description  AS description,
-            a.type         AS type
+            a.id                    AS id,
+            a.name                  AS name,
+            a.title                 AS title,
+            a.description           AS description,
+            ta.name                 AS type,
+            (a.type).collection     AS type_coll
         FROM
             edgedb.attribute a
+            INNER JOIN edgedb.atom ta ON (a.type).type = ta.id
         WHERE
             %(name)s::text IS NULL OR a.name LIKE %(name)s::text
 ...

@@ -650,10 +650,10 @@ class Backend(s_deltarepo.DeltaProvider):
         if not self.schema.modules:
             await self._init_introspection_cache()
             await self.read_modules(self.schema)
+            await self.read_atoms(self.schema)
             await self.read_attributes(self.schema)
             await self.read_actions(self.schema)
             await self.read_events(self.schema)
-            await self.read_atoms(self.schema)
             await self.read_functions(self.schema)
             await self.read_concepts(self.schema)
             await self.read_links(self.schema)
@@ -1169,7 +1169,7 @@ class Backend(s_deltarepo.DeltaProvider):
             except KeyError:
                 pass
             else:
-                atom.bases = [schema.get(sn.Name(basename))]
+                atom.bases = [schema.get(sn.Name(basename[0]))]
 
         sequence = schema.get('std.sequence', None)
         for atom in schema('atom'):
@@ -1788,7 +1788,15 @@ class Backend(s_deltarepo.DeltaProvider):
             name = sn.Name(r['name'])
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']
-            type = pickle.loads(r['type'])
+            type = schema.get(r['type'])
+            coll = r['type_coll']
+            if coll == 'set':
+                type = s_obj.Set(element_type=type)
+            elif coll == 'list':
+                type = s_obj.List(element_type=type)
+            elif coll is not None:
+                raise ValueError('unexpected collection type: {!r}'.format(
+                    coll))
 
             attribute = s_attrs.Attribute(
                 name=name, title=title, description=description, type=type)

@@ -691,9 +691,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         def after_name():
             self.write(' ')
             self.visit(node.type)
-            if node.constraint is not None:
-                self.write(' WHERE ')
-                self.visit(node.constraint)
 
         self._visit_CreateObjectNode(node, 'ATTRIBUTE', after_name=after_name)
 

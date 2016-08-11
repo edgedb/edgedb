@@ -39,6 +39,7 @@ from edgedb.lang.common import datastructures
 from edgedb.lang.common.debug import debug
 from edgedb.lang.common.algos.persistent_hash import persistent_hash
 from edgedb.lang.common import markup
+from edgedb.lang.common.nlang import morphology
 from importkit.import_ import get_object
 
 from edgedb.server.pgsql import common
@@ -104,7 +105,7 @@ class NamedPrototypeMetaCommand(PrototypeMetaCommand, s_named.NamedPrototypeComm
         super().__init__(**kwargs)
         self._type_mech = schemamech.TypeMech()
 
-    def _serialize_field(self, value):
+    def _serialize_field(self, value, col):
         recvalue = None
 
         if isinstance(value, s_obj.PrototypeRef):
@@ -127,7 +128,7 @@ class NamedPrototypeMetaCommand(PrototypeMetaCommand, s_named.NamedPrototypeComm
         elif isinstance(value, s_obj.PrototypeDict):
             result = {}
 
-            for k, v in value:
+            for k, v in value.items():
                 if isinstance(v, s_obj.PrototypeRef):
                     v = v.prototype_name
                 elif isinstance(v, s_named.NamedPrototype):
@@ -140,6 +141,25 @@ class NamedPrototypeMetaCommand(PrototypeMetaCommand, s_named.NamedPrototypeComm
             result = value
             recvalue = json.dumps(value)
 
+        elif isinstance(value, s_obj.Collection):
+
+            if isinstance(value.element_type, s_obj.PrototypeRef):
+                eltype = value.element_type.prototype_name
+            elif isinstance(value.element_type, s_named.NamedPrototype):
+                eltype = value.element_type.name
+            else:
+                eltype = value.element_type
+
+            result = (eltype, value.schema_name)
+
+        elif isinstance(value, sn.SchemaName):
+            result = value
+            recvalue = str(value)
+
+        elif isinstance(value, morphology.WordCombination):
+            result = value
+            recvalue = value.as_dict()
+
         else:
             result = value
 
@@ -151,13 +171,22 @@ class NamedPrototypeMetaCommand(PrototypeMetaCommand, s_named.NamedPrototypeComm
                        WHERE name = any($1))''',
                     [names], type='integer[]')
 
+            elif (isinstance(names, tuple) or
+                    col is not None and col.type == 'edgedb.type_t'):
+                if not isinstance(names, tuple):
+                    names = (str(names), None)
+                recvalue = dbops.Query(
+                    '''(SELECT ROW(id, $2)::edgedb.type_t FROM edgedb.object
+                        WHERE name = $1)''',
+                    names, type='edgedb.type_t')
+
             elif isinstance(names, dict):
                 flattened = list(itertools.chain.from_iterable(names.items()))
 
                 keys = [f for f in flattened[0::2]]
                 names = [f for f in flattened[1::2]]
                 jbo_args = ('${:d}, q.ids[{:d}]'.format(i + 2, i + 1)
-                            for i in range(len(flattened) / 2))
+                            for i in range(int(len(flattened) / 2)))
 
                 recvalue = dbops.Query(
                     '''(SELECT
@@ -179,43 +208,31 @@ class NamedPrototypeMetaCommand(PrototypeMetaCommand, s_named.NamedPrototypeComm
                     '''(SELECT id FROM edgedb.object
                        WHERE name = $1)''',
                     [names], type='integer')
-        else:
+
+        elif recvalue is None:
             recvalue = result
 
         return result, recvalue
 
-    def fill_record(self, schema, rec=None, obj=None):
+    def fill_record(self, schema):
         updates = {}
 
-        myrec = self.table.record()
+        rec = None
+        table = self.table
 
-        if not obj:
-            fields = self.get_struct_properties(schema, include_old_value=True)
+        fields = self.get_struct_properties(schema, include_old_value=True)
 
-            for name, value in fields.items():
-                v0, _ = self._serialize_field(value[0])
-                v1, refqry = self._serialize_field(value[1])
+        for name, value in fields.items():
+            col = table.get_column(name)
 
-                updates[name] = (v0, v1)
-                if hasattr(myrec, name):
-                    if not rec:
-                        rec = self.table.record()
-                    setattr(rec, name, refqry)
-        else:
-            for field in obj.__class__._fields:
-                value = getattr(obj, field)
-                updates[field] = value
-                if hasattr(myrec, field):
-                    if not rec:
-                        rec = self.table.record()
-                    setattr(rec, field, value)
+            v0, _ = self._serialize_field(value[0], col)
+            v1, refqry = self._serialize_field(value[1], col)
 
-        if rec:
-            if rec.name:
-                rec.name = str(rec.name)
-
-            if getattr(rec, 'title', None):
-                rec.title = rec.title.as_dict()
+            updates[name] = (v0, v1)
+            if col is not None:
+                if rec is None:
+                    rec = table.record()
+                setattr(rec, name, refqry)
 
         return rec, updates
 
@@ -346,21 +363,12 @@ class DeleteFunction(FunctionCommand,
 class AttributeCommand:
     table = deltadbops.AttributeTable()
 
-    def fill_record(self, schema, rec=None, obj=None):
-        rec, updates = super().fill_record(schema, rec=rec, obj=obj)
-
-        if rec:
-            type = updates.get('type')
-            if type:
-                rec.type = pickle.dumps(type[1])
-
-        return rec, updates
-
 
 class CreateAttribute(AttributeCommand,
                       CreateNamedPrototype,
                       adapts=s_attrs.CreateAttribute):
-    pass
+    op_priority = 1
+
 
 
 class RenameAttribute(AttributeCommand,
@@ -385,8 +393,8 @@ class AttributeValueCommand(metaclass=CommandMeta):
     table = deltadbops.AttributeValueTable()
     op_priority = 1
 
-    def fill_record(self, schema, rec=None, obj=None):
-        rec, updates = super().fill_record(schema, rec=rec, obj=obj)
+    def fill_record(self, schema):
+        rec, updates = super().fill_record(schema)
 
         if rec:
             subj = updates.get('subject')
@@ -436,8 +444,8 @@ class ConstraintCommand(metaclass=CommandMeta):
     table = deltadbops.ConstraintTable()
     op_priority = 3
 
-    def fill_record(self, schema, rec=None, obj=None):
-        rec, updates = super().fill_record(schema, rec=rec, obj=obj)
+    def fill_record(self, schema):
+        rec, updates = super().fill_record(schema)
 
         if rec:
             subj = updates.get('subject')
@@ -571,8 +579,8 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
         seq = schema.get('std.sequence', default=None)
         return seq is not None and atom.issubclass(seq)
 
-    def fill_record(self, schema, rec=None, obj=None):
-        rec, updates = super().fill_record(schema, rec, obj)
+    def fill_record(self, schema):
+        rec, updates = super().fill_record(schema)
         default = updates.get('default')
         if default:
             if not rec:
@@ -1481,8 +1489,8 @@ class PolicyCommand(metaclass=CommandMeta):
     table = deltadbops.PolicyTable()
     op_priority = 2
 
-    def fill_record(self, schema, rec=None, obj=None):
-        rec, updates = super().fill_record(schema, rec=rec, obj=obj)
+    def fill_record(self, schema):
+        rec, updates = super().fill_record(schema)
 
         if rec:
             subj = updates.get('subject')

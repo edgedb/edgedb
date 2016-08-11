@@ -239,7 +239,7 @@ class DropEventNode(DropObjectNode):
 
 
 class CreateAttributeNode(CreateObjectNode):
-    __fields = ['type', 'constraint']
+    __fields = ['type']
 
 
 class DropAttributeNode(DropObjectNode):

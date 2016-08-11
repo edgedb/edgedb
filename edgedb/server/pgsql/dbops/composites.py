@@ -16,8 +16,11 @@ class Record(type):
         bases = (RecordBase,)
         return super(Record, mcls).__new__(mcls, name, bases, dct)
 
-    def __init__(mcls, name, fields, default):
+    def __init__(cls, name, fields, default):
         pass
+
+    def has_field(cls, name):
+        return name in cls._fields___
 
 
 class RecordBase:
@@ -30,7 +33,6 @@ class RecordBase:
 
         for k in set(self.__class__._fields___) - set(kwargs.keys()):
             setattr(self, k, self.__class__._default___)
-
 
     def __setattr__(self, name, value):
         if name not in self.__class__._fields___:

@@ -810,7 +810,7 @@ class AttributeTable(PrimarySchemaObjectTable):
         ])
 
         self.__columns = datastructures.OrderedSet([
-            dbops.Column(name='type', type='bytea', required=True)
+            dbops.Column(name='type', type='edgedb.type_t', required=True),
         ])
 
         self._columns = self.columns()

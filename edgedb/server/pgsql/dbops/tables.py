@@ -49,6 +49,12 @@ class Table(composites.CompositeDBObject):
         self.__columns.update(iterable)
         self._columns = self.columns()
 
+    def get_column(self, name):
+        cols = self.columns()
+        for col in cols:
+            if col.name == name:
+                return col
+
     def get_type(self):
         return 'TABLE'
 

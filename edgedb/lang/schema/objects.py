@@ -6,11 +6,9 @@
 ##
 
 
-import builtins
 import collections.abc
 import itertools
 import re
-import types
 
 from edgedb.lang.common.algos import persistent_hash as phash
 from edgedb.lang.common.algos import topological
@@ -667,11 +665,15 @@ class Collection(BasePrototype, ProtoNode):
 
 
 class Set(Collection):
+    schema_name = 'set'
+
     def get_container(self):
         return frozenset
 
 
 class List(Collection):
+    schema_name = 'list'
+
     def get_container(self):
         return tuple
 
@@ -758,109 +760,6 @@ class PrototypeSet(typed.TypedSet, type=BasePrototype):
 
 class PrototypeList(typed.TypedList, type=BasePrototype):
     pass
-
-
-class SchemaTypeConstraint(BasePrototype):
-    data = Field(object)
-
-
-class SchemaTypeConstraintSet(typed.TypedSet, type=SchemaTypeConstraint):
-    pass
-
-
-class SchemaTypeConstraintEnum(SchemaTypeConstraint):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.data = frozenset(self.data)
-
-    def check(self, value):
-        if value not in self.data:
-            msg = '{{name!r}} must be one of: {}'.format(', '.join(self.data))
-            raise ValueError(msg)
-
-    def __eq__(self, other):
-        if isinstance(other, SchemaTypeConstraintEnum):
-            return self.data == other.data
-        else:
-            return False
-
-    def __hash__(self):
-        return hash(self.hash_criteria())
-
-
-class SchemaType(BasePrototype):
-    _types = {'str', 'int', 'tuple'}
-    _containers = {'tuple'}
-
-    main_type = Field(str)
-    element_type = Field(str, None)
-    constraints = Field(SchemaTypeConstraintSet, None)
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-        if self.main_type not in self._types:
-            raise s_err.SchemaError(
-                    'invalid schema type: {!r}'.format(self.main_type))
-
-        if self.element_type is not None:
-            if self.main_type not in self._containers:
-                raise s_err.SchemaError(
-                    'invalid container type: {!r}'.format(self.main_type))
-
-            if self.element_type not in self._types:
-                raise s_err.SchemaError(
-                    'invalid schema type: {!r}'.format(self.element_type))
-
-        self._init()
-
-    def _init(self):
-        if self.element_type:
-            if self.main_type == 'tuple':
-                self._typ = tuple
-
-            self._elemtyp = getattr(builtins, self.element_type)
-        else:
-            self._typ = getattr(builtins, self.main_type)
-
-    def __eq__(self, other):
-        if isinstance(other, SchemaType):
-            return (self.main_type == other.main_type and
-                    self.element_type == other.element_type and
-                    self.constraints == other.constraints)
-        else:
-            return False
-
-    def __hash__(self):
-        return hash(self.hash_criteria())
-
-    def coerce(self, value):
-        if self.element_type is not None:
-            coll = []
-
-            for item in value:
-                coll.append(self._elemtyp(item))
-
-            vv = self._typ(coll)
-        else:
-            vv = self._typ(vv)
-
-        if self.constraints:
-            for constraint in self.constraints:
-                constraint.check(vv)
-
-        return vv
-
-    @property
-    def is_container(self):
-        return self.element_type is not None
-
-    def __getstate__(self):
-        return {k: getattr(self, k) for k in self}
-
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-        self._init()
 
 
 class TypeRef:

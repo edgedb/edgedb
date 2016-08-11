@@ -7,7 +7,6 @@
 
 
 from edgedb.lang.edgeql import ast as qlast
-from edgedb.lang.edgeql import astmatch as qlastmatch
 
 from . import delta as sd
 from . import derivable
@@ -30,33 +29,6 @@ class AttributeCommand:
         return Attribute
 
 
-class _EnumASTExpr:
-    def __init__(self):
-        self.pattern = None
-
-    def get_pattern(self):
-        if self.pattern is None:
-            binop = qlastmatch.BinOpNode(op=qlast.IN)
-            binop.left = qlastmatch.PathNode(
-                steps=[
-                    qlastmatch.PathStepNode(expr='value')
-                ]
-            )
-            binop.right = qlastmatch.group('enum', qlastmatch.SequenceNode())
-
-            self.pattern = binop
-
-        return self.pattern
-
-    def match(self, tree):
-        m = qlastmatch.match(self.get_pattern(), tree)
-        if m:
-            sequence = m.enum[0].node
-            return [el.value for el in sequence.elements]
-        else:
-            return None
-
-
 class CreateAttribute(named.CreateNamedPrototype, AttributeCommand):
     astnode = qlast.CreateAttributeNode
 
@@ -65,23 +37,21 @@ class CreateAttribute(named.CreateNamedPrototype, AttributeCommand):
         cmd = super()._cmd_tree_from_ast(astnode, context)
 
         if astnode.type.subtype:
-            eltype = astnode.type.subtype.maintype
+            if astnode.type.maintype == 'list':
+                coll = so.List
+            elif astnode.type.maintype == 'set':
+                coll = so.Set
+            else:
+                raise ValueError('unexpected collection type: {!r}'.format(
+                    astnode.type.maintype))
+
+            eltype = so.PrototypeRef(
+                prototype_name=sn.Name(astnode.type.subtype.maintype))
+
+            typ = coll(element_type=eltype)
         else:
-            eltype = None
-
-        typ = so.SchemaType(
-            main_type=astnode.type.maintype,
-            element_type=eltype
-        )
-
-        if astnode.constraint is not None:
-            pattern = _EnumASTExpr()
-            values = pattern.match(astnode.constraint)
-            if values is None:
-                raise ValueError('unexpected attribute constraint expression')
-
-            constr = so.SchemaTypeConstraintEnum(data=values)
-            typ.constraints = so.SchemaTypeConstraintSet((constr,))
+            typ = so.PrototypeRef(
+                prototype_name=sn.Name(astnode.type.maintype))
 
         cmd.add(
             sd.AlterPrototypeProperty(
@@ -95,41 +65,22 @@ class CreateAttribute(named.CreateNamedPrototype, AttributeCommand):
     def _apply_field_ast(self, context, node, op):
         if op.property == 'type':
             tp = op.new_value
-            tnn = qlast.TypeNameNode(maintype=tp.main_type)
-            if tp.element_type:
-                tnn.subtype = qlast.TypeNameNode(maintype=tp.element_type)
+            if isinstance(tp, so.Collection):
+                if isinstance(tp, so.List):
+                    maintype = 'list'
+                elif isinstance(tp, so.Set):
+                    maintype = 'set'
+                else:
+                    raise ValueError('unexpected collection type: {!r}'.format(
+                        tp))
+                tnn = qlast.TypeNameNode(
+                    maintype=maintype,
+                    subtype=qlast.TypeNameNode(maintype=tp.element_type))
+            else:
+                tnn = qlast.TypeNameNode(maintype=tp)
+
             node.type = tnn
 
-            is_enum = lambda c: c.__class__.__name__ == \
-                                    'SchemaTypeConstraintEnum'
-
-            if tp.constraints:
-                expr = None
-
-                for constraint in tp.constraints:
-                    if is_enum(constraint):
-                        l = qlast.PathNode(steps=[
-                            qlast.PathStepNode(expr='value')
-                        ])
-
-                        r = qlast.SequenceNode(elements=[
-                            qlast.ConstantNode(value=v)
-                            for v in constraint.data
-                        ])
-
-                        cexpr = qlast.BinOpNode(
-                                    left=l, op=qlast.IN, right=r)
-                    else:
-                        msg = 'unexpected schema type constraint: {!r}'
-                        raise ValueError(msg.format(constraint))
-
-                    if expr is None:
-                        expr = cexpr
-                    else:
-                        expr = qlast.BinOpNode(
-                                    left=expr, op=qlast.AND, right=cexpr)
-
-                node.constraint = expr
         else:
             super()._apply_field_ast(context, node, op)
 
@@ -184,7 +135,7 @@ class AttributeValueCommand(sd.PrototypeCommand):
 
         if '.' not in propname:
             return sd.AlterPrototypeProperty._cmd_tree_from_ast(
-                        astnode, context)
+                astnode, context)
         else:
             return super()._cmd_tree_from_ast(astnode, context)
 
@@ -206,7 +157,7 @@ class CreateAttributeValue(AttributeValueCommand, named.CreateNamedPrototype):
 
         if '.' not in propname:
             return sd.AlterPrototypeProperty._cmd_tree_from_ast(
-                        astnode, context)
+                astnode, context)
 
         cmd = super()._cmd_tree_from_ast(astnode, context)
         propname = AttributeValue.normalize_name(cmd.prototype_name)
@@ -259,14 +210,14 @@ class CreateAttributeValue(AttributeValueCommand, named.CreateNamedPrototype):
 
         with context(AttributeValueCommandContext(self, None)):
             name = AttributeValue.normalize_name(
-                        self.prototype_name)
+                self.prototype_name)
             attribute = attrsubj.proto.local_attributes.get(name)
             if attribute is None:
                 attribute = super().apply(schema, context)
                 self.add_attribute(attribute, attrsubj.proto, schema)
             else:
                 attribute = named.AlterNamedPrototype.apply(
-                                self, schema, context)
+                    self, schema, context)
 
             return attribute
 
@@ -282,12 +233,12 @@ class RenameAttributeValue(AttributeValueCommand, named.RenameNamedPrototype):
         norm = AttributeValue.normalize_name
 
         own = attrsubj.proto.local_attributes.pop(
-                norm(self.prototype_name), None)
+            norm(self.prototype_name), None)
         if own:
             attrsubj.proto.local_attributes[norm(self.new_name)] = own
 
         inherited = attrsubj.proto.attributes.pop(
-                        norm(self.prototype_name), None)
+            norm(self.prototype_name), None)
         if inherited is not None:
             attrsubj.proto.attributes[norm(self.new_name)] = inherited
 
@@ -338,7 +289,7 @@ class DeleteAttributeValue(AttributeValueCommand, named.DeleteNamedPrototype):
 class Attribute(primary.Prototype):
     _type = 'attribute'
 
-    type = so.Field(so.SchemaType, compcoef=0.909)
+    type = so.Field(so.ProtoNode, compcoef=0.909)
 
     delta_driver = sd.DeltaDriver(
         create=CreateAttribute,
@@ -364,9 +315,9 @@ class AttributeValue(derivable.DerivablePrototype):
 
     def __str__(self):
         return '<{}: {}={!r} at 0x{:x}>'.format(
-                    self.__class__.__name__,
-                    self.attribute.name if self.attribute else '<nil>',
-                    self.value, id(self))
+            self.__class__.__name__,
+            self.attribute.name if self.attribute else '<nil>',
+            self.value, id(self))
 
     __repr__ = __str__
 

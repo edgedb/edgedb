@@ -54,13 +54,7 @@ CREATE EVENT {std::cascade_copy} INHERITING {std::cascade_base};
 
 CREATE EVENT {std::target_deleted} INHERITING {std::deleted};
 
-CREATE ATTRIBUTE {std::pattern} str;
-
-CREATE ATTRIBUTE {std::precision} tuple<int>;
-
-CREATE ATTRIBUTE {std::rounding} str WHERE (value IN ('ceiling', '05up', 'up', 'half-even', 'half-up', 'floor', 'down', 'half-down'));
-
-CREATE CONSTRAINT {std::constraint} {
+CREATE CONSTRAINT {std.constraint} {
     SET errmessage = 'invalid {subject}';
 };
 
@@ -120,9 +114,7 @@ CREATE ATOM {std::bytes};
 
 CREATE ATOM {std::datetime};
 
-CREATE ATOM {std::decimal};
-
-CREATE ATOM {std::uuid};
+CREATE ATOM {std.uuid};
 
 CREATE ATOM {std::str};
 
@@ -132,9 +124,7 @@ CREATE ATOM {std::date};
 
 CREATE ATOM {std::time};
 
-CREATE ABSTRACT ATOM {std::sequence};
-
-CREATE ATOM {std::int};
+CREATE ATOM {std.int};
 
 CREATE FINAL ATOM {std::none};
 
@@ -142,6 +132,29 @@ CREATE ATOM {std::float};
 
 CREATE ATOM {std::bool};
 
+CREATE ATTRIBUTE {std.pattern} {std.str};
+
+CREATE ABSTRACT ATOM {std.sequence};
+
+CREATE ATTRIBUTE {std.precision} list<{std.int}>;
+
+CREATE ATOM {std.decimal_rounding_t} INHERITING {std.str} {
+    CREATE CONSTRAINT [std.enum] {
+        SET args = {'param': ('ceiling', '05up', 'up', 'half-even', 'half-up',
+                              'floor', 'down', 'half-down')};
+        SET errmessage = '{subject} must be one of: ceiling, 05up, up, half-even, half-up, floor, down, half-down';
+        SET expr := ((subject IN $param));
+        SET finalexpr := ((subject IN ('ceiling', '05up', 'up', 'half-even', 'half-up',
+                                       'floor', 'down', 'half-down')));
+        SET inferredparamtypes = {'param': typeref('set', 'std.decimal_rounding_t')};
+        SET localfinalexpr := ((subject IN ('ceiling', '05up', 'up', 'half-even', 'half-up',
+                                            'floor', 'down', 'half-down')));
+    };
+};
+
+CREATE ATTRIBUTE {std.rounding} {std.decimal_rounding_t};
+
+CREATE ATOM {std.decimal};
 
 CREATE FUNCTION {std::current_datetime}() RETURNING {std::datetime};
 

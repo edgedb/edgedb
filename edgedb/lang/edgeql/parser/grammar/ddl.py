@@ -692,6 +692,23 @@ class DropAtomStmt(Nonterm):
 #
 # CREATE ATTRIBUTE
 #
+class CreateAttributeStmt(Nonterm):
+    def reduce_CreateAttribute(self, *kids):
+        r"""%reduce OptAliasBlock \
+                    CREATE ATTRIBUTE NodeName TypeName \
+                    OptCreateCommandsBlock"""
+        self.val = qlast.CreateAttributeNode(
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
+            name=kids[3].val,
+            type=kids[4].val,
+            commands=kids[5].val,
+        )
+
+
+#
+# DROP ATTRIBUTE
+#
 class DropAttributeStmt(Nonterm):
     def reduce_DropAttribute(self, *kids):
         r"""%reduce OptAliasBlock \
@@ -702,32 +719,6 @@ class DropAttributeStmt(Nonterm):
             aliases=kids[0].val[1],
             name=kids[3].val,
         )
-
-
-#
-# DROP ATTRIBUTE
-#
-class CreateAttributeStmt(Nonterm):
-    def reduce_CreateAttribute(self, *kids):
-        r"""%reduce OptAliasBlock \
-                    CREATE ATTRIBUTE NodeName TypeName \
-                    OptAttributeConstraint OptCreateCommandsBlock"""
-        self.val = qlast.CreateAttributeNode(
-            namespaces=kids[0].val[0],
-            aliases=kids[0].val[1],
-            name=kids[3].val,
-            type=kids[4].val,
-            constraint=kids[5].val,
-            commands=kids[6].val,
-        )
-
-
-class OptAttributeConstraint(Nonterm):
-    def reduce_WHERE_Expr(self, *kids):
-        self.val = kids[1].val
-
-    def reduce_empty(self):
-        self.val = None
 
 
 #

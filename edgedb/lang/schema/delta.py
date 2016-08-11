@@ -413,13 +413,24 @@ class Command(datastructures.MixedStruct, metaclass=CommandMeta):
             value = op.new_value
             ftype = field.type[0]
 
-            if (isinstance(ftype, so.PrototypeClass)
-                    and isinstance(op.new_value, so.PrototypeRef)):
+            if isinstance(ftype, so.PrototypeClass):
 
-                value, ref = self._resolve_ref(
-                    value, schema, allow_unresolved_refs)
-                if value is None:
-                    unresolved[op.property] = ref
+                if isinstance(op.new_value, so.PrototypeRef):
+                    value, ref = self._resolve_ref(
+                        value, schema, allow_unresolved_refs)
+                    if value is None:
+                        unresolved[op.property] = ref
+
+                elif (isinstance(op.new_value, so.Collection)
+                        and isinstance(op.new_value.element_type,
+                                       so.PrototypeRef)):
+                    eltype, ref = self._resolve_ref(
+                        op.new_value.element_type, schema,
+                        allow_unresolved_refs)
+                    if eltype is None:
+                        unresolved[op.property] = ref
+                    else:
+                        op.new_value.element_type = eltype
 
             elif issubclass(ftype, typed.AbstractTypedMapping):
                 if issubclass(ftype.valuetype, so.ProtoObject):
