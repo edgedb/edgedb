@@ -131,9 +131,9 @@ class AttributeValueCommand(sd.PrototypeCommand):
     def _cmd_tree_from_ast(cls, astnode, context):
         propname = astnode.name.name
         if astnode.name.module:
-            propname = astnode.name.module + '.' + propname
+            propname = astnode.name.module + '::' + propname
 
-        if '.' not in propname:
+        if '::' not in propname:
             return sd.AlterPrototypeProperty._cmd_tree_from_ast(
                 astnode, context)
         else:
@@ -153,9 +153,9 @@ class CreateAttributeValue(AttributeValueCommand, named.CreateNamedPrototype):
     def _cmd_tree_from_ast(cls, astnode, context):
         propname = astnode.name.name
         if astnode.name.module:
-            propname = astnode.name.module + '.' + propname
+            propname = astnode.name.module + '::' + propname
 
-        if '.' not in propname:
+        if '::' not in propname:
             return sd.AlterPrototypeProperty._cmd_tree_from_ast(
                 astnode, context)
 

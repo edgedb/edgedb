@@ -352,7 +352,7 @@ class IRDecompiler:
                 # Skip transformed references to a multiatom link, as those are not actual
                 # property refs.
                 #
-                if expr.name != 'std.target' or expr.ref.source is None:
+                if expr.name != 'std::target' or expr.ref.source is None:
                     link = qlast.LinkNode(name=expr.name.name, namespace=expr.name.module,
                                           type='property')
                     link = qlast.LinkPropExprNode(expr=link)

@@ -95,7 +95,7 @@ class CreateLink(LinkCommand, named.CreateNamedPrototype):
 
     @classmethod
     def _protobases_from_ast(cls, astnode, context):
-        proto_name = '{}.{}'.format(astnode.name.module, astnode.name.name)
+        proto_name = '{}::{}'.format(astnode.name.module, astnode.name.name)
 
         if isinstance(astnode, qlast.CreateConcreteLinkNode):
             nname = Link.normalize_name(proto_name)
@@ -111,7 +111,7 @@ class CreateLink(LinkCommand, named.CreateNamedPrototype):
         else:
             bases = super()._protobases_from_ast(astnode, context)
             if not bases:
-                if proto_name != 'std.link':
+                if proto_name != 'std::link':
                     bases = so.PrototypeList([
                         so.PrototypeRef(
                             prototype_name=sn.Name(
@@ -225,7 +225,7 @@ class CreateLink(LinkCommand, named.CreateNamedPrototype):
                 )
             )
 
-            base_prop_name = sn.Name('std.source')
+            base_prop_name = sn.Name('std::source')
             s_name = lproperties.LinkProperty.generate_specialized_name(
                         cmd.prototype_name, base_prop_name)
             src_prop_name = sn.Name(name=s_name,
@@ -276,7 +276,7 @@ class CreateLink(LinkCommand, named.CreateNamedPrototype):
 
             cmd.add(src_prop)
 
-            base_prop_name = sn.Name('std.target')
+            base_prop_name = sn.Name('std::target')
             s_name = lproperties.LinkProperty.generate_specialized_name(
                         cmd.prototype_name, base_prop_name)
             tgt_prop_name = sn.Name(name=s_name,
@@ -375,8 +375,8 @@ class CreateLink(LinkCommand, named.CreateNamedPrototype):
 
         for op in self(lproperties.LinkPropertyCommand):
             name = op.prototype_class.normalize_name(op.prototype_name)
-            if name not in {'std.source',
-                            'std.target'}:
+            if name not in {'std::source',
+                            'std::target'}:
                 self._append_subcmd_ast(node, op, context)
 
         if not concept:
@@ -722,9 +722,9 @@ class Link(pointers.Pointer, sources.Source):
 
     @classmethod
     def get_special_pointers(cls):
-        return (sn.Name('std.linkid'),
-                sn.Name('std.source'),
-                sn.Name('std.target'))
+        return (sn.Name('std::linkid'),
+                sn.Name('std::source'),
+                sn.Name('std::target'))
 
     def get_exposed_behaviour(self):
         if self.exposed_behaviour is not None:
@@ -738,7 +738,7 @@ class Link(pointers.Pointer, sources.Source):
     def init_std_props(self, schema, *, mark_derived=False,
                        add_to_schema=False):
 
-        src_n = sn.Name('std.source')
+        src_n = sn.Name('std::source')
         if src_n not in self.pointers:
             source_pbase = schema.get(src_n)
             source_p = source_pbase.get_derived(
@@ -747,7 +747,7 @@ class Link(pointers.Pointer, sources.Source):
 
             self.add_pointer(source_p)
 
-        tgt_n = sn.Name('std.target')
+        tgt_n = sn.Name('std::target')
         if tgt_n not in self.pointers:
             target_pbase = schema.get(tgt_n)
             target_p = target_pbase.get_derived(
@@ -834,4 +834,4 @@ class Link(pointers.Pointer, sources.Source):
 
     @classmethod
     def get_default_base_name(self):
-        return 'std.link'
+        return 'std::link'

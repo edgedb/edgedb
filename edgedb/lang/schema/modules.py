@@ -174,7 +174,7 @@ class ProtoModule(named.NamedPrototype):
         else:
             prototype = None
 
-            fq_name = '{}.{}'.format(self.name, name)
+            fq_name = '{}::{}'.format(self.name, name)
             prototype = self.lookup_qname(fq_name)
 
             if type is not None and issubclass(type, so.ProtoObject):
@@ -189,7 +189,7 @@ class ProtoModule(named.NamedPrototype):
                              issubclass(default, Exception)))
 
             if raise_:
-                msg = 'reference to non-existent schema prototype: {}.{}'. \
+                msg = 'reference to non-existent schema prototype: {}::{}'. \
                         format(self.name, name)
                 if fail_cause is not None:
                     raise default(msg) from fail_cause

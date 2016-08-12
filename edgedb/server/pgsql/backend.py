@@ -382,9 +382,9 @@ class ErrorMech:
 
     @classmethod
     def _get_id_constraint(cls, proto_schema):
-        BObj = proto_schema.get('std.BaseObject')
-        BObj_id = BObj.pointers['std.id']
-        unique = proto_schema.get('std.unique')
+        BObj = proto_schema.get('std::BaseObject')
+        BObj_id = BObj.pointers['std::id']
+        unique = proto_schema.get('std::unique')
 
         name = s_constr.Constraint.generate_specialized_name(
                 BObj_id.name, unique.name)
@@ -472,9 +472,9 @@ class Backend(s_deltarepo.DeltaProvider):
     """, re.X)
 
     link_source_colname = common.quote_ident(
-                                common.edgedb_name_to_pg_name('std.source'))
+                                common.edgedb_name_to_pg_name('std::source'))
     link_target_colname = common.quote_ident(
-                                common.edgedb_name_to_pg_name('std.target'))
+                                common.edgedb_name_to_pg_name('std::target'))
 
     def __init__(self, connection):
         self.features = None
@@ -870,12 +870,12 @@ class Backend(s_deltarepo.DeltaProvider):
 
 
     def concept_name_from_id(self, id, session):
-        concept = sn.Name('std.BaseObject')
+        concept = sn.Name('std::BaseObject')
         query = '''SELECT c.name
                    FROM
                        %s AS e
                        INNER JOIN edgedb.concept AS c ON c.id = e.concept_id
-                   WHERE e."std.id" = $1
+                   WHERE e."std::id" = $1
                 ''' % (common.concept_name_to_table_name(concept))
         ps = session.get_prepared_statement(query)
         concept_name = ps.first(id)
@@ -908,7 +908,7 @@ class Backend(s_deltarepo.DeltaProvider):
                  if l in valid_link_names or getattr(l, 'direction', s_pointers.PointerDirection.Outbound)
                                              == s_pointers.PointerDirection.Inbound}
 
-        return session._merge(links['std.id'], concept_cls, links)
+        return session._merge(links['std::id'], concept_cls, links)
 
 
     def _rebuild_tree_from_list(self, session, items, connecting_attribute):
@@ -1171,7 +1171,7 @@ class Backend(s_deltarepo.DeltaProvider):
             else:
                 atom.bases = [schema.get(sn.Name(basename[0]))]
 
-        sequence = schema.get('std.sequence', None)
+        sequence = schema.get('std::sequence', None)
         for atom in schema('atom'):
             if sequence is not None and atom.issubclass(sequence):
                 seq_name = common.atom_name_to_sequence_name(
@@ -1238,8 +1238,8 @@ class Backend(s_deltarepo.DeltaProvider):
                 bases = (s_constr.Constraint.normalize_name(name),)
             elif r['bases']:
                 bases = tuple(sn.Name(b) for b in r['bases'])
-            elif name != 'std.constraint':
-                bases = (sn.Name('std.constraint'),)
+            elif name != 'std::constraint':
+                bases = (sn.Name('std::constraint'),)
 
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']
@@ -1549,8 +1549,8 @@ class Backend(s_deltarepo.DeltaProvider):
                 bases = (s_links.Link.normalize_name(name),)
             elif r['bases']:
                 bases = tuple(sn.Name(b) for b in r['bases'])
-            elif name != 'std.link':
-                bases = (sn.Name('std.link'),)
+            elif name != 'std::link':
+                bases = (sn.Name('std::link'),)
 
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']
@@ -1699,8 +1699,8 @@ class Backend(s_deltarepo.DeltaProvider):
                 bases = (s_lprops.LinkProperty.normalize_name(name),)
             elif r['bases']:
                 bases = tuple(sn.Name(b) for b in r['bases'])
-            elif name != 'std.linkproperty':
-                bases = (sn.Name('std.linkproperty'),)
+            elif name != 'std::linkproperty':
+                bases = (sn.Name('std::linkproperty'),)
 
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']
@@ -1727,17 +1727,17 @@ class Backend(s_deltarepo.DeltaProvider):
                 loading=loading,
                 default=default)
 
-            if source and bases[0] not in {'std.target',
-                                           'std.source'}:
+            if source and bases[0] not in {'std::target',
+                                           'std::source'}:
                 # The property is attached to a link, check out
                 # link table columns for target information.
                 target, required = \
                     await self.read_pointer_target_column(schema, prop, None)
             else:
                 if bases:
-                    if bases[0] == 'std.target' and source is not None:
+                    if bases[0] == 'std::target' and source is not None:
                         target = source.target
-                    elif bases[0] == 'std.source' and source is not None:
+                    elif bases[0] == 'std::source' and source is not None:
                         target = source.source
 
             prop.target = target
@@ -1850,8 +1850,8 @@ class Backend(s_deltarepo.DeltaProvider):
 
             if r['bases']:
                 bases = tuple(sn.Name(b) for b in r['bases'])
-            elif name != 'std.event':
-                bases = (sn.Name('std.event'),)
+            elif name != 'std::event':
+                bases = (sn.Name('std::event'),)
             else:
                 bases = tuple()
 

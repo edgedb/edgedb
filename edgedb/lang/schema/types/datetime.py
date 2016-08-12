@@ -22,7 +22,7 @@ from . import base as s_types
 _add_impl = s_types.BaseTypeMeta.add_implementation
 _add_map = s_types.BaseTypeMeta.add_mapping
 
-_add_map(DateTime, 'std.datetime')
+_add_map(DateTime, 'std::datetime')
 
 
 class DateTime(DateTime):
@@ -68,8 +68,8 @@ class DateTime(DateTime):
         else:
             return self.strftime('%Y-%m-%dT%H:%M:%S%z')
 
-_add_map(DateTime, 'std.datetime')
-_add_impl('std.datetime', DateTime)
+_add_map(DateTime, 'std::datetime')
+_add_impl('std::datetime', DateTime)
 
 
 class Date(Date):
@@ -83,11 +83,11 @@ class Date(Date):
         # ISO 8601 makes the most sense as a default representation
         return self.strftime('%Y-%m-%d')
 
-_add_impl('std.date', Date)
-_add_map(Date, 'std.date')
+_add_impl('std::date', Date)
+_add_map(Date, 'std::date')
 
 
-_add_map(Time, 'std.time')
+_add_map(Time, 'std::time')
 
 
 class Time(Time):
@@ -97,11 +97,11 @@ class Time(Time):
         except ValueError as e:
             raise edgedb_error.AtomValueError(e.args[0]) from e
 
-_add_impl('std.time', Time)
-_add_map(Time, 'std.time')
+_add_impl('std::time', Time)
+_add_map(Time, 'std::time')
 
 
-_add_map(TimeDelta, 'std.timedelta')
+_add_map(TimeDelta, 'std::timedelta')
 
 
 class TimeDelta(TimeDelta):
@@ -122,7 +122,7 @@ class TimeDelta(TimeDelta):
             raise edgedb_error.AtomValueError(e.args[0]) from e
 
     def __mm_edgeql__(self):
-        return 'cast ({} as [std.timedelta])'\
+        return 'cast ({} as [std::timedelta])'\
                     .format(edgeql_quote.quote_literal(str(self)))
 
     def persistent_hash(self):
@@ -171,11 +171,11 @@ class TimeDelta(TimeDelta):
 
         return format.format(**items)
 
-_add_map(TimeDelta, 'std.timedelta')
-_add_impl('std.timedelta', TimeDelta)
+_add_map(TimeDelta, 'std::timedelta')
+_add_impl('std::timedelta', TimeDelta)
 
-s_types.TypeRules.add_rule(ast.ops.ADD, (DateTime, DateTime), 'std.datetime')
-s_types.TypeRules.add_rule(ast.ops.ADD, (DateTime, Time), 'std.datetime')
-s_types.TypeRules.add_rule(ast.ops.ADD, (Time, DateTime), 'std.datetime')
+s_types.TypeRules.add_rule(ast.ops.ADD, (DateTime, DateTime), 'std::datetime')
+s_types.TypeRules.add_rule(ast.ops.ADD, (DateTime, Time), 'std::datetime')
+s_types.TypeRules.add_rule(ast.ops.ADD, (Time, DateTime), 'std::datetime')
 
-s_types.TypeRules.add_rule(ast.ops.SUB, (DateTime, DateTime), 'std.timedelta')
+s_types.TypeRules.add_rule(ast.ops.SUB, (DateTime, DateTime), 'std::timedelta')

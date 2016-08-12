@@ -392,7 +392,7 @@ class Constraint(primary.Prototype, derivable.DerivablePrototype):
 
         # Point subject placeholder to a dummy pointer to make EdgeQL
         # pipeline happy.
-        return atoms.Atom(name=sn.Name('std._subject_tgt'))
+        return atoms.Atom(name=sn.Name('std::_subject_tgt'))
 
     @classmethod
     def _normalize_constraint_expr(cls, schema, module_aliases, expr, subject,

@@ -243,7 +243,7 @@ def proto_name_from_type(typ):
     NoneType = type(None)
 
     if item_type is None or item_type is NoneType:
-        proto_name = 'std.none'
+        proto_name = 'std::none'
 
     elif isinstance(item_type, s_obj.ProtoNode):
         proto_name = item_type.name

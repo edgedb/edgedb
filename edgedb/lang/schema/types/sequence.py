@@ -35,5 +35,5 @@ class Sequence(str):
         raise NotImplementedError
 
 
-_add_impl('std.sequence', Sequence)
-_add_map(Sequence, 'std.sequence')
+_add_impl('std::sequence', Sequence)
+_add_map(Sequence, 'std::sequence')

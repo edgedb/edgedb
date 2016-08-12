@@ -45,7 +45,7 @@ class CreateLinkProperty(LinkPropertyCommand, named.CreateNamedPrototype):
 
     @classmethod
     def _protobases_from_ast(cls, astnode, context):
-        proto_name = '{}.{}'.format(astnode.name.module, astnode.name.name)
+        proto_name = '{}::{}'.format(astnode.name.module, astnode.name.name)
 
         if isinstance(astnode, qlast.CreateConcreteLinkPropertyNode):
             nname = LinkProperty.normalize_name(proto_name)
@@ -61,7 +61,7 @@ class CreateLinkProperty(LinkPropertyCommand, named.CreateNamedPrototype):
         else:
             bases = super()._protobases_from_ast(astnode, context)
             if not bases:
-                if proto_name != 'std.linkproperty':
+                if proto_name != 'std::linkproperty':
                     bases = so.PrototypeList([
                         so.PrototypeRef(
                             prototype_name=sn.Name(
@@ -317,10 +317,10 @@ class LinkProperty(pointers.Pointer):
 
         ptr = super().derive(schema, source, target, **kwargs)
 
-        if ptr.normal_name() == 'std.source':
+        if ptr.normal_name() == 'std::source':
             ptr.target = source.source
 
-        if ptr.normal_name() == 'std.target':
+        if ptr.normal_name() == 'std::target':
             ptr.target = source.target
 
         return ptr
@@ -366,4 +366,4 @@ class LinkProperty(pointers.Pointer):
 
     @classmethod
     def get_default_base_name(self):
-        return 'std.linkproperty'
+        return 'std::linkproperty'

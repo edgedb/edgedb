@@ -788,9 +788,9 @@ class AlterPrototypeProperty(Command):
     def _cmd_tree_from_ast(cls, astnode, context):
         propname = astnode.name.name
         if astnode.name.module:
-            propname = astnode.name.module + '.' + propname
+            propname = astnode.name.module + '::' + propname
 
-        assert '.' not in propname
+        assert '::' not in propname
 
         if isinstance(astnode, qlast.DropAttributeValueNode):
             parent_ctx = context.get(CommandContextToken)

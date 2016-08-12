@@ -400,23 +400,23 @@ class BasePointer(primary.Prototype, derivable.DerivablePrototype):
         return self.readonly and bool(self.default) and \
                 not self.is_id_pointer() and \
                 not self.normal_name() in {
-                    'std.ctime',
-                    'std.mtime',
+                    'std::ctime',
+                    'std::mtime',
                 }
 
     def is_id_pointer(self):
-        return self.normal_name() in {'std.linkid',
-                                      'std.id'}
+        return self.normal_name() in {'std::linkid',
+                                      'std::id'}
 
     def is_endpoint_pointer(self):
-        return self.normal_name() in {'std.source',
-                                      'std.target'}
+        return self.normal_name() in {'std::source',
+                                      'std::target'}
 
     def is_special_pointer(self):
-        return self.normal_name() in {'std.source',
-                                      'std.target',
-                                      'std.linkid',
-                                      'std.id'}
+        return self.normal_name() in {'std::source',
+                                      'std::target',
+                                      'std::linkid',
+                                      'std::id'}
 
 
 class Pointer(BasePointer, constraints.ConsistencySubject,

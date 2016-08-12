@@ -26,16 +26,16 @@ class Int(int):
             raise edgedb_error.AtomValueError('value is out of Int range')
         return value
 
-_add_impl('std.int', Int)
-_add_map(Int, 'std.int')
-_add_map(int, 'std.int')
+_add_impl('std::int', Int)
+_add_map(Int, 'std::int')
+_add_map(int, 'std::int')
 
 
 class IntTypeInfo(s_types.TypeInfo, type=Int):
-    def intop(self, other: int) -> 'std.int':
+    def intop(self, other: int) -> 'std::int':
         pass
 
-    def float_result(self, other: int) -> 'std.float':
+    def float_result(self, other: int) -> 'std::float':
         pass
 
     __add__ = intop

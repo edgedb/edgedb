@@ -1024,8 +1024,8 @@ class EntityModStatType(dbops.CompositeType):
         super().__init__(name=('edgedb', 'entity_modstat_rec_t'))
 
         self.__columns = datastructures.OrderedSet([
-            dbops.Column(name='std.id', type='uuid'),
-            dbops.Column(name='std.mtime', type='timestamptz'),
+            dbops.Column(name='std::id', type='uuid'),
+            dbops.Column(name='std::mtime', type='timestamptz'),
         ])
 
         self._columns = self.columns()

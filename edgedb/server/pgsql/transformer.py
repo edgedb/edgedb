@@ -278,7 +278,7 @@ class Decompiler(ast.visitor.NodeVisitor):
 
                         if ptr_info.table_type == 'concept':
                             # Singular pointer promoted into source table
-                            name = sn.Name('std.target')
+                            name = sn.Name('std::target')
                         else:
                             name = context.current.attmap[expr.field][0]
 
@@ -323,7 +323,7 @@ class IRCompilerBase:
             # Virtual concepts are represented as a UNION of selects from their children,
             # which is, for most purposes, equivalent to SELECTing from a parent table.
             #
-            idptr = sn.Name('std.id')
+            idptr = sn.Name('std::id')
             idcol = common.edgedb_name_to_pg_name(idptr)
             atomrefs = {idptr: irast.AtomicRefSimple(ref=node, name=idptr)}
             atomrefs.update({f.name: f for f in node.atomrefs})
@@ -535,13 +535,13 @@ class IRCompilerBase:
 
         link_proto = link_node.link_proto
         if link_proto is None:
-            link_proto = context.current.proto_schema.get('std.link')
+            link_proto = context.current.proto_schema.get('std::link')
 
         for ptr in link_proto.get_special_pointers():
             proprefs[ptr] = irast.LinkPropRefSimple(ref=link_node, name=ptr)
 
         if not link_proto.generic() and link_proto.atomic():
-            atom_target = sn.Name("std.target@atom")
+            atom_target = sn.Name("std::target@atom")
             proprefs[atom_target] = irast.LinkPropRefSimple(ref=link_node, name=atom_target)
 
         proprefs.update({f.name: f for f in link_node.proprefs})
@@ -914,7 +914,7 @@ class IRCompilerBase:
 
                 if isinstance(arg_type, s_atoms.Atom):
                     b = arg_type.get_topmost_base()
-                    is_string = b.name == 'std.str'
+                    is_string = b.name == 'std::str'
 
                 one = pgsql.ast.ConstantNode(value=1)
                 index = pgsql.ast.BinOpNode(left=args[1], op=ast.ops.ADD, right=one)
@@ -938,7 +938,7 @@ class IRCompilerBase:
 
                 if isinstance(arg_type, s_atoms.Atom):
                     b = arg_type.get_topmost_base()
-                    is_string = b.name == 'std.str'
+                    is_string = b.name == 'std::str'
 
                 if is_string:
                     upper_bound = pgsql.ast.FunctionCallNode(name='char_length',
@@ -1188,7 +1188,7 @@ class IRCompilerBase:
             expr_type = None
 
         schema = context.current.proto_schema
-        int_proto = schema.get('std.int')
+        int_proto = schema.get('std::int')
 
         pg_expr = self._process_expr(context, expr.expr, cte)
 
@@ -1484,13 +1484,13 @@ class IRCompiler(IRCompilerBase):
                 ref_map = {prop.ref.link_proto: query.fromexpr}
                 context.current.link_node_map[prop.ref] = {'local_ref_map': ref_map}
 
-                sprop_name = common.edgedb_name_to_pg_name('std.source')
+                sprop_name = common.edgedb_name_to_pg_name('std::source')
                 sref = pgsql.ast.FieldRefNode(table=query.fromexpr,
                                               field=sprop_name,
                                               origin=query.fromexpr,
                                               origin_field=sprop_name)
 
-                idprop_name = common.edgedb_name_to_pg_name('std.linkid')
+                idprop_name = common.edgedb_name_to_pg_name('std::linkid')
                 idref = pgsql.ast.FieldRefNode(table=query.fromexpr,
                                               field=idprop_name,
                                               origin=query.fromexpr,
@@ -1512,9 +1512,9 @@ class IRCompiler(IRCompilerBase):
                 context.current.ctemap[query] = {graph.optarget.ref: query}
 
                 filter = pgsql.ast.FieldRefNode(table=query.fromexpr,
-                                                field='std.id',
+                                                field='std::id',
                                                 origin=query.fromexpr,
-                                                origin_field='std.id')
+                                                origin_field='std::id')
 
                 sref = idref = filter
 
@@ -1526,9 +1526,9 @@ class IRCompiler(IRCompilerBase):
                 context.current.ctemap[query] = {graph.optarget: query}
 
                 filter = pgsql.ast.FieldRefNode(table=query.fromexpr,
-                                                field='std.id',
+                                                field='std::id',
                                                 origin=query.fromexpr,
-                                                origin_field='std.id')
+                                                origin_field='std::id')
 
             query.where = pgsql.ast.BinOpNode(left=filter, op='IN', right=context.current.query)
 
@@ -1913,7 +1913,7 @@ class IRCompiler(IRCompilerBase):
             pspec = typ.pathspec
 
         props = [p.ptr_proto.normal_name() for p in pspec]
-        tgt_col = props.index('std.target')
+        tgt_col = props.index('std::target')
 
         upd_props = [p.ptr_proto.normal_name() for p in pspec
                      if not p.ptr_proto.is_special_pointer()]
@@ -1984,13 +1984,13 @@ class IRCompiler(IRCompilerBase):
             # Target-only update
             #
             data = updval
-            props = ['std.target']
+            props = ['std::target']
 
         e = pgsql.common.edgedb_name_to_pg_name
 
         spec_cols = {e(prop): i for i, prop in enumerate(props)}
 
-        if (props == ['std.target'] and
+        if (props == ['std::target'] and
                 props_only and not target_is_atom):
             # No property upates and the target value is stored
             # in the source table, so we don't need to modify
@@ -2022,14 +2022,14 @@ class IRCompiler(IRCompilerBase):
         row = pgsql.ast.SequenceNode()
 
         for col in tab_cols:
-            if (col == 'std.target' and
+            if (col == 'std::target' and
                     (props_only or target_is_atom)):
                 expr = pgsql.ast.TypeCastNode(
                         expr=pgsql.ast.ConstantNode(value=None),
                         type=pgsql.ast.TypeNode(name='uuid'))
             else:
-                if col == 'std.target@atom':
-                    col = 'std.target'
+                if col == 'std::target@atom':
+                    col = 'std::target'
 
                 data_idx = spec_cols.get(col)
                 if data_idx is None:
@@ -2148,10 +2148,10 @@ class IRCompiler(IRCompilerBase):
                         field='id'
                     )
                 ),
-            'std.source':
+            'std::source':
                 pgsql.ast.FieldRefNode(
                     table=scope_cte,
-                    field='std.id'
+                    field='std::id'
                 )
         }
 
@@ -2160,19 +2160,19 @@ class IRCompiler(IRCompilerBase):
             delcte = pgsql.ast.DeleteQueryNode(
                 fromexpr=target_tab,
                 where=pgsql.ast.BinOpNode(
-                    left=col_data['std.source'],
+                    left=col_data['std::source'],
                     op=ast.ops.EQ,
                     right=pgsql.ast.FieldRefNode(
                         table=target_tab,
-                        field='std.source'
+                        field='std::source'
                     )
                 ),
                 alias=context.current.genalias(hint='d'),
                 using=[scope_cte],
                 targets=[
                     pgsql.ast.SelectExprNode(
-                        expr=col_data['std.source'],
-                        alias='std.id'
+                        expr=col_data['std::source'],
+                        alias='std::id'
                     )
                 ]
             )
@@ -2204,8 +2204,8 @@ class IRCompiler(IRCompilerBase):
                     targets=[
                         pgsql.ast.SelectExprNode(
                             expr=pgsql.ast.FieldRefNode(
-                                field='std.source'),
-                            alias='std.id'
+                                field='std::source'),
+                            alias='std::id'
                         )
                     ])
 
@@ -2213,13 +2213,13 @@ class IRCompiler(IRCompilerBase):
                 data.alias = context.current.genalias(hint='q')
                 updcte.where = pgsql.ast.BinOpNode(
                     left=pgsql.ast.FieldRefNode(
-                            field='std.linkid'),
+                            field='std::linkid'),
                     op=ast.ops.IN,
                     right=pgsql.ast.SelectQueryNode(
                         targets=[
                             pgsql.ast.SelectExprNode(
                                 expr=pgsql.ast.FieldRefNode(
-                                    field='std.linkid'
+                                    field='std::linkid'
                                 )
                             )
                         ],
@@ -2234,8 +2234,8 @@ class IRCompiler(IRCompilerBase):
                     targets=[
                         pgsql.ast.SelectExprNode(
                             expr=pgsql.ast.FieldRefNode(
-                                field='std.source'),
-                            alias='std.id'
+                                field='std::source'),
+                            alias='std::id'
                         )
                     ])
 
@@ -2253,7 +2253,7 @@ class IRCompiler(IRCompilerBase):
                 updcte.on_conflict = pgsql.ast.OnConflictNode(
                     action='update',
                     infer=[pgsql.ast.FieldRefNode(
-                            field='std.linkid')],
+                            field='std::linkid')],
                     targets=[update_clause]
                 )
 
@@ -2287,7 +2287,7 @@ class IRCompiler(IRCompilerBase):
         return wrapper
 
     def _generate_recursive_query(self, context, query, recurse_link, recurse_depth):
-        idptr = sn.Name('std.id')
+        idptr = sn.Name('std::id')
 
         child_end = recurse_link.source
         parent_end = recurse_link.target
@@ -2510,7 +2510,7 @@ class IRCompiler(IRCompilerBase):
     def _pull_outerbonds(self, context, outer_ref, target_rel):
         pulled_bonds = []
 
-        oref = context.current.concept_node_map[outer_ref]['std.id']
+        oref = context.current.concept_node_map[outer_ref]['std::id']
         target_rel.targets.append(oref)
 
         refexpr = pgsql.ast.FieldRefNode(table=target_rel, field=oref.alias,
@@ -2554,7 +2554,7 @@ class IRCompiler(IRCompilerBase):
             else:
                 raise ValueError('invalid inner reference in subquery bond')
 
-        idcol = 'std.id'
+        idcol = 'std::id'
 
         if ((context_l.direct_subquery_ref or inline) and context_l.location == 'nodefilter'):
             outer_ref = context_l.concept_node_map[outer_ref]
@@ -2643,7 +2643,7 @@ class IRCompiler(IRCompilerBase):
                 if subquery.outerbonds:
                     for outer_ref, inner_ref in subquery.outerbonds:
                         outer_ref = context.current.concept_node_map[outer_ref]
-                        outer_ref = outer_ref['std.id']
+                        outer_ref = outer_ref['std::id']
 
                         subquery.targets.append(inner_ref)
                         if subquery.aggregates:
@@ -2754,7 +2754,7 @@ class IRCompiler(IRCompilerBase):
                 expr = None
 
         if isinstance(expr, irast.EntitySet):
-            return expr.concept.name == 'std.BaseObject'
+            return expr.concept.name == 'std::BaseObject'
 
         return False
 
@@ -3127,7 +3127,7 @@ class IRCompiler(IRCompilerBase):
                                         expr.left, context.current.proto_schema)
                         if isinstance(left_type, s_obj.ProtoNode):
                             if isinstance(left_type, s_concepts.Concept):
-                                left_type = left_type.pointers['std.id'].target
+                                left_type = left_type.pointers['std::id'].target
                             left_type = types.pg_type_from_atom(context.current.proto_schema,
                                                                 left_type, topbase=True)
                             right.type = left_type + '[]'
@@ -3184,7 +3184,7 @@ class IRCompiler(IRCompilerBase):
                         if left_type and right_type:
                             if isinstance(left_type, s_obj.ProtoNode):
                                 if isinstance(left_type, s_concepts.Concept):
-                                    left_type = left_type.pointers['std.id'].target
+                                    left_type = left_type.pointers['std::id'].target
                                 left_type = types.pg_type_from_atom(context.current.proto_schema,
                                                                     left_type, topbase=True)
                             elif not isinstance(left_type, s_obj.ProtoObject) and \
@@ -3194,7 +3194,7 @@ class IRCompiler(IRCompilerBase):
 
                             if isinstance(right_type, s_obj.ProtoNode):
                                 if isinstance(right_type, s_concepts.Concept):
-                                    right_type = right_type.pointers['std.id'].target
+                                    right_type = right_type.pointers['std::id'].target
                                 right_type = types.pg_type_from_atom(context.current.proto_schema,
                                                                     right_type, topbase=True)
                             elif not isinstance(right_type, s_obj.ProtoObject) and \
@@ -3338,9 +3338,9 @@ class IRCompiler(IRCompilerBase):
 
             schema = context.current.proto_schema
 
-            if expr.name == 'std.target':
-                localizable = schema.get('std.localizable', default=None)
-                str_t = schema.get('std.str')
+            if expr.name == 'std::target':
+                localizable = schema.get('std::localizable', default=None)
+                str_t = schema.get('std::str')
 
                 link_proto = expr.ptr_proto.source
 
@@ -3446,7 +3446,7 @@ class IRCompiler(IRCompilerBase):
                 else:
                     mapslot[field] = fieldref
 
-                if field == 'std.id':
+                if field == 'std::id':
                     bondref = pgsql.ast.FieldRefNode(table=target_rel, field=ref.alias,
                                                      origin=ref.expr.origin,
                                                      origin_field=ref.expr.origin_field)
@@ -3508,7 +3508,7 @@ class IRCompiler(IRCompilerBase):
 
         fromnode = step_cte.fromlist[0] if step_cte.fromlist else pgsql.ast.FromExprNode()
 
-        id_field = common.edgedb_name_to_pg_name('std.id')
+        id_field = common.edgedb_name_to_pg_name('std::id')
 
         if edgedb_path_tip and isinstance(edgedb_path_tip.concept, s_concepts.Concept):
             concept_table = self._relation_from_concepts(context, edgedb_path_tip, step_cte)
@@ -3553,11 +3553,11 @@ class IRCompiler(IRCompilerBase):
 
             # Set up references according to link direction
             #
-            src_col = common.edgedb_name_to_pg_name('std.source')
+            src_col = common.edgedb_name_to_pg_name('std::source')
             source_ref = pgsql.ast.FieldRefNode(table=map_rel, field=src_col,
                                                 origin=map_rel, origin_field=src_col)
 
-            tgt_col = common.edgedb_name_to_pg_name('std.target')
+            tgt_col = common.edgedb_name_to_pg_name('std::target')
             target_ref = pgsql.ast.FieldRefNode(table=map_rel, field=tgt_col,
                                                 origin=map_rel, origin_field=tgt_col)
 
@@ -3646,7 +3646,7 @@ class IRCompiler(IRCompilerBase):
         if edgedb_path_tip and isinstance(edgedb_path_tip.concept, s_concepts.Concept):
             # Process references to atoms.
             #
-            atomrefs = {'std.id'} | {f.name for f in edgedb_path_tip.atomrefs}
+            atomrefs = {'std::id'} | {f.name for f in edgedb_path_tip.atomrefs}
 
             context.current.concept_node_map.setdefault(edgedb_path_tip, {})
             step_cte.concept_node_map.setdefault(edgedb_path_tip, {})
@@ -3858,7 +3858,7 @@ class IRCompiler(IRCompilerBase):
             outer_ref = edgedb_path_tip.reference
 
             inner_ref = context.current.concept_node_map[edgedb_path_tip]
-            inner_ref = inner_ref['std.id']
+            inner_ref = inner_ref['std::id']
 
             context.current.query.outerbonds.append((outer_ref, inner_ref))
 
@@ -3871,7 +3871,7 @@ class IRCompiler(IRCompilerBase):
             has_bonds = step_cte.bonds(edgedb_path_tip.id)
             if not has_bonds:
                 bond = pgsql.ast.FieldRefNode(table=step_cte,
-                                              field=aliases['std.id'])
+                                              field=aliases['std::id'])
                 step_cte.addbond(edgedb_path_tip.id, bond)
 
         return step_cte
@@ -3891,7 +3891,7 @@ class IRCompiler(IRCompilerBase):
 
         concept_table = self._relation_from_concepts(context, edgedb_path_tip, sql_path_tip)
 
-        field_name = 'std.id'
+        field_name = 'std::id'
         innerref = pgsql.ast.FieldRefNode(table=concept_table, field=field_name,
                                           origin=concept_table, origin_field=field_name)
         outerref = self.get_cte_fieldref_for_set(context, edgedb_path_tip, field_name,

@@ -28,9 +28,9 @@ class Prototype(referencing.ReferencingPrototype):
         from . import lproperties as lprops
 
         if name == 'id':
-            atom_name = 'std.int'
+            atom_name = 'std::int'
         else:
-            atom_name = 'std.str'
+            atom_name = 'std::str'
 
         target = schema.get(atom_name)
 

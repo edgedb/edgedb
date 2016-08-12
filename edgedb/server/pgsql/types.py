@@ -17,42 +17,42 @@ from . import common
 
 
 base_type_name_map = {
-    sn.Name('std.str'): 'text',
-    sn.Name('std.int'): 'bigint',
-    sn.Name('std.sequence'): 'text',
-    sn.Name('std.none'): 'text',
-    sn.Name('std.decimal'): 'numeric',
-    sn.Name('std.bool'): 'boolean',
-    sn.Name('std.float'): 'double precision',
-    sn.Name('std.uuid'): 'uuid',
-    sn.Name('std.datetime'): 'timestamp with time zone',
-    sn.Name('std.date'): 'date',
-    sn.Name('std.time'): 'time without time zone',
-    sn.Name('std.timedelta'): 'interval',
-    sn.Name('std.bytes'): 'bytea',
+    sn.Name('std::str'): 'text',
+    sn.Name('std::int'): 'bigint',
+    sn.Name('std::sequence'): 'text',
+    sn.Name('std::none'): 'text',
+    sn.Name('std::decimal'): 'numeric',
+    sn.Name('std::bool'): 'boolean',
+    sn.Name('std::float'): 'double precision',
+    sn.Name('std::uuid'): 'uuid',
+    sn.Name('std::datetime'): 'timestamp with time zone',
+    sn.Name('std::date'): 'date',
+    sn.Name('std::time'): 'time without time zone',
+    sn.Name('std::timedelta'): 'interval',
+    sn.Name('std::bytes'): 'bytea',
 }
 
 base_type_name_map_r = {
-    'character varying': sn.Name('std.str'),
-    'character': sn.Name('std.str'),
-    'text': sn.Name('std.str'),
-    'numeric': sn.Name('std.decimal'),
-    'integer': sn.Name('std.int'),
-    'bigint': sn.Name('std.int'),
-    'int8': sn.Name('std.int'),
-    'smallint': sn.Name('std.int'),
-    'boolean': sn.Name('std.bool'),
-    'bool': sn.Name('std.bool'),
-    'double precision': sn.Name('std.float'),
-    'float8': sn.Name('std.float'),
-    'uuid': sn.Name('std.uuid'),
-    'timestamp with time zone': sn.Name('std.datetime'),
-    'timestamptz': sn.Name('std.datetime'),
-    'date': sn.Name('std.date'),
-    'time without time zone': sn.Name('std.time'),
-    'time': sn.Name('std.time'),
-    'interval': sn.Name('std.timedelta'),
-    'bytea': sn.Name('std.bytes'),
+    'character varying': sn.Name('std::str'),
+    'character': sn.Name('std::str'),
+    'text': sn.Name('std::str'),
+    'numeric': sn.Name('std::decimal'),
+    'integer': sn.Name('std::int'),
+    'bigint': sn.Name('std::int'),
+    'int8': sn.Name('std::int'),
+    'smallint': sn.Name('std::int'),
+    'boolean': sn.Name('std::bool'),
+    'bool': sn.Name('std::bool'),
+    'double precision': sn.Name('std::float'),
+    'float8': sn.Name('std::float'),
+    'uuid': sn.Name('std::uuid'),
+    'timestamp with time zone': sn.Name('std::datetime'),
+    'timestamptz': sn.Name('std::datetime'),
+    'date': sn.Name('std::date'),
+    'time without time zone': sn.Name('std::time'),
+    'time': sn.Name('std::time'),
+    'interval': sn.Name('std::timedelta'),
+    'bytea': sn.Name('std::bytes'),
 }
 
 
@@ -116,7 +116,7 @@ class PointerStorageInfo:
     @classmethod
     def _pointer_table_info(cls, pointer):
         table = common.get_table_name(pointer, catenate=False)
-        col_name = 'std.target'
+        col_name = 'std::target'
 
         if pointer.atomic():
             col_name += '@atom'
@@ -162,7 +162,7 @@ class PointerStorageInfo:
         if source is None:
             source = pointer.source
 
-        if is_prop and pointer.normal_name() == 'std.target':
+        if is_prop and pointer.normal_name() == 'std::target':
             # Normalize link@target to link
             pointer = source
             is_prop = False

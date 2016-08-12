@@ -92,29 +92,21 @@ class TestInsert(tb.QueryTestCase):
         [],
 
         [{
-            'std.id': uuid.UUID,
-            'std.ctime': datetime.DateTime,
-            'std.mtime': datetime.DateTime,
-            'test.l2': 0,
-            'test.l3': 'test',
+            'id': uuid.UUID,
+            'l2': 0,
+            'l3': 'test',
         }, {
-            'std.id': uuid.UUID,
-            'std.ctime': datetime.DateTime,
-            'std.mtime': datetime.DateTime,
-            'test.l2': 1,
-            'test.l3': 'Test"1"',
+            'id': uuid.UUID,
+            'l2': 1,
+            'l3': 'Test"1"',
         }, {
-            'std.id': uuid.UUID,
-            'std.ctime': datetime.DateTime,
-            'std.mtime': datetime.DateTime,
-            'test.l2': 2,
-            'test.l3': "Test'2'",
+            'id': uuid.UUID,
+            'l2': 2,
+            'l3': "Test'2'",
         }, {
-            'std.id': uuid.UUID,
-            'std.ctime': datetime.DateTime,
-            'std.mtime': datetime.DateTime,
-            'test.l2': 3,
-            'test.l3': '''"Test'3'"''',
+            'id': uuid.UUID,
+            'l2': 3,
+            'l3': '''"Test'3'"''',
         }]
     ]:
         pass

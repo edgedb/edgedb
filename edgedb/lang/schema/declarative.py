@@ -483,7 +483,7 @@ class DeclarationLoader:
                     # This is a computable, but we cannot interpret
                     # the expression yet, so set the target to none
                     # temporarily.
-                    _tnames = ['std.none']
+                    _tnames = ['std::none']
 
                 elif isinstance(linkdecl.target, list):
                     _tnames = [self._get_ref_name(t) for t in
@@ -570,7 +570,7 @@ class DeclarationLoader:
             ptr.target = first
 
             if isinstance(ptr, s_links.Link):
-                pname = s_name.Name('std.target')
+                pname = s_name.Name('std::target')
                 tgt_prop = ptr.pointers[pname]
                 tgt_prop.target = first
 

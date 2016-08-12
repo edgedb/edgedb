@@ -61,7 +61,7 @@ def infer_arg_types(ir, schema):
             continue
 
         if isinstance(binop.op, irast.EdgeDBMatchOperator):
-            typ = schema.get('std.str')
+            typ = schema.get('std::str')
 
         elif isinstance(binop.op, (ast.ops.ComparisonOperator,
                                    ast.ops.ArithmeticOperator)):
@@ -74,7 +74,7 @@ def infer_arg_types(ir, schema):
             typ = s_obj.Set(element_type=elem_type)
 
         elif isinstance(binop.op, ast.ops.BooleanOperator):
-            typ = schema.get('std.bool')
+            typ = schema.get('std::bool')
 
         else:
             msg = 'cannot infer expr type: unsupported operator: {!r}'\
@@ -100,7 +100,7 @@ def infer_arg_types(ir, schema):
 
 def infer_type(ir, schema):
     if isinstance(ir, irast.MetaRef):
-        result = schema.get('std.str')
+        result = schema.get('std::str')
 
     elif isinstance(ir, irast.AtomicRefSimple):
         if isinstance(ir.ref, irast.PathCombination):
@@ -152,7 +152,7 @@ def infer_type(ir, schema):
         if isinstance(ir.op, (ast.ops.ComparisonOperator,
                                 ast.ops.EquivalenceOperator,
                                 ast.ops.MembershipOperator)):
-            result = schema.get('std.bool')
+            result = schema.get('std::bool')
         else:
             left_type = infer_type(ir.left, schema)
             right_type = infer_type(ir.right, schema)
@@ -188,7 +188,7 @@ def infer_type(ir, schema):
             result = None
 
     elif isinstance(ir, irast.ExistPred):
-        result = schema.get('std.bool')
+        result = schema.get('std::bool')
 
     else:
         result = None

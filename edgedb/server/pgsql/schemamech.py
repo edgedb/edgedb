@@ -498,9 +498,9 @@ class TypeMech:
             if isinstance(prototype, s_links.Link):
                 cols.extend([
                     dbops.Column(name='link_type_id', type='int'),
-                    dbops.Column(name='std.linkid', type='uuid'),
-                    dbops.Column(name='std.source', type='uuid'),
-                    dbops.Column(name='std.target', type='uuid')
+                    dbops.Column(name='std::linkid', type='uuid'),
+                    dbops.Column(name='std::source', type='uuid'),
+                    dbops.Column(name='std::target', type='uuid')
                 ])
 
             elif isinstance(prototype, s_concepts.Concept):
@@ -520,16 +520,16 @@ class TypeMech:
                 if not pointer.singular():
                     continue
 
-                if pointer_name == 'std.source':
+                if pointer_name == 'std::source':
                     continue
 
-                if pointer_name == 'std.linkid':
+                if pointer_name == 'std::linkid':
                     continue
 
                 ptr_stor_info = types.get_pointer_storage_info(
                                     pointer, schema=proto_schema)
 
-                if ptr_stor_info.column_name == 'std.target':
+                if ptr_stor_info.column_name == 'std::target':
                     continue
 
                 if ptr_stor_info.table_type == expected_table_type:

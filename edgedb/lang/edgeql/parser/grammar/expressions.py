@@ -1146,7 +1146,10 @@ class ArgName(Nonterm):
         self.val = kids[0].val
 
     def reduce_LBRACE_AnyFqName_RBRACE(self, *kids):
-        self.val = '.'.join(kids[1].val)
+        if len(kids[1].val) > 1:
+            self.val = '.'.join(kids[1].val[:-1]) + '::' + kids[1].val[-1]
+        else:
+            self.val = kids[1].val[-1]
 
 
 class SimpleArgName(Nonterm):

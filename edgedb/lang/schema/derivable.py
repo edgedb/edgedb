@@ -27,30 +27,40 @@ class DerivablePrototype(named.NamedPrototype):
         return similarity
 
     @classmethod
-    def generate_specialized_name(cls, source_name, pointer_name,
-                                       *qualifiers):
+    def mangle_name(cls, name):
+        return name.replace('~', '~~').replace('.', '~') \
+                   .replace('|', '||').replace('::', '|')
+
+    @classmethod
+    def unmangle_name(cls, name):
+        return name.replace('~', '.').replace('|', '::')
+
+    @classmethod
+    def generate_specialized_name(cls, source_name, pointer_name, *qualifiers):
         pointer_name = sn.Name(pointer_name)
-        parts = [pointer_name.name, pointer_name.replace('.', ':'),
-                 source_name.replace(':', '::').replace('.', ':')]
+
+        parts = [
+            pointer_name.name,
+            cls.mangle_name(pointer_name),
+            cls.mangle_name(source_name)
+        ]
+
         for qualifier in qualifiers:
-            parts.append(qualifier.replace(':', '::').replace('.', ':'))
+            parts.append(cls.mangle_name(qualifier))
+
         return '@'.join(parts)
 
     @classmethod
     def normalize_name(cls, name):
         name = str(name)
 
-        if '@' in name:
-            parts = name.split('@')
-            fq_index = 1
-        else:
-            parts = name.split('!')
-            fq_index = 2
+        parts = name.split('@')
+        fq_index = 1
 
         if len(parts) < 3:
             return sn.Name(name)
         else:
-            return sn.Name(parts[fq_index].replace(':', '.'))
+            return sn.Name(cls.unmangle_name(parts[fq_index]))
 
     @classmethod
     def inherit_pure(cls, schema, item, source):

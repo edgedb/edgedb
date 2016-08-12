@@ -285,7 +285,7 @@ class AlterNamedPrototype(CreateOrAlterNamedPrototype):
 
                     pos_node = astcmd.position
                     if pos_node.ref is not None:
-                        ref = pos_node.ref.module + '.' + \
+                        ref = pos_node.ref.module + '::' + \
                                 pos_node.ref.name
                         pos = (pos_node.position, ref)
                     else:

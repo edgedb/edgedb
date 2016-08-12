@@ -18,6 +18,6 @@ class NoneType:
         return None
 
 
-_add_impl('std.none', NoneType)
-_add_map(NoneType, 'std.none')
-_add_map(type(None), 'std.none')
+_add_impl('std::none', NoneType)
+_add_map(NoneType, 'std::none')
+_add_map(type(None), 'std::none')

@@ -59,7 +59,7 @@ class DecimalMeta(type):
 
         ctxargs = {}
         precision = cls.__sx_prototype__.get_attribute(
-            'std.precision')
+            'std::precision')
         if precision:
             precision = precision.value
             ctxargs['prec'] = precision[0]
@@ -80,7 +80,7 @@ class DecimalMeta(type):
             quantize_exponent = None
 
         rounding = cls.__sx_prototype__.get_attribute(
-            'std.rounding')
+            'std::rounding')
         if rounding:
             ctxargs['rounding'] = metacls._rounding_map[rounding.value]
 
@@ -189,7 +189,7 @@ class Decimal(fpdecimal.FPDecimal, metaclass=DecimalMeta):
 
 class DecimalTypeInfo(s_types.TypeInfo, type=Decimal):
     def op(self, other: (decimal.Decimal, int)) -> \
-                                'std.decimal':
+                                'std::decimal':
         pass
 
     __add__ = op
@@ -218,10 +218,10 @@ class DecimalTypeInfo(s_types.TypeInfo, type=Decimal):
     __invert__ = op
 
 
-_add_impl('std.decimal', Decimal)
-_add_map(Decimal, 'std.decimal')
-_add_map(fpdecimal.FPDecimal, 'std.decimal')
-_add_map(decimal.Decimal, 'std.decimal')
+_add_impl('std::decimal', Decimal)
+_add_map(Decimal, 'std::decimal')
+_add_map(fpdecimal.FPDecimal, 'std::decimal')
+_add_map(decimal.Decimal, 'std::decimal')
 
 
 class Float(float):
@@ -229,7 +229,7 @@ class Float(float):
 
 
 class FloatTypeInfo(s_types.TypeInfo, type=Float):
-    def op(self, other: (int, float)) -> 'std.float':
+    def op(self, other: (int, float)) -> 'std::float':
         pass
 
     __add__ = op
@@ -258,6 +258,6 @@ class FloatTypeInfo(s_types.TypeInfo, type=Float):
     __invert__ = op
 
 
-_add_impl('std.float', Float)
-_add_map(Float, 'std.float')
-_add_map(float, 'std.float')
+_add_impl('std::float', Float)
+_add_map(Float, 'std::float')
+_add_map(float, 'std::float')

@@ -37,6 +37,6 @@ class UUID(uuid.UUID):
         return persistent_hash(self.int)
 
 
-_add_impl('std.uuid', UUID)
-_add_map(UUID, 'std.uuid')
-_add_map(uuid.UUID, 'std.uuid')
+_add_impl('std::uuid', UUID)
+_add_map(UUID, 'std::uuid')
+_add_map(uuid.UUID, 'std::uuid')

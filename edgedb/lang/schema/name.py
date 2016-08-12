@@ -21,16 +21,17 @@ class SchemaName(str):
             _name = name.name
             _module = name.module
         else:
-            _module, _, _name = name.rpartition('.')
+            _module, _, _name = name.rpartition('::')
 
             if not _module:
                 if not module:
-                    err = 'improperly formed name: module is not specified: %s' % name
+                    err = 'improperly formed name: ' \
+                          'module is not specified: {}'.format(name)
                     raise SchemaNameError(err)
                 else:
                     _module = module
 
-        result = super().__new__(cls, _module + '.' + _name)
+        result = super().__new__(cls, _module + '::' + _name)
         result.name = _name
         result.module = _module
 
@@ -44,7 +45,7 @@ class SchemaName(str):
 
     @staticmethod
     def is_qualified(name):
-        return isinstance(name, SchemaName) or '.' in name
+        return isinstance(name, SchemaName) or '::' in name
 
 Name = SchemaName
 
@@ -56,7 +57,7 @@ def split_name(name):
     elif isinstance(name, tuple):
         module = name[0]
         nqname = name[1]
-        name = module + '.' + nqname if module else nqname
+        name = module + '::' + nqname if module else nqname
     elif SchemaName.is_qualified(name):
         name = SchemaName(name)
         module = name.module

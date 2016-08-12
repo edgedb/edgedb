@@ -32,15 +32,15 @@ class Bool(int):
 
 
 s_types.BaseTypeMeta.add_implementation(
-    'std.bool', Bool)
+    'std::bool', Bool)
 s_types.BaseTypeMeta.add_mapping(
-    Bool, 'std.bool')
+    Bool, 'std::bool')
 s_types.BaseTypeMeta.add_mapping(
-    bool, 'std.bool')
+    bool, 'std::bool')
 
 s_types.TypeRules.add_rule(
-    ast.ops.OR, (Bool, Bool), 'std.bool')
+    ast.ops.OR, (Bool, Bool), 'std::bool')
 s_types.TypeRules.add_rule(
-    ast.ops.AND, (Bool, Bool), 'std.bool')
+    ast.ops.AND, (Bool, Bool), 'std::bool')
 s_types.TypeRules.add_rule(
-    ast.ops.NOT, (Bool,), 'std.bool')
+    ast.ops.NOT, (Bool,), 'std::bool')

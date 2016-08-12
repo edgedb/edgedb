@@ -764,8 +764,14 @@ class PrototypeList(typed.TypedList, type=BasePrototype):
 
 class TypeRef:
     _typeref_re = re.compile(
-        r'''^(?P<type>\w+(?:\.\w+)*)
-             (?:\<(?P<eltype>(?:\w+(?:\.\w+)*)|)\>)?$''', re.X)
+        r'''^(?P<type>\w+(?:\.\w+)*(?:::\w+)?)
+            (?:\<
+                (?P<eltype>
+                    (?: \w+(?:\.\w+)* (?:::\w+) )
+                    |
+                    \w+
+                )
+            \>)?$''', re.X)
 
     @classmethod
     def parse(cls, typeref):
@@ -781,8 +787,6 @@ class TypeRef:
         if element_type is not None:
             collection_type = type
             type = element_type
-            if type == '':
-                type = None
         else:
             collection_type = None
 

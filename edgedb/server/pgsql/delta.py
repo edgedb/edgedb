@@ -576,7 +576,7 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
         self.table = deltadbops.AtomTable()
 
     def is_sequence(self, schema, atom):
-        seq = schema.get('std.sequence', default=None)
+        seq = schema.get('std::sequence', default=None)
         return seq is not None and atom.issubclass(seq)
 
     def fill_record(self, schema):
@@ -1020,7 +1020,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                     oldcol = dbops.Column(name=old_ptr_stor_info.column_name,
                                           type=old_ptr_stor_info.column_type)
 
-                    if oldcol.name != 'std.target':
+                    if oldcol.name != 'std::target':
                         pat.add_command(dbops.AlterTableDropColumn(oldcol))
 
                     # Moved from link to concept
@@ -1307,12 +1307,12 @@ class CreateConcept(ConceptMetaCommand, adapts=s_concepts.CreateConcept):
         cid_col = dbops.Column(name='concept_id', type='integer',
                                required=True)
 
-        if concept.name == 'std.BaseObject':
+        if concept.name == 'std::BaseObject':
             alter_table.add_operation(dbops.AlterTableAddColumn(cid_col))
 
         constraint = dbops.PrimaryKey(
                         table_name=alter_table.name,
-                        columns=['std.id'])
+                        columns=['std::id'])
         alter_table.add_operation(
             dbops.AlterTableAddConstraint(constraint))
 
@@ -1671,10 +1671,10 @@ class PointerMetaCommand(MetaCommand):
             host = self.get_host(schema, context)
 
             if host and old_name != new_name:
-                if new_name == 'std.target' and pointer.atomic():
+                if new_name == 'std::target' and pointer.atomic():
                     new_name += '@atom'
 
-                if new_name.endswith('std.source') and not host.proto.generic():
+                if new_name.endswith('std::source') and not host.proto.generic():
                     pass
                 else:
                     old_col_name = common.edgedb_name_to_pg_name(old_name)
@@ -1711,7 +1711,7 @@ class PointerMetaCommand(MetaCommand):
         if link.is_pure_computable():
             return False
         elif link.generic():
-            if link.name == 'std.link':
+            if link.name == 'std::link':
                 return True
             elif link.has_user_defined_properties():
                 return True
@@ -1743,14 +1743,14 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
         constraints = []
         columns = []
 
-        src_col = common.edgedb_name_to_pg_name('std.source')
-        tgt_col = common.edgedb_name_to_pg_name('std.target')
+        src_col = common.edgedb_name_to_pg_name('std::source')
+        tgt_col = common.edgedb_name_to_pg_name('std::target')
 
-        if link.name == 'std.link':
+        if link.name == 'std::link':
             columns.append(dbops.Column(name=src_col, type='uuid', required=True,
-                                        comment='std.source'))
+                                        comment='std::source'))
             columns.append(dbops.Column(name=tgt_col, type='uuid', required=False,
-                                        comment='std.target'))
+                                        comment='std::target'))
             columns.append(dbops.Column(name='link_type_id', type='integer', required=True))
 
         constraints.append(dbops.UniqueConstraint(table_name=new_table_name,
@@ -1758,7 +1758,7 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
 
         if not link.generic() and link.atomic():
             try:
-                tgt_prop = link.pointers['std.target']
+                tgt_prop = link.pointers['std::target']
             except KeyError:
                 pass
             else:
@@ -1912,7 +1912,7 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
             alter_table = self.get_alter_table(context)
             constraint = dbops.PrimaryKey(
                             table_name=alter_table.name,
-                            columns=['std.linkid'])
+                            columns=['std::linkid'])
             alter_table.add_operation(
                 dbops.AlterTableAddConstraint(constraint))
 
@@ -2171,7 +2171,7 @@ class AlterLinkProperty(LinkPropertyMetaCommand, adapts=s_lprops.AlterLinkProper
             new_type = None
             for op in self(sd.AlterPrototypeProperty):
                 if op.property == 'target' and prop.normal_name() not in \
-                                {'std.source', 'std.target'}:
+                                {'std::source', 'std::target'}:
                     new_type = op.new_value.prototype_name if op.new_value is not None else None
                     old_type = op.old_value.prototype_name if op.old_value is not None else None
                     break
@@ -2214,17 +2214,17 @@ class CreateMappingIndexes(MetaCommand):
         if mapping == s_links.LinkMapping.OneToOne:
             # Each source can have only one target and
             # each target can have only one source
-            sides = ('std.source', 'std.target')
+            sides = ('std::source', 'std::target')
 
         elif mapping == s_links.LinkMapping.OneToMany:
             # Each target can have only one source, but
             # one source can have many targets
-            sides = ('std.target',)
+            sides = ('std::target',)
 
         elif mapping == s_links.LinkMapping.ManyToOne:
             # Each source can have only one target, but
             # one target can have many sources
-            sides = ('std.source',)
+            sides = ('std::source',)
 
         else:
             sides = ()

@@ -74,8 +74,8 @@ class CreateEvent(named.CreateNamedPrototype, EventCommand):
     def _protobases_from_ast(cls, astnode, context):
         bases = super()._protobases_from_ast(astnode, context)
         if not bases:
-            name = '{}.{}'.format(astnode.name.module, astnode.name.name)
-            if name != 'std.event':
+            name = '{}::{}'.format(astnode.name.module, astnode.name.name)
+            if name != 'std::event':
                 bases = so.PrototypeList([
                     so.PrototypeRef(
                         prototype_name=sn.Name(
