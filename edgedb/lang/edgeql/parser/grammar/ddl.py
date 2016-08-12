@@ -442,12 +442,13 @@ class DropDatabaseStmt(Nonterm):
 # CREATE ACTION
 #
 class CreateActionStmt(Nonterm):
-    def reduce_OptAliasBlock_CREATE_ACTION_NodeName_OptCreateCommandsBlock(self, *kids):
+    def reduce_OptAliasBlock_CREATE_ACTION_NodeName_OptCreateCommandsBlock(
+            self, *kids):
         self.val = qlast.CreateActionNode(
-            namespaces = kids[0].val[0],
-            aliases = kids[0].val[1],
-            name = kids[3].val,
-            commands = kids[4].val
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
+            name=kids[3].val,
+            commands=kids[4].val
         )
 
 
@@ -455,12 +456,13 @@ class CreateActionStmt(Nonterm):
 # ALTER ACTION
 #
 class AlterActionStmt(Nonterm):
-    def reduce_OptAliasBlock_ALTER_ACTION_NodeName_AlterCommandsBlock(self, *kids):
+    def reduce_OptAliasBlock_ALTER_ACTION_NodeName_AlterCommandsBlock(self,
+                                                                      *kids):
         self.val = qlast.AlterActionNode(
-            namespaces = kids[0].val[0],
-            aliases = kids[0].val[1],
-            name = kids[3].val,
-            commands = kids[4].val
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
+            name=kids[3].val,
+            commands=kids[4].val
         )
 
 
@@ -470,11 +472,10 @@ class AlterActionStmt(Nonterm):
 class DropActionStmt(Nonterm):
     def reduce_OptAliasBlock_DROP_ACTION_NodeName(self, *kids):
         self.val = qlast.DropActionNode(
-            namespaces = kids[0].val[0],
-            aliases = kids[0].val[1],
-            name = kids[3].val,
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
+            name=kids[3].val,
         )
-
 
 
 #
@@ -482,10 +483,10 @@ class DropActionStmt(Nonterm):
 #
 class CreateLocalPolicyStmt(Nonterm):
     def reduce_CREATE_POLICY_FOR_NodeName_TO_NodeNameList(
-                                                self, *kids):
+            self, *kids):
         self.val = qlast.CreateLocalPolicyNode(
-            event = kids[3].val,
-            actions = kids[5].val
+            event=kids[3].val,
+            actions=kids[5].val
         )
 
 
@@ -494,10 +495,10 @@ class CreateLocalPolicyStmt(Nonterm):
 #
 class AlterLocalPolicyStmt(Nonterm):
     def reduce_ALTER_POLICY_FOR_NodeName_TO_NodeNameList(
-                                                self, *kids):
+            self, *kids):
         self.val = qlast.AlterLocalPolicyNode(
-            event = kids[3].val,
-            actions = kids[5].val
+            event=kids[3].val,
+            actions=kids[5].val
         )
 
 
@@ -507,7 +508,7 @@ class AlterLocalPolicyStmt(Nonterm):
 class DropLocalPolicyStmt(Nonterm):
     def reduce_DROP_POLICY_FOR_NodeName(self, *kids):
         self.val = qlast.DropLocalPolicyNode(
-            event = kids[3].val
+            event=kids[3].val
         )
 
 
@@ -520,11 +521,11 @@ class CreateConstraintStmt(Nonterm):
                     CREATE CONSTRAINT NodeName OptInheriting \
                     OptCreateCommandsBlock"""
         self.val = qlast.CreateConstraintNode(
-            namespaces = kids[0].val[0],
-            aliases = kids[0].val[1],
-            name = kids[3].val,
-            bases = kids[4].val,
-            commands = kids[5].val,
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
+            name=kids[3].val,
+            bases=kids[4].val,
+            commands=kids[5].val,
         )
 
 
@@ -534,10 +535,10 @@ class AlterConstraintStmt(Nonterm):
                     ALTER CONSTRAINT NodeName \
                     AlterCommandsBlock"""
         self.val = qlast.AlterConstraintNode(
-            namespaces = kids[0].val[0],
-            aliases = kids[0].val[1],
-            name = kids[2].val,
-            commands = kids[3].val,
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
+            name=kids[2].val,
+            commands=kids[3].val,
         )
 
 
@@ -546,9 +547,9 @@ class DropConstraintStmt(Nonterm):
         r"""%reduce OptAliasBlock \
                     DROP CONSTRAINT NodeName"""
         self.val = qlast.DropConstraintNode(
-            namespaces = kids[0].val[0],
-            aliases = kids[0].val[1],
-            name = kids[2].val
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
+            name=kids[2].val
         )
 
 
@@ -557,17 +558,17 @@ class CreateConcreteConstraintStmt(Nonterm):
         r"""%reduce CREATE CONSTRAINT NodeName \
                     OptCreateCommandsBlock"""
         self.val = qlast.CreateConcreteConstraintNode(
-            name = kids[2].val,
-            commands = kids[3].val,
+            name=kids[2].val,
+            commands=kids[3].val,
         )
 
     def reduce_CreateAbstractConstraint(self, *kids):
         r"""%reduce CREATE ABSTRACT CONSTRAINT NodeName \
                     OptCreateCommandsBlock"""
         self.val = qlast.CreateConcreteConstraintNode(
-            is_abstract = True,
-            name = kids[3].val,
-            commands = kids[4].val,
+            is_abstract=True,
+            name=kids[3].val,
+            commands=kids[4].val,
         )
 
 
@@ -586,8 +587,8 @@ class AlterConcreteConstraintStmt(Nonterm):
         r"""%reduce ALTER CONSTRAINT NodeName \
                     AlterConcreteConstraintCommandsBlock"""
         self.val = qlast.AlterConcreteConstraintNode(
-            name = kids[2].val,
-            commands = kids[3].val,
+            name=kids[2].val,
+            commands=kids[3].val,
         )
 
 
@@ -595,7 +596,7 @@ class DropConcreteConstraintStmt(Nonterm):
     def reduce_DropConstraint(self, *kids):
         r"""%reduce DROP CONSTRAINT NodeName"""
         self.val = qlast.DropConcreteConstraintNode(
-            name = kids[2].val
+            name=kids[2].val
         )
 
 
@@ -605,6 +606,7 @@ class DropConcreteConstraintStmt(Nonterm):
 
 commands_block('CreateAtom', SetFieldStmt, CreateConcreteConstraintStmt)
 
+
 class CreateAtomStmt(Nonterm):
     def reduce_CreateAbstractAtomStmt(self, *kids):
         r"""%reduce \
@@ -612,12 +614,12 @@ class CreateAtomStmt(Nonterm):
             OptInheriting OptCreateAtomCommandsBlock \
         """
         self.val = qlast.CreateAtomNode(
-            namespaces = kids[0].val[0],
-            aliases = kids[0].val[1],
-            name = kids[4].val,
-            is_abstract = True,
-            bases = kids[5].val,
-            commands = kids[6].val
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
+            name=kids[4].val,
+            is_abstract=True,
+            bases=kids[5].val,
+            commands=kids[6].val
         )
 
     def reduce_CreateFinalAtomStmt(self, *kids):
@@ -626,12 +628,12 @@ class CreateAtomStmt(Nonterm):
             OptInheriting OptCreateAtomCommandsBlock \
         """
         self.val = qlast.CreateAtomNode(
-            namespaces = kids[0].val[0],
-            aliases = kids[0].val[1],
-            name = kids[4].val,
-            is_final = True,
-            bases = kids[5].val,
-            commands = kids[6].val
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
+            name=kids[4].val,
+            is_final=True,
+            bases=kids[5].val,
+            commands=kids[6].val
         )
 
     def reduce_CreateAtomStmt(self, *kids):
@@ -640,11 +642,11 @@ class CreateAtomStmt(Nonterm):
             OptInheriting OptCreateAtomCommandsBlock \
         """
         self.val = qlast.CreateAtomNode(
-            namespaces = kids[0].val[0],
-            aliases = kids[0].val[1],
-            name = kids[3].val,
-            bases = kids[4].val,
-            commands = kids[5].val
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
+            name=kids[3].val,
+            bases=kids[4].val,
+            commands=kids[5].val
         )
 
 
@@ -664,27 +666,27 @@ commands_block(
     opt=False
 )
 
+
 class AlterAtomStmt(Nonterm):
     def reduce_AlterAtomStmt(self, *kids):
         r"""%reduce \
             OptAliasBlock ALTER ATOM NodeName AlterAtomCommandsBlock \
         """
         self.val = qlast.AlterAtomNode(
-            namespaces = kids[0].val[0],
-            aliases = kids[0].val[1],
-            name = kids[3].val,
-            commands = kids[4].val
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
+            name=kids[3].val,
+            commands=kids[4].val
         )
 
 
 class DropAtomStmt(Nonterm):
     def reduce_OptAliasBlock_DROP_ATOM_NodeName(self, *kids):
         self.val = qlast.DropAtomNode(
-            namespaces = kids[0].val[0],
-            aliases = kids[0].val[1],
-            name = kids[3].val
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
+            name=kids[3].val
         )
-
 
 
 #
@@ -696,9 +698,9 @@ class DropAttributeStmt(Nonterm):
                     DROP ATTRIBUTE NodeName \
         """
         self.val = qlast.DropAttributeNode(
-            namespaces = kids[0].val[0],
-            aliases = kids[0].val[1],
-            name = kids[3].val,
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
+            name=kids[3].val,
         )
 
 
@@ -711,12 +713,12 @@ class CreateAttributeStmt(Nonterm):
                     CREATE ATTRIBUTE NodeName TypeName \
                     OptAttributeConstraint OptCreateCommandsBlock"""
         self.val = qlast.CreateAttributeNode(
-            namespaces = kids[0].val[0],
-            aliases = kids[0].val[1],
-            name = kids[3].val,
-            type = kids[4].val,
-            constraint = kids[5].val,
-            commands = kids[6].val,
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
+            name=kids[3].val,
+            type=kids[4].val,
+            constraint=kids[5].val,
+            commands=kids[6].val,
         )
 
 
@@ -765,8 +767,8 @@ class CreateLinkPropertyStmt(Nonterm):
             OptCreateCommandsBlock \
         """
         self.val = qlast.CreateLinkPropertyNode(
-            namespaces = kids[0].val[0],
-            aliases = kids[0].val[1],
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
             name=kids[3].val,
             bases=kids[4].val,
             commands=kids[5].val
@@ -811,8 +813,8 @@ class DropLinkPropertyStmt(Nonterm):
             DROP LINKPROPERTY NodeName \
         """
         self.val = qlast.DropLinkPropertyNode(
-            namespaces = kids[0].val[0],
-            aliases = kids[0].val[1],
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
             name=kids[3].val
         )
 
@@ -826,6 +828,7 @@ commands_block(
     SetFieldStmt,
     CreateConcreteConstraintStmt
 )
+
 
 class CreateConcreteLinkPropertyStmt(Nonterm):
     def reduce_CreateRegularRequiredLinkProperty(self, *kids):
@@ -875,6 +878,7 @@ commands_block(
     opt=False
 )
 
+
 class AlterConcreteLinkPropertyStmt(Nonterm):
     def reduce_AlterLinkProperty(self, *kids):
         r"""%reduce \
@@ -923,8 +927,8 @@ class CreateLinkStmt(Nonterm):
             OptCreateLinkCommandsBlock \
         """
         self.val = qlast.CreateLinkNode(
-            namespaces = kids[0].val[0],
-            aliases = kids[0].val[1],
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
             name=kids[3].val,
             bases=kids[4].val,
             commands=kids[5].val
@@ -1112,12 +1116,12 @@ class CreateConceptStmt(Nonterm):
             OptInheriting OptCreateConceptCommandsBlock \
         """
         self.val = qlast.CreateConceptNode(
-            namespaces = kids[0].val[0],
-            aliases = kids[0].val[1],
-            name = kids[4].val,
-            bases = kids[5].val,
-            is_abstract = True,
-            commands = kids[6].val
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
+            name=kids[4].val,
+            bases=kids[5].val,
+            is_abstract=True,
+            commands=kids[6].val
         )
 
     def reduce_CreateRegularConceptStmt(self, *kids):
@@ -1126,12 +1130,12 @@ class CreateConceptStmt(Nonterm):
             OptInheriting OptCreateConceptCommandsBlock \
         """
         self.val = qlast.CreateConceptNode(
-            namespaces = kids[0].val[0],
-            aliases = kids[0].val[1],
-            name = kids[3].val,
-            bases = kids[4].val,
-            is_abstract = False,
-            commands = kids[5].val
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
+            name=kids[3].val,
+            bases=kids[4].val,
+            is_abstract=False,
+            commands=kids[5].val
         )
 
 
@@ -1161,10 +1165,10 @@ class AlterConceptStmt(Nonterm):
             AlterConceptCommandsBlock \
         """
         self.val = qlast.AlterConceptNode(
-            namespaces = kids[0].val[0],
-            aliases = kids[0].val[1],
-            name = kids[3].val,
-            commands = kids[4].val
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
+            name=kids[3].val,
+            commands=kids[4].val
         )
 
 
@@ -1198,11 +1202,11 @@ class DropConceptStmt(Nonterm):
 #
 class CreateEventStmt(Nonterm):
     def reduce_OptAliasBlock_CREATE_EVENT_NodeName_OptInheriting_OptCreateCommandsBlock(
-                                                        self, *kids):
+            self, *kids):
         self.val = qlast.CreateEventNode(
-            namespaces = kids[0].val[0],
-            aliases = kids[0].val[1],
-            name = kids[3].val,
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
+            name=kids[3].val,
             bases=kids[4].val,
             commands=kids[5].val
         )
@@ -1213,12 +1217,12 @@ class CreateEventStmt(Nonterm):
 #
 class CreateModuleStmt(Nonterm):
     def reduce_OptAliasBlock_CREATE_MODULE_NodeName_OptCreateCommandsBlock(
-                                                self, *kids):
+            self, *kids):
         self.val = qlast.CreateModuleNode(
-            namespaces = kids[0].val[0],
-            aliases = kids[0].val[1],
-            name = kids[3].val,
-            commands = kids[4].val
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
+            name=kids[3].val,
+            commands=kids[4].val
         )
 
 
@@ -1227,12 +1231,12 @@ class CreateModuleStmt(Nonterm):
 #
 class AlterModuleStmt(Nonterm):
     def reduce_OptAliasBlock_ALTER_MODULE_NodeName_AlterCommandsBlock(
-                                                self, *kids):
+            self, *kids):
         self.val = qlast.AlterModuleNode(
-            namespaces = kids[0].val[0],
-            aliases = kids[0].val[1],
-            name = kids[3].val,
-            commands = kids[4].val
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
+            name=kids[3].val,
+            commands=kids[4].val
         )
 
 
@@ -1242,9 +1246,9 @@ class AlterModuleStmt(Nonterm):
 class DropModuleStmt(Nonterm):
     def reduce_OptAliasBlock_DROP_MODULE_NodeName(self, *kids):
         self.val = qlast.DropModuleNode(
-            namespaces = kids[0].val[0],
-            aliases = kids[0].val[1],
-            name = kids[3].val
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
+            name=kids[3].val
         )
 
 

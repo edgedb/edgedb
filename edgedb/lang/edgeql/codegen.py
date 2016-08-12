@@ -21,7 +21,8 @@ class EdgeQLSourceGeneratorError(EdgeDBError):
 
 class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def generic_visit(self, node):
-        raise EdgeQLSourceGeneratorError('No method to generate code for %s' % node.__class__.__name__)
+        raise EdgeQLSourceGeneratorError(
+            'No method to generate code for %s' % node.__class__.__name__)
 
     def _visit_namespaces(self, node):
         if node.namespaces or node.aliases:
@@ -625,7 +626,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write('FINAL')
         else:
             raise EdgeQLSourceGeneratorError(
-                    'unknown special field: {!r}'.format(node.name))
+                'unknown special field: {!r}'.format(node.name))
 
     def visit_AlterAddInheritNode(self, node):
         self.write('INHERIT ')
@@ -702,7 +703,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_CreateAttributeValueNode(self, node):
         self.write('SET ')
         self.visit(node.name)
-        if isinstance(node.value, edgeql_ast.ExpressionTextNode) or node.as_expr:
+        if (isinstance(node.value, edgeql_ast.ExpressionTextNode) or
+                node.as_expr):
             self.write(' := ')
         else:
             self.write(' = ')
@@ -773,6 +775,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if node.is_required:
             keywords.append('REQUIRED')
         keywords.append('LINK PROPERTY')
+
         def after_name():
             self.write(' TO ')
             self.visit(node.target)
@@ -800,6 +803,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if node.is_required:
             keywords.append('REQUIRED')
         keywords.append('LINK')
+
         def after_name():
             self.write(' TO ')
             self.visit_list(node.targets, newlines=False)

@@ -44,7 +44,7 @@ class SelectWithParens(Nonterm):
 
 class SelectNoParens(Nonterm):
     def reduce_AliasBlock_SelectClause_OptSortClause_OptSelectLimit(
-                                                                self, *kids):
+            self, *kids):
         qry = kids[1].val
         qry.orderby = kids[2].val
         qry.offset = kids[3].val[0]
@@ -54,7 +54,7 @@ class SelectNoParens(Nonterm):
         self.val = qry
 
     def reduce_AliasBlock_WithClause_SelectClause_OptSortClause_OptSelectLimit(
-                                                                self, *kids):
+            self, *kids):
         qry = kids[2].val
         qry.orderby = kids[3].val
         qry.offset = kids[4].val[0]
@@ -65,7 +65,7 @@ class SelectNoParens(Nonterm):
         self.val = qry
 
     def reduce_WithClause_SelectClause_OptSortClause_OptSelectLimit(
-                                                                self, *kids):
+            self, *kids):
         qry = kids[1].val
         qry.orderby = kids[2].val
         qry.offset = kids[3].val[0]
@@ -120,11 +120,11 @@ class SimpleSelect(Nonterm):
         r"%reduce SELECT OptDistinct SelectTargetList \
                   OptWhereClause OptGroupClause"
         self.val = qlast.SelectQueryNode(
-                        distinct=kids[1].val,
-                        targets=kids[2].val,
-                        where=kids[3].val,
-                        groupby=kids[4].val
-                   )
+            distinct=kids[1].val,
+            targets=kids[2].val,
+            where=kids[3].val,
+            groupby=kids[4].val
+        )
 
     def reduce_SelectClause_UNION_OptAll_SelectClause(self, *kids):
         self.val = qlast.SelectQueryNode(
@@ -181,17 +181,17 @@ class AliasDeclList(Nonterm):
 class AliasDecl(Nonterm):
     def reduce_NAMESPACE_FqName(self, *kids):
         self.val = qlast.NamespaceAliasDeclNode(
-                        namespace='.'.join(kids[1].val))
+            namespace='.'.join(kids[1].val))
 
     def reduce_AliasName_COLONEQUALS_NAMESPACE_FqName(self, *kids):
         self.val = qlast.NamespaceAliasDeclNode(
-                        alias=kids[0].val,
-                        namespace='.'.join(kids[3].val))
+            alias=kids[0].val,
+            namespace='.'.join(kids[3].val))
 
     def reduce_AliasName_COLONEQUALS_Expr(self, *kids):
         self.val = qlast.ExpressionAliasDeclNode(
-                        alias=kids[0].val,
-                        expr=kids[2].val)
+            alias=kids[0].val,
+            expr=kids[2].val)
 
 
 class OptDistinct(Nonterm):
@@ -261,7 +261,7 @@ class SelectPointerSpec(Nonterm):
         )
 
     def reduce_PointerSpecSetExpr_OptPointerRecursionSpec_OptSelectPathSpec_OptSelectPathCompExpr(
-                                                    self, *kids):
+            self, *kids):
         self.val = kids[0].val
         self.val.recurse = kids[1].val
         self.val.pathspec = kids[2].val
@@ -298,7 +298,7 @@ class QualifiedLinkedSetExpr(Nonterm):
 
 class TransformedLinkedSetExpr(Nonterm):
     def reduce_QualifiedLinkedSetExpr_OptSortClause_OptSelectLimit(
-                                                self, *kids):
+            self, *kids):
         self.val = kids[0].val
         self.val.orderby = kids[1].val
         self.val.offset = kids[2].val[0]
@@ -936,20 +936,20 @@ class FuncApplication(Nonterm):
         self.val = qlast.TypeCastNode(expr=kids[2].val, type=kids[4].val)
 
     def reduce_FqFuncName_LPAREN_FuncArgList_OptSortClause_RPAREN_OptFilterClause(
-                                                        self, *kids):
+            self, *kids):
         self.val = qlast.FunctionCallNode(func=kids[0].val, args=kids[2].val,
                                           agg_sort=kids[3].val,
                                           agg_filter=kids[5].val)
 
     def reduce_IDENT_LPAREN_FuncArgList_OptSortClause_RPAREN_OptFilterClause(
-                                                        self, *kids):
+            self, *kids):
         func_name = kids[0].val
         args = kids[2].val
 
         if func_name == 'type':
             if len(args) != 1:
                 msg = 'type() takes exactly one argument, {} given' \
-                            .format(len(args))
+                    .format(len(args))
                 raise EdgeQLSyntaxError(msg)
             self.val = qlast.TypeRefNode(expr=args[0])
         else:
@@ -975,9 +975,9 @@ class OptOverClause(Nonterm):
 class WindowSpec(Nonterm):
     def reduce_LPAREN_OptPartitionClause_OptSortClause_RPAREN(self, *kids):
         self.val = qlast.WindowSpecNode(
-                        partition=kids[1].val,
-                        orderby=kids[2].val
-                   )
+            partition=kids[1].val,
+            orderby=kids[2].val
+        )
 
 
 class OptPartitionClause(Nonterm):
@@ -1172,10 +1172,10 @@ class KeywordMeta(context.ContextNontermMeta):
 
 
 class UnreservedKeyword(Nonterm, metaclass=KeywordMeta,
-                                 type=keywords.UNRESERVED_KEYWORD):
+                        type=keywords.UNRESERVED_KEYWORD):
     pass
 
 
 class ReservedKeyword(Nonterm, metaclass=KeywordMeta,
-                               type=keywords.RESERVED_KEYWORD):
+                      type=keywords.RESERVED_KEYWORD):
     pass

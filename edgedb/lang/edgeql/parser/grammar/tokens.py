@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2015 MagicStack Inc.
+# Copyright (c) 2008-2016 MagicStack Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -20,110 +20,143 @@ class TokenMeta(parsing.TokenMeta):
 
 
 class Token(parsing.Token, metaclass=TokenMeta,
-                           precedence_class=precedence.PrecedenceMeta):
+            precedence_class=precedence.PrecedenceMeta):
     pass
 
 
 class T_DOT(Token, lextoken='.'):
     pass
 
+
 class T_LBRACKET(Token, lextoken='['):
     pass
+
 
 class T_RBRACKET(Token, lextoken=']'):
     pass
 
+
 class T_LPAREN(Token, lextoken='('):
     pass
+
 
 class T_RPAREN(Token, lextoken=')'):
     pass
 
+
 class T_LBRACE(Token, lextoken='{'):
     pass
+
 
 class T_RBRACE(Token, lextoken='}'):
     pass
 
+
 class T_DOUBLECOLON(Token, lextoken='::'):
     pass
+
 
 class T_COLON(Token, lextoken=':'):
     pass
 
+
 class T_SEMICOLON(Token, lextoken=';'):
     pass
+
 
 class T_COMMA(Token, lextoken=','):
     pass
 
+
 class T_PLUS(Token, lextoken='+'):
     pass
+
 
 class T_MINUS(Token, lextoken='-'):
     pass
 
+
 class T_STAR(Token, lextoken='*'):
     pass
+
 
 class T_SLASH(Token, lextoken='/'):
     pass
 
+
 class T_PERCENT(Token, lextoken='%'):
     pass
+
 
 class T_CIRCUMFLEX(Token, lextoken='^'):
     pass
 
+
 class T_AT(Token, lextoken='@'):
     pass
+
 
 class T_DOLLAR(Token, lextoken='$'):
     pass
 
+
 class T_STARSTAR(Token, lextoken='**'):
     pass
+
 
 class T_COLONEQUALS(Token):
     pass
 
+
 class T_LANGBRACKET(Token, lextoken='<'):
     pass
+
 
 class T_RANGBRACKET(Token, lextoken='>'):
     pass
 
+
 class T_EQUALS(Token, lextoken='='):
     pass
+
 
 class T_ICONST(Token):
     pass
 
+
 class T_FCONST(Token):
     pass
+
 
 class T_SCONST(Token):
     pass
 
+
 class T_IDENT(Token):
     pass
+
 
 class T_OPERATOR(Token):
     pass
 
+
 class T_OP(Token):
     pass
+
 
 class T_TYPEINDIRECTION(Token):
     pass
 
+
 class T_LINKPROPERTY(Token):
     pass
+
 
 def _gen_keyword_tokens():
     # Define keyword tokens
 
     mod = sys.modules[__name__]
+
     def clsexec(ns):
         ns['__module__'] = __name__
         return ns

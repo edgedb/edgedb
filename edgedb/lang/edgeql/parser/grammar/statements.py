@@ -86,11 +86,11 @@ class DeleteStmt(Nonterm):
     def reduce_DeleteStmt(self, *kids):
         "%reduce OptAliasBlock DELETE Path OptWhereClause OptReturningClause"
         self.val = qlast.DeleteQueryNode(
-            namespaces = kids[0].val[0],
-            aliases = kids[0].val[1],
-            subject = kids[2].val,
-            where = kids[3].val,
-            targets = kids[4].val
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
+            subject=kids[2].val,
+            where=kids[3].val,
+            targets=kids[4].val
         )
 
 
