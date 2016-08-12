@@ -16,8 +16,8 @@ from ..errors import EdgeQLSyntaxError
 
 from . import keywords
 
-from .precedence import *
-from .tokens import *
+from .precedence import *  # NOQA
+from .tokens import *  # NOQA
 
 
 class Nonterm(context.Nonterm):
@@ -103,7 +103,7 @@ class CgeList(Nonterm):
 
 
 class Cge(Nonterm):
-    def reduce_AliasName_AS_LPAREN_SelectExpr_RPAREN(self, *kids):
+    def reduce_ShortName_AS_LPAREN_SelectExpr_RPAREN(self, *kids):
         self.val = qlast.CGENode(expr=kids[3].val, alias=kids[0].val)
 
 
@@ -178,17 +178,25 @@ class AliasDeclList(Nonterm):
         self.val = kids[0].val + [kids[2].val]
 
 
+class ModuleName(Nonterm):
+    def reduce_DottedIdentifier(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_LBRACE_DottedFqPart_RBRACE(self, *kids):
+        self.val = kids[1].val
+
+
 class AliasDecl(Nonterm):
-    def reduce_NAMESPACE_FqName(self, *kids):
+    def reduce_NAMESPACE_ModuleName(self, *kids):
         self.val = qlast.NamespaceAliasDeclNode(
             namespace='.'.join(kids[1].val))
 
-    def reduce_AliasName_COLONEQUALS_NAMESPACE_FqName(self, *kids):
+    def reduce_ShortName_COLONEQUALS_NAMESPACE_ModuleName(self, *kids):
         self.val = qlast.NamespaceAliasDeclNode(
             alias=kids[0].val,
             namespace='.'.join(kids[3].val))
 
-    def reduce_AliasName_COLONEQUALS_Expr(self, *kids):
+    def reduce_ShortName_COLONEQUALS_Expr(self, *kids):
         self.val = qlast.ExpressionAliasDeclNode(
             alias=kids[0].val,
             expr=kids[2].val)
@@ -211,7 +219,7 @@ class SelectTargetList(Nonterm):
 
 
 class SelectTargetEl(Nonterm):
-    def reduce_Expr_AS_LabelExpr(self, *kids):
+    def reduce_Expr_AS_ShortName(self, *kids):
         self.val = qlast.SelectExprNode(expr=kids[0].val, alias=kids[2].val)
 
     def reduce_Expr(self, *kids):
@@ -346,11 +354,11 @@ class PointerGlobFilterList(Nonterm):
 
 
 class PointerGlobFilter(Nonterm):
-    def reduce_LabelExpr_EQUALS_LabelExpr(self, *kids):
+    def reduce_ShortName_EQUALS_ShortName(self, *kids):
         self.val = qlast.PointerGlobFilter(property=kids[0].val,
                                            value=kids[2].val)
 
-    def reduce_ANY_LabelExpr(self, *kids):
+    def reduce_ANY_ShortName(self, *kids):
         self.val = qlast.PointerGlobFilter(property=kids[1].val, any=True)
 
 
@@ -763,7 +771,7 @@ class ArgConstant(Nonterm):
     def reduce_DOLLAR_ICONST(self, *kids):
         self.val = qlast.ConstantNode(value=None, index=int(kids[1].val))
 
-    def reduce_DOLLAR_ArgName(self, *kids):
+    def reduce_DOLLAR_ShortName(self, *kids):
         self.val = qlast.ConstantNode(value=None, index=str(kids[1].val))
 
 
@@ -865,10 +873,10 @@ class PathExpr(Nonterm):
 
 
 class SimpleLinkExpr(Nonterm):
-    def reduce_LinkDirection_LabelExpr(self, *kids):
+    def reduce_LinkDirection_ShortName(self, *kids):
         self.val = qlast.LinkNode(name=kids[1].val, direction=kids[0].val)
 
-    def reduce_LabelExpr(self, *kids):
+    def reduce_ShortName(self, *kids):
         self.val = qlast.LinkNode(name=kids[0].val)
 
 
@@ -935,25 +943,23 @@ class FuncApplication(Nonterm):
     def reduce_CAST_LPAREN_Expr_AS_ExtTypeExpr_RPAREN(self, *kids):
         self.val = qlast.TypeCastNode(expr=kids[2].val, type=kids[4].val)
 
-    def reduce_FqFuncName_LPAREN_FuncArgList_OptSortClause_RPAREN_OptFilterClause(
+    def reduce_NodeName_LPAREN_FuncArgList_OptSortClause_RPAREN_OptFilterClause(
             self, *kids):
-        self.val = qlast.FunctionCallNode(func=kids[0].val, args=kids[2].val,
-                                          agg_sort=kids[3].val,
-                                          agg_filter=kids[5].val)
-
-    def reduce_IDENT_LPAREN_FuncArgList_OptSortClause_RPAREN_OptFilterClause(
-            self, *kids):
-        func_name = kids[0].val
+        # we use NodeName nonterminal here to avoid ambiguity in grammar
+        #
+        module = kids[0].val.module
+        func_name = kids[0].val.name
         args = kids[2].val
 
-        if func_name == 'type':
+        if not module and func_name == 'type':
             if len(args) != 1:
                 msg = 'type() takes exactly one argument, {} given' \
                     .format(len(args))
                 raise EdgeQLSyntaxError(msg)
             self.val = qlast.TypeRefNode(expr=args[0])
         else:
-            self.val = qlast.FunctionCallNode(func=func_name, args=args,
+            name = func_name if not module else (module, func_name)
+            self.val = qlast.FunctionCallNode(func=name, args=args,
                                               agg_sort=kids[3].val,
                                               agg_filter=kids[5].val)
 
@@ -1016,14 +1022,14 @@ class AnyFqLinkPropName(Nonterm):
 
 
 class FqNodeName(Nonterm):
-    def reduce_FqName(self, *kids):
+    def reduce_Name(self, *kids):
         self.val = qlast.PrototypeRefNode(module='.'.join(kids[0].val[:-1]),
                                           name=kids[0].val[-1])
 
 
 class AnyFqNodeName(Nonterm):
     # Fully-qualified node name permitting reserved keywords
-    def reduce_AnyFqName(self, *kids):
+    def reduce_Name(self, *kids):
         self.val = qlast.PrototypeRefNode(module='.'.join(kids[0].val[:-1]),
                                           name=kids[0].val[-1])
 
@@ -1037,60 +1043,17 @@ class FqNodeNameList(Nonterm):
 
 
 class NodeName(Nonterm):
-    def reduce_LabelExpr(self, *kids):
-        self.val = qlast.PrototypeRefNode(name=kids[0].val)
-
-    def reduce_LBRACE_AnyFqName_RBRACE(self, *kids):
-        self.val = qlast.PrototypeRefNode(module='.'.join(kids[1].val[:-1]),
-                                          name=kids[1].val[-1])
+    def reduce_PathSafeName(self, *kids):
+        self.val = qlast.PrototypeRefNode(
+            module='.'.join(kids[0].val[:-1]) or None,
+            name=kids[0].val[-1])
 
 
-class NodeNameList(Nonterm):
-    def reduce_NodeName(self, *kids):
-        self.val = [kids[0].val]
-
-    def reduce_NodeNameList_COMMA_NodeName(self, *kids):
-        self.val = kids[0].val + [kids[2].val]
+class NodeNameList(parsing.ListNonterm, element=NodeName, separator=T_COMMA):
+    pass
 
 
-class FqName(Nonterm):
-    def reduce_LabelExpr(self, *kids):
-        self.val = [kids[0].val]
-
-    def reduce_DotName_DOUBLECOLON_LabelExpr(self, *kids):
-        self.val = kids[0].val + [kids[2].val]
-
-
-class AnyFqName(Nonterm):
-    def reduce_AnyLabelExpr(self, *kids):
-        self.val = [kids[0].val]
-
-    def reduce_AnyDotName_DOUBLECOLON_AnyLabelExpr(self, *kids):
-        self.val = kids[0].val + [kids[2].val]
-
-
-class DotName(Nonterm):
-    def reduce_LabelExpr(self, *kids):
-        self.val = [kids[0].val]
-
-    def reduce_FqName_DOT_LabelExpr(self, *kids):
-        self.val = kids[0].val + [kids[2].val]
-
-
-class AnyDotName(Nonterm):
-    def reduce_AnyLabelExpr(self, *kids):
-        self.val = [kids[0].val]
-
-    def reduce_AnyFqName_DOT_AnyLabelExpr(self, *kids):
-        self.val = kids[0].val + [kids[2].val]
-
-
-class FqFuncName(Nonterm):
-    def reduce_IDENT_DOUBLECOLON_IDENT(self, *kids):
-        self.val = (kids[0].val, kids[2].val)
-
-
-class AliasName(Nonterm):
+class Identifier(Nonterm):
     def reduce_IDENT(self, *kids):
         self.val = kids[0].val
 
@@ -1098,37 +1061,86 @@ class AliasName(Nonterm):
         self.val = kids[0].val
 
 
-class LabelExpr(Nonterm):
-    def reduce_PERCENT(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_IDENT(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_UnreservedKeyword(self, *kids):
-        self.val = kids[0].val
-
-
-class AnyLabelExpr(Nonterm):
-    def reduce_LabelExpr(self, *kids):
+class FqPart(Nonterm):
+    def reduce_Identifier(self, *kids):
         self.val = kids[0].val
 
     def reduce_ReservedKeyword(self, *kids):
         self.val = kids[0].val
 
+    def reduce_SCONST(self, *kids):
+        self.val = kids[0].val
+
+
+class DottedFqPart(parsing.ListNonterm, element=FqPart, separator=T_DOT):
+    pass
+
+
+class DottedIdentifier(Nonterm):
+    def reduce_IDENT_DOT_Identifier(self, *kids):
+        self.val = [kids[0].val, kids[2].val]
+
+    def reduce_DottedIdentifier_DOT_Identifier(self, *kids):
+        self.val = kids[0].val + [kids[2].val]
+
+
+class ShortName(Nonterm):
+    def reduce_IDENT(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_LBRACE_FqPart_RBRACE(self, *kids):
+        self.val = kids[1].val
+
+
+class PathSafeName(Nonterm):
+    def reduce_ShortName(self, *kids):
+        self.val = [kids[0].val]
+
+    def reduce_IDENT_DOUBLECOLON_Identifier(self, *kids):
+        self.val = [kids[0].val, kids[2].val]
+
+    def reduce_LBRACE_DottedFqPart_DOUBLECOLON_FqPart_RBRACE(self, *kids):
+        self.val = kids[1].val + [kids[3].val]
+
+
+class Name(Nonterm):
+    def reduce_PathSafeName(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_DottedIdentifier_DOUBLECOLON_Identifier(self, *kids):
+        self.val = kids[0].val + [kids[2].val]
+
 
 class TypeName(Nonterm):
-    def reduce_ArgName(self, *kids):
-        self.val = qlast.TypeNameNode(maintype=kids[0].val)
+    def reduce_Name(self, *kids):
+        fq = kids[0].val
+        if len(fq) > 1:
+            name = '.'.join(fq[:1]) + '::' + fq[-1]
+        else:
+            name = fq[0]
 
-    def reduce_ArgName_LANGBRACKET_TypeName_RANGBRACKET(self, *kids):
-        self.val = qlast.TypeNameNode(maintype=kids[0].val,
+        self.val = qlast.TypeNameNode(maintype=name)
+
+    def reduce_Name_LANGBRACKET_TypeName_RANGBRACKET(self, *kids):
+        fq = kids[0].val
+        if len(fq) > 1:
+            name = '.'.join(fq[:1]) + '::' + fq[-1]
+        else:
+            name = fq[0]
+
+        self.val = qlast.TypeNameNode(maintype=name,
                                       subtype=kids[2].val)
 
 
 class ExtTypeExpr(Nonterm):
-    def reduce_ArgName(self, *kids):
-        self.val = qlast.TypeNameNode(maintype=kids[0].val)
+    def reduce_Name(self, *kids):
+        fq = kids[0].val
+        if len(fq) > 1:
+            name = '.'.join(fq[:1]) + '::' + fq[-1]
+        else:
+            name = fq[0]
+
+        self.val = qlast.TypeNameNode(maintype=name)
 
     def reduce_PathStart_SelectPathSpec(self, *kids):
         self.val = qlast.PathNode(
@@ -1136,31 +1148,15 @@ class ExtTypeExpr(Nonterm):
             pathspec=kids[1].val
         )
 
-    def reduce_ArgName_LANGBRACKET_ExtTypeExpr_RANGBRACKET(self, *kids):
-        self.val = qlast.TypeNameNode(maintype=kids[0].val,
-                                      subtype=kids[2].val)
-
-
-class ArgName(Nonterm):
-    def reduce_SimpleArgName(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_LBRACE_AnyFqName_RBRACE(self, *kids):
-        if len(kids[1].val) > 1:
-            self.val = '.'.join(kids[1].val[:-1]) + '::' + kids[1].val[-1]
+    def reduce_Name_LANGBRACKET_ExtTypeExpr_RANGBRACKET(self, *kids):
+        fq = kids[0].val
+        if len(fq) > 1:
+            name = '.'.join(fq[:1]) + '::' + fq[-1]
         else:
-            self.val = kids[1].val[-1]
+            name = fq[0]
 
-
-class SimpleArgName(Nonterm):
-    def reduce_IDENT(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_UnreservedKeyword(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_ReservedKeyword(self, *kids):
-        self.val = kids[0].val
+        self.val = qlast.TypeNameNode(maintype=name,
+                                      subtype=kids[2].val)
 
 
 class ParamName(Nonterm):

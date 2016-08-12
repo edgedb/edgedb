@@ -58,7 +58,6 @@ edgeql_keywords = {
     "like": ("LIKE", TYPE_FUNC_NAME_KEYWORD),
     "limit": ("LIMIT", RESERVED_KEYWORD),
     "link": ("LINK", UNRESERVED_KEYWORD),
-    "mapping": ("MAPPING", UNRESERVED_KEYWORD),
     "mod": ("MOD", RESERVED_KEYWORD),
     "module": ("MODULE", UNRESERVED_KEYWORD),
     "namespace": ("NAMESPACE", RESERVED_KEYWORD),

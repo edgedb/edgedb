@@ -6,6 +6,7 @@
 ##
 
 
+from .. import common
 from . import base
 from . import ddl
 
@@ -38,7 +39,8 @@ class CreateDatabase(ddl.SchemaObjectOperation):
         self.db = db
 
     async def code(self, context):
-        code = 'CREATE DATABASE {} WITH TEMPLATE=edgedb0'.format(self.db.name)
+        code = 'CREATE DATABASE {} WITH TEMPLATE=edgedb0'.format(
+            common.quote_ident(self.db.name))
         return code
 
 
@@ -50,4 +52,4 @@ class DropDatabase(ddl.SchemaObjectOperation):
                                priority=priority)
 
     async def code(self, context):
-        return 'DROP DATABASE {}'.format(self.name)
+        return 'DROP DATABASE {}'.format(common.quote_ident(self.name))

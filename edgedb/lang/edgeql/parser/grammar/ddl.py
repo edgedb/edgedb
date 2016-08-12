@@ -421,7 +421,7 @@ class CommitDeltaStmt(Nonterm):
 # CREATE DATABASE
 #
 class CreateDatabaseStmt(Nonterm):
-    def reduce_OptAliasBlock_CREATE_DATABASE_IDENT(self, *kids):
+    def reduce_OptAliasBlock_CREATE_DATABASE_ShortName(self, *kids):
         self.val = qlast.CreateDatabaseNode(
             name=qlast.PrototypeRefNode(name=kids[3].val)
         )
@@ -431,7 +431,7 @@ class CreateDatabaseStmt(Nonterm):
 # DROP DATABASE
 #
 class DropDatabaseStmt(Nonterm):
-    def reduce_OptAliasBlock_DROP_DATABASE_IDENT(self, *kids):
+    def reduce_OptAliasBlock_DROP_DATABASE_ShortName(self, *kids):
         self.val = qlast.DropDatabaseNode(
             name=qlast.PrototypeRefNode(name=kids[3].val),
         )
@@ -1270,7 +1270,7 @@ class OptArgMode(Nonterm):
 
 
 class FuncDeclArg(Nonterm):
-    def reduce_OptArgMode_IDENT_TypeName_OptDefault(self, *kids):
+    def reduce_OptArgMode_ShortName_TypeName_OptDefault(self, *kids):
         self.val = qlast.FuncArgNode(
             name=kids[2].val,
             mode=kids[0].val,
