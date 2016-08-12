@@ -217,19 +217,18 @@ def commands_block(parent, *commands, opt=True):
 
 
 class SetFieldStmt(Nonterm):
-    # field = <constant>
-    def reduce_SET_NodeName_EQUALS_Expr(self, *kids):
-        self.val = qlast.CreateAttributeValueNode(
-            name=kids[1].val,
-            value=kids[3].val
-        )
-
     # field := <expr>
     def reduce_SET_NodeName_COLONEQUALS_Expr(self, *kids):
+        # if the expression is trivial (a literal or variable), it
+        # should be treated as an eager expression
+        #
+        eager = isinstance(kids[3].val,
+                           (qlast.ConstantNode, qlast.SequenceNode,
+                            qlast.MappingNode))
         self.val = qlast.CreateAttributeValueNode(
             name=kids[1].val,
             value=kids[3].val,
-            as_expr=True
+            as_expr=not eager
         )
 
 commands_block('Create', SetFieldStmt)

@@ -700,11 +700,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_CreateAttributeValueNode(self, node):
         self.write('SET ')
         self.visit(node.name)
-        if (isinstance(node.value, edgeql_ast.ExpressionTextNode) or
-                node.as_expr):
-            self.write(' := ')
-        else:
-            self.write(' = ')
+        self.write(' := ')
         self.visit(node.value)
 
     def visit_AlterAttributeValueNode(self, node):
