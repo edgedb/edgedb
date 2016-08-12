@@ -7,7 +7,7 @@
 
 
 def quote_literal(text):
-    return "'" + text.replace("'", "''") + "'"
+    return "'" + text.replace("'", R"\'") + "'"
 
 
 def dollar_quote_literal(text):

@@ -14,7 +14,7 @@ from edgedb.server import _testbase as tb
 
 
 class TestDeltas(tb.QueryTestCase):
-    async def test_delta_simple(self, input=r"""
+    async def test_delta_simple01(self, input=r"""
         # setup delta
         #
         CREATE DELTA {test::d1} TO $$

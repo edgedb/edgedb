@@ -6,6 +6,9 @@
 ##
 
 
+import uuid
+
+from edgedb.lang.common import datetime
 from edgedb.client import exceptions as exc
 from edgedb.server import _testbase as tb
 
@@ -45,9 +48,73 @@ class TestInsert(tb.QueryTestCase):
     TEARDOWN = """
     """
 
-    async def test_insert_fail_1(self, input="""
+    async def test_insert_fail_1(self, input=r"""
         INSERT {test::InsertTest};
         """) -> \
             tb.Error(exc.Error, 'violates not-null constraint',
                      {'code': 23502}):
+        pass
+
+    async def test_insert_simple01(self, input=r"""
+        INSERT {test::InsertTest} {
+            l2 := 0,
+            l3 := 'test'
+        };
+
+        INSERT {test::InsertTest} {
+            l3 := "Test\"1\"",
+            l2 := 1
+        };
+
+        INSERT {test::InsertTest} {
+            l3 := 'Test\'2\'',
+            l2 := 2
+        };
+
+        INSERT {test::InsertTest} {
+            l3 := '\"Test\'3\'\"',
+            l2 := 3
+        };
+
+        SELECT
+            {test::InsertTest} {
+                l2, l3
+            }
+        ORDER BY {test::InsertTest}.l2;
+
+        """) -> [
+        [],
+
+        [],
+
+        [],
+
+        [],
+
+        [{
+            'std.id': uuid.UUID,
+            'std.ctime': datetime.DateTime,
+            'std.mtime': datetime.DateTime,
+            'test.l2': 0,
+            'test.l3': 'test',
+        }, {
+            'std.id': uuid.UUID,
+            'std.ctime': datetime.DateTime,
+            'std.mtime': datetime.DateTime,
+            'test.l2': 1,
+            'test.l3': 'Test"1"',
+        }, {
+            'std.id': uuid.UUID,
+            'std.ctime': datetime.DateTime,
+            'std.mtime': datetime.DateTime,
+            'test.l2': 2,
+            'test.l3': "Test'2'",
+        }, {
+            'std.id': uuid.UUID,
+            'std.ctime': datetime.DateTime,
+            'std.mtime': datetime.DateTime,
+            'test.l2': 3,
+            'test.l3': '''"Test'3'"''',
+        }]
+    ]:
         pass

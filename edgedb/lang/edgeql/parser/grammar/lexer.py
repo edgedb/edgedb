@@ -144,31 +144,15 @@ class EdgeQLLexer(lexer.Lexer):
                 (?P<Q>
                     # capture the opening quote in group Q
                     (
-                        ' |
+                        ' | " |
                         {dollar_quote}
                     )
                 )
                 (?:
-                    (.|\n)*?
+                    (\\['"] | \n | .)*?
                 )
                 (?P=Q)      # match closing quote type with whatever is in Q
-
-                (
-                    (?:\s|\n)*  # whitespace in between strings
-                    (?P=Q).*?(?P=Q)
-                )*
              '''.format(dollar_quote=re_dquote)),
-
-        # quoted identifier
-        Rule(token='QIDENT',
-             next_state=STATE_KEEP,
-             regexp=r'''
-                    "(?:
-                        [^"]
-                        |
-                        ""
-                    )+"
-                '''),
 
         Rule(token='IDENT',
              next_state=STATE_KEEP,
@@ -193,16 +177,13 @@ class EdgeQLLexer(lexer.Lexer):
         if rule_token == 'self':
             tok.attrs['type'] = txt
 
-        elif rule_token == 'QIDENT':
-            tok.attrs['type'] = 'IDENT'
-            tok.value = txt[:-1].split('"', 1)[1]
-
         elif rule_token == 'SCONST':
             # the process of string normalization is slightly different for
             # regular '-quoted strings and $$-quoted ones
             #
-            if txt[0] == "'":
-                tok.value = clean_string.sub('', txt[1:-1].replace("''", "'"))
+            if txt[0] in ("'", '"'):
+                tok.value = clean_string.sub('', txt[1:-1].replace(
+                    R"\'", "'").replace(R'\"', '"'))
             else:
                 # Because of implicit string concatenation there may
                 # be more than one pair of dollar quotes in the txt.
