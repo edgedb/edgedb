@@ -26,14 +26,14 @@ class TestDeltas(tb.QueryTestCase):
 
         # test updated schema
         #
-        INSERT [test.NamedObject] [
+        INSERT [test.NamedObject] {
             name := 'Test'
-        ];
+        };
 
         SELECT
-            [test.NamedObject][
+            [test.NamedObject] {
                 name
-            ]
+            }
         WHERE
             [test.NamedObject].name = 'Test';
 

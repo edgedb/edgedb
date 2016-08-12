@@ -223,7 +223,7 @@ class SelectTargetEl(Nonterm):
 
 
 class SelectPathSpec(Nonterm):
-    def reduce_LBRACKET_SelectPointerSpecList_RBRACKET(self, *kids):
+    def reduce_LBRACE_SelectPointerSpecList_RBRACE(self, *kids):
         self.val = kids[1].val
 
 

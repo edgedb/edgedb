@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2015 MagicStack Inc.
+# Copyright (c) 2008-2016 MagicStack Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -293,7 +293,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def _visit_pathspec(self, pathspec):
         if pathspec:
-            self.write('[')
+            self.write('{')
             self.indentation += 1
             self.new_lines = 1
             for i, spec in enumerate(pathspec):
@@ -303,7 +303,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.visit(spec)
             self.indentation -= 1
             self.new_lines = 1
-            self.write(']')
+            self.write('}')
 
     def visit_PathStepNode(self, node):
         if node.namespace:
