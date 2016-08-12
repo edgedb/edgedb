@@ -852,9 +852,9 @@ class ConstraintTable(InheritingSchemaObjectTable):
             dbops.Column(name='localfinalexpr', type='text'),
             dbops.Column(name='finalexpr', type='text'),
             dbops.Column(name='errmessage', type='text'),
-            dbops.Column(name='paramtypes', type='edgedb.hstore'),
-            dbops.Column(name='inferredparamtypes', type='edgedb.hstore'),
-            dbops.Column(name='args', type='bytea')
+            dbops.Column(name='paramtypes', type='jsonb'),
+            dbops.Column(name='inferredparamtypes', type='jsonb'),
+            dbops.Column(name='args', type='jsonb')
         ])
 
         self._columns = self.columns()

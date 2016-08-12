@@ -276,10 +276,10 @@ class DeclarationLoader:
                 if inferred:
                     deps.update(inferred.values())
 
-            deps = {
-                p.element_type if isinstance(p, s_obj.Collection) else p
-                for p in deps
-            }
+            for dep in list(deps):
+                if isinstance(dep, s_obj.Collection):
+                    deps.update(dep.get_subtypes())
+                    deps.discard(dep)
 
             # Add dependency on all builtin atoms unconditionally
             std = self._schema.get_module('std')

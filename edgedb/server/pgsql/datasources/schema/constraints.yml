@@ -31,8 +31,10 @@ source: |
             a.localfinalexpr AS localfinalexpr,
             a.finalexpr    AS finalexpr,
             a.errmessage   AS errmessage,
-            a.paramtypes   AS paramtypes,
-            a.inferredparamtypes AS inferredparamtypes,
+            edgedb._resolve_type_dict(a.paramtypes)
+                           AS paramtypes,
+            edgedb._resolve_type_dict(a.inferredparamtypes)
+                           AS inferredparamtypes,
             a.args         AS args,
             subj.name      AS subject
         FROM

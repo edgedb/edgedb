@@ -14,7 +14,15 @@ CREATE DOMAIN known_record_marker_t AS text;
 
 CREATE TYPE type_t AS (
     type integer,
-    collection text
+    collection text,
+    subtypes integer[]
+);
+
+
+CREATE TYPE typedesc_t AS (
+    type text,
+    collection text,
+    subtypes text[]
 );
 
 
@@ -135,9 +143,9 @@ CREATE TABLE "constraint" (
     localfinalexpr text,
     finalexpr text,
     errmessage text,
-    paramtypes hstore,
-    inferredparamtypes hstore,
-    args bytea
+    paramtypes jsonb,
+    inferredparamtypes jsonb,
+    args jsonb
 )
 INHERITS (inheritingobject);
 
@@ -198,3 +206,51 @@ CREATE TABLE backend_info (
 
 
 INSERT INTO backend_info (format_version) VALUES (30);
+
+
+CREATE FUNCTION _resolve_type(type edgedb.type_t)
+RETURNS edgedb.typedesc_t AS $$
+    SELECT
+        ROW(
+            (SELECT name FROM edgedb.object
+             WHERE id = (type.type)::int),
+
+            type.collection,
+
+            (SELECT
+                array_agg(o.name ORDER BY st.i)
+             FROM
+                edgedb.object AS o,
+                UNNEST(type.subtypes)
+                    WITH ORDINALITY AS st(t, i)
+             WHERE
+                o.id = st.t::int)
+        )::edgedb.typedesc_t
+
+$$ LANGUAGE SQL STABLE;
+
+
+CREATE FUNCTION _resolve_type_dict(type_data jsonb) RETURNS jsonb AS $$
+    SELECT
+        jsonb_object_agg(
+            key,
+            ROW(
+                (SELECT name FROM edgedb.object
+                 WHERE id = (value->>'type')::int),
+
+                value->>'collection',
+
+                (SELECT
+                    array_agg(o.name ORDER BY st.i)
+                 FROM
+                    edgedb.object AS o,
+                    jsonb_array_elements_text(value->'subtypes')
+                        WITH ORDINALITY AS st(t, i)
+                 WHERE
+                    o.id = st.t::int)
+            )::edgedb.typedesc_t
+        )
+    FROM
+        jsonb_each(type_data)
+
+$$ LANGUAGE SQL STABLE;

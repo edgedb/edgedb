@@ -96,7 +96,15 @@ class ProtoObject(metaclass=PrototypeClass):
 
 
 class ProtoNode(ProtoObject):
-    pass
+    @classmethod
+    def compare_values(cls, ours, theirs, context, compcoef):
+        if isinstance(ours, Collection) or isinstance(theirs, Collection):
+            return ours.__class__.compare_values(
+                ours, theirs, context, compcoef)
+        elif ours != theirs:
+            return compcoef
+        else:
+            return 1.0
 
 
 class PrototypeMeta(PrototypeClass, struct.MixedStructMeta):
@@ -309,10 +317,14 @@ class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
                 comparison_v[k] = p.name
 
             elif isinstance(p, Collection):
-                if is_named_proto(p.element_type):
-                    eltype = PrototypeRef(prototype_name=p.element_type.name)
-                    result[k] = p.__class__(element_type=eltype)
-                    comparison_v[k] = (p.__class__, eltype.prototype_name)
+                strefs = []
+
+                for st in p.get_subtypes():
+                    strefs.append(PrototypeRef(prototype_name=st.name))
+
+                result[k] = p.__class__.from_subtypes(strefs)
+                comparison_v[k] = \
+                    (p.__class__, tuple(r.prototype_name for r in strefs))
 
             else:
                 result[k] = p
@@ -375,8 +387,11 @@ class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
 
             for k, r in ref.items():
                 if isinstance(r, Collection):
-                    eltype = resolve(r.element_type.prototype_name)
-                    r = r.__class__(element_type=eltype)
+                    subtypes = []
+                    for stref in r.get_subtypes():
+                        subtypes.append(resolve(stref.prototype_name))
+
+                    r = r.__class__.from_subtypes(subtypes)
                 else:
                     r = resolve(r.prototype_name)
 
@@ -625,43 +640,78 @@ class PrototypeRef(BasePrototype):
 
 
 class Collection(BasePrototype, ProtoNode):
-    element_type = Field(BasePrototype, None)
+    element_type = Field(BasePrototype)
 
-    def compare(self, other, context):
-        if not isinstance(other, Collection):
-            return 0.1
+    @classmethod
+    def compare_values(cls, ours, theirs, context, compcoef):
+        if ours.get_canonical_class() != theirs.get_canonical_class():
+            basecoef = 0.2
+        else:
+            my_subtypes = ours.get_subtypes()
+            other_subtypes = theirs.get_subtypes()
 
-        if self.get_canonical_class() != other.get_canonical_class():
-            return 0.2
+            similarity = []
+            for i, st in enumerate(my_subtypes):
+                similarity.append(st.compare(other_subtypes[i], context))
 
-        return self.element_type.compare(other.element_type, context)
+            basecoef = sum(similarity) / len(similarity)
+
+        return basecoef + (1 - basecoef) * compcoef
 
     def get_container(self):
         raise NotImplementedError
 
-    def coerce(self, items, schema):
+    def get_subtypes(self):
+        return (self.element_type,)
+
+    def get_subtype(self, schema, typeref):
         from . import atoms as s_atoms
         from . import types as s_types
 
+        if isinstance(typeref, PrototypeRef):
+            eltype = schema.get(typeref.prototype_name)
+        else:
+            eltype = typeref
+
+        if isinstance(eltype, s_atoms.Atom):
+            eltype = eltype.get_topmost_base()
+            eltype = s_types.BaseTypeMeta.get_implementation(eltype.name)
+
+        return eltype
+
+    def coerce(self, items, schema):
         container = self.get_container()
 
         elements = []
-        if self.element_type is not None:
-            if isinstance(self.element_type, PrototypeRef):
-                eltype = schema.get(self.element_type.prototype_name)
-            else:
-                eltype = self.element_type
 
-            if isinstance(eltype, s_atoms.Atom):
-                eltype = eltype.get_topmost_base()
-                eltype = s_types.BaseTypeMeta.get_implementation(eltype.name)
+        eltype = self.get_subtype(schema, self.element_type)
 
-            for item in items:
-                if not isinstance(item, eltype):
-                    item = eltype(item)
-                elements.append(item)
+        for item in items:
+            if not isinstance(item, eltype):
+                item = eltype(item)
+            elements.append(item)
 
         return container(elements)
+
+    @classmethod
+    def get_class(cls, schema_name):
+        if schema_name == 'list':
+            return List
+        elif schema_name == 'set':
+            return Set
+        elif schema_name == 'map':
+            return Map
+        else:
+            raise ValueError(
+                'unknown collection type: {!r}'.format(schema_name))
+
+    @classmethod
+    def from_subtypes(cls, subtypes):
+        if len(subtypes) != 1:
+            raise ValueError(
+                'unexpected number of subtypes, expecting 1: {!r}'.format(
+                    subtypes))
+        return cls(element_type=subtypes[0])
 
 
 class Set(Collection):
@@ -676,6 +726,26 @@ class List(Collection):
 
     def get_container(self):
         return tuple
+
+
+class Map(Collection):
+    schema_name = 'map'
+
+    key_type = Field(BasePrototype)
+
+    def get_container(self):
+        return dict
+
+    def get_subtypes(self):
+        return (self.key_type, self.element_type,)
+
+    @classmethod
+    def from_subtypes(cls, subtypes):
+        if len(subtypes) != 2:
+            raise ValueError(
+                'unexpected number of subtypes, expecting 2: {!r}'.format(
+                    subtypes))
+        return cls(key_type=subtypes[0], element_type=subtypes[1])
 
 
 class PrototypeDict(typed.TypedDict, keytype=str, valuetype=BasePrototype):
@@ -760,46 +830,6 @@ class PrototypeSet(typed.TypedSet, type=BasePrototype):
 
 class PrototypeList(typed.TypedList, type=BasePrototype):
     pass
-
-
-class TypeRef:
-    _typeref_re = re.compile(
-        r'''^(?P<type>\w+(?:\.\w+)*(?:::\w+)?)
-            (?:\<
-                (?P<eltype>
-                    (?: \w+(?:\.\w+)* (?:::\w+) )
-                    |
-                    \w+
-                )
-            \>)?$''', re.X)
-
-    @classmethod
-    def parse(cls, typeref):
-        m = cls._typeref_re.match(typeref)
-
-        if not m:
-            msg = 'invalid type: {!r}'.format(typeref)
-            raise ValueError(msg)
-
-        type = m.group('type')
-        element_type = m.group('eltype')
-
-        if element_type is not None:
-            collection_type = type
-            type = element_type
-        else:
-            collection_type = None
-
-        if collection_type and collection_type not in {'set', 'list'}:
-            msg = 'invalid collection type: {!r}'.format(collection_type)
-            raise ValueError(msg)
-
-        if collection_type == 'set':
-            collection_type = Set
-        elif collection_type == 'list':
-            collection_type = List
-
-        return collection_type, type
 
 
 class ArgDict(typed.TypedDict, keytype=str, valuetype=object):

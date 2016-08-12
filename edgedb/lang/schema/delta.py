@@ -422,15 +422,19 @@ class Command(datastructures.MixedStruct, metaclass=CommandMeta):
                         unresolved[op.property] = ref
 
                 elif (isinstance(op.new_value, so.Collection)
-                        and isinstance(op.new_value.element_type,
-                                       so.PrototypeRef)):
-                    eltype, ref = self._resolve_ref(
-                        op.new_value.element_type, schema,
-                        allow_unresolved_refs)
-                    if eltype is None:
-                        unresolved[op.property] = ref
-                    else:
-                        op.new_value.element_type = eltype
+                        and any(isinstance(st, so.PrototypeRef)
+                                for st in op.new_value.get_subtypes())):
+                    subtypes = []
+                    for st in op.new_value.get_subtypes():
+                        eltype, ref = self._resolve_ref(
+                            st, schema, allow_unresolved_refs)
+                        if eltype is None:
+                            unresolved[op.property] = ref
+                            subtypes.append(st)
+                        else:
+                            subtypes.append(eltype)
+
+                    value = op.new_value.__class__.from_subtypes(subtypes)
 
             elif issubclass(ftype, typed.AbstractTypedMapping):
                 if issubclass(ftype.valuetype, so.ProtoObject):
@@ -823,22 +827,19 @@ class AlterPrototypeProperty(Command):
                         v = tuple(el.value for el in v.elements)
                     elif (isinstance(v, qlast.FunctionCallNode) and
                             v.func == 'typeref'):
-                        if len(v.args) == 2:
+                        if len(v.args) > 1:
                             # collection
-                            subtype = so.PrototypeRef(
-                                prototype_name=s_name.Name(v.args[1].value))
-                            if v.args[0].value == 'set':
-                                ct = so.Set
-                            elif v.args[0].value == 'list':
-                                ct = so.List
-                            else:
-                                msg = 'unexpected collection type: {!r}'
-                                raise ValueError(msg.format(v.args[0].value))
+                            ct = so.Collection.get_class(v.args[0].value)
+                            subtypes = []
+                            for st in v.args[1:]:
+                                stname = s_name.Name(v.args[1].value)
+                                subtypes.append(so.PrototypeRef(
+                                    prototype_name=stname))
 
-                            v = ct(element_type=subtype)
+                            v = ct.from_subtypes(subtypes)
                         else:
                             v = so.PrototypeRef(
-                                    prototype_name=s_name.Name(v.args[0].value))
+                                prototype_name=s_name.Name(v.args[0].value))
                     elif isinstance(v, qlast.TypeCastNode):
                         v = v.expr.value
                     elif isinstance(v, qlast.UnaryOpNode):

@@ -101,6 +101,8 @@ class Protocol(asyncio.Protocol):
 
     def send_error(self, err):
         import traceback
+        import edgedb.lang.common.markup
+        edgedb.lang.common.markup.dump(vars(err))
         traceback.print_exception(
             type(err), err, err.__traceback__, file=sys.stderr)
         self.send_message({

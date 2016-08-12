@@ -1,58 +1,53 @@
 CREATE MODULE std;
 
-CREATE ACTION {std::restrict} {
-    SET title := 'Abort the event if a pointer exists';
-};
+CREATE ABSTRACT ATOM {std::any};
+CREATE ATOM {std::typeref};
+CREATE ATOM {std::atomref} INHERITING {std::typeref};
+CREATE ATOM {std::conceptref} INHERITING {std::typeref};
 
-CREATE ACTION {std::cascade} {
-    SET title := 'Cascade the event through the pointer';
-};
+CREATE ATOM {std::bytes};
 
-CREATE ACTION {std::delete_pointer} {
-    SET title := 'Delete pointer';
-};
+CREATE ATOM {std::datetime};
 
-CREATE ACTION {std::ignore} {
-    SET title := 'Ignore the event';
-};
+CREATE ATOM {std::uuid};
 
-CREATE ACTION {std::delete_source} {
-    SET title := 'Delete pointer target';
-};
+CREATE ATOM {std::str};
 
-CREATE ACTION {std::delete_orphan_target} {
-    SET title := 'Delete target if no instances of the inbound pointer to it exist';
-};
+CREATE ATOM {std::timedelta};
 
-CREATE ACTION {std::cascade_loaded} {
-    SET title := 'Cascade the event through the pointer if target is loaded to the local session';
-};
+CREATE ATOM {std::date};
 
-CREATE ACTION {std::delete_target} {
-    SET title := 'Delete pointer target';
-};
+CREATE ATOM {std::time};
 
-CREATE EVENT {std::event};
+CREATE ATOM {std::int};
 
-CREATE EVENT {std::cascade_base} INHERITING {std::event};
+CREATE FINAL ATOM {std::none};
 
-CREATE EVENT {std::cascade_session_detach} INHERITING {std::cascade_base};
+CREATE ATOM {std::float};
 
-CREATE EVENT {std::cascade_serialize} INHERITING {std::cascade_base};
+CREATE ATOM {std::bool};
 
-CREATE EVENT {std::internal} INHERITING {std::event};
+CREATE ATTRIBUTE {std::pattern} {std::str};
 
-CREATE EVENT {std::deleted} INHERITING {std::internal};
+CREATE ABSTRACT ATOM {std::sequence};
 
-CREATE EVENT {std::source_deleted} INHERITING {std::deleted};
+CREATE ATTRIBUTE {std::precision} list<{std::int}>;
 
-CREATE EVENT {std::self_deleted} INHERITING {std::deleted};
+CREATE ATTRIBUTE {std::name} {std::str};
+CREATE ATTRIBUTE {std::bases} list<{std::typeref}>;
+CREATE ATTRIBUTE {std::is_abstract} {std::bool};
+CREATE ATTRIBUTE {std::is_final} {std::bool};
+CREATE ATTRIBUTE {std::title} {std::str};
+CREATE ATTRIBUTE {std::description} {std::str};
 
-CREATE EVENT {std::cascade_session_attach} INHERITING {std::cascade_base};
-
-CREATE EVENT {std::cascade_copy} INHERITING {std::cascade_base};
-
-CREATE EVENT {std::target_deleted} INHERITING {std::deleted};
+CREATE ATTRIBUTE {std::expr} {std::str};
+CREATE ATTRIBUTE {std::subjectexpr} {std::str};
+CREATE ATTRIBUTE {std::finalexpr} {std::str};
+CREATE ATTRIBUTE {std::subject} {std::typeref};
+CREATE ATTRIBUTE {std::paramtypes} map<{std::str}, {std::typeref}>;
+CREATE ATTRIBUTE {std::inferredparamtypes} map<{std::str}, {std::typeref}>;
+CREATE ATTRIBUTE {std::args} map<{std::str}, {std::any}>;
+CREATE ATTRIBUTE {std::errmessage} {std::str};
 
 CREATE CONSTRAINT {std::constraint} {
     SET errmessage := 'invalid {subject}';
@@ -110,34 +105,6 @@ CREATE CONSTRAINT {std::unique} INHERITING {std::constraint} {
     SET expr := (not EXISTS (subject));
 };
 
-CREATE ATOM {std::bytes};
-
-CREATE ATOM {std::datetime};
-
-CREATE ATOM {std::uuid};
-
-CREATE ATOM {std::str};
-
-CREATE ATOM {std::timedelta};
-
-CREATE ATOM {std::date};
-
-CREATE ATOM {std::time};
-
-CREATE ATOM {std::int};
-
-CREATE FINAL ATOM {std::none};
-
-CREATE ATOM {std::float};
-
-CREATE ATOM {std::bool};
-
-CREATE ATTRIBUTE {std::pattern} {std::str};
-
-CREATE ABSTRACT ATOM {std::sequence};
-
-CREATE ATTRIBUTE {std::precision} list<{std::int}>;
-
 CREATE ATOM {std::decimal_rounding_t} INHERITING {std::str} {
     CREATE CONSTRAINT {std::enum} {
         SET args := {'param': ('ceiling', '05up', 'up', 'half-even', 'half-up',
@@ -160,6 +127,59 @@ CREATE FUNCTION {std::current_datetime}() RETURNING {std::datetime};
 
 CREATE FUNCTION {std::uuid_generate_v1mc}() RETURNING {std::uuid};
 
+CREATE ACTION {std::restrict} {
+    SET title := 'Abort the event if a pointer exists';
+};
+
+CREATE ACTION {std::cascade} {
+    SET title := 'Cascade the event through the pointer';
+};
+
+CREATE ACTION {std::delete_pointer} {
+    SET title := 'Delete pointer';
+};
+
+CREATE ACTION {std::ignore} {
+    SET title := 'Ignore the event';
+};
+
+CREATE ACTION {std::delete_source} {
+    SET title := 'Delete pointer target';
+};
+
+CREATE ACTION {std::delete_orphan_target} {
+    SET title := 'Delete target if no instances of the inbound pointer to it exist';
+};
+
+CREATE ACTION {std::cascade_loaded} {
+    SET title := 'Cascade the event through the pointer if target is loaded to the local session';
+};
+
+CREATE ACTION {std::delete_target} {
+    SET title := 'Delete pointer target';
+};
+
+CREATE EVENT {std::event};
+
+CREATE EVENT {std::cascade_base} INHERITING {std::event};
+
+CREATE EVENT {std::cascade_session_detach} INHERITING {std::cascade_base};
+
+CREATE EVENT {std::cascade_serialize} INHERITING {std::cascade_base};
+
+CREATE EVENT {std::internal} INHERITING {std::event};
+
+CREATE EVENT {std::deleted} INHERITING {std::internal};
+
+CREATE EVENT {std::source_deleted} INHERITING {std::deleted};
+
+CREATE EVENT {std::self_deleted} INHERITING {std::deleted};
+
+CREATE EVENT {std::cascade_session_attach} INHERITING {std::cascade_base};
+
+CREATE EVENT {std::cascade_copy} INHERITING {std::cascade_base};
+
+CREATE EVENT {std::target_deleted} INHERITING {std::deleted};
 
 CREATE LINK PROPERTY {std::linkproperty} {
     SET readonly := False;

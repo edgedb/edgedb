@@ -1226,8 +1226,8 @@ class Backend(s_deltarepo.DeltaProvider):
     async def read_constraints(self, schema):
         ds = datasources.schema.constraints.Constraints(self.connection)
         constraints_list = await ds.fetch()
-        constraints_list = collections.OrderedDict((sn.Name(r['name']), r)
-                                                    for r in constraints_list)
+        constraints_list = collections.OrderedDict(
+            (sn.Name(r['name']), r) for r in constraints_list)
 
         basemap = {}
 
@@ -1247,21 +1247,28 @@ class Backend(s_deltarepo.DeltaProvider):
 
             basemap[name] = bases
 
-            if r['paramtypes']:
-                paramtypes = {n: self.unpack_typeref(v, schema)
-                              for n, v in r['paramtypes'].items()}
-            else:
-                paramtypes = None
+            allparamtypes = {}
 
             if r['inferredparamtypes']:
                 inferredparamtypes = {
                     n: self.unpack_typeref(v, schema)
-                    for n, v in r['inferredparamtypes'].items()}
+                    for n, v in json.loads(r['inferredparamtypes']).items()}
+                allparamtypes.update(inferredparamtypes)
             else:
                 inferredparamtypes = None
 
+            if r['paramtypes']:
+                paramtypes = {n: self.unpack_typeref(v, schema)
+                              for n, v in json.loads(r['paramtypes']).items()}
+                allparamtypes.update(paramtypes)
+            else:
+                paramtypes = None
+
             if r['args']:
-                args = pickle.loads(r['args'])
+                args = json.loads(r['args'])
+                for k, v in args.items():
+                    paramtype = allparamtypes[k]
+                    args[k] = paramtype.coerce(v, schema)
             else:
                 args = None
 
@@ -1299,16 +1306,13 @@ class Backend(s_deltarepo.DeltaProvider):
         pass
 
     def unpack_typeref(self, typeref, protoschema):
-        try:
-            collection_type, type = s_obj.TypeRef.parse(typeref)
-        except ValueError as e:
-            raise s_err.SchemaError(e.args[0]) from None
+        if typeref['type'] is not None:
+            type = protoschema.get(typeref['type'])
 
-        if type is not None:
-            type = protoschema.get(type)
-
-        if collection_type is not None:
-            type = collection_type(element_type=type)
+        if typeref['collection'] is not None:
+            coll_type = s_obj.Collection.get_class(typeref['collection'])
+            subtypes = [protoschema.get(st) for st in typeref['subtypes']]
+            type = coll_type.from_subtypes(subtypes)
 
         return type
 
@@ -1788,15 +1792,14 @@ class Backend(s_deltarepo.DeltaProvider):
             name = sn.Name(r['name'])
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']
-            type = schema.get(r['type'])
-            coll = r['type_coll']
-            if coll == 'set':
-                type = s_obj.Set(element_type=type)
-            elif coll == 'list':
-                type = s_obj.List(element_type=type)
-            elif coll is not None:
-                raise ValueError('unexpected collection type: {!r}'.format(
-                    coll))
+
+            coll = r['type']['collection']
+            if coll:
+                stypes = [schema.get(st) for st in r['type']['subtypes']]
+                ct = s_obj.Collection.get_class(coll)
+                type = ct.from_subtypes(stypes)
+            else:
+                type = schema.get(r['type']['type'])
 
             attribute = s_attrs.Attribute(
                 name=name, title=title, description=description, type=type)

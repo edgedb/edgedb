@@ -15,7 +15,10 @@ class EdgeQLError(EdgeDBError):
 
 
 class EdgeQLQueryError(ParserError, EdgeQLError):
-    pass
+    def __str__(self):
+        import edgedb.lang.common.markup
+        res = self.args[0]
+        return res + '\n' + edgedb.lang.common.markup.dumps(self.__sx_error_contexts__)
 
 
 class EdgeQLExpressionError(EdgeQLError):

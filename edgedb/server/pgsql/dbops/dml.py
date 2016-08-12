@@ -107,6 +107,8 @@ class Update(DMLOperation):
 
             if isinstance(val, base.Query):
                 expr = re.sub(r'\$(\d+)', lambda m: '$%s' % (int(m.groups(1)[0]) + i - 1), val.text)
+                if not expr.startswith('('):
+                    expr = '({})'.format(expr)
                 i += len(val.params)
                 vals.extend(val.params)
             elif isinstance(val, base.Default):

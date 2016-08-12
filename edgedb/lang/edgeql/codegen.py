@@ -522,14 +522,15 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(' IS None')
 
     def visit_TypeNameNode(self, node):
-        if '.' in node.maintype:
+        if node.maintype.module:
             self.write('{')
-        self.write(node.maintype)
-        if '.' in node.maintype:
+            self.write(node.maintype.module)
+        self.write(node.maintype.name)
+        if node.maintype.module:
             self.write('}')
-        if node.subtype is not None:
+        if node.subtypes:
             self.write('<')
-            self.visit(node.subtype)
+            self.visit_list(node.subtypes, newlines=False)
             self.write('>')
 
     # DDL nodes

@@ -1112,51 +1112,23 @@ class Name(Nonterm):
 
 
 class TypeName(Nonterm):
-    def reduce_Name(self, *kids):
-        fq = kids[0].val
-        if len(fq) > 1:
-            name = '.'.join(fq[:1]) + '::' + fq[-1]
-        else:
-            name = fq[0]
+    def reduce_NodeName(self, *kids):
+        self.val = qlast.TypeNameNode(maintype=kids[0].val)
 
-        self.val = qlast.TypeNameNode(maintype=name)
-
-    def reduce_Name_LANGBRACKET_TypeName_RANGBRACKET(self, *kids):
-        fq = kids[0].val
-        if len(fq) > 1:
-            name = '.'.join(fq[:1]) + '::' + fq[-1]
-        else:
-            name = fq[0]
-
-        self.val = qlast.TypeNameNode(maintype=name,
-                                      subtype=kids[2].val)
+    def reduce_NodeName_LANGBRACKET_NodeNameList_RANGBRACKET(self, *kids):
+        self.val = qlast.TypeNameNode(maintype=kids[0].val,
+                                      subtypes=kids[2].val)
 
 
 class ExtTypeExpr(Nonterm):
-    def reduce_Name(self, *kids):
-        fq = kids[0].val
-        if len(fq) > 1:
-            name = '.'.join(fq[:1]) + '::' + fq[-1]
-        else:
-            name = fq[0]
-
-        self.val = qlast.TypeNameNode(maintype=name)
+    def reduce_TypeName(self, *kids):
+        self.val = kids[0].val
 
     def reduce_PathStart_SelectPathSpec(self, *kids):
         self.val = qlast.PathNode(
             steps=[kids[0].val],
             pathspec=kids[1].val
         )
-
-    def reduce_Name_LANGBRACKET_ExtTypeExpr_RANGBRACKET(self, *kids):
-        fq = kids[0].val
-        if len(fq) > 1:
-            name = '.'.join(fq[:1]) + '::' + fq[-1]
-        else:
-            name = fq[0]
-
-        self.val = qlast.TypeNameNode(maintype=name,
-                                      subtype=kids[2].val)
 
 
 class ParamName(Nonterm):

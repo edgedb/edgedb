@@ -921,35 +921,43 @@ class EdgeQLCompiler:
 
         elif isinstance(expr, qlast.TypeCastNode):
             maintype = expr.type.maintype
-            subtype = expr.type.subtype
+            subtypes = expr.type.subtypes
 
             schema = context.current.proto_schema
             aliases = context.current.namespaces
 
-            if subtype:
-                if isinstance(subtype, qlast.PathNode):
-                    stype = self._process_path(context, subtype)
-                    if isinstance(stype, irast.LinkPropRefSimple):
-                        stype = stype.ref
-                    elif not isinstance(stype, irast.EntityLink):
-                        stype = stype.rlink
+            if subtypes:
+                typ = [maintype.name]
 
-                    if subtype.pathspec:
-                        pathspec = self._process_pathspec(
-                            context, stype.link_proto, None, subtype.pathspec)
+                for subtype in subtypes:
+                    if isinstance(subtype, qlast.PathNode):
+                        stype = self._process_path(context, subtype)
+                        if isinstance(stype, irast.LinkPropRefSimple):
+                            stype = stype.ref
+                        elif not isinstance(stype, irast.EntityLink):
+                            stype = stype.rlink
+
+                        if subtype.pathspec:
+                            pathspec = self._process_pathspec(
+                                context, stype.link_proto, None,
+                                subtype.pathspec)
+                        else:
+                            pathspec = None
+
+                        subtype = irast.CompositeType(
+                            node=stype, pathspec=pathspec)
                     else:
-                        pathspec = None
+                        stn = sn.SchemaName(module=subtype.module,
+                                            name=subtype.name)
+                        subtype = schema.get(stn, module_aliases=aliases)
 
-                    subtype = irast.CompositeType(
-                        node=stype, pathspec=pathspec)
-                else:
-                    subtype = schema.get(subtype.maintype,
-                                         module_aliases=aliases)
+                    typ.append(subtype)
 
-                typ = (maintype, subtype)
+                typ = tuple(typ)
             else:
-                maintype = schema.get(maintype, module_aliases=aliases)
-                typ = maintype
+                mtn = stn = sn.SchemaName(module=maintype.module,
+                                          name=maintype.name)
+                typ = schema.get(mtn, module_aliases=aliases)
 
             node = irast.TypeCast(
                 expr=self._process_expr(context, expr.expr), type=typ)

@@ -402,11 +402,15 @@ class IRDecompiler:
                 if expr.type[0] is not list:
                     raise ValueError('unexpected collection type: {!r}'.format(expr.type[0]))
 
+                stn = expr.type[1].name
+                st = qlast.PrototypeRefNode(module=stn.module, name=stn.name)
                 typ = qlast.TypeNameNode(
-                    maintype='list',
-                    subtype=qlast.TypeNameNode(maintype=expr.type[1].name))
+                    maintype=qlast.PrototypeRefNode(name='list'),
+                    subtypes=[st])
             else:
-                typ = qlast.TypeNameNode(maintype=expr.type.name)
+                mtn = expr.type.name
+                mt = qlast.PrototypeRefNode(module=mtn.module, name=mtn.name)
+                typ = qlast.TypeNameNode(maintype=mt)
 
             result = qlast.TypeCastNode(
                         expr=self._process_expr(context, expr.expr), type=typ)

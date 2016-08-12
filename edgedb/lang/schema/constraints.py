@@ -57,17 +57,13 @@ class ConstraintCommand(sd.PrototypeCommand):
                 v = qlast.FunctionCallNode(func='typeref', args=[v])
 
             elif isinstance(value, so.Collection):
-                if isinstance(value, so.Set):
-                    maintype = 'set'
-                else:
-                    maintype = 'list'
+                args = [qlast.ConstantNode(value=value.schema_type)]
 
-                maintype = qlast.ConstantNode(value=maintype)
-                subtype = qlast.ConstantNode(
-                            value=value.element_type.prototype_name)
+                for subtype in value.get_subtypes():
+                    args.append(qlast.ConstantNode(
+                        value=subtype.prototype_name))
 
-                v = qlast.FunctionCallNode(func='typeref',
-                                           args=[maintype, subtype])
+                v = qlast.FunctionCallNode(func='typeref', args=args)
 
             elif utils.is_nontrivial_container(value):
                 v = qlast.SequenceNode(elements=[

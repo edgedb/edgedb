@@ -481,7 +481,7 @@ class MappingNode(Base):
 
 
 class TypeNameNode(Base):
-    __fields = [('maintype', str), ('subtype', Base, None)]
+    __fields = [('maintype', Base), ('subtypes', list)]
 
 
 class TypeCastNode(Base):

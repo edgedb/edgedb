@@ -190,14 +190,17 @@ class Atom(primary.Prototype, constraints.ConsistencySubject,
                     if ptypes:
                         for ptype in ptypes.values():
                             if isinstance(ptype, so.Collection):
-                                ptype = ptype.element_type
+                                subtypes = ptype.get_subtypes()
+                            else:
+                                subtypes = [ptype]
 
-                            if ptype is not self:
-                                if isinstance(ptype, so.PrototypeRef):
-                                    if ptype.prototype_name != self.name:
-                                        deps.add(ptype.prototype_name)
-                                else:
-                                    deps.add(ptype.name)
+                            for subtype in subtypes:
+                                if subtype is not self:
+                                    if isinstance(subtype, so.PrototypeRef):
+                                        if subtype.prototype_name != self.name:
+                                            deps.add(subtype.prototype_name)
+                                    else:
+                                        deps.add(subtype.name)
 
         return deps
 

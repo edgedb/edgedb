@@ -36,22 +36,20 @@ class CreateAttribute(named.CreateNamedPrototype, AttributeCommand):
     def _cmd_tree_from_ast(cls, astnode, context):
         cmd = super()._cmd_tree_from_ast(astnode, context)
 
-        if astnode.type.subtype:
-            if astnode.type.maintype == 'list':
-                coll = so.List
-            elif astnode.type.maintype == 'set':
-                coll = so.Set
-            else:
-                raise ValueError('unexpected collection type: {!r}'.format(
-                    astnode.type.maintype))
+        if astnode.type.subtypes:
+            coll = so.Collection.get_class(astnode.type.maintype.name)
 
-            eltype = so.PrototypeRef(
-                prototype_name=sn.Name(astnode.type.subtype.maintype))
+            subtypes = []
+            for st in astnode.type.subtypes:
+                stref = so.PrototypeRef(
+                    prototype_name=sn.Name(module=st.module, name=st.name))
+                subtypes.append(stref)
 
-            typ = coll(element_type=eltype)
+            typ = coll.from_subtypes(subtypes)
         else:
-            typ = so.PrototypeRef(
-                prototype_name=sn.Name(astnode.type.maintype))
+            mtn = sn.Name(module=astnode.type.maintype.module,
+                          name=astnode.type.maintype.name)
+            typ = so.PrototypeRef(prototype_name=mtn)
 
         cmd.add(
             sd.AlterPrototypeProperty(
@@ -66,16 +64,15 @@ class CreateAttribute(named.CreateNamedPrototype, AttributeCommand):
         if op.property == 'type':
             tp = op.new_value
             if isinstance(tp, so.Collection):
-                if isinstance(tp, so.List):
-                    maintype = 'list'
-                elif isinstance(tp, so.Set):
-                    maintype = 'set'
-                else:
-                    raise ValueError('unexpected collection type: {!r}'.format(
-                        tp))
+                maintype = tp.schema_name
+                stt = tp.get_subtypes()
+
+                for st in stt:
+                    eltype = qlast.PrototypeRefNode(module=st.module,
+                                                    name=st.name)
                 tnn = qlast.TypeNameNode(
                     maintype=maintype,
-                    subtype=qlast.TypeNameNode(maintype=tp.element_type))
+                    subtypes=[eltype])
             else:
                 tnn = qlast.TypeNameNode(maintype=tp)
 

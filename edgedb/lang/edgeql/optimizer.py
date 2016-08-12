@@ -227,15 +227,13 @@ class EdgeQLOptimizer:
             self._process_expr(context, expr.type)
 
         elif isinstance(expr, qlast.TypeNameNode):
-            if '::' in expr.maintype:
-                module, _, name = expr.maintype.rpartition('::')
-                module = self._process_module_ref(context, module)
-                if module:
-                    expr.maintype = module + '::' + name
-                else:
-                    expr.maintype = name
-            if expr.subtype:
-                self._process_expr(context, expr.subtype)
+            if expr.maintype.module:
+                expr.maintype.module = self._process_module_ref(
+                    context, expr.maintype.module)
+
+            if expr.subtypes:
+                for subtype in expr.subtypes:
+                    self._process_expr(context, subtype)
 
         elif isinstance(expr, qlast.TypeRefNode):
             self._process_expr(context, expr.expr)

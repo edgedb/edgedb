@@ -44,7 +44,9 @@ class CreateFunction(named.CreateNamedPrototype, FunctionCommand):
         cmd.add(sd.AlterPrototypeProperty(
             property='returntype',
             new_value=so.PrototypeRef(
-                prototype_name=sn.Name(astnode.returning.maintype)
+                prototype_name=sn.Name(
+                    module=astnode.returning.maintype.module,
+                    name=astnode.returning.maintype.name)
             )
         ))
 

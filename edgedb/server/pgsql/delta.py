@@ -98,12 +98,34 @@ class PrototypeMetaCommand(MetaCommand, sd.PrototypeCommand):
     pass
 
 
+class Record:
+    def __init__(self, items):
+        self._items = items
+
+    def __iter__(self):
+        return iter(self._items)
+
+    def __len__(self):
+        return len(self._items)
+
+
 class NamedPrototypeMetaCommand(PrototypeMetaCommand, s_named.NamedPrototypeCommand):
     op_priority = 0
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._type_mech = schemamech.TypeMech()
+
+    def _get_name(self, value):
+        if isinstance(value, s_obj.PrototypeRef):
+            name = value.prototype_name
+        elif isinstance(value, s_named.NamedPrototype):
+            name = value.name
+        else:
+            raise ValueError('expecting a PrototypeRef or a '
+                             'NamedPrototype, got {!r}'.format(value))
+
+        return name
 
     def _serialize_field(self, value, col):
         recvalue = None
@@ -115,42 +137,23 @@ class NamedPrototypeMetaCommand(PrototypeMetaCommand, s_named.NamedPrototypeComm
             result = value.name
 
         elif isinstance(value, (s_obj.PrototypeSet, s_obj.PrototypeList)):
-            result = []
-
-            for v in value:
-                if isinstance(v, s_obj.PrototypeRef):
-                    v = v.prototype_name
-                elif isinstance(v, s_named.NamedPrototype):
-                    v = v.name
-
-                result.append(v)
+            result = [self._get_name(v) for v in value]
 
         elif isinstance(value, s_obj.PrototypeDict):
             result = {}
 
             for k, v in value.items():
-                if isinstance(v, s_obj.PrototypeRef):
-                    v = v.prototype_name
-                elif isinstance(v, s_named.NamedPrototype):
-                    v = v.name
+                if isinstance(v, s_obj.Collection):
+                    stypes = [self._get_name(st) for st in v.get_subtypes()]
+                    v = (None, v.schema_name, stypes)
+                else:
+                    v = self._get_name(v)
 
                 result[k] = v
 
-        elif isinstance(value, dict):
-            # Other dicts are JSON'ed by default
-            result = value
-            recvalue = json.dumps(value)
-
         elif isinstance(value, s_obj.Collection):
-
-            if isinstance(value.element_type, s_obj.PrototypeRef):
-                eltype = value.element_type.prototype_name
-            elif isinstance(value.element_type, s_named.NamedPrototype):
-                eltype = value.element_type.name
-            else:
-                eltype = value.element_type
-
-            result = (eltype, value.schema_name)
+            stypes = [self._get_name(st) for st in value.get_subtypes()]
+            result = (None, value.schema_name, stypes)
 
         elif isinstance(value, sn.SchemaName):
             result = value
@@ -160,6 +163,11 @@ class NamedPrototypeMetaCommand(PrototypeMetaCommand, s_named.NamedPrototypeComm
             result = value
             recvalue = value.as_dict()
 
+        elif isinstance(value, dict):
+            # Other dicts are JSON'ed by default
+            result = value
+            recvalue = json.dumps(value)
+
         else:
             result = value
 
@@ -167,37 +175,64 @@ class NamedPrototypeMetaCommand(PrototypeMetaCommand, s_named.NamedPrototypeComm
             names = result
             if isinstance(names, list):
                 recvalue = dbops.Query(
-                    '''(SELECT array_agg(id) FROM edgedb.object
-                       WHERE name = any($1))''',
+                    '''SELECT
+                            array_agg(id ORDER BY st.i)
+                        FROM
+                            edgedb.object AS o,
+                            UNNEST($1::text[]) WITH ORDINALITY AS st(t, i)
+                        WHERE
+                            o.name = st.t''',
                     [names], type='integer[]')
 
             elif (isinstance(names, tuple) or
                     col is not None and col.type == 'edgedb.type_t'):
                 if not isinstance(names, tuple):
-                    names = (str(names), None)
+                    names = (str(names), None, None)
+
                 recvalue = dbops.Query(
-                    '''(SELECT ROW(id, $2)::edgedb.type_t FROM edgedb.object
-                        WHERE name = $1)''',
+                    '''SELECT ROW(
+                            (SELECT id FROM edgedb.object WHERE name = $1),
+                            $2,
+                            (SELECT
+                                    array_agg(id ORDER BY st.i)
+                                FROM
+                                    edgedb.object AS o,
+                                    UNNEST($3::text[])
+                                        WITH ORDINALITY AS st(t, i)
+                                WHERE
+                                    o.name = st.t)
+                        )::edgedb.type_t''',
                     names, type='edgedb.type_t')
 
             elif isinstance(names, dict):
                 flattened = list(itertools.chain.from_iterable(names.items()))
 
                 keys = [f for f in flattened[0::2]]
-                names = [f for f in flattened[1::2]]
-                jbo_args = ('${:d}, q.ids[{:d}]'.format(i + 2, i + 1)
+                jbo_args = ('${:d}::text, q.types[{:d}]'.format(i + 2, i + 1)
                             for i in range(int(len(flattened) / 2)))
+
+                names = []
+                for f in flattened[1::2]:
+                    if not isinstance(f, tuple):
+                        f = Record((str(f), None, None))
+                    else:
+                        f = Record(f)
+
+                    names.append(f)
 
                 recvalue = dbops.Query(
                     '''(SELECT
                             jsonb_build_object({json_seq})
                         FROM
-                            (SELECT
-                                array_agg(id) AS ids
+                            (SELECT array_agg(ROW(
+                                (SELECT id FROM edgedb.object
+                                WHERE name = t.type),
+                                t.collection,
+                                (SELECT array_agg(id) FROM edgedb.object
+                                WHERE name = any(t.subtypes))
+                                )::edgedb.type_t) AS types
                             FROM
-                                edgedb.object
-                            WHERE
-                                name = any($1)
+                                UNNEST($1::edgedb.typedesc_t[]) AS t
                             ) AS q
                         )
                     '''.format(json_seq=', '.join(jbo_args)),
@@ -448,34 +483,6 @@ class ConstraintCommand(metaclass=CommandMeta):
         rec, updates = super().fill_record(schema)
 
         if rec:
-            subj = updates.get('subject')
-            if subj:
-                rec.subject = dbops.Query(
-                    '(SELECT id FROM edgedb.object WHERE name = $1)',
-                    [subj[1]], type='integer')
-
-            for ptn in 'paramtypes', 'inferredparamtypes':
-                paramtypes = updates.get(ptn)
-                if paramtypes:
-                    pt = {}
-                    for k, v in paramtypes[1].items():
-                        if isinstance(v, s_obj.Set):
-                            if v.element_type:
-                                v = 'set<{}>'.format(v.element_type.prototype_name)
-                        elif isinstance(v, s_obj.PrototypeRef):
-                            v = v.prototype_name
-                        else:
-                            msg = 'unexpected type in constraint paramtypes: {}'.format(v)
-                            raise ValueError(msg)
-
-                        pt[k] = v
-
-                    setattr(rec, ptn, pt)
-
-            args = updates.get('args')
-            if args:
-                rec.args = pickle.dumps(dict(args[1])) if args[1] else None
-
             # Write the original locally-defined expression
             # so that when the schema is introspected the
             # correct finalexpr is restored with prototype

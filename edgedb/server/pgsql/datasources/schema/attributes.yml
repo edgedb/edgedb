@@ -22,11 +22,10 @@ source: |
             a.name                  AS name,
             a.title                 AS title,
             a.description           AS description,
-            ta.name                 AS type,
-            (a.type).collection     AS type_coll
+            edgedb._resolve_type(a.type)
+                                    AS type
         FROM
             edgedb.attribute a
-            INNER JOIN edgedb.atom ta ON (a.type).type = ta.id
         WHERE
             %(name)s::text IS NULL OR a.name LIKE %(name)s::text
 ...
