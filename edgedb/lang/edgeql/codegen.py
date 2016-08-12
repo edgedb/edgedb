@@ -308,7 +308,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_PathStepNode(self, node):
         if node.namespace:
-            self.write('[%s.%s]' % (node.namespace, node.expr))
+            self.write('{%s::%s}' % (node.namespace, node.expr))
         else:
             self.write(node.expr)
 
@@ -324,21 +324,21 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         if node.namespace or node.target or node.direction:
             if quote:
-                self.write('[')
+                self.write('{')
             if node.direction and node.direction != '>':
                 self.write(node.direction)
             if node.namespace:
-                self.write('%s.%s' % (node.namespace, node.name))
+                self.write('%s::%s' % (node.namespace, node.name))
             else:
                 self.write(node.name)
             if node.target and node.type != 'property':
                 if node.target.module:
-                    self.write('({}.{})'.format(
+                    self.write('({}::{})'.format(
                         node.target.module, node.target.name))
                 else:
                     self.write('({})'.format(node.target.name))
             if quote:
-                self.write(']')
+                self.write('}')
         else:
             self.write(node.name)
 
@@ -407,10 +407,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         elif node.index is not None:
             self.write('$')
             if '.' in node.index:
-                self.write('[')
+                self.write('{')
             self.write(node.index)
             if '.' in node.index:
-                self.write(']')
+                self.write('}')
         else:
             self.write('None')
 
@@ -506,16 +506,16 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_PrototypeRefNode(self, node):
         if node.module or '.' in node.name:
-            self.write('[')
+            self.write('{')
 
         if node.module:
             self.write(node.module)
-            self.write('.')
+            self.write('::')
 
         self.write(node.name)
 
         if node.module or '.' in node.name:
-            self.write(']')
+            self.write('}')
 
     def visit_NoneTestNode(self, node):
         self.visit(node.expr)
@@ -523,10 +523,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_TypeNameNode(self, node):
         if '.' in node.maintype:
-            self.write('[')
+            self.write('{')
         self.write(node.maintype)
         if '.' in node.maintype:
-            self.write(']')
+            self.write('}')
         if node.subtype is not None:
             self.write('<')
             self.visit(node.subtype)

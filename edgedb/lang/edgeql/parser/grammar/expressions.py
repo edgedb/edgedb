@@ -1040,7 +1040,7 @@ class NodeName(Nonterm):
     def reduce_LabelExpr(self, *kids):
         self.val = qlast.PrototypeRefNode(name=kids[0].val)
 
-    def reduce_LBRACKET_AnyFqName_RBRACKET(self, *kids):
+    def reduce_LBRACE_AnyFqName_RBRACE(self, *kids):
         self.val = qlast.PrototypeRefNode(module='.'.join(kids[1].val[:-1]),
                                           name=kids[1].val[-1])
 
@@ -1057,11 +1057,27 @@ class FqName(Nonterm):
     def reduce_LabelExpr(self, *kids):
         self.val = [kids[0].val]
 
-    def reduce_FqName_DOT_LabelExpr(self, *kids):
+    def reduce_DotName_DOUBLECOLON_LabelExpr(self, *kids):
         self.val = kids[0].val + [kids[2].val]
 
 
 class AnyFqName(Nonterm):
+    def reduce_AnyLabelExpr(self, *kids):
+        self.val = [kids[0].val]
+
+    def reduce_AnyDotName_DOUBLECOLON_AnyLabelExpr(self, *kids):
+        self.val = kids[0].val + [kids[2].val]
+
+
+class DotName(Nonterm):
+    def reduce_LabelExpr(self, *kids):
+        self.val = [kids[0].val]
+
+    def reduce_FqName_DOT_LabelExpr(self, *kids):
+        self.val = kids[0].val + [kids[2].val]
+
+
+class AnyDotName(Nonterm):
     def reduce_AnyLabelExpr(self, *kids):
         self.val = [kids[0].val]
 
@@ -1129,7 +1145,7 @@ class ArgName(Nonterm):
     def reduce_SimpleArgName(self, *kids):
         self.val = kids[0].val
 
-    def reduce_LBRACKET_AnyFqName_RBRACKET(self, *kids):
+    def reduce_LBRACE_AnyFqName_RBRACE(self, *kids):
         self.val = '.'.join(kids[1].val)
 
 

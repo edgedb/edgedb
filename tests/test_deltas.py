@@ -14,28 +14,28 @@ from edgedb.server import _testbase as tb
 
 
 class TestDeltas(tb.QueryTestCase):
-    async def test_delta_simple(self, input="""
+    async def test_delta_simple(self, input=r"""
         # setup delta
         #
-        CREATE DELTA [test.d1] TO $$
+        CREATE DELTA {test::d1} TO $$
             concept NamedObject:
                 required link name -> str
         $$;
 
-        COMMIT DELTA [test.d1];
+        COMMIT DELTA {test::d1};
 
         # test updated schema
         #
-        INSERT [test.NamedObject] {
+        INSERT {test::NamedObject} {
             name := 'Test'
         };
 
         SELECT
-            [test.NamedObject] {
+            {test::NamedObject} {
                 name
             }
         WHERE
-            [test.NamedObject].name = 'Test';
+            {test::NamedObject}.name = 'Test';
 
         """) -> [
 

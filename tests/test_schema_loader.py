@@ -22,16 +22,16 @@ concept ConstraintTest:
 % OK %
 
 CREATE MODULE test
-CREATE CONSTRAINT [test.must_be_even] {
+CREATE CONSTRAINT {test::must_be_even} {
     SET expr := (((subject % 2) = 0))
 }
-CREATE LINK [test.even_value] INHERITING [std.link] {
+CREATE LINK {test::even_value} INHERITING {std::link} {
     SET mapping = '11'
     SET readonly = False
 }
-CREATE CONCEPT [test.ConstraintTest] INHERITING [std.Object] {
+CREATE CONCEPT {test::ConstraintTest} INHERITING {std::Object} {
     SET is_virtual = False
-    CREATE LINK [test.even_value] TO [std.int] {
+    CREATE LINK {test::even_value} TO {std::int} {
         SET mapping = '11'
         SET readonly = False
     }
