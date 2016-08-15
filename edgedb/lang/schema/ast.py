@@ -136,6 +136,8 @@ class Attribute(Base):
 
 
 class Constraint(Attribute):
+    __fields = [('abstract', bool, False)]
+
     def __init__(self, prop=None, **kwargs):
         if prop is not None:
             kwargs['name'] = kwargs.get('name', prop.name)
