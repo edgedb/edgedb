@@ -209,6 +209,14 @@ abstract atom abstract_atom extends int
 final atom none
         """
 
+    def test_eschema_parser_atom08(self):
+        """
+atom basic extends int:
+    title: 'Basic Atom'
+    default: 2
+    abstract constraint special_constraint
+        """
+
     def test_eschema_parser_constraint01(self):
         """
 constraint max:

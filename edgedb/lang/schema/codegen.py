@@ -176,6 +176,8 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         self._visit_turnstile(node.expression)
 
     def visit_Constraint(self, node):
+        if node.abstract:
+            self.write('abstract ')
         self.write('constraint ')
         if node.value is not None:
             self.visit_Attribute(node)

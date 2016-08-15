@@ -373,6 +373,10 @@ class DeclarationSpecBase(Nonterm):
     def reduce_Link(self, kid):
         self.val = kid.val
 
+    def reduce_ABSTRACT_Constraint(self, *kids):
+        self.val = kids[1].val
+        self.val.abstract = True
+
     def reduce_Constraint(self, kid):
         self.val = kid.val
 
