@@ -73,19 +73,19 @@ class EdgeSchemaLexer(lexer.Lexer):
              next_state=STATE_WS_SENSITIVE,
              regexp=r'\)'),
 
-        Rule(token='LSBRACKET',
+        Rule(token='LBRACKET',
              next_state=STATE_WS_INSENSITIVE,
              regexp=r'\['),
 
-        Rule(token='RSBRACKET',
+        Rule(token='RBRACKET',
              next_state=STATE_WS_SENSITIVE,
              regexp=r'\]'),
 
-        Rule(token='LCBRACKET',
+        Rule(token='LBRACE',
              next_state=STATE_WS_INSENSITIVE,
              regexp=r'\{'),
 
-        Rule(token='RCBRACKET',
+        Rule(token='RBRACE',
              next_state=STATE_WS_SENSITIVE,
              regexp=r'\}'),
 

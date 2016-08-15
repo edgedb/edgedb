@@ -51,7 +51,7 @@ class ObjectName(Nonterm):
         self.val.name = kids[2].val
 
 
-class Value(Nonterm):
+class BaseValue(Nonterm):
     def reduce_ICONST(self, kid):
         self.val = esast.IntegerLiteral(value=kid.normalized_value)
 
@@ -69,6 +69,18 @@ class Value(Nonterm):
 
     def reduce_MAPPING(self, kid):
         self.val = esast.MappingLiteral(value=kid.val)
+
+
+class Value(Nonterm):
+    def reduce_BaseValue(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_LBRACKET_ValueList_RBRACKET(self, *kids):
+        self.val = esast.ArrayLiteral(value=kids[1].val)
+
+
+class ValueList(parsing.ListNonterm, element=BaseValue, separator=T_COMMA):
+    pass
 
 
 class RawString(Nonterm):

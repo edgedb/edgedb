@@ -212,5 +212,10 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         else:
             self.write('false')
 
+    def visit_ArrayLiteral(self, node):
+        self.write('[')
+        self._visit_list(node.value, separator=', ')
+        self.write(']')
+
 
 generate_source = EdgeSchemaSourceGenerator.to_source

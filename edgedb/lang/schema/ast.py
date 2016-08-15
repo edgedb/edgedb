@@ -118,6 +118,10 @@ class BooleanLiteral(LiteralNode):
     pass
 
 
+class ArrayLiteral(LiteralNode):
+    pass
+
+
 class ObjectName(Base):
     __fields = [('name', str), ('module', str, None)]
 
