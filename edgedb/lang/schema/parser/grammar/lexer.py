@@ -144,12 +144,12 @@ class EdgeSchemaLexer(lexer.Lexer):
                 (?P<Q>
                     # capture the opening quote in group Q
                     (
-                        ' |
+                        ' | " |
                         {dollar_quote}
                     )
                 )
                 (?:
-                    .*?
+                    (\\['"] | \n | .)*?
                 )
                 (?P=Q)      # match closing quote type with whatever is in Q
              '''.format(dollar_quote=re_dquote)),
