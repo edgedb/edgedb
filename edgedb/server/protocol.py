@@ -10,7 +10,7 @@ import asyncio
 import enum
 import json
 import sys
-
+import traceback
 
 from edgedb.lang import edgeql
 from edgedb.server import pgsql as backend
@@ -22,6 +22,9 @@ from edgedb.lang.schema import delta as s_delta
 from edgedb.lang.schema import deltas as s_deltas
 
 from edgedb.lang.common.debug import debug
+from edgedb.lang.common import markup
+from edgedb.lang.common import exceptions
+from edgedb.lang.common import parsing
 
 
 class ConnectionState(enum.Enum):
@@ -99,17 +102,25 @@ class Protocol(asyncio.Protocol):
     def send_message(self, msg):
         self.transport.write(json.dumps(msg).encode('utf-8'))
 
+    @debug
     def send_error(self, err):
-        import traceback
-        import edgedb.lang.common.markup
-        edgedb.lang.common.markup.dump(vars(err))
-        traceback.print_exception(
-            type(err), err, err.__traceback__, file=sys.stderr)
+        try:
+            ctx = exceptions.get_context(err, parsing.ParserContext)
+        except LookupError:
+            ctx = None
+
+        """LOG [server] Error
+        markup.dump(err)
+        """
+
         self.send_message({
             '__type__': 'error',
             'data': {
-                'code': getattr(err, 'code', 0),
-                'message': str(err)
+                'C': getattr(err, 'code', 0),
+                'M': str(err),
+                'D': getattr(err, 'details', None),
+                'Q': markup.dumps(ctx) if ctx is not None else None,
+                'T': traceback.format_tb(err.__traceback__),
             }
         })
 

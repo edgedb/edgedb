@@ -335,7 +335,7 @@ class OptDeltaTarget(Nonterm):
 #
 class CreateDeltaStmt(Nonterm):
     def _parse_schema_decl(self, expression):
-        from edgedb.lang.common.exceptions import _get_context
+        from edgedb.lang.common.exceptions import get_context
         from edgedb.lang.schema import parser
 
         ctx = expression.context
@@ -344,7 +344,7 @@ class CreateDeltaStmt(Nonterm):
             node = parser.parse(expression.val)
         except parsing.ParserError as err:
             context.rebase_context(
-                ctx, _get_context(err, parsing.ParserContext))
+                ctx, get_context(err, parsing.ParserContext))
             raise err
         else:
             context.rebase_ast_context(ctx, node)

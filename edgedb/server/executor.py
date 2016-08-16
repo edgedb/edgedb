@@ -12,8 +12,8 @@ from edgedb.lang.schema import delta as s_delta
 from edgedb.lang.schema import deltas as s_deltas
 
 from edgedb.server import query as edgedb_query
-from edgedb.server import exceptions as edgedb_exc
 
+from edgedb.lang.common import exceptions as edgedb_exc
 from edgedb.lang.common.debug import debug
 
 

@@ -41,7 +41,7 @@ class SQLSourceGeneratorError(edgedb_error.EdgeDBError):
         super().__init__(msg, details=details, hint=hint)
         if node is not None:
             ctx = SQLSourceGeneratorContext(node)
-            edgedb_error._add_context(self, ctx)
+            edgedb_error.add_context(self, ctx)
 
 
 class SQLSourceGenerator(codegen.SourceGenerator):
@@ -58,7 +58,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
                                      pretty=pretty)
         except SQLSourceGeneratorError as e:
             ctx = SQLSourceGeneratorContext(node)
-            edgedb_error._add_context(e, ctx)
+            edgedb_error.add_context(e, ctx)
             raise
 
     def generic_visit(self, node):

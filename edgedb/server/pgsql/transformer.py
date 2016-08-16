@@ -1360,7 +1360,7 @@ class IRCompiler(IRCompilerBase):
                 args = []
             err = IRCompilerInternalError(*args)
             err_ctx = IRCompilerErrorContext(tree=query)
-            edgedb_error._replace_context(err, err_ctx)
+            edgedb_error.replace_context(err, err_ctx)
             raise err from e
 
         return qchunks, argmap, arg_index, type(qtree), tuple(context.current.record_info.values())
@@ -1371,12 +1371,12 @@ class IRCompiler(IRCompilerBase):
             codegen.visit(qtree)
         except pgsql.codegen.SQLSourceGeneratorError as e:
             ctx = pgsql.codegen.SQLSourceGeneratorContext(qtree, codegen.result)
-            edgedb_error._add_context(e, ctx)
+            edgedb_error.add_context(e, ctx)
             raise
         except Exception as e:
             ctx = pgsql.codegen.SQLSourceGeneratorContext(qtree, codegen.result)
             err = pgsql.codegen.SQLSourceGeneratorError('error while generating SQL source')
-            edgedb_error._add_context(err, ctx)
+            edgedb_error.add_context(err, ctx)
             raise err from e
 
         return codegen

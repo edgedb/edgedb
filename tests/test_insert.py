@@ -51,8 +51,8 @@ class TestInsert(tb.QueryTestCase):
     async def test_insert_fail_1(self, input=r"""
         INSERT {test::InsertTest};
         """) -> \
-            tb.Error(exc.Error, 'violates not-null constraint',
-                     {'code': 23502}):
+            tb.Error(exc.EdgeDBError, 'violates not-null constraint',
+                     {'code': '23502'}):
         pass
 
     async def test_insert_simple01(self, input=r"""

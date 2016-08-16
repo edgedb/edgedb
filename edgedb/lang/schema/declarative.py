@@ -242,7 +242,7 @@ class DeclarationLoader:
                 try:
                     expr = s_constr.Constraint.normalize_constraint_expr(
                         self._schema, module_aliases, expr)
-                except (ValueError, edgeql.EdgeQLQueryError) as e:
+                except (ValueError, edgeql.EdgeQLError) as e:
                     raise s_err.SchemaError(e.args[0], context=decl) from None
 
                 constraint.expr = expr
@@ -252,7 +252,7 @@ class DeclarationLoader:
                 try:
                     subjexpr = s_constr.Constraint.normalize_constraint_expr(
                         self._schema, module_aliases, subjexpr)
-                except (ValueError, edgeql.EdgeQLQueryError) as e:
+                except (ValueError, edgeql.EdgeQLError) as e:
                     raise s_err.SchemaError(e.args[0], context=decl) from None
 
                 constraint.subjectexpr = subjexpr

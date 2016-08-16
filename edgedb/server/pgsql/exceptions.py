@@ -10,7 +10,7 @@ from importkit import context as lang_context
 
 from edgedb.lang.common import exceptions as edgedb_error
 
-from edgedb.lang.common.exceptions import _replace_context
+from edgedb.lang.common.exceptions import replace_context
 from edgedb.lang.common import markup
 
 
@@ -64,4 +64,4 @@ class QueryError(BackendError):
                 position -= query_offset
 
         ctx = QueryExceptionContext(query=query_text, position=position)
-        _replace_context(self, ctx)
+        replace_context(self, ctx)

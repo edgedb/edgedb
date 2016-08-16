@@ -12,7 +12,7 @@ import types
 
 import parsing
 
-from edgedb.lang.common.exceptions import EdgeDBError, _add_context
+from edgedb.lang.common.exceptions import EdgeDBError, add_context
 from importkit import context as lang_context
 from edgedb.lang.common.datastructures import xvalue
 from edgedb.lang.common import markup
@@ -360,7 +360,7 @@ class ParserError(EdgeDBError):
             self.col = col
         self.expr = expr
         if context:
-            _add_context(self, context)
+            add_context(self, context)
             if line is None and col is None:
                 self.line = context.start.line
                 self.col = context.start.column

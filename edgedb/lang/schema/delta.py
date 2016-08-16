@@ -167,7 +167,7 @@ class DeltaError(EdgeDBError):
         super().__init__(msg, hint=hint, details=details)
         self.delta = delta
         if self.delta is not None:
-            base_err._replace_context(
+            base_err.replace_context(
                 self, DeltaExceptionContext(delta=self.delta))
 
 
@@ -183,7 +183,7 @@ class DeltaChecksumError(DeltaError):
                                                   schema2_title=schema2_title,
                                                   schema1_checksums=checksums1,
                                                   schema2_checksums=checksums2)
-            base_err._replace_context(self, err_ctx)
+            base_err.replace_context(self, err_ctx)
 
 
 class DeltaHookError(DeltaError):

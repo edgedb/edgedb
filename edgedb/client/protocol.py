@@ -82,13 +82,11 @@ class Protocol(asyncio.Protocol):
         elif message['__type__'] == 'error':
             if self._connect_waiter is not None:
                 self._connect_waiter.set_exception(
-                    exceptions.Error(message['data']['message'],
-                                     code=int(message['data']['code'])))
+                    exceptions.EdgeDBError.new(message['data']))
                 self._connect_waiter = None
             elif self._waiter is not None:
                 self._waiter.set_exception(
-                    exceptions.Error(message['data']['message'],
-                                     code=int(message['data']['code'])))
+                    exceptions.EdgeDBError.new(message['data']))
                 self._waiter = None
 
         elif message['__type__'] == 'result':

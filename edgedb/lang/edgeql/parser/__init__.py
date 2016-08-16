@@ -7,8 +7,6 @@
 
 
 from .parser import EdgeQLExpressionParser, EdgeQLBlockParser
-from .errors import EdgeQLSyntaxError
-
 from .. import ast as qlast
 
 

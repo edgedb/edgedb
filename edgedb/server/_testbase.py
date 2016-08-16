@@ -212,7 +212,7 @@ class QueryTestCaseMeta(TestCaseMeta):
         async def wrapper(self):
             try:
                 res = await self.con.execute(queries)
-            except edgeclient_exc.Error as e:
+            except edgeclient_exc.EdgeDBError as e:
                 if not isinstance(output, Error):
                     raise
                 else:

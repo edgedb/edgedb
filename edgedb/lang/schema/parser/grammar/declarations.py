@@ -7,7 +7,7 @@
 
 
 from edgedb.lang.common import parsing, context
-from edgedb.lang.common.exceptions import _get_context
+from edgedb.lang.common.exceptions import get_context
 
 from edgedb.lang import edgeql
 from edgedb.lang.schema import ast as esast
@@ -21,7 +21,7 @@ def parse_edgeql(expression):
     try:
         node = edgeql.parse(expression.value)
     except parsing.ParserError as err:
-        context.rebase_context(ctx, _get_context(err, parsing.ParserContext))
+        context.rebase_context(ctx, get_context(err, parsing.ParserContext))
         raise err
 
     context.rebase_ast_context(ctx, node)

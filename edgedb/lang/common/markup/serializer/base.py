@@ -202,7 +202,7 @@ def serialize_exception(obj, *, ctx):
 
     details_context = None
     contexts = []
-    for ex_context in exceptions._iter_contexts(obj):
+    for ex_context in exceptions.iter_contexts(obj):
         if isinstance(ex_context, exceptions.DefaultExceptionContext):
             details_context = ex_context
         else:

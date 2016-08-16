@@ -12,7 +12,7 @@ from edgedb.lang.common import parsing, context
 from edgedb.lang.edgeql import ast as qlast
 from edgedb.lang.ir import ast as irast
 
-from ..errors import EdgeQLSyntaxError
+from ...errors import EdgeQLSyntaxError
 
 from . import keywords
 

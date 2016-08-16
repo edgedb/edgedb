@@ -6,19 +6,16 @@
 ##
 
 
-from edgedb.lang.common.exceptions import EdgeDBError
+from edgedb.lang.common.exceptions import EdgeDBSyntaxError
 from edgedb.lang.common.parsing import ParserError
 
 
-class EdgeQLError(EdgeDBError):
-    pass
+class EdgeQLError(EdgeDBSyntaxError):
+    code = '42601'
 
 
-class EdgeQLQueryError(ParserError, EdgeQLError):
-    def __str__(self):
-        import edgedb.lang.common.markup
-        res = self.args[0]
-        return res + '\n' + edgedb.lang.common.markup.dumps(self.__sx_error_contexts__)
+class EdgeQLSyntaxError(ParserError, EdgeDBSyntaxError):
+    code = '42602'
 
 
 class EdgeQLExpressionError(EdgeQLError):
@@ -26,7 +23,8 @@ class EdgeQLExpressionError(EdgeQLError):
 
 
 class EdgeQLReferenceError(EdgeQLError):
-    def __init__(self, msg, *, hint=None, details=None, source=None, pointer=None):
+    def __init__(self, msg, *, hint=None, details=None, source=None,
+                 pointer=None):
         super().__init__(msg, hint=hint, details=details)
         self.source = source
         self.pointer = pointer
