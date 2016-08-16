@@ -224,6 +224,14 @@ atom special extends int:
     abstract constraint special_constraint: [42, 100, 9001]
         """
 
+    def test_eschema_parser_atom10(self):
+        """
+atom special extends int:
+    title: 'Special Atom'
+    constraint special_constraint:
+        expr:= subject % 2 = 0
+        """
+
     def test_eschema_parser_constraint01(self):
         """
 constraint max:

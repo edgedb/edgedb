@@ -492,8 +492,15 @@ class Constraint(Nonterm):
     def reduce_CONSTRAINT_ObjectName_NL(self, *kids):
         self.val = esast.Constraint(name=kids[1].val)
 
+    def reduce_CONSTRAINT_ObjectName_COLON_NL_INDENT_Attributes_DEDENT(
+            self, *kids):
+        self.val = esast.Constraint(name=kids[1].val, attributes=kids[5].val)
+
     def reduce_CONSTRAINT_Attribute(self, *kids):
         self.val = esast.Constraint(kids[1].val)
+
+    def reduce_CONSTRAINT_Attribute_INDENT_Attributes_DEDENT(self, *kids):
+        self.val = esast.Constraint(name=kids[1].val, attributes=kids[3].val)
 
 
 class Attribute(Nonterm):
@@ -505,3 +512,7 @@ class Attribute(Nonterm):
 
     def reduce_ObjectName_TurnstileBlob(self, *kids):
         self.val = esast.Attribute(name=kids[0].val, value=kids[1].val)
+
+
+class Attributes(parsing.ListNonterm, element=Attribute):
+    pass

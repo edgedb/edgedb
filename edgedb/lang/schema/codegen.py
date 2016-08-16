@@ -183,7 +183,16 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
             self.visit_Attribute(node)
         else:
             self.visit(node.name)
-            self.new_lines = 2
+            if node.attributes:
+                self.write(':')
+                self.new_lines = 1
+        if node.attributes:
+            self.new_lines = 1
+            self.indentation += 1
+            self._visit_list(node.attributes)
+            self.indentation -= 1
+
+        self.new_lines = 2
 
     def visit_Attribute(self, node):
         self.visit(node.name)

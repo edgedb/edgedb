@@ -140,7 +140,7 @@ class Attribute(Base):
 
 
 class Constraint(Attribute):
-    __fields = [('abstract', bool, False)]
+    __fields = [('abstract', bool, False), ('attributes', list, list)]
 
     def __init__(self, prop=None, **kwargs):
         if prop is not None:
