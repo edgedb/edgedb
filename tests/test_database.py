@@ -70,7 +70,7 @@ class TestDatabase(tb.ConnectedTestCase):
         finally:
             await self.con.execute('DROP DATABASE {SET};')
 
-    async def test_database_create07(self):
+    async def test_database_create06(self):
         await self.con.execute('CREATE DATABASE {"CREATE"};')
 
         try:
@@ -93,3 +93,15 @@ class TestDatabase(tb.ConnectedTestCase):
 
         finally:
             await self.con.execute('DROP DATABASE {CREATE};')
+
+    async def test_database_create08(self):
+        await self.con.execute('CREATE DATABASE {$$CREATE$$};')
+
+        try:
+            conn = await self.cluster.connect(
+                user='edgedb', database='CREATE', loop=self.loop)
+
+            conn.close()
+
+        finally:
+            await self.con.execute('DROP DATABASE {$$CREATE$$};')
