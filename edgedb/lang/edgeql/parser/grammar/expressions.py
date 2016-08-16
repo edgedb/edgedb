@@ -263,9 +263,17 @@ class SelectPointerSpec(Nonterm):
     def reduce_PointerGlob(self, *kids):
         self.val = kids[0].val
 
-    def reduce_AT_AnyFqLinkPropName(self, *kids):
+    def reduce_AT_AnyNodeName(self, *kids):
+        from edgedb.lang.schema import pointers as s_pointers
+
         self.val = qlast.SelectPathSpecNode(
-            expr=qlast.LinkExprNode(expr=kids[1].val)
+            expr=qlast.LinkExprNode(
+                expr=qlast.LinkNode(
+                    name=kids[1].val.name, namespace=kids[1].val.module,
+                    direction=s_pointers.PointerDirection.Outbound,
+                    type='property'
+                )
+            )
         )
 
     def reduce_PointerSpecSetExpr_OptPointerRecursionSpec_OptSelectPathSpec_OptSelectPathCompExpr(
@@ -280,7 +288,7 @@ class PointerSpecSetExpr(Nonterm):
     def reduce_ParenthesizedTransformedLinkedSetExpr(self, *kids):
         self.val = kids[0].val
 
-    def reduce_SimpleFqLinkExpr(self, *kids):
+    def reduce_PathExpr(self, *kids):
         self.val = qlast.SelectPathSpecNode(
             expr=qlast.LinkExprNode(expr=kids[0].val)
         )
@@ -292,12 +300,12 @@ class PointerSpecSetExpr(Nonterm):
 
 
 class QualifiedLinkedSetExpr(Nonterm):
-    def reduce_SimpleFqLinkExpr(self, *kids):
+    def reduce_PathExpr(self, *kids):
         self.val = qlast.SelectPathSpecNode(
             expr=qlast.LinkExprNode(expr=kids[0].val)
         )
 
-    def reduce_SimpleFqLinkExpr_WhereClause(self, *kids):
+    def reduce_PathExpr_WhereClause(self, *kids):
         self.val = qlast.SelectPathSpecNode(
             expr=qlast.LinkExprNode(expr=kids[0].val),
             where=kids[1].val
@@ -722,10 +730,10 @@ class InExpr(Nonterm):
 
 
 class IsExpr(Nonterm):
-    def reduce_LPAREN_FqNodeNameList_RPAREN(self, *kids):
+    def reduce_LPAREN_AnyNodeNameList_RPAREN(self, *kids):
         self.val = qlast.SequenceNode(elements=kids[1].val)
 
-    def reduce_FqNodeName(self, *kids):
+    def reduce_AnyNodeName(self, *kids):
         self.val = kids[0].val
 
     def reduce_ArgConstant(self, *kids):
@@ -865,60 +873,27 @@ class PathExprOrType(Nonterm):
 
 
 class PathExpr(Nonterm):
-    def reduce_LBRACKET_LinkExpr_RBRACKET(self, *kids):
+    def reduce_LinkDirection_PathPtr(self, *kids):
         self.val = kids[1].val
+        self.val.direction = kids[0].val
 
-    def reduce_SimpleLinkExpr(self, *kids):
+    def reduce_PathPtr(self, *kids):
+        from edgedb.lang.schema import pointers as s_pointers
         self.val = kids[0].val
+        self.val.direction = s_pointers.PointerDirection.Outbound
 
 
-class SimpleLinkExpr(Nonterm):
-    def reduce_LinkDirection_ShortName(self, *kids):
-        self.val = qlast.LinkNode(name=kids[1].val, direction=kids[0].val)
+class PathPtr(Nonterm):
+    def reduce_NodeName(self, *kids):
+        self.val = qlast.LinkNode(
+            name=kids[0].val.name,
+            namespace=kids[0].val.module)
 
-    def reduce_ShortName(self, *kids):
-        self.val = qlast.LinkNode(name=kids[0].val)
-
-
-class LinkExpr(Nonterm):
-    # LinkExpr AND LinkExpr
-    # | LinkExpr OR LinkExpr
-    # | NOT LinkExpr
-
-    def reduce_SimpleFqLinkExpr(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_LinkExpr_AND_LinkExpr(self, *kids):
-        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.AND,
-                                   right=kids[1].val)
-
-    def reduce_LinkExpr_OR_LinkExpr(self, *kids):
-        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.OR,
-                                   right=kids[1].val)
-
-    def reduce_NOT_LinkExpr(self, *kids):
-        self.val = qlast.UnaryOpNode(op=ast.ops.NOT, operand=kids[1].val)
-
-
-class SimpleFqLinkExpr(Nonterm):
-    def reduce_LinkDirection_AnyFqNodeName_OptLinkTargetExpr(self, *kids):
-        self.val = qlast.LinkNode(name=kids[1].val.name,
-                                  namespace=kids[1].val.module,
-                                  direction=kids[0].val,
-                                  target=kids[2].val)
-
-    def reduce_AnyFqNodeName_OptLinkTargetExpr(self, *kids):
-        self.val = qlast.LinkNode(name=kids[0].val.name,
-                                  namespace=kids[0].val.module,
-                                  target=kids[1].val)
-
-
-class OptLinkTargetExpr(Nonterm):
-    def reduce_LPAREN_AnyFqNodeName_RPAREN(self, *kids):
-        self.val = kids[1].val
-
-    def reduce_empty(self, *kids):
-        self.val = None
+    def reduce_LPAREN_AnyNodeName_TO_AnyNodeName_RPAREN(self, *kids):
+        self.val = qlast.LinkNode(
+            name=kids[1].val.name,
+            namespace=kids[1].val.module,
+            target=kids[3].val)
 
 
 class LinkDirection(Nonterm):
@@ -1013,46 +988,6 @@ class FuncArgList(Nonterm):
         self.val = []
 
 
-class AnyFqLinkPropName(Nonterm):
-    def reduce_AnyFqNodeName(self, *kids):
-        from edgedb.lang.schema import pointers as s_pointers
-        self.val = qlast.LinkNode(
-            name=kids[0].val.name, namespace=kids[0].val.module,
-            direction=s_pointers.PointerDirection.Outbound, type='property')
-
-
-class FqNodeName(Nonterm):
-    def reduce_Name(self, *kids):
-        self.val = qlast.PrototypeRefNode(module='.'.join(kids[0].val[:-1]),
-                                          name=kids[0].val[-1])
-
-
-class AnyFqNodeName(Nonterm):
-    # Fully-qualified node name permitting reserved keywords
-    def reduce_Name(self, *kids):
-        self.val = qlast.PrototypeRefNode(module='.'.join(kids[0].val[:-1]),
-                                          name=kids[0].val[-1])
-
-
-class FqNodeNameList(Nonterm):
-    def reduce_FqNodeName(self, *kids):
-        self.val = [kids[0].val]
-
-    def reduce_FqNodeNameList_COMMA_FqNodeName(self, *kids):
-        self.val = kids[0].val + [kids[2].val]
-
-
-class NodeName(Nonterm):
-    def reduce_PathSafeName(self, *kids):
-        self.val = qlast.PrototypeRefNode(
-            module='.'.join(kids[0].val[:-1]) or None,
-            name=kids[0].val[-1])
-
-
-class NodeNameList(parsing.ListNonterm, element=NodeName, separator=T_COMMA):
-    pass
-
-
 class Identifier(Nonterm):
     def reduce_IDENT(self, *kids):
         self.val = kids[0].val
@@ -1115,7 +1050,7 @@ class TypeName(Nonterm):
     def reduce_NodeName(self, *kids):
         self.val = qlast.TypeNameNode(maintype=kids[0].val)
 
-    def reduce_NodeName_LANGBRACKET_NodeNameList_RANGBRACKET(self, *kids):
+    def reduce_NodeName_LANGBRACKET_AnyNodeNameList_RANGBRACKET(self, *kids):
         self.val = qlast.TypeNameNode(maintype=kids[0].val,
                                       subtypes=kids[2].val)
 
@@ -1137,6 +1072,29 @@ class ParamName(Nonterm):
 
     def reduce_UnreservedKeyword(self, *kids):
         self.val = kids[0].val
+
+
+class NodeName(Nonterm):
+    def reduce_PathSafeName(self, *kids):
+        self.val = qlast.PrototypeRefNode(
+            module='.'.join(kids[0].val[:-1]) or None,
+            name=kids[0].val[-1])
+
+
+class NodeNameList(parsing.ListNonterm, element=NodeName, separator=T_COMMA):
+    pass
+
+
+class AnyNodeName(Nonterm):
+    def reduce_Name(self, *kids):
+        self.val = qlast.PrototypeRefNode(
+            module='.'.join(kids[0].val[:-1]) or None,
+            name=kids[0].val[-1])
+
+
+class AnyNodeNameList(parsing.ListNonterm, element=NodeName,
+                      separator=T_COMMA):
+    pass
 
 
 class KeywordMeta(context.ContextNontermMeta):

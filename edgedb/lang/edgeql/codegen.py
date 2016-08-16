@@ -321,26 +321,24 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_LinkNode(self, node, quote=True):
         if node.type == 'property':
             self.write('@')
+        elif node.direction and node.direction != '>':
+            self.write(node.direction)
 
-        if node.namespace or node.target or node.direction:
-            if quote:
-                self.write('{')
-            if node.direction and node.direction != '>':
-                self.write(node.direction)
+        if node.target and node.type != 'property':
+            self.write('(')
             if node.namespace:
-                self.write('%s::%s' % (node.namespace, node.name))
+                self.write('{}::{}'.format(node.namespace, node.name))
             else:
                 self.write(node.name)
-            if node.target and node.type != 'property':
-                if node.target.module:
-                    self.write('({}::{})'.format(
-                        node.target.module, node.target.name))
-                else:
-                    self.write('({})'.format(node.target.name))
-            if quote:
-                self.write('}')
+
+            self.write(' TO ')
+            self.visit(node.target)
+            self.write(')')
         else:
-            self.write(node.name)
+            if node.namespace:
+                self.write('{}::{}'.format(node.namespace, node.name))
+            else:
+                self.write(node.name)
 
     def visit_SelectTypeRefNode(self, node):
         self.write('__type__.')
@@ -525,6 +523,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if node.maintype.module:
             self.write('{')
             self.write(node.maintype.module)
+            self.write('::')
         self.write(node.maintype.name)
         if node.maintype.module:
             self.write('}')
