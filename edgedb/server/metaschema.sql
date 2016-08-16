@@ -240,14 +240,18 @@ CREATE FUNCTION _resolve_type_dict(type_data jsonb) RETURNS jsonb AS $$
 
                 value->>'collection',
 
-                (SELECT
-                    array_agg(o.name ORDER BY st.i)
-                 FROM
-                    edgedb.object AS o,
-                    jsonb_array_elements_text(value->'subtypes')
-                        WITH ORDINALITY AS st(t, i)
-                 WHERE
-                    o.id = st.t::int)
+                CASE WHEN jsonb_typeof(value->'subtypes') = 'null' THEN
+                    NULL
+                ELSE
+                    (SELECT
+                            array_agg(o.name ORDER BY st.i)
+                     FROM
+                        edgedb.object AS o,
+                        jsonb_array_elements_text(value->'subtypes')
+                            WITH ORDINALITY AS st(t, i)
+                     WHERE
+                        o.id = st.t::int)
+                END
             )::edgedb.typedesc_t
         )
     FROM

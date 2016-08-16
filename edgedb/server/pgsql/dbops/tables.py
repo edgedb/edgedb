@@ -538,9 +538,9 @@ class CreateInheritableTableObject(ddl.CreateObject):
             # a corresponding DDL trigger.
             #
             ds = introspection.tables.TableDescendants(context.db)
-            descendants = ds.fetch(schema_name=self.object.table_name[0],
-                                   table_name=self.object.table_name[1],
-                                   max_depth=1)
+            descendants = await ds.fetch(schema_name=self.object.table_name[0],
+                                         table_name=self.object.table_name[1],
+                                         max_depth=1)
 
             for dschema, dname, *_ in descendants:
                 obj = self.object.copy()
@@ -570,9 +570,9 @@ class RenameInheritableTableObject(ddl.RenameObject):
             # Propagate object rename to all current descendants.
             #
             ds = introspection.tables.TableDescendants(context.db)
-            descendants = ds.fetch(schema_name=self.object.table_name[0],
-                                   table_name=self.object.table_name[1],
-                                   max_depth=1)
+            descendants = await ds.fetch(schema_name=self.object.table_name[0],
+                                         table_name=self.object.table_name[1],
+                                         max_depth=1)
 
             for dschema, dname, *_ in descendants:
                 obj = self.object.copy()

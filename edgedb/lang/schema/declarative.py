@@ -404,7 +404,10 @@ class DeclarationLoader:
             #
             args = {}
             if constrdecl.value is not None:
-                args['param'] = self._get_literal_value(constrdecl.value)
+                if isinstance(constrdecl.value, edgeql.ast.Base):
+                    args['param'] = constrdecl.value
+                else:
+                    args['param'] = self._get_literal_value(constrdecl.value)
             s_constr.Constraint.process_specialized_constraint(
                 self._schema, constraint, args)
 
@@ -545,6 +548,12 @@ class DeclarationLoader:
                 spec_link = concept.pointers[generic_link.name]
                 self._normalize_ptr_default(
                     linkdecl.target, concept, spec_link)
+
+            if linkdecl.constraints:
+                link_name = self._get_ref_name(linkdecl.name)
+                generic_link = self._schema.get(link_name)
+                spec_link = concept.pointers[generic_link.name]
+                self._parse_subject_constraints(spec_link, linkdecl)
 
     def _normalize_ptr_default(self, expr, source, ptr):
         module_aliases = {None: source.name.module}

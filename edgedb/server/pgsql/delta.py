@@ -6,7 +6,7 @@
 ##
 
 
-import collections
+import collections.abc
 import itertools
 import pickle
 import postgresql.string
@@ -108,6 +108,9 @@ class Record:
     def __len__(self):
         return len(self._items)
 
+    def __repr__(self):
+        return '<_Record {!r}>'.format(self._items)
+
 
 class NamedPrototypeMetaCommand(PrototypeMetaCommand, s_named.NamedPrototypeCommand):
     op_priority = 0
@@ -163,7 +166,7 @@ class NamedPrototypeMetaCommand(PrototypeMetaCommand, s_named.NamedPrototypeComm
             result = value
             recvalue = value.as_dict()
 
-        elif isinstance(value, dict):
+        elif isinstance(value, collections.abc.Mapping):
             # Other dicts are JSON'ed by default
             result = value
             recvalue = json.dumps(value)
@@ -2536,8 +2539,6 @@ class AlterDatabase(MetaCommand, adapts=s_db.AlterDatabase):
 
         # self.update_mapping_indexes.apply(schema, context)
         self.pgops.add(self.update_mapping_indexes)
-
-        self.pgops.add(UpgradeBackend.update_backend_info())
 
     def is_material(self):
         return True

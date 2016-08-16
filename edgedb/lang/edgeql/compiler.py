@@ -1528,10 +1528,12 @@ class EdgeQLCompiler:
                             target.expr.pathspec)
                     else:
                         pathspec = None
-                    expr = self.entityref_to_record(
-                        expr,
-                        self.proto_schema,
-                        pathspec=pathspec)
+
+                    if not isinstance(path.concept, s_atoms.Atom):
+                        expr = self.entityref_to_record(
+                            expr,
+                            self.proto_schema,
+                            pathspec=pathspec)
 
                 t = irast.SelectorExpr(expr=expr, **params)
                 selector.append(t)

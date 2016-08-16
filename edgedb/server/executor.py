@@ -51,4 +51,7 @@ def _translate_pg_error(query, backend, error):
     if isinstance(error, asyncpg.NotNullViolationError):
         exc = edgedb_exc.MissingRequiredPointerError(error.message)
 
+    elif isinstance(error, asyncpg.UniqueViolationError):
+        exc = edgedb_exc.UniqueConstraintViolationError(error.message)
+
     return exc

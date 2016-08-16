@@ -612,10 +612,10 @@ class AlterTableAddInheritableConstraint(AlterTableInheritableConstraintBase):
                                      self.__class__.__name__,
                                      self._constraint)
 
-    def _execute(self, context, code, vars):
+    async def _execute(self, context, code, vars):
         if not self._constraint.is_abstract:
             self.create_constraint(self._constraint)
-        super()._execute(context, code, vars)
+        await super()._execute(context, code, vars)
 
 
 class AlterTableRenameInheritableConstraint(AlterTableInheritableConstraintBase):

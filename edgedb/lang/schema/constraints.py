@@ -57,7 +57,7 @@ class ConstraintCommand(sd.PrototypeCommand):
                 v = qlast.FunctionCallNode(func='typeref', args=[v])
 
             elif isinstance(value, so.Collection):
-                args = [qlast.ConstantNode(value=value.schema_type)]
+                args = [qlast.ConstantNode(value=value.schema_name)]
 
                 for subtype in value.get_subtypes():
                     args.append(qlast.ConstantNode(

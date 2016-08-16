@@ -109,6 +109,10 @@ class ConnectedTestCase(ClusterTestCase):
 
 
 class DatabaseTestCase(ConnectedTestCase):
+    SETUP = None
+    TEARDOWN = None
+    SCHEMA = None
+
     def setUp(self):
         super().setUp()
         self.admin_conn = self.con
@@ -124,6 +128,14 @@ class DatabaseTestCase(ConnectedTestCase):
         script = '\nCREATE MODULE test;'
         if self.SETUP:
             script += '\n' + self.SETUP
+
+        if self.SCHEMA:
+            with open(self.SCHEMA, 'r') as sf:
+                schema = sf.read()
+
+            script += '\nCREATE DELTA {{test::d1}} TO $${schema}$$;'.format(
+                schema=schema)
+            script += '\nCOMMIT DELTA {test::d1};'
 
         self.loop.run_until_complete(
             self.con.execute(script))
@@ -180,9 +192,9 @@ class QueryTestCaseMeta(TestCaseMeta):
     def wrap(mcls, meth):
         sig = inspect.signature(meth)
 
-        if not sig.parameters:
+        if len(sig.parameters) <= 1:
             # No input parameter, run directly
-            return meth
+            return super().wrap(meth)
 
         if 'input' not in sig.parameters:
             raise TypeError(
@@ -226,9 +238,6 @@ class QueryTestCaseMeta(TestCaseMeta):
 
 
 class QueryTestCase(DatabaseTestCase, metaclass=QueryTestCaseMeta):
-    SETUP = None
-    TEARDOWN = None
-
     def assert_data_shape(self, data, shape, message=None):
         _void = object()
 

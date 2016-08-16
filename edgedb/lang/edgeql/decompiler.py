@@ -395,7 +395,6 @@ class IRDecompiler:
         elif isinstance(expr, irast.Sequence):
             elements = [self._process_expr(context, e) for e in expr.elements]
             result = qlast.SequenceNode(elements=elements)
-            result = self.process_sequence(result)
 
         elif isinstance(expr, irast.TypeCast):
             if isinstance(expr.type, tuple):

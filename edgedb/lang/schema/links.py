@@ -702,9 +702,10 @@ class Link(pointers.Pointer, sources.Source):
                            coerce=True)
 
     mapping = so.Field(LinkMapping, default=LinkMapping.OneToOne,
-                       compcoef=0.833)
-    exposed_behaviour = so.Field(pointers.PointerExposedBehaviour, default=None,
-                                 compcoef=0.98)
+                       compcoef=0.833, coerce=True)
+
+    exposed_behaviour = so.Field(pointers.PointerExposedBehaviour,
+                                 default=None, compcoef=0.98)
 
     search = so.Field(LinkSearchConfiguration, default=None, compcoef=0.909)
 
@@ -834,4 +835,4 @@ class Link(pointers.Pointer, sources.Source):
 
     @classmethod
     def get_default_base_name(self):
-        return 'std::link'
+        return sn.Name('std::link')

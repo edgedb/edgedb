@@ -467,8 +467,6 @@ class Spec(Nonterm):
 
         if target:
             target = target.val
-            if len(target) == 1:
-                target = target[0]
 
         self.val = esast.Specialization(
             name=name.val, target=target,
