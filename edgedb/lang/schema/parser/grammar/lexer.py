@@ -44,7 +44,7 @@ class EdgeSchemaLexer(lexer.Lexer):
 
     NL = 'NEWLINE'
     MULTILINE_TOKENS = frozenset(('STRING', 'RAWSTRING'))
-    RE_FLAGS = re.X | re.M | re.I
+    RE_FLAGS = re.X | re.M
 
     # Basic keywords
     keyword_rules = [Rule(token=tok[0],
