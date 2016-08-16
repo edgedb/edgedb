@@ -76,7 +76,7 @@ class Value(Nonterm):
         self.val = kids[0].val
 
     def reduce_LBRACKET_ValueList_RBRACKET(self, *kids):
-        self.val = esast.ArrayLiteral(value=kids[1].val)
+        self.val = esast.ArrayLiteral(value=[el.value for el in kids[1].val])
 
 
 class ValueList(parsing.ListNonterm, element=BaseValue, separator=T_COMMA):

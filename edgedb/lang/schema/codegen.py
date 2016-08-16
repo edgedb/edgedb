@@ -204,26 +204,34 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
             self.new_lines = 1
 
     def visit_StringLiteral(self, node):
-        self.write('{!r}'.format(node.value))
+        self.write(self._literal_to_str(node.value))
 
     def visit_MappingLiteral(self, node):
         self.write(node.value)
 
     def visit_IntegerLiteral(self, node):
-        self.write(str(node.value))
+        self.write(self._literal_to_str(node.value))
 
     def visit_FloatLiteral(self, node):
-        self.write('{:g}'.format(node.value))
+        self.write(self._literal_to_str(node.value))
+
+    def _literal_to_str(self, value):
+        if isinstance(value, str):
+            return '{!r}'.format(value)
+        elif isinstance(value, int):
+            return str(value)
+        elif isinstance(value, float):
+            return '{:g}'.format(value)
+        elif isinstance(value, bool):
+            return 'true' if value else 'false'
 
     def visit_BooleanLiteral(self, node):
-        if node.value:
-            self.write('true')
-        else:
-            self.write('false')
+        self.write(self._literal_to_str(node.value))
 
     def visit_ArrayLiteral(self, node):
         self.write('[')
-        self._visit_list(node.value, separator=', ')
+        val = [self._literal_to_str(el) for el in node.value]
+        self.write(', '.join(val))
         self.write(']')
 
 
