@@ -437,10 +437,10 @@ class Spec(Nonterm):
     def reduce_ObjectName_DeclarationSpecsBlob(self, *kids):
         self._processdecl_specs(kids[0], None, kids[1])
 
-    def reduce_ObjectName_ARROW_NameList_NL(self, *kids):
+    def reduce_ObjectName_TO_NameList_NL(self, *kids):
         self.val = esast.Specialization(name=kids[0].val, target=kids[2].val)
 
-    def reduce_ObjectName_ARROW_NameList_DeclarationSpecsBlob(
+    def reduce_ObjectName_TO_NameList_DeclarationSpecsBlob(
             self, *kids):
         self._processdecl_specs(kids[0], kids[2], kids[3])
 

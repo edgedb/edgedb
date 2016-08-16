@@ -16,7 +16,7 @@ constraint must_be_even:
     expr := subject % 2 == 0
 
 concept ConstraintTest:
-    required link even_value -> int:
+    required link even_value to int:
         constraint must_be_even
 
 % OK %

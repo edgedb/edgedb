@@ -16,13 +16,13 @@ class TestEdgeSchemaParser(tb.ParserTest):
     def test_eschema_parser_concept02(self):
         """
 abstract concept OwnedObject:
-    required link owner -> User
+    required link owner to User
         """
 
     def test_eschema_parser_concept03(self):
         """
 abstract concept Text:
-    required link body -> str:
+    required link body to str:
         constraint maxlength:
             10000
         """
@@ -30,7 +30,7 @@ abstract concept Text:
     def test_eschema_parser_concept04(self):
         """
 concept LogEntry extends OwnedObject, Text:
-    required link spent_time -> int
+    required link spent_time to int
         """
 
     def test_eschema_parser_concept05(self):
@@ -42,7 +42,7 @@ concept LogEntry extends OwnedObject, Text:
     def test_eschema_parser_concept06(self):
         """
 concept LogEntry extends OwnedObject, Text:
-    link start_date -> datetime:
+    link start_date to datetime:
        default:=
             SELECT datetime::current_datetime()
        title: 'Start Date'
@@ -52,38 +52,38 @@ concept LogEntry extends OwnedObject, Text:
         """
 concept Issue extends foo.bar::NamedObject, OwnedObject, Text:
 
-    required link number -> issue_num_t:
+    required link number to issue_num_t:
         readonly: true
 
-    required link status -> Status
+    required link status to Status
 
-    link priority -> Priority
+    link priority to Priority
 
-    link watchers -> User:
+    link watchers to User:
         mapping: **
 
-    link time_estimate -> int
+    link time_estimate to int
 
-    link time_spent_log -> LogEntry:
+    link time_spent_log to LogEntry:
         mapping: 1*
 
     link start_date:= SELECT datetime::current_datetime()
 
-    link start_date -> datetime:
+    link start_date to datetime:
        default:=
             SELECT datetime::current_datetime()
        title: 'Start Date'
 
-    link due_date -> datetime
+    link due_date to datetime
 
-    link related_to -> Issue:
+    link related_to to Issue:
         mapping: **
         """
 
     def test_eschema_parser_concept08(self):
         """
 concept Foo:
-    link time_estimate -> int:
+    link time_estimate to int:
        linkproperty unit:
            default: 'minute'
        """
@@ -91,13 +91,13 @@ concept Foo:
     def test_eschema_parser_concept09(self):
         """
 concept LogEntry extends OwnedObject, Text:
-    required link attachment -> Post, File, User
+    required link attachment to Post, File, User
         """
 
     def test_eschema_parser_index01(self):
         """
 concept LogEntry extends OwnedObject, Text:
-    required link owner -> User
+    required link owner to User
     index test_index:= SELECT datetime::current_datetime()
         """
 
@@ -109,7 +109,7 @@ concept LogEntry extends    OwnedObject,    Text:
             # irrelevant comment indent
         # irrelevant comment indent
 
-  link start_date -> datetime:
+  link start_date to datetime:
 
 
                        default:=
@@ -127,7 +127,7 @@ concept LogEntry extends    OwnedObject,    Text:
     def test_eschema_parser_ws02(self):
         """
         concept LogEntry extends OwnedObject, Text:
-            link start_date -> datetime:
+            link start_date to datetime:
                default:=
                     SELECT datetime::current_datetime()
                title: 'Start Date'
@@ -135,7 +135,7 @@ concept LogEntry extends    OwnedObject,    Text:
 
     def test_eschema_parser_ws03(self):
         """     concept LogEntry extends OwnedObject, Text:
-                    link start_date -> datetime:
+                    link start_date to datetime:
                        default:=
                             SELECT datetime::current_datetime()
                        title: 'Start Date'
@@ -327,14 +327,14 @@ link coollink extends boringlink
     def test_eschema_parser_link03(self):
         """
 link coollink:
-    linkproperty foo -> int
+    linkproperty foo to int
         """
 
     def test_eschema_parser_link04(self):
         """
 link coollink:
-    linkproperty foo -> int
-    linkproperty bar -> int
+    linkproperty foo to int
+    linkproperty bar to int
 
     constraint expr := self.foo = self.bar
         """
@@ -348,13 +348,13 @@ linkproperty bar extends foo:
     title: 'Another property'
 
 link coollink:
-    linkproperty foo -> int:
+    linkproperty foo to int:
         default: 2
         constraint min: 0
         constraint max: 123456
         constraint expr := subject % 2 = 0
 
-    linkproperty bar -> int
+    linkproperty bar to int
 
     constraint expr := self.foo = self.bar
 
@@ -371,7 +371,7 @@ event self_deleted:
     def test_eschema_parser_link06(self):
         """
 link time_estimate:
-   linkproperty unit -> str:
+   linkproperty unit to str:
        constraint must_be_even: 0
         """
 
@@ -380,7 +380,7 @@ link time_estimate:
         import foo
 
         concept Bar extends foo::Foo:
-            link text -> str
+            link text to str
         """
 
     def test_eschema_parser_import02(self):
@@ -388,7 +388,7 @@ link time_estimate:
         import mylib.util.foo
 
         concept Bar extends mylib.util.foo::Foo:
-            link text -> str
+            link text to str
         """
 
     def test_eschema_parser_import03(self):
@@ -396,7 +396,7 @@ link time_estimate:
         import foo as bar
 
         concept Bar extends bar::Foo:
-            link text -> str
+            link text to str
         """
 
     def test_eschema_parser_import04(self):
@@ -404,7 +404,7 @@ link time_estimate:
         import mylib.util.foo as bar
 
         concept Bar extends bar::Foo:
-            link text -> str
+            link text to str
         """
 
     def test_eschema_parser_import05(self):
@@ -416,5 +416,5 @@ link time_estimate:
     otherlib.ham as spam)
 
         concept Bar extends foo::Foo, sfoo::Foo, bar::Bar, spam::Ham:
-            link text -> str
+            link text to str
         """

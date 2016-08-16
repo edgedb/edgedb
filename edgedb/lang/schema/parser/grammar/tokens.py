@@ -91,10 +91,6 @@ class T_TURNSTILE(Token):
     pass
 
 
-class T_ARROW(Token):
-    pass
-
-
 class T_ICONST(Token):
     @property
     def normalized_value(self):

@@ -28,6 +28,7 @@ edge_schema_keywords = {
     "on": ("ON", UNRESERVED_KEYWORD),
     "properties": ("PROPERTIES", UNRESERVED_KEYWORD),
     "required": ("REQUIRED", RESERVED_KEYWORD),
+    "to": ("TO", UNRESERVED_KEYWORD),
     "true": ("TRUE", RESERVED_KEYWORD),
 }
 

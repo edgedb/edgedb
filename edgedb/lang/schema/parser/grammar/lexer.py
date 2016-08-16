@@ -44,7 +44,7 @@ class EdgeSchemaLexer(lexer.Lexer):
 
     NL = 'NEWLINE'
     MULTILINE_TOKENS = frozenset(('STRING', 'RAWSTRING'))
-    RE_FLAGS = re.X | re.M
+    RE_FLAGS = re.X | re.M | re.I
 
     # Basic keywords
     keyword_rules = [Rule(token=tok[0],
@@ -104,10 +104,6 @@ class EdgeSchemaLexer(lexer.Lexer):
         Rule(token='COLON',
              next_state=STATE_KEEP,
              regexp=r':'),
-
-        Rule(token='ARROW',
-             next_state=STATE_KEEP,
-             regexp=r'->'),
 
         Rule(token='MAPPING',
              next_state=STATE_KEEP,
