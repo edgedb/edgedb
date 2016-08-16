@@ -345,7 +345,7 @@ class ProtoSchema:
         from . import concepts, lproperties, links
 
         if issubclass(cls, concepts.Concept):
-            name = 'std::BaseObject'
+            name = 'std::Object'
         elif issubclass(cls, links.Link):
             name = 'std::link'
         elif issubclass(cls, lproperties.LinkProperty):

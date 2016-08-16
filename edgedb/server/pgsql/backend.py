@@ -382,7 +382,7 @@ class ErrorMech:
 
     @classmethod
     def _get_id_constraint(cls, proto_schema):
-        BObj = proto_schema.get('std::BaseObject')
+        BObj = proto_schema.get('std::Object')
         BObj_id = BObj.pointers['std::id']
         unique = proto_schema.get('std::unique')
 
@@ -870,7 +870,7 @@ class Backend(s_deltarepo.DeltaProvider):
 
 
     def concept_name_from_id(self, id, session):
-        concept = sn.Name('std::BaseObject')
+        concept = sn.Name('std::Object')
         query = '''SELECT c.name
                    FROM
                        %s AS e
@@ -916,7 +916,7 @@ class Backend(s_deltarepo.DeltaProvider):
         # maintaining total order.
         #
         updates = {}
-        uuid = session.schema.std.BaseObject.id
+        uuid = session.schema.std.Object.id
 
         toplevel = []
 

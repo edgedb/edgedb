@@ -1314,7 +1314,7 @@ class CreateConcept(ConceptMetaCommand, adapts=s_concepts.CreateConcept):
         cid_col = dbops.Column(name='concept_id', type='integer',
                                required=True)
 
-        if concept.name == 'std::BaseObject':
+        if concept.name == 'std::Object':
             alter_table.add_operation(dbops.AlterTableAddColumn(cid_col))
 
         constraint = dbops.PrimaryKey(

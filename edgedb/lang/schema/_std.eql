@@ -226,39 +226,15 @@ CREATE LINK {std::link} {
     CREATE POLICY FOR {std::cascade_copy} TO {std::ignore};
 };
 
-CREATE LINK {std::ctime} INHERITING {std::link} {
-    SET mapping := '11';
-    SET readonly := False;
-};
-
-CREATE LINK {std::mtime} INHERITING {std::link} {
-    SET mapping := '11';
-    SET readonly := False;
-};
-
 CREATE LINK {std::id} INHERITING {std::link} {
     SET mapping := '11';
     SET readonly := False;
 };
 
-CREATE CONCEPT {std::BaseObject} {
+CREATE CONCEPT {std::Object} {
     SET is_virtual := False;
     CREATE REQUIRED LINK {std::id} TO {std::uuid} {
         SET default := (SELECT std::uuid_generate_v1mc());
-        SET mapping := '11';
-        SET readonly := True;
-    };
-};
-
-CREATE CONCEPT {std::Object} INHERITING {std::BaseObject} {
-    SET is_virtual := False;
-    CREATE LINK {std::ctime} TO {std::datetime} {
-        SET default := (SELECT std::current_datetime());
-        SET mapping := '11';
-        SET readonly := True;
-    };
-    CREATE LINK {std::mtime} TO {std::datetime} {
-        SET default := (SELECT std::current_datetime());
         SET mapping := '11';
         SET readonly := True;
     };

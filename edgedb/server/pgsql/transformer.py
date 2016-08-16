@@ -2774,7 +2774,7 @@ class IRCompiler(IRCompilerBase):
                 expr = None
 
         if isinstance(expr, irast.EntitySet):
-            return expr.concept.name == 'std::BaseObject'
+            return expr.concept.name == 'std::Object'
 
         return False
 

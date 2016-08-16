@@ -1489,7 +1489,7 @@ class EdgeQLCompiler:
 
     def _normalize_concept(self, context, concept, namespace):
         if concept == '%':
-            concept = self.proto_schema.get(name='std::BaseObject')
+            concept = self.proto_schema.get(name='std::Object')
         else:
             if namespace:
                 name = sn.Name(name=concept, module=namespace)
