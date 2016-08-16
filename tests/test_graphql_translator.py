@@ -56,21 +56,21 @@ class TranslatorTest(schema_tb.SchemaTest):
 class TestGraphQLTranslation(TranslatorTest):
     SCHEMA_TEST = r"""
         abstract concept NamedObject:
-            required link name -> str
+            required link name to str
 
         concept Group extends NamedObject:
-            link settings -> Setting:
+            link settings to Setting:
                 mapping: 1*
 
         concept Setting extends NamedObject:
-            required link value -> str
+            required link value to str
 
         concept User extends NamedObject:
-            required link active -> bool
-            link groups -> Group:
+            required link active to bool
+            link groups to Group:
                 mapping: **
-            required link age -> int
-            required link score -> float
+            required link age to int
+            required link score to float
     """
 
     SCHEMA_MOD2 = r"""

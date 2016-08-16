@@ -17,10 +17,10 @@ class TestDeltas(tb.QueryTestCase):
         #
         CREATE DELTA {test::d1} TO $$
             link name:
-                linkproperty lang -> str
+                linkproperty lang to str
 
             concept NamedObject:
-                required link name -> str
+                required link name to str
         $$;
 
         COMMIT DELTA {test::d1};
