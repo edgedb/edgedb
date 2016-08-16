@@ -118,14 +118,6 @@ CREATE ATOM std::decimal_rounding_t INHERITING std::str {
     CREATE CONSTRAINT std::enum {
         SET args := {'param': ('ceiling', '05up', 'up', 'half-even', 'half-up',
                                'floor', 'down', 'half-down')};
-        SET errmessage := '{subject} must be one of: ceiling, 05up, up, half-even, half-up, floor, down, half-down';
-        SET expr := ((subject IN $param));
-        SET finalexpr := ((subject IN ('ceiling', '05up', 'up', 'half-even', 'half-up',
-                                       'floor', 'down', 'half-down')));
-        SET inferredparamtypes := {'param': typeref('set', 'std::decimal_rounding_t')};
-        SET localfinalexpr := ((subject IN ('ceiling', '05up', 'up',
-                                            'half-even', 'half-up',
-                                            'floor', 'down', 'half-down')));
     };
 };
 
@@ -192,33 +184,26 @@ CREATE EVENT std::cascade_copy INHERITING std::cascade_base;
 CREATE EVENT std::target_deleted INHERITING std::deleted;
 
 CREATE LINK PROPERTY std::linkproperty {
-    SET readonly := False;
     SET title := 'Base link property';
 };
 
 CREATE LINK PROPERTY std::source {
-    SET readonly := False;
     SET title := 'Link source';
 };
 
 CREATE LINK PROPERTY std::target {
-    SET readonly := False;
     SET title := 'Link target';
 };
 
 CREATE LINK PROPERTY std::linkid {
-    SET readonly := False;
     SET title := 'Base link property';
 };
 
 CREATE LINK std::link {
-    SET mapping := '11';
-    SET readonly := False;
     CREATE REQUIRED LINK PROPERTY std::linkid TO std::uuid {
         SET default := (SELECT std::uuid_generate_v1mc());
-        SET loading := 'eager';
         SET readonly := True;
-        SET title := 'Base link property';
+        SET title := 'Link ID';
     };
     CREATE POLICY FOR std::cascade_session_detach TO std::cascade_loaded;
     CREATE POLICY FOR std::cascade_serialize TO std::cascade_loaded;
@@ -229,13 +214,9 @@ CREATE LINK std::link {
     CREATE POLICY FOR std::cascade_copy TO std::ignore;
 };
 
-CREATE LINK std::id INHERITING std::link {
-    SET mapping := '11';
-    SET readonly := False;
-};
+CREATE LINK std::id INHERITING std::link;
 
 CREATE CONCEPT std::Object {
-    SET is_virtual := False;
     CREATE REQUIRED LINK std::id TO std::uuid {
         SET default := (SELECT std::uuid_generate_v1mc());
         SET mapping := '11';

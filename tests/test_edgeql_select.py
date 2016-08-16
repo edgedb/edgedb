@@ -13,7 +13,7 @@ from edgedb.server import _testbase as tb
 from edgedb.client import exceptions
 
 
-class TestConstraints(tb.QueryTestCase):
+class TestEdgeQLSelect(tb.QueryTestCase):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'queries.eschema')
 

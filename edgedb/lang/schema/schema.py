@@ -50,7 +50,7 @@ class ProtoSchema:
     def copy(self):
         result = type(self)()
         result.modules = collections.OrderedDict((
-            (name, mod.copy()) for name, mod in self.modules.items))
+            (name, mod.copy()) for name, mod in self.modules.items()))
         result.deltas = self.deltas.copy()
         result.module_aliases = self.module_aliases.copy()
         result.module_aliases_r = self.module_aliases_r.copy()
@@ -305,12 +305,7 @@ class ProtoSchema:
         bases = getattr(proto, 'bases', ())
 
         for base in bases:
-            try:
-                children = self._inheritance_cache[base.name]
-            except KeyError:
-                pass
-            else:
-                children.discard(proto.name)
+            self._inheritance_cache.pop(base.name, None)
 
     def _get_descendants(self, proto, *, max_depth=None, depth=0):
         result = set()
@@ -320,6 +315,7 @@ class ProtoSchema:
         except AttributeError:
             try:
                 child_names = self._inheritance_cache[proto.name]
+                raise KeyError
             except KeyError:
                 child_names = self._inheritance_cache[proto.name] = \
                                     self._find_children(proto)
@@ -338,7 +334,7 @@ class ProtoSchema:
         return result
 
     def _find_children(self, proto):
-        flt = lambda p: p.issubclass(proto) and proto is not p
+        flt = lambda p: proto in p.bases
         return {c.name for c in filter(flt, self(proto._type))}
 
     def get_root_class(self, cls):

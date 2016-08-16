@@ -101,15 +101,15 @@ class DeclarationLoader:
         # Constraints have no external dependencies, but need to
         # be fully initialized when we get to constraint users below.
         self._init_constraints(objects['constraint'])
-        constraints = self._merge_and_sort(module('constraint'))
+        constraints = self._sort(module('constraint'))
 
         # Ditto for attributes.
-        attributes = self._merge_and_sort(module('attribute'))
+        attributes = self._sort(module('attribute'))
 
         # Atoms depend only on constraints and attributes,
         # can process them now.
         self._init_atoms(objects['atom'])
-        atoms = self._merge_and_sort(
+        atoms = self._sort(
             module('atom'), depsfn=self._get_atom_deps)
 
         # Generic links depend on atoms (via props), constraints
@@ -121,11 +121,11 @@ class DeclarationLoader:
 
         # The inheritance merge pass may produce additional objects,
         # thus, it has to be performed in reverse order (mostly).
-        concepts = self._merge_and_sort(module('concept'))
-        links = self._merge_and_sort(module('link'))
-        linkprops = self._merge_and_sort(module('linkproperty'))
-        events = self._merge_and_sort(module('event'))
-        actions = self._merge_and_sort(module('action'))
+        concepts = self._sort(module('concept'))
+        links = self._sort(module('link'))
+        linkprops = self._sort(module('linkproperty'))
+        events = self._sort(module('event'))
+        actions = self._sort(module('action'))
         attrvals = module('attribute-value')
         indexes = module('index')
 
@@ -141,14 +141,14 @@ class DeclarationLoader:
         for concept, conceptdecl in objects['concept'].items():
             self._normalize_concept_expressions(concept, conceptdecl)
 
-        for obj in module():
-            obj.finalize(self._schema)
-
         # Arrange prototypes in the resulting schema according to determined
         # topological order.
         self._schema.reorder(itertools.chain(
             attributes, attrvals, actions, events, constraints,
             atoms, linkprops, indexes, links, concepts))
+
+        for obj in module():
+            obj.finalize(self._schema)
 
     def _process_imports(self, tree):
         for decl in tree.declarations:
@@ -161,7 +161,7 @@ class DeclarationLoader:
                     if mod.alias is not None:
                         self._schema.set_module_alias(mod.module, mod.alias)
 
-    def _merge_and_sort(self, objects, depsfn=None):
+    def _sort(self, objects, depsfn=None):
         g = {}
 
         for obj in objects:
@@ -174,7 +174,7 @@ class DeclarationLoader:
                     g[dep.name] = {'item': dep, 'merge': [], 'deps': []}
 
             if obj.bases:
-                g[obj.name]['merge'].extend(b.name for b in obj.bases)
+                g[obj.name]['deps'].extend(b.name for b in obj.bases)
 
                 for base in obj.bases:
                     if base.name.module != obj.name.module:
@@ -184,9 +184,8 @@ class DeclarationLoader:
             return datastructures.OrderedSet()
 
         item = next(iter(g.values()))['item']
-        objmerger = type(item).merge
         modname = item.name.module
-        objs = topological.normalize(g, merger=objmerger, schema=self._schema)
+        objs = topological.sort(g)
         return datastructures.OrderedSet(
             filter(lambda obj: obj.name.module == modname, objs))
 

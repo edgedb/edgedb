@@ -6,8 +6,6 @@
 ##
 
 
-from edgedb.lang.common import datastructures as ds
-
 from edgedb.lang import edgeql
 from edgedb.lang.edgeql import ast as qlast
 
@@ -21,6 +19,7 @@ from . import name as sn
 from . import objects as so
 from . import policy
 from . import primary
+from . import referencing
 from . import sources
 from . import utils
 
@@ -83,23 +82,8 @@ class PointerCommandContext(sd.PrototypeCommandContext):
     pass
 
 
-class PointerCommand(sd.PrototypeCommand):
-    @classmethod
-    def _protoname_from_ast(cls, astnode, context):
-        name = super()._protoname_from_ast(astnode, context)
-
-        parent_ctx = context.get(sources.SourceCommandContext)
-        if parent_ctx:
-            subject_name = parent_ctx.op.prototype_name
-
-            pcls = cls._get_prototype_class()
-            pnn = pcls.generate_specialized_name(
-                subject_name, sn.Name(name)
-            )
-
-            name = sn.Name(name=pnn, module=subject_name.module)
-
-        return name
+class PointerCommand(constraints.ConsistencySubjectCommand,
+                     referencing.ReferencedPrototypeCommand):
 
     @classmethod
     def _extract_union_operands(cls, expr, operands):
@@ -152,14 +136,44 @@ class PointerCommand(sd.PrototypeCommand):
                 op.new_value = sexpr.ExpressionText(expr)
             super()._apply_field_ast(context, node, op)
 
+    def _create_begin(self, schema, context):
+        referrer_ctx = context.get(self.referrer_context_class)
+        if referrer_ctx is not None:
+            # This is a specialized pointer, check that appropriate
+            # generic parent exists, and if not, create it.
+            base_ref = self.get_attribute_value('bases')[0]
+            base_name = base_ref.prototype_name
+            base = schema.get(base_name, default=None)
+            if base is None:
+                cls = self.prototype_class
+                std_link = schema.get(cls.get_default_base_name())
+                base = cls(name=base_name, bases=[std_link])
+                delta = base.delta(None)
+                delta.apply(schema, context=context.at_top())
+                top_ctx = referrer_ctx
+                refref_cls = getattr(
+                    top_ctx.op, 'referrer_context_class', None)
+                if refref_cls is not None:
+                    refref_ctx = context.get(refref_cls)
+                    if refref_ctx is not None:
+                        top_ctx = refref_ctx
+
+                top_ctx.op.after(delta)
+
+        super()._create_begin(schema, context)
+
+        referrer_ctx = context.get(self.referrer_context_class)
+        if referrer_ctx is not None:
+            for ap in self(sd.AlterPrototypeProperty):
+                if ap.property == 'target':
+                    self.prototype.target = \
+                        schema.get(ap.new_value.prototype_name)
+                    break
+
 
 class BasePointer(primary.Prototype, derivable.DerivablePrototype):
     source = so.Field(primary.Prototype, None, compcoef=0.933)
     target = so.Field(primary.Prototype, None, compcoef=0.833)
-
-    def __iter__(self):
-        # XXX: temporary measure for compatibility with linkset-dependent code
-        yield self
 
     def get_near_endpoint(self, direction):
         return self.source if direction == PointerDirection.Outbound \
@@ -266,6 +280,8 @@ class BasePointer(primary.Prototype, derivable.DerivablePrototype):
             # Targets are both atoms
 
             if t1 != t2:
+                print('111', t1, t2)
+
                 pn = ptr.normal_name()
                 msg = 'could not merge "{}" pointer: targets conflict' \
                                                             .format(pn)
@@ -329,26 +345,6 @@ class BasePointer(primary.Prototype, derivable.DerivablePrototype):
 
             return current_target
 
-    @classmethod
-    def merge_many(cls, schema, items, *, source, target=None, relaxed=False,
-                                          derived=False, replace=None):
-        ptr = items[0]
-
-        if target is None:
-            for parent in items:
-                if target is None:
-                    target = parent.target
-                else:
-                    target = cls.merge_targets(schema, ptr, target,
-                                               parent.target)
-
-        return ptr.derive(schema, source, target,
-                          merge_bases=items[1:],
-                          add_to_schema=True,
-                          mark_derived=derived,
-                          relaxed=relaxed,
-                          replace_original=replace)
-
     def get_derived(self, schema, source, target, **kwargs):
         fqname = self.derive_name(source)
         ptr = schema.get(fqname, default=None)
@@ -364,37 +360,46 @@ class BasePointer(primary.Prototype, derivable.DerivablePrototype):
 
         return ptr
 
-    def init_derived(self, schema, source, target, *,
-                           mark_derived=False, add_to_schema=False,
-                           **kwargs):
-        ptr = super().init_derived(
-                    schema, source, target,
-                    mark_derived=mark_derived,
-                    add_to_schema=add_to_schema,
-                    **kwargs)
-
+    def get_derived_name(self, source, target, *qualifiers,
+                         mark_derived=False):
         if mark_derived:
             fqname = self.derive_name(source, target)
         else:
             fqname = self.derive_name(source)
 
-        ptr.name = fqname
-        ptr.bases = [self.bases[0] if not self.generic() else self]
-        ptr.source = source
-        ptr.target = target
+        return fqname
 
-        if fqname != self.name:
-            ptr.rederive_protorefs(schema, add_to_schema=add_to_schema,
-                                           mark_derived=mark_derived)
+    def init_derived(self, schema, source, *qualifiers,
+                     as_copy, mark_derived=False, add_to_schema=False,
+                     merge_bases=None, attrs=None,
+                     dctx=None, **kwargs):
 
-        return ptr
+        if qualifiers:
+            target = qualifiers[0]
+        else:
+            target = None
 
-    def merge_bases_into_derived(self, schema, derived, merge_bases, *,
-                                       relaxed, **kwargs):
-        for base in merge_bases:
-            derived.merge_specialized(schema, base, relaxed=relaxed)
+        if target is None:
+            target = self.target
 
-        derived.finalize(schema, bases=merge_bases)
+            if merge_bases:
+                for base in merge_bases:
+                    if target is None:
+                        target = base.target
+                    else:
+                        target = self.merge_targets(schema, self, target,
+                                                    base.target)
+
+        if attrs is None:
+            attrs = {}
+
+        attrs['source'] = source
+        attrs['target'] = target
+
+        return super().init_derived(
+            schema, source, target, as_copy=as_copy, mark_derived=mark_derived,
+            add_to_schema=add_to_schema, dctx=dctx, merge_bases=merge_bases,
+            attrs=attrs, **kwargs)
 
     def is_pure_computable(self):
         return self.readonly and bool(self.default) and \
@@ -419,11 +424,22 @@ class BasePointer(primary.Prototype, derivable.DerivablePrototype):
                                       'std::id'}
 
 
+def _merge_sticky_bool(ours, theirs, schema):
+    if ours is not None and theirs is not None:
+        result = max(ours, theirs)
+    else:
+        result = theirs if theirs is not None else ours
+
+    return result
+
+
 class Pointer(BasePointer, constraints.ConsistencySubject,
               policy.PolicySubject, policy.InternalPolicySubject):
 
-    required = so.Field(bool, default=False, compcoef=0.909)
-    readonly = so.Field(bool, default=False, compcoef=0.909)
+    required = so.Field(bool, default=False, compcoef=0.909,
+                        merge_fn=_merge_sticky_bool)
+    readonly = so.Field(bool, default=False, compcoef=0.909,
+                        merge_fn=_merge_sticky_bool)
     loading = so.Field(PointerLoading, default=None, compcoef=0.909)
     default = so.Field(sexpr.ExpressionText, default=None,
                        coerce=True, compcoef=0.909)

@@ -23,6 +23,7 @@ from . import named
 from . import objects as so
 from . import pointers
 from . import policy
+from . import referencing
 from . import sources
 
 
@@ -66,6 +67,17 @@ class LinkMapping(enum.StrEnum):
         # We use the fact that '*' is less than '1'
         return self.__class__(min(self[0], other[0]) + min(self[1], other[1]))
 
+    @classmethod
+    def merge_values(cls, ours, theirs, schema):
+        if ours and theirs and ours != theirs:
+            result = ours & theirs
+        elif not ours and theirs:
+            result = theirs
+        else:
+            result = ours
+
+        return result
+
 
 class LinkSearchConfiguration(so.BasePrototype):
     weight = so.Field(LinkSearchWeight, default=None, compcoef=0.9)
@@ -75,59 +87,59 @@ class LinkSourceCommandContext(sources.SourceCommandContext):
     pass
 
 
+class LinkSourceCommand(sd.PrototypeCommand):
+    def _create_innards(self, schema, context):
+        super()._create_innards(schema, context)
+
+        for op in self(LinkCommand):
+            op.apply(schema, context=context)
+
+    def _alter_innards(self, schema, context, prototype):
+        super()._alter_innards(schema, context, prototype)
+
+        for op in self(LinkCommand):
+            op.apply(schema, context=context)
+
+    def _delete_innards(self, schema, context, prototype):
+        super()._delete_innards(schema, context, prototype)
+
+        for op in self(LinkCommand):
+            op.apply(schema, context=context)
+
+    def _apply_fields_ast(self, context, node):
+        super()._apply_fields_ast(context, node)
+
+        for op in self(LinkCommand):
+            self._append_subcmd_ast(node, op, context)
+
+
 class LinkCommandContext(pointers.PointerCommandContext,
                          constraints.ConsistencySubjectCommandContext,
                          policy.InternalPolicySubjectCommandContext,
-                         lproperties.LinkPropertySourceContext):
+                         lproperties.LinkPropertySourceContext,
+                         indexes.IndexSourceCommandContext):
     pass
 
 
-class LinkCommand(pointers.PointerCommand):
+class LinkCommand(lproperties.LinkPropertySourceCommand,
+                  pointers.PointerCommand):
     context_class = LinkCommandContext
+    referrer_context_class = LinkSourceCommandContext
 
     @classmethod
     def _get_prototype_class(cls):
         return Link
 
 
-class CreateLink(LinkCommand, named.CreateNamedPrototype):
+class CreateLink(LinkCommand, referencing.CreateReferencedPrototype):
     astnode = [qlast.CreateConcreteLinkNode, qlast.CreateLinkNode]
+    referenced_astnode = qlast.CreateConcreteLinkNode
 
     @classmethod
-    def _protobases_from_ast(cls, astnode, context):
-        proto_name = '{}::{}'.format(astnode.name.module, astnode.name.name)
-
-        if isinstance(astnode, qlast.CreateConcreteLinkNode):
-            nname = Link.normalize_name(proto_name)
-
-            bases = so.PrototypeList([
-                so.PrototypeRef(
-                    prototype_name=sn.Name(
-                        module=nname.module,
-                        name=nname.name
-                    )
-                )
-            ])
-        else:
-            bases = super()._protobases_from_ast(astnode, context)
-            if not bases:
-                if proto_name != 'std::link':
-                    bases = so.PrototypeList([
-                        so.PrototypeRef(
-                            prototype_name=sn.Name(
-                                module='std',
-                                name='link'
-                            )
-                        )
-                    ])
-
-        return bases
-
-    @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context):
+    def _cmd_tree_from_ast(cls, astnode, context, schema):
         from . import concepts
 
-        cmd = super()._cmd_tree_from_ast(astnode, context)
+        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
         if isinstance(astnode, qlast.CreateConcreteLinkNode):
             cmd.add(
@@ -137,17 +149,9 @@ class CreateLink(LinkCommand, named.CreateNamedPrototype):
                 )
             )
 
+            # "source" attribute is set automatically as a refdict back-attr
             parent_ctx = context.get(LinkSourceCommandContext)
             source_name = parent_ctx.op.prototype_name
-
-            cmd.add(
-                sd.AlterPrototypeProperty(
-                    property='source',
-                    new_value=so.PrototypeRef(
-                        prototype_name=source_name
-                    )
-                )
-            )
 
             for ap in cmd(sd.AlterPrototypeProperty):
                 if ap.property == 'search_weight':
@@ -389,64 +393,9 @@ class CreateLink(LinkCommand, named.CreateNamedPrototype):
         for op in self(policy.PolicyCommand):
             self._append_subcmd_ast(node, op, context)
 
-    def apply(self, schema, context=None):
-        context = context or sd.CommandContext()
-
-        result = named.CreateNamedPrototype.apply(self, schema, context)
-
-        concept = context.get(LinkSourceCommandContext)
-        if concept:
-            result.source = concept.proto
-            concept.proto.add_pointer(result)
-            pointer_name = result.normal_name()
-            for child in concept.proto.descendants(schema):
-                if pointer_name not in child.own_pointers:
-                    child.pointers[pointer_name] = result
-
-        with context(LinkCommandContext(self, result)):
-            result.acquire_ancestor_inheritance(schema)
-
-            for op in self(atoms.AtomCommand):
-                op.apply(schema, context=context)
-
-            for op in self(lproperties.LinkPropertyCommand):
-                op.apply(schema, context=context)
-
-            for op in self(constraints.ConstraintCommand):
-                op.apply(schema, context=context)
-
-            for op in self(indexes.SourceIndexCommand):
-                op.apply(schema, context=context)
-
-            for op in self(policy.PolicyCommand):
-                op.apply(schema, context)
-
-        result.acquire_ancestor_inheritance(schema)
-
-        return result
-
 
 class RenameLink(LinkCommand, named.RenameNamedPrototype):
-    def apply(self, schema, context):
-        result = super().apply(schema, context)
-
-        if not result.generic():
-            concept = context.get(LinkSourceCommandContext)
-            assert concept, "Link commands must be run in concept context"
-
-            norm = Link.normalize_name
-
-            own = concept.proto.own_pointers.pop(
-                    norm(self.prototype_name), None)
-            if own:
-                concept.proto.own_pointers[norm(self.new_name)] = own
-
-            inherited = concept.proto.pointers.pop(
-                            norm(self.prototype_name), None)
-            if inherited is not None:
-                concept.proto.pointers[norm(self.new_name)] = inherited
-
-        return result
+    pass
 
 
 class RebaseLink(LinkCommand, inheriting.RebaseNamedPrototype):
@@ -457,14 +406,14 @@ class AlterTarget(sd.Command):
     astnode = qlast.AlterTargetNode
 
     @classmethod
-    def _cmd_from_ast(cls, astnode, context):
+    def _cmd_from_ast(cls, astnode, context, schema):
         return sd.AlterPrototypeProperty(property='target')
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context):
+    def _cmd_tree_from_ast(cls, astnode, context, schema):
         from . import concepts
 
-        cmd = super()._cmd_tree_from_ast(astnode, context)
+        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
         parent_ctx = context.get(LinkSourceCommandContext)
         source_name = parent_ctx.op.prototype_name
@@ -537,10 +486,11 @@ class AlterTarget(sd.Command):
 
 class AlterLink(LinkCommand, named.AlterNamedPrototype):
     astnode = [qlast.AlterLinkNode, qlast.AlterConcreteLinkNode]
+    referenced_astnode = qlast.AlterConcreteLinkNode
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context):
-        cmd = super()._cmd_tree_from_ast(astnode, context)
+    def _cmd_tree_from_ast(cls, astnode, context, schema):
+        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
         if isinstance(astnode, qlast.AlterConcreteLinkNode):
             for ap in cmd(sd.AlterPrototypeProperty):
@@ -612,39 +562,10 @@ class AlterLink(LinkCommand, named.AlterNamedPrototype):
         else:
             super()._apply_field_ast(context, node, op)
 
-    def apply(self, schema, context=None):
-        context = context or sd.CommandContext()
-        with context(LinkCommandContext(self, None)):
-            link = super().apply(schema, context)
-
-            for op in self(inheriting.RebaseNamedPrototype):
-                op.apply(schema, context)
-
-            link.acquire_ancestor_inheritance(schema)
-
-            for op in self(atoms.AtomCommand):
-                op.apply(schema, context)
-
-            for op in self(lproperties.LinkPropertyCommand):
-                op.apply(schema, context=context)
-
-            for op in self(constraints.ConstraintCommand):
-                op.apply(schema, context=context)
-
-            for op in self(indexes.SourceIndexCommand):
-                op.apply(schema, context=context)
-
-            for op in self(policy.PolicyCommand):
-                op.apply(schema, context)
-
-        link.acquire_ancestor_inheritance(schema)
-        link.update_descendants(schema)
-
-        return link
-
 
 class DeleteLink(LinkCommand, named.DeleteNamedPrototype):
     astnode = [qlast.DropLinkNode, qlast.DropConcreteLinkNode]
+    referenced_astnode = qlast.DropConcreteLinkNode
 
     def _get_ast_node(self, context):
         concept = context.get(LinkSourceCommandContext)
@@ -672,31 +593,6 @@ class DeleteLink(LinkCommand, named.DeleteNamedPrototype):
         for op in self(policy.PolicyCommand):
             self._append_subcmd_ast(node, op, context)
 
-    def apply(self, schema, context):
-        link = super().apply(schema, context)
-
-        with context(LinkCommandContext(self, link)):
-            for op in self(atoms.AtomCommand):
-                op.apply(schema, context)
-
-            for op in self(constraints.ConstraintCommand):
-                op.apply(schema, context=context)
-
-            for op in self(indexes.SourceIndexCommand):
-                op.apply(schema, context=context)
-
-            for op in self(lproperties.LinkPropertyCommand):
-                op.apply(schema, context=context)
-
-            for op in self(policy.PolicyCommand):
-                op.apply(schema, context)
-
-        concept = context.get(LinkSourceCommandContext)
-        if concept:
-            concept.proto.del_pointer(link, schema)
-
-        return link
-
 
 class Link(pointers.Pointer, sources.Source):
     _type = 'link'
@@ -704,7 +600,7 @@ class Link(pointers.Pointer, sources.Source):
     spectargets = so.Field(named.NamedPrototypeSet, named.NamedPrototypeSet,
                            coerce=True)
 
-    mapping = so.Field(LinkMapping, default=LinkMapping.OneToOne,
+    mapping = so.Field(LinkMapping, default=None,
                        compcoef=0.833, coerce=True)
 
     exposed_behaviour = so.Field(pointers.PointerExposedBehaviour,
@@ -740,14 +636,14 @@ class Link(pointers.Pointer, sources.Source):
                 return pointers.PointerExposedBehaviour.Set
 
     def init_std_props(self, schema, *, mark_derived=False,
-                       add_to_schema=False):
+                       add_to_schema=False, dctx=None):
 
         src_n = sn.Name('std::source')
         if src_n not in self.pointers:
             source_pbase = schema.get(src_n)
             source_p = source_pbase.get_derived(
                 schema, self, self.source, mark_derived=mark_derived,
-                add_to_schema=add_to_schema)
+                add_to_schema=add_to_schema, dctx=dctx)
 
             self.add_pointer(source_p)
 
@@ -756,43 +652,23 @@ class Link(pointers.Pointer, sources.Source):
             target_pbase = schema.get(tgt_n)
             target_p = target_pbase.get_derived(
                 schema, self, self.target, mark_derived=mark_derived,
-                add_to_schema=add_to_schema)
+                add_to_schema=add_to_schema, dctx=dctx)
 
             self.add_pointer(target_p)
 
-    def derive(self, schema, source, target=None, *,
-               mark_derived=False, add_to_schema=False, **kwargs):
-        if target is None:
-            target = self.target
+    def init_derived(self, schema, source, *qualifiers,
+                     mark_derived=False, add_to_schema=False,
+                     dctx=None, init_props=True, **kwargs):
 
-        ptr = super().derive(schema, source, target,
-                             mark_derived=mark_derived,
-                             add_to_schema=add_to_schema, **kwargs)
+        ptr = super().init_derived(
+            schema, source, *qualifiers, mark_derived=mark_derived,
+            add_to_schema=add_to_schema, dctx=dctx, **kwargs)
 
-        ptr.init_std_props(schema, mark_derived=mark_derived,
-                           add_to_schema=add_to_schema)
+        if init_props:
+            ptr.init_std_props(schema, mark_derived=mark_derived,
+                               add_to_schema=add_to_schema)
 
         return ptr
-
-    def merge_specialized(self, schema, other, relaxed=False):
-        if isinstance(other, Link):
-            self.readonly = max(self.readonly, other.readonly)
-            self.required = max(self.required, other.required)
-
-            if relaxed:
-                self.mapping = self.mapping | other.mapping
-            else:
-                self.mapping = self.mapping & other.mapping
-
-            if self.exposed_behaviour is None:
-                self.exposed_behaviour = other.exposed_behaviour
-
-            if self.search is None:
-                self.search = other.search
-
-            self.merge_defaults(other)
-
-        return self
 
     def singular(self, direction=pointers.PointerDirection.Outbound):
         if direction == pointers.PointerDirection.Outbound:
@@ -835,6 +711,21 @@ class Link(pointers.Pointer, sources.Source):
         result.default = obj.default
 
         return result
+
+    def finalize(self, schema, bases=None, *, dctx=None):
+        super().finalize(schema, bases=bases, dctx=dctx)
+
+        if not self.generic() and self.mapping is None:
+            self.mapping = LinkMapping.ManyToOne
+
+            if dctx is not None:
+                from . import delta as sd
+
+                dctx.current().op.add(sd.AlterPrototypeProperty(
+                    property='mapping',
+                    new_value=self.mapping,
+                    source='default'
+                ))
 
     @classmethod
     def get_default_base_name(self):

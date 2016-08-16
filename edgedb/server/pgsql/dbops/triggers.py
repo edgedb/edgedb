@@ -68,8 +68,8 @@ class Trigger(tables.InheritableTableObject):
     def get_oid(self):
         qry = '''
             SELECT
-                'pg_trigger'::regclass::oid,
-                pg_trigger.oid,
+                'pg_trigger'::regclass::oid AS classoid,
+                pg_trigger.oid AS objectoid,
                 0
             FROM
                 pg_trigger

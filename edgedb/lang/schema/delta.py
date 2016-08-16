@@ -367,17 +367,23 @@ class CommandMeta(functional.Adapter, datastructures.MixedStructMeta):
 
 @markup.serializer.serializer(method='as_markup')
 class Command(datastructures.MixedStruct, metaclass=CommandMeta):
-    preprocess = Field(str, None)
-    postprocess = Field(str, None)
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.ops = datastructures.OrderedSet()
+        self.before_ops = datastructures.OrderedSet()
+
+    def copy(self):
+        result = super().copy()
+        result.ops = datastructures.OrderedSet(
+            op.copy() for op in self.ops)
+        result.before_ops = datastructures.OrderedSet(
+            op.copy() for op in self.before_ops)
+        return result
 
     @classmethod
     def adapt(cls, obj):
         result = super().copy(obj)
-        for op in obj.ops:
+        for op in obj:
             result.ops.add(type(cls).adapt(op))
         return result
 
@@ -448,19 +454,42 @@ class Command(datastructures.MixedStruct, metaclass=CommandMeta):
 
         return result
 
+    def get_attribute_value(self, attr_name):
+        for op in self(AlterPrototypeProperty):
+            if op.property == attr_name:
+                return op.new_value
+        else:
+            return None
+
     def adapt_value(self, field, value):
         if value is not None and not isinstance(value, field.type):
             value = field.adapt(value)
         return value
 
     def __iter__(self):
-        return iter(self.ops)
+        for op in self.ops:
+            yield from op.before_ops
+            yield op
 
     def __call__(self, typ):
-        return filter(lambda i: isinstance(i, typ), self.ops)
+        return filter(lambda i: isinstance(i, typ), self)
 
     def has_subcommands(self):
         return bool(self.ops)
+
+    def after(self, command):
+        if isinstance(command, CommandGroup):
+            for op in command:
+                self.before_ops.add(command)
+        else:
+            self.before_ops.add(command)
+
+    def prepend(self, command):
+        if isinstance(command, CommandGroup):
+            for op in reversed(command):
+                self.ops.add(op, last=False)
+        else:
+            self.ops.add(command, last=False)
 
     def add(self, command):
         if isinstance(command, CommandGroup):
@@ -511,7 +540,7 @@ class Command(datastructures.MixedStruct, metaclass=CommandMeta):
         return type(cls)._astnode_map.get(astnode)
 
     @classmethod
-    def from_ast(cls, astnode, context=None):
+    def from_ast(cls, astnode, *, context=None, schema):
         if context is None:
             context = CommandContext()
 
@@ -520,11 +549,12 @@ class Command(datastructures.MixedStruct, metaclass=CommandMeta):
             msg = 'cannot find command for ast node {!r}'.format(astnode)
             raise TypeError(msg)
 
-        return cmdcls._cmd_tree_from_ast(astnode, context=context)
+        return cmdcls._cmd_tree_from_ast(
+            astnode, context=context, schema=schema)
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context):
-        cmd = cls._cmd_from_ast(astnode, context)
+    def _cmd_tree_from_ast(cls, astnode, context, schema):
+        cmd = cls._cmd_from_ast(astnode, context, schema)
 
         if getattr(astnode, 'commands', None):
             context_class = getattr(cls, 'context_class', None)
@@ -532,40 +562,40 @@ class Command(datastructures.MixedStruct, metaclass=CommandMeta):
             if context_class is not None:
                 with context(context_class(cmd)):
                     for subastnode in astnode.commands:
-                        subcmd = Command.from_ast(subastnode, context=context)
+                        subcmd = Command.from_ast(
+                            subastnode, context=context, schema=schema)
                         if subcmd is not None:
                             cmd.add(subcmd)
             else:
                 for subastnode in astnode.commands:
-                    subcmd = Command.from_ast(subastnode, context=context)
+                    subcmd = Command.from_ast(
+                        subastnode, context=context, schema=schema)
                     if subcmd is not None:
                         cmd.add(subcmd)
 
         return cmd
 
     @classmethod
-    def _cmd_from_ast(cls, astnode, context):
+    def _cmd_from_ast(cls, astnode, context, schema):
         return cls()
 
     @classmethod
     def as_markup(cls, self, *, ctx):
         node = markup.elements.lang.TreeNode(name=str(self))
 
-        if self.ops:
-            for dd in self:
-                if isinstance(dd, AlterPrototypeProperty):
-                    diff = markup.elements.doc.ValueDiff(
-                        before=repr(dd.old_value), after=repr(dd.new_value))
+        for dd in self:
+            if isinstance(dd, AlterPrototypeProperty):
+                diff = markup.elements.doc.ValueDiff(
+                    before=repr(dd.old_value), after=repr(dd.new_value))
 
-                    node.add_child(label=dd.property, node=diff)
-                else:
-                    node.add_child(node=markup.serialize(dd, ctx=ctx))
+                node.add_child(label=dd.property, node=diff)
+            else:
+                node.add_child(node=markup.serialize(dd, ctx=ctx))
 
         return node
 
     def __str__(self):
-        return '{} ({})'.format(self.__class__.__name__,
-                                datastructures.MixedStruct.__str__(self))
+        return datastructures.MixedStruct.__str__(self)
 
     def __repr__(self):
         flds = datastructures.MixedStruct.__repr__(self)
@@ -618,12 +648,26 @@ class CommandContext:
             if isinstance(item, cls):
                 return item
 
-    def get_top(self):
-        return self.stack[0]
+    def top(self):
+        if self.stack:
+            return self.stack[0]
+        else:
+            return None
+
+    def current(self):
+        if self.stack:
+            return self.stack[-1]
+        else:
+            return None
 
     def copy(self):
         ctx = CommandContext()
         ctx.stack = self.stack[:]
+        return ctx
+
+    def at_top(self):
+        ctx = CommandContext()
+        ctx.stack = ctx.stack[:1]
         return ctx
 
     def __call__(self, token):
@@ -638,61 +682,6 @@ class DeltaUpgradeContext(CommandContext):
 
 class PrototypeCommand(Command):
     prototype_class = Field(so.PrototypeClass, str_formatter=None)
-
-    def _register_unresolved_refs(self, schema, context, unresolved):
-        top_context = context.get_top()
-
-        for prop, ref in unresolved.items():
-            if isinstance(ref, (typed.AbstractTypedSequence,
-                                typed.AbstractTypedSet)):
-                keys = tuple(r.prototype_name for r in ref)
-            else:
-                keys = (ref.prototype_name,)
-
-            for key in keys:
-                try:
-                    referrers = top_context.unresolved_refs[key]
-                except KeyError:
-                    referrers = top_context.unresolved_refs[key] = []
-
-                referrers.append((self, context.copy(), self.prototype, prop))
-
-    def _resolve_refs(self, schema, context, prototype):
-        top_context = context.get_top()
-
-        key = prototype.name
-
-        try:
-            unresolved = top_context.unresolved_refs.pop(key)
-        except KeyError:
-            pass
-        else:
-            for ref_command, ref_context, ref_proto, proto_attr in unresolved:
-                ref_command.ref_appears(schema, ref_context, ref_proto,
-                                        proto_attr, prototype)
-
-    def ref_appears(self, schema, context, ref_proto, proto_attr, prototype):
-        field = ref_proto.__class__.get_field(proto_attr)
-
-        if issubclass(field.type[0], typed.AbstractTypedSequence):
-            refs = getattr(ref_proto, proto_attr)
-            for i, ref in enumerate(refs):
-                if getattr(ref, 'prototype_name', None) == prototype.name:
-                    refs[i] = prototype
-                    break
-            else:
-                refs.append(prototype)
-        elif issubclass(field.type[0], typed.AbstractTypedSet):
-            refs = getattr(ref_proto, proto_attr)
-            for ref in list(refs):
-                if getattr(ref, 'prototype_name', None) == prototype.name:
-                    refs.discard(ref)
-                    refs.add(prototype)
-                    break
-            else:
-                refs.add(prototype)
-        else:
-            setattr(ref_proto, proto_attr, prototype)
 
 
 class Ghost(PrototypeCommand):
@@ -721,18 +710,23 @@ class PrototypeCommandContext(CommandContextToken):
 
 
 class CreatePrototype(PrototypeCommand):
-    def apply(self, schema, context):
+    def _create_begin(self, schema, context):
         props = self.get_struct_properties(schema)
-        self.prototype = self.prototype_class(**props)
-        return self.prototype
 
+        self.prototype = self.prototype_class(
+            **props, _setdefaults_=False, _relaxrequired_=True)
 
-class CreateSimplePrototype(CreatePrototype):
-    prototype_data = Field(object, None)
+    def _create_innards(self, schema, context):
+        pass
 
-    def apply(self, schema, context=None):
-        self.prototype = self.prototype_class.get_canonical_class()(
-            self.prototype_data)
+    def _create_finalize(self, schema, context):
+        self.prototype.finalize(schema, dctx=context)
+
+    def apply(self, schema, context):
+        self._create_begin(schema, context)
+        with context(self.context_class(self, self.prototype)):
+            self._create_innards(schema, context)
+            self._create_finalize(schema, context)
         return self.prototype
 
 
@@ -740,7 +734,7 @@ class AlterSpecialPrototypeProperty(Command):
     astnode = qlast.SetSpecialFieldNode
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context):
+    def _cmd_tree_from_ast(cls, astnode, context, schema):
         return AlterPrototypeProperty(
             property=astnode.name,
             new_value=astnode.value
@@ -751,9 +745,10 @@ class AlterPrototypeProperty(Command):
     property = Field(str)
     old_value = Field(object, None)
     new_value = Field(object, None)
+    source = Field(str, None)
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context):
+    def _cmd_tree_from_ast(cls, astnode, context, schema):
         propname = astnode.name.name
         if astnode.name.module:
             propname = astnode.name.module + '::' + propname

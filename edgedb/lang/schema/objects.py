@@ -34,12 +34,13 @@ class Field(struct.Field):
     __name__ = ('compcoef', 'private', 'derived', 'simpledelta')
 
     def __init__(self, *args, compcoef=None, private=False, derived=False,
-                 simpledelta=True, **kwargs):
+                 simpledelta=True, merge_fn=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.compcoef = compcoef
         self.private = private
         self.derived = derived
         self.simpledelta = simpledelta
+        self.merge_fn = merge_fn
 
 
 class ComparisonContextWrapper:
@@ -130,6 +131,10 @@ class PrototypeMeta(PrototypeClass, struct.MixedStructMeta):
 
 
 class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
+    def __init__(self, **kwargs):
+        self._attr_sources = {}
+        super().__init__(**kwargs)
+
     def hash_criteria_fields(self):
         for fn, f in self.__class__.get_fields(sorted=True).items():
             if not f.derived:
@@ -160,6 +165,31 @@ class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
 
         return tuple(criteria)
 
+    def set_attribute(self, name, value, *, dctx=None, source=None):
+        """Set the attribute `name` to `value`."""
+        from . import delta as sd
+
+        try:
+            current = getattr(self, name)
+        except AttributeError:
+            changed = True
+        else:
+            changed = current != value
+
+        if changed:
+            self._attr_sources[name] = source
+            setattr(self, name, value)
+            if dctx is not None:
+                dctx.op.add(sd.AlterPrototypeProperty(
+                    property=name,
+                    new_value=value,
+                    source=source
+                ))
+
+    def set_default_value(self, field_name, value):
+        setattr(self, field_name, value)
+        self._attr_sources[field_name] = 'default'
+
     def persistent_hash(self):
         """Compute object 'snapshot' hash
 
@@ -175,16 +205,16 @@ class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
             if not f.private:
                 yield fn
 
-    def merge(self, obj, *, schema):
+    def merge(self, obj, *, schema, dctx=None):
         """Merge properties of another object into this object.
 
-           Most often use of this method is to implement property
-           acquisition through inheritance.
+        Most often use of this method is to implement property
+        acquisition through inheritance.
         """
         if (not isinstance(obj, self.__class__)
                 and not isinstance(self, obj.__class__)):
             msg = "cannot merge instances of %s and %s" % \
-                            (obj.__class__.__name__, self.__class__.__name__)
+                (obj.__class__.__name__, self.__class__.__name__)
             raise s_err.SchemaError(msg)
 
         for field_name in self.mergeable_fields():
@@ -194,13 +224,18 @@ class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
             ours = getattr(self, field_name)
             theirs = getattr(obj, field_name)
 
-            merger = getattr(FieldType, 'merge_values', None)
+            merger = field.merge_fn
+            if not callable(merger):
+                merger = getattr(FieldType, 'merge_values', None)
+
             if callable(merger):
                 result = merger(ours, theirs, schema=schema)
-                setattr(self, field_name, result)
+                self.set_attribute(field_name, result, dctx=dctx,
+                                   source='inheritance')
             else:
                 if ours is None and theirs is not None:
-                    setattr(self, field_name, theirs)
+                    self.set_attribute(field_name, theirs, dctx=dctx,
+                                       source='inheritance')
 
     def compare(self, other, context=None):
         if (not isinstance(other, self.__class__)
@@ -623,9 +658,17 @@ class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
         assert name in getattr(self, attr)
         return self
 
-    def finalize(self, schema, bases=None):
-        self.setdefaults()
+    def finalize(self, schema, bases=None, *, dctx=None):
+        from . import delta as sd
 
+        fields = self.setdefaults()
+        if dctx is not None and fields:
+            for field in fields:
+                dctx.current().op.add(sd.AlterPrototypeProperty(
+                    property=field,
+                    new_value=getattr(self, field),
+                    source='default'
+                ))
 
 class PrototypeRef(BasePrototype):
     prototype_name = Field(sn.SchemaName, coerce=True)
@@ -634,10 +677,7 @@ class PrototypeRef(BasePrototype):
         super().__init__(**kwargs)
 
     def __repr__(self):
-        cls = self.__class__
-        return '<{}.{} "{}" at 0x{:x}>'.format(
-                    cls.__module__, cls.__name__,
-                    self.prototype_name, id(self))
+        return '<SchemaRef "{}" at 0x{:x}>'.format(self.prototype_name, id(self))
 
     __str__ = __repr__
 

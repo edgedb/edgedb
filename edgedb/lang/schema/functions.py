@@ -38,8 +38,8 @@ class CreateFunction(named.CreateNamedPrototype, FunctionCommand):
     astnode = qlast.CreateFunctionNode
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context):
-        cmd = super()._cmd_tree_from_ast(astnode, context)
+    def _cmd_tree_from_ast(cls, astnode, context, schema):
+        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
         cmd.add(sd.AlterPrototypeProperty(
             property='returntype',

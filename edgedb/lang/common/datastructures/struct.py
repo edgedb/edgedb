@@ -210,7 +210,7 @@ class Struct(metaclass=StructMeta):
     def update(self, *args, **kwargs):
         """Update the field values."""
         values = {}
-        values.update(values, *args, **kwargs)
+        values.update(*args, **kwargs)
 
         self._check_init_argnames(values)
 
@@ -219,11 +219,17 @@ class Struct(metaclass=StructMeta):
 
     def setdefaults(self):
         """Initialize unset fields with default values."""
+        fields_set = []
         for field_name, field in self.__class__._fields.items():
             value = getattr(self, field_name)
             if value is None and field.default is not None:
                 value = self._getdefault(field_name, field)
-                setattr(self, field_name, value)
+                self.set_default_value(field_name, value)
+                fields_set.append(field_name)
+        return fields_set
+
+    def set_default_value(self, field_name, value):
+        setattr(self, field_name, value)
 
     def formatfields(self, formatter='str'):
         """Return an iterator over fields formatted using `formatter`."""
@@ -243,6 +249,10 @@ class Struct(metaclass=StructMeta):
         args = {f: getattr(obj, f) for f in cls._fields.keys()}
         return cls(**args)
 
+    def items(self):
+        for field in self.__class__._fields:
+            yield field, getattr(self, field, None)
+
     __copy__ = copy
 
     def __iter__(self):
@@ -251,12 +261,14 @@ class Struct(metaclass=StructMeta):
     def __str__(self):
         fields = ', '.join(('%s=%s' % (name, value))
                            for name, value in self.formatfields('str'))
-        return '<{} {}>'.format(self.__class__.__name__, fields)
+        return '<{}{}>'.format(self.__class__.__name__,
+                               ' ' + fields if fields else '')
 
     def __repr__(self):
         fields = ', '.join(('%s=%s' % (name, value))
                            for name, value in self.formatfields('repr'))
-        return '<{} {}>'.format(self.__class__.__name__, fields)
+        return '<{}{}>'.format(self.__class__.__name__,
+                               ' ' + fields if fields else '')
 
     def _init_fields(self, setdefaults, relaxrequired, values):
         for field_name, field in self.__class__._fields.items():

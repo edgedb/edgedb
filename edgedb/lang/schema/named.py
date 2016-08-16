@@ -23,22 +23,12 @@ class NamedPrototypeCommand(sd.PrototypeCommand):
 
     @classmethod
     def _protoname_from_ast(cls, astnode, context):
-        prototype_name = sn.Name(module=astnode.name.module,
+        prototype_name = sn.Name(module=astnode.name.module or 'std',
                                  name=astnode.name.name)
         return prototype_name
 
     @classmethod
-    def _protobases_from_ast(cls, astnode, context):
-        bases = so.PrototypeList(
-            so.PrototypeRef(prototype_name=sn.Name(
-                name=b.name, module=b.module
-            ))
-            for b in getattr(astnode, 'bases', None) or []
-        )
-        return bases
-
-    @classmethod
-    def _cmd_from_ast(cls, astnode, context):
+    def _cmd_from_ast(cls, astnode, context, schema):
         gpc = getattr(cls, '_get_prototype_class', None)
         if not callable(gpc):
             msg = 'cannot determine prototype_class for {}' \
@@ -110,6 +100,15 @@ class NamedPrototypeCommand(sd.PrototypeCommand):
             if subnode is not None:
                 node.commands.append(subnode)
 
+    def _create_begin(self, schema, context):
+        super()._create_begin(schema, context)
+
+        if schema.get(self.prototype_name, default=None,
+                      type=self.prototype_class):
+            raise ValueError(
+                '{!r} already exists in schema'.format(self.prototype_name))
+        schema.add(self.prototype)
+
 
 class CreateOrAlterNamedPrototype(NamedPrototypeCommand):
     pass
@@ -117,21 +116,13 @@ class CreateOrAlterNamedPrototype(NamedPrototypeCommand):
 
 class CreateNamedPrototype(CreateOrAlterNamedPrototype, sd.CreatePrototype):
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context):
-        cmd = super()._cmd_tree_from_ast(astnode, context)
+    def _cmd_tree_from_ast(cls, astnode, context, schema):
+        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
         cmd.add(
             sd.AlterPrototypeProperty(
                 property='name',
                 new_value=cmd.prototype_name
-            )
-        )
-
-        bases = cls._protobases_from_ast(astnode, context)
-        cmd.add(
-            sd.AlterPrototypeProperty(
-                property='bases',
-                new_value=bases
             )
         )
 
@@ -163,9 +154,6 @@ class CreateNamedPrototype(CreateOrAlterNamedPrototype, sd.CreatePrototype):
 
         proto = sd.CreatePrototype.apply(self, schema, context)
         schema.add(proto)
-
-        self._resolve_refs(schema, context, proto)
-
         return proto
 
     def __repr__(self):
@@ -184,25 +172,35 @@ class RenameNamedPrototype(NamedPrototypeCommand):
                                          self.__class__.__name__,
                                          self.prototype_name, self.new_name)
 
-    def apply(self, schema, context):
-        old_name = self.prototype_name
-        prototype = schema.get(self.prototype_name, type=self.prototype_class)
+    def _rename_begin(self, schema, context, prototype):
+        schema.drop_inheritance_cache(prototype)
+        schema.drop_inheritance_cache_for_child(prototype)
+
+        self.old_name = self.prototype_name
         schema.delete(prototype)
         prototype.name = self.new_name
         schema.add(prototype)
 
-        # Update context
-        context_token = context.pop()
-        assert context_token
-        context_token.proto = prototype
-        context.push(context_token)
-
-        self._resolve_refs(schema, context, prototype)
-
         parent_ctx = context.get(sd.CommandContextToken)
         for subop in parent_ctx.op(NamedPrototypeCommand):
-            if subop is not self and subop.prototype_name == old_name:
+            if subop is not self and subop.prototype_name == self.old_name:
                 subop.prototype_name = self.new_name
+
+        return prototype
+
+    def _rename_innards(self, schema, context, prototype):
+        pass
+
+    def _rename_finalize(self, schema, context, prototype):
+        pass
+
+    def apply(self, schema, context):
+        prototype = schema.get(self.prototype_name, type=self.prototype_class)
+        self.prototype = prototype
+
+        self._rename_begin(schema, context, prototype)
+        self._rename_innards(schema, context, prototype)
+        self._rename_finalize(schema, context, prototype)
 
         return prototype
 
@@ -228,7 +226,7 @@ class RenameNamedPrototype(NamedPrototypeCommand):
         return astnode(new_name=ref)
 
     @classmethod
-    def _cmd_from_ast(cls, astnode, context):
+    def _cmd_from_ast(cls, astnode, context, schema):
         parent_ctx = context.get(sd.CommandContextToken)
         parent_class = parent_ctx.op.prototype_class
         rename_class = NamedPrototypeMeta.get_rename_command(parent_class)
@@ -258,8 +256,8 @@ class RenameNamedPrototype(NamedPrototypeCommand):
 
 class AlterNamedPrototype(CreateOrAlterNamedPrototype):
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context):
-        cmd = super()._cmd_tree_from_ast(astnode, context)
+    def _cmd_tree_from_ast(cls, astnode, context, schema):
+        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
         added_bases = []
         dropped_bases = []
@@ -382,20 +380,7 @@ class AlterNamedPrototype(CreateOrAlterNamedPrototype):
     def get_context_token(self):
         return self.context_class(self, None)
 
-    def apply(self, schema, context):
-        prototype = schema.get(self.prototype_name, type=self.prototype_class)
-        self.prototype = prototype
-
-        context_token = context.pop()
-
-        try:
-            context_token.original_proto = \
-                prototype.__class__.get_canonical_class().copy(prototype)
-            context_token.proto = prototype
-            self.original_proto = context_token.original_proto
-        finally:
-            context.push(context_token)
-
+    def _alter_begin(self, schema, context, prototype):
         for op in self(RenameNamedPrototype):
             op.apply(schema, context)
 
@@ -405,14 +390,49 @@ class AlterNamedPrototype(CreateOrAlterNamedPrototype):
 
         return prototype
 
+    def _alter_innards(self, schema, context, prototype):
+        pass
+
+    def _alter_finalize(self, schema, context, prototype):
+        pass
+
+    def apply(self, schema, context):
+        prototype = schema.get(self.prototype_name, type=self.prototype_class)
+        self.prototype = prototype
+
+        with context(self.context_class(self, prototype)) as ctx:
+            ctx.original_proto = \
+                prototype.__class__.get_canonical_class().copy(prototype)
+
+            self._alter_begin(schema, context, prototype)
+            self._alter_innards(schema, context, prototype)
+            self._alter_finalize(schema, context, prototype)
+
+        return prototype
+
 
 class DeleteNamedPrototype(NamedPrototypeCommand):
+    def _delete_begin(self, schema, context, prototype):
+        pass
+
+    def _delete_innards(self, schema, context, prototype):
+        pass
+
+    def _delete_finalize(self, schema, context, prototype):
+        schema.delete(prototype)
+
     def apply(self, schema, context=None):
         prototype = schema.get(self.prototype_name, type=self.prototype_class)
         self.prototype = prototype
         self.old_prototype = prototype
-        schema.delete(prototype)
-        schema.drop_inheritance_cache_for_child(prototype)
+
+        with context(self.context_class(self, prototype)) as ctx:
+            ctx.original_proto = prototype
+
+            self._delete_begin(schema, context, prototype)
+            self._delete_innards(schema, context, prototype)
+            self._delete_finalize(schema, context, prototype)
+
         return prototype
 
 

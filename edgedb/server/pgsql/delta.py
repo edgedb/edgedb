@@ -258,7 +258,10 @@ class NamedPrototypeMetaCommand(PrototypeMetaCommand, s_named.NamedPrototypeComm
         rec = None
         table = self.table
 
-        fields = self.get_struct_properties(schema)
+        if isinstance(self, sd.CreatePrototype):
+            fields = self.prototype
+        else:
+            fields = self.get_struct_properties(schema)
 
         for name, value in fields.items():
             col = table.get_column(name)
@@ -350,9 +353,9 @@ class RebaseNamedPrototype(NamedPrototypeMetaCommand):
 
 class AlterNamedPrototype(NamedPrototypeMetaCommand):
     def apply(self, schema, context):
+        NamedPrototypeMetaCommand.apply(self, schema, context)
         obj = self.__class__.get_adaptee().apply(self, schema, context)
         self.proto = obj
-        NamedPrototypeMetaCommand.apply(self, schema, context)
         self.updates = self.update(schema, context)
         return obj
 
@@ -484,7 +487,7 @@ class ConstraintCommand(metaclass=CommandMeta):
     def fill_record(self, schema):
         rec, updates = super().fill_record(schema)
 
-        if rec:
+        if rec and False:
             # Write the original locally-defined expression
             # so that when the schema is introspected the
             # correct finalexpr is restored with prototype
@@ -538,10 +541,11 @@ class RenameConstraint(ConstraintCommand, RenameNamedPrototype,
 
 class AlterConstraint(ConstraintCommand, AlterNamedPrototype,
                       adapts=s_constr.AlterConstraint):
-    def apply(self, protoschema, context):
-        constraint = super().apply(protoschema, context)
+    def _alter_finalize(self, protoschema, context, constraint):
+        super()._alter_finalize(protoschema, context, constraint)
 
         subject = constraint.subject
+        ctx = context.get(s_constr.ConstraintCommandContext)
 
         if subject is not None:
             schemac_to_backendc = \
@@ -549,7 +553,7 @@ class AlterConstraint(ConstraintCommand, AlterNamedPrototype,
 
             bconstr = schemac_to_backendc(subject, constraint, protoschema)
 
-            orig_constraint = self.original_proto
+            orig_constraint = ctx.original_proto
             orig_bconstr = schemac_to_backendc(
                             orig_constraint.subject, orig_constraint,
                             protoschema)
@@ -2107,6 +2111,7 @@ class CreateLinkProperty(LinkPropertyMetaCommand, adapts=s_lprops.CreateLinkProp
             default_value = self.get_pointer_default(property, schema, context)
 
             cols = self.get_columns(property, schema, default_value)
+
             for col in cols:
                 # The column may already exist as inherited from parent table
                 cond = dbops.ColumnExists(table_name=alter_table.name, column_name=col.name)

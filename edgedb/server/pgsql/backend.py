@@ -508,7 +508,7 @@ class Backend(s_deltarepo.DeltaProvider):
         self.backend_info = None
         self.modules = None
 
-        self.schema = so.ProtoSchema()
+        self.schema = None
 
         self._constr_mech = schemamech.ConstraintMech()
         self._type_mech = schemamech.TypeMech()
@@ -673,31 +673,37 @@ class Backend(s_deltarepo.DeltaProvider):
             await upgrade.execute(context)
             self.backend_info = self.read_backend_info()
 
-    async def getschema(self):
-        if not self.schema.modules:
-            await self._init_introspection_cache()
-            await self.read_modules(self.schema)
-            await self.read_atoms(self.schema)
-            await self.read_attributes(self.schema)
-            await self.read_actions(self.schema)
-            await self.read_events(self.schema)
-            await self.read_functions(self.schema)
-            await self.read_concepts(self.schema)
-            await self.read_links(self.schema)
-            await self.read_link_properties(self.schema)
-            await self.read_policies(self.schema)
-            await self.read_attribute_values(self.schema)
-            await self.read_constraints(self.schema)
+    async def readschema(self):
+        schema = so.ProtoSchema()
+        await self._init_introspection_cache()
+        await self.read_modules(schema)
+        await self.read_atoms(schema)
+        await self.read_attributes(schema)
+        await self.read_actions(schema)
+        await self.read_events(schema)
+        await self.read_functions(schema)
+        await self.read_concepts(schema)
+        await self.read_links(schema)
+        await self.read_link_properties(schema)
+        await self.read_policies(schema)
+        await self.read_attribute_values(schema)
+        await self.read_constraints(schema)
 
-            await self.order_attributes(self.schema)
-            await self.order_actions(self.schema)
-            await self.order_events(self.schema)
-            await self.order_atoms(self.schema)
-            await self.order_functions(self.schema)
-            await self.order_link_properties(self.schema)
-            await self.order_links(self.schema)
-            await self.order_concepts(self.schema)
-            await self.order_policies(self.schema)
+        await self.order_attributes(schema)
+        await self.order_actions(schema)
+        await self.order_events(schema)
+        await self.order_atoms(schema)
+        await self.order_functions(schema)
+        await self.order_link_properties(schema)
+        await self.order_links(schema)
+        await self.order_concepts(schema)
+        await self.order_policies(schema)
+
+        return schema
+
+    async def getschema(self):
+        if self.schema is None:
+            self.schema = await self.readschema()
 
         return self.schema
 
@@ -718,6 +724,7 @@ class Backend(s_deltarepo.DeltaProvider):
         """
         return delta
 
+    @debug
     async def run_delta_command(self, delta_cmd):
         schema = await self.getschema()
         context = sd.CommandContext()
@@ -735,6 +742,9 @@ class Backend(s_deltarepo.DeltaProvider):
 
                 if delta.target is not None:
                     diff = sd.delta_schemas(delta.target, schema0)
+                    """LOG [migration.ddl] Migration DDL
+                        markup.dump(diff)
+                    """
                     ddl_plan.update(diff)
 
                 await self.run_ddl_command(ddl_plan)
@@ -757,11 +767,21 @@ class Backend(s_deltarepo.DeltaProvider):
         context = delta_cmds.CommandContext(self.connection, None)
         await dbops.Insert(table, records=[rec]).execute(context)
 
+    @debug
     async def run_ddl_command(self, ddl_plan):
         proto_schema = await self.getschema()
 
+        """LOG [delta.plan.input] Delta Plan Input
+            markup.dump(ddl_plan)
+        """
+
+        test_schema = await self.readschema()
+        context = sd.CommandContext()
+        canonical_ddl_plan = ddl_plan.copy()
+        canonical_ddl_plan.apply(test_schema, context=context)
+
         # Apply and adapt delta, build native delta plan
-        plan = self.process_delta(ddl_plan, proto_schema)
+        plan = self.process_delta(canonical_ddl_plan, proto_schema)
 
         context = delta_cmds.CommandContext(self.connection, None)
 
@@ -772,111 +792,10 @@ class Backend(s_deltarepo.DeltaProvider):
             raise RuntimeError(msg) from e
 
         await self.invalidate_schema_cache()
-        self.schema = await self.getschema()
-
-    @debug
-    def apply_delta(self, delta, session, source_deltarepo):
-        if isinstance(delta, sd.DeltaSet):
-            deltas = list(delta)
-        else:
-            deltas = [delta]
-
-        proto_schema = self.getschema()
-
-        with session.transaction():
-            old_conn = self.connection
-            self.connection = session.get_connection()
-
-            for d in deltas:
-                """LINE [edgedb.delta.apply] Applying delta
-                    '{:032x}'.format(d.id)
-                """
-
-                session.replace_schema(proto_schema)
-
-                # Run preprocess pass
-                d.call_hook(session, stage='preprocess', hook='main')
-
-                if d.deltas:
-                    delta = d.deltas[0]
-
-                    # Apply and adapt delta, build native delta plan
-                    plan = self.process_delta(delta, proto_schema)
-
-                    # Reinitialize the session with the mutated schema
-                    session.replace_schema(proto_schema)
-
-                    context = delta_cmds.CommandContext(session.get_connection(), session)
-
-                    try:
-                        plan.execute(context)
-                    except Exception as e:
-                        msg = 'failed to apply delta {:032x} to data backend'.format(d.id)
-                        self._raise_delta_error(msg, d, plan, e)
-
-                    # Invalidate transient structure caches
-                    self.invalidate_transient_cache()
-
-                    try:
-                        # Update introspection caches
-                        self._init_introspection_cache()
-                    except s_err.SchemaError as e:
-                        msg = 'failed to verify metadata after applying delta {:032x} to data backend'
-                        msg = msg.format(d.id)
-                        self._raise_delta_error(msg, d, plan, e)
-
-                # Run postprocess pass
-                d.call_hook(session, stage='postprocess', hook='main')
-
-                self.invalidate_schema_cache()
-
-                try:
-                    introspected_schema = self.getschema()
-                except s_err.SchemaError as e:
-                    msg = 'failed to verify metadata after applying delta {:032x} to data backend'
-                    msg = msg.format(d.id)
-                    self._raise_delta_error(msg, d, plan, e)
-
-                introspected_checksum = introspected_schema.get_checksum()
-
-                if introspected_checksum != d.checksum:
-                    details = ('Schema checksum verification failed (expected "%x", got "%x") when '
-                               'applying delta "%x".' % (d.checksum, introspected_checksum, d.id))
-                    hint = 'This usually indicates a bug in backend delta adapter.'
-
-                    expected_schema = source_deltarepo.get_schema(d)
-
-                    delta_checksums = introspected_checksums = None
-
-                    """LOG [edgedb.delta.recordchecksums]
-                    delta_checksums = d.checksum_details
-                    introspected_checksums = \
-                        introspected_schema.get_checksum_details()
-                    """
-
-                    raise sd.DeltaChecksumError(
-                            'could not apply schema delta'
-                            'checksums do not match',
-                            details=details, hint=hint,
-                            schema1=expected_schema,
-                            schema2=introspected_schema,
-                            schema1_title='Expected Schema',
-                            schema2_title='Schema in Backend',
-                            checksums1=delta_checksums,
-                            checksums2=introspected_checksums)
-
-            self._update_repo(session, deltas)
-
-            self.connection = old_conn
-
-    def _raise_delta_error(self, msg, d, plan, e=None):
-        hint = 'This usually indicates a bug in backend delta adapter.'
-        d = sd.Delta(parent_id=d.parent_id, checksum=d.checksum,
-                     comment=d.comment, deltas=[plan])
-        raise sd.DeltaError(msg, delta=d) from e
+        await self.getschema()
 
     async def invalidate_schema_cache(self):
-        self.schema = so.ProtoSchema()
+        self.schema = None
         self.backend_info = await self.read_backend_info()
         self.features = await self.read_features(self.connection)
         self.invalidate_transient_cache()
@@ -1112,12 +1031,12 @@ class Backend(s_deltarepo.DeltaProvider):
             mod = s_mod.ProtoModule(
                     name=module['name'],
                     imports=frozenset(module['imports'] or ()))
-            self.schema.add_module(mod)
+            schema.add_module(mod)
             mods.append(mod)
 
         for mod in mods:
             for imp_name in mod.imports:
-                if not self.schema.has_module(imp_name):
+                if not schema.has_module(imp_name):
                     # Must be a foreign module, import it directly
                     try:
                         impmod = importlib.import_module(imp_name)
@@ -1125,7 +1044,7 @@ class Backend(s_deltarepo.DeltaProvider):
                         # Module has moved, create a dummy
                         impmod = so.DummyModule(imp_name)
 
-                    self.schema.add_module(impmod)
+                    schema.add_module(impmod)
 
     async def read_features(self, connection):
         try:
@@ -1608,12 +1527,17 @@ class Backend(s_deltarepo.DeltaProvider):
             else:
                 exposed_behaviour = None
 
+            if r['mapping']:
+                mapping = s_links.LinkMapping(r['mapping'])
+            else:
+                mapping = None
+
             basemap[name] = bases
 
             link = s_links.Link(
                 name=name, source=source, target=target,
                 spectargets=spectargets,
-                mapping=s_links.LinkMapping(r['mapping']),
+                mapping=mapping,
                 exposed_behaviour=exposed_behaviour,
                 required=required,
                 title=title, description=description,
@@ -1800,6 +1724,8 @@ class Backend(s_deltarepo.DeltaProvider):
                               schema=schema)
 
         for prop in schema(type='link_property'):
+            prop.finalize(schema)
+
             if not prop.generic() and prop.source.generic():
                 source_table_name = common.get_table_name(prop.source,
                                                           catenate=False)

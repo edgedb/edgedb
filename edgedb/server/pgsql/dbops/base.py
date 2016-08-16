@@ -303,6 +303,9 @@ class Query(Command):
     async def code(self, context):
         return self.text, self.params
 
+    def __repr__(self):
+        return '<Query {!r} {!r}>'.format(self.text, self.params)
+
 
 class DefaultMeta(type):
     def __bool__(cls):

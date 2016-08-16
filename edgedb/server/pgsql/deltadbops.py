@@ -913,7 +913,7 @@ class LinkTable(InheritingSchemaObjectTable):
             dbops.Column(name='source', type='integer'),
             dbops.Column(name='target', type='integer'),
             dbops.Column(name='spectargets', type='integer[]'),
-            dbops.Column(name='mapping', type='char(2)', required=True),
+            dbops.Column(name='mapping', type='char(2)'),
             dbops.Column(name='exposed_behaviour', type='text'),
             dbops.Column(name='required', type='boolean', required=True, default=False),
             dbops.Column(name='readonly', type='boolean', required=True, default=False),

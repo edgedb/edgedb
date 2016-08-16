@@ -67,25 +67,8 @@ class DeleteAction(named.DeleteNamedPrototype, ActionCommand):
     astnode = qlast.DropActionNode
 
 
-class CreateEvent(named.CreateNamedPrototype, EventCommand):
+class CreateEvent(inheriting.CreateInheritingPrototype, EventCommand):
     astnode = qlast.CreateEventNode
-
-    @classmethod
-    def _protobases_from_ast(cls, astnode, context):
-        bases = super()._protobases_from_ast(astnode, context)
-        if not bases:
-            name = '{}::{}'.format(astnode.name.module, astnode.name.name)
-            if name != 'std::event':
-                bases = so.PrototypeList([
-                    so.PrototypeRef(
-                        prototype_name=sn.Name(
-                            module='std',
-                            name='event'
-                        )
-                    )
-                ])
-
-        return bases
 
 
 class RenameEvent(named.RenameNamedPrototype, EventCommand):
@@ -96,16 +79,17 @@ class RebaseEvent(inheriting.RebaseNamedPrototype, EventCommand):
     pass
 
 
-class AlterEvent(named.AlterNamedPrototype, EventCommand):
+class AlterEvent(inheriting.AlterInheritingPrototype, EventCommand):
     astnode = qlast.AlterEventNode
 
 
-class DeleteEvent(named.DeleteNamedPrototype, EventCommand):
+class DeleteEvent(inheriting.DeleteInheritingPrototype, EventCommand):
     astnode = qlast.DropEventNode
 
 
-class PolicyCommand(sd.PrototypeCommand):
+class PolicyCommand(referencing.ReferencedPrototypeCommand):
     context_class = PolicyCommandContext
+    referrer_context_class = InternalPolicySubjectCommandContext
 
     @classmethod
     def _get_prototype_class(cls):
@@ -156,8 +140,8 @@ class CreatePolicy(PolicyCommand, named.CreateNamedPrototype):
     astnode = qlast.CreateLocalPolicyNode
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context):
-        cmd = super()._cmd_tree_from_ast(astnode, context)
+    def _cmd_tree_from_ast(cls, astnode, context, schema):
+        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
         parent_ctx = context.get(sd.CommandContextToken)
         subject_name = parent_ctx.op.prototype_name
@@ -192,51 +176,17 @@ class CreatePolicy(PolicyCommand, named.CreateNamedPrototype):
 
         return cmd
 
-    def apply(self, protoschema, context):
-        context = context or sd.CommandContext()
-
-        policy = named.CreateNamedPrototype.apply(self, protoschema, context)
-
-        subject_ctx = context.get(InternalPolicySubjectCommandContext)
-        msg = "Policy commands must be run in subject context"
-        assert subject_ctx, msg
-        policy.subject = subject_ctx.proto
-        subject_ctx.proto.add_policy(policy)
-
-        return policy
-
 
 class RenamePolicy(PolicyCommand, named.RenameNamedPrototype):
-    def apply(self, schema, context):
-        policy = super().apply(schema, context)
-
-        subject_ctx = context.get(InternalPolicySubjectCommandContext)
-        msg = "Policy commands must be run in subject context"
-        assert subject_ctx, msg
-
-        subject = subject_ctx.proto
-
-        norm = Policy.normalize_name
-        cur_name = norm(self.prototype_name)
-        new_name = norm(self.new_name)
-
-        local = subject.local_policy.pop(cur_name, None)
-        if local:
-            subject.local_policy[new_name] = local
-
-        inherited = subject.policy.pop(cur_name, None)
-        if inherited is not None:
-            subject.policy[new_name] = inherited
-
-        return policy
+    pass
 
 
 class AlterPolicy(PolicyCommand, named.AlterNamedPrototype):
     astnode = qlast.AlterLocalPolicyNode
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context):
-        cmd = super()._cmd_tree_from_ast(astnode, context)
+    def _cmd_tree_from_ast(cls, astnode, context, schema):
+        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
         cmd.update((
             sd.AlterPrototypeProperty(
@@ -255,23 +205,9 @@ class AlterPolicy(PolicyCommand, named.AlterNamedPrototype):
 
         return cmd
 
-    def apply(self, schema, context):
-        subject_ctx = context.get(InternalPolicySubjectCommandContext)
-        msg = "Policy commands must be run in subject context"
-        assert subject_ctx, msg
-
-        with context(PolicyCommandContext(self, None)):
-            return super().apply(schema, context)
-
 
 class DeletePolicy(PolicyCommand, named.DeleteNamedPrototype):
-    def apply(self, protoschema, context):
-        subject_ctx = context.get(InternalPolicySubjectCommandContext)
-        msg = "Policy commands must be run in subject context"
-        assert subject_ctx, msg
-        subject = subject_ctx.proto
-        subject.delete_policy(self.prototype_name, subject, protoschema)
-        return super().apply(protoschema, context)
+    pass
 
 
 class Action(primary.Prototype):

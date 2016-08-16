@@ -29,13 +29,13 @@ class TransactionStatement:
 
 def plan_statement(stmt, backend):
     if isinstance(stmt, qlast.DatabaseNode):
-        return s_ddl.cmd_from_ddl(stmt)
+        return s_ddl.cmd_from_ddl(stmt, schema=backend.schema)
 
     elif isinstance(stmt, qlast.DeltaNode):
-        return s_ddl.cmd_from_ddl(stmt)
+        return s_ddl.cmd_from_ddl(stmt, schema=backend.schema)
 
     elif isinstance(stmt, qlast.DDLNode):
-        return s_ddl.delta_from_ddl(stmt)
+        return s_ddl.delta_from_ddl(stmt, schema=backend.schema)
 
     elif isinstance(stmt, qlast.TransactionNode):
         return TransactionStatement(stmt)

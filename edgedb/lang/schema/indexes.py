@@ -23,12 +23,39 @@ class IndexSourceCommandContext:
     pass
 
 
+class IndexSourceCommand(sd.PrototypeCommand):
+    def _create_innards(self, schema, context):
+        super()._create_innards(schema, context)
+
+        for op in self(SourceIndexCommand):
+            op.apply(schema, context=context)
+
+    def _alter_innards(self, schema, context, prototype):
+        super()._alter_innards(schema, context, prototype)
+
+        for op in self(SourceIndexCommand):
+            op.apply(schema, context=context)
+
+    def _delete_innards(self, schema, context, prototype):
+        super()._delete_innards(schema, context, prototype)
+
+        for op in self(SourceIndexCommand):
+            op.apply(schema, context=context)
+
+    def _apply_fields_ast(self, context, node):
+        super()._apply_fields_ast(context, node)
+
+        for op in self(SourceIndexCommand):
+            self._append_subcmd_ast(node, op, context)
+
+
 class SourceIndexCommandContext(sd.PrototypeCommandContext):
     pass
 
 
-class SourceIndexCommand(sd.PrototypeCommand):
+class SourceIndexCommand(referencing.ReferencedPrototypeCommand):
     context_class = SourceIndexCommandContext
+    referrer_conext_class = IndexSourceCommandContext
 
     @classmethod
     def _get_prototype_class(cls):
@@ -51,8 +78,8 @@ class CreateSourceIndex(SourceIndexCommand, named.CreateNamedPrototype):
     astnode = qlast.CreateIndexNode
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context):
-        cmd = super()._cmd_tree_from_ast(astnode, context)
+    def _cmd_tree_from_ast(cls, astnode, context, schema):
+        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
         parent_ctx = context.get(sd.CommandContextToken)
         subject_name = parent_ctx.op.prototype_name
@@ -85,60 +112,17 @@ class CreateSourceIndex(SourceIndexCommand, named.CreateNamedPrototype):
         else:
             super()._apply_field_ast(context, node, op)
 
-    def apply(self, schema, context):
-        source = context.get(IndexSourceCommandContext)
-        assert source, "SourceIndex commands must be run in Source context"
-        index = named.CreateNamedPrototype.apply(self, schema, context)
-        index.subject = source.proto
-        source.proto.add_index(index)
-        return index
-
 
 class RenameSourceIndex(SourceIndexCommand, named.RenameNamedPrototype):
-    def apply(self, schema, context):
-        index = super().apply(schema, context)
-
-        subject_ctx = context.get(IndexSourceCommandContext)
-        msg = "Index commands must be run in SourceSubject context"
-        assert subject_ctx, msg
-
-        subject = subject_ctx.proto
-
-        norm = SourceIndex.normalize_name
-        cur_name = norm(self.prototype_name)
-        new_name = norm(self.new_name)
-
-        local = subject.local_indexes.pop(cur_name, None)
-        if local:
-            subject.local_indexes[new_name] = local
-
-        inherited = subject.indexes.pop(cur_name, None)
-        if inherited is not None:
-            subject.indexes[new_name] = inherited
-
-        return index
+    pass
 
 
 class AlterSourceIndex(SourceIndexCommand, named.AlterNamedPrototype):
-    def apply(self, schema, context=None):
-        context = context or sd.CommandContext()
-        with context(SourceIndexCommandContext(self, None)):
-            index = super().apply(schema, context)
-
-        return index
+    pass
 
 
 class DeleteSourceIndex(SourceIndexCommand, named.DeleteNamedPrototype):
     astnode = qlast.DropIndexNode
-
-    def apply(self, schema, context):
-        source = context.get(IndexSourceCommandContext)
-        assert source, "SourceIndex commands must be run in Source context"
-        index = super().apply(schema, context)
-
-        source.proto.del_index(index, schema)
-
-        return index
 
 
 class SourceIndex(derivable.DerivablePrototype):

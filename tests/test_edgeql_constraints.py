@@ -12,7 +12,7 @@ from edgedb.server import _testbase as tb
 from edgedb.client import exceptions
 
 
-class TestConstraints(tb.QueryTestCase):
+class TestConstraintsSchema(tb.QueryTestCase):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'constraints.eschema')
 
@@ -528,3 +528,84 @@ class TestConstraints(tb.QueryTestCase):
                         name := 'unique_name_ana2'
                     };
                 """)
+
+
+class TestConstraintsDDL(tb.QueryTestCase):
+    async def test_constraints_ddl_01(self):
+        qry = """
+            CREATE LINK test::translated_label {
+                SET mapping := '1*';
+                CREATE LINK PROPERTY test::lang TO std::str;
+                CREATE LINK PROPERTY test::prop1 TO std::str;
+            };
+
+            CREATE LINK test::link_with_unique_property {
+                CREATE LINK PROPERTY test::unique_property TO std::str {
+                    CREATE CONSTRAINT std::unique;
+                };
+            };
+
+            CREATE LINK test::link_with_unique_property_inherited
+                INHERITING test::link_with_unique_property;
+
+            CREATE CONCEPT test::UniqueName {
+                CREATE LINK test::name TO std::str {
+                    CREATE CONSTRAINT std::unique;
+                };
+
+                CREATE LINK test::linu_with_unique_property TO std::str;
+            };
+        """
+
+        await self.con.execute(qry)
+
+        # Simple unique constraint on a link
+        #
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(exceptions.ConstraintViolationError,
+                                        'name violates unique constraint'):
+                await self.con.execute("""
+                    INSERT test::UniqueName {
+                        name := 'Test'
+                    };
+
+                    INSERT test::UniqueName {
+                        name := 'Test'
+                    };
+                """)
+
+        qry = """
+            CREATE CONCEPT test::AbstractConstraintParent {
+                CREATE LINK test::name TO std::str {
+                    CREATE ABSTRACT CONSTRAINT std::unique;
+                };
+            };
+
+            CREATE CONCEPT test::AbstractConstraintPureChild
+                INHERITING test::AbstractConstraintParent;
+        """
+
+        await self.con.execute(qry)
+
+        async with self._run_and_rollback():
+            # This is OK, the name unique constraint is abstract
+            await self.con.execute("""
+                INSERT test::AbstractConstraintParent {
+                    name := 'unique_name_ap'
+                };
+
+                INSERT test::AbstractConstraintParent {
+                    name := 'unique_name_ap'
+                };
+            """)
+
+            # This is OK too
+            await self.con.execute("""
+                INSERT test::AbstractConstraintParent {
+                    name := 'unique_name_ap1'
+                };
+
+                INSERT test::AbstractConstraintPureChild {
+                    name := 'unique_name_ap1'
+                };
+            """)

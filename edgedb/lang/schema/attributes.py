@@ -21,7 +21,7 @@ class AttributeCommandContext(sd.PrototypeCommandContext):
     pass
 
 
-class AttributeCommand:
+class AttributeCommand(sd.PrototypeCommand):
     context_class = AttributeCommandContext
 
     @classmethod
@@ -29,12 +29,12 @@ class AttributeCommand:
         return Attribute
 
 
-class CreateAttribute(named.CreateNamedPrototype, AttributeCommand):
+class CreateAttribute(AttributeCommand, named.CreateNamedPrototype):
     astnode = qlast.CreateAttributeNode
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context):
-        cmd = super()._cmd_tree_from_ast(astnode, context)
+    def _cmd_tree_from_ast(cls, astnode, context, schema):
+        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
         if astnode.type.subtypes:
             coll = so.Collection.get_class(astnode.type.maintype.name)
@@ -82,20 +82,46 @@ class CreateAttribute(named.CreateNamedPrototype, AttributeCommand):
             super()._apply_field_ast(context, node, op)
 
 
-class RenameAttribute(named.RenameNamedPrototype, AttributeCommand):
+class RenameAttribute(AttributeCommand, named.RenameNamedPrototype):
     pass
 
 
-class AlterAttribute(named.AlterNamedPrototype, AttributeCommand):
+class AlterAttribute(AttributeCommand, named.AlterNamedPrototype):
     pass
 
 
-class DeleteAttribute(named.DeleteNamedPrototype, AttributeCommand):
+class DeleteAttribute(AttributeCommand, named.DeleteNamedPrototype):
     astnode = qlast.DropAttributeNode
 
 
 class AttributeSubjectCommandContext:
     pass
+
+
+class AttributeSubjectCommand(sd.PrototypeCommand):
+    def _create_innards(self, schema, context):
+        super()._create_innards(schema, context)
+
+        for op in self(AttributeValueCommand):
+            op.apply(schema, context=context)
+
+    def _alter_innards(self, schema, context, prototype):
+        super()._alter_innards(schema, context, prototype)
+
+        for op in self(AttributeValueCommand):
+            op.apply(schema, context=context)
+
+    def _delete_innards(self, schema, context, prototype):
+        super()._delete_innards(schema, context, prototype)
+
+        for op in self(AttributeValueCommand):
+            op.apply(schema, context=context)
+
+    def _apply_fields_ast(self, context, node):
+        super()._apply_fields_ast(context, node)
+
+        for op in self(AttributeValueCommand):
+            self._append_subcmd_ast(node, op, context)
 
 
 class AttributeValueCommandContext(sd.PrototypeCommandContext):
@@ -125,7 +151,7 @@ class AttributeValueCommand(sd.PrototypeCommand):
         return pn
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context):
+    def _cmd_tree_from_ast(cls, astnode, context, schema):
         propname = astnode.name.name
         if astnode.name.module:
             propname = astnode.name.module + '::' + propname
@@ -134,7 +160,7 @@ class AttributeValueCommand(sd.PrototypeCommand):
             return sd.AlterPrototypeProperty._cmd_tree_from_ast(
                 astnode, context)
         else:
-            return super()._cmd_tree_from_ast(astnode, context)
+            return super()._cmd_tree_from_ast(astnode, context, schema)
 
     def add_attribute(self, attribute, parent, schema):
         parent.add_attribute(attribute, replace=True)
@@ -147,16 +173,16 @@ class CreateAttributeValue(AttributeValueCommand, named.CreateNamedPrototype):
     astnode = qlast.CreateAttributeValueNode
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context):
+    def _cmd_tree_from_ast(cls, astnode, context, schema):
         propname = astnode.name.name
         if astnode.name.module:
             propname = astnode.name.module + '::' + propname
 
         if '::' not in propname:
             return sd.AlterPrototypeProperty._cmd_tree_from_ast(
-                astnode, context)
+                astnode, context, schema)
 
-        cmd = super()._cmd_tree_from_ast(astnode, context)
+        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
         propname = AttributeValue.normalize_name(cmd.prototype_name)
 
         val = astnode.value

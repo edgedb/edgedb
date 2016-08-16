@@ -12,6 +12,7 @@ from edgedb.lang.common.functional import hybridmethod
 from . import error as schema_error
 from . import indexes
 from . import name as sn
+from . import named
 from . import primary
 from . import referencing
 from . import utils
@@ -19,6 +20,10 @@ from . import utils
 
 class SourceCommandContext(indexes.IndexSourceCommandContext):
     # context mixin
+    pass
+
+
+class SourceCommand(named.NamedPrototypeCommand, indexes.IndexSourceCommand):
     pass
 
 
@@ -89,7 +94,7 @@ class Source(primary.Prototype, indexes.IndexableSubject):
                         if not isinstance(target, concepts.Concept):
                             continue
 
-            ptr = ptr.derive(schema, self, target)
+            ptr = ptr.derive_copy(schema, self, target)
             result.add(ptr)
 
         return result
@@ -356,11 +361,19 @@ class Source(primary.Prototype, indexes.IndexableSubject):
                     source=ptr_source, target=ptr_target,
                     mark_derived=True)
 
-                ptr = common_parent_spec.merge_many(
-                    schema, [common_parent_spec] + list(ptrs),
-                    source=ptr_source, target=ptr_target, relaxed=True,
-                    derived=True
+                ptr = common_parent_spec.derive_copy(
+                    schema, merge_bases=list(ptrs), add_to_schema=True,
+                    source=ptr_source, target=ptr_target, mark_derived=True
                 )
+
+                mapping = None
+                for base in ptrs:
+                    if mapping is None:
+                        mapping = base.mapping
+                    else:
+                        mapping |= base.mapping
+
+                ptr.mapping = mapping
 
         else:
             # No matching pointers found, caller must deal with this.
@@ -394,19 +407,9 @@ class Source(primary.Prototype, indexes.IndexableSubject):
             self._ro_pointers.add(pointer)
 
     def del_pointer(self, pointer, proto_schema):
-        pointer_name = pointer.normal_name()
-        for parent in self.bases:
-            if pointer_name in parent.pointers:
-                break
-        else:
-            self.pointers.pop(pointer_name, None)
-
-            for child in self.descendants(proto_schema):
-                if pointer_name not in child.own_pointers:
-                    child.pointers.pop(pointer_name, None)
-
-        self.own_pointers.pop(pointer_name, None)
+        self.del_protoref('pointers', pointer.name, proto_schema)
         if self._ro_pointers is not None:
+            pointer_name = pointer.normal_name()
             self._ro_pointers.discard(pointer_name)
 
     @classmethod

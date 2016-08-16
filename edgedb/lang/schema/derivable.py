@@ -6,12 +6,16 @@
 ##
 
 
+from . import inheriting
 from . import objects as so
 from . import name as sn
-from . import named
 
 
-class DerivablePrototype(named.NamedPrototype):
+class DerivablePrototypeCommand(inheriting.InheritingPrototypeCommand):
+    pass
+
+
+class DerivablePrototype(inheriting.InheritingPrototype):
     name = so.Field(sn.Name, private=True, compcoef=0.909)
     is_derived = so.Field(bool, False, compcoef=0.909)
 
@@ -46,7 +50,8 @@ class DerivablePrototype(named.NamedPrototype):
         ]
 
         for qualifier in qualifiers:
-            parts.append(cls.mangle_name(qualifier))
+            if qualifier:
+                parts.append(cls.mangle_name(qualifier))
 
         return '@'.join(parts)
 
@@ -63,22 +68,14 @@ class DerivablePrototype(named.NamedPrototype):
             return sn.Name(cls.unmangle_name(parts[fq_index]))
 
     @classmethod
-    def inherit_pure(cls, schema, item, source):
+    def inherit_pure(cls, schema, item, source, *, dctx=None):
         return item
 
-    @classmethod
-    def merge_many(cls, schema, items, *, source, derived=False, replace=None):
-        return items[0].derive(schema, source,
-                               merge_bases=items[1:],
-                               add_to_schema=True,
-                               mark_derived=derived,
-                               replace_original=replace)
-
     def derive_name(self, source, *qualifiers):
-        qualnames = [qualifier.name for qualifier in qualifiers]
+        qualnames = [qualifier.name for qualifier in qualifiers if qualifier]
 
         name = self.__class__.generate_specialized_name(
-                    source.name, self.normal_name(), *qualnames)
+            source.name, self.normal_name(), *qualnames)
         fqname = sn.Name(name=name, module=source.name.module)
 
         return fqname
@@ -90,53 +87,101 @@ class DerivablePrototype(named.NamedPrototype):
             self._normal_name = self.normalize_name(self.name)
             return self._normal_name
 
-    def init_derived(self, schema, source, *qualifiers, **kwargs):
-        derived = self.copy()
-        derived.name = self.derive_name(source, *qualifiers)
+    def generic(self):
+        return self.normal_name() == self.name
+
+    def get_derived_name(self, source, *qualifiers, mark_derived=False):
+        return self.derive_name(source, *qualifiers)
+
+    def init_derived(self, schema, source, *qualifiers, as_copy,
+                     merge_bases=None, add_to_schema=False, mark_derived=False,
+                     attrs=None, dctx=None, **kwargs):
+        derived_name = self.get_derived_name(
+            source, *qualifiers, mark_derived=mark_derived)
+
+        if as_copy:
+            derived = self.copy()
+            if attrs is not None:
+                derived.update(attrs)
+            derived.name = derived_name
+
+        else:
+            derived_attrs = {}
+
+            if attrs is not None:
+                derived_attrs.update(attrs)
+
+            if not derived_attrs.get('bases'):
+                derived_attrs['bases'] = [self]
+
+            derived_attrs.pop('name', None)
+
+            cls = type(self)
+            derived = cls(name=derived_name, **derived_attrs,
+                          _setdefaults_=False, _relaxrequired_=True)
+
         return derived
 
-    def merge_bases_into_derived(self, schema, derived, merge_bases, **kwargs):
-        for base in merge_bases:
-            derived.merge(base, schema=schema)
+    def finalize_derived(self, schema, derived, *, merge_bases=None,
+                         replace_original=None, add_to_schema=False,
+                         mark_derived=False, attrs=None, dctx=None, **kwargs):
 
-        derived.finalize(schema, bases=merge_bases)
-
-    def derive(self, schema, source, *qualifiers, merge_bases=None,
-                     replace_original=None, add_to_schema=False,
-                     mark_derived=False, **kwargs):
-
-        derived = self.init_derived(schema, source, *qualifiers,
-                                    merge_bases=merge_bases,
-                                    replace_original=replace_original,
-                                    add_to_schema=add_to_schema,
-                                    mark_derived=mark_derived,
-                                    **kwargs)
+        existing_derived = schema.get(derived.name, default=None)
 
         if merge_bases:
-            self.merge_bases_into_derived(
-                    schema, derived, merge_bases,
-                    replace_original=replace_original,
-                    add_to_schema=add_to_schema,
-                    mark_derived=mark_derived,
-                    **kwargs)
+            derived.acquire_ancestor_inheritance(
+                schema, bases=merge_bases)
+
+        derived.finalize(schema, bases=merge_bases)
 
         if mark_derived:
             derived.is_derived = True
 
         if add_to_schema:
-            original = schema.get(derived.name, default=None)
-
-            if original is not None and replace_original is not None:
-                schema.discard(original)
-                original = None
-
-            if original is None:
+            if existing_derived is None:
+                schema.add(derived)
+            elif replace_original is not None:
+                schema.discard(existing_derived)
                 schema.add(derived)
 
         return derived
 
-    def finalize(self, schema, bases=None):
-        super().finalize(schema, bases=bases)
+    def derive_copy(self, schema, *qualifiers, merge_bases=None,
+                    replace_original=None, add_to_schema=False,
+                    mark_derived=False, attrs=None, dctx=None, **kwargs):
+        derived = self.init_derived(
+            schema, *qualifiers, as_copy=True, merge_bases=merge_bases,
+            attrs=attrs, add_to_schema=add_to_schema,
+            mark_derived=mark_derived, dctx=dctx, **kwargs)
+
+        self.finalize_derived(
+            schema, derived, merge_bases=merge_bases,
+            add_to_schema=add_to_schema, mark_derived=mark_derived,
+            dctx=dctx)
+
+        return derived
+
+    def derive(self, schema, source, *qualifiers, merge_bases=None,
+               replace_original=None, add_to_schema=False,
+               mark_derived=False, attrs=None, dctx=None, **kwargs):
+
+        if not self.generic():
+            raise TypeError(
+                'cannot derive from specialized {} {!r}'.format(
+                    self.__class__.__name__, self.name))
+
+        derived = self.init_derived(
+            schema, source, *qualifiers,
+            as_copy=False, merge_bases=merge_bases,
+            attrs=attrs, add_to_schema=add_to_schema,
+            mark_derived=mark_derived, dctx=dctx, **kwargs)
+
+        self.finalize_derived(
+            schema, derived, merge_bases=merge_bases,
+            add_to_schema=add_to_schema, mark_derived=mark_derived,
+            dctx=dctx)
+
+        return derived
 
     def __setattr__(self, name, value):
         super().__setattr__(name, value)

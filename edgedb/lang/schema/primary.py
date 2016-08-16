@@ -6,17 +6,11 @@
 ##
 
 
-import importlib
-import types
-
 from edgedb.lang.common.nlang import morphology
-from edgedb.lang.common.functional import get_safe_attrname
 
 from . import name as sn
 from . import objects as so
 from . import referencing
-from . import schema as s_schema
-from . import types as s_types
 
 
 class Prototype(referencing.ReferencingPrototype):

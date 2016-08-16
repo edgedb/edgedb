@@ -106,8 +106,8 @@ class Index(tables.InheritableTableObject):
     def get_oid(self):
         qry = '''
             SELECT
-                'pg_class'::regclass::oid,
-                i.indexrelid,
+                'pg_class'::regclass::oid AS classoid,
+                i.indexrelid AS objectoid,
                 0
             FROM
                 pg_class AS c

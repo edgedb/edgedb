@@ -32,7 +32,8 @@ class AtomCommandContext(sd.PrototypeCommandContext,
             assert False, value
 
 
-class AtomCommand(sd.PrototypeCommand):
+class AtomCommand(constraints.ConsistencySubjectCommand,
+                  attributes.AttributeSubjectCommand):
     context_class = AtomCommandContext
 
     @classmethod
@@ -40,39 +41,18 @@ class AtomCommand(sd.PrototypeCommand):
         return Atom
 
 
-class CreateAtom(named.CreateNamedPrototype, AtomCommand):
+class CreateAtom(AtomCommand, inheriting.CreateInheritingPrototype):
     astnode = qlast.CreateAtomNode
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context):
-        cmd = super()._cmd_tree_from_ast(astnode, context)
+    def _cmd_tree_from_ast(cls, astnode, context, schema):
+        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
         for sub in cmd(sd.AlterPrototypeProperty):
             if sub.property == 'default':
                 sub.new_value = [sub.new_value]
 
-        if astnode.is_abstract:
-            cmd.add(sd.AlterPrototypeProperty(
-                property='is_abstract',
-                new_value=True
-            ))
-
-        if astnode.is_final:
-            cmd.add(sd.AlterPrototypeProperty(
-                property='is_final',
-                new_value=True
-            ))
-
         return cmd
-
-    def _apply_fields_ast(self, context, node):
-        super()._apply_fields_ast(context, node)
-
-        for op in self(attributes.AttributeValueCommand):
-            self._append_subcmd_ast(node, op, context)
-
-        for op in self(constraints.ConstraintCommand):
-            self._append_subcmd_ast(node, op, context)
 
     def _apply_field_ast(self, context, node, op):
         if op.property == 'default':
@@ -82,76 +62,21 @@ class CreateAtom(named.CreateNamedPrototype, AtomCommand):
         else:
             super()._apply_field_ast(context, node, op)
 
-    def apply(self, schema, context=None):
-        context = context or sd.CommandContext()
 
-        result = super().apply(schema, context)
-
-        with context(AtomCommandContext(self, result)):
-            result.acquire_ancestor_inheritance(schema)
-
-            for op in self(attributes.AttributeValueCommand):
-                op.apply(schema, context=context)
-
-            for op in self(constraints.ConstraintCommand):
-                op.apply(schema, context=context)
-
-        return result
-
-
-class RenameAtom(named.RenameNamedPrototype, AtomCommand):
+class RenameAtom(AtomCommand, named.RenameNamedPrototype):
     pass
 
 
-class RebaseAtom(inheriting.RebaseNamedPrototype, AtomCommand):
+class RebaseAtom(AtomCommand, inheriting.RebaseNamedPrototype):
     pass
 
 
-class AlterAtom(named.AlterNamedPrototype, AtomCommand):
+class AlterAtom(AtomCommand, inheriting.AlterInheritingPrototype):
     astnode = qlast.AlterAtomNode
 
-    def _apply_fields_ast(self, context, node):
-        super()._apply_fields_ast(context, node)
 
-        for op in self(attributes.AttributeValueCommand):
-            self._append_subcmd_ast(node, op, context)
-
-        for op in self(constraints.ConstraintCommand):
-            self._append_subcmd_ast(node, op, context)
-
-    def apply(self, schema, context=None):
-        context = context or sd.CommandContext()
-
-        with context(AtomCommandContext(self, None)):
-            atom = super().apply(schema, context)
-
-            for op in self(attributes.AttributeValueCommand):
-                op.apply(schema, context=context)
-
-            for op in self(constraints.ConstraintCommand):
-                op.apply(schema, context)
-
-            for op in self(inheriting.RebaseNamedPrototype):
-                op.apply(schema, context)
-
-        return atom
-
-
-class DeleteAtom(named.DeleteNamedPrototype, AtomCommand):
+class DeleteAtom(AtomCommand, inheriting.DeleteInheritingPrototype):
     astnode = qlast.DropAtomNode
-
-    def apply(self, schema, context=None):
-        context = context or sd.CommandContext()
-        atom = super().apply(schema, context)
-
-        with context(AtomCommandContext(self, atom)):
-            for op in self(attributes.AttributeValueCommand):
-                op.apply(schema, context=context)
-
-            for op in self(constraints.ConstraintCommand):
-                op.apply(schema, context)
-
-        return atom
 
 
 class Atom(primary.Prototype, constraints.ConsistencySubject,
@@ -204,16 +129,9 @@ class Atom(primary.Prototype, constraints.ConsistencySubject,
 
         return deps
 
-    @hybridmethod
-    def copy(scope, obj=None):
-        if isinstance(scope, type):
-            cls = scope
-        else:
-            obj = scope
-            cls = obj.__class__
-
-        result = super(Atom, scope).copy(obj)
-        result.default = obj.default
+    def copy(self):
+        result = super().copy()
+        result.default = self.default
         return result
 
     def get_implementation_type(self):

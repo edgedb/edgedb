@@ -102,9 +102,10 @@ class ProtoModule(named.NamedPrototype):
         self.index_derived = OrderedSet()
 
     def copy(self):
-        result = self.__class__()
+        result = self.__class__(name=self.name, imports=self.imports)
         for obj in self:
             result.add(obj.copy())
+        return result
 
     def add(self, obj):
         if obj in self:

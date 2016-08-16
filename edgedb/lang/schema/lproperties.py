@@ -19,11 +19,38 @@ from . import named
 from . import objects as so
 from . import pointers
 from . import policy
+from . import referencing
 from . import sources
 
 
 class LinkPropertySourceContext(sources.SourceCommandContext):
     pass
+
+
+class LinkPropertySourceCommand(sd.PrototypeCommand):
+    def _create_innards(self, schema, context):
+        for op in self(LinkPropertyCommand):
+            op.apply(schema, context=context)
+
+        super()._create_innards(schema, context)
+
+    def _alter_innards(self, schema, context, prototype):
+        for op in self(LinkPropertyCommand):
+            op.apply(schema, context=context)
+
+        super()._alter_innards(schema, context, prototype)
+
+    def _delete_innards(self, schema, context, prototype):
+        super()._delete_innards(schema, context, prototype)
+
+        for op in self(LinkPropertyCommand):
+            op.apply(schema, context=context)
+
+    def _apply_fields_ast(self, context, node):
+        super()._apply_fields_ast(context, node)
+
+        for op in self(LinkPropertyCommand):
+            self._append_subcmd_ast(node, op, context)
 
 
 class LinkPropertyCommandContext(pointers.PointerCommandContext,
@@ -33,49 +60,23 @@ class LinkPropertyCommandContext(pointers.PointerCommandContext,
 
 class LinkPropertyCommand(pointers.PointerCommand):
     context_class = LinkPropertyCommandContext
+    referrer_context_class = LinkPropertySourceContext
 
     @classmethod
     def _get_prototype_class(cls):
         return LinkProperty
 
 
-class CreateLinkProperty(LinkPropertyCommand, named.CreateNamedPrototype):
+class CreateLinkProperty(LinkPropertyCommand,
+                         referencing.CreateReferencedPrototype):
     astnode = [qlast.CreateConcreteLinkPropertyNode,
                qlast.CreateLinkPropertyNode]
 
-    @classmethod
-    def _protobases_from_ast(cls, astnode, context):
-        proto_name = '{}::{}'.format(astnode.name.module, astnode.name.name)
-
-        if isinstance(astnode, qlast.CreateConcreteLinkPropertyNode):
-            nname = LinkProperty.normalize_name(proto_name)
-
-            bases = so.PrototypeList([
-                so.PrototypeRef(
-                    prototype_name=sn.Name(
-                        module=nname.module,
-                        name=nname.name
-                    )
-                )
-            ])
-        else:
-            bases = super()._protobases_from_ast(astnode, context)
-            if not bases:
-                if proto_name != 'std::linkproperty':
-                    bases = so.PrototypeList([
-                        so.PrototypeRef(
-                            prototype_name=sn.Name(
-                                module='std',
-                                name='linkproperty'
-                            )
-                        )
-                    ])
-
-        return bases
+    referenced_astnode = qlast.CreateConcreteLinkPropertyNode
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context):
-        cmd = super()._cmd_tree_from_ast(astnode, context)
+    def _cmd_tree_from_ast(cls, astnode, context, schema):
+        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
         if isinstance(astnode, qlast.CreateConcreteLinkPropertyNode):
             target = getattr(astnode, 'target', None)
@@ -148,55 +149,9 @@ class CreateLinkProperty(LinkPropertyCommand, named.CreateNamedPrototype):
         else:
             super()._apply_field_ast(context, node, op)
 
-    def apply(self, schema, context):
-        prop = named.CreateNamedPrototype.apply(self, schema, context)
-
-        link = context.get(LinkPropertySourceContext)
-
-        if link:
-            prop.source = link.proto
-
-        with context(LinkPropertyCommandContext(self, prop)):
-            for op in self(atoms.AtomCommand):
-                op.apply(schema, context=context)
-
-            prop.acquire_ancestor_inheritance(schema)
-
-            if link:
-                link.proto.add_pointer(prop)
-
-            for op in self(constraints.ConstraintCommand):
-                op.apply(schema, context=context)
-
-        return prop
-
 
 class RenameLinkProperty(LinkPropertyCommand, named.RenameNamedPrototype):
-    def apply(self, schema, context):
-        result = super().apply(schema, context)
-
-        if not result.generic():
-            link_ctx = context.get(LinkPropertySourceContext)
-            assert link_ctx, "LinkProperty commands must be run in " + \
-                             "Link context"
-
-            norm = LinkProperty.normalize_name
-
-            link = link_ctx.proto
-            own = link.own_pointers.pop(norm(self.prototype_name), None)
-            if own:
-                link.own_pointers[norm(self.new_name)] = own
-
-            for child in link.children(schema):
-                ptr = child.pointers.pop(norm(self.prototype_name), None)
-                if ptr is not None:
-                    child.pointers[norm(self.new_name)] = ptr
-
-            inherited = link.pointers.pop(norm(self.prototype_name), None)
-            if inherited is not None:
-                link.pointers[norm(self.new_name)] = inherited
-
-        return result
+    pass
 
 
 class RebaseLinkProperty(LinkPropertyCommand,
@@ -204,7 +159,8 @@ class RebaseLinkProperty(LinkPropertyCommand,
     pass
 
 
-class AlterLinkProperty(LinkPropertyCommand, named.AlterNamedPrototype):
+class AlterLinkProperty(LinkPropertyCommand,
+                        inheriting.AlterInheritingPrototype):
     astnode = [qlast.AlterConcreteLinkPropertyNode,
                qlast.AlterLinkPropertyNode]
 
@@ -240,24 +196,9 @@ class AlterLinkProperty(LinkPropertyCommand, named.AlterNamedPrototype):
         else:
             super()._apply_field_ast(context, node, op)
 
-    def apply(self, schema, context=None):
-        context = context or sd.CommandContext()
-        with context(LinkPropertyCommandContext(self, None)):
-            prop = super().apply(schema, context)
 
-            for op in self(atoms.AtomCommand):
-                op.apply(schema, context)
-
-            for op in self(constraints.ConstraintCommand):
-                op.apply(schema, context=context)
-
-            for op in self(inheriting.RebaseNamedPrototype):
-                op.apply(schema, context)
-
-        return prop
-
-
-class DeleteLinkProperty(LinkPropertyCommand, named.DeleteNamedPrototype):
+class DeleteLinkProperty(LinkPropertyCommand,
+                         inheriting.DeleteInheritingPrototype):
     astnode = [qlast.DropConcreteLinkPropertyNode,
                qlast.DropLinkPropertyNode]
 
@@ -278,23 +219,6 @@ class DeleteLinkProperty(LinkPropertyCommand, named.DeleteNamedPrototype):
         for op in self(policy.PolicyCommand):
             self._append_subcmd_ast(node, op, context)
 
-    def apply(self, schema, context):
-        prop = super().apply(schema, context)
-
-        link = context.get(LinkPropertySourceContext)
-
-        with context(LinkPropertyCommandContext(self, prop)):
-            for op in self(atoms.AtomCommand):
-                op.apply(schema, context=context)
-
-            for op in self(constraints.ConstraintCommand):
-                op.apply(schema, context=context)
-
-        if link:
-            link.proto.del_pointer(prop, schema)
-
-        return prop
-
 
 class TypeProperty(pointers.Pointer):
     pass
@@ -311,11 +235,11 @@ class LinkProperty(pointers.Pointer):
         delete=DeleteLinkProperty
     )
 
-    def derive(self, schema, source, target=None, **kwargs):
+    def derive(self, schema, source, target=None, attrs=None, **kwargs):
         if target is None:
             target = self.target
 
-        ptr = super().derive(schema, source, target, **kwargs)
+        ptr = super().derive(schema, source, target, attrs=attrs, **kwargs)
 
         if ptr.normal_name() == 'std::source':
             ptr.target = source.source
@@ -331,12 +255,6 @@ class LinkProperty(pointers.Pointer):
             return t1
         else:
             return super().merge_targets(schema, ptr, t1, t2)
-
-    def merge_specialized(self, schema, other, relaxed=False):
-        if isinstance(other, LinkProperty):
-            self.required = max(self.required, other.required)
-            self.merge_defaults(other)
-        return self
 
     def atomic(self):
         assert not self.generic(), \

@@ -159,7 +159,7 @@ INHERITS (inheritingobject);
 CREATE TABLE link (
     source integer,
     target integer,
-    mapping character(2) NOT NULL,
+    mapping character(2),
     exposed_behaviour text,
     required boolean DEFAULT false NOT NULL,
     readonly boolean DEFAULT false NOT NULL,

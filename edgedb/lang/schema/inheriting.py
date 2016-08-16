@@ -11,7 +11,15 @@ from edgedb.lang.edgeql import ast as qlast
 from . import delta as sd
 from . import error as schema_error
 from . import objects as so
+from . import name as sn
 from . import named
+
+
+class InheritingPrototypeCommand(named.NamedPrototypeCommand):
+    def _create_finalize(self, schema, context):
+        self.prototype.acquire_ancestor_inheritance(schema, dctx=context)
+        self.prototype.update_descendants(schema)
+        super()._create_finalize(schema, context)
 
 
 def delta_bases(old_bases, new_bases):
@@ -61,9 +69,80 @@ class AlterInherit(sd.Command):
     astnode = qlast.AlterAddInheritNode, qlast.AlterDropInheritNode
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context):
+    def _cmd_tree_from_ast(cls, astnode, context, schema):
         # The base changes are handled by AlterNamedPrototype
         return None
+
+
+class CreateInheritingPrototype(named.CreateNamedPrototype,
+                                InheritingPrototypeCommand):
+    @classmethod
+    def _cmd_tree_from_ast(cls, astnode, context, schema):
+        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
+
+        bases = cls._protobases_from_ast(astnode, context)
+        if bases is not None:
+            cmd.add(
+                sd.AlterPrototypeProperty(
+                    property='bases',
+                    new_value=bases
+                )
+            )
+
+        if getattr(astnode, 'is_abstract', False):
+            cmd.add(sd.AlterPrototypeProperty(
+                property='is_abstract',
+                new_value=True
+            ))
+
+        if getattr(astnode, 'is_final', False):
+            cmd.add(sd.AlterPrototypeProperty(
+                property='is_final',
+                new_value=True
+            ))
+
+        return cmd
+
+    @classmethod
+    def _protobases_from_ast(cls, astnode, context):
+        proto_name = cls._protoname_from_ast(astnode, context)
+
+        bases = so.PrototypeList(
+            so.PrototypeRef(prototype_name=sn.Name(
+                name=b.name, module=b.module or 'std'
+            ))
+            for b in getattr(astnode, 'bases', None) or []
+        )
+
+        if not bases:
+            default_base = cls._get_prototype_class().get_default_base_name()
+
+            if default_base is not None and proto_name != default_base:
+                bases = so.PrototypeList([
+                    so.PrototypeRef(prototype_name=default_base)
+                ])
+
+        return bases
+
+
+class AlterInheritingPrototype(named.AlterNamedPrototype,
+                               InheritingPrototypeCommand):
+    def _alter_begin(self, schema, context, prototype):
+        super()._alter_begin(schema, context, prototype)
+
+        for op in self(RebaseNamedPrototype):
+            op.apply(schema, context)
+
+        prototype.acquire_ancestor_inheritance(schema)
+
+        return prototype
+
+
+class DeleteInheritingPrototype(named.DeleteNamedPrototype,
+                                InheritingPrototypeCommand):
+    def _delete_finalize(self, schema, context, prototype):
+        super()._delete_finalize(schema, context, prototype)
+        schema.drop_inheritance_cache_for_child(prototype)
 
 
 class RebaseNamedPrototype(named.NamedPrototypeCommand):
@@ -158,8 +237,8 @@ class InheritingPrototype(named.NamedPrototype):
     is_abstract = so.Field(bool, default=False, private=True, compcoef=0.909)
     is_final = so.Field(bool, default=False, compcoef=0.909)
 
-    def merge(self, obj, *, schema):
-        super().merge(obj, schema=schema)
+    def merge(self, obj, *, schema, dctx=None):
+        super().merge(obj, schema=schema, dctx=dctx)
         schema.drop_inheritance_cache(obj)
 
     def delta(self, other, reverse=False, *, context):
@@ -255,19 +334,22 @@ class InheritingPrototype(named.NamedPrototype):
     def children(self, schema):
         return schema._get_descendants(self, max_depth=0)
 
-    def acquire_ancestor_inheritance(self, schema):
-        for base in self.bases:
-            if isinstance(base, so.BasePrototype):
-                self.merge(base, schema=schema)
+    def acquire_ancestor_inheritance(self, schema, bases=None, *, dctx=None):
+        if bases is None:
+            bases = self.bases
 
-    def update_descendants(self, schema):
+        for base in bases:
+            self.merge(base, schema=schema, dctx=dctx)
+
+    def update_descendants(self, schema, dctx=None):
         for child in self.children(schema):
-            child.acquire_ancestor_inheritance(schema)
-            child.update_descendants(schema)
+            child.acquire_ancestor_inheritance(schema, dctx=dctx)
+            child.update_descendants(schema, dctx=dctx)
 
-    def finalize(self, schema, bases=None):
-        super().finalize(schema, bases=bases)
+    def finalize(self, schema, bases=None, *, dctx=None):
+        super().finalize(schema, bases=bases, dctx=dctx)
         self.mro = compute_mro(self)[1:]
+        self.acquire_ancestor_inheritance(schema, dctx=dctx)
 
     @classmethod
     def get_default_base_name(self):
