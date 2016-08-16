@@ -713,30 +713,43 @@ class IRCompilerBase:
                     _pexpr = self._process_expr(context, partition_expr, cte)
                     partition.append(_pexpr)
 
-            if expr.name == 'if':
+            funcname = expr.name
+            if funcname[0] == 'std':
+                funcname = funcname[1]
+
+            if funcname == 'if':
                 cond = self._process_expr(context, expr.args[0], cte)
                 pos = self._process_expr(context, expr.args[1], cte)
                 neg = self._process_expr(context, expr.args[2], cte)
                 when_expr = pgsql.ast.CaseWhenNode(expr=cond,
                                                    result=pos)
                 result = pgsql.ast.CaseExprNode(args=[when_expr], default=neg)
-            elif expr.name == 'noneif':
+
+            elif funcname == 'noneif':
                 name = 'NULLIF'
-            elif expr.name == ('search', 'weight'):
+
+            elif funcname == 'search_weight':
                 name = 'setweight'
-            elif expr.name == ('agg', 'sum'):
+
+            elif funcname == 'sum':
                 name = 'sum'
-            elif expr.name == ('agg', 'product'):
+
+            elif funcname == 'product':
                 name = common.qname('edgedb', 'agg_product')
-            elif expr.name == ('agg', 'avg'):
+
+            elif funcname == 'avg':
                 name = 'avg'
-            elif expr.name == ('agg', 'min'):
+
+            elif funcname == 'min':
                 name = 'min'
-            elif expr.name == ('agg', 'max'):
+
+            elif funcname == 'max':
                 name = 'max'
-            elif expr.name == ('agg', 'list'):
+
+            elif funcname == 'array_agg':
                 name = 'array_agg'
-            elif expr.name == ('agg', 'join'):
+
+            elif funcname == 'join':
                 name = 'string_agg'
                 separator, ref = args[:2]
                 try:
@@ -752,13 +765,18 @@ class IRCompilerBase:
                     result.args.append(pgsql.ast.ConstantNode(value=''))
                 else:
                     args = [ref, separator]
-            elif expr.name == ('agg', 'count'):
+
+            elif funcname == 'count':
                 name = 'count'
-            elif expr.name == ('agg', 'stddev_pop'):
+
+            elif funcname == ('agg', 'stddev_pop'):
                 name = 'stddev_pop'
-            elif expr.name == ('agg', 'stddev_samp'):
+
+            elif funcname == ('agg', 'stddev_samp'):
                 name = 'stddev_samp'
-            elif expr.name == ('window', 'lag') or expr.name == ('window', 'lead'):
+
+            elif funcname == 'lag' or funcname == 'lead':
+
                 schema = context.current.proto_schema
                 name = expr.name[1]
                 if len(args) > 1:
@@ -769,26 +787,35 @@ class IRCompilerBase:
                     arg0_type = pg_types.pg_type_from_atom(schema, arg0_type)
                     args[2] = pgsql.ast.TypeCastNode(expr=args[2],
                                                      type=pgsql.ast.TypeNode(name=arg0_type))
-            elif expr.name == ('window', 'rank'):
+
+            elif funcname == ('window', 'rank'):
                 name = expr.name[1]
-            elif expr.name == ('window', 'max'):
+
+            elif funcname == ('window', 'max'):
                 name = expr.name[1]
-            elif expr.name == ('window', 'avg'):
+
+            elif funcname == ('window', 'avg'):
                 name = expr.name[1]
-            elif expr.name == ('window', 'ntile'):
+
+            elif funcname == ('window', 'ntile'):
                 args[0] = pgsql.ast.TypeCastNode(
                                 expr=args[0],
                                 type=pgsql.ast.TypeNode(name='int'))
                 name = expr.name[1]
-            elif expr.name == ('math', 'abs'):
+
+            elif funcname == ('math', 'abs'):
                 name = 'abs'
-            elif expr.name == ('math', 'round'):
+
+            elif funcname == ('math', 'round'):
                 name = 'round'
-            elif expr.name == ('math', 'min'):
+
+            elif funcname == ('math', 'min'):
                 name = 'least'
-            elif expr.name == ('math', 'max'):
+
+            elif funcname == ('math', 'max'):
                 name = 'greatest'
-            elif expr.name == ('math', 'list_sum'):
+
+            elif funcname == ('math', 'list_sum'):
                 subq = pgsql.ast.SelectQueryNode()
                 op = pgsql.ast.FunctionCallNode(name='sum', args=[pgsql.ast.FieldRefNode(field='i')])
                 subq.targets.append(op)
@@ -807,7 +834,8 @@ class IRCompilerBase:
                 subq.fromlist.append(pgsql.ast.FromExprNode(expr=unnest, alias='i'))
                 zero = pgsql.ast.ConstantNode(value=0, type='int')
                 result = pgsql.ast.FunctionCallNode(name='coalesce', args=[subq, zero])
-            elif expr.name == ('datetime', 'to_months'):
+
+            elif funcname == ('datetime', 'to_months'):
                 years = pgsql.ast.FunctionCallNode(name='date_part',
                                                    args=[pgsql.ast.ConstantNode(value='year'),
                                                          args[0]])
@@ -817,38 +845,33 @@ class IRCompilerBase:
                                                     args=[pgsql.ast.ConstantNode(value='month'),
                                                           args[0]])
                 result = pgsql.ast.BinOpNode(left=years, op=ast.ops.ADD, right=months)
-            elif expr.name == ('datetime', 'extract'):
-                name = 'date_part'
-            elif expr.name == ('datetime', 'truncate'):
-                name = 'date_trunc'
-            elif expr.name == ('std', 'current_time'):
+
+            elif funcname == 'current_time':
                 result = pgsql.ast.FunctionCallNode(name='current_time', noparens=True)
-            elif expr.name == ('std', 'current_datetime'):
+
+            elif funcname == 'current_datetime':
                 result = pgsql.ast.FunctionCallNode(name='current_timestamp', noparens=True)
-            elif expr.name == ('std', 'uuid_generate_v1mc'):
+
+            elif funcname == 'uuid_generate_v1mc':
                 name = common.qname('edgedb', 'uuid_generate_v1mc')
-            elif expr.name == ('str', 'replace'):
-                name = 'replace'
-            elif expr.name == ('str', 'len'):
+
+            elif funcname == 'strlen':
                 name = 'char_length'
-            elif expr.name == ('str', 'lower'):
-                name = 'lower'
-            elif expr.name == ('str', 'upper'):
-                name = 'upper'
-            elif expr.name == ('str', 'lpad'):
+
+            elif funcname == 'lpad':
                 name = 'lpad'
                 # lpad expects the second argument to be int, so force cast it
                 args[1] = pgsql.ast.TypeCastNode(expr=args[1], type=pgsql.ast.TypeNode(name='int'))
-            elif expr.name == ('str', 'rpad'):
+
+            elif funcname == 'rpad':
                 name = 'rpad'
                 # rpad expects the second argument to be int, so force cast it
                 args[1] = pgsql.ast.TypeCastNode(expr=args[1], type=pgsql.ast.TypeNode(name='int'))
-            elif expr.name in (('str', 'trim'), ('str', 'ltrim'), ('str', 'rtrim')):
-                name = expr.name[1]
-            elif expr.name == ('str', 'levenshtein'):
+
+            elif funcname == 'levenshtein':
                 name = common.qname('edgedb', 'levenshtein')
 
-            elif expr.name == ('re', 'match'):
+            elif funcname == 're_match':
                 subq = pgsql.ast.SelectQueryNode()
 
                 flags = pgsql.ast.FunctionCallNode(
@@ -861,11 +884,11 @@ class IRCompilerBase:
 
                 result = subq
 
-            elif expr.name == ('str', 'strpos'):
+            elif funcname == 'strpos':
                 r = pgsql.ast.FunctionCallNode(name='strpos', args=args)
                 result = pgsql.ast.BinOpNode(left=r, right=pgsql.ast.ConstantNode(value=1),
                                              op=ast.ops.SUB)
-            elif expr.name == ('str', 'substr'):
+            elif funcname == 'substr':
                 name = 'substr'
                 args[1] = pgsql.ast.TypeCastNode(expr=args[1], type=pgsql.ast.TypeNode(name='int'))
                 args[1] = pgsql.ast.BinOpNode(left=args[1], right=pgsql.ast.ConstantNode(value=1),
@@ -873,7 +896,7 @@ class IRCompilerBase:
                 if args[2] is not None:
                     args[2] = pgsql.ast.TypeCastNode(expr=args[2],
                                                      type=pgsql.ast.TypeNode(name='int'))
-            elif expr.name == ('str', 'urlify'):
+            elif funcname == 'urlify':
                 re_1 = pgsql.ast.ConstantNode(value=r'[^\w\- ]')
                 re_2 = pgsql.ast.ConstantNode(value=r'\s+')
                 flags = pgsql.ast.ConstantNode(value='g')
@@ -885,12 +908,12 @@ class IRCompilerBase:
                                                        args=[replace_1, re_2, replacement, flags])
                 result = pgsql.ast.FunctionCallNode(name='lower', args=[replace_2])
 
-            elif expr.name == ('str', 'b64encode'):
+            elif funcname == 'b64encode':
                 enc_format = pgsql.ast.ConstantNode(value='base64')
                 b64_encode = pgsql.ast.FunctionCallNode(name='encode', args=[args[0], enc_format])
                 result = b64_encode
 
-            elif expr.name == ('str', 'urlsafe_b64encode'):
+            elif funcname == 'urlsafe_b64encode':
                 enc_format = pgsql.ast.ConstantNode(value='base64')
                 b64_encode = pgsql.ast.FunctionCallNode(name='encode', args=[args[0], enc_format])
                 unsafe_chars = pgsql.ast.ConstantNode(value='+/')
@@ -900,14 +923,11 @@ class IRCompilerBase:
                                             args=[b64_encode, unsafe_chars, safe_chars])
                 result = safe_encode
 
-            elif expr.name == ('rand', 'bytes'):
+            elif funcname == 'randbytes':
                 args[0] = pgsql.ast.TypeCastNode(expr=args[0], type=pgsql.ast.TypeNode(name='int'))
                 name = common.qname('edgedb', 'gen_random_bytes')
 
-            elif expr.name == ('rand', 'random'):
-                name = 'random'
-
-            elif expr.name == 'getitem':
+            elif funcname == 'getitem':
                 is_string = False
                 arg_type = irutils.infer_type(
                                 expr.args[0], context.current.proto_schema)
@@ -926,7 +946,7 @@ class IRCompilerBase:
                     indirection = pgsql.ast.IndexIndirectionNode(upper=index)
                     result = pgsql.ast.IndirectionNode(expr=args[0], indirection=indirection)
 
-            elif expr.name == 'getslice':
+            elif funcname == 'getslice':
                 start = args[1]
                 stop = args[2]
                 one = pgsql.ast.ConstantNode(value=1)
