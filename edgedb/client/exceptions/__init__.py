@@ -18,10 +18,6 @@ class MissingRequiredPointerError(IntergrityConstraintViolationError):
     code = '23502'
 
 
-class UniqueConstraintViolationError(IntergrityConstraintViolationError):
-    code = '23505'
-
-
 class ConstraintViolationError(IntergrityConstraintViolationError):
     code = '23514'
 
@@ -41,7 +37,6 @@ class EdgeQLSyntaxError(EdgeDBSyntaxError):
 __all__ = _base.__all__ + (
     'IntergrityConstraintViolationError',
     'MissingRequiredPointerError',
-    'UniqueConstraintViolationError',
     'ConstraintViolationError',
     'EdgeDBSyntaxError',
     'EdgeQLError',

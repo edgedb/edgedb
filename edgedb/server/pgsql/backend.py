@@ -322,10 +322,34 @@ class ErrorMech:
     }
 
     @classmethod
-    def _interpret_db_error(cls, session, constr_mech, err):
-        if isinstance(err, asyncpg.ICVError):
-            connection = session.get_connection()
-            proto_schema = session.proto_schema
+    async def _interpret_db_error(cls, backend, constr_mech, type_mech, err):
+        if isinstance(err, asyncpg.NotNullViolationError):
+            source_name = pointer_name = None
+
+            if err.schema_name and err.table_name:
+                tabname = (err.schema_name, err.table_name)
+
+                source_name = backend.table_name_to_object_name(tabname)
+
+                if err.column_name:
+                    cols = await type_mech.get_table_columns(
+                        tabname, connection=backend.connection)
+                    col = cols.get(err.column_name)
+                    pointer_name = col['column_comment']
+
+            if pointer_name is not None:
+                pname = '{{{}}}.{{{}}}'.format(source_name, pointer_name)
+
+                return edgedb_error.MissingRequiredPointerError(
+                    'missing value for required pointer {}'.format(pname),
+                    source_name=source_name, pointer_name=pointer_name)
+
+            else:
+                return edgedb_error.EdgeDBBackendError(err.message)
+
+        elif isinstance(err, asyncpg.IntegrityConstraintViolationError):
+            connection = backend.connection
+            schema = backend.schema
             source = pointer = None
 
             for ecls, eres in cls.error_res.items():
@@ -342,7 +366,7 @@ class ErrorMech:
                     error_info = (type, m.group('constr_name'))
                     break
             else:
-                return edgedb_error.UninterpretedStorageError(err.message)
+                return edgedb_error.EdgeDBBackendError(err.message)
 
             error_type, error_data = error_info
 
@@ -353,47 +377,23 @@ class ErrorMech:
 
             elif error_type == 'constraint':
                 constraint_name = \
-                    constr_mech.constraint_name_from_pg_name(
+                    await constr_mech.constraint_name_from_pg_name(
                         connection, error_data)
 
                 if constraint_name is None:
-                    return edgedb_error.UninterpretedStorageError(err.message)
+                    return edgedb_error.EdgeDBBackendError(err.message)
 
-                constraint = constraint_name
-                # Unfortunately, Postgres does not include the offending
-                # value in exceptions consistently.
-                offending_value = None
+                constraint = schema.get(constraint_name)
 
-                if pointer is not None:
-                    error_source = pointer
-                else:
-                    error_source = source
-
-                constraint.raise_error(offending_value, source=error_source)
+                return edgedb_error.ConstraintViolationError(
+                    constraint.format_error_message())
 
             elif error_type == 'id':
                 msg = 'unique link constraint violation'
-                errcls = edgedb_error.PointerConstraintUniqueViolationError
-                constraint = cls._get_id_constraint(proto_schema)
-                return errcls(msg=msg, source=source, pointer=pointer,
-                              constraint=constraint)
+                errcls = edgedb_error.UniqueConstraintViolationError
+                return errcls(msg=msg)
         else:
-            return edgedb_error.UninterpretedStorageError(err.message)
-
-    @classmethod
-    def _get_id_constraint(cls, proto_schema):
-        BObj = proto_schema.get('std::Object')
-        BObj_id = BObj.pointers['std::id']
-        unique = proto_schema.get('std::unique')
-
-        name = s_constr.Constraint.generate_specialized_name(
-                BObj_id.name, unique.name)
-        name = sn.Name(name=name, module='std')
-        constraint = s_constr.Constraint(name=name, bases=[unique],
-                                         subject=BObj_id)
-        constraint.acquire_ancestor_inheritance(proto_schema)
-
-        return constraint
+            return edgedb_error.EdgeDBBackendError(err.message)
 
 
 class EdgeQLAdapter:
@@ -616,7 +616,7 @@ class Backend(s_deltarepo.DeltaProvider):
         return table_id_to_proto_name_cache, proto_name_to_table_id_cache
 
     def table_name_to_object_name(self, table_name):
-        return self.table_cache.get(table_name)
+        return self.table_cache.get(table_name)['name']
 
     async def _init_atom_map_cache(self):
         ds = introspection.domains.DomainsList(self.connection)
@@ -2090,3 +2090,7 @@ class Backend(s_deltarepo.DeltaProvider):
 
     def _get_record_info_by_id(self, record_id):
         return self._record_mapping_cache.get(record_id)
+
+    async def translate_pg_error(self, query, error):
+        return await ErrorMech._interpret_db_error(
+            self, self._constr_mech, self._type_mech, error)

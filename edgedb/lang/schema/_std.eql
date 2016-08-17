@@ -108,7 +108,7 @@ CREATE CONSTRAINT {std::maxexclusive} INHERITING {std::max} {
 };
 
 CREATE CONSTRAINT {std::unique} INHERITING {std::constraint} {
-    SET errmessage := 'invalid {subject}';
+    SET errmessage := '{subject} violates unique constraint';
     SET expr := (not EXISTS (subject));
 };
 

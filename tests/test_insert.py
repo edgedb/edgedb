@@ -48,12 +48,13 @@ class TestInsert(tb.QueryTestCase):
     TEARDOWN = """
     """
 
-    async def test_insert_fail_1(self, input=r"""
-        INSERT {test::InsertTest};
-        """) -> \
-            tb.Error(exc.EdgeDBError, 'violates not-null constraint',
-                     {'code': '23502'}):
-        pass
+    async def test_insert_fail_1(self):
+        err = 'missing value for required pointer ' + \
+              '{test::InsertTest}.{test::l2}'
+        with self.assertRaisesRegex(exc.MissingRequiredPointerError, err):
+            await self.con.execute('''
+                INSERT {test::InsertTest};
+            ''')
 
     async def test_insert_simple01(self, input=r"""
         INSERT {test::InsertTest} {

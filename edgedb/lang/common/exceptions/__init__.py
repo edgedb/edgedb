@@ -9,8 +9,12 @@
 from ._base import *  # NOQA
 
 
-class EdgeDBBackendError(EdgeDBError):
-    code = '23000'
+class InternalError(EdgeDBError):
+    code = 'XX000'
+
+
+class EdgeDBBackendError(InternalError):
+    code = 'XX001'
 
 
 class IntergrityConstraintViolationError(EdgeDBError):
@@ -26,12 +30,12 @@ class MissingRequiredPointerError(IntergrityConstraintViolationError):
         self._attrs['p'] = pointer_name
 
 
-class UniqueConstraintViolationError(IntergrityConstraintViolationError):
-    code = '23505'
-
-
 class ConstraintViolationError(IntergrityConstraintViolationError):
     code = '23514'
+
+
+class LinkMappingCardinalityViolationError(IntergrityConstraintViolationError):
+    code = '23600'
 
 
 class EdgeDBSyntaxError(EdgeDBError):

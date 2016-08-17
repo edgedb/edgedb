@@ -17,7 +17,7 @@ class TestCaosConstraintsUniqueLink(tb.QueryTestCase):
                           'constraints.eschema')
 
     async def test_constraints_unique_link(self):
-        with self.assertRaises(exceptions.UniqueConstraintViolationError):
+        with self.assertRaises(exceptions.ConstraintViolationError):
             await self.con.execute("""
                 INSERT {test::UniqueName} {
                     name := 'Test'

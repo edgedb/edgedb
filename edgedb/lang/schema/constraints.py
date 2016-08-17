@@ -513,6 +513,22 @@ class Constraint(primary.Prototype, derivable.DerivablePrototype):
         constraint.inferredparamtypes = arg_types
         constraint.args = args or None
 
+    def format_error_message(self):
+        errmsg = self.errmessage
+        subjtitle = self.subject.title
+
+        if not subjtitle:
+            try:
+                subjname = self.subject.normal_name()
+            except AttributeError:
+                subjname = self.subject.name
+
+            subjtitle = subjname.name
+
+        formatted = errmsg.format(subject=subjtitle)
+
+        return formatted
+
 
 class ConsistencySubject(referencing.ReferencingPrototype):
     constraints = referencing.RefDict(ref_cls=Constraint, compcoef=0.887)
