@@ -49,6 +49,7 @@ class Protocol(asyncio.Protocol):
         self._loop = loop
         self.pgconn = None
         self.state = ConnectionState.NOT_CONNECTED
+        self.transactions = []
 
     def connection_made(self, transport):
         self.transport = transport
@@ -135,7 +136,7 @@ class Protocol(asyncio.Protocol):
             print(edgeql.generate_source(statement, pretty=True))
             """
             plan = planner.plan_statement(statement, self.backend)
-            result = await executor.execute_plan(plan, self.backend)
+            result = await executor.execute_plan(plan, self)
             if result is not None and isinstance(result, list):
                 loaded = []
                 for row in result:

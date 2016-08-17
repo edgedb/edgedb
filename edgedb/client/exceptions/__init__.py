@@ -22,6 +22,14 @@ class ConstraintViolationError(IntergrityConstraintViolationError):
     code = '23514'
 
 
+class InvalidTransactionStateError(EdgeDBError):
+    code = '25000'
+
+
+class NoActiveTransactionError(InvalidTransactionStateError):
+    code = '25P01'
+
+
 class EdgeDBSyntaxError(EdgeDBError):
     code = '42600'
 
@@ -36,6 +44,8 @@ class EdgeQLSyntaxError(EdgeDBSyntaxError):
 
 __all__ = _base.__all__ + (
     'IntergrityConstraintViolationError',
+    'InvalidTransactionStateError',
+    'NoActiveTransactionError',
     'MissingRequiredPointerError',
     'ConstraintViolationError',
     'EdgeDBSyntaxError',

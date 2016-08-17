@@ -11,9 +11,10 @@ import getpass
 import os
 
 from . import defines
-from .exceptions import *
+from .exceptions import *  # NOQA
 from . import protocol as edgedb_protocol
 from .future import create_future
+from . import transaction
 
 
 __all__ = ('connect',) + exceptions.__all__
@@ -24,6 +25,7 @@ class Connection:
         self._protocol = protocol
         self._transport = transport
         self._loop = loop
+        self._top_xact = None
 
     async def query(self, query, *args):
         return await self._protocol.execute(query, *args)
@@ -33,6 +35,22 @@ class Connection:
 
     def close(self):
         self._transport.close()
+
+    def transaction(self, *, isolation='read_committed', readonly=False,
+                    deferrable=False):
+        """Create a :class:`~transaction.Transaction` object.
+
+        :param isolation: Transaction isolation mode, can be one of:
+                          `'serializable'`, `'repeatable_read'`,
+                          `'read_committed'`.
+
+        :param readonly: Specifies whether or not this transaction is
+                         read-only.
+
+        :param deferrable: Specifies whether or not this transaction is
+                           deferrable.
+        """
+        return transaction.Transaction(self, isolation, readonly, deferrable)
 
 
 async def connect(*,

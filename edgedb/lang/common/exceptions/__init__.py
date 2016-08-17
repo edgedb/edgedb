@@ -40,3 +40,11 @@ class LinkMappingCardinalityViolationError(IntergrityConstraintViolationError):
 
 class EdgeDBSyntaxError(EdgeDBError):
     code = '42600'
+
+
+class InvalidTransactionStateError(EdgeDBError):
+    code = '25000'
+
+
+class NoActiveTransactionError(InvalidTransactionStateError):
+    code = '25P01'

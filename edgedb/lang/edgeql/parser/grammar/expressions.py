@@ -10,7 +10,6 @@ from edgedb.lang.common import ast
 from edgedb.lang.common import parsing, context
 
 from edgedb.lang.edgeql import ast as qlast
-from edgedb.lang.ir import ast as irast
 
 from ...errors import EdgeQLSyntaxError
 
@@ -606,9 +605,9 @@ class Expr(Nonterm):
         elif op == '<=':
             op = ast.ops.LE
         elif op == '@@':
-            op = irast.SEARCH
+            op = qlast.SEARCH
         elif op == '@@!':
-            op = irast.SEARCHEX
+            op = qlast.SEARCHEX
         elif op == '~':
             op = qlast.REMATCH
         elif op == '~*':
@@ -636,20 +635,20 @@ class Expr(Nonterm):
         self.val = qlast.UnaryOpNode(op=ast.ops.NOT, operand=kids[1].val)
 
     def reduce_Expr_LIKE_Expr(self, *kids):
-        self.val = qlast.BinOpNode(left=kids[0].val, op=irast.LIKE,
+        self.val = qlast.BinOpNode(left=kids[0].val, op=qlast.LIKE,
                                    right=kids[2].val)
 
     def reduce_Expr_NOT_LIKE_Expr(self, *kids):
-        val = qlast.BinOpNode(left=kids[0].val, op=irast.LIKE,
+        val = qlast.BinOpNode(left=kids[0].val, op=qlast.LIKE,
                               right=kids[2].val)
         self.val = qlast.UnaryOpNode(op=ast.ops.NOT, operand=val)
 
     def reduce_Expr_ILIKE_Expr(self, *kids):
-        self.val = qlast.BinOpNode(left=kids[0].val, op=irast.ILIKE,
+        self.val = qlast.BinOpNode(left=kids[0].val, op=qlast.ILIKE,
                                    right=kids[2].val)
 
     def reduce_Expr_NOT_ILIKE_Expr(self, *kids):
-        val = qlast.BinOpNode(left=kids[0].val, op=irast.ILIKE,
+        val = qlast.BinOpNode(left=kids[0].val, op=qlast.ILIKE,
                               right=kids[2].val)
         self.val = qlast.UnaryOpNode(op=ast.ops.NOT, operand=val)
 

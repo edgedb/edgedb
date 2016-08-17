@@ -14,15 +14,43 @@ from edgedb.lang.schema import deltas as s_deltas
 from edgedb.server import query as edgedb_query
 
 from edgedb.lang.common.debug import debug
+from edgedb.lang.common import exceptions
+
+from . import planner
 
 
 @debug
-async def execute_plan(plan, backend):
+async def execute_plan(plan, protocol):
+    backend = protocol.backend
+
     if isinstance(plan, s_deltas.DeltaCommand):
         return await backend.run_delta_command(plan)
 
     elif isinstance(plan, s_delta.Command):
         return await backend.run_ddl_command(plan)
+
+    elif isinstance(plan, planner.TransactionStatement):
+        if plan.op == 'start':
+            protocol.transactions.append(backend.connection.transaction())
+            await protocol.transactions[-1].start()
+
+        elif plan.op == 'commit':
+            if not protocol.transactions:
+                raise exceptions.NoActiveTransactionError(
+                    'there is no transaction in progress')
+            transaction = protocol.transactions.pop()
+            await transaction.commit()
+
+        elif plan.op == 'rollback':
+            if not protocol.transactions:
+                raise exceptions.NoActiveTransactionError(
+                    'there is no transaction in progress')
+            transaction = protocol.transactions.pop()
+            await transaction.rollback()
+
+        else:
+            raise exceptions.InternalError(
+                'unexpected transaction statement: {!r}'.format(plan))
 
     elif isinstance(plan, edgedb_query.Query):
         """LOG [sql] SQL QUERY

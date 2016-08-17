@@ -122,6 +122,22 @@ class ExpressionTextNode(Base):
     __fields = ['expr']
 
 
+class TransactionNode(Base):
+    pass
+
+
+class StartTransactionNode(TransactionNode):
+    pass
+
+
+class CommitTransactionNode(TransactionNode):
+    pass
+
+
+class RollbackTransactionNode(TransactionNode):
+    pass
+
+
 class DDLNode(Base):
     pass
 
