@@ -397,6 +397,7 @@ class DeclarationLoader:
                                            type=s_constr.Constraint)
 
             constraint = constr_base.derive(self._schema, subject)
+            constraint.is_abstract = constrdecl.abstract
             constraint.acquire_ancestor_inheritance(self._schema)
 
             # We now have a full set of data to perform final validation

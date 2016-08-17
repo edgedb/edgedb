@@ -1419,6 +1419,8 @@ class IRCompiler(IRCompilerBase):
 
     def _transform_tree(self, context, graph):
         context.current.query.subquery_referrers = graph.referrers
+        context.current.is_dml = \
+            graph.op in ('insert', 'update', 'delete')
 
         if graph.cges:
             for cge in graph.cges:
@@ -1465,8 +1467,10 @@ class IRCompiler(IRCompilerBase):
             context.current.query = self._consolidate_subqueries(context, context.current.query,
                                                                  non_generating_subgraphs)
 
+        is_dml = graph.op in {'insert', 'update', 'delete'}
 
-        self._process_selector(context, graph.selector, context.current.query)
+        self._process_selector(context, graph.selector, context.current.query,
+                               transform_output=not is_dml)
         self._process_sorter(context, graph.sorter)
 
         self._process_groupby(context, graph.grouper)
@@ -1477,7 +1481,7 @@ class IRCompiler(IRCompilerBase):
         if graph.limit:
             context.current.query.limit = self._process_constant(context, graph.limit)
 
-        if graph.op in ('insert', 'update', 'delete'):
+        if is_dml:
             if graph.op == 'delete':
                 query = pgsql.ast.DeleteQueryNode()
             elif graph.op == 'insert':
@@ -2708,7 +2712,8 @@ class IRCompiler(IRCompilerBase):
         context.current.location = None
         return result
 
-    def _process_selector(self, context, selector, query):
+    def _process_selector(self, context, selector, query,
+                          transform_output=True):
         context.current.location = 'selector'
 
         selexprs = []
@@ -2718,7 +2723,7 @@ class IRCompiler(IRCompilerBase):
             pgexpr = self._process_expr(context, expr.expr, query)
             selexprs.append((pgexpr, alias))
 
-        if context.current.output_format == 'json':
+        if context.current.output_format == 'json' and transform_output:
             # Target list may be empty if selector is a set op product
             if selexprs:
                 target = pgsql.ast.SelectExprNode(

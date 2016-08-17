@@ -69,7 +69,7 @@ concept Object:
 
     link c_minmax to constraint_minmax
     link c_strvalue to constraint_strvalue
-#    link c_enum to constraint_enum
+    link c_enum to constraint_enum
 
 
 concept UniqueName:

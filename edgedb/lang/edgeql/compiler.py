@@ -551,10 +551,14 @@ class EdgeQLCompiler:
         graph.generator = self._process_select_where(context,
                                                      edgeql_tree.where)
 
-        with context():
-            context.current.location = 'optarget_shaper'
-            graph.opselector = self._process_select_targets(
-                context, edgeql_tree.targets)
+        if edgeql_tree.targets:
+            with context():
+                context.current.location = 'optarget_shaper'
+                graph.opselector = self._process_select_targets(
+                    context, edgeql_tree.targets)
+        else:
+            rec = self.entityref_to_record(tgt, self.proto_schema)
+            graph.opselector = [irast.SelectorExpr(expr=rec)]
 
         with context():
             context.current.location = 'opvalues'
