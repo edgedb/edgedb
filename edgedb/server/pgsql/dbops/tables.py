@@ -609,9 +609,9 @@ class DropInheritableTableObject(ddl.DDLOperation):
             # Propagate object drop to all current descendants.
             #
             ds = introspection.tables.TableDescendants(context.db)
-            descendants = ds.fetch(schema_name=self.object.table_name[0],
-                                   table_name=self.object.table_name[1],
-                                   max_depth=1)
+            descendants = await ds.fetch(schema_name=self.object.table_name[0],
+                                         table_name=self.object.table_name[1],
+                                         max_depth=1)
 
             for dschema, dname, *_ in descendants:
                 obj = self.object.copy()

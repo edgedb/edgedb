@@ -398,6 +398,81 @@ class Command(datastructures.MixedStruct, metaclass=CommandMeta):
 
             return obj, ref
 
+    def _resolve_attr_value(self, value, fname, field, schema, unresolved,
+                            allow_unresolved_refs=False):
+        ftype = field.type[0]
+
+        if isinstance(ftype, so.PrototypeClass):
+
+            if isinstance(value, so.PrototypeRef):
+                value, ref = self._resolve_ref(
+                    value, schema, allow_unresolved_refs)
+                if value is None:
+                    unresolved[fname] = ref
+
+            elif (isinstance(value, so.Collection)
+                    and any(isinstance(st, so.PrototypeRef)
+                            for st in value.get_subtypes())):
+                subtypes = []
+                for st in value.get_subtypes():
+                    eltype, ref = self._resolve_ref(
+                        st, schema, allow_unresolved_refs)
+                    if eltype is None:
+                        unresolved[fname] = ref
+                        subtypes.append(st)
+                    else:
+                        subtypes.append(eltype)
+
+                value = value.__class__.from_subtypes(subtypes)
+
+        elif issubclass(ftype, typed.AbstractTypedMapping):
+            if issubclass(ftype.valuetype, so.ProtoObject):
+                vals = {}
+
+                for k, val in value.items():
+                    val, ref = self._resolve_ref(
+                        val, schema, allow_unresolved_refs)
+                    if val is None:
+                        unresolved[fname] = value
+                        continue
+
+                    vals[k] = val
+
+                if fname in unresolved:
+                    ctype = so.PrototypeDict
+                else:
+                    ctype = ftype
+
+                value = ctype(vals)
+
+        elif issubclass(ftype, (typed.AbstractTypedSequence,
+                                typed.AbstractTypedSet)):
+            if issubclass(ftype.type, so.ProtoObject):
+                vals = []
+
+                for val in value:
+                    val, ref = self._resolve_ref(
+                        val, schema, allow_unresolved_refs)
+                    if val is None:
+                        unresolved[fname] = value
+                        continue
+
+                    vals.append(val)
+
+                if fname in unresolved:
+                    if issubclass(ftype, typed.AbstractTypedSet):
+                        ctype = so.PrototypeSet
+                    else:
+                        ctype = so.PrototypeList
+                else:
+                    ctype = ftype
+
+                value = ctype(vals)
+        else:
+            value = self.adapt_value(field, value)
+
+        return value
+
     def get_struct_properties(self, schema,
                               include_old_value=False,
                               allow_unresolved_refs=False):
@@ -410,84 +485,19 @@ class Command(datastructures.MixedStruct, metaclass=CommandMeta):
             except KeyError:
                 continue
 
-            value = op.new_value
-            ftype = field.type[0]
-
-            if isinstance(ftype, so.PrototypeClass):
-
-                if isinstance(op.new_value, so.PrototypeRef):
-                    value, ref = self._resolve_ref(
-                        value, schema, allow_unresolved_refs)
-                    if value is None:
-                        unresolved[op.property] = ref
-
-                elif (isinstance(op.new_value, so.Collection)
-                        and any(isinstance(st, so.PrototypeRef)
-                                for st in op.new_value.get_subtypes())):
-                    subtypes = []
-                    for st in op.new_value.get_subtypes():
-                        eltype, ref = self._resolve_ref(
-                            st, schema, allow_unresolved_refs)
-                        if eltype is None:
-                            unresolved[op.property] = ref
-                            subtypes.append(st)
-                        else:
-                            subtypes.append(eltype)
-
-                    value = op.new_value.__class__.from_subtypes(subtypes)
-
-            elif issubclass(ftype, typed.AbstractTypedMapping):
-                if issubclass(ftype.valuetype, so.ProtoObject):
-                    vals = {}
-
-                    for k, val in value.items():
-                        val, ref = self._resolve_ref(
-                            val, schema, allow_unresolved_refs)
-                        if val is None:
-                            unresolved[op.property] = value
-                            continue
-
-                        vals[k] = val
-
-                    if op.property in unresolved:
-                        ctype = so.PrototypeDict
-                    else:
-                        ctype = ftype
-
-                    value = ctype(vals)
-
-            elif issubclass(ftype, (typed.AbstractTypedSequence,
-                                    typed.AbstractTypedSet)):
-                if issubclass(ftype.type, so.ProtoObject):
-                    vals = []
-
-                    for val in value:
-                        val, ref = self._resolve_ref(
-                            val, schema, allow_unresolved_refs)
-                        if val is None:
-                            unresolved[op.property] = value
-                            continue
-
-                        vals.append(val)
-
-                    if op.property in unresolved:
-                        if issubclass(ftype, typed.AbstractTypedSet):
-                            ctype = so.PrototypeSet
-                        else:
-                            ctype = so.PrototypeList
-                    else:
-                        ctype = ftype
-
-                    value = ctype(vals)
-            else:
-                value = self.adapt_value(field, op.new_value)
+            value = self._resolve_attr_value(
+                op.new_value, op.property, field, schema, unresolved,
+                allow_unresolved_refs=allow_unresolved_refs)
 
             if include_old_value:
                 if op.old_value is not None:
-                    old_value = self.adapt_value(field, op.old_value)
+                    old_value = self._resolve_attr_value(
+                        op.old_value, op.property, field, schema, unresolved,
+                        allow_unresolved_refs=True)
                 else:
                     old_value = None
                 value = (old_value, value)
+
             result[op.property] = value
 
         if allow_unresolved_refs:

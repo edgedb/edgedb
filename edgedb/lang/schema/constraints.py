@@ -451,11 +451,14 @@ class Constraint(primary.Prototype, derivable.DerivablePrototype):
 
             if not arg_types and params:
                 subjectexpr = params.pop('param')
-                constraint.subjectexpr = subjectexpr
 
         if subjectexpr:
-            _, subject, _ = cls._normalize_constraint_expr(
+            edgeql_tree, subject, _ = cls._normalize_constraint_expr(
                 schema, {}, subjectexpr, subject)
+
+            if constraint.subjectexpr is None:
+                constraint.subjectexpr = edgeql.generate_source(
+                    edgeql_tree, pretty=False)
 
         expr = constraint.get_field_value('expr')
         if not expr:

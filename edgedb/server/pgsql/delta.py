@@ -2334,11 +2334,11 @@ class UpdateMappingIndexes(MetaCommand):
     async def apply(self, schema, context):
         db = context.db
         if await self.schema_exists.execute(context):
-            link_map = context._get_link_map(reverse=True)
+            link_map = await context._get_link_map(reverse=True)
             index_ds = datasources.introspection.tables.TableIndexes(db)
             indexes = {}
-            idx_data = index_ds.fetch(schema_pattern='edgedb%',
-                                      index_pattern='%_link_mapping_idx')
+            idx_data = await index_ds.fetch(schema_pattern='edgedb%',
+                                            index_pattern='%_link_mapping_idx')
             for row in idx_data:
                 table_name = tuple(row['table_name'])
                 indexes[table_name] = self.interpret_indexes(table_name,
@@ -2442,9 +2442,9 @@ class CommandContext(sd.CommandContext):
         self.session = session
         self.link_name_to_id_map = None
 
-    def _get_link_map(self, reverse=False):
+    async def _get_link_map(self, reverse=False):
         link_ds = datasources.schema.links.ConceptLinks(self.db)
-        links = link_ds.fetch()
+        links = await link_ds.fetch()
         grouped = itertools.groupby(links, key=lambda i: i['id'])
         if reverse:
             link_map = {k: next(i)['name'] for k, i in grouped}
@@ -2452,10 +2452,10 @@ class CommandContext(sd.CommandContext):
             link_map = {next(i)['name']: k for k, i in grouped}
         return link_map
 
-    def get_link_map(self):
+    async def get_link_map(self):
         link_map = self.link_name_to_id_map
         if not link_map:
-            link_map = self._get_link_map()
+            link_map = await self._get_link_map()
             self.link_name_to_id_map = link_map
         return link_map
 

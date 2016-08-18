@@ -668,8 +668,8 @@ class MappingIndex(dbops.Index):
         self.name_prefix = name_prefix
         self.mapping = mapping
 
-    def creation_code(self, context):
-        link_map = context.get_link_map()
+    async def creation_code(self, context):
+        link_map = await context.get_link_map()
 
         ids = tuple(sorted(list(link_map[n] for n in self.link_names)))
         id_str = '_'.join(str(i) for i in ids)

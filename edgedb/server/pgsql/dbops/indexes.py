@@ -78,7 +78,7 @@ class Index(tables.InheritableTableObject):
     def add_columns(self, columns):
         self.__columns.update(columns)
 
-    def creation_code(self, context):
+    async def creation_code(self, context):
         if self.expr:
             expr = self.expr
         else:
@@ -129,7 +129,7 @@ class Index(tables.InheritableTableObject):
          expression, columns, metadata) = index_data
 
         if metadata:
-            metadata = json.loads(metadata.decode('utf-8'))
+            metadata = json.loads(metadata)
         else:
             metadata = {}
 
@@ -169,7 +169,7 @@ class TextSearchIndex(Index):
         super().__init__(name, table_name)
         self.add_columns(columns)
 
-    def creation_code(self, context):
+    async def creation_code(self, context):
         code = 'CREATE INDEX %(name)s ON %(table)s USING gin((%(cols)s)) %(predicate)s' % \
                 {'name': common.qname(self.name),
                  'table': common.qname(*self.table_name),
@@ -206,7 +206,7 @@ class CreateIndex(tables.CreateInheritableTableObject):
                                                  index.name_in_catalog)))
 
     async def code(self, context):
-        return self.index.creation_code(context)
+        return await self.index.creation_code(context)
 
 
 class RenameIndex(tables.RenameInheritableTableObject):

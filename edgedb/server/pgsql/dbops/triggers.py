@@ -90,7 +90,7 @@ class Trigger(tables.InheritableTableObject):
          events, definition, metadata) = trigger_data
 
         if metadata:
-            metadata = json.loads(metadata.decode('utf-8'))
+            metadata = json.loads(metadata)
         else:
             metadata = {}
 

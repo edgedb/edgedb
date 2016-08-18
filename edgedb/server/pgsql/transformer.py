@@ -1025,10 +1025,10 @@ class IRCompilerBase:
                 name = common.qname('edgedb_aux_feat_gis', 'st_distance_sphere')
                 context.current.search_path.append('edgedb_aux_feat_gis')
 
-            elif isinstance(expr.name, tuple):
-                assert False, 'unsupported function %s' % (expr.name,)
+            elif isinstance(funcname, tuple):
+                assert False, 'unsupported function %s' % (funcname,)
             else:
-                name = expr.name
+                name = funcname
 
             if not result:
                 if expr.window:

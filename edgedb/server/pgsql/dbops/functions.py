@@ -116,7 +116,8 @@ class AlterFunctionReplaceText(ddl.DDLOperation):
                 '''
 
         vars = self.name + (self.args, self.new_text)
-        new_text, lang, volatility, *returns = context.db.prepare(code)(*vars)[0]
+        new_text, lang, volatility, *returns = \
+            await context.db.fetchrow(code, *vars)
 
         code = '''CREATE OR REPLACE FUNCTION {name} ({args})
                   RETURNS {returns}

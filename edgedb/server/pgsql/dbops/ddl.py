@@ -128,7 +128,7 @@ class GetMetadata(base.Command):
 
         oid = self.object.get_oid()
         if isinstance(oid, base.Command):
-            oid = await oid.execute(context)[0]
+            oid = (await oid.execute(context))[0]
 
         return code, oid
 
