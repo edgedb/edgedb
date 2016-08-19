@@ -86,7 +86,7 @@ class P_UMINUS(Precedence, assoc='right'):
     pass
 
 
-class P_TYPECAST(Precedence, assoc='left'):
+class P_TYPECAST(Precedence, assoc='right'):
     pass
 
 
