@@ -309,6 +309,8 @@ class ParserContext(lang_context.SourceContext, markup.MarkupExceptionContext):
                     return 0, lineend
 
             ptr = linestart + step
+            if ptr < 0:  # it never makes sense to wrap around the ptr
+                ptr = 0
             if step == -1:
                 start_end = (0, ptr)
             else:
