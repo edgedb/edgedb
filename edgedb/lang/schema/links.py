@@ -637,6 +637,9 @@ class AlterLink(LinkCommand, named.AlterNamedPrototype):
             for op in self(policy.PolicyCommand):
                 op.apply(schema, context)
 
+        link.acquire_ancestor_inheritance(schema)
+        link.update_descendants(schema)
+
         return link
 
 

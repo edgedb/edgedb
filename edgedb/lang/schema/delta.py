@@ -516,14 +516,30 @@ class Command(datastructures.MixedStruct, metaclass=CommandMeta):
     def __call__(self, typ):
         return filter(lambda i: isinstance(i, typ), self.ops)
 
+    def has_subcommands(self):
+        return bool(self.ops)
+
     def add(self, command):
-        self.ops.add(command)
+        if isinstance(command, CommandGroup):
+            self.update(command)
+        else:
+            self.ops.add(command)
 
     def update(self, commands):
-        self.ops.update(commands)
+        for command in commands:
+            self.add(command)
 
     def discard(self, command):
         self.ops.discard(command)
+
+    def sort_subcommands_by_type(self):
+        def _key(c):
+            if isinstance(c, CreatePrototype):
+                return 0
+            else:
+                return 2
+
+        self.ops = datastructures.OrderedSet(sorted(self.ops, key=_key))
 
     def apply(self, schema, context):
         pass

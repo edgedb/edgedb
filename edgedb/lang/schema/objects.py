@@ -476,6 +476,7 @@ class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
         if old is None:
             for n in new:
                 adds_mods.add(n.delta(None, context=context))
+            adds_mods.sort_subcommands_by_type()
             return adds_mods, dels
         elif new is None:
             for o in old:
@@ -581,6 +582,7 @@ class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
             for y in reversed(list(deleted)):
                 dels.add(y.delta(None, reverse=True, context=context))
 
+        adds_mods.sort_subcommands_by_type()
         return adds_mods, dels
 
     def __getstate__(self):

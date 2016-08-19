@@ -11,6 +11,7 @@ import collections
 from edgedb.lang.common.functional import hybridmethod
 from edgedb.lang.common import datastructures as ds
 
+from . import delta as sd
 from . import error as schema_error
 from . import inheriting
 from . import objects as so
@@ -208,6 +209,19 @@ class ReferencingPrototype(inheriting.InheritingPrototype,
 
         with context(old, new):
             delta = super().delta(other, reverse=reverse, context=context)
+            if isinstance(delta, sd.CreatePrototype):
+                # If this is a CREATE delta, we need to make
+                # sure it is returned separately from the creation
+                # of references, which will go into a separate ALTER
+                # delta.  This is needed to avoid the hassle of
+                # sorting the delta order by dependencies or having
+                # to maintain ephemeral forward references.
+                alter_delta = super().delta(self, context=context)
+                full_delta = sd.CommandGroup()
+                full_delta.add(delta)
+            else:
+                full_delta = alter_delta = delta
+
             idx_key = lambda o: o.persistent_hash()
 
             for refdict in cls.get_refdicts():
@@ -225,9 +239,15 @@ class ReferencingPrototype(inheriting.InheritingPrototype,
                 else:
                     newcoll_idx = {}
 
-                self.delta_sets(oldcoll_idx, newcoll_idx, delta, context)
+                self.delta_sets(oldcoll_idx, newcoll_idx, alter_delta, context)
 
-        return delta
+            if alter_delta is not full_delta:
+                if alter_delta.has_subcommands():
+                    full_delta.add(alter_delta)
+                else:
+                    full_delta = delta
+
+        return full_delta
 
     def get_protoref_origin(self, name, attr, local_attr, classname,
                                                           farthest=False):

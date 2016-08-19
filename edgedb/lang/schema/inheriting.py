@@ -252,6 +252,11 @@ class InheritingPrototype(named.NamedPrototype):
             if isinstance(base, so.BasePrototype):
                 self.merge(base, schema=schema)
 
+    def update_descendants(self, schema):
+        for child in self.children(schema):
+            child.acquire_ancestor_inheritance(schema)
+            child.update_descendants(schema)
+
     @classmethod
     def get_default_base_name(self):
         return None

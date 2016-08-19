@@ -511,6 +511,8 @@ class DeclarationLoader:
                 link = link_base.derive(
                     self._schema, concept, target, add_to_schema=True)
 
+                link.required = bool(linkdecl.required)
+
                 if isinstance(linkdecl.target, edgeql.ast.SelectQueryNode):
                     # Computables are always readonly.
                     link.readonly = True
