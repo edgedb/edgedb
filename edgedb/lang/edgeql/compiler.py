@@ -473,13 +473,19 @@ class EdgeQLCompiler:
         selexpr = irast.SelectorExpr(expr=idref, name=None)
         graph.selector.append(selexpr)
 
-        with context():
-            context.current.location = 'optarget_shaper'
-            if edgeql_tree.targets:
+        if edgeql_tree.targets:
+            with context():
+                context.current.location = 'optarget_shaper'
                 graph.opselector = self._process_select_targets(
                     context, edgeql_tree.targets)
-            else:
-                graph.opselector = []
+        else:
+            rec = self.entityref_to_record(tgt, self.proto_schema)
+            graph.opselector = [
+                irast.SelectorExpr(
+                    expr=rec,
+                    name=context.current.genalias('o')
+                )
+            ]
 
         if edgeql_tree.pathspec:
             with context():
@@ -610,7 +616,7 @@ class EdgeQLCompiler:
                 paths = irast.Conjunction(paths=frozenset((v, graph.optarget)))
                 self.flatten_and_unify_path_combination(
                     paths, deep=True, merge_filters=True)
-                self._check_update_expr(graph.optarget, targetexpr, v)
+                # self._check_update_expr(graph.optarget, targetexpr, v)
 
             ref = irast.UpdateExpr(expr=targetexpr, value=v)
             refs.append(ref)
@@ -638,25 +644,25 @@ class EdgeQLCompiler:
                 paths = irast.Conjunction(paths=frozenset((v, graph.optarget)))
                 self.flatten_and_unify_path_combination(
                     paths, deep=True, merge_filters=True)
-                self._check_update_expr(graph.optarget, targetexpr, v)
+                # self._check_update_expr(graph.optarget, targetexpr, v)
 
             ref = irast.UpdateExpr(expr=targetexpr, value=v)
             refs.append(ref)
 
         return refs
 
-    def _check_update_expr(self, source, target, expr):
+    def _check_update_expr(self, source, path, expr):
         # Check that all refs in expr point to source and are atomic,
         # or, if not, are in the form ptr := ptr {+|-} set
         #
         schema_scope = self.get_query_schema_scope(expr)
         ok = (len(schema_scope) == 0 or (len(schema_scope) == 1 and
                                          (schema_scope[0].id == source.id or
-                                          schema_scope[0].id == target.id)))
+                                          schema_scope[0].id == path.id)))
 
         if not ok:
             msg = "update expression can only reference local atoms"
-            raise errors.EdgeQLError(msg)
+            raise errors.EdgeQLError(msg, context=path.context)
 
     def _transform_delete(self, context, edgeql_tree, arg_types):
         self.arg_types = arg_types or {}
@@ -1290,7 +1296,7 @@ class EdgeQLCompiler:
                 target = link_proto.get_far_endpoint(direction)
 
                 if isinstance(target, s_concepts.Concept):
-                    target_set = irast.EntitySet()
+                    target_set = irast.EntitySet(context=tip.context)
                     target_set.concept = target
                     target_set.id = irutils.LinearPath(path_tip.id)
                     target_set.id.add(link_proto, direction,
@@ -1311,7 +1317,7 @@ class EdgeQLCompiler:
                     path_tip = target_set
 
                 elif isinstance(target, s_atoms.Atom):
-                    target_set = irast.EntitySet()
+                    target_set = irast.EntitySet(context=tip.context)
                     target_set.concept = target
                     target_set.id = irutils.LinearPath(path_tip.id)
                     target_set.id.add(link_proto, direction,
@@ -3581,6 +3587,7 @@ class EdgeQLCompiler:
         if isinstance(path, irast.EntitySet):
             result = irast.EntitySet(
                 id=path.id,
+                context=path.context,
                 pathvar=path.pathvar,
                 concept=path.concept,
                 users=path.users,
@@ -3598,6 +3605,7 @@ class EdgeQLCompiler:
         elif isinstance(path, irast.BaseRef):
             args = dict(
                 id=path.id,
+                context=path.context,
                 ref=path.ref,
                 ptr_proto=path.ptr_proto,
                 rewrite_flags=path.rewrite_flags.copy(),
@@ -3623,6 +3631,7 @@ class EdgeQLCompiler:
 
         while rlink:
             link = irast.EntityLink(
+                context=rlink.context,
                 target=current,
                 link_proto=rlink.link_proto,
                 direction=rlink.direction,
@@ -3642,6 +3651,7 @@ class EdgeQLCompiler:
             if parent_path:
                 parent = irast.EntitySet(
                     id=parent_path.id,
+                    context=parent_path.context,
                     pathvar=parent_path.pathvar,
                     anchor=parent_path.anchor,
                     show_as_anchor=parent_path.show_as_anchor,

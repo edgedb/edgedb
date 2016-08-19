@@ -12,24 +12,9 @@ from edgedb.server import _testbase as tb
 from edgedb.client import exceptions
 
 
-class RollbackChanges:
-    def __init__(self, test):
-        self._conn = test.con
-
-    async def __aenter__(self):
-        self._tx = self._conn.transaction()
-        await self._tx.start()
-
-    async def __aexit__(self, exc_type, exc, tb):
-        await self._tx.rollback()
-
-
 class TestConstraints(tb.QueryTestCase):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'constraints.eschema')
-
-    def _run_and_rollback(self):
-        return RollbackChanges(self)
 
     async def _run_link_tests(self, cases, concept, link):
         qry = """

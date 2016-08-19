@@ -1912,8 +1912,6 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
         if link.generic():
             self.affirm_pointer_defaults(link, schema, context)
 
-        self.attach_alter_table(context)
-
         concept = context.get(s_concepts.ConceptCommandContext)
         self.pgops.add(dbops.Insert(table=self.table, records=[rec],
                                     priority=1))
@@ -1925,6 +1923,8 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
                             columns=['std::linkid'])
             alter_table.add_operation(
                 dbops.AlterTableAddConstraint(constraint))
+
+        self.attach_alter_table(context)
 
         if not link.generic() and link.mapping != s_links.LinkMapping.ManyToMany:
             self.schedule_mapping_update(link, schema, context)

@@ -443,15 +443,21 @@ class TypeMech:
 
     async def get_table_columns(self, table_name, connection=None,
                                 cache='auto'):
-        if cache is not None and self._column_cache is not None:
-            cols = self._column_cache.get(table_name)
-        else:
-            cols = None
+        if cache is not None:
+            cols = self.get_cached_table_columns(table_name)
 
         if cols is None and cache != 'always':
             cols = await self._load_table_columns(table_name, connection)
 
         return self._column_cache.get(table_name)
+
+    def get_cached_table_columns(self, table_name):
+        if self._column_cache is not None:
+            cols = self._column_cache.get(table_name)
+        else:
+            cols = None
+
+        return cols
 
     async def _load_type_attributes(self, type_name, connection):
         cols = introspection.types.CompositeTypeAttributes(connection)

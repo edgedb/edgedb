@@ -10,7 +10,7 @@ import itertools
 import weakref
 
 from edgedb.lang.common.exceptions import EdgeDBError
-from edgedb.lang.common import ast
+from edgedb.lang.common import ast, parsing
 from edgedb.lang.common.datastructures import typed
 
 from edgedb.lang.schema import name as sn
@@ -30,7 +30,10 @@ class Base(ast.AST):
                 ('rewrite_original', object, None, False, False),
                 # Whether or not the node is a product of a rewrite
                 ('is_rewrite_product', bool, False),
-                ('rewrite_flags', set)]
+                ('rewrite_flags', set),
+                ('context', parsing.ParserContext, None,
+                 True, None, True)  # this last True is "hidden" attribute
+                ]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

@@ -92,6 +92,7 @@ class TransformerContextLevel:
             self.global_ctes = prevlevel.global_ctes
             self.local_atom_expr_source = prevlevel.local_atom_expr_source
             self.search_path = prevlevel.search_path
+            self.entityref_as_id = prevlevel.entityref_as_id
 
             if mode == TransformerContext.NEW_TRANSPARENT:
                 self.location = prevlevel.location
@@ -165,6 +166,7 @@ class TransformerContextLevel:
             self.in_subquery = False
             self.local_atom_expr_source = None
             self.search_path = []
+            self.entityref_as_id = False
 
     def genalias(self, alias=None, hint=None):
         if alias is None:
@@ -665,6 +667,13 @@ class IRCompilerBase:
 
             result = pgsql.ast.FunctionCallNode(
                 name='jsonb_build_object', args=keyvals)
+        elif context.current.entityref_as_id:
+            for i, a in enumerate(attribute_map):
+                if (a.module, a.name) == ('std', 'id'):
+                    result = my_elements[i]
+                    break
+            else:
+                raise ValueError('cannot find id ptr in entitityref record')
         else:
             proto_class = expr.concept.get_canonical_class()
             proto_class_name = '{}.{}'.format(proto_class.__module__,
@@ -1608,7 +1617,8 @@ class IRCompiler(IRCompilerBase):
         non_generating_subgraphs = []
         for subgraph in graph.subgraphs:
             if ('generator' not in subgraph.referrers and
-                    'exists' not in subgraph.referrers):
+                    'exists' not in subgraph.referrers and
+                    'opvalues' not in subgraph.referrers):
                 non_generating_subgraphs.append(subgraph)
 
         if non_generating_subgraphs:
@@ -1742,180 +1752,16 @@ class IRCompiler(IRCompilerBase):
 
                 self._process_selector(context, graph.opselector, query)
 
+                context.current.output_format = None
+                context.current.entityref_as_id = True
+
                 if op_is_update:
-                    external_updates = []
-
-                    for expr in opvalues:
-                        updtarget = expr.expr
-                        updvalue = expr.value
-
-                        if isinstance(updvalue, irast.BaseRefExpr):
-                            updvalue = updvalue.expr
-
-                        if isinstance(updtarget, irast.LinkPropRefSimple):
-                            # Update on non-singular atomic link
-                            lproto = updtarget.ref.link_proto
-                        else:
-                            lproto = updtarget.rlink.link_proto
-
-                        ptr_info = pg_types.get_pointer_storage_info(
-                            lproto,
-                            schema=context.current.proto_schema,
-                            resolve_type=True,
-                            link_bias=False)
-                        props_only = False
-                        upd_props = None
-                        operation = None
-
-                        if isinstance(updvalue, irast.BinOp):
-                            leftmost_operand = \
-                                self._get_leftmost_binop_operand(updvalue)
-
-                            op_path = leftmost_operand
-                            if not isinstance(op_path, irast.Record):
-                                op_path = irutils.extract_paths(
-                                    leftmost_operand, resolve_arefs=False)
-
-                            if isinstance(op_path, irast.EntityLink):
-                                op_link = op_path
-                            elif isinstance(op_path, irast.LinkPropRefSimple):
-                                op_link = op_path.ref
-                            else:
-                                op_link = op_path.rlink if op_path else None
-
-                            if op_link is not None:
-                                op_link = op_link.link_proto
-
-                            tg_path = irutils.extract_paths(
-                                updtarget, resolve_arefs=False)
-
-                            if isinstance(tg_path, irast.EntityLink):
-                                tg_link = tg_path
-                            elif isinstance(tg_path, irast.LinkPropRefSimple):
-                                tg_link = tg_path.ref
-                            else:
-                                tg_link = tg_path.rlink if tg_path else None
-
-                            if tg_link is not None:
-                                tg_link = tg_link.link_proto
-
-                            is_relative = \
-                                (not (tg_link is None and op_link is None) and
-                                    (tg_link == op_link))
-
-                            if is_relative:
-                                operation = updvalue.op
-
-                        # First, process all internal link updates
-                        if ptr_info.table_type == 'concept':
-                            field = self._process_expr(context, expr.expr)
-                            props_only = True
-
-                            with context(TransformerContext.NEW_TRANSPARENT):
-                                context.current.local_atom_expr_source = \
-                                    graph.optarget
-
-                                if (isinstance(updvalue, irast.BinOp) and
-                                        self._is_composite_cast(
-                                            updvalue.right)):
-                                    updvalue, upd_props = \
-                                        self._extract_update_value(
-                                            context, updvalue.right,
-                                            ptr_info.column_type)
-                                elif self._is_composite_cast(updvalue):
-                                    updvalue, upd_props = \
-                                        self._extract_update_value(
-                                            context, updvalue,
-                                            ptr_info.column_type)
-                                else:
-                                    updvalue = pgsql.ast.TypeCastNode(
-                                        expr=self._process_expr(context,
-                                                                updvalue),
-                                        type=pgsql.ast.TypeNode(
-                                            name=ptr_info.column_type))
-
-                                query.values.append(
-                                    pgsql.ast.UpdateExprNode(
-                                        expr=field, value=updvalue))
-
-                        ptr_info = pg_types.get_pointer_storage_info(
-                            lproto, resolve_type=False, link_bias=True)
-                        if ptr_info and ptr_info.table_type == 'link':
-                            external_updates.append(
-                                (expr, props_only, operation))
-
-                    if not query.values:
-                        # No atomic updates
-                        query = pgsql.ast.CTENode(
-                            targets=query.targets,
-                            fromlist=[query.fromexpr],
-                            where=query.where)
-
-                    toplevel = None
-
-                    # Updating externally-stored links
-                    # requires repackaging everything into a
-                    # series of CTEs so that multiple statements
-                    # can be executed as a single query.
-                    #
-                    for expr, props_only, operation in external_updates:
-                        if toplevel is None:
-                            toplevel = pgsql.ast.SelectQueryNode()
-                            toplevel.ctes.add(query)
-                            query.alias = context.current.genalias(hint='m')
-
-                            ref = pgsql.ast.FieldRefNode(
-                                table=query, field='*')
-
-                            toplevel.targets.append(
-                                pgsql.ast.SelectExprNode(expr=ref))
-
-                            toplevel.fromlist.append(
-                                pgsql.ast.CTERefNode(cte=query))
-
-                        self._process_update_expr(context, expr, props_only,
-                                                  operation, toplevel, query)
-
-                    if toplevel is not None:
-                        query = toplevel
+                    query = self._process_update_stmt(context, graph, query,
+                                                      opvalues)
 
                 elif op_is_insert:
-                    cols = [pgsql.ast.FieldRefNode(field='concept_id')]
-                    select = pgsql.ast.SelectQueryNode()
-                    values = pgsql.ast.SequenceNode()
-
-                    values.elements.append(
-                        pgsql.ast.SelectQueryNode(
-                            targets=[pgsql.ast.SelectExprNode(
-                                expr=pgsql.ast.FieldRefNode(field='id'))],
-                            fromlist=[pgsql.ast.TableNode(
-                                name='concept', schema='edgedb')],
-                            where=pgsql.ast.BinOpNode(
-                                op=ast.ops.EQ,
-                                left=pgsql.ast.FieldRefNode(field='name'),
-                                right=pgsql.ast.ConstantNode(
-                                    value=graph.optarget.concept.name))))
-
-                    if opvalues:
-                        for expr in opvalues:
-                            field = self._process_expr(context, expr.expr,
-                                                       query)
-                            field.table = None
-
-                            with context(TransformerContext.NEW_TRANSPARENT):
-                                context.current.local_atom_expr_source = \
-                                    graph.optarget
-                                value = self._process_expr(context, expr.value,
-                                                           query)
-                                values.elements.append(value)
-
-                            cols.append(field)
-
-                    select.values = [values]
-
-                    # query.fromexpr.alias = None
-                    query.cols = cols
-                    query.select = select
+                    query = self._process_insert_stmt(context, graph, query,
+                                                      opvalues)
         else:
             query = context.current.query
 
@@ -2102,6 +1948,236 @@ class IRCompiler(IRCompilerBase):
 
         return query
 
+    def _process_insert_stmt(self, context, graph, query, opvalues):
+        """Generate SQL INSERTs from an Insert IR."""
+        cols = [pgsql.ast.FieldRefNode(field='concept_id')]
+        select = pgsql.ast.SelectQueryNode()
+        values = pgsql.ast.SequenceNode()
+        select.values = [values]
+        query.cols = cols
+        query.select = select
+
+        # Type reference is always inserted.
+        values.elements.append(
+            pgsql.ast.SelectQueryNode(
+                targets=[pgsql.ast.SelectExprNode(
+                    expr=pgsql.ast.FieldRefNode(field='id'))],
+                fromlist=[pgsql.ast.TableNode(
+                    name='concept', schema='edgedb')],
+                where=pgsql.ast.BinOpNode(
+                    op=ast.ops.EQ,
+                    left=pgsql.ast.FieldRefNode(field='name'),
+                    right=pgsql.ast.ConstantNode(
+                        value=graph.optarget.concept.name))))
+
+        if not opvalues:
+            return query
+
+        external_inserts = []
+
+        for expr in opvalues:
+            instarget = expr.expr
+            insvalue = expr.value
+
+            lproto = instarget.rlink.link_proto
+
+            ptr_info = pg_types.get_pointer_storage_info(
+                lproto,
+                schema=context.current.proto_schema,
+                resolve_type=True,
+                link_bias=False)
+
+            props_only = False
+            ins_props = None
+            operation = None
+
+            # First, process all local link inserts.
+            if ptr_info.table_type == 'concept':
+                props_only = True
+                field = self._process_expr(context, expr.expr, query)
+                field.table = None
+                cols.append(field)
+
+                with context(TransformerContext.NEW_TRANSPARENT):
+                    context.current.local_atom_expr_source = graph.optarget
+
+                    if self._is_composite_cast(insvalue):
+                        insvalue, ins_props = self._extract_update_value(
+                            context, insvalue, ptr_info.column_type)
+
+                    else:
+                        insvalue = pgsql.ast.TypeCastNode(
+                            expr=self._process_expr(context, insvalue),
+                            type=pgsql.ast.TypeNode(name=ptr_info.column_type))
+
+                    values.elements.append(insvalue)
+
+            ptr_info = pg_types.get_pointer_storage_info(
+                lproto, resolve_type=False, link_bias=True)
+
+            if ptr_info and ptr_info.table_type == 'link':
+                external_inserts.append((expr, props_only, operation))
+
+        toplevel = None
+
+        # Inserting externally-stored links requires repackaging everything
+        # into a series of CTEs so that multiple statements can be executed
+        # as a single query.
+        #
+        for expr, props_only, operation in external_inserts:
+            if toplevel is None:
+                toplevel = pgsql.ast.SelectQueryNode()
+                toplevel.ctes.add(query)
+                query.alias = context.current.genalias(hint='m')
+
+                for tgt in query.targets:
+                    ref = pgsql.ast.FieldRefNode(table=query, field=tgt.alias)
+                    toplevel.targets.append(pgsql.ast.SelectExprNode(expr=ref))
+
+                query.targets.append(
+                    pgsql.ast.SelectExprNode(
+                        expr=pgsql.ast.FieldRefNode(field='std::id'),
+                        alias=None
+                    )
+                )
+
+                toplevel.fromlist.append(pgsql.ast.CTERefNode(cte=query))
+
+            self._process_update_expr(context, expr, props_only,
+                                      operation, toplevel, query)
+
+        if toplevel is not None:
+            query = toplevel
+
+        return query
+
+    def _process_update_stmt(self, context, graph, query, opvalues):
+        external_updates = []
+
+        for expr in opvalues:
+            updtarget = expr.expr
+            updvalue = expr.value
+
+            if isinstance(updvalue, irast.BaseRefExpr):
+                updvalue = updvalue.expr
+
+            if isinstance(updtarget, irast.LinkPropRefSimple):
+                # Update on non-singular atomic link
+                lproto = updtarget.ref.link_proto
+            else:
+                lproto = updtarget.rlink.link_proto
+
+            ptr_info = pg_types.get_pointer_storage_info(
+                lproto,
+                schema=context.current.proto_schema,
+                resolve_type=True,
+                link_bias=False)
+            props_only = False
+            upd_props = None
+            operation = None
+
+            if isinstance(updvalue, irast.BinOp):
+                leftmost_operand = self._get_leftmost_binop_operand(updvalue)
+
+                op_path = leftmost_operand
+                if not isinstance(op_path, irast.Record):
+                    op_path = irutils.extract_paths(
+                        leftmost_operand, resolve_arefs=False)
+
+                if isinstance(op_path, irast.EntityLink):
+                    op_link = op_path
+                elif isinstance(op_path, irast.LinkPropRefSimple):
+                    op_link = op_path.ref
+                else:
+                    op_link = op_path.rlink if op_path else None
+
+                if op_link is not None:
+                    op_link = op_link.link_proto
+
+                tg_path = irutils.extract_paths(
+                    updtarget, resolve_arefs=False)
+
+                if isinstance(tg_path, irast.EntityLink):
+                    tg_link = tg_path
+                elif isinstance(tg_path, irast.LinkPropRefSimple):
+                    tg_link = tg_path.ref
+                else:
+                    tg_link = tg_path.rlink if tg_path else None
+
+                if tg_link is not None:
+                    tg_link = tg_link.link_proto
+
+                is_relative = \
+                    (not (tg_link is None and op_link is None) and
+                        (tg_link == op_link))
+
+                if is_relative:
+                    operation = updvalue.op
+
+            # First, process all internal link updates
+            if ptr_info.table_type == 'concept':
+                field = self._process_expr(context, expr.expr)
+                props_only = True
+
+                with context(TransformerContext.NEW_TRANSPARENT):
+                    context.current.local_atom_expr_source = graph.optarget
+
+                    if (isinstance(updvalue, irast.BinOp) and
+                            self._is_composite_cast(updvalue.right)):
+                        updvalue, upd_props = self._extract_update_value(
+                            context, updvalue.right, ptr_info.column_type)
+
+                    elif self._is_composite_cast(updvalue):
+                        updvalue, upd_props = self._extract_update_value(
+                            context, updvalue, ptr_info.column_type)
+
+                    else:
+                        updvalue = pgsql.ast.TypeCastNode(
+                            expr=self._process_expr(context, updvalue),
+                            type=pgsql.ast.TypeNode(name=ptr_info.column_type))
+
+                    query.values.append(pgsql.ast.UpdateExprNode(
+                        expr=field, value=updvalue))
+
+            ptr_info = pg_types.get_pointer_storage_info(
+                lproto, resolve_type=False, link_bias=True)
+
+            if ptr_info and ptr_info.table_type == 'link':
+                external_updates.append((expr, props_only, operation))
+
+        if not query.values:
+            # No atomic updates
+            query = pgsql.ast.CTENode(
+                targets=query.targets,
+                fromlist=[query.fromexpr],
+                where=query.where)
+
+        toplevel = None
+
+        # Updating externally-stored linksrequires repackaging everything into
+        # a series of CTEs so that multiple statements can be executed as a
+        # single query.
+        #
+        for expr, props_only, operation in external_updates:
+            if toplevel is None:
+                toplevel = pgsql.ast.SelectQueryNode()
+                toplevel.ctes.add(query)
+                query.alias = context.current.genalias(hint='m')
+
+                ref = pgsql.ast.FieldRefNode(table=query, field='*')
+
+                toplevel.targets.append(pgsql.ast.SelectExprNode(expr=ref))
+
+                toplevel.fromlist.append(pgsql.ast.CTERefNode(cte=query))
+
+            self._process_update_expr(context, expr, props_only,
+                                      operation, toplevel, query)
+
+        if toplevel is not None:
+            query = toplevel
+
+        return query
+
     def _extract_update_value(self, context, updvalexpr, target_type):
         typ = updvalexpr.type
         expr = self._process_expr(context, updvalexpr.expr)
@@ -2200,7 +2276,9 @@ class IRCompiler(IRCompilerBase):
             #
             return tranches
 
-        input_data = self._process_expr(context, data)
+        with context(TransformerContext.NEW_TRANSPARENT):
+            context.current.direct_subquery_ref = True
+            input_data = self._process_expr(context, data)
 
         if (isinstance(input_data, pgsql.ast.ConstantNode) and
                 input_data.type.endswith('[]')):
@@ -2315,8 +2393,8 @@ class IRCompiler(IRCompilerBase):
                 lproto.normal_name(), catenate=False)
 
         data_backend = context.current.backend
-        tab_cols = data_backend._type_mech.get_table_columns(
-            target_tab_name, cache='always')
+        tab_cols = data_backend._type_mech.get_cached_table_columns(
+            target_tab_name)
 
         assert tab_cols, "could not get cols for {!r}".format(target_tab_name)
 
@@ -2924,6 +3002,7 @@ class IRCompiler(IRCompilerBase):
                           selector,
                           query,
                           transform_output=True):
+
         context.current.location = 'selector'
 
         selexprs = []

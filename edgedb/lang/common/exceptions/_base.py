@@ -79,13 +79,16 @@ class EdgeDBErrorMeta(type):
 
 
 class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
-    def __init__(self, msg=None, *, hint=None, details=None):
+    def __init__(self, msg=None, *, hint=None, details=None, **kwargs):
         super().__init__(msg)
         self._attrs = {}
         if hint is not None:
             self._attrs['H'] = hint
         if details is not None:
             self._attrs['D'] = details
+        for k, v in kwargs.items():
+            if isinstance(v, ExceptionContext):
+                add_context(self, v)
 
     @property
     def attrs(self):

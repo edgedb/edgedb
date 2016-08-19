@@ -89,6 +89,18 @@ class ClusterTestCase(TestCase):
         self.cluster = _start_cluster()
 
 
+class RollbackChanges:
+    def __init__(self, test):
+        self._conn = test.con
+
+    async def __aenter__(self):
+        self._tx = self._conn.transaction()
+        await self._tx.start()
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self._tx.rollback()
+
+
 class ConnectedTestCase(ClusterTestCase):
 
     def setUp(self):
@@ -106,6 +118,9 @@ class ConnectedTestCase(ClusterTestCase):
             self.con = None
         finally:
             super().tearDown()
+
+    def _run_and_rollback(self):
+        return RollbackChanges(self)
 
 
 class DatabaseTestCase(ConnectedTestCase):
