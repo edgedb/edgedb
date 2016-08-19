@@ -515,7 +515,7 @@ class Expr(Nonterm):
     # | Expr IS OF '(' NodeNameList ')'
     # | Expr IS NOT OF '(' NodeNameList ')'
     # | Expr IN InExpr
-    # |
+    # | '<' ExtTypeExpr '>' '(' Expr ')'
 
     def reduce_Path(self, *kids):
         self.val = kids[0].val
@@ -676,6 +676,11 @@ class Expr(Nonterm):
     def reduce_Expr_NOT_IN_InExpr(self, *kids):
         self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.NOT_IN,
                                    right=kids[3].val)
+
+    @parsing.precedence(P_TYPECAST)
+    def reduce_LANGBRACKET_ExtTypeExpr_RANGBRACKET_Expr(
+            self, *kids):
+        self.val = qlast.TypeCastNode(expr=kids[3].val, type=kids[1].val)
 
 
 class Sequence(Nonterm):
@@ -914,9 +919,6 @@ class OptFilterClause(Nonterm):
 
 
 class FuncApplication(Nonterm):
-    def reduce_CAST_LPAREN_Expr_AS_ExtTypeExpr_RPAREN(self, *kids):
-        self.val = qlast.TypeCastNode(expr=kids[2].val, type=kids[4].val)
-
     def reduce_NodeName_LPAREN_FuncArgList_OptSortClause_RPAREN_OptFilterClause(
             self, *kids):
         # we use NodeName nonterminal here to avoid ambiguity in grammar

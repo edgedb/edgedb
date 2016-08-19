@@ -23,6 +23,7 @@ STATE_BASE = 1
 re_exppart = r"(?:[eE](?:[+\-])?[0-9]+)"
 re_self = r'[,()\[\].@;:+\-*/%^<>=]'
 re_opchars = r'[~!\#&|`?+\-*/^<>=]'
+re_not_opchars = r'[^~!\#&|`?+\-*/^<>=]'
 re_opchars_edgeql = r'[~!\#&|`?]'
 re_opchars_sql = r'[+\-*/^<>=]'
 re_ident_start = r"[A-Za-z\200-\377_%]"
@@ -96,15 +97,20 @@ class EdgeQLLexer(lexer.Lexer):
         Rule(token='OP',
              next_state=STATE_KEEP,
              regexp=r'''
-                # EdgeQL-specific multi-char ops
-                {opchar_edgedb} (?:{opchar}(?!/\*|--))+
-                |
-                (?:{opchar}(?!/\*|--))+ {opchar_edgedb} (?:{opchar}(?!/\*|--))*
-                |
-                # SQL-only multi-char ops cannot end in + or -
-                (?:{opchar_sql}(?!/\*|--))+[*/^<>=]
+                # no multichar operator can be composed exclusively of
+                # ">" or "<", to avoid ambiguity of parsing nested "< ... >"
+                (?![<>]+(?:{notopchar} | $)) (?:
+                    # EdgeQL-specific multi-char ops
+                    {opchar_edgedb} {opchar}+
+                    |
+                    {opchar}+ {opchar_edgedb} {opchar}*
+                    |
+                    # SQL-only multi-char ops cannot end in + or -
+                    {opchar_sql}+[*/^<>=]
+                )
              '''.format(opchar_edgedb=re_opchars_edgeql,
                         opchar=re_opchars,
+                        notopchar=re_not_opchars,
                         opchar_sql=re_opchars_sql)),
 
         # EdgeQL/PgSQL single char ops

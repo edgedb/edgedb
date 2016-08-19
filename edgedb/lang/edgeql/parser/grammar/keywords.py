@@ -23,7 +23,6 @@ edgeql_keywords = {
     "attribute": ("ATTRIBUTE", UNRESERVED_KEYWORD),
     "before": ("BEFORE", UNRESERVED_KEYWORD),
     "by": ("BY", UNRESERVED_KEYWORD),
-    "cast": ("CAST", RESERVED_KEYWORD),
     "commit": ("COMMIT", UNRESERVED_KEYWORD),
     "concept": ("CONCEPT", UNRESERVED_KEYWORD),
     "constraint": ("CONSTRAINT", UNRESERVED_KEYWORD),

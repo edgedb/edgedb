@@ -243,7 +243,7 @@ constraint max:
     def test_eschema_parser_constraint02(self):
         """
 abstract constraint length:
-    subject:= str::len(cast(subject as str))
+    subject:= str::len(<str>subject)
         """
 
     def test_eschema_parser_constraint03(self):
@@ -259,7 +259,7 @@ constraint max:
     errmessage: 'Maximum allowed value for {subject} is {param}.'
 
 abstract constraint length:
-    subject:= str::len(cast(subject as str))
+    subject:= str::len(<str>subject)
 
 constraint maxlength extends max, length:
     errmessage: '{subject} must be no longer than {param} characters.'
