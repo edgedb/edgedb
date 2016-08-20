@@ -672,8 +672,20 @@ class Mapping(Nonterm):
         self.val = qlast.MappingNode(items=kids[1].val)
 
 
+class MappingKey(Nonterm):
+    def reduce_FqPart(self, *kids):
+        self.val = qlast.ConstantNode(value=str(kids[0].val))
+
+    def reduce_BaseNumberConstant(self, *kids):
+        self.val = kids[0].val
+        self.val.value = str(self.val.value)
+
+    def reduce_AT_IDENT(self, *kids):
+        self.val = qlast.ConstantNode(value='@' + kids[1].val)
+
+
 class MappingElement(Nonterm):
-    def reduce_BaseStringConstant_COLON_Expr(self, *kids):
+    def reduce_MappingKey_TURNSTILE_Expr(self, *kids):
         self.val = (kids[0].val, kids[2].val)
 
 

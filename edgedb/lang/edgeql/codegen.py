@@ -277,7 +277,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             if i > 0:
                 self.write(', ')
             self.visit(key)
-            self.write(': ')
+            self.write(':= ')
             self.visit(value)
 
         self.write('}')
