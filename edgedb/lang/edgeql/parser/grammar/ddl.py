@@ -218,7 +218,7 @@ def commands_block(parent, *commands, opt=True):
 
 class SetFieldStmt(Nonterm):
     # field := <expr>
-    def reduce_SET_NodeName_COLONEQUALS_Expr(self, *kids):
+    def reduce_SET_NodeName_TURNSTILE_Expr(self, *kids):
         # if the expression is trivial (a literal or variable), it
         # should be treated as an eager expression
         #

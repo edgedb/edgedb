@@ -207,7 +207,7 @@ class T_TYPECAST(Token):
 class T_DOTDOT(Token):
     pass
 
-class T_COLONEQUALS(Token):
+class T_TURNSTILE(Token):
     pass
 
 class T_Op(Token):

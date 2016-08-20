@@ -93,17 +93,13 @@ class WithClause(Nonterm):
         self.val = kids[1].val
 
 
-class CgeList(Nonterm):
-    def reduce_Cge(self, *kids):
-        self.val = [kids[0].val]
-
-    def reduce_CgeList_COMMA_Cge(self, *kids):
-        self.val = kids[0].val + [kids[2].val]
-
-
 class Cge(Nonterm):
     def reduce_ShortName_AS_LPAREN_SelectExpr_RPAREN(self, *kids):
         self.val = qlast.CGENode(expr=kids[3].val, alias=kids[0].val)
+
+
+class CgeList(parsing.ListNonterm, element=Cge, separator=T_COMMA):
+    pass
 
 
 class SelectClause(Nonterm):
@@ -169,14 +165,6 @@ class AliasBlock(Nonterm):
         self.val = (nsaliases, expraliases)
 
 
-class AliasDeclList(Nonterm):
-    def reduce_AliasDecl(self, *kids):
-        self.val = [kids[0].val]
-
-    def reduce_AliasDeclList_COMMA_AliasDecl(self, *kids):
-        self.val = kids[0].val + [kids[2].val]
-
-
 class ModuleName(Nonterm):
     def reduce_DottedIdentifier(self, *kids):
         self.val = kids[0].val
@@ -190,15 +178,19 @@ class AliasDecl(Nonterm):
         self.val = qlast.NamespaceAliasDeclNode(
             namespace='.'.join(kids[1].val))
 
-    def reduce_ShortName_COLONEQUALS_NAMESPACE_ModuleName(self, *kids):
+    def reduce_ShortName_TURNSTILE_NAMESPACE_ModuleName(self, *kids):
         self.val = qlast.NamespaceAliasDeclNode(
             alias=kids[0].val,
             namespace='.'.join(kids[3].val))
 
-    def reduce_ShortName_COLONEQUALS_Expr(self, *kids):
+    def reduce_ShortName_TURNSTILE_Expr(self, *kids):
         self.val = qlast.ExpressionAliasDeclNode(
             alias=kids[0].val,
             expr=kids[2].val)
+
+
+class AliasDeclList(parsing.ListNonterm, element=AliasDecl, separator=T_COMMA):
+    pass
 
 
 class OptDistinct(Nonterm):
@@ -207,14 +199,6 @@ class OptDistinct(Nonterm):
 
     def reduce_empty(self, *kids):
         self.val = False
-
-
-class SelectTargetList(Nonterm):
-    def reduce_SelectTargetEl(self, *kids):
-        self.val = [kids[0].val]
-
-    def reduce_SelectTargetList_COMMA_SelectTargetEl(self, *kids):
-        self.val = kids[0].val + [kids[2].val]
 
 
 class SelectTargetEl(Nonterm):
@@ -227,6 +211,11 @@ class SelectTargetEl(Nonterm):
     def reduce_Path_SelectPathSpec(self, *kids):
         kids[0].val.pathspec = kids[1].val
         self.val = qlast.SelectExprNode(expr=kids[0].val)
+
+
+class SelectTargetList(parsing.ListNonterm, element=SelectTargetEl,
+                       separator=T_COMMA):
+    pass
 
 
 class SelectPathSpec(Nonterm):
@@ -242,16 +231,8 @@ class OptSelectPathSpec(Nonterm):
         self.val = None
 
 
-class SelectPointerSpecList(Nonterm):
-    def reduce_SelectPointerSpec(self, *kids):
-        self.val = [kids[0].val]
-
-    def reduce_SelectPointerSpecList_COMMA_SelectPointerSpec(self, *kids):
-        self.val = kids[0].val + [kids[2].val]
-
-
 class OptSelectPathCompExpr(Nonterm):
-    def reduce_COLONEQUALS_Expr(self, *kids):
+    def reduce_TURNSTILE_Expr(self, *kids):
         self.val = kids[1].val
 
     def reduce_empty(self, *kids):
@@ -281,6 +262,11 @@ class SelectPointerSpec(Nonterm):
         self.val.recurse = kids[1].val
         self.val.pathspec = kids[2].val
         self.val.compexpr = kids[3].val
+
+
+class SelectPointerSpecList(parsing.ListNonterm, element=SelectPointerSpec,
+                            separator=T_COMMA):
+    pass
 
 
 class PointerSpecSetExpr(Nonterm):
@@ -352,14 +338,6 @@ class PointerGlob(Nonterm):
         self.val = qlast.PointerGlobNode(filters=kids[2].val, type='property')
 
 
-class PointerGlobFilterList(Nonterm):
-    def reduce_PointerGlobFilter(self, *kids):
-        self.val = [kids[0].val]
-
-    def reduce_PointerGlobFilterList_COMMA_PointerGlobFilter(self, *kids):
-        self.val = kids[0].val + [kids[2].val]
-
-
 class PointerGlobFilter(Nonterm):
     def reduce_ShortName_EQUALS_ShortName(self, *kids):
         self.val = qlast.PointerGlobFilter(property=kids[0].val,
@@ -367,6 +345,11 @@ class PointerGlobFilter(Nonterm):
 
     def reduce_ANY_ShortName(self, *kids):
         self.val = qlast.PointerGlobFilter(property=kids[1].val, any=True)
+
+
+class PointerGlobFilterList(parsing.ListNonterm, element=PointerGlobFilter,
+                            separator=T_COMMA):
+    pass
 
 
 class WhereClause(Nonterm):
@@ -403,19 +386,15 @@ class OptSortClause(Nonterm):
         self.val = None
 
 
-class OrderbyList(Nonterm):
-    def reduce_OrderbyExpr(self, *kids):
-        self.val = [kids[0].val]
-
-    def reduce_OrderbyList_COMMA_OrderbyExpr(self, *kids):
-        self.val = kids[0].val + [kids[2].val]
-
-
 class OrderbyExpr(Nonterm):
     def reduce_Expr_OptDirection_OptNonesOrder(self, *kids):
         self.val = qlast.SortExprNode(path=kids[0].val,
                                       direction=kids[1].val,
                                       nones_order=kids[2].val)
+
+
+class OrderbyList(parsing.ListNonterm, element=OrderbyExpr, separator=T_COMMA):
+    pass
 
 
 class OptSelectLimit(Nonterm):
@@ -693,17 +672,14 @@ class Mapping(Nonterm):
         self.val = qlast.MappingNode(items=kids[1].val)
 
 
-class MappingElementsList(Nonterm):
-    def reduce_MappingElement(self, *kids):
-        self.val = [kids[0].val]
-
-    def reduce_MappingElementsList_COMMA_MappingElement(self, *kids):
-        self.val = kids[0].val + [kids[2].val]
-
-
 class MappingElement(Nonterm):
     def reduce_BaseStringConstant_COLON_Expr(self, *kids):
         self.val = (kids[0].val, kids[2].val)
+
+
+class MappingElementsList(parsing.ListNonterm, element=MappingElement,
+                          separator=T_COMMA):
+    pass
 
 
 class OptExprList(Nonterm):
@@ -714,12 +690,8 @@ class OptExprList(Nonterm):
         self.val = []
 
 
-class ExprList(Nonterm):
-    def reduce_Expr(self, *kids):
-        self.val = [kids[0].val]
-
-    def reduce_ExprList_COMMA_Expr(self, *kids):
-        self.val = kids[0].val + [kids[2].val]
+class ExprList(parsing.ListNonterm, element=Expr, separator=T_COMMA):
+    pass
 
 
 class InExpr(Nonterm):
@@ -846,17 +818,13 @@ class OptPathStepList(Nonterm):
         self.val = None
 
 
-class PathStepList(Nonterm):
-    def reduce_PathStep(self, *kids):
-        self.val = [kids[0].val]
-
-    def reduce_PathStepList_PathStep(self, *kids):
-        self.val = kids[0].val + [kids[1].val]
-
-
 class PathStep(Nonterm):
     def reduce_PathStepSimple(self, *kids):
         self.val = kids[0].val
+
+
+class PathStepList(parsing.ListNonterm, element=PathStep):
+    pass
 
 
 class PathStepSimple(Nonterm):
@@ -919,7 +887,7 @@ class OptFilterClause(Nonterm):
 
 
 class FuncApplication(Nonterm):
-    def reduce_NodeName_LPAREN_FuncArgList_OptSortClause_RPAREN_OptFilterClause(
+    def reduce_NodeName_LPAREN_OptFuncArgList_OptSortClause_RPAREN_OptFilterClause(
             self, *kids):
         # we use NodeName nonterminal here to avoid ambiguity in grammar
         #
@@ -974,16 +942,17 @@ class FuncArgExpr(Nonterm):
     def reduce_Expr(self, *kids):
         self.val = kids[0].val
 
-    def reduce_ParamName_COLONEQUALS_Expr(self, *kids):
+    def reduce_ParamName_TURNSTILE_Expr(self, *kids):
         self.val = qlast.NamedArgNode(name=kids[0].val, arg=kids[2].val)
 
 
-class FuncArgList(Nonterm):
-    def reduce_FuncArgExpr(self, *kids):
-        self.val = [kids[0].val]
+class FuncArgList(parsing.ListNonterm, element=FuncArgExpr, separator=T_COMMA):
+    pass
 
-    def reduce_FuncArgList_COMMA_FuncArgExpr(self, *kids):
-        self.val = kids[0].val + [kids[2].val]
+
+class OptFuncArgList(Nonterm):
+    def reduce_FuncArgList(self, *kids):
+        self.val = kids[0].val
 
     def reduce_empty(self, *kids):
         self.val = []

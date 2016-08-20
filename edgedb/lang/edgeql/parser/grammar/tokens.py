@@ -104,7 +104,7 @@ class T_STARSTAR(Token, lextoken='**'):
     pass
 
 
-class T_COLONEQUALS(Token):
+class T_TURNSTILE(Token):
     pass
 
 

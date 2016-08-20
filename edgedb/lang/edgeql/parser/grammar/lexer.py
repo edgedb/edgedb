@@ -65,7 +65,7 @@ class EdgeQLLexer(lexer.Lexer):
              next_state=STATE_KEEP,
              regexp=r'''\#.*?$'''),
 
-        Rule(token='COLONEQUALS',
+        Rule(token='TURNSTILE',
              next_state=STATE_KEEP,
              regexp=r':='),
 
