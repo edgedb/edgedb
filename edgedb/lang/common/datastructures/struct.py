@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import collections
 
 from edgedb.lang.common.functional import hybridmethod
@@ -17,35 +16,47 @@ class NoDefault(Void):
 
 
 class Field:
-    """``Field`` objects are meant to be specified as attributes of :class:`Struct`"""
+    """``Field`` objects: attributes of :class:`Struct`."""
 
-    def __init__(self, type, default=NoDefault, *, coerce=False,
-                 str_formatter=str, repr_formatter=repr):
+    __name__ = ('name', 'type', 'default', 'coerce', 'formatters')
+
+    def __init__(self,
+                 type,
+                 default=NoDefault,
+                 *,
+                 coerce=False,
+                 str_formatter=str,
+                 repr_formatter=repr):
         """
         :param type: A type, or a tuple of types allowed for the field value.
-        :param default: Default field value.  If not specified, the field would be considered
-                        required and a failure to specify its value when initializing a ``Struct``
-                        will raise :exc:`TypeError`.  `default` can be a callable taking no
-                        arguments.
-        :param bool coerce: If set to ``True`` - coerce field's value to its type.
+        :param default: Default field value.  If not specified, the field would
+                        be considered required and a failure to specify its
+                        value when initializing a ``Struct`` will raise
+                        :exc:`TypeError`.  `default` can be a callable taking
+                        no arguments.
+        :param bool coerce: If set to ``True`` - coerce field's value to its
+                            type.
         """
-
         if not isinstance(type, tuple):
-            type = (type,)
+            type = (type, )
 
         self.type = type
         self.default = default
         self.coerce = coerce
 
         if coerce and len(type) > 1:
-            raise ValueError('unable to coerce values for fields with multiple types')
+            raise ValueError(
+                'unable to coerce values for fields with multiple types')
 
         self.formatters = {'str': str_formatter, 'repr': repr_formatter}
 
     def copy(self):
-        return self.__class__(self.type, self.default, coerce=self.coerce,
-                              str_formatter=self.formatters['str'],
-                              repr_formatter=self.formatters['repr'])
+        return self.__class__(
+            self.type,
+            self.default,
+            coerce=self.coerce,
+            str_formatter=self.formatters['str'],
+            repr_formatter=self.formatters['repr'])
 
     def adapt(self, value):
         if not isinstance(value, self.type):
@@ -60,9 +71,6 @@ class Field:
         return value
 
     def __get__(self, instance, owner):
-        # struct.fieldname should never result in a Field,
-        # when struct is an instance of a struct.
-        #
         if instance is not None:
             return None
         else:
@@ -72,14 +80,18 @@ class Field:
 class StructMeta(type):
     def __new__(mcls, name, bases, clsdict, *, use_slots=True):
         fields = {}
-        myfields = {k: v for k, v in clsdict.items() if isinstance(v, Field)}
+        myfields = {}
+
+        for k, v in clsdict.items():
+            if isinstance(v, Field):
+                v.name = k
+                myfields[k] = v
 
         if '__slots__' not in clsdict:
             if use_slots is None:
                 for base in bases:
-                    if isinstance(base, StructMeta) and \
-                            hasattr(base, '{}.{}_slots'.format(base.__module__, base.__name__)):
-
+                    sa = '{}.{}_slots'.format(base.__module__, base.__name__)
+                    if isinstance(base, StructMeta) and hasattr(base, sa):
                         use_slots = True
                         break
 
@@ -91,9 +103,10 @@ class StructMeta(type):
         cls = super().__new__(mcls, name, bases, clsdict)
 
         if use_slots:
-            setattr(cls, '{}.{}_slots'.format(cls.__module__, cls.__name__), True)
+            sa = '{}.{}_slots'.format(cls.__module__, cls.__name__)
+            setattr(cls, sa, True)
 
-        for parent in reversed(cls.mro()):
+        for parent in reversed(cls.__mro__):
             if parent is cls:
                 fields.update(myfields)
             elif isinstance(parent, StructMeta):
@@ -101,9 +114,10 @@ class StructMeta(type):
 
         cls._fields = fields
         cls._sorted_fields = collections.OrderedDict(
-            sorted(fields.items(), key=lambda e: e[0])
-        )
-        setattr(cls, '{}.{}_fields'.format(cls.__module__, cls.__name__), myfields)
+            sorted(
+                fields.items(), key=lambda e: e[0]))
+        fa = '{}.{}_fields'.format(cls.__module__, cls.__name__)
+        setattr(cls, fa, myfields)
         return cls
 
     def __init__(cls, name, bases, clsdict, *, use_slots=None):
@@ -116,17 +130,19 @@ class StructMeta(type):
         return cls._sorted_fields if sorted else cls._fields
 
     def get_ownfields(cls):
-        return getattr(cls, '{}.{}_fields'.format(cls.__module__, cls.__name__))
+        return getattr(cls, '{}.{}_fields'.format(cls.__module__,
+                                                  cls.__name__))
 
 
 class Struct(metaclass=StructMeta):
-    """Struct classes provide a way to define, maintain and introspect strict data structures.
+    """A base class allowing implementation of attribute objects protocols.
 
-    Each struct has a collection of ``Field`` objects, which should be defined as class
-    attributes of the ``Struct`` subclass.  Unlike ``collections.namedtuple``, ``Struct`` is
-    much easier to mix in and define.  Furthermore, fields are strictly typed and can be
-    declared as required.  By default, Struct will reject attributes, which have not been
-    declared as fields.  A ``MixedStruct`` subclass does have this restriction.
+    Each struct has a collection of ``Field`` objects, which should be defined
+    as class attributes of the ``Struct`` subclass.  Unlike
+    ``collections.namedtuple``, ``Struct`` is much easier to mix in and define.
+    Furthermore, fields are strictly typed and can be declared as required.  By
+    default, Struct will reject attributes, which have not been declared as
+    fields.  A ``MixedStruct`` subclass does have this restriction.
 
     .. code-block:: pycon
 
@@ -141,8 +157,8 @@ class Struct(metaclass=StructMeta):
         >>> MyStruct(name='Ham', description='Good Ham')
         <MyStruct name=Ham, description=Good Ham>
 
-    If ``use_slots`` is set to ``True`` in a class signature, ``__slots__`` will be used
-    to create dictless instances, with reduced memory footprint:
+    If ``use_slots`` is set to ``True`` in a class signature, ``__slots__``
+    will be used to create dictless instances, with reduced memory footprint:
 
     .. code-block:: pycon
 
@@ -163,15 +179,18 @@ class Struct(metaclass=StructMeta):
 
     def __init__(self, *, _setdefaults_=True, _relaxrequired_=False, **kwargs):
         """
-        :param bool _setdefaults_: If False, fields will not be initialized with default
-                                   values immediately.  It is possible to call
-                                   ``Struct.setdefaults()`` later to initialize unset fields.
+        :param bool _setdefaults_: If False, fields will not be initialized
+                                   with default values immediately.  It is
+                                   possible to call ``Struct.setdefaults()``
+                                   later to initialize unset fields.
 
-        :param bool _relaxrequired_: If True, missing values for required fields will not
+        :param bool _relaxrequired_: If True, missing values for required
+                                     fields will not
                                      cause an exception.
 
-        :raises: TypeError if invalid field value was provided or a value was not provided
-                 for a field without a default value and `_relaxrequired_` is False.
+        :raises: TypeError if invalid field value was provided or a value was
+                 not provided for a field without a default value and
+                 `_relaxrequired_` is False.
         """
         self._check_init_argnames(kwargs)
         self._init_fields(_setdefaults_, _relaxrequired_, kwargs)
@@ -189,8 +208,7 @@ class Struct(metaclass=StructMeta):
             self.update(**slotstate)
 
     def update(self, *args, **kwargs):
-        """Updates the field values from dict/iterable and `**kwargs` similarly to :py:meth:`dict.update()`"""
-
+        """Update the field values."""
         values = {}
         values.update(values, *args, **kwargs)
 
@@ -200,17 +218,15 @@ class Struct(metaclass=StructMeta):
             setattr(self, k, v)
 
     def setdefaults(self):
-        """Initializes unset fields with default values.  Useful for deferred initialization"""
-
-        for field_name, field  in self.__class__._fields.items():
+        """Initialize unset fields with default values."""
+        for field_name, field in self.__class__._fields.items():
             value = getattr(self, field_name)
             if value is None and field.default is not None:
                 value = self._getdefault(field_name, field)
                 setattr(self, field_name, value)
 
     def formatfields(self, formatter='str'):
-        """Returns an iterator over fields formatted using `formatter`"""
-
+        """Return an iterator over fields formatted using `formatter`."""
         for name, field in self.__class__._fields.items():
             formatter_obj = field.formatters.get(formatter)
             if formatter_obj:
@@ -233,16 +249,17 @@ class Struct(metaclass=StructMeta):
         return iter(self.__class__._fields)
 
     def __str__(self):
-        fields = ', '.join(('%s=%s' % (name, value)) for name, value in self.formatfields('str'))
+        fields = ', '.join(('%s=%s' % (name, value))
+                           for name, value in self.formatfields('str'))
         return '<{} {}>'.format(self.__class__.__name__, fields)
 
     def __repr__(self):
-        fields = ', '.join(('%s=%s' % (name, value)) for name, value in self.formatfields('repr'))
+        fields = ', '.join(('%s=%s' % (name, value))
+                           for name, value in self.formatfields('repr'))
         return '<{} {}>'.format(self.__class__.__name__, fields)
 
-    # XXX: the following is a CC from AST, consider consolidation
     def _init_fields(self, setdefaults, relaxrequired, values):
-        for field_name, field  in self.__class__._fields.items():
+        for field_name, field in self.__class__._fields.items():
             value = values.get(field_name)
 
             if value is None and field.default is not None and setdefaults:
@@ -250,33 +267,35 @@ class Struct(metaclass=StructMeta):
 
             setattr(self, field_name, value)
 
-    if __debug__:
-        def __setattr__(self, name, value):
-            field = self._fields.get(name)
-            if field:
-                value = self._check_field_type(field, name, value)
-            super().__setattr__(name, value)
+    def __setattr__(self, name, value):
+        field = self._fields.get(name)
+        if field is not None:
+            value = self._check_field_type(field, name, value)
+        super().__setattr__(name, value)
 
     def _check_init_argnames(self, args):
         extra = set(args) - set(self.__class__._fields)
         if extra:
             fmt = '{} {} invalid argument{} for struct {}.{}'
             plural = len(extra) > 1
-            msg = fmt.format(', '.join(extra), 'are' if plural else 'is an', 's' if plural else '',
-                             self.__class__.__module__, self.__class__.__name__)
+            msg = fmt.format(', '.join(extra), 'are'
+                             if plural else 'is an', 's'
+                             if plural else '', self.__class__.__module__,
+                             self.__class__.__name__)
             raise TypeError(msg)
 
     def _check_field_type(self, field, name, value):
-        if (field.type and value is not None and value is not Void
-                                             and not isinstance(value, field.type)):
+        if (field.type and value is not None and value is not Void and
+                not isinstance(value, field.type)):
             if field.coerce:
                 try:
                     return field.type[0](value)
                 except Exception as ex:
-                    raise TypeError('exception during field {!r} value {!r} auto-coercion to {}'. \
-                                    format(name, value, field.type)) from ex
+                    raise TypeError(
+                        'cannot coerce {!r} value {!r} '
+                        'to {}'.format(name, value, field.type)) from ex
 
-            raise TypeError('{}.{}.{}: expected {} but got {!r}'. \
+            raise TypeError('{}.{}.{}: expected {} but got {!r}'.
                             format(self.__class__.__module__,
                                    self.__class__.__name__,
                                    name,
@@ -292,9 +311,9 @@ class Struct(metaclass=StructMeta):
             if relaxrequired:
                 value = None
             else:
-                raise TypeError('%s.%s.%s is required' % (self.__class__.__module__,
-                                                          self.__class__.__name__,
-                                                          field_name))
+                raise TypeError('%s.%s.%s is required' %
+                                (self.__class__.__module__,
+                                 self.__class__.__name__, field_name))
         else:
             value = field.default
         return value
