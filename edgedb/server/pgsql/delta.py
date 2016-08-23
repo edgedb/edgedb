@@ -258,15 +258,14 @@ class NamedPrototypeMetaCommand(PrototypeMetaCommand, s_named.NamedPrototypeComm
         rec = None
         table = self.table
 
-        fields = self.get_struct_properties(schema, include_old_value=True)
+        fields = self.get_struct_properties(schema)
 
         for name, value in fields.items():
             col = table.get_column(name)
 
-            v0, _ = self._serialize_field(value[0], col)
-            v1, refqry = self._serialize_field(value[1], col)
+            v1, refqry = self._serialize_field(value, col)
 
-            updates[name] = (v0, v1)
+            updates[name] = v1
             if col is not None:
                 if rec is None:
                     rec = table.record()
@@ -439,17 +438,17 @@ class AttributeValueCommand(metaclass=CommandMeta):
             if subj:
                 rec.subject = dbops.Query(
                     '(SELECT id FROM edgedb.object WHERE name = $1)',
-                    [subj[1]], type='integer')
+                    [subj], type='integer')
 
             attribute = updates.get('attribute')
             if attribute:
                 rec.attribute = dbops.Query(
                     '(SELECT id FROM edgedb.object WHERE name = $1)',
-                    [attribute[1]], type='integer')
+                    [attribute], type='integer')
 
             value = updates.get('value')
             if value:
-                rec.value = pickle.dumps(value[1])
+                rec.value = pickle.dumps(value)
 
         return rec, updates
 
@@ -595,7 +594,7 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
         if default:
             if not rec:
                 rec = self.table.record()
-            rec.default = self.pack_default(default[1])
+            rec.default = self.pack_default(default)
 
         return rec, updates
 
@@ -675,7 +674,6 @@ class CreateAtom(AtomMetaCommand, adapts=s_atoms.CreateAtom):
 
         default = updates.get('default')
         if default:
-            default = default[1]
             if (default is not None and
                     not isinstance(default, s_expr.ExpressionText)):
                 # We only care to support literal defaults here.  Supporting
@@ -762,8 +760,6 @@ class AlterAtom(AtomMetaCommand, adapts=s_atoms.AlterAtom):
             if updates:
                 default_delta = updates.get('default')
                 if default_delta:
-                    default_delta = default_delta[1]
-
                     if default_delta is None or \
                            isinstance(default_delta, s_expr.ExpressionText):
                         new_default = None
@@ -1282,8 +1278,7 @@ class ConceptMetaCommand(CompositePrototypeMetaCommand):
 
 class CreateConcept(ConceptMetaCommand, adapts=s_concepts.CreateConcept):
     def apply(self, schema, context=None):
-        concept_props = self.get_struct_properties(
-            schema, include_old_value=False)
+        concept_props = self.get_struct_properties(schema)
         is_virtual = concept_props.get('is_virtual')
         if is_virtual:
             return s_concepts.CreateConcept.apply(self, schema, context)
@@ -1327,7 +1322,7 @@ class CreateConcept(ConceptMetaCommand, adapts=s_concepts.CreateConcept):
             dbops.AlterTableAddConstraint(constraint))
 
         bases = (common.concept_name_to_table_name(sn.Name(p), catenate=False)
-                 for p in fields['bases'][1])
+                 for p in fields['bases'])
         concept_table.bases = list(bases)
 
         self.affirm_pointer_defaults(concept, schema, context)
@@ -1507,13 +1502,13 @@ class PolicyCommand(metaclass=CommandMeta):
             if subj:
                 rec.subject = dbops.Query(
                     '(SELECT id FROM edgedb.object WHERE name = $1)',
-                    [subj[1]], type='integer')
+                    [subj], type='integer')
 
             event = updates.get('event')
             if event:
                 rec.event = dbops.Query(
                     '(SELECT id FROM edgedb.object WHERE name = $1)',
-                    [event[1]], type='integer')
+                    [event], type='integer')
 
             actions = updates.get('actions')
             if actions:
@@ -1521,7 +1516,7 @@ class PolicyCommand(metaclass=CommandMeta):
                     '''(SELECT array_agg(id)
                         FROM edgedb.object
                         WHERE name = any($1::text[]))''',
-                    [actions[1]], type='integer[]')
+                    [actions], type='integer[]')
 
         return rec, updates
 
@@ -1580,7 +1575,7 @@ class PointerMetaCommand(MetaCommand):
         if default:
             if not rec:
                 rec = self.table.record()
-            rec.default = self.pack_default(default[1])
+            rec.default = self.pack_default(default)
 
         return rec, updates
 
@@ -1631,7 +1626,6 @@ class PointerMetaCommand(MetaCommand):
         default_value = None
 
         if default:
-            default = default[1]
             if default is not None:
                 if isinstance(default, s_expr.ExpressionText):
                     default_value = schemamech.ptr_default_to_col_default(
@@ -1645,8 +1639,6 @@ class PointerMetaCommand(MetaCommand):
     def alter_pointer_default(self, pointer, schema, context):
         default = self.updates.get('default')
         if default:
-            default = default[1]
-
             new_default = None
             have_new_default = True
 
@@ -1745,7 +1737,7 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
 
     @classmethod
     def _create_table(cls, link, schema, context, conditional=False,
-                           create_bases=True, create_children=True):
+                      create_bases=True, create_children=True):
         new_table_name = common.get_table_name(link, catenate=False)
 
         create_c = dbops.CommandGroup()
@@ -1757,14 +1749,16 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
         tgt_col = common.edgedb_name_to_pg_name('std::target')
 
         if link.name == 'std::link':
-            columns.append(dbops.Column(name=src_col, type='uuid', required=True,
-                                        comment='std::source'))
-            columns.append(dbops.Column(name=tgt_col, type='uuid', required=False,
-                                        comment='std::target'))
-            columns.append(dbops.Column(name='link_type_id', type='integer', required=True))
+            columns.append(dbops.Column(name=src_col, type='uuid',
+                                        required=True, comment='std::source'))
+            columns.append(dbops.Column(name=tgt_col, type='uuid',
+                                        required=False, comment='std::target'))
+            columns.append(dbops.Column(name='link_type_id',
+                                        type='integer', required=True))
 
-        constraints.append(dbops.UniqueConstraint(table_name=new_table_name,
-                                                  columns=[src_col, tgt_col, 'link_type_id']))
+        constraints.append(dbops.UniqueConstraint(
+            table_name=new_table_name,
+            columns=[src_col, tgt_col, 'link_type_id']))
 
         if not link.generic() and link.atomic():
             try:
@@ -1773,7 +1767,7 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
                 pass
             else:
                 tgt_ptr = types.get_pointer_storage_info(
-                                tgt_prop, schema=schema)
+                    tgt_prop, schema=schema)
                 columns.append(dbops.Column(name=tgt_ptr.column_name,
                                             type=tgt_ptr.column_type))
 
@@ -1809,8 +1803,15 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
         else:
             c = dbops.CommandGroup()
 
+        trg = dbops.Trigger(
+            name='link_target_check', table_name=new_table_name,
+            events=['INSERT', 'UPDATE'], is_constraint=True,
+            procedure=('edgedb', 'tgrf_validate_link_insert'))
+        ctrg = dbops.CreateTrigger(trg)
+
         c.add_command(ct)
         c.add_command(ci)
+        c.add_command(ctrg)
 
         c.add_command(dbops.Comment(table, link.name))
 
@@ -1905,7 +1906,7 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
 
                 search = self.updates.get('search')
                 if search:
-                    search_conf = search[1]
+                    search_conf = search
                     concept.op.search_index_add(concept.proto, link,
                                                 schema, context)
 
@@ -2021,16 +2022,9 @@ class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
                 search = self.updates.get('search')
                 if search:
                     concept = context.get(s_concepts.ConceptCommandContext)
-                    search_conf = search[1]
-                    if search[0] and search[1]:
-                        concept.op.search_index_alter(concept.proto, link,
-                                                      schema, context)
-                    elif search[1]:
-                        concept.op.search_index_add(concept.proto, link,
-                                                    schema, context)
-                    else:
-                        concept.op.search_index_delete(concept.proto, link,
-                                                       schema, context)
+                    search_conf = search
+                    concept.op.search_index_add(concept.proto, link,
+                                                schema, context)
 
             if isinstance(link.target, s_atoms.Atom):
                 self.alter_pointer_default(link, schema, context)

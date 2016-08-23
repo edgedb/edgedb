@@ -8,7 +8,6 @@
 
 import collections.abc
 import itertools
-import re
 
 from edgedb.lang.common.algos import persistent_hash as phash
 from edgedb.lang.common.algos import topological
@@ -32,8 +31,10 @@ def is_named_proto(proto):
 
 
 class Field(struct.Field):
+    __name__ = ('compcoef', 'private', 'derived', 'simpledelta')
+
     def __init__(self, *args, compcoef=None, private=False, derived=False,
-                       simpledelta=True, **kwargs):
+                 simpledelta=True, **kwargs):
         super().__init__(*args, **kwargs)
         self.compcoef = compcoef
         self.private = private

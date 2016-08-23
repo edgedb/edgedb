@@ -220,11 +220,15 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
 
         if self.is_multiconstraint():
             constr_name = self.numbered_constraint_name(0)
+            raw_constr_name = self.numbered_constraint_name(0, quote=False)
         else:
             constr_name = self.constraint_name()
+            raw_constr_name = self.constraint_name(quote=False)
 
-        errmsg = 'duplicate key value violates unique constraint {constr}' \
-                    .format(constr=constr_name)
+        errmsg = 'duplicate key value violates unique ' \
+                 'constraint {constr}'.format(constr=constr_name)
+
+        subject_table = self.get_subject_name()
 
         for expr in self._exprdata:
             exprdata = expr['exprdata']
@@ -239,12 +243,16 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
                       IF FOUND THEN
                           RAISE unique_violation
                               USING
+                                  TABLE = '{table[1]}',
+                                  SCHEMA = '{table[0]}',
+                                  CONSTRAINT = '{constr}',
                                   MESSAGE = '{errmsg}',
                                   DETAIL = 'Key ({plain_expr}) already exists.';
                       END IF;
                    '''.format(plain_expr=exprdata['plain'],
                               new_expr=exprdata['new'],
-                              table=self.get_subject_name(),
+                              table=subject_table,
+                              constr=raw_constr_name,
                               errmsg=errmsg)
 
             chunks.append(text)
@@ -774,6 +782,7 @@ class InheritingSchemaObjectTable(PrimarySchemaObjectTable):
 
         self.__columns = datastructures.OrderedSet([
             dbops.Column(name='bases', type='integer[]'),
+            dbops.Column(name='mro', type='integer[]'),
         ])
 
         self._columns = self.columns()
@@ -903,7 +912,7 @@ class LinkTable(InheritingSchemaObjectTable):
         self.__columns = datastructures.OrderedSet([
             dbops.Column(name='source', type='integer'),
             dbops.Column(name='target', type='integer'),
-            dbops.Column(name='spectargets', type='text[]'),
+            dbops.Column(name='spectargets', type='integer[]'),
             dbops.Column(name='mapping', type='char(2)', required=True),
             dbops.Column(name='exposed_behaviour', type='text'),
             dbops.Column(name='required', type='boolean', required=True, default=False),

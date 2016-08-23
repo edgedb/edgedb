@@ -17,11 +17,11 @@ class EdgeDBBackendError(InternalError):
     code = 'XX001'
 
 
-class IntergrityConstraintViolationError(EdgeDBError):
+class IntegrityConstraintViolationError(EdgeDBError):
     code = '23000'
 
 
-class MissingRequiredPointerError(IntergrityConstraintViolationError):
+class MissingRequiredPointerError(IntegrityConstraintViolationError):
     code = '23502'
 
     def __init__(self, msg, *, source_name=None, pointer_name=None):
@@ -30,11 +30,18 @@ class MissingRequiredPointerError(IntergrityConstraintViolationError):
         self._attrs['p'] = pointer_name
 
 
-class ConstraintViolationError(IntergrityConstraintViolationError):
+class InvalidPointerTargetError(IntegrityConstraintViolationError):
+    code = '23503'
+
+    def __init__(self, msg):
+        super().__init__(msg)
+
+
+class ConstraintViolationError(IntegrityConstraintViolationError):
     code = '23514'
 
 
-class LinkMappingCardinalityViolationError(IntergrityConstraintViolationError):
+class LinkMappingCardinalityViolationError(IntegrityConstraintViolationError):
     code = '23600'
 
 

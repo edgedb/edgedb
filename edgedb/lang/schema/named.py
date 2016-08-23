@@ -146,6 +146,8 @@ class CreateNamedPrototype(CreateOrAlterNamedPrototype, sd.CreatePrototype):
                                        module=b.prototype_name.module)
                 for b in op.new_value
             ]
+        elif op.property == 'mro':
+            pass
         elif op.property == 'is_abstract':
             node.is_abstract = op.new_value
         elif op.property == 'is_final':
@@ -397,13 +399,9 @@ class AlterNamedPrototype(CreateOrAlterNamedPrototype):
         for op in self(RenameNamedPrototype):
             op.apply(schema, context)
 
-        props, unresolved = self.get_struct_properties(
-            schema, allow_unresolved_refs=True)
+        props = self.get_struct_properties(schema)
         for name, value in props.items():
             setattr(prototype, name, value)
-
-        if unresolved:
-            self._register_unresolved_refs(schema, context, unresolved)
 
         return prototype
 

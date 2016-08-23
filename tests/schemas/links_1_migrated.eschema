@@ -1,0 +1,36 @@
+##
+# Copyright (c) 2008-2016 MagicStack Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
+concept Target0:
+    link name to str
+
+
+concept Target1 extends Target0:
+    link name to str
+
+
+concept Concept0:
+    link target to Target0
+
+
+concept Concept1:
+    link target to Target0
+
+
+concept Concept01 extends Concept0
+
+
+concept Concept2:
+    required link target to Target0
+
+
+concept Concept3:
+    required link target2 to Target0
+
+
+concept Concept23 extends Concept2, Concept3

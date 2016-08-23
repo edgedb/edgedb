@@ -97,7 +97,8 @@ INHERITS (primaryobject);
 
 
 CREATE TABLE inheritingobject (
-    bases integer[]
+    bases integer[],
+    mro integer[]
 )
 INHERITS (primaryobject);
 
@@ -166,7 +167,7 @@ CREATE TABLE link (
     "default" text,
     constraints hstore,
     abstract_constraints hstore,
-    spectargets text[]
+    spectargets integer[]
 )
 INHERITS (inheritingobject);
 
@@ -258,3 +259,174 @@ CREATE FUNCTION _resolve_type_dict(type_data jsonb) RETURNS jsonb AS $$
         jsonb_each(type_data)
 
 $$ LANGUAGE SQL STABLE;
+
+
+CREATE OR REPLACE FUNCTION edgedb_name_to_pg_name(name text) RETURNS text AS $$
+    SELECT
+        CASE WHEN char_length(name) > 63 THEN
+            (SELECT
+                hash.v || ':' ||
+                    substr(name, char_length(name) - (61 - hash.l))
+            FROM
+                (SELECT
+                    q.v AS v,
+                    char_length(q.v) AS l
+                 FROM
+                    (SELECT
+                        rtrim(encode(decode(md5(name), 'hex'), 'base64'), '=')
+                            AS v
+                    ) AS q
+                ) AS hash
+            )
+        ELSE
+            name
+        END;
+$$ LANGUAGE SQL IMMUTABLE;
+
+
+CREATE OR REPLACE FUNCTION convert_name(
+    module text, name text, suffix text, prefix text = 'edgedb_'
+) RETURNS text AS $$
+
+    SELECT
+        quote_ident(edgedb.edgedb_name_to_pg_name(prefix || module)) || '.' ||
+            quote_ident(edgedb.edgedb_name_to_pg_name(name || suffix));
+
+$$ LANGUAGE SQL IMMUTABLE;
+
+
+CREATE OR REPLACE FUNCTION concept_name_to_table_name(
+    module text, name text, prefix text = 'edgedb_'
+) RETURNS text AS $$
+
+    SELECT convert_name(module, name, '_data', prefix);
+
+$$ LANGUAGE SQL IMMUTABLE;
+
+
+CREATE OR REPLACE FUNCTION link_name_to_table_name(
+    module text, name text, prefix text = 'edgedb_'
+) RETURNS text AS $$
+
+    SELECT convert_name(module, name, '_link', prefix);
+
+$$ LANGUAGE SQL IMMUTABLE;
+
+
+CREATE FUNCTION issubclass(clsid int, classes int[]) RETURNS bool AS $$
+    SELECT
+        clsid = any(classes) OR (
+            SELECT classes && o.mro
+            FROM edgedb.inheritingobject o
+            WHERE o.id = clsid
+        )
+$$ LANGUAGE SQL STABLE;
+
+
+CREATE FUNCTION issubclass(clsid int, pclsid int) RETURNS bool AS $$
+    SELECT
+        clsid = pclsid OR (
+            SELECT pclsid = any(o.mro)
+            FROM edgedb.inheritingobject o
+            WHERE o.id = clsid
+        )
+$$ LANGUAGE SQL STABLE;
+
+
+CREATE FUNCTION isinstance(objid uuid, pclsid int) RETURNS bool AS $$
+DECLARE
+    ptabname text;
+    clsid int;
+BEGIN
+    ptabname := (
+        SELECT
+            concept_name_to_table_name(split_part(name, '::', 1),
+                                       split_part(name, '::', 2))
+        FROM
+            edgedb.concept
+        WHERE
+            id = pclsid
+    );
+
+    EXECUTE 'SELECT concept_id FROM ' || ptabname || ' WHERE "std::id" = $1'
+        INTO clsid
+        USING objid;
+
+    RETURN clsid IS NOT NULL;
+END;
+$$ LANGUAGE PLPGSQL STABLE;
+
+
+CREATE FUNCTION tgrf_validate_link_insert() RETURNS trigger AS $$
+BEGIN
+    PERFORM
+        True
+    FROM
+        edgedb.link l
+    WHERE
+        l.id = NEW.link_type_id
+        AND edgedb.isinstance(NEW."std::target", l.target);
+
+    IF NOT FOUND THEN
+        DECLARE
+            srcname text;
+            ptrname text;
+            tgtnames text;
+            inserted text;
+            detail text;
+        BEGIN
+            SELECT INTO srcname, ptrname, tgtnames
+                c.name,
+                l2.name,
+                (SELECT
+                    string_agg('"' || c2.name || '"', ', ')
+                 FROM
+                    edgedb.concept c2
+                 WHERE
+                    c2.id = any(COALESCE(l.spectargets, ARRAY[l.target]))
+                )
+            FROM
+                edgedb.link l,
+                edgedb.link l2,
+                edgedb.concept c
+            WHERE
+                l.id = NEW.link_type_id
+                AND l2.id = l.bases[1]
+                AND c.id = l.source;
+
+            inserted := (
+                SELECT
+                    c.name
+                FROM
+                    "edgedb_std"."Object_data" o,
+                    edgedb.concept c
+                WHERE
+                    o."std::id" = NEW."std::target"
+                    AND c.id = o.concept_id
+            );
+
+            detail := (
+                SELECT
+                    format('{
+                                "source": "%s",
+                                "pointer": "%s",
+                                "target": "%s",
+                                "expected": [%s]
+                            }', srcname, ptrname, inserted, tgtnames)
+            );
+
+            RAISE EXCEPTION
+                'new row for relation "%" violates link target constraint',
+                TG_TABLE_NAME
+                USING
+                    ERRCODE = 'check_violation',
+                    COLUMN = 'std::target',
+                    TABLE = TG_TABLE_NAME,
+                    DETAIL = detail,
+                    SCHEMA = TG_TABLE_SCHEMA;
+        END;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE PLPGSQL STABLE;

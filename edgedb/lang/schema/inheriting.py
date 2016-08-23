@@ -110,10 +110,50 @@ class RebaseNamedPrototype(named.NamedPrototypeCommand):
         return prototype
 
 
+def _merge_mro(obj, mros):
+    result = []
+
+    while True:
+        nonempty = [mro for mro in mros if mro]
+        if not nonempty:
+            return result
+
+        for mro in nonempty:
+            candidate = mro[0]
+            tails = [m for m in nonempty
+                     if id(candidate) in {id(c) for c in m[1:]}]
+            if not tails:
+                break
+        else:
+            msg = "Could not find consistent MRO for %s" % obj.name
+            raise schema_error.SchemaError(msg)
+
+        result.append(candidate)
+
+        for mro in nonempty:
+            if mro[0] is candidate:
+                del mro[0]
+
+    return result
+
+
+def compute_mro(obj):
+    bases = obj.bases if obj.bases is not None else tuple()
+    mros = [[obj]]
+
+    for base in bases:
+        mros.append(base.get_mro())
+
+    return _merge_mro(obj, mros)
+
+
 class InheritingPrototype(named.NamedPrototype):
     bases = so.Field(named.NamedPrototypeList,
                      default=named.NamedPrototypeList,
                      coerce=True, private=True, compcoef=0.714)
+
+    mro = so.Field(named.NamedPrototypeList,
+                   coerce=True, default=None, derived=True)
 
     is_abstract = so.Field(bool, default=False, private=True, compcoef=0.909)
     is_final = so.Field(bool, default=False, compcoef=0.909)
@@ -162,40 +202,8 @@ class InheritingPrototype(named.NamedPrototype):
     def get_topmost_base(self):
         return self.get_mro()[-1]
 
-    def _merge_mro(self, mros):
-        result = []
-
-        while True:
-            nonempty = [mro for mro in mros if mro]
-            if not nonempty:
-                return result
-
-            for mro in nonempty:
-                candidate = mro[0]
-                tails = [m for m in nonempty
-                         if id(candidate) in {id(c) for c in m[1:]}]
-                if not tails:
-                    break
-            else:
-                msg = "Could not find consistent MRO for %s" % self.name
-                raise schema_error.SchemaError(msg)
-
-            result.append(candidate)
-
-            for mro in nonempty:
-                if mro[0] is candidate:
-                    del mro[0]
-
-        return result
-
     def get_mro(self):
-        bases = self.bases if self.bases is not None else tuple()
-        mros = [[self]]
-
-        for base in bases:
-            mros.append(base.get_mro())
-
-        return self._merge_mro(mros)
+        return compute_mro(self)
 
     def issubclass(self, parent):
         if isinstance(parent, so.BasePrototype):
@@ -256,6 +264,10 @@ class InheritingPrototype(named.NamedPrototype):
         for child in self.children(schema):
             child.acquire_ancestor_inheritance(schema)
             child.update_descendants(schema)
+
+    def finalize(self, schema, bases=None):
+        super().finalize(schema, bases=bases)
+        self.mro = compute_mro(self)[1:]
 
     @classmethod
     def get_default_base_name(self):

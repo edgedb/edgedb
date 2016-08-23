@@ -313,11 +313,13 @@ class ErrorMech:
     error_res = {
         asyncpg.IntegrityConstraintViolationError: collections.OrderedDict((
             ('link_mapping',
-             re.compile(r'^.*"(?P<constr_name>.*_link_mapping_idx)".*$')),
+             re.compile(r'^.*".*_link_mapping_idx".*$')),
+            ('link_target',
+             re.compile(r'^.*link target constraint$')),
             ('constraint',
-             re.compile(r'^.*"(?P<constr_name>.*;schemaconstr(?:#\d+)?).*"$')),
+             re.compile(r'^.*;schemaconstr(?:#\d+)?".*$')),
             ('id',
-             re.compile(r'^.*"(?P<constr_name>\w+)_data_pkey".*$')),
+             re.compile(r'^.*"(?:\w+)_data_pkey".*$')),
         ))
     }
 
@@ -358,27 +360,52 @@ class ErrorMech:
             else:
                 eres = {}
 
-            error_info = None
-
             for type, ere in eres.items():
                 m = ere.match(err.message)
                 if m:
-                    error_info = (type, m.group('constr_name'))
+                    error_type = type
                     break
             else:
                 return edgedb_error.EdgeDBBackendError(err.message)
-
-            error_type, error_data = error_info
 
             if error_type == 'link_mapping':
                 err = 'link mapping cardinality violation'
                 errcls = edgedb_error.LinkMappingCardinalityViolationError
                 return errcls(err, source=source, pointer=pointer)
 
+            elif error_type == 'link_target':
+                if err.detail:
+                    try:
+                        detail = json.loads(err.detail)
+                    except ValueError:
+                        detail = None
+
+                if detail is not None:
+                    srcname = detail.get('source')
+                    ptrname = detail.get('pointer')
+                    target = detail.get('target')
+                    expected = detail.get('expected')
+
+                    if srcname and ptrname:
+                        srcname = sn.Name(srcname)
+                        ptrname = sn.Name(ptrname)
+                        lname = '{}.{}'.format(srcname, ptrname.name)
+                    else:
+                        lname = ''
+
+                    msg = 'invalid target for link {!r}: {!r} (' \
+                          'expecting {!r})'.format(lname, target,
+                                                   ' or '.join(expected))
+
+                else:
+                    msg = 'invalid target for link'
+
+                return edgedb_error.InvalidPointerTargetError(msg)
+
             elif error_type == 'constraint':
                 constraint_name = \
                     await constr_mech.constraint_name_from_pg_name(
-                        connection, error_data)
+                        connection, err.constraint_name)
 
                 if constraint_name is None:
                     return edgedb_error.EdgeDBBackendError(err.message)

@@ -381,47 +381,31 @@ class Command(datastructures.MixedStruct, metaclass=CommandMeta):
             result.ops.add(type(cls).adapt(op))
         return result
 
-    def _resolve_ref(self, ref, schema, allow_unresolved_refs=False,
-                     resolve=True):
+    def _resolve_ref(self, ref, schema):
         try:
             proto_name = ref.prototype_name
         except AttributeError:
             # Not a ref
             return ref, None
         else:
-            obj = None
-
-            if allow_unresolved_refs:
-                obj = schema.get(proto_name, default=None)
-            else:
-                obj = schema.get(proto_name)
-
+            obj = schema.get(proto_name)
             return obj, ref
 
-    def _resolve_attr_value(self, value, fname, field, schema, unresolved,
-                            allow_unresolved_refs=False):
+    def _resolve_attr_value(self, value, fname, field, schema):
         ftype = field.type[0]
 
         if isinstance(ftype, so.PrototypeClass):
 
             if isinstance(value, so.PrototypeRef):
-                value, ref = self._resolve_ref(
-                    value, schema, allow_unresolved_refs)
-                if value is None:
-                    unresolved[fname] = ref
+                value, ref = self._resolve_ref(value, schema)
 
             elif (isinstance(value, so.Collection)
                     and any(isinstance(st, so.PrototypeRef)
                             for st in value.get_subtypes())):
                 subtypes = []
                 for st in value.get_subtypes():
-                    eltype, ref = self._resolve_ref(
-                        st, schema, allow_unresolved_refs)
-                    if eltype is None:
-                        unresolved[fname] = ref
-                        subtypes.append(st)
-                    else:
-                        subtypes.append(eltype)
+                    eltype, ref = self._resolve_ref(st, schema)
+                    subtypes.append(eltype)
 
                 value = value.__class__.from_subtypes(subtypes)
 
@@ -430,20 +414,10 @@ class Command(datastructures.MixedStruct, metaclass=CommandMeta):
                 vals = {}
 
                 for k, val in value.items():
-                    val, ref = self._resolve_ref(
-                        val, schema, allow_unresolved_refs)
-                    if val is None:
-                        unresolved[fname] = value
-                        continue
-
+                    val, ref = self._resolve_ref(val, schema)
                     vals[k] = val
 
-                if fname in unresolved:
-                    ctype = so.PrototypeDict
-                else:
-                    ctype = ftype
-
-                value = ctype(vals)
+                value = ftype(vals)
 
         elif issubclass(ftype, (typed.AbstractTypedSequence,
                                 typed.AbstractTypedSet)):
@@ -451,33 +425,17 @@ class Command(datastructures.MixedStruct, metaclass=CommandMeta):
                 vals = []
 
                 for val in value:
-                    val, ref = self._resolve_ref(
-                        val, schema, allow_unresolved_refs)
-                    if val is None:
-                        unresolved[fname] = value
-                        continue
-
+                    val, ref = self._resolve_ref(val, schema)
                     vals.append(val)
 
-                if fname in unresolved:
-                    if issubclass(ftype, typed.AbstractTypedSet):
-                        ctype = so.PrototypeSet
-                    else:
-                        ctype = so.PrototypeList
-                else:
-                    ctype = ftype
-
-                value = ctype(vals)
+                value = ftype(vals)
         else:
             value = self.adapt_value(field, value)
 
         return value
 
-    def get_struct_properties(self, schema,
-                              include_old_value=False,
-                              allow_unresolved_refs=False):
+    def get_struct_properties(self, schema):
         result = {}
-        unresolved = {}
 
         for op in self(AlterPrototypeProperty):
             try:
@@ -485,25 +443,10 @@ class Command(datastructures.MixedStruct, metaclass=CommandMeta):
             except KeyError:
                 continue
 
-            value = self._resolve_attr_value(
-                op.new_value, op.property, field, schema, unresolved,
-                allow_unresolved_refs=allow_unresolved_refs)
+            result[op.property] = self._resolve_attr_value(
+                op.new_value, op.property, field, schema)
 
-            if include_old_value:
-                if op.old_value is not None:
-                    old_value = self._resolve_attr_value(
-                        op.old_value, op.property, field, schema, unresolved,
-                        allow_unresolved_refs=True)
-                else:
-                    old_value = None
-                value = (old_value, value)
-
-            result[op.property] = value
-
-        if allow_unresolved_refs:
-            return result, unresolved
-        else:
-            return result
+        return result
 
     def adapt_value(self, field, value):
         if value is not None and not isinstance(value, field.type):
@@ -779,13 +722,8 @@ class PrototypeCommandContext(CommandContextToken):
 
 class CreatePrototype(PrototypeCommand):
     def apply(self, schema, context):
-        props, unresolved = self.get_struct_properties(
-            schema, allow_unresolved_refs=True)
+        props = self.get_struct_properties(schema)
         self.prototype = self.prototype_class(**props)
-
-        if unresolved:
-            self._register_unresolved_refs(schema, context, unresolved)
-
         return self.prototype
 
 

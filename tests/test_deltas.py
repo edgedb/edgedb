@@ -6,8 +6,10 @@
 ##
 
 
+import os.path
 import uuid
 
+from edgedb.client import exceptions
 from edgedb.server import _testbase as tb
 
 
@@ -57,3 +59,64 @@ class TestDeltas(tb.QueryTestCase):
                 'name': {'@target': 'Test', '@lang': None},
             }]
         ])
+
+    async def test_delta_link_inheritance(self):
+        schema_f = os.path.join(os.path.dirname(__file__), 'schemas',
+                                'links_1.eschema')
+
+        with open(schema_f) as f:
+            schema = f.read()
+
+        await self.con.execute('''
+            CREATE DELTA {{test::d_links01_0}} TO $${schema}$$;
+            COMMIT DELTA {{test::d_links01_0}};
+            '''.format(schema=schema))
+
+        await self.con.execute('''
+            INSERT test::Target1 {
+                name := 'Target1_linkinh_2'
+            };
+
+            INSERT test::Concept01 {
+                {target} := (SELECT test::Target1
+                             WHERE test::Target1.name = 'Target1_linkinh_2')
+            };
+
+            INSERT test::Target0 {
+                name := 'Target0_linkinh_2'
+            };
+
+            INSERT test::Concept23 {
+                {target} := (SELECT test::Target0
+                             WHERE test::Target0.name = 'Target0_linkinh_2')
+            };
+        ''')
+
+        with self.assertRaisesRegex(
+                exceptions.InvalidPointerTargetError,
+                "invalid target for link 'test::Concept01\.target': "
+                "'test::Target0' \(expecting 'test::Target1'\)"):
+            # Target0 is not allowed to be targeted by Concept01, since
+            # Concept01 inherits from Concept1 which requires more specific
+            # Target1.
+            await self.con.execute('''
+                INSERT test::Concept01 {
+                    {target} := (
+                        SELECT
+                            test::Target0
+                        WHERE
+                            test::Target0.name = 'Target0_linkinh_2'
+                    )
+                };
+            ''')
+
+        schema_f = os.path.join(os.path.dirname(__file__), 'schemas',
+                                'links_1_migrated.eschema')
+
+        with open(schema_f) as f:
+            schema = f.read()
+
+        await self.con.execute('''
+            CREATE DELTA {{test::d_links01_1}} TO $${schema}$$;
+            COMMIT DELTA {{test::d_links01_1}};
+            '''.format(schema=schema))

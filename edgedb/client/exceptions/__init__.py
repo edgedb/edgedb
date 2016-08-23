@@ -10,15 +10,19 @@ from ._base import *  # NOQA
 from . import _base
 
 
-class IntergrityConstraintViolationError(EdgeDBError):
+class IntegrityConstraintViolationError(EdgeDBError):
     code = '23000'
 
 
-class MissingRequiredPointerError(IntergrityConstraintViolationError):
+class MissingRequiredPointerError(IntegrityConstraintViolationError):
     code = '23502'
 
 
-class ConstraintViolationError(IntergrityConstraintViolationError):
+class InvalidPointerTargetError(IntegrityConstraintViolationError):
+    code = '23503'
+
+
+class ConstraintViolationError(IntegrityConstraintViolationError):
     code = '23514'
 
 
@@ -43,7 +47,7 @@ class EdgeQLSyntaxError(EdgeDBSyntaxError):
 
 
 __all__ = _base.__all__ + (
-    'IntergrityConstraintViolationError',
+    'IntegrityConstraintViolationError',
     'InvalidTransactionStateError',
     'NoActiveTransactionError',
     'MissingRequiredPointerError',
