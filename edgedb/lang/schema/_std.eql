@@ -114,13 +114,13 @@ CREATE CONSTRAINT {std::unique} INHERITING {std::constraint} {
 
 CREATE ATOM {std::decimal_rounding_t} INHERITING {std::str} {
     CREATE CONSTRAINT {std::enum} {
-        SET args := {param:= ('ceiling', '05up', 'up', 'half-even', 'half-up',
-                              'floor', 'down', 'half-down')};
+        SET args := {'param': ('ceiling', '05up', 'up', 'half-even', 'half-up',
+                               'floor', 'down', 'half-down')};
         SET errmessage := '{subject} must be one of: ceiling, 05up, up, half-even, half-up, floor, down, half-down';
         SET expr := ((subject IN $param));
         SET finalexpr := ((subject IN ('ceiling', '05up', 'up', 'half-even', 'half-up',
                                        'floor', 'down', 'half-down')));
-        SET inferredparamtypes := {param:= typeref('set', 'std::decimal_rounding_t')};
+        SET inferredparamtypes := {'param': typeref('set', 'std::decimal_rounding_t')};
         SET localfinalexpr := ((subject IN ('ceiling', '05up', 'up',
                                             'half-even', 'half-up',
                                             'floor', 'down', 'half-down')));
