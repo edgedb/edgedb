@@ -36,7 +36,7 @@ class TestDeltas(tb.QueryTestCase):
 
             SELECT
                 {test::NamedObject} {
-                    name {
+                    name: {
                         @lang
                     }
                 }

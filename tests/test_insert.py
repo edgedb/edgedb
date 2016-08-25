@@ -118,7 +118,7 @@ class TestInsert(tb.QueryTestCase):
             };
 
             SELECT test::InsertTest {
-                subordinate {
+                subordinate: {
                     name
                 }
             };

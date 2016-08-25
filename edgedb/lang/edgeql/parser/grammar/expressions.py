@@ -231,8 +231,8 @@ class OptSelectPathSpec(Nonterm):
         self.val = None
 
 
-class OptSelectPathCompExpr(Nonterm):
-    def reduce_TURNSTILE_Expr(self, *kids):
+class OptShape(Nonterm):
+    def reduce_COLON_SelectPathSpec(self, *kids):
         self.val = kids[1].val
 
     def reduce_empty(self, *kids):
@@ -256,11 +256,16 @@ class SelectPointerSpec(Nonterm):
             )
         )
 
-    def reduce_PointerSpecSetExpr_OptPointerRecursionSpec_OptSelectPathSpec_OptSelectPathCompExpr(
+    def reduce_PointerSpecSetExpr_OptPointerRecursionSpec_OptShape(
             self, *kids):
         self.val = kids[0].val
         self.val.recurse = kids[1].val
         self.val.pathspec = kids[2].val
+
+    def reduce_PointerSpecSetExpr_OptPointerRecursionSpec_TURNSTILE_Expr(
+            self, *kids):
+        self.val = kids[0].val
+        self.val.recurse = kids[1].val
         self.val.compexpr = kids[3].val
 
 
