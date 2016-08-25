@@ -1071,6 +1071,10 @@ class NodeNameList(parsing.ListNonterm, element=NodeName, separator=T_COMMA):
 
 class AnyNodeName(Nonterm):
     def reduce_Name(self, *kids):
+        # NodeName cannot start with a '@' in any way
+        #
+        if kids[0].val[0][0] == '@':
+            raise EdgeQLSyntaxError("name cannot start with '@'")
         self.val = qlast.PrototypeRefNode(
             module='.'.join(kids[0].val[:-1]) or None,
             name=kids[0].val[-1])
