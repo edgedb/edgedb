@@ -63,6 +63,13 @@ class TestExpressions(tb.QueryTestCase):
                 [False],
             ])
 
+    async def test_eql_expression06(self):
+        with self.assertRaisesRegex(exc.EdgeQLSyntaxError,
+                                    r"name cannot start with '@'"):
+            await self.con.execute("""
+                SELECT Object { {'@foo'}:= 42 };
+            """)
+
     async def test_eql_cast01(self):
         await self.assert_query_result(r"""
             SELECT <std::str>123;

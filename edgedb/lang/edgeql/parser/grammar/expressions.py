@@ -1046,6 +1046,10 @@ class ParamName(Nonterm):
 
 class NodeName(Nonterm):
     def reduce_PathSafeName(self, *kids):
+        # NodeName cannot start with a '@' in any way
+        #
+        if kids[0].val[0][0] == '@':
+            raise EdgeQLSyntaxError("name cannot start with '@'")
         self.val = qlast.PrototypeRefNode(
             module='.'.join(kids[0].val[:-1]) or None,
             name=kids[0].val[-1])
