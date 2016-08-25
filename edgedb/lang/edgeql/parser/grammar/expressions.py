@@ -866,6 +866,11 @@ class PathPtr(Nonterm):
             name=kids[0].val.name,
             namespace=kids[0].val.module)
 
+    def reduce_UnreservedKeyword(self, *kids):
+        self.val = qlast.LinkNode(
+            name=kids[0].val,
+            namespace=None)
+
     def reduce_LPAREN_AnyNodeName_TO_AnyNodeName_RPAREN(self, *kids):
         self.val = qlast.LinkNode(
             name=kids[1].val.name,
