@@ -208,8 +208,7 @@ class SelectTargetEl(Nonterm):
     def reduce_Expr(self, *kids):
         self.val = qlast.SelectExprNode(expr=kids[0].val)
 
-    def reduce_Path_SelectPathSpec(self, *kids):
-        kids[0].val.pathspec = kids[1].val
+    def reduce_TypedShape(self, *kids):
         self.val = qlast.SelectExprNode(expr=kids[0].val)
 
 
@@ -218,21 +217,21 @@ class SelectTargetList(parsing.ListNonterm, element=SelectTargetEl,
     pass
 
 
-class SelectPathSpec(Nonterm):
+class Shape(Nonterm):
     def reduce_LBRACE_SelectPointerSpecList_RBRACE(self, *kids):
         self.val = kids[1].val
 
 
-class OptSelectPathSpec(Nonterm):
-    def reduce_SelectPathSpec(self, *kids):
-        self.val = kids[0].val
+class TypedShape(Nonterm):
+    def reduce_AnyNodeName_Shape(self, *kids):
+        self.val = qlast.PathNode(
+            steps=[qlast.PathStepNode(expr=kids[0].val.name,
+                                      namespace=kids[0].val.module)],
+            pathspec=kids[1].val)
 
-    def reduce_empty(self, *kids):
-        self.val = None
 
-
-class OptShape(Nonterm):
-    def reduce_COLON_SelectPathSpec(self, *kids):
+class OptAnySubShape(Nonterm):
+    def reduce_COLON_Shape(self, *kids):
         self.val = kids[1].val
 
     def reduce_empty(self, *kids):
@@ -256,7 +255,7 @@ class SelectPointerSpec(Nonterm):
             )
         )
 
-    def reduce_PointerSpecSetExpr_OptPointerRecursionSpec_OptShape(
+    def reduce_PointerSpecSetExpr_OptPointerRecursionSpec_OptAnySubShape(
             self, *kids):
         self.val = kids[0].val
         self.val.recurse = kids[1].val
@@ -1039,11 +1038,8 @@ class ExtTypeExpr(Nonterm):
     def reduce_TypeName(self, *kids):
         self.val = kids[0].val
 
-    def reduce_PathStart_SelectPathSpec(self, *kids):
-        self.val = qlast.PathNode(
-            steps=[kids[0].val],
-            pathspec=kids[1].val
-        )
+    def reduce_TypedShape(self, *kids):
+        self.val = kids[0].val
 
 
 class ParamName(Nonterm):

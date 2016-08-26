@@ -67,7 +67,7 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(exc.EdgeQLSyntaxError,
                                     r"name cannot start with '@'"):
             await self.con.execute("""
-                SELECT Object { {'@foo'}:= 42 };
+                SELECT doo.goo::first { {'@foo'}:= 42 };
             """)
 
     async def test_eql_cast01(self):

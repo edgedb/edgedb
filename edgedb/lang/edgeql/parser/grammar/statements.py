@@ -62,29 +62,39 @@ class SelectStmt(Nonterm):
 
 
 class InsertStmt(Nonterm):
-    def reduce_InsertStmt(self, *kids):
-        r"%reduce OptAliasBlock INSERT Path OptSelectPathSpec \
-                  OptReturningClause"
+    def reduce_OptAliasBlock_INSERT_Path_OptReturningClause(self, *kids):
         self.val = qlast.InsertQueryNode(
             namespaces=kids[0].val[0],
             aliases=kids[0].val[1],
             subject=kids[2].val,
-            pathspec=kids[3].val,
-            targets=kids[4].val
+            targets=kids[3].val
+        )
+
+    def reduce_OptAliasBlock_INSERT_TypedShape_OptReturningClause(self, *kids):
+        pathspec = kids[2].val.pathspec
+        kids[2].val.pathspec = None
+        self.val = qlast.InsertQueryNode(
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
+            subject=kids[2].val,
+            pathspec=pathspec,
+            targets=kids[3].val
         )
 
 
 class UpdateStmt(Nonterm):
     def reduce_UpdateStmt(self, *kids):
-        r"%reduce OptAliasBlock UPDATE Path SelectPathSpec \
+        r"%reduce OptAliasBlock UPDATE TypedShape \
                   OptWhereClause OptReturningClause"
+        pathspec = kids[2].val.pathspec
+        kids[2].val.pathspec = None
         self.val = qlast.UpdateQueryNode(
             namespaces=kids[0].val[0],
             aliases=kids[0].val[1],
             subject=kids[2].val,
-            pathspec=kids[3].val,
-            where=kids[4].val,
-            targets=kids[5].val
+            pathspec=pathspec,
+            where=kids[3].val,
+            targets=kids[4].val
         )
 
 
