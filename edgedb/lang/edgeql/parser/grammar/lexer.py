@@ -203,7 +203,7 @@ class EdgeQLLexer(lexer.Lexer):
 
         return tok
 
-    def lex(self):
+    def lex(self, *, ws_tokens=False):
         buffer = []
 
         for tok in super().lex():
@@ -211,7 +211,9 @@ class EdgeQLLexer(lexer.Lexer):
 
             if tok_type in {'WS', 'NL', 'COMMENT'}:
                 # Strip out whitespace and comments
-                pass
+                if ws_tokens:
+                    # Used for REPL
+                    yield tok
             elif tok_type == 'LINK':
                 # Buffer in case this is LINK PROPERTY
                 if not buffer:
