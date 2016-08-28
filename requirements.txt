@@ -6,3 +6,4 @@ python-dateutil
 metamagic.json
 Parsing
 py-postgresql
+prompt-toolkit
