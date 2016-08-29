@@ -166,6 +166,9 @@ class AliasBlock(Nonterm):
 
 
 class ModuleName(Nonterm):
+    def reduce_IDENT(self, *kids):
+        self.val = [kids[0].val]
+
     def reduce_DottedIdentifier(self, *kids):
         self.val = kids[0].val
 
