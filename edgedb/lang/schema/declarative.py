@@ -513,6 +513,12 @@ class DeclarationLoader:
 
                 link.required = bool(linkdecl.required)
 
+                for attr in linkdecl.attributes:
+                    name = attr.name.name
+                    if name == 'mapping':
+                        link.mapping = self._get_literal_value(attr.value)
+                        break
+
                 if isinstance(linkdecl.target, edgeql.ast.SelectQueryNode):
                     # Computables are always readonly.
                     link.readonly = True
