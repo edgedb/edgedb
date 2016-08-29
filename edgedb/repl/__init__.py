@@ -19,6 +19,7 @@ from prompt_toolkit import filters as pt_filters
 from prompt_toolkit import history as pt_history
 from prompt_toolkit import interface as pt_interface
 from prompt_toolkit.key_binding import manager as pt_keymanager
+from prompt_toolkit import keys as pt_keys
 from prompt_toolkit import shortcuts as pt_shortcuts
 from prompt_toolkit import styles as pt_styles
 from prompt_toolkit import token as pt_token
@@ -88,6 +89,7 @@ class Cli:
         self.cli = None
         self.conn_args = conn_args
         self.cur_db = None
+        self.graphql = False
 
     def get_prompt(self):
         return '{}>'.format(self.cur_db)
@@ -102,6 +104,13 @@ class Cli:
             (pt_token.Token.PromptCont, '.' * len(self.get_prompt())),
         ]
 
+    def get_toolbar_tokens(self, cli):
+        return [
+            (pt_token.Token.Toolbar, '[F3] GraphQL: '),
+            (pt_token.Token.Toolbar.On, 'On') if self.graphql else
+                (pt_token.Token.Toolbar, 'Off')
+        ]
+
     def build_cli(self):
         history = pt_history.FileHistory(
             os.path.expanduser('~/.edgedbhistory'))
@@ -111,11 +120,16 @@ class Cli:
             enable_search=True,
             enable_abort_and_exit_bindings=True)
 
+        @key_binding_manager.registry.add_binding(pt_keys.Keys.F3)
+        def _(event):
+            self.graphql = not self.graphql
+
         layout = pt_shortcuts.create_prompt_layout(
             lexer=lex.EdgeQLLexer(),
             reserve_space_for_menu=4,
             get_prompt_tokens=self.get_prompt_tokens,
             get_continuation_tokens=self.get_continuation_tokens,
+            get_bottom_toolbar_tokens=self.get_toolbar_tokens,
             multiline=True)
 
         buf = InputBuffer(
@@ -207,7 +221,7 @@ class Cli:
                 self.ensure_connection(self.conn_args)
                 try:
                     result = self.run_coroutine(
-                        self.connection.execute(command))
+                        self.connection.execute(command, graphql=self.graphql))
                 except KeyboardInterrupt:
                     continue
                 except Exception as ex:

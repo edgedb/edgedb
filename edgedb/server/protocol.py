@@ -13,6 +13,8 @@ import sys
 import traceback
 
 from edgedb.lang import edgeql
+from edgedb.lang import graphql as graphql_compiler
+
 from edgedb.server import pgsql as backend
 from edgedb.server import executor
 from edgedb.server import planner
@@ -89,6 +91,17 @@ class Protocol(asyncio.Protocol):
             fut = self._loop.create_task(self._run_query(query))
             fut.add_done_callback(self._on_query_done)
 
+        elif message['__type__'] == 'gql_query':
+            if self.state != ConnectionState.READY:
+                raise ProtocolError('unexpected message: query')
+
+            query = message.get('query')
+            if not query:
+                raise ProtocolError('invalid graphql query message')
+
+            fut = self._loop.create_task(self._run_query(query))
+            fut.add_done_callback(self._on_query_done)
+
         elif message['__type__'] == 'script':
             if self.state != ConnectionState.READY:
                 raise ProtocolError('unexpected message: script')
@@ -97,7 +110,8 @@ class Protocol(asyncio.Protocol):
             if not script:
                 raise ProtocolError('invalid script message')
 
-            fut = self._loop.create_task(self._run_script(script))
+            fut = self._loop.create_task(
+                self._run_script(script, graphql=message.get('__graphql__')))
             fut.add_done_callback(self._on_script_done)
 
     def send_message(self, msg):
@@ -126,7 +140,11 @@ class Protocol(asyncio.Protocol):
         })
 
     @debug
-    async def _run_script(self, script):
+    async def _run_script(self, script, *, graphql=False):
+        if graphql:
+            script = graphql_compiler.translate(
+                self.backend.schema, script, {})
+
         statements = edgeql.parse_block(script)
 
         results = []
