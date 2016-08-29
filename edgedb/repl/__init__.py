@@ -128,6 +128,13 @@ class Cli:
         def _(event):
             self.graphql = not self.graphql
 
+        @key_binding_manager.registry.add_binding(pt_keys.Keys.Tab)
+        def _(event):
+            b = cli.current_buffer
+            before_cursor = b.document.current_line_before_cursor
+            if b.text and (not before_cursor or before_cursor.isspace()):
+                b.insert_text('    ')
+
         layout = pt_shortcuts.create_prompt_layout(
             lexer=lex.EdgeQLLexer(),
             reserve_space_for_menu=4,
