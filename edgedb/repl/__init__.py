@@ -60,6 +60,10 @@ async def repl():
         if not query.strip():
             continue
 
+        if c._transport.is_closing():
+            print('Connection lost: reconnecting')
+            c = await client.connect()
+
         try:
             result = await c.execute(query)
         except Exception as ex:
