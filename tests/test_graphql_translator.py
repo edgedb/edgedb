@@ -94,9 +94,9 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            {test::User}{
+            {test::User} {
                 name,
-                groups{
+                groups: {
                     id,
                     name
                 }
@@ -128,7 +128,7 @@ class TestGraphQLTranslation(TranslatorTest):
         # query settings
 
         SELECT
-            {test::Setting}{
+            {test::Setting} {
                 name,
                 value
             }
@@ -138,7 +138,7 @@ class TestGraphQLTranslation(TranslatorTest):
             {test::User}{
                 id,
                 name,
-                groups{
+                groups: {
                     id,
                     name
                 }
@@ -209,9 +209,9 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            {test::User}{
+            {test::User} {
                 name,
-                groups{
+                groups: {
                     id,
                     name
                 }
@@ -245,9 +245,9 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            {test::User}{
+            {test::User} {
                 name,
-                groups{
+                groups: {
                     id,
                     name
                 }
@@ -279,9 +279,9 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            {test::User}{
+            {test::User} {
                 name,
-                groups{
+                groups: {
                     id,
                     name
                 }
@@ -313,9 +313,9 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            {test::User}{
+            {test::User} {
                 name,
-                groups{
+                groups: {
                     id,
                     name
                 }
@@ -337,7 +337,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            {test::User}{
+            {test::User} {
                 name,
             }
         """
@@ -357,8 +357,8 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            {test::User}{
-                groups{
+            {test::User} {
+                groups: {
                     id,
                 }
             }
@@ -380,8 +380,8 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            {test::User}{
-                groups{
+            {test::User} {
+                groups: {
                     id,
                 }
             }
@@ -412,7 +412,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            {test::User}{
+            {test::User} {
                 name,
             }
         """
@@ -442,7 +442,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            {test::User}{
+            {test::User} {
                 name,
             }
         """
@@ -472,9 +472,9 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            {test::User}{
+            {test::User} {
                 name,
-                groups {
+                groups: {
                     id,
                 }
             }
@@ -507,9 +507,9 @@ class TestGraphQLTranslation(TranslatorTest):
         # critical variables: $nogroup=False
 
         SELECT
-            {test::User}{
+            {test::User} {
                 name,
-                groups {
+                groups: {
                     name,
                     id,
                 }
@@ -543,9 +543,9 @@ class TestGraphQLTranslation(TranslatorTest):
         # critical variables: $nogroup=True
 
         SELECT
-            {test::User}{
+            {test::User} {
                 name,
-                groups {
+                groups: {
                     id,
                 }
             }
@@ -598,7 +598,7 @@ class TestGraphQLTranslation(TranslatorTest):
         SELECT
             {test::User}{
                 name,
-                groups {
+                groups: {
                     id,
                 }
             }
@@ -641,9 +641,9 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            {test::User}{
+            {test::User} {
                 name,
-                groups{
+                groups: {
                     id,
                     name
                 }
@@ -667,9 +667,9 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            {test::User}{
+            {test::User} {
                 name,
-                groups{
+                groups: {
                     id,
                     name
                 }
@@ -696,9 +696,9 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            {test::User}{
+            {test::User} {
                 name,
-                (groups WHERE ({test::User}.groups.name = 'admin')) {
+                (groups WHERE ({test::User}.groups.name = 'admin')): {
                     id,
                     name
                 }
@@ -720,9 +720,9 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            {test::User}{
+            {test::User} {
                 name,
-                groups {
+                groups: {
                     id,
                     name
                 }
@@ -746,9 +746,9 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            {test::User}{
+            {test::User} {
                 name,
-                groups {
+                groups: {
                     id,
                     name
                 }
@@ -772,9 +772,9 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            {test::User}{
+            {test::User} {
                 name,
-                groups {
+                groups: {
                     id,
                     name
                 }
@@ -798,9 +798,9 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            {test::User}{
+            {test::User} {
                 name,
-                groups {
+                groups: {
                     id,
                     name
                 }
@@ -824,9 +824,9 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            {test::User}{
+            {test::User} {
                 name,
-                groups {
+                groups: {
                     id,
                     name
                 }
@@ -854,14 +854,14 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            {test::User}{
+            {test::User} {
                 name,
-                groups {
+                groups: {
                     id,
                     name,
                     (settings WHERE
                             ({test::User}.groups.settings.name IN
-                                ('level', 'description'))) {
+                                ('level', 'description'))): {
                         name,
                         value
                     }
@@ -884,9 +884,9 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            {test::User}{
+            {test::User} {
                 name,
-                groups{
+                groups: {
                     id,
                     name
                 }
@@ -918,13 +918,13 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            {test::User}{
+            {test::User} {
                 name,
-                groups{
+                groups: {
                     id,
                     name
                     (settings WHERE
-                            ({test::User}.groups.settings.name = $setting)) {
+                            ({test::User}.groups.settings.name = $setting)): {
                         name,
                         value
                     }
@@ -948,7 +948,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            {test::User}{
+            {test::User} {
                 id,
             }
         WHERE
@@ -972,7 +972,7 @@ class TestGraphQLTranslation(TranslatorTest):
         # critical variables: $val=True
 
         SELECT
-            {test::User}{
+            {test::User} {
                 name,
             }
         """
@@ -1010,7 +1010,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            {test::User}{
+            {test::User} {
                 id,
             }
         WHERE
@@ -1028,7 +1028,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            {test::User}{
+            {test::User} {
                 id,
             }
         WHERE
@@ -1046,7 +1046,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            {test::User}{
+            {test::User} {
                 id,
             }
         WHERE
@@ -1064,7 +1064,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            {test::User}{
+            {test::User} {
                 id,
             }
         WHERE
@@ -1082,7 +1082,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            {test::User}{
+            {test::User} {
                 id,
             }
         WHERE
@@ -1997,10 +1997,10 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            {mod2::Person}{
+            {mod2::Person} {
                 id,
                 name,
-                groups{
+                groups: {
                     id,
                     name,
                 }

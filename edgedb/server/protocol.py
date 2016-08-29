@@ -143,7 +143,7 @@ class Protocol(asyncio.Protocol):
     async def _run_script(self, script, *, graphql=False):
         if graphql:
             script = graphql_compiler.translate(
-                self.backend.schema, script, {})
+                self.backend.schema, script, {}) + ';'
 
         statements = edgeql.parse_block(script)
 
