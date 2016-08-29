@@ -35,6 +35,9 @@ from . import lex
 class InputBuffer(pt_buffer.Buffer):
 
     def is_multiline_impl(self):
+        if self.document.text[self.document.cursor_position:].strip():
+            return True
+
         text = self.document.text.strip()
 
         if text in Cli.exit_commands:
