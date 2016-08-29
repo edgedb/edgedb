@@ -224,6 +224,8 @@ class Cli:
 
                 self.ensure_connection(self.conn_args)
                 try:
+                    if self.graphql:
+                        command = command.rstrip(';')
                     result = self.run_coroutine(
                         self.connection.execute(command, graphql=self.graphql))
                 except KeyboardInterrupt:
