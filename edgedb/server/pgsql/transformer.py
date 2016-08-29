@@ -13,6 +13,7 @@ import re
 from edgedb.lang.common import exceptions as edgedb_error
 
 from edgedb.lang import edgeql
+from edgedb.lang.edgeql import ast as qlast
 
 from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
@@ -1182,7 +1183,7 @@ class IRCompilerBase:
         cols = None
 
         if isinstance(vector, irast.EntitySet):
-            refs = [(r, r.ptr_proto.search.weight)
+            refs = [(r, r.ptr_proto.search.weight if r.ptr_proto.search else s_links.LinkSearchWeight.A)
                     for r in self._text_search_refs(context, vector)]
 
         elif isinstance(vector, irast.Sequence):
@@ -1190,7 +1191,7 @@ class IRCompilerBase:
 
             for r in vector.elements:
                 if isinstance(r, irast.BaseRef):
-                    refs.append((r, r.ptr_proto.search.weight))
+                    refs.append((r, r.ptr_proto.search.weight if r.ptr_proto.search else s_links.LinkSearchWeight.A))
                 elif (isinstance(r, irast.FunctionCall) and
                       r.name == ('search', 'weight')):
                     refs.append((r.args[0], r.args[1]))
@@ -1203,7 +1204,7 @@ class IRCompilerBase:
                                              vector.name)
             ref = irast.AtomicRefSimple(
                 ref=vector.ref, name=vector.name, ptr_proto=link)
-            refs = [(ref, ref.ptr_proto.search.weight)]
+            refs = [(ref, ref.ptr_proto.search.weight if ref.ptr_proto.search else s_links.LinkSearchWeight.A)]
 
         elif isinstance(vector, irast.LinkPropRef):
             ref = irast.LinkPropRefSimple(
@@ -3216,7 +3217,7 @@ class IRCompiler(IRCompilerBase):
         ])
 
         lang_arg = self._process_constant(
-            context, irast.Constant(index='__context_lang'))
+            context, irast.Constant(value='en'))
 
         code_conv_union = pgsql.ast.CTENode(
             alias='text_search_conf_map', op=pgsql.ast.UNION)
@@ -3459,9 +3460,9 @@ class IRCompiler(IRCompilerBase):
                     context,
                     expr.left,
                     expr.right,
-                    extended=expr.op == irast.SEARCHEX)
+                    extended=expr.op == qlast.SEARCHEX)
                 result = pgsql.ast.BinOpNode(
-                    left=vector, right=query, op=irast.SEARCH)
+                    left=vector, right=query, op=qlast.SEARCH)
             else:
                 context.current.append_graphs = False
 
