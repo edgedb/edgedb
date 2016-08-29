@@ -203,7 +203,7 @@ class EdgeQLLexer(lexer.Lexer):
 
         return tok
 
-    def lex(self, *, ws_tokens=False):
+    def lex(self):
         buffer = []
 
         for tok in super().lex():
@@ -211,9 +211,7 @@ class EdgeQLLexer(lexer.Lexer):
 
             if tok_type in {'WS', 'NL', 'COMMENT'}:
                 # Strip out whitespace and comments
-                if ws_tokens:
-                    # Used for REPL
-                    yield tok
+                continue
             elif tok_type == 'LINK':
                 # Buffer in case this is LINK PROPERTY
                 if not buffer:
@@ -233,3 +231,6 @@ class EdgeQLLexer(lexer.Lexer):
                     yield from iter(buffer)
                     buffer[:] = []
                 yield tok
+
+    def lex_highlight(self):
+        return super().lex()

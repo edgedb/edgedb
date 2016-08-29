@@ -42,7 +42,7 @@ class EdgeQLLexer(pt_lexers.Lexer):
             lexer = edgeql_lexer.EdgeQLLexer()
             lexer.setinputstr(text)
 
-            tok_stream = lexer.lex(ws_tokens=True)
+            tok_stream = lexer.lex_highlight()
 
             line = 0
             try:
