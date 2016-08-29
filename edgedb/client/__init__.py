@@ -21,11 +21,12 @@ __all__ = ('connect',) + exceptions.__all__
 
 
 class Connection:
-    def __init__(self, protocol, transport, loop):
+    def __init__(self, protocol, transport, loop, dbname):
         self._protocol = protocol
         self._transport = transport
         self._loop = loop
         self._top_xact = None
+        self._dbname = dbname
 
     async def query(self, query, *args):
         return await self._protocol.execute(query, *args)
@@ -90,7 +91,7 @@ async def connect(*,
         password = os.getenv('EDGEDB_PASSWORD')
 
     if database is None:
-        database = os.getenv('EDGEDB_DATABASE')
+        database = os.getenv('EDGEDB_DATABASE', 'edgedb')
 
     last_ex = None
     for h in host:
@@ -124,4 +125,4 @@ async def connect(*,
         tr.close()
         raise
 
-    return Connection(pr, tr, loop)
+    return Connection(pr, tr, loop, database)

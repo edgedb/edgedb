@@ -6,7 +6,9 @@
 ##
 
 
+import argparse
 import asyncio
+import getpass
 import os
 import select
 import sys
@@ -39,6 +41,9 @@ class InputBuffer(pt_buffer.Buffer):
         if not text:
             return False
 
+        if text.startswith('\\'):
+            return False
+
         if text.endswith(';'):
             lexer = edgeql_lexer.EdgeQLLexer()
             lexer.setinputstr(text)
@@ -62,6 +67,8 @@ class Cli:
     style = pt_styles.style_from_dict({
         pt_token.Token.Prompt: '#aaa',
         pt_token.Token.PromptCont: '#888',
+        pt_token.Token.Toolbar: 'bg:#222222 #aaaaaa',
+        pt_token.Token.Toolbar.On: 'bg:#222222 #fff',
 
         # Syntax
         pt_token.Token.Keyword: '#e8364f',
@@ -72,21 +79,26 @@ class Cli:
 
     exit_commands = {'exit', 'quit', '\q', ':q'}
 
-    def __init__(self):
+    def __init__(self, conn_args):
         self.connection = None
 
         self.eventloop = pt_shortcuts.create_eventloop()
         self.aioloop = None
         self.cli = None
+        self.conn_args = conn_args
+        self.cur_db = None
+
+    def get_prompt(self):
+        return '{}>'.format(self.cur_db)
 
     def get_prompt_tokens(self, cli):
         return [
-            (pt_token.Token.Prompt, '>>> '),
+            (pt_token.Token.Prompt, '{} '.format(self.get_prompt())),
         ]
 
     def get_continuation_tokens(self, cli, width):
         return [
-            (pt_token.Token.PromptCont, '...'),
+            (pt_token.Token.PromptCont, '.' * len(self.get_prompt())),
         ]
 
     def build_cli(self):
@@ -103,11 +115,14 @@ class Cli:
             reserve_space_for_menu=4,
             get_prompt_tokens=self.get_prompt_tokens,
             get_continuation_tokens=self.get_continuation_tokens,
-            multiline=True
-        )
+            multiline=True)
 
         buf = InputBuffer(
             history=history,
+
+            # to make reserve_space_for_menu work:
+            complete_while_typing=pt_filters.Always(),
+
             accept_action=pt_app.AcceptAction.RETURN_DOCUMENT)
 
         app = pt_app.Application(
@@ -117,8 +132,7 @@ class Cli:
             ignore_case=True,
             key_bindings_registry=key_binding_manager.registry,
             on_exit=pt_app.AbortAction.RAISE_EXCEPTION,
-            on_abort=pt_app.AbortAction.RETRY,
-        )
+            on_abort=pt_app.AbortAction.RETRY)
 
         cli = pt_interface.CommandLineInterface(
             application=app,
@@ -139,19 +153,24 @@ class Cli:
             asyncio.set_event_loop(None)
             raise
 
-    async def connect(self):
+    async def connect(self, args):
         try:
-            return await client.connect()
+            con = await client.connect(**args)
         except:
             return None
+        else:
+            self.cur_db = con._dbname
+            return con
 
-    def ensure_connection(self):
+    def ensure_connection(self, args):
         if self.connection is None:
-            self.connection = self.run_coroutine(self.connect())
+            self.connection = self.run_coroutine(self.connect(args))
 
         if self.connection is not None and \
-                self.connection._transport.is_closing():
-            self.connection = self.run_coroutine(self.connect())
+                (self.connection._transport.is_closing() or
+                 self.connection._dbname != args['database']):
+
+            self.connection = self.run_coroutine(self.connect(args))
 
         if self.connection is None:
             print('Could not establish connection', file=sys.stderr)
@@ -159,7 +178,7 @@ class Cli:
 
     def run(self):
         self.cli = self.build_cli()
-        self.ensure_connection()
+        self.ensure_connection(self.conn_args)
 
         try:
             while True:
@@ -172,7 +191,19 @@ class Cli:
                 if command in self.exit_commands:
                     raise EOFError
 
-                self.ensure_connection()
+                if command.startswith('\\'):
+                    if command.startswith('\\c '):
+                        new_db = command.split(' ', 1)
+                        new_args = {**self.conn_args,
+                                    'database': new_db[1].strip()}
+                        self.ensure_connection(new_args)
+                        self.conn_args = new_args
+                        continue
+
+                    print('Unknown command')
+                    continue
+
+                self.ensure_connection(self.conn_args)
                 try:
                     result = self.run_coroutine(
                         self.connection.execute(command))
@@ -188,12 +219,37 @@ class Cli:
             return
 
 
-async def execute(data):
-    con = await client.connect()
+async def execute(conn_args, data):
+    con = await client.connect(**conn_args)
     print(await con.execute(data))
 
 
+def parse_connect_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-H', '--host', default=None)
+    parser.add_argument('-P', '--port', type=int, default=None)
+    parser.add_argument('-u', '--user', default=None)
+    parser.add_argument('-d', '--database', default=None)
+    parser.add_argument('-p', '--password', default=False, action='store_true')
+
+    args = parser.parse_args()
+    if args.password:
+        args.password = getpass.getpass()
+    else:
+        args.password = None
+
+    return {
+        'user': args.user,
+        'password': args.password,
+        'database': args.database,
+        'host': args.host,
+        'port': args.port,
+    }
+
+
 def main():
+    args = parse_connect_args()
+
     if select.select([sys.stdin], [], [], 0.0)[0]:
         data = sys.stdin.read()
 
@@ -201,11 +257,11 @@ def main():
         asyncio.set_event_loop(loop)
 
         try:
-            loop.run_until_complete(execute(data))
+            loop.run_until_complete(execute(args, data))
         finally:
             loop.close()
             asyncio.set_event_loop(None)
 
         return
 
-    Cli().run()
+    Cli(args).run()
