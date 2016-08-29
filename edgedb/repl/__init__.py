@@ -167,9 +167,7 @@ class Cli:
             self.connection = self.run_coroutine(self.connect(args))
 
         if self.connection is not None and \
-                (self.connection._transport.is_closing() or
-                 self.connection._dbname != args['database']):
-
+                self.connection._transport.is_closing():
             self.connection = self.run_coroutine(self.connect(args))
 
         if self.connection is None:
@@ -196,6 +194,8 @@ class Cli:
                         new_db = command.split(' ', 1)
                         new_args = {**self.conn_args,
                                     'database': new_db[1].strip()}
+                        self.connection._transport.abort()
+                        self.connection = None
                         self.ensure_connection(new_args)
                         self.conn_args = new_args
                         continue
