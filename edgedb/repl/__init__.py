@@ -25,6 +25,7 @@ from prompt_toolkit import token as pt_token
 
 from edgedb import client
 from edgedb.lang.common import lexer as core_lexer
+from edgedb.lang.common import markup
 from edgedb.lang.edgeql.parser.grammar import lexer as edgeql_lexer
 
 from . import lex
@@ -213,7 +214,7 @@ class Cli:
                     print('{}: {}'.format(type(ex).__name__, ex.args[0]))
                     continue
 
-                print(result)
+                markup.dump(result)
 
         except EOFError:
             return
