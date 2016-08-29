@@ -8,6 +8,7 @@
 
 import asyncio
 import os
+import select
 import sys
 
 from prompt_toolkit import application as pt_app
@@ -187,5 +188,24 @@ class Cli:
             return
 
 
+async def execute(data):
+    con = await client.connect()
+    print(await con.execute(data))
+
+
 def main():
+    if select.select([sys.stdin], [], [], 0.0)[0]:
+        data = sys.stdin.read()
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        try:
+            loop.run_until_complete(execute(data))
+        finally:
+            loop.close()
+            asyncio.set_event_loop(None)
+
+        return
+
     Cli().run()
