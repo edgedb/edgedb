@@ -14,6 +14,7 @@ from edgedb.lang import _testbase as lang_tb
 from edgedb.lang.schema import _testbase as schema_tb
 from edgedb.lang.common import markup
 from edgedb.lang import graphql as edge_graphql
+from edgedb.lang import edgeql as edge_edgeql
 from edgedb.lang.graphql.errors import GraphQLValidationError
 
 
@@ -27,11 +28,14 @@ def with_variables(**kwargs):
 
 
 class TranslatorTest(schema_tb.SchemaTest):
-    re_filter = re.compile(r'''[\s,]+''')
+    re_filter = re.compile(r'''[\s,;]+''')
+    re_eql_filter = re.compile(r'''[\s'"();,]+|(\#.*?\n)''')
 
-    def assert_equal(self, expected, result):
-        expected_stripped = self.re_filter.sub('', expected).lower()
-        result_stripped = self.re_filter.sub('', result).lower()
+    def assert_equal(self, expected, result, *, re_filter=None):
+        if re_filter is None:
+            re_filter = self.re_filter
+        expected_stripped = re_filter.sub('', expected).lower()
+        result_stripped = re_filter.sub('', result).lower()
 
         assert expected_stripped == result_stripped, \
             '[test]expected: {}\n[test] != returned: {}'.format(
@@ -43,14 +47,21 @@ class TranslatorTest(schema_tb.SchemaTest):
             print('\n--- GRAPHQL ---')
             markup.dump_code(textwrap.dedent(source).strip(), lexer='graphql')
 
-        result = edge_graphql.translate(self.schema, source,
-                                        spec.get('variables'))
+        translation = edge_graphql.translate(self.schema, source,
+                                             spec.get('variables'))
 
         if debug:
             print('\n--- EDGEQL ---')
-            markup.dump_code(result, lexer='edgeql')
+            markup.dump_code(translation, lexer='edgeql')
 
-        self.assert_equal(expected, result)
+        self.assert_equal(expected, translation)
+
+        # make sure that resulting EdgeQL is valid and can be parsed
+        #
+        eqlast = edge_edgeql.parse_block(translation)
+        eqlgen = edge_edgeql.generate_source(eqlast)
+
+        self.assert_equal(translation, eqlgen, re_filter=self.re_eql_filter)
 
 
 class TestGraphQLTranslation(TranslatorTest):
@@ -100,7 +111,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     id,
                     name
                 }
-            }
+            };
         """
 
     def test_graphql_translation_query02(self):
@@ -126,12 +137,11 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         # query settings
-
         SELECT
             {test::Setting} {
                 name,
                 value
-            }
+            };
 
         # query users
         SELECT
@@ -142,7 +152,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     id,
                     name
                 }
-            }
+            };
 
         """
 
@@ -215,7 +225,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     id,
                     name
                 }
-            }
+            };
         """
 
     def test_graphql_translation_fragment02(self):
@@ -251,7 +261,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     id,
                     name
                 }
-            }
+            };
         """
 
     def test_graphql_translation_fragment03(self):
@@ -285,7 +295,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     id,
                     name
                 }
-            }
+            };
         """
 
     def test_graphql_translation_fragment04(self):
@@ -319,7 +329,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     id,
                     name
                 }
-            }
+            };
         """
 
     def test_graphql_translation_directives01(self):
@@ -339,7 +349,7 @@ class TestGraphQLTranslation(TranslatorTest):
         SELECT
             {test::User} {
                 name,
-            }
+            };
         """
 
     def test_graphql_translation_directives02(self):
@@ -361,7 +371,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 groups: {
                     id,
                 }
-            }
+            };
         """
 
     def test_graphql_translation_directives03(self):
@@ -384,7 +394,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 groups: {
                     id,
                 }
-            }
+            };
         """
 
     def test_graphql_translation_directives04(self):
@@ -414,7 +424,7 @@ class TestGraphQLTranslation(TranslatorTest):
         SELECT
             {test::User} {
                 name,
-            }
+            };
         """
 
     def test_graphql_translation_directives05(self):
@@ -444,7 +454,7 @@ class TestGraphQLTranslation(TranslatorTest):
         SELECT
             {test::User} {
                 name,
-            }
+            };
         """
 
     def test_graphql_translation_directives06(self):
@@ -477,7 +487,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 groups: {
                     id,
                 }
-            }
+            };
         """
 
     @with_variables(nogroup=False)
@@ -513,7 +523,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     name,
                     id,
                 }
-            }
+            };
         """
 
     @with_variables(nogroup=True, irrelevant='foo')
@@ -548,7 +558,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 groups: {
                     id,
                 }
-            }
+            };
         """
 
     @with_variables(nogroup=True, novalue=False)
@@ -590,7 +600,7 @@ class TestGraphQLTranslation(TranslatorTest):
             {test::Setting}{
                 name,
                 value
-            }
+            };
 
         # query users
         # critical variables: $nogroup=True
@@ -601,7 +611,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 groups: {
                     id,
                 }
-            }
+            };
         """
 
     @lang_tb.must_fail(GraphQLValidationError, line=4, col=22)
@@ -649,7 +659,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 }
             }
         WHERE
-            ({test::User}.name = 'John')
+            ({test::User}.name = 'John');
         """
 
     def test_graphql_translation_arguments02(self):
@@ -678,7 +688,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (
                 ({test::User}.name = 'John') AND
                 ({test::User}.active = True)
-            )
+            );
         """
 
     def test_graphql_translation_arguments03(self):
@@ -702,7 +712,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     id,
                     name
                 }
-            }
+            };
         """
 
     def test_graphql_translation_arguments04(self):
@@ -728,7 +738,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 }
             }
         WHERE
-            ({test::User}.groups.name = 'admin')
+            ({test::User}.groups.name = 'admin');
         """
 
     def test_graphql_translation_arguments05(self):
@@ -754,7 +764,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 }
             }
         WHERE
-            ({test::User}.groups.name IN ('admin', 'support'))
+            ({test::User}.groups.name IN ('admin', 'support'));
         """
 
     def test_graphql_translation_arguments06(self):
@@ -780,7 +790,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 }
             }
         WHERE
-            ({test::User}.groups.name NOT IN ('admin', 'support'))
+            ({test::User}.groups.name NOT IN ('admin', 'support'));
         """
 
     def test_graphql_translation_arguments07(self):
@@ -806,7 +816,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 }
             }
         WHERE
-            ({test::User}.groups.name != 'admin')
+            ({test::User}.groups.name != 'admin');
         """
 
     def test_graphql_translation_arguments08(self):
@@ -832,7 +842,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 }
             }
         WHERE
-            ({test::User}.groups.name = 'admin')
+            ({test::User}.groups.name = 'admin');
         """
 
     def test_graphql_translation_arguments09(self):
@@ -866,7 +876,7 @@ class TestGraphQLTranslation(TranslatorTest):
                         value
                     }
                 }
-            }
+            };
         """
 
     def test_graphql_translation_variables01(self):
@@ -892,7 +902,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 }
             }
         WHERE
-            ({test::User}.name = $name)
+            ({test::User}.name = $name);
         """
 
     def test_graphql_translation_variables02(self):
@@ -934,7 +944,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (
                 ({test::User}.name IN $names) AND
                 ({test::User}.groups.name IN $groups)
-            )
+            );
         """
 
     def test_graphql_translation_variables03(self):
@@ -952,7 +962,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         WHERE
-            ({test::User}.score = $val)
+            ({test::User}.score = $val);
         """
 
     def test_graphql_translation_variables04(self):
@@ -974,7 +984,7 @@ class TestGraphQLTranslation(TranslatorTest):
         SELECT
             {test::User} {
                 name,
-            }
+            };
         """
 
     @lang_tb.must_fail(GraphQLValidationError, line=2, col=15)
@@ -1014,7 +1024,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         WHERE
-            ({test::User}.name = $val)
+            ({test::User}.name = $val);
         """
 
     def test_graphql_translation_variables08(self):
@@ -1032,7 +1042,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         WHERE
-            ({test::User}.age = $val)
+            ({test::User}.age = $val);
         """
 
     def test_graphql_translation_variables09(self):
@@ -1050,7 +1060,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         WHERE
-            ({test::User}.score = $val)
+            ({test::User}.score = $val);
         """
 
     def test_graphql_translation_variables10(self):
@@ -1068,7 +1078,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         WHERE
-            ({test::User}.score = $val)
+            ({test::User}.score = $val);
         """
 
     def test_graphql_translation_variables11(self):
@@ -1086,7 +1096,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         WHERE
-            ({test::User}.score = $val)
+            ({test::User}.score = $val);
         """
 
     @lang_tb.must_fail(GraphQLValidationError, line=2, col=15)
@@ -1217,7 +1227,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 name,
             }
         WHERE
-            ({test::User}.id = $val)
+            ({test::User}.id = $val);
         """
 
     def test_graphql_translation_variables24(self):
@@ -1235,7 +1245,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 name,
             }
         WHERE
-            ({test::User}.id = $val)
+            ({test::User}.id = $val);
         """
 
     @lang_tb.must_fail(GraphQLValidationError, line=2, col=15)
@@ -1335,7 +1345,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         WHERE
-            ({test::User}.name IN $val)
+            ({test::User}.name IN $val);
 
         """
 
@@ -1357,7 +1367,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 name,
             }
         WHERE
-            ({test::Group}.name = 'admin')
+            ({test::Group}.name = 'admin');
         """
 
     def test_graphql_translation_arg_type01(self):
@@ -1375,7 +1385,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         WHERE
-            ({test::User}.name = 'John')
+            ({test::User}.name = 'John');
         """
 
     def test_graphql_translation_arg_type02(self):
@@ -1393,7 +1403,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         WHERE
-            ({test::User}.age = 20)
+            ({test::User}.age = 20);
         """
 
     def test_graphql_translation_arg_type03(self):
@@ -1411,7 +1421,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         WHERE
-            ({test::User}.score = 3.5)
+            ({test::User}.score = 3.5);
         """
 
     def test_graphql_translation_arg_type04(self):
@@ -1429,7 +1439,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         WHERE
-            ({test::User}.score = 3)
+            ({test::User}.score = 3);
         """
 
     @with_variables(val="John")
@@ -1448,7 +1458,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         WHERE
-            ({test::User}.name = $val)
+            ({test::User}.name = $val);
         """
 
     @with_variables(val=20)
@@ -1467,7 +1477,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         WHERE
-            ({test::User}.age = $val)
+            ({test::User}.age = $val);
         """
 
     @with_variables(val=3.5)
@@ -1486,7 +1496,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         WHERE
-            ({test::User}.score = $val)
+            ({test::User}.score = $val);
         """
 
     @with_variables(val=3)
@@ -1505,7 +1515,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         WHERE
-            ({test::User}.score = $val)
+            ({test::User}.score = $val);
         """
 
     def test_graphql_translation_arg_type09(self):
@@ -1523,7 +1533,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         WHERE
-            ({test::User}.name IN ('John', 'Jane'))
+            ({test::User}.name IN ('John', 'Jane'));
         """
 
     def test_graphql_translation_arg_type10(self):
@@ -1541,7 +1551,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         WHERE
-            ({test::User}.age IN (10, 20, 30, 40))
+            ({test::User}.age IN (10, 20, 30, 40));
         """
 
     def test_graphql_translation_arg_type11(self):
@@ -1559,7 +1569,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         WHERE
-            ({test::User}.score IN (3.5, 3.6, 3.7))
+            ({test::User}.score IN (3.5, 3.6, 3.7));
         """
 
     def test_graphql_translation_arg_type12(self):
@@ -1577,7 +1587,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         WHERE
-            ({test::User}.score IN (1, 2, 3))
+            ({test::User}.score IN (1, 2, 3));
         """
 
     @with_variables(val=["John", "Jane"])
@@ -1596,7 +1606,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         WHERE
-            ({test::User}.name IN $val)
+            ({test::User}.name IN $val);
         """
 
     @with_variables(val=[10, 20])
@@ -1615,7 +1625,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         WHERE
-            ({test::User}.age IN $val)
+            ({test::User}.age IN $val);
         """
 
     @with_variables(val=[3, 3.5, 4])
@@ -1634,7 +1644,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         WHERE
-            ({test::User}.score IN $val)
+            ({test::User}.score IN $val);
         """
 
     @with_variables(val=[1, 2, 3])
@@ -1653,7 +1663,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         WHERE
-            ({test::User}.score IN $val)
+            ({test::User}.score IN $val);
         """
 
     @lang_tb.must_fail(GraphQLValidationError, line=3, col=18)
@@ -1755,7 +1765,7 @@ class TestGraphQLTranslation(TranslatorTest):
             {test::User}{
                 id,
                 name,
-            }
+            };
         """
 
     def test_graphql_translation_fragment_type02(self):
@@ -1777,7 +1787,7 @@ class TestGraphQLTranslation(TranslatorTest):
             {test::User}{
                 id,
                 name,
-            }
+            };
         """
 
     def test_graphql_translation_fragment_type03(self):
@@ -1805,7 +1815,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
                 name,
                 age,
-            }
+            };
         """
 
     @lang_tb.must_fail(GraphQLValidationError, line=9, col=17)
@@ -1866,7 +1876,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
                 name,
                 age,
-            }
+            };
         """
 
     def test_graphql_translation_fragment_type07(self):
@@ -1888,7 +1898,7 @@ class TestGraphQLTranslation(TranslatorTest):
             {test::NamedObject}{
                 id,
                 name,
-            }
+            };
         """
 
     @lang_tb.must_fail(GraphQLValidationError, line=5, col=13)
@@ -1946,7 +1956,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
                 name,
                 age,
-            }
+            };
         """
 
     def test_graphql_translation_fragment_type11(self):
@@ -1974,7 +1984,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
                 name,
                 age,
-            }
+            };
         """
 
     def test_graphql_translation_import01(self):
@@ -2004,7 +2014,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     id,
                     name,
                 }
-            }
+            };
         """
 
     @lang_tb.must_fail(GraphQLValidationError, line=8, col=13)
@@ -2035,7 +2045,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     id,
                     name,
                 ],
-            }
+            };
         """
 
     def test_graphql_translation_duplicates01(self):
@@ -2055,7 +2065,7 @@ class TestGraphQLTranslation(TranslatorTest):
             {test::User}{
                 id,
                 name,
-            }
+            };
         """
 
     def test_graphql_translation_duplicates02(self):
@@ -2074,7 +2084,7 @@ class TestGraphQLTranslation(TranslatorTest):
             {test::User}{
                 name,
                 id,
-            }
+            };
         """
 
     def test_graphql_translation_duplicates03(self):
@@ -2095,7 +2105,7 @@ class TestGraphQLTranslation(TranslatorTest):
             {test::User}{
                 name,
                 id,
-            }
+            };
         """
 
     def test_graphql_translation_duplicates04(self):
@@ -2124,7 +2134,7 @@ class TestGraphQLTranslation(TranslatorTest):
             {test::User}{
                 id,
                 name,
-            }
+            };
         """
 
     @lang_tb.must_fail(GraphQLValidationError, line=6, col=17)

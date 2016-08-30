@@ -479,6 +479,6 @@ def translate(schema, graphql, variables=None):
         if critvars:
             crit = ['{}={!r}'.format(name, val) for name, val in critvars]
             code.append('# critical variables: {}'.format(', '.join(crit)))
-        code.append(edgeql.generate_source(tree))
+        code += [edgeql.generate_source(tree), ';']
 
     return '\n'.join(code)
