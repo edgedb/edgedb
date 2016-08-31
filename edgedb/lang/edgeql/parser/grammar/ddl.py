@@ -315,7 +315,7 @@ class OptDeltaParents(Nonterm):
         self.val = None
 
     def reduce_FROM_NodeNameList(self, *kids):
-        self.val = kids[0].val
+        self.val = kids[1].val
 
 
 class OptDeltaTarget(Nonterm):
