@@ -1110,20 +1110,31 @@ class EdgeQLCompiler:
                 ptr_direction = \
                     lexpr.direction or s_pointers.PointerDirection.Outbound
 
-                ptr = self._resolve_ptr(
-                    context,
-                    ptrsource,
-                    ptrname,
-                    ptr_direction,
-                    ptr_type=ptrtype,
-                    target=target_name)
+                if ptrspec.compexpr is not None:
+                    schema = context.current.proto_schema
+                    compexpr = self._process_expr(context, ptrspec.compexpr)
+                    target_proto = irutils.infer_type(compexpr, schema)
+                    assert target_proto is not None
+                    ptr = s_links.Link(
+                        name=sn.SchemaName(
+                            module=ptrname[0] or ptrsource.name.module,
+                            name=ptrname[1]),
+                    ).derive(schema, ptrsource, target_proto)
+                else:
+                    ptr = self._resolve_ptr(
+                        context,
+                        ptrsource,
+                        ptrname,
+                        ptr_direction,
+                        ptr_type=ptrtype,
+                        target=target_name)
+                    target_proto = ptr.get_far_endpoint(ptr_direction)
+                    compexpr = None
 
                 if ptrspec.recurse is not None:
                     recurse = self._process_constant(context, ptrspec.recurse)
                 else:
                     recurse = None
-
-                target_proto = ptr.get_far_endpoint(ptr_direction)
 
                 if ptrspec.where:
                     generator = self._process_select_where(context,
@@ -1149,6 +1160,7 @@ class EdgeQLCompiler:
                 node = irast.PtrPathSpec(
                     ptr_proto=ptr,
                     ptr_direction=ptr_direction,
+                    compexpr=compexpr,
                     recurse=recurse,
                     target_proto=target_proto,
                     generator=generator,
@@ -1999,13 +2011,8 @@ class EdgeQLCompiler:
         if not isinstance(p, irast.EntitySet):
             return expr
 
-        path_rlink = None
-
         if _visited_records is None:
             _visited_records = {}
-
-            if p.rlink is not None:
-                path_rlink = p.rlink
 
         recurse_links = None
         recurse_metarefs = []
@@ -2056,7 +2063,7 @@ class EdgeQLCompiler:
                 recurse_spec.ptr_direction \
                 or s_pointers.PointerDirection.Outbound
 
-            root_link_proto = schema.get(link_name)
+            root_link_proto = link.bases[0]
             link_proto = link
 
             if link_direction == s_pointers.PointerDirection.Outbound:
@@ -2115,6 +2122,20 @@ class EdgeQLCompiler:
 
             if recurse_spec.trigger is not None:
                 link_node.pathspec_trigger = recurse_spec.trigger
+
+            if recurse_spec.compexpr is not None:
+                if not isinstance(recurse_spec.compexpr, irast.SubgraphRef):
+                    selexpr = irast.SelectorExpr(expr=recurse_spec.compexpr)
+                    subgraph = irast.GraphExpr()
+                    subgraph.selector.append(selexpr)
+                    el = irast.SubgraphRef(ref=subgraph, name=link_name,
+                                           rlink=link_node, force_inline=True)
+                    elements.append(el)
+                else:
+                    recurse_spec.compexpr.rlink = link_node
+                    elements.append(recurse_spec.compexpr)
+
+                continue
 
             if not link.atomic():
                 lref.conjunction.update(link_node)

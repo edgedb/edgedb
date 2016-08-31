@@ -141,8 +141,6 @@ class DatabaseTestCase(ConnectedTestCase):
                                  loop=self.loop))
 
         script = '\nCREATE MODULE test;'
-        if self.SETUP:
-            script += '\n' + self.SETUP
 
         if self.SCHEMA:
             with open(self.SCHEMA, 'r') as sf:
@@ -151,6 +149,9 @@ class DatabaseTestCase(ConnectedTestCase):
             script += '\nCREATE DELTA {{test::d1}} TO $${schema}$$;'.format(
                 schema=schema)
             script += '\nCOMMIT DELTA {test::d1};'
+
+        if self.SETUP:
+            script += '\n' + self.SETUP
 
         self.loop.run_until_complete(
             self.con.execute(script))

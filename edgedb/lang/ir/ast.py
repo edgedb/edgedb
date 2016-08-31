@@ -325,7 +325,7 @@ class EntitySet(Path):
 class PtrPathSpec(Base):
     __fields = ['ptr_proto', 'ptr_direction', 'pathspec', 'recurse',
                 'target_proto', 'sorter', 'generator', 'trigger',
-                'offset', 'limit']
+                'offset', 'limit', 'compexpr']
 
 
 class ExplicitPathSpecTrigger(Base):
