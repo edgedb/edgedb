@@ -267,12 +267,15 @@ class SelectPointerSpec(Nonterm):
              OptAnySubShape OptWhereClause OptSortClause OptSelectLimit \
         """
         self.val = kids[0].val
-        self.val.recurse = kids[1].val
-        self.val.pathspec = kids[2].val
-        self.val.where = kids[3].val
-        self.val.orderby = kids[4].val
-        self.val.offset = kids[5].val[0]
-        self.val.limit = kids[5].val[1]
+        if isinstance(self.val, qlast.SelectTypeRefNode):
+            self.val.attrs = [s.expr for s in kids[2].val]
+        else:
+            self.val.recurse = kids[1].val
+            self.val.pathspec = kids[2].val
+            self.val.where = kids[3].val
+            self.val.orderby = kids[4].val
+            self.val.offset = kids[5].val[0]
+            self.val.limit = kids[5].val[1]
 
     def reduce_PointerSpecSetExpr_OptPointerRecursionSpec_TURNSTILE_Expr(
             self, *kids):
@@ -302,8 +305,17 @@ class FQPathPtr(Nonterm):
         self.val = qlast.LinkNode(name=kids[0].val.name,
                                   namespace=kids[0].val.module)
 
-    def reduce_PathPtrParen(self, *kids):
+    def reduce_FQPathPtrParen(self, *kids):
         self.val = kids[0].val
+
+
+class FQPathPtrParen(Nonterm):
+    def reduce_LPAREN_FQPathPtrParen_RPAREN(self, *kids):
+        self.val = kids[1].val
+
+    def reduce_LPAREN_FQPathStepName_RPAREN(self, *kids):
+        self.val = qlast.LinkNode(name=kids[1].val.name,
+                                  namespace=kids[1].val.module)
 
 
 class PointerSpecSetExpr(Nonterm):
@@ -311,6 +323,10 @@ class PointerSpecSetExpr(Nonterm):
         self.val = qlast.SelectPathSpecNode(
             expr=qlast.LinkExprNode(expr=kids[0].val)
         )
+
+    def reduce_TYPEINDIRECTION(self, *kids):
+        # fill out attrs later from the shape
+        self.val = qlast.SelectTypeRefNode()
 
 
 class OptPointerRecursionSpec(Nonterm):

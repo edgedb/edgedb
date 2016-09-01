@@ -157,3 +157,26 @@ class TestConstraints(tb.QueryTestCase):
         }, {
             'number': '1',
         }])
+
+
+    async def test_queries_type01(self):
+        res = await self.con.execute('''
+            USING NAMESPACE test
+            SELECT
+                Issue {
+                    number,
+                    __type__: {
+                        name
+                    }
+                }
+            WHERE
+                Issue.number = '1';
+        ''')
+
+        self.assert_data_shape(res[0], [{
+            'number': '1',
+            'name': 'test::Issue',
+            # XXX: I would expect the below result, instead
+            # 'number': '1',
+            # '__type__': {'name': '1'},
+        }])

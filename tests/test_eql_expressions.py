@@ -79,7 +79,7 @@ class TestExpressions(tb.QueryTestCase):
                 };
             """)
 
-    async def test_eql_paths_1(self):
+    async def test_eql_paths_01(self):
         cases = [
             "Issue.owner.name",
             "`Issue`.`owner`.`name`",
