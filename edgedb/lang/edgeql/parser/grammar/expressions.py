@@ -652,49 +652,26 @@ class Expr(Nonterm):
         self.val = qlast.UnaryOpNode(op=ast.ops.NOT, operand=val)
 
     @parsing.precedence(P_IS)
-    def reduce_Expr_IS_Expr(self, *kids):
-        isexpr = kids[2].val
-
-        if (isinstance(isexpr, qlast.ConstantNode) and
-                isexpr.value is None and isexpr.index is None):
-            self.val = qlast.NoneTestNode(expr=kids[0].val)
-        else:
-            self._check_inexpr(isexpr)
-            self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.IS,
-                                       right=isexpr)
+    def reduce_Expr_IS_NONE(self, *kids):
+        self.val = qlast.NoneTestNode(expr=kids[0].val)
 
     @parsing.precedence(P_IS)
-    def reduce_Expr_IS_NOT_Expr(self, *kids):
-        if (isinstance(isexpr, qlast.ConstantNode) and
-                isexpr.value is None and isexpr.index is None):
-            nt = qlast.NoneTestNode(expr=kids[0].val)
-            self.val = qlast.UnaryOpNode(op=ast.ops.NOT, operand=nt)
-        else:
-            isexpr = kids[3].val
-            self._check_inexpr(isexpr)
-            self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.IS_NOT,
-                                       right=isexpr)
+    def reduce_Expr_IS_NOT_NONE(self, *kids):
+        nt = qlast.NoneTestNode(expr=kids[0].val)
+        self.val = qlast.UnaryOpNode(op=ast.ops.NOT, operand=nt)
 
-    def _check_inexpr(self, inexpr):
-        if not (isinstance(inexpr, (qlast.SequenceNode,
-                                    qlast.PathNode))
-                or
-                isinstance(inexpr, qlast.ConstantNode)
-                and inexpr.value is None and inexpr.index):
-            raise EdgeQLSyntaxError('incorrect right-hand side for "IN"',
-                                    context=inexpr.context)
+    def reduce_Expr_INSTANCEOF_Expr(self, *kids):
+        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.INSTANCEOF,
+                                   right=isexpr)
 
-    @parsing.precedence(P_IN)
     def reduce_Expr_IN_Expr(self, *kids):
         inexpr = kids[2].val
-        self._check_inexpr(inexpr)
         self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.IN,
                                    right=inexpr)
 
     @parsing.precedence(P_IN)
     def reduce_Expr_NOT_IN_Expr(self, *kids):
         inexpr = kids[3].val
-        self._check_inexpr(inexpr)
         self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.NOT_IN,
                                    right=inexpr)
 

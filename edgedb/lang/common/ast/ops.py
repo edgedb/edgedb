@@ -87,11 +87,18 @@ OR = BooleanOperator('or')
 AND = BooleanOperator('and')
 NOT = BooleanOperator('not')
 
+
 class EquivalenceOperator(Operator):
     pass
 
 IS = EquivalenceOperator('is')
 IS_NOT = EquivalenceOperator('is not')
+
+
+class TypeCheckOperator(Operator):
+    pass
+
+INSTANCEOF = TypeCheckOperator('instanceof')
 
 
 class MembershipOperator(Operator):

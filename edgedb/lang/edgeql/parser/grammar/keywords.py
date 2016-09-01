@@ -51,6 +51,7 @@ edgeql_keywords = {
     "inheriting": ("INHERITING", UNRESERVED_KEYWORD),
     "inout": ("INOUT", UNRESERVED_KEYWORD),
     "insert": ("INSERT", RESERVED_KEYWORD),
+    "instanceof": ("INSTANCEOF", RESERVED_KEYWORD),
     "intersect": ("INTERSECT", RESERVED_KEYWORD),
     "is": ("IS", TYPE_FUNC_NAME_KEYWORD),
     "last": ("LAST", UNRESERVED_KEYWORD),
