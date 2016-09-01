@@ -18,3 +18,5 @@ __pycache__/
 /dist
 /.cache
 docs/_build
+/AUTHORS
+/ChangeLog

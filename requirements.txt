@@ -7,3 +7,4 @@ metamagic.json
 Parsing
 py-postgresql
 prompt-toolkit
+setproctitle

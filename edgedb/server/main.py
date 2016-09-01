@@ -8,6 +8,8 @@
 
 import argparse
 import asyncio
+import os.path
+import setproctitle
 import signal
 import sys
 
@@ -16,6 +18,7 @@ import importkit
 from asyncpg import cluster as pg_cluster
 
 from . import cluster as edgedb_cluster
+from . import daemon
 
 
 def abort(msg):
@@ -70,6 +73,11 @@ def main(argv=sys.argv[1:]):
     parser.add_argument('-p', '--port', type=int,
                         default=edgedb_defines.EDGEDB_PORT,
                         help='port to listen on')
+    parser.add_argument('-b', '--background',
+                        action='store_true', help='daemonize')
+    parser.add_argument('--pidfile', type=str,
+                        default='/run/edgedb/',
+                        help='path to PID file directory')
 
     args = parser.parse_args(argv)
     pg_cluster_started_by_us = False
@@ -94,7 +102,17 @@ def main(argv=sys.argv[1:]):
     else:
         cluster = pg_cluster.RunningCluster(host=args.postgres)
 
-    run_server(cluster, args.port)
+    if args.background:
+        daemon_opts = {}
+        pidfile = os.path.join(
+            args.pidfile, '.s.EDGEDB.{}.lock'.format(args.port))
+        daemon_opts['pidfile'] = pidfile
+        with daemon.DaemonContext(**daemon_opts):
+            setproctitle.setproctitle(
+                'edgedb-server (port {})'.format(args.port))
+            run_server(cluster, args.port)
+    else:
+        run_server(cluster, args.port)
 
     if pg_cluster_started_by_us:
         cluster.stop()
