@@ -264,16 +264,15 @@ class SelectPointerSpec(Nonterm):
 
     def reduce_PointerSpecWithSubShape(self, *kids):
         r"""%reduce PointerSpecSetExpr OptPointerRecursionSpec \
-             OptAnySubShape OptWhereClause OptSelectLimit \
+             OptAnySubShape OptWhereClause OptSortClause OptSelectLimit \
         """
-        # XXX: OptSortClause is causing "," ambiguity
         self.val = kids[0].val
         self.val.recurse = kids[1].val
         self.val.pathspec = kids[2].val
         self.val.where = kids[3].val
-        # self.val.orderby = kids[4].val
-        self.val.offset = kids[4].val[0]
-        self.val.limit = kids[4].val[1]
+        self.val.orderby = kids[4].val
+        self.val.offset = kids[5].val[0]
+        self.val.limit = kids[5].val[1]
 
     def reduce_PointerSpecSetExpr_OptPointerRecursionSpec_TURNSTILE_Expr(
             self, *kids):
@@ -396,7 +395,7 @@ class OrderbyExpr(Nonterm):
                                       nones_order=kids[2].val)
 
 
-class OrderbyList(parsing.ListNonterm, element=OrderbyExpr, separator=T_COMMA):
+class OrderbyList(parsing.ListNonterm, element=OrderbyExpr, separator=T_THEN):
     pass
 
 

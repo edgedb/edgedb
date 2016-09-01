@@ -83,6 +83,7 @@ edgeql_keywords = {
     "some": ("SOME", RESERVED_KEYWORD),
     "start": ("START", UNRESERVED_KEYWORD),
     "target": ("TARGET", UNRESERVED_KEYWORD),
+    "then": ("THEN", UNRESERVED_KEYWORD),
     "to": ("TO", UNRESERVED_KEYWORD),
     "transaction": ("TRANSACTION", UNRESERVED_KEYWORD),
     "true": ("TRUE", RESERVED_KEYWORD),

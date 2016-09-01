@@ -370,14 +370,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         if node.orderby:
             self.write(' ORDER BY ')
-            if len(node.orderby) > 1:
-                self.write('(')
             for i, e in enumerate(node.orderby):
                 if i > 0:
-                    self.write(', ')
+                    self.write(' THEN ')
                 self.visit(e)
-            if len(node.orderby) > 1:
-                self.write(')')
 
         if node.offset:
             self.write(' OFFSET ')
