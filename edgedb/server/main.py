@@ -35,10 +35,10 @@ def init_import_system():
     importkit.register_package('edgedb')
 
     # We need YAML language to import datasources
-    from importkit import yaml
+    from importkit import yaml  # NOQA
 
 
-def run_server(cluster, port):
+def _run_server(cluster, port):
     loop = asyncio.get_event_loop()
     srv = None
 
@@ -59,27 +59,7 @@ def run_server(cluster, port):
             srv.close()
 
 
-def main(argv=sys.argv[1:]):
-    init_import_system()
-
-    from edgedb.server import defines as edgedb_defines
-
-    parser = argparse.ArgumentParser(description='EdgeDB Server')
-    backend_info = parser.add_mutually_exclusive_group(required=True)
-    backend_info.add_argument('-D', '--data-dir', type=str,
-                              help='database cluster directory')
-    backend_info.add_argument('-P', '--postgres', type=str,
-                              help='address of Postgres backend server')
-    parser.add_argument('-p', '--port', type=int,
-                        default=edgedb_defines.EDGEDB_PORT,
-                        help='port to listen on')
-    parser.add_argument('-b', '--background',
-                        action='store_true', help='daemonize')
-    parser.add_argument('--pidfile', type=str,
-                        default='/run/edgedb/',
-                        help='path to PID file directory')
-
-    args = parser.parse_args(argv)
+def run_server(args):
     pg_cluster_started_by_us = False
 
     if args.data_dir:
@@ -102,20 +82,51 @@ def main(argv=sys.argv[1:]):
     else:
         cluster = pg_cluster.RunningCluster(host=args.postgres)
 
-    if args.background:
-        daemon_opts = {}
-        pidfile = os.path.join(
-            args.pidfile, '.s.EDGEDB.{}.lock'.format(args.port))
-        daemon_opts['pidfile'] = pidfile
-        with daemon.DaemonContext(**daemon_opts):
-            setproctitle.setproctitle(
-                'edgedb-server (port {})'.format(args.port))
-            run_server(cluster, args.port)
-    else:
-        run_server(cluster, args.port)
+    _run_server(cluster, args.port)
 
     if pg_cluster_started_by_us:
         cluster.stop()
+
+
+def main(argv=sys.argv[1:]):
+    init_import_system()
+
+    from edgedb.server import defines as edgedb_defines
+
+    parser = argparse.ArgumentParser(description='EdgeDB Server')
+    backend_info = parser.add_mutually_exclusive_group(required=True)
+    backend_info.add_argument('-D', '--data-dir', type=str,
+                              help='database cluster directory')
+    backend_info.add_argument('-P', '--postgres', type=str,
+                              help='address of Postgres backend server')
+    parser.add_argument('-p', '--port', type=int,
+                        default=edgedb_defines.EDGEDB_PORT,
+                        help='port to listen on')
+    parser.add_argument('-b', '--background',
+                        action='store_true', help='daemonize')
+    parser.add_argument('--pidfile', type=str,
+                        default='/run/edgedb/',
+                        help='path to PID file directory')
+    parser.add_argument('--daemon-user', type=int)
+    parser.add_argument('--daemon-group', type=int)
+
+    args = parser.parse_args(argv)
+
+    if args.background:
+        daemon_opts = {'detach_process': True}
+        pidfile = os.path.join(
+            args.pidfile, '.s.EDGEDB.{}.lock'.format(args.port))
+        daemon_opts['pidfile'] = pidfile
+        if args.daemon_user:
+            daemon_opts['uid'] = args.daemon_user
+        if args.daemon_group:
+            daemon_opts['gid'] = args.daemon_group
+        with daemon.DaemonContext(**daemon_opts):
+            setproctitle.setproctitle(
+                'edgedb-server-{}'.format(args.port))
+            run_server(args)
+    else:
+        run_server(args)
 
 
 if __name__ == '__main__':
