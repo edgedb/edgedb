@@ -12,13 +12,13 @@ from edgedb.client import exceptions
 
 class TestTransactions(tb.QueryTestCase):
     SETUP = """
-        CREATE LINK {test::name} {
+        CREATE LINK test::name {
             SET mapping := '11';
             SET readonly := False;
         };
 
-        CREATE CONCEPT {test::TransactionTest} INHERITING {std::Object} {
-            CREATE LINK {test::name} TO {std::str} {
+        CREATE CONCEPT test::TransactionTest INHERITING std::Object {
+            CREATE LINK test::name TO std::str {
                 SET mapping := '11';
                 SET readonly := False;
             };
@@ -51,9 +51,9 @@ class TestTransactions(tb.QueryTestCase):
 
         result = await self.con.execute('''
             SELECT
-                {test::Object}
+                test::Object
             WHERE
-                {test::Object}.name = 'Test Transaction';
+                test::Object.name = 'Test Transaction';
         ''')
 
         self.assertEqual(result[0], [])
@@ -94,11 +94,11 @@ class TestTransactions(tb.QueryTestCase):
 
                 result = await self.con.execute('''
                     SELECT
-                        {test::Object} {
+                        test::Object {
                             name
                         }
                     WHERE
-                        {test::Object}.name LIKE 'TXTEST%';
+                        test::Object.name LIKE 'TXTEST%';
                 ''')
 
                 recs = result[0]
@@ -113,11 +113,11 @@ class TestTransactions(tb.QueryTestCase):
 
         result = await self.con.execute('''
             SELECT
-                {test::Object} {
+                test::Object {
                     name
                 }
             WHERE
-                {test::Object}.name LIKE 'TXTEST%';
+                test::Object.name LIKE 'TXTEST%';
         ''')
 
         recs = result[0]

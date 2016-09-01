@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2015 MagicStack Inc.
+# Copyright (c) 2008-2016 MagicStack Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -42,7 +42,7 @@ class P_EQUALS(Precedence, assoc='right', tokens=('EQUALS',)):
 
 
 class P_ANGBRACKET(Precedence, assoc='nonassoc',
-                               tokens=('LANGBRACKET', 'RANGBRACKET')):
+                   tokens=('LANGBRACKET', 'RANGBRACKET')):
     pass
 
 
@@ -103,6 +103,10 @@ class P_BRACKET(Precedence, assoc='left', tokens=('LBRACKET', 'RBRACKET')):
 
 
 class P_PAREN(Precedence, assoc='left', tokens=('LPAREN', 'RPAREN')):
+    pass
+
+
+class P_DOUBLECOLON(Precedence, assoc='left', tokens=('DOUBLECOLON',)):
     pass
 
 

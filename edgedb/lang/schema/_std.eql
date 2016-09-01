@@ -1,120 +1,120 @@
 CREATE MODULE std;
 
-CREATE ABSTRACT ATOM {std::any};
-CREATE ATOM {std::typeref};
-CREATE ATOM {std::atomref} INHERITING {std::typeref};
-CREATE ATOM {std::conceptref} INHERITING {std::typeref};
+CREATE ABSTRACT ATOM std::any;
+CREATE ATOM std::typeref;
+CREATE ATOM std::atomref INHERITING std::typeref;
+CREATE ATOM std::conceptref INHERITING std::typeref;
 
-CREATE ATOM {std::bytes};
+CREATE ATOM std::bytes;
 
-CREATE ATOM {std::datetime};
+CREATE ATOM std::datetime;
 
-CREATE ATOM {std::uuid};
+CREATE ATOM std::uuid;
 
-CREATE ATOM {std::str};
+CREATE ATOM std::str;
 
-CREATE ATOM {std::timedelta};
+CREATE ATOM std::timedelta;
 
-CREATE ATOM {std::date};
+CREATE ATOM std::date;
 
-CREATE ATOM {std::time};
+CREATE ATOM std::time;
 
-CREATE ATOM {std::int};
+CREATE ATOM std::int;
 
-CREATE FINAL ATOM {std::none};
+CREATE FINAL ATOM std::none;
 
-CREATE ATOM {std::float};
+CREATE ATOM std::float;
 
-CREATE ATOM {std::bool};
+CREATE ATOM std::bool;
 
-CREATE ATTRIBUTE {std::pattern} {std::str};
+CREATE ATTRIBUTE std::pattern std::str;
 
-CREATE ABSTRACT ATOM {std::sequence};
+CREATE ABSTRACT ATOM std::sequence;
 
-CREATE ATTRIBUTE {std::precision} list<{std::int}>;
+CREATE ATTRIBUTE std::precision list<std::int>;
 
-CREATE ATTRIBUTE {std::name} {std::str};
-CREATE ATTRIBUTE {std::bases} list<{std::typeref}>;
-CREATE ATTRIBUTE {std::is_abstract} {std::bool};
-CREATE ATTRIBUTE {std::is_final} {std::bool};
-CREATE ATTRIBUTE {std::title} {std::str};
-CREATE ATTRIBUTE {std::description} {std::str};
+CREATE ATTRIBUTE std::name std::str;
+CREATE ATTRIBUTE std::bases list<std::typeref>;
+CREATE ATTRIBUTE std::is_abstract std::bool;
+CREATE ATTRIBUTE std::is_final std::bool;
+CREATE ATTRIBUTE std::title std::str;
+CREATE ATTRIBUTE std::description std::str;
 
-CREATE ATTRIBUTE {std::expr} {std::str};
-CREATE ATTRIBUTE {std::subjectexpr} {std::str};
-CREATE ATTRIBUTE {std::finalexpr} {std::str};
-CREATE ATTRIBUTE {std::subject} {std::typeref};
-CREATE ATTRIBUTE {std::paramtypes} map<{std::str}, {std::typeref}>;
-CREATE ATTRIBUTE {std::inferredparamtypes} map<{std::str}, {std::typeref}>;
-CREATE ATTRIBUTE {std::args} map<{std::str}, {std::any}>;
-CREATE ATTRIBUTE {std::errmessage} {std::str};
+CREATE ATTRIBUTE std::expr std::str;
+CREATE ATTRIBUTE std::subjectexpr std::str;
+CREATE ATTRIBUTE std::finalexpr std::str;
+CREATE ATTRIBUTE std::subject std::typeref;
+CREATE ATTRIBUTE std::paramtypes map<std::str, std::typeref>;
+CREATE ATTRIBUTE std::inferredparamtypes map<std::str, std::typeref>;
+CREATE ATTRIBUTE std::args map<std::str, std::any>;
+CREATE ATTRIBUTE std::errmessage std::str;
 
 CREATE FUNCTION std::strlen(string std::str) RETURNING std::int;
 CREATE FUNCTION std::lower(string std::str) RETURNING std::str;
 CREATE FUNCTION std::sum(v std::int) RETURNING std::int;
 
-CREATE CONSTRAINT {std::constraint} {
+CREATE CONSTRAINT std::constraint {
     SET errmessage := 'invalid {subject}';
 };
 
-CREATE CONSTRAINT {std::expression} INHERITING {std::constraint} {
+CREATE CONSTRAINT std::expression INHERITING std::constraint {
     SET expr := subject;
 };
 
-CREATE CONSTRAINT {std::max} INHERITING {std::constraint} {
+CREATE CONSTRAINT std::max INHERITING std::constraint {
     SET errmessage := 'Maximum allowed value for {subject} is {param}.';
     SET expr := ((subject <= $param));
 };
 
-CREATE CONSTRAINT {std::enum} INHERITING {std::constraint} {
+CREATE CONSTRAINT std::enum INHERITING std::constraint {
     SET errmessage := '{subject} must be one of: {param}.';
     SET expr := ((subject IN $param));
 };
 
-CREATE CONSTRAINT {std::min} INHERITING {std::constraint} {
+CREATE CONSTRAINT std::min INHERITING std::constraint {
     SET errmessage := 'Minimum allowed value for {subject} is {param}.';
     SET expr := ((subject >= $param));
 };
 
-CREATE CONSTRAINT {std::minexclusive} INHERITING {std::min} {
+CREATE CONSTRAINT std::minexclusive INHERITING std::min {
     SET errmessage := '{subject} must be greater than {param}.';
     SET expr := ((subject > $param));
 };
 
-CREATE CONSTRAINT {std::length} INHERITING {std::constraint} {
+CREATE CONSTRAINT std::length INHERITING std::constraint {
     SET errmessage := 'invalid {subject}';
     SET subjectexpr := (strlen(<std::str>subject));
 };
 
-CREATE CONSTRAINT {std::minlength} INHERITING ({std::min}, {std::length}) {
+CREATE CONSTRAINT std::minlength INHERITING (std::min, std::length) {
     SET errmessage := '{subject} must be no shorter than {param} characters.';
     SET expr := ((subject >= $param));
     SET subjectexpr := (strlen(<std::str>subject));
 };
 
-CREATE CONSTRAINT {std::regexp} INHERITING {std::constraint} {
+CREATE CONSTRAINT std::regexp INHERITING std::constraint {
     SET errmessage := 'invalid {subject}';
     SET expr := ((subject ~ $param));
 };
 
-CREATE CONSTRAINT {std::maxlength} INHERITING ({std::max}, {std::length}) {
+CREATE CONSTRAINT std::maxlength INHERITING (std::max, std::length) {
     SET errmessage := '{subject} must be no longer than {param} characters.';
     SET expr := ((subject <= $param));
     SET subjectexpr := (strlen(<std::str>subject));
 };
 
-CREATE CONSTRAINT {std::maxexclusive} INHERITING {std::max} {
+CREATE CONSTRAINT std::maxexclusive INHERITING std::max {
     SET errmessage := '{subject} must be less than {param}.';
     SET expr := ((subject < $param));
 };
 
-CREATE CONSTRAINT {std::unique} INHERITING {std::constraint} {
+CREATE CONSTRAINT std::unique INHERITING std::constraint {
     SET errmessage := '{subject} violates unique constraint';
     SET expr := (not EXISTS (subject));
 };
 
-CREATE ATOM {std::decimal_rounding_t} INHERITING {std::str} {
-    CREATE CONSTRAINT {std::enum} {
+CREATE ATOM std::decimal_rounding_t INHERITING std::str {
+    CREATE CONSTRAINT std::enum {
         SET args := {'param': ('ceiling', '05up', 'up', 'half-even', 'half-up',
                                'floor', 'down', 'half-down')};
         SET errmessage := '{subject} must be one of: ceiling, 05up, up, half-even, half-up, floor, down, half-down';
@@ -128,114 +128,114 @@ CREATE ATOM {std::decimal_rounding_t} INHERITING {std::str} {
     };
 };
 
-CREATE ATTRIBUTE {std::rounding} {std::decimal_rounding_t};
+CREATE ATTRIBUTE std::rounding std::decimal_rounding_t;
 
-CREATE ATOM {std::decimal};
+CREATE ATOM std::decimal;
 
-CREATE FUNCTION {std::current_datetime}() RETURNING {std::datetime};
+CREATE FUNCTION std::current_datetime() RETURNING std::datetime;
 
-CREATE FUNCTION {std::uuid_generate_v1mc}() RETURNING {std::uuid};
+CREATE FUNCTION std::uuid_generate_v1mc() RETURNING std::uuid;
 
-CREATE ACTION {std::restrict} {
+CREATE ACTION std::restrict {
     SET title := 'Abort the event if a pointer exists';
 };
 
-CREATE ACTION {std::cascade} {
+CREATE ACTION std::cascade {
     SET title := 'Cascade the event through the pointer';
 };
 
-CREATE ACTION {std::delete_pointer} {
+CREATE ACTION std::delete_pointer {
     SET title := 'Delete pointer';
 };
 
-CREATE ACTION {std::ignore} {
+CREATE ACTION std::ignore {
     SET title := 'Ignore the event';
 };
 
-CREATE ACTION {std::delete_source} {
+CREATE ACTION std::delete_source {
     SET title := 'Delete pointer target';
 };
 
-CREATE ACTION {std::delete_orphan_target} {
+CREATE ACTION std::delete_orphan_target {
     SET title := 'Delete target if no instances of the inbound pointer to it exist';
 };
 
-CREATE ACTION {std::cascade_loaded} {
+CREATE ACTION std::cascade_loaded {
     SET title := 'Cascade the event through the pointer if target is loaded to the local session';
 };
 
-CREATE ACTION {std::delete_target} {
+CREATE ACTION std::delete_target {
     SET title := 'Delete pointer target';
 };
 
-CREATE EVENT {std::event};
+CREATE EVENT std::event;
 
-CREATE EVENT {std::cascade_base} INHERITING {std::event};
+CREATE EVENT std::cascade_base INHERITING std::event;
 
-CREATE EVENT {std::cascade_session_detach} INHERITING {std::cascade_base};
+CREATE EVENT std::cascade_session_detach INHERITING std::cascade_base;
 
-CREATE EVENT {std::cascade_serialize} INHERITING {std::cascade_base};
+CREATE EVENT std::cascade_serialize INHERITING std::cascade_base;
 
-CREATE EVENT {std::internal} INHERITING {std::event};
+CREATE EVENT std::internal INHERITING std::event;
 
-CREATE EVENT {std::deleted} INHERITING {std::internal};
+CREATE EVENT std::deleted INHERITING std::internal;
 
-CREATE EVENT {std::source_deleted} INHERITING {std::deleted};
+CREATE EVENT std::source_deleted INHERITING std::deleted;
 
-CREATE EVENT {std::self_deleted} INHERITING {std::deleted};
+CREATE EVENT std::self_deleted INHERITING std::deleted;
 
-CREATE EVENT {std::cascade_session_attach} INHERITING {std::cascade_base};
+CREATE EVENT std::cascade_session_attach INHERITING std::cascade_base;
 
-CREATE EVENT {std::cascade_copy} INHERITING {std::cascade_base};
+CREATE EVENT std::cascade_copy INHERITING std::cascade_base;
 
-CREATE EVENT {std::target_deleted} INHERITING {std::deleted};
+CREATE EVENT std::target_deleted INHERITING std::deleted;
 
-CREATE LINK PROPERTY {std::linkproperty} {
+CREATE LINK PROPERTY std::linkproperty {
     SET readonly := False;
     SET title := 'Base link property';
 };
 
-CREATE LINK PROPERTY {std::source} {
+CREATE LINK PROPERTY std::source {
     SET readonly := False;
     SET title := 'Link source';
 };
 
-CREATE LINK PROPERTY {std::target} {
+CREATE LINK PROPERTY std::target {
     SET readonly := False;
     SET title := 'Link target';
 };
 
-CREATE LINK PROPERTY {std::linkid} {
+CREATE LINK PROPERTY std::linkid {
     SET readonly := False;
     SET title := 'Base link property';
 };
 
-CREATE LINK {std::link} {
+CREATE LINK std::link {
     SET mapping := '11';
     SET readonly := False;
-    CREATE REQUIRED LINK PROPERTY {std::linkid} TO {std::uuid} {
+    CREATE REQUIRED LINK PROPERTY std::linkid TO std::uuid {
         SET default := (SELECT std::uuid_generate_v1mc());
         SET loading := 'eager';
         SET readonly := True;
         SET title := 'Base link property';
     };
-    CREATE POLICY FOR {std::cascade_session_detach} TO {std::cascade_loaded};
-    CREATE POLICY FOR {std::cascade_serialize} TO {std::cascade_loaded};
-    CREATE POLICY FOR {std::source_deleted} TO {std::restrict};
-    CREATE POLICY FOR {std::self_deleted} TO {std::ignore};
-    CREATE POLICY FOR {std::cascade_session_attach} TO {std::cascade_loaded};
-    CREATE POLICY FOR {std::target_deleted} TO {std::restrict};
-    CREATE POLICY FOR {std::cascade_copy} TO {std::ignore};
+    CREATE POLICY FOR std::cascade_session_detach TO std::cascade_loaded;
+    CREATE POLICY FOR std::cascade_serialize TO std::cascade_loaded;
+    CREATE POLICY FOR std::source_deleted TO std::restrict;
+    CREATE POLICY FOR std::self_deleted TO std::ignore;
+    CREATE POLICY FOR std::cascade_session_attach TO std::cascade_loaded;
+    CREATE POLICY FOR std::target_deleted TO std::restrict;
+    CREATE POLICY FOR std::cascade_copy TO std::ignore;
 };
 
-CREATE LINK {std::id} INHERITING {std::link} {
+CREATE LINK std::id INHERITING std::link {
     SET mapping := '11';
     SET readonly := False;
 };
 
-CREATE CONCEPT {std::Object} {
+CREATE CONCEPT std::Object {
     SET is_virtual := False;
-    CREATE REQUIRED LINK {std::id} TO {std::uuid} {
+    CREATE REQUIRED LINK std::id TO std::uuid {
         SET default := (SELECT std::uuid_generate_v1mc());
         SET mapping := '11';
         SET readonly := True;

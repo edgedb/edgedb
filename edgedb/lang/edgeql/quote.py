@@ -6,6 +6,14 @@
 ##
 
 
+import re
+
+from .parser.grammar import keywords
+
+
+_re_ident = re.compile(r'[A-Za-z\200-\377_%][A-Za-z\200-\377_0-9\$%]*')
+
+
 def quote_literal(text):
     return "'" + text.replace("'", R"\'") + "'"
 
@@ -22,3 +30,10 @@ def dollar_quote_literal(text):
         qq += 1
 
     return quote + text + quote
+
+
+def disambiguate_identifier(text):
+    if keywords.edgeql_keywords.get(text) or not _re_ident.fullmatch(text):
+        return '`{}`'.format(text)
+    else:
+        return text

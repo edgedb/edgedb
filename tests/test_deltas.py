@@ -18,7 +18,7 @@ class TestDeltas(tb.QueryTestCase):
         result = await self.con.execute("""
             # setup delta
             #
-            CREATE DELTA {test::d1} TO $$
+            CREATE DELTA test::d1 TO $$
                 link name:
                     linkproperty lang to str
 
@@ -26,22 +26,22 @@ class TestDeltas(tb.QueryTestCase):
                     required link name to str
             $$;
 
-            COMMIT DELTA {test::d1};
+            COMMIT DELTA test::d1;
 
             # test updated schema
             #
-            INSERT {test::NamedObject} {
+            INSERT test::NamedObject {
                 name := 'Test'
             };
 
             SELECT
-                {test::NamedObject} {
+                test::NamedObject {
                     name: {
                         @lang
                     }
                 }
             WHERE
-                {test::NamedObject}.name = 'Test';
+                test::NamedObject.name = 'Test';
 
             """)
 
@@ -68,8 +68,8 @@ class TestDeltas(tb.QueryTestCase):
             schema = f.read()
 
         await self.con.execute('''
-            CREATE DELTA {{test::d_links01_0}} TO $${schema}$$;
-            COMMIT DELTA {{test::d_links01_0}};
+            CREATE DELTA test::d_links01_0 TO $${schema}$$;
+            COMMIT DELTA test::d_links01_0;
             '''.format(schema=schema))
 
         await self.con.execute('''
@@ -78,7 +78,7 @@ class TestDeltas(tb.QueryTestCase):
             };
 
             INSERT test::Concept01 {
-                {target} := (SELECT test::Target1
+                `target` := (SELECT test::Target1
                              WHERE test::Target1.name = 'Target1_linkinh_2')
             };
 
@@ -87,7 +87,7 @@ class TestDeltas(tb.QueryTestCase):
             };
 
             INSERT test::Concept23 {
-                {target} := (SELECT test::Target0
+                `target` := (SELECT test::Target0
                              WHERE test::Target0.name = 'Target0_linkinh_2')
             };
         ''')
@@ -101,7 +101,7 @@ class TestDeltas(tb.QueryTestCase):
             # Target1.
             await self.con.execute('''
                 INSERT test::Concept01 {
-                    {target} := (
+                    `target` := (
                         SELECT
                             test::Target0
                         WHERE
@@ -117,6 +117,6 @@ class TestDeltas(tb.QueryTestCase):
             schema = f.read()
 
         await self.con.execute('''
-            CREATE DELTA {{test::d_links01_1}} TO $${schema}$$;
-            COMMIT DELTA {{test::d_links01_1}};
+            CREATE DELTA test::d_links01_1 TO $${schema}$$;
+            COMMIT DELTA test::d_links01_1;
             '''.format(schema=schema))

@@ -110,11 +110,11 @@ class TestConstraints(tb.QueryTestCase):
             with self.assertRaisesRegex(exceptions.ConstraintViolationError,
                                         'name violates unique constraint'):
                 await self.con.execute("""
-                    INSERT {test::UniqueName} {
+                    INSERT test::UniqueName {
                         name := 'Test'
                     };
 
-                    INSERT {test::UniqueName} {
+                    INSERT test::UniqueName {
                         name := 'Test'
                     };
                 """)
@@ -124,11 +124,11 @@ class TestConstraints(tb.QueryTestCase):
             with self.assertRaisesRegex(exceptions.ConstraintViolationError,
                                         'name violates unique constraint'):
                 await self.con.execute("""
-                    INSERT {test::UniqueNameInherited} {
+                    INSERT test::UniqueNameInherited {
                         name := 'Test'
                     };
 
-                    INSERT {test::UniqueNameInherited} {
+                    INSERT test::UniqueNameInherited {
                         name := 'Test'
                     };
                 """)
@@ -139,22 +139,22 @@ class TestConstraints(tb.QueryTestCase):
                                         'name violates unique constraint'):
 
                 await self.con.execute("""
-                    INSERT {test::UniqueName} {
+                    INSERT test::UniqueName {
                         name := 'unique_name_across'
                     };
 
-                    INSERT {test::UniqueNameInherited} {
+                    INSERT test::UniqueNameInherited {
                         name := 'unique_name_across'
                     };
                 """)
 
         async with self._run_and_rollback():
             await self.con.execute("""
-                INSERT {test::UniqueName} {
+                INSERT test::UniqueName {
                     name := 'unique_name_ok'
                 };
 
-                INSERT {test::UniqueNameInherited} {
+                INSERT test::UniqueNameInherited {
                     name := 'unique_name_inherited_ok'
                 };
             """)
@@ -163,11 +163,11 @@ class TestConstraints(tb.QueryTestCase):
                                         'name violates unique constraint'):
                 await self.con.execute("""
                     UPDATE
-                        {test::UniqueNameInherited} {
+                        test::UniqueNameInherited {
                             name := 'unique_name_ok'
                         }
                     WHERE
-                        {test::UniqueNameInherited}.name =
+                        test::UniqueNameInherited.name =
                             'unique_name_inherited_ok';
                 """)
 
@@ -176,11 +176,11 @@ class TestConstraints(tb.QueryTestCase):
             with self.assertRaisesRegex(exceptions.ConstraintViolationError,
                                         'name violates unique constraint'):
                 await self.con.execute("""
-                    INSERT {test::UniqueName_3} {
+                    INSERT test::UniqueName_3 {
                         name := 'TeSt'
                     };
 
-                    INSERT {test::UniqueName_3} {
+                    INSERT test::UniqueName_3 {
                         name := 'tEsT'
                     };
                 """)
@@ -189,22 +189,22 @@ class TestConstraints(tb.QueryTestCase):
         async with self._run_and_rollback():
             # This is OK, the name unique constraint is abstract
             await self.con.execute("""
-                INSERT {test::AbstractConstraintParent} {
+                INSERT test::AbstractConstraintParent {
                     name := 'unique_name_ap'
                 };
 
-                INSERT {test::AbstractConstraintParent} {
+                INSERT test::AbstractConstraintParent {
                     name := 'unique_name_ap'
                 };
             """)
 
             # This is OK too
             await self.con.execute("""
-                INSERT {test::AbstractConstraintParent} {
+                INSERT test::AbstractConstraintParent {
                     name := 'unique_name_ap1'
                 };
 
-                INSERT {test::AbstractConstraintPureChild} {
+                INSERT test::AbstractConstraintPureChild {
                     name := 'unique_name_ap1'
                 };
             """)
@@ -214,11 +214,11 @@ class TestConstraints(tb.QueryTestCase):
                                         'name violates unique constraint'):
                 # Not OK, abstract constraint materializes into a real one
                 await self.con.execute("""
-                    INSERT {test::AbstractConstraintPureChild} {
+                    INSERT test::AbstractConstraintPureChild {
                         name := 'unique_name_ap2'
                     };
 
-                    INSERT {test::AbstractConstraintPureChild} {
+                    INSERT test::AbstractConstraintPureChild {
                         name := 'unique_name_ap2'
                     };
                 """)
@@ -228,11 +228,11 @@ class TestConstraints(tb.QueryTestCase):
                                         'name violates unique constraint'):
                 # Not OK, abstract constraint materializes into a real one
                 await self.con.execute("""
-                    INSERT {test::AbstractConstraintMixedChild} {
+                    INSERT test::AbstractConstraintMixedChild {
                         name := 'unique_name_ap2'
                     };
 
-                    INSERT {test::AbstractConstraintMixedChild} {
+                    INSERT test::AbstractConstraintMixedChild {
                         name := 'unique_name_AP2'
                     };
                 """)
@@ -240,22 +240,22 @@ class TestConstraints(tb.QueryTestCase):
         async with self._run_and_rollback():
             # This is OK, duplication is in different children
             await self.con.execute("""
-                INSERT {test::AbstractConstraintPureChild} {
+                INSERT test::AbstractConstraintPureChild {
                     name := 'unique_name_ap3'
                 };
 
-                INSERT {test::AbstractConstraintMixedChild} {
+                INSERT test::AbstractConstraintMixedChild {
                     name := 'unique_name_ap3'
                 };
             """)
 
             # This is OK, the name unique constraint is abstract again
             await self.con.execute("""
-                INSERT {test::AbstractConstraintPropagated} {
+                INSERT test::AbstractConstraintPropagated {
                     name := 'unique_name_ap4'
                 };
 
-                INSERT {test::AbstractConstraintPropagated} {
+                INSERT test::AbstractConstraintPropagated {
                     name := 'unique_name_ap4'
                 };
             """)
@@ -265,22 +265,22 @@ class TestConstraints(tb.QueryTestCase):
                                         'name violates unique constraint'):
                 # Not OK, yet
                 await self.con.execute("""
-                    INSERT {test::BecomingAbstractConstraint} {
+                    INSERT test::BecomingAbstractConstraint {
                         name := 'unique_name_ap5'
                     };
 
-                    INSERT {test::BecomingAbstractConstraintChild} {
+                    INSERT test::BecomingAbstractConstraintChild {
                         name := 'unique_name_ap5'
                     };
                 """)
 
         async with self._run_and_rollback():
             await self.con.execute("""
-                INSERT {test::BecomingConcreteConstraint} {
+                INSERT test::BecomingConcreteConstraint {
                     name := 'unique_name_ap6'
                 };
 
-                INSERT {test::BecomingConcreteConstraintChild} {
+                INSERT test::BecomingConcreteConstraintChild {
                     name := 'unique_name_ap6'
                 };
             """)
@@ -289,11 +289,11 @@ class TestConstraints(tb.QueryTestCase):
             with self.assertRaisesRegex(exceptions.ConstraintViolationError,
                                         'name violates unique constraint'):
                 await self.con.execute("""
-                    INSERT {test::LosingAbstractConstraintParent} {
+                    INSERT test::LosingAbstractConstraintParent {
                         name := 'unique_name_ap7'
                     };
 
-                    INSERT {test::LosingAbstractConstraintParent} {
+                    INSERT test::LosingAbstractConstraintParent {
                         name := 'unique_name_ap7'
                     };
                 """)
@@ -302,11 +302,11 @@ class TestConstraints(tb.QueryTestCase):
             with self.assertRaisesRegex(exceptions.ConstraintViolationError,
                                         'name violates unique constraint'):
                 await self.con.execute("""
-                    INSERT {test::AbstractConstraintMultipleParentsFlattening}{
+                    INSERT test::AbstractConstraintMultipleParentsFlattening{
                         name := 'unique_name_ap8'
                     };
 
-                    INSERT {test::AbstractConstraintMultipleParentsFlattening}{
+                    INSERT test::AbstractConstraintMultipleParentsFlattening{
                         name := 'unique_name_ap8'
                     };
                 """)
@@ -316,11 +316,11 @@ class TestConstraints(tb.QueryTestCase):
                                         'name violates unique constraint'):
                 # non-abstract inherited constraint
                 await self.con.execute("""
-                    INSERT {test::AbstractInheritingNonAbstract} {
+                    INSERT test::AbstractInheritingNonAbstract {
                         name := 'unique_name_ana'
                     };
 
-                    INSERT {test::AbstractInheritingNonAbstract} {
+                    INSERT test::AbstractInheritingNonAbstract {
                         name := 'unique_name_ana'
                     };
                 """)
@@ -330,11 +330,11 @@ class TestConstraints(tb.QueryTestCase):
                                         'name violates unique constraint'):
                 # non-abstract inherited constraint
                 await self.con.execute("""
-                    INSERT {test::AbstractInheritingNonAbstract} {
+                    INSERT test::AbstractInheritingNonAbstract {
                         name := 'unique_name_ana1'
                     };
 
-                    INSERT {test::AbstractInheritingNonAbstractChild} {
+                    INSERT test::AbstractInheritingNonAbstractChild {
                         name := 'unique_name_ana1'
                     };
                 """)
@@ -347,29 +347,29 @@ class TestConstraints(tb.QueryTestCase):
             new_schema = f.read()
 
         await self.con.execute('''
-            CREATE DELTA {{test::d1}} TO $${schema}$$;
-            COMMIT DELTA {{test::d1}};
+            CREATE DELTA test::d1 TO $${schema}$$;
+            COMMIT DELTA test::d1;
             '''.format(schema=new_schema))
 
         async with self._run_and_rollback():
             # This is OK, the name unique constraint is abstract
             await self.con.execute("""
-                INSERT {test::AbstractConstraintParent} {
+                INSERT test::AbstractConstraintParent {
                     name := 'unique_name_ap'
                 };
 
-                INSERT {test::AbstractConstraintParent} {
+                INSERT test::AbstractConstraintParent {
                     name := 'unique_name_ap'
                 };
             """)
 
             # This is OK too
             await self.con.execute("""
-                INSERT {test::AbstractConstraintParent} {
+                INSERT test::AbstractConstraintParent {
                     name := 'unique_name_ap1'
                 };
 
-                INSERT {test::AbstractConstraintPureChild} {
+                INSERT test::AbstractConstraintPureChild {
                     name := 'unique_name_ap1'
                 };
             """)
@@ -379,11 +379,11 @@ class TestConstraints(tb.QueryTestCase):
                                         'name violates unique constraint'):
                 # Not OK, abstract constraint materializes into a real one
                 await self.con.execute("""
-                    INSERT {test::AbstractConstraintPureChild} {
+                    INSERT test::AbstractConstraintPureChild {
                         name := 'unique_name_ap2'
                     };
 
-                    INSERT {test::AbstractConstraintPureChild} {
+                    INSERT test::AbstractConstraintPureChild {
                         name := 'unique_name_ap2'
                     };
                 """)
@@ -393,11 +393,11 @@ class TestConstraints(tb.QueryTestCase):
                                         'name violates unique constraint'):
                 # Not OK, abstract constraint materializes into a real one
                 await self.con.execute("""
-                    INSERT {test::AbstractConstraintMixedChild} {
+                    INSERT test::AbstractConstraintMixedChild {
                         name := 'unique_name_ap2'
                     };
 
-                    INSERT {test::AbstractConstraintMixedChild} {
+                    INSERT test::AbstractConstraintMixedChild {
                         name := 'unique_name_AP2'
                     };
                 """)
@@ -405,11 +405,11 @@ class TestConstraints(tb.QueryTestCase):
         async with self._run_and_rollback():
             # This is OK, duplication is in different children
             await self.con.execute("""
-                INSERT {test::AbstractConstraintMixedChild} {
+                INSERT test::AbstractConstraintMixedChild {
                     name := 'unique_name_ap3'
                 };
 
-                INSERT {test::AbstractConstraintPureChild} {
+                INSERT test::AbstractConstraintPureChild {
                     name := 'unique_name_ap3'
                 };
             """)
@@ -417,11 +417,11 @@ class TestConstraints(tb.QueryTestCase):
         async with self._run_and_rollback():
             # This is OK, the name unique constraint is abstract again
             await self.con.execute("""
-                INSERT {test::AbstractConstraintPropagated} {
+                INSERT test::AbstractConstraintPropagated {
                     name := 'unique_name_ap4'
                 };
 
-                INSERT {test::AbstractConstraintPropagated} {
+                INSERT test::AbstractConstraintPropagated {
                     name := 'unique_name_ap4'
                 };
             """)
@@ -429,11 +429,11 @@ class TestConstraints(tb.QueryTestCase):
         async with self._run_and_rollback():
             # OK, former constraint was turned into an abstract constraint
             await self.con.execute("""
-                INSERT {test::BecomingAbstractConstraint} {
+                INSERT test::BecomingAbstractConstraint {
                     name := 'unique_name_ap5'
                 };
 
-                INSERT {test::BecomingAbstractConstraintChild} {
+                INSERT test::BecomingAbstractConstraintChild {
                     name := 'unique_name_ap5'
                 };
             """)
@@ -443,11 +443,11 @@ class TestConstraints(tb.QueryTestCase):
                                         'name violates unique constraint'):
                 # Constraint is no longer abstract
                 await self.con.execute("""
-                    INSERT {test::BecomingConcreteConstraint} {
+                    INSERT test::BecomingConcreteConstraint {
                         name := 'unique_name_ap6'
                     };
 
-                    INSERT {test::BecomingConcreteConstraintChild} {
+                    INSERT test::BecomingConcreteConstraintChild {
                         name := 'unique_name_ap6'
                     };
                 """)
@@ -457,22 +457,22 @@ class TestConstraints(tb.QueryTestCase):
                                         'name violates unique constraint'):
                 # Constraint is no longer abstract
                 await self.con.execute("""
-                    INSERT {test::LosingAbstractConstraintParent} {
+                    INSERT test::LosingAbstractConstraintParent {
                         name := 'unique_name_ap6'
                     };
 
-                    INSERT {test::LosingAbstractConstraintParent} {
+                    INSERT test::LosingAbstractConstraintParent {
                         name := 'unique_name_ap6'
                     };
                 """)
 
         async with self._run_and_rollback():
             await self.con.execute("""
-                INSERT {test::LosingAbstractConstraintParent2} {
+                INSERT test::LosingAbstractConstraintParent2 {
                     name := 'unique_name_ap7'
                 };
 
-                INSERT {test::LosingAbstractConstraintParent2} {
+                INSERT test::LosingAbstractConstraintParent2 {
                     name := 'unique_name_ap7'
                 };
             """)
@@ -482,11 +482,11 @@ class TestConstraints(tb.QueryTestCase):
                                         'name violates unique constraint'):
                 # Constraint is no longer abstract
                 await self.con.execute("""
-                    INSERT {test::AbstractConstraintMultipleParentsFlattening}{
+                    INSERT test::AbstractConstraintMultipleParentsFlattening{
                         name := 'unique_name_ap8'
                     };
 
-                    INSERT {test::AbstractConstraintMultipleParentsFlattening}{
+                    INSERT test::AbstractConstraintMultipleParentsFlattening{
                         name := 'unique_name_AP8'
                     };
                 """)
@@ -494,11 +494,11 @@ class TestConstraints(tb.QueryTestCase):
         async with self._run_and_rollback():
             # Parent lost its concrete constraint inheritance
             await self.con.execute("""
-                INSERT {test::AbstractInheritingNonAbstract} {
+                INSERT test::AbstractInheritingNonAbstract {
                     name := 'unique_name_ana'
                 };
 
-                INSERT {test::AbstractInheritingNonAbstract} {
+                INSERT test::AbstractInheritingNonAbstract {
                     name := 'unique_name_ana'
                 };
             """)
@@ -506,11 +506,11 @@ class TestConstraints(tb.QueryTestCase):
         async with self._run_and_rollback():
             # Parent lost its concrete constraint inheritance
             await self.con.execute("""
-                INSERT {test::AbstractInheritingNonAbstract} {
+                INSERT test::AbstractInheritingNonAbstract {
                     name := 'unique_name_ana1'
                 };
 
-                INSERT {test::AbstractInheritingNonAbstractChild} {
+                INSERT test::AbstractInheritingNonAbstractChild {
                     name := 'unique_name_ana1'
                 };
             """)
@@ -520,11 +520,11 @@ class TestConstraints(tb.QueryTestCase):
                                         'name violates unique constraint'):
                 # Child uniqueness is still enforced
                 await self.con.execute("""
-                    INSERT {test::AbstractInheritingNonAbstractChild}{
+                    INSERT test::AbstractInheritingNonAbstractChild{
                         name := 'unique_name_ana2'
                     };
 
-                    INSERT {test::AbstractInheritingNonAbstractChild}{
+                    INSERT test::AbstractInheritingNonAbstractChild{
                         name := 'unique_name_ana2'
                     };
                 """)

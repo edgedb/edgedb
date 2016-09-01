@@ -307,8 +307,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write('}')
 
     def visit_PathStepNode(self, node):
+        # XXX: this one and other places need identifier quoting
         if node.namespace:
-            self.write('{%s::%s}' % (node.namespace, node.expr))
+            self.write('(%s::%s)' % (node.namespace, node.expr))
         else:
             self.write(node.expr)
 
@@ -336,7 +337,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(')')
         else:
             if node.namespace:
+                self.write('(')
                 self.write('{}::{}'.format(node.namespace, node.name))
+                self.write(')')
             else:
                 self.write(node.name)
 
@@ -350,32 +353,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_SelectPathSpecNode(self, node):
         # PathSpecNode can only contain LinkExpr or LinkPropExpr,
         # and must not be quoted.
-        if node.where or node.orderby or node.offset or node.limit:
-            self.write('(')
 
         self.visit_LinkNode(node.expr.expr, quote=False)
-
-        if node.where:
-            self.write(' WHERE ')
-            self.visit(node.where)
-
-        if node.orderby:
-            self.write(' ORDER BY ')
-            for i, e in enumerate(node.orderby):
-                if i > 0:
-                    self.write(', ')
-                self.visit(e)
-
-        if node.offset:
-            self.write(' OFFSET ')
-            self.visit(node.offset)
-
-        if node.limit:
-            self.write(' LIMIT ')
-            self.visit(node.limit)
-
-        if node.where or node.orderby or node.offset or node.limit:
-            self.write(')')
 
         if node.recurse:
             self.write('*')
@@ -384,6 +363,29 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if node.pathspec:
             self.write(': ')
             self._visit_pathspec(node.pathspec)
+
+        if node.where:
+            self.write(' WHERE ')
+            self.visit(node.where)
+
+        if node.orderby:
+            self.write(' ORDER BY ')
+            if len(node.orderby) > 1:
+                self.write('(')
+            for i, e in enumerate(node.orderby):
+                if i > 0:
+                    self.write(', ')
+                self.visit(e)
+            if len(node.orderby) > 1:
+                self.write(')')
+
+        if node.offset:
+            self.write(' OFFSET ')
+            self.visit(node.offset)
+
+        if node.limit:
+            self.write(' LIMIT ')
+            self.visit(node.limit)
 
         if node.compexpr:
             self.write(' := ')
@@ -504,7 +506,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_PrototypeRefNode(self, node):
         if node.module or '.' in node.name:
-            self.write('{')
+            self.write('(')
 
         if node.module:
             self.write(node.module)
@@ -513,7 +515,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(node.name)
 
         if node.module or '.' in node.name:
-            self.write('}')
+            self.write(')')
 
     def visit_NoneTestNode(self, node):
         self.visit(node.expr)
@@ -521,12 +523,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_TypeNameNode(self, node):
         if node.maintype.module:
-            self.write('{')
             self.write(node.maintype.module)
             self.write('::')
         self.write(node.maintype.name)
-        if node.maintype.module:
-            self.write('}')
         if node.subtypes:
             self.write('<')
             self.visit_list(node.subtypes, newlines=False)

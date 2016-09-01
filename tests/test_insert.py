@@ -34,36 +34,36 @@ class TestInsert(tb.QueryTestCase):
               '{test::InsertTest}.{test::l2}'
         with self.assertRaisesRegex(exc.MissingRequiredPointerError, err):
             await self.con.execute('''
-                INSERT {test::InsertTest};
+                INSERT test::InsertTest;
             ''')
 
     async def test_insert_simple01(self):
         result = await self.con.execute(r"""
-            INSERT {test::InsertTest} {
+            INSERT test::InsertTest {
                 l2 := 0,
                 l3 := 'test'
             };
 
-            INSERT {test::InsertTest} {
+            INSERT test::InsertTest {
                 l3 := "Test\"1\"",
                 l2 := 1
             };
 
-            INSERT {test::InsertTest} {
+            INSERT test::InsertTest {
                 l3 := 'Test\'2\'',
                 l2 := 2
             };
 
-            INSERT {test::InsertTest} {
+            INSERT test::InsertTest {
                 l3 := '\"Test\'3\'\"',
                 l2 := 3
             };
 
             SELECT
-                {test::InsertTest} {
+                test::InsertTest {
                     l2, l3
                 }
-            ORDER BY {test::InsertTest}.l2;
+            ORDER BY test::InsertTest.l2;
         """)
 
         self.assert_data_shape(result, [

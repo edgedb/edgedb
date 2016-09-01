@@ -23,7 +23,7 @@ class TestDatabase(tb.ConnectedTestCase):
             await self.con.execute('DROP DATABASE mytestdb;')
 
     async def test_database_create02(self):
-        await self.con.execute('CREATE DATABASE {mytestdb};')
+        await self.con.execute('CREATE DATABASE `mytestdb`;')
 
         try:
             conn = await self.cluster.connect(
@@ -32,10 +32,10 @@ class TestDatabase(tb.ConnectedTestCase):
             conn.close()
 
         finally:
-            await self.con.execute('DROP DATABASE {mytestdb};')
+            await self.con.execute('DROP DATABASE `mytestdb`;')
 
     async def test_database_create03(self):
-        await self.con.execute(r'CREATE DATABASE {"mytest\"db\""};')
+        await self.con.execute(r'CREATE DATABASE `mytest"db"`;')
 
         try:
             conn = await self.cluster.connect(
@@ -44,10 +44,10 @@ class TestDatabase(tb.ConnectedTestCase):
             conn.close()
 
         finally:
-            await self.con.execute(r'DROP DATABASE {"mytest\"db\""};')
+            await self.con.execute(r'DROP DATABASE `mytest"db"`;')
 
     async def test_database_create04(self):
-        await self.con.execute(r"CREATE DATABASE {'mytest\'db\''};")
+        await self.con.execute(r"CREATE DATABASE `mytest'db'`;")
 
         try:
             conn = await self.cluster.connect(
@@ -56,10 +56,10 @@ class TestDatabase(tb.ConnectedTestCase):
             conn.close()
 
         finally:
-            await self.con.execute(r"DROP DATABASE {'mytest\'db\''};")
+            await self.con.execute(r"DROP DATABASE `mytest'db'`;")
 
     async def test_database_create05(self):
-        await self.con.execute('CREATE DATABASE {SET};')
+        await self.con.execute('CREATE DATABASE `SET`;')
 
         try:
             conn = await self.cluster.connect(
@@ -68,10 +68,10 @@ class TestDatabase(tb.ConnectedTestCase):
             conn.close()
 
         finally:
-            await self.con.execute('DROP DATABASE {SET};')
+            await self.con.execute('DROP DATABASE `SET`;')
 
     async def test_database_create06(self):
-        await self.con.execute('CREATE DATABASE {"CREATE"};')
+        await self.con.execute('CREATE DATABASE `CREATE`;')
 
         try:
             conn = await self.cluster.connect(
@@ -80,28 +80,4 @@ class TestDatabase(tb.ConnectedTestCase):
             conn.close()
 
         finally:
-            await self.con.execute('DROP DATABASE {"CREATE"};')
-
-    async def test_database_create07(self):
-        await self.con.execute('CREATE DATABASE {CREATE};')
-
-        try:
-            conn = await self.cluster.connect(
-                user='edgedb', database='CREATE', loop=self.loop)
-
-            conn.close()
-
-        finally:
-            await self.con.execute('DROP DATABASE {CREATE};')
-
-    async def test_database_create08(self):
-        await self.con.execute('CREATE DATABASE {$$CREATE$$};')
-
-        try:
-            conn = await self.cluster.connect(
-                user='edgedb', database='CREATE', loop=self.loop)
-
-            conn.close()
-
-        finally:
-            await self.con.execute('DROP DATABASE {$$CREATE$$};')
+            await self.con.execute('DROP DATABASE `CREATE`;')

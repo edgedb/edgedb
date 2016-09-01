@@ -22,9 +22,9 @@ STATE_BASE = 1
 
 re_exppart = r"(?:[eE](?:[+\-])?[0-9]+)"
 re_self = r'[,()\[\].@;:+\-*/%^<>=]'
-re_opchars = r'[~!\#&|`?+\-*/^<>=]'
-re_not_opchars = r'[^~!\#&|`?+\-*/^<>=]'
-re_opchars_edgeql = r'[~!\#&|`?]'
+re_opchars = r'[~!\#&|?+\-*/^<>=]'
+re_not_opchars = r'[^~!\#&|?+\-*/^<>=]'
+re_opchars_edgeql = r'[~!\#&|?]'
 re_opchars_sql = r'[+\-*/^<>=]'
 re_ident_start = r"[A-Za-z\200-\377_%]"
 re_ident_cont = r"[A-Za-z\200-\377_0-9\$%]"
@@ -167,6 +167,10 @@ class EdgeQLLexer(lexer.Lexer):
                 '''.format(ident_start=re_ident_start,
                            ident_cont=re_ident_cont)),
 
+        Rule(token='QIDENT',
+             next_state=STATE_KEEP,
+             regexp=r'`.+?`'),
+
         Rule(token='self',
              next_state=STATE_KEEP,
              regexp=re_edgeql_special),
@@ -182,6 +186,10 @@ class EdgeQLLexer(lexer.Lexer):
 
         if rule_token == 'self':
             tok.attrs['type'] = txt
+
+        elif rule_token == 'QIDENT':
+            tok.attrs['type'] = 'IDENT'
+            tok.value = txt[1:-1]
 
         elif rule_token == 'SCONST':
             # the process of string normalization is slightly different for

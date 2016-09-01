@@ -36,24 +36,24 @@ class TestGraphQLFunctional(tb.QueryTestCase):
         COMMIT DELTA test::d1;
 
         USING NAMESPACE test
-        INSERT {Setting} {
+        INSERT Setting {
             name := 'template',
             value := 'blue'
         };
 
         USING NAMESPACE test
-        INSERT {Setting} {
+        INSERT Setting {
             name := 'perks',
             value := 'full'
         };
 
         USING NAMESPACE test
-        INSERT {Group} {
+        INSERT `Group` {
             name := 'basic'
         };
 
         USING NAMESPACE test
-        INSERT {Group} {
+        INSERT `Group` {
             name := 'upgraded'
         };
 
@@ -63,7 +63,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             age := 25,
             active := True,
             score := 3.14,
-            groups := (SELECT {Group} WHERE {Group}.name = 'basic')
+            groups := (SELECT `Group` WHERE `Group`.name = 'basic')
         };
 
         USING NAMESPACE test
@@ -72,7 +72,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             age := 26,
             active := True,
             score := 1.23,
-            groups := (SELECT {Group} WHERE {Group}.name = 'upgraded')
+            groups := (SELECT `Group` WHERE `Group`.name = 'upgraded')
         };
 
         USING NAMESPACE test

@@ -146,9 +146,9 @@ class DatabaseTestCase(ConnectedTestCase):
             with open(self.SCHEMA, 'r') as sf:
                 schema = sf.read()
 
-            script += '\nCREATE DELTA {{test::d1}} TO $${schema}$$;'.format(
+            script += '\nCREATE DELTA test::d1 TO $${schema}$$;'.format(
                 schema=schema)
-            script += '\nCOMMIT DELTA {test::d1};'
+            script += '\nCOMMIT DELTA test::d1;'
 
         if self.SETUP:
             script += '\n' + self.SETUP

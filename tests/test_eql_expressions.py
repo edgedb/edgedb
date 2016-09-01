@@ -6,7 +6,7 @@
 ##
 
 
-import uuid
+import os.path
 
 from edgedb.lang.common import datetime
 from edgedb.client import exceptions as exc
@@ -14,6 +14,9 @@ from edgedb.server import _testbase as tb
 
 
 class TestExpressions(tb.QueryTestCase):
+    SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
+                          'queries.eschema')
+
     SETUP = """
     """
 
@@ -67,8 +70,30 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(exc.EdgeQLSyntaxError,
                                     r"name cannot start with '@'"):
             await self.con.execute("""
-                SELECT doo.goo::first { {'@foo'}:= 42 };
+                SELECT doo.(goo::first) { `@foo`:= 42 };
             """)
+
+    async def test_eql_paths_1(self):
+        cases = [
+            "Issue.owner.name",
+            "`Issue`.`owner`.`name`",
+            "Issue.(test::owner).name",
+            "`Issue`.(`test`::`owner`).`name`",
+            "Issue.(owner).(name)",
+            "test::`Issue`.(`test`::`owner`).`name`",
+            "Issue.((owner)).(((test::name)))",
+        ]
+
+        for case in cases:
+            await self.con.execute('''
+                USING NAMESPACE test
+                SELECT
+                    Issue {
+                        test::number
+                    }
+                WHERE
+                    %s = 'Elvis';
+            ''' % (case,))
 
     async def test_eql_cast01(self):
         await self.assert_query_result(r"""

@@ -125,3 +125,35 @@ class TestConstraints(tb.QueryTestCase):
             'number': '1',
             'total_time_spent': 50000
         }])
+
+    async def test_queries_parentheses(self):
+        res = await self.con.execute('''
+            SELECT
+                test::Issue {
+                    number
+                }
+            WHERE
+                (((test::Issue)).number) = '1';
+
+            SELECT
+                (test::Issue) {
+                    number
+                }
+            WHERE
+                (((test::Issue)).(number)) = '1';
+
+            SELECT
+                test::Issue {
+                    test::number
+                }
+            WHERE
+                (((test::Issue)).(test::number)) = '1';
+        ''')
+
+        self.assert_data_shape(res[0], [{
+            'number': '1',
+        }, {
+            'number': '1',
+        }, {
+            'number': '1',
+        }])
