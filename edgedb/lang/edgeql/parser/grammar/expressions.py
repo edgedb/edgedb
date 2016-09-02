@@ -143,6 +143,55 @@ class SimpleSelect(Nonterm):
         )
 
 
+class InsertExpr(Nonterm):
+    def reduce_OptAliasBlock_INSERT_Path_OptReturningClause(self, *kids):
+        self.val = qlast.InsertQueryNode(
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
+            subject=kids[2].val,
+            targets=kids[3].val
+        )
+
+    def reduce_OptAliasBlock_INSERT_TypedShape_OptReturningClause(self, *kids):
+        pathspec = kids[2].val.pathspec
+        kids[2].val.pathspec = None
+        self.val = qlast.InsertQueryNode(
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
+            subject=kids[2].val,
+            pathspec=pathspec,
+            targets=kids[3].val
+        )
+
+
+class UpdateExpr(Nonterm):
+    def reduce_UpdateExpr(self, *kids):
+        r"%reduce OptAliasBlock UPDATE TypedShape \
+                  OptWhereClause OptReturningClause"
+        pathspec = kids[2].val.pathspec
+        kids[2].val.pathspec = None
+        self.val = qlast.UpdateQueryNode(
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
+            subject=kids[2].val,
+            pathspec=pathspec,
+            where=kids[3].val,
+            targets=kids[4].val
+        )
+
+
+class DeleteExpr(Nonterm):
+    def reduce_DeleteExpr(self, *kids):
+        "%reduce OptAliasBlock DELETE Path OptWhereClause OptReturningClause"
+        self.val = qlast.DeleteQueryNode(
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
+            subject=kids[2].val,
+            where=kids[3].val,
+            targets=kids[4].val
+        )
+
+
 class OptAliasBlock(Nonterm):
     def reduce_AliasBlock(self, *kids):
         self.val = kids[0].val
@@ -495,6 +544,15 @@ class ParenExpr(Nonterm):
     def reduce_LPAREN_OpPath_RPAREN(self, *kids):
         self.val = kids[1].val
 
+    def reduce_LPAREN_InsertExpr_RPAREN(self, *kids):
+        self.val = kids[1].val
+
+    def reduce_LPAREN_UpdateExpr_RPAREN(self, *kids):
+        self.val = kids[1].val
+
+    def reduce_LPAREN_DeleteExpr_RPAREN(self, *kids):
+        self.val = kids[1].val
+
 
 class Expr(Nonterm):
     # Path | Constant | '(' Expr ')' | FuncExpr | Sequence | Mapping
@@ -539,8 +597,8 @@ class Expr(Nonterm):
     def reduce_EXISTS_SelectWithParens(self, *kids):
         self.val = qlast.ExistsPredicateNode(expr=kids[1].val)
 
-    def reduce_EXISTS_LPAREN_Expr_RPAREN(self, *kids):
-        self.val = qlast.ExistsPredicateNode(expr=kids[2].val)
+    def reduce_EXISTS_ParenExpr(self, *kids):
+        self.val = qlast.ExistsPredicateNode(expr=kids[1].val)
 
     def reduce_Sequence(self, *kids):
         self.val = kids[0].val

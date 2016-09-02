@@ -62,40 +62,13 @@ class SelectStmt(Nonterm):
 
 
 class InsertStmt(Nonterm):
-    def reduce_OptAliasBlock_INSERT_Path_OptReturningClause(self, *kids):
-        self.val = qlast.InsertQueryNode(
-            namespaces=kids[0].val[0],
-            aliases=kids[0].val[1],
-            subject=kids[2].val,
-            targets=kids[3].val
-        )
-
-    def reduce_OptAliasBlock_INSERT_TypedShape_OptReturningClause(self, *kids):
-        pathspec = kids[2].val.pathspec
-        kids[2].val.pathspec = None
-        self.val = qlast.InsertQueryNode(
-            namespaces=kids[0].val[0],
-            aliases=kids[0].val[1],
-            subject=kids[2].val,
-            pathspec=pathspec,
-            targets=kids[3].val
-        )
+    def reduce_InsertExpr(self, *kids):
+        self.val = kids[0].val
 
 
 class UpdateStmt(Nonterm):
-    def reduce_UpdateStmt(self, *kids):
-        r"%reduce OptAliasBlock UPDATE TypedShape \
-                  OptWhereClause OptReturningClause"
-        pathspec = kids[2].val.pathspec
-        kids[2].val.pathspec = None
-        self.val = qlast.UpdateQueryNode(
-            namespaces=kids[0].val[0],
-            aliases=kids[0].val[1],
-            subject=kids[2].val,
-            pathspec=pathspec,
-            where=kids[3].val,
-            targets=kids[4].val
-        )
+    def reduce_UpdateExpr(self, *kids):
+        self.val = kids[0].val
 
 
 class SetClauseList(Nonterm):
@@ -117,15 +90,8 @@ class SetTarget(Nonterm):
 
 
 class DeleteStmt(Nonterm):
-    def reduce_DeleteStmt(self, *kids):
-        "%reduce OptAliasBlock DELETE Path OptWhereClause OptReturningClause"
-        self.val = qlast.DeleteQueryNode(
-            namespaces=kids[0].val[0],
-            aliases=kids[0].val[1],
-            subject=kids[2].val,
-            where=kids[3].val,
-            targets=kids[4].val
-        )
+    def reduce_DeleteExpr(self, *kids):
+        self.val = kids[0].val
 
 
 class ReturningClause(Nonterm):
