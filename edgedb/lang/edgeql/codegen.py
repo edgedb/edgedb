@@ -15,6 +15,10 @@ from . import ast as edgeql_ast
 from . import quote as edgeql_quote
 
 
+def ident_to_str(ident):
+    return edgeql_quote.disambiguate_identifier(ident)
+
+
 class EdgeQLSourceGeneratorError(EdgeDBError):
     pass
 
@@ -217,7 +221,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(node.alias)
             self.write(' := ')
         self.write('NAMESPACE ')
-        self.write(node.namespace)
+        self.write(ident_to_str(node.namespace))
 
     def visit_ExpressionAliasDeclNode(self, node):
         self.write(node.alias)
@@ -309,9 +313,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_PathStepNode(self, node):
         # XXX: this one and other places need identifier quoting
         if node.namespace:
-            self.write('(%s::%s)' % (node.namespace, node.expr))
+            self.write('({}::{})'.format(ident_to_str(node.namespace),
+                                         ident_to_str(node.expr)))
         else:
-            self.write(node.expr)
+            self.write(ident_to_str(node.expr))
 
     def visit_LinkExprNode(self, node):
         self.visit(node.expr)
@@ -328,20 +333,20 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if node.target and node.type != 'property':
             self.write('(')
             if node.namespace:
-                self.write('{}::{}'.format(node.namespace, node.name))
+                self.write('{}::{}'.format(ident_to_str(node.namespace),
+                                           ident_to_str(node.name)))
             else:
-                self.write(node.name)
+                self.write(ident_to_str(node.name))
 
             self.write(' TO ')
             self.visit(node.target)
             self.write(')')
         else:
             if node.namespace:
-                self.write('(')
-                self.write('{}::{}'.format(node.namespace, node.name))
-                self.write(')')
+                self.write('({}::{})'.format(ident_to_str(node.namespace),
+                                             ident_to_str(node.name)))
             else:
-                self.write(node.name)
+                self.write(ident_to_str(node.name))
 
     def visit_SelectTypeRefNode(self, node):
         self.write('__type__.')
@@ -501,16 +506,16 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(']')
 
     def visit_PrototypeRefNode(self, node):
-        if node.module or '.' in node.name:
+        if node.module:
             self.write('(')
 
         if node.module:
-            self.write(node.module)
+            self.write(ident_to_str(node.module))
             self.write('::')
 
-        self.write(node.name)
+        self.write(ident_to_str(node.name))
 
-        if node.module or '.' in node.name:
+        if node.module:
             self.write(')')
 
     def visit_NoneTestNode(self, node):
@@ -519,9 +524,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_TypeNameNode(self, node):
         if node.maintype.module:
-            self.write(node.maintype.module)
+            self.write(ident_to_str(node.maintype.module))
             self.write('::')
-        self.write(node.maintype.name)
+        self.write(ident_to_str(node.maintype.name))
         if node.subtypes:
             self.write('<')
             self.visit_list(node.subtypes, newlines=False)

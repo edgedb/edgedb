@@ -90,6 +90,12 @@ class TestGraphQLTranslation(TranslatorTest):
         concept Person extends test::User
     """
 
+    SCHEMA_123LIB = r"""
+        concept Foo:
+            link select to str
+            link after to str
+    """
+
     def test_graphql_translation_query01(self):
         r"""
         query @edgedb(module: "test") {
@@ -2184,4 +2190,24 @@ class TestGraphQLTranslation(TranslatorTest):
                 name @include(if: true)
             }
         }
+        """
+
+    def test_graphql_translation_quoting01(self):
+        r"""
+        query @edgedb(module: "123lib") {
+            Foo(select: "bar") {
+                select
+                after
+            }
+        }
+
+% OK %
+
+        SELECT
+            (`123lib`::Foo){
+                `select`,
+                `after`
+            }
+        WHERE
+            ((`123lib`::Foo).`select` = 'bar');
         """
