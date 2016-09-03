@@ -23,7 +23,8 @@ class TestInsert(tb.QueryTestCase):
                 required link l2 to int
                 link l3 to str:
                     default: "test"
-                link subordinate to Subordinate
+                link subordinates to Subordinate:
+                    mapping: "1*"
         $$;
 
         COMMIT DELTA test::d_insert01;
@@ -105,32 +106,39 @@ class TestInsert(tb.QueryTestCase):
     async def test_insert_nested(self):
         result = await self.con.execute('''
             INSERT test::Subordinate {
-                name := 'subtest'
+                name := 'subtest 1'
+            };
+
+            INSERT test::Subordinate {
+                name := 'subtest 2'
             };
 
             INSERT test::InsertTest {
                 l2 := 0,
                 l3 := 'test',
-                subordinate := (
+                subordinates := (
                     SELECT test::Subordinate
-                    WHERE test::Subordinate.name = 'subtest'
+                    WHERE test::Subordinate.name LIKE 'subtest%'
                 )
             };
 
             SELECT test::InsertTest {
-                subordinate: {
+                subordinates: {
                     name
-                }
+                } ORDER BY test::Subordinate.name
             };
         ''')
 
         self.assert_data_shape(
-            result[2],
+            result[3],
             [{
                 'id': uuid.UUID,
-                'subordinate': {
+                'subordinates': [{
                     'id': uuid.UUID,
-                    'name': 'subtest'
-                }
+                    'name': 'subtest 1'
+                }, {
+                    'id': uuid.UUID,
+                    'name': 'subtest 2'
+                }]
             }]
         )

@@ -2289,9 +2289,14 @@ class IRCompiler(IRCompilerBase):
         else:
             data_is_json = False
 
+        input_rel = pgsql.ast.FromExprNode(
+            expr=input_data,
+            alias=context.current.genalias('i'))
+
         unnested = pgsql.ast.SelectQueryNode(
             targets=[pgsql.ast.SelectExprNode(
-                expr=input_data, )],
+                expr=pgsql.ast.FieldRefNode(field='*', table=input_rel))],
+            fromlist=[input_rel],
             alias='j',
             coldef='(_)')
 
