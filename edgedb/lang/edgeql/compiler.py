@@ -604,7 +604,7 @@ class EdgeQLCompiler:
         for pathspec in opvalues:
             value = pathspec.compexpr
 
-            tpath = qlast.PathNode(steps=[pathspec.expr])
+            tpath = pathspec.expr
 
             targetexpr = self._process_path(
                 context, tpath, path_tip=graph.optarget)
@@ -629,7 +629,7 @@ class EdgeQLCompiler:
         for pathspec in opvalues:
             value = pathspec.compexpr
 
-            tpath = qlast.PathNode(steps=[pathspec.expr])
+            tpath = pathspec.expr
 
             targetexpr = self._process_path(
                 context, tpath, path_tip=graph.optarget)
@@ -1070,7 +1070,7 @@ class EdgeQLCompiler:
                     result, glob_specs, target_most_generic=False)
 
             elif isinstance(ptrspec, qlast.SelectTypeRefNode):
-                type_prop_name = ptrspec.attrs[0].expr.name
+                type_prop_name = ptrspec.attrs[0].steps[0].expr.name
                 type_prop = source.get_type_property(
                     type_prop_name, context.current.proto_schema)
 
@@ -1083,7 +1083,23 @@ class EdgeQLCompiler:
                 result.append(node)
 
             else:
-                lexpr = ptrspec.expr.expr
+                steps = ptrspec.expr.steps
+                ptrsource = source
+
+                if len(steps) == 2:
+                    ptrsource = self._normalize_concept(
+                        context, steps[0].expr, steps[0].namespace)
+                    if (not ptrsource.issubclass(source) and
+                            not source.issubclass(ptrsource)):
+                        msg = '{} is neither a subclass nor a ' \
+                              'superclass of {}'.format(ptrsource.name,
+                                                        source.name)
+                        raise errors.EdgeQLError(
+                            msg, context=ptrspec.expr.context)
+                    lexpr = steps[1].expr
+                elif len(steps) == 1:
+                    lexpr = steps[0].expr
+
                 ptrname = (lexpr.namespace, lexpr.name)
 
                 if lexpr.type == 'property':
@@ -1099,7 +1115,6 @@ class EdgeQLCompiler:
 
                     ptrtype = s_lprops.LinkProperty
                 else:
-                    ptrsource = source
                     ptrtype = s_links.Link
 
                 if lexpr.target is not None:

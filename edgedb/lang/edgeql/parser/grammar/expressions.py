@@ -271,7 +271,7 @@ class SelectTargetList(parsing.ListNonterm, element=SelectTargetEl,
 
 
 class Shape(Nonterm):
-    def reduce_LBRACE_SelectPointerSpecList_RBRACE(self, *kids):
+    def reduce_LBRACE_ShapeElementList_RBRACE(self, *kids):
         self.val = kids[1].val
 
 
@@ -294,25 +294,9 @@ class OptAnySubShape(Nonterm):
         self.val = None
 
 
-class SelectPointerSpec(Nonterm):
-    def reduce_PointerGlob(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_AT_NodeName(self, *kids):
-        from edgedb.lang.schema import pointers as s_pointers
-
-        self.val = qlast.SelectPathSpecNode(
-            expr=qlast.LinkExprNode(
-                expr=qlast.LinkNode(
-                    name=kids[1].val.name, namespace=kids[1].val.module,
-                    direction=s_pointers.PointerDirection.Outbound,
-                    type='property'
-                )
-            )
-        )
-
-    def reduce_PointerSpecWithSubShape(self, *kids):
-        r"""%reduce PointerSpecSetExpr OptPointerRecursionSpec \
+class ShapeElement(Nonterm):
+    def reduce_ShapeElementWithSubShape(self, *kids):
+        r"""%reduce ShapePointer OptPointerRecursionSpec \
              OptAnySubShape OptWhereClause OptSortClause OptSelectLimit \
         """
         self.val = kids[0].val
@@ -326,51 +310,82 @@ class SelectPointerSpec(Nonterm):
             self.val.offset = kids[5].val[0]
             self.val.limit = kids[5].val[1]
 
-    def reduce_PointerSpecSetExpr_OptPointerRecursionSpec_TURNSTILE_Expr(
-            self, *kids):
-        self.val = kids[0].val
-        self.val.recurse = kids[1].val
-        self.val.compexpr = kids[3].val
+    def reduce_ShapePathPtr_TURNSTILE_Expr(self, *kids):
+        self.val = qlast.SelectPathSpecNode(
+            expr=qlast.PathNode(
+                steps=[qlast.LinkExprNode(expr=kids[0].val)]),
+            compexpr=kids[2].val)
 
 
-class SelectPointerSpecList(parsing.ListNonterm, element=SelectPointerSpec,
-                            separator=T_COMMA):
+class ShapeElementList(parsing.ListNonterm, element=ShapeElement,
+                       separator=T_COMMA):
     pass
 
 
-class FQPathExpr(Nonterm):
-    def reduce_LinkDirection_FQPathPtr(self, *kids):
-        self.val = kids[1].val
-        self.val.direction = kids[0].val
+class ShapePath(Nonterm):
+    # A form of Path appearing as an element in shapes.
+    #
+    # one-of:
+    #   link
+    #   <link
+    #   >link
+    #   @prop
+    #   Concept.link
+    #   Concept.>link
+    #   Concept.<link
 
-    def reduce_FQPathPtr(self, *kids):
+    def reduce_ShapePathExpr(self, *kids):
+        self.val = qlast.PathNode(
+            steps=[kids[0].val]
+        )
+
+    def reduce_AT_ShapePathPtr(self, *kids):
+        kids[1].val.type = 'property'
+        self.val = qlast.PathNode(
+            steps=[qlast.LinkPropExprNode(expr=kids[1].val)]
+        )
+
+    def reduce_ShapePathStart_DOT_ShapePathExpr(self, *kids):
+        self.val = qlast.PathNode(
+            steps=[kids[0].val, kids[2].val]
+        )
+
+
+class ShapePathStart(Nonterm):
+    def reduce_NodeName(self, *kids):
+        self.val = qlast.PathStepNode(
+            expr=kids[0].val.name, namespace=kids[0].val.module)
+
+    def reduce_NodeNameParens(self, *kids):
+        self.val = qlast.PathStepNode(
+            expr=kids[0].val.name, namespace=kids[0].val.module)
+
+
+class ShapePathExpr(Nonterm):
+    def reduce_LinkDirection_ShapePathPtr(self, *kids):
+        kids[1].val.direction = kids[0].val
+        self.val = qlast.LinkExprNode(expr=kids[1].val)
+
+    def reduce_ShapePathPtr(self, *kids):
         from edgedb.lang.schema import pointers as s_pointers
-        self.val = kids[0].val
-        self.val.direction = s_pointers.PointerDirection.Outbound
+        kids[0].val.direction = s_pointers.PointerDirection.Outbound
+        self.val = qlast.LinkExprNode(expr=kids[0].val)
 
 
-class FQPathPtr(Nonterm):
-    def reduce_FQPathStepName(self, *kids):
+class ShapePathPtr(Nonterm):
+    def reduce_NodeName(self, *kids):
         self.val = qlast.LinkNode(name=kids[0].val.name,
                                   namespace=kids[0].val.module)
 
-    def reduce_FQPathPtrParen(self, *kids):
-        self.val = kids[0].val
+    def reduce_NodeNameParens(self, *kids):
+        self.val = qlast.LinkNode(name=kids[0].val.name,
+                                  namespace=kids[0].val.module)
 
 
-class FQPathPtrParen(Nonterm):
-    def reduce_LPAREN_FQPathPtrParen_RPAREN(self, *kids):
-        self.val = kids[1].val
-
-    def reduce_LPAREN_FQPathStepName_RPAREN(self, *kids):
-        self.val = qlast.LinkNode(name=kids[1].val.name,
-                                  namespace=kids[1].val.module)
-
-
-class PointerSpecSetExpr(Nonterm):
-    def reduce_FQPathExpr(self, *kids):
+class ShapePointer(Nonterm):
+    def reduce_ShapePath(self, *kids):
         self.val = qlast.SelectPathSpecNode(
-            expr=qlast.LinkExprNode(expr=kids[0].val)
+            expr=kids[0].val
         )
 
     def reduce_TYPEINDIRECTION(self, *kids):
@@ -875,7 +890,7 @@ class PathStep(Nonterm):
     def reduce_DOT_PathExprOrType(self, *kids):
         self.val = qlast.LinkExprNode(expr=kids[1].val)
 
-    def reduce_AT_PathExpr(self, *kids):
+    def reduce_AT_PathPtr(self, *kids):
         self.val = qlast.LinkPropExprNode(expr=kids[1].val)
         kids[1].val.type = 'property'
 
@@ -900,7 +915,7 @@ class PathExpr(Nonterm):
 
 
 class PathPtr(Nonterm):
-    def reduce_PathStepName(self, *kids):
+    def reduce_ShortOpNodeName(self, *kids):
         self.val = qlast.LinkNode(name=kids[0].val.name,
                                   namespace=kids[0].val.module)
 
@@ -912,7 +927,7 @@ class PathPtrParen(Nonterm):
     def reduce_LPAREN_PathPtrParen_RPAREN(self, *kids):
         self.val = kids[1].val
 
-    def reduce_LPAREN_FQPathStepName_RPAREN(self, *kids):
+    def reduce_LPAREN_OpNodeName_RPAREN(self, *kids):
         self.val = qlast.LinkNode(name=kids[1].val.name,
                                   namespace=kids[1].val.module)
 
@@ -1090,29 +1105,47 @@ class NodeName(Nonterm):
             name=kids[0].val[-1])
 
 
-class PathStepName(Nonterm):
+class NodeNameList(parsing.ListNonterm, element=NodeName, separator=T_COMMA):
+    pass
+
+
+class ShortOpNodeName(Nonterm):
     def reduce_Identifier(self, *kids):
-        # PathStepName cannot start with a '@' in any way
+        # ShortOpNodeName cannot start with a '@' in any way
         #
+        if kids[0].val[0] == '@':
+            raise EdgeQLSyntaxError("name cannot start with '@'")
         self.val = qlast.PrototypeRefNode(
             module=None,
             name=kids[0].val)
 
 
-class FQPathStepName(Nonterm):
-    def reduce_NodeName(self, *kids):
-        self.val = kids[0].val
+class OpNodeName(Nonterm):
+    def reduce_BaseName(self, *kids):
+        # OpNodeName cannot start with a '@' in any way
+        #
+        if kids[0].val[0][0] == '@':
+            raise EdgeQLSyntaxError("name cannot start with '@'")
+        self.val = qlast.PrototypeRefNode(
+            module='.'.join(kids[0].val[:-1]) or None,
+            name=kids[0].val[-1])
 
     def reduce_OpName(self, *kids):
-        # FQPathStepName cannot start with a '@' in any way
+        # OpNodeName cannot start with a '@' in any way
         #
+        if kids[0].val[0][0] == '@':
+            raise EdgeQLSyntaxError("name cannot start with '@'")
         self.val = qlast.PrototypeRefNode(
             module='.'.join(kids[0].val[:-1]) or None,
             name=kids[0].val[-1])
 
 
-class NodeNameList(parsing.ListNonterm, element=NodeName, separator=T_COMMA):
-    pass
+class NodeNameParens(Nonterm):
+    def reduce_LPAREN_NodeNameParens_RPAREN(self, *kids):
+        self.val = kids[1].val
+
+    def reduce_LPAREN_OpNodeName_RPAREN(self, *kids):
+        self.val = kids[1].val
 
 
 class KeywordMeta(context.ContextNontermMeta):

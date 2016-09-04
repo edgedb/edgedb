@@ -101,6 +101,28 @@ class TestExpressions(tb.QueryTestCase):
                     %s = 'Elvis';
             ''' % (case,))
 
+    async def test_eql_polymorphic_01(self):
+        await self.con.execute(r"""
+            USING NAMESPACE test
+            SELECT Text {
+                Issue.number,
+                (Issue).related_to,
+                (Issue).((`priority`)),
+                test::Comment.owner: {
+                    name
+                }
+            };
+        """)
+
+        with self.assertRaisesRegex(exc.EdgeQLError,
+                                    r'test::User is neither a subclass.*'):
+            await self.con.execute(r"""
+                USING NAMESPACE test
+                SELECT Issue {
+                    User.name
+                };
+            """)
+
     async def test_eql_cast01(self):
         await self.assert_query_result(r"""
             SELECT <std::str>123;
