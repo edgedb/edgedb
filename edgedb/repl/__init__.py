@@ -238,7 +238,7 @@ class Cli:
                 except KeyboardInterrupt:
                     continue
                 except Exception as ex:
-                    print('{}: {}'.format(type(ex).__name__, ex.args[0]))
+                    print('{}: {}'.format(type(ex).__name__, str(ex)))
                     continue
 
                 markup.dump(result)
