@@ -1127,7 +1127,15 @@ class EdgeQLCompiler:
 
                 if ptrspec.compexpr is not None:
                     schema = context.current.proto_schema
-                    compexpr = self._process_expr(context, ptrspec.compexpr)
+                    if not isinstance(ptrspec.compexpr, qlast.StatementNode):
+                        cexpr = qlast.SelectQueryNode(
+                            targets=[
+                                qlast.SelectExprNode(expr=ptrspec.compexpr)
+                            ]
+                        )
+                    else:
+                        cexpr = ptrspec.compexpr
+                    compexpr = self._process_expr(context, cexpr)
                     target_proto = irutils.infer_type(compexpr, schema)
                     assert target_proto is not None
                     ptr = s_links.Link(
@@ -1312,6 +1320,10 @@ class EdgeQLCompiler:
                     raise errors.EdgeQLError()
 
                 linkname = (link_expr.namespace, link_expr.name)
+
+                if linkname == (None, '__type__'):
+                    typeref = path_tip
+                    continue
 
                 link_proto = self._resolve_ptr(
                     context,

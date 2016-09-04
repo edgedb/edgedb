@@ -384,9 +384,13 @@ class ShapePathPtr(Nonterm):
 
 class ShapePointer(Nonterm):
     def reduce_ShapePath(self, *kids):
-        self.val = qlast.SelectPathSpecNode(
-            expr=kids[0].val
-        )
+        if kids[0].val.steps[0].expr.name == '__type__':
+            # fill out attrs later from the shape
+            self.val = qlast.SelectTypeRefNode()
+        else:
+            self.val = qlast.SelectPathSpecNode(
+                expr=kids[0].val
+            )
 
     def reduce_TYPEINDIRECTION(self, *kids):
         # fill out attrs later from the shape
