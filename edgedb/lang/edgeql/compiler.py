@@ -1018,7 +1018,8 @@ class EdgeQLCompiler:
 
         return node
 
-    def _process_pathspec(self, context, source, rlink_proto, pathspec):
+    def _process_pathspec(self, context, source, rlink_proto, pathspec,
+                          is_typeref=False):
         result = []
 
         for ptrspec in pathspec:
@@ -1070,7 +1071,22 @@ class EdgeQLCompiler:
                     result, glob_specs, target_most_generic=False)
 
             elif isinstance(ptrspec, qlast.SelectTypeRefNode):
-                type_prop_name = ptrspec.attrs[0].steps[0].expr.name
+                schema = context.current.schema
+                ptr_proto = schema.get('std::__type__').derive(
+                    schema, source, schema.get('std::typeref'))
+
+                node = irast.PtrPathSpec(
+                    type_indirection=True,
+                    ptr_proto=ptr_proto)
+
+                node.pathspec = self._process_pathspec(
+                    context, source, rlink_proto, ptrspec.attrs,
+                    is_typeref=True)
+
+                result.append(node)
+
+            elif is_typeref:
+                type_prop_name = ptrspec.steps[0].expr.name
                 type_prop = source.get_type_property(
                     type_prop_name, context.current.proto_schema)
 
@@ -2028,7 +2044,8 @@ class EdgeQLCompiler:
                             pathspec=None,
                             prefixes=None,
                             _visited_records=None,
-                            _recurse=True):
+                            _recurse=True,
+                            _include_implicit=True):
         """Convert an EntitySet node into an Record."""
         if not isinstance(expr, irast.PathCombination):
             expr = irast.Conjunction(paths=frozenset((expr, )))
@@ -2066,11 +2083,14 @@ class EdgeQLCompiler:
         else:
             ptrs = concept.pointers
 
-        implicit_links = (sn.Name('std::id'),)
+        if _include_implicit:
+            implicit_links = (sn.Name('std::id'),)
 
-        recurse_links = {(l, s_pointers.PointerDirection.Outbound):
-                         irast.PtrPathSpec(ptr_proto=ptrs[l])
-                         for l in implicit_links}
+            recurse_links = {(l, s_pointers.PointerDirection.Outbound):
+                             irast.PtrPathSpec(ptr_proto=ptrs[l])
+                             for l in implicit_links}
+        else:
+            recurse_links = {}
 
         if pathspec is not None:
             for ps in pathspec:
@@ -2081,6 +2101,24 @@ class EdgeQLCompiler:
                 elif isinstance(ps.ptr_proto, s_lprops.TypeProperty):
                     # metaref
                     recurse_metarefs.append(ps.ptr_proto.normal_name().name)
+
+                elif ps.type_indirection:
+                    el = self.entityref_to_record(
+                        expr,
+                        schema,
+                        pathspec=ps.pathspec,
+                        _visited_records=_visited_records,
+                        _recurse=False,
+                        _include_implicit=False)
+
+                    el.rlink = irast.EntityLink(
+                        source=p,
+                        target=None,
+                        link_proto=ps.ptr_proto,
+                        direction=s_pointers.PointerDirection.Outbound,
+                        users={'selector'})
+
+                    elements.append(el)
 
         for (link_name, link_direction), recurse_spec in recurse_links.items():
             el = None
@@ -2472,6 +2510,31 @@ class EdgeQLCompiler:
 
                 item2_lname = item2.ptr_proto.normal_name()
                 item2_ldir = item2.ptr_direction
+
+                if item1.type_indirection and item2.type_indirection:
+                    subspec = self._merge_pathspecs(
+                        item1_subspec,
+                        item2_subspec,
+                        target_most_generic=target_most_generic)
+
+                    merged = item1.__class__(
+                        ptr_proto=item1.ptr_proto,
+                        pathspec=subspec,
+                        ptr_direction=item1.ptr_direction,
+                        target_proto=item1.target_proto,
+                        recurse=item1.recurse,
+                        sorter=item1.orderexprs,
+                        generator=item1.generator,
+                        offset=item1.offset,
+                        limit=item1.limit)
+
+                    result.append(merged)
+
+                    merged_right.add(i)
+                    continue
+
+                elif item1.type_indirection or item2.type_indirection:
+                    continue
 
                 if item1_lname == item2_lname and item1_ldir == item2_ldir:
                     # Do merge

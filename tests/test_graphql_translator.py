@@ -1993,6 +1993,24 @@ class TestGraphQLTranslation(TranslatorTest):
             };
         """
 
+    def test_graphql_translation_fragment_type12(self):
+        r"""
+        query @edgedb(module: "test") {
+            NamedObject {
+                ... on User @edgedb(module: "test") {
+                    age
+                }
+            }
+        }
+
+% OK %
+
+        SELECT
+            (test::NamedObject) {
+                age
+            }
+        """
+
     def test_graphql_translation_import01(self):
         r"""
         fragment groupFrag on Group @edgedb(module: "test") {

@@ -175,8 +175,5 @@ class TestConstraints(tb.QueryTestCase):
 
         self.assert_data_shape(res[0], [{
             'number': '1',
-            'name': 'test::Issue',
-            # XXX: I would expect the below result, instead
-            # 'number': '1',
-            # '__type__': {'name': '1'},
+            '__type__': {'name': 'test::Issue'},
         }])
