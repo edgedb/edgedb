@@ -6,14 +6,16 @@
 ##
 
 
+import bisect
 import os
 import sys
 import types
 
 import parsing
 
-from edgedb.lang.common.exceptions import EdgeDBError, add_context, get_context
 from importkit import context as lang_context
+
+from edgedb.lang.common.exceptions import EdgeDBError, add_context, get_context
 from edgedb.lang.common import markup
 from edgedb.lang.common import lexer
 
@@ -250,17 +252,27 @@ class ParserContext(lang_context.SourceContext, markup.MarkupExceptionContext):
         lines = []
         line_numbers = []
 
+        buf_lines = self.buffer.split('\n')
+        line_offsets = []
+        i = 0
+        for line in buf_lines:
+            line_offsets.append(i)
+            i += len(line) + 1
+
         if self.start.line > 1:
-            ctx_line, _ = self.get_line_snippet(self.start, offset=-1)
+            ctx_line, _ = self.get_line_snippet(self.start, offset=-1,
+                                                line_offsets=line_offsets)
             lines.append(ctx_line)
             line_numbers.append(self.start.line - 1)
 
-        snippet, offset = self.get_line_snippet(self.start)
+        snippet, offset = self.get_line_snippet(self.start,
+                                                line_offsets=line_offsets)
         lines.append(snippet)
         line_numbers.append(self.start.line)
 
         try:
-            ctx_line, _ = self.get_line_snippet(self.start, offset=1)
+            ctx_line, _ = self.get_line_snippet(self.start, offset=1,
+                                                line_offsets=line_offsets)
         except ValueError:
             pass
         else:
@@ -276,63 +288,29 @@ class ParserContext(lang_context.SourceContext, markup.MarkupExceptionContext):
 
         return me.lang.ExceptionContext(title=self.title, body=body)
 
-    def _find_line(self, point, offset=0):
+    def _find_line(self, point, offset=0, *, line_offsets):
         if point.line == 0:
             if offset < 0:
                 raise ValueError('not enough lines in buffer')
             else:
                 return 0, len(self.buffer)
 
-        step = -1 if offset <= 0 else 1
-        find = self.buffer.rfind if offset <= 0 else self.buffer.find
+        line_no = bisect.bisect_right(line_offsets, point.pointer) - 1 + offset
+        if line_no >= len(line_offsets):
+            raise ValueError('not enough lines in buffer')
 
-        offset += step
-
-        ptr = point.pointer
-
-        if offset <= 0:
-            start_end = (0, ptr)
-        else:
-            start_end = (ptr,)
-
-        while offset:
-            offset -= step
-
-            linestart = find('\n', *start_end)
-            if linestart == -1:
-                if offset:
-                    raise ValueError('not enough lines in buffer')
-                else:
-                    lineend = self.buffer.find('\n')
-                    if lineend == -1:
-                        lineend = len(self.buffer)
-                    return 0, lineend
-
-            ptr = linestart + step
-            if ptr < 0:  # it never makes sense to wrap around the ptr
-                ptr = 0
-            if step == -1:
-                start_end = (0, ptr)
-            else:
-                start_end = (ptr,)
-
-        if step == -1:
-            linestart += 1
-            lineend = self.buffer.find('\n', linestart)
-            if lineend == -1:
-                lineend = len(self.buffer)
-        else:
-            lineend = linestart + 1
-            linestart = self.buffer.rfind('\n', 0, lineend - 1)
-            if linestart == -1:
-                linestart = 0
-            else:
-                linestart += 1
+        linestart = line_offsets[line_no]
+        try:
+            lineend = line_offsets[line_no + 1] - 1
+        except IndexError:
+            lineend = len(self.buffer)
 
         return linestart, lineend
 
-    def get_line_snippet(self, point, max_length=120, *, offset=0):
-        line_start, line_end = self._find_line(point, offset=offset)
+    def get_line_snippet(self, point, max_length=120, *, offset=0,
+                         line_offsets):
+        line_start, line_end = self._find_line(point, offset=offset,
+                                               line_offsets=line_offsets)
         line_len = line_end - line_start
 
         if line_len > max_length:

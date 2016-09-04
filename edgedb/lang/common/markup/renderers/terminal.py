@@ -434,7 +434,7 @@ class LangRenderer(BaseRenderer):
                                 # Render column caret
                                 _caret_indent = ' ' * (element.colno - stripped_spaces)
                                 self.buffer.new_line()
-                                self.buffer.write('|', style=self.styles.code)
+                                self.buffer.write(' ', style=self.styles.code)
                                 self.buffer.write(_caret_indent + '^',
                                                   style=self.styles.tb_pos_caret)
                                 self.buffer.new_line()
