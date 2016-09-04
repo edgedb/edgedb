@@ -144,6 +144,8 @@ class GraphQLParser(parsing.Parser):
         return lexer.GraphQLLexer()
 
     def get_exception(self, native_err, context):
+        if isinstance(native_err, GraphQLParserError):
+            return native_err
         return GraphQLParserError(native_err.args[0], context=context)
 
     def process_lex_token(self, mod, tok):

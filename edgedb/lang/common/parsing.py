@@ -12,9 +12,8 @@ import types
 
 import parsing
 
-from edgedb.lang.common.exceptions import EdgeDBError, add_context
+from edgedb.lang.common.exceptions import EdgeDBError, add_context, get_context
 from importkit import context as lang_context
-from edgedb.lang.common.datastructures import xvalue
 from edgedb.lang.common import markup
 from edgedb.lang.common import lexer
 
@@ -242,6 +241,7 @@ class ParserContext(lang_context.SourceContext, markup.MarkupExceptionContext):
     title = 'Parser Context'
 
     @classmethod
+    @markup.serializer.no_ref_detect
     def as_markup(cls, self, *, ctx):
         me = markup.elements
 
@@ -367,6 +367,13 @@ class ParserError(EdgeDBError):
                 self.line = context.start.line
                 self.col = context.start.column
 
+    @property
+    def context(self):
+        try:
+            return get_context(self, ParserContext)
+        except LookupError:
+            return None
+
 
 class Parser:
     def __init__(self, **parser_data):
@@ -384,7 +391,8 @@ class Parser:
         return False
 
     def get_exception(self, native_err, context):
-        return ParserError(native_err.args[0], context=context)
+        if not isinstance(native_err, ParserError):
+            return ParserError(native_err.args[0], context=context)
 
     def get_parser_spec(self):
         cls = self.__class__
@@ -452,6 +460,12 @@ class Parser:
 
         except parsing.SyntaxError as e:
             raise self.get_exception(e, context=self.context(tok)) from e
+
+        except ParserError as e:
+            raise self.get_exception(e, context=e.context) from e
+
+        except lexer.UnknownTokenError as e:
+            raise self.get_exception(e, context=self.context(None)) from e
 
         return self.parser.start[0].val
 

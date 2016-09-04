@@ -11,26 +11,25 @@ from edgedb.lang.graphql.parser.errors import (GraphQLParserError,
                                                GraphQLUniquenessError,
                                                UnterminatedStringError,
                                                InvalidStringTokenError)
-from edgedb.lang.common.lexer import UnknownTokenError
 
 
 class TestGraphQLParser(tb.ParserTest):
     def test_graphql_parser_empty01(self):
         """"""
 
-    @tb.must_fail(UnknownTokenError, line=1, col=1)
+    @tb.must_fail(GraphQLParserError, line=1, col=1)
     def test_graphql_parser_empty02(self):
         """\v"""
 
-    @tb.must_fail(UnknownTokenError, line=1, col=1)
+    @tb.must_fail(GraphQLParserError, line=1, col=1)
     def test_graphql_parser_empty03(self):
         """\f"""
 
-    @tb.must_fail(UnknownTokenError, line=1, col=1)
+    @tb.must_fail(GraphQLParserError, line=1, col=1)
     def test_graphql_parser_empty04(self):
         """\xa0"""
 
-    @tb.must_fail(UnknownTokenError, line=2, col=1)
+    @tb.must_fail(GraphQLParserError, line=2, col=1)
     def test_graphql_parser_empty05(self):
         """\r\n;"""
 
@@ -91,7 +90,7 @@ class TestGraphQLParser(tb.ParserTest):
         { field(arg:"\uXXXF") }
         """
 
-    @tb.must_fail(UnknownTokenError, line=2, col=34)
+    @tb.must_fail(GraphQLParserError, line=2, col=34)
     def test_graphql_parser_string08(self):
         R"""
         { field(arg:"\uFEFF\n") };
@@ -375,13 +374,13 @@ class TestGraphQLParser(tb.ParserTest):
         query myquery on type { field }
         """
 
-    @tb.must_fail(UnknownTokenError, line=2, col=32)
+    @tb.must_fail(GraphQLParserError, line=2, col=32)
     def test_graphql_parser_query06(self):
         r"""
         query myquery { field };
         """
 
-    @tb.must_fail(UnknownTokenError, line=2, col=25)
+    @tb.must_fail(GraphQLParserError, line=2, col=25)
     def test_graphql_parser_query07(self):
         r"""
         query myQuery { \a }
@@ -665,7 +664,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    @tb.must_fail(UnknownTokenError, line=3, col=49)
+    @tb.must_fail(GraphQLParserError, line=3, col=49)
     def test_graphql_parser_values19(self):
         r"""
         {
@@ -673,7 +672,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    @tb.must_fail(UnknownTokenError, line=3, col=49)
+    @tb.must_fail(GraphQLParserError, line=3, col=49)
     def test_graphql_parser_values20(self):
         r"""
         {
@@ -681,7 +680,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    @tb.must_fail(UnknownTokenError, line=3, col=49)
+    @tb.must_fail(GraphQLParserError, line=3, col=49)
     def test_graphql_parser_values21(self):
         r"""
         {

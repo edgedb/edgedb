@@ -12,5 +12,6 @@ class settings:
 
 
 from .base import serialize, serializer, serialize_traceback_point, Context
+from .base import no_ref_detect
 from .code import serialize_code
 from . import logging, ast, yaml

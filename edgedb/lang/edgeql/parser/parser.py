@@ -20,6 +20,8 @@ class EdgeQLParserBase(parsing.Parser):
         return bool(os.environ.get('EDGEDB_DEBUG_EDGEQL_PARSER'))
 
     def get_exception(self, native_err, context):
+        if isinstance(native_err, EdgeQLSyntaxError):
+            return native_err
         return EdgeQLSyntaxError(native_err.args[0], context=context)
 
     def get_lexer(self):
