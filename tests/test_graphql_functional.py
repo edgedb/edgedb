@@ -124,11 +124,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             [{
                 'name': 'Alice',
                 'age': 27,
-                # XXX: pretty sure this is not right and needs fixing
-                'groups': [{
-                    'id': None,
-                    'name': None,
-                }]
+                'groups': []
             }, {
                 'name': 'Jane',
                 'age': 26,
@@ -247,4 +243,3 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 'score': 5,
             }],
         ])
-

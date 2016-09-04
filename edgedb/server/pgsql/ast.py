@@ -49,7 +49,7 @@ class NullTestNode(Base):
     __fields = [('expr', Base)]
 
 class SelectExprNode(Base):
-    __fields = ['expr', 'alias']
+    __fields = ['expr', 'alias', 'filter_expr']
 
 class FromExprNode(Base):
     __fields = ['expr', 'alias']
@@ -215,7 +215,7 @@ class IndexIndirectionNode(Base):
 
 
 class CaseExprNode(Base):
-    __fields = ['arg', 'args', 'default']
+    __fields = ['arg', 'args', 'default', 'filter_expr']
 
 
 class CaseWhenNode(Base):
