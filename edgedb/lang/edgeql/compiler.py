@@ -925,6 +925,33 @@ class EdgeQLCompiler:
 
         elif isinstance(expr, qlast.ExistsPredicateNode):
             subquery = self._process_expr(context, expr.expr)
+            if (isinstance(subquery, irast.EntitySet) and
+                    isinstance(subquery.concept, s_concepts.Concept)):
+                _id = sn.Name('std::id')
+                schema = context.current.proto_schema
+                aref = irast.AtomicRefSimple(
+                    name=_id,
+                    ref=subquery,
+                    ptr_proto=subquery.concept.resolve_pointer(
+                        schema, _id)
+                )
+                subquery.atomrefs.add(aref)
+                subquery = irast.SubgraphRef(
+                    ref=irast.GraphExpr(
+                        selector=[
+                            irast.SelectorExpr(
+                                expr=aref
+                            )
+                        ],
+                        generator=irast.UnaryOp(
+                            op=ast.ops.NOT,
+                            expr=irast.NoneTest(
+                                expr=aref
+                            )
+                        )
+                    )
+                )
+
             if isinstance(subquery, irast.SubgraphRef):
                 subquery.ref.referrers.append('exists')
             node = irast.ExistPred(expr=subquery)
@@ -1248,7 +1275,7 @@ class EdgeQLCompiler:
 
                         if refnode:
                             if isinstance(refnode, irast.Path):
-                                path_copy = self.copy_path(refnode)
+                                path_copy = irutils.copy_path(refnode)
                                 path_copy.users.add(context.current.location)
                                 path_tip = path_copy
 
@@ -2147,7 +2174,7 @@ class EdgeQLCompiler:
             full_path_id.add(link_proto, link_direction, target_proto)
 
             if not link_singular or recurse_link is not None:
-                lref = self.copy_path(ref, connect_to_origin=True)
+                lref = irutils.copy_path(ref, connect_to_origin=True)
                 lref.reference = ref
             else:
                 lref = ref
@@ -2215,7 +2242,7 @@ class EdgeQLCompiler:
                 for sortexpr in recurse_spec.sorter:
                     sortpath = sortexpr.expr
 
-                    sort_target = self.copy_path(sortpath)
+                    sort_target = irutils.copy_path(sortpath)
 
                     if isinstance(sortpath, irast.LinkPropRef):
                         if (sortpath.ref.link_proto.normal_name() ==
@@ -3686,107 +3713,6 @@ class EdgeQLCompiler:
         return list({p
                      for p in entity_paths
                      if isinstance(p.concept, s_concepts.Concept)})
-
-    @classmethod
-    def copy_path(cls,
-                  path: (irast.EntitySet, irast.EntityLink, irast.BaseRef),
-                  connect_to_origin=False):
-
-        if isinstance(path, irast.EntitySet):
-            result = irast.EntitySet(
-                id=path.id,
-                context=path.context,
-                pathvar=path.pathvar,
-                concept=path.concept,
-                users=path.users,
-                joins=path.joins,
-                rewrite_flags=path.rewrite_flags.copy(),
-                anchor=path.anchor,
-                show_as_anchor=path.show_as_anchor,
-                _backend_rel_suffix=path._backend_rel_suffix)
-            rlink = path.rlink
-
-            if connect_to_origin:
-                result.origin = \
-                    path.origin if path.origin is not None else path
-
-        elif isinstance(path, irast.BaseRef):
-            args = dict(
-                id=path.id,
-                context=path.context,
-                ref=path.ref,
-                ptr_proto=path.ptr_proto,
-                rewrite_flags=path.rewrite_flags.copy(),
-                pathvar=path.pathvar,
-                anchor=path.anchor,
-                show_as_anchor=path.show_as_anchor)
-
-            if isinstance(path, irast.BaseRefExpr):
-                args['expr'] = path.expr
-                args['inline'] = path.inline
-
-            result = path.__class__(**args)
-            rlink = path.rlink
-
-            if isinstance(path,
-                          (irast.AtomicRefSimple, irast.LinkPropRefSimple)):
-                result.name = path.name
-        else:
-            result = None
-            rlink = path
-
-        current = result
-
-        while rlink:
-            link = irast.EntityLink(
-                context=rlink.context,
-                target=current,
-                link_proto=rlink.link_proto,
-                direction=rlink.direction,
-                propfilter=rlink.propfilter,
-                users=rlink.users.copy(),
-                pathvar=rlink.pathvar,
-                anchor=rlink.anchor,
-                show_as_anchor=rlink.show_as_anchor,
-                rewrite_flags=rlink.rewrite_flags.copy(),
-                pathspec_trigger=rlink.pathspec_trigger)
-
-            if not result:
-                result = link
-
-            parent_path = rlink.source
-
-            if parent_path:
-                parent = irast.EntitySet(
-                    id=parent_path.id,
-                    context=parent_path.context,
-                    pathvar=parent_path.pathvar,
-                    anchor=parent_path.anchor,
-                    show_as_anchor=parent_path.show_as_anchor,
-                    concept=parent_path.concept,
-                    users=parent_path.users,
-                    joins=parent_path.joins,
-                    rewrite_flags=parent_path.rewrite_flags.copy(),
-                    _backend_rel_suffix=parent_path._backend_rel_suffix)
-                parent.disjunction = irast.Disjunction(paths=frozenset(
-                    (link, )))
-
-                if connect_to_origin:
-                    parent.origin = \
-                        parent_path.origin if parent_path.origin is not None \
-                        else parent_path
-
-                link.source = parent
-
-                if current:
-                    current.rlink = link
-                current = parent
-                rlink = parent_path.rlink
-
-            else:
-                rlink = None
-
-        return result
 
     def process_function_call(self, node):
         if node.name in (('search', 'rank'), ('search', 'headline')):

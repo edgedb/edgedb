@@ -654,3 +654,103 @@ def extract_prefixes(expr, prefixes=None):
         assert False, 'unexpected node: "%r"' % expr
 
     return prefixes
+
+
+def copy_path(path: (irast.EntitySet, irast.EntityLink, irast.BaseRef),
+              connect_to_origin=False):
+
+    if isinstance(path, irast.EntitySet):
+        result = irast.EntitySet(
+            id=path.id,
+            context=path.context,
+            pathvar=path.pathvar,
+            concept=path.concept,
+            users=path.users,
+            joins=path.joins,
+            rewrite_flags=path.rewrite_flags.copy(),
+            anchor=path.anchor,
+            show_as_anchor=path.show_as_anchor,
+            _backend_rel_suffix=path._backend_rel_suffix)
+        rlink = path.rlink
+
+        if connect_to_origin:
+            result.origin = \
+                path.origin if path.origin is not None else path
+
+    elif isinstance(path, irast.BaseRef):
+        args = dict(
+            id=path.id,
+            context=path.context,
+            ref=path.ref,
+            ptr_proto=path.ptr_proto,
+            rewrite_flags=path.rewrite_flags.copy(),
+            pathvar=path.pathvar,
+            anchor=path.anchor,
+            show_as_anchor=path.show_as_anchor)
+
+        if isinstance(path, irast.BaseRefExpr):
+            args['expr'] = path.expr
+            args['inline'] = path.inline
+
+        result = path.__class__(**args)
+        rlink = path.rlink
+
+        if isinstance(path,
+                      (irast.AtomicRefSimple, irast.LinkPropRefSimple)):
+            result.name = path.name
+    else:
+        result = None
+        rlink = path
+
+    current = result
+
+    while rlink:
+        link = irast.EntityLink(
+            context=rlink.context,
+            target=current,
+            link_proto=rlink.link_proto,
+            direction=rlink.direction,
+            propfilter=rlink.propfilter,
+            users=rlink.users.copy(),
+            pathvar=rlink.pathvar,
+            anchor=rlink.anchor,
+            show_as_anchor=rlink.show_as_anchor,
+            rewrite_flags=rlink.rewrite_flags.copy(),
+            pathspec_trigger=rlink.pathspec_trigger)
+
+        if not result:
+            result = link
+
+        parent_path = rlink.source
+
+        if parent_path:
+            parent = irast.EntitySet(
+                id=parent_path.id,
+                context=parent_path.context,
+                pathvar=parent_path.pathvar,
+                anchor=parent_path.anchor,
+                show_as_anchor=parent_path.show_as_anchor,
+                concept=parent_path.concept,
+                users=parent_path.users,
+                joins=parent_path.joins,
+                rewrite_flags=parent_path.rewrite_flags.copy(),
+                _backend_rel_suffix=parent_path._backend_rel_suffix)
+            parent.disjunction = irast.Disjunction(paths=frozenset(
+                (link, )))
+
+            if connect_to_origin:
+                parent.origin = \
+                    parent_path.origin if parent_path.origin is not None \
+                    else parent_path
+
+            link.source = parent
+
+            if current:
+                current.rlink = link
+            current = parent
+            rlink = parent_path.rlink
+
+        else:
+            rlink = None
+
+    return result

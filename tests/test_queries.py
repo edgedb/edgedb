@@ -176,3 +176,46 @@ class TestConstraints(tb.QueryTestCase):
             'number': '1',
             '__type__': {'name': 'test::Issue'},
         }])
+
+    async def test_queries_exists01(self):
+        res = await self.con.execute('''
+            USING NAMESPACE test
+            SELECT
+                Issue {
+                    number
+                }
+            WHERE
+                NOT EXISTS (Issue.<(issue TO Comment));
+        ''')
+
+        self.assert_data_shape(res[0], [{
+            'number': '2',
+        }])
+
+        res = await self.con.execute('''
+            USING NAMESPACE test
+            SELECT
+                Issue {
+                    number
+                }
+            WHERE
+                NOT EXISTS (SELECT Issue.<(issue TO Comment));
+        ''')
+
+        self.assert_data_shape(res[0], [{
+            'number': '2',
+        }])
+
+        res = await self.con.execute('''
+            USING NAMESPACE test
+            SELECT
+                Issue {
+                    number
+                }
+            WHERE
+                EXISTS (Issue.<(issue TO Comment));
+        ''')
+
+        self.assert_data_shape(res[0], [{
+            'number': '1',
+        }])

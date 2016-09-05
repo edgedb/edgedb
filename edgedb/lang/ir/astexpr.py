@@ -21,11 +21,23 @@ class ExistsConjunctionExpr:
         if self.pattern is None:
             # Basic NOT EXISTS (blah) expression
             nex_expr = irastmatch.UnaryOp(
-                expr = irastmatch.ExistPred(
-                    expr = astmatch.group('expr', irastmatch.Base())
+                expr=irastmatch.ExistPred(
+                    expr=astmatch.Or(
+                        irastmatch.SubgraphRef(
+                            ref=irastmatch.GraphExpr(
+                                selector=[
+                                    irastmatch.SelectorExpr(
+                                        expr=astmatch.group(
+                                            'expr', irastmatch.Base())
+                                    )
+                                ]
+                            )
+                        ),
+                        astmatch.group('expr', irastmatch.Base()),
+                    )
                 ),
 
-                op = ast.ops.NOT
+                op=ast.ops.NOT
             )
 
             # A logical conjunction of unique constraint expressions
