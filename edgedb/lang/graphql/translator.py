@@ -303,6 +303,8 @@ class GraphQLTranslator:
             return
 
         fragmodule = self._get_module(frag.directives)
+        if fragmodule is None:
+            fragmodule = self._path[0][0][0]
         self._path.append([(fragmodule, frag.on)])
 
     def _process_select_where(self, selset):

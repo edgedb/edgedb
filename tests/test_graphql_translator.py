@@ -2000,7 +2000,7 @@ class TestGraphQLTranslation(TranslatorTest):
         r"""
         query @edgedb(module: "test") {
             NamedObject {
-                ... on User @edgedb(module: "test") {
+                ... on User {
                     age
                 }
             }
