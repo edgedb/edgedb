@@ -302,34 +302,8 @@ class GraphQLTranslator:
         if frag.on is None:
             return
 
-        prevbase = self._path[-1]
-
         fragmodule = self._get_module(frag.directives)
-        fragType = self.schema.get((fragmodule, frag.on))
         self._path.append([(fragmodule, frag.on)])
-
-        baseType = self.schema.get(prevbase[0])
-        for step in prevbase[1:]:
-            baseType = baseType.resolve_pointer(self.schema,
-                                                step).target
-
-        # XXX: fragment and base type must be directly related. We
-        # don't actually care about the exact details of this because
-        # we can let EdgeQL do the actual resolving, but that has a
-        # side-effect of including "null" fields where technically
-        # GraphQL should have stripped them. This can be marked, traced,
-        # and stripped in post-processing though.
-        #
-        if (not baseType.issubclass(fragType) and
-                not fragType.issubclass(baseType)):
-            if getattr(frag, 'name', None):
-                msg = "fragment {!r} is incompatible with {!r}".format(
-                    frag.name, baseType.name.name)
-            else:
-                msg = "inline fragment is incompatible with {!r}".format(
-                    baseType.name.name)
-
-            raise GraphQLValidationError(msg, context=spread.context)
 
     def _process_select_where(self, selset):
         if not selset.arguments:

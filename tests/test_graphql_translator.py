@@ -9,6 +9,7 @@
 import os
 import re
 import textwrap
+import unittest
 
 from edgedb.lang import _testbase as lang_tb
 from edgedb.lang.schema import _testbase as schema_tb
@@ -1824,6 +1825,7 @@ class TestGraphQLTranslation(TranslatorTest):
             };
         """
 
+    @unittest.expectedFailure
     @lang_tb.must_fail(GraphQLValidationError, line=9, col=17)
     def test_graphql_translation_fragment_type04(self):
         r"""
@@ -1839,6 +1841,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
+    @unittest.expectedFailure
     @lang_tb.must_fail(GraphQLValidationError, line=8, col=13)
     def test_graphql_translation_fragment_type05(self):
         r"""
