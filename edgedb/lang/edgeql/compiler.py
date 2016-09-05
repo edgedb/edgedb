@@ -1105,13 +1105,6 @@ class EdgeQLCompiler:
                 if len(steps) == 2:
                     ptrsource = self._normalize_concept(
                         context, steps[0].expr, steps[0].namespace)
-                    if (not ptrsource.issubclass(source) and
-                            not source.issubclass(ptrsource)):
-                        msg = '{} is neither a subclass nor a ' \
-                              'superclass of {}'.format(ptrsource.name,
-                                                        source.name)
-                        raise errors.EdgeQLError(
-                            msg, context=ptrspec.expr.context)
                     lexpr = steps[1].expr
                 elif len(steps) == 1:
                     lexpr = steps[0].expr

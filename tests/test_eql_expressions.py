@@ -114,14 +114,12 @@ class TestExpressions(tb.QueryTestCase):
             };
         """)
 
-        with self.assertRaisesRegex(exc.EdgeQLError,
-                                    r'test::User is neither a subclass.*'):
-            await self.con.execute(r"""
-                USING NAMESPACE test
-                SELECT Issue {
-                    User.name
-                };
-            """)
+        await self.con.execute(r"""
+            USING NAMESPACE test
+            SELECT Owned {
+                Named.name
+            };
+        """)
 
     async def test_eql_cast01(self):
         await self.assert_query_result(r"""
