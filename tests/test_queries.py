@@ -158,7 +158,6 @@ class TestConstraints(tb.QueryTestCase):
             'number': '1',
         }])
 
-
     async def test_queries_type01(self):
         res = await self.con.execute('''
             USING NAMESPACE test

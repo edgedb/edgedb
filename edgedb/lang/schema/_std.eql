@@ -233,11 +233,6 @@ CREATE LINK std::id INHERITING std::link {
     SET readonly := False;
 };
 
-CREATE LINK std::__type__ INHERITING std::link {
-    SET mapping := '*1';
-    SET readonly := True;
-};
-
 CREATE CONCEPT std::Object {
     SET is_virtual := False;
     CREATE REQUIRED LINK std::id TO std::uuid {
@@ -245,4 +240,11 @@ CREATE CONCEPT std::Object {
         SET mapping := '11';
         SET readonly := True;
     };
+};
+
+CREATE MODULE schema;
+
+CREATE LINK schema::__type__ INHERITING std::link {
+    SET mapping := '*1';
+    SET readonly := True;
 };

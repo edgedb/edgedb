@@ -1071,16 +1071,16 @@ class EdgeQLCompiler:
                     result, glob_specs, target_most_generic=False)
 
             elif isinstance(ptrspec, qlast.SelectTypeRefNode):
-                schema = context.current.schema
-                ptr_proto = schema.get('std::__type__').derive(
-                    schema, source, schema.get('std::typeref'))
+                schema = context.current.proto_schema
+                ptr_proto = schema.get('schema::__type__').derive(
+                    schema, source, schema.get('std::Object'))
 
                 node = irast.PtrPathSpec(
                     type_indirection=True,
                     ptr_proto=ptr_proto)
 
                 node.pathspec = self._process_pathspec(
-                    context, source, rlink_proto, ptrspec.attrs,
+                    context, source, ptr_proto, ptrspec.attrs,
                     is_typeref=True)
 
                 result.append(node)
@@ -2094,15 +2094,7 @@ class EdgeQLCompiler:
 
         if pathspec is not None:
             for ps in pathspec:
-                if isinstance(ps.ptr_proto, s_links.Link):
-                    k = ps.ptr_proto.normal_name(), ps.ptr_direction
-                    recurse_links[k] = ps
-
-                elif isinstance(ps.ptr_proto, s_lprops.TypeProperty):
-                    # metaref
-                    recurse_metarefs.append(ps.ptr_proto.normal_name().name)
-
-                elif ps.type_indirection:
+                if ps.type_indirection:
                     el = self.entityref_to_record(
                         expr,
                         schema,
@@ -2119,6 +2111,14 @@ class EdgeQLCompiler:
                         users={'selector'})
 
                     elements.append(el)
+
+                elif isinstance(ps.ptr_proto, s_links.Link):
+                    k = ps.ptr_proto.normal_name(), ps.ptr_direction
+                    recurse_links[k] = ps
+
+                elif isinstance(ps.ptr_proto, s_lprops.TypeProperty):
+                    # metaref
+                    recurse_metarefs.append(ps.ptr_proto.normal_name().name)
 
         for (link_name, link_direction), recurse_spec in recurse_links.items():
             el = None
@@ -2472,7 +2472,8 @@ class EdgeQLCompiler:
                     sorter=ptrspec.sorter,
                     limit=ptrspec.limit,
                     offset=ptrspec.offset,
-                    pathspec=ptrspec.pathspec[:])
+                    pathspec=ptrspec.pathspec[:],
+                    type_indirection=ptrspec.type_indirection)
 
                 for i, subptrspec in enumerate(ptrspec.pathspec):
                     if (subptrspec.ptr_proto.normal_name() ==
@@ -2526,14 +2527,16 @@ class EdgeQLCompiler:
                         sorter=item1.orderexprs,
                         generator=item1.generator,
                         offset=item1.offset,
-                        limit=item1.limit)
+                        limit=item1.limit,
+                        type_indirection=True)
 
                     result.append(merged)
 
                     merged_right.add(i)
                     continue
 
-                elif item1.type_indirection or item2.type_indirection:
+                elif item1.type_indirection != item2.type_indirection:
+                    result.append(item1)
                     continue
 
                 if item1_lname == item2_lname and item1_ldir == item2_ldir:
@@ -2563,7 +2566,8 @@ class EdgeQLCompiler:
                         sorter=item1.orderexprs,
                         generator=item1.generator,
                         offset=item1.offset,
-                        limit=item1.limit)
+                        limit=item1.limit,
+                        type_indirection=item1.type_indirection)
 
                     result.append(merged)
 
