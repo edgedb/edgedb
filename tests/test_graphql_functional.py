@@ -35,29 +35,29 @@ class TestGraphQLFunctional(tb.QueryTestCase):
 
         COMMIT DELTA test::d1;
 
-        USING NAMESPACE test
+        USING MODULE test
         INSERT Setting {
             name := 'template',
             value := 'blue'
         };
 
-        USING NAMESPACE test
+        USING MODULE test
         INSERT Setting {
             name := 'perks',
             value := 'full'
         };
 
-        USING NAMESPACE test
+        USING MODULE test
         INSERT `Group` {
             name := 'basic'
         };
 
-        USING NAMESPACE test
+        USING MODULE test
         INSERT `Group` {
             name := 'upgraded'
         };
 
-        USING NAMESPACE test
+        USING MODULE test
         INSERT User {
             name := 'John',
             age := 25,
@@ -66,7 +66,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             groups := (SELECT `Group` WHERE `Group`.name = 'basic')
         };
 
-        USING NAMESPACE test
+        USING MODULE test
         INSERT User {
             name := 'Jane',
             age := 26,
@@ -75,7 +75,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             groups := (SELECT `Group` WHERE `Group`.name = 'upgraded')
         };
 
-        USING NAMESPACE test
+        USING MODULE test
         INSERT User {
             name := 'Alice',
             age := 27,

@@ -92,7 +92,7 @@ class TestExpressions(tb.QueryTestCase):
 
         for case in cases:
             await self.con.execute('''
-                USING NAMESPACE test
+                USING MODULE test
                 SELECT
                     Issue {
                         test::number
@@ -103,7 +103,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_eql_polymorphic_01(self):
         await self.con.execute(r"""
-            USING NAMESPACE test
+            USING MODULE test
             SELECT Text {
                 Issue.number,
                 (Issue).related_to,
@@ -115,7 +115,7 @@ class TestExpressions(tb.QueryTestCase):
         """)
 
         await self.con.execute(r"""
-            USING NAMESPACE test
+            USING MODULE test
             SELECT Owned {
                 Named.name
             };

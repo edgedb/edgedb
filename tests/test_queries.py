@@ -17,40 +17,40 @@ class TestConstraints(tb.QueryTestCase):
                           'queries.eschema')
 
     SETUP = """
-        USING NAMESPACE test
+        USING MODULE test
         INSERT Priority {
             name := 'High'
         };
 
-        USING NAMESPACE test
+        USING MODULE test
         INSERT Priority {
             name := 'Low'
         };
 
-        USING NAMESPACE test
+        USING MODULE test
         INSERT Status {
             name := 'Open'
         };
 
-        USING NAMESPACE test
+        USING MODULE test
         INSERT Status {
             name := 'Closed'
         };
 
 
-        USING NAMESPACE test
+        USING MODULE test
         INSERT User {
             name := 'Elvis'
         };
 
 
-        USING NAMESPACE test
+        USING MODULE test
         INSERT User {
             name := 'Yury'
         };
 
 
-        USING NAMESPACE test
+        USING MODULE test
         INSERT LogEntry {
             owner := (SELECT User WHERE User.name = 'Elvis'),
             spent_time := 50000,
@@ -58,7 +58,7 @@ class TestConstraints(tb.QueryTestCase):
         };
 
 
-        USING NAMESPACE test
+        USING MODULE test
         INSERT Issue {
             number := '1',
             name := 'Release EdgeDB',
@@ -70,7 +70,7 @@ class TestConstraints(tb.QueryTestCase):
         };
 
 
-        USING NAMESPACE test
+        USING MODULE test
         INSERT Comment {
             body := 'EdgeDB needs to happen soon.',
             owner := (SELECT User WHERE User.name = 'Elvis'),
@@ -78,7 +78,7 @@ class TestConstraints(tb.QueryTestCase):
         };
 
 
-        USING NAMESPACE test
+        USING MODULE test
         INSERT Issue {
             number := '2',
             name := 'Improve EdgeDB repl output rendering.',
@@ -91,7 +91,7 @@ class TestConstraints(tb.QueryTestCase):
 
     async def test_queries_computable(self):
         res = await self.con.execute('''
-            USING NAMESPACE test
+            USING MODULE test
             SELECT
                 Issue {
                     number,
@@ -111,7 +111,7 @@ class TestConstraints(tb.QueryTestCase):
         }])
 
         res = await self.con.execute('''
-            USING NAMESPACE test
+            USING MODULE test
             SELECT
                 Issue {
                     number,
@@ -160,7 +160,7 @@ class TestConstraints(tb.QueryTestCase):
 
     async def test_queries_type01(self):
         res = await self.con.execute('''
-            USING NAMESPACE test
+            USING MODULE test
             SELECT
                 Issue {
                     number,
@@ -179,7 +179,7 @@ class TestConstraints(tb.QueryTestCase):
 
     async def test_queries_exists01(self):
         res = await self.con.execute('''
-            USING NAMESPACE test
+            USING MODULE test
             SELECT
                 Issue {
                     number
@@ -193,7 +193,7 @@ class TestConstraints(tb.QueryTestCase):
         }])
 
         res = await self.con.execute('''
-            USING NAMESPACE test
+            USING MODULE test
             SELECT
                 Issue {
                     number
@@ -207,7 +207,7 @@ class TestConstraints(tb.QueryTestCase):
         }])
 
         res = await self.con.execute('''
-            USING NAMESPACE test
+            USING MODULE test
             SELECT
                 Issue {
                     number

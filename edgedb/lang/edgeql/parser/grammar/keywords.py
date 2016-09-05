@@ -60,7 +60,6 @@ edgeql_keywords = {
     "link": ("LINK", UNRESERVED_KEYWORD),
     "mod": ("MOD", RESERVED_KEYWORD),
     "module": ("MODULE", UNRESERVED_KEYWORD),
-    "namespace": ("NAMESPACE", RESERVED_KEYWORD),
     "no": ("NO", UNRESERVED_KEYWORD),
     "none": ("NONE", RESERVED_KEYWORD),
     "nones": ("NONES", RESERVED_KEYWORD),

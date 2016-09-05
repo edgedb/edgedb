@@ -220,7 +220,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if node.alias:
             self.write(node.alias)
             self.write(' := ')
-        self.write('NAMESPACE ')
+        self.write('MODULE ')
         self.write(ident_to_str(node.namespace))
 
     def visit_ExpressionAliasDeclNode(self, node):
