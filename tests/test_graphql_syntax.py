@@ -6,188 +6,202 @@
 ##
 
 
-from edgedb.lang.graphql import _testbase as tb
+import re
+
+from edgedb.lang import _testbase as tb
+from edgedb.lang.graphql import generate_source as gql_to_source
+from edgedb.lang.graphql.parser import parser as gql_parser
 from edgedb.lang.graphql.parser.errors import (GraphQLParserError,
                                                GraphQLUniquenessError,
                                                UnterminatedStringError,
                                                InvalidStringTokenError)
 
 
-class TestGraphQLParser(tb.ParserTest):
-    def test_graphql_parser_empty01(self):
+class GraphQLSyntaxTest(tb.BaseSyntaxTest):
+    re_filter = re.compile(r'''[\s,]+|(\#.*?\n)''')
+    parser_debug_flag = 'DEBUG_GRAPHQL'
+    markup_dump_lexer = 'graphql'
+    ast_to_source = gql_to_source
+
+    def get_parser(self, *, spec):
+        return gql_parser.GraphQLParser()
+
+
+class TestGraphQLParser(GraphQLSyntaxTest):
+    def test_graphql_syntax_empty01(self):
         """"""
 
     @tb.must_fail(GraphQLParserError, line=1, col=1)
-    def test_graphql_parser_empty02(self):
+    def test_graphql_syntax_empty02(self):
         """\v"""
 
     @tb.must_fail(GraphQLParserError, line=1, col=1)
-    def test_graphql_parser_empty03(self):
+    def test_graphql_syntax_empty03(self):
         """\f"""
 
     @tb.must_fail(GraphQLParserError, line=1, col=1)
-    def test_graphql_parser_empty04(self):
+    def test_graphql_syntax_empty04(self):
         """\xa0"""
 
     @tb.must_fail(GraphQLParserError, line=2, col=1)
-    def test_graphql_parser_empty05(self):
+    def test_graphql_syntax_empty05(self):
         """\r\n;"""
 
     @tb.must_fail(UnterminatedStringError, line=1, col=2)
-    def test_graphql_parser_empty06(self):
+    def test_graphql_syntax_empty06(self):
         '''"'''
 
     @tb.must_fail(UnterminatedStringError, line=2, col=10)
-    def test_graphql_parser_empty07(self):
+    def test_graphql_syntax_empty07(self):
         """
         "
         "
         """
 
     @tb.must_fail(GraphQLParserError, line=1, col=1)
-    def test_graphql_parser_empty08(self):
+    def test_graphql_syntax_empty08(self):
         """..."""
 
     @tb.must_fail(InvalidStringTokenError, line=2, col=22)
-    def test_graphql_parser_string01(self):
+    def test_graphql_syntax_string01(self):
         """
         { field(arg:"\b") }
         """
 
     @tb.must_fail(InvalidStringTokenError, line=2, col=22)
-    def test_graphql_parser_string02(self):
+    def test_graphql_syntax_string02(self):
         R"""
         { field(arg:"\x") }
         """
 
     @tb.must_fail(InvalidStringTokenError, line=2, col=22)
-    def test_graphql_parser_string03(self):
+    def test_graphql_syntax_string03(self):
         R"""
         { field(arg:"\u1") }
         """
 
     @tb.must_fail(InvalidStringTokenError, line=2, col=22)
-    def test_graphql_parser_string04(self):
+    def test_graphql_syntax_string04(self):
         R"""
         { field(arg:"\u0XX1") }
         """
 
     @tb.must_fail(InvalidStringTokenError, line=2, col=22)
-    def test_graphql_parser_string05(self):
+    def test_graphql_syntax_string05(self):
         R"""
         { field(arg:"\uXXXX") }
         """
 
     @tb.must_fail(InvalidStringTokenError, line=2, col=25)
-    def test_graphql_parser_string06(self):
+    def test_graphql_syntax_string06(self):
         R"""
         { field(arg:"foo\uFXXX") }
         """
 
     @tb.must_fail(InvalidStringTokenError, line=2, col=22)
-    def test_graphql_parser_string07(self):
+    def test_graphql_syntax_string07(self):
         R"""
         { field(arg:"\uXXXF") }
         """
 
     @tb.must_fail(GraphQLParserError, line=2, col=34)
-    def test_graphql_parser_string08(self):
+    def test_graphql_syntax_string08(self):
         R"""
         { field(arg:"\uFEFF\n") };
         """
 
     @tb.must_fail(UnterminatedStringError, line=2, col=29)
-    def test_graphql_parser_string09(self):
+    def test_graphql_syntax_string09(self):
         """
         { field(arg:"foo') }
         """
 
     @tb.must_fail(UnterminatedStringError, line=3, col=23)
-    def test_graphql_parser_string10(self):
+    def test_graphql_syntax_string10(self):
         r"""
         { field(
             arg:"foo \
         ) }
         """
 
-    def test_graphql_parser_short01(self):
+    def test_graphql_syntax_short01(self):
         """{id}"""
 
-    def test_graphql_parser_short02(self):
+    def test_graphql_syntax_short02(self):
         """
         {id, name, description}
         """
 
     @tb.must_fail(GraphQLParserError, line=2, col=9)
-    def test_graphql_parser_short03(self):
+    def test_graphql_syntax_short03(self):
         """
         {id}
         {name}
         """
 
     @tb.must_fail(GraphQLParserError, line=3, col=9)
-    def test_graphql_parser_short04(self):
+    def test_graphql_syntax_short04(self):
         """
         query {id}
         {name}
         """
 
     @tb.must_fail(GraphQLParserError, line=2, col=18)
-    def test_graphql_parser_short05(self):
+    def test_graphql_syntax_short05(self):
         """
         { field: {} }
         """
 
-    def test_graphql_parser_field01(self):
+    def test_graphql_syntax_field01(self):
         """
         {
             id
         }
         """
 
-    def test_graphql_parser_field02(self):
+    def test_graphql_syntax_field02(self):
         """
         {
             foo: id
         }
         """
 
-    def test_graphql_parser_field03(self):
+    def test_graphql_syntax_field03(self):
         """
         {
             name(q: "bar")
         }
         """
 
-    def test_graphql_parser_field04(self):
+    def test_graphql_syntax_field04(self):
         """
         {
             foo: id(q: 42)
         }
         """
 
-    def test_graphql_parser_field05(self):
+    def test_graphql_syntax_field05(self):
         """
         {
             foo: name(q: 42, w: "bar")
         }
         """
 
-    def test_graphql_parser_field06(self):
+    def test_graphql_syntax_field06(self):
         """
         {
             foo: name (q: 42, w: "bar") @skip(if: true)
         }
         """
 
-    def test_graphql_parser_field07(self):
+    def test_graphql_syntax_field07(self):
         """
         {
             foo: name (q: 42, w: "bar") @skip(if: false), @include(if: true)
         }
         """
 
-    def test_graphql_parser_inline_fragment01(self):
+    def test_graphql_syntax_inline_fragment01(self):
         """
         {
             ...{
@@ -196,7 +210,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_inline_fragment02(self):
+    def test_graphql_syntax_inline_fragment02(self):
         """
         {
             ... @skip(if: true) {
@@ -205,7 +219,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_inline_fragment03(self):
+    def test_graphql_syntax_inline_fragment03(self):
         """
         {
             ... @skip(if: true), @include(if: true) {
@@ -214,7 +228,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_inline_fragment04(self):
+    def test_graphql_syntax_inline_fragment04(self):
         """
         {
             ... on User {
@@ -223,7 +237,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_inline_fragment05(self):
+    def test_graphql_syntax_inline_fragment05(self):
         """
         {
             ... on User @skip(if: true), @include(if: true) {
@@ -232,7 +246,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_fragment01(self):
+    def test_graphql_syntax_fragment01(self):
         """
         fragment friendFields on User {
             id
@@ -243,7 +257,7 @@ class TestGraphQLParser(tb.ParserTest):
         { ... friendFields }
         """
 
-    def test_graphql_parser_fragment02(self):
+    def test_graphql_syntax_fragment02(self):
         """
         fragment friendFields on User @skip(if: false), @include(if: true) {
             id
@@ -254,7 +268,7 @@ class TestGraphQLParser(tb.ParserTest):
         { ... friendFields }
         """
 
-    def test_graphql_parser_fragment03(self):
+    def test_graphql_syntax_fragment03(self):
         """
         fragment someFields on User { id }
 
@@ -263,7 +277,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_fragment04(self):
+    def test_graphql_syntax_fragment04(self):
         """
         fragment someFields on User { id }
 
@@ -273,26 +287,26 @@ class TestGraphQLParser(tb.ParserTest):
         """
 
     @tb.must_fail(GraphQLParserError, line=3, col=28)
-    def test_graphql_parser_fragment05(self):
+    def test_graphql_syntax_fragment05(self):
         """
         { ...MissingOn }
         fragment MissingOn Type {name}
         """
 
     @tb.must_fail(GraphQLParserError, line=2, col=10)
-    def test_graphql_parser_fragment06(self):
+    def test_graphql_syntax_fragment06(self):
         """
         {...Missing}
         """
 
     @tb.must_fail(GraphQLParserError, line=2, col=9)
-    def test_graphql_parser_fragment07(self):
+    def test_graphql_syntax_fragment07(self):
         """
         fragment Missing on Type {name}
         """
 
     @tb.must_fail(GraphQLParserError, line=2, col=9)
-    def test_graphql_parser_fragment08(self):
+    def test_graphql_syntax_fragment08(self):
         """
         fragment cyclceFrag on Type {
             ...cyclceFrag
@@ -302,7 +316,7 @@ class TestGraphQLParser(tb.ParserTest):
         """
 
     @tb.must_fail(GraphQLParserError, line=2, col=9)
-    def test_graphql_parser_fragment09(self):
+    def test_graphql_syntax_fragment09(self):
         """
         fragment cyclceFrag on Type {
             ...otherFrag
@@ -316,7 +330,7 @@ class TestGraphQLParser(tb.ParserTest):
         """
 
     @tb.must_fail(GraphQLParserError, line=2, col=9)
-    def test_graphql_parser_fragment10(self):
+    def test_graphql_syntax_fragment10(self):
         """
         fragment A on Type {...B}
         fragment B on Type {...C}
@@ -326,7 +340,7 @@ class TestGraphQLParser(tb.ParserTest):
         {... C}
         """
 
-    def test_graphql_parser_query01(self):
+    def test_graphql_syntax_query01(self):
         """
         query getZuckProfile {
             id
@@ -334,7 +348,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_query02(self):
+    def test_graphql_syntax_query02(self):
         """
         query getZuckProfile($devicePicSize: Int) {
             id
@@ -342,7 +356,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_query03(self):
+    def test_graphql_syntax_query03(self):
         """
         query getZuckProfile($devicePicSize: Int) @skip(if: true) {
             id
@@ -350,7 +364,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_query04(self):
+    def test_graphql_syntax_query04(self):
         """
         query noFragments {
             user(id: 4) {
@@ -369,44 +383,44 @@ class TestGraphQLParser(tb.ParserTest):
         """
 
     @tb.must_fail(GraphQLParserError, line=2, col=23)
-    def test_graphql_parser_query05(self):
+    def test_graphql_syntax_query05(self):
         r"""
         query myquery on type { field }
         """
 
     @tb.must_fail(GraphQLParserError, line=2, col=32)
-    def test_graphql_parser_query06(self):
+    def test_graphql_syntax_query06(self):
         r"""
         query myquery { field };
         """
 
     @tb.must_fail(GraphQLParserError, line=2, col=25)
-    def test_graphql_parser_query07(self):
+    def test_graphql_syntax_query07(self):
         r"""
         query myQuery { \a }
         """
 
     @tb.must_fail(GraphQLParserError, line=2, col=9)
-    def test_graphql_parser_query08(self):
+    def test_graphql_syntax_query08(self):
         """
         notanoperation Foo { field }
         """
 
     @tb.must_fail(GraphQLUniquenessError, line=3, col=9)
-    def test_graphql_parser_query09(self):
+    def test_graphql_syntax_query09(self):
         """
         query myQuery { id }
         query myQuery { id }
         """
 
     @tb.must_fail(GraphQLParserError, line=2, col=9)
-    def test_graphql_parser_query10(self):
+    def test_graphql_syntax_query10(self):
         """
         query { id }
         query myQuery { id }
         """
 
-    def test_graphql_parser_mutation01(self):
+    def test_graphql_syntax_mutation01(self):
         """
         mutation {
             likeStory(storyID: 12345) {
@@ -417,7 +431,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_mutation02(self):
+    def test_graphql_syntax_mutation02(self):
         """
         mutation ($storyId: Int) {
             likeStory(storyID: $storyId) {
@@ -428,7 +442,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_mutation03(self):
+    def test_graphql_syntax_mutation03(self):
         """
         mutation ($storyId: Int, $likes: Int) @include(if: $likes) {
             likeStory(storyID: $storyId, likeCount: $likes) {
@@ -440,13 +454,13 @@ class TestGraphQLParser(tb.ParserTest):
         """
 
     @tb.must_fail(GraphQLUniquenessError, line=3, col=9)
-    def test_graphql_parser_mutation04(self):
+    def test_graphql_syntax_mutation04(self):
         """
         mutation myQuery { id }
         query myQuery { id }
         """
 
-    def test_graphql_parser_subscription01(self):
+    def test_graphql_syntax_subscription01(self):
         """
         subscription {
             id
@@ -455,13 +469,13 @@ class TestGraphQLParser(tb.ParserTest):
         """
 
     @tb.must_fail(GraphQLUniquenessError, line=3, col=9)
-    def test_graphql_parser_subscription02(self):
+    def test_graphql_syntax_subscription02(self):
         """
         mutation myQuery { id }
         subscription myQuery { id }
         """
 
-    def test_graphql_parser_values01(self):
+    def test_graphql_syntax_values01(self):
         """
         {
             user(id: 4) {
@@ -474,7 +488,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_values02(self):
+    def test_graphql_syntax_values02(self):
         """
         {
             foo(id: 4) {
@@ -484,7 +498,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_values03(self):
+    def test_graphql_syntax_values03(self):
         """
         {
             foo(id: 4) {
@@ -494,7 +508,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_values04(self):
+    def test_graphql_syntax_values04(self):
         r"""
         {
             foo(id: 4) {
@@ -506,7 +520,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_values05(self):
+    def test_graphql_syntax_values05(self):
         r"""
         {
             foo(id: 4) {
@@ -516,7 +530,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_values06(self):
+    def test_graphql_syntax_values06(self):
         r"""
         {
             foo(id: 4) {
@@ -526,7 +540,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_values07(self):
+    def test_graphql_syntax_values07(self):
         r"""
         {
             foo(id: 4) {
@@ -536,7 +550,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_values08(self):
+    def test_graphql_syntax_values08(self):
         r"""
         {
             foo(id: 4) {
@@ -546,7 +560,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_values09(self):
+    def test_graphql_syntax_values09(self):
         r"""
         {
             foo(id: 4) {
@@ -559,7 +573,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_values10(self):
+    def test_graphql_syntax_values10(self):
         r"""
         {
             foo(id: 4) {
@@ -580,7 +594,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_values11(self):
+    def test_graphql_syntax_values11(self):
         """
         query getZuckProfile($devicePicSize: Int = 42) {
             user(id: 4) {
@@ -591,7 +605,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_values12(self):
+    def test_graphql_syntax_values12(self):
         r"""
         query myQuery($special: Int = 42) {
             foo(id: 4) {
@@ -613,7 +627,7 @@ class TestGraphQLParser(tb.ParserTest):
         """
 
     @tb.must_fail(GraphQLParserError, line=3, col=21)
-    def test_graphql_parser_values13(self):
+    def test_graphql_syntax_values13(self):
         r"""
         {
             foo(id: null) {
@@ -624,7 +638,7 @@ class TestGraphQLParser(tb.ParserTest):
         """
 
     @tb.must_fail(GraphQLParserError, line=5, col=28)
-    def test_graphql_parser_values14(self):
+    def test_graphql_syntax_values14(self):
         r"""
         {
             foo(id: NULL) {
@@ -634,14 +648,14 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_values15(self):
+    def test_graphql_syntax_values15(self):
         r"""
         query myQuery($var: Int) {
             field(complex: { a: { b: [ $var ] } })
         }
         """
 
-    def test_graphql_parser_values16(self):
+    def test_graphql_syntax_values16(self):
         r"""
         query Foo($x: Complex = { a: { b: [ "var" ] } }) {
             field
@@ -649,7 +663,7 @@ class TestGraphQLParser(tb.ParserTest):
         """
 
     @tb.must_fail(GraphQLParserError, line=2, col=45)
-    def test_graphql_parser_values17(self):
+    def test_graphql_syntax_values17(self):
         r"""
         query Foo($x: Complex = { a: { b: [ $var ] } }) {
             field
@@ -657,7 +671,7 @@ class TestGraphQLParser(tb.ParserTest):
         """
 
     @tb.must_fail(GraphQLParserError, line=3, col=49)
-    def test_graphql_parser_values18(self):
+    def test_graphql_syntax_values18(self):
         r"""
         {
             fieldWithNullableStringInput(input: null)
@@ -665,7 +679,7 @@ class TestGraphQLParser(tb.ParserTest):
         """
 
     @tb.must_fail(GraphQLParserError, line=3, col=49)
-    def test_graphql_parser_values19(self):
+    def test_graphql_syntax_values19(self):
         r"""
         {
             fieldWithNullableStringInput(input: .123)
@@ -673,7 +687,7 @@ class TestGraphQLParser(tb.ParserTest):
         """
 
     @tb.must_fail(GraphQLParserError, line=3, col=49)
-    def test_graphql_parser_values20(self):
+    def test_graphql_syntax_values20(self):
         r"""
         {
             fieldWithNullableStringInput(input: 0123)
@@ -681,14 +695,14 @@ class TestGraphQLParser(tb.ParserTest):
         """
 
     @tb.must_fail(GraphQLParserError, line=3, col=49)
-    def test_graphql_parser_values21(self):
+    def test_graphql_syntax_values21(self):
         r"""
         {
             fieldWithNullableStringInput(input: +123)
         }
         """
 
-    def test_graphql_parser_values22(self):
+    def test_graphql_syntax_values22(self):
         r"""
         {
             foo(bar: ["spam", "ham"]) {
@@ -698,7 +712,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_var01(self):
+    def test_graphql_syntax_var01(self):
         r"""
         query ($name: String!) {
             User(name: $name) {
@@ -708,7 +722,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_var02(self):
+    def test_graphql_syntax_var02(self):
         r"""
         query ($names: [String]!) {
             User(name__in: $names) {
@@ -718,7 +732,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_var03(self):
+    def test_graphql_syntax_var03(self):
         r"""
         query A($atOtherHomes: Boolean) {
           ...HouseTrainedFragment
@@ -736,14 +750,14 @@ class TestGraphQLParser(tb.ParserTest):
         """
 
     @tb.must_fail(GraphQLParserError, line=2, col=9)
-    def test_graphql_parser_scope01(self):
+    def test_graphql_syntax_scope01(self):
         r"""
         {
             fieldWithNullableStringInput(input: $var)
         }
         """
 
-    def test_graphql_parser_scope02(self):
+    def test_graphql_syntax_scope02(self):
         r"""
         fragment goodVar on User {name(first: $var)}
 
@@ -754,7 +768,7 @@ class TestGraphQLParser(tb.ParserTest):
         """
 
     @tb.must_fail(GraphQLParserError, line=5, col=9)
-    def test_graphql_parser_scope03(self):
+    def test_graphql_syntax_scope03(self):
         r"""
         fragment goodVar on User {name(first: $var)}
         fragment badVar on User {name(first: $bad)}
@@ -767,7 +781,7 @@ class TestGraphQLParser(tb.ParserTest):
         """
 
     @tb.must_fail(GraphQLParserError, line=12, col=9)
-    def test_graphql_parser_scope04(self):
+    def test_graphql_syntax_scope04(self):
         r"""
         fragment goodVar on User {
             name(first: $var)
@@ -785,7 +799,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_scope05(self):
+    def test_graphql_syntax_scope05(self):
         r"""
         fragment goodVar on User {
             name(first: $var)
@@ -804,7 +818,7 @@ class TestGraphQLParser(tb.ParserTest):
         """
 
     @tb.must_fail(GraphQLParserError, line=16, col=9)
-    def test_graphql_parser_scope06(self):
+    def test_graphql_syntax_scope06(self):
         r"""
         fragment goodVar on User {
             name(first: $var)
@@ -825,7 +839,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_names01(self):
+    def test_graphql_syntax_names01(self):
         r"""
         {
             on
@@ -839,7 +853,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_names02(self):
+    def test_graphql_syntax_names02(self):
         r"""
         {
             on: on_ok
@@ -853,7 +867,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_names03(self):
+    def test_graphql_syntax_names03(self):
         r"""
         {
             on_ok: on
@@ -867,7 +881,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_names04(self):
+    def test_graphql_syntax_names04(self):
         r"""
         {
             foo(someObj: {
@@ -885,7 +899,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_names05(self):
+    def test_graphql_syntax_names05(self):
         r"""
         {
             foo(
@@ -903,7 +917,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_names06(self):
+    def test_graphql_syntax_names06(self):
         r"""
         fragment name_on on on {id}
         fragment name_fragment on fragment {id}
@@ -926,7 +940,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_names07(self):
+    def test_graphql_syntax_names07(self):
         r"""
         fragment fragment on fragmentFoo {id}
         fragment query on queryFoo {id}
@@ -947,7 +961,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_names08(self):
+    def test_graphql_syntax_names08(self):
         r"""
         query A { ... on on {id} }
         query B { ... on fragment {id} }
@@ -959,7 +973,7 @@ class TestGraphQLParser(tb.ParserTest):
         query H { ... on null {id} }
         """
 
-    def test_graphql_parser_names09(self):
+    def test_graphql_syntax_names09(self):
         r"""
         # fragment not_on on Foo {name}
         # fragment fragment on Foo {name}
@@ -980,7 +994,7 @@ class TestGraphQLParser(tb.ParserTest):
         query H { ... null on nullFoo {id} }
         """
 
-    def test_graphql_parser_names10(self):
+    def test_graphql_syntax_names10(self):
         r"""
         query (
             $on: on = on
@@ -996,7 +1010,7 @@ class TestGraphQLParser(tb.ParserTest):
         }
         """
 
-    def test_graphql_parser_names11(self):
+    def test_graphql_syntax_names11(self):
         r"""
         fragment someFragment on Foo {id}
 
@@ -1011,37 +1025,37 @@ class TestGraphQLParser(tb.ParserTest):
         """
 
     @tb.must_fail(GraphQLParserError, line=2, col=21)
-    def test_graphql_parser_names12(self):
+    def test_graphql_syntax_names12(self):
         r"""
         { ... on on on {id} }
         """
 
     @tb.must_fail(GraphQLParserError, line=2, col=18)
-    def test_graphql_parser_names13(self):
+    def test_graphql_syntax_names13(self):
         r"""
         fragment on on on {id}
         """
 
     @tb.must_fail(GraphQLParserError, line=2, col=18)
-    def test_graphql_parser_names14(self):
+    def test_graphql_syntax_names14(self):
         r"""
         { ... on }
         """
 
     @tb.must_fail(GraphQLUniquenessError, line=2, col=32)
-    def test_graphql_parser_names15(self):
+    def test_graphql_syntax_names15(self):
         r"""
         query myQuery($x: Int, $x: Int) { id }
         """
 
     @tb.must_fail(GraphQLUniquenessError, line=2, col=32)
-    def test_graphql_parser_names16(self):
+    def test_graphql_syntax_names16(self):
         r"""
         query myQuery($x: Int, $x: Float) { id }
         """
 
     @tb.must_fail(GraphQLUniquenessError, line=3, col=23)
-    def test_graphql_parser_names17(self):
+    def test_graphql_syntax_names17(self):
         r"""
         {
             foo(x: 1, x: 2)
@@ -1049,14 +1063,14 @@ class TestGraphQLParser(tb.ParserTest):
         """
 
     @tb.must_fail(GraphQLUniquenessError, line=3, col=23)
-    def test_graphql_parser_names18(self):
+    def test_graphql_syntax_names18(self):
         r"""
         {
             foo(x: 1, x: "one")
         }
         """
 
-    def test_graphql_parser_comments01(self):
+    def test_graphql_syntax_comments01(self):
         """
         # some comment
         query noFragments {

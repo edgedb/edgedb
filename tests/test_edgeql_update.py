@@ -25,7 +25,7 @@ class TestDelete(tb.QueryTestCase):
         COMMIT DELTA test::d_update01;
     """
 
-    async def test_update_simple01(self):
+    async def test_edgeql_update_simple01(self):
         result = await self.con.execute(r"""
             INSERT test::Status {
                 name := 'Open'

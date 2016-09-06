@@ -89,7 +89,7 @@ class TestConstraints(tb.QueryTestCase):
         };
     """
 
-    async def test_queries_computable(self):
+    async def test_edgeql_select_computable(self):
         res = await self.con.execute('''
             USING MODULE test
             SELECT
@@ -126,7 +126,7 @@ class TestConstraints(tb.QueryTestCase):
             'total_time_spent': 50000
         }])
 
-    async def test_queries_parentheses(self):
+    async def test_edgeql_select_parentheses(self):
         res = await self.con.execute('''
             SELECT
                 test::Issue {
@@ -158,7 +158,7 @@ class TestConstraints(tb.QueryTestCase):
             'number': '1',
         }])
 
-    async def test_queries_type01(self):
+    async def test_edgeql_select_type01(self):
         res = await self.con.execute('''
             USING MODULE test
             SELECT
@@ -177,7 +177,7 @@ class TestConstraints(tb.QueryTestCase):
             '__type__': {'name': 'test::Issue'},
         }])
 
-    async def test_queries_exists01(self):
+    async def test_edgeql_select_exists01(self):
         res = await self.con.execute('''
             USING MODULE test
             SELECT

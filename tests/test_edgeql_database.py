@@ -10,7 +10,7 @@ from edgedb.server import _testbase as tb
 
 
 class TestDatabase(tb.ConnectedTestCase):
-    async def test_database_create01(self):
+    async def test_edgeql_database_create01(self):
         await self.con.execute('CREATE DATABASE mytestdb;')
 
         try:
@@ -22,7 +22,7 @@ class TestDatabase(tb.ConnectedTestCase):
         finally:
             await self.con.execute('DROP DATABASE mytestdb;')
 
-    async def test_database_create02(self):
+    async def test_edgeql_database_create02(self):
         await self.con.execute('CREATE DATABASE `mytestdb`;')
 
         try:
@@ -34,7 +34,7 @@ class TestDatabase(tb.ConnectedTestCase):
         finally:
             await self.con.execute('DROP DATABASE `mytestdb`;')
 
-    async def test_database_create03(self):
+    async def test_edgeql_database_create03(self):
         await self.con.execute(r'CREATE DATABASE `mytest"db"`;')
 
         try:
@@ -46,7 +46,7 @@ class TestDatabase(tb.ConnectedTestCase):
         finally:
             await self.con.execute(r'DROP DATABASE `mytest"db"`;')
 
-    async def test_database_create04(self):
+    async def test_edgeql_database_create04(self):
         await self.con.execute(r"CREATE DATABASE `mytest'db'`;")
 
         try:
@@ -58,7 +58,7 @@ class TestDatabase(tb.ConnectedTestCase):
         finally:
             await self.con.execute(r"DROP DATABASE `mytest'db'`;")
 
-    async def test_database_create05(self):
+    async def test_edgeql_database_create05(self):
         await self.con.execute('CREATE DATABASE `SET`;')
 
         try:
@@ -70,7 +70,7 @@ class TestDatabase(tb.ConnectedTestCase):
         finally:
             await self.con.execute('DROP DATABASE `SET`;')
 
-    async def test_database_create06(self):
+    async def test_edgeql_database_create06(self):
         await self.con.execute('CREATE DATABASE `CREATE`;')
 
         try:

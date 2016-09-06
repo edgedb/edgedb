@@ -23,7 +23,7 @@ class TestExpressions(tb.QueryTestCase):
     TEARDOWN = """
     """
 
-    async def test_eql_expression01(self):
+    async def test_edgeql_expression01(self):
         await self.assert_query_result(r"""
             Select 40 + 2;
             select 40 + 2;
@@ -36,28 +36,28 @@ class TestExpressions(tb.QueryTestCase):
                 [42],
             ])
 
-    async def test_eql_expression02(self):
+    async def test_edgeql_expression02(self):
         with self.assertRaisesRegex(exc.EdgeQLSyntaxError,
                                     r'Unexpected token.*?"40"'):
             await self.con.execute("""
                 40 + 2;
             """)
 
-    async def test_eql_expression03(self):
+    async def test_edgeql_expression03(self):
         with self.assertRaisesRegex(exc.EdgeQLSyntaxError,
                                     r'Unexpected token.*?">"'):
             await self.con.execute("""
                 SELECT 40 >> 2;
             """)
 
-    async def test_eql_expression04(self):
+    async def test_edgeql_expression04(self):
         with self.assertRaisesRegex(exc.EdgeQLSyntaxError,
                                     r'Unexpected token.*?"2"'):
             await self.con.execute("""
                 SELECT 40 << 2;
             """)
 
-    async def test_eql_expression05(self):
+    async def test_edgeql_expression05(self):
         await self.assert_query_result(r"""
             SELECT 40 >= 2;
             SELECT 40 <= 2;
@@ -66,7 +66,7 @@ class TestExpressions(tb.QueryTestCase):
                 [False],
             ])
 
-    async def test_eql_expression06(self):
+    async def test_edgeql_expression06(self):
         with self.assertRaisesRegex(exc.EdgeQLSyntaxError,
                                     r"name cannot start with '@'"):
             await self.con.execute("""
@@ -79,7 +79,7 @@ class TestExpressions(tb.QueryTestCase):
                 };
             """)
 
-    async def test_eql_paths_01(self):
+    async def test_edgeql_paths_01(self):
         cases = [
             "Issue.owner.name",
             "`Issue`.`owner`.`name`",
@@ -101,7 +101,7 @@ class TestExpressions(tb.QueryTestCase):
                     %s = 'Elvis';
             ''' % (case,))
 
-    async def test_eql_polymorphic_01(self):
+    async def test_edgeql_polymorphic_01(self):
         await self.con.execute(r"""
             USING MODULE test
             SELECT Text {
@@ -121,7 +121,7 @@ class TestExpressions(tb.QueryTestCase):
             };
         """)
 
-    async def test_eql_cast01(self):
+    async def test_edgeql_cast01(self):
         await self.assert_query_result(r"""
             SELECT <std::str>123;
             SELECT <std::int>"123";
@@ -138,7 +138,7 @@ class TestExpressions(tb.QueryTestCase):
                 ['246'],
             ])
 
-    async def test_eql_cast02(self):
+    async def test_edgeql_cast02(self):
         # testing precedence of casting vs. multiplication
         #
         with self.assertRaisesRegex(
@@ -148,7 +148,7 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT <std::str>123 * 2;
             """)
 
-    async def test_eql_cast03(self):
+    async def test_edgeql_cast03(self):
         await self.assert_query_result(r"""
             SELECT <std::str><std::int><std::float>'123.45' + 'foo';
             """, [

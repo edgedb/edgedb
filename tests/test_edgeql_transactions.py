@@ -25,7 +25,7 @@ class TestTransactions(tb.QueryTestCase):
         };
     """
 
-    async def test_transaction_regular(self):
+    async def test_edgeql_transaction_regular(self):
         self.assertIsNone(self.con._top_xact)
         tr = self.con.transaction()
         self.assertIsNone(self.con._top_xact)
@@ -58,7 +58,7 @@ class TestTransactions(tb.QueryTestCase):
 
         self.assertEqual(result[0], [])
 
-    async def test_transaction_nested(self):
+    async def test_edgeql_transaction_nested(self):
         self.assertIsNone(self.con._top_xact)
         tr = self.con.transaction()
         self.assertIsNone(self.con._top_xact)
@@ -123,7 +123,7 @@ class TestTransactions(tb.QueryTestCase):
         recs = result[0]
         self.assertEqual(len(recs), 0)
 
-    async def test_transaction_interface_errors(self):
+    async def test_edgeql_transaction_interface_errors(self):
         self.assertIsNone(self.con._top_xact)
 
         tr = self.con.transaction()

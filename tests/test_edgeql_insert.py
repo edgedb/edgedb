@@ -30,7 +30,7 @@ class TestInsert(tb.QueryTestCase):
         COMMIT DELTA test::d_insert01;
     """
 
-    async def test_insert_fail_1(self):
+    async def test_edgeql_insert_fail_1(self):
         err = 'missing value for required pointer ' + \
               '{test::InsertTest}.{test::l2}'
         with self.assertRaisesRegex(exc.MissingRequiredPointerError, err):
@@ -38,7 +38,7 @@ class TestInsert(tb.QueryTestCase):
                 INSERT test::InsertTest;
             ''')
 
-    async def test_insert_simple01(self):
+    async def test_edgeql_insert_simple01(self):
         result = await self.con.execute(r"""
             INSERT test::InsertTest {
                 l2 := 0,
@@ -103,7 +103,7 @@ class TestInsert(tb.QueryTestCase):
             }]
         ])
 
-    async def test_insert_nested(self):
+    async def test_edgeql_insert_nested(self):
         result = await self.con.execute('''
             INSERT test::Subordinate {
                 name := 'subtest 1'

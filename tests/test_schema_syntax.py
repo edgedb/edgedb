@@ -6,20 +6,34 @@
 ##
 
 
-from edgedb.lang.schema import _testbase as tb
+import re
+
+from edgedb.lang import _testbase as tb
+from edgedb.lang.schema import generate_source as eschema_to_source
+from edgedb.lang.schema.parser import parser as eschema_parser
 
 
-class TestEdgeSchemaParser(tb.ParserTest):
-    def test_eschema_parser_concept01(self):
+class SchemaSyntaxTest(tb.BaseSyntaxTest):
+    re_filter = re.compile(r'[\s\'"()]+|(#.*?\n)|SELECT')
+    parser_debug_flag = 'DEBUG_ESCHEMA'
+    markup_dump_lexer = 'edgeschema'
+    ast_to_source = eschema_to_source
+
+    def get_parser(self, *, spec):
+        return eschema_parser.EdgeSchemaParser()
+
+
+class TestEdgeSchemaParser(SchemaSyntaxTest):
+    def test_eschema_syntax_concept01(self):
         """concept User extends builtins::NamedObject"""
 
-    def test_eschema_parser_concept02(self):
+    def test_eschema_syntax_concept02(self):
         """
 abstract concept OwnedObject:
     required link owner to User
         """
 
-    def test_eschema_parser_concept03(self):
+    def test_eschema_syntax_concept03(self):
         """
 abstract concept Text:
     required link body to str:
@@ -27,19 +41,19 @@ abstract concept Text:
             10000
         """
 
-    def test_eschema_parser_concept04(self):
+    def test_eschema_syntax_concept04(self):
         """
 concept LogEntry extends OwnedObject, Text:
     required link spent_time to int
         """
 
-    def test_eschema_parser_concept05(self):
+    def test_eschema_syntax_concept05(self):
         """
 concept LogEntry extends OwnedObject, Text:
    link start_date:= SELECT datetime::current_datetime()
         """
 
-    def test_eschema_parser_concept06(self):
+    def test_eschema_syntax_concept06(self):
         """
 concept LogEntry extends OwnedObject, Text:
     link start_date to datetime:
@@ -48,7 +62,7 @@ concept LogEntry extends OwnedObject, Text:
        title: 'Start Date'
         """
 
-    def test_eschema_parser_concept07(self):
+    def test_eschema_syntax_concept07(self):
         """
 concept Issue extends foo.bar::NamedObject, OwnedObject, Text:
 
@@ -80,7 +94,7 @@ concept Issue extends foo.bar::NamedObject, OwnedObject, Text:
         mapping: **
         """
 
-    def test_eschema_parser_concept08(self):
+    def test_eschema_syntax_concept08(self):
         """
 concept Foo:
     link time_estimate to int:
@@ -88,20 +102,20 @@ concept Foo:
            default: 'minute'
        """
 
-    def test_eschema_parser_concept09(self):
+    def test_eschema_syntax_concept09(self):
         """
 concept LogEntry extends OwnedObject, Text:
     required link attachment to Post, File, User
         """
 
-    def test_eschema_parser_index01(self):
+    def test_eschema_syntax_index01(self):
         """
 concept LogEntry extends OwnedObject, Text:
     required link owner to User
     index test_index:= SELECT datetime::current_datetime()
         """
 
-    def test_eschema_parser_ws01(self):
+    def test_eschema_syntax_ws01(self):
         """
 concept LogEntry extends    OwnedObject,    Text:
 
@@ -124,7 +138,7 @@ concept LogEntry extends    OwnedObject,    Text:
                        title: 'Start Date'
         """
 
-    def test_eschema_parser_ws02(self):
+    def test_eschema_syntax_ws02(self):
         """
         concept LogEntry extends OwnedObject, Text:
             link start_date to datetime:
@@ -133,7 +147,7 @@ concept LogEntry extends    OwnedObject,    Text:
                title: 'Start Date'
         """
 
-    def test_eschema_parser_ws03(self):
+    def test_eschema_syntax_ws03(self):
         """     concept LogEntry extends OwnedObject, Text:
                     link start_date to datetime:
                        default:=
@@ -141,18 +155,18 @@ concept LogEntry extends    OwnedObject,    Text:
                        title: 'Start Date'
         """
 
-    def test_eschema_parser_atom01(self):
+    def test_eschema_syntax_atom01(self):
         """
 atom issue_num_t extends builtins::sequence
         """
 
-    def test_eschema_parser_atom02(self):
+    def test_eschema_syntax_atom02(self):
         """
 atom issue_num_t extends int:
     default: 42
         """
 
-    def test_eschema_parser_atom03(self):
+    def test_eschema_syntax_atom03(self):
         """
 atom basic extends int:
     title: 'Basic Atom'
@@ -162,7 +176,7 @@ atom basic extends int:
     constraint must_be_even
         """
 
-    def test_eschema_parser_atom04(self):
+    def test_eschema_syntax_atom04(self):
         """
 atom basic extends int:
 
@@ -174,7 +188,7 @@ atom basic extends int:
     constraint expr:= subject % 2 = 0
         """
 
-    def test_eschema_parser_atom05(self):
+    def test_eschema_syntax_atom05(self):
         """
 atom basic extends int:
 
@@ -187,7 +201,7 @@ atom basic extends int:
     constraint max: 123456
         """
 
-    def test_eschema_parser_atom06(self):
+    def test_eschema_syntax_atom06(self):
         """
 atom basic extends int:
 
@@ -204,12 +218,12 @@ atom inherits_default extends basic
 abstract atom abstract_atom extends int
         """
 
-    def test_eschema_parser_atom07(self):
+    def test_eschema_syntax_atom07(self):
         """
 final atom none
         """
 
-    def test_eschema_parser_atom08(self):
+    def test_eschema_syntax_atom08(self):
         """
 atom basic extends int:
     title: 'Basic Atom'
@@ -217,14 +231,14 @@ atom basic extends int:
     abstract constraint special_constraint
         """
 
-    def test_eschema_parser_atom09(self):
+    def test_eschema_syntax_atom09(self):
         """
 atom special extends int:
     title: 'Special Atom'
     abstract constraint special_constraint: [42, 100, 9001]
         """
 
-    def test_eschema_parser_atom10(self):
+    def test_eschema_syntax_atom10(self):
         """
 atom special extends int:
     title: 'Special Atom'
@@ -232,7 +246,7 @@ atom special extends int:
         expr:= subject % 2 = 0
         """
 
-    def test_eschema_parser_constraint01(self):
+    def test_eschema_syntax_constraint01(self):
         """
 constraint max:
     expr:= subject <= $param
@@ -240,19 +254,19 @@ constraint max:
 
         """
 
-    def test_eschema_parser_constraint02(self):
+    def test_eschema_syntax_constraint02(self):
         """
 abstract constraint length:
     subject:= str::len(<str>subject)
         """
 
-    def test_eschema_parser_constraint03(self):
+    def test_eschema_syntax_constraint03(self):
         """
 constraint maxlength extends max, length:
     errmessage: '{subject} must be no longer than {param} characters.'
         """
 
-    def test_eschema_parser_constraint04(self):
+    def test_eschema_syntax_constraint04(self):
         """
 constraint max:
     expr:= subject <= $param
@@ -266,24 +280,24 @@ constraint maxlength extends max, length:
 
         """
 
-    def test_eschema_parser_linkproperty01(self):
+    def test_eschema_syntax_linkproperty01(self):
         """
 linkproperty foo:
     title: 'Sample property'
         """
 
-    def test_eschema_parser_linkproperty02(self):
+    def test_eschema_syntax_linkproperty02(self):
         """
 linkproperty bar extends foo
         """
 
-    def test_eschema_parser_linkproperty03(self):
+    def test_eschema_syntax_linkproperty03(self):
         """
 linkproperty bar extends foo:
     title: 'Another property'
         """
 
-    def test_eschema_parser_linkproperty04(self):
+    def test_eschema_syntax_linkproperty04(self):
         """
 linkproperty foo:
     title: 'Sample property'
@@ -292,45 +306,45 @@ linkproperty bar extends foo:
     title: 'Another property'
         """
 
-    def test_eschema_parser_action01(self):
+    def test_eschema_syntax_action01(self):
         """
 action ignore
         """
 
-    def test_eschema_parser_action02(self):
+    def test_eschema_syntax_action02(self):
         """
 action ignore:
     title: 'Deleted'
         """
 
-    def test_eschema_parser_event01(self):
+    def test_eschema_syntax_event01(self):
         """
 event self_deleted
         """
 
-    def test_eschema_parser_event02(self):
+    def test_eschema_syntax_event02(self):
         """
 event self_deleted:
     title: 'Deleted'
         """
 
-    def test_eschema_parser_link01(self):
+    def test_eschema_syntax_link01(self):
         """
 link coollink
         """
 
-    def test_eschema_parser_link02(self):
+    def test_eschema_syntax_link02(self):
         """
 link coollink extends boringlink
         """
 
-    def test_eschema_parser_link03(self):
+    def test_eschema_syntax_link03(self):
         """
 link coollink:
     linkproperty foo to int
         """
 
-    def test_eschema_parser_link04(self):
+    def test_eschema_syntax_link04(self):
         """
 link coollink:
     linkproperty foo to int
@@ -339,7 +353,7 @@ link coollink:
     constraint expr := self.foo = self.bar
         """
 
-    def test_eschema_parser_link05(self):
+    def test_eschema_syntax_link05(self):
         """
 linkproperty foo:
     title: 'Sample property'
@@ -368,14 +382,14 @@ event self_deleted:
 
         """
 
-    def test_eschema_parser_link06(self):
+    def test_eschema_syntax_link06(self):
         """
 link time_estimate:
    linkproperty unit to str:
        constraint must_be_even: 0
         """
 
-    def test_eschema_parser_import01(self):
+    def test_eschema_syntax_import01(self):
         """
         import foo
 
@@ -383,7 +397,7 @@ link time_estimate:
             link text to str
         """
 
-    def test_eschema_parser_import02(self):
+    def test_eschema_syntax_import02(self):
         """
         import mylib.util.foo
 
@@ -391,7 +405,7 @@ link time_estimate:
             link text to str
         """
 
-    def test_eschema_parser_import03(self):
+    def test_eschema_syntax_import03(self):
         """
         import foo as bar
 
@@ -399,7 +413,7 @@ link time_estimate:
             link text to str
         """
 
-    def test_eschema_parser_import04(self):
+    def test_eschema_syntax_import04(self):
         """
         import mylib.util.foo as bar
 
@@ -407,7 +421,7 @@ link time_estimate:
             link text to str
         """
 
-    def test_eschema_parser_import05(self):
+    def test_eschema_syntax_import05(self):
         """
         import mylib.util.foo as foo, mylib.special.foo as sfoo
         import (

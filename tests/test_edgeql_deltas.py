@@ -14,7 +14,7 @@ from edgedb.server import _testbase as tb
 
 
 class TestDeltas(tb.QueryTestCase):
-    async def test_delta_simple01(self):
+    async def test_edgeql_delta_simple01(self):
         result = await self.con.execute("""
             # setup delta
             #
@@ -60,7 +60,7 @@ class TestDeltas(tb.QueryTestCase):
             }]
         ])
 
-    async def test_delta_link_inheritance(self):
+    async def test_edgeql_delta_link_inheritance(self):
         schema_f = os.path.join(os.path.dirname(__file__), 'schemas',
                                 'links_1.eschema')
 

@@ -6,11 +6,20 @@
 ##
 
 
-from edgedb.lang.graphql import _testbase as tb
+from edgedb.lang import _testbase as tb
 from edgedb.lang.graphql import ast as gqlast
+from edgedb.lang.graphql.parser import parser as gql_parser
 
 
-class TestGraphQLParser(tb.VarsValueTest):
+class GraphQLAstValueTest(tb.AstValueTest):
+    parser_debug_flag = 'DEBUG_GRAPHQL'
+    markup_dump_lexer = 'graphql'
+
+    def get_parser(self, *, spec):
+        return gql_parser.GraphQLParser()
+
+
+class TestGraphQLParser(GraphQLAstValueTest):
     def test_graphql_vars_float01(self):
         self.run_test(
             source="""
@@ -41,7 +50,7 @@ class TestGraphQLParser(tb.VarsValueTest):
 
             ) { id }
             """,
-            spec={
+            expected={
                 '$a': (gqlast.FloatLiteral, 2.31e-8),
                 '$b': (gqlast.FloatLiteral, 2.31e-8),
                 '$c': (gqlast.FloatLiteral, 2.31e-8),
@@ -78,7 +87,7 @@ class TestGraphQLParser(tb.VarsValueTest):
                 $d: Int = 1234567890
             ) { id }
             """,
-            spec={
+            expected={
                 '$a': (gqlast.IntegerLiteral, 0),
                 '$b': (gqlast.IntegerLiteral, 123),
                 '$c': (gqlast.IntegerLiteral, -123),
@@ -93,7 +102,7 @@ class TestGraphQLParser(tb.VarsValueTest):
                 $a: String = "\u279b"
             ) { id }
             """,
-            spec={
+            expected={
                 '$a': (gqlast.StringLiteral, '\u279b'),
             }
         )
