@@ -551,7 +551,7 @@ class EdgeQLCompiler:
         idref = irast.AtomicRefSimple(
             name=idname, ref=tgt, ptr_proto=tgt.concept.pointers[idname])
         tgt.atomrefs.add(idref)
-        selexpr = irast.SelectorExpr(expr=idref, name=None)
+        selexpr = irast.SelectorExpr(expr=idref, autoname='std::id')
         graph.selector.append(selexpr)
 
         graph.generator = self._process_select_where(context,

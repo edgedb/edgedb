@@ -100,6 +100,10 @@ class TableNode(RelationNode):
     __fields = ['name', 'schema']
 
 
+class TableQueryNode(RelationNode):
+    __fields = ['name', 'schema']
+
+
 class SelectQueryNode(RelationNode):
     __fields = ['distinct', ('fromlist', list), ('targets', list),
                 'where', 'where_weak', 'where_strong',

@@ -1741,8 +1741,13 @@ class IRCompiler(IRCompilerBase):
                     origin=query.fromexpr,
                     origin_field='std::id')
 
+            main_selector = context.current.query
+            main_selector.alias = context.current.genalias('o')
+            query.ctes.add(main_selector)
+
+            o_tab = pgsql.ast.TableQueryNode(name=main_selector.alias)
             query.where = pgsql.ast.BinOpNode(
-                left=filter, op='IN', right=context.current.query)
+                left=filter, op='IN', right=o_tab)
 
             with context(TransformerContext.NEW_TRANSPARENT):
                 # Make sure there's no walking back on links -- we're
@@ -1769,7 +1774,7 @@ class IRCompiler(IRCompilerBase):
 
                 if op_is_update:
                     query = self._process_update_stmt(context, graph, query,
-                                                      opvalues)
+                                                      main_selector, opvalues)
 
                 elif op_is_insert:
                     query = self._process_insert_stmt(context, graph, query,
@@ -2073,7 +2078,8 @@ class IRCompiler(IRCompilerBase):
 
         return query
 
-    def _process_update_stmt(self, context, graph, query, opvalues):
+    def _process_update_stmt(self, context, graph, query, main_selector,
+                             opvalues):
         external_updates = []
 
         for expr in opvalues:
@@ -2170,6 +2176,7 @@ class IRCompiler(IRCompilerBase):
         if not query.values:
             # No atomic updates
             query = pgsql.ast.CTENode(
+                ctes=query.ctes,
                 targets=query.targets,
                 fromlist=[query.fromexpr],
                 where=query.where)
@@ -2183,7 +2190,9 @@ class IRCompiler(IRCompilerBase):
         for expr, props_only, operation in external_updates:
             if toplevel is None:
                 toplevel = pgsql.ast.SelectQueryNode()
+                toplevel.ctes.update(query.ctes)
                 toplevel.ctes.add(query)
+                query.ctes.clear()
                 query.alias = context.current.genalias(hint='m')
 
                 ref = pgsql.ast.FieldRefNode(table=query, field='*')
@@ -2193,7 +2202,7 @@ class IRCompiler(IRCompilerBase):
                 toplevel.fromlist.append(pgsql.ast.CTERefNode(cte=query))
 
             self._process_update_expr(context, expr, props_only,
-                                      operation, toplevel, query)
+                                      operation, toplevel, main_selector)
 
         if toplevel is not None:
             query = toplevel

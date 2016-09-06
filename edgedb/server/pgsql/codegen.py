@@ -105,6 +105,14 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
         self.new_lines = 1
 
+    def visit_TableQueryNode(self, node):
+        self.write('(TABLE ')
+        if node.schema:
+            self.write(common.qname(node.schema, node.name))
+        else:
+            self.write(common.quote_ident(node.name))
+        self.write(')')
+
     def visit_SelectQueryNode(self, node, use_alias=True):
         self.new_lines = 1
 
@@ -300,6 +308,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.indentation -= 1
 
     def visit_UpdateQueryNode(self, node):
+        if node.ctes:
+            self.gen_ctes(node.ctes)
         self.write('UPDATE ')
         self.new_lines = 1
         self.indentation += 1
@@ -337,6 +347,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.indentation -= 1
 
     def visit_DeleteQueryNode(self, node):
+        if node.ctes:
+            self.gen_ctes(node.ctes)
         self.write('DELETE FROM ')
         self.new_lines = 1
         self.indentation += 1
