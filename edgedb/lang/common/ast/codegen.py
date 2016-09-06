@@ -51,15 +51,25 @@ class SourceGenerator(NodeVisitor):
                     'invalid text chunk in codegen: %r'.format(chunk))
             self.result.append(chunk)
 
-    def visit_list(self, items, *, newlines=True):
+    def visit_list(self, items, *, separator=',', terminator=None,
+                   newlines=True):
+        # terminator overrides separator setting
+        #
+        separator = terminator if terminator is not None else separator
         for i, item in enumerate(items):
             if i > 0:
-                self.write(',')
+                self.write(separator)
                 if newlines:
                     self.new_lines = 1
                 else:
                     self.write(' ')
             self.visit(item)
+        if terminator is not None:
+            self.write(separator)
+            if newlines:
+                self.new_lines = 1
+            else:
+                self.write(' ')
 
     def newline(self, node=None, extra=0):
         self.new_lines = max(self.new_lines, 1 + extra)

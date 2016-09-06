@@ -125,7 +125,7 @@ class BaseSyntaxTest(BaseParserTest):
         if debug:
             markup.dump_code(processed_src, lexer=self.markup_dump_lexer)
 
-        expected_src = source
+        expected_src = source if expected is None else expected
 
         self.assert_equal(expected_src, processed_src)
 

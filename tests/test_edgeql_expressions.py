@@ -37,47 +37,17 @@ class TestExpressions(tb.QueryTestCase):
             ])
 
     async def test_edgeql_expression02(self):
-        with self.assertRaisesRegex(exc.EdgeQLSyntaxError,
-                                    r'Unexpected token.*?"40"'):
-            await self.con.execute("""
-                40 + 2;
-            """)
-
-    async def test_edgeql_expression03(self):
-        with self.assertRaisesRegex(exc.EdgeQLSyntaxError,
-                                    r'Unexpected token.*?">"'):
-            await self.con.execute("""
-                SELECT 40 >> 2;
-            """)
-
-    async def test_edgeql_expression04(self):
-        with self.assertRaisesRegex(exc.EdgeQLSyntaxError,
-                                    r'Unexpected token.*?"2"'):
-            await self.con.execute("""
-                SELECT 40 << 2;
-            """)
-
-    async def test_edgeql_expression05(self):
         await self.assert_query_result(r"""
             SELECT 40 >= 2;
             SELECT 40 <= 2;
+            SELECT 1 + 2 * 3;
+            SELECT (1 + 2) * 3;
             """, [
                 [True],
                 [False],
+                [7],
+                [9]
             ])
-
-    async def test_edgeql_expression06(self):
-        with self.assertRaisesRegex(exc.EdgeQLSyntaxError,
-                                    r"name cannot start with '@'"):
-            await self.con.execute("""
-                SELECT doo.(goo::first) {
-                    bar: goo::SomeType {
-                        name,
-                        description
-                    } WHERE name = "Silly",
-                    `@foo`:= 42
-                };
-            """)
 
     async def test_edgeql_paths_01(self):
         cases = [

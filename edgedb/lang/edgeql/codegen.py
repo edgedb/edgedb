@@ -24,6 +24,14 @@ class EdgeQLSourceGeneratorError(EdgeDBError):
 
 
 class EdgeQLSourceGenerator(codegen.SourceGenerator):
+    def visit(self, node):
+        method = 'visit_' + node.__class__.__name__
+        if method == 'visit_list':
+            return self.visit_list(node, terminator=';')
+        else:
+            visitor = getattr(self, method, self.generic_visit)
+            return visitor(node)
+
     def generic_visit(self, node):
         raise EdgeQLSourceGeneratorError(
             'No method to generate code for %s' % node.__class__.__name__)
@@ -567,9 +575,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(' {')
             self.new_lines = 1
             self.indentation += 1
-            for cmd in node.commands:
-                self.visit(cmd)
-                self.new_lines = 1
+            self.visit(node.commands)
             self.indentation -= 1
             self.write('}')
         self.new_lines = 1
@@ -603,9 +609,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(' {')
             self.new_lines = 1
             self.indentation += 1
-            for cmd in node.commands:
-                self.visit(cmd)
-                self.new_lines = 1
+            self.visit(node.commands)
             self.indentation -= 1
             self.write('}')
         self.new_lines = 1
