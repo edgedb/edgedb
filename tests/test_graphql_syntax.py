@@ -749,7 +749,7 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         }
         """
 
-    @tb.must_fail(GraphQLParserError, line=2, col=9)
+    @tb.must_fail(GraphQLParserError, line=3, col=49)
     def test_graphql_syntax_scope01(self):
         r"""
         {
@@ -767,7 +767,7 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         }
         """
 
-    @tb.must_fail(GraphQLParserError, line=5, col=9)
+    @tb.must_fail(GraphQLParserError, line=3, col=46)
     def test_graphql_syntax_scope03(self):
         r"""
         fragment goodVar on User {name(first: $var)}
@@ -780,7 +780,7 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         }
         """
 
-    @tb.must_fail(GraphQLParserError, line=12, col=9)
+    @tb.must_fail(GraphQLParserError, line=10, col=53)
     def test_graphql_syntax_scope04(self):
         r"""
         fragment goodVar on User {
@@ -817,7 +817,7 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         }
         """
 
-    @tb.must_fail(GraphQLParserError, line=16, col=9)
+    @tb.must_fail(GraphQLParserError, line=10, col=53)
     def test_graphql_syntax_scope06(self):
         r"""
         fragment goodVar on User {

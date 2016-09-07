@@ -1103,7 +1103,8 @@ class NodeName(Nonterm):
         # NodeName cannot start with a '@' in any way
         #
         if kids[0].val[0][0] == '@':
-            raise EdgeQLSyntaxError("name cannot start with '@'")
+            raise EdgeQLSyntaxError("name cannot start with '@'",
+                                    context=kids[0].context)
         self.val = qlast.PrototypeRefNode(
             module='.'.join(kids[0].val[:-1]) or None,
             name=kids[0].val[-1])
@@ -1118,7 +1119,8 @@ class ShortOpNodeName(Nonterm):
         # ShortOpNodeName cannot start with a '@' in any way
         #
         if kids[0].val[0] == '@':
-            raise EdgeQLSyntaxError("name cannot start with '@'")
+            raise EdgeQLSyntaxError("name cannot start with '@'",
+                                    context=kids[0].context)
         self.val = qlast.PrototypeRefNode(
             module=None,
             name=kids[0].val)
@@ -1129,7 +1131,8 @@ class OpNodeName(Nonterm):
         # OpNodeName cannot start with a '@' in any way
         #
         if kids[0].val[0][0] == '@':
-            raise EdgeQLSyntaxError("name cannot start with '@'")
+            raise EdgeQLSyntaxError("name cannot start with '@'",
+                                    context=kids[0].context)
         self.val = qlast.PrototypeRefNode(
             module='.'.join(kids[0].val[:-1]) or None,
             name=kids[0].val[-1])
@@ -1138,7 +1141,8 @@ class OpNodeName(Nonterm):
         # OpNodeName cannot start with a '@' in any way
         #
         if kids[0].val[0][0] == '@':
-            raise EdgeQLSyntaxError("name cannot start with '@'")
+            raise EdgeQLSyntaxError("name cannot start with '@'",
+                                    context=kids[0].context)
         self.val = qlast.PrototypeRefNode(
             module='.'.join(kids[0].val[:-1]) or None,
             name=kids[0].val[-1])
@@ -1161,6 +1165,7 @@ class KeywordMeta(context.ContextNontermMeta):
         for val, token in keywords.by_type[type].items():
             def method(inst, *kids):
                 inst.val = kids[0].val
+            method = context.has_context(method)
             method.__doc__ = "%%reduce %s" % token
             method.__name__ = 'reduce_%s' % token
             setattr(result, method.__name__, method)

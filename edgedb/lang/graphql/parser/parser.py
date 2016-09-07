@@ -76,13 +76,13 @@ class Validator(NodeVisitor):
                     opnode.context.start.column)
 
                 raise GraphQLParserError(
-                    "undefined variable {!r} (at {}, {}) used in operation {}"
+                    "operation {} uses an undefined variable {!r} at {}, {}"
                     .format(
+                        op_str,
                         uvar.value,
                         uvar.context.start.line,
-                        uvar.context.start.column,
-                        op_str),
-                    context=opnode.context)
+                        uvar.context.start.column),
+                    context=uvar.context)
 
         # detect unused fragments
         #

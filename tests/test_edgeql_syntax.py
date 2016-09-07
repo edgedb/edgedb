@@ -84,8 +84,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT (40 >= 2);
         """
 
-    # XXX: @tb.must_fail(errors.EdgeQLSyntaxError, line=7, col=13)
-    @tb.must_fail(errors.EdgeQLSyntaxError)
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=7, col=13)
     def test_edgeql_syntax_name01(self):
         """
         SELECT doo.(goo::first) {

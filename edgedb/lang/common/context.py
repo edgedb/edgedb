@@ -12,21 +12,16 @@ from importkit import context as lang_context
 
 
 def _get_start_context(items):
-    ctx = val = None
+    ctx = None
     # find non-empty start and end
     #
     for item in items:
-        if isinstance(item, parsing.Nonterm):
-            val = item.val
-        else:
-            val = item
-
-        if isinstance(val, (list, tuple)):
-            ctx = _get_start_context(val)
+        if isinstance(item, (list, tuple)):
+            ctx = _get_start_context(item)
             if ctx:
                 return ctx
         else:
-            ctx = getattr(val, 'context', None)
+            ctx = getattr(item, 'context', None)
             if ctx:
                 return ctx
 
@@ -58,9 +53,9 @@ def has_context(func):
     def wrapper(*args, **kwargs):
         result = func(*args, **kwargs)
         _parsing = isinstance(args[0], parsing.Nonterm)  # "parsing" style
+
         if _parsing:
             obj, *args = args
-            obj = obj.val
         else:
             obj = result
 
@@ -68,13 +63,19 @@ def has_context(func):
             # apparently it's a production rule that just returns its
             # only arg, so don't need to change the context
             #
-            if _parsing and getattr(args[0], 'val', None) is obj:
+            arg = args[0]
+            if _parsing and getattr(arg, 'val', None) is obj.val:
+                if hasattr(arg, 'context'):
+                    obj.context = arg.context
+                if hasattr(obj.val, 'context'):
+                    obj.val.context = obj.context
                 return result
-            elif not _parsing and args[0] is obj:
+            elif not _parsing and arg is obj:
                 return result
 
-        if hasattr(obj, 'context'):
-            obj.context = get_context(*args)
+        obj.context = get_context(*args)
+        if hasattr(obj.val, 'context'):
+            obj.val.context = obj.context
         return result
 
     return wrapper
