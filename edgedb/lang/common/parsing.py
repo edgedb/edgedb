@@ -345,6 +345,14 @@ class ParserError(EdgeDBError):
                 self.line = context.start.line
                 self.col = context.start.column
 
+    def __str__(self):
+        ctx = self.context
+        base = super().__str__()
+        if ctx:
+            return base + markup.dumps(self.context)
+        else:
+            return base
+
     @property
     def context(self):
         try:
