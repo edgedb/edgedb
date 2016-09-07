@@ -84,8 +84,65 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT (40 >= 2);
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=7, col=13)
     def test_edgeql_syntax_name01(self):
+        """
+        SELECT bar;
+        SELECT `bar`;
+        SELECT foo::bar;
+        SELECT foo::`bar`;
+        SELECT `foo`::bar;
+        SELECT `foo`::`bar`;
+
+% OK %
+
+        SELECT bar;
+        SELECT bar;
+        SELECT (foo::bar);
+        SELECT (foo::bar);
+        SELECT (foo::bar);
+        SELECT (foo::bar);
+        """
+
+    def test_edgeql_syntax_name02(self):
+        """
+        SELECT (bar);
+        SELECT (`bar`);
+        SELECT (foo::bar);
+        SELECT (foo::`bar`);
+        SELECT (`foo`::bar);
+        SELECT (`foo`::`bar`);
+
+% OK %
+
+        SELECT bar;
+        SELECT bar;
+        SELECT (foo::bar);
+        SELECT (foo::bar);
+        SELECT (foo::bar);
+        SELECT (foo::bar);
+        """
+
+    def test_edgeql_syntax_name03(self):
+        """
+        SELECT (action);
+        SELECT (`action`);
+        SELECT (event::action);
+        SELECT (event::`action`);
+        SELECT (`event`::action);
+        SELECT (`event`::`action`);
+
+% OK %
+
+        SELECT `action`;
+        SELECT `action`;
+        SELECT (`event`::`action`);
+        SELECT (`event`::`action`);
+        SELECT (`event`::`action`);
+        SELECT (`event`::`action`);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=7, col=13)
+    def test_edgeql_syntax_name99(self):
         """
         SELECT doo.(goo::first) {
             bar: goo::SomeType {

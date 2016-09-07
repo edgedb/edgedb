@@ -866,7 +866,7 @@ class BaseBooleanConstant(Nonterm):
 #
 class OpPath(Nonterm):
     @parsing.precedence(P_PATHSTART)
-    def reduce_OpName(self, *kids):
+    def reduce_OpOnlyNodeName(self, *kids):
         self.val = qlast.PathNode(
             steps=[qlast.PathStepNode(expr=kids[0].val.name,
                                       namespace=kids[0].val.module)])
@@ -1099,6 +1099,10 @@ class ParamName(Nonterm):
 
 
 class NodeName(Nonterm):
+    # NOTE: Generic short of fully-qualified name.
+    #
+    # This name is safe to be used anywhere as it starts with IDENT only.
+
     def reduce_BaseName(self, *kids):
         # NodeName cannot start with a '@' in any way
         #
@@ -1115,6 +1119,12 @@ class NodeNameList(parsing.ListNonterm, element=NodeName, separator=T_COMMA):
 
 
 class ShortOpNodeName(Nonterm):
+    # NOTE: A non-qualified name that can be ANY identifier.
+    #
+    # This name is used as part of paths after the DOT. It can be any
+    # identifier including RESERVED_KEYWORD and UNRESERVED_KEYWORD and
+    # does not need to be quoted or parenthesized.
+
     def reduce_Identifier(self, *kids):
         # ShortOpNodeName cannot start with a '@' in any way
         #
@@ -1126,16 +1136,12 @@ class ShortOpNodeName(Nonterm):
             name=kids[0].val)
 
 
-class OpNodeName(Nonterm):
-    def reduce_BaseName(self, *kids):
-        # OpNodeName cannot start with a '@' in any way
-        #
-        if kids[0].val[0][0] == '@':
-            raise EdgeQLSyntaxError("name cannot start with '@'",
-                                    context=kids[0].context)
-        self.val = qlast.PrototypeRefNode(
-            module='.'.join(kids[0].val[:-1]) or None,
-            name=kids[0].val[-1])
+class OpOnlyNodeName(Nonterm):
+    # NOTE: A name that starts with UNRESERVED_KEYWORD.
+    #
+    # It can only be used inside parentheses or after a DOT. In
+    # principle, we may extend this to be used after any operator in the
+    # future.
 
     def reduce_OpName(self, *kids):
         # OpNodeName cannot start with a '@' in any way
@@ -1148,7 +1154,24 @@ class OpNodeName(Nonterm):
             name=kids[0].val[-1])
 
 
+class OpNodeName(Nonterm):
+    # NOTE: Generic short of fully-qualified name that must be parenthesized.
+    #
+    # This name is safe to be used anywhere within parentheses. If it
+    # causes ambiguity, it may be necessary to use OpOnlyNodeName instead.
+
+    def reduce_NodeName(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_OpOnlyNodeName(self, *kids):
+        self.val = kids[0].val
+
+
 class NodeNameParens(Nonterm):
+    # NOTE: Arbitrarily parenthesized name.
+    #
+    # This is used in shapes.
+
     def reduce_LPAREN_NodeNameParens_RPAREN(self, *kids):
         self.val = kids[1].val
 
