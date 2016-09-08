@@ -7,6 +7,7 @@
 
 
 import re
+import unittest
 
 from edgedb.lang import _testbase as tb
 from edgedb.lang.edgeql import generate_source as edgeql_to_source, errors
@@ -141,14 +142,285 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT (`event`::`action`);
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=7, col=13)
-    def test_edgeql_syntax_name99(self):
+    def test_edgeql_syntax_name04(self):
         """
-        SELECT doo.(goo::first) {
-            bar: goo::SomeType {
+        SELECT (event::select);
+        SELECT (event::`select`);
+        SELECT (`event`::select);
+        SELECT (`event`::`select`);
+
+% OK %
+
+        SELECT (`event`::`select`);
+        SELECT (`event`::`select`);
+        SELECT (`event`::`select`);
+        SELECT (`event`::`select`);
+        """
+
+    def test_edgeql_syntax_name05(self):
+        """
+        SELECT foo.bar;
+        SELECT `foo.bar`;
+        SELECT `foo.bar`::spam;
+        SELECT `foo.bar`::spam.ham;
+        SELECT `foo.bar`::`spam.ham`;
+
+% OK %
+
+        SELECT foo.bar;
+        SELECT `foo.bar`;
+        SELECT (`foo.bar`::spam);
+        SELECT (`foo.bar`::spam).ham;
+        SELECT (`foo.bar`::`spam.ham`);
+        """
+
+    def test_edgeql_syntax_name06(self):
+        """
+        SELECT foo.bar;
+        SELECT (foo).bar;
+        SELECT (foo).(bar);
+        SELECT ((foo).bar);
+        SELECT ((((foo))).bar);
+        SELECT ((((foo))).(((bar))));
+
+% OK %
+
+        SELECT foo.bar;
+        SELECT foo.bar;
+        SELECT foo.bar;
+        SELECT foo.bar;
+        SELECT foo.bar;
+        SELECT foo.bar;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=16)
+    def test_edgeql_syntax_name07(self):
+        """
+        SELECT event;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=17)
+    def test_edgeql_syntax_name08(self):
+        """
+        SELECT (event::all);
+        SELECT (all::event);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=23)
+    def test_edgeql_syntax_name09(self):
+        """
+        SELECT (event::select);
+        SELECT (select::event);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=16)
+    def test_edgeql_syntax_name10(self):
+        """
+        SELECT `@event`;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=16)
+    def test_edgeql_syntax_name11(self):
+        """
+        SELECT @event;
+        """
+
+    @unittest.expectedFailure
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=21)
+    def test_edgeql_syntax_name12(self):
+        """
+        SELECT foo::`@event`;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=21)
+    def test_edgeql_syntax_name13(self):
+        """
+        SELECT foo::@event;
+        """
+
+    def test_edgeql_syntax_shape01(self):
+        """
+        SELECT Foo {bar};
+        SELECT (Foo) {bar};
+        SELECT (((Foo))) {bar};
+
+% OK %
+
+        SELECT Foo {bar};
+        SELECT Foo {bar};
+        SELECT Foo {bar};
+        """
+
+    def test_edgeql_syntax_shape02(self):
+        """
+        SELECT Foo {bar};
+        SELECT Foo {(bar)};
+        SELECT Foo {(((bar)))};
+        SELECT Foo {@bar};
+        SELECT Foo {@(bar)};
+        SELECT Foo {@(((bar)))};
+        SELECT Foo {>bar};
+        SELECT Foo {>(bar)};
+        SELECT Foo {>(((bar)))};
+        SELECT Foo {<bar};
+        SELECT Foo {<(bar)};
+        SELECT Foo {<(((bar)))};
+
+% OK %
+
+        SELECT Foo {bar};
+        SELECT Foo {bar};
+        SELECT Foo {bar};
+        SELECT Foo {@bar};
+        SELECT Foo {@bar};
+        SELECT Foo {@bar};
+        SELECT Foo {bar};
+        SELECT Foo {bar};
+        SELECT Foo {bar};
+        SELECT Foo {<bar};
+        SELECT Foo {<bar};
+        SELECT Foo {<bar};
+        """
+
+    def test_edgeql_syntax_shape03(self):
+        """
+        SELECT Foo {Bar.bar};
+        SELECT Foo {Bar.(bar)};
+        SELECT Foo {Bar.(((bar)))};
+        SELECT Foo {Bar.>bar};
+        SELECT Foo {Bar.>(bar)};
+        SELECT Foo {Bar.>(((bar)))};
+        SELECT Foo {Bar.<bar};
+        SELECT Foo {Bar.<(bar)};
+        SELECT Foo {Bar.<(((bar)))};
+
+% OK %
+
+        SELECT Foo {Bar.bar};
+        SELECT Foo {Bar.bar};
+        SELECT Foo {Bar.bar};
+        SELECT Foo {Bar.bar};
+        SELECT Foo {Bar.bar};
+        SELECT Foo {Bar.bar};
+        SELECT Foo {Bar.<bar};
+        SELECT Foo {Bar.<bar};
+        SELECT Foo {Bar.<bar};
+        """
+
+    def test_edgeql_syntax_shape04(self):
+        """
+        SELECT Foo {Bar.bar};
+        SELECT Foo {(Bar).(bar)};
+        SELECT Foo {(((Bar))).(((bar)))};
+        SELECT Foo {Bar.>bar};
+        SELECT Foo {(Bar).>(bar)};
+        SELECT Foo {(((Bar))).>(((bar)))};
+        SELECT Foo {Bar.<bar};
+        SELECT Foo {(Bar).<(bar)};
+        SELECT Foo {(((Bar))).<(((bar)))};
+
+% OK %
+
+        SELECT Foo {Bar.bar};
+        SELECT Foo {Bar.bar};
+        SELECT Foo {Bar.bar};
+        SELECT Foo {Bar.bar};
+        SELECT Foo {Bar.bar};
+        SELECT Foo {Bar.bar};
+        SELECT Foo {Bar.<bar};
+        SELECT Foo {Bar.<bar};
+        SELECT Foo {Bar.<bar};
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=13)
+    def test_edgeql_syntax_shape05(self):
+        """
+        SELECT Foo {
+            `@foo`:= 42
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=4, col=13)
+    def test_edgeql_syntax_shape06(self):
+        """
+        SELECT Foo {
+            bar,
+            `@foo`:= 42
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=7, col=13)
+    def test_edgeql_syntax_shape07(self):
+        """
+        SELECT Foo {
+            bar: {
+                baz,
+                boo
+            },
+            `@foo`:= 42
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=5, col=17)
+    def test_edgeql_syntax_shape08(self):
+        """
+        SELECT Foo {
+            bar: {
+                baz,
+                `@boo`
+            },
+            `@foo`:= 42
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=6, col=21)
+    def test_edgeql_syntax_shape09(self):
+        """
+        SELECT Foo {
+            bar: {
+                baz,
+                boo
+            } WHERE `@spam` = 'bad',
+            `@foo`:= 42
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=7, col=13)
+    def test_edgeql_syntax_shape10(self):
+        """
+        SELECT Foo {
+            bar: {
+                baz,
+                boo
+            } WHERE spam = 'bad',
+            `@foo`:= 42
+        };
+        """
+
+    @unittest.expectedFailure
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=21)
+    def test_edgeql_syntax_shape11(self):
+        """
+        SELECT Foo {
+            __type__.name
+        };
+        """
+
+    def test_edgeql_syntax_shape12(self):
+        """
+        SELECT Foo {
+            __type__: {
+                name
+            }
+        };
+        """
+
+    def test_edgeql_syntax_shape13(self):
+        """
+        SELECT Foo {
+            __type__: {
                 name,
                 description
-            } WHERE name = "Silly",
-            `@foo`:= 42
+            }
         };
         """
