@@ -23,6 +23,10 @@ class Nonterm(context.Nonterm):
     pass
 
 
+class ListNonterm(context.ListNonterm, element=None):
+    pass
+
+
 class SelectExpr(Nonterm):
     @parsing.precedence(P_UMINUS)
     def reduce_SelectNoParens(self, *kids):
@@ -98,7 +102,7 @@ class Cge(Nonterm):
         self.val = qlast.CGENode(expr=kids[3].val, alias=kids[0].val)
 
 
-class CgeList(parsing.ListNonterm, element=Cge, separator=T_COMMA):
+class CgeList(ListNonterm, element=Cge, separator=T_COMMA):
     pass
 
 
@@ -235,7 +239,7 @@ class AliasDecl(Nonterm):
             expr=kids[2].val)
 
 
-class AliasDeclList(parsing.ListNonterm, element=AliasDecl, separator=T_COMMA):
+class AliasDeclList(ListNonterm, element=AliasDecl, separator=T_COMMA):
     pass
 
 
@@ -265,8 +269,7 @@ class SelectTargetEl(Nonterm):
         self.val = qlast.SelectExprNode(expr=tshape)
 
 
-class SelectTargetList(parsing.ListNonterm, element=SelectTargetEl,
-                       separator=T_COMMA):
+class SelectTargetList(ListNonterm, element=SelectTargetEl, separator=T_COMMA):
     pass
 
 
@@ -317,8 +320,7 @@ class ShapeElement(Nonterm):
             compexpr=kids[2].val)
 
 
-class ShapeElementList(parsing.ListNonterm, element=ShapeElement,
-                       separator=T_COMMA):
+class ShapeElementList(ListNonterm, element=ShapeElement, separator=T_COMMA):
     pass
 
 
@@ -433,7 +435,7 @@ class PointerGlobFilter(Nonterm):
         self.val = qlast.PointerGlobFilter(property=kids[1].val, any=True)
 
 
-class PointerGlobFilterList(parsing.ListNonterm, element=PointerGlobFilter,
+class PointerGlobFilterList(ListNonterm, element=PointerGlobFilter,
                             separator=T_COMMA):
     pass
 
@@ -479,7 +481,7 @@ class OrderbyExpr(Nonterm):
                                       nones_order=kids[2].val)
 
 
-class OrderbyList(parsing.ListNonterm, element=OrderbyExpr, separator=T_THEN):
+class OrderbyList(ListNonterm, element=OrderbyExpr, separator=T_THEN):
     pass
 
 
@@ -773,7 +775,7 @@ class MappingElement(Nonterm):
         self.val = (qlast.ConstantNode(value=kids[0].val), kids[2].val)
 
 
-class MappingElementsList(parsing.ListNonterm, element=MappingElement,
+class MappingElementsList(ListNonterm, element=MappingElement,
                           separator=T_COMMA):
     pass
 
@@ -786,7 +788,7 @@ class OptExprList(Nonterm):
         self.val = []
 
 
-class ExprList(parsing.ListNonterm, element=Expr, separator=T_COMMA):
+class ExprList(ListNonterm, element=Expr, separator=T_COMMA):
     pass
 
 
@@ -1020,7 +1022,7 @@ class FuncArgExpr(Nonterm):
         self.val = qlast.NamedArgNode(name=kids[0].val, arg=kids[2].val)
 
 
-class FuncArgList(parsing.ListNonterm, element=FuncArgExpr, separator=T_COMMA):
+class FuncArgList(ListNonterm, element=FuncArgExpr, separator=T_COMMA):
     pass
 
 
@@ -1114,7 +1116,7 @@ class NodeName(Nonterm):
             name=kids[0].val[-1])
 
 
-class NodeNameList(parsing.ListNonterm, element=NodeName, separator=T_COMMA):
+class NodeNameList(ListNonterm, element=NodeName, separator=T_COMMA):
     pass
 
 

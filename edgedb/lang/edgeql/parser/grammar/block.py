@@ -6,12 +6,10 @@
 ##
 
 
-from edgedb.lang.common.parsing import ListNonterm
-
-from .precedence import *
-from .tokens import *
-from .statements import *
-from .ddl import *
+from .precedence import *  # NOQA
+from .tokens import *  # NOQA
+from .statements import *  # NOQA
+from .ddl import *  # NOQA
 
 
 class SingleStatement(Nonterm):

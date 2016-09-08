@@ -357,11 +357,18 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.write(ident_to_str(node.name))
 
     def visit_SelectTypeRefNode(self, node):
-        self.write('__type__.')
+        self.write('__type__: ')
+        self.write('{')
+        self.indentation += 1
+        self.new_lines = 1
         for i, attr in enumerate(node.attrs):
             if i > 0:
-                self.write('.')
+                self.write(',')
+                self.new_lines = 1
             self.visit(attr)
+        self.indentation -= 1
+        self.new_lines = 1
+        self.write('}')
 
     def visit_SelectPathSpecNode(self, node):
         # PathSpecNode can only contain LinkExpr or LinkPropExpr,

@@ -31,6 +31,10 @@ class Nonterm(context.Nonterm):
     pass
 
 
+class ListNonterm(context.ListNonterm, element=None):
+    pass
+
+
 class NameTokNontermMeta(context.ContextNontermMeta):
     def __new__(mcls, name, bases, dct, *, exceptions=tuple()):
         if name != 'NameTokNonTerm':
@@ -112,7 +116,7 @@ class Value(Nonterm):
         self.val = gqlast.Variable(value=kids[0].val)
 
 
-class ValueList(parsing.ListNonterm, element=Value):
+class ValueList(ListNonterm, element=Value):
     pass
 
 
@@ -121,7 +125,7 @@ class ObjectField(Nonterm):
         self.val = gqlast.ObjectField(name=kids[0].val, value=kids[2].val)
 
 
-class ObjectFieldList(parsing.ListNonterm, element=ObjectField):
+class ObjectFieldList(ListNonterm, element=ObjectField):
     pass
 
 
@@ -196,7 +200,7 @@ class Definition(Nonterm):
         self.val = kids[0].val
 
 
-class Definitions(parsing.ListNonterm, element=Definition):
+class Definitions(ListNonterm, element=Definition):
     pass
 
 
@@ -288,7 +292,7 @@ class Selection(Nonterm):
         self.val = kids[0].val
 
 
-class Selections(parsing.ListNonterm, element=Selection):
+class Selections(ListNonterm, element=Selection):
     pass
 
 
@@ -318,7 +322,7 @@ class Argument(Nonterm):
         self.val = gqlast.Argument(name=kids[0].val, value=kids[2].val)
 
 
-class ArgumentList(parsing.ListNonterm, element=Argument):
+class ArgumentList(ListNonterm, element=Argument):
     pass
 
 
@@ -336,7 +340,7 @@ class Directive(Nonterm):
                                     arguments=kids[2].val)
 
 
-class Directives(parsing.ListNonterm, element=Directive):
+class Directives(ListNonterm, element=Directive):
     pass
 
 
@@ -381,7 +385,7 @@ class Variable(Nonterm):
                                              value=kids[3].val)
 
 
-class VariableList(parsing.ListNonterm, element=Variable):
+class VariableList(ListNonterm, element=Variable):
     pass
 
 

@@ -12,7 +12,7 @@ from edgedb.lang.common.exceptions import get_context
 from edgedb.lang import edgeql
 from edgedb.lang.schema import ast as esast
 
-from .tokens import *
+from .tokens import *  # NOQA
 
 
 def parse_edgeql(expression):
@@ -30,6 +30,10 @@ def parse_edgeql(expression):
 
 
 class Nonterm(context.Nonterm):
+    pass
+
+
+class ListNonterm(context.ListNonterm, element=None):
     pass
 
 
@@ -79,7 +83,7 @@ class Value(Nonterm):
         self.val = esast.ArrayLiteral(value=[el.value for el in kids[1].val])
 
 
-class ValueList(parsing.ListNonterm, element=BaseValue, separator=T_COMMA):
+class ValueList(ListNonterm, element=BaseValue, separator=T_COMMA):
     pass
 
 
@@ -124,8 +128,7 @@ class ImportModule(Nonterm):
                                       alias=kids[2].val)
 
 
-class ImportModuleList(parsing.ListNonterm, element=ImportModule,
-                       separator=T_COMMA):
+class ImportModuleList(ListNonterm, element=ImportModule, separator=T_COMMA):
     pass
 
 
@@ -148,7 +151,7 @@ class Declaration(Nonterm):
         self.val = kid.val
 
 
-class DeclarationList(parsing.ListNonterm, element=Declaration):
+class DeclarationList(ListNonterm, element=Declaration):
     pass
 
 
@@ -361,7 +364,7 @@ class NameAndExtends(Nonterm):
         self.val = esast.Declaration(name=kid.val)
 
 
-class NameList(parsing.ListNonterm, element=ObjectName, separator=T_COMMA):
+class NameList(ListNonterm, element=ObjectName, separator=T_COMMA):
     pass
 
 
@@ -377,7 +380,7 @@ class DeclarationSpec(Nonterm):
         self.val = kid.val
 
 
-class DeclarationSpecs(parsing.ListNonterm, element=DeclarationSpec):
+class DeclarationSpecs(ListNonterm, element=DeclarationSpec):
     pass
 
 
@@ -512,5 +515,5 @@ class Attribute(Nonterm):
         self.val = esast.Attribute(name=kids[0].val, value=kids[1].val)
 
 
-class Attributes(parsing.ListNonterm, element=Attribute):
+class Attributes(ListNonterm, element=Attribute):
     pass

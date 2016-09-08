@@ -10,7 +10,7 @@ import functools
 import os
 import unittest
 
-from edgedb.lang.common import markup
+from edgedb.lang.common import markup, context
 
 
 def must_fail(*args, **kwargs):
@@ -119,6 +119,10 @@ class BaseSyntaxTest(BaseParserTest):
 
         if debug:
             markup.dump(inast)
+
+        # make sure that the AST has context
+        #
+        context.ContextValidator().visit(inast)
 
         processed_src = self.ast_to_source(inast)
 
