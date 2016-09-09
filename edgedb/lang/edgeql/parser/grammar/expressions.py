@@ -116,11 +116,14 @@ class SelectClause(Nonterm):
 
 class SimpleSelect(Nonterm):
     def reduce_Select(self, *kids):
-        r"%reduce SELECT OptDistinct SelectTargetList \
+        r"%reduce SELECT OptDistinct SelectTargetEl \
                   OptWhereClause OptGroupClause"
         self.val = qlast.SelectQueryNode(
             distinct=kids[1].val,
-            targets=kids[2].val,
+            # XXX: for historical reasons a list is expected here by
+            # the compiler
+            #
+            targets=[kids[2].val],
             where=kids[3].val,
             groupby=kids[4].val
         )
@@ -267,10 +270,6 @@ class SelectTargetEl(Nonterm):
 
         tshape.pathspec = kids[1].val
         self.val = qlast.SelectExprNode(expr=tshape)
-
-
-class SelectTargetList(ListNonterm, element=SelectTargetEl, separator=T_COMMA):
-    pass
 
 
 class Shape(Nonterm):

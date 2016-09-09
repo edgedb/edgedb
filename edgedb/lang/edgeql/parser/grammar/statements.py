@@ -95,8 +95,10 @@ class DeleteStmt(Nonterm):
 
 
 class ReturningClause(Nonterm):
-    def reduce_RETURNING_SelectTargetList(self, *kids):
-        self.val = kids[1].val
+    def reduce_RETURNING_SelectTargetEl(self, *kids):
+        # XXX: for historical reasons a list is expected here by the compiler
+        #
+        self.val = [kids[1].val]
 
 
 class OptReturningClause(Nonterm):
