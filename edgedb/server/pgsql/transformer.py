@@ -1330,12 +1330,12 @@ class IRCompilerBase:
 
     def _process_typecast(self, context, expr, cte=None):
         if (isinstance(expr.expr, irast.BinOp) and isinstance(expr.expr.op, (
-                ast.ops.ComparisonOperator, ast.ops.EquivalenceOperator))):
+                ast.ops.ComparisonOperator, ast.ops.TypeCheckOperator))):
             expr_type = bool
         elif (isinstance(expr.expr, irast.BaseRefExpr) and
               isinstance(expr.expr.expr, irast.BinOp) and isinstance(
                   expr.expr.expr.op, (ast.ops.ComparisonOperator,
-                                      ast.ops.EquivalenceOperator))):
+                                      ast.ops.TypeCheckOperator))):
             expr_type = bool
         elif isinstance(expr.expr, irast.Constant):
             expr_type = expr.expr.type

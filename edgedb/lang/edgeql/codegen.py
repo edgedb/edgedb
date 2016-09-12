@@ -250,7 +250,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(' ')
             self.write(node.direction)
         if node.nones_order:
-            self.write(' NONES ')
+            self.write(' NULLS ')
             self.write(node.nones_order)
 
     def visit_ExistsPredicateNode(self, node):
@@ -429,7 +429,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             if '.' in node.index:
                 self.write('}')
         else:
-            self.write('None')
+            self.write('NULL')
 
     def visit_DefaultValueNode(self, node):
         self.write('DEFAULT')

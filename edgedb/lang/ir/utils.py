@@ -150,7 +150,7 @@ def infer_type(ir, schema):
 
     elif isinstance(ir, irast.BinOp):
         if isinstance(ir.op, (ast.ops.ComparisonOperator,
-                                ast.ops.EquivalenceOperator,
+                                ast.ops.TypeCheckOperator,
                                 ast.ops.MembershipOperator)):
             result = schema.get('std::bool')
         else:
@@ -540,7 +540,7 @@ class LinearPath(list):
                 else:
                     concept = self[i + 1].name
             else:
-                concept = 'NONE'
+                concept = 'NULL'
             result += '[%s%s]%s' % (self[i][1], link, concept)
         return result
 

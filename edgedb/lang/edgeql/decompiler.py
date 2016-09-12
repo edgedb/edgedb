@@ -416,7 +416,9 @@ class IRDecompiler:
 
         elif isinstance(expr, irast.NoneTest):
             arg = self._process_expr(context, expr.expr)
-            result = qlast.NoneTestNode(expr=arg)
+            result = qlast.UnaryOpNode(
+                operand=qlast.ExistsPredicateNode(expr=arg),
+                op=qlast.NOT)
 
         else:
             assert False, "Unexpected expression type: %r" % expr

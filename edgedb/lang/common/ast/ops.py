@@ -88,17 +88,11 @@ AND = BooleanOperator('and')
 NOT = BooleanOperator('not')
 
 
-class EquivalenceOperator(Operator):
-    pass
-
-IS = EquivalenceOperator('is')
-IS_NOT = EquivalenceOperator('is not')
-
-
 class TypeCheckOperator(Operator):
     pass
 
-INSTANCEOF = TypeCheckOperator('instanceof')
+IS = TypeCheckOperator('is')
+IS_NOT = TypeCheckOperator('is not')
 
 
 class MembershipOperator(Operator):

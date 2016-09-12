@@ -21,7 +21,7 @@ CREATE ATOM std::time;
 
 CREATE ATOM std::int;
 
-CREATE FINAL ATOM std::none;
+CREATE FINAL ATOM std::null;
 
 CREATE ATOM std::float;
 
@@ -110,7 +110,7 @@ CREATE CONSTRAINT std::maxexclusive INHERITING std::max {
 
 CREATE CONSTRAINT std::unique INHERITING std::constraint {
     SET errmessage := '{subject} violates unique constraint';
-    SET expr := (not EXISTS (subject));
+    SET expr := std::is_distinct(subject);
 };
 
 CREATE ATOM std::decimal_rounding_t INHERITING std::str {

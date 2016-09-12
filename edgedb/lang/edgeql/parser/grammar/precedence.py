@@ -66,11 +66,7 @@ class P_OP(Precedence, assoc='left', tokens=('OPERATOR', 'OP')):
     pass
 
 
-class P_INSTANCEOF(Precedence, assoc='nonassoc', tokens=('INSTANCEOF',)):
-    pass
-
-
-class P_IS(Precedence, assoc='nonassoc', tokens=('IS', 'NONE')):
+class P_IS(Precedence, assoc='nonassoc', tokens=('IS',)):
     pass
 
 

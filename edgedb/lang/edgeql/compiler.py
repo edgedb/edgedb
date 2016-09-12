@@ -807,7 +807,7 @@ class EdgeQLCompiler:
 
             # The entityref_to_record transform must be reverted
             # for typecheck ops.
-            if isinstance(expr.op, ast.ops.EquivalenceOperator) \
+            if isinstance(expr.op, ast.ops.TypeCheckOperator) \
                     and isinstance(left, irast.Record) \
                     and isinstance(right, irast.Constant) \
                     and (isinstance(right.type, s_obj.PrototypeClass) or
@@ -919,8 +919,8 @@ class EdgeQLCompiler:
         elif isinstance(expr, qlast.UnaryOpNode):
             if (expr.op == ast.ops.NOT and
                     isinstance(expr.operand, qlast.NoneTestNode)):
-                # Make sure NOT(IS NONE) does not produce weak paths, as IS
-                # NONE would normally do.
+                # Make sure NOT(IS NULL) does not produce weak paths, as IS
+                # NULL would normally do.
                 self.context.current.weak_path = False
 
             operand = self._process_expr(context, expr.operand)
@@ -963,9 +963,19 @@ class EdgeQLCompiler:
                     )
                 )
 
-            if isinstance(subquery, irast.SubgraphRef):
                 subquery.ref.referrers.append('exists')
-            node = irast.ExistPred(expr=subquery)
+                node = irast.ExistPred(expr=subquery)
+
+            elif isinstance(subquery, irast.BaseRef):
+                node = irast.UnaryOp(
+                    op=ast.ops.NOT,
+                    expr=irast.NoneTest(expr=subquery)
+                )
+
+            else:
+                if isinstance(subquery, irast.SubgraphRef):
+                    subquery.ref.referrers.append('exists')
+                node = irast.ExistPred(expr=subquery)
 
         elif isinstance(expr, qlast.TypeCastNode):
             maintype = expr.type.maintype
@@ -4292,7 +4302,7 @@ class EdgeQLCompiler:
 
                 schema = self.context.current.proto_schema
                 if isinstance(op, (ast.ops.ComparisonOperator,
-                                   ast.ops.EquivalenceOperator)):
+                                   ast.ops.TypeCheckOperator)):
                     result_type = schema.get('std::bool')
                 else:
                     if l.type == r.type:

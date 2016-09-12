@@ -525,10 +525,10 @@ class OptDirection(Nonterm):
 
 
 class OptNonesOrder(Nonterm):
-    def reduce_NONES_FIRST(self, *kids):
+    def reduce_NULLS_FIRST(self, *kids):
         self.val = qlast.NonesFirst
 
-    def reduce_NONES_LAST(self, *kids):
+    def reduce_NULLS_LAST(self, *kids):
         self.val = qlast.NonesLast
 
     def reduce_empty(self, *kids):
@@ -729,18 +729,14 @@ class Expr(Nonterm):
                               right=kids[2].val)
         self.val = qlast.UnaryOpNode(op=ast.ops.NOT, operand=val)
 
-    @parsing.precedence(P_IS)
-    def reduce_Expr_IS_NONE(self, *kids):
-        self.val = qlast.NoneTestNode(expr=kids[0].val)
+    def reduce_Expr_IS_Expr(self, *kids):
+        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.IS,
+                                   right=kids[2].val)
 
     @parsing.precedence(P_IS)
-    def reduce_Expr_IS_NOT_NONE(self, *kids):
-        nt = qlast.NoneTestNode(expr=kids[0].val)
-        self.val = qlast.UnaryOpNode(op=ast.ops.NOT, operand=nt)
-
-    def reduce_Expr_INSTANCEOF_Expr(self, *kids):
-        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.INSTANCEOF,
-                                   right=isexpr)
+    def reduce_Expr_IS_NOT_Expr(self, *kids):
+        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.IS_NOT,
+                                   right=kids[3].val)
 
     def reduce_Expr_IN_Expr(self, *kids):
         inexpr = kids[2].val
@@ -822,7 +818,7 @@ class BaseConstant(Nonterm):
 
 
 class NoneConstant(Nonterm):
-    def reduce_NONE(self, *kids):
+    def reduce_NULL(self, *kids):
         self.val = qlast.ConstantNode(value=None)
 
 
