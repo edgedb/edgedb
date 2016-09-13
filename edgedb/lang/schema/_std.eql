@@ -52,6 +52,7 @@ CREATE ATTRIBUTE std::errmessage std::str;
 CREATE FUNCTION std::strlen(string std::str) RETURNING std::int;
 CREATE FUNCTION std::lower(string std::str) RETURNING std::str;
 CREATE FUNCTION std::sum(v std::int) RETURNING std::int;
+CREATE FUNCTION std::is_distinct(v std::any) RETURNING std::bool;
 
 CREATE CONSTRAINT std::constraint {
     SET errmessage := 'invalid {subject}';

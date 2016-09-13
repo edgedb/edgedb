@@ -342,10 +342,10 @@ class DeclarationLoader:
             prop = prop_base.derive(self._schema, link, prop_target,
                                     add_to_schema=True)
 
+            link.add_pointer(prop)
+
             if propdecl.constraints:
                 self._parse_subject_constraints(prop, propdecl)
-
-            link.add_pointer(prop)
 
     def _parse_attribute_values(self, subject, subjdecl):
         attrs = {}

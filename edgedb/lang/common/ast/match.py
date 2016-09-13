@@ -123,25 +123,28 @@ def _match_node(pattern, node, context):
                 return None
 
         else:
-            if not issubclass(field_value.__class__, node_value.__class__):
-                return None
-
-            if isinstance(field_value, collections.Container) and not isinstance(field_value, str):
+            if (isinstance(field_value, collections.Container) and
+                    not isinstance(field_value, str)):
                 if len(field_value) != len(node_value):
                     return None
 
                 for cfv, cnv in zip(field_value, node_value):
-                    if not _match(cfv, cnv, context):
-                        return None
+                    if isinstance(cfv, (MatchNode, MatchASTNode)):
+                        m = _match(cfv, cnv, context)
+                        if not m:
+                            return None
+                    else:
+                        if cfv != cnv:
+                            return None
 
-            elif isinstance(field_value, MatchASTNode):
+            elif isinstance(field_value, (MatchNode, MatchASTNode)):
                 m = _match_node(field_value, node_value, context)
 
                 if not m:
                     return None
 
             else:
-                if not field_value == node_value:
+                if field_value != node_value:
                     return None
 
     return True

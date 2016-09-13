@@ -619,10 +619,8 @@ class Expr(Nonterm):
     def reduce_SelectWithParens(self, *kids):
         self.val = kids[0].val
 
-    def reduce_EXISTS_SelectWithParens(self, *kids):
-        self.val = qlast.ExistsPredicateNode(expr=kids[1].val)
-
-    def reduce_EXISTS_ParenExpr(self, *kids):
+    @parsing.precedence(P_UMINUS)
+    def reduce_EXISTS_Expr(self, *kids):
         self.val = qlast.ExistsPredicateNode(expr=kids[1].val)
 
     def reduce_Sequence(self, *kids):

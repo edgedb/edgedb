@@ -72,10 +72,10 @@ class ConstraintMech:
     @classmethod
     def _get_unique_refs(cls, tree):
         # Check if the expression is
-        #   not exists(<arg>) [and not exists (<arg>)...]
+        #   std::is_dictinct(<arg>) [and std::is_distinct (<arg>)...]
         expr = tree.selector[0].expr
 
-        astexpr = irastexpr.ExistsConjunctionExpr()
+        astexpr = irastexpr.DistinctConjunctionExpr()
         refs = astexpr.match(expr)
 
         if refs is None:
