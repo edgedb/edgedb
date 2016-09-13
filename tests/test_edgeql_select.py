@@ -66,7 +66,8 @@ class TestConstraints(tb.QueryTestCase):
             owner := (SELECT User WHERE User.name = 'Elvis'),
             watchers := (SELECT User WHERE User.name = 'Yury'),
             status := (SELECT Status WHERE Status.name = 'Open'),
-            time_spent_log := (SELECT LogEntry)
+            time_spent_log := (SELECT LogEntry),
+            time_estimate := 3000
         };
 
 
@@ -214,6 +215,35 @@ class TestConstraints(tb.QueryTestCase):
                 }
             WHERE
                 EXISTS (Issue.<(issue TO Comment));
+        ''')
+
+        self.assert_data_shape(res[0], [{
+            'number': '1',
+        }])
+
+    async def test_edgeql_select_exists02(self):
+        res = await self.con.execute('''
+            USING MODULE test
+            SELECT
+                Issue {
+                    number
+                }
+            WHERE
+                NOT EXISTS Issue.time_estimate;
+        ''')
+
+        self.assert_data_shape(res[0], [{
+            'number': '2',
+        }])
+
+        res = await self.con.execute('''
+            USING MODULE test
+            SELECT
+                Issue {
+                    number
+                }
+            WHERE
+                EXISTS Issue.time_estimate;
         ''')
 
         self.assert_data_shape(res[0], [{
