@@ -89,6 +89,15 @@ class EdgeQLLexer(lexer.Lexer):
              next_state=STATE_KEEP,
              regexp=r'::'),
 
+        # special path operators
+        Rule(token='.<',
+             next_state=STATE_KEEP,
+             regexp=r'\.<'),
+
+        Rule(token='.>',
+             next_state=STATE_KEEP,
+             regexp=r'\.>'),
+
         # multichar ops (so 2+ chars)
         Rule(token='OP',
              next_state=STATE_KEEP,

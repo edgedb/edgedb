@@ -425,6 +425,151 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
+    def test_edgeql_syntax_path01(self):
+        """
+        SELECT Foo.bar;
+        SELECT Foo.>bar;
+        SELECT Foo.<bar;
+        SELECT Foo.bar@spam;
+        SELECT Foo.>bar@spam;
+        SELECT Foo.<bar@spam;
+        SELECT Foo.bar[TO Baz];
+        SELECT Foo.>bar[TO Baz];
+        SELECT Foo.<bar[TO Baz];
+
+% OK %
+
+        SELECT Foo.bar;
+        SELECT Foo.bar;
+        SELECT Foo.<bar;
+        SELECT Foo.bar@spam;
+        SELECT Foo.bar@spam;
+        SELECT Foo.<bar@spam;
+        SELECT Foo.bar[TO Baz];
+        SELECT Foo.bar[TO Baz];
+        SELECT Foo.<bar[TO Baz];
+        """
+
+    def test_edgeql_syntax_path02(self):
+        """
+        SELECT Foo.event;
+        SELECT Foo.>event;
+        SELECT Foo.<event;
+        SELECT Foo.event@action;
+        SELECT Foo.>event@action;
+        SELECT Foo.<event@action;
+        SELECT Foo.event[TO Action];
+        SELECT Foo.>event[TO Action];
+        SELECT Foo.<event[TO Action];
+
+% OK %
+
+        SELECT Foo.`event`;
+        SELECT Foo.`event`;
+        SELECT Foo.<`event`;
+        SELECT Foo.`event`@`action`;
+        SELECT Foo.`event`@`action`;
+        SELECT Foo.<`event`@`action`;
+        SELECT Foo.`event`[TO `Action`];
+        SELECT Foo.`event`[TO `Action`];
+        SELECT Foo.<`event`[TO `Action`];
+        """
+
+    def test_edgeql_syntax_path03(self):
+        """
+        SELECT Foo.(lib::bar);
+        SELECT Foo.>(lib::bar);
+        SELECT Foo.<(lib::bar);
+        SELECT Foo.(lib::bar)@(lib::spam);
+        SELECT Foo.>(lib::bar)@(lib::spam);
+        SELECT Foo.<(lib::bar)@(lib::spam);
+        SELECT Foo.(lib::bar)[TO lib::Baz];
+        SELECT Foo.>(lib::bar)[TO lib::Baz];
+        SELECT Foo.<(lib::bar)[TO lib::Baz];
+
+% OK %
+
+        SELECT Foo.(lib::bar);
+        SELECT Foo.(lib::bar);
+        SELECT Foo.<(lib::bar);
+        SELECT Foo.(lib::bar)@(lib::spam);
+        SELECT Foo.(lib::bar)@(lib::spam);
+        SELECT Foo.<(lib::bar)@(lib::spam);
+        SELECT Foo.(lib::bar)[TO lib::Baz];
+        SELECT Foo.(lib::bar)[TO lib::Baz];
+        SELECT Foo.<(lib::bar)[TO lib::Baz];
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=20)
+    def test_edgeql_syntax_path04(self):
+        """
+        SELECT Foo[TO Bar];
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=29)
+    def test_edgeql_syntax_path05(self):
+        """
+        SELECT Foo.bar@spam[TO Bar];
+        """
+
+    def test_edgeql_syntax_path06(self):
+        """
+        SELECT Foo.bar[TO To];  # unreserved keyword as concept name
+
+% OK %
+
+        SELECT Foo.bar[TO `To`];
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=30)
+    def test_edgeql_syntax_path07(self):
+        """
+        SELECT Foo.bar[TO To To];
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=27)
+    def test_edgeql_syntax_path08(self):
+        """
+        SELECT Foo.bar[TO All];
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=27)
+    def test_edgeql_syntax_path09(self):
+        """
+        SELECT Foo.bar[2][TO Baz];
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=29)
+    def test_edgeql_syntax_path10(self):
+        """
+        SELECT Foo.bar[2:4][TO Baz];
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=28)
+    def test_edgeql_syntax_path11(self):
+        """
+        SELECT Foo.bar[2:][TO Baz];
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=28)
+    def test_edgeql_syntax_path12(self):
+        """
+        SELECT Foo.bar[:2][TO Baz];
+        """
+
+    def test_edgeql_syntax_path13(self):
+        """
+        SELECT (Foo.bar)[TO Baz];
+        SELECT Foo.(bar)[TO Baz];
+        SELECT Foo.<(bar)[TO Baz];
+
+% OK %
+
+        SELECT Foo.bar[TO Baz];
+        SELECT Foo.bar[TO Baz];
+        SELECT Foo.<bar[TO Baz];
+        """
+
     def test_edgeql_syntax_type_interpretation01(self):
         """
         SELECT (Foo AS Bar);

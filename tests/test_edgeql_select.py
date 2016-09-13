@@ -186,7 +186,7 @@ class TestConstraints(tb.QueryTestCase):
                     number
                 }
             WHERE
-                NOT EXISTS (Issue.<(issue TO Comment));
+                NOT EXISTS (Issue.<issue[TO Comment]);
         ''')
 
         self.assert_data_shape(res[0], [{
@@ -200,7 +200,7 @@ class TestConstraints(tb.QueryTestCase):
                     number
                 }
             WHERE
-                NOT EXISTS (SELECT Issue.<(issue TO Comment));
+                NOT EXISTS (SELECT Issue.<issue[TO Comment]);
         ''')
 
         self.assert_data_shape(res[0], [{
@@ -214,7 +214,7 @@ class TestConstraints(tb.QueryTestCase):
                     number
                 }
             WHERE
-                EXISTS (Issue.<(issue TO Comment));
+                EXISTS (Issue.<issue[TO Comment]);
         ''')
 
         self.assert_data_shape(res[0], [{

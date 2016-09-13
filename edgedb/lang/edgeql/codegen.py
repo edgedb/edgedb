@@ -24,13 +24,13 @@ class EdgeQLSourceGeneratorError(EdgeDBError):
 
 
 class EdgeQLSourceGenerator(codegen.SourceGenerator):
-    def visit(self, node):
+    def visit(self, node, **kwargs):
         method = 'visit_' + node.__class__.__name__
         if method == 'visit_list':
             return self.visit_list(node, terminator=';')
         else:
             visitor = getattr(self, method, self.generic_visit)
-            return visitor(node)
+            return visitor(node, **kwargs)
 
     def generic_visit(self, node):
         raise EdgeQLSourceGeneratorError(
@@ -338,23 +338,16 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         elif node.direction and node.direction != '>':
             self.write(node.direction)
 
-        if node.target and node.type != 'property':
-            self.write('(')
-            if node.namespace:
-                self.write('{}::{}'.format(ident_to_str(node.namespace),
-                                           ident_to_str(node.name)))
-            else:
-                self.write(ident_to_str(node.name))
-
-            self.write(' TO ')
-            self.visit(node.target)
-            self.write(')')
+        if node.namespace:
+            self.write('({}::{})'.format(ident_to_str(node.namespace),
+                                         ident_to_str(node.name)))
         else:
-            if node.namespace:
-                self.write('({}::{})'.format(ident_to_str(node.namespace),
-                                             ident_to_str(node.name)))
-            else:
-                self.write(ident_to_str(node.name))
+            self.write(ident_to_str(node.name))
+
+        if node.target and node.type != 'property':
+            self.write('[TO ')
+            self.visit(node.target, parenthesise=False)
+            self.write(']')
 
     def visit_SelectTypeRefNode(self, node):
         self.write('__type__: ')
@@ -527,8 +520,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.index)
         self.write(']')
 
-    def visit_PrototypeRefNode(self, node):
-        if node.module:
+    def visit_PrototypeRefNode(self, node, parenthesise=True):
+        if node.module and parenthesise:
             self.write('(')
 
         if node.module:
@@ -537,7 +530,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         self.write(ident_to_str(node.name))
 
-        if node.module:
+        if node.module and parenthesise:
             self.write(')')
 
     def visit_NoneTestNode(self, node):

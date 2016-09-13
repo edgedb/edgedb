@@ -110,7 +110,7 @@ class P_DOUBLECOLON(Precedence, assoc='left', tokens=('DOUBLECOLON',)):
     pass
 
 
-class P_DOT(Precedence, assoc='left', tokens=('DOT',)):
+class P_DOT(Precedence, assoc='left', tokens=('DOT', 'DOTFW', 'DOTBW')):
     pass
 
 

@@ -1386,12 +1386,12 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            (test::Group){
+            (test::`Group`){
                 id,
                 name,
             }
         WHERE
-            ((test::Group).name = 'admin');
+            ((test::`Group`).name = 'admin');
         """
 
     def test_graphql_translation_arg_type01(self):
