@@ -499,6 +499,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write('>')
         self.visit(node.expr)
 
+    def visit_TypeInterpretationNode(self, node):
+        self.write('(')
+        self.visit(node.expr)
+        self.write(' AS ')
+        self.visit(node.type)
+        self.write(')')
+
     def visit_IndirectionNode(self, node):
         self.write('(')
         self.visit(node.arg)

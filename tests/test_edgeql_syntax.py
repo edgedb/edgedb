@@ -424,3 +424,9 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             }
         };
         """
+
+    def test_edgeql_syntax_type_interpretation01(self):
+        """
+        SELECT (Foo AS Bar);
+        SELECT (Foo.bar AS Bar);
+        """

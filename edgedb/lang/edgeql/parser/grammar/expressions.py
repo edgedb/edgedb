@@ -573,6 +573,10 @@ class ParenExpr(Nonterm):
     def reduce_LPAREN_DeleteExpr_RPAREN(self, *kids):
         self.val = kids[1].val
 
+    def reduce_LPAREN_Expr_AS_Expr_RPAREN(self, *kids):
+        self.val = qlast.TypeInterpretationNode(expr=kids[1].val,
+                                                type=kids[3].val)
+
 
 class Expr(Nonterm):
     # Path | Constant | '(' Expr ')' | FuncExpr | Sequence | Mapping
@@ -588,6 +592,7 @@ class Expr(Nonterm):
     # | Expr IS NOT OF '(' NodeNameList ')'
     # | Expr IN Expr | Expr NOT IN Expr
     # | '<' ExtTypeExpr '>' '(' Expr ')'
+    # | '(' Expr AS Expr ')'
 
     def reduce_Path(self, *kids):
         self.val = kids[0].val

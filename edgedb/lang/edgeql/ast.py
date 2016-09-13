@@ -504,6 +504,10 @@ class TypeCastNode(Base):
     __fields = ['expr', ('type', TypeNameNode)]
 
 
+class TypeInterpretationNode(Base):
+    __fields = ['expr', 'type']
+
+
 class TypeRefNode(Base):
     __fields = ['expr']
 
