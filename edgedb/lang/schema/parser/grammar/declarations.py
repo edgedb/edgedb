@@ -360,6 +360,9 @@ class NameAndExtends(Nonterm):
     def reduce_IDENT_EXTENDS_NameList(self, *kids):
         self.val = esast.Declaration(name=kids[0].val, extends=kids[2].val)
 
+    def reduce_IDENT_EXTENDS_LPAREN_NameList_RPAREN(self, *kids):
+        self.val = esast.Declaration(name=kids[0].val, extends=kids[3].val)
+
     def reduce_IDENT(self, kid):
         self.val = esast.Declaration(name=kid.val)
 

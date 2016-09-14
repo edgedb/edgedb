@@ -166,6 +166,25 @@ concept LogEntry extends    OwnedObject,    Text:
                        title: 'Start Date'
         """
 
+    def test_eschema_syntax_ws04(self):
+        """
+        concept LogEntry extends (
+                OwnedObject,
+                Text):
+            link start_date to datetime:
+               default:=
+                    SELECT datetime::current_datetime()
+               title: 'Start Date'
+
+% OK %
+
+        concept LogEntry extends OwnedObject, Text:
+            link start_date to datetime:
+               default:=
+                    SELECT datetime::current_datetime()
+               title: 'Start Date'
+        """
+
     def test_eschema_syntax_atom01(self):
         """
 atom issue_num_t extends builtins::sequence
