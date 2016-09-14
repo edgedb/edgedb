@@ -156,6 +156,10 @@ class EdgeSchemaLexer(lexer.Lexer):
                     (?:[^\W\d]|\$)
                     (?:\w|\$)*
                 '''),
+
+        Rule(token='QIDENT',
+             next_state=STATE_KEEP,
+             regexp=r'`.+?`'),
     ]
 
     states = {
@@ -183,6 +187,15 @@ class EdgeSchemaLexer(lexer.Lexer):
                  regexp=r'.*?(?:\n|.$)'),
         ]
     }
+
+    def token_from_text(self, rule_token, txt):
+        tok = super().token_from_text(rule_token, txt)
+
+        if rule_token == 'QIDENT':
+            tok.attrs['type'] = 'IDENT'
+            tok.value = txt[1:-1]
+
+        return tok
 
     def get_start_tokens(self):
         '''Yield a number of start tokens.'''

@@ -108,6 +108,17 @@ concept LogEntry extends OwnedObject, Text:
     required link attachment to Post, File, User
         """
 
+    def test_eschema_syntax_concept10(self):
+        """
+concept `Log-Entry` extends `OwnedObject`, `Text`:
+    required link attachment to `Post`, `File`, `User`
+
+% OK %
+
+concept `Log-Entry` extends OwnedObject, Text:
+    required link attachment to Post, File, User
+        """
+
     def test_eschema_syntax_index01(self):
         """
 concept LogEntry extends OwnedObject, Text:
@@ -430,5 +441,13 @@ link time_estimate:
     otherlib.ham as spam)
 
         concept Bar extends foo::Foo, sfoo::Foo, bar::Bar, spam::Ham:
+            link text to str
+        """
+
+    def test_eschema_syntax_import06(self):
+        """
+        import `action`.`event`.foo
+
+        concept Bar extends `action`.`event`.foo::Foo:
             link text to str
         """

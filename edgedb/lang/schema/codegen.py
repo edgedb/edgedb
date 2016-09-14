@@ -12,6 +12,15 @@ from edgedb.lang.common.exceptions import EdgeDBError
 from edgedb.lang.common.ast import codegen
 from edgedb.lang.edgeql import (generate_source as edgeql_source,
                                 ast as eqlast)
+from . import quote as eschema_quote
+
+
+def ident_to_str(ident):
+    return eschema_quote.disambiguate_identifier(ident)
+
+
+def module_to_str(module):
+    return '.'.join([ident_to_str(part) for part in module.split('.')])
 
 
 class EdgeSchemaSourceGeneratorError(EdgeDBError):
@@ -82,15 +91,15 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         self.new_lines = 1
 
     def visit_ImportModule(self, node):
-        self.write(node.module)
+        self.write(module_to_str(node.module))
         if node.alias:
             self.write(' as ')
-            self.write(node.alias)
+            self.write(ident_to_str(node.alias))
 
     def _visit_Declaration(self, node):
         self._visit_qualifier(node)
         self.write(node.__class__.__name__.lower().replace('declaration', ' '))
-        self.write(node.name)
+        self.write(ident_to_str(node.name))
         if node.extends:
             self._visit_extends(node.extends)
         self._visit_specs(node)
@@ -148,9 +157,9 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
 
     def visit_ObjectName(self, node):
         if node.module:
-            self.write(node.module)
+            self.write(module_to_str(node.module))
             self.write('::')
-        self.write(node.name)
+        self.write(ident_to_str(node.name))
 
     def visit_NamespaceExpression(self, node):
         self.visit(node.left)
@@ -217,7 +226,7 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
 
     def _literal_to_str(self, value):
         if isinstance(value, str):
-            return '{!r}'.format(value)
+            return eschema_quote.quote_literal(value)
         elif isinstance(value, int):
             return str(value)
         elif isinstance(value, float):
