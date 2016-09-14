@@ -582,6 +582,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         SELECT (Foo AS Bar);
         SELECT (Foo.bar AS Bar);
+        SELECT (Foo.bar AS Bar).spam;
+        SELECT (Foo.bar AS Bar).<ham;
         """
 
     def test_edgeql_syntax_map01(self):

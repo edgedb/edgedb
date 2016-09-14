@@ -604,8 +604,12 @@ class ParenExpr(Nonterm):
         self.val = kids[1].val
 
     def reduce_LPAREN_Expr_AS_Expr_RPAREN(self, *kids):
-        self.val = qlast.TypeInterpretationNode(expr=kids[1].val,
-                                                type=kids[3].val)
+        # LHS has to be a Path, also the result of this operation is
+        # also a Path.
+        #
+        self.val = qlast.PathNode(
+            steps=[qlast.TypeInterpretationNode(expr=kids[1].val,
+                                                type=kids[3].val)])
 
 
 class Expr(Nonterm):
