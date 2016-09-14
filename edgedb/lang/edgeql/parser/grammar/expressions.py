@@ -282,6 +282,9 @@ class Shape(Nonterm):
     def reduce_LBRACE_ShapeElementList_RBRACE(self, *kids):
         self.val = kids[1].val
 
+    def reduce_LBRACE_ShapeElementList_COMMA_RBRACE(self, *kids):
+        self.val = kids[1].val
+
 
 class TypedShape(Nonterm):
     def reduce_NodeName_Shape(self, *kids):
@@ -433,15 +436,23 @@ class PointerGlob(Nonterm):
         flt = qlast.PointerGlobFilter(property='loading', value='eager')
         self.val = qlast.PointerGlobNode(filters=[flt], type='link')
 
-    def reduce_STAR_LPAREN_PointerGlobFilterList_RPAREN(self, *kids):
-        self.val = qlast.PointerGlobNode(filters=kids[2].val, type='link')
+    def reduce_STAR_PointerGlobFilterListClause(self, *kids):
+        self.val = qlast.PointerGlobNode(filters=kids[1].val, type='link')
 
     def reduce_AT_STAR(self, *kids):
         flt = qlast.PointerGlobFilter(property='loading', value='eager')
         self.val = qlast.PointerGlobNode(filters=[flt], type='property')
 
-    def reduce_AT_STAR_LPAREN_PointerGlobFilterList_RPAREN(self, *kids):
+    def reduce_AT_STAR_PointerGlobFilterListClause(self, *kids):
         self.val = qlast.PointerGlobNode(filters=kids[2].val, type='property')
+
+
+class PointerGlobFilterListClause(Nonterm):
+    def reduce_LPAREN_PointerGlobFilterList_RPAREN(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_LPAREN_PointerGlobFilterList_COMMA_RPAREN(self, *kids):
+        self.val = kids[0].val
 
 
 class PointerGlobFilter(Nonterm):
@@ -810,6 +821,9 @@ class Mapping(Nonterm):
     def reduce_LBRACE_MappingElementsList_RBRACE(self, *kids):
         self.val = qlast.MappingNode(items=kids[1].val)
 
+    def reduce_LBRACE_MappingElementsList_COMMA_RBRACE(self, *kids):
+        self.val = qlast.MappingNode(items=kids[1].val)
+
 
 class MappingElement(Nonterm):
     def reduce_SCONST_COLON_Expr(self, *kids):
@@ -822,6 +836,9 @@ class MappingElementsList(ListNonterm, element=MappingElement,
 
 
 class OptExprList(Nonterm):
+    def reduce_ExprList_COMMA(self, *kids):
+        self.val = kids[0].val
+
     def reduce_ExprList(self, *kids):
         self.val = kids[0].val
 

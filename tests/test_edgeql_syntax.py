@@ -15,7 +15,7 @@ from edgedb.lang.edgeql.parser import parser as edgeql_parser
 
 
 class EdgeQLSyntaxTest(tb.BaseSyntaxTest):
-    re_filter = re.compile(r'[\s]+|(#.*?\n)')
+    re_filter = re.compile(r'[\s]+|(#.*?\n)|(,(?=\s*[})]))')
     parser_debug_flag = 'DEBUG_EDGEQL'
     markup_dump_lexer = 'edgeql'
     ast_to_source = edgeql_to_source
@@ -410,7 +410,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         SELECT Foo {
             __type__: {
-                name
+                name,
             }
         };
         """
@@ -420,7 +420,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT Foo {
             __type__: {
                 name,
-                description
+                description,
             }
         };
         """
@@ -589,5 +589,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT {
             'name' : 'foo',
             'description' : 'bar'
+        };
+        SELECT {
+            'name' : 'baz',
         };
         """
