@@ -425,6 +425,14 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
+    def test_edgeql_syntax_shape14(self):
+        """
+        SELECT {
+            name := 'foo',
+            description := 'bar'
+        };
+        """
+
     def test_edgeql_syntax_path01(self):
         """
         SELECT Foo.bar;
@@ -574,4 +582,12 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         SELECT (Foo AS Bar);
         SELECT (Foo.bar AS Bar);
+        """
+
+    def test_edgeql_syntax_map01(self):
+        """
+        SELECT {
+            'name' : 'foo',
+            'description' : 'bar'
+        };
         """

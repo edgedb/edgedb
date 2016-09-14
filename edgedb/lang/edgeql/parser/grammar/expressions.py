@@ -271,6 +271,12 @@ class SelectTargetEl(Nonterm):
         tshape.pathspec = kids[1].val
         self.val = qlast.SelectExprNode(expr=tshape)
 
+    def reduce_Shape(self, *kids):
+        # anonymous shape
+        #
+        self.val = qlast.SelectExprNode(
+            expr=qlast.PathNode(pathspec=kids[0].val))
+
 
 class Shape(Nonterm):
     def reduce_LBRACE_ShapeElementList_RBRACE(self, *kids):
