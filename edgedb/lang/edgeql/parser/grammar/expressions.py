@@ -616,14 +616,12 @@ class Expr(Nonterm):
     # Path | Constant | '(' Expr ')' | FuncExpr | Sequence | Mapping
     # | '+' Expr | '-' Expr | Expr '+' Expr | Expr '-' Expr
     # | Expr '*' Expr | Expr '/' Expr | Expr '%' Expr
-    # | Expr '^' Expr | Expr '<' Expr | Expr '>' Expr
+    # | Expr '**' Expr | Expr '<' Expr | Expr '>' Expr
     # | Expr '=' Expr
     # | Expr AND Expr | Expr OR Expr | NOT Expr
     # | Expr LIKE Expr | Expr NOT LIKE Expr
     # | Expr ILIKE Expr | Expr NOT ILIKE Expr
     # | Expr IS Expr | Expr IS NOT Expr
-    # | Expr IS OF '(' NodeNameList ')'
-    # | Expr IS NOT OF '(' NodeNameList ')'
     # | Expr IN Expr | Expr NOT IN Expr
     # | Expr '[' Expr ']'
     # | Expr '[' Expr ':' Expr ']'
@@ -777,18 +775,16 @@ class Expr(Nonterm):
                                    right=kids[2].val)
 
     def reduce_Expr_NOT_LIKE_Expr(self, *kids):
-        val = qlast.BinOpNode(left=kids[0].val, op=qlast.LIKE,
-                              right=kids[2].val)
-        self.val = qlast.UnaryOpNode(op=ast.ops.NOT, operand=val)
+        self.val = qlast.BinOpNode(left=kids[0].val, op=qlast.NOT_LIKE,
+                                   right=kids[3].val)
 
     def reduce_Expr_ILIKE_Expr(self, *kids):
         self.val = qlast.BinOpNode(left=kids[0].val, op=qlast.ILIKE,
                                    right=kids[2].val)
 
     def reduce_Expr_NOT_ILIKE_Expr(self, *kids):
-        val = qlast.BinOpNode(left=kids[0].val, op=qlast.ILIKE,
-                              right=kids[2].val)
-        self.val = qlast.UnaryOpNode(op=ast.ops.NOT, operand=val)
+        self.val = qlast.BinOpNode(left=kids[0].val, op=qlast.NOT_ILIKE,
+                                   right=kids[3].val)
 
     def reduce_Expr_IS_Expr(self, *kids):
         self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.IS,

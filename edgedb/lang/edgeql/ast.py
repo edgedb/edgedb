@@ -532,7 +532,18 @@ class EdgeQLComparisonOperator(EdgeQLOperator, ast.ops.ComparisonOperator):
 
 
 class EdgeQLMatchOperator(EdgeQLComparisonOperator):
-    pass
+    def __new__(cls, val, *, strname=None, **kwargs):
+        return super().__new__(cls, val, **kwargs)
+
+    def __init__(self, val, *, strname=None, **kwargs):
+        super().__init__(val, **kwargs)
+        self._strname = strname
+
+    def __str__(self):
+        if self._strname:
+            return self._strname
+        else:
+            return super().__str__()
 
 
 class SetOperator(EdgeQLOperator):
@@ -548,10 +559,10 @@ OR = ast.ops.OR
 NOT = ast.ops.NOT
 IN = ast.ops.IN
 NOT_IN = ast.ops.NOT_IN
-LIKE = EdgeQLMatchOperator('~~')
-NOT_LIKE = EdgeQLMatchOperator('!~~')
-ILIKE = EdgeQLMatchOperator('~~*')
-NOT_ILIKE = EdgeQLMatchOperator('!~~*')
+LIKE = EdgeQLMatchOperator('~~', strname='LIKE')
+NOT_LIKE = EdgeQLMatchOperator('!~~', strname='NOT LIKE')
+ILIKE = EdgeQLMatchOperator('~~*', strname='ILIKE')
+NOT_ILIKE = EdgeQLMatchOperator('!~~*', strname='NOT ILIKE')
 
 REMATCH = EdgeQLMatchOperator('~')
 REIMATCH = EdgeQLMatchOperator('~*')

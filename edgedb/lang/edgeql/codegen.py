@@ -259,7 +259,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(')')
 
     def visit_UnaryOpNode(self, node):
-        self.write(node.op)
+        self.write(str(node.op).upper())
         self.write(' ')
         self.visit(node.operand)
 
