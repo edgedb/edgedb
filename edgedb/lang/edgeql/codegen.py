@@ -283,6 +283,11 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         self.write(')')
 
+    def visit_ArrayNode(self, node):
+        self.write('[')
+        self.visit_list(node.elements, newlines=False)
+        self.write(']')
+
     def visit_MappingNode(self, node):
         self.write('{')
         for i, (key, value) in enumerate(node.items):

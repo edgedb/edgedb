@@ -492,6 +492,10 @@ class SequenceNode(Base):
     __fields = [('elements', list)]
 
 
+class ArrayNode(Base):
+    __fields = [('elements', list)]
+
+
 class MappingNode(Base):
     __fields = [('items', list)]
 

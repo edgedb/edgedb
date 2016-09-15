@@ -614,6 +614,7 @@ class ParenExpr(Nonterm):
 
 class Expr(Nonterm):
     # Path | Constant | '(' Expr ')' | FuncExpr | Sequence | Mapping
+    # | Array
     # | '+' Expr | '-' Expr | Expr '+' Expr | Expr '-' Expr
     # | Expr '*' Expr | Expr '/' Expr | Expr '%' Expr
     # | Expr '**' Expr | Expr '<' Expr | Expr '>' Expr
@@ -680,6 +681,9 @@ class Expr(Nonterm):
         self.val = qlast.ExistsPredicateNode(expr=kids[1].val)
 
     def reduce_Sequence(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_Array(self, *kids):
         self.val = kids[0].val
 
     def reduce_Mapping(self, *kids):
@@ -815,6 +819,11 @@ class Expr(Nonterm):
 class Sequence(Nonterm):
     def reduce_LPAREN_Expr_COMMA_OptExprList_RPAREN(self, *kids):
         self.val = qlast.SequenceNode(elements=[kids[1].val] + kids[3].val)
+
+
+class Array(Nonterm):
+    def reduce_LBRACKET_OptExprList_RBRACKET(self, *kids):
+        self.val = qlast.ArrayNode(elements=kids[1].val)
 
 
 class Mapping(Nonterm):

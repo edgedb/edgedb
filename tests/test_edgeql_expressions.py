@@ -24,7 +24,7 @@ class TestExpressions(tb.QueryTestCase):
     TEARDOWN = """
     """
 
-    async def test_edgeql_expression01(self):
+    async def test_edgeql_expr_op01(self):
         await self.assert_query_result(r"""
             SELECT 40 + 2;
             SELECT 40 - 2;
@@ -40,14 +40,14 @@ class TestExpressions(tb.QueryTestCase):
             ])
 
     @unittest.expectedFailure
-    async def test_edgeql_expression02(self):
+    async def test_edgeql_expr_op02(self):
         await self.assert_query_result(r"""
             SELECT 40 ** 2;
             """, [
                 [1600],
             ])
 
-    async def test_edgeql_expression03(self):
+    async def test_edgeql_expr_op03(self):
         await self.assert_query_result(r"""
             SELECT 40 < 2;
             SELECT 40 > 2;
@@ -64,7 +64,7 @@ class TestExpressions(tb.QueryTestCase):
                 [True],
             ])
 
-    async def test_edgeql_expression04(self):
+    async def test_edgeql_expr_op04(self):
         await self.assert_query_result(r"""
             SELECT -1 + 2 * 3 - 5 - 6.0 / 2;
             SELECT
@@ -81,7 +81,7 @@ class TestExpressions(tb.QueryTestCase):
                 [True],
             ])
 
-    async def test_edgeql_paths_01(self):
+    async def test_edgeql_expr_paths_01(self):
         cases = [
             "Issue.owner.name",
             "`Issue`.`owner`.`name`",
@@ -103,7 +103,7 @@ class TestExpressions(tb.QueryTestCase):
                     %s = 'Elvis';
             ''' % (case,))
 
-    async def test_edgeql_polymorphic_01(self):
+    async def test_edgeql_expr_polymorphic_01(self):
         await self.con.execute(r"""
             USING MODULE test
             SELECT Text {
@@ -123,7 +123,7 @@ class TestExpressions(tb.QueryTestCase):
             };
         """)
 
-    async def test_edgeql_cast01(self):
+    async def test_edgeql_expr_cast01(self):
         await self.assert_query_result(r"""
             SELECT <std::str>123;
             SELECT <std::int>"123";
@@ -140,7 +140,7 @@ class TestExpressions(tb.QueryTestCase):
                 ['246'],
             ])
 
-    async def test_edgeql_cast02(self):
+    async def test_edgeql_expr_cast02(self):
         # testing precedence of casting vs. multiplication
         #
         with self.assertRaisesRegex(
@@ -150,7 +150,7 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT <std::str>123 * 2;
             """)
 
-    async def test_edgeql_cast03(self):
+    async def test_edgeql_expr_cast03(self):
         await self.assert_query_result(r"""
             SELECT <std::str><std::int><std::float>'123.45' + 'foo';
             """, [
@@ -158,11 +158,42 @@ class TestExpressions(tb.QueryTestCase):
             ])
 
     @unittest.expectedFailure
-    async def test_edgeql_list01(self):
-        await self.assert_query_result(r"""
-            SELECT <list<std::int>> (1,);
-            SELECT <list<std::int>> (1, 2, 3, 4, 5);
+    async def test_edgeql_expr_list01(self):
+        await self.assert_query_result("""
+            SELECT [1];
+            SELECT [1, 2, 3, 4, 5];
+            SELECT [1, 2, 3, 4, 5][2];
+
+            SELECT [1, 2, 3, 4, 5][2:4];
+            SELECT [1, 2, 3, 4, 5][2:];
+            SELECT [1, 2, 3, 4, 5][:2];
+
+            SELECT [1, 2, 3, 4, 5][2:-1];
+            SELECT [1, 2, 3, 4, 5][-2:];
+            SELECT [1, 2, 3, 4, 5][:-2];
             """, [
                 [[1]],
                 [[1, 2, 3, 4, 5]],
+                [3],
+
+                [[3, 4]],
+                [[3, 4, 5]],
+                [[1, 2]],
+
+                [[3, 4]],
+                [[4, 5]],
+                [[1, 2, 3]],
+            ])
+
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_map01(self):
+        await self.assert_query_result(r"""
+            SELECT {'foo': 42};
+            SELECT {'foo': 42, 'bar': 'something'};
+            SELECT {'foo': 42, 'bar': 'something'}['foo'];
+            """, [
+                [{'foo': 42}],
+                [{'foo': 42, 'bar': 'something'}],
+                [42],
             ])

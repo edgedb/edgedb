@@ -911,6 +911,19 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
+    def test_edgeql_syntax_map04(self):
+        """
+        SELECT {'foo': 42, 'bar': 'something'};
+        SELECT {'foo': 42, 'bar': 'something'}['foo'];
+        SELECT ({'foo': 42, 'bar': 'something'})['foo'];
+
+% OK %
+
+        SELECT {'foo': 42, 'bar': 'something'};
+        SELECT ({'foo': 42, 'bar': 'something'})['foo'];
+        SELECT ({'foo': 42, 'bar': 'something'})['foo'];
+        """
+
     def test_edgeql_syntax_sequence01(self):
         """
         SELECT (User.name);  # not a sequence
@@ -926,4 +939,43 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT (User.name, User.age, 'comment');
         SELECT (User.name, User.age, 'comment');
         SELECT ((User.name != 'Alice'), (User.age < 42), 'comment');
+        """
+
+    def test_edgeql_syntax_array01(self):
+        """
+        SELECT [1];
+        SELECT [1, 2, 3, 4, 5];
+        SELECT [User.name, User.description];
+        SELECT [User.name, User.description, 'filler'];
+        """
+
+    def test_edgeql_syntax_array02(self):
+        """
+        SELECT [1, 2, 3, 4, 5][2];
+        SELECT [1, 2, 3, 4, 5][2:4];
+
+% OK %
+
+        SELECT ([1, 2, 3, 4, 5])[2];
+        SELECT ([1, 2, 3, 4, 5])[2:4];
+        """
+
+    def test_edgeql_syntax_array03(self):
+        """
+        SELECT ([1, 2, 3, 4, 5])[2];
+        SELECT ([1, 2, 3, 4, 5])[2:4];
+        SELECT ([1, 2, 3, 4, 5])[2:];
+        SELECT ([1, 2, 3, 4, 5])[:2];
+        SELECT ([1, 2, 3, 4, 5])[2:-1];
+        SELECT ([1, 2, 3, 4, 5])[-2:];
+        SELECT ([1, 2, 3, 4, 5])[:-2];
+        """
+
+    def test_edgeql_syntax_array04(self):
+        """
+        SELECT ([Foo.bar, Foo.baz, Foo.spam, Foo.ham])[Bar.setting];
+        SELECT ([Foo.bar, Foo.baz, Foo.spam, Foo.ham])[1:Bar.setting];
+        SELECT ([Foo.bar, Foo.baz, Foo.spam, Foo.ham])[Bar.setting:];
+        SELECT ([Foo.bar, Foo.baz, Foo.spam, Foo.ham])[:Bar.setting];
+        SELECT ([Foo.bar, Foo.baz, Foo.spam, Foo.ham])[:-Bar.setting];
         """
