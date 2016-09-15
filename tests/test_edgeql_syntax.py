@@ -48,18 +48,59 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """1 + 2;"""
 
     def test_edgeql_syntax_contants01(self):
-        """SELECT 1;"""
+        """
+        SELECT 1;
+        SELECT +7;
+        SELECT -7;
+        """
 
     def test_edgeql_syntax_contants02(self):
-        """SELECT 'a1';"""
-
-    def test_edgeql_syntax_contants03(self):
         """
+        SELECT 'a1';
         SELECT "a1";
+        SELECT $$a1$$;
+        SELECT $qwe$a1$qwe$;
 
 % OK %
 
         SELECT 'a1';
+        SELECT 'a1';
+        SELECT 'a1';
+        SELECT 'a1';
+        """
+
+    def test_edgeql_syntax_contants03(self):
+        """
+        SELECT 3.5432;
+        SELECT +3.5432;
+        SELECT -3.5432;
+        """
+
+    def test_edgeql_syntax_contants04(self):
+        """
+        SELECT 354.32;
+        SELECT 35400000000000.32;
+        SELECT 35400000000000000000.32;
+        SELECT 3.5432e20;
+        SELECT 3.5432e+20;
+        SELECT 3.5432e-20;
+        SELECT 354.32e-20;
+
+% OK %
+
+        SELECT 354.32;
+        SELECT 35400000000000.32;
+        SELECT 3.54e+19;
+        SELECT 3.5432e+20;
+        SELECT 3.5432e+20;
+        SELECT 3.5432e-20;
+        SELECT 3.5432e-18;
+        """
+
+    def test_edgeql_syntax_contants05(self):
+        """
+        SELECT TRUE;
+        SELECT FALSE;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=1, col=12)
@@ -72,17 +113,174 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ops03(self):
         """
-        SELECT 1 + 2;
-
-% OK %
-
-        SELECT (1 + 2);
+        SELECT (40 <= 2);
+        SELECT (40 >= 2);
         """
 
     def test_edgeql_syntax_ops04(self):
         """
+        SELECT 1 + 2;
+        SELECT (1 + 2);
+        SELECT (1) + 2;
+        SELECT (((1) + (2)));
+
+% OK %
+
+        SELECT (1 + 2);
+        SELECT (1 + 2);
+        SELECT (1 + 2);
+        SELECT (1 + 2);
+        """
+
+    def test_edgeql_syntax_ops05(self):
+        """
+        SELECT User.age + 2;
+        SELECT (User.age + 2);
+        SELECT (User.age) + 2;
+        SELECT (((User.age) + (2)));
+
+% OK %
+
+        SELECT (User.age + 2);
+        SELECT (User.age + 2);
+        SELECT (User.age + 2);
+        SELECT (User.age + 2);
+        """
+
+    def test_edgeql_syntax_ops06(self):
+        """
+        SELECT (40 + 2);
+        SELECT (40 - 2);
+        SELECT (40 * 2);
+        SELECT (40 / 2);
+        SELECT (40 % 2);
+        SELECT (40 ** 2);
+        SELECT (40 < 2);
+        SELECT (40 > 2);
         SELECT (40 <= 2);
         SELECT (40 >= 2);
+        SELECT (40 = 2);
+        SELECT (40 != 2);
+        """
+
+    def test_edgeql_syntax_ops07(self):
+        """
+        SELECT 40 == 2;
+
+% OK %
+
+        SELECT (40 = 2);
+        """
+
+    def test_edgeql_syntax_ops08(self):
+        """
+        SELECT (User.age + 2);
+        SELECT (User.age - 2);
+        SELECT (User.age * 2);
+        SELECT (User.age / 2);
+        SELECT (User.age % 2);
+        SELECT (User.age ** 2);
+        SELECT (User.age < 2);
+        SELECT (User.age > 2);
+        SELECT (User.age <= 2);
+        SELECT (User.age >= 2);
+        SELECT (User.age = 2);
+        SELECT (User.age != 2);
+        """
+
+    def test_edgeql_syntax_ops09(self):
+        """
+        SELECT (Foo.foo AND Foo.bar);
+        SELECT (Foo.foo OR Foo.bar);
+        SELECT NOT Foo.foo;
+        """
+
+    def test_edgeql_syntax_ops10(self):
+        """
+        SELECT (User.name IN ('Alice', 'Bob'));
+        SELECT (User.name IS (std::str));
+        SELECT (User IS SystemUser);
+        SELECT (User.name IS NOT (std::str));
+        SELECT (User IS NOT SystemUser);
+        """
+
+    def test_edgeql_syntax_ops11(self):
+        """
+        SELECT (User.name LIKE 'Al%');
+        SELECT (User.name ILIKE 'al%');
+        SELECT (User.name NOT LIKE 'Al%');
+        SELECT (User.name NOT ILIKE 'al%');
+        """
+
+    def test_edgeql_syntax_ops12(self):
+        """
+        SELECT EXISTS (User.groups.description);
+        """
+
+    def test_edgeql_syntax_ops13(self):
+        """
+        SELECT (User.name @@ 'bob');
+        SELECT (User.name @@! 'bob');
+        SELECT (User.name ~ '^[[:lower:]]+$');
+        SELECT (User.name ~* 'don');
+        """
+
+    def test_edgeql_syntax_ops14(self):
+        """
+        SELECT -1 + 2 * 3 - 5 - 6 / 2 > 0 OR 25 % 4 = 3 AND 42 IN (12, 42, 14);
+
+% OK %
+
+        SELECT (
+            (
+                (
+                    ((-1 + (2 * 3)) - 5)
+                    -
+                    (6 / 2)
+                ) > 0
+            )
+            OR
+            (
+                ((25 % 4) = 3)
+                AND
+                (42 IN (12, 42, 14))
+            )
+        );
+        """
+
+    def test_edgeql_syntax_ops15(self):
+        """
+        SELECT
+            ((-1 + 2) * 3 - (5 - 6) / 2 > 0 OR 25 % 4 = 3)
+            AND 42 IN (12, 42, 14);
+
+% OK %
+
+        SELECT (
+            (
+                (
+                    (
+                        ((- 1 + 2) * 3)
+                        -
+                        ((5 - 6) / 2)
+                    ) > 0
+                )
+                OR
+                ((25 % 4) = 3)
+            )
+            AND
+            (42 IN (12, 42, 14))
+        );
+        """
+
+    def test_edgeql_syntax_list01(self):
+        """
+        SELECT (some_list_fn())[2];
+        SELECT (some_list_fn())[2:4];
+        SELECT (some_list_fn())[2:];
+        SELECT (some_list_fn())[:4];
+        SELECT (some_list_fn())[-1:];
+        SELECT (some_list_fn())[:-1];
         """
 
     def test_edgeql_syntax_name01(self):
@@ -433,6 +631,94 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
+    @unittest.expectedFailure
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=16)
+    def test_edgeql_syntax_shape15(self):
+        """
+        SELECT {
+            foo: {
+                bar:= 42
+            }
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=4, col=22)
+    def test_edgeql_syntax_shape16(self):
+        """
+        SELECT {
+            foo: {
+                bar: 42
+            }
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=4, col=17)
+    def test_edgeql_syntax_shape17(self):
+        """
+        SELECT {
+            foo: {
+                'bar': 42
+            }
+        };
+        """
+
+    def test_edgeql_syntax_shape18(self):
+        """
+        SELECT {
+            foo := {
+                'bar': 42
+            }
+        };
+        """
+
+    def test_edgeql_syntax_shape19(self):
+        """
+            SELECT
+                test::Issue {
+                    number
+                }
+            WHERE
+                (((test::Issue)).number) = '1';
+
+            SELECT
+                (test::Issue) {
+                    number
+                }
+            WHERE
+                (((test::Issue)).(number)) = '1';
+
+            SELECT
+                test::Issue {
+                    test::number
+                }
+            WHERE
+                (((test::Issue)).(test::number)) = '1';
+
+% OK %
+
+            SELECT
+                (test::Issue) {
+                    number
+                }
+            WHERE
+                ((test::Issue).number = '1');
+
+            SELECT
+                (test::Issue) {
+                    number
+                }
+            WHERE
+                ((test::Issue).number = '1');
+
+            SELECT
+                (test::Issue) {
+                    (test::number)
+                }
+            WHERE
+                ((test::Issue).(test::number) = '1');
+
+        """
+
     def test_edgeql_syntax_path01(self):
         """
         SELECT Foo.bar;
@@ -589,10 +875,55 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_map01(self):
         """
         SELECT {
-            'name' : 'foo',
-            'description' : 'bar'
+            'name': 'foo',
+            'description': 'bar'
         };
         SELECT {
-            'name' : 'baz',
+            'name': 'baz',
         };
+        SELECT {
+            'first': {
+                'name': 'foo'
+            },
+            'second': {
+                'description': 'bar'
+            }
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=4, col=17)
+    def test_edgeql_syntax_map02(self):
+        """
+        SELECT {
+            'foo': {
+                bar: 42
+            }
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=18)
+    def test_edgeql_syntax_map03(self):
+        """
+        SELECT {
+            'foo':= {
+                bar:= 42
+            }
+        };
+        """
+
+    def test_edgeql_syntax_sequence01(self):
+        """
+        SELECT (User.name);  # not a sequence
+        SELECT (User.name,);
+        SELECT (User.name, User.age, 'comment');
+        SELECT (User.name, User.age, 'comment',);
+        SELECT (User.name != 'Alice', User.age < 42, 'comment');
+
+% OK %
+
+        SELECT User.name;
+        SELECT (User.name,);
+        SELECT (User.name, User.age, 'comment');
+        SELECT (User.name, User.age, 'comment');
+        SELECT ((User.name != 'Alice'), (User.age < 42), 'comment');
         """

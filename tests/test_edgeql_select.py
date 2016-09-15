@@ -7,6 +7,7 @@
 
 
 import os.path
+import unittest
 
 from edgedb.server import _testbase as tb
 from edgedb.client import exceptions
@@ -127,37 +128,237 @@ class TestConstraints(tb.QueryTestCase):
             'total_time_spent': 50000
         }])
 
-    async def test_edgeql_select_parentheses(self):
-        res = await self.con.execute('''
+    async def test_edgeql_select_match01(self):
+        res = await self.con.execute(r'''
+            USING MODULE test
             SELECT
-                test::Issue {
-                    number
-                }
+                Issue {number}
             WHERE
-                (((test::Issue)).number) = '1';
+                Issue.name LIKE '%edgedb'
+            ORDER BY Issue.number;
 
+            USING MODULE test
             SELECT
-                (test::Issue) {
-                    number
-                }
+                Issue {number}
             WHERE
-                (((test::Issue)).(number)) = '1';
+                Issue.name LIKE '%EdgeDB'
+            ORDER BY Issue.number;
 
+            USING MODULE test
             SELECT
-                test::Issue {
-                    test::number
-                }
+                Issue {number}
             WHERE
-                (((test::Issue)).(test::number)) = '1';
+                Issue.name LIKE '%Edge%'
+            ORDER BY Issue.number;
         ''')
 
-        self.assert_data_shape(res[0], [{
-            'number': '1',
-        }, {
-            'number': '1',
-        }, {
-            'number': '1',
-        }])
+        self.assert_data_shape(res, [
+            [],
+            [{'number': '1'}],
+            [{'number': '1'}, {'number': '2'}],
+        ])
+
+    async def test_edgeql_select_match02(self):
+        res = await self.con.execute(r'''
+            USING MODULE test
+            SELECT
+                Issue {number}
+            WHERE
+                Issue.name NOT LIKE '%edgedb'
+            ORDER BY Issue.number;
+
+            USING MODULE test
+            SELECT
+                Issue {number}
+            WHERE
+                Issue.name NOT LIKE '%EdgeDB'
+            ORDER BY Issue.number;
+
+            USING MODULE test
+            SELECT
+                Issue {number}
+            WHERE
+                Issue.name NOT LIKE '%Edge%'
+            ORDER BY Issue.number;
+        ''')
+
+        self.assert_data_shape(res, [
+            [{'number': '1'}, {'number': '2'}],
+            [{'number': '2'}],
+            [],
+        ])
+
+    async def test_edgeql_select_match03(self):
+        res = await self.con.execute(r'''
+            USING MODULE test
+            SELECT
+                Issue {number}
+            WHERE
+                Issue.name ILIKE '%edgedb'
+            ORDER BY Issue.number;
+
+            USING MODULE test
+            SELECT
+                Issue {number}
+            WHERE
+                Issue.name ILIKE '%EdgeDB'
+            ORDER BY Issue.number;
+
+            USING MODULE test
+            SELECT
+                Issue {number}
+            WHERE
+                Issue.name ILIKE '%re%'
+            ORDER BY Issue.number;
+        ''')
+
+        self.assert_data_shape(res, [
+            [{'number': '1'}],
+            [{'number': '1'}],
+            [{'number': '1'}, {'number': '2'}],
+        ])
+
+    async def test_edgeql_select_match04(self):
+        res = await self.con.execute(r'''
+            USING MODULE test
+            SELECT
+                Issue {number}
+            WHERE
+                Issue.name NOT ILIKE '%edgedb'
+            ORDER BY Issue.number;
+
+            USING MODULE test
+            SELECT
+                Issue {number}
+            WHERE
+                Issue.name NOT ILIKE '%EdgeDB'
+            ORDER BY Issue.number;
+
+            USING MODULE test
+            SELECT
+                Issue {number}
+            WHERE
+                Issue.name NOT ILIKE '%re%'
+            ORDER BY Issue.number;
+        ''')
+
+        self.assert_data_shape(res, [
+            [{'number': '2'}],
+            [{'number': '2'}],
+            [],
+        ])
+
+    async def test_edgeql_select_match05(self):
+        res = await self.con.execute(r'''
+            USING MODULE test
+            SELECT
+                Issue {number}
+            WHERE
+                Issue.name @@ 'edgedb'
+            ORDER BY Issue.number;
+
+            USING MODULE test
+            SELECT
+                Issue {number}
+            WHERE
+                Issue.body @@ 'need'
+            ORDER BY Issue.number;
+        ''')
+
+        self.assert_data_shape(res, [
+            [{'number': '1'}, {'number': '2'}],
+            [{'number': '2'}],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_match06(self):
+        res = await self.con.execute(r'''
+            USING MODULE test
+            SELECT
+                Issue {number}
+            WHERE
+                Issue.name @@! 'edgedb'
+            ORDER BY Issue.number;
+
+            USING MODULE test
+            SELECT
+                Issue {number}
+            WHERE
+                Issue.body @@! 'need'
+            ORDER BY Issue.number;
+        ''')
+
+        self.assert_data_shape(res, [
+            [],
+            [{'number': '1'}],
+        ])
+
+    async def test_edgeql_select_match07(self):
+        res = await self.con.execute(r'''
+            USING MODULE test
+            SELECT
+                Text {body}
+            WHERE
+                Text.body ~ 'ed'
+            ORDER BY Text.body;
+
+            USING MODULE test
+            SELECT
+                Text {body}
+            WHERE
+                Text.body ~ 'eD'
+            ORDER BY Text.body;
+
+            USING MODULE test
+            SELECT
+                Text {body}
+            WHERE
+                Text.body ~ 'ed([S\s]|$)'
+            ORDER BY Text.body;
+        ''')
+
+        self.assert_data_shape(res, [
+            [{'body': 'EdgeDB needs to happen soon.'},
+             {'body': 'We need to be able to render data in tabular format.'}],
+            [{'body': 'EdgeDB needs to happen soon.'},
+             {'body': 'Initial public release of EdgeDB.'}],
+            [{'body': 'We need to be able to render data in tabular format.'}]
+        ])
+
+    async def test_edgeql_select_match08(self):
+        res = await self.con.execute(r'''
+            USING MODULE test
+            SELECT
+                Text {body}
+            WHERE
+                Text.body ~* 'ed'
+            ORDER BY Text.body;
+
+            USING MODULE test
+            SELECT
+                Text {body}
+            WHERE
+                Text.body ~* 'eD'
+            ORDER BY Text.body;
+
+            USING MODULE test
+            SELECT
+                Text {body}
+            WHERE
+                Text.body ~* 'ed([S\s]|$)'
+            ORDER BY Text.body;
+        ''')
+
+        self.assert_data_shape(res, [
+            [{'body': 'EdgeDB needs to happen soon.'},
+             {'body': 'Initial public release of EdgeDB.'},
+             {'body': 'We need to be able to render data in tabular format.'}],
+            [{'body': 'EdgeDB needs to happen soon.'},
+             {'body': 'Initial public release of EdgeDB.'},
+             {'body': 'We need to be able to render data in tabular format.'}],
+            [{'body': 'EdgeDB needs to happen soon.'},
+             {'body': 'We need to be able to render data in tabular format.'}],
+        ])
 
     async def test_edgeql_select_type01(self):
         res = await self.con.execute('''

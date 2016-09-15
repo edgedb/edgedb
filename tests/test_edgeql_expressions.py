@@ -7,6 +7,7 @@
 
 
 import os.path
+import unittest
 
 from edgedb.lang.common import datetime
 from edgedb.client import exceptions as exc
@@ -25,28 +26,59 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expression01(self):
         await self.assert_query_result(r"""
-            Select 40 + 2;
-            select 40 + 2;
             SELECT 40 + 2;
-            SeLeCT 40 + 2;
+            SELECT 40 - 2;
+            SELECT 40 * 2;
+            SELECT 40 / 2;
+            SELECT 40 % 2;
             """, [
                 [42],
-                [42],
-                [42],
-                [42],
+                [38],
+                [80],
+                [20],
+                [0],
             ])
 
+    @unittest.expectedFailure
     async def test_edgeql_expression02(self):
         await self.assert_query_result(r"""
-            SELECT 40 >= 2;
-            SELECT 40 <= 2;
-            SELECT 1 + 2 * 3;
-            SELECT (1 + 2) * 3;
+            SELECT 40 ** 2;
             """, [
+                [1600],
+            ])
+
+    async def test_edgeql_expression03(self):
+        await self.assert_query_result(r"""
+            SELECT 40 < 2;
+            SELECT 40 > 2;
+            SELECT 40 <= 2;
+            SELECT 40 >= 2;
+            SELECT 40 = 2;
+            SELECT 40 != 2;
+            """, [
+                [False],
                 [True],
                 [False],
-                [7],
-                [9]
+                [True],
+                [False],
+                [True],
+            ])
+
+    async def test_edgeql_expression04(self):
+        await self.assert_query_result(r"""
+            SELECT -1 + 2 * 3 - 5 - 6.0 / 2;
+            SELECT
+                -1 + 2 * 3 - 5 - 6.0 / 2 > 0
+                OR 25 % 4 = 3 AND 42 IN (12, 42, 14);
+            SELECT (-1 + 2) * 3 - (5 - 6.0) / 2;
+            SELECT
+                ((-1 + 2) * 3 - (5 - 6.0) / 2 > 0 OR 25 % 4 = 3)
+                AND 42 IN (12, 42, 14);
+            """, [
+                [-3],
+                [False],
+                [3.5],
+                [True],
             ])
 
     async def test_edgeql_paths_01(self):
@@ -123,4 +155,14 @@ class TestExpressions(tb.QueryTestCase):
             SELECT <std::str><std::int><std::float>'123.45' + 'foo';
             """, [
                 ['123foo'],
+            ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_list01(self):
+        await self.assert_query_result(r"""
+            SELECT <list<std::int>> (1,);
+            SELECT <list<std::int>> (1, 2, 3, 4, 5);
+            """, [
+                [[1]],
+                [[1, 2, 3, 4, 5]],
             ])
