@@ -89,6 +89,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if node.targets:
             self.new_lines = 1
             self.write('RETURNING')
+            if node.single:
+                self.write(' SINGLE')
             self.indentation += 1
             self.new_lines = 1
             self.visit_list(node.targets)
@@ -122,6 +124,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if node.targets:
             self.new_lines = 1
             self.write('RETURNING')
+            if node.single:
+                self.write(' SINGLE')
             self.indentation += 1
             self.new_lines = 1
             self.visit_list(node.targets)
@@ -142,6 +146,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.where)
         if node.targets:
             self.write(' RETURNING ')
+            if node.single:
+                self.write('SINGLE ')
             for i, e in enumerate(node.targets):
                 if i > 0:
                     self.write(', ')
@@ -170,6 +176,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self._visit_cges(node.cges)
 
             self.write('SELECT')
+            if node.single:
+                self.write(' SINGLE')
             self.new_lines = 1
             self.indentation += 1
             for i, e in enumerate(node.targets):

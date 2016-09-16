@@ -411,19 +411,20 @@ class DropFunctionNode(DropObjectNode):
 
 
 class SelectQueryNode(StatementNode):
-    __fields = ['distinct', ('targets', list), 'where',
-                ('groupby', list), ('orderby', list), 'offset', 'limit',
-                '_hash', ('cges', list), 'op', 'op_larg', 'op_rarg']
+    __fields = [('single', bool, False), 'distinct', ('targets', list),
+                'where', ('groupby', list), ('orderby', list),
+                'offset', 'limit', '_hash', ('cges', list),
+                'op', 'op_larg', 'op_rarg']
 
 
 class InsertQueryNode(StatementNode):
     __fields = ['subject', ('pathspec', list),
-                ('targets', list), ('cges', list)]
+                ('targets', list), ('cges', list), ('single', bool, False)]
 
 
 class UpdateQueryNode(StatementNode):
     __fields = ['subject', ('pathspec', list), 'where',
-                ('targets', list), ('cges', list)]
+                ('targets', list), ('cges', list), ('single', bool, False)]
 
 
 class UpdateExprNode(Base):
@@ -432,7 +433,7 @@ class UpdateExprNode(Base):
 
 class DeleteQueryNode(StatementNode):
     __fields = ['subject', 'where',
-                ('targets', list), ('cges', list)]
+                ('targets', list), ('cges', list), ('single', bool, False)]
 
 
 class SubqueryNode(Base):

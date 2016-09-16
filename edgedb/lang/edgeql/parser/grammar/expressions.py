@@ -114,18 +114,27 @@ class SelectClause(Nonterm):
         self.val = kids[0].val
 
 
+class OptSingle(Nonterm):
+    def reduce_SINGLE(self, *kids):
+        self.val = True
+
+    def reduce_empty(self):
+        self.val = False
+
+
 class SimpleSelect(Nonterm):
     def reduce_Select(self, *kids):
-        r"%reduce SELECT OptDistinct SelectTargetEl \
+        r"%reduce SELECT OptSingle OptDistinct SelectTargetEl \
                   OptWhereClause OptGroupClause"
         self.val = qlast.SelectQueryNode(
-            distinct=kids[1].val,
+            single=kids[1].val,
+            distinct=kids[2].val,
             # XXX: for historical reasons a list is expected here by
             # the compiler
             #
-            targets=[kids[2].val],
-            where=kids[3].val,
-            groupby=kids[4].val
+            targets=[kids[3].val],
+            where=kids[4].val,
+            groupby=kids[5].val
         )
 
     def reduce_SelectClause_UNION_OptAll_SelectClause(self, *kids):
@@ -152,22 +161,26 @@ class SimpleSelect(Nonterm):
 
 class InsertExpr(Nonterm):
     def reduce_OptAliasBlock_INSERT_Path_OptReturningClause(self, *kids):
+        single, targets = kids[3].val
         self.val = qlast.InsertQueryNode(
             namespaces=kids[0].val[0],
             aliases=kids[0].val[1],
             subject=kids[2].val,
-            targets=kids[3].val
+            single=single,
+            targets=targets,
         )
 
     def reduce_OptAliasBlock_INSERT_TypedShape_OptReturningClause(self, *kids):
         pathspec = kids[2].val.pathspec
         kids[2].val.pathspec = None
+        single, targets = kids[3].val
         self.val = qlast.InsertQueryNode(
             namespaces=kids[0].val[0],
             aliases=kids[0].val[1],
             subject=kids[2].val,
             pathspec=pathspec,
-            targets=kids[3].val
+            single=single,
+            targets=targets,
         )
 
 
@@ -177,25 +190,29 @@ class UpdateExpr(Nonterm):
                   OptWhereClause OptReturningClause"
         pathspec = kids[2].val.pathspec
         kids[2].val.pathspec = None
+        single, targets = kids[4].val
         self.val = qlast.UpdateQueryNode(
             namespaces=kids[0].val[0],
             aliases=kids[0].val[1],
             subject=kids[2].val,
             pathspec=pathspec,
             where=kids[3].val,
-            targets=kids[4].val
+            single=single,
+            targets=targets,
         )
 
 
 class DeleteExpr(Nonterm):
     def reduce_DeleteExpr(self, *kids):
         "%reduce OptAliasBlock DELETE Path OptWhereClause OptReturningClause"
+        single, targets = kids[4].val
         self.val = qlast.DeleteQueryNode(
             namespaces=kids[0].val[0],
             aliases=kids[0].val[1],
             subject=kids[2].val,
             where=kids[3].val,
-            targets=kids[4].val
+            single=single,
+            targets=targets,
         )
 
 

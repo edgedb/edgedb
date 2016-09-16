@@ -79,6 +79,7 @@ edgeql_keywords = {
     "rollback": ("ROLLBACK", UNRESERVED_KEYWORD),
     "select": ("SELECT", RESERVED_KEYWORD),
     "set": ("SET", RESERVED_KEYWORD),
+    "single": ("SINGLE", UNRESERVED_KEYWORD),
     "some": ("SOME", RESERVED_KEYWORD),
     "start": ("START", UNRESERVED_KEYWORD),
     "target": ("TARGET", UNRESERVED_KEYWORD),
