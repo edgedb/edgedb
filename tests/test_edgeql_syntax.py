@@ -1025,6 +1025,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         UPDATE User{age:= (User.age + 10)}
             WHERE (User.name = 'foo') RETURNING SINGLE User{name};
         DELETE User WHERE (User.name = 'foo') RETURNING SINGLE User{name};
+        CREATE FUNCTION spam(foo str) RETURNING SINGLE str;
         """
 
     # DDL

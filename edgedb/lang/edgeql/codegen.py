@@ -884,13 +884,32 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit_list(node.actions)
 
     def visit_CreateFunctionNode(self, node):
-        self._visit_CreateObjectNode(node, 'FUNCTION')
+        def after_name():
+            self.write('(')
+            self.visit_list(node.args, newlines=False)
+            self.write(')')
+            self.write('RETURNING')
+            if node.single:
+                self.write(' SINGLE ')
+            self.visit(node.returning)
+
+        self._visit_CreateObjectNode(node, 'FUNCTION', after_name=after_name)
 
     def visit_AlterFunctionNode(self, node):
         self._visit_AlterObjectNode(node, 'FUNCTION')
 
     def visit_DropFunctionNode(self, node):
         self._visit_DropObjectNode(node, 'FUNCTION')
+
+    def visit_FuncArgNode(self, node):
+        if node.mode:
+            self.write(node.mode, ' ')
+        self.write(ident_to_str(node.name), ' ')
+        self.visit(node.type)
+
+        if node.default:
+            self.write(' = ')
+            self.visit(node.default)
 
 
 generate_source = EdgeQLSourceGenerator.to_source

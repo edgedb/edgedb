@@ -1272,8 +1272,9 @@ class OptArgMode(Nonterm):
 class FuncDeclArg(Nonterm):
     def reduce_OptArgMode_ShortName_TypeName_OptDefault(self, *kids):
         self.val = qlast.FuncArgNode(
-            name=kids[2].val,
             mode=kids[0].val,
+            name=kids[1].val,
+            type=kids[2].val,
             default=kids[3].val
         )
 
@@ -1296,12 +1297,13 @@ class CreateFunctionArgs(Nonterm):
 class CreateFunctionStmt(Nonterm):
     def reduce_CreateFunction(self, *kids):
         r"""%reduce OptAliasBlock CREATE FUNCTION NodeName \
-                CreateFunctionArgs RETURNING TypeName \
+                CreateFunctionArgs RETURNING OptSingle TypeName \
         """
         self.val = qlast.CreateFunctionNode(
             namespaces=kids[0].val[0],
             aliases=kids[0].val[1],
             name=kids[3].val,
             args=kids[4].val,
-            returning=kids[6].val
+            returning=kids[7].val,
+            single=kids[6].val,
         )

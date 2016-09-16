@@ -122,6 +122,18 @@ class ExpressionTextNode(Base):
     __fields = ['expr']
 
 
+class TypeNameNode(Base):
+    __fields = [('maintype', Base), ('subtypes', list)]
+
+
+class TypeCastNode(Base):
+    __fields = ['expr', ('type', TypeNameNode)]
+
+
+class TypeInterpretationNode(Base):
+    __fields = ['expr', 'type']
+
+
 class TransactionNode(Base):
     pass
 
@@ -395,11 +407,11 @@ class DropAttributeValueNode(DropObjectNode):
 
 
 class FuncArgNode(Base):
-    __fields = ['name', 'mode', 'default']
+    __fields = ['name', ('type', TypeNameNode), 'mode', 'default']
 
 
 class CreateFunctionNode(CreateObjectNode):
-    __fields = ['args', 'returning']
+    __fields = ['args', 'returning', ('single', bool, False)]
 
 
 class AlterFunctionNode(AlterObjectNode):
@@ -499,18 +511,6 @@ class ArrayNode(Base):
 
 class MappingNode(Base):
     __fields = [('items', list)]
-
-
-class TypeNameNode(Base):
-    __fields = [('maintype', Base), ('subtypes', list)]
-
-
-class TypeCastNode(Base):
-    __fields = ['expr', ('type', TypeNameNode)]
-
-
-class TypeInterpretationNode(Base):
-    __fields = ['expr', 'type']
 
 
 class TypeRefNode(Base):
