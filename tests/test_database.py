@@ -10,7 +10,7 @@ from edgedb.server import _testbase as tb
 
 
 class TestDatabase(tb.ConnectedTestCase):
-    async def test_edgeql_database_create01(self):
+    async def test_database_create01(self):
         await self.con.execute('CREATE DATABASE mytestdb;')
 
         try:

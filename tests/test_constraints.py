@@ -35,7 +35,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
                         exceptions.ConstraintViolationError, expected):
                     await self.con.execute(expr)
 
-    async def test_edgeql_constraints_atom_length(self):
+    async def test_constraints_atom_length(self):
         data = {
             # max-length is 10
             (10 ** 10, 'must be no longer than 10 characters.'),
@@ -64,7 +64,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
 
         await self._run_link_tests(data, 'test::Object', 'test::c_length_3')
 
-    async def test_edgeql_constraints_atom_minmax(self):
+    async def test_constraints_atom_minmax(self):
         data = {
             # max-value is "9999999989"
             (10 ** 9 - 1, 'Maximum allowed value for .* is 9999999989.'),
@@ -78,7 +78,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
 
         await self._run_link_tests(data, 'test::Object', 'test::c_minmax')
 
-    async def test_edgeql_constraints_atom_strvalue(self):
+    async def test_constraints_atom_strvalue(self):
         data = {
             # last digit is 9
             (10 ** 9 - 12, 'invalid .*'),
@@ -96,7 +96,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
 
         await self._run_link_tests(data, 'test::Object', 'test::c_strvalue')
 
-    async def test_edgeql_constraints_atom_enum(self):
+    async def test_constraints_atom_enum(self):
         data = {
             ('foobar', 'must be one of:'),
             ('bar', 'good'),
@@ -105,7 +105,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
 
         await self._run_link_tests(data, 'test::Object', 'test::c_enum')
 
-    async def test_edgeql_constraints_unique_simple(self):
+    async def test_constraints_unique_simple(self):
         async with self._run_and_rollback():
             with self.assertRaisesRegex(exceptions.ConstraintViolationError,
                                         'name violates unique constraint'):
@@ -119,7 +119,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     };
                 """)
 
-    async def test_edgeql_constraints_unique_inherited(self):
+    async def test_constraints_unique_inherited(self):
         async with self._run_and_rollback():
             with self.assertRaisesRegex(exceptions.ConstraintViolationError,
                                         'name violates unique constraint'):
@@ -133,7 +133,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     };
                 """)
 
-    async def test_edgeql_constraints_unique_across_ancestry(self):
+    async def test_constraints_unique_across_ancestry(self):
         async with self._run_and_rollback():
             with self.assertRaisesRegex(exceptions.ConstraintViolationError,
                                         'name violates unique constraint'):
@@ -171,7 +171,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
                             'unique_name_inherited_ok';
                 """)
 
-    async def test_edgeql_constraints_unique_case_insensitive(self):
+    async def test_constraints_unique_case_insensitive(self):
         async with self._run_and_rollback():
             with self.assertRaisesRegex(exceptions.ConstraintViolationError,
                                         'name violates unique constraint'):
@@ -185,7 +185,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     };
                 """)
 
-    async def test_edgeql_constraints_unique_abstract(self):
+    async def test_constraints_unique_abstract(self):
         async with self._run_and_rollback():
             # This is OK, the name unique constraint is abstract
             await self.con.execute("""
@@ -339,7 +339,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     };
                 """)
 
-    async def test_edgeql_constraints_unique_migration(self):
+    async def test_constraints_unique_migration(self):
         new_schema_f = os.path.join(os.path.dirname(__file__), 'schemas',
                                     'constraints_migrated.eschema')
 
