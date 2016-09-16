@@ -322,6 +322,14 @@ class OptAnySubShape(Nonterm):
         self.val = None
 
 
+class OptShape(Nonterm):
+    def reduce_Shape(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_empty(self):
+        self.val = None
+
+
 class ShapeElement(Nonterm):
     def reduce_ShapeElementWithSubShape(self, *kids):
         r"""%reduce ShapePointer OptPointerRecursionSpec \
@@ -338,11 +346,13 @@ class ShapeElement(Nonterm):
             self.val.offset = kids[5].val[0]
             self.val.limit = kids[5].val[1]
 
-    def reduce_ShapePathPtr_TURNSTILE_Expr(self, *kids):
-        self.val = qlast.SelectPathSpecNode(
-            expr=qlast.PathNode(
-                steps=[qlast.LinkExprNode(expr=kids[0].val)]),
-            compexpr=kids[2].val)
+    def reduce_ShapePointer_TURNSTILE_Expr_OptShape(self, *kids):
+        self.val = kids[0].val
+        if isinstance(self.val, qlast.SelectTypeRefNode):
+            raise EdgeQLSyntaxError('Unexpected token: {}'.format(kids[1]),
+                                    context=kids[1].context)
+        self.val.compexpr = kids[2].val
+        self.val.pathspec = kids[3].val
 
 
 class ShapeElementList(ListNonterm, element=ShapeElement, separator=T_COMMA):
@@ -360,6 +370,7 @@ class ShapePath(Nonterm):
     #   Concept.link
     #   Concept.>link
     #   Concept.<link
+    #   Link@prop
 
     def reduce_ShapePathPtr(self, *kids):
         from edgedb.lang.schema import pointers as s_pointers
@@ -378,6 +389,12 @@ class ShapePath(Nonterm):
         kids[1].val.type = 'property'
         self.val = qlast.PathNode(
             steps=[qlast.LinkPropExprNode(expr=kids[1].val)]
+        )
+
+    def reduce_ShapePathStart_AT_ShapePathPtr(self, *kids):
+        kids[2].val.type = 'property'
+        self.val = qlast.PathNode(
+            steps=[kids[0].val, qlast.LinkPropExprNode(expr=kids[2].val)]
         )
 
     def reduce_ShapePathStart_DOT_ShapePathPtr(self, *kids):

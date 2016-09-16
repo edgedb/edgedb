@@ -386,7 +386,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write('*')
             self.visit(node.recurse)
 
-        if node.pathspec:
+        if node.pathspec and not node.compexpr:
             self.write(': ')
             self._visit_pathspec(node.pathspec)
 
@@ -412,6 +412,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if node.compexpr:
             self.write(' := ')
             self.visit(node.compexpr)
+
+            if node.pathspec:
+                self._visit_pathspec(node.pathspec)
 
     def visit_ConstantNode(self, node):
         if node.value is not None:

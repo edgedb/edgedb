@@ -748,6 +748,25 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
         """
 
+    def test_edgeql_syntax_shape20(self):
+        """
+        INSERT Foo{
+            bar: {
+                @weight,
+                BarLink@special,
+            }
+        };
+        """
+
+    def test_edgeql_syntax_shape21(self):
+        """
+        INSERT Foo{
+            bar := 'some_string_val' {
+                @weight := 3
+            }
+        };
+        """
+
     def test_edgeql_syntax_path01(self):
         """
         SELECT Foo.bar;
