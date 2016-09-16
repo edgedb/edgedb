@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import argparse
 import asyncio
 import os.path
@@ -48,8 +47,8 @@ def _run_server(cluster, port):
         return edgedb_protocol.Protocol(cluster, loop=loop)
 
     try:
-        srv = loop.run_until_complete(loop.create_server(
-            protocol_factory, host='localhost', port=port))
+        srv = loop.run_until_complete(
+            loop.create_server(protocol_factory, host='localhost', port=port))
 
         loop.add_signal_handler(signal.SIGTERM, terminate_server, srv, loop)
         loop.run_forever()
@@ -66,8 +65,8 @@ def run_server(args):
         cluster = pg_cluster.Cluster(data_dir=args.data_dir)
         cluster_status = cluster.get_status()
         if cluster_status == 'not-initialized':
-            abort('there is no valid EdgeDB cluster in {}'.format(
-                args.data_dir))
+            abort(
+                'there is no valid EdgeDB cluster in {}'.format(args.data_dir))
         elif cluster_status == 'stopped':
             cluster.start(
                 port=edgedb_cluster.find_available_port(),
@@ -76,8 +75,7 @@ def run_server(args):
                     'log_statement': 'all',
                     'log_disconnections': 'yes',
                     'log_min_messages': 'INFO',
-                },
-            )
+                }, )
             pg_cluster_started_by_us = True
     else:
         cluster = pg_cluster.RunningCluster(host=args.postgres)
@@ -95,18 +93,19 @@ def main(argv=sys.argv[1:]):
 
     parser = argparse.ArgumentParser(description='EdgeDB Server')
     backend_info = parser.add_mutually_exclusive_group(required=True)
-    backend_info.add_argument('-D', '--data-dir', type=str,
-                              help='database cluster directory')
-    backend_info.add_argument('-P', '--postgres', type=str,
-                              help='address of Postgres backend server')
-    parser.add_argument('-p', '--port', type=int,
-                        default=edgedb_defines.EDGEDB_PORT,
-                        help='port to listen on')
-    parser.add_argument('-b', '--background',
-                        action='store_true', help='daemonize')
-    parser.add_argument('--pidfile', type=str,
-                        default='/run/edgedb/',
-                        help='path to PID file directory')
+    backend_info.add_argument(
+        '-D', '--data-dir', type=str, help='database cluster directory')
+    backend_info.add_argument(
+        '-P', '--postgres', type=str,
+        help='address of Postgres backend server')
+    parser.add_argument(
+        '-p', '--port', type=int, default=edgedb_defines.EDGEDB_PORT,
+        help='port to listen on')
+    parser.add_argument(
+        '-b', '--background', action='store_true', help='daemonize')
+    parser.add_argument(
+        '--pidfile', type=str, default='/run/edgedb/',
+        help='path to PID file directory')
     parser.add_argument('--daemon-user', type=int)
     parser.add_argument('--daemon-group', type=int)
 
@@ -122,8 +121,7 @@ def main(argv=sys.argv[1:]):
         if args.daemon_group:
             daemon_opts['gid'] = args.daemon_group
         with daemon.DaemonContext(**daemon_opts):
-            setproctitle.setproctitle(
-                'edgedb-server-{}'.format(args.port))
+            setproctitle.setproctitle('edgedb-server-{}'.format(args.port))
             run_server(args)
     else:
         run_server(args)

@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 from .. import common
 from . import base
 
@@ -13,7 +12,7 @@ from . import base
 class Record(type):
     def __new__(mcls, name, fields, default=None):
         dct = {'_fields___': fields, '_default___': default}
-        bases = (RecordBase,)
+        bases = (RecordBase, )
         return super(Record, mcls).__new__(mcls, name, bases, dct)
 
     def __init__(cls, name, fields, default):
@@ -80,9 +79,9 @@ class CompositeDBObject(base.DBObject):
 
     @property
     def record(self):
-        return Record(self.__class__.__name__ + '_record',
-                      [c.name for c in self._columns],
-                      default=base.Default)
+        return Record(
+            self.__class__.__name__ + '_record',
+            [c.name for c in self._columns], default=base.Default)
 
 
 class CompositeAttributeCommand:
@@ -90,13 +89,14 @@ class CompositeAttributeCommand:
         self.attribute = attribute
 
     def __repr__(self):
-        return '<%s.%s %r>' % (self.__class__.__module__, self.__class__.__name__, self.attribute)
+        return '<%s.%s %r>' % (
+            self.__class__.__module__, self.__class__.__name__, self.attribute)
 
 
 class AlterCompositeAddAttribute(CompositeAttributeCommand):
     async def code(self, context):
-        return 'ADD {} {}'.format(self.get_attribute_term(),
-                                  self.attribute.code(context))
+        return 'ADD {} {}'.format(
+            self.get_attribute_term(), self.attribute.code(context))
 
     async def extra(self, context, alter_type):
         return await self.attribute.extra(context, alter_type)
@@ -116,18 +116,22 @@ class AlterCompositeAlterAttributeType:
     async def code(self, context):
         attrterm = self.get_attribute_term()
         attrname = common.quote_ident(str(self.attribute_name))
-        return 'ALTER {} {} SET DATA TYPE {}'.format(attrterm, attrname, self.new_type)
+        return 'ALTER {} {} SET DATA TYPE {}'.format(
+            attrterm, attrname, self.new_type)
 
     def __repr__(self):
-        return '<%s.%s "%s" to %s>' % (self.__class__.__module__, self.__class__.__name__,
-                                       self.attribute_name, self.new_type)
+        return '<%s.%s "%s" to %s>' % (
+            self.__class__.__module__, self.__class__.__name__,
+            self.attribute_name, self.new_type)
 
 
 class AlterCompositeRenameAttribute:
-    def __init__(self, name, old_attr_name, new_attr_name, *, contained=False, conditions=None,
-                                                              neg_conditions=None, priority=0):
-        super().__init__(name, conditions=conditions, neg_conditions=neg_conditions,
-                         priority=priority)
+    def __init__(
+            self, name, old_attr_name, new_attr_name, *, contained=False,
+            conditions=None, neg_conditions=None, priority=0):
+        super().__init__(
+            name, conditions=conditions, neg_conditions=neg_conditions,
+            priority=priority)
         self.old_attr_name = old_attr_name
         self.new_attr_name = new_attr_name
 
@@ -136,5 +140,6 @@ class AlterCompositeRenameAttribute:
         attrterm = self.get_attribute_term()
         old_attr_name = common.quote_ident(str(self.old_attr_name))
         new_attr_name = common.quote_ident(str(self.new_attr_name))
-        code += ' RENAME {} {} TO {}'.format(attrterm, old_attr_name, new_attr_name)
+        code += ' RENAME {} {} TO {}'.format(
+            attrterm, old_attr_name, new_attr_name)
         return code

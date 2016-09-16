@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import re
 
 from edgedb.server.datasources.base import Datasource, DatasourceError

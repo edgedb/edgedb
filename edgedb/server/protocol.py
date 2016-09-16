@@ -5,11 +5,9 @@
 # See LICENSE for details.
 ##
 
-
 import asyncio
 import enum
 import json
-import sys
 import traceback
 
 from edgedb.lang import edgeql
@@ -74,9 +72,9 @@ class Protocol(asyncio.Protocol):
             if not database or not user:
                 raise ProtocolError('invalid startup packet')
 
-            fut = self._loop.create_task(self._pg_cluster.connect(
-                database=database, user=user, loop=self._loop
-            ))
+            fut = self._loop.create_task(
+                self._pg_cluster.connect(
+                    database=database, user=user, loop=self._loop))
 
             fut.add_done_callback(self._on_pg_connect)
 
@@ -123,7 +121,6 @@ class Protocol(asyncio.Protocol):
             ctx = exceptions.get_context(err, parsing.ParserContext)
         except LookupError:
             ctx = None
-
         """LOG [server] Error
         markup.dump(err)
         """
@@ -163,7 +160,6 @@ class Protocol(asyncio.Protocol):
                         row = json.loads(row)
                     loaded.append(row)
                 result = loaded
-
             """LOG [result] Statement result
             print(result)
             """
@@ -180,9 +176,7 @@ class Protocol(asyncio.Protocol):
             self.send_error(e)
             return
 
-        fut = self._loop.create_task(backend.open_database(
-            self.pgconn
-        ))
+        fut = self._loop.create_task(backend.open_database(self.pgconn))
 
         fut.add_done_callback(self._on_edge_connect)
 
@@ -197,10 +191,7 @@ class Protocol(asyncio.Protocol):
 
         self.state = ConnectionState.READY
 
-        self.send_message({
-            '__type__': 'authresult',
-            'result': 'OK'
-        })
+        self.send_message({'__type__': 'authresult', 'result': 'OK'})
 
     def _on_script_done(self, fut):
         try:
@@ -213,7 +204,4 @@ class Protocol(asyncio.Protocol):
 
         self.state = ConnectionState.READY
 
-        self.send_message({
-            '__type__': 'result',
-            'result': result
-        })
+        self.send_message({'__type__': 'result', 'result': result})

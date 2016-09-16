@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import collections
 
 from edgedb.lang.schema import objects as s_obj

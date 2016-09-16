@@ -292,8 +292,9 @@ class Decompiler(ast.visitor.NodeVisitor):
                             name = context.current.attmap[expr.field][0]
 
                     id = irutils.LinearPath([None])
-                    id.add(context.current.source,
-                           s_pointers.PointerDirection.Outbound, None)
+                    id.add(
+                        context.current.source,
+                        s_pointers.PointerDirection.Outbound, None)
                     entlink = irast.EntityLink(
                         link_proto=context.current.source)
                     result = irast.LinkPropRefSimple(
@@ -321,7 +322,7 @@ class Decompiler(ast.visitor.NodeVisitor):
             fname = ('std', 'current_datetime')
             args = [self._process_expr(context, a) for a in expr.args]
         elif expr.name in (
-            ('edgedb', 'uuid_generate_v1mc'), 'uuid_generate_v1mc'):
+                ('edgedb', 'uuid_generate_v1mc'), 'uuid_generate_v1mc'):
             fname = ('std', 'uuid_generate_v1mc')
             args = [self._process_expr(context, a) for a in expr.args]
         else:
@@ -364,16 +365,14 @@ class IRCompilerBase:
                         aref = atomrefs[aname]
                         if isinstance(aref, irast.AtomicRefSimple):
                             selexpr = pgsql.ast.FieldRefNode(
-                                table=table,
-                                field=colname,
-                                origin=table,
+                                table=table, field=colname, origin=table,
                                 origin_field=colname)
 
                         elif isinstance(aref, irast.SubgraphRef):
                             # Result of a rewrite
 
-                            subquery = self._process_expr(context, aref.ref,
-                                                          parent_cte)
+                            subquery = self._process_expr(
+                                context, aref.ref, parent_cte)
 
                             with context(TransformerContext.NEW_TRANSPARENT):
                                 # Make sure subquery outerbonds are connected
@@ -383,20 +382,16 @@ class IRCompilerBase:
                                         ) in enumerate(subquery.outerbonds):
                                     if outerref == node:
                                         fref = pgsql.ast.FieldRefNode(
-                                            table=table,
-                                            field=idcol,
-                                            origin=table,
-                                            origin_field=idcol)
+                                            table=table, field=idcol,
+                                            origin=table, origin_field=idcol)
                                         cmap = context.current.concept_node_map
                                         cmap[node] = {
-                                            idcol:
-                                            pgsql.ast.SelectExprNode(expr=fref)
+                                            idcol: pgsql.ast.SelectExprNode(
+                                                expr=fref)
                                         }
 
                                 self._connect_subquery_outerbonds(
-                                    context,
-                                    subquery.outerbonds,
-                                    subquery,
+                                    context, subquery.outerbonds, subquery,
                                     inline=True)
 
                             selexpr = subquery
@@ -434,18 +429,14 @@ class IRCompilerBase:
                             expr=selexpr, type=pgtype)
 
                     qry.targets.append(
-                        pgsql.ast.SelectExprNode(
-                            expr=selexpr, alias=colname))
+                        pgsql.ast.SelectExprNode(expr=selexpr, alias=colname))
 
                 selexpr = pgsql.ast.FieldRefNode(
-                    table=table,
-                    field='concept_id',
-                    origin=table,
+                    table=table, field='concept_id', origin=table,
                     origin_field='concept_id')
 
                 qry.targets.append(
-                    pgsql.ast.SelectExprNode(
-                        expr=selexpr, alias='concept_id'))
+                    pgsql.ast.SelectExprNode(expr=selexpr, alias='concept_id'))
 
                 if cc:
                     # Make sure that all sets produced by each UNION member are
@@ -454,8 +445,9 @@ class IRCompilerBase:
                     # class.
                     get_concept_id = context.current.backend.get_concept_id
                     cc_ids = {get_concept_id(cls) for cls in cc}
-                    cc_ids = [pgsql.ast.ConstantNode(value=cc_id)
-                              for cc_id in cc_ids]
+                    cc_ids = [
+                        pgsql.ast.ConstantNode(value=cc_id) for cc_id in cc_ids
+                    ]
                     cc_ids = pgsql.ast.SequenceNode(elements=cc_ids)
 
                     qry.where = pgsql.ast.BinOpNode(
@@ -479,28 +471,26 @@ class IRCompilerBase:
                 table_name += node._backend_rel_suffix
 
             relation = pgsql.ast.TableNode(
-                name=table_name,
-                schema=table_schema_name,
+                name=table_name, schema=table_schema_name,
                 concepts=frozenset({node.concept}),
                 alias=context.current.genalias(hint=table_name),
                 edgedbnode=node)
         return relation
 
     def _relation_from_concepts(self, context, node, parent_cte):
-        return self._table_from_concept(context, node.concept, node,
-                                        parent_cte)
+        return self._table_from_concept(
+            context, node.concept, node, parent_cte)
 
     def _table_from_link_proto(self, context, link_proto):
         """Return a TableNode corresponding to a given link prototype."""
         table_schema_name, table_name = common.get_table_name(
             link_proto, catenate=False)
         return pgsql.ast.TableNode(
-            name=table_name,
-            schema=table_schema_name,
+            name=table_name, schema=table_schema_name,
             alias=context.current.genalias(hint=table_name))
 
-    def _relation_from_link_proto(self, context, link_proto, direction,
-                                  proprefs):
+    def _relation_from_link_proto(
+            self, context, link_proto, direction, proprefs):
         """"Return a Relation subclass corresponding to a given ptr step.
 
         If `link_proto` is a generic link, then a simple TableNode is returned,
@@ -550,13 +540,10 @@ class IRCompilerBase:
                 # Make sure all property references are pulled up properly
                 for propname, colname in cols:
                     selexpr = pgsql.ast.FieldRefNode(
-                        table=table,
-                        field=colname,
-                        origin=table,
+                        table=table, field=colname, origin=table,
                         origin_field=colname)
                     qry.targets.append(
-                        pgsql.ast.SelectExprNode(
-                            expr=selexpr, alias=colname))
+                        pgsql.ast.SelectExprNode(expr=selexpr, alias=colname))
 
                 union_list.append(qry)
 
@@ -564,8 +551,8 @@ class IRCompilerBase:
                 # We've been given a generic link that none of the potential
                 # sources contain directly, so fall back to general parent
                 # table. #
-                relation = self._table_from_link_proto(context,
-                                                       link_proto.bases[0])
+                relation = self._table_from_link_proto(
+                    context, link_proto.bases[0])
 
             elif len(union_list) > 1:
                 # More than one link table, generate a UNION clause.
@@ -635,8 +622,9 @@ class IRCompilerBase:
                     ptr_target = e.rlink.link_proto.source
 
             if isinstance(ptr_name, sn.Name):
-                if (ptr_direction == s_pointers.PointerDirection.Inbound and
-                        ptr_target.is_virtual and ptr_target.is_derived):
+                if (
+                        ptr_direction == s_pointers.PointerDirection.Inbound
+                        and ptr_target.is_virtual and ptr_target.is_derived):
                     ptr_origins = set()
 
                     for c in ptr_target.children(schema):
@@ -649,10 +637,8 @@ class IRCompilerBase:
                         tuple(ptr_origins)
 
                 attr_name = s_pointers.PointerVector(
-                    name=ptr_name.name,
-                    module=ptr_name.module,
-                    direction=ptr_direction,
-                    target=ptr_target.name,
+                    name=ptr_name.name, module=ptr_name.module,
+                    direction=ptr_direction, target=ptr_target.name,
                     is_linkprop=isinstance(e, irast.LinkPropRef))
             else:
                 attr_name = ptr_name
@@ -683,13 +669,11 @@ class IRCompilerBase:
                 raise ValueError('cannot find id ptr in entitityref record')
         else:
             proto_class = expr.concept.get_canonical_class()
-            proto_class_name = '{}.{}'.format(proto_class.__module__,
-                                              proto_class.__name__)
+            proto_class_name = '{}.{}'.format(
+                proto_class.__module__, proto_class.__name__)
             marker = common.RecordInfo(
-                attribute_map=attribute_map,
-                virtuals_map=virtuals_map,
-                proto_class=proto_class_name,
-                proto_name=expr.concept.name)
+                attribute_map=attribute_map, virtuals_map=virtuals_map,
+                proto_class=proto_class_name, proto_name=expr.concept.name)
 
             context.current.record_info[marker.id] = marker
             context.current.backend._register_record_info(marker)
@@ -768,11 +752,12 @@ class IRCompilerBase:
                 with context(context.NEW_TRANSPARENT):
                     context.current.in_aggregate = True
                     context.current.query.aggregates = True
-                    args = [self._process_expr(context, a, cte)
-                            for a in expr.args]
+                    args = [
+                        self._process_expr(context, a, cte) for a in expr.args
+                    ]
                     if expr.agg_filter:
-                        agg_filter = self._process_expr(context,
-                                                        expr.agg_filter, cte)
+                        agg_filter = self._process_expr(
+                            context, expr.agg_filter, cte)
             else:
                 args = [self._process_expr(context, a, cte) for a in expr.args]
 
@@ -781,8 +766,7 @@ class IRCompilerBase:
                     _sortexpr = self._process_expr(context, sortexpr.expr, cte)
                     agg_sort.append(
                         pgsql.ast.SortExprNode(
-                            expr=_sortexpr,
-                            direction=sortexpr.direction,
+                            expr=_sortexpr, direction=sortexpr.direction,
                             nulls_order=sortexpr.nones_order))
 
             partition = []
@@ -903,8 +887,7 @@ class IRCompilerBase:
 
                 lower = pgsql.ast.BinOpNode(
                     left=self._process_expr(context, expr.args[1], cte),
-                    op=ast.ops.ADD,
-                    right=pgsql.ast.ConstantNode(
+                    op=ast.ops.ADD, right=pgsql.ast.ConstantNode(
                         value=1, type='int'))
                 upper = self._process_expr(context, expr.args[2], cte)
                 indirection = pgsql.ast.IndexIndirectionNode(
@@ -913,8 +896,7 @@ class IRCompilerBase:
                     expr=arr, indirection=indirection)
                 unnest = pgsql.ast.FunctionCallNode(name='unnest', args=[arr])
                 subq.fromlist.append(
-                    pgsql.ast.FromExprNode(
-                        expr=unnest, alias='i'))
+                    pgsql.ast.FromExprNode(expr=unnest, alias='i'))
                 zero = pgsql.ast.ConstantNode(value=0, type='int')
                 result = pgsql.ast.FunctionCallNode(
                     name='coalesce', args=[subq, zero])
@@ -924,8 +906,7 @@ class IRCompilerBase:
                     name='date_part',
                     args=[pgsql.ast.ConstantNode(value='year'), args[0]])
                 years = pgsql.ast.BinOpNode(
-                    left=years,
-                    op=ast.ops.MUL,
+                    left=years, op=ast.ops.MUL,
                     right=pgsql.ast.ConstantNode(value=12))
                 months = pgsql.ast.FunctionCallNode(
                     name='date_part',
@@ -979,16 +960,14 @@ class IRCompilerBase:
             elif funcname == 'strpos':
                 r = pgsql.ast.FunctionCallNode(name='strpos', args=args)
                 result = pgsql.ast.BinOpNode(
-                    left=r,
-                    right=pgsql.ast.ConstantNode(value=1),
+                    left=r, right=pgsql.ast.ConstantNode(value=1),
                     op=ast.ops.SUB)
             elif funcname == 'substr':
                 name = 'substr'
                 args[1] = pgsql.ast.TypeCastNode(
                     expr=args[1], type=pgsql.ast.TypeNode(name='int'))
                 args[1] = pgsql.ast.BinOpNode(
-                    left=args[1],
-                    right=pgsql.ast.ConstantNode(value=1),
+                    left=args[1], right=pgsql.ast.ConstantNode(value=1),
                     op=ast.ops.ADD)
                 if args[2] is not None:
                     args[2] = pgsql.ast.TypeCastNode(
@@ -1032,8 +1011,8 @@ class IRCompilerBase:
 
             elif funcname == 'getitem':
                 is_string = False
-                arg_type = irutils.infer_type(expr.args[0],
-                                              context.current.proto_schema)
+                arg_type = irutils.infer_type(
+                    expr.args[0], context.current.proto_schema)
 
                 if isinstance(arg_type, s_atoms.Atom):
                     b = arg_type.get_topmost_base()
@@ -1058,8 +1037,8 @@ class IRCompilerBase:
                 zero = pgsql.ast.ConstantNode(value=0)
 
                 is_string = False
-                arg_type = irutils.infer_type(expr.args[0],
-                                              context.current.proto_schema)
+                arg_type = irutils.infer_type(
+                    expr.args[0], context.current.proto_schema)
 
                 if isinstance(arg_type, s_atoms.Atom):
                     b = arg_type.get_topmost_base()
@@ -1072,7 +1051,8 @@ class IRCompilerBase:
                     upper_bound = pgsql.ast.FunctionCallNode(
                         name='array_upper', args=[args[0], one])
 
-                if (isinstance(start, pgsql.ast.ConstantNode) and
+                if (
+                        isinstance(start, pgsql.ast.ConstantNode) and
                         start.value is None and start.index is None and
                         start.expr is None):
                     lower = one
@@ -1092,7 +1072,8 @@ class IRCompilerBase:
                     lower = pgsql.ast.CaseExprNode(
                         args=[when_expr], default=lower_plus_one)
 
-                if (isinstance(stop, pgsql.ast.ConstantNode) and
+                if (
+                        isinstance(stop, pgsql.ast.ConstantNode) and
                         stop.value is None and stop.index is None and
                         stop.expr is None):
                     upper = upper_bound
@@ -1138,8 +1119,8 @@ class IRCompilerBase:
 
             elif expr.name == ('geo', 'distance'):
                 args = self._geo_convert_to_geometry(context, args)
-                name = common.qname('edgedb_aux_feat_gis',
-                                    'st_distance_sphere')
+                name = common.qname(
+                    'edgedb_aux_feat_gis', 'st_distance_sphere')
                 context.current.search_path.append('edgedb_aux_feat_gis')
 
             elif isinstance(funcname, tuple):
@@ -1153,11 +1134,8 @@ class IRCompilerBase:
                     agg_sort = None
 
                 result = pgsql.ast.FunctionCallNode(
-                    name=name,
-                    args=args,
-                    aggregates=bool(expr.aggregates),
-                    agg_sort=agg_sort,
-                    agg_filter=agg_filter)
+                    name=name, args=args, aggregates=bool(expr.aggregates),
+                    agg_sort=agg_sort, agg_filter=agg_filter)
 
                 if expr.window:
                     result.over = pgsql.ast.WindowDefNode(
@@ -1171,19 +1149,14 @@ class IRCompilerBase:
 
         return pgsql.ast.SelectQueryNode(
             targets=[
-                pgsql.ast.SelectExprNode(expr=pgsql.ast.FieldRefNode(
-                    field='confname'))
-            ],
-            fromlist=[
+                pgsql.ast.SelectExprNode(
+                    expr=pgsql.ast.FieldRefNode(field='confname'))
+            ], fromlist=[
                 context.current.global_ctes['text_search_conf_map']
             ])
 
-    def _text_search_args(self,
-                          context,
-                          vector,
-                          query,
-                          tsvector=True,
-                          extended=False):
+    def _text_search_args(
+            self, context, vector, query, tsvector=True, extended=False):
         empty_str = pgsql.ast.ConstantNode(value='')
         sep_str = pgsql.ast.ConstantNode(value='; ')
 
@@ -1192,28 +1165,35 @@ class IRCompilerBase:
         cols = None
 
         if isinstance(vector, irast.EntitySet):
-            refs = [(r, r.ptr_proto.search.weight if r.ptr_proto.search else s_links.LinkSearchWeight.A)
-                    for r in self._text_search_refs(context, vector)]
+            refs = [(
+                r, r.ptr_proto.search.weight
+                if r.ptr_proto.search else s_links.LinkSearchWeight.A)
+                for r in self._text_search_refs(context, vector)]
 
         elif isinstance(vector, irast.Sequence):
             refs = []
 
             for r in vector.elements:
                 if isinstance(r, irast.BaseRef):
-                    refs.append((r, r.ptr_proto.search.weight if r.ptr_proto.search else s_links.LinkSearchWeight.A))
-                elif (isinstance(r, irast.FunctionCall) and
-                      r.name == ('search', 'weight')):
+                    refs.append((
+                        r, r.ptr_proto.search.weight
+                        if r.ptr_proto.search else s_links.LinkSearchWeight.A))
+                elif (
+                        isinstance(r, irast.FunctionCall) and
+                        r.name == ('search', 'weight')):
                     refs.append((r.args[0], r.args[1]))
                 else:
                     msg = 'unexpected element in search vector: %r'.format(r)
                     raise ValueError(msg)
 
         elif isinstance(vector, irast.AtomicRef):
-            link = vector.ref.concept.getptr(context.current.proto_schema,
-                                             vector.name)
+            link = vector.ref.concept.getptr(
+                context.current.proto_schema, vector.name)
             ref = irast.AtomicRefSimple(
                 ref=vector.ref, name=vector.name, ptr_proto=link)
-            refs = [(ref, ref.ptr_proto.search.weight if ref.ptr_proto.search else s_links.LinkSearchWeight.A)]
+            refs = [(
+                ref, ref.ptr_proto.search.weight
+                if ref.ptr_proto.search else s_links.LinkSearchWeight.A)]
 
         elif isinstance(vector, irast.LinkPropRef):
             ref = irast.LinkPropRefSimple(
@@ -1280,8 +1260,8 @@ class IRCompilerBase:
             const_type = None
 
         if expr.expr:
-            result = pgsql.ast.ConstantNode(expr=self._process_expr(context,
-                                                                    expr.expr))
+            result = pgsql.ast.ConstantNode(
+                expr=self._process_expr(context, expr.expr))
         else:
             value = expr.value
             const_expr = None
@@ -1298,24 +1278,29 @@ class IRCompilerBase:
 
                 if isinstance(value, s_concepts.Concept):
                     classes = (value, )
-                elif (isinstance(value, tuple) and value and
-                      isinstance(value[0], s_concepts.Concept)):
+                elif (
+                        isinstance(value, tuple) and value and
+                        isinstance(value[0], s_concepts.Concept)):
                     classes = value
                 else:
                     classes = None
 
                 if classes:
-                    concept_ids = {data_backend.get_concept_id(cls)
-                                   for cls in classes}
+                    concept_ids = {
+                        data_backend.get_concept_id(cls)
+                        for cls in classes
+                    }
                     for cls in classes:
                         for c in cls.descendants(context.current.proto_schema):
                             concept_id = data_backend.get_concept_id(c)
                             concept_ids.add(concept_id)
 
-                    const_type = common.py_type_to_pg_type(classes[0]
-                                                           .__class__)
-                    elements = [pgsql.ast.ConstantNode(value=cid)
-                                for cid in concept_ids]
+                    const_type = common.py_type_to_pg_type(
+                        classes[0].__class__)
+                    elements = [
+                        pgsql.ast.ConstantNode(value=cid)
+                        for cid in concept_ids
+                    ]
                     const_expr = pgsql.ast.SequenceNode(elements=elements)
                     value = None
 
@@ -1329,13 +1314,16 @@ class IRCompilerBase:
         return result
 
     def _process_typecast(self, context, expr, cte=None):
-        if (isinstance(expr.expr, irast.BinOp) and isinstance(expr.expr.op, (
-                ast.ops.ComparisonOperator, ast.ops.TypeCheckOperator))):
+        if (
+                isinstance(expr.expr, irast.BinOp) and isinstance(
+                    expr.expr.op,
+                    (ast.ops.ComparisonOperator, ast.ops.TypeCheckOperator))):
             expr_type = bool
-        elif (isinstance(expr.expr, irast.BaseRefExpr) and
-              isinstance(expr.expr.expr, irast.BinOp) and isinstance(
-                  expr.expr.expr.op, (ast.ops.ComparisonOperator,
-                                      ast.ops.TypeCheckOperator))):
+        elif (
+                isinstance(expr.expr, irast.BaseRefExpr) and
+                isinstance(expr.expr.expr, irast.BinOp) and isinstance(
+                    expr.expr.expr.op,
+                    (ast.ops.ComparisonOperator, ast.ops.TypeCheckOperator))):
             expr_type = bool
         elif isinstance(expr.expr, irast.Constant):
             expr_type = expr.expr.type
@@ -1376,9 +1364,11 @@ class SimpleIRCompiler(IRCompilerBase):
         context.current.link_bias = link_bias
 
         if isinstance(expr, irast.GraphExpr):
-            is_simple = (not (expr.generator or expr.grouper or expr.sorter or
-                              (expr.op and expr.op != 'select') or
-                              len(expr.selector) > 1))
+            is_simple = (
+                not (
+                    expr.generator or expr.grouper or expr.sorter or
+                    (expr.op and expr.op != 'select') or
+                    len(expr.selector) > 1))
             if not is_simple:
                 msg = "SimpleIRCompiler can only transform single " + \
                       "SELECT statements."
@@ -1403,13 +1393,11 @@ class SimpleIRCompiler(IRCompilerBase):
             if isinstance(expr.concept, s_atoms.Atom):
                 field_name = common.edgedb_name_to_pg_name(expr.concept.name)
                 result = pgsql.ast.FieldRefNode(
-                    table=None,
-                    field=field_name,
-                    origin=None,
+                    table=None, field=field_name, origin=None,
                     origin_field=field_name)
             else:
-                raise ValueError('unexpected EntitySet subject: {!r}'.format(
-                    expr.concept))
+                raise ValueError(
+                    'unexpected EntitySet subject: {!r}'.format(expr.concept))
 
         elif isinstance(expr, irast.AtomicRefExpr):
             result = self._process_expr(context, expr.expr)
@@ -1418,18 +1406,14 @@ class SimpleIRCompiler(IRCompilerBase):
             field_name = common.edgedb_name_to_pg_name(expr.name)
 
             if not context.current.local:
-                table = self._relation_from_concepts(context, expr.ref,
-                                                     context.current.query)
+                table = self._relation_from_concepts(
+                    context, expr.ref, context.current.query)
                 result = pgsql.ast.FieldRefNode(
-                    table=table,
-                    field=field_name,
-                    origin=table,
+                    table=table, field=field_name, origin=table,
                     origin_field=field_name)
             else:
                 result = pgsql.ast.FieldRefNode(
-                    table=None,
-                    field=field_name,
-                    origin=None,
+                    table=None, field=field_name, origin=None,
                     origin_field=field_name)
 
         elif isinstance(expr, irast.LinkPropRefExpr):
@@ -1437,27 +1421,22 @@ class SimpleIRCompiler(IRCompilerBase):
 
         elif isinstance(expr, irast.LinkPropRefSimple):
             link_stor_info = types.get_pointer_storage_info(
-                expr.ptr_proto,
-                resolve_type=False,
+                expr.ptr_proto, resolve_type=False,
                 link_bias=context.current.link_bias)
 
             if link_stor_info.table_type == "concept":
                 field_name = link_stor_info.column_name
 
                 if not context.current.local:
-                    table = self._table_from_concept(context,
-                                                     expr.ref.source.concept,
-                                                     expr.ref.source, None)
+                    table = self._table_from_concept(
+                        context, expr.ref.source.concept, expr.ref.source,
+                        None)
                     result = pgsql.ast.FieldRefNode(
-                        table=table,
-                        field=field_name,
-                        origin=table,
+                        table=table, field=field_name, origin=table,
                         origin_field=field_name)
                 else:
                     result = pgsql.ast.FieldRefNode(
-                        table=None,
-                        field=field_name,
-                        origin=None,
+                        table=None, field=field_name, origin=None,
                         origin_field=field_name)
             else:
                 field_name = link_stor_info.column_name
@@ -1465,20 +1444,17 @@ class SimpleIRCompiler(IRCompilerBase):
                 if not context.current.local:
                     table = self._relation_from_link(context, expr.ref)
                     result = pgsql.ast.FieldRefNode(
-                        table=table,
-                        field=field_name,
-                        origin=table,
+                        table=table, field=field_name, origin=table,
                         origin_field=field_name)
                 else:
                     result = pgsql.ast.FieldRefNode(
-                        table=None,
-                        field=field_name,
-                        origin=None,
+                        table=None, field=field_name, origin=None,
                         origin_field=field_name)
 
         elif isinstance(expr, irast.Disjunction):
-            variants = [self._process_expr(context, path)
-                        for path in expr.paths]
+            variants = [
+                self._process_expr(context, path) for path in expr.paths
+            ]
 
             if len(variants) == 1:
                 result = variants[0]
@@ -1548,13 +1524,13 @@ class IRCompiler(IRCompilerBase):
         try:
             codegen.visit(qtree)
         except pgsql.codegen.SQLSourceGeneratorError as e:
-            ctx = pgsql.codegen.SQLSourceGeneratorContext(qtree,
-                                                          codegen.result)
+            ctx = pgsql.codegen.SQLSourceGeneratorContext(
+                qtree, codegen.result)
             edgedb_error.add_context(e, ctx)
             raise
         except Exception as e:
-            ctx = pgsql.codegen.SQLSourceGeneratorContext(qtree,
-                                                          codegen.result)
+            ctx = pgsql.codegen.SQLSourceGeneratorContext(
+                qtree, codegen.result)
             err = pgsql.codegen.SQLSourceGeneratorError(
                 'error while generating SQL source')
             edgedb_error.add_context(err, ctx)
@@ -1565,12 +1541,9 @@ class IRCompiler(IRCompilerBase):
     def _dump(self, tree):
         markup.dump(tree)
 
-    def extend_binop(self,
-                     binop,
-                     *exprs,
-                     op=ast.ops.AND,
-                     reversed=False,
-                     cls=irast.BinOp):
+    def extend_binop(
+            self, binop, *exprs, op=ast.ops.AND, reversed=False,
+            cls=irast.BinOp):
         exprs = list(exprs)
         binop = binop or exprs.pop(0)
 
@@ -1626,7 +1599,8 @@ class IRCompiler(IRCompilerBase):
         #
         non_generating_subgraphs = []
         for subgraph in graph.subgraphs:
-            if ('generator' not in subgraph.referrers and
+            if (
+                    'generator' not in subgraph.referrers and
                     'exists' not in subgraph.referrers and
                     'opvalues' not in subgraph.referrers):
                 non_generating_subgraphs.append(subgraph)
@@ -1638,21 +1612,19 @@ class IRCompiler(IRCompilerBase):
         is_dml = graph.op in {'insert', 'update', 'delete'}
 
         self._process_selector(
-            context,
-            graph.selector,
-            context.current.query,
+            context, graph.selector, context.current.query,
             transform_output=not is_dml)
         self._process_sorter(context, graph.sorter)
 
         self._process_groupby(context, graph.grouper)
 
         if graph.offset:
-            context.current.query.offset = self._process_constant(context,
-                                                                  graph.offset)
+            context.current.query.offset = self._process_constant(
+                context, graph.offset)
 
         if graph.limit:
-            context.current.query.limit = self._process_constant(context,
-                                                                 graph.limit)
+            context.current.query.limit = self._process_constant(
+                context, graph.limit)
 
         if is_dml:
             if graph.op == 'delete':
@@ -1682,22 +1654,20 @@ class IRCompiler(IRCompilerBase):
                     context, prop.ref.link_proto)
 
                 ref_map = {prop.ref.link_proto: query.fromexpr}
-                context.current.link_node_map[prop.ref] = {'local_ref_map':
-                                                           ref_map}
+                context.current.link_node_map[prop.ref] = {
+                    'local_ref_map':
+                    ref_map
+                }
 
                 sprop_name = common.edgedb_name_to_pg_name('std::source')
                 sref = pgsql.ast.FieldRefNode(
-                    table=query.fromexpr,
-                    field=sprop_name,
-                    origin=query.fromexpr,
-                    origin_field=sprop_name)
+                    table=query.fromexpr, field=sprop_name,
+                    origin=query.fromexpr, origin_field=sprop_name)
 
                 idprop_name = common.edgedb_name_to_pg_name('std::linkid')
                 idref = pgsql.ast.FieldRefNode(
-                    table=query.fromexpr,
-                    field=idprop_name,
-                    origin=query.fromexpr,
-                    origin_field=idprop_name)
+                    table=query.fromexpr, field=idprop_name,
+                    origin=query.fromexpr, origin_field=idprop_name)
 
                 filter = idref
 
@@ -1705,23 +1675,26 @@ class IRCompiler(IRCompilerBase):
                 # Singular atom delete op translates into source table update
                 query = pgsql.ast.UpdateQueryNode()
                 op_is_update = True
-                opvalues = [irast.UpdateExpr(
-                    expr=graph.optarget, value=irast.Constant(value=None))]
+                opvalues = [
+                    irast.UpdateExpr(
+                        expr=graph.optarget, value=irast.Constant(value=None))
+                ]
 
                 query.fromexpr = self._relation_from_concepts(
                     context, graph.optarget.ref, query)
 
-                ref_map = {aref.name: query.fromexpr
-                           for aref in graph.optarget.ref.atomrefs}
-                context.current.concept_node_map[
-                    graph.optarget.ref] = {'local_ref_map': ref_map}
+                ref_map = {
+                    aref.name: query.fromexpr
+                    for aref in graph.optarget.ref.atomrefs
+                }
+                context.current.concept_node_map[graph.optarget.ref] = {
+                    'local_ref_map': ref_map
+                }
                 context.current.ctemap[query] = {graph.optarget.ref: query}
 
                 filter = pgsql.ast.FieldRefNode(
-                    table=query.fromexpr,
-                    field='std::id',
-                    origin=query.fromexpr,
-                    origin_field='std::id')
+                    table=query.fromexpr, field='std::id',
+                    origin=query.fromexpr, origin_field='std::id')
 
                 sref = idref = filter
 
@@ -1729,17 +1702,18 @@ class IRCompiler(IRCompilerBase):
                 query.fromexpr = self._relation_from_concepts(
                     context, graph.optarget, query)
 
-                ref_map = {aref.name: query.fromexpr
-                           for aref in graph.optarget.atomrefs}
-                context.current.concept_node_map[
-                    graph.optarget] = {'local_ref_map': ref_map}
+                ref_map = {
+                    aref.name: query.fromexpr
+                    for aref in graph.optarget.atomrefs
+                }
+                context.current.concept_node_map[graph.optarget] = {
+                    'local_ref_map': ref_map
+                }
                 context.current.ctemap[query] = {graph.optarget: query}
 
                 filter = pgsql.ast.FieldRefNode(
-                    table=query.fromexpr,
-                    field='std::id',
-                    origin=query.fromexpr,
-                    origin_field='std::id')
+                    table=query.fromexpr, field='std::id',
+                    origin=query.fromexpr, origin_field='std::id')
 
             main_selector = context.current.query
             main_selector.alias = context.current.genalias('o')
@@ -1756,8 +1730,9 @@ class IRCompiler(IRCompilerBase):
                 #
                 context.current.unwind_rlinks = False
 
-                if isinstance(graph.optarget, (irast.LinkPropRefSimple,
-                                               irast.AtomicRefSimple)):
+                if isinstance(
+                        graph.optarget,
+                        (irast.LinkPropRefSimple, irast.AtomicRefSimple)):
                     idexpr = pgsql.ast.SelectExprNode(
                         expr=idref, alias='linkid')
                     query.targets.append(idexpr)
@@ -1773,12 +1748,12 @@ class IRCompiler(IRCompilerBase):
                 context.current.entityref_as_id = True
 
                 if op_is_update:
-                    query = self._process_update_stmt(context, graph, query,
-                                                      main_selector, opvalues)
+                    query = self._process_update_stmt(
+                        context, graph, query, main_selector, opvalues)
 
                 elif op_is_insert:
-                    query = self._process_insert_stmt(context, graph, query,
-                                                      opvalues)
+                    query = self._process_insert_stmt(
+                        context, graph, query, opvalues)
         else:
             query = context.current.query
 
@@ -1835,8 +1810,9 @@ class IRCompiler(IRCompilerBase):
                         inner_query.where, filter_expr,
                         cls=pgsql.ast.BinOpNode)
 
-            if isinstance(graph.selector[0].expr, (irast.AtomicRefSimple,
-                                                   irast.LinkPropRefSimple)):
+            if isinstance(
+                    graph.selector[0].expr,
+                    (irast.AtomicRefSimple, irast.LinkPropRefSimple)):
                 # Cast atom refs to the base type in aggregate expressions,
                 # since PostgreSQL does not create array types for custom
                 # domains and will fail to process a query with custom domains
@@ -1844,8 +1820,7 @@ class IRCompiler(IRCompilerBase):
                 #
                 pgtype = types.pg_type_from_atom(
                     context.current.proto_schema,
-                    graph.selector[0].expr.ptr_proto.target,
-                    topbase=True)
+                    graph.selector[0].expr.ptr_proto.target, topbase=True)
                 pgtype = pgsql.ast.TypeNode(name=pgtype)
                 target = pgsql.ast.TypeCastNode(expr=target, type=pgtype)
 
@@ -1866,8 +1841,9 @@ class IRCompiler(IRCompilerBase):
                 aggfunc = 'array_agg'
                 if isinstance(args[0], pgsql.ast.TypeCastNode):
                     pgtype = pgsql.ast.TypeNode(name=args[0].type.name + '[]')
-                elif (isinstance(args[0], pgsql.ast.FunctionCallNode)
-                        and args[0].name == 'to_jsonb'):
+                elif (
+                        isinstance(args[0], pgsql.ast.FunctionCallNode) and
+                        args[0].name == 'to_jsonb'):
                     pgtype = pgsql.ast.TypeNode(name='jsonb[]')
                 else:
                     pgtype = pgsql.ast.TypeNode(name='record[]')
@@ -1926,26 +1902,24 @@ class IRCompiler(IRCompilerBase):
                 child_end = recurse_link.source
                 parent_end = recurse_link.target
 
-                if (recurse_link.direction ==
+                if (
+                        recurse_link.direction ==
                         s_pointers.PointerDirection.Inbound):
                     parent_end, child_end = child_end, parent_end
 
                 proto_class = child_end.concept.get_canonical_class()
-                proto_class_name = '{}.{}'.format(proto_class.__module__,
-                                                  proto_class.__name__)
+                proto_class_name = '{}.{}'.format(
+                    proto_class.__module__, proto_class.__name__)
 
                 recptr_name = recurse_link.link_proto.normal_name()
                 recptr_direction = recurse_link.direction
 
                 recursive_attr = s_pointers.PointerVector(
-                    name=recptr_name.name,
-                    module=recptr_name.module,
-                    direction=recptr_direction,
-                    target=child_end.concept.name)
+                    name=recptr_name.name, module=recptr_name.module,
+                    direction=recptr_direction, target=child_end.concept.name)
 
                 marker = common.RecordInfo(
-                    attribute_map=attribute_map,
-                    recursive_link=recursive_attr,
+                    attribute_map=attribute_map, recursive_link=recursive_attr,
                     proto_class=proto_class_name,
                     proto_name=child_end.concept.name)
 
@@ -1960,8 +1934,10 @@ class IRCompiler(IRCompilerBase):
                 subexpr = pgsql.ast.RowExprNode(args=[marker, subexpr])
 
             query.orderby = []
-            query.targets = [pgsql.ast.SelectExprNode(
-                expr=subexpr, alias=query.targets[0].alias)]
+            query.targets = [
+                pgsql.ast.SelectExprNode(
+                    expr=subexpr, alias=query.targets[0].alias)
+            ]
 
         if graph.backend_text_override:
             argmap = list(context.current.argmap)
@@ -1987,13 +1963,13 @@ class IRCompiler(IRCompilerBase):
         # Type reference is always inserted.
         values.elements.append(
             pgsql.ast.SelectQueryNode(
-                targets=[pgsql.ast.SelectExprNode(
-                    expr=pgsql.ast.FieldRefNode(field='id'))],
-                fromlist=[pgsql.ast.TableNode(
-                    name='concept', schema='edgedb')],
-                where=pgsql.ast.BinOpNode(
-                    op=ast.ops.EQ,
-                    left=pgsql.ast.FieldRefNode(field='name'),
+                targets=[
+                    pgsql.ast.SelectExprNode(
+                        expr=pgsql.ast.FieldRefNode(field='id'))
+                ], fromlist=[
+                    pgsql.ast.TableNode(name='concept', schema='edgedb')
+                ], where=pgsql.ast.BinOpNode(
+                    op=ast.ops.EQ, left=pgsql.ast.FieldRefNode(field='name'),
                     right=pgsql.ast.ConstantNode(
                         value=graph.optarget.concept.name))))
 
@@ -2009,9 +1985,7 @@ class IRCompiler(IRCompilerBase):
             lproto = instarget.rlink.link_proto
 
             ptr_info = pg_types.get_pointer_storage_info(
-                lproto,
-                schema=context.current.proto_schema,
-                resolve_type=True,
+                lproto, schema=context.current.proto_schema, resolve_type=True,
                 link_bias=False)
 
             props_only = False
@@ -2064,22 +2038,20 @@ class IRCompiler(IRCompilerBase):
                 query.targets.append(
                     pgsql.ast.SelectExprNode(
                         expr=pgsql.ast.FieldRefNode(field='std::id'),
-                        alias=None
-                    )
-                )
+                        alias=None))
 
                 toplevel.fromlist.append(pgsql.ast.CTERefNode(cte=query))
 
-            self._process_update_expr(context, expr, props_only,
-                                      operation, toplevel, query)
+            self._process_update_expr(
+                context, expr, props_only, operation, toplevel, query)
 
         if toplevel is not None:
             query = toplevel
 
         return query
 
-    def _process_update_stmt(self, context, graph, query, main_selector,
-                             opvalues):
+    def _process_update_stmt(
+            self, context, graph, query, main_selector, opvalues):
         external_updates = []
 
         for expr in opvalues:
@@ -2096,9 +2068,7 @@ class IRCompiler(IRCompilerBase):
                 lproto = updtarget.rlink.link_proto
 
             ptr_info = pg_types.get_pointer_storage_info(
-                lproto,
-                schema=context.current.proto_schema,
-                resolve_type=True,
+                lproto, schema=context.current.proto_schema, resolve_type=True,
                 link_bias=False)
             props_only = False
             upd_props = None
@@ -2122,8 +2092,7 @@ class IRCompiler(IRCompilerBase):
                 if op_link is not None:
                     op_link = op_link.link_proto
 
-                tg_path = irutils.extract_paths(
-                    updtarget, resolve_arefs=False)
+                tg_path = irutils.extract_paths(updtarget, resolve_arefs=False)
 
                 if isinstance(tg_path, irast.EntityLink):
                     tg_link = tg_path
@@ -2150,7 +2119,8 @@ class IRCompiler(IRCompilerBase):
                 with context(TransformerContext.NEW_TRANSPARENT):
                     context.current.local_atom_expr_source = graph.optarget
 
-                    if (isinstance(updvalue, irast.BinOp) and
+                    if (
+                            isinstance(updvalue, irast.BinOp) and
                             self._is_composite_cast(updvalue.right)):
                         updvalue, upd_props = self._extract_update_value(
                             context, updvalue.right, ptr_info.column_type)
@@ -2164,8 +2134,8 @@ class IRCompiler(IRCompilerBase):
                             expr=self._process_expr(context, updvalue),
                             type=pgsql.ast.TypeNode(name=ptr_info.column_type))
 
-                    query.values.append(pgsql.ast.UpdateExprNode(
-                        expr=field, value=updvalue))
+                    query.values.append(
+                        pgsql.ast.UpdateExprNode(expr=field, value=updvalue))
 
             ptr_info = pg_types.get_pointer_storage_info(
                 lproto, resolve_type=False, link_bias=True)
@@ -2176,10 +2146,8 @@ class IRCompiler(IRCompilerBase):
         if not query.values:
             # No atomic updates
             query = pgsql.ast.CTENode(
-                ctes=query.ctes,
-                targets=query.targets,
-                fromlist=[query.fromexpr],
-                where=query.where)
+                ctes=query.ctes, targets=query.targets,
+                fromlist=[query.fromexpr], where=query.where)
 
         toplevel = None
 
@@ -2201,8 +2169,8 @@ class IRCompiler(IRCompilerBase):
 
                 toplevel.fromlist.append(pgsql.ast.CTERefNode(cte=query))
 
-            self._process_update_expr(context, expr, props_only,
-                                      operation, toplevel, main_selector)
+            self._process_update_expr(
+                context, expr, props_only, operation, toplevel, main_selector)
 
         if toplevel is not None:
             query = toplevel
@@ -2213,13 +2181,13 @@ class IRCompiler(IRCompilerBase):
         typ = updvalexpr.type
         expr = self._process_expr(context, updvalexpr.expr)
 
-        if (isinstance(expr, pgsql.ast.ConstantNode) and
+        if (
+                isinstance(expr, pgsql.ast.ConstantNode) and
                 expr.type.endswith('[]')):
             pspec = typ[1].pathspec
 
             expr = pgsql.ast.IndirectionNode(
-                expr=expr,
-                indirection=pgsql.ast.IndexIndirectionNode(
+                expr=expr, indirection=pgsql.ast.IndexIndirectionNode(
                     upper=pgsql.ast.ConstantNode(value=1)))
         else:
             pspec = typ.pathspec
@@ -2227,25 +2195,27 @@ class IRCompiler(IRCompilerBase):
         props = [p.ptr_proto.normal_name() for p in pspec]
         tgt_col = props.index('std::target')
 
-        upd_props = [p.ptr_proto.normal_name() for p in pspec
-                     if not p.ptr_proto.is_special_pointer()]
+        upd_props = [
+            p.ptr_proto.normal_name() for p in pspec
+            if not p.ptr_proto.is_special_pointer()
+        ]
 
         assert tgt_col >= 0
 
         expr = pgsql.ast.TypeCastNode(
             expr=pgsql.ast.BinOpNode(
-                left=expr,
-                op='->>',
+                left=expr, op='->>',
                 right=pgsql.ast.ConstantNode(value=tgt_col)),
             type=pgsql.ast.TypeNode(name=target_type))
 
         return expr, upd_props
 
     def _is_composite_cast(self, expr):
-        return (isinstance(expr, irast.TypeCast) and
-                (isinstance(expr.type, irast.CompositeType) or
-                 (isinstance(expr.type, tuple) and
-                  isinstance(expr.type[1], irast.CompositeType))))
+        return (
+            isinstance(expr, irast.TypeCast) and (
+                isinstance(expr.type, irast.CompositeType) or (
+                    isinstance(expr.type, tuple) and
+                    isinstance(expr.type[1], irast.CompositeType))))
 
     def _get_leftmost_binop_operand(self, expr):
         if isinstance(expr.left, irast.BinOp):
@@ -2253,13 +2223,15 @@ class IRCompiler(IRCompilerBase):
         else:
             return expr.left
 
-    def _process_update_values(self, context, updvalexpr, target_tab, tab_cols,
-                               col_data, sources, props_only, target_is_atom):
+    def _process_update_values(
+            self, context, updvalexpr, target_tab, tab_cols, col_data, sources,
+            props_only, target_is_atom):
         """Unpack data from an update expression into a series of selects."""
         # Recurse down to process update expressions like
         # col := col + val1 + val2
         #
-        if (isinstance(updvalexpr, irast.BinOp) and
+        if (
+                isinstance(updvalexpr, irast.BinOp) and
                 isinstance(updvalexpr.left, irast.BinOp)):
             tranches = self._process_update_values(
                 context, updvalexpr.left, target_tab, tab_cols, col_data,
@@ -2311,7 +2283,8 @@ class IRCompiler(IRCompilerBase):
             context.current.direct_subquery_ref = True
             input_data = self._process_expr(context, data)
 
-        if (isinstance(input_data, pgsql.ast.ConstantNode) and
+        if (
+                isinstance(input_data, pgsql.ast.ConstantNode) and
                 input_data.type.endswith('[]')):
             data_is_json = input_data.type == 'json[]'
             input_data = pgsql.ast.FunctionCallNode(
@@ -2320,15 +2293,13 @@ class IRCompiler(IRCompilerBase):
             data_is_json = False
 
         input_rel = pgsql.ast.FromExprNode(
-            expr=input_data,
-            alias=context.current.genalias('i'))
+            expr=input_data, alias=context.current.genalias('i'))
 
         unnested = pgsql.ast.SelectQueryNode(
-            targets=[pgsql.ast.SelectExprNode(
-                expr=pgsql.ast.FieldRefNode(field='*', table=input_rel))],
-            fromlist=[input_rel],
-            alias='j',
-            coldef='(_)')
+            targets=[
+                pgsql.ast.SelectExprNode(
+                    expr=pgsql.ast.FieldRefNode(field='*', table=input_rel))
+            ], fromlist=[input_rel], alias='j', coldef='(_)')
 
         row = pgsql.ast.SequenceNode()
 
@@ -2355,23 +2326,20 @@ class IRCompiler(IRCompilerBase):
                     expr = pgsql.ast.FieldRefNode(table=unnested, field='_')
                     if data_is_json:
                         expr = pgsql.ast.BinOpNode(
-                            left=expr,
-                            op='->>',
+                            left=expr, op='->>',
                             right=pgsql.ast.ConstantNode(value=data_idx))
 
             row.elements.append(expr)
 
         tranch_data = pgsql.ast.SelectQueryNode(
             targets=[
-                pgsql.ast.SelectExprNode(expr=pgsql.ast.IndirectionNode(
-                    expr=pgsql.ast.TypeCastNode(
-                        expr=row,
-                        type=pgsql.ast.TypeNode(
-                            name=pgsql.common.qname(*target_tab))),
-                    indirection=pgsql.ast.StarIndirectionNode()))
-            ],
-            fromlist=[unnested],
-            alias=context.current.genalias(hint='r'))
+                pgsql.ast.SelectExprNode(
+                    expr=pgsql.ast.IndirectionNode(
+                        expr=pgsql.ast.TypeCastNode(
+                            expr=row, type=pgsql.ast.TypeNode(
+                                name=pgsql.common.qname(*target_tab))),
+                        indirection=pgsql.ast.StarIndirectionNode()))
+            ], fromlist=[unnested], alias=context.current.genalias(hint='r'))
 
         tranch_data.fromlist.extend(sources)
 
@@ -2379,11 +2347,10 @@ class IRCompiler(IRCompilerBase):
 
         return tranches
 
-    def _process_update_expr(self, context, updexpr, props_only, operation,
-                             query, scope_cte):
+    def _process_update_expr(
+            self, context, updexpr, props_only, operation, query, scope_cte):
         edgedb_link = pgsql.ast.TableNode(
-            schema='edgedb',
-            name='link',
+            schema='edgedb', name='link',
             alias=context.current.genalias(hint='l'))
 
         updtarget = updexpr.expr
@@ -2399,17 +2366,13 @@ class IRCompiler(IRCompilerBase):
         lname_to_id = pgsql.ast.CTENode(
             fromlist=[
                 edgedb_link
-            ],
-            targets=[
+            ], targets=[
                 pgsql.ast.SelectExprNode(
-                    expr=pgsql.ast.FieldRefNode(
-                        table=edgedb_link, field='id'),
+                    expr=pgsql.ast.FieldRefNode(table=edgedb_link, field='id'),
                     alias='id')
-            ],
-            where=pgsql.ast.BinOpNode(
-                left=pgsql.ast.FieldRefNode(
-                    table=edgedb_link, field='name'),
-                op=ast.ops.EQ,
+            ], where=pgsql.ast.BinOpNode(
+                left=pgsql.ast.FieldRefNode(table=edgedb_link,
+                                            field='name'), op=ast.ops.EQ,
                 right=pgsql.ast.ConstantNode(value=lproto.name)),
             alias=context.current.genalias(hint='lid'))
 
@@ -2435,9 +2398,8 @@ class IRCompiler(IRCompilerBase):
         assert tab_cols, "could not get cols for {!r}".format(target_tab_name)
 
         col_data = {
-            'link_type_id':
-            pgsql.ast.SelectExprNode(expr=pgsql.ast.FieldRefNode(
-                table=lname_to_id, field='id')),
+            'link_type_id': pgsql.ast.SelectExprNode(
+                expr=pgsql.ast.FieldRefNode(table=lname_to_id, field='id')),
             'std::source': pgsql.ast.FieldRefNode(
                 table=scope_cte, field='std::id')
         }
@@ -2445,22 +2407,18 @@ class IRCompiler(IRCompilerBase):
         if operation is None:
             # Drop previous entries first
             delcte = pgsql.ast.DeleteQueryNode(
-                fromexpr=target_tab,
-                where=pgsql.ast.BinOpNode(
-                    left=col_data['std::source'],
-                    op=ast.ops.EQ,
+                fromexpr=target_tab, where=pgsql.ast.BinOpNode(
+                    left=col_data['std::source'], op=ast.ops.EQ,
                     right=pgsql.ast.FieldRefNode(
                         table=target_tab, field='std::source')),
-                alias=context.current.genalias(hint='d'),
-                using=[scope_cte],
+                alias=context.current.genalias(hint='d'), using=[scope_cte],
                 targets=[
                     pgsql.ast.SelectExprNode(
                         expr=col_data['std::source'], alias='std::id')
                 ])
             query.ctes.add(delcte)
             scope_cte = pgsql.ast.JoinNode(
-                type='NATURAL LEFT',
-                left=pgsql.ast.CTERefNode(cte=scope_cte),
+                type='NATURAL LEFT', left=pgsql.ast.CTERefNode(cte=scope_cte),
                 right=pgsql.ast.CTERefNode(cte=delcte))
         else:
             delcte = None
@@ -2472,15 +2430,15 @@ class IRCompiler(IRCompilerBase):
         for cols, data in tranches:
             query.ctes.add(data)
             data = pgsql.ast.SelectQueryNode(
-                targets=[pgsql.ast.SelectExprNode(expr=pgsql.ast.FieldRefNode(
-                    field='*', table=data))],
-                fromlist=[pgsql.ast.CTERefNode(cte=data)])
+                targets=[
+                    pgsql.ast.SelectExprNode(
+                        expr=pgsql.ast.FieldRefNode(field='*', table=data))
+                ], fromlist=[pgsql.ast.CTERefNode(cte=data)])
 
             if operation == ast.ops.SUB:
                 # Removing links
                 updcte = pgsql.ast.DeleteQueryNode(
-                    alias=context.current.genalias(hint='d'),
-                    targets=[
+                    alias=context.current.genalias(hint='d'), targets=[
                         pgsql.ast.SelectExprNode(
                             expr=pgsql.ast.FieldRefNode(field='std::source'),
                             alias='std::id')
@@ -2490,20 +2448,17 @@ class IRCompiler(IRCompilerBase):
                 data.alias = context.current.genalias(hint='q')
                 updcte.where = pgsql.ast.BinOpNode(
                     left=pgsql.ast.FieldRefNode(field='std::linkid'),
-                    op=ast.ops.IN,
-                    right=pgsql.ast.SelectQueryNode(
+                    op=ast.ops.IN, right=pgsql.ast.SelectQueryNode(
                         targets=[
                             pgsql.ast.SelectExprNode(
                                 expr=pgsql.ast.FieldRefNode(
                                     field='std::linkid'))
-                        ],
-                        fromlist=[data]))
+                        ], fromlist=[data]))
 
             else:
                 # Inserting links
                 updcte = pgsql.ast.InsertQueryNode(
-                    alias=context.current.genalias(hint='i'),
-                    targets=[
+                    alias=context.current.genalias(hint='i'), targets=[
                         pgsql.ast.SelectExprNode(
                             expr=pgsql.ast.FieldRefNode(field='std::source'),
                             alias='std::id')
@@ -2512,8 +2467,9 @@ class IRCompiler(IRCompilerBase):
                 updcte.fromexpr = target_tab
 
                 updcte.select = data
-                updcte.cols = [pgsql.ast.FieldRefNode(field=col)
-                               for col in cols]
+                updcte.cols = [
+                    pgsql.ast.FieldRefNode(field=col) for col in cols
+                ]
 
                 update_clause = pgsql.ast.UpdateExprNode(
                     expr=pgsql.ast.SequenceNode(elements=updcte.cols),
@@ -2527,8 +2483,7 @@ class IRCompiler(IRCompilerBase):
             query.ctes.add(updcte)
 
             query.fromlist[0] = pgsql.ast.JoinNode(
-                type='NATURAL LEFT',
-                left=query.fromlist[0],
+                type='NATURAL LEFT', left=query.fromlist[0],
                 right=pgsql.ast.CTERefNode(cte=updcte))
 
     def _wrap_subquery(self, context, query):
@@ -2549,8 +2504,8 @@ class IRCompiler(IRCompilerBase):
 
         return wrapper
 
-    def _generate_recursive_query(self, context, query, recurse_link,
-                                  recurse_depth):
+    def _generate_recursive_query(
+            self, context, query, recurse_link, recurse_depth):
         idptr = sn.Name('std::id')
 
         child_end = recurse_link.source
@@ -2580,11 +2535,9 @@ class IRCompiler(IRCompilerBase):
         depth_start = pgsql.ast.ConstantNode(value=0)
 
         query.targets.append(
-            pgsql.ast.SelectExprNode(
-                expr=child_ref, alias='__target__'))
+            pgsql.ast.SelectExprNode(expr=child_ref, alias='__target__'))
         query.targets.append(
-            pgsql.ast.SelectExprNode(
-                expr=depth_start, alias='__depth__'))
+            pgsql.ast.SelectExprNode(expr=depth_start, alias='__depth__'))
 
         query.orderby = []
 
@@ -2595,9 +2548,7 @@ class IRCompiler(IRCompilerBase):
         recursive_part.fromlist = query.fromlist[:]
 
         rec_cte = pgsql.ast.CTENode(
-            op=pgsql.ast.UNION,
-            larg=query,
-            rarg=recursive_part,
+            op=pgsql.ast.UNION, larg=query, rarg=recursive_part,
             recursive=True)
 
         parent_depth_ref = pgsql.ast.FieldRefNode(
@@ -2653,8 +2604,7 @@ class IRCompiler(IRCompilerBase):
         for select_expr, sort_expr in sort_exprs.items():
             fref = pgsql.ast.FieldRefNode(field=select_expr.alias)
             sexpr = pgsql.ast.SortExprNode(
-                expr=fref,
-                direction=sort_expr.direction,
+                expr=fref, direction=sort_expr.direction,
                 nulls_order=sort_expr.nulls_order)
             rec_cte_wrap.orderby.append(sexpr)
 
@@ -2719,9 +2669,7 @@ class IRCompiler(IRCompilerBase):
             query.targets.append(expr)
 
             refexpr = pgsql.ast.FieldRefNode(
-                table=query,
-                field=expr.alias,
-                origin=subquery,
+                table=query, field=expr.alias, origin=subquery,
                 origin_field=expr.alias)
             selectnode = pgsql.ast.SelectExprNode(
                 expr=refexpr, alias=expr.alias)
@@ -2741,9 +2689,7 @@ class IRCompiler(IRCompilerBase):
                 #
                 for attrref in subgraph.attrrefs:
                     refexpr = pgsql.ast.FieldRefNode(
-                        table=subquery,
-                        field=attrref,
-                        origin=subquery,
+                        table=subquery, field=attrref, origin=subquery,
                         origin_field=attrref)
                     alias = context.current.genalias(hint=attrref)
                     selexpr = pgsql.ast.SelectExprNode(
@@ -2751,9 +2697,7 @@ class IRCompiler(IRCompilerBase):
                     query.targets.append(selexpr)
 
                     refexpr = pgsql.ast.FieldRefNode(
-                        table=query,
-                        field=alias,
-                        origin=subquery,
+                        table=query, field=alias, origin=subquery,
                         origin_field=attrref)
                     selexpr = pgsql.ast.SelectExprNode(
                         expr=refexpr, alias=alias)
@@ -2785,8 +2729,8 @@ class IRCompiler(IRCompilerBase):
             outerbonds = self._pull_outerbonds(context, outer_ref, query)
             self._connect_subquery_outerbonds(context, outerbonds, wrapper)
 
-            callback = functools.partial(self._inject_relation_from_edgedbnode,
-                                         context, wrapper)
+            callback = functools.partial(
+                self._inject_relation_from_edgedbnode, context, wrapper)
 
             try:
                 context.current.ctemap[query][outer_ref]
@@ -2808,9 +2752,7 @@ class IRCompiler(IRCompilerBase):
         target_rel.targets.append(oref)
 
         refexpr = pgsql.ast.FieldRefNode(
-            table=target_rel,
-            field=oref.alias,
-            origin=target_rel,
+            table=target_rel, field=oref.alias, origin=target_rel,
             origin_field=oref.alias)
         selectnode = pgsql.ast.SelectExprNode(expr=refexpr, alias=oref.alias)
 
@@ -2832,13 +2774,9 @@ class IRCompiler(IRCompilerBase):
             fromexpr = pgsql.ast.FromExprNode(expr=rel)
             query.fromlist.append(fromexpr)
 
-    def _inject_outerbond_condition(self,
-                                    context_l,
-                                    subquery,
-                                    inner_ref,
-                                    outer_ref,
-                                    inline=False,
-                                    parent_cte=None):
+    def _inject_outerbond_condition(
+            self, context_l, subquery, inner_ref, outer_ref, inline=False,
+            parent_cte=None):
         field_ref = inner_ref.expr
 
         for fromexpr in subquery.fromlist:
@@ -2851,8 +2789,7 @@ class IRCompiler(IRCompilerBase):
             if isinstance(field_ref.table, pgsql.ast.SelectQueryNode):
                 subquery = field_ref.table
                 field_ref = pgsql.ast.FieldRefNode(
-                    table=field_ref.origin,
-                    field=field_ref.origin_field,
+                    table=field_ref.origin, field=field_ref.origin_field,
                     origin=field_ref.origin,
                     origin_field=field_ref.origin_field)
             else:
@@ -2873,9 +2810,7 @@ class IRCompiler(IRCompilerBase):
                 ref_table = outer_ref
 
             outer_ref = pgsql.ast.FieldRefNode(
-                table=ref_table,
-                field=idcol,
-                origin=ref_table,
+                table=ref_table, field=idcol, origin=ref_table,
                 origin_field=idcol)
 
             if isinstance(field_ref.table, pgsql.ast.SelectQueryNode):
@@ -2888,8 +2823,7 @@ class IRCompiler(IRCompilerBase):
 
                 inner_rel = field_ref.table
                 inner_ref = pgsql.ast.FieldRefNode(
-                    table=origin,
-                    field=field_ref.origin_field,
+                    table=origin, field=field_ref.origin_field,
                     origin=field_ref.origin,
                     origin_field=field_ref.origin_field)
 
@@ -2906,12 +2840,9 @@ class IRCompiler(IRCompilerBase):
         subquery.where = self.extend_binop(
             subquery.where, comparison, cls=pgsql.ast.BinOpNode)
 
-    def _connect_subquery_outerbonds(self,
-                                     context,
-                                     outerbonds,
-                                     subquery,
-                                     inline=False,
-                                     parent_cte=None):
+    def _connect_subquery_outerbonds(
+            self, context, outerbonds, subquery, inline=False,
+            parent_cte=None):
         if subquery.proxyouterbonds:
             # A subquery may be wrapped by another relation, e.g. a recursive
             # CTE, which "proxies" the original outer bonds of its
@@ -2919,30 +2850,20 @@ class IRCompiler(IRCompilerBase):
             ob = subquery.proxyouterbonds
             for proxied_subquery, proxied_outerbonds in ob.items():
                 self._connect_subquery_outerbonds(
-                    context,
-                    proxied_outerbonds,
-                    proxied_subquery,
+                    context, proxied_outerbonds, proxied_subquery,
                     inline=inline)
 
         for outer_ref, inner_ref in outerbonds:
             if outer_ref in context.current.concept_node_map:
                 self._inject_outerbond_condition(
-                    context.current,
-                    subquery,
-                    inner_ref,
-                    outer_ref,
-                    inline=inline,
-                    parent_cte=parent_cte)
+                    context.current, subquery, inner_ref, outer_ref,
+                    inline=inline, parent_cte=parent_cte)
             else:
                 # The outer ref has not been processed yet, put it in a queue
                 # and glue the bond when it appears.
                 callback = functools.partial(
-                    self._inject_outerbond_condition,
-                    context.current,
-                    subquery,
-                    inner_ref,
-                    inline=inline,
-                    parent_cte=parent_cte)
+                    self._inject_outerbond_condition, context.current,
+                    subquery, inner_ref, inline=inline, parent_cte=parent_cte)
                 try:
                     callbacks = context.current.node_callbacks[outer_ref]
                 except KeyError:
@@ -2956,15 +2877,13 @@ class IRCompiler(IRCompilerBase):
         for cte in ctes:
             if cte.where_strong:
                 cte.where = self.extend_predicate(
-                    cte.where,
-                    cte.where_strong,
-                    ast.ops.AND,
+                    cte.where, cte.where_strong, ast.ops.AND,
                     strong=getattr(cte.where_strong, 'strong', False))
             if cte.where_weak and cte.where is not cte.where_weak:
-                op = ast.ops.AND if getattr(cte.where, 'strong',
-                                            False) else ast.ops.OR
-                cte.where = self.extend_predicate(cte.where, cte.where_weak,
-                                                  op)
+                op = ast.ops.AND if getattr(
+                    cte.where, 'strong', False) else ast.ops.OR
+                cte.where = self.extend_predicate(
+                    cte.where, cte.where_weak, op)
 
     def _join_subqueries(self, context, query):
         if context.current.subquery_map:
@@ -2989,8 +2908,7 @@ class IRCompiler(IRCompilerBase):
 
                         left = outer_ref.expr
                         right = pgsql.ast.FieldRefNode(
-                            table=subquery,
-                            field=inner_ref.alias,
+                            table=subquery, field=inner_ref.alias,
                             origin=inner_ref.expr.origin,
                             origin_field=inner_ref.expr.origin_field)
                         comparison = pgsql.ast.BinOpNode(
@@ -3000,9 +2918,7 @@ class IRCompiler(IRCompilerBase):
 
                     if join_point:
                         join_point = pgsql.ast.JoinNode(
-                            type='left',
-                            left=join_point,
-                            right=subquery,
+                            type='left', left=join_point, right=subquery,
                             condition=condition)
                     else:
                         join_point = subquery
@@ -3033,11 +2949,8 @@ class IRCompiler(IRCompilerBase):
         context.current.location = None
         return result
 
-    def _process_selector(self,
-                          context,
-                          selector,
-                          query,
-                          transform_output=True):
+    def _process_selector(
+            self, context, selector, query, transform_output=True):
 
         context.current.location = 'selector'
 
@@ -3055,8 +2968,8 @@ class IRCompiler(IRCompilerBase):
 
                 target = pgsql.ast.SelectExprNode(
                     expr=pgsql.ast.FunctionCallNode(
-                        name='to_jsonb', args=[pgexpr]),
-                    alias=alias, filter_expr=filter_expr)
+                        name='to_jsonb', args=[pgexpr]), alias=alias,
+                    filter_expr=filter_expr)
                 query.targets.append(target)
 
         else:
@@ -3071,8 +2984,7 @@ class IRCompiler(IRCompilerBase):
         for expr in sorter:
             sortexpr = pgsql.ast.SortExprNode(
                 expr=self._process_expr(context, expr.expr),
-                direction=expr.direction,
-                nulls_order=expr.nones_order)
+                direction=expr.direction, nulls_order=expr.nones_order)
             query.orderby.append(sortexpr)
 
     def _process_groupby(self, context, grouper):
@@ -3121,12 +3033,8 @@ class IRCompiler(IRCompilerBase):
         """
         return isinstance(expr, (irast.PathCombination, irast.EntitySet))
 
-    def get_cte_fieldref_for_set(self,
-                                 context,
-                                 edgedb_node,
-                                 link_name,
-                                 schema=False,
-                                 map=None):
+    def get_cte_fieldref_for_set(
+            self, context, edgedb_node, link_name, schema=False, map=None):
         """Return FieldRef node corresponding to the specified atom.
 
         Arguments:
@@ -3169,23 +3077,19 @@ class IRCompiler(IRCompilerBase):
             if isinstance(ref_table, list):
                 if len(ref_table) == 1:
                     ref = pgsql.ast.FieldRefNode(
-                        table=ref_table[0],
-                        field=field_name,
-                        origin=ref_table[0],
-                        origin_field=field_name)
+                        table=ref_table[0], field=field_name,
+                        origin=ref_table[0], origin_field=field_name)
                 else:
-                    refs = [pgsql.ast.FieldRefNode(
-                        table=t,
-                        field=field_name,
-                        origin=t,
-                        origin_field=field_name) for t in ref_table]
+                    refs = [
+                        pgsql.ast.FieldRefNode(
+                            table=t, field=field_name, origin=t,
+                            origin_field=field_name) for t in ref_table
+                    ]
                     ref = pgsql.ast.FunctionCallNode(
                         name='coalesce', args=refs)
             else:
                 ref = pgsql.ast.FieldRefNode(
-                    table=ref_table,
-                    field=field_name,
-                    origin=ref_table,
+                    table=ref_table, field=field_name, origin=ref_table,
                     origin_field=field_name)
 
         if ref is None:
@@ -3221,14 +3125,15 @@ class IRCompiler(IRCompilerBase):
 
         map_array = []
         for code, confname in code_map:
-            item = pgsql.ast.RowExprNode(args=[
-                pgsql.ast.TypeCastNode(
-                    expr=pgsql.ast.ConstantNode(value=code),
-                    type=pgsql.ast.TypeNode(name='text')),
-                pgsql.ast.TypeCastNode(
-                    expr=pgsql.ast.ConstantNode(value=confname),
-                    type=pgsql.ast.TypeNode(name='regconfig'))
-            ])
+            item = pgsql.ast.RowExprNode(
+                args=[
+                    pgsql.ast.TypeCastNode(
+                        expr=pgsql.ast.ConstantNode(value=code),
+                        type=pgsql.ast.TypeNode(name='text')),
+                    pgsql.ast.TypeCastNode(
+                        expr=pgsql.ast.ConstantNode(value=confname),
+                        type=pgsql.ast.TypeNode(name='regconfig'))
+                ])
             map_array.append(item)
 
         code_map_cte = pgsql.ast.CTENode(
@@ -3236,25 +3141,23 @@ class IRCompiler(IRCompilerBase):
         code_map_cte.fromlist.append(
             pgsql.ast.FromExprNode(
                 alias=pgsql.ast.FuncAliasNode(
-                    alias='map',
-                    elements=[
+                    alias='map', elements=[
                         pgsql.ast.TableFuncElement(
                             name='code', type=pgsql.ast.TypeNode(name='text')),
                         pgsql.ast.TableFuncElement(
-                            name='confname',
-                            type=pgsql.ast.TypeNode(name='regconfig'))
-                    ]),
-                expr=pgsql.ast.FunctionCallNode(
-                    name='unnest',
-                    args=[pgsql.ast.ArrayNode(elements=map_array)])))
+                            name='confname', type=pgsql.ast.TypeNode(
+                                name='regconfig'))
+                    ]), expr=pgsql.ast.FunctionCallNode(
+                        name='unnest',
+                        args=[pgsql.ast.ArrayNode(elements=map_array)])))
         code_map_cte.targets.extend([
-            pgsql.ast.SelectExprNode(expr=pgsql.ast.FieldRefNode(
-                field='code')), pgsql.ast.SelectExprNode(
-                    expr=pgsql.ast.FieldRefNode(field='confname'))
+            pgsql.ast.SelectExprNode(
+                expr=pgsql.ast.FieldRefNode(field='code')),
+            pgsql.ast.SelectExprNode(
+                expr=pgsql.ast.FieldRefNode(field='confname'))
         ])
 
-        lang_arg = self._process_constant(
-            context, irast.Constant(value='en'))
+        lang_arg = self._process_constant(context, irast.Constant(value='en'))
 
         code_conv_union = pgsql.ast.CTENode(
             alias='text_search_conf_map', op=pgsql.ast.UNION)
@@ -3269,8 +3172,8 @@ class IRCompiler(IRCompilerBase):
         for variant in variants:
             qry = pgsql.ast.SelectQueryNode()
             qry.targets.append(
-                pgsql.ast.SelectExprNode(expr=pgsql.ast.FieldRefNode(
-                    field='confname')))
+                pgsql.ast.SelectExprNode(
+                    expr=pgsql.ast.FieldRefNode(field='confname')))
             qry.fromlist.append(pgsql.ast.FromExprNode(expr=code_map_cte))
             coderef = pgsql.ast.FieldRefNode(table=code_map_cte, field='code')
             qry.where = pgsql.ast.BinOpNode(
@@ -3278,13 +3181,14 @@ class IRCompiler(IRCompilerBase):
             code_conv_union_list.append(qry)
 
         code_conv_union_list.append(
-            pgsql.ast.SelectQueryNode(targets=[
-                pgsql.ast.SelectExprNode(expr=pgsql.ast.ConstantNode(
-                    value='english'))
-            ]))
+            pgsql.ast.SelectQueryNode(
+                targets=[
+                    pgsql.ast.SelectExprNode(
+                        expr=pgsql.ast.ConstantNode(value='english'))
+                ]))
 
-        self._setop_from_list(code_conv_union, code_conv_union_list,
-                              pgsql.ast.UNION)
+        self._setop_from_list(
+            code_conv_union, code_conv_union_list, pgsql.ast.UNION)
 
         code_conv_union.limit = one
         code_conv_union.ctes.add(code_map_cte)
@@ -3293,9 +3197,10 @@ class IRCompiler(IRCompilerBase):
         return code_conv_union
 
     def _is_subquery(self, path):
-        return (isinstance(path, (irast.ExistPred, irast.GraphExpr)) or
-                (isinstance(path, irast.UnaryOp) and
-                 isinstance(path.expr, irast.ExistPred)))
+        return (
+            isinstance(path, (irast.ExistPred, irast.GraphExpr)) or (
+                isinstance(path, irast.UnaryOp) and
+                isinstance(path.expr, irast.ExistPred)))
 
     def _path_weight(self, path):
         if self._is_subquery(path):
@@ -3329,32 +3234,28 @@ class IRCompiler(IRCompilerBase):
                     explicit_cte = context.current.explicit_cte_map[subgraph]
 
                 except KeyError:
-                    if (expr.force_inline or
+                    if (
+                            expr.force_inline or
                             context.current.direct_subquery_ref or
                             'generator' not in subgraph.referrers):
                         # Subqueries in selector should always go into SQL
                         # selector
                         subquery = self._process_expr(context, subgraph, cte)
                         self._connect_subquery_outerbonds(
-                            context,
-                            subquery.outerbonds,
-                            subquery,
-                            inline=expr.force_inline,
-                            parent_cte=cte)
+                            context, subquery.outerbonds, subquery,
+                            inline=expr.force_inline, parent_cte=cte)
                         result = subquery
                     else:
                         subquery = context.current.subquery_map.get(subgraph)
                         if subquery is None:
-                            subquery = self._process_expr(context, subgraph,
-                                                          cte)
+                            subquery = self._process_expr(
+                                context, subgraph, cte)
                             subquery.alias = context.current.genalias(
                                 hint='sq')
                             context.current.subquery_map[subgraph] = subquery
 
                         result = pgsql.ast.FieldRefNode(
-                            table=subquery,
-                            field=expr.name,
-                            origin=subquery,
+                            table=subquery, field=expr.name, origin=subquery,
                             origin_field=expr.name)
                         alias = context.current.genalias(hint=expr.name)
                         selexpr = pgsql.ast.SelectExprNode(
@@ -3369,10 +3270,8 @@ class IRCompiler(IRCompilerBase):
                         subgraph_map[expr.name] = selexpr
                 else:
                     result = pgsql.ast.FieldRefNode(
-                        table=explicit_cte,
-                        field=expr.name,
-                        origin=explicit_cte,
-                        origin_field=expr.name)
+                        table=explicit_cte, field=expr.name,
+                        origin=explicit_cte, origin_field=expr.name)
                     alias = context.current.genalias(hint=expr.name)
                     selexpr = pgsql.ast.SelectExprNode(
                         expr=result, alias=alias)
@@ -3385,16 +3284,19 @@ class IRCompiler(IRCompilerBase):
                             subgraph] = {}
                     subgraph_map[expr.name] = selexpr
 
-                    self._inject_relation(context, context.current.query,
-                                          explicit_cte)
+                    self._inject_relation(
+                        context, context.current.query, explicit_cte)
 
         elif isinstance(expr, irast.Disjunction):
             sorted_paths = self._sort_paths(expr.paths)
-            variants = [self._process_expr(context, path, cte)
-                        for path in sorted_paths]
+            variants = [
+                self._process_expr(context, path, cte) for path in sorted_paths
+            ]
 
-            variants = [v for v in variants
-                        if v and not isinstance(v, pgsql.ast.IgnoreNode)]
+            variants = [
+                v for v in variants
+                if v and not isinstance(v, pgsql.ast.IgnoreNode)
+            ]
             if variants:
                 if len(variants) == 1:
                     result = variants[0]
@@ -3406,10 +3308,13 @@ class IRCompiler(IRCompilerBase):
 
         elif isinstance(expr, irast.Conjunction):
             sorted_paths = self._sort_paths(expr.paths)
-            variants = [self._process_expr(context, path, cte)
-                        for path in sorted_paths]
-            variants = [v for v in variants
-                        if v and not isinstance(v, pgsql.ast.IgnoreNode)]
+            variants = [
+                self._process_expr(context, path, cte) for path in sorted_paths
+            ]
+            variants = [
+                v for v in variants
+                if v and not isinstance(v, pgsql.ast.IgnoreNode)
+            ]
             if variants:
                 if len(variants) == 1:
                     result = variants[0]
@@ -3427,7 +3332,8 @@ class IRCompiler(IRCompilerBase):
             result = pgsql.ast.IgnoreNode()
 
         elif isinstance(expr, irast.InlinePropFilter):
-            if (expr.ref.target and
+            if (
+                    expr.ref.target and
                     isinstance(expr.ref.target, irast.EntitySet) and
                     not isinstance(expr.ref.target.concept, s_atoms.Atom)):
                 entityset = expr.ref.target
@@ -3454,7 +3360,9 @@ class IRCompiler(IRCompilerBase):
                     callback(expr)
 
         elif isinstance(expr, irast.EntityLink):
-            if (expr.target and isinstance(expr.target, irast.EntitySet) and
+            if (
+                    expr.target and
+                    isinstance(expr.target, irast.EntitySet) and
                     not isinstance(expr.target.concept, s_atoms.Atom)):
                 self._process_expr(context, expr.target, cte)
             else:
@@ -3494,9 +3402,7 @@ class IRCompiler(IRCompilerBase):
 
             if isinstance(expr.op, irast.TextSearchOperator):
                 vector, query = self._text_search_args(
-                    context,
-                    expr.left,
-                    expr.right,
+                    context, expr.left, expr.right,
                     extended=expr.op == qlast.SEARCHEX)
                 result = pgsql.ast.BinOpNode(
                     left=vector, right=query, op=qlast.SEARCH)
@@ -3505,7 +3411,8 @@ class IRCompiler(IRCompilerBase):
 
                 cte = cte or context.current.query
 
-                if (expr.op in (ast.ops.IN, ast.ops.NOT_IN) and
+                if (
+                        expr.op in (ast.ops.IN, ast.ops.NOT_IN) and
                         isinstance(expr.right, irast.Constant)):
                     # "expr IN $CONST" translates into
                     # "expr = any($CONST)" and
@@ -3529,8 +3436,7 @@ class IRCompiler(IRCompilerBase):
                                 left_type = left_type.pointers[
                                     'std::id'].target
                             left_type = types.pg_type_from_atom(
-                                context.current.proto_schema,
-                                left_type,
+                                context.current.proto_schema, left_type,
                                 topbase=True)
                             right.type = left_type + '[]'
 
@@ -3574,8 +3480,9 @@ class IRCompiler(IRCompilerBase):
                     elif isinstance(right, pgsql.ast.IgnoreNode):
                         result, from_expr = left, expr.left
 
-                    if (context.current.location in
-                        ('generator', 'nodefilter', 'linkfilter') and
+                    if (
+                            context.current.location in
+                            ('generator', 'nodefilter', 'linkfilter') and
                             getattr(from_expr, 'aggregates', False)):
                         context.current.query.having = result
                         result = pgsql.ast.IgnoreNode()
@@ -3583,8 +3490,9 @@ class IRCompiler(IRCompilerBase):
                     left_aggregates = getattr(expr.left, 'aggregates', False)
                     op_aggregates = getattr(expr, 'aggregates', False)
 
-                    if (context.current.location in
-                        ('generator', 'nodefilter', 'linkfilter') and
+                    if (
+                            context.current.location in
+                            ('generator', 'nodefilter', 'linkfilter') and
                             left_aggregates and not op_aggregates):
                         context.current.query.having = left
                         result = right
@@ -3600,13 +3508,14 @@ class IRCompiler(IRCompilerBase):
                                     left_type = left_type.pointers[
                                         'std::id'].target
                                 left_type = types.pg_type_from_atom(
-                                    context.current.proto_schema,
-                                    left_type,
+                                    context.current.proto_schema, left_type,
                                     topbase=True)
-                            elif (not isinstance(left_type, s_obj.ProtoObject)
-                                  and (not isinstance(left_type, tuple) or
-                                       not isinstance(left_type[1],
-                                                      s_obj.ProtoObject))):
+                            elif (
+                                    not isinstance(
+                                        left_type, s_obj.ProtoObject) and
+                                    (not isinstance(left_type, tuple) or
+                                     not isinstance(
+                                        left_type[1], s_obj.ProtoObject))):
                                 left_type = common.py_type_to_pg_type(
                                     left_type)
 
@@ -3615,17 +3524,19 @@ class IRCompiler(IRCompilerBase):
                                     right_type = right_type.pointers[
                                         'std::id'].target
                                 right_type = types.pg_type_from_atom(
-                                    context.current.proto_schema,
-                                    right_type,
+                                    context.current.proto_schema, right_type,
                                     topbase=True)
-                            elif (not isinstance(right_type, s_obj.ProtoObject)
-                                  and (not isinstance(right_type, tuple) or
-                                       not isinstance(right_type[1],
-                                                      s_obj.ProtoObject))):
+                            elif (
+                                    not isinstance(
+                                        right_type, s_obj.ProtoObject) and
+                                    (not isinstance(right_type, tuple) or
+                                     not isinstance(
+                                        right_type[1], s_obj.ProtoObject))):
                                 right_type = common.py_type_to_pg_type(
                                     right_type)
 
-                            if (left_type in ('text', 'varchar') and
+                            if (
+                                    left_type in ('text', 'varchar') and
                                     right_type in ('text', 'varchar') and
                                     op == ast.ops.ADD):
                                 op = '||'
@@ -3639,16 +3550,14 @@ class IRCompiler(IRCompilerBase):
                                         ConstantNode) and left_type == 'text':
                                     left.type = right_type
 
-                            if ((isinstance(right, pgsql.ast.ConstantNode) and
-                                 op in {ast.ops.IS, ast.ops.IS_NOT})):
+                            if ((
+                                    isinstance(right, pgsql.ast.ConstantNode)
+                                    and op in {ast.ops.IS, ast.ops.IS_NOT})):
                                 right.type = None
 
                         result = pgsql.ast.BinOpNode(
-                            op=op,
-                            left=left,
-                            right=right,
-                            aggregates=op_aggregates,
-                            strong=expr.strong)
+                            op=op, left=left, right=right,
+                            aggregates=op_aggregates, strong=expr.strong)
 
         elif isinstance(expr, irast.UnaryOp):
             operand = self._process_expr(context, expr.expr, cte)
@@ -3665,8 +3574,9 @@ class IRCompiler(IRCompilerBase):
             result = self._process_typecast(context, expr)
 
         elif isinstance(expr, irast.Sequence):
-            elements = [self._process_expr(context, e, cte)
-                        for e in expr.elements]
+            elements = [
+                self._process_expr(context, e, cte) for e in expr.elements
+            ]
             if expr.is_array:
                 result = pgsql.ast.ArrayNode(elements=elements)
             elif getattr(context.current, 'sequence_is_array', False):
@@ -3674,8 +3584,7 @@ class IRCompiler(IRCompilerBase):
             else:
                 if context.current.output_format == 'json':
                     elements.insert(
-                        0,
-                        pgsql.ast.ConstantNode(
+                        0, pgsql.ast.ConstantNode(
                             value=common.FREEFORM_RECORD_ID))
                 result = pgsql.ast.RowExprNode(args=elements)
 
@@ -3710,8 +3619,8 @@ class IRCompiler(IRCompilerBase):
 
             for ref in datarefs:
                 is_metaref = isinstance(expr, irast.MetaRef)
-                ref = self.get_cte_fieldref_for_set(context, ref, expr.name,
-                                                    is_metaref)
+                ref = self.get_cte_fieldref_for_set(
+                    context, ref, expr.name, is_metaref)
                 fieldrefs.append(ref)
 
             if len(fieldrefs) > 1:
@@ -3748,9 +3657,7 @@ class IRCompiler(IRCompilerBase):
             elif local_ref_map:
                 table = local_ref_map[expr.ref.link_proto]
                 fieldref = pgsql.ast.FieldRefNode(
-                    table=table,
-                    field=colname,
-                    origin=table,
+                    table=table, field=colname, origin=table,
                     origin_field=colname)
 
             else:
@@ -3767,8 +3674,8 @@ class IRCompiler(IRCompilerBase):
                 # domains and will fail to process a query with custom domains
                 # appearing as array elements.
                 #
-                prop = expr.ref.link_proto.getptr(context.current.proto_schema,
-                                                  expr.name)
+                prop = expr.ref.link_proto.getptr(
+                    context.current.proto_schema, expr.name)
                 pgtype = types.pg_type_from_atom(
                     context.current.proto_schema, prop.target, topbase=True)
                 pgtype = pgsql.ast.TypeNode(name=pgtype)
@@ -3784,7 +3691,8 @@ class IRCompiler(IRCompilerBase):
 
                 link_proto = expr.ptr_proto.source
 
-                if (localizable is not None and
+                if (
+                        localizable is not None and
                         link_proto.issubclass(localizable) and
                         link_proto.target.issubclass(str_t)):
                     lang = pgsql.ast.IdentNode(name='C')
@@ -3861,13 +3769,8 @@ class IRCompiler(IRCompilerBase):
 
         return condition
 
-    def _simple_join(self,
-                     context,
-                     left,
-                     right,
-                     key,
-                     type='inner',
-                     condition=None):
+    def _simple_join(
+            self, context, left, right, key, type='inner', condition=None):
         if condition is None:
             left_refs = left.bonds(key)[-1]
             right_refs = right.bonds(key)[-1]
@@ -3885,9 +3788,7 @@ class IRCompiler(IRCompilerBase):
         for edgedbnode, refs in source_rel.concept_node_map.items():
             for field, ref in refs.items():
                 refexpr = pgsql.ast.FieldRefNode(
-                    table=source_rel,
-                    field=ref.alias,
-                    origin=ref.expr.origin,
+                    table=source_rel, field=ref.alias, origin=ref.expr.origin,
                     origin_field=ref.expr.origin_field)
 
                 fieldref = pgsql.ast.SelectExprNode(
@@ -3902,8 +3803,7 @@ class IRCompiler(IRCompilerBase):
 
                 if field == 'std::id':
                     bondref = pgsql.ast.FieldRefNode(
-                        table=target_rel,
-                        field=ref.alias,
+                        table=target_rel, field=ref.alias,
                         origin=ref.expr.origin,
                         origin_field=ref.expr.origin_field)
                     target_rel.addbond(edgedbnode.id, bondref)
@@ -3913,9 +3813,7 @@ class IRCompiler(IRCompilerBase):
         for edgedblink, refs in source_rel.link_node_map.items():
             for field, ref in refs.items():
                 refexpr = pgsql.ast.FieldRefNode(
-                    table=source_rel,
-                    field=ref.alias,
-                    origin=ref.expr.origin,
+                    table=source_rel, field=ref.alias, origin=ref.expr.origin,
                     origin_field=ref.expr.origin_field)
 
                 fieldref = pgsql.ast.SelectExprNode(
@@ -3927,14 +3825,9 @@ class IRCompiler(IRCompilerBase):
                 context.current.link_node_map[edgedblink][
                     field].expr.table = target_rel
 
-    def edgedb_path_to_sql_path(self,
-                                context,
-                                root_cte,
-                                step_cte,
-                                edgedb_path_tip,
-                                sql_path_tip,
-                                link,
-                                weak=False):
+    def edgedb_path_to_sql_path(
+            self, context, root_cte, step_cte, edgedb_path_tip, sql_path_tip,
+            link, weak=False):
         """Generate a Common Table Expression for a given step in the path.
 
         @param context: parse context
@@ -3949,7 +3842,8 @@ class IRCompiler(IRCompilerBase):
 
         if link is not None:
             lp = link.link_proto
-            if (isinstance(lp.target, s_atoms.Atom) and lp.singular() and
+            if (
+                    isinstance(lp.target, s_atoms.Atom) and lp.singular() and
                     not lp.has_user_defined_properties()):
                 return
 
@@ -3967,13 +3861,11 @@ class IRCompiler(IRCompilerBase):
             if edgedb_path_tip.filter or edgedb_path_tip.rlink:
                 step_cte = pgsql.ast.CTENode(
                     concepts=frozenset({edgedb_path_tip.concept}),
-                    alias=cte_alias,
-                    edgedbnode=edgedb_path_tip)
+                    alias=cte_alias, edgedbnode=edgedb_path_tip)
             else:
                 step_cte = pgsql.ast.SelectQueryNode(
                     concepts=frozenset({edgedb_path_tip.concept}),
-                    alias=cte_alias,
-                    edgedbnode=edgedb_path_tip)
+                    alias=cte_alias, edgedbnode=edgedb_path_tip)
 
         ctemap = context.current.ctemap.setdefault(root_cte, {})
         ctemap[edgedb_path_tip] = step_cte
@@ -3983,15 +3875,13 @@ class IRCompiler(IRCompilerBase):
 
         id_field = common.edgedb_name_to_pg_name('std::id')
 
-        if edgedb_path_tip and isinstance(edgedb_path_tip.concept,
-                                          s_concepts.Concept):
+        if edgedb_path_tip and isinstance(
+                edgedb_path_tip.concept, s_concepts.Concept):
             concept_table = self._relation_from_concepts(
                 context, edgedb_path_tip, step_cte)
 
             bond = pgsql.ast.FieldRefNode(
-                table=concept_table,
-                field=id_field,
-                origin=concept_table,
+                table=concept_table, field=id_field, origin=concept_table,
                 origin_field=id_field)
             concept_table.addbond(edgedb_path_tip.id, bond)
 
@@ -4034,16 +3924,12 @@ class IRCompiler(IRCompilerBase):
             #
             src_col = common.edgedb_name_to_pg_name('std::source')
             source_ref = pgsql.ast.FieldRefNode(
-                table=map_rel,
-                field=src_col,
-                origin=map_rel,
+                table=map_rel, field=src_col, origin=map_rel,
                 origin_field=src_col)
 
             tgt_col = common.edgedb_name_to_pg_name('std::target')
             target_ref = pgsql.ast.FieldRefNode(
-                table=map_rel,
-                field=tgt_col,
-                origin=map_rel,
+                table=map_rel, field=tgt_col, origin=map_rel,
                 origin_field=tgt_col)
 
             valent_bond = join.bonds(link.source.id)[-1]
@@ -4064,14 +3950,14 @@ class IRCompiler(IRCompilerBase):
                     #
                     context.push()
                     context.current.location = 'linkfilter'
-                    context.current.link_node_map[
-                        link] = {'local_ref_map': {link_proto: map_rel}}
-                    propfilter_expr = self._process_expr(context,
-                                                         link.propfilter)
+                    context.current.link_node_map[link] = {
+                        'local_ref_map': {link_proto: map_rel}
+                    }
+                    propfilter_expr = self._process_expr(
+                        context, link.propfilter)
                     if propfilter_expr:
                         map_join_cond = pgsql.ast.BinOpNode(
-                            left=map_join_cond,
-                            op=ast.ops.AND,
+                            left=map_join_cond, op=ast.ops.AND,
                             right=propfilter_expr)
                     context.pop()
 
@@ -4081,12 +3967,8 @@ class IRCompiler(IRCompilerBase):
                 # Join link relation to source relation
                 #
                 join = self._simple_join(
-                    context,
-                    join,
-                    map_join,
-                    link.source.id,
-                    type=map_join_type,
-                    condition=map_join_cond)
+                    context, join, map_join, link.source.id,
+                    type=map_join_type, condition=map_join_cond)
 
                 step_cte.linkmap[linkmap_key] = map_rel, map_join
 
@@ -4095,9 +3977,7 @@ class IRCompiler(IRCompilerBase):
                 #
 
                 target_id_field = pgsql.ast.FieldRefNode(
-                    table=concept_table,
-                    field=id_field,
-                    origin=concept_table,
+                    table=concept_table, field=id_field, origin=concept_table,
                     origin_field=id_field)
 
                 if link.direction == s_pointers.PointerDirection.Inbound:
@@ -4123,12 +4003,8 @@ class IRCompiler(IRCompilerBase):
                 else:
                     pre_map_join = map_join.copy()
                     new_map_join = self._simple_join(
-                        context,
-                        pre_map_join,
-                        concept_table,
-                        edgedb_path_tip.id,
-                        type='inner',
-                        condition=cond_expr)
+                        context, pre_map_join, concept_table,
+                        edgedb_path_tip.id, type='inner', condition=cond_expr)
                     map_join.copyfrom(new_map_join)
 
                 join.updatebonds(concept_table)
@@ -4144,8 +4020,8 @@ class IRCompiler(IRCompilerBase):
                 #
                 self._pull_fieldrefs(context, step_cte, sql_path_tip)
 
-        if edgedb_path_tip and isinstance(edgedb_path_tip.concept,
-                                          s_concepts.Concept):
+        if edgedb_path_tip and isinstance(
+                edgedb_path_tip.concept, s_concepts.Concept):
             # Process references to atoms.
             #
             atomrefs = {'std::id'} | {f.name for f in edgedb_path_tip.atomrefs}
@@ -4157,21 +4033,21 @@ class IRCompiler(IRCompilerBase):
             concept = edgedb_path_tip.concept
             proto_schema = context.current.proto_schema
 
-            ref_map = {n: [concept_table]
-                       for n, p in concept.pointers.items() if p.atomic()}
+            ref_map = {
+                n: [concept_table]
+                for n, p in concept.pointers.items() if p.atomic()
+            }
             joined_atomref_sources = {concept: concept_table}
 
-            computables = context.current.computable_map.get(edgedb_path_tip,
-                                                             {})
+            computables = context.current.computable_map.get(
+                edgedb_path_tip, {})
 
             for field in atomrefs:
                 try:
                     atomref_tables = ref_map[field]
                 except KeyError:
                     sources = concept.get_ptr_sources(
-                        proto_schema,
-                        field,
-                        look_in_children=True,
+                        proto_schema, field, look_in_children=True,
                         strict_ancestry=True)
                     assert sources
 
@@ -4203,23 +4079,20 @@ class IRCompiler(IRCompilerBase):
                             joincond = pgsql.ast.BinOpNode(
                                 op='=', left=left, right=right)
                             fromnode.expr = self._simple_join(
-                                context,
-                                fromnode.expr,
-                                atomref_table,
-                                key=None,
-                                type='left',
-                                condition=joincond)
+                                context, fromnode.expr, atomref_table,
+                                key=None, type='left', condition=joincond)
                     ref_map[field] = atomref_tables = [
                         joined_atomref_sources[c] for c in sources
                     ]
 
                 colname = common.edgedb_name_to_pg_name(field)
 
-                fieldrefs = [pgsql.ast.FieldRefNode(
-                    table=atomref_table,
-                    field=colname,
-                    origin=atomref_table,
-                    origin_field=colname) for atomref_table in atomref_tables]
+                fieldrefs = [
+                    pgsql.ast.FieldRefNode(
+                        table=atomref_table, field=colname,
+                        origin=atomref_table, origin_field=colname)
+                    for atomref_table in atomref_tables
+                ]
                 aliases[field] = step_cte.alias + (
                     '_' + context.current.genalias(hint=str(field)))
 
@@ -4243,10 +4116,8 @@ class IRCompiler(IRCompilerBase):
                 # be pulled up later
                 #
                 refexpr = pgsql.ast.FieldRefNode(
-                    table=step_cte,
-                    field=selectnode.alias,
-                    origin=atomref_tables,
-                    origin_field=colname)
+                    table=step_cte, field=selectnode.alias,
+                    origin=atomref_tables, origin_field=colname)
                 selectnode = pgsql.ast.SelectExprNode(
                     expr=refexpr, alias=selectnode.alias)
                 context.current.concept_node_map[edgedb_path_tip][
@@ -4279,9 +4150,7 @@ class IRCompiler(IRCompilerBase):
                     raise ValueError(msg)
 
                 datatable = pgsql.ast.TableNode(
-                    name=metatable,
-                    schema='edgedb',
-                    concepts=None,
+                    name=metatable, schema='edgedb', concepts=None,
                     alias=context.current.genalias(hint='object'))
 
                 left = pgsql.ast.FieldRefNode(
@@ -4290,12 +4159,8 @@ class IRCompiler(IRCompilerBase):
                 joincond = pgsql.ast.BinOpNode(op='=', left=left, right=right)
 
                 fromnode.expr = self._simple_join(
-                    context,
-                    fromnode.expr,
-                    datatable,
-                    key=None,
-                    type='left' if weak else 'inner',
-                    condition=joincond)
+                    context, fromnode.expr, datatable, key=None, type='left'
+                    if weak else 'inner', condition=joincond)
 
             for metaref in metarefs:
                 if metaref == 'id':
@@ -4308,9 +4173,7 @@ class IRCompiler(IRCompilerBase):
                 ref_map[('schema', metaref)] = srctable
 
                 fieldref = pgsql.ast.FieldRefNode(
-                    table=srctable,
-                    field=metaref_name,
-                    origin=srctable,
+                    table=srctable, field=metaref_name, origin=srctable,
                     origin_field=metaref_name)
 
                 if metaref == 'title':
@@ -4334,9 +4197,7 @@ class IRCompiler(IRCompilerBase):
                 # to be pulled up later
                 #
                 refexpr = pgsql.ast.FieldRefNode(
-                    table=step_cte,
-                    field=selectnode.alias,
-                    origin=srctable,
+                    table=step_cte, field=selectnode.alias, origin=srctable,
                     origin_field=metaref_name)
                 selectnode = pgsql.ast.SelectExprNode(
                     expr=refexpr, alias=selectnode.alias)
@@ -4354,8 +4215,8 @@ class IRCompiler(IRCompilerBase):
             if isinstance(parent_expr, irast.InlineFilter):
                 expr = parent_expr.parent
                 if isinstance(expr, irast.BinOp):
-                    weak_filter = expr.op in (ast.ops.OR, ast.ops.IN,
-                                              ast.ops.NOT_IN)
+                    weak_filter = expr.op in (
+                        ast.ops.OR, ast.ops.IN, ast.ops.NOT_IN)
 
             context.push()
             context.current.location = 'nodefilter'
@@ -4382,14 +4243,12 @@ class IRCompiler(IRCompilerBase):
                 colname = prop_stor_info.column_name
 
                 fieldref = pgsql.ast.FieldRefNode(
-                    table=map_rel,
-                    field=colname,
-                    origin=map_rel,
+                    table=map_rel, field=colname, origin=map_rel,
                     origin_field=colname)
 
                 alias = str(link_proto.name) + str(propref.name)
-                alias = step_cte.alias + ('_' + context.current.genalias(
-                    hint=alias))
+                alias = step_cte.alias + (
+                    '_' + context.current.genalias(hint=alias))
                 selectnode = pgsql.ast.SelectExprNode(
                     expr=fieldref, alias=alias)
                 step_cte.targets.append(selectnode)
@@ -4400,9 +4259,7 @@ class IRCompiler(IRCompilerBase):
                 # Record references in the global map in case they have to be
                 # pulled up later.
                 refexpr = pgsql.ast.FieldRefNode(
-                    table=step_cte,
-                    field=selectnode.alias,
-                    origin=map_rel,
+                    table=step_cte, field=selectnode.alias, origin=map_rel,
                     origin_field=colname)
                 selectnode = pgsql.ast.SelectExprNode(
                     expr=refexpr, alias=selectnode.alias)
@@ -4422,8 +4279,8 @@ class IRCompiler(IRCompilerBase):
         if is_root:
             step_cte.fromlist.append(fromnode)
 
-        if edgedb_path_tip and isinstance(edgedb_path_tip.concept,
-                                          s_concepts.Concept):
+        if edgedb_path_tip and isinstance(
+                edgedb_path_tip.concept, s_concepts.Concept):
             step_cte._source_graph = edgedb_path_tip
 
             has_bonds = step_cte.bonds(edgedb_path_tip.id)
@@ -4448,27 +4305,23 @@ class IRCompiler(IRCompilerBase):
         fromnode = pgsql.ast.FromExprNode()
         cte.fromlist.append(fromnode)
 
-        concept_table = self._relation_from_concepts(context, edgedb_path_tip,
-                                                     sql_path_tip)
+        concept_table = self._relation_from_concepts(
+            context, edgedb_path_tip, sql_path_tip)
 
         field_name = 'std::id'
         innerref = pgsql.ast.FieldRefNode(
-            table=concept_table,
-            field=field_name,
-            origin=concept_table,
+            table=concept_table, field=field_name, origin=concept_table,
             origin_field=field_name)
         outerref = self.get_cte_fieldref_for_set(
-            context,
-            edgedb_path_tip,
-            field_name,
+            context, edgedb_path_tip, field_name,
             map=sql_path_tip.concept_node_map)
 
         bond = (innerref, outerref)
         concept_table.addbond(edgedb_path_tip.id, bond)
         fromnode.expr = concept_table
 
-        target = pgsql.ast.SelectExprNode(expr=pgsql.ast.ConstantNode(
-            value=True))
+        target = pgsql.ast.SelectExprNode(
+            expr=pgsql.ast.ConstantNode(value=True))
         cte.targets.append(target)
 
         return cte
@@ -4478,8 +4331,8 @@ class IRCompiler(IRCompilerBase):
 
         flt = lambda i: set(('selector', 'sorter', 'grouper')) & i.users
         if link.target:
-            target_sets = {link.target} | set(
-                getattr(link.target, 'joins', ()))
+            target_sets = {link.target
+                           } | set(getattr(link.target, 'joins', ()))
             target_outside_generator = bool(list(filter(flt, target_sets)))
         else:
             target_outside_generator = False
@@ -4488,24 +4341,20 @@ class IRCompiler(IRCompilerBase):
 
         cardinality_ok = (
             context.current.ignore_cardinality or target_outside_generator or
-            link_outside_generator or
-            (link.direction == s_pointers.PointerDirection.Outbound and
-             link_proto.mapping in
-             (s_links.LinkMapping.OneToOne, s_links.LinkMapping.ManyToOne)) or
-            (link.direction == s_pointers.PointerDirection.Inbound and
-             link_proto.mapping in
-             (s_links.LinkMapping.OneToOne, s_links.LinkMapping.OneToMany)))
+            link_outside_generator or (
+                link.direction == s_pointers.PointerDirection.Outbound and
+                link_proto.mapping in
+                (s_links.LinkMapping.OneToOne, s_links.LinkMapping.ManyToOne))
+            or (
+                link.direction == s_pointers.PointerDirection.Inbound and
+                link_proto.mapping in
+                (s_links.LinkMapping.OneToOne, s_links.LinkMapping.OneToMany)))
 
         return cardinality_ok
 
-    def _process_conjunction(self,
-                             context,
-                             cte,
-                             sql_path_tip,
-                             edgedb_path_tip,
-                             conjunction,
-                             parent_cte,
-                             weak=False):
+    def _process_conjunction(
+            self, context, cte, sql_path_tip, edgedb_path_tip, conjunction,
+            parent_cte, weak=False):
         sql_path = sql_path_tip
 
         for link in conjunction.paths:
@@ -4522,8 +4371,8 @@ class IRCompiler(IRCompilerBase):
                         context, item_cte, parent_cte, link_target, sql_path,
                         link, weak)
 
-                    sql_path = self._process_path(context, item_cte, sql_path,
-                                                  link_target, weak)
+                    sql_path = self._process_path(
+                        context, item_cte, sql_path, link_target, weak)
                 else:
                     item_cte = self.init_filter_cte(
                         context, parent_cte or sql_path_tip, edgedb_path_tip)
@@ -4538,17 +4387,17 @@ class IRCompiler(IRCompilerBase):
                             context, item_cte, item_cte, link_target, sql_path,
                             link, weak)
 
-                        self._process_path(context, item_cte, sql_path,
-                                           link_target, weak)
+                        self._process_path(
+                            context, item_cte, sql_path, link_target, weak)
                         sql_path = sql_path_tip
             else:
-                sql_path = self._process_path(context, cte, sql_path, link,
-                                              weak)
+                sql_path = self._process_path(
+                    context, cte, sql_path, link, weak)
 
         return sql_path
 
-    def _process_disjunction(self, context, cte, sql_path_tip, edgedb_path_tip,
-                             disjunction):
+    def _process_disjunction(
+            self, context, cte, sql_path_tip, edgedb_path_tip, disjunction):
         need_union = False
         sql_paths = []
 
@@ -4561,19 +4410,14 @@ class IRCompiler(IRCompilerBase):
 
                 if self._check_join_cardinality(context, link):
                     sql_path = self.edgedb_path_to_sql_path(
-                        context,
-                        item_cte,
-                        sql_path_tip,
-                        link_target,
-                        sql_path_tip,
-                        link,
-                        weak=True)
+                        context, item_cte, sql_path_tip, link_target,
+                        sql_path_tip, link, weak=True)
                     sql_path = self._process_path(
                         context, item_cte, sql_path, link_target, weak=True)
                     sql_paths.append(sql_path)
                 else:
-                    item_cte = self.init_filter_cte(context, sql_path_tip,
-                                                    edgedb_path_tip)
+                    item_cte = self.init_filter_cte(
+                        context, sql_path_tip, edgedb_path_tip)
                     pred = pgsql.ast.ExistsNode(expr=item_cte)
                     op = ast.ops.OR
                     sql_path_tip.where_weak = self.extend_predicate(
@@ -4582,29 +4426,16 @@ class IRCompiler(IRCompilerBase):
                     with context(TransformerContext.NEW):
                         context.current.ignore_cardinality = True
                         sql_path = self.edgedb_path_to_sql_path(
-                            context,
-                            item_cte,
-                            item_cte,
-                            link_target,
-                            sql_path_tip,
-                            link,
-                            weak=True)
+                            context, item_cte, item_cte, link_target,
+                            sql_path_tip, link, weak=True)
 
                         self._process_path(
-                            context,
-                            item_cte,
-                            sql_path,
-                            link_target,
+                            context, item_cte, sql_path, link_target,
                             weak=True)
 
             elif isinstance(link, irast.Conjunction):
                 sql_path = self._process_conjunction(
-                    context,
-                    cte,
-                    sql_path_tip,
-                    edgedb_path_tip,
-                    link,
-                    None,
+                    context, cte, sql_path_tip, edgedb_path_tip, link, None,
                     weak=True)
                 sql_paths.append(sql_path)
                 need_union = True
@@ -4619,21 +4450,14 @@ class IRCompiler(IRCompilerBase):
 
         return result
 
-    def _process_path(self,
-                      context,
-                      root_cte,
-                      sql_path_tip,
-                      edgedb_path_tip,
-                      weak=False):
+    def _process_path(
+            self, context, root_cte, sql_path_tip, edgedb_path_tip,
+            weak=False):
         if not sql_path_tip and isinstance(edgedb_path_tip, irast.EntitySet):
             # Bootstrap the SQL path
             sql_path_tip = self.edgedb_path_to_sql_path(
-                context,
-                root_cte,
-                step_cte=None,
-                edgedb_path_tip=edgedb_path_tip,
-                sql_path_tip=None,
-                link=None)
+                context, root_cte, step_cte=None,
+                edgedb_path_tip=edgedb_path_tip, sql_path_tip=None, link=None)
 
         if isinstance(edgedb_path_tip, irast.Disjunction):
             disjunction = edgedb_path_tip
@@ -4668,10 +4492,10 @@ class IRCompiler(IRCompilerBase):
             else:
                 sql_paths = []
                 for link in disjunction.paths:
-                    if isinstance(link,
-                                  (irast.EntitySet, irast.PathCombination)):
-                        sql_path = self._process_path(context, root_cte, None,
-                                                      link)
+                    if isinstance(
+                            link, (irast.EntitySet, irast.PathCombination)):
+                        sql_path = self._process_path(
+                            context, root_cte, None, link)
                         sql_paths.append(sql_path)
                     else:
                         assert False, 'unexpected expression type in ' \
@@ -4754,13 +4578,12 @@ class IRCompiler(IRCompilerBase):
                         fieldref = joinmap[edgedbnode].get(field)
 
                         if fieldref:
-                            if isinstance(fieldref.expr,
-                                          pgsql.ast.ConstantNode):
+                            if isinstance(
+                                    fieldref.expr, pgsql.ast.ConstantNode):
                                 selexpr = fieldref
                             else:
                                 fieldref = pgsql.ast.FieldRefNode(
-                                    table=sqlpath,
-                                    field=fieldref.alias,
+                                    table=sqlpath, field=fieldref.alias,
                                     origin=fieldref.expr.origin,
                                     origin_field=fieldref.expr.origin_field)
                                 selexpr = pgsql.ast.SelectExprNode(
@@ -4789,8 +4612,10 @@ class IRCompiler(IRCompilerBase):
                         field] = selexpr
 
             path_concepts = sqlpath.concepts.union(
-                *[c.children(context.current.proto_schema)
-                  for c in sqlpath.concepts])
+                *[
+                    c.children(context.current.proto_schema)
+                    for c in sqlpath.concepts
+                ])
             if concepts is None:
                 concepts = path_concepts.copy()
                 concept_filter = None
@@ -4806,9 +4631,7 @@ class IRCompiler(IRCompilerBase):
                         sqlpath.edgedbnode].get(('schema', 'name'))
                     if not concept_name_ref:
                         datatable = pgsql.ast.TableNode(
-                            name='object',
-                            schema='edgedb',
-                            concepts=None,
+                            name='object', schema='edgedb', concepts=None,
                             alias=context.current.genalias(hint='object'))
                         query.fromlist.append(
                             pgsql.ast.FromExprNode(expr=datatable))
@@ -4819,21 +4642,23 @@ class IRCompiler(IRCompilerBase):
                             table=datatable, field='id')
                         whereexpr = pgsql.ast.BinOpNode(
                             op='=', left=left.expr, right=right)
-                        query.where = self.extend_predicate(query.where,
-                                                            whereexpr)
+                        query.where = self.extend_predicate(
+                            query.where, whereexpr)
                         concept_name_ref = pgsql.ast.FieldRefNode(
                             table=datatable, field='name')
                     else:
                         concept_name_ref = concept_name_ref.expr
 
                     left = concept_name_ref
-                    values = [pgsql.ast.ConstantNode(value=str(c.name))
-                              for c in concept_filter]
+                    values = [
+                        pgsql.ast.ConstantNode(value=str(c.name))
+                        for c in concept_filter
+                    ]
                     right = pgsql.ast.SequenceNode(elements=values)
                     filterexpr = pgsql.ast.BinOpNode(
                         left=left, op='in', right=right)
-                    query.where = self.extend_predicate(query.where,
-                                                        filterexpr)
+                    query.where = self.extend_predicate(
+                        query.where, filterexpr)
 
             union.append(query)
 

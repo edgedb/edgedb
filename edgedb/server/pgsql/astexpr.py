@@ -5,13 +5,9 @@
 # See LICENSE for details.
 ##
 
-
-from edgedb.lang.common.functional import adapter
-
-from edgedb.lang.common import ast
 from edgedb.lang.common.ast import match as astmatch
 from . import ast as pgast
-from  . import astmatch as pgastmatch
+from . import astmatch as pgastmatch
 
 
 class ConstantExpr:
@@ -21,11 +17,9 @@ class ConstantExpr:
     def get_pattern(self):
         if self.pattern is None:
             self.pattern = astmatch.Or(
-                               astmatch.group('value', pgastmatch.ConstantNode()),
-                               pgastmatch.TypeCastNode(
-                                   expr=astmatch.group('value', pgastmatch.ConstantNode())
-                               )
-                           )
+                astmatch.group('value', pgastmatch.ConstantNode()),
+                pgastmatch.TypeCastNode(
+                    expr=astmatch.group('value', pgastmatch.ConstantNode())))
         return self.pattern
 
     def match(self, tree):
@@ -42,54 +36,40 @@ class TextSearchExpr:
 
     def get_pattern(self):
         if self.pattern is None:
-            tscol = astmatch.group('column', pgastmatch.FunctionCallNode(
-                        name='setweight',
-                        args=[
-                            pgastmatch.FunctionCallNode(
-                                name='to_tsvector',
-                                args=[
-                                    astmatch.group('language', pgastmatch.ConstantNode()),
-
-                                    astmatch.Or(
-                                        pgastmatch.FunctionCallNode(
-                                            name='coalesce',
-                                            args=[
-                                                astmatch.Or(
-                                                    astmatch.group('column_name',
-                                                        pgastmatch.FieldRefNode()),
-
-                                                    pgastmatch.TypeCastNode(
-                                                        expr=astmatch.group('column_name',
-                                                                pgastmatch.FieldRefNode())
-                                                    )
-                                                ),
-
+            tscol = astmatch.group(
+                'column', pgastmatch.FunctionCallNode(
+                    name='setweight', args=[
+                        pgastmatch.FunctionCallNode(
+                            name='to_tsvector', args=[
+                                astmatch.group(
+                                    'language', pgastmatch.ConstantNode()),
+                                astmatch.Or(
+                                    pgastmatch.FunctionCallNode(
+                                        name='coalesce', args=[
+                                            astmatch.Or(
+                                                astmatch.group(
+                                                    'column_name',
+                                                    pgastmatch.FieldRefNode()),
+                                                pgastmatch.TypeCastNode(
+                                                    expr=astmatch.group(
+                                                        'column_name',
+                                                        pgastmatch.
+                                                        FieldRefNode()))),
+                                            pgastmatch.ConstantNode()
+                                        ]),
+                                    pgastmatch.TypeCastNode(
+                                        expr=pgastmatch.FunctionCallNode(
+                                            name='coalesce', args=[
+                                                astmatch.group(
+                                                    'column_name',
+                                                    pgastmatch.FieldRefNode()),
                                                 pgastmatch.ConstantNode()
-                                            ]
-                                        ),
+                                            ])))
+                            ]),
+                        astmatch.group('weight', pgastmatch.ConstantNode())
+                    ]))
 
-                                        pgastmatch.TypeCastNode(
-                                            expr=pgastmatch.FunctionCallNode(
-                                                name='coalesce',
-                                                args=[
-                                                    astmatch.group('column_name',
-                                                                   pgastmatch.FieldRefNode()),
-                                                    pgastmatch.ConstantNode()
-                                                ]
-                                            )
-                                       )
-                                   )
-                               ]
-                           ),
-                           astmatch.group('weight', pgastmatch.ConstantNode())
-                        ]
-                    ))
-
-            binop1 = pgastmatch.BinOpNode(
-                        op='||',
-                        left=tscol,
-                        right=tscol
-                     )
+            binop1 = pgastmatch.BinOpNode(op='||', left=tscol, right=tscol)
 
             binop1.left = astmatch.Or(tscol, binop1)
 
@@ -120,7 +100,7 @@ class TypeExpr:
     def get_pattern(self):
         if self.pattern is None:
             self.pattern = pgastmatch.TypeCastNode(
-                                type=astmatch.group('value', pgastmatch.TypeNode()))
+                type=astmatch.group('value', pgastmatch.TypeNode()))
         return self.pattern
 
     def match(self, tree):

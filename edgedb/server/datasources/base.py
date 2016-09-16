@@ -5,10 +5,8 @@
 # See LICENSE for details.
 ##
 
-
 import copyreg
 import uuid
-
 
 from importkit import meta as lang_meta
 from importkit.import_ import get_object
@@ -85,13 +83,17 @@ class Datasource(metaclass=DatasourceMeta):
                 try:
                     value = self.check_type(name, value, config['type'])
                 except ValueError as e:
-                    raise DatasourceError('datatype check failed, param: @name=%s, @value=%s, expected type: %s' %
-                                          (name, value, config['type'])) from e
+                    raise DatasourceError(
+                        'datatype check failed, param: @name={}, @value={}, '
+                        'expected type: {}'.format(
+                            name, value, config['type'])) from e
             else:
                 if 'default' in config:
-                    value = self.coerce_default_value(name, config['default'], config['type'])
+                    value = self.coerce_default_value(
+                        name, config['default'], config['type'])
                 else:
-                    raise DatasourceError('expected required param: @name=%s' % name)
+                    raise DatasourceError(
+                        'expected required param: @name=%s' % name)
 
             filtered[name] = value
 
@@ -102,7 +104,8 @@ class Datasource(metaclass=DatasourceMeta):
                 if name not in self.params:
                     filtered['__filter%s' % name] = value
                 else:
-                    filtered[name] = self.check_type(name, value, self.params[name]['type'])
+                    filtered[name] = self.check_type(
+                        name, value, self.params[name]['type'])
                     del extra_filters[name]
         else:
             extra_filters = None
@@ -126,14 +129,17 @@ def _restore_datasource(metacls, name, module, bases, proto):
 
 
 def reduce_datasource(cls, restore=_restore_datasource):
-    bases = tuple('{}.{}'.format(b.__module__, b.__name__) for b in cls.__bases__)
+    bases = tuple(
+        '{}.{}'.format(b.__module__, b.__name__) for b in cls.__bases__)
     mro = type(cls).__mro__
     for metacls in mro:
         if not issubclass(metacls, lang_meta.Object):
             break
     else:
         raise TypeError('{!r} is not a field component class')
-    return restore, (metacls, cls.__name__, cls.__module__, bases, cls.descriptor)
+    return restore, (
+        metacls, cls.__name__, cls.__module__, bases, cls.descriptor)
+
 
 copyreg.pickle(DatasourceMeta, reduce_datasource)
 

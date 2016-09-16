@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import weakref
 
 from edgedb.lang.common import datastructures, ast
@@ -15,55 +14,71 @@ from edgedb.lang.edgeql import ast as qlast
 class Base(ast.AST):
     pass
 
+
 class ArgListNode(Base):
     __fields = ['name', ('args', list)]
+
 
 class BinOpNode(Base):
     __fields = ['left', 'op', 'right', ('aggregates', bool), ('strong', bool)]
 
+
 class VarNode(Base):
     __fields = ['name']
+
 
 class IdentNode(Base):
     __fields = ['name']
 
+
 class PathVarNode(VarNode):
     pass
+
 
 class LiteralExprNode(Base):
     __fields = ['expr']
 
+
 class ConstantNode(Base):
     __fields = ['value', 'index', 'expr', 'type', 'origin_field']
+
 
 class UnaryOpNode(Base):
     __fields = ['op', 'operand']
 
+
 class PostfixOpNode(Base):
     __fields = ['op', 'operand']
+
 
 class PredicateNode(Base):
     __fields = [('expr', Base, None)]
 
+
 class NullTestNode(Base):
     __fields = [('expr', Base)]
+
 
 class SelectExprNode(Base):
     __fields = ['expr', 'alias', 'filter_expr']
 
+
 class FromExprNode(Base):
     __fields = ['expr', 'alias']
+
 
 class FuncAliasNode(Base):
     __fields = ['alias', 'elements']
 
+
 class TableFuncElement(Base):
     __fields = ['name', 'type']
 
+
 class RelationNode(Base):
-    __fields = [('concepts', frozenset), 'alias', ('_bonds', dict), 'edgedbnode',
-                ('outerbonds', list), ('proxyouterbonds', dict), ('aggregates', bool),
-                'coldef']
+    __fields = [('concepts', frozenset), 'alias', ('_bonds', dict),
+                'edgedbnode', ('outerbonds', list), ('proxyouterbonds', dict),
+                ('aggregates', bool), 'coldef']
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -105,54 +120,69 @@ class TableQueryNode(RelationNode):
 
 
 class SelectQueryNode(RelationNode):
-    __fields = ['distinct', ('fromlist', list), ('targets', list),
-                'where', 'where_weak', 'where_strong',
-                ('from_only', bool),
-                ('values', list),
-                ('orderby', list), 'offset', 'limit', ('groupby', list), 'having',
-                ('ctes', datastructures.OrderedSet),
-                ('concept_node_map', dict), ('link_node_map', dict), ('linkmap', dict),
-                ('subquery_referrers', list),
-                'op', 'larg', 'rarg', 'recursive', 'text_override']
+    __fields = [
+        'distinct', ('fromlist', list), ('targets', list), 'where',
+        'where_weak', 'where_strong', ('from_only', bool), ('values', list),
+        ('orderby', list), 'offset', 'limit', ('groupby', list), 'having',
+        ('ctes', datastructures.OrderedSet), ('concept_node_map', dict),
+        ('link_node_map', dict), ('linkmap', dict),
+        ('subquery_referrers', list), 'op', 'larg', 'rarg', 'recursive',
+        'text_override'
+    ]
 
 
 class DMLNode(Base):
     pass
 
+
 class OnConflictNode(Base):
     __fields = ['action', 'infer', ('targets', list), 'where']
 
+
 class InsertQueryNode(DMLNode):
-    __fields = ['fromexpr', ('cols', list), 'select', ('targets', list),
-                ('subquery_referrers', list), 'alias',
-                ('ctes', datastructures.OrderedSet),
-                ('on_conflict', OnConflictNode, None)]
+    __fields = [
+        'fromexpr', ('cols', list), 'select', ('targets', list),
+        ('subquery_referrers', list), 'alias',
+        ('ctes', datastructures.OrderedSet),
+        ('on_conflict', OnConflictNode, None)
+    ]
+
 
 class UpdateQueryNode(DMLNode):
-    __fields = ['fromexpr', ('values', list), 'where', ('targets', list),
-                ('subquery_referrers', list),
-                ('ctes', datastructures.OrderedSet), 'alias']
+    __fields = [
+        'fromexpr', ('values', list), 'where', ('targets', list),
+        ('subquery_referrers', list), ('ctes', datastructures.OrderedSet),
+        'alias'
+    ]
+
 
 class UpdateExprNode(Base):
     __fields = ['expr', 'value']
 
+
 class DeleteQueryNode(DMLNode):
-    __fields = ['fromexpr', 'where', ('targets', list),
-                ('subquery_referrers', list), ('ctes', datastructures.OrderedSet),
-                'alias', ('using', list)]
+    __fields = [
+        'fromexpr', 'where', ('targets', list), ('subquery_referrers', list),
+        ('ctes', datastructures.OrderedSet), 'alias', ('using', list)
+    ]
+
 
 class CompositeNode(RelationNode):
     __fields = [('queries', list), ('ctes', datastructures.OrderedSet),
                 ('concept_node_map', dict)]
 
+
 class CTENode(SelectQueryNode):
     __fields = [('referrers', weakref.WeakSet)]
+
 
 class CTERefNode(Base):
     __fields = ['cte']
 
+
 class CTEAttrRefNode(Base):
     __fields = ['cte', 'attr']
+
 
 class JoinNode(RelationNode):
     __fields = ['left', 'right', 'condition', 'type']
@@ -172,21 +202,29 @@ class JoinNode(RelationNode):
 class ExistsNode(Base):
     __fields = ['expr']
 
+
 class FieldRefNode(Base):
     __fields = ['table', 'field', 'origin', 'origin_field', 'indirection']
+
 
 class SequenceNode(Base):
     __fields = [('elements', list)]
 
+
 class SortExprNode(Base):
     __fields = ['expr', 'direction', 'nulls_order']
 
+
 class FunctionCallNode(Base):
-    __fields = ['name', ('args', list), 'over', ('aggregates', bool), ('noparens', bool),
-                'agg_sort', 'agg_filter']
+    __fields = [
+        'name', ('args', list), 'over', ('aggregates', bool),
+        ('noparens', bool), 'agg_sort', 'agg_filter'
+    ]
+
 
 class WindowDefNode(Base):
     __fields = ['partition', ('orderby', list), 'frame']
+
 
 class IgnoreNode(Base):
     pass
@@ -199,20 +237,26 @@ class ArrayNode(Base):
 class TypeCastNode(Base):
     __fields = ['expr', 'type']
 
+
 class ParamRefNode(Base):
     __fields = ['param']
+
 
 class IndirectionNode(Base):
     __fields = ['expr', 'indirection']
 
+
 class RowExprNode(Base):
     __fields = [('args', list), 'origin_field']
+
 
 class TypeNode(Base):
     __fields = ['name', 'typmods', 'array_bounds', ('setof', bool)]
 
+
 class StarIndirectionNode(Base):
     pass
+
 
 class IndexIndirectionNode(Base):
     __fields = ['lower', 'upper']
@@ -249,18 +293,18 @@ IS_NOT_DISTINCT = PgSQLComparisonOperator('IS NOT DISTINCT')
 IS_OF = PgSQLComparisonOperator('IS OF')
 IS_NOT_OF = PgSQLComparisonOperator('IS NOT OF')
 
+
 class PgSQLSetOperator(PgSQLOperator):
     pass
+
 
 UNION = PgSQLSetOperator('UNION')
 INTERSECT = PgSQLSetOperator('INTERSECT')
 EXCEPT = PgSQLSetOperator('EXCEPT')
 
-
 SortAsc = qlast.SortAsc
 SortDesc = qlast.SortDesc
 SortDefault = qlast.SortDefault
-
 
 NullsFirst = qlast.NonesFirst
 NullsLast = qlast.NonesLast

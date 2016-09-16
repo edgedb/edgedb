@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import json
 
 from .. import common
@@ -22,23 +21,27 @@ class TriggerExists(base.Condition):
         self.table_name = table_name
 
     async def code(self, context):
-        code = '''SELECT
-                        tg.tgname
-                    FROM
-                        pg_catalog.pg_trigger tg
-                        INNER JOIN pg_catalog.pg_class tab ON (tab.oid = tg.tgrelid)
-                        INNER JOIN pg_catalog.pg_namespace ns ON (ns.oid = tab.relnamespace)
-                    WHERE
-                        tab.relname = $3 AND ns.nspname = $2 AND tg.tgname = $1
-                '''
+        code = '''
+            SELECT
+                tg.tgname
+            FROM
+                pg_catalog.pg_trigger tg
+                INNER JOIN pg_catalog.pg_class tab
+                    ON (tab.oid = tg.tgrelid)
+                INNER JOIN pg_catalog.pg_namespace ns
+                    ON (ns.oid = tab.relnamespace)
+            WHERE
+                tab.relname = $3 AND ns.nspname = $2 AND tg.tgname = $1
+        '''
 
-        return code, (self.trigger_name,) + self.table_name
+        return code, (self.trigger_name, ) + self.table_name
 
 
 class Trigger(tables.InheritableTableObject):
-    def __init__(self, name, *, table_name, events, timing='after',
-                       granularity='row', procedure, condition=None,
-                       is_constraint=False, inherit=False, metadata=None):
+    def __init__(
+            self, name, *, table_name, events, timing='after',
+            granularity='row', procedure, condition=None, is_constraint=False,
+            inherit=False, metadata=None):
         super().__init__(inherit=inherit, metadata=metadata)
 
         self.name = name
@@ -51,8 +54,8 @@ class Trigger(tables.InheritableTableObject):
         self.is_constraint = is_constraint
 
         if is_constraint and granularity != 'row':
-            msg = 'invalid granularity for constraint trigger: {}'\
-                      .format(granularity)
+            msg = 'invalid granularity for ' \
+                  'constraint trigger: {}'.format(granularity)
             raise ValueError(msg)
 
     def rename(self, new_name):
@@ -62,8 +65,8 @@ class Trigger(tables.InheritableTableObject):
         return 'TRIGGER'
 
     def get_id(self):
-        return '{} ON {}'.format(common.quote_ident(self.name),
-                                 common.qname(*self.table_name))
+        return '{} ON {}'.format(
+            common.quote_ident(self.name), common.qname(*self.table_name))
 
     def get_oid(self):
         qry = '''
@@ -80,14 +83,15 @@ class Trigger(tables.InheritableTableObject):
                 AND nspname = $2
                 AND relname = $3
         '''
-        params = (self.name,) + self.table_name
+        params = (self.name, ) + self.table_name
 
         return base.Query(text=qry, params=params)
 
     @classmethod
     def from_introspection(cls, table_name, trigger_data):
-        (id, name, proc, constraint, granularity, timing,
-         events, definition, metadata) = trigger_data
+        (
+            id, name, proc, constraint, granularity, timing, events,
+            definition, metadata) = trigger_data
 
         if metadata:
             metadata = json.loads(metadata)
@@ -112,38 +116,31 @@ class Trigger(tables.InheritableTableObject):
                         brackets += 1
                     pos += 1
 
-                condition = definition[when_off+6:pos-1]
+                condition = definition[when_off + 6:pos - 1]
 
-        trg = cls(name=name, table_name=table_name,
-                  events=events, timing=timing,
-                  granularity=granularity, procedure=proc,
-                  condition=condition,
-                  is_constraint=bool(constraint),
-                  metadata=metadata)
+        trg = cls(
+            name=name, table_name=table_name, events=events, timing=timing,
+            granularity=granularity, procedure=proc, condition=condition,
+            is_constraint=bool(constraint), metadata=metadata)
 
         return trg
 
     def copy(self):
         return self.__class__(
-            name=self.name,
-            table_name=self.table_name,
-            events=self.events,
-            timing=self.timing,
-            granularity=self.granularity,
-            procedure=self.procedure,
-            condition=self.condition,
-            is_constraint=self.is_constraint,
-            metadata=self.metadata.copy()
-        )
+            name=self.name, table_name=self.table_name, events=self.events,
+            timing=self.timing, granularity=self.granularity,
+            procedure=self.procedure, condition=self.condition,
+            is_constraint=self.is_constraint, metadata=self.metadata.copy())
 
     def __repr__(self):
-        return '<{mod}.{cls} {name} ON {table_name} {timing} {events}>'\
-                .format(mod=self.__class__.__module__,
-                        cls=self.__class__.__name__,
-                        name=self.name,
-                        table_name=common.qname(*self.table_name),
-                        timing=self.timing,
-                        events=' OR '.join(self.events))
+        return \
+            '<{mod}.{cls} {name} ON {table_name} {timing} {events}>'.format(
+                mod=self.__class__.__module__,
+                cls=self.__class__.__name__,
+                name=self.name,
+                table_name=common.qname(*self.table_name),
+                timing=self.timing,
+                events=' OR '.join(self.events))
 
 
 class CreateTrigger(tables.CreateInheritableTableObject):
@@ -151,8 +148,8 @@ class CreateTrigger(tables.CreateInheritableTableObject):
         super().__init__(object, **kwargs)
         self.trigger = object
         if conditional:
-            self.neg_conditions.add(TriggerExists(self.trigger.name,
-                                                  self.trigger.table_name))
+            self.neg_conditions.add(
+                TriggerExists(self.trigger.name, self.trigger.table_name))
 
     async def code(self, context):
         return '''
@@ -166,11 +163,10 @@ class CreateTrigger(tables.CreateInheritableTableObject):
             timing=self.trigger.timing,
             events=' OR '.join(self.trigger.events),
             table_name=common.qname(*self.trigger.table_name),
-            granularity=self.trigger.granularity,
-            condition=('WHEN ({})'.format(self.trigger.condition)
-                       if self.trigger.condition else ''),
-            procedure='{}()'.format(common.qname(*self.trigger.procedure))
-        )
+            granularity=self.trigger.granularity, condition=(
+                'WHEN ({})'.format(self.trigger.condition)
+                if self.trigger.condition else ''),
+            procedure='{}()'.format(common.qname(*self.trigger.procedure)))
 
 
 class AlterTriggerRenameTo(tables.RenameInheritableTableObject):
@@ -178,14 +174,14 @@ class AlterTriggerRenameTo(tables.RenameInheritableTableObject):
         super().__init__(object, **kwargs)
         self.trigger = object
         if conditional:
-            self.conditions.add(TriggerExists(self.trigger.name,
-                                              self.trigger.table_name))
+            self.conditions.add(
+                TriggerExists(self.trigger.name, self.trigger.table_name))
 
     async def code(self, context):
-        return 'ALTER TRIGGER %s ON %s RENAME TO %s' % \
-                (common.quote_ident(self.trigger.name),
-                 common.qname(*self.trigger.table_name),
-                 common.quote_ident(self.new_name))
+        return 'ALTER TRIGGER {} ON {} RENAME TO {}'.format(
+            common.quote_ident(self.trigger.name),
+            common.qname(*self.trigger.table_name),
+            common.quote_ident(self.new_name))
 
 
 class DropTrigger(tables.DropInheritableTableObject):
@@ -193,13 +189,13 @@ class DropTrigger(tables.DropInheritableTableObject):
         super().__init__(object, **kwargs)
         self.trigger = object
         if conditional:
-            self.conditions.add(TriggerExists(self.trigger.name,
-                                              self.trigger.table_name))
+            self.conditions.add(
+                TriggerExists(self.trigger.name, self.trigger.table_name))
 
     async def code(self, context):
-        return 'DROP TRIGGER %(trigger_name)s ON %(table_name)s' % \
-                {'trigger_name': common.quote_ident(self.trigger.name),
-                 'table_name': common.qname(*self.trigger.table_name)}
+        return 'DROP TRIGGER {trigger_name} ON {table_name}'.format(
+            trigger_name=common.quote_ident(self.trigger.name),
+            table_name=common.qname(*self.trigger.table_name))
 
 
 class DisableTrigger(ddl.DDLOperation):
@@ -209,16 +205,18 @@ class DisableTrigger(ddl.DDLOperation):
         self.self_only = self_only
 
     async def code(self, context):
-        return 'ALTER TABLE{only} {table_name} DISABLE TRIGGER {trigger_name}'\
-                .format(trigger_name=common.quote_ident(self.trigger.name),
-                        table_name=common.qname(*self.trigger.table_name),
-                        only=' ONLY' if self.self_only else '')
+        return \
+            'ALTER TABLE{only} {table_name} ' \
+            'DISABLE TRIGGER {trigger_name}'.format(
+                trigger_name=common.quote_ident(self.trigger.name),
+                table_name=common.qname(*self.trigger.table_name),
+                only=' ONLY' if self.self_only else '')
 
     def __repr__(self):
-        return '<{mod}.{cls} {trigger!r}>' \
-                .format(mod=self.__class__.__module__,
-                        cls=self.__class__.__name__,
-                        trigger=self.trigger)
+        return '<{mod}.{cls} {trigger!r}>'.format(
+            mod=self.__class__.__module__,
+            cls=self.__class__.__name__,
+            trigger=self.trigger)
 
 
 class DDLTriggerBase:
@@ -239,8 +237,8 @@ class DDLTriggerBase:
         return triggers
 
 
-class DDLTriggerCreateTable(ddl.DDLTrigger, tables.CreateTableDDLTriggerMixin,
-                                            DDLTriggerBase):
+class DDLTriggerCreateTable(
+        ddl.DDLTrigger, tables.CreateTableDDLTriggerMixin, DDLTriggerBase):
     operations = tables.CreateTable,
 
     @classmethod
@@ -250,12 +248,12 @@ class DDLTriggerCreateTable(ddl.DDLTrigger, tables.CreateTableDDLTriggerMixin,
             context, op, cls.get_inherited_triggers, CreateTrigger)
 
 
-class DDLTriggerAlterTable(ddl.DDLTrigger, tables.AlterTableDDLTriggerMixin,
-                                           DDLTriggerBase):
+class DDLTriggerAlterTable(
+        ddl.DDLTrigger, tables.AlterTableDDLTriggerMixin, DDLTriggerBase):
     operations = tables.AlterTable,
 
     @classmethod
     async def after(cls, context, op):
         return await cls.apply_inheritance(
-            context, op, cls.get_inherited_triggers,
-            CreateTrigger, DropTrigger)
+            context, op, cls.get_inherited_triggers, CreateTrigger,
+            DropTrigger)

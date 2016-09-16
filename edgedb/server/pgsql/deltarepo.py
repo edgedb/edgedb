@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 from edgedb.lang.schema import deltarepo
 from edgedb.lang.schema import delta as sd
 
@@ -22,12 +21,14 @@ class MetaDeltaRepository(deltarepo.MetaDeltaRepository):
     def delta_ref_to_id(self, ref):
         table = deltadbops.DeltaRefTable()
         condition = dbops.TableExists(table.name)
-        have_deltaref = condition.execute(delta.CommandContext(self.connection))
+        have_deltaref = condition.execute(
+            delta.CommandContext(self.connection))
 
         result = []
 
         if have_deltaref:
-            query = 'SELECT id FROM %s WHERE ref = $1' % common.qname(*table.name)
+            query = 'SELECT id FROM %s WHERE ref = $1' % common.qname(
+                *table.name)
 
             ps = self.connection.prepare(query)
 
@@ -40,7 +41,8 @@ class MetaDeltaRepository(deltarepo.MetaDeltaRepository):
 
             if ref.offset:
                 rev_id = '%x' % result
-                result = deltalog.DeltaLog(self.connection).fetch(rev_id=rev_id, offset=ref.offset)
+                result = deltalog.DeltaLog(self.connection).fetch(
+                    rev_id=rev_id, offset=ref.offset)
 
                 if not result:
                     raise sd.DeltaRefError('unknown revision: %s' % ref)

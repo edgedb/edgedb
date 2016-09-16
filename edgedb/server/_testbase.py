@@ -6,13 +6,11 @@ import pprint
 import textwrap
 import unittest
 
-
 from edgedb.server import cluster as edgedb_cluster
 from edgedb.client import exceptions as edgeclient_exc
 
 
 class TestCaseMeta(type(unittest.TestCase)):
-
     @staticmethod
     def _iter_methods(bases, ns):
         for base in bases:
@@ -52,7 +50,6 @@ class TestCaseMeta(type(unittest.TestCase)):
 
 
 class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
-
     def setUp(self):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(None)
@@ -102,12 +99,11 @@ class RollbackChanges:
 
 
 class ConnectedTestCase(ClusterTestCase):
-
     def setUp(self):
         super().setUp()
         self.con = self.loop.run_until_complete(
-            self.cluster.connect(database='edgedb0', user='edgedb',
-                                 loop=self.loop))
+            self.cluster.connect(
+                database='edgedb0', user='edgedb', loop=self.loop))
 
     def tearDown(self):
         try:
@@ -133,12 +129,11 @@ class DatabaseTestCase(ConnectedTestCase):
         self.admin_conn = self.con
         script = 'CREATE DATABASE edgedb_test;'
 
-        self.loop.run_until_complete(
-            self.admin_conn.execute(script))
+        self.loop.run_until_complete(self.admin_conn.execute(script))
 
         self.con = self.loop.run_until_complete(
-            self.cluster.connect(database='edgedb_test', user='edgedb',
-                                 loop=self.loop))
+            self.cluster.connect(
+                database='edgedb_test', user='edgedb', loop=self.loop))
 
         script = '\nCREATE MODULE test;'
 
@@ -153,8 +148,7 @@ class DatabaseTestCase(ConnectedTestCase):
         if self.SETUP:
             script += '\n' + self.SETUP
 
-        self.loop.run_until_complete(
-            self.con.execute(script))
+        self.loop.run_until_complete(self.con.execute(script))
 
     def tearDown(self):
         script = ''
@@ -164,8 +158,7 @@ class DatabaseTestCase(ConnectedTestCase):
 
         try:
             if script:
-                self.loop.run_until_complete(
-                    self.con.execute(script))
+                self.loop.run_until_complete(self.con.execute(script))
         finally:
             self.con.close()
             self.con = self.admin_conn
@@ -173,8 +166,7 @@ class DatabaseTestCase(ConnectedTestCase):
             script = 'DROP DATABASE edgedb_test;'
 
             try:
-                self.loop.run_until_complete(
-                    self.admin_conn.execute(script))
+                self.loop.run_until_complete(self.admin_conn.execute(script))
             finally:
                 super().tearDown()
 
@@ -264,8 +256,9 @@ class QueryTestCase(DatabaseTestCase, metaclass=QueryTestCaseMeta):
         def _assert_type_shape(data, shape):
             if shape in (int, float):
                 if not isinstance(data, shape):
-                    self.fail('{}: expected {}, got {!r}'.format(
-                        message, shape, data))
+                    self.fail(
+                        '{}: expected {}, got {!r}'.format(
+                            message, shape, data))
             else:
                 try:
                     shape(data)
@@ -305,8 +298,7 @@ class QueryTestCase(DatabaseTestCase, metaclass=QueryTestCaseMeta):
                 self.fail('{}: expected list'.format(message))
 
             if not data and shape:
-                self.fail(
-                    '{}: expected non-empty list'.format(message))
+                self.fail('{}: expected non-empty list'.format(message))
 
             shape_iter = _list_shape_iter(shape)
 
@@ -335,13 +327,12 @@ class QueryTestCase(DatabaseTestCase, metaclass=QueryTestCaseMeta):
                 return _assert_type_shape(data, shape)
             elif isinstance(shape, (str, int, float)):
                 if data != shape:
-                    self.fail(
-                        '{}: {} != {}'.format(message, data, shape))
+                    self.fail('{}: {} != {}'.format(message, data, shape))
             elif shape is None:
                 if data is not None:
                     self.fail(
-                        '{}: {!r} is expected to be None'.format(message, data)
-                    )
+                        '{}: {!r} is expected to be None'.format(
+                            message, data))
             else:
                 raise ValueError('unsupported shape type {}'.format(shape))
 

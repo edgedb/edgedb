@@ -5,14 +5,13 @@
 # See LICENSE for details.
 ##
 
-
-from . import atoms
-from . import attributes
-from . import backend_info
-from . import concepts
-from . import constraints
-from . import features
-from . import functions
-from . import links
-from . import modules
-from . import policy
+from . import atoms  # NOQA
+from . import attributes  # NOQA
+from . import backend_info  # NOQA
+from . import concepts  # NOQA
+from . import constraints  # NOQA
+from . import features  # NOQA
+from . import functions  # NOQA
+from . import links  # NOQA
+from . import modules  # NOQA
+from . import policy  # NOQA

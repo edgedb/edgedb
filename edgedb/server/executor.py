@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import asyncpg
 
 from edgedb.lang.schema import delta as s_delta

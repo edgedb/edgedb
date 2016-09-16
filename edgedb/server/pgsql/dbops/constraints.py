@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 from .. import common
 from . import base
 
@@ -28,9 +27,9 @@ class Constraint(base.DBObject):
             return self._subject_name
 
     def get_id(self):
-        return '{} ON {} {}'.format(self.constraint_name(),
-                                    self.get_subject_type(),
-                                    self.get_subject_name())
+        return '{} ON {} {}'.format(
+            self.constraint_name(), self.get_subject_type(),
+            self.get_subject_name())
 
     def constraint_name(self, quote=True):
         if quote and self._constraint_name:

@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import json
 
 import postgresql.string
@@ -83,8 +82,11 @@ class DDLOperation(base.Command):
 
 
 class SchemaObjectOperation(DDLOperation):
-    def __init__(self, name, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
+    def __init__(
+            self, name, *, conditions=None, neg_conditions=None, priority=0):
+        super().__init__(
+            conditions=conditions, neg_conditions=neg_conditions,
+            priority=priority)
 
         self.name = name
         self.opid = name
@@ -105,7 +107,8 @@ class Comment(DDLOperation):
         object_id = self.object.get_id()
 
         code = 'COMMENT ON {type} {id} IS {text}'.format(
-                    type=object_type, id=object_id, text=postgresql.string.quote_literal(self.text))
+            type=object_type, id=object_id,
+            text=postgresql.string.quote_literal(self.text))
 
         return code
 
@@ -157,19 +160,20 @@ class PutMetadata(DDLOperation):
         object_id = self.object.get_id()
 
         code = 'COMMENT ON {type} {id} IS {text}'.format(
-                    type=object_type, id=object_id,
-                    text=postgresql.string.quote_literal(desc))
+            type=object_type, id=object_id,
+            text=postgresql.string.quote_literal(desc))
 
         result = await base.Query(code).execute(context)
 
         return result
 
     def __repr__(self):
-        return '<{mod}.{cls} {object!r} {metadata!r}>' \
-                .format(mod=self.__class__.__module__,
-                        cls=self.__class__.__name__,
-                        object=self.object,
-                        metadata=self.metadata)
+        return \
+            '<{mod}.{cls} {object!r} {metadata!r}>'.format(
+                mod=self.__class__.__module__,
+                cls=self.__class__.__name__,
+                object=self.object,
+                metadata=self.metadata)
 
 
 class SetMetadata(PutMetadata):
@@ -181,8 +185,8 @@ class SetMetadata(PutMetadata):
         object_id = self.object.get_id()
 
         code = 'COMMENT ON {type} {id} IS {text}'.format(
-                    type=object_type, id=object_id,
-                    text=postgresql.string.quote_literal(desc))
+            type=object_type, id=object_id,
+            text=postgresql.string.quote_literal(desc))
 
         result = await base.Query(code).execute(context)
 
@@ -204,8 +208,8 @@ class UpdateMetadata(PutMetadata):
         object_id = self.object.get_id()
 
         code = 'COMMENT ON {type} {id} IS {text}'.format(
-                    type=object_type, id=object_id,
-                    text=postgresql.string.quote_literal(desc))
+            type=object_type, id=object_id,
+            text=postgresql.string.quote_literal(desc))
 
         result = await base.Query(code).execute(context)
 
@@ -241,8 +245,8 @@ class RenameObject(DDLOperation):
             if ops is None:
                 ops = []
 
-            mdata = UpdateMetadata(self.altered_object,
-                                   self.altered_object.metadata)
+            mdata = UpdateMetadata(
+                self.altered_object, self.altered_object.metadata)
             ops.append(mdata)
 
         return ops

@@ -5,17 +5,14 @@
 # See LICENSE for details.
 ##
 
-
 import bisect
 import collections
 import functools
 import importlib
-import itertools
 import json
-import os
 import pickle
+import postgresql
 import re
-import uuid
 
 from importkit.import_ import get_object
 
@@ -129,16 +126,18 @@ class Cursor:
 
 
 class Query(backend_query.Query):
-    def __init__(self, chunks, arg_index, argmap, result_types, argument_types,
-                 context_vars, scrolling_cursor=False, offset=None, limit=None,
-                 query_type=None, record_info=None, output_format=None):
+    def __init__(
+            self, chunks, arg_index, argmap, result_types, argument_types,
+            context_vars, scrolling_cursor=False, offset=None, limit=None,
+            query_type=None, record_info=None, output_format=None):
         self.chunks = chunks
         self.text = ''.join(chunks)
         self.argmap = argmap
         self.arg_index = arg_index
         self.result_types = result_types
-        self.argument_types = collections.OrderedDict(
-            (k, argument_types[k]) for k in argmap if k in argument_types)
+        self.argument_types = collections.OrderedDict((k, argument_types[k])
+                                                      for k in argmap
+                                                      if k in argument_types)
         self.context_vars = context_vars
 
         self.scrolling_cursor = scrolling_cursor
@@ -188,11 +187,10 @@ class PreparedQuery:
         else:
             text = query.text
 
-        exc_handler = functools.partial(ErrorMech._interpret_db_error,
-                                        self._session, self._constr_mech)
+        exc_handler = functools.partial(
+            ErrorMech._interpret_db_error, self._session, self._constr_mech)
         self.statement = session.get_prepared_statement(
-                            text, raw=not query.scrolling_cursor,
-                            exc_handler=exc_handler)
+            text, raw=not query.scrolling_cursor, exc_handler=exc_handler)
         self.init_args = args
 
         if query.record_info:
@@ -263,7 +261,8 @@ class PreparedQuery:
         for k in self.argmap:
             arg = kwargs.get(k)
 
-            if (isinstance(arg, tuple) and arg and
+            if (
+                    isinstance(arg, tuple) and arg and
                     isinstance(arg[0], type) and
                     isinstance(arg[0].__sx_prototype__, s_concepts.Concept)):
                 ids = set()
@@ -276,7 +275,8 @@ class PreparedQuery:
 
                 arg = ids
 
-            elif (isinstance(arg, type) and
+            elif (
+                    isinstance(arg, type) and
                     isinstance(arg.__sx_prototype__, s_concepts.Concept)):
                 proto = arg.__sx_prototype__
                 children = proto.descendants(arg.__sx_protoschema__)
@@ -312,15 +312,10 @@ class PreparedQuery:
 class ErrorMech:
     error_res = {
         asyncpg.IntegrityConstraintViolationError: collections.OrderedDict((
-            ('link_mapping',
-             re.compile(r'^.*".*_link_mapping_idx".*$')),
-            ('link_target',
-             re.compile(r'^.*link target constraint$')),
-            ('constraint',
-             re.compile(r'^.*;schemaconstr(?:#\d+)?".*$')),
-            ('id',
-             re.compile(r'^.*"(?:\w+)_data_pkey".*$')),
-        ))
+            ('link_mapping', re.compile(r'^.*".*_link_mapping_idx".*$')),
+            ('link_target', re.compile(r'^.*link target constraint$')),
+            ('constraint', re.compile(r'^.*;schemaconstr(?:#\d+)?".*$')),
+            ('id', re.compile(r'^.*"(?:\w+)_data_pkey".*$')), ))
     }
 
     @classmethod
@@ -432,8 +427,9 @@ class EdgeQLAdapter:
         self.transformer = IRCompiler()
         self.current_portal = None
 
-    def transform(self, query, scrolling_cursor=False, context=None, *,
-                  proto_schema, output_format=None):
+    def transform(
+            self, query, scrolling_cursor=False, context=None, *, proto_schema,
+            output_format=None):
         if scrolling_cursor:
             offset = query.offset
             limit = query.limit
@@ -456,7 +452,7 @@ class EdgeQLAdapter:
         restypes = {}
 
         for k, v in query.result_types.items():
-            if v[0] is not None: # XXX get_expr_type
+            if v[0] is not None:  # XXX get_expr_type
                 if isinstance(v[0], tuple):
                     typ = (v[0][0], v[0][1].name)
                 else:
@@ -468,40 +464,46 @@ class EdgeQLAdapter:
         argtypes = {}
 
         for k, v in query.argument_types.items():
-            if v is not None: # XXX get_expr_type
+            if v is not None:  # XXX get_expr_type
                 if isinstance(v, tuple):
-                    name = 'type' if isinstance(v[1], s_obj.PrototypeClass) \
-                            else v[1].name
+                    if isinstance(v[1], s_obj.PrototypeClass):
+                        name = 'type'
+                    else:
+                        name = v[1].name
                     argtypes[k] = (v[0], name)
                 else:
-                    name = 'type' if isinstance(v, s_obj.PrototypeClass) \
-                           else v.name
+                    if isinstance(v, s_obj.PrototypeClass):
+                        name = 'type'
+                    else:
+                        name = v.name
                     argtypes[k] = name
             else:
                 argtypes[k] = v
 
-        return Query(chunks=qchunks, arg_index=arg_index, argmap=argmap,
-                     result_types=restypes,
-                     argument_types=argtypes, context_vars=query.context_vars,
-                     scrolling_cursor=scrolling_cursor,
-                     offset=offset, limit=limit, query_type=query_type,
-                     record_info=record_info, output_format=output_format)
+        return Query(
+            chunks=qchunks, arg_index=arg_index, argmap=argmap,
+            result_types=restypes, argument_types=argtypes,
+            context_vars=query.context_vars, scrolling_cursor=scrolling_cursor,
+            offset=offset, limit=limit, query_type=query_type,
+            record_info=record_info, output_format=output_format)
 
 
 class Backend(s_deltarepo.DeltaProvider):
 
-    typlen_re = re.compile(r"""
+    typlen_re = re.compile(
+        r"""
         (?P<type>.*) \( (?P<length>\d+ (?:\s*,\s*(\d+))*) \)$
     """, re.X)
 
-    search_idx_name_re = re.compile(r"""
+    search_idx_name_re = re.compile(
+        r"""
         .*_(?P<language>\w+)_(?P<index_class>\w+)_search_idx$
     """, re.X)
 
     link_source_colname = common.quote_ident(
-                                common.edgedb_name_to_pg_name('std::source'))
+        common.edgedb_name_to_pg_name('std::source'))
     link_target_colname = common.quote_ident(
-                                common.edgedb_name_to_pg_name('std::target'))
+        common.edgedb_name_to_pg_name('std::target'))
 
     def __init__(self, connection):
         self.features = None
@@ -550,11 +552,10 @@ class Backend(s_deltarepo.DeltaProvider):
             self.upgrade_backend(connection)
 
         elif bver > delta_cmds.BACKEND_FORMAT_VERSION:
-            msg = 'unsupported backend format version: {:d}'.format(
-                self.backend_info['format_version'])
-            details = 'The largest supported backend ' \
-                      'format version is {:d}'.format(
-                            delta_cmds.BACKEND_FORMAT_VERSION)
+            msg = 'unsupported backend format version: ' \
+                  '{:d}'.format(self.backend_info['format_version'])
+            details = 'The largest supported backend format version is ' \
+                      '{:d}'.format(delta_cmds.BACKEND_FORMAT_VERSION)
             raise s_err.SchemaError(msg, details=details)
 
         if need_upgrade:
@@ -591,26 +592,26 @@ class Backend(s_deltarepo.DeltaProvider):
 
     async def _init_relid_cache(self):
         ds = introspection.tables.TableList(self.connection)
-        link_tables = await ds.fetch(schema_name='edgedb%',
-                                     table_pattern='%_link')
+        link_tables = await ds.fetch(
+            schema_name='edgedb%', table_pattern='%_link')
         link_tables = {(t['schema'], t['name']): t for t in link_tables}
 
         ds = introspection.types.TypesList(self.connection)
-        records = await ds.fetch(schema_name='edgedb%', type_name='%_record',
-                                 include_arrays=False)
+        records = await ds.fetch(
+            schema_name='edgedb%', type_name='%_record', include_arrays=False)
         records = {(t['schema'], t['name']): t for t in records}
 
         ds = datasources.schema.links.ConceptLinks(self.connection)
         links_list = await ds.fetch()
-        links_list = collections.OrderedDict(
-                        (sn.Name(r['name']), r) for r in links_list)
+        links_list = collections.OrderedDict((sn.Name(r['name']), r)
+                                             for r in links_list)
 
         table_id_to_proto_name_cache = {}
         proto_name_to_table_id_cache = {}
 
         for link_name, link in links_list.items():
             link_table_name = common.link_name_to_table_name(
-                                link_name, catenate=False)
+                link_name, catenate=False)
             t = link_tables.get(link_table_name)
             if t:
                 table_id_to_proto_name_cache[t['oid']] = link_name
@@ -623,17 +624,18 @@ class Backend(s_deltarepo.DeltaProvider):
 
         ds = datasources.schema.concepts.ConceptList(self.connection)
         concept_list = await ds.fetch()
-        concept_list = collections.OrderedDict(
-            (sn.Name(row['name']), row) for row in concept_list)
+        concept_list = collections.OrderedDict((sn.Name(row['name']), row)
+                                               for row in concept_list)
 
         for name, row in concept_list.items():
             table_name = common.concept_name_to_table_name(
-                            name, catenate=False)
+                name, catenate=False)
             table = tables.get(table_name)
 
             if not table:
                 msg = 'internal metadata incosistency'
-                details = 'Record for concept "%s" exists but the table is missing' % name
+                details = 'Record for concept {!r} exists but the ' \
+                          'table is missing'.format(name)
                 raise s_err.SchemaError(msg, details=details)
 
             table_id_to_proto_name_cache[table['oid']] = name
@@ -660,8 +662,6 @@ class Backend(s_deltarepo.DeltaProvider):
             name = sn.Name(row['name'])
 
             domain_name = common.atom_name_to_domain_name(name, catenate=False)
-
-            domain = domains.get(domain_name)
             domain_to_atom_map[domain_name] = name
 
         return domain_to_atom_map
@@ -712,6 +712,7 @@ class Backend(s_deltarepo.DeltaProvider):
 
     @debug
     def process_delta(self, delta, schema, session=None):
+        """Adapt and process the delta command."""
         """LOG [delta.plan] Delta Plan
             markup.dump(delta)
         """
@@ -753,24 +754,21 @@ class Backend(s_deltarepo.DeltaProvider):
     async def _commit_delta(self, delta, ddl_plan):
         table = deltadbops.DeltaTable()
         rec = table.record(
-            name=delta.name,
-            module_id=dbops.Query('''
+            name=delta.name, module_id=dbops.Query(
+                '''
                 SELECT id FROM edgedb.module WHERE name = $1
-            ''', params=[delta.name.module]),
-            parents=dbops.Query('''
+            ''', params=[delta.name.module]), parents=dbops.Query(
+                    '''
                 SELECT array_agg(id) FROM edgedb.delta WHERE name = any($1)
             ''', params=[[parent.name for parent in delta.parents]]),
-            checksum=(await self.getschema()).get_checksum(),
-            deltabin=b'1',
-            deltasrc=s_ddl.ddl_text_from_delta(ddl_plan)
-        )
+            checksum=(await self.getschema()).get_checksum(), deltabin=b'1',
+            deltasrc=s_ddl.ddl_text_from_delta(ddl_plan))
         context = delta_cmds.CommandContext(self.connection, None)
         await dbops.Insert(table, records=[rec]).execute(context)
 
     @debug
     async def run_ddl_command(self, ddl_plan):
         proto_schema = await self.getschema()
-
         """LOG [delta.plan.input] Delta Plan Input
             markup.dump(ddl_plan)
         """
@@ -814,7 +812,6 @@ class Backend(s_deltarepo.DeltaProvider):
         self.proto_name_to_table_id_cache.clear()
         self.attribute_link_map_cache.clear()
 
-
     def concept_name_from_id(self, id, session):
         concept = sn.Name('std::Object')
         query = '''SELECT c.name
@@ -829,13 +826,13 @@ class Backend(s_deltarepo.DeltaProvider):
             concept_name = sn.Name(concept_name)
         return concept_name
 
-
     def entity_from_row(self, session, record_info, links):
         if record_info.recursive_link:
             # Array representing a hierarchy connecting via cyclic link.
-            # All entities have been initialized by now, but the recursive link is None at
-            # this point and needs to be injected.
-            return self._rebuild_tree_from_list(session, links['data'], record_info.recursive_link)
+            # All entities have been initialized by now, but the recursive link
+            # is None at this point and needs to be injected.
+            return self._rebuild_tree_from_list(
+                session, links['data'], record_info.recursive_link)
 
         concept_map = self.get_concept_map(session)
         concept_id = links.pop('id', None)
@@ -850,12 +847,15 @@ class Backend(s_deltarepo.DeltaProvider):
         # in a combined multi-target query.
         valid_link_names = {l[0] for l in concept_cls._iter_all_pointers()}
 
-        links = {l: v for l, v in links.items()
-                 if l in valid_link_names or getattr(l, 'direction', s_pointers.PointerDirection.Outbound)
-                                             == s_pointers.PointerDirection.Inbound}
+        links = {
+            l: v
+            for l, v in links.items()
+            if l in valid_link_names or getattr(
+                l, 'direction', s_pointers.PointerDirection.Outbound) ==
+            s_pointers.PointerDirection.Inbound
+        }
 
         return session._merge(links['std::id'], concept_cls, links)
-
 
     def _rebuild_tree_from_list(self, session, items, connecting_attribute):
         # Build a tree from a list of (parent, child_id) tuples, while
@@ -867,7 +867,10 @@ class Backend(s_deltarepo.DeltaProvider):
         toplevel = []
 
         if items:
-            total_order = {item[str(connecting_attribute)]: i for i, item in enumerate(items)}
+            total_order = {
+                item[str(connecting_attribute)]: i
+                for i, item in enumerate(items)
+            }
 
             for item in items:
                 entity = item[str(connecting_attribute)]
@@ -878,7 +881,8 @@ class Backend(s_deltarepo.DeltaProvider):
                     target_id = uuid(target_id)
 
                     if target_id not in session:
-                        # The items below us have been cut off by recursion depth limit
+                        # The items below us have been cut off by recursion
+                        # depth limit
                         continue
 
                     target = session.get(target_id)
@@ -892,17 +896,20 @@ class Backend(s_deltarepo.DeltaProvider):
                             parent_updates = updates[entity.id] = []
 
                         # Use insort to maintain total order on each level
-                        bisect.insort(parent_updates, (total_order[target], target))
+                        bisect.insort(
+                            parent_updates, (total_order[target], target))
 
                 else:
-                    # If it turns out to be a leaf node, make sure we force an empty set update
+                    # If it turns out to be a leaf node, make sure we force an
+                    # empty set update
                     try:
                         parent_updates = updates[entity.id]
                     except KeyError:
                         parent_updates = updates[entity.id] = []
 
         for parent_id, items in updates.items():
-            session._merge(parent_id, None, {connecting_attribute: (i[1] for i in items)})
+            session._merge(
+                parent_id, None, {connecting_attribute: (i[1] for i in items)})
 
         return [i[1] for i in toplevel]
 
@@ -938,8 +945,9 @@ class Backend(s_deltarepo.DeltaProvider):
     def typrelid_for_source_name(self, source_name):
         return self.proto_name_to_table_id_cache.get(source_name)
 
-    def compile(self, query_ir, scrolling_cursor=False, context=None, *,
-                      output_format=None):
+    def compile(
+            self, query_ir, scrolling_cursor=False, context=None, *,
+            output_format=None):
         if scrolling_cursor:
             offset = query_ir.offset
             limit = query_ir.limit
@@ -977,35 +985,44 @@ class Backend(s_deltarepo.DeltaProvider):
         for k, v in query_ir.argument_types.items():
             if v is not None:  # XXX get_expr_type
                 if isinstance(v, tuple):
-                    name = 'type' if isinstance(v[1], s_obj.PrototypeClass) \
-                            else v[1].name
+                    if isinstance(v[1], s_obj.PrototypeClass):
+                        name = 'type'
+                    else:
+                        name = v[1].name
                     argtypes[k] = (v[0], name)
                 else:
-                    name = 'type' if isinstance(v, s_obj.PrototypeClass) \
-                           else v.name
+                    if isinstance(v, s_obj.PrototypeClass):
+                        name = 'type'
+                    else:
+                        name = v.name
                     argtypes[k] = name
             else:
                 argtypes[k] = v
 
-        return Query(chunks=qchunks, arg_index=arg_index, argmap=argmap,
-                     result_types=restypes,
-                     argument_types=argtypes,
-                     context_vars=query_ir.context_vars,
-                     scrolling_cursor=scrolling_cursor,
-                     offset=offset, limit=limit, query_type=query_type,
-                     record_info=record_info, output_format=output_format)
+        return Query(
+            chunks=qchunks, arg_index=arg_index, argmap=argmap,
+            result_types=restypes, argument_types=argtypes,
+            context_vars=query_ir.context_vars,
+            scrolling_cursor=scrolling_cursor, offset=offset, limit=limit,
+            query_type=query_type, record_info=record_info,
+            output_format=output_format)
 
     async def read_modules(self, schema):
         ds = introspection.schemas.SchemasList(self.connection)
         schemas = await ds.fetch(schema_name='edgedb%')
-        schemas = {s['name'] for s in schemas
-                             if not s['name'].startswith('edgedb_aux_')}
+        schemas = {
+            s['name']
+            for s in schemas if not s['name'].startswith('edgedb_aux_')
+        }
 
         ds = datasources.schema.modules.ModuleList(self.connection)
         modules = await ds.fetch()
-        modules = {m['schema_name']:
-                        {'name': m['name'], 'imports': m['imports']}
-                   for m in modules}
+        modules = {
+            m['schema_name']:
+            {'name': m['name'],
+             'imports': m['imports']}
+            for m in modules
+        }
 
         recorded_schemas = set(modules.keys())
 
@@ -1015,22 +1032,22 @@ class Backend(s_deltarepo.DeltaProvider):
 
         if extra_schemas:
             msg = 'internal metadata incosistency'
-            details = 'Extraneous data schemas exist: %s' \
-                        % (', '.join('"%s"' % s for s in extra_schemas))
+            details = 'Extraneous data schemas exist: {}'.format(
+                ', '.join('"%s"' % s for s in extra_schemas))
             raise s_err.SchemaError(msg, details=details)
 
         if missing_schemas:
             msg = 'internal metadata incosistency'
-            details = 'Missing schemas for modules: %s' \
-                        % (', '.join('"%s"' % s for s in extra_schemas))
+            details = 'Missing schemas for modules: {}'.format(
+                ', '.join('"%s"' % s for s in extra_schemas))
             raise s_err.SchemaError(msg, details=details)
 
         mods = []
 
         for module in modules.values():
             mod = s_mod.ProtoModule(
-                    name=module['name'],
-                    imports=frozenset(module['imports'] or ()))
+                name=module['name'],
+                imports=frozenset(module['imports'] or ()))
             schema.add_module(mod)
             mods.append(mod)
 
@@ -1068,8 +1085,8 @@ class Backend(s_deltarepo.DeltaProvider):
                    for d in domains}
 
         ds = introspection.sequences.SequencesList(self.connection)
-        seqs = await ds.fetch(schema_name='edgedb%',
-                              sequence_pattern='%_sequence')
+        seqs = await ds.fetch(
+            schema_name='edgedb%', sequence_pattern='%_sequence')
         seqs = {(s['schema'], s['name']): s for s in seqs}
 
         seen_seqs = set()
@@ -1099,13 +1116,12 @@ class Backend(s_deltarepo.DeltaProvider):
             if atom_data['bases']:
                 basemap[name] = atom_data['bases']
 
-            atom = s_atoms.Atom(name=name,
-                                default=atom_data['default'],
-                                title=atom_data['title'],
-                                description=atom_data['description'],
-                                is_abstract=atom_data['is_abstract'],
-                                is_final=atom_data['is_final'],
-                                attributes=atom_data['attributes'])
+            atom = s_atoms.Atom(
+                name=name, default=atom_data['default'],
+                title=atom_data['title'], description=atom_data['description'],
+                is_abstract=atom_data['is_abstract'],
+                is_final=atom_data['is_final'],
+                attributes=atom_data['attributes'])
 
             schema.add(atom)
 
@@ -1121,7 +1137,7 @@ class Backend(s_deltarepo.DeltaProvider):
         for atom in schema('atom'):
             if sequence is not None and atom.issubclass(sequence):
                 seq_name = common.atom_name_to_sequence_name(
-                                atom.name, catenate=False)
+                    atom.name, catenate=False)
                 if seq_name not in seqs:
                     msg = 'internal metadata incosistency'
                     details = 'Missing sequence for sequence atom {!r}'.format(
@@ -1132,8 +1148,8 @@ class Backend(s_deltarepo.DeltaProvider):
         extra_seqs = set(seqs) - seen_seqs
         if extra_seqs:
             msg = 'internal metadata incosistency'
-            details = 'Extraneous sequences exist: %s' \
-                        % (', '.join(common.qname(*t) for t in extra_seqs))
+            details = 'Extraneous sequences exist: {}'.format(
+                ', '.join(common.qname(*t) for t in extra_seqs))
             raise s_err.SchemaError(msg, details=details)
 
     async def order_atoms(self, schema):
@@ -1154,12 +1170,14 @@ class Backend(s_deltarepo.DeltaProvider):
                 'is_abstract': row['is_abstract'],
                 'is_final': row['is_final'],
                 'paramtypes': so.PrototypeDict({
-                    k: schema.get(v) for k, v in json.loads(row['paramtypes'])
+                    k: schema.get(v)
+                    for k, v in json.loads(row['paramtypes'])
                 }) if row['paramtypes'] else None,
-                'paramkinds': (json.loads(row['paramkinds'])
-                               if row['paramkinds'] else None),
-                'paramdefaults': (json.loads(row['paramdefaults'])
-                                  if row['paramdefaults'] else None),
+                'paramkinds':
+                (json.loads(row['paramkinds']) if row['paramkinds'] else None),
+                'paramdefaults': (
+                    json.loads(row['paramdefaults'])
+                    if row['paramdefaults'] else None),
                 'returntype': schema.get(row['returntype'])
             }
 
@@ -1172,8 +1190,8 @@ class Backend(s_deltarepo.DeltaProvider):
     async def read_constraints(self, schema):
         ds = datasources.schema.constraints.Constraints(self.connection)
         constraints_list = await ds.fetch()
-        constraints_list = collections.OrderedDict(
-            (sn.Name(r['name']), r) for r in constraints_list)
+        constraints_list = collections.OrderedDict((sn.Name(r['name']), r)
+                                                   for r in constraints_list)
 
         basemap = {}
 
@@ -1181,11 +1199,11 @@ class Backend(s_deltarepo.DeltaProvider):
             bases = tuple()
 
             if r['subject']:
-                bases = (s_constr.Constraint.normalize_name(name),)
+                bases = (s_constr.Constraint.normalize_name(name), )
             elif r['bases']:
                 bases = tuple(sn.Name(b) for b in r['bases'])
             elif name != 'std::constraint':
-                bases = (sn.Name('std::constraint'),)
+                bases = (sn.Name('std::constraint'), )
 
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']
@@ -1198,14 +1216,17 @@ class Backend(s_deltarepo.DeltaProvider):
             if r['inferredparamtypes']:
                 inferredparamtypes = {
                     n: self.unpack_typeref(v, schema)
-                    for n, v in json.loads(r['inferredparamtypes']).items()}
+                    for n, v in json.loads(r['inferredparamtypes']).items()
+                }
                 allparamtypes.update(inferredparamtypes)
             else:
                 inferredparamtypes = None
 
             if r['paramtypes']:
-                paramtypes = {n: self.unpack_typeref(v, schema)
-                              for n, v in json.loads(r['paramtypes']).items()}
+                paramtypes = {
+                    n: self.unpack_typeref(v, schema)
+                    for n, v in json.loads(r['paramtypes']).items()
+                }
                 allparamtypes.update(paramtypes)
             else:
                 paramtypes = None
@@ -1219,18 +1240,13 @@ class Backend(s_deltarepo.DeltaProvider):
                 args = None
 
             constraint = s_constr.Constraint(
-                name=name, subject=subject,
-                title=title, description=description,
-                is_abstract=r['is_abstract'],
-                is_final=r['is_final'],
-                expr=r['expr'],
+                name=name, subject=subject, title=title,
+                description=description, is_abstract=r['is_abstract'],
+                is_final=r['is_final'], expr=r['expr'],
                 subjectexpr=r['subjectexpr'],
-                localfinalexpr=r['localfinalexpr'],
-                finalexpr=r['finalexpr'],
-                errmessage=r['errmessage'],
-                paramtypes=paramtypes,
-                inferredparamtypes=inferredparamtypes,
-                args=args)
+                localfinalexpr=r['localfinalexpr'], finalexpr=r['finalexpr'],
+                errmessage=r['errmessage'], paramtypes=paramtypes,
+                inferredparamtypes=inferredparamtypes, args=args)
 
             if subject:
                 subject.add_constraint(constraint)
@@ -1287,7 +1303,7 @@ class Backend(s_deltarepo.DeltaProvider):
         if columns is None:
             msg = 'could not interpret index {!r}'.format(str(index.name))
             details = 'Could not match expression:\n{}'.format(
-                        markup.dumps(tree))
+                markup.dumps(tree))
             hint = 'Take a look at the matching pattern and adjust'
             raise s_err.SchemaError(msg, details=details, hint=hint)
 
@@ -1302,8 +1318,8 @@ class Backend(s_deltarepo.DeltaProvider):
         indexes = {}
         index_ds = datasources.introspection.tables.TableIndexes(
             self.connection)
-        idx_data = await index_ds.fetch(schema_pattern='edgedb%',
-                                        index_pattern='%_search_idx')
+        idx_data = await index_ds.fetch(
+            schema_pattern='edgedb%', index_pattern='%_search_idx')
 
         for row in idx_data:
             table_name = tuple(row['table_name'])
@@ -1323,8 +1339,8 @@ class Backend(s_deltarepo.DeltaProvider):
         index_expression = index.expr
 
         if not index_expression:
-            index_expression = '(%s)' % ', '.join(common.quote_ident(c) for
-                                                  c in index.columns)
+            index_expression = '(%s)' % ', '.join(
+                common.quote_ident(c) for c in index.columns)
 
         return self.parser.parse(index_expression)
 
@@ -1337,13 +1353,13 @@ class Backend(s_deltarepo.DeltaProvider):
         indexes = {}
         index_ds = datasources.introspection.tables.TableIndexes(
             self.connection)
-        idx_data = await index_ds.fetch(schema_pattern='edgedb%',
-                                        index_pattern='%_reg_idx')
+        idx_data = await index_ds.fetch(
+            schema_pattern='edgedb%', index_pattern='%_reg_idx')
 
         for row in idx_data:
             table_name = tuple(row['table_name'])
-            indexes[table_name] = set(self.interpret_indexes(table_name,
-                                                             row['indexes']))
+            indexes[table_name] = set(
+                self.interpret_indexes(table_name, row['indexes']))
 
         return indexes
 
@@ -1363,7 +1379,8 @@ class Backend(s_deltarepo.DeltaProvider):
         if result is None:
             sql_decompiler = transformer.Decompiler()
             edgedb_tree = sql_decompiler.transform(expr_tree, source)
-            edgeql_tree = edgeql.decompile_ir(edgedb_tree, return_statement=True)
+            edgeql_tree = edgeql.decompile_ir(
+                edgedb_tree, return_statement=True)
             result = edgeql.generate_source(edgeql_tree, pretty=False)
             result = s_expr.ExpressionText(result)
 
@@ -1372,7 +1389,7 @@ class Backend(s_deltarepo.DeltaProvider):
     async def read_pointer_target_column(self, schema, pointer,
                                          constraints_cache):
         ptr_stor_info = types.get_pointer_storage_info(
-                            pointer, schema=schema, resolve_type=False)
+            pointer, schema=schema, resolve_type=False)
         cols = await self._type_mech.get_table_columns(
             ptr_stor_info.table_name, connection=self.connection)
 
@@ -1380,9 +1397,10 @@ class Backend(s_deltarepo.DeltaProvider):
 
         if not col:
             msg = 'internal metadata inconsistency'
-            details = ('Record for {!r} hosted by {!r} exists, but ' +
-                       'the corresponding table column is missing').format(
-                            pointer.normal_name(), pointer.source.name)
+            details = (
+                'Record for {!r} hosted by {!r} exists, but ' +
+                'the corresponding table column is missing').format(
+                    pointer.normal_name(), pointer.source.name)
             raise s_err.SchemaError(msg, details=details)
 
         return self._get_pointer_column_target(
@@ -1401,20 +1419,20 @@ class Backend(s_deltarepo.DeltaProvider):
         else:
             atom_default = None
 
-        target = self.atom_from_pg_type(col_type, col_type_schema,
-                                        atom_default, schema)
+        target = self.atom_from_pg_type(
+            col_type, col_type_schema, atom_default, schema)
 
         return target, col['column_required']
 
-    def _get_pointer_attribute_target(self, schema, source,
-                                      pointer_name, attr):
+    def _get_pointer_attribute_target(
+            self, schema, source, pointer_name, attr):
         if attr['attribute_type_schema'] == 'pg_catalog':
             col_type_schema = common.edgedb_module_name_to_schema_name('std')
             col_type = attr['attribute_type_formatted']
         else:
             col_type_schema = attr['attribute_type_schema']
-            col_type = attr['attribute_type_formatted'] or \
-                            attr['attribute_type']
+            col_type = \
+                attr['attribute_type_formatted'] or attr['attribute_type']
 
         if attr['attribute_default'] is not None:
             atom_default = self.interpret_sql(
@@ -1428,8 +1446,8 @@ class Backend(s_deltarepo.DeltaProvider):
                 attr['attribute_type_composite_id'])
             target = schema.get(source_name)
         else:
-            target = self.atom_from_pg_type(col_type, col_type_schema,
-                                            atom_default, schema)
+            target = self.atom_from_pg_type(
+                col_type, col_type_schema, atom_default, schema)
 
         return target, attr['attribute_required']
 
@@ -1448,8 +1466,9 @@ class Backend(s_deltarepo.DeltaProvider):
         if tab_default is None:
             if schema_default:
                 msg = 'internal metadata inconsistency'
-                details = ('Literal default for pointer {!r} is present in ' +
-                           'the schema, but not in the table').format(ptr.name)
+                details = (
+                    'Literal default for pointer {!r} is present in ' +
+                    'the schema, but not in the table').format(ptr.name)
                 raise s_err.SchemaError(msg, details=details)
             else:
                 return
@@ -1458,9 +1477,9 @@ class Backend(s_deltarepo.DeltaProvider):
 
         if tab_default is not None and not ptr.default:
             msg = 'internal metadata inconsistency'
-            details = ('Literal default for pointer {!r} is present in ' +
-                       'the table, but not in schema declaration').format(
-                            ptr.name)
+            details = (
+                'Literal default for pointer {!r} is present in ' +
+                'the table, but not in schema declaration').format(ptr.name)
             raise s_err.SchemaError(msg, details=details)
 
         if not isinstance(table_default, s_expr.ExpressionText):
@@ -1474,20 +1493,20 @@ class Backend(s_deltarepo.DeltaProvider):
             msg = 'internal metadata inconsistency'
             details = (
                 'Value mismatch in literal default pointer link ' +
-                '{!r}: {!r} in the table vs. {!r} in the schema'
-            ).format(ptr.name, table_default, schema_default)
+                '{!r}: {!r} in the table vs. {!r} in the schema').format(
+                    ptr.name, table_default, schema_default)
             raise s_err.SchemaError(msg, details=details)
 
     async def read_links(self, schema):
         ds = introspection.tables.TableList(self.connection)
-        link_tables = await ds.fetch(schema_name='edgedb%',
-                                     table_pattern='%_link')
+        link_tables = await ds.fetch(
+            schema_name='edgedb%', table_pattern='%_link')
         link_tables = {(t['schema'], t['name']): t for t in link_tables}
 
         ds = datasources.schema.links.ConceptLinks(self.connection)
         links_list = await ds.fetch()
-        links_list = collections.OrderedDict(
-            (sn.Name(r['name']), r) for r in links_list)
+        links_list = collections.OrderedDict((sn.Name(r['name']), r)
+                                             for r in links_list)
 
         concept_indexes = await self.read_search_indexes()
         basemap = {}
@@ -1496,11 +1515,11 @@ class Backend(s_deltarepo.DeltaProvider):
             bases = tuple()
 
             if r['source']:
-                bases = (s_links.Link.normalize_name(name),)
+                bases = (s_links.Link.normalize_name(name), )
             elif r['bases']:
                 bases = tuple(sn.Name(b) for b in r['bases'])
             elif name != 'std::link':
-                bases = (sn.Name('std::link'),)
+                bases = (sn.Name('std::link'), )
 
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']
@@ -1536,16 +1555,11 @@ class Backend(s_deltarepo.DeltaProvider):
 
             link = s_links.Link(
                 name=name, source=source, target=target,
-                spectargets=spectargets,
-                mapping=mapping,
-                exposed_behaviour=exposed_behaviour,
-                required=required,
+                spectargets=spectargets, mapping=mapping,
+                exposed_behaviour=exposed_behaviour, required=required,
                 title=title, description=description,
-                is_abstract=r['is_abstract'],
-                is_final=r['is_final'],
-                readonly=r['readonly'],
-                loading=loading,
-                default=default)
+                is_abstract=r['is_abstract'], is_final=r['is_final'],
+                readonly=r['readonly'], loading=loading, default=default)
 
             if spectargets:
                 # Multiple specified targets,
@@ -1556,7 +1570,7 @@ class Backend(s_deltarepo.DeltaProvider):
 
             if isinstance(target, s_atoms.Atom):
                 target, required = await self.read_pointer_target_column(
-                                            schema, link, None)
+                    schema, link, None)
 
                 concept_schema, concept_table = \
                     common.concept_name_to_table_name(source.name,
@@ -1569,7 +1583,7 @@ class Backend(s_deltarepo.DeltaProvider):
                     if col_search_index:
                         weight = col_search_index[('default', 'english')]
                         link_search = s_links.LinkSearchConfiguration(
-                                        weight=weight)
+                            weight=weight)
 
             link.target = target
 
@@ -1618,24 +1632,21 @@ class Backend(s_deltarepo.DeltaProvider):
                         if index.get_metadata('ddl:inherited'):
                             continue
 
-                        edgedb_tree = sql_decompiler.transform(
-                                        index_sql, link)
+                        edgedb_tree = sql_decompiler.transform(index_sql, link)
                         edgeql_tree = edgeql.decompile_ir(
-                                        edgedb_tree, return_statement=True)
-                        expr = edgeql.generate_source(edgeql_tree,
-                                                      pretty=False)
+                            edgedb_tree, return_statement=True)
+                        expr = edgeql.generate_source(
+                            edgeql_tree, pretty=False)
                         schema_name = index.get_metadata('schemaname')
                         index = s_indexes.SourceIndex(
-                                    name=sn.Name(schema_name),
-                                    subject=link, expr=expr)
+                            name=sn.Name(schema_name), subject=link, expr=expr)
                         link.add_index(index)
                         schema.add(index)
             elif link.atomic():
                 ptr_stor_info = types.get_pointer_storage_info(
-                                    link, schema=schema)
+                    link, schema=schema)
                 cols = await self._type_mech.get_table_columns(
-                                ptr_stor_info.table_name,
-                                connection=self.connection)
+                    ptr_stor_info.table_name, connection=self.connection)
                 col = cols[ptr_stor_info.column_name]
                 self.verify_ptr_const_defaults(
                     schema, link, col['column_default'])
@@ -1643,19 +1654,19 @@ class Backend(s_deltarepo.DeltaProvider):
     async def read_link_properties(self, schema):
         ds = datasources.schema.links.LinkProperties(self.connection)
         link_props = await ds.fetch()
-        link_props = collections.OrderedDict(
-            (sn.Name(r['name']), r) for r in link_props)
+        link_props = collections.OrderedDict((sn.Name(r['name']), r)
+                                             for r in link_props)
         basemap = {}
 
         for name, r in link_props.items():
             bases = ()
 
             if r['source']:
-                bases = (s_lprops.LinkProperty.normalize_name(name),)
+                bases = (s_lprops.LinkProperty.normalize_name(name), )
             elif r['bases']:
                 bases = tuple(sn.Name(b) for b in r['bases'])
             elif name != 'std::linkproperty':
-                bases = (sn.Name('std::linkproperty'),)
+                bases = (sn.Name('std::linkproperty'), )
 
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']
@@ -1674,16 +1685,11 @@ class Backend(s_deltarepo.DeltaProvider):
             basemap[name] = bases
 
             prop = s_lprops.LinkProperty(
-                name=name,
-                source=source, target=target,
-                required=required,
-                title=title, description=description,
-                readonly=r['readonly'],
-                loading=loading,
-                default=default)
+                name=name, source=source, target=target, required=required,
+                title=title, description=description, readonly=r['readonly'],
+                loading=loading, default=default)
 
-            if source and bases[0] not in {'std::target',
-                                           'std::source'}:
+            if source and bases[0] not in {'std::target', 'std::source'}:
                 # The property is attached to a link, check out
                 # link table columns for target information.
                 target, required = \
@@ -1709,8 +1715,9 @@ class Backend(s_deltarepo.DeltaProvider):
             except KeyError:
                 pass
             else:
-                prop.bases = [schema.get(b, type=s_lprops.LinkProperty)
-                              for b in bases]
+                prop.bases = [
+                    schema.get(b, type=s_lprops.LinkProperty) for b in bases
+                ]
 
     async def order_link_properties(self, schema):
         g = {}
@@ -1720,15 +1727,15 @@ class Backend(s_deltarepo.DeltaProvider):
             if prop.bases:
                 g[prop.name]['merge'].extend(b.name for b in prop.bases)
 
-        topological.normalize(g, merger=s_lprops.LinkProperty.merge,
-                              schema=schema)
+        topological.normalize(
+            g, merger=s_lprops.LinkProperty.merge, schema=schema)
 
         for prop in schema(type='link_property'):
             prop.finalize(schema)
 
             if not prop.generic() and prop.source.generic():
-                source_table_name = common.get_table_name(prop.source,
-                                                          catenate=False)
+                source_table_name = common.get_table_name(
+                    prop.source, catenate=False)
                 cols = await self._type_mech.get_table_columns(
                     source_table_name, connection=self.connection)
                 col_name = common.edgedb_name_to_pg_name(prop.normal_name())
@@ -1786,8 +1793,8 @@ class Backend(s_deltarepo.DeltaProvider):
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']
 
-            action = s_policy.Action(name=name, title=title,
-                                     description=description)
+            action = s_policy.Action(
+                name=name, title=title, description=description)
             schema.add(action)
 
     async def order_actions(self, schema):
@@ -1807,14 +1814,14 @@ class Backend(s_deltarepo.DeltaProvider):
             if r['bases']:
                 bases = tuple(sn.Name(b) for b in r['bases'])
             elif name != 'std::event':
-                bases = (sn.Name('std::event'),)
+                bases = (sn.Name('std::event'), )
             else:
                 bases = tuple()
 
             basemap[name] = bases
 
-            event = s_policy.Event(name=name, title=title,
-                                   description=description)
+            event = s_policy.Event(
+                name=name, title=title, description=description)
             schema.add(event)
 
         for event in schema(type='event'):
@@ -1841,8 +1848,7 @@ class Backend(s_deltarepo.DeltaProvider):
             description = r['description']
             policy = s_policy.Policy(
                 name=name, title=title, description=description,
-                subject=schema.get(r['subject']),
-                event=schema.get(r['event']),
+                subject=schema.get(r['subject']), event=schema.get(r['event']),
                 actions=[schema.get(a) for a in r['actions']])
             schema.add(policy)
             policy.subject.add_policy(policy)
@@ -1862,26 +1868,29 @@ class Backend(s_deltarepo.DeltaProvider):
 
         ds = datasources.schema.concepts.ConceptList(self.connection)
         concept_list = await ds.fetch()
-        concept_list = collections.OrderedDict(
-            (sn.Name(row['name']), row) for row in concept_list)
+        concept_list = collections.OrderedDict((sn.Name(row['name']), row)
+                                               for row in concept_list)
 
         visited_tables = set()
 
         self.table_cache.update({
             common.concept_name_to_table_name(n, catenate=False): c
-            for n, c in concept_list.items()})
+            for n, c in concept_list.items()
+        })
 
         basemap = {}
 
         for name, row in concept_list.items():
-            concept = {'name': name,
-                       'title': self.hstore_to_word_combination(row['title']),
-                       'description': row['description'],
-                       'is_abstract': row['is_abstract'],
-                       'is_final': row['is_final']}
+            concept = {
+                'name': name,
+                'title': self.hstore_to_word_combination(row['title']),
+                'description': row['description'],
+                'is_abstract': row['is_abstract'],
+                'is_final': row['is_final']
+            }
 
-            table_name = common.concept_name_to_table_name(name,
-                                                           catenate=False)
+            table_name = common.concept_name_to_table_name(
+                name, catenate=False)
             table = tables.get(table_name)
 
             if not table:
@@ -1893,15 +1902,15 @@ class Backend(s_deltarepo.DeltaProvider):
             visited_tables.add(table_name)
 
             bases = await self.pg_table_inheritance_to_bases(
-                            table['name'], table['schema'],
-                            self.table_cache)
+                table['name'], table['schema'], self.table_cache)
 
             basemap[name] = bases
 
-            concept = s_concepts.Concept(name=name, title=concept['title'],
-                                         description=concept['description'],
-                                         is_abstract=concept['is_abstract'],
-                                         is_final=concept['is_final'])
+            concept = s_concepts.Concept(
+                name=name, title=concept['title'],
+                description=concept['description'],
+                is_abstract=concept['is_abstract'],
+                is_final=concept['is_final'])
 
             schema.add(concept)
 
@@ -1916,8 +1925,8 @@ class Backend(s_deltarepo.DeltaProvider):
         tabdiff = set(tables.keys()) - visited_tables
         if tabdiff:
             msg = 'internal metadata incosistency'
-            details = 'Extraneous data tables exist: %s' \
-                        % (', '.join('"%s.%s"' % t for t in tabdiff))
+            details = 'Extraneous data tables exist: {}'.format(
+                ', '.join('"%s.%s"' % t for t in tabdiff))
             raise s_err.SchemaError(msg, details=details)
 
     async def order_concepts(self, schema):
@@ -1931,8 +1940,8 @@ class Backend(s_deltarepo.DeltaProvider):
             if concept.bases:
                 g[concept.name]["merge"].extend(b.name for b in concept.bases)
 
-        topological.normalize(g, merger=s_concepts.Concept.merge,
-                              schema=schema)
+        topological.normalize(
+            g, merger=s_concepts.Concept.merge, schema=schema)
 
         for concept in schema(type='concept'):
             concept.finalize(schema)
@@ -1945,15 +1954,13 @@ class Backend(s_deltarepo.DeltaProvider):
                     if index.get_metadata('ddl:inherited'):
                         continue
 
-                    ir_tree = sql_decompiler.transform(
-                                    index_sql, concept)
+                    ir_tree = sql_decompiler.transform(index_sql, concept)
                     edgeql_tree = edgeql.decompile_ir(
-                                    ir_tree, return_statement=True)
+                        ir_tree, return_statement=True)
                     expr = edgeql.generate_source(edgeql_tree, pretty=False)
                     schema_name = index.get_metadata('schemaname')
-                    index = s_indexes.SourceIndex(name=sn.Name(schema_name),
-                                                  subject=concept,
-                                                  expr=expr)
+                    index = s_indexes.SourceIndex(
+                        name=sn.Name(schema_name), subject=concept, expr=expr)
                     concept.add_index(index)
                     schema.add(index)
 
@@ -1972,13 +1979,12 @@ class Backend(s_deltarepo.DeltaProvider):
 
     async def pg_table_inheritance(self, table_name, schema_name):
         inheritance = introspection.tables.TableInheritance(self.connection)
-        inheritance = await inheritance.fetch(table_name=table_name,
-                                              schema_name=schema_name,
-                                              max_depth=1)
+        inheritance = await inheritance.fetch(
+            table_name=table_name, schema_name=schema_name, max_depth=1)
         return tuple(i[:2] for i in inheritance[1:])
 
-    async def pg_table_inheritance_to_bases(self, table_name, schema_name,
-                                            table_to_concept_map):
+    async def pg_table_inheritance_to_bases(
+            self, table_name, schema_name, table_to_concept_map):
         bases = []
 
         for table in await self.pg_table_inheritance(table_name, schema_name):
@@ -1999,8 +2005,8 @@ class Backend(s_deltarepo.DeltaProvider):
                 name = typeconv
                 constraints = ()
             else:
-                name, constraints = typeconv(self.connection, typname,
-                                             *typmods)
+                name, constraints = typeconv(
+                    self.connection, typname, *typmods)
             return name, constraints
         return None
 

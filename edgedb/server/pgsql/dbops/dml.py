@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import postgresql
 import re
 
@@ -18,17 +17,20 @@ class DMLOperation(base.Command):
 
 
 class Insert(DMLOperation):
-    def __init__(self, table, records, returning=None, *, conditions=None, neg_conditions=None,
-                                                                           priority=0):
-        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
+    def __init__(
+            self, table, records, returning=None, *, conditions=None,
+            neg_conditions=None, priority=0):
+        super().__init__(
+            conditions=conditions, neg_conditions=neg_conditions,
+            priority=priority)
 
         self.table = table
         self.records = records
         self.returning = returning
 
     async def code(self, context):
-        cols = [(c.name, c.type) for c in self.table.columns(writable_only=True)]
-        l = len(cols)
+        cols = [(c.name, c.type)
+                for c in self.table.columns(writable_only=True)]
 
         vals = []
         placeholders = []
@@ -36,8 +38,9 @@ class Insert(DMLOperation):
 
         if isinstance(self.records, base.Query):
             vals.extend(self.records.params)
-            qtext = re.sub(r'\$(\d+)', lambda m: '$%s' % (int(m.groups(1)[0]) + i - 1),
-                           self.records.text)
+            qtext = re.sub(
+                r'\$(\d+)', lambda m: '$%s' % (int(m.groups(1)[0]) + i - 1),
+                self.records.text)
             values_expr = '({})'.format(qtext)
         else:
             for row in self.records:
@@ -46,8 +49,14 @@ class Insert(DMLOperation):
                     val = getattr(row, col, None)
                     if val and isinstance(val, base.Query):
                         vals.extend(val.params)
-                        qtext = re.sub(r'\$(\d+)', lambda m: '$%s' % (int(m.groups(1)[0]) + i - 1), val.text)
-                        placeholder_row.append('(%s)%s' % (qtext, '::{}'.format(val.type) if val.type is not None else ''))
+                        qtext = re.sub(
+                            r'\$(\d+)',
+                            lambda m: '$%s' % (int(m.groups(1)[0]) + i - 1),
+                            val.text)
+                        placeholder_row.append(
+                            '(%s)%s' % (
+                                qtext, '::{}'.format(val.type)
+                                if val.type is not None else ''))
                         i += len(val.params)
                     elif val is base.Default:
                         placeholder_row.append('DEFAULT')
@@ -59,10 +68,11 @@ class Insert(DMLOperation):
 
             values_expr = 'VALUES {}'.format(','.join(placeholders))
 
-        code = 'INSERT INTO %s %s %s' % \
-                (common.qname(*self.table.name),
-                 '(' + ','.join(common.quote_ident(c[0]) for c in cols) + ')' if cols else '',
-                 values_expr)
+        qi = common.quote_ident
+        code = 'INSERT INTO {} {} {}'.format(
+            common.qname(*self.table.name),
+            '(' + ','.join(qi(c[0]) for c in cols) + ')' if cols else '',
+            values_expr)
 
         if self.returning:
             code += ' RETURNING ' + ', '.join(self.returning)
@@ -73,14 +83,17 @@ class Insert(DMLOperation):
         if isinstance(self.records, base.Query):
             vals = self.records.text
         else:
-            vals = (('(%s)' % ', '.join('%s=%r' % (col, v) for col, v in row.items())) for row in self.records)
-            vals = ', '.join(vals)
-        return '<edgedb.sync.%s %s (%s)>' % (self.__class__.__name__, self.table.name, vals)
+            rows = (', '.join('{}={!r}'.format(c, v) for c, v in row.items())
+                    for row in self.records)
+            vals = ', '.join('({})'.format(r) for r in rows)
+        return '<edgedb.sync.{} {} ({})>'.format(
+            self.__class__.__name__, self.table.name, vals)
 
 
 class Update(DMLOperation):
-    def __init__(self, table, record, condition, returning=None, *, include_children=True,
-                                                                    priority=0):
+    def __init__(
+            self, table, record, condition, returning=None, *,
+            include_children=True, priority=0):
         super().__init__(priority=priority)
 
         self.table = table
@@ -88,9 +101,11 @@ class Update(DMLOperation):
         self.fields = [f for f, v in record.items() if v is not base.Default]
         self.condition = condition
         self.returning = returning
-        self.cols = {c.name: c.type for c in self.table.columns(writable_only=True)}
+        self.cols = {
+            c.name: c.type
+            for c in self.table.columns(writable_only=True)
+        }
         self.include_children = include_children
-
 
     async def code(self, context):
         e = common.quote_ident
@@ -106,7 +121,9 @@ class Update(DMLOperation):
                 continue
 
             if isinstance(val, base.Query):
-                expr = re.sub(r'\$(\d+)', lambda m: '$%s' % (int(m.groups(1)[0]) + i - 1), val.text)
+                expr = re.sub(
+                    r'\$(\d+)',
+                    lambda m: '$%s' % (int(m.groups(1)[0]) + i - 1), val.text)
                 if not expr.startswith('('):
                     expr = '({})'.format(expr)
                 i += len(val.params)
@@ -135,8 +152,10 @@ class Update(DMLOperation):
                     cond.append('%s IS NULL' % field)
                 else:
                     if isinstance(value, base.Query):
-                        expr = re.sub(r'\$(\d+)', lambda m: '$%s' % (int(m.groups(1)[0]) + i - 1),
-                                      value.text)
+                        expr = re.sub(
+                            r'\$(\d+)',
+                            lambda m: '$%s' % (int(m.groups(1)[0]) + i - 1),
+                            value.text)
                         cond.append('{} {} {}'.format(field, op, expr))
                         i += len(value.params)
                         vals.extend(value.params)
@@ -153,7 +172,8 @@ class Update(DMLOperation):
         if not self.include_children:
             tabname = 'ONLY {}'.format(tabname)
 
-        code = 'UPDATE {} SET {} {}'.format(tabname, ', '.join(placeholders), where)
+        code = 'UPDATE {} SET {} {}'.format(
+            tabname, ', '.join(placeholders), where)
 
         if self.returning:
             code += ' RETURNING ' + ', '.join(self.returning)
@@ -161,9 +181,12 @@ class Update(DMLOperation):
         return (code, vals)
 
     def __repr__(self):
-        expr = ','.join('%s=%s' % (f, getattr(self.record, f)) for f in self.fields)
-        where = ','.join('%s=%s' % (c[0], c[1]) for c in self.condition) if self.condition else ''
-        return '<edgedb.sync.%s %s %s (%s)>' % (self.__class__.__name__, self.table.name, expr, where)
+        expr = ','.join(
+            '%s=%s' % (f, getattr(self.record, f)) for f in self.fields)
+        where = ','.join('%s=%s' % (c[0], c[1])
+                         for c in self.condition) if self.condition else ''
+        return '<edgedb.sync.%s %s %s (%s)>' % (
+            self.__class__.__name__, self.table.name, expr, where)
 
 
 class Merge(Update):
@@ -200,7 +223,9 @@ class Delete(DMLOperation):
 
     async def code(self, context):
         e = common.quote_ident
-        where = ' AND '.join('%s = $%d' % (e(c[0]), i + 1) for i, c in enumerate(self.condition))
+        where = ' AND '.join(
+            '%s = $%d' % (e(c[0]), i + 1)
+            for i, c in enumerate(self.condition))
 
         tabname = common.qname(*self.table.name)
         if not self.include_children:
@@ -213,7 +238,8 @@ class Delete(DMLOperation):
 
     def __repr__(self):
         where = ','.join('%s=%s' % (c[0], c[1]) for c in self.condition)
-        return '<edgedb.sync.%s %s (%s)>' % (self.__class__.__name__, self.table.name, where)
+        return '<edgedb.sync.%s %s (%s)>' % (
+            self.__class__.__name__, self.table.name, where)
 
 
 class CopyFrom(DMLOperation):
@@ -225,7 +251,8 @@ class CopyFrom(DMLOperation):
         self.format = format
 
     async def code(self, context):
-        code = 'COPY %s FROM STDIN WITH (FORMAT "%s")' % (common.qname(*self.table.name), self.format)
+        code = 'COPY %s FROM STDIN WITH (FORMAT "%s")' % (
+            common.qname(*self.table.name), self.format)
         return code, ()
 
     async def execute(self, context):

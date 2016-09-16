@@ -5,28 +5,23 @@
 # See LICENSE for details.
 ##
 
+"""Implementation of PEP 3143."""
 
 import atexit
 import io
-import os
-import sys
 import signal
 
 from . import lib, pidfile as pidfile_module
 from .exceptions import DaemonError
 
 
-'''Implementation of PEP 3143'''
-
-
 class DaemonContext:
-    def __init__(self, *, pidfile:str,
-                 files_preserve:list=None,
-                 working_directory:str='/',
-                 umask:int=0o022, uid:int=None, gid:int=None,
-                 detach_process:bool=None, prevent_core:bool=True,
-                 stdin:io.FileIO=None, stdout:io.FileIO=None, stderr:io.FileIO=None,
-                 signal_map:dict=None):
+    def __init__(
+            self, *, pidfile: str, files_preserve: list=None,
+            working_directory: str='/', umask: int=0o022, uid: int=None, gid:
+            int=None, detach_process: bool=None, prevent_core: bool=True,
+            stdin: io.FileIO=None, stdout: io.FileIO=None, stderr:
+            io.FileIO=None, signal_map: dict=None):
 
         self.pidfile = pidfile
         self.files_preserve = files_preserve
@@ -77,7 +72,6 @@ class DaemonContext:
         # chdir call
         self._test_sys_streams()
 
-
         if self.uid is not None:
             lib.change_process_uid(self.uid)
 
@@ -85,7 +79,7 @@ class DaemonContext:
             lib.change_process_gid(self.gid)
 
         if self.detach_process:
-           lib.detach_process_context()
+            lib.detach_process_context()
 
         self._setup_signals()
         self._close_all_open_files()
@@ -210,10 +204,12 @@ class DaemonContext:
                     raise DaemonError('Invalid signal name {!r}'.format(name))
             elif isinstance(name, int):
                 if name < 1 or name >= signal.NSIG:
-                    raise DaemonError('Invalid signal number {!r}'.format(name))
+                    raise DaemonError(
+                        'Invalid signal number {!r}'.format(name))
                 num = name
             else:
-                raise DaemonError('Invalid signal {!r}, str or int expected'.format(name))
+                raise DaemonError(
+                    'Invalid signal {!r}, str or int expected'.format(name))
 
             if handler is None:
                 signal.signal(num, signal.SIG_IGN)
@@ -221,12 +217,15 @@ class DaemonContext:
                 try:
                     handler = getattr(self, handler)
                 except AttributeError:
-                    raise DaemonError('Invalid signal {!r} handler name {!r}'.format(name, handler))
+                    raise DaemonError(
+                        'Invalid signal {!r} handler name {!r}'.format(
+                            name, handler))
                 signal.signal(num, handler)
             else:
                 if not callable(handler):
-                    raise DaemonError('Excpected callable signal {!r} handler: {!r}'.
-                                      format(name, handler))
+                    raise DaemonError(
+                        'Excpected callable signal {!r} handler: {!r}'.format(
+                            name, handler))
                 signal.signal(num, handler)
 
     def _init_pidfile(self):
@@ -235,9 +234,11 @@ class DaemonContext:
         else:
             if isinstance(self.pidfile, pidfile_module.PidFile):
                 if self.pidfile.locked:
-                    raise DaemonError('Pidfile object is already locked; unable to initialize '
-                                      'daemon context')
+                    raise DaemonError(
+                        'Pidfile object is already locked; '
+                        'unable to initialize daemon context')
                 self._pidfile = self.pidfile
             else:
-                raise DaemonError('Invalid pidfile, str of PidFile expected, got {!r}'.
-                                  format(pidfile))
+                raise DaemonError(
+                    'Invalid pidfile, str of PidFile expected, got {!r}'.
+                    format(self.pidfile))

@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import numbers
 import postgresql.string
 
@@ -27,11 +26,16 @@ class SQLSourceGeneratorContext(markup.MarkupExceptionContext):
     def as_markup(cls, self, *, ctx):
         me = markup.elements
 
-        body = [me.doc.Section(title='SQL Tree', body=[markup.serialize(self.node, ctx=ctx)])]
+        body = [
+            me.doc.Section(
+                title='SQL Tree', body=[markup.serialize(self.node, ctx=ctx)])
+        ]
 
         if self.chunks_generated:
-            code = markup.serializer.serialize_code(''.join(self.chunks_generated), lexer='sql')
-            body.append(me.doc.Section(title='SQL generated so far', body=[code]))
+            code = markup.serializer.serialize_code(
+                ''.join(self.chunks_generated), lexer='sql')
+            body.append(
+                me.doc.Section(title='SQL generated so far', body=[code]))
 
         return me.lang.ExceptionContext(title=self.title, body=body)
 
@@ -50,19 +54,21 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.param_index = {}
 
     @classmethod
-    def to_source(cls, node, indent_with=' '*4, add_line_information=False,
-                       pretty=True):
+    def to_source(
+            cls, node, indent_with=' ' * 4, add_line_information=False,
+            pretty=True):
         try:
-            return super().to_source(node, indent_with=indent_with,
-                                     add_line_information=add_line_information,
-                                     pretty=pretty)
+            return super().to_source(
+                node, indent_with=indent_with,
+                add_line_information=add_line_information, pretty=pretty)
         except SQLSourceGeneratorError as e:
             ctx = SQLSourceGeneratorContext(node)
             edgedb_error.add_context(e, ctx)
             raise
 
     def generic_visit(self, node):
-        raise SQLSourceGeneratorError('No method to generate code for %s' % node.__class__.__name__)
+        raise SQLSourceGeneratorError(
+            'No method to generate code for %s' % node.__class__.__name__)
 
     def visit_LiteralExprNode(self, node):
         self.write(node.expr)
@@ -144,7 +150,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
                 for i, target in enumerate(node.targets):
                     self.new_lines = 1
                     self.visit(target)
-                    if i != count -1:
+                    if i != count - 1:
                         self.write(',')
 
             if not node.op:
@@ -406,7 +412,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_FieldRefNode(self, node):
         if node.field == '*':
-            self.write(common.quote_ident(node.table.alias) + '.' + str(node.field))
+            self.write(
+                common.quote_ident(node.table.alias) + '.' + str(node.field))
         else:
             if node.table:
                 if isinstance(node.table.alias, str):
@@ -415,11 +422,14 @@ class SQLSourceGenerator(codegen.SourceGenerator):
                     alias = node.table.alias.alias
 
                 if isinstance(node.table, pgast.PseudoRelationNode):
-                    self.write(alias + "." + postgresql.string.quote_ident(str(node.field)))
+                    self.write(
+                        alias + "." + postgresql.string.quote_ident(
+                            str(node.field)))
                 else:
                     self.write(common.qname(alias, str(node.field)))
             else:
-                self.write(postgresql.string.quote_ident_if_needed(str(node.field)))
+                self.write(
+                    postgresql.string.quote_ident_if_needed(str(node.field)))
 
     def visit_FromExprNode(self, node):
         self.visit(node.expr)
@@ -452,10 +462,14 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         if node.right is not None:
             self.new_lines = 1
             self.write(node.type.upper() + ' JOIN ')
-            if isinstance(node.right, pgast.JoinNode) and node.right.right is not None:
+            if isinstance(
+                    node.right,
+                    pgast.JoinNode) and node.right.right is not None:
                 self.write('(')
             self.visit(node.right)
-            if isinstance(node.right, pgast.JoinNode) and node.right.right is not None:
+            if isinstance(
+                    node.right,
+                    pgast.JoinNode) and node.right.right is not None:
                 self.write(')')
             if node.condition is not None:
                 self.write(' ON ')
@@ -491,7 +505,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.expr)
         elif node.index is not None:
             self.write('$%d' % (node.index + 1))
-            self.param_index.setdefault(node.index, []).append(len(self.result) - 1)
+            self.param_index.setdefault(node.index,
+                                        []).append(len(self.result) - 1)
             if node.type is not None:
                 self.write('::%s' % node.type)
         else:
@@ -523,7 +538,6 @@ class SQLSourceGenerator(codegen.SourceGenerator):
                 self.write(', ')
 
         self.write(')')
-
 
     def visit_ArrayNode(self, node):
         self.write('ARRAY[')
@@ -599,7 +613,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             elif node.nulls_order == pgast.NullsLast:
                 self.write(' NULLS LAST')
             else:
-                raise SQLSourceGeneratorError('unexpected NULLS order: {}'.format(node.nulls_order))
+                raise SQLSourceGeneratorError(
+                    'unexpected NULLS order: {}'.format(node.nulls_order))
 
     def visit_TypeCastNode(self, node):
         self.visit(node.expr)

@@ -5,16 +5,12 @@
 # See LICENSE for details.
 ##
 
-
 from edgedb.lang.schema import atoms as s_atoms
 from edgedb.lang.schema import concepts as s_concepts
-from edgedb.lang.schema import error as s_err
 from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import name as sn
-from edgedb.lang.schema import types as s_types
 
 from . import common
-
 
 base_type_name_map = {
     sn.Name('std::str'): 'text',
@@ -134,12 +130,14 @@ class PointerStorageInfo:
             else:
                 column_type = pg_type_from_object(proto_schema, pointer.target)
         else:
-            # The target may not be known in circular concept-to-concept linking scenarios
+            # The target may not be known in circular concept-to-concept
+            # linking scenarios.
             column_type = 'uuid'
 
         if column_type is None:
-            msg = '{}: cannot determine pointer storage coltype: target is None'
-            raise ValueError(msg.format(pointer.name))
+            msg = '{}: cannot determine pointer storage coltype: ' \
+                  'target is None'.format(pointer.name)
+            raise ValueError(msg)
 
         return column_type
 
@@ -149,10 +147,13 @@ class PointerStorageInfo:
 
     @classmethod
     def _storable_in_pointer(cls, pointer):
-        return (not pointer.singular() or not pointer.atomic()
-                                       or pointer.has_user_defined_properties())
+        return (
+            not pointer.singular() or not pointer.atomic() or
+            pointer.has_user_defined_properties())
 
-    def __new__(cls, proto_schema, pointer, source=None, resolve_type=True, link_bias=False):
+    def __new__(
+            cls, proto_schema, pointer, source=None, resolve_type=True,
+            link_bias=False):
         is_prop = isinstance(pointer, s_lprops.LinkProperty)
 
         if resolve_type and proto_schema is None:
@@ -179,7 +180,8 @@ class PointerStorageInfo:
             else:
                 return None
 
-        column_type = cls._resolve_type(pointer, proto_schema) if resolve_type else None
+        column_type = cls._resolve_type(
+            pointer, proto_schema) if resolve_type else None
 
         result = super().__new__(cls)
 
@@ -194,13 +196,17 @@ class PointerStorageInfo:
         pass
 
     def __repr__(self):
-        return '<{} (table_name={}, table_type={}, column_name={}, column_type={}) at 0x{:x}>'\
-                    .format(self.__class__.__name__, '.'.join(self.table_name),
-                            self.table_type, self.column_name, self.column_type, id(self))
+        return \
+            '<{} (table_name={}, table_type={}, column_name={}, ' \
+            'column_type={}) at 0x{:x}>'.format(
+                self.__class__.__name__, '.'.join(self.table_name),
+                self.table_type, self.column_name, self.column_type, id(self))
 
 
-def get_pointer_storage_info(pointer, *, schema=None, source=None,
-                                         resolve_type=True, link_bias=False):
+def get_pointer_storage_info(
+        pointer, *, schema=None, source=None, resolve_type=True,
+        link_bias=False):
     assert not pointer.generic(), "only specialized pointers can be stored"
-    return PointerStorageInfo(schema, pointer, source=source,
-                              resolve_type=resolve_type, link_bias=link_bias)
+    return PointerStorageInfo(
+        schema, pointer, source=source, resolve_type=resolve_type,
+        link_bias=link_bias)

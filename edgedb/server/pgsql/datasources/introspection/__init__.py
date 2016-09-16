@@ -5,10 +5,9 @@
 # See LICENSE for details.
 ##
 
-
-from . import domains
-from . import tables
-from . import schemas
-from . import sequences
-from . import types
-from . import constraints
+from . import domains  # NOQA
+from . import tables  # NOQA
+from . import schemas  # NOQA
+from . import sequences  # NOQA
+from . import types  # NOQA
+from . import constraints  # NOQA

@@ -4,8 +4,6 @@
 #
 # See LICENSE for details.
 ##
-
-
 """Database features."""
 
 import postgresql.exceptions
@@ -57,8 +55,10 @@ class ProductAggregateFeature(deltadbops.Feature):
 
     async def code(self, context):
         return """
-            CREATE AGGREGATE {schema}.agg_product(double precision) (SFUNC=float8mul, STYPE=double precision, INITCOND=1);
-            CREATE AGGREGATE {schema}.agg_product(numeric) (SFUNC=numeric_mul, STYPE=numeric, INITCOND=1);
+            CREATE AGGREGATE {schema}.agg_product(double precision)
+                (SFUNC=float8mul, STYPE=double precision, INITCOND=1);
+            CREATE AGGREGATE {schema}.agg_product(numeric)
+                (SFUNC=numeric_mul, STYPE=numeric, INITCOND=1);
         """.format(schema=self.schema)
 
 
@@ -73,11 +73,13 @@ class KnownRecordMarkerFeature(deltadbops.Feature):
 
     @classmethod
     def init_feature(cls, db):
-        ps = db.prepare('''
+        ps = db.prepare(
+            '''
             SELECT
                 t.oid
             FROM
-                pg_type t INNER JOIN pg_namespace ns ON t.typnamespace = ns.oid
+                pg_type t INNER JOIN pg_namespace ns
+                    ON t.typnamespace = ns.oid
             WHERE
                 t.typname = 'known_record_marker_t'
                 AND ns.nspname = 'edgedb'
@@ -97,7 +99,8 @@ class GisFeature(deltadbops.Feature):
 
         for typ in ('box2d', 'box3d', 'geometry', 'geography'):
             try:
-                db.typio.identify(contrib_postgis='{}.{}'.format('edgedb_aux_feat_gis', typ))
+                db.typio.identify(
+                    contrib_postgis='{}.{}'.format('edgedb_aux_feat_gis', typ))
             except postgresql.exceptions.SchemaNameError:
                 pass
 
@@ -106,4 +109,5 @@ class GisFeature(deltadbops.Feature):
         search_path = connection.settings['search_path']
 
         if 'edgedb_aux_feat_gis' not in search_path:
-            connection.settings['search_path'] = search_path + ',edgedb_aux_feat_gis'
+            connection.settings[
+                'search_path'] = search_path + ',edgedb_aux_feat_gis'

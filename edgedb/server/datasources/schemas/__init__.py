@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 from edgedb.server.datasources.schemas.base import Base
 
 

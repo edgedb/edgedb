@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 from edgedb.lang import edgeql
 from edgedb.lang.edgeql import ast as qlast
 from edgedb.lang.schema import ddl as s_ddl
@@ -20,8 +19,9 @@ class TransactionStatement:
         elif isinstance(qlnode, qlast.RollbackTransactionNode):
             self.op = 'rollback'
         else:
-            raise ValueError('expecting transaction node, '
-                             'got {!r}'.format(qlnode))
+            raise ValueError(
+                'expecting transaction node, '
+                'got {!r}'.format(qlnode))
 
     def __repr__(self):
         return '<{} {!r} at 0x{:x}>'.format(self.__name__, self.op, id(self))

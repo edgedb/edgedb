@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 from .. import common
 from . import base
 from . import ddl
@@ -32,10 +31,11 @@ class DatabaseExists(base.Condition):
 
 
 class CreateDatabase(ddl.SchemaObjectOperation):
-    def __init__(self, db, *, conditions=None, neg_conditions=None,
-                              priority=0):
-        super().__init__(db.name, conditions=conditions,
-                         neg_conditions=neg_conditions, priority=priority)
+    def __init__(
+            self, db, *, conditions=None, neg_conditions=None, priority=0):
+        super().__init__(
+            db.name, conditions=conditions, neg_conditions=neg_conditions,
+            priority=priority)
         self.db = db
 
     async def code(self, context):
@@ -45,11 +45,11 @@ class CreateDatabase(ddl.SchemaObjectOperation):
 
 
 class DropDatabase(ddl.SchemaObjectOperation):
-    def __init__(self, name, *, conditions=None,
-                 neg_conditions=None, priority=0):
-        super().__init__(name, conditions=conditions,
-                               neg_conditions=neg_conditions,
-                               priority=priority)
+    def __init__(
+            self, name, *, conditions=None, neg_conditions=None, priority=0):
+        super().__init__(
+            name, conditions=conditions, neg_conditions=neg_conditions,
+            priority=priority)
 
     async def code(self, context):
         return 'DROP DATABASE {}'.format(common.quote_ident(self.name))

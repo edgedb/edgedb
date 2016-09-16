@@ -5,5 +5,4 @@
 # See LICENSE for details.
 ##
 
-
-from .base import Datasource, DatasourceError, Result
+from .base import Datasource, DatasourceError, Result  # NOQA

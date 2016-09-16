@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 from importkit import context as lang_context
 
 from edgedb.lang.common import exceptions as edgedb_error
@@ -31,20 +30,23 @@ class QueryExceptionContext(markup.MarkupExceptionContext):
         me = markup.elements
 
         if self.position:
-            lineno, colno = lang_context.line_col_from_char_offset(self.query, self.position)
+            lineno, colno = lang_context.line_col_from_char_offset(
+                self.query, self.position)
         else:
             lineno = colno = None
 
-        tbp = me.lang.TracebackPoint(name='SQL query', filename='<string>',
-                                     lineno=lineno, colno=colno)
+        tbp = me.lang.TracebackPoint(
+            name='SQL query', filename='<string>', lineno=lineno, colno=colno)
         tbp.load_source(window=5, lines=self.query.split('\n'))
 
         src = markup.serializer.serialize_code(self.query, lexer='sql')
 
         tb_section = me.doc.Section(title='Error Point', body=[tbp])
-        src_section = me.doc.Section(title='Full Source', body=[src], collapsed=True)
+        src_section = me.doc.Section(
+            title='Full Source', body=[src], collapsed=True)
 
-        return me.lang.ExceptionContext(title=self.title, body=[tb_section, src_section])
+        return me.lang.ExceptionContext(
+            title=self.title, body=[tb_section, src_section])
 
 
 class QueryError(BackendError):

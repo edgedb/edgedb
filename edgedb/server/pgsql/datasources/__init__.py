@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
-from . import introspection
-from . import schema
-from . import deltalog
+from . import introspection  # NOQA
+from . import schema  # NOQA
+from . import deltalog  # NOQA

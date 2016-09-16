@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
-from .pidfile import PidFile
-from .exceptions import DaemonError
-from .daemon import DaemonContext
+from .pidfile import PidFile  # NOQA
+from .exceptions import DaemonError  # NOQA
+from .daemon import DaemonContext  # NOQA

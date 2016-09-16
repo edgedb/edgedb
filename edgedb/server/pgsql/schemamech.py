@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import collections
 import itertools
 
@@ -19,7 +18,6 @@ from edgedb.lang.schema import concepts as s_concepts
 from edgedb.lang.schema import error as s_err
 from edgedb.lang.schema import links as s_links
 from edgedb.lang.schema import name as sn
-from edgedb.lang.schema import types as s_types
 
 from edgedb.lang.common import ast
 
@@ -48,8 +46,8 @@ class ConstraintMech:
         constraints_ds = introspection.constraints.Constraints(connection)
 
         constraints = {}
-        rows = await constraints_ds.fetch(schema_pattern='edgedb%',
-                                          constraint_pattern='%;schemaconstr%')
+        rows = await constraints_ds.fetch(
+            schema_pattern='edgedb%', constraint_pattern='%;schemaconstr%')
         for row in rows:
             constraints[row['constraint_name']] = row
 
@@ -84,8 +82,9 @@ class ConstraintMech:
             all_refs = []
             for ref in refs:
                 # Unnest sequences in refs
-                if (isinstance(ref, irast.BaseRefExpr)
-                            and isinstance(ref.expr, irast.Sequence)):
+                if (
+                        isinstance(ref, irast.BaseRefExpr) and
+                        isinstance(ref.expr, irast.Sequence)):
                     all_refs.append(ref.expr)
                 else:
                     all_refs.append(ref)
@@ -118,7 +117,7 @@ class ConstraintMech:
 
         for ref, (ptr, src) in ref_ptrs.items():
             ptr_info = types.get_pointer_storage_info(
-                            ptr, source=src, resolve_type=False)
+                ptr, source=src, resolve_type=False)
 
             # See if any of the refs are hosted in pointer tables and others
             # are not...
@@ -134,8 +133,7 @@ class ConstraintMech:
             for ref in concept_biased.copy():
                 ptr, src = ref_ptrs[ref]
                 ptr_info = types.get_pointer_storage_info(
-                                ptr, source=src, resolve_type=False,
-                                link_bias=True)
+                    ptr, source=src, resolve_type=False, link_bias=True)
 
                 if ptr_info.table_type == 'link':
                     link_biased[ref] = ptr_info
@@ -143,8 +141,8 @@ class ConstraintMech:
 
         ref_tables = {}
 
-        for ref, ptr_info in itertools.chain(concept_biased.items(),
-                                             link_biased.items()):
+        for ref, ptr_info in itertools.chain(
+                concept_biased.items(), link_biased.items()):
             ptr, src = ref_ptrs[ref]
 
             try:
@@ -158,18 +156,19 @@ class ConstraintMech:
     @classmethod
     def _edgeql_ref_to_pg_constr(cls, subject, tree, schema, link_bias):
         ircompiler = transformer.SimpleIRCompiler()
-        sql_tree = ircompiler.transform(tree, protoschema=schema,
-                                        local=True, link_bias=link_bias)
+        sql_tree = ircompiler.transform(
+            tree, protoschema=schema, local=True, link_bias=link_bias)
 
         is_multicol = isinstance(tree, irast.Sequence)
 
         # Determine if the sequence of references are all simple refs, not
         # expressions.  This influences the type of Postgres constraint used.
         #
-        is_trivial = (isinstance(sql_tree, pg_ast.FieldRefNode)
-                        or (isinstance(sql_tree, pg_ast.SequenceNode)
-                            and all(isinstance(el, pg_ast.FieldRefNode)
-                                    for el in sql_tree.elements)))
+        is_trivial = (
+            isinstance(sql_tree, pg_ast.FieldRefNode) or (
+                isinstance(sql_tree, pg_ast.SequenceNode) and all(
+                    isinstance(el, pg_ast.FieldRefNode)
+                    for el in sql_tree.elements)))
 
         # Find all field references
         #
@@ -183,7 +182,8 @@ class ConstraintMech:
 
             for ref in refs:
                 if ref.field != subject_pg_name:
-                    msg = 'unexpected node reference in Atom constraint: {}'.format(ref.field)
+                    msg = 'unexpected node reference in ' \
+                          'Atom constraint: {}'.format(ref.field)
                     raise ValueError(msg)
 
                 ref.field = 'VALUE'
@@ -209,30 +209,35 @@ class ConstraintMech:
             ref.table = pg_ast.PseudoRelationNode(name="OLD", alias="OLD")
         old_expr = codegen.SQLSourceGenerator.to_source(sql_tree)
 
-        exprdata = dict(plain=plain_expr, plain_chunks=chunks, new=new_expr, old=old_expr)
+        exprdata = dict(
+            plain=plain_expr, plain_chunks=chunks, new=new_expr, old=old_expr)
 
-        return dict(exprdata=exprdata, is_multicol=is_multicol, is_trivial=is_trivial)
+        return dict(
+            exprdata=exprdata, is_multicol=is_multicol, is_trivial=is_trivial)
 
     @classmethod
-    def schema_constraint_to_backend_constraint(cls, subject, constraint, schema):
+    def schema_constraint_to_backend_constraint(
+            cls, subject, constraint, schema):
         assert constraint.subject is not None
 
-        ir = edgeql.compile_to_ir(constraint.finalexpr, schema,
-                                  anchors={'subject': subject})
+        ir = edgeql.compile_to_ir(
+            constraint.finalexpr, schema, anchors={'subject': subject})
 
         terminal_refs = ir_utils.get_terminal_references(ir)
 
         ref_tables = cls._get_ref_storage_info(schema, terminal_refs)
 
         if len(ref_tables) > 1:
-            raise ValueError('backend: multi-table constraints are not currently supported')
+            raise ValueError(
+                'backend: multi-table constraints are not currently supported')
         elif ref_tables:
             subject_db_name = next(iter(ref_tables))
         else:
-            subject_db_name = common.atom_name_to_domain_name(subject.name,
-                                                              catenate=False)
+            subject_db_name = common.atom_name_to_domain_name(
+                subject.name, catenate=False)
 
-        link_bias = ref_tables and next(iter(ref_tables.values()))[0][3].table_type == 'link'
+        link_bias = ref_tables and next(iter(ref_tables.values()))[0][
+            3].table_type == 'link'
 
         unique_expr_refs = cls._get_unique_refs(ir)
 
@@ -245,16 +250,16 @@ class ConstraintMech:
 
         if unique_expr_refs:
             for ref in unique_expr_refs:
-                exprdata = cls._edgeql_ref_to_pg_constr(subject, ref, schema,
-                                                        link_bias)
+                exprdata = cls._edgeql_ref_to_pg_constr(
+                    subject, ref, schema, link_bias)
                 exprs.append(exprdata)
 
             pg_constr_data['scope'] = 'relation'
             pg_constr_data['type'] = 'unique'
             pg_constr_data['subject_db_name'] = subject_db_name
         else:
-            exprdata = cls._edgeql_ref_to_pg_constr(subject, ir, schema,
-                                                    link_bias)
+            exprdata = cls._edgeql_ref_to_pg_constr(
+                subject, ir, schema, link_bias)
             exprs.append(exprdata)
 
             pg_constr_data['subject_db_name'] = subject_db_name
@@ -262,13 +267,13 @@ class ConstraintMech:
             pg_constr_data['type'] = 'check'
 
         if isinstance(constraint.subject, s_atoms.Atom):
-            constraint = SchemaDomainConstraint(subject=subject,
-                                                constraint=constraint,
-                                                pg_constr_data=pg_constr_data)
+            constraint = SchemaDomainConstraint(
+                subject=subject, constraint=constraint,
+                pg_constr_data=pg_constr_data)
         else:
-            constraint = SchemaTableConstraint(subject=subject,
-                                               constraint=constraint,
-                                               pg_constr_data=pg_constr_data)
+            constraint = SchemaTableConstraint(
+                subject=subject, constraint=constraint,
+                pg_constr_data=pg_constr_data)
         return constraint
 
 
@@ -284,7 +289,7 @@ class SchemaDomainConstraint:
         expressions = constr._pg_constr_data['expressions']
 
         constr = deltadbops.SchemaConstraintDomainConstraint(
-                    domain_name, constr._constraint, expressions)
+            domain_name, constr._constraint, expressions)
 
         return constr
 
@@ -293,8 +298,7 @@ class SchemaDomainConstraint:
 
         domconstr = self._domain_constraint(self)
         add_constr = dbops.AlterDomainAddConstraint(
-                            name=domconstr.get_subject_name(quote=False),
-                            constraint=domconstr)
+            name=domconstr.get_subject_name(quote=False), constraint=domconstr)
 
         ops.add_command(add_constr)
 
@@ -307,9 +311,8 @@ class SchemaDomainConstraint:
         orig_domconstr = self._domain_constraint(orig_constr)
 
         add_constr = dbops.AlterDomainRenameConstraint(
-                            name=domconstr.get_subject_name(quote=False),
-                            constraint=orig_domconstr,
-                            new_constraint=domconstr)
+            name=domconstr.get_subject_name(quote=False),
+            constraint=orig_domconstr, new_constraint=domconstr)
 
         ops.add_command(add_constr)
 
@@ -324,8 +327,7 @@ class SchemaDomainConstraint:
 
         domconstr = self._domain_constraint(self)
         add_constr = dbops.AlterDomainDropConstraint(
-                            name=domconstr.get_subject_name(quote=False),
-                            constraint=domconstr)
+            name=domconstr.get_subject_name(quote=False), constraint=domconstr)
 
         ops.add_command(add_constr)
 
@@ -346,11 +348,8 @@ class SchemaTableConstraint:
         expressions = pg_c['expressions']
 
         constr = deltadbops.SchemaConstraintTableConstraint(
-                                    table_name,
-                                    constraint=constr._constraint,
-                                    exprdata=expressions,
-                                    scope=pg_c['scope'],
-                                    type=pg_c['type'])
+            table_name, constraint=constr._constraint, exprdata=expressions,
+            scope=pg_c['scope'], type=pg_c['type'])
 
         return constr
 
@@ -359,8 +358,7 @@ class SchemaTableConstraint:
 
         tabconstr = self._table_constraint(self)
         add_constr = deltadbops.AlterTableAddInheritableConstraint(
-                                name=tabconstr.get_subject_name(quote=False),
-                                constraint=tabconstr)
+            name=tabconstr.get_subject_name(quote=False), constraint=tabconstr)
 
         ops.add_command(add_constr)
 
@@ -373,9 +371,8 @@ class SchemaTableConstraint:
         orig_tabconstr = self._table_constraint(orig_constr)
 
         rename_constr = deltadbops.AlterTableRenameInheritableConstraint(
-                                name=tabconstr.get_subject_name(quote=False),
-                                constraint=orig_tabconstr,
-                                new_constraint=tabconstr)
+            name=tabconstr.get_subject_name(quote=False),
+            constraint=orig_tabconstr, new_constraint=tabconstr)
 
         ops.add_command(rename_constr)
 
@@ -388,10 +385,8 @@ class SchemaTableConstraint:
         orig_tabconstr = self._table_constraint(orig_constr)
 
         alter_constr = deltadbops.AlterTableAlterInheritableConstraint(
-                            name=tabconstr.get_subject_name(quote=False),
-                            constraint=orig_tabconstr,
-                            new_constraint=tabconstr
-                       )
+            name=tabconstr.get_subject_name(quote=False),
+            constraint=orig_tabconstr, new_constraint=tabconstr)
 
         ops.add_command(alter_constr)
 
@@ -402,8 +397,7 @@ class SchemaTableConstraint:
 
         tabconstr = self._table_constraint(self)
         add_constr = deltadbops.AlterTableDropInheritableConstraint(
-                                name=tabconstr.get_subject_name(quote=False),
-                                constraint=tabconstr)
+            name=tabconstr.get_subject_name(quote=False), constraint=tabconstr)
 
         ops.add_command(add_constr)
 
@@ -424,8 +418,8 @@ class TypeMech:
 
     async def _load_table_columns(self, table_name, connection):
         cols = introspection.tables.TableColumns(connection)
-        cols = await cols.fetch(table_name=table_name[1],
-                                schema_name=table_name[0])
+        cols = await cols.fetch(
+            table_name=table_name[1], schema_name=table_name[0])
 
         if self._column_cache is None:
             self._column_cache = {}
@@ -461,8 +455,8 @@ class TypeMech:
 
     async def _load_type_attributes(self, type_name, connection):
         cols = introspection.types.CompositeTypeAttributes(connection)
-        cols = await cols.fetch(type_name=type_name[1],
-                                schema_name=type_name[0])
+        cols = await cols.fetch(
+            type_name=type_name[1], schema_name=type_name[0])
 
         if self._column_cache is None:
             self._column_cache = {}
@@ -503,16 +497,15 @@ class TypeMech:
 
             if isinstance(prototype, s_links.Link):
                 cols.extend([
-                    dbops.Column(name='link_type_id', type='int'),
-                    dbops.Column(name='std::linkid', type='uuid'),
-                    dbops.Column(name='std::source', type='uuid'),
-                    dbops.Column(name='std::target', type='uuid')
+                    dbops.Column(
+                        name='link_type_id', type='int'), dbops.Column(
+                            name='std::linkid', type='uuid'), dbops.Column(
+                                name='std::source', type='uuid'), dbops.Column(
+                                    name='std::target', type='uuid')
                 ])
 
             elif isinstance(prototype, s_concepts.Concept):
-                cols.extend([
-                    dbops.Column(name='concept_id', type='int')
-                ])
+                cols.extend([dbops.Column(name='concept_id', type='int')])
 
             else:
                 assert False
@@ -533,14 +526,16 @@ class TypeMech:
                     continue
 
                 ptr_stor_info = types.get_pointer_storage_info(
-                                    pointer, schema=proto_schema)
+                    pointer, schema=proto_schema)
 
                 if ptr_stor_info.column_name == 'std::target':
                     continue
 
                 if ptr_stor_info.table_type == expected_table_type:
-                    cols.append(dbops.Column(name=ptr_stor_info.column_name,
-                                             type=ptr_stor_info.column_type))
+                    cols.append(
+                        dbops.Column(
+                            name=ptr_stor_info.column_name,
+                            type=ptr_stor_info.column_type))
             table.add_columns(cols)
 
             self._table_cache[prototype] = table

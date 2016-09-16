@@ -5,13 +5,7 @@
 # See LICENSE for details.
 ##
 
-
-"""Abstractions for low-level database DDL and DML operations and structures
-related to the EdgeDB schema."""
-
-
-import re
-import postgresql.installation
+"""Abstractions for low-level database DDL and DML operations."""
 
 from edgedb.lang.schema import delta as sd
 from edgedb.lang.schema import objects as s_obj
@@ -38,15 +32,20 @@ class SchemaDBObject(metaclass=SchemaDBObjectMeta):
     @classmethod
     def get_canonical_class(cls):
         for base in cls.__bases__:
-            if issubclass(base, s_obj.ProtoObject) and not issubclass(base, SchemaDBObject):
+            if issubclass(base, s_obj.ProtoObject) and not issubclass(
+                    base, SchemaDBObject):
                 return base
 
         return cls
 
 
 class CallDeltaHook(dbops.Command):
-    def __init__(self, *, hook, stage, op, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
+    def __init__(
+            self, *, hook, stage, op, conditions=None, neg_conditions=None,
+            priority=0):
+        super().__init__(
+            conditions=conditions, neg_conditions=neg_conditions,
+            priority=priority)
 
         self.hook = hook
         self.stage = stage
@@ -54,7 +53,8 @@ class CallDeltaHook(dbops.Command):
 
     async def execute(self, context):
         try:
-            self.op.call_hook(context.session, stage=self.stage, hook=self.hook)
+            self.op.call_hook(
+                context.session, stage=self.stage, hook=self.hook)
         except sd.DeltaHookNotFoundError:
             pass
 
@@ -87,7 +87,8 @@ class ConstraintCommon:
         return self._constraint.is_abstract
 
 
-class SchemaConstraintDomainConstraint(ConstraintCommon, dbops.DomainConstraint):
+class SchemaConstraintDomainConstraint(
+        ConstraintCommon, dbops.DomainConstraint):
     def __init__(self, domain_name, constraint, exprdata):
         super().__init__(domain_name)
         self._exprdata = exprdata
@@ -107,16 +108,17 @@ class SchemaConstraintDomainConstraint(ConstraintCommon, dbops.DomainConstraint)
 
         objoid = dbops.Query(
             '(SELECT oid FROM pg_constraint WHERE conname = $1)',
-            [self.constraint_name(quote=False)], type='oid'
-        )
+            [self.constraint_name(quote=False)], type='oid')
 
         classoid = dbops.Query(
             '''(SELECT c.oid
                     FROM
-                        pg_class c INNER JOIN pg_namespace ns ON c.relnamespace = ns.oid
-                    WHERE c.relname = 'pg_constraint' AND ns.nspname = 'pg_catalog')
-            ''', [], type='oid'
-        )
+                        pg_class c INNER JOIN pg_namespace ns
+                            ON c.relnamespace = ns.oid
+                    WHERE
+                        c.relname = 'pg_constraint' AND
+                        ns.nspname = 'pg_catalog')
+            ''', [], type='oid')
 
         rec.objoid = objoid
         rec.classoid = classoid
@@ -138,8 +140,9 @@ class SchemaConstraintDomainConstraint(ConstraintCommon, dbops.DomainConstraint)
         return 'CHECK ({})'.format(expr)
 
     def __repr__(self):
-        return '<{}.{} "{}" "%r">' % (self.__class__.__module__, self.__class__.__name__,
-                                      self.domain_name, self._constraint)
+        return '<{}.{} "{}" "%r">' % (
+            self.__class__.__module__, self.__class__.__name__,
+            self.domain_name, self._constraint)
 
 
 class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
@@ -151,8 +154,6 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
         self._type = type
 
     async def constraint_code(self, context):
-        ql = postgresql.string.quote_literal
-
         if self._scope == 'row':
             if len(self._exprdata) == 1:
                 expr = self._exprdata[0]['exprdata']['plain']
@@ -164,7 +165,8 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
 
         else:
             if self._type != 'unique':
-                raise ValueError('unexpected constraint type: {}'.format(self._type))
+                raise ValueError(
+                    'unexpected constraint type: {}'.format(self._type))
 
             constr_exprs = []
 
@@ -180,7 +182,8 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
                     # needs to use EXCLUDE.
                     #
                     chunks = expr['exprdata']['plain_chunks']
-                    expr = ', '.join("{} WITH =".format(chunk) for chunk in chunks)
+                    expr = ', '.join(
+                        "{} WITH =".format(chunk) for chunk in chunks)
                     expr = 'EXCLUDE ({})'.format(expr)
 
                 constr_exprs.append(expr)
@@ -206,8 +209,8 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
 
         for expr in self._exprdata:
             condition = '{old_expr} IS DISTINCT FROM {new_expr}'.format(
-                            old_expr=expr['exprdata']['old'],
-                            new_expr=expr['exprdata']['new'])
+                old_expr=expr['exprdata']['old'],
+                new_expr=expr['exprdata']['new'])
             chunks.append(condition)
 
         if len(chunks) == 1:
@@ -234,26 +237,24 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
             exprdata = expr['exprdata']
 
             text = '''
-                      PERFORM
-                            TRUE
-                          FROM
-                            {table}
-                          WHERE
-                            {plain_expr} = {new_expr};
-                      IF FOUND THEN
-                          RAISE unique_violation
-                              USING
-                                  TABLE = '{table[1]}',
-                                  SCHEMA = '{table[0]}',
-                                  CONSTRAINT = '{constr}',
-                                  MESSAGE = '{errmsg}',
-                                  DETAIL = 'Key ({plain_expr}) already exists.';
-                      END IF;
-                   '''.format(plain_expr=exprdata['plain'],
-                              new_expr=exprdata['new'],
-                              table=subject_table,
-                              constr=raw_constr_name,
-                              errmsg=errmsg)
+                PERFORM
+                    TRUE
+                  FROM
+                    {table}
+                  WHERE
+                    {plain_expr} = {new_expr};
+                IF FOUND THEN
+                  RAISE unique_violation
+                      USING
+                          TABLE = '{table[1]}',
+                          SCHEMA = '{table[0]}',
+                          CONSTRAINT = '{constr}',
+                          MESSAGE = '{errmsg}',
+                          DETAIL = 'Key ({plain_expr}) already exists.';
+                END IF;
+            '''.format(
+                plain_expr=exprdata['plain'], new_expr=exprdata['new'],
+                table=subject_table, constr=raw_constr_name, errmsg=errmsg)
 
             chunks.append(text)
 
@@ -262,19 +263,17 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
         return text
 
     def is_multiconstraint(self):
-        """Returns True, if this constraint needs multiple database
-           constraints to satisfy all conditions.
-        """
+        """Determine if multiple database constraints are needed."""
         return self._scope != 'row' and len(self._exprdata) > 1
 
     def is_natively_inherited(self):
-        """Returns True, if this constraint can be inherited natively."""
+        """Determine if this constraint can be inherited natively."""
         return self._type == 'check'
 
     def __repr__(self):
         return '<{}.{} {!r}>'.format(
-                    self.__class__.__module__, self.__class__.__name__,
-                    self._constraint)
+            self.__class__.__module__, self.__class__.__name__,
+            self._constraint)
 
 
 class MultiConstraintItem:
@@ -287,12 +286,13 @@ class MultiConstraintItem:
 
     def get_id(self):
         raw_name = self.constraint.raw_constraint_name()
-        name = common.edgedb_name_to_pg_name('{}#{}'.format(raw_name, self.index))
+        name = common.edgedb_name_to_pg_name(
+            '{}#{}'.format(raw_name, self.index))
         name = common.quote_ident(name)
 
-        return '{} ON {} {}'.format(name,
-                                    self.constraint.get_subject_type(),
-                                    self.constraint.get_subject_name())
+        return '{} ON {} {}'.format(
+            name, self.constraint.get_subject_type(),
+            self.constraint.get_subject_name())
 
 
 class AlterTableAddMultiConstraint(dbops.AlterTableAddConstraint):
@@ -336,18 +336,18 @@ class AlterTableAddMultiConstraint(dbops.AlterTableAddConstraint):
         return comments
 
 
-class AlterTableRenameMultiConstraint(dbops.AlterTableBaseMixin,
-                                      dbops.CommandGroup):
-    def __init__(self, name, *, constraint, new_constraint,
-                                contained=False, conditions=None,
-                                neg_conditions=None, priority=0):
+class AlterTableRenameMultiConstraint(
+        dbops.AlterTableBaseMixin, dbops.CommandGroup):
+    def __init__(
+            self, name, *, constraint, new_constraint, contained=False,
+            conditions=None, neg_conditions=None, priority=0):
 
-        dbops.CommandGroup.__init__(self, conditions=conditions,
-                                          neg_conditions=neg_conditions,
-                                          priority=priority)
+        dbops.CommandGroup.__init__(
+            self, conditions=conditions, neg_conditions=neg_conditions,
+            priority=priority)
 
-        dbops.AlterTableBaseMixin.__init__(self, name=name,
-                                                 contained=contained)
+        dbops.AlterTableBaseMixin.__init__(
+            self, name=name, contained=contained)
 
         self.constraint = constraint
         self.new_constraint = new_constraint
@@ -364,7 +364,7 @@ class AlterTableRenameMultiConstraint(dbops.AlterTableBaseMixin,
                 new_name = nc.numbered_constraint_name(i, quote=False)
 
                 ac = dbops.AlterTableRenameConstraintSimple(
-                        name=self.name, old_name=old_name, new_name=new_name)
+                    name=self.name, old_name=old_name, new_name=new_name)
 
                 self.add_command(ac)
         else:
@@ -372,7 +372,7 @@ class AlterTableRenameMultiConstraint(dbops.AlterTableBaseMixin,
             new_name = nc.constraint_name(quote=False)
 
             ac = dbops.AlterTableRenameConstraintSimple(
-                    name=self.name, old_name=old_name, new_name=new_name)
+                name=self.name, old_name=old_name, new_name=new_name)
 
             self.add_command(ac)
 
@@ -418,16 +418,18 @@ class AlterTableDropMultiConstraint(dbops.AlterTableDropConstraint):
         return code
 
 
-class AlterTableInheritableConstraintBase(dbops.AlterTableBaseMixin,
-                                          dbops.CommandGroup):
-    def __init__(self, name, *, constraint, contained=False, conditions=None,
-                                neg_conditions=None, priority=0):
+class AlterTableInheritableConstraintBase(
+        dbops.AlterTableBaseMixin, dbops.CommandGroup):
+    def __init__(
+            self, name, *, constraint, contained=False, conditions=None,
+            neg_conditions=None, priority=0):
 
-        dbops.CompositeCommandGroup.__init__(self, conditions=conditions,
-                                             neg_conditions=neg_conditions,
-                                             priority=priority)
+        dbops.CompositeCommandGroup.__init__(
+            self, conditions=conditions, neg_conditions=neg_conditions,
+            priority=priority)
 
-        dbops.AlterTableBaseMixin.__init__(self, name=name, contained=contained)
+        dbops.AlterTableBaseMixin.__init__(
+            self, name=name, contained=contained)
 
         self._constraint = constraint
 
@@ -438,9 +440,8 @@ class AlterTableInheritableConstraintBase(dbops.AlterTableBaseMixin,
 
         ins_trigger_name = common.edgedb_name_to_pg_name(cname + '_instrigger')
         ins_trigger = dbops.Trigger(
-                            name=ins_trigger_name, table_name=table_name,
-                            events=('insert',), procedure=proc_name,
-                            is_constraint=True, inherit=True)
+            name=ins_trigger_name, table_name=table_name, events=('insert', ),
+            procedure=proc_name, is_constraint=True, inherit=True)
         cr_ins_trigger = dbops.CreateTrigger(ins_trigger)
         cmds.append(cr_ins_trigger)
 
@@ -451,10 +452,9 @@ class AlterTableInheritableConstraintBase(dbops.AlterTableBaseMixin,
         condition = constraint.get_trigger_condition()
 
         upd_trigger = dbops.Trigger(
-                            name=upd_trigger_name, table_name=table_name,
-                            events=('update',), procedure=proc_name,
-                            condition=condition, is_constraint=True,
-                            inherit=True)
+            name=upd_trigger_name, table_name=table_name, events=('update', ),
+            procedure=proc_name, condition=condition, is_constraint=True,
+            inherit=True)
         cr_upd_trigger = dbops.CreateTrigger(upd_trigger)
         cmds.append(cr_upd_trigger)
 
@@ -471,28 +471,26 @@ class AlterTableInheritableConstraintBase(dbops.AlterTableBaseMixin,
         ncname = new_constr.raw_constraint_name()
 
         ins_trigger_name = common.edgedb_name_to_pg_name(cname + '_instrigger')
-        new_ins_trg_name = common.edgedb_name_to_pg_name(ncname + '_instrigger')
+        new_ins_trg_name = common.edgedb_name_to_pg_name(
+            ncname + '_instrigger')
 
         ins_trigger = dbops.Trigger(
-                            name=ins_trigger_name, table_name=table_name,
-                            events=('insert',), procedure='null',
-                            is_constraint=True, inherit=True)
+            name=ins_trigger_name, table_name=table_name, events=('insert', ),
+            procedure='null', is_constraint=True, inherit=True)
 
         rn_ins_trigger = dbops.AlterTriggerRenameTo(
-                            ins_trigger,
-                            new_name=new_ins_trg_name)
+            ins_trigger, new_name=new_ins_trg_name)
 
         upd_trigger_name = common.edgedb_name_to_pg_name(cname + '_updtrigger')
-        new_upd_trg_name = common.edgedb_name_to_pg_name(ncname + '_updtrigger')
+        new_upd_trg_name = common.edgedb_name_to_pg_name(
+            ncname + '_updtrigger')
 
         upd_trigger = dbops.Trigger(
-                            name=upd_trigger_name, table_name=table_name,
-                            events=('update',), procedure='null',
-                            is_constraint=True, inherit=True)
+            name=upd_trigger_name, table_name=table_name, events=('update', ),
+            procedure='null', is_constraint=True, inherit=True)
 
         rn_upd_trigger = dbops.AlterTriggerRenameTo(
-                            upd_trigger,
-                            new_name=new_upd_trg_name)
+            upd_trigger, new_name=new_upd_trg_name)
 
         return (rn_ins_trigger, rn_upd_trigger)
 
@@ -501,17 +499,15 @@ class AlterTableInheritableConstraintBase(dbops.AlterTableBaseMixin,
 
         ins_trigger_name = common.edgedb_name_to_pg_name(cname + '_instrigger')
         ins_trigger = dbops.Trigger(
-                            name=ins_trigger_name, table_name=table_name,
-                            events=('insert',), procedure='null',
-                            is_constraint=True, inherit=True)
+            name=ins_trigger_name, table_name=table_name, events=('insert', ),
+            procedure='null', is_constraint=True, inherit=True)
 
         drop_ins_trigger = dbops.DropTrigger(ins_trigger)
 
         upd_trigger_name = common.edgedb_name_to_pg_name(cname + '_updtrigger')
         upd_trigger = dbops.Trigger(
-                            name=upd_trigger_name, table_name=table_name,
-                            events=('update',), procedure='null',
-                            is_constraint=True, inherit=True)
+            name=upd_trigger_name, table_name=table_name, events=('update', ),
+            procedure='null', is_constraint=True, inherit=True)
 
         drop_upd_trigger = dbops.DropTrigger(upd_trigger)
 
@@ -538,25 +534,24 @@ class AlterTableInheritableConstraintBase(dbops.AlterTableBaseMixin,
             #
             proc_name = constraint.get_trigger_procname()
             proc_text = constraint.get_trigger_proc_text()
-            proc = dbops.CreateTriggerFunction(name=proc_name, text=proc_text,
-                                               volatility='stable')
+            proc = dbops.CreateTriggerFunction(
+                name=proc_name, text=proc_text, volatility='stable')
             self.add_command(proc)
 
             # Add a (disabled) inheritable trigger on self.
             # Trigger inheritance will propagate and maintain
             # the trigger on current and future descendants.
             #
-            cr_trigger = self.create_constr_trigger(self.name, constraint,
-                                                    proc_name)
+            cr_trigger = self.create_constr_trigger(
+                self.name, constraint, proc_name)
             self.add_commands(cr_trigger)
 
     def rename_constraint(self, old_constraint, new_constraint):
         # Rename the native constraint(s) normally
         #
         rename_constr = AlterTableRenameMultiConstraint(
-                                name=self.name,
-                                constraint=old_constraint,
-                                new_constraint=new_constraint)
+            name=self.name, constraint=old_constraint,
+            new_constraint=new_constraint)
         self.add_command(rename_constr)
 
         if not old_constraint.is_natively_inherited():
@@ -565,14 +560,13 @@ class AlterTableInheritableConstraintBase(dbops.AlterTableBaseMixin,
             old_proc_name = old_constraint.get_trigger_procname()
             new_proc_name = new_constraint.get_trigger_procname()
 
-            rename_proc = dbops.RenameFunction(name=old_proc_name, args=(),
-                                               new_name=new_proc_name)
+            rename_proc = dbops.RenameFunction(
+                name=old_proc_name, args=(), new_name=new_proc_name)
             self.add_command(rename_proc)
 
             new_proc_text = new_constraint.get_trigger_proc_text()
             alter_text = dbops.AlterFunctionReplaceText(
-                                    name=new_proc_name, args=(),
-                                    new_text=new_proc_text)
+                name=new_proc_name, args=(), new_text=new_proc_text)
 
             self.add_command(alter_text)
 
@@ -616,9 +610,9 @@ class AlterTableInheritableConstraintBase(dbops.AlterTableBaseMixin,
 
 class AlterTableAddInheritableConstraint(AlterTableInheritableConstraintBase):
     def __repr__(self):
-        return '<{}.{} {!r}>'.format(self.__class__.__module__,
-                                     self.__class__.__name__,
-                                     self._constraint)
+        return '<{}.{} {!r}>'.format(
+            self.__class__.__module__, self.__class__.__name__,
+            self._constraint)
 
     async def _execute(self, context, code, vars):
         if not self._constraint.is_abstract:
@@ -626,15 +620,16 @@ class AlterTableAddInheritableConstraint(AlterTableInheritableConstraintBase):
         await super()._execute(context, code, vars)
 
 
-class AlterTableRenameInheritableConstraint(AlterTableInheritableConstraintBase):
-    def __init__(self, name, *, constraint, new_constraint,  **kwargs):
+class AlterTableRenameInheritableConstraint(
+        AlterTableInheritableConstraintBase):
+    def __init__(self, name, *, constraint, new_constraint, **kwargs):
         super().__init__(name, constraint=constraint, **kwargs)
         self._new_constraint = new_constraint
 
     def __repr__(self):
-        return '<{}.{} {!r}>'.format(self.__class__.__module__,
-                                     self.__class__.__name__,
-                                     self._constraint)
+        return '<{}.{} {!r}>'.format(
+            self.__class__.__module__, self.__class__.__name__,
+            self._constraint)
 
     async def execute(self, context):
         if not self._constraint.is_abstract:
@@ -642,15 +637,16 @@ class AlterTableRenameInheritableConstraint(AlterTableInheritableConstraintBase)
         await super().execute(context)
 
 
-class AlterTableAlterInheritableConstraint(AlterTableInheritableConstraintBase):
-    def __init__(self, name, *, constraint, new_constraint,  **kwargs):
+class AlterTableAlterInheritableConstraint(
+        AlterTableInheritableConstraintBase):
+    def __init__(self, name, *, constraint, new_constraint, **kwargs):
         super().__init__(name, constraint=constraint, **kwargs)
         self._new_constraint = new_constraint
 
     def __repr__(self):
-        return '<{}.{} {!r}>'.format(self.__class__.__module__,
-                                     self.__class__.__name__,
-                                     self._constraint)
+        return '<{}.{} {!r}>'.format(
+            self.__class__.__module__, self.__class__.__name__,
+            self._constraint)
 
     async def execute(self, context):
         self.alter_constraint(self._constraint, self._new_constraint)
@@ -659,9 +655,9 @@ class AlterTableAlterInheritableConstraint(AlterTableInheritableConstraintBase):
 
 class AlterTableDropInheritableConstraint(AlterTableInheritableConstraintBase):
     def __repr__(self):
-        return '<{}.{} {!r}>'.format(self.__class__.__module__,
-                                     self.__class__.__name__,
-                                     self._constraint)
+        return '<{}.{} {!r}>'.format(
+            self.__class__.__module__, self.__class__.__name__,
+            self._constraint)
 
     async def execute(self, context):
         if not self._constraint.is_abstract:
@@ -682,28 +678,36 @@ class MappingIndex(dbops.Index):
         ids = tuple(sorted(list(link_map[n] for n in self.link_names)))
         id_str = '_'.join(str(i) for i in ids)
 
-        name = '%s_%s_%s_link_mapping_idx' % (self.name_prefix, id_str, self.mapping)
+        name = '%s_%s_%s_link_mapping_idx' % (
+            self.name_prefix, id_str, self.mapping)
         name = common.edgedb_name_to_pg_name(name)
         predicate = 'link_type_id IN (%s)' % ', '.join(str(id) for id in ids)
 
-        code = 'CREATE %(unique)s INDEX %(name)s ON %(table)s (%(cols)s) %(predicate)s' % \
-                {'unique': 'UNIQUE',
-                 'name': common.qname(name),
-                 'table': common.qname(*self.table_name),
-                 'cols': ', '.join(common.quote_ident(c) for c in self.columns),
-                 'predicate': ('WHERE %s' % predicate)
-                }
+        code = '''
+            CREATE {unique} INDEX {name} ON {table}s ({cols}) {predicate}
+        '''.format(unique='UNIQUE',
+                   name=common.qname(name),
+                   table=common.qname(*self.table_name),
+                   cols=', '.join(common.quote_ident(c) for c in self.columns),
+                   predicate=('WHERE {}'.format(predicate)))
+
         return code
 
     def __repr__(self):
-        name = '%s_%s_%s_link_mapping_idx' % (self.name_prefix, '<HASH>', self.mapping)
-        predicate = 'link_type_id IN (%s)' % ', '.join(str(n) for n in self.link_names)
+        name = '%s_%s_%s_link_mapping_idx' % (
+            self.name_prefix, '<HASH>', self.mapping)
+        predicate = 'link_type_id IN (%s)' % ', '.join(
+            str(n) for n in self.link_names)
 
-        return '<%(mod)s.%(cls)s name="%(name)s" cols=(%(cols)s) unique=%(uniq)s ' \
-               'predicate=%(pred)s>' \
-               % {'mod': self.__class__.__module__, 'cls': self.__class__.__name__,
-                  'name': name, 'cols': ','.join(self.columns), 'uniq': self.unique,
-                  'pred': predicate}
+        return \
+            '<{mod.{cls} name="{name}" cols=({cols}) unique={uniq} ' \
+            'predicate={pred}>'.format(
+                mod=self.__class__.__module__,
+                cls=self.__class__.__name__,
+                name=name,
+                cols=','.join(self.columns),
+                uniq=self.unique,
+                pred=predicate)
 
 
 class SchemaObjectTable(dbops.Table):
@@ -712,13 +716,14 @@ class SchemaObjectTable(dbops.Table):
         super().__init__(name=name)
 
         self.__columns = datastructures.OrderedSet([
-            dbops.Column(name='id', type='serial', required=True, readonly=True),
+            dbops.Column(
+                name='id', type='serial', required=True, readonly=True),
             dbops.Column(name='name', type='text', required=True),
         ])
 
         self.constraints = set([
-            dbops.PrimaryKey(name, columns=('id',)),
-            dbops.UniqueConstraint(name, columns=('name',))
+            dbops.PrimaryKey(name, columns=('id', )), dbops.UniqueConstraint(
+                name, columns=('name', ))
         ])
 
         self._columns = self.columns()
@@ -730,14 +735,17 @@ class DeltaTable(SchemaObjectTable):
         self.bases = [('edgedb', 'object')]
 
         self.__columns = datastructures.OrderedSet([
-            dbops.Column(name='module_id', type='integer', required=True),
-            dbops.Column(name='parents', type='varchar[]', required=False),
-            dbops.Column(name='deltabin', type='bytea', required=True),
-            dbops.Column(name='deltasrc', type='text', required=True),
-            dbops.Column(name='checksum', type='varchar', required=True),
-            dbops.Column(name='commitdate', type='timestamp with time zone',
-                         required=True, default='CURRENT_TIMESTAMP'),
-            dbops.Column(name='comment', type='text', required=False)
+            dbops.Column(name='module_id', type='integer',
+                         required=True), dbops.Column(
+                             name='parents', type='varchar[]', required=False),
+            dbops.Column(
+                name='deltabin', type='bytea', required=True), dbops.Column(
+                    name='deltasrc', type='text', required=True), dbops.Column(
+                        name='checksum', type='varchar', required=True),
+            dbops.Column(
+                name='commitdate', type='timestamp with time zone',
+                required=True, default='CURRENT_TIMESTAMP'), dbops.Column(
+                    name='comment', type='text', required=False)
         ])
 
         self._columns = self.columns()
@@ -763,12 +771,13 @@ class PrimarySchemaObjectTable(SchemaObjectTable):
         self.bases = [('edgedb', 'object')]
 
         self.__columns = datastructures.OrderedSet([
-            dbops.Column(name='is_abstract', type='boolean',
-                         required=True, default=False),
-            dbops.Column(name='is_final', type='boolean',
-                         required=True, default=False),
-            dbops.Column(name='title', type='edgedb.hstore'),
-            dbops.Column(name='description', type='text')
+            dbops.Column(
+                name='is_abstract', type='boolean', required=True,
+                default=False), dbops.Column(
+                    name='is_final', type='boolean', required=True,
+                    default=False), dbops.Column(
+                        name='title', type='edgedb.hstore'), dbops.Column(
+                            name='description', type='text')
         ])
 
         self._columns = self.columns()
@@ -794,15 +803,15 @@ class FunctionTable(PrimarySchemaObjectTable):
         self.bases = [('edgedb', 'primaryobject')]
 
         self.constraints = set([
-            dbops.PrimaryKey(('edgedb', 'function'), columns=('id',)),
-            dbops.UniqueConstraint(('edgedb', 'function'), columns=('name',))
+            dbops.PrimaryKey(('edgedb', 'function'), columns=('id', )),
+            dbops.UniqueConstraint(('edgedb', 'function'), columns=('name', ))
         ])
 
         self.__columns = datastructures.OrderedSet([
-            dbops.Column(name='paramtypes', type='jsonb'),
-            dbops.Column(name='paramkinds', type='jsonb'),
-            dbops.Column(name='paramdefaults', type='jsonb'),
-            dbops.Column(name='returntype', type='integer', required=True)
+            dbops.Column(name='paramtypes', type='jsonb'), dbops.Column(
+                name='paramkinds', type='jsonb'), dbops.Column(
+                    name='paramdefaults', type='jsonb'), dbops.Column(
+                        name='returntype', type='integer', required=True)
         ])
 
         self._columns = self.columns()
@@ -814,8 +823,8 @@ class AttributeTable(PrimarySchemaObjectTable):
         self.bases = [('edgedb', 'primaryobject')]
 
         self.constraints = set([
-            dbops.PrimaryKey(('edgedb', 'attribute'), columns=('id',)),
-            dbops.UniqueConstraint(('edgedb', 'attribute'), columns=('name',))
+            dbops.PrimaryKey(('edgedb', 'attribute'), columns=('id', )),
+            dbops.UniqueConstraint(('edgedb', 'attribute'), columns=('name', ))
         ])
 
         self.__columns = datastructures.OrderedSet([
@@ -831,14 +840,16 @@ class AttributeValueTable(PrimarySchemaObjectTable):
         self.bases = [('edgedb', 'primaryobject')]
 
         self.constraints = set([
-            dbops.PrimaryKey(('edgedb', 'attribute_value'), columns=('id',)),
-            dbops.UniqueConstraint(('edgedb', 'attribute_value'), columns=('name',))
+            dbops.PrimaryKey(('edgedb', 'attribute_value'), columns=('id', )),
+            dbops.UniqueConstraint(('edgedb', 'attribute_value'),
+                                   columns=('name', ))
         ])
 
         self.__columns = datastructures.OrderedSet([
             dbops.Column(name='subject', type='integer', required=True),
-            dbops.Column(name='attribute', type='integer', required=True),
-            dbops.Column(name='value', type='bytea')
+            dbops.Column(name='attribute', type='integer',
+                         required=True), dbops.Column(
+                             name='value', type='bytea')
         ])
 
         self._columns = self.columns()
@@ -850,20 +861,21 @@ class ConstraintTable(InheritingSchemaObjectTable):
         self.bases = [('edgedb', 'inheritingobject')]
 
         self.constraints = set([
-            dbops.PrimaryKey(('edgedb', 'constraint'), columns=('id',)),
-            dbops.UniqueConstraint(('edgedb', 'constraint'), columns=('name',))
+            dbops.PrimaryKey(('edgedb', 'constraint'), columns=('id', )),
+            dbops.UniqueConstraint(('edgedb', 'constraint'),
+                                   columns=('name', ))
         ])
 
         self.__columns = datastructures.OrderedSet([
-            dbops.Column(name='subject', type='integer'),
-            dbops.Column(name='expr', type='text'),
-            dbops.Column(name='subjectexpr', type='text'),
-            dbops.Column(name='localfinalexpr', type='text'),
-            dbops.Column(name='finalexpr', type='text'),
-            dbops.Column(name='errmessage', type='text'),
-            dbops.Column(name='paramtypes', type='jsonb'),
-            dbops.Column(name='inferredparamtypes', type='jsonb'),
-            dbops.Column(name='args', type='jsonb')
+            dbops.Column(name='subject', type='integer'), dbops.Column(
+                name='expr', type='text'), dbops.Column(
+                    name='subjectexpr', type='text'), dbops.Column(
+                        name='localfinalexpr', type='text'),
+            dbops.Column(name='finalexpr', type='text'), dbops.Column(
+                name='errmessage', type='text'), dbops.Column(
+                    name='paramtypes', type='jsonb'), dbops.Column(
+                        name='inferredparamtypes', type='jsonb'), dbops.Column(
+                            name='args', type='jsonb')
         ])
 
         self._columns = self.columns()
@@ -877,13 +889,13 @@ class AtomTable(InheritingSchemaObjectTable):
 
         self.__columns = datastructures.OrderedSet([
             dbops.Column(name='constraints', type='edgedb.hstore'),
-            dbops.Column(name='default', type='text'),
-            dbops.Column(name='attributes', type='edgedb.hstore')
+            dbops.Column(name='default', type='text'), dbops.Column(
+                name='attributes', type='edgedb.hstore')
         ])
 
         self.constraints = set([
-            dbops.PrimaryKey(('edgedb', 'atom'), columns=('id',)),
-            dbops.UniqueConstraint(('edgedb', 'atom'), columns=('name',))
+            dbops.PrimaryKey(('edgedb', 'atom'), columns=('id', )),
+            dbops.UniqueConstraint(('edgedb', 'atom'), columns=('name', ))
         ])
 
         self._columns = self.columns()
@@ -896,8 +908,8 @@ class ConceptTable(InheritingSchemaObjectTable):
         self.bases = [('edgedb', 'inheritingobject')]
 
         self.constraints = set([
-            dbops.PrimaryKey(('edgedb', 'concept'), columns=('id',)),
-            dbops.UniqueConstraint(('edgedb', 'concept'), columns=('name',))
+            dbops.PrimaryKey(('edgedb', 'concept'), columns=('id', )),
+            dbops.UniqueConstraint(('edgedb', 'concept'), columns=('name', ))
         ])
 
         self._columns = self.columns()
@@ -910,22 +922,23 @@ class LinkTable(InheritingSchemaObjectTable):
         self.bases = [('edgedb', 'inheritingobject')]
 
         self.__columns = datastructures.OrderedSet([
-            dbops.Column(name='source', type='integer'),
-            dbops.Column(name='target', type='integer'),
-            dbops.Column(name='spectargets', type='integer[]'),
-            dbops.Column(name='mapping', type='char(2)'),
-            dbops.Column(name='exposed_behaviour', type='text'),
-            dbops.Column(name='required', type='boolean', required=True, default=False),
-            dbops.Column(name='readonly', type='boolean', required=True, default=False),
-            dbops.Column(name='loading', type='text'),
-            dbops.Column(name='default', type='text'),
-            dbops.Column(name='constraints', type='edgedb.hstore'),
-            dbops.Column(name='abstract_constraints', type='edgedb.hstore')
+            dbops.Column(name='source', type='integer'), dbops.Column(
+                name='target', type='integer'), dbops.Column(
+                    name='spectargets', type='integer[]'), dbops.Column(
+                        name='mapping', type='char(2)'),
+            dbops.Column(name='exposed_behaviour', type='text'), dbops.Column(
+                name='required', type='boolean', required=True,
+                default=False), dbops.Column(
+                    name='readonly', type='boolean', required=True,
+                    default=False), dbops.Column(name='loading', type='text'),
+            dbops.Column(name='default', type='text'), dbops.Column(
+                name='constraints', type='edgedb.hstore'), dbops.Column(
+                    name='abstract_constraints', type='edgedb.hstore')
         ])
 
         self.constraints = set([
-            dbops.PrimaryKey(('edgedb', 'link'), columns=('id',)),
-            dbops.UniqueConstraint(('edgedb', 'link'), columns=('name',))
+            dbops.PrimaryKey(('edgedb', 'link'), columns=('id', )),
+            dbops.UniqueConstraint(('edgedb', 'link'), columns=('name', ))
         ])
 
         self._columns = self.columns()
@@ -938,19 +951,22 @@ class LinkPropertyTable(InheritingSchemaObjectTable):
         self.bases = [('edgedb', 'inheritingobject')]
 
         self.__columns = datastructures.OrderedSet([
-            dbops.Column(name='source', type='integer'),
-            dbops.Column(name='target', type='integer'),
-            dbops.Column(name='required', type='boolean', required=True, default=False),
-            dbops.Column(name='readonly', type='boolean', required=True, default=False),
-            dbops.Column(name='loading', type='text'),
-            dbops.Column(name='default', type='text'),
-            dbops.Column(name='constraints', type='edgedb.hstore'),
-            dbops.Column(name='abstract_constraints', type='edgedb.hstore')
+            dbops.Column(name='source', type='integer'), dbops.Column(
+                name='target', type='integer'), dbops.Column(
+                    name='required', type='boolean', required=True,
+                    default=False), dbops.Column(
+                        name='readonly', type='boolean', required=True,
+                        default=False),
+            dbops.Column(name='loading', type='text'), dbops.Column(
+                name='default', type='text'), dbops.Column(
+                    name='constraints', type='edgedb.hstore'), dbops.Column(
+                        name='abstract_constraints', type='edgedb.hstore')
         ])
 
         self.constraints = set([
-            dbops.PrimaryKey(('edgedb', 'link_property'), columns=('id',)),
-            dbops.UniqueConstraint(('edgedb', 'link_property'), columns=('name',))
+            dbops.PrimaryKey(('edgedb', 'link_property'), columns=('id', )),
+            dbops.UniqueConstraint(('edgedb', 'link_property'),
+                                   columns=('name', ))
         ])
 
         self._columns = self.columns()
@@ -962,8 +978,8 @@ class ActionTable(PrimarySchemaObjectTable):
         self.bases = [('edgedb', 'primaryobject')]
 
         self.constraints = set([
-            dbops.PrimaryKey(('edgedb', 'action'), columns=('id',)),
-            dbops.UniqueConstraint(('edgedb', 'action'), columns=('name',))
+            dbops.PrimaryKey(('edgedb', 'action'), columns=('id', )),
+            dbops.UniqueConstraint(('edgedb', 'action'), columns=('name', ))
         ])
 
 
@@ -973,8 +989,8 @@ class EventTable(InheritingSchemaObjectTable):
         self.bases = [('edgedb', 'inheritingobject')]
 
         self.constraints = set([
-            dbops.PrimaryKey(('edgedb', 'event'), columns=('id',)),
-            dbops.UniqueConstraint(('edgedb', 'event'), columns=('name',))
+            dbops.PrimaryKey(('edgedb', 'event'), columns=('id', )),
+            dbops.UniqueConstraint(('edgedb', 'event'), columns=('name', ))
         ])
 
 
@@ -987,13 +1003,14 @@ class PolicyTable(PrimarySchemaObjectTable):
 
         self.__columns = datastructures.OrderedSet([
             dbops.Column(name='subject', type='integer', required=True),
-            dbops.Column(name='event', type='integer', required=True),
-            dbops.Column(name='actions', type='integer[]', required=True)
+            dbops.Column(name='event', type='integer',
+                         required=True), dbops.Column(
+                             name='actions', type='integer[]', required=True)
         ])
 
         self.constraints = set([
-            dbops.PrimaryKey(('edgedb', 'policy'), columns=('id',)),
-            dbops.UniqueConstraint(('edgedb', 'policy'), columns=('name',))
+            dbops.PrimaryKey(('edgedb', 'policy'), columns=('id', )),
+            dbops.UniqueConstraint(('edgedb', 'policy'), columns=('name', ))
         ])
 
         self._columns = self.columns()
@@ -1009,9 +1026,7 @@ class FeatureTable(dbops.Table):
             dbops.Column(name='class_name', type='text', required=True)
         ])
 
-        self.constraints = set([
-            dbops.PrimaryKey(name, columns=('name',)),
-        ])
+        self.constraints = set([dbops.PrimaryKey(name, columns=('name', )), ])
 
         self._columns = self.columns()
 
@@ -1061,8 +1076,6 @@ class Feature:
         return self.name
 
     async def code(self, context):
-        pg_ver = context.db.version_info
-
         name = common.quote_ident(self.get_extension_name())
         schema = common.quote_ident(self.schema)
         return 'CREATE EXTENSION {} WITH SCHEMA {}'.format(name, schema)
@@ -1077,8 +1090,12 @@ class Feature:
 
 
 class EnableFeature(dbops.DDLOperation):
-    def __init__(self, feature, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
+    def __init__(
+            self, feature, *, conditions=None, neg_conditions=None,
+            priority=0):
+        super().__init__(
+            conditions=conditions, neg_conditions=neg_conditions,
+            priority=priority)
 
         self.feature = feature
         self.opid = feature.name
@@ -1090,8 +1107,8 @@ class EnableFeature(dbops.DDLOperation):
         table = FeatureTable()
         record = table.record()
         record.name = self.feature.name
-        record.class_name = '%s.%s' % (self.feature.__class__.__module__,
-                                       self.feature.__class__.__name__)
+        record.class_name = '%s.%s' % (
+            self.feature.__class__.__module__, self.feature.__class__.__name__)
         return [dbops.Insert(table, records=[record])]
 
     async def execute(self, context):
@@ -1099,4 +1116,5 @@ class EnableFeature(dbops.DDLOperation):
         await self.feature.init_feature(context.db)
 
     def __repr__(self):
-        return '<edgedb.sync.%s %s>' % (self.__class__.__name__, self.feature.name)
+        return '<edgedb.sync.%s %s>' % (
+            self.__class__.__name__, self.feature.name)

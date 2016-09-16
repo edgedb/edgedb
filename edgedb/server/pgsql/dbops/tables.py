@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import postgresql.string
 
 from edgedb.lang.common import datastructures
@@ -32,7 +31,8 @@ class Table(composites.CompositeDBObject):
 
     def columns(self, writable_only=False, only_self=False):
         cols = []
-        tables = [self.__class__] if only_self else reversed(self.__class__.__mro__)
+        tables = [self.__class__
+                  ] if only_self else reversed(self.__class__.__mro__)
         for c in tables:
             if issubclass(c, Table):
                 columns = getattr(self, '_' + c.__name__ + '__columns', [])
@@ -77,7 +77,9 @@ class InheritableTableObject(base.InheritableDBObject):
 
 
 class Column(base.DBObject):
-    def __init__(self, name, type, required=False, default=None, readonly=False, comment=None):
+    def __init__(
+            self, name, type, required=False, default=None, readonly=False,
+            comment=None):
         self.name = name
         self.type = type
         self.required = required
@@ -88,8 +90,10 @@ class Column(base.DBObject):
     def code(self, context, short=False):
         code = '{} {}'.format(common.quote_ident(self.name), self.type)
         if not short:
-            default = 'DEFAULT {}'.format(self.default) if self.default is not None else ''
-            code += ' {} {}'.format('NOT NULL' if self.required else '', default)
+            default = 'DEFAULT {}'.format(
+                self.default) if self.default is not None else ''
+            code += ' {} {}'.format(
+                'NOT NULL' if self.required else '', default)
         return code
 
     async def extra(self, context, alter_table):
@@ -99,8 +103,9 @@ class Column(base.DBObject):
             return [cmd]
 
     def __repr__(self):
-        return '<%s.%s "%s" %s>' % (self.__class__.__module__, self.__class__.__name__,
-                                    self.name, self.type)
+        return '<%s.%s "%s" %s>' % (
+            self.__class__.__module__, self.__class__.__name__, self.name,
+            self.type)
 
 
 class TableColumn(base.DBObject):
@@ -112,7 +117,8 @@ class TableColumn(base.DBObject):
         return 'COLUMN'
 
     def get_id(self):
-        return common.qname(self.table_name[0], self.table_name[1], self.column.name)
+        return common.qname(
+            self.table_name[0], self.table_name[1], self.column.name)
 
 
 class TableConstraint(constraints.Constraint):
@@ -123,10 +129,10 @@ class TableConstraint(constraints.Constraint):
         return None
 
     def get_subject_type(self):
-        return '' # For table constraints the accepted syntax is
-                  # simply CONSTRAINT ON "{tab_name}", not
-                  # CONSTRAINT ON TABLE, unlike constraints on
-                  # other objects.
+        return ''  # For table constraints the accepted syntax is
+        # simply CONSTRAINT ON "{tab_name}", not
+        # CONSTRAINT ON TABLE, unlike constraints on
+        # other objects.
 
 
 class PrimaryKey(TableConstraint):
@@ -135,7 +141,8 @@ class PrimaryKey(TableConstraint):
         self.columns = columns
 
     async def constraint_code(self, context):
-        code = 'PRIMARY KEY (%s)' % ', '.join(common.quote_ident(c) for c in self.columns)
+        code = 'PRIMARY KEY (%s)' % ', '.join(
+            common.quote_ident(c) for c in self.columns)
         return code
 
 
@@ -145,7 +152,8 @@ class UniqueConstraint(TableConstraint):
         self.columns = columns
 
     async def constraint_code(self, context):
-        code = 'UNIQUE (%s)' % ', '.join(common.quote_ident(c) for c in self.columns)
+        code = 'UNIQUE (%s)' % ', '.join(
+            common.quote_ident(c) for c in self.columns)
         return code
 
 
@@ -188,18 +196,19 @@ class TableInherits(base.Condition):
         self.parent_name = parent_name
 
     async def code(self, context):
-        code = '''SELECT
-                        c.relname
-                    FROM
-                        pg_class c
-                        INNER JOIN pg_namespace ns ON ns.oid = c.relnamespace
-                        INNER JOIN pg_inherits i ON i.inhrelid = c.oid
-                        INNER JOIN pg_class pc ON i.inhparent = pc.oid
-                        INNER JOIN pg_namespace pns ON pns.oid = pc.relnamespace
-                    WHERE
-                        ns.nspname = $1 AND c.relname = $2
-                        AND pns.nspname = $3 AND pc.relname = $4
-               '''
+        code = '''
+            SELECT
+                c.relname
+            FROM
+                pg_class c
+                INNER JOIN pg_namespace ns ON ns.oid = c.relnamespace
+                INNER JOIN pg_inherits i ON i.inhrelid = c.oid
+                INNER JOIN pg_class pc ON i.inhparent = pc.oid
+                INNER JOIN pg_namespace pns ON pns.oid = pc.relnamespace
+            WHERE
+                ns.nspname = $1 AND c.relname = $2
+                AND pns.nspname = $3 AND pc.relname = $4
+        '''
         return code, self.name + self.parent_name
 
 
@@ -209,19 +218,24 @@ class ColumnExists(base.Condition):
         self.column_name = column_name
 
     async def code(self, context):
-        code = '''SELECT
-                        column_name
-                    FROM
-                        information_schema.columns
-                    WHERE
-                        table_schema = $1 AND table_name = $2 AND column_name = $3'''
-        return code, self.table_name + (self.column_name,)
+        code = '''
+            SELECT
+                column_name
+            FROM
+                information_schema.columns
+            WHERE
+                table_schema = $1 AND table_name = $2 AND column_name = $3
+        '''
+        return code, self.table_name + (self.column_name, )
 
 
 class CreateTable(ddl.SchemaObjectOperation):
-    def __init__(self, table, temporary=False, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(table.name, conditions=conditions, neg_conditions=neg_conditions,
-                         priority=priority)
+    def __init__(
+            self, table, temporary=False, *, conditions=None,
+            neg_conditions=None, priority=0):
+        super().__init__(
+            table.name, conditions=conditions, neg_conditions=neg_conditions,
+            priority=priority)
         self.table = table
         self.temporary = temporary
 
@@ -237,19 +251,20 @@ class CreateTable(ddl.SchemaObjectOperation):
         code = 'CREATE %sTABLE %s (%s)' % (temp, name, cols)
 
         if self.table.bases:
-            code += ' INHERITS (' + ','.join(common.qname(*b) for b in self.table.bases) + ')'
+            code += ' INHERITS (' + ','.join(
+                common.qname(*b) for b in self.table.bases) + ')'
 
         return code
 
 
 class CreateTableDDLTriggerMixin:
-    """Utility mixin to provide functions to propagate inherited objects"""
+    """Utility mixin to provide functions to propagate inherited objects."""
 
     @classmethod
     async def apply_inheritance(cls, context, op, list_inherited_objects,
-                                            CreateObject):
+                                CreateObject):
         objects = await list_inherited_objects(
-                        context.db, op.table.name, op.table.bases)
+            context.db, op.table.name, op.table.bases)
         if objects:
             cmd = base.CommandGroup()
             cmd.add_commands(CreateObject(obj) for obj in objects)
@@ -262,16 +277,21 @@ class AlterTableBaseMixin:
         self.contained = contained
 
     def prefix_code(self, context):
-        return 'ALTER TABLE %s%s' % ('ONLY ' if self.contained else '', common.qname(*self.name))
+        return 'ALTER TABLE %s%s' % (
+            'ONLY ' if self.contained else '', common.qname(*self.name))
 
     def __repr__(self):
-        return '<%s.%s %s>' % (self.__class__.__module__, self.__class__.__name__, self.name)
+        return '<%s.%s %s>' % (
+            self.__class__.__module__, self.__class__.__name__, self.name)
 
 
 class AlterTableBase(AlterTableBaseMixin, ddl.DDLOperation):
-    def __init__(self, name, *, contained=False, conditions=None, neg_conditions=None, priority=0):
-        ddl.DDLOperation.__init__(self, conditions=conditions, neg_conditions=neg_conditions,
-                                  priority=priority)
+    def __init__(
+            self, name, *, contained=False, conditions=None,
+            neg_conditions=None, priority=0):
+        ddl.DDLOperation.__init__(
+            self, conditions=conditions, neg_conditions=neg_conditions,
+            priority=priority)
         AlterTableBaseMixin.__init__(self, name=name, contained=contained)
 
     def get_attribute_term(self):
@@ -283,11 +303,14 @@ class AlterTableFragment(ddl.DDLOperation):
         return 'COLUMN'
 
 
-class AlterTable(AlterTableBaseMixin, ddl.DDLOperation, base.CompositeCommandGroup):
-    def __init__(self, name, *, contained=False, conditions=None, neg_conditions=None, priority=0):
-        base.CompositeCommandGroup.__init__(self, conditions=conditions,
-                                            neg_conditions=neg_conditions,
-                                            priority=priority)
+class AlterTable(
+        AlterTableBaseMixin, ddl.DDLOperation, base.CompositeCommandGroup):
+    def __init__(
+            self, name, *, contained=False, conditions=None,
+            neg_conditions=None, priority=0):
+        base.CompositeCommandGroup.__init__(
+            self, conditions=conditions, neg_conditions=neg_conditions,
+            priority=priority)
         AlterTableBaseMixin.__init__(self, name=name, contained=contained)
         self.ops = self.commands
 
@@ -295,12 +318,11 @@ class AlterTable(AlterTableBaseMixin, ddl.DDLOperation, base.CompositeCommandGro
 
 
 class AlterTableDDLTriggerMixin:
-    """Utility mixin to provide functions to propagate inherited objects"""
+    """Utility mixin to provide functions to propagate inherited objects."""
 
     @classmethod
-    async def apply_inheritance(
-            cls, context, op, list_inherited_objects,
-            CreateObject, DropObject):
+    async def apply_inheritance(cls, context, op, list_inherited_objects,
+                                CreateObject, DropObject):
         dropped_parents = []
         added_parents = []
         ops = []
@@ -316,13 +338,13 @@ class AlterTableDDLTriggerMixin:
 
         if dropped_parents:
             objects_to_drop = await list_inherited_objects(
-                                context.db, op.name, dropped_parents)
+                context.db, op.name, dropped_parents)
         else:
             objects_to_drop = []
 
         if added_parents:
             objects_to_add = await list_inherited_objects(
-                                context.db, op.name, added_parents)
+                context.db, op.name, added_parents)
         else:
             objects_to_add = []
 
@@ -355,7 +377,9 @@ class AlterTableAddParent(AlterTableFragment):
         return 'INHERIT %s' % common.qname(*self.parent_name)
 
     def __repr__(self):
-        return '<%s.%s %s>' % (self.__class__.__module__, self.__class__.__name__, self.parent_name)
+        return '<%s.%s %s>' % (
+            self.__class__.__module__, self.__class__.__name__,
+            self.parent_name)
 
 
 class AlterTableDropParent(AlterTableFragment):
@@ -366,18 +390,23 @@ class AlterTableDropParent(AlterTableFragment):
         return 'NO INHERIT %s' % common.qname(*self.parent_name)
 
     def __repr__(self):
-        return '<%s.%s %s>' % (self.__class__.__module__, self.__class__.__name__, self.parent_name)
+        return '<%s.%s %s>' % (
+            self.__class__.__module__, self.__class__.__name__,
+            self.parent_name)
 
 
-class AlterTableAddColumn(composites.AlterCompositeAddAttribute, AlterTableFragment):
+class AlterTableAddColumn(
+        composites.AlterCompositeAddAttribute, AlterTableFragment):
     pass
 
 
-class AlterTableDropColumn(composites.AlterCompositeDropAttribute, AlterTableFragment):
+class AlterTableDropColumn(
+        composites.AlterCompositeDropAttribute, AlterTableFragment):
     pass
 
 
-class AlterTableAlterColumnType(composites.AlterCompositeAlterAttributeType, AlterTableFragment):
+class AlterTableAlterColumnType(
+        composites.AlterCompositeAlterAttributeType, AlterTableFragment):
     pass
 
 
@@ -387,12 +416,14 @@ class AlterTableAlterColumnNull(AlterTableFragment):
         self.null = null
 
     async def code(self, context):
-        return 'ALTER COLUMN %s %s NOT NULL' % \
-                (common.quote_ident(str(self.column_name)), 'DROP' if self.null else 'SET')
+        return 'ALTER COLUMN {} {} NOT NULL'.format(
+            common.quote_ident(str(self.column_name)),
+            'DROP' if self.null else 'SET')
 
     def __repr__(self):
-        return '<%s.%s "%s" %s NOT NULL>' % (self.__class__.__module__, self.__class__.__name__,
-                                             self.column_name, 'DROP' if self.null else 'SET')
+        return '<{}.{} "{}" {} NOT NULL>'.format(
+            self.__class__.__module__, self.__class__.__name__,
+            self.column_name, 'DROP' if self.null else 'SET')
 
 
 class AlterTableAlterColumnDefault(AlterTableFragment):
@@ -402,17 +433,18 @@ class AlterTableAlterColumnDefault(AlterTableFragment):
 
     async def code(self, context):
         if self.default is None:
-            return 'ALTER COLUMN %s DROP DEFAULT' % (common.quote_ident(str(self.column_name)),)
+            return 'ALTER COLUMN {} DROP DEFAULT'.format(
+                common.quote_ident(str(self.column_name)))
         else:
-            return 'ALTER COLUMN %s SET DEFAULT %s' % \
-                    (common.quote_ident(str(self.column_name)),
-                     postgresql.string.quote_literal(str(self.default)))
+            return 'ALTER COLUMN {} SET DEFAULT {}'.format(
+                common.quote_ident(str(self.column_name)),
+                postgresql.string.quote_literal(str(self.default)))
 
     def __repr__(self):
-        return '<%s.%s "%s" %s DEFAULT%s>' % (self.__class__.__module__, self.__class__.__name__,
-                                              self.column_name,
-                                              'DROP' if self.default is None else 'SET',
-                                              '' if self.default is None else ' %r' % self.default)
+        return '<{}.{} "{}" {} DEFAULT{}>'.format(
+            self.__class__.__module__, self.__class__.__name__,
+            self.column_name, 'DROP' if self.default is None else 'SET', ''
+            if self.default is None else ' {!r}'.format(self.default))
 
 
 class TableConstraintCommand:
@@ -425,15 +457,19 @@ class TableConstraintExists(base.Condition):
         self.constraint_name = constraint_name
 
     async def code(self, context):
-        code = '''SELECT
-                        True
-                    FROM
-                        pg_catalog.pg_constraint c
-                        INNER JOIN pg_catalog.pg_class t ON c.conrelid = t.oid
-                        INNER JOIN pg_catalog.pg_namespace ns ON t.relnamespace = ns.oid
-                    WHERE
-                        conname = $1 AND relname = $3 AND nspname = $2'''
-        return code, (self.constraint_name,) + self.table_name
+        code = '''
+            SELECT
+                True
+            FROM
+                pg_catalog.pg_constraint c
+                INNER JOIN pg_catalog.pg_class t
+                    ON c.conrelid = t.oid
+                INNER JOIN pg_catalog.pg_namespace ns
+                    ON t.relnamespace = ns.oid
+            WHERE
+                conname = $1 AND relname = $3 AND nspname = $2
+        '''
+        return code, (self.constraint_name, ) + self.table_name
 
 
 class AlterTableAddConstraint(AlterTableFragment, TableConstraintCommand):
@@ -453,8 +489,9 @@ class AlterTableAddConstraint(AlterTableFragment, TableConstraintCommand):
         return await self.constraint.extra(context)
 
     def __repr__(self):
-        return '<%s.%s %r>' % (self.__class__.__module__, self.__class__.__name__,
-                               self.constraint)
+        return '<%s.%s %r>' % (
+            self.__class__.__module__, self.__class__.__name__,
+            self.constraint)
 
 
 class AlterTableRenameConstraintSimple(AlterTableBase, TableConstraintCommand):
@@ -467,13 +504,14 @@ class AlterTableRenameConstraintSimple(AlterTableBase, TableConstraintCommand):
     async def code(self, context):
         code = self.prefix_code(context)
         code += ' RENAME CONSTRAINT {} TO {}'.format(
-                        common.quote_ident(self.old_name),
-                        common.quote_ident(self.new_name))
+            common.quote_ident(self.old_name),
+            common.quote_ident(self.new_name))
         return code
 
     def __repr__(self):
-        return '<%s.%s %r to %r>' % (self.__class__.__module__, self.__class__.__name__,
-                                     self.old_name, self.new_name)
+        return '<%s.%s %r to %r>' % (
+            self.__class__.__module__, self.__class__.__name__, self.old_name,
+            self.new_name)
 
 
 class AlterTableDropConstraint(AlterTableFragment, TableConstraintCommand):
@@ -484,8 +522,9 @@ class AlterTableDropConstraint(AlterTableFragment, TableConstraintCommand):
         return 'DROP CONSTRAINT ' + self.constraint.constraint_name()
 
     def __repr__(self):
-        return '<%s.%s %r>' % (self.__class__.__module__, self.__class__.__name__,
-                               self.constraint)
+        return '<%s.%s %r>' % (
+            self.__class__.__module__, self.__class__.__name__,
+            self.constraint)
 
 
 class AlterTableSetSchema(AlterTableBase):
@@ -510,7 +549,8 @@ class AlterTableRenameTo(AlterTableBase):
         return code
 
 
-class AlterTableRenameColumn(composites.AlterCompositeRenameAttribute, AlterTableBase):
+class AlterTableRenameColumn(
+        composites.AlterCompositeRenameAttribute, AlterTableBase):
     pass
 
 
@@ -520,7 +560,7 @@ class DropTable(ddl.SchemaObjectOperation):
 
 
 class CreateInheritableTableObject(ddl.CreateObject):
-    """Base creation operation class for objects with managed """
+    """Base creation operation class for objects with managed."""
 
     def __init__(self, object, **kwargs):
         super().__init__(**kwargs)
@@ -538,9 +578,9 @@ class CreateInheritableTableObject(ddl.CreateObject):
             # a corresponding DDL trigger.
             #
             ds = introspection.tables.TableDescendants(context.db)
-            descendants = await ds.fetch(schema_name=self.object.table_name[0],
-                                         table_name=self.object.table_name[1],
-                                         max_depth=1)
+            descendants = await ds.fetch(
+                schema_name=self.object.table_name[0],
+                table_name=self.object.table_name[1], max_depth=1)
 
             for dschema, dname, *_ in descendants:
                 obj = self.object.copy()
@@ -551,14 +591,14 @@ class CreateInheritableTableObject(ddl.CreateObject):
         return ops
 
     def __repr__(self):
-        return '<{mod}.{cls} {object!r}>' \
-                .format(mod=self.__class__.__module__,
-                        cls=self.__class__.__name__,
-                        object=self.object)
+        return '<{mod}.{cls} {object!r}>'.format(
+            mod=self.__class__.__module__,
+            cls=self.__class__.__name__,
+            object=self.object)
 
 
 class RenameInheritableTableObject(ddl.RenameObject):
-    """Base rename operation class for objects with managed """
+    """Base rename operation class for objects with managed."""
 
     async def extra(self, context):
         ops = await super().extra(context)
@@ -570,30 +610,30 @@ class RenameInheritableTableObject(ddl.RenameObject):
             # Propagate object rename to all current descendants.
             #
             ds = introspection.tables.TableDescendants(context.db)
-            descendants = await ds.fetch(schema_name=self.object.table_name[0],
-                                         table_name=self.object.table_name[1],
-                                         max_depth=1)
+            descendants = await ds.fetch(
+                schema_name=self.object.table_name[0],
+                table_name=self.object.table_name[1], max_depth=1)
 
             for dschema, dname, *_ in descendants:
                 obj = self.object.copy()
                 obj.table_name = (dschema, dname)
                 obj.add_metadata('ddl:inherited', True)
-                rename = self.__class__(obj, new_name=self.new_name,
-                                        conditional=True)
+                rename = self.__class__(
+                    obj, new_name=self.new_name, conditional=True)
                 ops.append(rename)
 
         return ops
 
     def __repr__(self):
-        return '<{mod}.{cls} {object!r} TO {new_name}>' \
-                .format(mod=self.__class__.__module__,
-                        cls=self.__class__.__name__,
-                        object=self.object,
-                        new_name=self.new_name)
+        return '<{mod}.{cls} {object!r} TO {new_name}>'.format(
+            mod=self.__class__.__module__,
+            cls=self.__class__.__name__,
+            object=self.object,
+            new_name=self.new_name)
 
 
 class DropInheritableTableObject(ddl.DDLOperation):
-    """Base drop operation class for objects with managed """
+    """Base drop operation class for objects with managed."""
 
     def __init__(self, object, **kwargs):
         super().__init__(**kwargs)
@@ -609,9 +649,9 @@ class DropInheritableTableObject(ddl.DDLOperation):
             # Propagate object drop to all current descendants.
             #
             ds = introspection.tables.TableDescendants(context.db)
-            descendants = await ds.fetch(schema_name=self.object.table_name[0],
-                                         table_name=self.object.table_name[1],
-                                         max_depth=1)
+            descendants = await ds.fetch(
+                schema_name=self.object.table_name[0],
+                table_name=self.object.table_name[1], max_depth=1)
 
             for dschema, dname, *_ in descendants:
                 obj = self.object.copy()
@@ -621,7 +661,7 @@ class DropInheritableTableObject(ddl.DDLOperation):
         return ops
 
     def __repr__(self):
-        return '<{mod}.{cls} {object!r}>' \
-                .format(mod=self.__class__.__module__,
-                        cls=self.__class__.__name__,
-                        object=self.object)
+        return '<{mod}.{cls} {object!r}>'.format(
+            mod=self.__class__.__module__,
+            cls=self.__class__.__name__,
+            object=self.object)

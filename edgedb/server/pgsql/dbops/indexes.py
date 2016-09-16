@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import json
 import postgresql.string
 
@@ -24,7 +23,8 @@ class IndexColumn(base.DBObject):
         self.name = name
 
     def __repr__(self):
-        return '<%s.%s "%s">' % (self.__class__.__module__, self.__class__.__name__, self.name)
+        return '<%s.%s "%s">' % (
+            self.__class__.__module__, self.__class__.__name__, self.name)
 
 
 class TextSearchIndexColumn(IndexColumn):
@@ -38,15 +38,13 @@ class TextSearchIndexColumn(IndexColumn):
         qi = common.quote_ident
 
         return "setweight(to_tsvector(%s, coalesce(%s, '')), %s)" % \
-                (ql(self.language), qi(self.name), ql(self.weight))
+            (ql(self.language), qi(self.name), ql(self.weight))
 
 
 class Index(tables.InheritableTableObject):
-    def __init__(self, name, table_name, unique=True,
-                             expr=None, predicate=None,
-                             inherit=False,
-                             metadata=None,
-                             columns=None):
+    def __init__(
+            self, name, table_name, unique=True, expr=None, predicate=None,
+            inherit=False, metadata=None, columns=None):
         super().__init__(inherit=inherit, metadata=metadata)
 
         assert table_name[1] != 'feature'
@@ -84,13 +82,17 @@ class Index(tables.InheritableTableObject):
         else:
             expr = ', '.join(common.quote_ident(c) for c in self.columns)
 
-        code = 'CREATE %(unique)s INDEX %(name)s ON %(table)s (%(expr)s) %(predicate)s' % \
-                {'unique': 'UNIQUE' if self.unique else '',
-                 'name': common.qname(self.name_in_catalog),
-                 'table': common.qname(*self.table_name),
-                 'expr': expr,
-                 'predicate': 'WHERE %s' % self.predicate if self.predicate else ''
-                }
+        code = '''
+            CREATE {unique} INDEX {name}
+                ON {table} ({expr}) {predicate}'''.format(
+
+            unique='UNIQUE' if self.unique else '',
+            name=common.qname(self.name_in_catalog),
+            table=common.qname(*self.table_name),
+            expr=expr,
+            predicate=('WHERE {}'.format(self.predicate)
+                       if self.predicate else '')
+        )
         return code
 
     @property
@@ -119,14 +121,15 @@ class Index(tables.InheritableTableObject):
                 AND ns.nspname = $2
                 AND c.relname = $3
         '''
-        params = (self.name_in_catalog,) + self.table_name
+        params = (self.name_in_catalog, ) + self.table_name
 
         return base.Query(text=qry, params=params)
 
     @classmethod
     def from_introspection(cls, table_name, index_data):
-        (name, is_unique, predicate,
-         expression, columns, metadata) = index_data
+        (
+            name, is_unique, predicate, expression, columns,
+            metadata) = index_data
 
         if metadata:
             metadata = json.loads(metadata)
@@ -136,9 +139,9 @@ class Index(tables.InheritableTableObject):
         if 'fullname' in metadata:
             name = metadata['fullname']
 
-        index = cls(name=name, table_name=table_name, unique=is_unique,
-                    predicate=predicate, expr=expression,
-                    metadata=metadata)
+        index = cls(
+            name=name, table_name=table_name, unique=is_unique,
+            predicate=predicate, expr=expression, metadata=metadata)
         if columns:
             index.add_columns(columns)
 
@@ -146,22 +149,22 @@ class Index(tables.InheritableTableObject):
 
     def copy(self):
         return self.__class__(
-            name=self.name,
-            table_name=self.table_name,
-            unique=self.unique,
-            expr=self.expr,
-            predicate=self.predicate,
-            columns=self.columns,
-            metadata=self.metadata.copy() if self.metadata is not None
-                                          else None
-        )
+            name=self.name, table_name=self.table_name, unique=self.unique,
+            expr=self.expr, predicate=self.predicate, columns=self.columns,
+            metadata=self.metadata.copy()
+            if self.metadata is not None else None)
 
     def __repr__(self):
-        return '<%(mod)s.%(cls)s table=%(table)s name=%(name)s cols=(%(cols)s) unique=%(uniq)s predicate=%(pred)s>'\
-               % {'mod': self.__class__.__module__, 'cls': self.__class__.__name__,
-                  'name': self.name, 'cols': ','.join('%r' % c for c in self.columns),
-                  'uniq': self.unique, 'pred': self.predicate,
-                  'table': '{}.{}'.format(*self.table_name)}
+        return \
+            '<%(mod)s.%(cls)s table=%(table)s name=%(name)s ' \
+            'cols=(%(cols)s) unique=%(uniq)s predicate=%(pred)s>' % \
+            {'mod': self.__class__.__module__,
+             'cls': self.__class__.__name__,
+             'name': self.name,
+             'cols': ','.join('%r' % c for c in self.columns),
+             'uniq': self.unique,
+             'pred': self.predicate,
+             'table': '{}.{}'.format(*self.table_name)}
 
 
 class TextSearchIndex(Index):
@@ -170,12 +173,14 @@ class TextSearchIndex(Index):
         self.add_columns(columns)
 
     async def creation_code(self, context):
-        code = 'CREATE INDEX %(name)s ON %(table)s USING gin((%(cols)s)) %(predicate)s' % \
-                {'name': common.qname(self.name),
-                 'table': common.qname(*self.table_name),
-                 'cols': ' || '.join(c.code(context) for c in self.columns),
-                 'predicate': 'WHERE %s' % self.predicate if self.predicate else ''
-                }
+        code = \
+            'CREATE INDEX %(name)s ON %(table)s ' \
+            'USING gin((%(cols)s)) %(predicate)s' % \
+            {'name': common.qname(self.name),
+             'table': common.qname(*self.table_name),
+             'cols': ' || '.join(c.code(context) for c in self.columns),
+             'predicate': ('WHERE %s' % self.predicate
+                           if self.predicate else '')}
         return code
 
 
@@ -184,14 +189,17 @@ class IndexExists(base.Condition):
         self.index_name = index_name
 
     async def code(self, context):
-        code = '''SELECT
-                       i.indexrelid
-                   FROM
-                       pg_catalog.pg_index i
-                       INNER JOIN pg_catalog.pg_class ic ON ic.oid = i.indexrelid
-                       INNER JOIN pg_catalog.pg_namespace icn ON icn.oid = ic.relnamespace
-                   WHERE
-                       icn.nspname = $1 AND ic.relname = $2
+        code = '''
+            SELECT
+                   i.indexrelid
+               FROM
+                   pg_catalog.pg_index i
+                   INNER JOIN pg_catalog.pg_class ic
+                        ON ic.oid = i.indexrelid
+                   INNER JOIN pg_catalog.pg_namespace icn
+                        ON icn.oid = ic.relnamespace
+               WHERE
+                   icn.nspname = $1 AND ic.relname = $2
                '''
 
         return code, self.index_name
@@ -202,8 +210,8 @@ class CreateIndex(tables.CreateInheritableTableObject):
         super().__init__(index, **kwargs)
         self.index = index
         if conditional:
-            self.neg_conditions.add(IndexExists((index.table_name[0],
-                                                 index.name_in_catalog)))
+            self.neg_conditions.add(
+                IndexExists((index.table_name[0], index.name_in_catalog)))
 
     async def code(self, context):
         return await self.index.creation_code(context)
@@ -213,14 +221,14 @@ class RenameIndex(tables.RenameInheritableTableObject):
     def __init__(self, index, *, new_name, conditional=False, **kwargs):
         super().__init__(index, new_name=new_name, **kwargs)
         if conditional:
-            self.conditions.add(IndexExists((index.table_name[0],
-                                             index.name_in_catalog)))
+            self.conditions.add(
+                IndexExists((index.table_name[0], index.name_in_catalog)))
 
     async def code(self, context):
         code = 'ALTER INDEX {} RENAME TO {}'.format(
-                    common.qname(self.object.table_name[0],
-                                 self.object.name_in_catalog),
-                    common.quote_ident(self.altered_object.name_in_catalog))
+            common.qname(
+                self.object.table_name[0], self.object.name_in_catalog),
+            common.quote_ident(self.altered_object.name_in_catalog))
         return code
 
 
@@ -232,29 +240,26 @@ class RenameIndexSimple(ddl.DDLOperation):
 
     async def code(self, context):
         code = 'ALTER INDEX {} RENAME TO {}'.format(
-                    common.qname(*self.old_name),
-                    common.quote_ident(self.new_name))
+            common.qname(*self.old_name), common.quote_ident(self.new_name))
         return code
 
     def __repr__(self):
         return '<{}.{} {} to {!r}>'.format(
-                    self.__class__.__module__,
-                    self.__class__.__name__,
-                    common.qname(*self.old_name),
-                    self.new_name)
+            self.__class__.__module__, self.__class__.__name__,
+            common.qname(*self.old_name), self.new_name)
 
 
 class DropIndex(tables.DropInheritableTableObject):
     def __init__(self, index, *, conditional=False, **kwargs):
         super().__init__(index, **kwargs)
         if conditional:
-            self.conditions.add(IndexExists((index.table_name[0],
-                                             index.name_in_catalog)))
+            self.conditions.add(
+                IndexExists((index.table_name[0], index.name_in_catalog)))
 
     async def code(self, context):
         return 'DROP INDEX {}'.format(
-                    common.qname(self.object.table_name[0],
-                                 self.object.name_in_catalog))
+            common.qname(
+                self.object.table_name[0], self.object.name_in_catalog))
 
 
 class DDLTriggerBase:
@@ -263,8 +268,8 @@ class DDLTriggerBase:
         bases = ['{}.{}'.format(*base) for base in bases]
 
         ti = introspection.tables.TableIndexes(db)
-        idx_records = await ti.fetch(table_list=bases, inheritable_only=True,
-                                     include_inherited=True)
+        idx_records = await ti.fetch(
+            table_list=bases, inheritable_only=True, include_inherited=True)
 
         # Use a dictionary here to filter out any duplicates resulting
         # from the inclusion of inherited indexes.
@@ -279,8 +284,8 @@ class DDLTriggerBase:
         return list(indexes.values())
 
 
-class DDLTriggerCreateTable(ddl.DDLTrigger, tables.CreateTableDDLTriggerMixin,
-                                            DDLTriggerBase):
+class DDLTriggerCreateTable(
+        ddl.DDLTrigger, tables.CreateTableDDLTriggerMixin, DDLTriggerBase):
     operations = tables.CreateTable,
 
     @classmethod
@@ -289,8 +294,8 @@ class DDLTriggerCreateTable(ddl.DDLTrigger, tables.CreateTableDDLTriggerMixin,
             context, op, cls.get_inherited_indexes, CreateIndex)
 
 
-class DDLTriggerAlterTable(ddl.DDLTrigger, tables.AlterTableDDLTriggerMixin,
-                                           DDLTriggerBase):
+class DDLTriggerAlterTable(
+        ddl.DDLTrigger, tables.AlterTableDDLTriggerMixin, DDLTriggerBase):
     operations = tables.AlterTable,
 
     @classmethod

@@ -5,14 +5,12 @@
 # See LICENSE for details.
 ##
 
-
 from edgedb.server import cluster as edgedb_cluster
 
 
 def main(args):
-    """Initialize EdgeDB database cluster"""
-
+    """Initialize EdgeDB database cluster."""
     if args.data_dir:
-        cluster = edgedb_cluster.Cluster(data_dir=args.data_dir,
-                                         port='dynamic')
+        cluster = edgedb_cluster.Cluster(
+            data_dir=args.data_dir, port='dynamic')
         cluster.init()

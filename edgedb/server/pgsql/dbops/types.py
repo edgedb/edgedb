@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 from edgedb.lang.common import datastructures
 
 from .. import common
@@ -30,14 +29,18 @@ class TypeExists(base.Condition):
         self.name = name
 
     async def code(self, context):
-        code = '''SELECT
-                        typname
-                    FROM
-                        pg_catalog.pg_type typ
-                        INNER JOIN pg_catalog.pg_namespace nsp ON nsp.oid = typ.typnamespace
-                    WHERE
-                        nsp.nspname = $1 AND typ.typname = $2'''
+        code = '''
+            SELECT
+                typname
+            FROM
+                pg_catalog.pg_type typ
+                INNER JOIN pg_catalog.pg_namespace nsp
+                    ON nsp.oid = typ.typnamespace
+            WHERE
+                nsp.nspname = $1 AND typ.typname = $2
+        '''
         return code, self.name
+
 
 CompositeTypeExists = TypeExists
 
@@ -48,19 +51,22 @@ class CompositeTypeAttributeExists(base.Condition):
         self.attribute_name = attribute_name
 
     async def code(self, context):
-        code = '''SELECT
-                        attribute_name
-                    FROM
-                        information_schema.attributes
-                    WHERE
-                        udt_schema = $1 AND udt_name = $2 AND attribute_name = $3'''
-        return code, self.type_name + (self.attribute_name,)
+        code = '''
+            SELECT
+                attribute_name
+            FROM
+                information_schema.attributes
+            WHERE
+                udt_schema = $1 AND udt_name = $2 AND attribute_name = $3'''
+        return code, self.type_name + (self.attribute_name, )
 
 
 class CreateCompositeType(ddl.SchemaObjectOperation):
-    def __init__(self, type, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(type.name, conditions=conditions, neg_conditions=neg_conditions,
-                         priority=priority)
+    def __init__(
+            self, type, *, conditions=None, neg_conditions=None, priority=0):
+        super().__init__(
+            type.name, conditions=conditions, neg_conditions=neg_conditions,
+            priority=priority)
         self.type = type
 
     async def code(self, context):
@@ -82,13 +88,16 @@ class AlterCompositeTypeBaseMixin:
         return 'ALTER TYPE {}'.format(common.qname(*self.name))
 
     def __repr__(self):
-        return '<%s.%s %s>' % (self.__class__.__module__, self.__class__.__name__, self.name)
+        return '<%s.%s %s>' % (
+            self.__class__.__module__, self.__class__.__name__, self.name)
 
 
 class AlterCompositeTypeBase(AlterCompositeTypeBaseMixin, ddl.DDLOperation):
-    def __init__(self, name, *, conditions=None, neg_conditions=None, priority=0):
-        ddl.DDLOperation.__init__(self, conditions=conditions, neg_conditions=neg_conditions,
-                                  priority=priority)
+    def __init__(
+            self, name, *, conditions=None, neg_conditions=None, priority=0):
+        ddl.DDLOperation.__init__(
+            self, conditions=conditions, neg_conditions=neg_conditions,
+            priority=priority)
         AlterCompositeTypeBaseMixin.__init__(self, name=name)
 
 
@@ -97,27 +106,32 @@ class AlterCompositeTypeFragment(ddl.DDLOperation):
         return 'ATTRIBUTE'
 
 
-class AlterCompositeType(AlterCompositeTypeBaseMixin, base.CompositeCommandGroup):
-    def __init__(self, name, *, conditions=None, neg_conditions=None, priority=0):
-        base.CompositeCommandGroup.__init__(self, conditions=conditions, neg_conditions=neg_conditions,
-                                            priority=priority)
+class AlterCompositeType(
+        AlterCompositeTypeBaseMixin, base.CompositeCommandGroup):
+    def __init__(
+            self, name, *, conditions=None, neg_conditions=None, priority=0):
+        base.CompositeCommandGroup.__init__(
+            self, conditions=conditions, neg_conditions=neg_conditions,
+            priority=priority)
         AlterCompositeTypeBaseMixin.__init__(self, name=name)
 
 
-class AlterCompositeTypeAddAttribute(composites.AlterCompositeAddAttribute,
-                                     AlterCompositeTypeFragment):
+class AlterCompositeTypeAddAttribute(
+        composites.AlterCompositeAddAttribute, AlterCompositeTypeFragment):
     async def code(self, context):
-        return 'ADD {} {}'.format(self.get_attribute_term(),
-                                  self.attribute.code(context, short=True))
+        return 'ADD {} {}'.format(
+            self.get_attribute_term(), self.attribute.code(
+                context, short=True))
 
 
-class AlterCompositeTypeDropAttribute(composites.AlterCompositeDropAttribute,
-                                      AlterCompositeTypeFragment):
+class AlterCompositeTypeDropAttribute(
+        composites.AlterCompositeDropAttribute, AlterCompositeTypeFragment):
     pass
 
 
-class AlterCompositeTypeAlterAttributeType(composites.AlterCompositeAlterAttributeType,
-                                           AlterCompositeTypeFragment):
+class AlterCompositeTypeAlterAttributeType(
+        composites.AlterCompositeAlterAttributeType,
+        AlterCompositeTypeFragment):
     pass
 
 
@@ -143,17 +157,21 @@ class AlterCompositeTypeRenameTo(AlterCompositeTypeBase):
         return code
 
 
-class AlterCompositeTypeRenameAttribute(composites.AlterCompositeRenameAttribute,
-                                        AlterCompositeTypeBase):
+class AlterCompositeTypeRenameAttribute(
+        composites.AlterCompositeRenameAttribute, AlterCompositeTypeBase):
     def get_attribute_term(self):
         return 'ATTRIBUTE'
 
 
 class DropCompositeType(ddl.SchemaObjectOperation):
-    def __init__(self, name, *, cascade=False, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(name, conditions=conditions, neg_conditions=neg_conditions,
-                               priority=priority)
+    def __init__(
+            self, name, *, cascade=False, conditions=None, neg_conditions=None,
+            priority=0):
+        super().__init__(
+            name, conditions=conditions, neg_conditions=neg_conditions,
+            priority=priority)
         self.cascade = cascade
 
     async def code(self, context):
-        return 'DROP TYPE {}{}'.format(common.qname(*self.name), ' CASCADE' if self.cascade else '')
+        return 'DROP TYPE {}{}'.format(
+            common.qname(*self.name), ' CASCADE' if self.cascade else '')

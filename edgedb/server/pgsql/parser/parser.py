@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 from edgedb.lang.common import debug, parsing
 from .error import PgSQLParserError
 

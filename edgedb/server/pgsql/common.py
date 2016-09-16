@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import importlib
 import itertools
 import hashlib
@@ -21,9 +20,7 @@ from edgedb.lang.schema import objects as s_obj
 
 
 def quote_ident(text):
-    """
-    Quotes the identifier
-    """
+    """Quote the identifier."""
     result = postgresql.string.quote_ident(text)
     if result[0] != '"':
         return '"' + result + '"'
@@ -39,21 +36,23 @@ def edgedb_module_name_to_schema_name(module, prefix='edgedb_'):
 
 
 def edgedb_name_to_pg_name(name, prefix_length=0):
-    """
-    Convert EdgeDB name to a valid PostgresSQL column name
+    """Convert EdgeDB name to a valid PostgresSQL column name.
 
     PostgreSQL has a limit of 63 characters for column names.
 
     @param name: EdgeDB name to convert
     @return: PostgreSQL column name
     """
-
-    assert 0 <= prefix_length < 63, "supplied name is too long to be kept in original form"
+    if not (0 <= prefix_length < 63):
+        raise ValueError('supplied name is too long '
+                         'to be kept in original form')
 
     name = str(name)
     if len(name) > 63 - prefix_length:
-        hash = base64.b64encode(hashlib.md5(name.encode()).digest()).decode().rstrip('=')
-        name = name[:prefix_length] + hash + ':' + name[-(63 - prefix_length - 1 - len(hash)):]
+        hash = base64.b64encode(hashlib.md5(name.encode()).digest()).decode(
+        ).rstrip('=')
+        name = name[:prefix_length] + hash + ':' + name[-(
+            63 - prefix_length - 1 - len(hash)):]
     return name
 
 
@@ -95,7 +94,9 @@ def get_table_name(obj, catenate=True):
     else:
         assert False
 
+
 _type_index = None
+
 
 def py_type_to_pg_type(typ):
     global _type_index
@@ -106,11 +107,15 @@ def py_type_to_pg_type(typ):
 
         _type_index = {}
 
-        postgres_io_mods = {'postgresql.types.io.{}'.format(m) for m in
-                            postgresql.types.io.io_modules}
+        postgres_io_mods = {
+            'postgresql.types.io.{}'.format(m)
+            for m in postgresql.types.io.io_modules
+        }
 
-        edgedb_io_mods = {'edgedb.server.pgsql.driver.io.{}'.format(m) for m in
-                        custom_type_io.io_modules}
+        edgedb_io_mods = {
+            'edgedb.server.pgsql.driver.io.{}'.format(m)
+            for m in custom_type_io.io_modules
+        }
 
         for mod in itertools.chain(postgres_io_mods, edgedb_io_mods):
             try:
@@ -120,11 +125,16 @@ def py_type_to_pg_type(typ):
 
             oid_to_type = getattr(mod, 'oid_to_type', None)
             if oid_to_type:
-                _type_index.update({k: postgresql.types.oid_to_name[v]
-                                    for k, v in zip(oid_to_type.values(), oid_to_type.keys())})
+                _type_index.update({
+                    k: postgresql.types.oid_to_name[v]
+                    for k, v in zip(oid_to_type.values(), oid_to_type.keys())
+                })
 
-        _type_index.update({k: postgresql.types.oid_to_name[v]
-                            for k, v in zip(driver.oid_to_type.values(), driver.oid_to_type.keys())})
+        _type_index.update({
+            k: postgresql.types.oid_to_name[v]
+            for k, v in zip(
+                driver.oid_to_type.values(), driver.oid_to_type.keys())
+        })
 
     if isinstance(typ, tuple):
         supertyp, typ = typ
@@ -144,8 +154,9 @@ def py_type_to_pg_type(typ):
 
 
 class RecordInfo:
-    def __init__(self, *, attribute_map, proto_class=None, proto_name=None, is_xvalue=False,
-                          recursive_link=False, virtuals_map=None):
+    def __init__(
+            self, *, attribute_map, proto_class=None, proto_name=None,
+            is_xvalue=False, recursive_link=False, virtuals_map=None):
         self.attribute_map = attribute_map
         self.virtuals_map = virtuals_map
         self.proto_class = proto_class
@@ -155,23 +166,17 @@ class RecordInfo:
         self.id = str(persistent_hash.persistent_hash(self))
 
     def persistent_hash(self):
-        return persistent_hash.persistent_hash((tuple(self.attribute_map),
-                                                frozenset(self.virtuals_map.items())
-                                                    if self.virtuals_map else None,
-                                                self.proto_class,
-                                                self.proto_name, self.is_xvalue,
-                                                self.recursive_link))
+        return persistent_hash.persistent_hash((
+            tuple(self.attribute_map), frozenset(self.virtuals_map.items())
+            if self.virtuals_map else None, self.proto_class, self.proto_name,
+            self.is_xvalue, self.recursive_link))
 
     def __mm_serialize__(self):
         return dict(
-            attribute_map=self.attribute_map,
-            virtuals_map=self.virtuals_map,
-            proto_class=self.proto_class,
-            proto_name=self.proto_name,
-            is_xvalue=self.is_xvalue,
-            recursive_link=self.recursive_link,
-            id=self.id
-        )
+            attribute_map=self.attribute_map, virtuals_map=self.virtuals_map,
+            proto_class=self.proto_class, proto_name=self.proto_name,
+            is_xvalue=self.is_xvalue, recursive_link=self.recursive_link,
+            id=self.id)
 
 
 FREEFORM_RECORD_ID = '6e51108d-7440-47f7-8c65-dc4d43fd90d2'

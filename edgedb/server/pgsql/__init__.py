@@ -5,16 +5,15 @@
 # See LICENSE for details.
 ##
 
-
-from . import ast
+from . import ast  # NOQA
 from . import backend
-from . import codegen
-from . import common
+from . import codegen  # NOQA
+from . import common  # NOQA
 
 
 async def open_database(pgconn):
-    await pgconn.set_builtin_type_codec('hstore', schema='edgedb',
-                                        codec_name='pg_contrib.hstore')
+    await pgconn.set_builtin_type_codec(
+        'hstore', schema='edgedb', codec_name='pg_contrib.hstore')
 
     bk = backend.Backend(pgconn)
     await bk.getschema()

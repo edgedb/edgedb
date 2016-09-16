@@ -5,6 +5,5 @@
 # See LICENSE for details.
 ##
 
-
-from .parser import PgSQLParser
-from .error import PgSQLParserError
+from .parser import PgSQLParser  # NOQA
+from .error import PgSQLParserError  # NOQA

@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import base64
 import hashlib
 
@@ -14,12 +13,13 @@ from edgedb.lang.common.debug import debug
 
 
 def pack_name(name, prefix_length=0):
-    """Pack a potentially long name into Postgres' 63 char limit"""
-
+    """Pack a potentially long name into Postgres' 63 char limit."""
     name = str(name)
     if len(name) > 63 - prefix_length:
-        hash = base64.b64encode(hashlib.md5(name.encode()).digest()).decode().rstrip('=')
-        name = name[:prefix_length] + hash + ':' + name[-(63 - prefix_length - 1 - len(hash)):]
+        hash = base64.b64encode(hashlib.md5(name.encode()).digest()).decode(
+        ).rstrip('=')
+        name = name[:prefix_length] + hash + ':' + name[-(
+            63 - prefix_length - 1 - len(hash)):]
     return name
 
 
@@ -52,7 +52,6 @@ class BaseCommand:
             if extra_before:
                 for cmd in extra_before:
                     await cmd.execute(context)
-
             """LOG [delta.execute] Executing DDL:
             print(repr(self))
             print('CODE:', code)
@@ -90,8 +89,10 @@ class Command(BaseCommand):
 
     @debug
     async def execute(self, context):
-        ok = await self.check_conditions(context, self.conditions, True) and \
-             await self.check_conditions(context, self.neg_conditions, False)
+        ok = (
+            await self.check_conditions(context, self.conditions, True) and
+            await self.check_conditions(context, self.neg_conditions, False)
+        )
 
         result = None
         if ok:
@@ -160,7 +161,9 @@ class Command(BaseCommand):
 
 class CommandGroup(Command):
     def __init__(self, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
+        super().__init__(
+            conditions=conditions, neg_conditions=neg_conditions,
+            priority=priority)
         self.commands = []
 
     def add_command(self, cmd):
@@ -282,8 +285,11 @@ class Condition(BaseCommand):
 
 
 class Echo(Command):
-    def __init__(self, msg, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
+    def __init__(
+            self, msg, *, conditions=None, neg_conditions=None, priority=0):
+        super().__init__(
+            conditions=conditions, neg_conditions=neg_conditions,
+            priority=priority)
         self._msg = msg
 
     async def code(self, context):
