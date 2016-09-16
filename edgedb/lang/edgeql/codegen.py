@@ -579,7 +579,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             for i, base in enumerate(node.bases):
                 if i > 0:
                     self.write(', ')
-                self.visit(base)
+                self.visit(base, parenthesise=False)
 
             if len(node.bases) > 1:
                 self.write(')')
@@ -588,7 +588,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_namespaces(node)
         self.write('CREATE', *object_keywords, delimiter=' ')
         self.write(' ')
-        self.visit(node.name)
+        self.visit(node.name, parenthesise=False)
         if after_name:
             after_name()
         if node.commands:
@@ -604,7 +604,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_namespaces(node)
         self.write('ALTER', *object_keywords, delimiter=' ')
         self.write(' ')
-        self.visit(node.name)
+        self.visit(node.name, parenthesise=False)
         if node.commands:
             if len(node.commands) == 1 and allow_short:
                 self.write(' ')
@@ -624,7 +624,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_namespaces(node)
         self.write('DROP', *object_keywords, delimiter=' ')
         self.write(' ')
-        self.visit(node.name)
+        self.visit(node.name, parenthesise=False)
         if node.commands:
             self.write(' {')
             self.new_lines = 1
@@ -636,7 +636,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_RenameNode(self, node):
         self.write('RENAME TO ')
-        self.visit(node.new_name)
+        self.visit(node.new_name, parenthesise=False)
 
     def visit_SetSpecialFieldNode(self, node):
         if node.value:
@@ -673,13 +673,23 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_DropObjectNode(node, 'DATABASE')
 
     def visit_CreateDeltaNode(self, node):
-        self._visit_CreateObjectNode(node, 'DELTA')
+        def after_name():
+            if node.parents:
+                self.write(' FROM ')
+                self.visit(node.parents)
+
+            if node.target:
+                self.write(' TO ')
+                from edgedb.lang.schema import generate_source as schema_sg
+                self.write(edgeql_quote.dollar_quote_literal(
+                    schema_sg(node.target)))
+        self._visit_CreateObjectNode(node, 'DELTA', after_name=after_name)
 
     def visit_CommitDeltaNode(self, node):
         self._visit_namespaces(node)
         self.write('COMMIT DELTA')
         self.write(' ')
-        self.visit(node.name)
+        self.visit(node.name, parenthesise=False)
         self.new_lines = 1
 
     def visit_AlterDeltaNode(self, node):

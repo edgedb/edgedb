@@ -13,23 +13,21 @@ from .ddl import *  # NOQA
 
 
 class SingleStatement(Nonterm):
-    def reduce_Stmt(self, expr):
-        self.val = expr.val
+    def reduce_Stmt(self, *kids):
+        self.val = kids[0].val
 
-    def reduce_DDLStmt(self, expr):
-        self.val = expr.val
-
-    def reduce_empty(self):
-        self.val = None
-
-
-class StatementList(ListNonterm, element=SingleStatement,
-                    separator=T_SEMICOLON):
-    pass
+    def reduce_DDLStmt(self, *kids):
+        self.val = kids[0].val
 
 
 class StatementBlock(Nonterm):
     "%start"
 
-    def reduce_StatementList_SEMICOLON(self, exprs, semicolon):
-        self.val = exprs.val
+    def reduce_StatementBlock_SEMICOLON(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_StatementBlock_SingleStatement_SEMICOLON(self, *kids):
+        self.val = kids[0].val + [kids[1].val]
+
+    def reduce_empty(self):
+        self.val = []

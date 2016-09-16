@@ -15,7 +15,7 @@ from edgedb.lang.edgeql.parser import parser as edgeql_parser
 
 
 class EdgeQLSyntaxTest(tb.BaseSyntaxTest):
-    re_filter = re.compile(r'[\s]+|(#.*?\n)|(,(?=\s*[})]))')
+    re_filter = re.compile(r'[\s]+|(#.*?(\n|$))|(,(?=\s*[})]))')
     parser_debug_flag = 'DEBUG_EDGEQL'
     markup_dump_lexer = 'edgeql'
     ast_to_source = edgeql_to_source
@@ -25,6 +25,35 @@ class EdgeQLSyntaxTest(tb.BaseSyntaxTest):
 
 
 class TestEdgeSchemaParser(EdgeQLSyntaxTest):
+    def test_edgeql_syntax_empty01(self):
+        """"""
+
+    def test_edgeql_syntax_empty02(self):
+        """# only comment"""
+
+    def test_edgeql_syntax_empty03(self):
+        """
+
+        # only comment
+
+        """
+
+    def test_edgeql_syntax_empty04(self):
+        """;
+% OK %  """
+
+    def test_edgeql_syntax_empty05(self):
+        """;# only comment
+% OK %  """
+
+    def test_edgeql_syntax_empty06(self):
+        """
+        ;
+        # only comment
+        ;
+% OK %
+        """
+
     def test_edgeql_syntax_case01(self):
         """
         Select 1;
@@ -978,4 +1007,87 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT ([Foo.bar, Foo.baz, Foo.spam, Foo.ham])[Bar.setting:];
         SELECT ([Foo.bar, Foo.baz, Foo.spam, Foo.ham])[:Bar.setting];
         SELECT ([Foo.bar, Foo.baz, Foo.spam, Foo.ham])[:-Bar.setting];
+        """
+
+    # XXX: codegen or parser issue
+    #
+    @unittest.expectedFailure
+    def test_edgeql_syntax_cast01(self):
+        """
+        SELECT <float> (SELECT User.age);
+        """
+
+    def test_edgeql_syntax_cardinality01(self):
+        """
+        SELECT SINGLE User.name WHERE (User.name = 'special');
+        INSERT User RETURNING SINGLE User{name};
+        INSERT User{name:= 'foo'} RETURNING SINGLE User{name};
+        UPDATE User{age:= (User.age + 10)}
+            WHERE (User.name = 'foo') RETURNING SINGLE User{name};
+        DELETE User WHERE (User.name = 'foo') RETURNING SINGLE User{name};
+        """
+
+    # DDL
+    #
+
+    def test_edgeql_syntax_database01(self):
+        """
+        CREATE DATABASE mytestdb;
+        DROP DATABASE mytestdb;
+        CREATE DATABASE `mytest"db"`;
+        DROP DATABASE `mytest"db"`;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=25)
+    def test_edgeql_syntax_database02(self):
+        """
+        CREATE DATABASE (mytestdb);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=28)
+    def test_edgeql_syntax_database03(self):
+        """
+        CREATE DATABASE foo::mytestdb;
+        """
+
+    def test_edgeql_syntax_delta01(self):
+        """
+        ALTER DELTA test::d_links01_0 {
+            RENAME TO test::pretty_name;
+        };
+
+% OK %
+
+        ALTER DELTA test::d_links01_0
+            RENAME TO test::pretty_name;
+        """
+
+    def test_edgeql_syntax_delta02(self):
+        """
+        CREATE DELTA test::d_links01_0 TO $$concept Foo$$;
+        ALTER DELTA test::d_links01_0
+            RENAME TO test::pretty_name;
+        COMMIT DELTA test::d_links01_0;
+        DROP DELTA test::d_links01_0;
+        """
+
+    def test_edgeql_syntax_action01(self):
+        """
+        CREATE ACTION std::restrict {
+            SET title := 'Abort the event if a pointer exists';
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=13)
+    def test_edgeql_syntax_action02(self):
+        """
+        CREATE ACTION std::restrict
+            SET title := 'Abort the event if a pointer exists';
+        """
+
+    def test_edgeql_syntax_atom01(self):
+        """
+        CREATE ABSTRACT ATOM std::`any`;
+        CREATE ATOM std::typeref;
+        CREATE ATOM std::atomref INHERITING std::typeref;
         """

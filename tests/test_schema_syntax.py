@@ -14,7 +14,7 @@ from edgedb.lang.schema.parser import parser as eschema_parser
 
 
 class SchemaSyntaxTest(tb.BaseSyntaxTest):
-    re_filter = re.compile(r'[\s\'"()]+|(#.*?\n)|SELECT')
+    re_filter = re.compile(r'[\s\'"()]+|(#.*?(\n|$))|SELECT')
     parser_debug_flag = 'DEBUG_ESCHEMA'
     markup_dump_lexer = 'edgeschema'
     ast_to_source = eschema_to_source
