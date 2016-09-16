@@ -6,8 +6,6 @@
 ##
 
 
-import itertools
-
 from edgedb.lang.common.exceptions import EdgeDBError
 from edgedb.lang.common.ast import codegen, AST
 
@@ -36,32 +34,18 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         raise EdgeQLSourceGeneratorError(
             'No method to generate code for %s' % node.__class__.__name__)
 
-    def _visit_namespaces(self, node):
-        if node.namespaces or node.aliases:
-            self.write('USING')
-            self.indentation += 1
-            self.new_lines = 1
-            self.visit_list(itertools.chain(node.namespaces, node.aliases))
-            self.new_lines = 1
-            self.indentation -= 1
-
-    def _visit_cges(self, cges):
-        if cges:
-            self.new_lines = 1
+    def _visit_aliases(self, node):
+        if node.aliases:
             self.write('WITH')
-            self.new_lines = 1
             self.indentation += 1
-            for i, cge in enumerate(cges):
-                if i > 0:
-                    self.write(',')
-                    self.new_lines = 1
-                self.visit(cge)
-            self.indentation -= 1
             self.new_lines = 1
+            self.visit_list(node.aliases)
+            self.new_lines = 1
+            self.indentation -= 1
 
     def visit_CGENode(self, node):
-        self.write(node.alias)
-        self.write(' AS (')
+        self.write(ident_to_str(node.alias))
+        self.write(' := (')
         self.new_lines = 1
         self.indentation += 1
         self.visit(node.expr)
@@ -70,11 +54,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(')')
 
     def visit_InsertQueryNode(self, node):
-        self._visit_namespaces(node)
-        self._visit_cges(node.cges)
-
+        self._visit_aliases(node)
         self.write('INSERT')
-
         self.indentation += 1
         self.new_lines = 1
         self.visit(node.subject)
@@ -97,11 +78,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.indentation -= 1
 
     def visit_UpdateQueryNode(self, node):
-        self._visit_namespaces(node)
-        self._visit_cges(node.cges)
-
+        self._visit_aliases(node)
         self.write('UPDATE')
-
         self.indentation += 1
         self.new_lines = 1
         self.visit(node.subject)
@@ -137,8 +115,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.value)
 
     def visit_DeleteQueryNode(self, node):
-        self._visit_namespaces(node)
-        self._visit_cges(node.cges)
+        self._visit_aliases(node)
         self.write('DELETE ')
         self.visit(node.subject)
         if node.where:
@@ -159,7 +136,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(')')
 
     def visit_SelectQueryNode(self, node):
-        self._visit_namespaces(node)
+        self._visit_aliases(node)
 
         if node.op:
             # Upper level set operation node (UNION/INTERSECT)
@@ -173,8 +150,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.op_rarg)
             self.write(')')
         else:
-            self._visit_cges(node.cges)
-
             self.write('SELECT')
             if node.single:
                 self.write(' SINGLE')
@@ -234,13 +209,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_NamespaceAliasDeclNode(self, node):
         if node.alias:
-            self.write(node.alias)
+            self.write(ident_to_str(node.alias))
             self.write(' := ')
         self.write('MODULE ')
         self.write(ident_to_str(node.namespace))
 
     def visit_ExpressionAliasDeclNode(self, node):
-        self.write(node.alias)
+        self.write(ident_to_str(node.alias))
         self.write(' := ')
         self.visit(node.expr)
 
@@ -249,7 +224,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if node.alias:
             self.write(' AS ')
             self.write('"')
-            self.write(node.alias)
+            self.write(ident_to_str(node.alias))
             self.write('"')
 
     def visit_SortExprNode(self, node):
@@ -588,7 +563,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.write(')')
 
     def _visit_CreateObjectNode(self, node, *object_keywords, after_name=None):
-        self._visit_namespaces(node)
+        self._visit_aliases(node)
         self.write('CREATE', *object_keywords, delimiter=' ')
         self.write(' ')
         self.visit(node.name, parenthesise=False)
@@ -604,7 +579,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.new_lines = 1
 
     def _visit_AlterObjectNode(self, node, *object_keywords, allow_short=True):
-        self._visit_namespaces(node)
+        self._visit_aliases(node)
         self.write('ALTER', *object_keywords, delimiter=' ')
         self.write(' ')
         self.visit(node.name, parenthesise=False)
@@ -624,7 +599,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.new_lines = 1
 
     def _visit_DropObjectNode(self, node, *object_keywords):
-        self._visit_namespaces(node)
+        self._visit_aliases(node)
         self.write('DROP', *object_keywords, delimiter=' ')
         self.write(' ')
         self.visit(node.name, parenthesise=False)
@@ -689,7 +664,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_CreateObjectNode(node, 'DELTA', after_name=after_name)
 
     def visit_CommitDeltaNode(self, node):
-        self._visit_namespaces(node)
+        self._visit_aliases(node)
         self.write('COMMIT DELTA')
         self.write(' ')
         self.visit(node.name, parenthesise=False)

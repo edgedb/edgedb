@@ -35,7 +35,7 @@ class TestDelete(tb.QueryTestCase):
                 name := 'Closed'
             };
 
-            USING MODULE test
+            WITH MODULE test
             INSERT UpdateTest {
                 name := 'update-test',
                 status := (SELECT Status WHERE Status.name = 'Open')
@@ -43,7 +43,7 @@ class TestDelete(tb.QueryTestCase):
         """)
 
         result = await self.con.execute(r"""
-            USING MODULE test
+            WITH MODULE test
             SELECT UpdateTest {
                 name,
                 status: {
@@ -63,14 +63,14 @@ class TestDelete(tb.QueryTestCase):
         ])
 
         result = await self.con.execute(r"""
-            USING MODULE test
+            WITH MODULE test
             UPDATE UpdateTest {
                 status := (SELECT Status WHERE Status.name = 'Closed')
             } WHERE UpdateTest.name = 'update-test';
         """)
 
         result = await self.con.execute(r"""
-            USING MODULE test
+            WITH MODULE test
             SELECT UpdateTest {
                 name,
                 status: {

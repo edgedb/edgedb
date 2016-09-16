@@ -1047,6 +1047,18 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         CREATE FUNCTION spam(foo str) RETURNING SINGLE str;
         """
 
+    def test_edgeql_syntax_with01(self):
+        """
+        WITH
+            MODULE test,
+            foo:= Bar.foo,
+            baz:= (SELECT Foo.baz)
+        SELECT Bar {
+            spam,
+            ham:= baz
+        } WHERE (foo = 'special');
+        """
+
     # DDL
     #
 

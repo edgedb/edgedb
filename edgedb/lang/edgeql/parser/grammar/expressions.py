@@ -49,61 +49,33 @@ class SelectNoParens(Nonterm):
     def reduce_AliasBlock_SelectClause_OptSortClause_OptSelectLimit(
             self, *kids):
         qry = kids[1].val
+        qry.aliases = kids[0].val
         qry.orderby = kids[2].val
         qry.offset = kids[3].val[0]
         qry.limit = kids[3].val[1]
-        (qry.namespaces, qry.aliases) = kids[0].val
-
         self.val = qry
 
-    def reduce_AliasBlock_WithClause_SelectClause_OptSortClause_OptSelectLimit(
-            self, *kids):
-        qry = kids[2].val
-        qry.orderby = kids[3].val
-        qry.offset = kids[4].val[0]
-        qry.limit = kids[4].val[1]
-        (qry.namespaces, qry.aliases) = kids[0].val
-        qry.cges = kids[1].val
-
+    def reduce_SimpleSelect_OptSortClause_OptSelectLimit(self, *kids):
+        qry = kids[0].val
+        qry.orderby = kids[1].val
+        qry.offset = kids[2].val[0]
+        qry.limit = kids[2].val[1]
         self.val = qry
 
-    def reduce_WithClause_SelectClause_OptSortClause_OptSelectLimit(
-            self, *kids):
-        qry = kids[1].val
-        qry.orderby = kids[2].val
-        qry.offset = kids[3].val[0]
-        qry.limit = kids[3].val[1]
-        qry.cges = kids[0].val
-
-        self.val = qry
-
-    def reduce_SimpleSelect_OptSelectLimit(self, *kids):
+    # SelectWithParens MUST have a non optional clause here to avoid loops
+    #
+    def reduce_SelectWithParens_SelectLimit(self, *kids):
         qry = kids[0].val
         qry.offset = kids[1].val[0]
         qry.limit = kids[1].val[1]
         self.val = qry
 
-    def reduce_SelectClause_SortClause_OptSelectLimit(self, *kids):
+    def reduce_SelectWithParens_SortClause_OptSelectLimit(self, *kids):
         qry = kids[0].val
         qry.orderby = kids[1].val
         qry.offset = kids[2].val[0]
         qry.limit = kids[2].val[1]
-
         self.val = qry
-
-
-class WithClause(Nonterm):
-    def reduce_WITH_CgeList(self, *kids):
-        self.val = kids[1].val
-
-
-class Cge(Nonterm):
-    def reduce_ShortName_AS_LPAREN_SelectExpr_RPAREN(self, *kids):
-        self.val = qlast.CGENode(expr=kids[3].val, alias=kids[0].val)
-
-
-class CgeList(ListNonterm, element=Cge, separator=T_COMMA):
-    pass
 
 
 class SelectClause(Nonterm):
@@ -163,8 +135,7 @@ class InsertExpr(Nonterm):
     def reduce_OptAliasBlock_INSERT_Path_OptReturningClause(self, *kids):
         single, targets = kids[3].val
         self.val = qlast.InsertQueryNode(
-            namespaces=kids[0].val[0],
-            aliases=kids[0].val[1],
+            aliases=kids[0].val,
             subject=kids[2].val,
             single=single,
             targets=targets,
@@ -175,8 +146,7 @@ class InsertExpr(Nonterm):
         kids[2].val.pathspec = None
         single, targets = kids[3].val
         self.val = qlast.InsertQueryNode(
-            namespaces=kids[0].val[0],
-            aliases=kids[0].val[1],
+            aliases=kids[0].val,
             subject=kids[2].val,
             pathspec=pathspec,
             single=single,
@@ -192,8 +162,7 @@ class UpdateExpr(Nonterm):
         kids[2].val.pathspec = None
         single, targets = kids[4].val
         self.val = qlast.UpdateQueryNode(
-            namespaces=kids[0].val[0],
-            aliases=kids[0].val[1],
+            aliases=kids[0].val,
             subject=kids[2].val,
             pathspec=pathspec,
             where=kids[3].val,
@@ -207,8 +176,7 @@ class DeleteExpr(Nonterm):
         "%reduce OptAliasBlock DELETE Path OptWhereClause OptReturningClause"
         single, targets = kids[4].val
         self.val = qlast.DeleteQueryNode(
-            namespaces=kids[0].val[0],
-            aliases=kids[0].val[1],
+            aliases=kids[0].val,
             subject=kids[2].val,
             where=kids[3].val,
             single=single,
@@ -221,21 +189,12 @@ class OptAliasBlock(Nonterm):
         self.val = kids[0].val
 
     def reduce_empty(self, *kids):
-        self.val = ([], [])
+        self.val = []
 
 
 class AliasBlock(Nonterm):
-    def reduce_USING_AliasDeclList(self, *kids):
-        nsaliases = []
-        expraliases = []
-
-        for alias in kids[1].val:
-            if isinstance(alias, qlast.NamespaceAliasDeclNode):
-                nsaliases.append(alias)
-            else:
-                expraliases.append(alias)
-
-        self.val = (nsaliases, expraliases)
+    def reduce_WITH_AliasDeclList(self, *kids):
+        self.val = kids[1].val
 
 
 class ModuleName(Nonterm):
@@ -254,9 +213,15 @@ class AliasDecl(Nonterm):
             namespace='.'.join(kids[3].val))
 
     def reduce_ShortName_TURNSTILE_Expr(self, *kids):
-        self.val = qlast.ExpressionAliasDeclNode(
-            alias=kids[0].val,
-            expr=kids[2].val)
+        # NOTE: if Expr is a subquery, we need to treat it specially
+        if isinstance(kids[2].val, qlast.SelectQueryNode):
+            self.val = qlast.CGENode(
+                alias=kids[0].val,
+                expr=kids[2].val)
+        else:
+            self.val = qlast.ExpressionAliasDeclNode(
+                alias=kids[0].val,
+                expr=kids[2].val)
 
 
 class AliasDeclList(ListNonterm, element=AliasDecl, separator=T_COMMA):

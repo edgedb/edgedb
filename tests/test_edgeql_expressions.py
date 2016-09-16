@@ -94,7 +94,7 @@ class TestExpressions(tb.QueryTestCase):
 
         for case in cases:
             await self.con.execute('''
-                USING MODULE test
+                WITH MODULE test
                 SELECT
                     Issue {
                         test::number
@@ -105,7 +105,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_polymorphic_01(self):
         await self.con.execute(r"""
-            USING MODULE test
+            WITH MODULE test
             SELECT Text {
                 Issue.number,
                 (Issue).related_to,
@@ -117,7 +117,7 @@ class TestExpressions(tb.QueryTestCase):
         """)
 
         await self.con.execute(r"""
-            USING MODULE test
+            WITH MODULE test
             SELECT Owned {
                 Named.name
             };

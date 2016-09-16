@@ -42,6 +42,7 @@ class StartTransactionStmt(Nonterm):
 
 
 class CommitTransactionStmt(Nonterm):
+    # XXX: OptAliasBlock is trying to avoid conflicts
     def reduce_OptAliasBlock_COMMIT(self, *kids):
         self.val = qlast.CommitTransactionNode()
 

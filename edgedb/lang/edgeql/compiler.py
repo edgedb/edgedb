@@ -166,6 +166,22 @@ class EdgeQLCompilerError(edgedb_error.EdgeDBError):
     pass
 
 
+def get_ns_aliases_cges(node):
+    namespaces = []
+    aliases = []
+    cges = []
+
+    for alias in node.aliases:
+        if isinstance(alias, qlast.NamespaceAliasDeclNode):
+            namespaces.append(alias)
+        elif isinstance(alias, qlast.CGENode):
+            cges.append(alias)
+        else:
+            aliases.append(alias)
+
+    return namespaces, aliases, cges
+
+
 class EdgeQLCompiler:
     def __init__(self, proto_schema, module_aliases=None):
         self.proto_schema = proto_schema
@@ -304,14 +320,15 @@ class EdgeQLCompiler:
 
         pathvars = context.current.pathvars
         namespaces = context.current.namespaces
+        t_ns, t_aliases, t_cges = get_ns_aliases_cges(edgeql_tree)
 
         with context():
             context.current.location = 'generator'
 
-            for alias_decl in edgeql_tree.namespaces:
+            for alias_decl in t_ns:
                 namespaces[alias_decl.alias] = alias_decl.namespace
 
-            for alias_decl in edgeql_tree.aliases:
+            for alias_decl in t_aliases:
                 expr = self._process_expr(context, alias_decl.expr)
                 if isinstance(expr, irast.Path):
                     expr.pathvar = alias_decl.alias
@@ -321,10 +338,10 @@ class EdgeQLCompiler:
         if context.current.module_aliases:
             context.current.namespaces.update(context.current.module_aliases)
 
-        if edgeql_tree.cges:
+        if t_cges:
             graph.cges = []
 
-            for cge in edgeql_tree.cges:
+            for cge in t_cges:
                 with context(ParseContext.SUBQUERY):
                     _cge = self._transform_select(context, cge.expr, arg_types)
                 context.current.cge_map[cge.alias] = _cge
@@ -444,18 +461,18 @@ class EdgeQLCompiler:
 
         graph = context.current.graph = irast.GraphExpr()
         graph.op = 'insert'
+        t_ns, t_aliases, t_cges = get_ns_aliases_cges(edgeql_tree)
 
-        if edgeql_tree.namespaces:
-            for ns in edgeql_tree.namespaces:
-                context.current.namespaces[ns.alias] = ns.namespace
+        for ns in t_ns:
+            context.current.namespaces[ns.alias] = ns.namespace
 
         if context.current.module_aliases:
             context.current.namespaces.update(context.current.module_aliases)
 
-        if edgeql_tree.cges:
+        if t_cges:
             graph.cges = []
 
-            for cge in edgeql_tree.cges:
+            for cge in t_cges:
                 with context(ParseContext.SUBQUERY):
                     _cge = self._transform_select(context, cge.expr, arg_types)
                 context.current.cge_map[cge.alias] = _cge
@@ -525,18 +542,18 @@ class EdgeQLCompiler:
 
         graph = context.current.graph = irast.GraphExpr()
         graph.op = 'update'
+        t_ns, t_aliases, t_cges = get_ns_aliases_cges(edgeql_tree)
 
-        if edgeql_tree.namespaces:
-            for ns in edgeql_tree.namespaces:
-                context.current.namespaces[ns.alias] = ns.namespace
+        for ns in t_ns:
+            context.current.namespaces[ns.alias] = ns.namespace
 
         if context.current.module_aliases:
             context.current.namespaces.update(context.current.module_aliases)
 
-        if edgeql_tree.cges:
+        if t_cges:
             graph.cges = []
 
-            for cge in edgeql_tree.cges:
+            for cge in t_cges:
                 with context(ParseContext.SUBQUERY):
                     _cge = self._transform_select(context, cge.expr, arg_types)
                 context.current.cge_map[cge.alias] = _cge
@@ -669,18 +686,18 @@ class EdgeQLCompiler:
 
         graph = context.current.graph = irast.GraphExpr()
         graph.op = 'delete'
+        t_ns, t_aliases, t_cges = get_ns_aliases_cges(edgeql_tree)
 
-        if edgeql_tree.namespaces:
-            for ns in edgeql_tree.namespaces:
-                context.current.namespaces[ns.alias] = ns.namespace
+        for ns in t_ns:
+            context.current.namespaces[ns.alias] = ns.namespace
 
         if context.current.module_aliases:
             context.current.namespaces.update(context.current.module_aliases)
 
-        if edgeql_tree.cges:
+        if t_cges:
             graph.cges = []
 
-            for cge in edgeql_tree.cges:
+            for cge in t_cges:
                 with context(ParseContext.SUBQUERY):
                     _cge = self._transform_select(context, cge.expr, arg_types)
                 context.current.cge_map[cge.alias] = _cge

@@ -18,40 +18,40 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                           'queries.eschema')
 
     SETUP = """
-        USING MODULE test
+        WITH MODULE test
         INSERT Priority {
             name := 'High'
         };
 
-        USING MODULE test
+        WITH MODULE test
         INSERT Priority {
             name := 'Low'
         };
 
-        USING MODULE test
+        WITH MODULE test
         INSERT Status {
             name := 'Open'
         };
 
-        USING MODULE test
+        WITH MODULE test
         INSERT Status {
             name := 'Closed'
         };
 
 
-        USING MODULE test
+        WITH MODULE test
         INSERT User {
             name := 'Elvis'
         };
 
 
-        USING MODULE test
+        WITH MODULE test
         INSERT User {
             name := 'Yury'
         };
 
 
-        USING MODULE test
+        WITH MODULE test
         INSERT LogEntry {
             owner := (SELECT User WHERE User.name = 'Elvis'),
             spent_time := 50000,
@@ -59,7 +59,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         };
 
 
-        USING MODULE test
+        WITH MODULE test
         INSERT Issue {
             number := '1',
             name := 'Release EdgeDB',
@@ -72,7 +72,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         };
 
 
-        USING MODULE test
+        WITH MODULE test
         INSERT Comment {
             body := 'EdgeDB needs to happen soon.',
             owner := (SELECT User WHERE User.name = 'Elvis'),
@@ -80,7 +80,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         };
 
 
-        USING MODULE test
+        WITH MODULE test
         INSERT Issue {
             number := '2',
             name := 'Improve EdgeDB repl output rendering.',
@@ -93,7 +93,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_computable(self):
         res = await self.con.execute('''
-            USING MODULE test
+            WITH MODULE test
             SELECT
                 Issue {
                     number,
@@ -113,7 +113,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         }])
 
         res = await self.con.execute('''
-            USING MODULE test
+            WITH MODULE test
             SELECT
                 Issue {
                     number,
@@ -130,21 +130,21 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_match01(self):
         res = await self.con.execute(r'''
-            USING MODULE test
+            WITH MODULE test
             SELECT
                 Issue {number}
             WHERE
                 Issue.name LIKE '%edgedb'
             ORDER BY Issue.number;
 
-            USING MODULE test
+            WITH MODULE test
             SELECT
                 Issue {number}
             WHERE
                 Issue.name LIKE '%EdgeDB'
             ORDER BY Issue.number;
 
-            USING MODULE test
+            WITH MODULE test
             SELECT
                 Issue {number}
             WHERE
@@ -160,21 +160,21 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_match02(self):
         res = await self.con.execute(r'''
-            USING MODULE test
+            WITH MODULE test
             SELECT
                 Issue {number}
             WHERE
                 Issue.name NOT LIKE '%edgedb'
             ORDER BY Issue.number;
 
-            USING MODULE test
+            WITH MODULE test
             SELECT
                 Issue {number}
             WHERE
                 Issue.name NOT LIKE '%EdgeDB'
             ORDER BY Issue.number;
 
-            USING MODULE test
+            WITH MODULE test
             SELECT
                 Issue {number}
             WHERE
@@ -190,21 +190,21 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_match03(self):
         res = await self.con.execute(r'''
-            USING MODULE test
+            WITH MODULE test
             SELECT
                 Issue {number}
             WHERE
                 Issue.name ILIKE '%edgedb'
             ORDER BY Issue.number;
 
-            USING MODULE test
+            WITH MODULE test
             SELECT
                 Issue {number}
             WHERE
                 Issue.name ILIKE '%EdgeDB'
             ORDER BY Issue.number;
 
-            USING MODULE test
+            WITH MODULE test
             SELECT
                 Issue {number}
             WHERE
@@ -220,21 +220,21 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_match04(self):
         res = await self.con.execute(r'''
-            USING MODULE test
+            WITH MODULE test
             SELECT
                 Issue {number}
             WHERE
                 Issue.name NOT ILIKE '%edgedb'
             ORDER BY Issue.number;
 
-            USING MODULE test
+            WITH MODULE test
             SELECT
                 Issue {number}
             WHERE
                 Issue.name NOT ILIKE '%EdgeDB'
             ORDER BY Issue.number;
 
-            USING MODULE test
+            WITH MODULE test
             SELECT
                 Issue {number}
             WHERE
@@ -250,14 +250,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_match05(self):
         res = await self.con.execute(r'''
-            USING MODULE test
+            WITH MODULE test
             SELECT
                 Issue {number}
             WHERE
                 Issue.name @@ 'edgedb'
             ORDER BY Issue.number;
 
-            USING MODULE test
+            WITH MODULE test
             SELECT
                 Issue {number}
             WHERE
@@ -273,14 +273,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     @unittest.expectedFailure
     async def test_edgeql_select_match06(self):
         res = await self.con.execute(r'''
-            USING MODULE test
+            WITH MODULE test
             SELECT
                 Issue {number}
             WHERE
                 Issue.name @@! 'edgedb'
             ORDER BY Issue.number;
 
-            USING MODULE test
+            WITH MODULE test
             SELECT
                 Issue {number}
             WHERE
@@ -295,21 +295,21 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_match07(self):
         res = await self.con.execute(r'''
-            USING MODULE test
+            WITH MODULE test
             SELECT
                 Text {body}
             WHERE
                 Text.body ~ 'ed'
             ORDER BY Text.body;
 
-            USING MODULE test
+            WITH MODULE test
             SELECT
                 Text {body}
             WHERE
                 Text.body ~ 'eD'
             ORDER BY Text.body;
 
-            USING MODULE test
+            WITH MODULE test
             SELECT
                 Text {body}
             WHERE
@@ -327,21 +327,21 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_match08(self):
         res = await self.con.execute(r'''
-            USING MODULE test
+            WITH MODULE test
             SELECT
                 Text {body}
             WHERE
                 Text.body ~* 'ed'
             ORDER BY Text.body;
 
-            USING MODULE test
+            WITH MODULE test
             SELECT
                 Text {body}
             WHERE
                 Text.body ~* 'eD'
             ORDER BY Text.body;
 
-            USING MODULE test
+            WITH MODULE test
             SELECT
                 Text {body}
             WHERE
@@ -362,7 +362,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_type01(self):
         res = await self.con.execute('''
-            USING MODULE test
+            WITH MODULE test
             SELECT
                 Issue {
                     number,
@@ -381,7 +381,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_exists01(self):
         res = await self.con.execute('''
-            USING MODULE test
+            WITH MODULE test
             SELECT
                 Issue {
                     number
@@ -395,7 +395,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         }])
 
         res = await self.con.execute('''
-            USING MODULE test
+            WITH MODULE test
             SELECT
                 Issue {
                     number
@@ -409,7 +409,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         }])
 
         res = await self.con.execute('''
-            USING MODULE test
+            WITH MODULE test
             SELECT
                 Issue {
                     number
@@ -424,7 +424,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_exists02(self):
         res = await self.con.execute('''
-            USING MODULE test
+            WITH MODULE test
             SELECT
                 Issue {
                     number
@@ -438,7 +438,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         }])
 
         res = await self.con.execute('''
-            USING MODULE test
+            WITH MODULE test
             SELECT
                 Issue {
                     number
