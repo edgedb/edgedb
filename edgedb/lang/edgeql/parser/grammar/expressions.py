@@ -27,16 +27,6 @@ class ListNonterm(context.ListNonterm, element=None):
     pass
 
 
-class SelectExpr(Nonterm):
-    @parsing.precedence(P_UMINUS)
-    def reduce_SelectNoParens(self, *kids):
-        self.val = kids[0].val
-
-    @parsing.precedence(P_UMINUS)
-    def reduce_SelectWithParens(self, *kids):
-        self.val = kids[0].val
-
-
 class SelectWithParens(Nonterm):
     def reduce_LPAREN_SelectNoParens_RPAREN(self, *kids):
         self.val = kids[1].val
@@ -248,7 +238,7 @@ class SelectTargetEl(Nonterm):
         if (not isinstance(tshape, qlast.PathNode) or
                 tshape.pathspec):
             raise EdgeQLSyntaxError('unexpected shape',
-                                    context=kids[1].val.context)
+                                    context=kids[1].context)
 
         tshape.pathspec = kids[1].val
         self.val = qlast.SelectExprNode(expr=tshape)
@@ -413,10 +403,6 @@ class ShapePointer(Nonterm):
             self.val = qlast.SelectPathSpecNode(
                 expr=kids[0].val
             )
-
-    def reduce_TYPEINDIRECTION(self, *kids):
-        # fill out attrs later from the shape
-        self.val = qlast.SelectTypeRefNode()
 
 
 class OptPointerRecursionSpec(Nonterm):
@@ -984,10 +970,10 @@ class PathStep(Nonterm):
 
 class PathPtrOrType(Nonterm):
     def reduce_PathPtr(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_TYPEINDIRECTION(self, *kids):
-        self.val = qlast.TypeIndirection()
+        if kids[0].val.name == '__type__':
+            self.val = qlast.TypeIndirection()
+        else:
+            self.val = kids[0].val
 
 
 class PathPtr(Nonterm):
@@ -1210,11 +1196,9 @@ class OpOnlyNodeName(Nonterm):
     # future.
 
     def reduce_OpName(self, *kids):
-        # OpNodeName cannot start with a '@' in any way
+        # OpNodeName cannot start with a '@' in any way (it starts
+        # with UNRESERVED_KEYWORD)
         #
-        if kids[0].val[0][0] == '@':
-            raise EdgeQLSyntaxError("name cannot start with '@'",
-                                    context=kids[0].context)
         self.val = qlast.PrototypeRefNode(
             module='.'.join(kids[0].val[:-1]) or None,
             name=kids[0].val[-1])

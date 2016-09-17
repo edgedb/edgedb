@@ -465,6 +465,12 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT foo::@event;
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=20)
+    def test_edgeql_syntax_name14(self):
+        """
+        SELECT Foo.`@event`;
+        """
+
     def test_edgeql_syntax_shape01(self):
         """
         SELECT Foo {bar};
@@ -767,6 +773,57 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=22)
+    def test_edgeql_syntax_shape22(self):
+        """
+        SELECT Foo{
+            __type__ := 42
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=22)
+    def test_edgeql_syntax_shape23(self):
+        """
+        SELECT 'Foo' {
+            bar := 42
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=4, col=11)
+    def test_edgeql_syntax_shape24(self):
+        """
+        SELECT Foo {
+            spam
+        } {
+            bar := 42
+        };
+        """
+
+    # XXX: do we even need this anymore?
+    @unittest.expectedFailure
+    def test_edgeql_syntax_shape25(self):
+        """
+        SELECT Foo.bar AS bar;
+        """
+
+    # XXX: is '*0' actually correct? or should it be just '*'
+    @unittest.expectedFailure
+    def test_edgeql_syntax_shape26(self):
+        """
+        SELECT Issue{
+            name,
+            related_to *,
+        };
+        """
+
+    def test_edgeql_syntax_shape27(self):
+        """
+        SELECT Issue{
+            name,
+            related_to *5,
+        };
+        """
+
     def test_edgeql_syntax_path01(self):
         """
         SELECT Foo.bar;
@@ -912,6 +969,11 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT Foo.<bar[TO Baz];
         """
 
+    def test_edgeql_syntax_path14(self):
+        """
+        SELECT User.__type__.name LIMIT 1;
+        """
+
     def test_edgeql_syntax_type_interpretation01(self):
         """
         SELECT (Foo AS Bar);
@@ -1028,6 +1090,11 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT ([Foo.bar, Foo.baz, Foo.spam, Foo.ham])[:-Bar.setting];
         """
 
+    def test_edgeql_syntax_array05(self):
+        """
+        SELECT (get_nested_obj())['a']['b']['c'];
+        """
+
     # XXX: codegen or parser issue
     #
     @unittest.expectedFailure
@@ -1051,8 +1118,9 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         WITH
             MODULE test,
+            extra:= MODULE `lib.extra`,
             foo:= Bar.foo,
-            baz:= (SELECT Foo.baz)
+            baz:= (SELECT (extra::Foo).baz)
         SELECT Bar {
             spam,
             ham:= baz
@@ -1089,6 +1157,119 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         WITH MODULE test CREATE ACTION sample;
         WITH MODULE test DROP ACTION sample;
+        """
+
+    def test_edgeql_syntax_select01(self):
+        """
+        SELECT 42;
+        SELECT User{name};
+        SELECT User{name}
+            WHERE (User.age > 42);
+        SELECT User.name
+            GROUP BY User.name;
+        SELECT User{name}
+            ORDER BY User.name ASC;
+        SELECT User{name}
+            OFFSET 2;
+        SELECT User{name}
+            LIMIT 5;
+        SELECT User{name}
+            OFFSET 2 LIMIT 5;
+        """
+
+    def test_edgeql_syntax_select02(self):
+        """
+        SELECT User{name} ORDER BY User.name;
+        SELECT User{name} ORDER BY User.name ASC;
+        SELECT User{name} ORDER BY User.name DESC;
+
+% OK %
+
+        SELECT User{name} ORDER BY User.name ASC;
+        SELECT User{name} ORDER BY User.name ASC;
+        SELECT User{name} ORDER BY User.name DESC;
+        """
+
+    def test_edgeql_syntax_select03(self):
+        """
+        SELECT User{name, age} ORDER BY User.name THEN User.age;
+        SELECT User{name, age} ORDER BY User.name THEN User.age DESC;
+        SELECT User{name, age} ORDER BY User.name ASC THEN User.age DESC;
+        SELECT User{name, age} ORDER BY User.name DESC THEN User.age ASC;
+
+% OK %
+
+        SELECT User{name, age} ORDER BY User.name ASC THEN User.age ASC;
+        SELECT User{name, age} ORDER BY User.name ASC THEN User.age DESC;
+        SELECT User{name, age} ORDER BY User.name ASC THEN User.age DESC;
+        SELECT User{name, age} ORDER BY User.name DESC THEN User.age ASC;
+        """
+
+    def test_edgeql_syntax_select04(self):
+        """
+        SELECT
+            User.name
+        WHERE
+            (User.age > 42)
+        GROUP BY
+            User.name
+        ORDER BY
+            User.name ASC
+        OFFSET 2 LIMIT 5;
+        """
+
+    def test_edgeql_syntax_select05(self):
+        """
+        WITH MODULE test
+        SELECT 42;
+        WITH MODULE test
+        SELECT User{name};
+        WITH MODULE test
+        SELECT User{name}
+            WHERE (User.age > 42);
+        WITH MODULE test
+        SELECT User.name
+            GROUP BY User.name;
+        WITH MODULE test
+        SELECT User{name}
+            ORDER BY User.name ASC;
+        WITH MODULE test
+        SELECT User{name}
+            OFFSET 2;
+        WITH MODULE test
+        SELECT User{name}
+            LIMIT 5;
+        WITH MODULE test
+        SELECT User{name}
+            OFFSET 2 LIMIT 5;
+        """
+
+    def test_edgeql_syntax_select06(self):
+        """
+        WITH MODULE test
+        SELECT
+            User.name
+        WHERE
+            (User.age > 42)
+        GROUP BY
+            User.name
+        ORDER BY
+            User.name ASC
+        OFFSET 2 LIMIT 5;
+        """
+
+    def test_edgeql_syntax_function01(self):
+        """
+        SELECT foo();
+        SELECT bar(User.name);
+        SELECT baz(User.name, User.age);
+        SELECT type(Text);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=27)
+    def test_edgeql_syntax_function02(self):
+        """
+        SELECT type(Text, 42);
         """
 
     # DDL

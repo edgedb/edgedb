@@ -175,7 +175,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.indentation += 1
                 for i, e in enumerate(node.groupby):
                     if i > 0:
-                        self.write(',')
+                        self.write(' THEN')
                         self.new_lines = 1
                     self.visit(e)
                 self.new_lines = 1
@@ -187,7 +187,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.indentation += 1
             for i, e in enumerate(node.orderby):
                 if i > 0:
-                    self.write(',')
+                    self.write(' THEN')
                     self.new_lines = 1
                 self.visit(e)
             self.new_lines = 1
@@ -350,6 +350,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.indentation -= 1
         self.new_lines = 1
         self.write('}')
+
+    def visit_TypeIndirection(self, node):
+        self.write('__type__')
 
     def visit_SelectPathSpecNode(self, node):
         # PathSpecNode can only contain LinkExpr or LinkPropExpr,

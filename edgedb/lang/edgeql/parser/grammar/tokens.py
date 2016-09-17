@@ -152,10 +152,6 @@ class T_OP(Token):
     pass
 
 
-class T_TYPEINDIRECTION(Token):
-    pass
-
-
 class T_LINKPROPERTY(Token):
     pass
 

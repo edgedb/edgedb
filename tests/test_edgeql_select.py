@@ -374,10 +374,23 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue.number = '1';
         ''')
 
-        self.assert_data_shape(res[0], [{
-            'number': '1',
-            '__type__': {'name': 'test::Issue'},
-        }])
+        self.assert_data_shape(res, [
+            [{
+                'number': '1',
+                '__type__': {'name': 'test::Issue'},
+            }],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_type02(self):
+        res = await self.con.execute('''
+            WITH MODULE test
+            SELECT User.__type__.name LIMIT 1;
+        ''')
+
+        self.assert_data_shape(res, [
+            ['test::User']
+        ])
 
     async def test_edgeql_select_exists01(self):
         res = await self.con.execute('''
