@@ -42,8 +42,11 @@ class StartTransactionStmt(Nonterm):
 
 
 class CommitTransactionStmt(Nonterm):
-    # XXX: OptAliasBlock is trying to avoid conflicts
     def reduce_OptAliasBlock_COMMIT(self, *kids):
+        # NOTE: OptAliasBlock is trying to avoid conflicts
+        if kids[0].val:
+            raise EdgeQLSyntaxError('Unexpected token: {}'.format(kids[1]),
+                                    context=kids[1].context)
         self.val = qlast.CommitTransactionNode()
 
 

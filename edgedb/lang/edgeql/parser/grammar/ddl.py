@@ -420,8 +420,11 @@ class CommitDeltaStmt(Nonterm):
 # CREATE DATABASE
 #
 class CreateDatabaseStmt(Nonterm):
-    # XXX: OptAliasBlock is trying to avoid conflicts
     def reduce_OptAliasBlock_CREATE_DATABASE_ShortName(self, *kids):
+        # NOTE: OptAliasBlock is trying to avoid conflicts
+        if kids[0].val:
+            raise EdgeQLSyntaxError('Unexpected token: {}'.format(kids[2]),
+                                    context=kids[2].context)
         self.val = qlast.CreateDatabaseNode(
             name=qlast.PrototypeRefNode(name=kids[3].val)
         )
@@ -431,8 +434,11 @@ class CreateDatabaseStmt(Nonterm):
 # DROP DATABASE
 #
 class DropDatabaseStmt(Nonterm):
-    # XXX: OptAliasBlock is trying to avoid conflicts
     def reduce_OptAliasBlock_DROP_DATABASE_ShortName(self, *kids):
+        # NOTE: OptAliasBlock is trying to avoid conflicts
+        if kids[0].val:
+            raise EdgeQLSyntaxError('Unexpected token: {}'.format(kids[2]),
+                                    context=kids[2].context)
         self.val = qlast.DropDatabaseNode(
             name=qlast.PrototypeRefNode(name=kids[3].val),
         )

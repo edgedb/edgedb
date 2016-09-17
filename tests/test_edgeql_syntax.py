@@ -1059,6 +1059,38 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         } WHERE (foo = 'special');
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=6, col=9)
+    def test_edgeql_syntax_with02(self):
+        """
+        WITH
+            MODULE test,
+            foo:= Bar.foo,
+            baz:= (SELECT Foo.baz)
+        COMMIT;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=4, col=16)
+    def test_edgeql_syntax_with03(self):
+        """
+        WITH
+            MODULE test
+        CREATE DATABASE sample;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=4, col=14)
+    def test_edgeql_syntax_with04(self):
+        """
+        WITH
+            MODULE test
+        DROP DATABASE sample;
+        """
+
+    def test_edgeql_syntax_with05(self):
+        """
+        WITH MODULE test CREATE ACTION sample;
+        WITH MODULE test DROP ACTION sample;
+        """
+
     # DDL
     #
 
