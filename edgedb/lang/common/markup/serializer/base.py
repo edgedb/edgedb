@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import types
 import decimal
 import collections
@@ -20,20 +19,17 @@ from edgedb.lang.common import debug
 
 from . import settings
 
-
 #: Maximum level of nested structures that we can serialize.
 #: If we reach it - we'll just stop traversing the objects
 #: tree at that point and yield 'elements.base.OverflowBarier'
 #:
-OVERFLOW_BARIER = 100 # XXX Configurable?
-
+OVERFLOW_BARIER = 100  # XXX Configurable?
 
 #: Maximum number of total 'serialize' calls.
 #: If we reach it - we'll just stop traversing the objects
 #: tree at that point and yield 'elements.base.OverflowBarier'
 #:
-RUN_OVERFLOW_BARIER = 5000 # XXX Configurable?
-
+RUN_OVERFLOW_BARIER = 5000  # XXX Configurable?
 
 __all__ = 'serialize',
 
@@ -81,7 +77,8 @@ def serialize(obj, *, ctx):
         #
         sr = serializer.get_handler(type=type(obj))
     except LookupError:
-        raise LookupError('unable to find serializer for object {!r}'.format(obj))
+        raise LookupError(
+            'unable to find serializer for object {!r}'.format(obj))
 
     ctx.level += 1
     ctx.run_cnt += 1
@@ -103,7 +100,8 @@ def serialize(obj, *, ctx):
             #
             obj_id = id(obj)
             if obj_id in ctx.memo:
-                refname = '{}.{}'.format(type(obj).__module__, type(obj).__name__)
+                refname = '{}.{}'.format(
+                    type(obj).__module__, type(obj).__name__)
                 return elements.lang.Ref(ref=obj_id, refname=refname)
             else:
                 ctx.memo.add(obj_id)
@@ -112,16 +110,17 @@ def serialize(obj, *, ctx):
         try:
             return sr(obj, ctx=ctx)
         except Exception as ex:
-            return elements.base.SerializationError(text=str(ex),
-                                                    cls='{}.{}'.format(ex.__class__.__module__,
-                                                                       ex.__class__.__name__))
+            return elements.base.SerializationError(
+                text=str(ex), cls='{}.{}'.format(
+                    ex.__class__.__module__, ex.__class__.__name__))
     finally:
         ctx.level -= 1
 
 
 @no_ref_detect
-def _serialize_traceback_point(obj, frame, lineno, *, ctx, include_source=True, source_window_size=2,
-                              include_locals=False, point_cls=elements.lang.TracebackPoint):
+def _serialize_traceback_point(
+        obj, frame, lineno, *, ctx, include_source=True, source_window_size=2,
+        include_locals=False, point_cls=elements.lang.TracebackPoint):
     assert source_window_size >= 0
 
     name = frame.f_code.co_name
@@ -136,8 +135,8 @@ def _serialize_traceback_point(obj, frame, lineno, *, ctx, include_source=True, 
         if frame_fn and frame_fn.endswith(filename[2:]):
             filename = frame_fn
 
-    point = point_cls(name=name, lineno=lineno, filename=filename,
-                      locals=locals, id=id(obj))
+    point = point_cls(
+        name=name, lineno=lineno, filename=filename, locals=locals, id=id(obj))
 
     if include_source:
         point.load_source(window=source_window_size)
@@ -146,25 +145,27 @@ def _serialize_traceback_point(obj, frame, lineno, *, ctx, include_source=True, 
 
 
 @no_ref_detect
-def serialize_traceback_point(obj, *, ctx, include_source=True, source_window_size=2,
-                              include_locals=False, point_cls=elements.lang.TracebackPoint):
-    assert type(obj) is types.TracebackType
+def serialize_traceback_point(
+        obj, *, ctx, include_source=True, source_window_size=2,
+        include_locals=False, point_cls=elements.lang.TracebackPoint):
+    assert isinstance(obj, types.TracebackType)
 
-    return _serialize_traceback_point(obj, obj.tb_frame, obj.tb_lineno, ctx=ctx,
-                                      include_source=include_source,
-                                      source_window_size=source_window_size,
-                                      include_locals=include_locals, point_cls=point_cls)
+    return _serialize_traceback_point(
+        obj, obj.tb_frame, obj.tb_lineno, ctx=ctx,
+        include_source=include_source, source_window_size=source_window_size,
+        include_locals=include_locals, point_cls=point_cls)
 
 
 @no_ref_detect
-def serialize_callstack_point(obj, *, ctx, include_source=True, source_window_size=2,
-                              include_locals=False, point_cls=elements.lang.TracebackPoint):
-    assert type(obj) is types.FrameType
+def serialize_callstack_point(
+        obj, *, ctx, include_source=True, source_window_size=2,
+        include_locals=False, point_cls=elements.lang.TracebackPoint):
+    assert isinstance(obj, types.FrameType)
 
-    return _serialize_traceback_point(obj, obj, obj.f_lineno, ctx=ctx,
-                                      include_source=include_source,
-                                      source_window_size=source_window_size,
-                                      include_locals=include_locals, point_cls=point_cls)
+    return _serialize_traceback_point(
+        obj, obj, obj.f_lineno, ctx=ctx, include_source=include_source,
+        source_window_size=source_window_size, include_locals=include_locals,
+        point_cls=point_cls)
 
 
 @serializer(handles=types.TracebackType)
@@ -196,8 +197,9 @@ def serialize_exception(obj, *, ctx):
     cause = context = None
     if obj.__cause__ is not None and obj.__cause__ is not obj:
         cause = serialize(obj.__cause__, ctx=ctx)
-    elif (not obj.__suppress_context__ and obj.__context__ is not None
-                                                and obj.__context__ is not obj):
+    elif (
+            not obj.__suppress_context__ and obj.__context__ is not None and
+            obj.__context__ is not obj):
         context = serialize(obj.__context__, ctx=ctx)
 
     details_context = None
@@ -210,15 +212,13 @@ def serialize_exception(obj, *, ctx):
 
     obj_traceback = getattr(obj, '__mm_traceback__', obj.__traceback__)
     if obj_traceback:
-        traceback = elements.lang.ExceptionContext(title='Traceback',
-                                                   body=[serialize(obj_traceback, ctx=ctx)])
+        traceback = elements.lang.ExceptionContext(
+            title='Traceback', body=[serialize(obj_traceback, ctx=ctx)])
 
         if isinstance(obj, SyntaxError):
             point = elements.lang.TracebackPoint(
-                        name='<parser>',
-                        lineno=obj.lineno,
-                        colno=obj.offset,
-                        filename=obj.filename or '<buffer>')
+                name='<parser>', lineno=obj.lineno, colno=obj.offset,
+                filename=obj.filename or '<buffer>')
             point.load_source()
             traceback.body[0].items.append(point)
 
@@ -227,13 +227,10 @@ def serialize_exception(obj, *, ctx):
     if details_context is not None:
         contexts.append(serialize(details_context, ctx=ctx))
 
-    markup = elements.lang.Exception(class_module=obj.__class__.__module__,
-                                     class_name=obj.__class__.__name__,
-                                     msg=str(obj),
-                                     contexts=contexts,
-                                     cause=cause,
-                                     context=context,
-                                     id=id(obj))
+    markup = elements.lang.Exception(
+        class_module=obj.__class__.__module__,
+        class_name=obj.__class__.__name__, msg=str(obj), contexts=contexts,
+        cause=cause, context=context, id=id(obj))
 
     obj.__sx_markup_cached__ = markup
     return markup
@@ -242,8 +239,8 @@ def serialize_exception(obj, *, ctx):
 @serializer(handles=exceptions.ExceptionContext)
 def serialize_generic_exception_context(obj, *, ctx):
     msg = 'No markup serializer for {!r} context'.format(obj)
-    return elements.lang.ExceptionContext(title=obj.title,
-                                          body=[elements.doc.Text(text=msg)])
+    return elements.lang.ExceptionContext(
+        title=obj.title, body=[elements.doc.Text(text=msg)])
 
 
 @serializer(handles=exceptions.DefaultExceptionContext)
@@ -288,8 +285,10 @@ def serialize_str(obj, *, ctx):
     return elements.lang.String(str=obj)
 
 
-@serializer(handles=(collections.UserList, list, tuple, collections.Set,
-                     weakref.WeakSet, set, frozenset))
+@serializer(
+    handles=(
+        collections.UserList, list, tuple, collections.Set, weakref.WeakSet,
+        set, frozenset))
 def serialize_sequence(obj, *, ctx, trim_at=100):
     els = []
     cnt = 0
@@ -298,7 +297,8 @@ def serialize_sequence(obj, *, ctx, trim_at=100):
         els.append(serialize(item, ctx=ctx))
         if trim and cnt >= trim_at:
             break
-    return elements.lang.List(items=els, id=id(obj), trimmed=(trim and cnt >= trim_at))
+    return elements.lang.List(
+        items=els, id=id(obj), trimmed=(trim and cnt >= trim_at))
 
 
 @serializer(handles=(dict, collections.Mapping))
@@ -314,23 +314,22 @@ def serialize_mapping(obj, *, ctx, trim_at=100):
         map[key] = serialize(value, ctx=ctx)
         if trim and cnt >= trim_at:
             break
-    return elements.lang.Dict(items=map, id=id(obj), trimmed=(trim and cnt >= trim_at))
+    return elements.lang.Dict(
+        items=map, id=id(obj), trimmed=(trim and cnt >= trim_at))
 
 
 @serializer(handles=object)
 @no_ref_detect
 def serialize_uknown_object(obj, *, ctx):
-    return elements.lang.Object(id=id(obj),
-                                class_module=type(obj).__module__,
-                                class_name=type(obj).__name__,
-                                repr=xrepr(obj, max_len=200))
+    return elements.lang.Object(
+        id=id(obj), class_module=type(obj).__module__,
+        class_name=type(obj).__name__, repr=xrepr(obj, max_len=200))
 
 
 def _serialize_known_object(obj, attrs, *, ctx):
     map = collections.OrderedDict()
     for attr in attrs:
         map[attr] = serialize(getattr(obj, attr, None), ctx=ctx)
-    return elements.lang.Object(id=id(obj),
-                                class_module=obj.__class__.__module__,
-                                class_name=obj.__class__.__name__,
-                                attributes=map)
+    return elements.lang.Object(
+        id=id(obj), class_module=obj.__class__.__module__,
+        class_name=obj.__class__.__name__, attributes=map)

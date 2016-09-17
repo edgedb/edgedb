@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import logging
 import weakref
 
@@ -16,7 +15,8 @@ class BucketMeta(abc.AbstractMeta, config.ConfigurableMeta):
     def __new__(mcls, name, bases, dct):
         cls = super().__new__(mcls, name, bases, dct)
         if len([base for base in bases if isinstance(base, mcls)]) > 1:
-            raise TypeError('Bucket classes can have only one base Bucket class')
+            raise TypeError(
+                'Bucket classes can have only one base Bucket class')
         cls._instances = weakref.WeakSet()
         return cls
 
@@ -36,11 +36,12 @@ class Bucket(metaclass=BucketMeta):
     def __init__(self, *, parent=None):
         if parent is not None:
             cls = type(self)
-            mro = cls.__mro__[:-2] # Skip 'object' and 'abstract.Bucket'
+            mro = cls.__mro__[:-2]  # Skip 'object' and 'abstract.Bucket'
 
             if type(parent) not in mro:
-                raise ValueError('parent bucket {!r} must be an instance of one of the '
-                                 'ancestor classes {!r}'.format(parent, mro))
+                raise ValueError(
+                    'parent bucket {!r} must be an instance of one of the '
+                    'ancestor classes {!r}'.format(parent, mro))
 
             parent._register_child(self)
 
@@ -56,14 +57,16 @@ class Bucket(metaclass=BucketMeta):
             if not backends:
                 return
 
-            self._cached_implementation = type(self).get_implementation()(backends)
+            self._cached_implementation = type(self).get_implementation()(
+                backends)
 
         return self._cached_implementation
 
     def _ensure_implementation(self):
         impl = self._get_implementation()
         if not impl:
-            raise KeyError('non-initialized bucket: no backends/implementation set')
+            raise KeyError(
+                'non-initialized bucket: no backends/implementation set')
         return impl
 
     @classmethod
@@ -76,9 +79,10 @@ class Bucket(metaclass=BucketMeta):
         impl = cls.get_implementation()
         for p in backends:
             if not isinstance(p, impl.compatible_backend_classes):
-                raise TypeError('backend {!r} is not compatible with installed implementation '
-                                '{!r}, must be an instance of {!r}'.
-                                format(p, impl, impl.compatible_backend_classes))
+                raise TypeError(
+                    'backend {!r} is not compatible with installed '
+                    'implementation {!r}, must be an instance of {!r}'.format(
+                        p, impl, impl.compatible_backend_classes))
 
         # Secondly, validate backends against each child bucket class and self
         for child in cls._iter_children(include_self=True):
@@ -96,18 +100,22 @@ class Bucket(metaclass=BucketMeta):
         if not issubclass(implementation, Implementation):
             raise ValueError('a subclass of Implementation was expected')
 
-        if hasattr(cls, '_implementation') and '_implementation' not in cls.__dict__:
+        if hasattr(
+                cls,
+                '_implementation') and '_implementation' not in cls.__dict__:
             holder = None
             for sub in cls.__mro__[1:-1]:
                 if '_implementation' in sub.__dict__:
                     holder = sub
                     break
 
-            raise ValueError('implementation was already defined in one of '
-                             'the parent buckets: {!r}'.format(holder))
+            raise ValueError(
+                'implementation was already defined in one of '
+                'the parent buckets: {!r}'.format(holder))
 
-        cls.logger.debug('buckets: setting implementation {!r} for bucket {!r}'.
-                         format(implementation, cls))
+        cls.logger.debug(
+            'buckets: setting implementation {!r} for bucket {!r}'.format(
+                implementation, cls))
 
         cls._implementation = implementation
 
@@ -117,8 +125,7 @@ class Bucket(metaclass=BucketMeta):
 
     @classmethod
     def validate_backend(cls, backend):
-        """Called recursively for all derived buckets of a bucket on which
-        "set_backends" is called"""
+        """Called recursively for all derived buckets."""
 
     @classmethod
     def _iter_children(cls, include_self=False):

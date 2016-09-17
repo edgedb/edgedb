@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 from edgedb.lang.common import glob
 
 
@@ -28,7 +27,6 @@ class TestUtilsGlob:
                 'com.+.projects.**': False,
                 'com.+.corp.**': True
             },
-
             '': {
                 '**': True,
                 '*': True,
@@ -39,8 +37,9 @@ class TestUtilsGlob:
 
         for name, patterns in tests.items():
             for pattern, expected in patterns.items():
-                assert glob.ModuleGlobPattern(pattern).match(name) == expected,  \
-                       "failed: {!r} on {!r}".format(pattern, name)
+                assert \
+                    glob.ModuleGlobPattern(pattern).match(name) == expected, \
+                    "failed: {!r} on {!r}".format(pattern, name)
 
     def test_utils_glob_module_set(self):
         tests = {
@@ -48,16 +47,13 @@ class TestUtilsGlob:
                 ('**', '**.tvirus.**', '*.tvirus.**'): True,
                 ('*.tvirus.**', 'com.*'): False,
             },
-
-            '': {
-                ('**', '+'): True,
-                ('+', '++'): False
-            }
+            '': {('**', '+'): True,
+                 ('+', '++'): False}
         }
 
         for name, patterns in tests.items():
             for pattern, expected in patterns.items():
                 gl = glob.ModuleGlobPatternSet(pattern)
 
-                assert gl.match(name) == expected,  \
-                       "failed: {!r} on {!r}".format(pattern, name)
+                assert gl.match(name) == expected, \
+                    "failed: {!r} on {!r}".format(pattern, name)

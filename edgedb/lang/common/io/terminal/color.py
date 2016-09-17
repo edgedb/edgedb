@@ -28,7 +28,6 @@ def colorize(string='', fg=None, bg=None, opts=()):
         'reverse': 7
     }
 
-
     cmd = []
 
     if fg is not None and fg in color_table:
@@ -60,7 +59,9 @@ class colorstr(str):
 
     def __format__(self, spec):
         result = super().__format__(spec)
-        return result.replace(self, colorize(self, fg=self.color, bg=self.bgcolor, opts=self.opts))
+        return result.replace(
+            self, colorize(
+                self, fg=self.color, bg=self.bgcolor, opts=self.opts))
 
 
 class dummycolorstr(str):

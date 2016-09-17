@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 from edgedb.lang.common.datastructures import Struct, Field, typed
 
 
@@ -50,22 +49,23 @@ class MarkupMeta(type(Struct)):
 
 
 class Markup(Struct, metaclass=MarkupMeta, use_slots=True):
-    """Base class for all markup elements"""
+    """Base class for all markup elements."""
 
 
 class MarkupList(typed.TypedList, type=Markup):
-    """List of BaseMarkup elements"""
+    """List of BaseMarkup elements."""
 
 
 class MarkupMapping(typed.OrderedTypedDict, keytype=str, valuetype=Markup):
-    """Mapping ``str -> BaseMarkup``"""
+    """Mapping ``str -> BaseMarkup``."""
 
 
 class OverflowBarier(Markup):
-    """Represents that the nesting level of objects was too big"""
+    """Represents that the nesting level of objects was too big."""
 
 
 class SerializationError(Markup):
-    """An error during object serialization occurred"""
+    """An error during object serialization occurred."""
+
     text = Field(str)
     cls = Field(str)

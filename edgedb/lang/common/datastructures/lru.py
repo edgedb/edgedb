@@ -5,13 +5,11 @@
 # See LICENSE for details.
 ##
 
-
 import collections
 
 
 class LRUDict(collections.UserDict):
-    """Size-limited last-recently-used ordered dict.  Suitable as a base
-    datastructure to implement an lru-cache."""
+    """Size-limited last-recently-used ordered dict."""
 
     def __init__(self, *, size):
         assert size > 1
@@ -25,7 +23,6 @@ class LRUDict(collections.UserDict):
         return result
 
     def __setitem__(self, key, value):
-        dl = len(self.data)
         while len(self.data) + 1 > self.size:
             self.data.popitem(False)
         self.data[key] = value

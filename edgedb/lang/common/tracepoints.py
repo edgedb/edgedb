@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import contextlib
 from time import perf_counter
 
@@ -15,6 +14,7 @@ from edgedb.lang.common.localcontext import HEAD as _HEAD
 
 def _get_local_trace():
     return _HEAD.get('__mm_tracepoints__')
+
 
 def _set_local_trace(trace):
     return _HEAD.set('__mm_tracepoints__', trace)
@@ -27,15 +27,16 @@ class TraceMeta(config.ConfigurableMeta):
 
         # To avoid possible slots-layout conflicts (and there is no real need
         # to have multiple inheritance for traces anyways)
-        assert len(bases) <= 1, 'multiple inheritance is not supported for traces'
+        assert len(
+            bases) <= 1, 'multiple inheritance is not supported for traces'
 
         return super().__new__(mcls, name, bases, dct)
 
 
 class Trace(metaclass=TraceMeta):
-    __slots__ = ('_traces', '_info', '_entered_at',
-                 '_exited_at', '_num', '_id', '_root', '_extras',
-                 '_parent', '_prev_trace')
+    __slots__ = (
+        '_traces', '_info', '_entered_at', '_exited_at', '_num', '_id',
+        '_root', '_extras', '_parent', '_prev_trace')
 
     caption = None
     merge_descendants = False
@@ -55,8 +56,8 @@ class Trace(metaclass=TraceMeta):
     def _get_caption(self):
         if self.caption is not None:
             return self.caption
-        return '{}.{}'.format(self.__class__.__module__,
-                              self.__class__.__name__)
+        return '{}.{}'.format(
+            self.__class__.__module__, self.__class__.__name__)
 
     def set_info(self, val):
         self._info = val
@@ -108,11 +109,15 @@ class Trace(metaclass=TraceMeta):
         traces = [self._traces[0]]
         for trace in self._traces[1:]:
             prev_trace = traces[-1]
-            if (trace.merge_descendants
-                    and trace.__class__ is prev_trace.__class__
-                    and (not trace.merge_same_id_only
-                            or (trace._id == prev_trace._id and trace._id is not None))):
 
+            should_merge_trace = (
+                trace.merge_descendants and
+                trace.__class__ is prev_trace.__class__ and
+                (not trace.merge_same_id_only or
+                    (trace._id == prev_trace._id and
+                     trace._id is not None)))
+
+            if should_merge_trace:
                 duration = ((prev_trace._exited_at - prev_trace._entered_at) +
                             (trace._exited_at - trace._entered_at))
 
@@ -157,9 +162,10 @@ class Trace(metaclass=TraceMeta):
                     traces = self._traces
                     if traces is not None and len(traces) == 1:
                         trace = traces[0]
-                        if (cls is trace.__class__
-                                and (not self.merge_same_id_only
-                                        or (id == trace._id and id is not None))):
+                        if (
+                                cls is trace.__class__ and (
+                                    not self.merge_same_id_only or
+                                    (id == trace._id and id is not None))):
 
                             self._num += trace._num
                             self._traces = trace._traces
@@ -205,6 +211,7 @@ class TraceNop:
     def set_info(self, val):
         pass
 
+
 _nop = TraceNop()
 
 
@@ -230,7 +237,9 @@ def _serialize_to_markup(tr, *, ctx):
     caption = tr._get_caption()
     node = markup.elements.lang.TreeNode(id=id(tr), name=caption)
 
-    node.add_child(label='cost', node=markup.serialize(tr._exited_at - tr._entered_at, ctx=ctx))
+    node.add_child(
+        label='cost', node=markup.serialize(
+            tr._exited_at - tr._entered_at, ctx=ctx))
     if tr._info:
         node.add_child(label='info', node=markup.serialize(tr._info, ctx=ctx))
 

@@ -5,13 +5,13 @@
 # See LICENSE for details.
 ##
 
-
 from jplus.tests import base as jpt_base
 
 
 class TestWKBJP(jpt_base.BaseJPlusTest):
     def test_utils_gis_wkbjp_1(self):
-        self.run_test(source='''
+        self.run_test(
+            source='''
 
         from edgedb.lang.common.gis.serialization import wkbjp
 

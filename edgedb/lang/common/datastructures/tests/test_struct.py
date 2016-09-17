@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import pickle
 
 from edgedb.lang.common.datastructures.struct import Struct, MixedStruct, Field
@@ -15,6 +14,7 @@ from edgedb.lang.common.debug import assert_raises
 class PickleTest(Struct):
     a = Field(str, default='42')
     b = Field(int)
+
 
 class PickleTestMixed(MixedStruct):
     a = Field(str, default='42')
@@ -39,14 +39,15 @@ class TestUtilsDSStruct:
     def test_utils_ds_struct_coercion(self):
         class Test(Struct):
             field = Field(type=int, coerce=True)
+
         assert Test(field=1).field == 1
         assert Test(field='42').field == 42
         with assert_raises(TypeError, error_re='auto-coercion'):
             Test(field='42.2')
 
-
         class Test(Struct):
             field = Field(type=int)
+
         assert Test(field=1).field == 1
         with assert_raises(TypeError, error_re='expected int'):
             Test(field='42')
@@ -55,7 +56,7 @@ class TestUtilsDSStruct:
         class Test(Struct):
             field = Field(str, None)
 
-        assert Test.__slots__ == ('field',)
+        assert Test.__slots__ == ('field', )
 
         t = Test()
         t.field = 'foo'
@@ -74,12 +75,14 @@ class TestUtilsDSStruct:
         with assert_raises(AttributeError, error_re='has no attribute'):
             t.foo = 'bar'
 
-        with assert_raises(TypeError, error_re='field3 is an invalid argument'):
+        with assert_raises(
+                TypeError, error_re='field3 is an invalid argument'):
             DTest(field='1', field2=2, field3='aaa')
 
         t = DTest()
 
-        with assert_raises(TypeError, error_re='field3 is an invalid argument'):
+        with assert_raises(
+                TypeError, error_re='field3 is an invalid argument'):
             t.update(field='1', field2=2, field3='aaa')
 
     def test_utils_ds_struct_mixed(self):

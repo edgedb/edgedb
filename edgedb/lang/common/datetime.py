@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import decimal
 import math
 import re
@@ -33,12 +32,16 @@ class DateTime(datetime.datetime):
             value = value.replace(tzinfo=datetime.timezone.utc)
 
         if isinstance(value, datetime.datetime):
-            args = [value.year, value.month, value.day, value.hour, value.minute, value.second,
-                    value.microsecond]
+            args = [
+                value.year, value.month, value.day, value.hour, value.minute,
+                value.second, value.microsecond
+            ]
             tzinfo = value.tzinfo
         elif isinstance(value, time.struct_time):
-            args = [value.tm_year, value.tm_mon, value.tm_mday, value.tm_hour, value.tm_min,
-                    value.tm_sec, 0]
+            args = [
+                value.tm_year, value.tm_mon, value.tm_mday, value.tm_hour,
+                value.tm_min, value.tm_sec, 0
+            ]
         elif isinstance(value, datetime.date):
             args = [value.year, value.month, value.day, 0, 0, 0, 0]
         elif isinstance(value, str):
@@ -46,7 +49,7 @@ class DateTime(datetime.datetime):
 
             if format is not None:
                 if isinstance(format, str):
-                    format = (format,)
+                    format = (format, )
 
                 for f in format:
                     try:
@@ -56,14 +59,19 @@ class DateTime(datetime.datetime):
                     else:
                         break
                 else:
-                    raise ValueError("invalid value for DateTime object: %s" % value)
+                    raise ValueError(
+                        "invalid value for DateTime object: %s" % value)
             else:
                 try:
                     dt = dateutil.parser.parse(value, tzinfos=cls.get_tz)
                 except ValueError as e:
-                    raise ValueError("invalid value for DateTime object: %s" % value) from e
+                    raise ValueError(
+                        "invalid value for DateTime object: %s" % value) from e
 
-            args = [dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.microsecond]
+            args = [
+                dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second,
+                dt.microsecond
+            ]
             tzinfo = dt.tzinfo
         else:
             raise ValueError("invalid value for DateTime object: %s" % value)
@@ -78,7 +86,8 @@ class DateTime(datetime.datetime):
     def get_tz(cls, name=None, offset=None):
         if name is None and offset is None:
             if cls.local_tz is None:
-                cls.local_tz = dateutil.tz.gettz(name=DateTimeConfig.local_timezone)
+                cls.local_tz = dateutil.tz.gettz(
+                    name=DateTimeConfig.local_timezone)
             return cls.local_tz
         elif offset is not None:
             return dateutil.tz.tzoffset(name, offset)
@@ -96,12 +105,14 @@ class DateTime(datetime.datetime):
 
     def __sub__(self, other):
         if isinstance(other, datetime.datetime):
-            return TimeDelta(dt1=datetime.datetime(self.year, self.month, self.day, self.hour,
-                                                   self.minute, self.second, self.microsecond,
-                                                   self.tzinfo),
-                             dt2=datetime.datetime(other.year, other.month, other.day, other.hour,
-                                                   other.minute, other.second, other.microsecond,
-                                                   other.tzinfo))
+            return TimeDelta(
+                dt1=datetime.datetime(
+                    self.year, self.month, self.day, self.hour, self.minute,
+                    self.second, self.microsecond, self.tzinfo),
+                dt2=datetime.datetime(
+                    other.year, other.month, other.day, other.hour,
+                    other.minute, other.second, other.microsecond,
+                    other.tzinfo))
         else:
             return NotImplemented
 
@@ -120,7 +131,8 @@ class DateTime(datetime.datetime):
         def _iso_calendar_to_date(iso_year, iso_week, iso_day):
             jan4 = datetime.date(iso_year, 1, 4)
             delta = datetime.timedelta(jan4.isoweekday() - 1)
-            return jan4 - delta + datetime.timedelta(days=iso_day - 1, weeks=iso_week-1)
+            return jan4 - delta + datetime.timedelta(
+                days=iso_day - 1, weeks=iso_week - 1)
 
         year, week, weekday = self.isocalendar()
 
@@ -181,18 +193,22 @@ class DateTime(datetime.datetime):
             'postproc': _truncate_to_quarter
         },
         'year': {
-            'fields': ['microsecond', 'second', 'minute', 'hour', 'day', 'month']
+            'fields': ['microsecond', 'second', 'minute',
+                       'hour', 'day', 'month']
         },
         'decade': {
-            'fields': ['microsecond', 'second', 'minute', 'hour', 'day', 'month'],
+            'fields': ['microsecond', 'second', 'minute',
+                       'hour', 'day', 'month'],
             'postproc': _truncate_to_decade
         },
         'century': {
-            'fields': ['microsecond', 'second', 'minute', 'hour', 'day', 'month'],
+            'fields': ['microsecond', 'second', 'minute',
+                       'hour', 'day', 'month'],
             'postproc': _truncate_to_century
         },
         'millennium': {
-            'fields': ['microsecond', 'second', 'minute', 'hour', 'day', 'month'],
+            'fields': ['microsecond', 'second', 'minute',
+                       'hour', 'day', 'month'],
             'postproc': _truncate_to_millennium
         },
     }
@@ -202,13 +218,17 @@ class DateTime(datetime.datetime):
 
         trunc_def = self._trunc_map.get(precision)
         if trunc_def is None:
-            raise ValueError('DateTime.truncate: invalid precision: {}'.format(precision))
+            raise ValueError(
+                'DateTime.truncate: invalid precision: {}'.format(precision))
 
         fields = trunc_def.get('fields')
         postproc = trunc_def.get('postproc')
 
         if fields:
-            replace_fields = {field: self._field_base[field] for field in fields}
+            replace_fields = {
+                field: self._field_base[field]
+                for field in fields
+            }
             truncated = truncated.replace(**replace_fields)
 
         if postproc:
@@ -231,7 +251,7 @@ class Date(datetime.date):
 
             if format is not None:
                 if isinstance(format, str):
-                    format = (format,)
+                    format = (format, )
 
                 for f in format:
                     try:
@@ -241,12 +261,14 @@ class Date(datetime.date):
                     else:
                         break
                 else:
-                    raise ValueError("invalid value for Date object: %s" % value)
+                    raise ValueError(
+                        "invalid value for Date object: %s" % value)
             else:
                 try:
                     dt = dateutil.parser.parse(value)
                 except ValueError as e:
-                    raise ValueError("invalid value for Date object: %s" % value) from e
+                    raise ValueError(
+                        "invalid value for Date object: %s" % value) from e
 
             args = [dt.year, dt.month, dt.day]
         else:
@@ -266,80 +288,64 @@ class Date(datetime.date):
 
 class TimeDelta(dateutil.relativedelta.relativedelta):
     _verbose_units = {
-        'microsecond',
-        'millisecond',
-        'second',
-        'minute',
-        'hour',
-        'day',
-        'week',
-        'month',
-        'year'
+        'microsecond', 'millisecond', 'second', 'minute', 'hour', 'day',
+        'week', 'month', 'year'
     }
 
     _verbose_units_plural = {u + 's' for u in _verbose_units}
 
     _verbose_units_map = dict(
         zip(_verbose_units_plural, _verbose_units_plural),
-        **{u: u + 's' for u in _verbose_units})
+        **{u: u + 's'
+           for u in _verbose_units})
 
     _verbose_units_re = \
-        '(?:' + '|'.join('(' + u + ')' + '(?:s)?' for u in _verbose_units) + ')'
+        '(?:' + \
+        '|'.join('(' + u + ')' + '(?:s)?' for u in _verbose_units) + \
+        ')'
 
     _parse_re = re.compile(
-        '^' +
-            '(?:(?:P)' +
-                # PnnYnnWnnMnnDTnnHnnMnnS
-                '(' +
-                    r'((?:(?:\d+(?:\.\d+)?)(?:[YMDW]))*)' +
-                    r'(?:T((?:(?:\d+(?:\.\d+)?)(?:[HMS]))+))?' +
-                ')' +
-            ')' +
-                '|' +
-                # 1 year(s) 3 day(s) ... etc.
-            '(' +
-                r'(?:(-?\d+(?:\.\d+)?)\s*' + _verbose_units_re + ')' +
-                r'(?:\s+(-?\d+(?:\.\d+)?)\s*' + _verbose_units_re + ')*' +
-            ')' +
-        '$',
-        re.I
-    )
+        '^' + '(?:(?:P)' +
+        # PnnYnnWnnMnnDTnnHnnMnnS
+        '(' + r'((?:(?:\d+(?:\.\d+)?)(?:[YMDW]))*)' +
+        r'(?:T((?:(?:\d+(?:\.\d+)?)(?:[HMS]))+))?' + ')' + ')' + '|' +
+        # 1 year(s) 3 day(s) ... etc.
+        '(' + r'(?:(-?\d+(?:\.\d+)?)\s*' + _verbose_units_re + ')' +
+        r'(?:\s+(-?\d+(?:\.\d+)?)\s*' + _verbose_units_re + ')*' + ')' + '$',
+        re.I)
 
-    def __new__(cls, value=None, *, dt1=None, dt2=None, years=0, months=0,
-                     days=0, leapdays=0, weeks=0, hours=0, minutes=0,
-                     seconds=0, microseconds=0, year=None, month=None,
-                     day=None, weekday=None, yearday=None, nlyearday=None,
-                     hour=None, minute=None, second=None, microsecond=None):
+    def __new__(
+            cls, value=None, *, dt1=None, dt2=None, years=0, months=0, days=0,
+            leapdays=0, weeks=0, hours=0, minutes=0, seconds=0, microseconds=0,
+            year=None, month=None, day=None, weekday=None, yearday=None,
+            nlyearday=None, hour=None, minute=None, second=None,
+            microsecond=None):
 
         if value is None:
             result = super().__new__(cls)
-            super().__init__(result,
-                             dt1=dt1, dt2=dt2, years=years, months=months,
-                             days=days, hours=hours, minutes=minutes,
-                             seconds=seconds, microseconds=microseconds,
-                             leapdays=leapdays, year=year, weeks=weeks,
-                             month=month, day=day, weekday=weekday,
-                             hour=hour, minute=minute, second=second,
-                             microsecond=microsecond)
+            super().__init__(
+                result, dt1=dt1, dt2=dt2, years=years, months=months,
+                days=days, hours=hours, minutes=minutes, seconds=seconds,
+                microseconds=microseconds, leapdays=leapdays, year=year,
+                weeks=weeks, month=month, day=day, weekday=weekday, hour=hour,
+                minute=minute, second=second, microsecond=microsecond)
 
         elif isinstance(value, dateutil.relativedelta.relativedelta):
             result = super().__new__(cls)
-            super().__init__(result,
-                             years=value.years, months=value.months,
-                             days=value.days, hours=value.hours,
-                             minutes=value.minutes, seconds=value.seconds,
-                             microseconds=value.microseconds,
-                             leapdays=value.leapdays, year=value.year,
-                             month=value.month, day=value.day,
-                             weekday=value.weekday, hour=value.hour,
-                             minute=value.minute, second=value.second,
-                             microsecond=value.microsecond)
+            super().__init__(
+                result, years=value.years, months=value.months,
+                days=value.days, hours=value.hours, minutes=value.minutes,
+                seconds=value.seconds, microseconds=value.microseconds,
+                leapdays=value.leapdays, year=value.year, month=value.month,
+                day=value.day, weekday=value.weekday, hour=value.hour,
+                minute=value.minute, second=value.second,
+                microsecond=value.microsecond)
 
         elif isinstance(value, datetime.timedelta):
             result = super().__new__(cls)
-            super().__init__(result,
-                             days=value.days, seconds=value.seconds,
-                             microseconds=value.microseconds)
+            super().__init__(
+                result, days=value.days, seconds=value.seconds,
+                microseconds=value.microseconds)
 
         elif isinstance(value, str):
             match = cls._parse_re.match(value)
@@ -353,21 +359,24 @@ class TimeDelta(dateutil.relativedelta.relativedelta):
                 if value[0] == 'P':
                     if match.group(2):
                         cls._parse_quantities(
-                            match.group(2), quantities,
-                            {'y': 'years', 'm': 'months',
-                             'w': 'weeks', 'd': 'days'}
-                        )
+                            match.group(2), quantities, {
+                                'y': 'years',
+                                'm': 'months',
+                                'w': 'weeks',
+                                'd': 'days'
+                            })
 
                     if match.group(3):
                         cls._parse_quantities(
                             match.group(3), quantities,
-                            {'h': 'hours', 'm': 'minutes',
-                             's': 'seconds'}
-                        )
+                            {'h': 'hours',
+                             'm': 'minutes',
+                             's': 'seconds'})
                 else:
                     # Verbose format
-                    cls._parse_quantities(match.group(4), quantities,
-                                          cls._verbose_units_map, True)
+                    cls._parse_quantities(
+                        match.group(4), quantities, cls._verbose_units_map,
+                        True)
 
             except ValueError:
                 msg = "invalid timedelta value: {!r}".format(value)
@@ -389,31 +398,39 @@ class TimeDelta(dateutil.relativedelta.relativedelta):
 
     def __str__(self):
         s = []
-        for k in ('years', 'months', 'days', 'hours', 'minutes', 'seconds', 'microseconds'):
+        for k in (
+                'years', 'months', 'days', 'hours', 'minutes', 'seconds',
+                'microseconds'):
             v = getattr(self, k)
             if v:
                 s.append('%s %s' % (v, k if v != 1 else k[:-1]))
         return ' '.join(s)
 
     def __hash__(self):
-        return hash((self.weekday, self.years, self.months, self.days, self.hours,
-                     self.minutes, self.seconds, self.leapdays, self.year, self.month,
-                     self.day, self.hour, self.minute, self.second, self.microsecond))
+        return hash((
+            self.weekday, self.years, self.months, self.days, self.hours,
+            self.minutes, self.seconds, self.leapdays, self.year, self.month,
+            self.day, self.hour, self.minute, self.second, self.microsecond))
 
     def __gt__(self, other):
         if not isinstance(other, TimeDelta):
             return NotImplemented
 
         if self.weekday or other.weekday:
-            raise TypeError('TimeDeltas with non-empty weekday are not orderable')
+            raise TypeError(
+                'TimeDeltas with non-empty weekday are not orderable')
 
-        return self.years > other.years or self.years == other.years and \
-               (self.months > other.months or self.months == other.months and \
-               (self.days > other.days or self.days == other.days and \
-               (self.hours > other.hours or self.hours == other.hours and \
-               (self.minutes > other.minutes or self.minutes == other.minutes and \
-               (self.seconds > other.seconds or self.seconds == other.seconds and \
-               (self.microseconds > other.microseconds))))))
+        return (
+            self.years > other.years or self.years == other.years and
+            (self.months > other.months or self.months == other.months and
+                (self.days > other.days or self.days == other.days and
+                    (self.hours > other.hours or self.hours == other.hours and
+                        (self.minutes > other.minutes or
+                            self.minutes == other.minutes and
+                            (self.seconds > other.seconds or
+                                self.seconds == other.seconds and
+                                (self.microseconds > other.microseconds))))))
+        )
 
     def __ge__(self, other):
         return self == other or self > other
@@ -432,13 +449,13 @@ class TimeDelta(dateutil.relativedelta.relativedelta):
         return months, days, seconds, microseconds
 
     def _time_part(self):
-        return self.hours * 3600 + self.minutes * 60 + self.seconds, self.microseconds
+        return (
+            self.hours * 3600 + self.minutes * 60 + self.seconds,
+            self.microseconds
+        )
 
     def reduce(self, repr='days'):
-        """
-        Reduce timedelta to a single floating point number of a given denomination
-        """
-
+        """Reduce timedelta to a single floating point number."""
         seconds, us = self._time_part()
         day_fraction = seconds / 86400
         days = self.years * 365 + self.months * 30 + self.days + self.leapdays
@@ -462,9 +479,12 @@ class TimeDelta(dateutil.relativedelta.relativedelta):
                 repr = 'years'
 
         if repr == 'years':
-            res = self.years + (self.months + (self.leapdays + self.days + day_fraction) / 30) / 12
+            res = self.years + (
+                self.months +
+                (self.leapdays + self.days + day_fraction) / 30) / 12
         elif repr == 'months':
-            res = self.years * 12 + self.months + ((self.leapdays + self.days + day_fraction) / 30)
+            res = self.years * 12 + self.months + (
+                (self.leapdays + self.days + day_fraction) / 30)
         elif repr == 'days':
             res = days + day_fraction
         elif repr == 'hours':
@@ -474,7 +494,8 @@ class TimeDelta(dateutil.relativedelta.relativedelta):
         elif repr == 'seconds':
             res = days * 1440 * 60 + seconds + us / (10 ** -6)
         else:
-            raise ValueError('unsupported representation mode for reduce(): %s' % repr)
+            raise ValueError(
+                'unsupported representation mode for reduce(): %s' % repr)
 
         if auto_repr:
             return res, repr
@@ -497,8 +518,8 @@ class TimeDelta(dateutil.relativedelta.relativedelta):
             quantities[unit] = int(quantity)
 
     @classmethod
-    def _parse_quantities(cls, value, quantities, units,
-                               allow_whitespace=False):
+    def _parse_quantities(
+            cls, value, quantities, units, allow_whitespace=False):
         re_src = ''
 
         if allow_whitespace:
@@ -540,7 +561,7 @@ class Time(datetime.time):
         elif isinstance(value, str):
             if format is not None:
                 if isinstance(format, str):
-                    format = (format,)
+                    format = (format, )
 
                 for f in format:
                     try:
@@ -550,17 +571,20 @@ class Time(datetime.time):
                     else:
                         break
                 else:
-                    raise ValueError("invalid value for Time object: %s" % value)
+                    raise ValueError(
+                        "invalid value for Time object: %s" % value)
             else:
                 try:
                     d = dateutil.parser.parse(value)
                 except ValueError as e:
-                    raise ValueError("invalid value for Time object: %s" % value) from e
+                    raise ValueError(
+                        "invalid value for Time object: %s" % value) from e
         else:
             raise ValueError("invalid value for Time object: %s" % value)
 
-        return super().__new__(cls, hour=d.hour, minute=d.minute, second=d.second,
-                                    microsecond=d.microsecond)
+        return super().__new__(
+            cls, hour=d.hour, minute=d.minute, second=d.second,
+            microsecond=d.microsecond)
 
 
 class IANATimeZone(datetime.tzinfo):

@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import linecache
 
 from edgedb.lang.common.datastructures import Field
@@ -34,7 +33,8 @@ class Ref(LangMarkup):
 
 
 class BaseObject(LangMarkup):
-    """Base language object with ``id``, but without ``attributes``"""
+    """Base language object with ``id``, but without ``attributes``."""
+
     id = Field(int, default=None, coerce=True)
 
 
@@ -59,12 +59,15 @@ class TreeNodeChild(BaseObject):
     label = Field(str, default=None)
     node = Field(base.Markup)
 
+
 class TreeNodeChildrenList(typed.TypedList, type=TreeNodeChild):
     pass
 
+
 class TreeNode(BaseObject):
     name = Field(str)
-    children = Field(TreeNodeChildrenList, default=TreeNodeChildrenList, coerce=True)
+    children = Field(
+        TreeNodeChildrenList, default=TreeNodeChildrenList, coerce=True)
 
     def add_child(self, *, label=None, node):
         self.children.append(TreeNodeChild(label=label, node=node))
@@ -73,11 +76,14 @@ class TreeNode(BaseObject):
 class NoneConstantType(LangMarkup):
     pass
 
+
 class TrueConstantType(LangMarkup):
     pass
 
+
 class FalseConstantType(LangMarkup):
     pass
+
 
 class Constants:
     none = NoneConstantType()
@@ -101,10 +107,10 @@ class TracebackPoint(BaseObject):
     def load_source(self, window=3, lines=None):
         self.lines = self.line_numbers = None
 
-        if self.lineno and \
-                        ((self.filename and not self.filename.startswith('<') \
-                                                and not self.filename.endswith('>')) \
-                         or lines):
+        if (self.lineno and
+                ((self.filename and not self.filename.startswith('<')
+                    and not self.filename.endswith('>'))
+                 or lines)):
 
             lineno = self.lineno
 
@@ -144,8 +150,10 @@ class ExceptionContext(BaseObject):
 class ExceptionContextList(typed.TypedList, type=ExceptionContext):
     pass
 
+
 class _Exception(Object):
     pass
+
 
 class Exception(_Exception):
     msg = Field(str)

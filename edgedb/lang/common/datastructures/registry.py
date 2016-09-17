@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import collections
 import functools
 import weakref
@@ -14,17 +13,13 @@ import weakref
 class WeakObjectRegistry(collections.MutableMapping):
     """Weak object mapping class.
 
-    Dictionary entries will be discarded once there are no strong references
-    to the key, similar to weakref.WeakKeyDictionary.  Unlike WeakKeyDictionary,
+    Dictionary entries will be discarded once there are no strong references to
+    the key, similar to weakref.WeakKeyDictionary.  Unlike WeakKeyDictionary,
     WeakObjectRegistry allows unhashable objects as keys, since it uses id()
     instead of hash() to derive the keys.
     """
 
     def __init__(self, mapping=None):
-        """
-        :param dict mapping: Optional initial values.
-        """
-
         self.data = {}
         self.refs = {}
 
@@ -105,7 +100,8 @@ class WeakObjectRegistry(collections.MutableMapping):
     def __setitem__(self, key, value):
         id_key = id(key)
         self.data[id_key] = value
-        self.refs[id_key] = weakref.ref(key, functools.partial(self._remove, key=id_key))
+        self.refs[id_key] = weakref.ref(
+            key, functools.partial(self._remove, key=id_key))
 
     def __delitem__(self, key):
         key = id(key)

@@ -4,20 +4,20 @@
 #
 # See LICENSE for details.
 ##
-
-
 """An extension to standard library module :mod:`colorsys`.
 
 Contains additional functions, with the most notable - :func:`rgb_distance`.
 """
 
-
 from math import sqrt as _sqrt
-from colorsys import rgb_to_yiq, yiq_to_rgb, rgb_to_hls, hls_to_rgb, rgb_to_hsv, hsv_to_rgb
+from colorsys import (
+    rgb_to_yiq, yiq_to_rgb, rgb_to_hls, hls_to_rgb, rgb_to_hsv, hsv_to_rgb
+)
 
 
-__all__ = 'rgb_to_yiq', 'yiq_to_rgb', 'rgb_to_hls', 'hls_to_rgb', 'rgb_to_hsv', 'hsv_to_rgb', \
-          'rgb_to_xyz', 'xyz_to_lab', 'rgb_distance', 'Color'
+__all__ = 'rgb_to_yiq', 'yiq_to_rgb', 'rgb_to_hls', 'hls_to_rgb', \
+          'rgb_to_hsv', 'hsv_to_rgb', 'rgb_to_xyz', 'xyz_to_lab', \
+          'rgb_distance', 'Color'
 
 
 class Color:
@@ -162,7 +162,7 @@ class Color:
         'whitesmoke': '#f5f5f5',
         'yellow': '#ffff00',
         'yellowgreen': '#9acd32'
-        }
+    }
 
     def __init__(self, r, g, b, a=1.0):
         r = int(r)
@@ -194,7 +194,7 @@ class Color:
             if len(value) == 3:
                 r, g, b = [int(x * 2, 16) for x in value]
             elif len(value) == 6:
-                r, g, b = [int(value[i:i+2], 16) for i in range(0, 6, 2)]
+                r, g, b = [int(value[i:i + 2], 16) for i in range(0, 6, 2)]
             else:
                 raise ValueError
         except ValueError:
@@ -218,8 +218,7 @@ class Color:
             return (self.r, self.g, self.b, self.a)
 
     def hls_channels(self):
-        return rgb_to_hls(*(c/255 for c in self.rgb_channels()))
-
+        return rgb_to_hls(*(c / 255 for c in self.rgb_channels()))
 
 # Relative to RGB max white
 XYZ_MAX_X = 95.047
@@ -233,7 +232,8 @@ def rgb_to_xyz(r, g, b):
     :param float r: Red value in ``0..1`` range
     :param float g: Green value in ``0..1`` range
     :param float b: Blue value in ``0..1`` range
-    :returns: ``(x, y, z)``, all values normalized to ``(0..1, 0..1, 0..1)`` range
+    :returns: ``(x, y, z)``, all values normalized to
+              the ``(0..1, 0..1, 0..1)`` range
     """
 
     # Formulae from http://www.easyrgb.com/index.php?X=MATH
@@ -274,7 +274,8 @@ def xyz_to_lab(x, y, z):
     :param float x: Value from ``0..1``
     :param float y: Value from ``0..1``
     :param float z: Value from ``0..1``
-    :returns: ``(L, a, b)``, values in range ``(0..100, -127..128, -127..128)``
+    :returns: ``(L, a, b)``, values in
+              range ``(0..100, -127..128, -127..128)``
     """
 
     # Formulae from http://www.easyrgb.com/index.php?X=MATH
@@ -307,7 +308,8 @@ def rgb_distance(r1, g1, b1, r2, g2, b2):
     The distance is calculated by CIE94 formula.
 
     :params: Two colors with ``r, g, b`` values in ``0..1`` range
-    :returns: A number in ``0..100`` range.  The lesser - the closer colors are.
+    :returns: A number in ``0..100`` range.  The lesser - the
+              closer colors are.
     """
 
     # Formulae from wikipedia article re CIE94
@@ -316,8 +318,8 @@ def rgb_distance(r1, g1, b1, r2, g2, b2):
     L2, A2, B2 = xyz_to_lab(*rgb_to_xyz(r2, b2, g2))
 
     dL = L1 - L2
-    C1 = _sqrt(A1*A1 + B1*B1)
-    C2 = _sqrt(A2*A2 + B2*B2)
+    C1 = _sqrt(A1 * A1 + B1 * B1)
+    C2 = _sqrt(A2 * A2 + B2 * B2)
     dCab = C1 - C2
     dA = A1 - A2
     dB = B1 - B2
@@ -326,5 +328,6 @@ def rgb_distance(r1, g1, b1, r2, g2, b2):
 
     dHab = _sqrt(max(dEab ** 2 - dL ** 2 - dCab ** 2, 0.0))
 
-    dE = _sqrt((dL ** 2) + ((dCab / (1 + 0.045 * C1)) ** 2) + (dHab / (1 + 0.015 * C1)) ** 2)
+    dE = _sqrt((dL ** 2) + ((dCab / (1 + 0.045 * C1)) ** 2) + (
+        dHab / (1 + 0.015 * C1)) ** 2)
     return dE

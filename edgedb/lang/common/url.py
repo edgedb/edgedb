@@ -5,13 +5,12 @@
 # See LICENSE for details.
 ##
 
-
 import re
 
 from urllib.parse import urlsplit, urlunsplit, SplitResult, parse_qs
 
-
 protocol_map = {'pymod': 'http'}
+
 
 def parse(url):
     result = urlsplit(url)
@@ -25,7 +24,8 @@ def parse(url):
     else:
         scheme = transport
 
-    result = SplitResult(scheme, result.netloc, result.path, result.query, result.fragment)
+    result = SplitResult(
+        scheme, result.netloc, result.path, result.query, result.fragment)
     result = urlsplit(urlunsplit(result))
 
     scheme, netloc, path, query, fragment = result
@@ -46,7 +46,8 @@ def parse(url):
 _replace_re = re.compile(r'[^\w\- ]', re.U)
 _replace_re_2 = re.compile(r'\s+', re.U)
 
-def urlify(text:str):
+
+def urlify(text: str):
     text = _replace_re.sub('', text)
     text = text.strip()
     text = _replace_re_2.sub('-', text)

@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import decimal
 from edgedb.lang.common import fpdecimal
 from edgedb.lang.common.debug import assert_raises
@@ -17,7 +16,8 @@ class TestDecimal:
 
         with fpdecimal.CascadedContext(prec=4, scale=2):
             with assert_raises(decimal.Overflow):
-                # decimal_t is declared as 6, 2 yielding a maximum exponent of 3
+                # decimal_t is declared as 6, 2
+                # yielding a maximum exponent of 3
                 dc('100.50')
 
         with fpdecimal.CascadedContext(prec=4, scale=1):
@@ -33,7 +33,8 @@ class TestDecimal:
                     with assert_raises(decimal.Rounded):
                         dc('100.451')
 
-                    with fpdecimal.CascadedContext(traps={decimal.DivisionByZero: False}):
+                    with fpdecimal.CascadedContext(
+                            traps={decimal.DivisionByZero: False}):
                         # Zero division does not trap
                         result = dc('100') / dc('0')
                         assert result == decimal.Decimal('Infinity')
@@ -48,14 +49,14 @@ class TestDecimal:
                 with fpdecimal.CascadedContext(rounding=decimal.ROUND_UP):
                     assert str(dc('100.452')) == '100.46'
 
-                    with fpdecimal.CascadedContext(rounding=decimal.ROUND_HALF_DOWN):
+                    with fpdecimal.CascadedContext(
+                            rounding=decimal.ROUND_HALF_DOWN):
                         assert str(dc('100.455')) == '100.45'
 
                     assert str(dc('100.452')) == '100.46'
 
-
         with assert_raises(ValueError):
-            c = fpdecimal.CascadedContext(prec=1, scale=2)
+            fpdecimal.CascadedContext(prec=1, scale=2)
 
         with fpdecimal.CascadedContext(prec=4, scale=3):
             with assert_raises(ValueError):

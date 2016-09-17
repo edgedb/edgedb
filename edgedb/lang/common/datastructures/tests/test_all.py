@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import pickle
 
 from edgedb.lang.common.datastructures import Void

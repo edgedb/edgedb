@@ -5,14 +5,13 @@
 # See LICENSE for details.
 ##
 
-
 import os
 import sys
 import builtins
 
-
 from edgedb.lang.common.exceptions import EdgeDBError
-from edgedb.lang.common.io.terminal.color import colorize, colorstr, dummycolorstr
+from edgedb.lang.common.io.terminal.color import (
+    colorize, colorstr, dummycolorstr)
 from edgedb.lang.common.datastructures import xvalue
 
 
@@ -53,9 +52,12 @@ class Terminal:
     @property
     def size(self):
         try:
-            import fcntl, termios, struct
-            size = struct.unpack('2h', fcntl.ioctl(self.fileno, termios.TIOCGWINSZ, '    '))
-        except:
+            import fcntl
+            import termios
+            import struct
+            size = struct.unpack(
+                '2h', fcntl.ioctl(self.fileno, termios.TIOCGWINSZ, '    '))
+        except Exception:
             size = (os.getenv('LINES', 25), os.getenv('COLUMNS', 80))
 
         return size
@@ -78,7 +80,7 @@ class Terminal:
             lines = ' '.join(new_args).split('\n')
             indent = ' ' * indent
             indented = '\n'.join(indent + line for line in lines)
-            new_args = (indented,)
+            new_args = (indented, )
 
         if self.fd:
             builtins.print(*new_args, file=self.fd, **kwargs)

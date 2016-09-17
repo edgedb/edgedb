@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 from edgedb.lang.common.datastructures.lru import LRUDict
 from edgedb.lang.common.debug import assert_raises
 

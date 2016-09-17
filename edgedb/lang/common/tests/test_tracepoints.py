@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 from edgedb.lang.common import tracepoints
 
 
@@ -20,6 +19,7 @@ def test_utils_tracepoints_slots():
 def test_utils_tracepoints_1():
     class Foo(tracepoints.Trace):
         pass
+
     class Bar(tracepoints.Trace):
         pass
 
@@ -42,6 +42,7 @@ def test_utils_tracepoints_2():
 
     class Foo(tracepoints.Trace):
         pass
+
     class Bar(tracepoints.Trace):
         pass
 

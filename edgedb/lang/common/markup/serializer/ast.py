@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import ast
 
 from .base import serializer, serialize
@@ -20,4 +19,3 @@ def serialize_to_markup(node, *, ctx):
         mn.add_child(label=fieldname, node=serialize(field, ctx=ctx))
 
     return mn
-

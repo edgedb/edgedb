@@ -5,16 +5,15 @@
 # See LICENSE for details.
 ##
 
-
 from edgedb.lang.common.debug import assert_raises
 from edgedb.lang.common.gis.proto import geometry, point, curve, surface
 
 
 class TestUtilsGis:
     def test_utils_gis_basic_point(self):
-        pt = point.Point('POINT(1.0 2.0)')
-        ptz = point.Point('POINTZ(1.0 2.0 3.0)')
-        ptzm = point.Point('POINTZM(1.0 2.0 3.0 4.0)')
+        point.Point('POINT(1.0 2.0)')
+        point.Point('POINTZ(1.0 2.0 3.0)')
+        point.Point('POINTZM(1.0 2.0 3.0 4.0)')
 
         with assert_raises(geometry.GeometryError):
             point.Point('POINT(1 2 3 4)')
@@ -33,7 +32,6 @@ class TestUtilsGis:
 
         pt = point.Point()
         assert pt.is_empty()
-
 
     def test_utils_gis_basic_linestring(self):
         ls = curve.LineString('LINESTRING(1 1, 2 2)')
@@ -64,7 +62,8 @@ class TestUtilsGis:
             curve.LineString('LINESTRING(1 1, 2 2 2)')
 
         with assert_raises(geometry.GeometryError):
-            curve.LineString([point.Point(x=1, y=1, m=1), point.Point(x=1, y=1, z=1)])
+            curve.LineString(
+                [point.Point(x=1, y=1, m=1), point.Point(x=1, y=1, z=1)])
 
         with assert_raises(geometry.GeometryError):
             curve.LineString('LINESTRINGZ(1 1, 2 2)')
@@ -72,7 +71,6 @@ class TestUtilsGis:
         ls = curve.LineString([(1, 1, 1), point.Point(x=1, y=1, m=1)])
         assert 'm' in ls[0].dimensions
         assert 'z' not in ls[0].dimensions
-
 
     def test_utils_gis_basic_polygon(self):
         poly = surface.Polygon('POLYGON((1 1, 5 1, 5 5, 1 5, 1 1))')

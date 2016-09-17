@@ -5,5 +5,4 @@
 # See LICENSE for details.
 ##
 
-
-from . import base, lang, doc, code
+from . import base, lang, doc, code  # NOQA

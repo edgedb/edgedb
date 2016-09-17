@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 from edgedb.lang.common.debug import assert_raises
 from edgedb.lang.common.term import Style16, Style256
 

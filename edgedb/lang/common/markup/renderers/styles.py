@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 from edgedb.lang.common.term import Style16, Style256
 
 
@@ -44,7 +43,8 @@ class Dark16(StylesTable):
     ref = Style(color='red')
 
     unknown_object = Style(color='blue', bold=True)
-    serialization_error = unknown_markup = overflow = Style(color='white', bgcolor='red')
+    serialization_error = unknown_markup = overflow = Style(
+        color='white', bgcolor='red')
 
     diff_anno = Style(color='white')
     diff_after = Style(color='green')

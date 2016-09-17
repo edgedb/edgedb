@@ -5,13 +5,12 @@
 # See LICENSE for details.
 ##
 
+"""A collection of useful debugging routines."""
 
-import datetime
 import logging
 import inspect
 import re
 import os
-import sys
 import ast
 import contextlib
 import cProfile
@@ -20,9 +19,6 @@ import time
 from edgedb.lang.common.functional import decorate
 from edgedb.lang.common.exceptions import MultiError
 from edgedb.lang.common.datastructures import Void
-
-
-"""A collection of useful debugging routines"""
 
 
 def _init_debug_channels():
@@ -35,10 +31,12 @@ def _init_debug_channels():
 
     return channels
 
+
 channels = _init_debug_channels()
 
 
-class DebugDecoratorParseError(Exception): pass
+class DebugDecoratorParseError(Exception):
+    pass
 
 
 def _indent_code(source, absolute=None, relative=None):
@@ -51,7 +49,8 @@ def _indent_code(source, absolute=None, relative=None):
                 break
         return count
 
-    tab_sizes = tuple((_calc_tab_size(line) for line in source.split('\n') if line.strip()))
+    tab_sizes = tuple(
+        (_calc_tab_size(line) for line in source.split('\n') if line.strip()))
     if tab_sizes:
         tab_size = min(tab_sizes)
     else:
@@ -64,8 +63,8 @@ def _indent_code(source, absolute=None, relative=None):
         absolute = 0
 
     if absolute is not None:
-        source = '\n'.join([(' ' * absolute) + line[tab_size:] \
-                          for line in source.split('\n')])
+        source = '\n'.join([(' ' * absolute) + line[tab_size:]
+                           for line in source.split('\n')])
 
     return source
 
@@ -106,42 +105,56 @@ class debug:
 
         class Transformer(ast.NodeTransformer):
 
-            pattern = re.compile(r'''(?P<type>LOG|LINE)
-                                     \s+ \[ \s* (?P<tags> [\w\.]+ (?:\s* , \s* [\w+\.]+)* ) \s* \]
-                                     (?P<title>.*)
-                                  ''', re.X)
+            pattern = re.compile(r'''
+                (?P<type>LOG|LINE)
+                \s+ \[ \s* (?P<tags> [\w\.]+ (?:\s* , \s* [\w+\.]+)* ) \s* \]
+                (?P<title>.*)
+            ''', re.X)
 
             def visit_Expr(self, node):
                 if isinstance(node.value, ast.Str):
-                    if node.value.s.startswith('LOG') or node.value.s.startswith('LINE'):
+                    if node.value.s.startswith(
+                            'LOG') or node.value.s.startswith('LINE'):
                         m = Transformer.pattern.match(node.value.s)
                         if m:
                             type = m.group('type').strip()
                             title = m.group('title').strip()
-                            tags = {t.strip() for t in m.group('tags').split(',')}
+                            tags = {
+                                t.strip()
+                                for t in m.group('tags').split(',')
+                            }
 
                             comment = node.value.s.split('\n')
 
-                            # Str().lineno is for the _last_ line of the string.
-                            # We want to use the first.
+                            # Str().lineno is for the _last_ line of the
+                            # string. We want to use the first.
                             lineno = node.lineno - len(comment) + 1
 
-                            text = 'import edgedb.lang.common.debug, os as _os_\n' \
-                                   'if edgedb.lang.common.debug.channels & %r:\n' \
-                                   '    pass\n' % tags
+                            text = (
+                                'import edgedb.lang.common.debug, '
+                                'os as _os_\n'
+                                'if edgedb.lang.common.debug.channels & %r:\n'
+                                '    pass\n'
+                            ) % tags
 
                             if title:
                                 if type == 'LOG':
-                                    text += '    print(edgedb.lang.common.debug._dump_header(%r))\n' % title
+                                    text += (
+                                        '    print(edgedb.lang.common.debug'
+                                        '._dump_header(%r))\n'
+                                    ) % title
                                 else:
-                                    text += '    print(_os_.getpid(), %r, %s)' % (title, ', '.join(comment[1:]))
+                                    text += (
+                                        '    print(_os_.getpid(), %r, %s)'
+                                    ) % (title, ', '.join(comment[1:]))
 
                             code = ast.parse(text.rstrip(), filename=orig_file)
                             code = ast.fix_missing_locations(code)
                             _set_location(code, lineno)
 
                             if type == 'LOG' and len(comment) > 1:
-                                ctext = _indent_code('\n'.join(comment[1:]), absolute=0)
+                                ctext = _indent_code(
+                                    '\n'.join(comment[1:]), absolute=0)
                                 ccode = ast.parse(ctext, filename=orig_file)
 
                                 ast.increment_lineno(ccode, lineno)
@@ -151,7 +164,8 @@ class debug:
 
                             return code.body
                         else:
-                            raise DebugDecoratorParseError('invalid debug decorator syntax')
+                            raise DebugDecoratorParseError(
+                                'invalid debug decorator syntax')
                 return node
 
         tree = Transformer().visit(tree)
@@ -193,26 +207,30 @@ def highlight(code, lang=None):
     except ImportError:
         return code
 
-    return h(code, get_lexer_by_name(lang), TerminalFormatter(bg='dark', style='native'))
+    return h(
+        code, get_lexer_by_name(lang), TerminalFormatter(
+            bg='dark', style='native'))
 
 
-class ErrorExpected(Exception): pass
+class ErrorExpected(Exception):
+    pass
 
 
 @contextlib.contextmanager
 def profiler(filename=None, sort='time'):
-    """Profile context manager.
+    """Profile a block of code.
 
     Provides an easier setup than the standard ``cProfile.run('command()')``.
 
-    :param str filename: Optional argument to specify where to dump profiler output.
-                         ``None`` by default, which means that the profiler stats
-                         will be dumped in stdout.
+    :param str filename: Optional argument to specify where to dump profiler
+                         output. ``None`` by default, which means that the
+                         profiler stats will be dumped in stdout.
 
-    :param str sort: If ``filename`` argument is ``None``, and the results are going
-                     to be printed to stdout, this argument specifies the sorting of
-                     the call table.  The possible valid values are specified
-                     in the stdlib's ``pstats`` module.
+    :param str sort: If ``filename`` argument is ``None``, and the results
+                     are going to be printed to stdout, this argument
+                     specifies the sorting of the call table.  The possible
+                     valid values are specified in the stdlib's
+                     ``pstats`` module.
 
     Usage:
 
@@ -223,7 +241,6 @@ def profiler(filename=None, sort='time'):
         with profiler():
             your_code()
     """
-
     prof = cProfile.Profile()
 
     prof.enable()
@@ -240,11 +257,7 @@ def profiler(filename=None, sort='time'):
 
 @contextlib.contextmanager
 def debug_logger_off():
-    '''Context manager, that disables printing log messages to stdout
-    for the wrapped code'''
-
-    old_val = logging.root.manager.disable
-
+    """Disable printing log messages to stdout for the wrapped code."""
     logger = logging.getLogger()
     old_handlers = logger.handlers[:]
     logger.handlers[:] = []
@@ -284,16 +297,17 @@ def custom_logger(handler):
 
 @contextlib.contextmanager
 def assert_logs(message_re, *, logger_re=None):
-    '''Context manager, that ensures that the wrapped block of code
-    logs a message matching ``message_re``, with the logger matching ``logger_re``.
+    """Ensure that the wrapped block of code logs a message.
+
+    The message must match ``message_re``, and the logger
+    must match ``logger_re``, if specified.
 
     .. code-block:: pycon
 
         >>> with assert_logs('foo'):
         ...     pass
         AssertionError
-    '''
-
+    """
     msg_re = re.compile(message_re)
     lgr_re = None
     if logger_re is not None:
@@ -323,19 +337,22 @@ def assert_logs(message_re, *, logger_re=None):
                         break
         else:
             if lgr_re is None:
-                raise AssertionError('no expected message matching {!r} was logged'.\
-                                     format(message_re))
+                raise AssertionError(
+                    'no expected message matching {!r} was logged'.format(
+                        message_re))
             else:
-                raise AssertionError('no expected message matching {!r} on logger {!r} was logged'.\
-                                     format(message_re, logger_re))
+                raise AssertionError(
+                    'no expected message matching {!r} on logger '
+                    '{!r} was logged'.format(message_re, logger_re))
 
 
 class _ExceptionContainer:
-    __slots__ = ('exception',)
+    __slots__ = ('exception', )
 
 
 @contextlib.contextmanager
-def assert_raises(exception_cls, *, cause=Void, context=Void, error_re=None, attrs=None):
+def assert_raises(
+        exception_cls, *, cause=Void, context=Void, error_re=None, attrs=None):
     cnt = _ExceptionContainer()
 
     try:
@@ -346,8 +363,9 @@ def assert_raises(exception_cls, *, cause=Void, context=Void, error_re=None, att
         for error in ex.errors:
             if isinstance(error, exception_cls):
                 return
-        raise ErrorExpected('no expected exception {!r} in MultiError'. \
-                            format(exception_cls.__class__.__name__))
+        raise ErrorExpected(
+            'no expected exception {!r} in MultiError'.format(
+                exception_cls.__class__.__name__))
 
     except exception_cls as ex:
         cnt.exception = ex
@@ -377,47 +395,56 @@ def assert_raises(exception_cls, *, cause=Void, context=Void, error_re=None, att
             if not err_re.search(msg):
                 if cause not in (Void, None):
                     if not err_re.search(ex.__cause__.args[0]):
-                        raise ErrorExpected('%s with cause %s was expected to be raised with ' \
-                                            'cause message that matches %r, got %r' % \
-                                            (exception_cls.__name__, cause.__name__,
-                                             error_re, ex.__cause__.args[0])) from ex
+                        raise ErrorExpected(
+                            '{} with cause {} was expected to be raised '
+                            'with cause message that matches '
+                            '{!r}, got {!r}'.format(
+                                exception_cls.__name__, cause.__name__,
+                                error_re, ex.__cause__.args[0])) from ex
+
                 elif context not in (Void, None):
                     if not err_re.search(ex.__context__.args[0]):
-                        raise ErrorExpected('%s with cause %s was expected to be raised with ' \
-                                            'context message that matches %r, got %r' % \
-                                            (exception_cls.__name__, cause.__name__,
-                                             error_re, ex.__cause__.args[0])) from ex
+                        raise ErrorExpected(
+                            '{} with cause {} was expected to be raised '
+                            'with context message that matches '
+                            '{!r}, got {!r}'.format(
+                                exception_cls.__name__, cause.__name__,
+                                error_re, ex.__cause__.args[0])) from ex
 
                 else:
-                    raise ErrorExpected('%s was expected to be raised with ' \
-                                        'message that matches %r, got %r' % \
-                                        (exception_cls.__name__, error_re, msg)) from ex
+                    raise ErrorExpected(
+                        '{} was expected to be raised with '
+                        'message that matches {!r}, got {!r}'.format(
+                            exception_cls.__name__, error_re, msg)) from ex
 
         if attrs is not None:
             for attr, attr_value in attrs.items():
                 try:
                     test = getattr(ex, attr)
                     if attr_value != test:
-                        raise ErrorExpected('%s was expected to have attribute %r ' \
-                                            'with value %r, got %r' % (exception_cls.__name__,
-                                                                       attr, attr_value, test))
+                        raise ErrorExpected(
+                            '{} was expected to have attribute {!r} '
+                            'with value {!r}, got {!r}'.format(
+                                exception_cls.__name__, attr,
+                                attr_value, test))
                 except AttributeError:
-                    raise ErrorExpected('%s was expected to have attribute %r' % \
-                                                                (exception_cls.__name__, attr))
+                    raise ErrorExpected(
+                        '{} was expected to have attribute {!r}'.format(
+                            exception_cls.__name__, attr))
 
     except Exception as ex:
         cnt.exception = ex
-        raise ErrorExpected('%s was expected to be raised, got %s' % \
-                                    (exception_cls.__name__, ex.__class__.__name__)) from ex
+        raise ErrorExpected('{} was expected to be raised, got {}'.format(
+            exception_cls.__name__, ex.__class__.__name__)) from ex
 
     else:
-        raise ErrorExpected('%s was expected to be raised' % exception_cls.__name__)
+        raise ErrorExpected(
+            '%s was expected to be raised' % exception_cls.__name__)
 
 
 @contextlib.contextmanager
 def assert_shorter_than(timeout):
-    '''Context manager, that ensures that the wrapped block of code
-    executes in shorter period of time than the specified.
+    """Ensure that the wrapped block of code executes no longer than requested.
 
     .. code-block:: pycon
 
@@ -425,8 +452,7 @@ def assert_shorter_than(timeout):
         ...     import time
         ...     time.sleep(0.2)
         AssertionError ...
-    '''
-
+    """
     timeout = float(timeout)
     start = time.time()
     try:
@@ -434,14 +460,14 @@ def assert_shorter_than(timeout):
     finally:
         total = time.time() - start
         if total > timeout:
-            raise AssertionError('block was expected to execute within {:.4} seconds, ' \
-                                 'but took {:.4}'.format(timeout, total))
+            raise AssertionError(
+                'block was expected to execute within {:.4} seconds, '
+                'but took {:.4}'.format(timeout, total))
 
 
 @contextlib.contextmanager
 def assert_longer_than(timeout):
-    '''Context manager, that ensures that the wrapped block of code
-    executes longer than the specified period of time.
+    """Ensure that the wrapped block of code executes as long as requested.
 
     .. code-block:: pycon
 
@@ -449,8 +475,7 @@ def assert_longer_than(timeout):
         ...     import time
         ...     time.sleep(0.01)
         AssertionError ...
-    '''
-
+    """
     timeout = float(timeout)
     start = time.time()
     try:
@@ -458,13 +483,13 @@ def assert_longer_than(timeout):
     finally:
         total = time.time() - start
         if total < timeout:
-            raise AssertionError('block was expected to execute longer than {:.4} seconds, ' \
-                                 'but took {:.4}'.format(timeout, total))
+            raise AssertionError(
+                'block was expected to execute longer than {:.4} seconds, '
+                'but took {:.4}'.format(timeout, total))
 
 
 def timeit(target):
-    """
-    Utility function to simplify writing performance benchmarks.
+    """Simplify writing performance benchmarks.
 
     Usage:
 
@@ -494,7 +519,6 @@ def timeit(target):
         >>> list = test(10**5)
         <function test at 0x71f978>, in 0.098 seconds
     """
-
     class Timer:
         def __init__(self, message):
             self.message = message
@@ -504,15 +528,20 @@ def timeit(target):
             return self
 
         def __exit__(self, exc_type, exc_value, tb):
-            print("%s, in %.3f seconds" % (self.message, time.time() - self.started))
+            print(
+                "%s, in %.3f seconds" %
+                (self.message, time.time() - self.started))
 
         def log(self, msg=''):
-            print('>>>', self.message, msg, '%.3f' % (time.time() - self.started))
+            print(
+                '>>>', self.message, msg, '%.3f' %
+                (time.time() - self.started))
 
         def decorate(self, func):
             def new_func(*args, **kwargs):
                 with self:
                     return func(*args, **kwargs)
+
             return new_func
 
         def __call__(self, *args):

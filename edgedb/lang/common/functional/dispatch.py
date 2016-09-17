@@ -4,34 +4,29 @@
 #
 # See LICENSE for details.
 ##
-
-
 """A limited implementation of Multiple Dispatch pattern."""
 
-
 from edgedb.lang.common.datastructures.registry import WeakObjectRegistry
-
 
 _TYPE_HANDLER = 1
 _TYPE_METHOD_NAME = 2
 
 
 class _TypeDispatcherMeta(type):
-    """Metaclass for ``Dispatcher`` metaclass.  Adds own 'registry' attribute to each
-    ``Dispatcher`` metaclass, so each ``Dispatcher`` has it's own registry.
-    """
+    """Adds own 'registry' attribute to each ``Dispatcher`` metaclass."""
 
     def __new__(mcls, name, bases, dct):
         cls = super().__new__(mcls, name, bases, dct)
 
         # We don't want to store hard references to classes, since the
-        # ``_registry`` serves as a cache too, hence we use ``WeakObjectRegistry``.
+        # ``_registry`` serves as a cache too, hence we use
+        # ``WeakObjectRegistry``.
         #
         cls._registry = WeakObjectRegistry()
         return cls
 
     def __call__(cls, *, handles=None, method=None):
-        """Acts as a decorator.  Only one parameter should be specified.
+        """Act as a decorator.  Only one parameter should be specified.
 
         :param type handles: If a function is decorated, ``handles`` specifies
                              class of objectes that can be handled by it.
@@ -39,9 +34,9 @@ class _TypeDispatcherMeta(type):
                               name of a ``@classmethod`` or ``@staticmethod``
                               that handles the class (and its derivatives)
         """
-
         if handles is None and method is None:
-            raise TypeError('either `handles` or `method` arguments should be passed')
+            raise TypeError(
+                'either `handles` or `method` arguments should be passed')
 
         if handles is not None and method is not None:
             raise TypeError('both `handles` and `method` arguments passed')
@@ -50,12 +45,14 @@ class _TypeDispatcherMeta(type):
             # We're decorating a function
             #
             if not isinstance(handles, tuple):
-                handles = (handles,)
+                handles = (handles, )
 
             def wrap(handler, cls=cls, handles=handles):
                 for t in handles:
                     if not isinstance(t, type):
-                        raise ValueError('Dispatcher handles only classes, got {!r}'.format(t))
+                        raise ValueError(
+                            'Dispatcher handles only classes, got {!r}'.format(
+                                t))
 
                     cls._registry[t] = (_TYPE_HANDLER, handler)
                 return handler
@@ -63,16 +60,18 @@ class _TypeDispatcherMeta(type):
         if method is not None:
             # We're decorating a class
             #
-            def wrap(decorated, cls=cls, method_name=method):
+            def wrap(decorated, cls=cls, method_name=method):  # NOQA
                 if not isinstance(decorated, type):
-                    raise TypeError('a class was expected to be decorated, got {!r}'. \
-                                    format(decorated))
+                    raise TypeError(
+                        'a class was expected to be decorated, '
+                        'got {!r}'.format(decorated))
 
                 try:
                     getattr(decorated, method_name)
                 except AttributeError:
-                    raise TypeError('no method {!r} is found in class {!r}'. \
-                                    format(method_name, decorated))
+                    raise TypeError(
+                        'no method {!r} is found in class {!r}'.format(
+                            method_name, decorated))
 
                 cls._registry[decorated] = (_TYPE_METHOD_NAME, method_name)
                 return decorated
@@ -87,16 +86,15 @@ class _TypeDispatcherMeta(type):
             return getattr(type, descriptor[1])
 
     def get_handler(cls, type):
-        """Looks for the most suitable ``handler`` for the given class.
+        """Look for the most suitable ``handler`` for the given class.
 
         :param type type: A class to look the handler for.
         :raises LookupError: If no handler found.
         """
-
         # Already have a handler for ``type`` in registry?
         #
         try:
-            descriptor =  cls._registry[type]
+            descriptor = cls._registry[type]
         except KeyError:
             pass
         else:
@@ -134,8 +132,9 @@ class _TypeDispatcherMeta(type):
 
 
 class TypeDispatcher(metaclass=_TypeDispatcherMeta):
-    """This class is a base class for your dispatchers. **Don't** use it directly,
-    just derive a class from it.
+    """This class is a base class for your dispatchers.
+
+    **Do not** use this directly, just derive a class from it.
 
     Usage example:
 
@@ -179,7 +178,8 @@ class TypeDispatcher(metaclass=_TypeDispatcherMeta):
         >>> render(Bar())
         Bar
 
-    .. note:: This class cannot be instantiated, and should be used as a decorator only.
+    .. note:: This class cannot be instantiated, and should
+              be used as a decorator only.
     """
 
     def __init__(self):

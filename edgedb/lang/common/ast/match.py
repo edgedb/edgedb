@@ -4,10 +4,7 @@
 #
 # See LICENSE for details.
 ##
-
-
 """Generic AST tree pattern matching."""
-
 
 import collections
 
@@ -123,7 +120,8 @@ def _match_node(pattern, node, context):
                 return None
 
         else:
-            if (isinstance(field_value, collections.Container) and
+            if (
+                    isinstance(field_value, collections.Container) and
                     not isinstance(field_value, str)):
                 if len(field_value) != len(node_value):
                     return None

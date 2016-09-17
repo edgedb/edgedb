@@ -21,7 +21,6 @@ def xrepr(obj, *, max_len=None):
 
     :returns str:
     """
-
     result = str(repr(obj))
 
     if max_len is not None and len(result) > max_len:

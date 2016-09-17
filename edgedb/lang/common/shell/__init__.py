@@ -5,10 +5,8 @@
 # See LICENSE for details.
 ##
 
-
 import argparse
 import os
-import sys
 
 from edgedb.lang.common.exceptions import EdgeDBError
 from edgedb.lang.common import datastructures
@@ -20,10 +18,14 @@ from . import reqs
 class CommandMeta(config.ConfigurableMeta):
     main_command = None
 
-    def __new__(cls, clsname, bases, dct, *, name, commands=None, expose=False, requires=None):
+    def __new__(
+            cls, clsname, bases, dct, *, name, commands=None, expose=False,
+            requires=None):
         return super().__new__(cls, clsname, bases, dct)
 
-    def __init__(cls, clsname, bases, dct, *, name, commands=None, expose=False, requires=None):
+    def __init__(
+            cls, clsname, bases, dct, *, name, commands=None, expose=False,
+            requires=None):
         super().__init__(clsname, bases, dct)
 
         if name == '__main__':
@@ -31,8 +33,10 @@ class CommandMeta(config.ConfigurableMeta):
                 if issubclass(cls, CommandMeta.main_command):
                     CommandMeta.main_command = cls
                 elif not issubclass(CommandMeta.main_command, cls):
-                    raise EdgeDBError('Main command is already defined by {} which {} does not' \
-                                        ' subclass from'.format(CommandMeta.main_command, cls))
+                    raise EdgeDBError(
+                        'Main command is already defined by {} which '
+                        '{} does not subclass from'.format(
+                            CommandMeta.main_command, cls))
             else:
                 CommandMeta.main_command = cls
 
@@ -42,7 +46,8 @@ class CommandMeta(config.ConfigurableMeta):
             if commands:
                 cls._commands.update(commands)
         else:
-            cls._commands = datastructures.OrderedIndex(commands, key=lambda i: i._command_name)
+            cls._commands = datastructures.OrderedIndex(
+                commands, key=lambda i: i._command_name)
         cls._command_requirements = requires
 
         if expose and not issubclass(cls, CommandMeta.main_command):
@@ -82,8 +87,9 @@ class CommandGroup(CommandBase, name=None):
 
     def get_parser(self, subparsers):
         parser = self.create_parser(subparsers)
-        action = parser.add_subparsers(dest=self.__class__._command_name + '_subcommand',
-                                       title='{} subcommands'.format(self.__class__._command_name))
+        action = parser.add_subparsers(
+            dest=self.__class__._command_name + '_subcommand',
+            title='{} subcommands'.format(self.__class__._command_name))
         action.required = True
         return action
 
@@ -113,11 +119,12 @@ class Command(CommandBase, name=None):
 
 
 class MainCommand(CommandGroup, name='__main__'):
-    colorize = config.cvalue('auto',
-                             type=str,
-                             validator=lambda value: value in ('auto', 'on', 'off'),
-                             doc='default commands color output setting value ' \
-                                 '[auto, on, off]')
+    colorize = config.cvalue(
+        'auto',
+        type=str,
+        validator=lambda value: value in ('auto', 'on', 'off'),
+        doc='default commands color output setting value [auto, on, off]'
+    )
 
     def create_parser(self, parser):
         return parser
@@ -126,7 +133,8 @@ class MainCommand(CommandGroup, name='__main__'):
         if args.debug:
             debug.channels.update(args.debug)
 
-        with config.inline({'edgedb.lang.common.shell.MainCommand.colorize': args.color}):
+        with config.inline(
+                {'edgedb.lang.common.shell.MainCommand.colorize': args.color}):
             result = super().__call__(args, unknown_args)
 
         return result

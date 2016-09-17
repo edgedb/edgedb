@@ -5,11 +5,7 @@
 # See LICENSE for details.
 ##
 
-
 import collections
-import types
-
-from edgedb.lang.common.functional import decorate
 
 
 class MenuMeta(type):
@@ -41,7 +37,8 @@ class Option:
         self.callback = callback
 
     def __str__(self):
-        return "<%s.%s '%s'>" % (self.__class__.__module__, self.__class__.__name__, self.title)
+        return "<%s.%s '%s'>" % (
+            self.__class__.__module__, self.__class__.__name__, self.title)
 
     __repr__ = __str__
 
@@ -59,7 +56,7 @@ def option(title=None, hotkey=None):
 
 class Menu(metaclass=MenuMeta):
     def __init__(self, terminal, prompt='> '):
-        self.prompt = terminal.colorstr(prompt, 'blue', ('bold',))
+        self.prompt = terminal.colorstr(prompt, 'blue', ('bold', ))
         self.term = terminal
 
     def __call__(self):
@@ -86,11 +83,13 @@ class Menu(metaclass=MenuMeta):
                 print('Unrecognized input: %s' % opt)
 
     def print_menu(self):
-        print(self.term.colorstr('*** Commands ***', 'white', ('bold',)))
+        print(self.term.colorstr('*** Commands ***', 'white', ('bold', )))
         maxname = max(max(len(title) for title in self.__class__.options), 15)
         for i, item in enumerate(self.__class__.options.values()):
             i += 1
             end = '' if i % 4 else '\n'
-            print('  {0}. {1:{width}}'.format(i, item.title, width=maxname), end=end)
+            print(
+                '  {0}. {1:{width}}'.format(i, item.title, width=maxname),
+                end=end)
         if i % 4:
             print()

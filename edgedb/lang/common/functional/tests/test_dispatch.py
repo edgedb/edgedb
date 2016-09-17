@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import inspect
 
 from edgedb.lang.common.functional import dispatch
@@ -24,7 +23,7 @@ class TestUtilsFunctionalDispatch:
         def foo():
             pass
 
-        #decorator returned function obj back
+        # decorator returned function obj back
         assert inspect.isfunction(foo)
 
         @test(handles=(float, str))
@@ -40,7 +39,6 @@ class TestUtilsFunctionalDispatch:
         assert test.get_handler(str) is bar
         assert test.get_handler(bool) is Spam
 
-
         # Step 2. Test that dispatchers don't overlap.
         #
 
@@ -55,7 +53,6 @@ class TestUtilsFunctionalDispatch:
             pass
 
         assert test2.get_handler(int) is ham
-
 
     def test_utils_functional_typedispatch_classmethod(self):
         class test(dispatch.TypeDispatcher):
@@ -82,7 +79,6 @@ class TestUtilsFunctionalDispatch:
         assert test.get_handler(int)() == 'foo'
         assert test.get_handler(bar)() == 'bar::test'
         assert test.get_handler(baz)() == 'baz::test'
-
 
     def test_utils_functional_typedispatch_no_instance(self):
         class test(dispatch.TypeDispatcher):

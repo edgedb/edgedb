@@ -20,13 +20,9 @@ class Field:
 
     __name__ = ('name', 'type', 'default', 'coerce', 'formatters')
 
-    def __init__(self,
-                 type,
-                 default=NoDefault,
-                 *,
-                 coerce=False,
-                 str_formatter=str,
-                 repr_formatter=repr):
+    def __init__(
+            self, type, default=NoDefault, *, coerce=False, str_formatter=str,
+            repr_formatter=repr):
         """
         :param type: A type, or a tuple of types allowed for the field value.
         :param default: Default field value.  If not specified, the field would
@@ -52,9 +48,7 @@ class Field:
 
     def copy(self):
         return self.__class__(
-            self.type,
-            self.default,
-            coerce=self.coerce,
+            self.type, self.default, coerce=self.coerce,
             str_formatter=self.formatters['str'],
             repr_formatter=self.formatters['repr'])
 
@@ -114,8 +108,7 @@ class StructMeta(type):
 
         cls._fields = fields
         cls._sorted_fields = collections.OrderedDict(
-            sorted(
-                fields.items(), key=lambda e: e[0]))
+            sorted(fields.items(), key=lambda e: e[0]))
         fa = '{}.{}_fields'.format(cls.__module__, cls.__name__)
         setattr(cls, fa, myfields)
         return cls
@@ -130,8 +123,8 @@ class StructMeta(type):
         return cls._sorted_fields if sorted else cls._fields
 
     def get_ownfields(cls):
-        return getattr(cls, '{}.{}_fields'.format(cls.__module__,
-                                                  cls.__name__))
+        return getattr(
+            cls, '{}.{}_fields'.format(cls.__module__, cls.__name__))
 
 
 class Struct(metaclass=StructMeta):
@@ -261,14 +254,14 @@ class Struct(metaclass=StructMeta):
     def __str__(self):
         fields = ', '.join(('%s=%s' % (name, value))
                            for name, value in self.formatfields('str'))
-        return '<{}{}>'.format(self.__class__.__name__,
-                               ' ' + fields if fields else '')
+        return '<{}{}>'.format(
+            self.__class__.__name__, ' ' + fields if fields else '')
 
     def __repr__(self):
         fields = ', '.join(('%s=%s' % (name, value))
                            for name, value in self.formatfields('repr'))
-        return '<{}{}>'.format(self.__class__.__name__,
-                               ' ' + fields if fields else '')
+        return '<{}{}>'.format(
+            self.__class__.__name__, ' ' + fields if fields else '')
 
     def _init_fields(self, setdefaults, relaxrequired, values):
         for field_name, field in self.__class__._fields.items():
@@ -290,14 +283,14 @@ class Struct(metaclass=StructMeta):
         if extra:
             fmt = '{} {} invalid argument{} for struct {}.{}'
             plural = len(extra) > 1
-            msg = fmt.format(', '.join(extra), 'are'
-                             if plural else 'is an', 's'
-                             if plural else '', self.__class__.__module__,
-                             self.__class__.__name__)
+            msg = fmt.format(
+                ', '.join(extra), 'are' if plural else 'is an', 's' if plural
+                else '', self.__class__.__module__, self.__class__.__name__)
             raise TypeError(msg)
 
     def _check_field_type(self, field, name, value):
-        if (field.type and value is not None and value is not Void and
+        if (
+                field.type and value is not None and value is not Void and
                 not isinstance(value, field.type)):
             if field.coerce:
                 try:
@@ -307,12 +300,10 @@ class Struct(metaclass=StructMeta):
                         'cannot coerce {!r} value {!r} '
                         'to {}'.format(name, value, field.type)) from ex
 
-            raise TypeError('{}.{}.{}: expected {} but got {!r}'.
-                            format(self.__class__.__module__,
-                                   self.__class__.__name__,
-                                   name,
-                                   ' or '.join(t.__name__ for t in field.type),
-                                   value))
+            raise TypeError(
+                '{}.{}.{}: expected {} but got {!r}'.format(
+                    self.__class__.__module__, self.__class__.__name__, name,
+                    ' or '.join(t.__name__ for t in field.type), value))
 
         return value
 
@@ -323,9 +314,10 @@ class Struct(metaclass=StructMeta):
             if relaxrequired:
                 value = None
             else:
-                raise TypeError('%s.%s.%s is required' %
-                                (self.__class__.__module__,
-                                 self.__class__.__name__, field_name))
+                raise TypeError(
+                    '%s.%s.%s is required' % (
+                        self.__class__.__module__, self.__class__.__name__,
+                        field_name))
         else:
             value = field.default
         return value

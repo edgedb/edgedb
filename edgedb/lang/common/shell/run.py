@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import argparse
 import os
 import importlib
@@ -20,11 +19,15 @@ class RunCommand(shell.Command, name='run', expose=True):
         self.app_kwargs = None
 
     def get_parser(self, subparsers, **kwargs):
-        parser = super().get_parser(subparsers, description='Run python script in edgedb context.')
+        parser = super().get_parser(
+            subparsers, description='Run python script in edgedb context.')
 
-        parser.add_argument('--callable', dest='callable', default='main',
-                            help='name of function/callable to execute, default to "main(*args)"')
-        parser.add_argument('file', help=('path to a python script to be executed'))
+        parser.add_argument(
+            '--callable', dest='callable', default='main',
+            help='name of function/callable to execute, '
+                 'default to "main(*args)"')
+        parser.add_argument(
+            'file', help=('path to a python script to be executed'))
         parser.add_argument('args', nargs='*', help='script arguments')
 
         return parser
@@ -36,13 +39,15 @@ class RunCommand(shell.Command, name='run', expose=True):
             raise ValueError('path not found: %r' % path)
 
         mod_name = os.path.splitext(os.path.split(path)[-1])[0]
-        mod = importlib.machinery.SourceFileLoader(mod_name, path).load_module()
+        mod = importlib.machinery.SourceFileLoader(mod_name,
+                                                   path).load_module()
 
         try:
             callable = getattr(mod, args.callable)
         except AttributeError:
-            raise ValueError('unable to run file %r: has no callable %r defined' % \
-                             (path, args.callable))
+            raise ValueError(
+                'unable to run file {!r}: has no callable '
+                '{!r} defined'.format(path, args.callable))
 
         kwargs = {}
         if self.app_kwargs:
@@ -58,10 +63,14 @@ class RunCommand(shell.Command, name='run', expose=True):
     def _build_callable_args_subparser(self, callable):
         sig = inspect.signature(callable)
 
-        parser = argparse.ArgumentParser(usage='{!r} callable accepts following arguments: {}'.\
-                                               format(callable.__name__, sig))
+        parser = argparse.ArgumentParser(
+            usage='{!r} callable accepts following '
+                  'arguments: {}'.format(callable.__name__, sig))
 
-        kwonly = [param for param in sig.parameters.values() if param.kind == param.KEYWORD_ONLY]
+        kwonly = [
+            param for param in sig.parameters.values()
+            if param.kind == param.KEYWORD_ONLY
+        ]
 
         for param in kwonly:
             kwargs = {}

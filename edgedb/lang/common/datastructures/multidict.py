@@ -5,23 +5,24 @@
 # See LICENSE for details.
 ##
 
-
 import collections
 
-
 _NoDefault = object()
+
 
 class Multidict(collections.UserDict):
     def __init__(self, data=None):
         if isinstance(data, dict):
-            self.data = collections.OrderedDict(((key, self._cast_to_list(value)) \
-                                                                for key, value in data.items()))
+            self.data = collections.OrderedDict(
+                (key, self._cast_to_list(value))
+                for key, value in data.items())
 
         elif isinstance(data, collections.Iterable):
             self.data = collections.OrderedDict()
             for key, value in data:
-                getattr(self.data.setdefault(key, []),
-                        'extend' if self._is_iterable(value) else 'append')(value)
+                getattr(
+                    self.data.setdefault(key, []), 'extend'
+                    if self._is_iterable(value) else 'append')(value)
 
         elif data:
             raise TypeError('Invalid data to initialize MultiDict')
@@ -33,8 +34,10 @@ class Multidict(collections.UserDict):
         return isinstance(value, (list, tuple))
 
     def _cast_to_list(self, value, copy=False):
-        return value[:] if isinstance(value, list) \
-                    else (list(value) if self._is_iterable(value) else [value])
+        if isinstance(value, list):
+            return value[:]
+        else:
+            return list(value) if self._is_iterable(value) else [value]
 
     def __getitem__(self, key):
         if key in self.data:

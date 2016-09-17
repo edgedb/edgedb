@@ -5,10 +5,10 @@
 # See LICENSE for details.
 ##
 
-
 import time
 from edgedb.lang.common.datastructures.expiringdict import ExpiringDict
 from edgedb.lang.common.debug import assert_raises
+
 
 class TestUtilsDSExpiringDict:
     def test_utils_ds_expiringdict_1(self):
@@ -70,4 +70,3 @@ class TestUtilsDSExpiringDict:
         assert len(dct) == 0
         time.sleep(0.2)
         assert len(dct) == 0
-

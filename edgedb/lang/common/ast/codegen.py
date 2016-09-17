@@ -6,20 +6,17 @@
 # This code is licensed under the PSFL license.
 ##
 
-
 import itertools
 
 from .visitor import NodeVisitor
 
 
 class SourceGenerator(NodeVisitor):
-    """This visitor is able to transform a well formed syntax tree into python
-    sourcecode.  For more details have a look at the docstring of the
-    `node_to_source` function.
-    """
+    """Generate source code from an AST tree."""
 
-    def __init__(self, indent_with=' '*4, add_line_information=False,
-                       pretty=True):
+    def __init__(
+            self, indent_with=' ' * 4, add_line_information=False,
+            pretty=True):
         self.result = []
         self.indent_with = indent_with
         self.add_line_information = add_line_information
@@ -51,8 +48,8 @@ class SourceGenerator(NodeVisitor):
                     'invalid text chunk in codegen: %r'.format(chunk))
             self.result.append(chunk)
 
-    def visit_list(self, items, *, separator=',', terminator=None,
-                   newlines=True):
+    def visit_list(
+            self, items, *, separator=',', terminator=None, newlines=True):
         # terminator overrides separator setting
         #
         separator = terminator if terminator is not None else separator
@@ -73,8 +70,9 @@ class SourceGenerator(NodeVisitor):
             self.new_lines = 1
 
     @classmethod
-    def to_source(cls, node, indent_with=' '*4, add_line_information=False,
-                             pretty=True):
+    def to_source(
+            cls, node, indent_with=' ' * 4, add_line_information=False,
+            pretty=True):
         generator = cls(indent_with, add_line_information, pretty=pretty)
         generator.visit(node)
         return ''.join(generator.result)

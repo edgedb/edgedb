@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 from edgedb.lang.common.algos.persistent_hash import persistent_hash
 
 
@@ -23,8 +22,9 @@ class GrammaticalCategoryMeta(type):
         if name:
             idx = GrammaticalCategoryMeta.index
             if name in idx:
-                raise Exception('Grammatical category "%s" is already used by %s.%s' %
-                                (name, idx[name].__module__, idx[name].__name__))
+                raise Exception(
+                    'Grammatical category "%s" is already used by %s.%s' %
+                    (name, idx[name].__module__, idx[name].__name__))
             else:
                 idx[name] = cls
         else:
@@ -40,7 +40,8 @@ def form(category, value):
     if cls:
         return cls(value)
     else:
-        raise Exception('reference to an invalid grammatical category: %s' % category)
+        raise Exception(
+            'reference to an invalid grammatical category: %s' % category)
 
 
 def forms(mapping):
@@ -112,7 +113,7 @@ class WordCombination(NaturalLanguageObject):
         return self
 
     def __getnewargs__(self):
-        return (tuple(self.forms.values()),)
+        return (tuple(self.forms.values()), )
 
     def __getstate__(self):
         return {}
@@ -121,7 +122,8 @@ class WordCombination(NaturalLanguageObject):
         value = self.forms.get(attribute)
 
         if not value:
-            raise AttributeError('%s is not defined for %r' % (attribute, self))
+            raise AttributeError(
+                '%s is not defined for %r' % (attribute, self))
 
         return value
 

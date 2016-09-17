@@ -5,9 +5,8 @@
 # See LICENSE for details.
 ##
 
-
-from . import meta
-from . import geometry
-from . import point
-from . import curve
-from . import surface
+from . import meta  # NOQA
+from . import geometry  # NOQA
+from . import point  # NOQA
+from . import curve  # NOQA
+from . import surface  # NOQA

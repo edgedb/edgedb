@@ -5,9 +5,7 @@
 # See LICENSE for details.
 ##
 
-
-"""Quine-McCluskey boolean function minimization algorithm"""
-
+"""Quine-McCluskey boolean function minimization algorithm."""
 
 import itertools
 
@@ -15,9 +13,13 @@ import itertools
 def minimize(ones, dontcare=None):
     numargs = max(map(len, ones))
     # Pad the cubes to the necessary length
-    ones = set(tuple(itertools.chain(itertools.repeat(0, numargs - len(i)), i)) for i in ones)
+    ones = set(
+        tuple(itertools.chain(itertools.repeat(0, numargs - len(i)), i))
+        for i in ones)
     if dontcare:
-        dontcare = set(tuple(itertools.chain(itertools.repeat(0, numargs - len(i)), i)) for i in dontcare)
+        dontcare = set(
+            tuple(itertools.chain(itertools.repeat(0, numargs - len(i)), i))
+            for i in dontcare)
     else:
         dontcare = set()
 
@@ -28,11 +30,14 @@ def minimize(ones, dontcare=None):
     gaps = ones - set().union(*(coverage[e] for e in essential))
 
     if gaps:
-        essential |= _minimize_gaps({t: p for t, p in rest.items() if t in gaps})
+        essential |= _minimize_gaps(
+            {t: p
+             for t, p in rest.items() if t in gaps})
 
     assert ones == set().union(*(coverage[e] for e in essential))
 
     return essential
+
 
 def _quine_prime_implicants(cubes, numargs):
     def diff(c1, c2):
@@ -52,7 +57,9 @@ def _quine_prime_implicants(cubes, numargs):
         return result
 
     primes = set()
-    groups = [list(g[1]) for g in itertools.groupby(sorted(cubes, key=sum), key=sum)]
+    groups = [
+        list(g[1]) for g in itertools.groupby(sorted(cubes, key=sum), key=sum)
+    ]
 
     while groups:
         newgroups = []
@@ -71,13 +78,17 @@ def _quine_prime_implicants(cubes, numargs):
 
     return primes
 
+
 def _get_coverage(primes, miniterms):
     essential = {}
     rest = {}
     coverage = {}
 
     for prime, term in itertools.product(primes, miniterms):
-        diff = sum(itertools.starmap(lambda i, j: not (i is j or i is None or j is None), zip(prime, term)))
+        diff = sum(
+            itertools.starmap(
+                lambda i, j: not (i is j or i is None or j is None), zip(
+                    prime, term)))
         if not diff:
             if term not in essential and term not in rest:
                 essential[term] = prime
@@ -95,15 +106,16 @@ def _get_coverage(primes, miniterms):
 
     return set(essential.values()), rest, coverage
 
+
 def _minimize_gaps(implicant_matrix):
     product = list(implicant_matrix.values())
 
-    sum_ = {frozenset((i,)) for i in product[0]}
+    sum_ = {frozenset((i, )) for i in product[0]}
 
     # Produce a sum of products from a product of sums using distributivity law
     for prod in product[1:]:
         newsum = set()
-        for i, j in itertools.product(sum_, [frozenset((i,)) for i in prod]):
+        for i, j in itertools.product(sum_, [frozenset((i, )) for i in prod]):
             if i == j:
                 newsum.add(i)
             newsum.add(i | j)
@@ -111,6 +123,7 @@ def _minimize_gaps(implicant_matrix):
 
     l = [(sum(i is not None for i in item), item) for item in sum_]
     return set(min(l, key=lambda i: i[0])[1])
+
 
 def _minimize_sum(sum_):
     # Attempt to minimize the sum by absorption (X + X ^ Y = X)

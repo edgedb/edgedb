@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 from yaml import nodes
 
 from .base import serializer, serialize

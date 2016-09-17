@@ -5,9 +5,6 @@
 # See LICENSE for details.
 ##
 
-
-import ast
-
 from . import ast as tast
 
 
@@ -27,18 +24,11 @@ class TestUtilsASTBase:
         assert ctree12.left is not lconst
         assert ctree12.left.value == lconst.value
 
-
         class Dict(tast.Base):
             __fields = [('node', dict)]
 
-
         tree2 = tast.BinOp(
-                    left=tast.FunctionCall(
-                        args=[Dict(
-                            node={ 'lconst': lconst }
-                        )]
-                    )
-                )
+            left=tast.FunctionCall(args=[Dict(node={'lconst': lconst})]))
 
         ctree21 = copy.copy(tree2)
         assert ctree21 is not tree2

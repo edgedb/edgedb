@@ -10,7 +10,8 @@ class Operator(str):
     cache = {}
     funcmap = {}
 
-    def __new__(cls, val='', *, funcname=None, rfuncname=None, commutative=None):
+    def __new__(
+            cls, val='', *, funcname=None, rfuncname=None, commutative=None):
         result = Operator.cache.get((cls, val))
 
         if not result:
@@ -25,12 +26,14 @@ class Operator(str):
 
         return result
 
-    def __init__(self, val, *, funcname=None, rfuncname=None, commutative=None):
+    def __init__(
+            self, val, *, funcname=None, rfuncname=None, commutative=None):
         self.val = val
         self.commutative = commutative
 
     def __repr__(self):
-        return '<%s.%s "%s">' % (self.__class__.__module__, self.__class__.__name__, self.val)
+        return '<%s.%s "%s">' % (
+            self.__class__.__module__, self.__class__.__name__, self.val)
 
     def __hash__(self):
         return object.__hash__(self)
@@ -42,6 +45,7 @@ class Operator(str):
 
 class ComparisonOperator(Operator):
     pass
+
 
 EQ = ComparisonOperator('=', funcname='__eq__', commutative=True)
 NE = ComparisonOperator('!=', funcname='__ne__', commutative=True)
@@ -64,10 +68,14 @@ class BinaryArithmeticOperator(ArithmeticOperator):
     pass
 
 
-ADD = BinaryArithmeticOperator('+', funcname='__add__', rfuncname='__radd__', commutative=True)
-SUB = BinaryArithmeticOperator('-', funcname='__sub__', rfuncname='__rsub__', commutative=True)
-MUL = BinaryArithmeticOperator('*', funcname='__mul__', rfuncname='__rmul__', commutative=True)
-DIV = BinaryArithmeticOperator('/', funcname='__truediv__', rfuncname='__rtruediv__')
+ADD = BinaryArithmeticOperator(
+    '+', funcname='__add__', rfuncname='__radd__', commutative=True)
+SUB = BinaryArithmeticOperator(
+    '-', funcname='__sub__', rfuncname='__rsub__', commutative=True)
+MUL = BinaryArithmeticOperator(
+    '*', funcname='__mul__', rfuncname='__rmul__', commutative=True)
+DIV = BinaryArithmeticOperator(
+    '/', funcname='__truediv__', rfuncname='__rtruediv__')
 POW = BinaryArithmeticOperator('**', funcname='__pow__', rfuncname='__rpow__')
 MOD = BinaryArithmeticOperator('%', funcname='__mod__', rfuncname='__rmod__')
 
@@ -83,6 +91,7 @@ UMINUS = UnaryArithmeticOperator('-', funcname='__neg__')
 class BooleanOperator(Operator):
     pass
 
+
 OR = BooleanOperator('or')
 AND = BooleanOperator('and')
 NOT = BooleanOperator('not')
@@ -91,12 +100,14 @@ NOT = BooleanOperator('not')
 class TypeCheckOperator(Operator):
     pass
 
+
 IS = TypeCheckOperator('is')
 IS_NOT = TypeCheckOperator('is not')
 
 
 class MembershipOperator(Operator):
     pass
+
 
 IN = MembershipOperator('in')
 NOT_IN = MembershipOperator('not in')

@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import enum
 
 

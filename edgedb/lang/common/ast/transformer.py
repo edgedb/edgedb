@@ -6,23 +6,21 @@
 # This code is licensed under the PSFL license.
 ##
 
+from .base import *  # NOQA
+from .visitor import *  # NOQA
 
-from .base import *
-from .visitor import *
 
 class NodeTransformer(NodeVisitor):
-    """
-    A :class:`NodeVisitor` subclass that walks the abstract syntax tree and
-    allows modification of nodes.
+    """Walks the abstract syntax tree and allows modification of nodes.
 
     The `NodeTransformer` will walk the AST and use the return value of the
     visitor methods to replace or remove the old node.  If the return value of
     the visitor method is ``None``, the node will be removed from its location,
-    otherwise it is replaced with the return value.  The return value may be the
-    original node in which case no replacement takes place.
+    otherwise it is replaced with the return value.  The return value may be
+    the original node in which case no replacement takes place.
 
-    Here is an example transformer that rewrites all occurrences of name lookups
-    (``foo``) to ``data['foo']``::
+    Here is an example transformer that rewrites all occurrences of name
+    lookups (``foo``) to ``data['foo']``::
 
        class RewriteName(NodeTransformer):
 
@@ -72,7 +70,6 @@ class NodeTransformer(NodeVisitor):
                     new_node.parent = node
                     setattr(node, field, new_node)
         return node
-
 
     def replace_child(self, child, new_child):
         if child.parent is None:

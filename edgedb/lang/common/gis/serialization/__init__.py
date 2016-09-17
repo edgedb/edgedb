@@ -5,5 +5,4 @@
 # See LICENSE for details.
 ##
 
-
-from .base import SerializerError
+from .base import SerializerError  # NOQA

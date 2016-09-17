@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 from edgedb.lang.common.gis import serialization
 from edgedb.lang.common.gis.serialization import wkb, wkt
 from . import factory
@@ -89,8 +88,10 @@ class Geometry(metaclass=meta.GeometryMeta):
     @classmethod
     def _raise_coord_error(cls, coords, expected_count):
         errmsg = 'invalid geometry specification'
-        errdetails = 'expected %d coordinate values, got %d' % (expected_count, len(coords))
-        errvalue = coords[-1] if len(coords) < expected_count else coords[expected_count]
+        errdetails = 'expected %d coordinate values, got %d' % (
+            expected_count, len(coords))
+        errvalue = coords[-1] if len(coords) < expected_count else coords[
+            expected_count]
         raise GeometryError(errmsg, details=errdetails, errvalue=errvalue)
 
     @classmethod
@@ -110,4 +111,5 @@ class Geometry(metaclass=meta.GeometryMeta):
     __str__ = as_text
 
     def __repr__(self):
-        return '%s.%s(%r)' % (self.__class__.__module__, self.__class__.__name__, self.as_text())
+        return '%s.%s(%r)' % (
+            self.__class__.__module__, self.__class__.__name__, self.as_text())

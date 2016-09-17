@@ -5,14 +5,14 @@
 # See LICENSE for details.
 ##
 
-
 from edgedb.lang.common.datastructures import Multidict, CombinedMultidict
 from edgedb.lang.common.debug import assert_raises
 
 
 class TestDatastructMultidict:
     def test_utils_ds_multidict(self):
-        a = Multidict((('a', 'b'), ('c', 'dd'), ('c', 'c'), ('z', (1, 2, 3)), ('z', 2)))
+        a = Multidict((('a', 'b'), ('c', 'dd'), ('c', 'c'), ('z', (1, 2, 3)),
+                       ('z', 2)))
 
         assert a['a'] == 'b'
         assert a['c'] == 'dd'
@@ -49,7 +49,8 @@ class TestDatastructMultidict:
         assert a.get('z') == 1
         assert a.get('foo', 'bar') == 'bar'
 
-        assert list(a.itemlists()) == [('a', ['b']), ('c', ['dd', 'c']), ('z', [1, 2])]
+        assert list(a.itemlists()) == [('a', ['b']), ('c', ['dd', 'c']), (
+            'z', [1, 2])]
 
         assert list(a.keys()) == ['a', 'c', 'z']
         assert list(a.values()) == ['b', 'dd', 1]
@@ -93,4 +94,5 @@ class TestDatastructMultidict:
         assert set(r.getlist('a')) == {'b', 1, 2}
 
         assert set(r.items()) == {('a', 'b'), ('z', 'zzz')}
-        assert list(sorted(list(r.itemlists()))) == [('a', ['b', 1, 2]), ('z', ['zzz'])]
+        assert list(sorted(list(r.itemlists()))) == [('a', ['b', 1, 2]), (
+            'z', ['zzz'])]

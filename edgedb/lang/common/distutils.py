@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import types
 
 from setuptools.command import build_ext as _build_ext
@@ -21,9 +20,8 @@ class cython_build_ext(_build_ext.build_ext):
 
         _ns = cls.__dict__
 
-        _cls = types.new_class('build_ext',
-                                bases=(_cython_build_ext,),
-                                exec_body=lambda ns: _ns)
+        _cls = types.new_class(
+            'build_ext', bases=(_cython_build_ext, ), exec_body=lambda ns: _ns)
 
         result = _cls.__new__(_cls, *args, **kwargs)
         result.__init__(*args, **kwargs)

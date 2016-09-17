@@ -5,17 +5,22 @@
 # See LICENSE for details.
 ##
 
-
 import collections
 
 from edgedb.lang.common import markup
 from edgedb.lang.common.markup.format import xrepr
 
-
 from edgedb.lang.common.datastructures import Field
-class SpecialList(list): pass
+
+
+class SpecialList(list):
+    pass
+
+
 class _SpecialListNode(markup.elements.base.Markup):
     pass
+
+
 class SpecialListNode(_SpecialListNode):
     node = Field(_SpecialListNode, default=None)
 
@@ -65,9 +70,11 @@ class TestUtilsMarkup:
     def test_utils_markup_dumps(self):
         assert markup.dumps('123') == "'123'"
 
-        expected = "[\n    '123',\n    1,\n    1.1,\n    {\n        foo: []\n    }\n]"
+        expected = \
+            "[\n    '123',\n    1,\n    1.1,\n    {\n        foo: []\n    }\n]"
         expected = expected.replace(' ', '')
-        assert markup.dumps(['123', 1, 1.1, {'foo': ()}]).replace(' ', '') == expected
+        assert markup.dumps(['123', 1, 1.1, {'foo': ()}]).replace(
+            ' ', '') == expected
 
     def test_utils_markup_overflow(self):
         obj = a = []
@@ -77,8 +84,8 @@ class TestUtilsMarkup:
 
         result = markup.dumps(obj).replace(' ', '').replace('\n', '')
 
-        # current limit is 100, so 2 chars per list - 200 + some space reserved for
-        # the OverflowBarier markup element
+        # current limit is 100, so 2 chars per list - 200 + some space reserved
+        # for the OverflowBarier markup element
         #
         assert len(result) < 220
 
@@ -90,29 +97,43 @@ class TestUtilsMarkup:
 
         result = markup.dumps(obj).replace(' ', '').replace('\n', '')
 
-        # current limit is 100, so 2 chars per list - 200 + some space reserved for
-        # the OverflowBarier markup element
+        # current limit is 100, so 2 chars per list - 200 + some space reserved
+        # for the OverflowBarier markup element
         #
         assert len(result) < 220
 
     def test_utils_markup_overflow_deep_2(self):
-        assert isinstance(markup.elements.base.OverflowBarier(), markup.elements.lang.TreeNode)
-        assert issubclass(markup.elements.base.OverflowBarier, markup.elements.lang.TreeNode)
-        assert isinstance(markup.elements.base.SerializationError(text='1', cls='1'),
-                          markup.elements.lang.TreeNode)
-        assert issubclass(markup.elements.base.SerializationError, markup.elements.lang.TreeNode)
-        assert not isinstance(markup.elements.base.Markup(), markup.elements.lang.TreeNode)
-        assert not issubclass(markup.elements.base.Markup, markup.elements.lang.TreeNode)
+        assert isinstance(
+            markup.elements.base.OverflowBarier(),
+            markup.elements.lang.TreeNode)
+        assert issubclass(
+            markup.elements.base.OverflowBarier, markup.elements.lang.TreeNode)
+        assert isinstance(
+            markup.elements.base.SerializationError(text='1', cls='1'),
+            markup.elements.lang.TreeNode)
+        assert issubclass(
+            markup.elements.base.SerializationError,
+            markup.elements.lang.TreeNode)
+        assert not isinstance(
+            markup.elements.base.Markup(), markup.elements.lang.TreeNode)
+        assert not issubclass(
+            markup.elements.base.Markup, markup.elements.lang.TreeNode)
 
-        from edgedb.lang.common.markup.serializer.base import OVERFLOW_BARIER, Context
+        from edgedb.lang.common.markup.serializer.base \
+            import OVERFLOW_BARIER, Context
 
         def gen(deep):
             if deep > 0:
-                return SpecialList([gen(deep-1)])
+                return SpecialList([gen(deep - 1)])
 
-        assert not str(markup.serialize(gen(OVERFLOW_BARIER-1), ctx=Context())).count('Overflow')
-        assert str(markup.serialize(gen(OVERFLOW_BARIER+10), ctx=Context())).count('Overflow') == 1
-        assert not str(markup.serialize(gen(OVERFLOW_BARIER+10), ctx=Context())).count('SerializationError')
+        assert not str(
+            markup.serialize(gen(OVERFLOW_BARIER - 1), ctx=Context())).count(
+                'Overflow')
+        assert str(markup.serialize(gen(OVERFLOW_BARIER + 10), ctx=Context(
+        ))).count('Overflow') == 1
+        assert not str(
+            markup.serialize(gen(OVERFLOW_BARIER + 10), ctx=Context())).count(
+                'SerializationError')
 
     def test_utils_markup_overflow_wide(self):
         obj3 = []
@@ -149,6 +170,6 @@ class TestUtilsMarkup:
         assert len(xrepr(repr, max_len=10)) == 10
 
     def test_utils_markup_dump_ordereddict(self):
-        obj = collections.OrderedDict([[1,2],[2,3],[3,4],[5,6]])
+        obj = collections.OrderedDict([[1, 2], [2, 3], [3, 4], [5, 6]])
         result = ''.join(markup.dumps(obj).split())
         assert result == '{1:2,2:3,3:4,5:6}'

@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 from collections import defaultdict, OrderedDict
 
 from edgedb.lang.common.datastructures import OrderedSet
@@ -30,8 +29,9 @@ def sort(graph, return_record=False, root_only=False):
                     adj[item_name].add(merge)
                     radj[merge].add(item_name)
                 else:
-                    raise UnresolvedReferenceError("reference to an undefined item %s in %s" \
-                                                   % (merge, item_name))
+                    raise UnresolvedReferenceError(
+                        'reference to an undefined item {} in {}'.format(
+                            merge, item_name))
 
         if "deps" in item:
             for dep in item["deps"]:
@@ -39,8 +39,9 @@ def sort(graph, return_record=False, root_only=False):
                     adj[item_name].add(dep)
                     radj[dep].add(item_name)
                 else:
-                    raise UnresolvedReferenceError("reference to an undefined item %s in %s" \
-                                                   % (dep, item_name))
+                    raise UnresolvedReferenceError(
+                        'reference to an undefined item {} in {}'.format(
+                            dep, item_name))
 
     visiting = set()
     visited = set()

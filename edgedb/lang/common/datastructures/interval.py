@@ -5,12 +5,10 @@
 # See LICENSE for details.
 ##
 
-
-"""Implementation of continuous interval"""
+"""Implementation of continuous interval."""
 
 import functools
 import operator
-
 
 __all__ = 'Interval',
 
@@ -38,6 +36,7 @@ class _Smallest:
     def __ne__(self, other):
         return other is not self
 
+
 Smallest = _Smallest()
 
 
@@ -64,13 +63,19 @@ class _Largest:
     def __ne__(self, other):
         return other is not self
 
+
 Largest = _Largest()
 
 
 class Interval:
-    __slots__ = 'lower', 'within_lower', 'closed_lower', 'upper', 'within_upper', 'closed_upper'
+    __slots__ = (
+        'lower', 'within_lower', 'closed_lower', 'upper',
+        'within_upper', 'closed_upper'
+    )
 
-    def __init__(self, lower=Smallest, upper=Largest, closed_lower=True, closed_upper=True):
+    def __init__(
+            self, lower=Smallest, upper=Largest, closed_lower=True,
+            closed_upper=True):
         self.lower = lower
         lower_op = operator.ge if closed_lower else operator.gt
         self.within_lower = functools.partial(lower_op, lower)
@@ -83,7 +88,9 @@ class Interval:
 
     def __bool__(self):
         """False if interval is empty, True otherwise."""
-        return (self.closed_lower and self.closed_upper) or self.lower != self.upper
+        return (
+            self.closed_lower and
+            self.closed_upper) or self.lower != self.upper
 
     def __contains__(self, other):
         """Check if other Interval is fully contained within this Interval"""
@@ -91,4 +98,5 @@ class Interval:
         if not isinstance(other, Interval):
             return NotImplemented
         else:
-            return self.within_lower(other.lower) and self.within_upper(other.upper)
+            return self.within_lower(other.lower) and self.within_upper(
+                other.upper)

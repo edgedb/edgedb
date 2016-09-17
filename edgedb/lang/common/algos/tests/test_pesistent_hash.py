@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import uuid
 
 from edgedb.lang.common.algos.persistent_hash import persistent_hash

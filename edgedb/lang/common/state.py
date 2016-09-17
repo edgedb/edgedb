@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import itertools
 
 
@@ -57,4 +56,5 @@ class StatesMeta(type):
         for attrname, attr in dct.items():
             if isinstance(attr, State):
                 if attr in StatesMeta.state_gen.states:
-                    StatesMeta.state_gen.states[attr].name = '{}.{}'.format(name, attrname)
+                    StatesMeta.state_gen.states[attr].name = '{}.{}'.format(
+                        name, attrname)

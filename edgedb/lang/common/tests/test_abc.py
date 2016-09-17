@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 from edgedb.lang.common import abc
 from edgedb.lang.common.debug import assert_raises
 
@@ -38,11 +37,13 @@ class TestAbc:
 
         class B(A):
             foo = 1
+
         assert B().foo == 1
 
         class C(A):
             def __init__(self):
                 self.foo = 2
+
         with assert_raises(TypeError, error_re='instantiate abstract'):
             C()
 

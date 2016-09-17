@@ -6,8 +6,8 @@
 # This code is licensed under the PSFL license.
 ##
 
+from .base import *  # NOQA
 
-from .base import *
 
 class SkipNode(Exception):
     pass
@@ -33,7 +33,8 @@ def find_children(node, test_func, *args, force_traversal=False, **kwargs):
                         continue
 
                     try:
-                        if not field_spec.hidden and test_func(n, *args, **kwargs):
+                        if not field_spec.hidden and test_func(
+                                n, *args, **kwargs):
                             result.append(n)
                     except SkipNode:
                         continue
@@ -45,7 +46,8 @@ def find_children(node, test_func, *args, force_traversal=False, **kwargs):
 
             elif isinstance(value, AST):
                 try:
-                    if not field_spec.hidden and test_func(value, *args, **kwargs):
+                    if not field_spec.hidden and test_func(
+                            value, *args, **kwargs):
                         result.append(value)
                 except SkipNode:
                     continue
@@ -58,6 +60,7 @@ def find_children(node, test_func, *args, force_traversal=False, **kwargs):
 
     return _find_children(node, test_func)
 
+
 def find_parent(node, test_func):
     if node.parent and test_func(node.parent):
         return node.parent
@@ -67,10 +70,7 @@ def find_parent(node, test_func):
 
 
 class NodeVisitor(object):
-    """
-    A node visitor base class that walks the abstract syntax tree and calls a
-    visitor function for every node found.  This function may return a value
-    which is forwarded by the `visit` method.
+    """Walk the AST and call a visitor function for every node found.
 
     This class is meant to be subclassed, with the subclass adding visitor
     methods.

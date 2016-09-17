@@ -5,9 +5,8 @@
 # See LICENSE for details.
 ##
 
-
-from edgedb.lang.common.debug import assert_raises
-from edgedb.lang.common.nlang.morphology import Singular, Plural, WordCombination
+from edgedb.lang.common.nlang.morphology import (
+    Singular, Plural, WordCombination)
 
 
 class TestNLangMorphology(object):
@@ -15,5 +14,5 @@ class TestNLangMorphology(object):
         w = WordCombination({Singular('test'), Plural('tests')})
         assert w == 'test'
         assert w.singular == 'test' and w.plural == 'tests'
-        with assert_raises(AttributeError):
+        with self.assertRaises(AttributeError):
             w.dual

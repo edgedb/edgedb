@@ -5,11 +5,9 @@
 # See LICENSE for details.
 ##
 
-
 import threading
 
 from edgedb.lang.common import slots
-
 
 __all__ = 'HEAD',
 
@@ -19,7 +17,7 @@ class _BaseHeadPointer(metaclass=slots.SlotsMeta):
 
 
 class _HeadPointer(_BaseHeadPointer):
-    __slots__ = ('heads',)
+    __slots__ = ('heads', )
 
     def __init__(self):
         super().__init__()

@@ -5,15 +5,13 @@
 # See LICENSE for details.
 ##
 
-
 import collections
 import heapq
 from datetime import timedelta, datetime
 
 from edgedb.lang.common.datastructures.marker import Void
 
-
-MAX_CONTROL_ID = 2**64 - 1
+MAX_CONTROL_ID = 2 ** 64 - 1
 
 
 class ExpiringDict(collections.UserDict):
@@ -33,14 +31,14 @@ class ExpiringDict(collections.UserDict):
         False
     """
 
-    def __init__(self, *, default_expiry:float=None):
-        """
+    def __init__(self, *, default_expiry: float=None):
+        """Initialize the dictionary.
+
         :param float default_expiry: Optional default expiry in seconds
                                      (or ``datetime.timedelta``).  Maybe
                                      overridden by ``ExpiringDict.set``
                                      method.
         """
-
         super().__init__()
         self.default_expiry = self._cast_expiry(default_expiry)
         self.keyheap = []
@@ -58,8 +56,9 @@ class ExpiringDict(collections.UserDict):
 
         if not isinstance(expiry, timedelta):
             if not isinstance(expiry, (int, float)):
-                raise ValueError('expected expiry to be float or integer value, got {}:{!r}'. \
-                                 format(type(expiry), expiry))
+                raise ValueError(
+                    'expected expiry to be float or integer value, '
+                    'got {}:{!r}'.format(type(expiry), expiry))
             expiry = timedelta(seconds=expiry)
 
         return expiry
@@ -80,11 +79,11 @@ class ExpiringDict(collections.UserDict):
                         del self.data[data[1]]
 
     def set(self, key, value, *, expiry=Void):
-        """Sets (key: value) pair with an optional expiry time.
+        """Set (key: value) pair with an optional expiry time.
 
-        :param float expiry: Optional expiry time in seconds (or ``datetime.timedelta``)
+        :param float expiry: Optional expiry time in seconds
+                             (or ``datetime.timedelta``)
         """
-
         if expiry is Void:
             if self.default_expiry is not None:
                 expiry = self.default_expiry
@@ -100,7 +99,8 @@ class ExpiringDict(collections.UserDict):
 
         if expiry is not None and expiry is not Void:
             control_idx = self._get_control_idx()
-            heapq.heappush(self.keyheap, (datetime.now() + expiry, key, control_idx))
+            heapq.heappush(
+                self.keyheap, (datetime.now() + expiry, key, control_idx))
 
         super().__setitem__(key, (value, control_idx))
 

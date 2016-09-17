@@ -5,10 +5,8 @@
 # See LICENSE for details.
 ##
 
-
 from . import abc
 from .geometry import Geometry
-
 
 
 class GeometryContainer(Geometry, abc.GeometryContainer):
@@ -26,5 +24,5 @@ class GeometryContainer(Geometry, abc.GeometryContainer):
 
     @classmethod
     def copy(cls, value):
-        return cls(value._elements, dimensions=value.dimensions,
-                                    srid=value.srid)
+        return cls(
+            value._elements, dimensions=value.dimensions, srid=value.srid)

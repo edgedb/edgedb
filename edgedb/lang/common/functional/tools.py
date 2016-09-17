@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import abc
 import sys
 import types
@@ -15,10 +14,10 @@ from functools import partial
 
 from edgedb.lang.common.exceptions import EdgeDBError
 
-
-__all__ = ('get_argsspec', 'apply_decorator', 'decorate', 'isdecorated',
-           'Decorator', 'BaseDecorator', 'NonDecoratable', 'render_signature_args',
-           'unwrap', 'hybridmethod', 'cachedproperty', 'get_safe_attrname')
+__all__ = (
+    'get_argsspec', 'apply_decorator', 'decorate', 'isdecorated', 'Decorator',
+    'BaseDecorator', 'NonDecoratable', 'render_signature_args', 'unwrap',
+    'hybridmethod', 'cachedproperty', 'get_safe_attrname')
 
 
 class NonDecoratable:
@@ -26,12 +25,16 @@ class NonDecoratable:
 
 
 WRAPPER_ASSIGNMENTS = {'__module__', '__name__', '__doc__', '__annotations__'}
+
+
 def decorate(wrapper, wrapped, *, assigned=WRAPPER_ASSIGNMENTS):
     if isinstance(wrapped, type) and issubclass(wrapped, NonDecoratable):
-        raise TypeError('Unable to decorate %r as a subclass of NonDecoratable' % wrapped)
+        raise TypeError(
+            'Unable to decorate %r as a subclass of NonDecoratable' % wrapped)
 
     elif isinstance(wrapped, NonDecoratable):
-        raise TypeError('Unable to decorate %r as an instance of NonDecoratable' % wrapped)
+        raise TypeError(
+            'Unable to decorate %r as an instance of NonDecoratable' % wrapped)
 
     for attr in assigned:
         if hasattr(wrapped, attr):
@@ -46,30 +49,39 @@ def decorate(wrapper, wrapped, *, assigned=WRAPPER_ASSIGNMENTS):
 
 
 def isdecorated(func):
-    return (callable(func) \
-                and (hasattr(func, '__wrapped__') or hasattr(func, '__func__') \
-                                                        or isinstance(func, BaseDecorator))) or \
-            isinstance(func, (staticmethod, classmethod))
+    return (
+        (callable(func) and (
+            hasattr(func, '__wrapped__') or
+            hasattr(func, '__func__') or
+            isinstance(func, BaseDecorator)
+        )) or isinstance(func, (staticmethod, classmethod))
+    )
 
 
 class BaseDecorator(metaclass=abc.ABCMeta):
-    __slots__ = ('__wrapped__',)
+    __slots__ = ('__wrapped__', )
 
     def __init__(self, func):
         self.__wrapped__ = func
 
 
 _marker = object()
+
+
 class Decorator(BaseDecorator):
     def __new__(cls, func=_marker, *args, __sx_completed__=False, **kwargs):
-        if not __sx_completed__ and func is not _marker and callable(func) and (args or kwargs):
+        if not __sx_completed__ and func is not _marker and callable(
+                func) and (args or kwargs):
             original_function = unwrap(func)
             frame = sys._getframe(1)
             try:
-                while frame and frame.f_code.co_filename != original_function.__code__.co_filename:
+                while frame and \
+                        frame.f_code.co_filename != \
+                        original_function.__code__.co_filename:
                     frame = frame.f_back
 
-                if frame and frame.f_lineno >= original_function.__code__.co_firstlineno:
+                if (frame and frame.f_lineno >=
+                        original_function.__code__.co_firstlineno):
                     __sx_completed__ = True
 
             finally:
@@ -86,7 +98,7 @@ class Decorator(BaseDecorator):
             return super().__new__(cls)
 
         if func is not _marker:
-            args = (func,) + args
+            args = (func, ) + args
 
         return (lambda func: cls(func, *args, __sx_completed__=True, **kwargs))
 
@@ -103,7 +115,9 @@ class Decorator(BaseDecorator):
         decorate(self, func)
 
     def handle_args(self, *args, **kwargs):
-        raise EdgeDBError('decorator %r does not support any arguments' % self.__class__.__name__)
+        raise EdgeDBError(
+            'decorator %r does not support any arguments' %
+            self.__class__.__name__)
 
     def __get__(self, obj, cls=None):
         if obj is None:
@@ -141,8 +155,9 @@ def _unwrap_once(func):
 
 
 def unwrap(func, *, verify=False):
-    '''Extracts the inner-most callable of a decorated callable.
-    It does this by following ``__wrapped__`` attributes on regular
+    """Extract the inner-most callable of a decorated callable.
+
+    Extraction is done by following ``__wrapped__`` attributes on regular
     functions (that's how ``functools.wraps`` provides the reference
     to the decorated function), then tries ``__file__`` (works for
     ``@staticmethod`` and ``@classmethod``.
@@ -156,8 +171,9 @@ def unwrap(func, *, verify=False):
             print(func.__name__)
 
         def some_other_decorator(func):
-            """A decorator that doesn't save the decorated function's
-            name.  So its name will be set to '__wrapper__'"""
+            '''A decorator that doesn't save the decorated function's
+            name.  So its name will be set to '__wrapper__'
+            '''
             def wrapper(*args, **kwargs):
                 return func(*args, **kwargs)
             wrapper.__wrapped__ = func
@@ -176,8 +192,7 @@ def unwrap(func, *, verify=False):
                         decorated function, with the one exception: it won't
                         detect an error, if the ``func`` and the code that
                         calls ``unwrap`` are in the same file.
-    '''
-
+    """
     orig_func = func
     while isdecorated(orig_func):
         orig_func = _unwrap_once(orig_func)
@@ -193,7 +208,8 @@ def unwrap(func, *, verify=False):
                     break
                 frame = frame.f_back
             else:
-                raise RuntimeError('unable to unwrap callable {!r}'.format(func))
+                raise RuntimeError(
+                    'unable to unwrap callable {!r}'.format(func))
         finally:
             del frame
 
@@ -240,23 +256,25 @@ def apply_decorator(func, *, decorate_function=None, decorate_class=None):
             raise TypeError('Unable to decorate class %s' % func.__name__)
 
     if isinstance(func, classmethod):
-        return classmethod(apply_decorator(func.__func__,
-                                           decorate_function=decorate_function,
-                                           decorate_class=decorate_class))
+        return classmethod(
+            apply_decorator(
+                func.__func__, decorate_function=decorate_function,
+                decorate_class=decorate_class))
 
     if isinstance(func, staticmethod):
-        return staticmethod(apply_decorator(func.__func__,
-                                            decorate_function=decorate_function,
-                                            decorate_class=decorate_class))
+        return staticmethod(
+            apply_decorator(
+                func.__func__, decorate_function=decorate_function,
+                decorate_class=decorate_class))
 
     if isinstance(func, property):
         funcs = []
         for name in 'fget', 'fset', 'fdel':
             f = getattr(func, name, None)
             if f:
-                f = apply_decorator(f,
-                                    decorate_function=decorate_function,
-                                    decorate_class=decorate_class)
+                f = apply_decorator(
+                    f, decorate_function=decorate_function,
+                    decorate_class=decorate_class)
             funcs.append(f)
         return property(*funcs)
 
@@ -265,9 +283,9 @@ def apply_decorator(func, *, decorate_function=None, decorate_class=None):
         while isinstance(func, BaseDecorator):
             host = func
             func = func.__wrapped__
-        host.__wrapped__ = apply_decorator(host.__wrapped__,
-                                           decorate_function=decorate_function,
-                                           decorate_class=decorate_class)
+        host.__wrapped__ = apply_decorator(
+            host.__wrapped__, decorate_function=decorate_function,
+            decorate_class=decorate_class)
         return top
 
     return func
@@ -312,4 +330,3 @@ def render_signature_args(signature, *, for_apply=False):
             result.append('**{}'.format(arg.name))
 
     return ', '.join(result)
-

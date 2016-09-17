@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import re
 
 from importkit import context as lang_context
@@ -15,12 +14,12 @@ from edgedb.lang.common import markup
 
 
 class LexError(Exception):
-    def __init__(self, msg, *,
-                 line=None, col=None, filename=None, format=True):
+    def __init__(
+            self, msg, *, line=None, col=None, filename=None, format=True):
         if format and '{' in msg:
             position = self._format_position(line, col, filename)
-            msg = msg.format(line=line, col=col, filename=filename,
-                             position=position)
+            msg = msg.format(
+                line=line, col=col, filename=filename, position=position)
 
         super().__init__(msg)
         self.line = line
@@ -54,8 +53,7 @@ class Rule:
         self.regexp = regexp
 
     def __repr__(self):
-        return '<{} {} {!r}>'.format(self.id, self.token,
-                                     self.regexp)
+        return '<{} {} {!r}>'.format(self.id, self.token, self.regexp)
 
 
 def group(*literals, _re_alpha=re.compile(r'[^\W\d_]'), asbytes=False):
@@ -80,10 +78,10 @@ class ParserContext(lang_context.SourceContext, markup.MarkupExceptionContext):
     def as_markup(cls, self, *, ctx):
         me = markup.elements
 
-        prefix = '{} line={} col={}: '.format(self.name, self.start.line,
-                                              self.start.column)
-        snippet, offset = self.get_line_snippet(self.start,
-                                                max_length=80 - len(prefix))
+        prefix = '{} line={} col={}: '.format(
+            self.name, self.start.line, self.start.column)
+        snippet, offset = self.get_line_snippet(
+            self.start, max_length=80 - len(prefix))
         errpos = ' ' * (len(prefix) + offset) + '^'
         prefix += snippet + '\n'
 
@@ -157,19 +155,18 @@ class Lexer:
         self._token_stream = None
 
     def get_start_token(self):
-        '''Returns a start token or None if no start token is wanted.'''
+        """Return a start token or None if no start token is wanted."""
         return None
 
     def get_eof_token(self):
-        '''Returns an EOF token or None if no EOF token is wanted.'''
+        """Return an EOF token or None if no EOF token is wanted."""
         return None
 
     def token_from_text(self, rule_token, txt):
-        '''Given the rule_token with txt create a token.
+        """Given the rule_token with txt create a token.
 
         Update the lexer lineno, column, and start.
-        '''
-
+        """
         start_pos = SourcePoint(self.lineno, self.column, self.start)
         len_txt = len(txt)
 
@@ -189,17 +186,18 @@ class Lexer:
         self.start += len_txt
         end_pos = SourcePoint(self.lineno, self.column, self.start)
 
-        return xvalue(txt, type=rule_token, text=txt, start=start_pos,
-                      end=end_pos, filename=self.filename)
+        return xvalue(
+            txt, type=rule_token, text=txt, start=start_pos, end=end_pos,
+            filename=self.filename)
 
     def lex(self):
-        """Lexes the src.
+        """Tokenize the src.
 
         Generator. Yields tokens (as defined by the rules).
 
         May yield special start and EOF tokens.
-        May raise UnknownTokenError exception."""
-
+        May raise UnknownTokenError exception.
+        """
         src = self.inputstr
 
         start_tok = self.get_start_token()
@@ -236,16 +234,15 @@ class Lexer:
 
     def handle_error(self, txt):
         raise UnknownTokenError(
-            'Unknown token {!r} {{position}}'.format(txt),
-            line=self.lineno, col=self.column, filename=self.filename)
+            'Unknown token {!r} {{position}}'.format(txt), line=self.lineno,
+            col=self.column, filename=self.filename)
 
     def token(self):
-        '''Return the next token produced by the lexer.
+        """Return the next token produced by the lexer.
 
         The token is an xvalue with the following attributes: type,
         text, start, end, and filename.
-        '''
-
+        """
         if self._token_stream is None:
             self._token_stream = self.lex()
 

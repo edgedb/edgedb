@@ -5,9 +5,8 @@
 # See LICENSE for details.
 ##
 
-
-from . import ops
-from .base import *
-from .visitor import *
-from .transformer import *
-from .codegen import *
+from . import ops  # NOQA
+from .base import *  # NOQA
+from .visitor import *  # NOQA
+from .transformer import *  # NOQA
+from .codegen import *  # NOQA

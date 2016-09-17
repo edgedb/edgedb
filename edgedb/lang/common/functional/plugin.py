@@ -38,7 +38,8 @@ class PluginMeta(type):
 
 
           def my_generic_interface():
-              plugin = MyPluginMeta.get_plugin_by_name(__name__ + '.' + 'MyPluginA')
+              plugin = MyPluginMeta.get_plugin_by_name(
+                __name__ + '.' + 'MyPluginA')
     """
 
     def __new__(mcls, name, bases, dct, **kwargs):
@@ -60,11 +61,12 @@ class PluginMeta(type):
 
     @classmethod
     def get_plugin_by_name(mcls, name):
-        """Return a registered plugin with fully-qualified ``name``
+        """Return a registered plugin with fully-qualified ``name``.
 
         :param str name: Fully-qualified class name of the plugin to return'
 
-        :return: Plugin class, or None if no plugin with specified ``name`` was defined,
-                 or if the plugin is not derived from this metaclass.
+        :return: Plugin class, or None if no plugin with specified ``name``
+                 was defined, or if the plugin is not derived from this
+                 metaclass.
         """
         return mcls._registry.get(name)

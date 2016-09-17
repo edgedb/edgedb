@@ -5,16 +5,16 @@
 # See LICENSE for details.
 ##
 
-
 import operator
 import math
 import itertools
 from bisect import bisect_left
 from .base import Point as BasePoint, Rectangle
 
-
-__all__ = ['RectanglePacker', 'CygonRectanglePacker', 'RectanglePackingError',
-           'pack_rectangles']
+__all__ = (
+    'RectanglePacker', 'CygonRectanglePacker', 'RectanglePackingError',
+    'pack_rectangles'
+)
 
 
 class RectanglePackingError(Exception):
@@ -24,41 +24,39 @@ class RectanglePackingError(Exception):
 
 class Point(BasePoint):
     def __lt__(self, other):
-        return self.x < other.x # starting position of height slices
+        return self.x < other.x  # starting position of height slices
 
 
 class RectanglePacker:
     def __init__(self, packing_area):
         self.packing_area = packing_area
 
-
     def pack(self, rect):
         raise NotImplementedError
-
 
     @classmethod
     def pack_rectangles(cls, packing_area, rectangles):
         packer = cls(packing_area)
-        rectangles = sorted(rectangles, key=operator.attrgetter('area'), reverse=True)
+        rectangles = sorted(
+            rectangles, key=operator.attrgetter('area'), reverse=True)
         return [packer.pack(rect) for rect in rectangles]
 
 
 class CygonRectanglePacker(RectanglePacker):
     def __init__(self, packing_area):
         super().__init__(packing_area)
-        self.height_slices = [Point(0,0)]
-
+        self.height_slices = [Point(0, 0)]
 
     def pack(self, rect):
-        if (rect.width > self.packing_area.width or
-            rect.height > self.packing_area.height):
+        if (
+                rect.width > self.packing_area.width or
+                rect.height > self.packing_area.height):
             raise RectanglePackingError
 
         rect = self.place_rectangle(rect)
         self.integrate_rectangle(rect)
 
         return rect
-
 
     def place_rectangle(self, rect):
         best_slice_index = -1
@@ -68,7 +66,8 @@ class CygonRectanglePacker(RectanglePacker):
 
         left_slice_index = 0
 
-        right_slice_index = bisect_left(self.height_slices, Point(rect.width, 0))
+        right_slice_index = bisect_left(
+            self.height_slices, Point(rect.width, 0))
         if right_slice_index < 0:
             right_slice_index = ~right_slice_index
 
@@ -90,7 +89,8 @@ class CygonRectanglePacker(RectanglePacker):
             if left_slice_index >= len(self.height_slices):
                 break
 
-            right_rectangle_end = self.height_slices[left_slice_index].x + rect.width
+            right_rectangle_end = self.height_slices[
+                left_slice_index].x + rect.width
             while right_slice_index <= len(self.height_slices):
                 if right_slice_index == len(self.height_slices):
                     right_slice_start = self.packing_area.width
@@ -108,12 +108,11 @@ class CygonRectanglePacker(RectanglePacker):
         if best_slice_index == -1:
             raise RectanglePackingError
         else:
-            return rect.move(Point(self.height_slices[best_slice_index].x, best_slice_y))
-
+            return rect.move(
+                Point(self.height_slices[best_slice_index].x, best_slice_y))
 
     def integrate_rectangle(self, rect):
         left, right = rect.top_left.x, rect.top_right.x
-        width = rect.width
         bottom = rect.bottom_left.y
 
         start_slice = bisect_left(self.height_slices, Point(left, 0))
@@ -130,10 +129,12 @@ class CygonRectanglePacker(RectanglePacker):
 
         if start_slice >= len(self.height_slices):
             if right < self.packing_area.width:
-                self.height_slices.append(Point(right, first_slice_original_height))
+                self.height_slices.append(
+                    Point(right, first_slice_original_height))
         else:
-            end_slice = bisect_left(self.height_slices, Point(right,0),
-                                    start_slice, len(self.height_slices))
+            end_slice = bisect_left(
+                self.height_slices, Point(right, 0), start_slice,
+                len(self.height_slices))
 
             if end_slice > 0:
                 del self.height_slices[start_slice:end_slice]
@@ -147,13 +148,13 @@ class CygonRectanglePacker(RectanglePacker):
 
                 del self.height_slices[start_slice:end_slice]
                 if right < self.packing_area.width:
-                    self.height_slices.insert(start_slice, Point(right, return_height))
+                    self.height_slices.insert(
+                        start_slice, Point(right, return_height))
 
 
 def _greedy_pack(rectangles, min_height=None):
-    rects_by_height = sorted(rectangles,
-                             key=operator.attrgetter('height'),
-                             reverse=True)
+    rects_by_height = sorted(
+        rectangles, key=operator.attrgetter('height'), reverse=True)
 
     if min_height is None:
         min_height = min(r.height for r in rects_by_height)
@@ -189,19 +190,18 @@ def _greedy_pack(rectangles, min_height=None):
     return Rectangle(min_width, min_height, children=rects_by_height)
 
 
-def pack_rectangles(rectangles, packer_cls=CygonRectanglePacker, *, increase=0.35):
+def pack_rectangles(
+        rectangles, packer_cls=CygonRectanglePacker, *, increase=0.35):
     packed_rectangles = None
     rectangles = list(rectangles)
 
     if not rectangles:
         raise ValueError('no rectangles to pack')
     elif len(rectangles) == 1:
-        best_bounding_rect = Rectangle(rectangles[0].width,
-                                       rectangles[0].height,
-                                       children=rectangles)
+        best_bounding_rect = Rectangle(
+            rectangles[0].width, rectangles[0].height, children=rectangles)
     else:
         min_possible_area = sum(r.area for r in rectangles)
-        min_possible_width = max(r.width for r in rectangles)
         best_bounding_rect = bounding_rect = _greedy_pack(rectangles)
         width, height = bounding_rect.width, bounding_rect.height
         step = math.ceil(math.sqrt(bounding_rect.area) * increase)
@@ -212,7 +212,8 @@ def pack_rectangles(rectangles, packer_cls=CygonRectanglePacker, *, increase=0.3
             if bounding_rect.area < min_possible_area or width < min_width:
                 height += step
             try:
-                packed_rectangles = packer_cls.pack_rectangles(bounding_rect, rectangles)
+                packed_rectangles = packer_cls.pack_rectangles(
+                    bounding_rect, rectangles)
             except RectanglePackingError:
                 height += step
             else:

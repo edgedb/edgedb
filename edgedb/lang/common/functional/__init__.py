@@ -5,16 +5,15 @@
 # See LICENSE for details.
 ##
 
-
 import functools
 
-from .adapter import Adapter, AdapterError
-from .types import checktypes, ischecktypes
-from .tools import *
+from .adapter import Adapter, AdapterError  # NOQA
+from .types import checktypes, ischecktypes  # NOQA
+from .tools import *  # NOQA
 
 
 def deprecated(func=None, *, msg=None):
-    """Marks a callable as a deprecated feature.
+    """Mark a callable as a deprecated feature.
 
     Usage:
 
@@ -28,16 +27,17 @@ def deprecated(func=None, *, msg=None):
         def bar():
             ...
     """
-
     def wrap(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             w = msg
             if not w:
-                w = '{}.{} is deprecated'.format(func.__module__, func.__qualname__)
+                w = '{}.{} is deprecated'.format(
+                    func.__module__, func.__qualname__)
             import warnings
             warnings.warn(w, DeprecationWarning, stacklevel=2)
             return func(*args, **kwargs)
+
         return wrapper
 
     if func:

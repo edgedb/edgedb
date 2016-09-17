@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import bisect
 import os
 import sys
@@ -23,8 +22,9 @@ from edgedb.lang.common import lexer
 class TokenMeta(type):
     token_map = {}
 
-    def __new__(mcls, name, bases, dct, *, token=None, lextoken=None,
-                                           precedence_class=None):
+    def __new__(
+            mcls, name, bases, dct, *, token=None, lextoken=None,
+            precedence_class=None):
         result = super().__new__(mcls, name, bases, dct)
 
         if precedence_class is not None:
@@ -35,7 +35,9 @@ class TokenMeta(type):
 
         if token is None:
             if not name.startswith('T_'):
-                raise Exception('Token class names must either start with T_ or have token parameter')
+                raise Exception(
+                    'Token class names must either start with T_ or have '
+                    'a token parameter')
             token = name[2:]
 
         if lextoken is None:
@@ -66,8 +68,9 @@ class TokenMeta(type):
 
         return result
 
-    def __init__(cls, name, bases, dct, *, token=None, lextoken=None,
-                                           precedence_class=None):
+    def __init__(
+            cls, name, bases, dct, *, token=None, lextoken=None,
+            precedence_class=None):
         super().__init__(name, bases, dct)
 
     @classmethod
@@ -96,7 +99,8 @@ class NontermMeta(type):
             result.__doc__ = '%nonterm'
 
         for name, attr in result.__dict__.items():
-            if (name.startswith('reduce_') and
+            if (
+                    name.startswith('reduce_') and
                     isinstance(attr, types.FunctionType) and
                     attr.__doc__ is None):
                 tokens = name.split('_')
@@ -139,8 +143,9 @@ class ListNontermMeta(NontermMeta):
 
             tokens.append(element)
 
-            prod = (ListNonterm._reduce_list_separated if separator else
-                    ListNonterm._reduce_list)
+            prod = (
+                ListNonterm._reduce_list_separated
+                if separator else ListNonterm._reduce_list)
             dct['reduce_' + '_'.join(tokens)] = prod
             dct['reduce_' + element] = ListNonterm._reduce_el
 
@@ -184,8 +189,7 @@ class ListNonterm(Nonterm, metaclass=ListNontermMeta, element=None):
 
 
 def precedence(precedence):
-    """Decorator to set production precedence"""
-
+    """Decorator to set production precedence."""
     def decorator(func):
         func.__parsing_precedence__ = precedence.__name__
         return func
@@ -197,7 +201,9 @@ class PrecedenceMeta(type):
     token_prec_map = {}
     last = {}
 
-    def __new__(mcls, name, bases, dct, *, assoc, tokens=None, prec_group=None, rel_to_last='>'):
+    def __new__(
+            mcls, name, bases, dct, *, assoc, tokens=None, prec_group=None,
+            rel_to_last='>'):
         result = super().__new__(mcls, name, bases, dct)
 
         if name == 'Precedence':
@@ -220,14 +226,17 @@ class PrecedenceMeta(type):
                 except KeyError:
                     mcls.token_prec_map[mcls, token] = result
                 else:
-                    raise Exception('token %s has already been set precedence %s'\
-                                    % (token, existing))
+                    raise Exception(
+                        'token {} has already been set precedence {}'.format(
+                            token, existing))
 
         mcls.last[mcls, prec_group] = result
 
         return result
 
-    def __init__(cls, name, bases, dct, *, assoc, tokens=None, prec_group=None, rel_to_last='>'):
+    def __init__(
+            cls, name, bases, dct, *, assoc, tokens=None, prec_group=None,
+            rel_to_last='>'):
         super().__init__(name, bases, dct)
 
     @classmethod
@@ -260,19 +269,19 @@ class ParserContext(lang_context.SourceContext, markup.MarkupExceptionContext):
             i += len(line) + 1
 
         if self.start.line > 1:
-            ctx_line, _ = self.get_line_snippet(self.start, offset=-1,
-                                                line_offsets=line_offsets)
+            ctx_line, _ = self.get_line_snippet(
+                self.start, offset=-1, line_offsets=line_offsets)
             lines.append(ctx_line)
             line_numbers.append(self.start.line - 1)
 
-        snippet, offset = self.get_line_snippet(self.start,
-                                                line_offsets=line_offsets)
+        snippet, offset = self.get_line_snippet(
+            self.start, line_offsets=line_offsets)
         lines.append(snippet)
         line_numbers.append(self.start.line)
 
         try:
-            ctx_line, _ = self.get_line_snippet(self.start, offset=1,
-                                                line_offsets=line_offsets)
+            ctx_line, _ = self.get_line_snippet(
+                self.start, offset=1, line_offsets=line_offsets)
         except ValueError:
             pass
         else:
@@ -307,10 +316,10 @@ class ParserContext(lang_context.SourceContext, markup.MarkupExceptionContext):
 
         return linestart, lineend
 
-    def get_line_snippet(self, point, max_length=120, *, offset=0,
-                         line_offsets):
-        line_start, line_end = self._find_line(point, offset=offset,
-                                               line_offsets=line_offsets)
+    def get_line_snippet(
+            self, point, max_length=120, *, offset=0, line_offsets):
+        line_start, line_end = self._find_line(
+            point, offset=offset, line_offsets=line_offsets)
         line_len = line_end - line_start
 
         if line_len > max_length:
@@ -327,8 +336,9 @@ class ParserContext(lang_context.SourceContext, markup.MarkupExceptionContext):
 
 
 class ParserError(EdgeDBError):
-    def __init__(self, msg=None, *, hint=None, details=None, token=None,
-                 line=None, col=None, expr=None, context=None):
+    def __init__(
+            self, msg=None, *, hint=None, details=None, token=None, line=None,
+            col=None, expr=None, context=None):
         if msg is None:
             msg = 'syntax error at or near "%s"' % token
         super().__init__(msg, hint=hint, details=details)
@@ -392,25 +402,26 @@ class Parser:
                 return spec
 
         mod = self.get_parser_spec_module()
-        spec = parsing.Spec(mod,
-                            pickleFile=self.localpath(mod, "pickle"),
-                            skinny=not self.get_debug(),
-                            logFile=self.localpath(mod, "log"),
-                            verbose=self.get_debug())
+        spec = parsing.Spec(
+            mod, pickleFile=self.localpath(mod, "pickle"),
+            skinny=not self.get_debug(), logFile=self.localpath(mod, "log"),
+            verbose=self.get_debug())
 
         self.__class__.parser_spec = spec
         return spec
 
     def localpath(self, mod, type):
-        return os.path.join(os.path.dirname(mod.__file__), mod.__name__.rpartition('.')[2] + '.' + type)
+        return os.path.join(
+            os.path.dirname(mod.__file__),
+            mod.__name__.rpartition('.')[2] + '.' + type)
 
     def get_lexer(self):
-        '''Return an initialized lexer.
+        """Return an initialized lexer.
 
         The lexer must implement 'setinputstr' and 'token' methods.
         A lexer derived from edgedb.lang.common.lexer.Lexer will satisfy these
         criteria.
-        '''
+        """
         raise NotImplementedError
 
     def reset_parser(self, input):
@@ -424,9 +435,8 @@ class Parser:
         self.lexer.setinputstr(input)
 
     def process_lex_token(self, mod, tok):
-        return mod.TokenMeta.for_lex_token(tok.attrs['type'])(self.parser,
-                                                              tok.value,
-                                                              self.context(tok))
+        return mod.TokenMeta.for_lex_token(tok.attrs['type'])(
+            self.parser, tok.value, self.context(tok))
 
     def parse(self, input):
         self.reset_parser(input)
@@ -460,10 +470,14 @@ class Parser:
         name = lex.filename if lex.filename else '<string>'
 
         if tok is None:
-            position = lang_context.SourcePoint(line=lex.lineno, column=lex.column, pointer=lex.start)
-            context = ParserContext(name=name, buffer=lex.inputstr, start=position, end=position)
+            position = lang_context.SourcePoint(
+                line=lex.lineno, column=lex.column, pointer=lex.start)
+            context = ParserContext(
+                name=name, buffer=lex.inputstr, start=position, end=position)
 
         else:
-            context = ParserContext(name=name, buffer=lex.inputstr, start=tok.attrs['start'], end=tok.attrs['end'])
+            context = ParserContext(
+                name=name, buffer=lex.inputstr, start=tok.attrs['start'],
+                end=tok.attrs['end'])
 
         return context

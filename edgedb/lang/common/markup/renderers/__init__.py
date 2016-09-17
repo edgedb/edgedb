@@ -5,5 +5,4 @@
 # See LICENSE for details.
 ##
 
-
-from . import json, terminal
+from . import json, terminal  # NOQA

@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import collections
 
 from .errors import GeometryError
@@ -20,7 +19,8 @@ class Surface(GeometryContainer):
         if value is None:
             value = ()
 
-        if isinstance(value, collections.Sequence) and not isinstance(value, str):
+        if isinstance(value, collections.Sequence) and not isinstance(
+                value, str):
             result = object.__new__(cls)
 
             elements = value
@@ -28,12 +28,16 @@ class Surface(GeometryContainer):
             rings = []
 
             if not elements:
-                details = '%s must consist of at least one LinearRing' % cls.__name__
-                raise GeometryError('geometry requires more elements', details=details)
+                details = ('{} must consist of at least '
+                           'one LinearRing'.format(cls.__name__))
+                raise GeometryError(
+                    'geometry requires more elements', details=details)
 
             for element in elements:
-                is_sequence = isinstance(element, collections.Sequence) \
-                              and not isinstance(element, str)
+                is_sequence = (
+                    isinstance(element, collections.Sequence)
+                    and not isinstance(element, str)
+                )
                 if is_sequence:
                     rings.append(LinearRing(element))
 
@@ -46,8 +50,10 @@ class Surface(GeometryContainer):
                     rings.append(ring)
 
                 else:
-                    details = '%s must consist of LinearRing elements' % cls.__name__
-                    raise GeometryError('invalid geometry element', details=details)
+                    details = ('{} must consist of LinearRing '
+                               'elements'.format(cls.__name__))
+                    raise GeometryError(
+                        'invalid geometry element', details=details)
 
                 dimensions = cls._validate_dimensionality(rings, dimensions)
 
@@ -69,10 +75,12 @@ class Surface(GeometryContainer):
                 dimensions = element.dimensions
             else:
                 if dimensions != element.dimensions:
-                    details = 'all rings in a %s must have the same dimensionality' \
-                              % cls.__name__
-                    raise GeometryError('cannot mix dimensionality in a geometry',
-                                        details=details)
+                    details = (
+                        'all rings in a {} must have the '
+                        'same dimensionality'.format(cls.__name__))
+                    raise GeometryError(
+                        'cannot mix dimensionality in a geometry',
+                        details=details)
 
         return dimensions
 

@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import types
 import inspect
 import warnings
@@ -14,8 +13,7 @@ import itertools
 from edgedb.lang.common.exceptions import EdgeDBError
 from . import tools
 
-
-__all__ = ['checktypes']
+__all__ = 'checktypes',
 
 
 class ChecktypeExempt:
@@ -40,16 +38,19 @@ class MetaChecker(type):
             MetaChecker.registry.append(cls)
 
         if '__slots__' not in dct:
-            raise CheckerError('Invalid type checker {}: missing __slots__'.format(name))
+            raise CheckerError(
+                'Invalid type checker {}: missing __slots__'.format(name))
 
         if not isinstance(dct['__slots__'], tuple):
-            raise CheckerError('Invalid type checker %s: __slots__ must be a tuple'.format(name))
+            raise CheckerError(
+                'Invalid type checker %s: __slots__ must be a tuple'.format(
+                    name))
 
         return cls
 
 
 class Checker(metaclass=MetaChecker):
-    __slots__ = ('target',)
+    __slots__ = ('target', )
 
     def __init__(self, target=None):
         self.target = target
@@ -63,7 +64,8 @@ class Checker(metaclass=MetaChecker):
             if checker.can_handle(target):
                 return checker(target)
 
-        raise CheckerError('Unable to find proper checker for {!r}'.format(target))
+        raise CheckerError(
+            'Unable to find proper checker for {!r}'.format(target))
 
 
 class FunctionalChecker(Checker):
@@ -71,7 +73,8 @@ class FunctionalChecker(Checker):
 
     def check(self, value, value_name):
         if not self.target(value):
-            raise TypeError('unexpected value {!r} for {}'.format(value, value_name))
+            raise TypeError(
+                'unexpected value {!r} for {}'.format(value, value_name))
 
     @classmethod
     def can_handle(cls, target):
@@ -79,7 +82,7 @@ class FunctionalChecker(Checker):
 
 
 class TupleChecker(Checker):
-    __slots__ = ('checkers',)
+    __slots__ = ('checkers', )
 
     def __init__(self, targets):
         super().__init__(targets)
@@ -96,7 +99,8 @@ class TupleChecker(Checker):
             else:
                 return
 
-        raise TypeError('unexpected value {!r} for {}'.format(value, value_name))
+        raise TypeError(
+            'unexpected value {!r} for {}'.format(value, value_name))
 
     @classmethod
     def can_handle(cls, target):
@@ -108,9 +112,10 @@ class TypeChecker(Checker):
 
     def check(self, value, value_name):
         if not isinstance(value, self.target):
-            raise TypeError('unexpected value {!r} of type {!r} for {}, ' \
-                            'expected value type is {!r}'. \
-                            format(value, type(value), value_name, self.target))
+            raise TypeError(
+                'unexpected value {!r} of type {!r} for {}, '
+                'expected value type is {!r}'.format(
+                    value, type(value), value_name, self.target))
 
     @classmethod
     def can_handle(cls, target):
@@ -118,7 +123,7 @@ class TypeChecker(Checker):
 
 
 class CombinedChecker(Checker):
-    __slots__ = ('checkers',)
+    __slots__ = ('checkers', )
 
     def __init__(self, *checkers):
         assert all(isinstance(checker, Checker) for checker in checkers)
@@ -136,12 +141,15 @@ class FunctionValidator:
     def repr(cls, value):
         string = repr(value)
         if len(string) >= cls.MAX_REPR_LEN:
-            string = string[:cls.MAX_REPR_LEN-3] + '...'
+            string = string[:cls.MAX_REPR_LEN - 3] + '...'
         return string
 
     @classmethod
     def get_checkers(cls, func, args_spec):
-        return {arg: Checker.get(target) for arg, target in args_spec.annotations.items()}
+        return {
+            arg: Checker.get(target)
+            for arg, target in args_spec.annotations.items()
+        }
 
     @classmethod
     def check_value(cls, checker, value, func, arg_name):
@@ -152,26 +160,31 @@ class FunctionValidator:
     def check_defaults(cls, func, args_spec, checkers):
         defaults_checks = []
         if args_spec.defaults:
-            defaults_checks.append(zip(reversed(args_spec.args), reversed(args_spec.defaults)))
+            defaults_checks.append(
+                zip(reversed(args_spec.args), reversed(args_spec.defaults)))
         if args_spec.kwonlydefaults:
             defaults_checks.append(args_spec.kwonlydefaults.items())
 
         if defaults_checks:
             for arg_name, arg_default in itertools.chain(*defaults_checks):
                 if arg_name in checkers:
-                    cls.check_value(checkers[arg_name], arg_default, func, arg_name)
+                    cls.check_value(
+                        checkers[arg_name], arg_default, func, arg_name)
 
     @classmethod
     def validate_kwonly(cls, func, args, args_spec):
         if len(args) > len(args_spec):
-            raise TypeError('%s() takes exactly %d positional argument(s) (%d given)' % \
-                                            (func.__name__, len(args_spec.args), len(args)))
+            raise TypeError(
+                '{}() takes exactly {} positional argument(s) '
+                '({} given)'.format(
+                    func.__name__, len(args_spec.args), len(args)))
 
     @classmethod
     def check_args(cls, func, args, kwargs, args_spec, checkers):
         cls.validate_kwonly(func, args, args_spec)
 
-        for arg_name, arg_value in itertools.chain(zip(args_spec.args, args), kwargs.items()):
+        for arg_name, arg_value in itertools.chain(
+                zip(args_spec.args, args), kwargs.items()):
             if arg_name in checkers:
                 cls.check_value(checkers[arg_name], arg_value, func, arg_name)
 
@@ -207,8 +220,9 @@ class FunctionValidator:
         assert inspect.isclass(target_cls)
 
         for name, object in target_cls.__dict__.items():
-            patched = tools.apply_decorator(object, decorate_function=cls.checktypes_function,
-                                            decorate_class=cls.checktypes_class)
+            patched = tools.apply_decorator(
+                object, decorate_function=cls.checktypes_function,
+                decorate_class=cls.checktypes_class)
             if patched is not object:
                 setattr(target_cls, name, patched)
 
@@ -221,12 +235,14 @@ class checktypes:
             if inspect.isfunction(func):
                 args_spec = tools.get_argsspec(func)
                 if not args_spec.annotations:
-                    warnings.warn('No annotation for function "%s" while using @checktypes on it' % \
-                                                                                        func.__name__)
+                    warnings.warn(
+                        'No annotation for function "{}" while using '
+                        '@checktypes on it'.format(func.__name__))
                     return func
 
-            return tools.apply_decorator(func, decorate_function=FunctionValidator.checktypes_function,
-                                         decorate_class=FunctionValidator.checktypes_class)
+            return tools.apply_decorator(
+                func, decorate_function=FunctionValidator.checktypes_function,
+                decorate_class=FunctionValidator.checktypes_class)
 
         if func is None:
             if __debug__ or force:
@@ -239,5 +255,5 @@ class checktypes:
 
 
 @checktypes
-def ischecktypes(func:types.FunctionType):
+def ischecktypes(func: types.FunctionType):
     return hasattr(func, '_checktypes_') and func._checktypes_ is True

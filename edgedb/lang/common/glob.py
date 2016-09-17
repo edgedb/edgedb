@@ -5,65 +5,57 @@
 # See LICENSE for details.
 ##
 
-
 import re
 
 
 def _translate_pattern(pattern):
     pattern = re.escape(pattern)
 
-    pattern = (pattern.replace(r'\*\*\.', r'(|.+\.)')
-                      .replace(r'\.\*\*', r'(|\..+)')
-                      .replace(r'\*\*', r'.*')
-                      .replace(r'\*\.', r'(|[^\.]+\.)')
-                      .replace(r'\.\*', r'(|\.[^\.]+)')
-                      .replace(r'\*', r'[^\.]*')
-
-                      .replace(r'\+\+\.', r'.+\.')
-                      .replace(r'\.\+\+', r'\..+')
-                      .replace(r'\+\+', r'.+')
-                      .replace(r'\+\.', r'[^\.]+\.')
-                      .replace(r'\.\+', r'\.[^\.]+')
-                      .replace(r'\+', r'[^\.]+'))
+    pattern = (
+        pattern.replace(r'\*\*\.', r'(|.+\.)').replace(r'\.\*\*', r'(|\..+)')
+        .replace(r'\*\*', r'.*').replace(r'\*\.', r'(|[^\.]+\.)')
+        .replace(r'\.\*', r'(|\.[^\.]+)').replace(r'\*', r'[^\.]*')
+        .replace(r'\+\+\.', r'.+\.').replace(r'\.\+\+', r'\..+')
+        .replace(r'\+\+', r'.+').replace(r'\+\.', r'[^\.]+\.')
+        .replace(r'\.\+', r'\.[^\.]+').replace(r'\+', r'[^\.]+'))
 
     return '^' + pattern + '$'
 
 
 class _MatchMixin:
     def match(self, string):
-        """Returns True if the specified string can be matched by this pattern"""
+        """Check if the specified string is matched by this pattern."""
         return bool(self._pattern.match(string))
 
     def match_all(self, strings):
-        """Returns True if all specified strings can be matched by this pattern"""
+        """Check if all specified strings are matched by this pattern."""
         return all(self._pattern.match(s) for s in strings)
 
     def match_any(self, strings):
-        """Returns True if any of the specified strings can be matched by this pattern"""
+        """Check if any of the specified strings are matched."""
         return any(self._pattern.match(s) for s in strings)
 
 
 class ModuleGlobPattern(_MatchMixin):
     """Matches module names against the specified pattern.
 
-       The following are the matching rules:
+    The following are the matching rules:
 
-          **.    - empty string or any string ending with a dot
-          .**    - empty string or any string beginning with a dot
-          **     - any string (including zero-length)
-          *.     - empty string or any string before the first dot (dot included)
-          .*     - empty string or any string after the dot and before the
-                   next dot (first dot included)
-          *      - any string not including a dot (including zero-length)
+      **.    - empty string or any string ending with a dot
+      .**    - empty string or any string beginning with a dot
+      **     - any string (including zero-length)
+      *.     - empty string or any string before the first dot (dot included)
+      .*     - empty string or any string after the dot and before the
+               next dot (first dot included)
+      *      - any string not including a dot (including zero-length)
 
-          ++.    - any string ending with a dot
-          .++    - any string beginning with a dot
-          ++     - any non zero-length string
-          +.     - any string before the first dot (dot included)
-          .+     - any string after the dot and before the next dot
-                   (first dot included)
-          +      - any non zero-length string not including a dot
-
+      ++.    - any string ending with a dot
+      .++    - any string beginning with a dot
+      ++     - any non zero-length string
+      +.     - any string before the first dot (dot included)
+      .+     - any string after the dot and before the next dot
+               (first dot included)
+      +      - any non zero-length string not including a dot
     """
 
     def __init__(self, pattern):
@@ -122,7 +114,7 @@ class ModuleGlobPatternSet(frozenset, _MatchMixin):
 
     @property
     def is_universal(self):
-        """True if this pattern set matches any string"""
+        """Return True if this pattern set matches any string."""
         return self._is_universal
 
     def __mm_serialize__(self):

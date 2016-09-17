@@ -5,6 +5,5 @@
 # See LICENSE for details.
 ##
 
-
-from .base import *
-from .packer import *
+from .base import *  # NOQA
+from .packer import *  # NOQA

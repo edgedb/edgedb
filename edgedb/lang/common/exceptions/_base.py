@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import collections
 
 
@@ -27,8 +26,9 @@ def add_context(ex, context):
 
     cls = context.__class__
     if cls in contexts:
-        raise ValueError('context {}.{} is already present in '
-                         'exception'.format(cls.__module__, cls.__name__))
+        raise ValueError(
+            'context {}.{} is already present in '
+            'exception'.format(cls.__module__, cls.__name__))
 
     contexts[cls] = context
 
@@ -43,8 +43,9 @@ def get_context(ex, context_class):
     try:
         return contexts[context_class]
     except KeyError as ex:
-        raise LookupError('{} context class is not '
-                          'found'.format(context_class)) from ex
+        raise LookupError(
+            '{} context class is not '
+            'found'.format(context_class)) from ex
 
 
 def iter_contexts(ex, ctx_class=None):
@@ -53,8 +54,9 @@ def iter_contexts(ex, ctx_class=None):
         return iter(contexts.values())
     else:
         assert issubclass(ctx_class, ExceptionContext)
-        return (context for context in contexts.values()
-                if isinstance(context, ctx_class))
+        return (
+            context for context in contexts.values()
+            if isinstance(context, ctx_class))
 
 
 class EdgeDBErrorMeta(type):
@@ -65,7 +67,7 @@ class EdgeDBErrorMeta(type):
 
         cls = super().__new__(mcls, name, bases, dct)
         if cls.__module__ == 'edgedb.server.exceptions':
-            __all__ += (name,)
+            __all__ += (name, )
 
         code = dct.get('code')
         if code is not None:
@@ -110,8 +112,8 @@ class MultiError(EdgeDBError):
         self.errors = errors
 
         if msg is None:
-            msg = '\n'.join('{}: {}'.format(type(ex).__name__, ex)
-                            for ex in self.errors)
+            msg = '\n'.join(
+                '{}: {}'.format(type(ex).__name__, ex) for ex in self.errors)
 
         super().__init__(msg)
 

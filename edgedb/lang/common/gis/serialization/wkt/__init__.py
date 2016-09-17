@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 from edgedb.lang.common import parsing, debug
 from .errors import WKTSyntaxError
 from ..base import Serializer, SerializerError

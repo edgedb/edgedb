@@ -14,9 +14,9 @@ class Adapter(type):
     adapters = {}
     instance_adapters = {}
 
-    def __new__(mcls, name, bases, clsdict, *, adapts=None,
-                      adapts_instances_of=None, pure=False,
-                      adapterargs=None, **kwargs):
+    def __new__(
+            mcls, name, bases, clsdict, *, adapts=None,
+            adapts_instances_of=None, pure=False, adapterargs=None, **kwargs):
 
         if adapts is not None and adapts_instances_of is not None:
             msg = 'adapter class: adapts and adapts_instances_of args are ' + \
@@ -26,7 +26,7 @@ class Adapter(type):
         collection = None
 
         if adapts is not None and not pure:
-            bases = bases + (adapts,)
+            bases = bases + (adapts, )
 
         if adapts_instances_of is not None:
             pure = True
@@ -51,9 +51,9 @@ class Adapter(type):
         result.__sx_adaptee__ = adapts
         return result
 
-    def __init__(cls, name, bases, clsdict, *, adapts=None,
-                      adapts_instances_of=None, pure=False,
-                      adapterargs=None, **kwargs):
+    def __init__(
+            cls, name, bases, clsdict, *, adapts=None,
+            adapts_instances_of=None, pure=False, adapterargs=None, **kwargs):
         super().__init__(name, bases, clsdict, **kwargs)
 
     @classmethod
@@ -113,9 +113,9 @@ class Adapter(type):
     def adapt(mcls, obj):
         adapter = mcls.get_adapter(obj.__class__)
         if adapter is None:
-            raise AdapterError('could not find {}.{} adapter for {}'.format(
-                               mcls.__module__, mcls.__name__,
-                               obj.__class__.__name__))
+            raise AdapterError(
+                'could not find {}.{} adapter for {}'.format(
+                    mcls.__module__, mcls.__name__, obj.__class__.__name__))
         elif adapter is not obj.__class__:
             return adapter.adapt(obj)
         else:
@@ -136,13 +136,13 @@ class MultiAdapter(Adapter):
     @classmethod
     def register_adapter(mcls, registry, adaptee, adapter):
         try:
-            registry[adaptee] += (adapter,)
+            registry[adaptee] += (adapter, )
         except KeyError:
-            registry[adaptee] = (adapter,)
+            registry[adaptee] = (adapter, )
 
     @classmethod
     def match_adapter(mcls, obj, adaptee, adapter):
         if issubclass(obj, adapter) and obj not in adapter:
-            return (obj,)
+            return (obj, )
         elif issubclass(obj, adaptee):
             return adapter

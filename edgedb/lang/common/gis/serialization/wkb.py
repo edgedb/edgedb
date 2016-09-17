@@ -5,14 +5,12 @@
 # See LICENSE for details.
 ##
 
-
 import binascii
 import struct
 import types
 from postgresql.python import structlib
 
 from .base import Serializer, SerializerError
-
 
 GEOMETRYTYPE = 0
 POINTTYPE = 1
@@ -41,13 +39,18 @@ WKBBBOXFLAG = 0x10000000
 def _mk_pack(x, byteorder='!'):
     s = struct.Struct(byteorder + x)
     if len(x) > 1:
-        def pack(y, p = s.pack):
+
+        def pack(y, p=s.pack):
             return p(*y)
+
         return (pack, s.unpack_from)
     else:
-        def unpack(y, p = s.unpack_from):
+
+        def unpack(y, p=s.unpack_from):
             return p(y)[0]
+
         return (s.pack, unpack)
+
 
 def mk_pack(x, width, byteorder='!'):
     pack, unpack = _mk_pack(x, byteorder)
@@ -62,6 +65,7 @@ def mk_pack(x, width, byteorder='!'):
 
     return (pack, _unpack)
 
+
 byte_pack, byte_unpack = mk_pack('B', 1)
 uint32_pack_le, uint32_unpack_le = mk_pack('I', 4, '<')
 uint32_pack_be, uint32_unpack_be = mk_pack('I', 4, '>')
@@ -75,7 +79,9 @@ class IOBase:
             return
 
         if byteorder not in ('<', '>'):
-            raise ValueError('invalid byteorder: %s, expected either "<" or ">"' % byteorder)
+            raise ValueError(
+                'invalid byteorder: %s, expected either "<" or ">"' %
+                byteorder)
         self._byteorder = byteorder
 
     def get_byteorder(self):
@@ -101,14 +107,11 @@ class Unpacker(IOBase):
             self.double_unpack = types.MethodType(double_unpack_le, self)
 
 
-
 class EWKBParser:
-    dimensionality_map = {
-        (False, False): ('x', 'y', None, None),
-        (True, False): ('x', 'y', 'z', None),
-        (False, True): ('x', 'y', None, 'm'),
-        (True, True): ('x', 'y', 'z', 'm'),
-    }
+    dimensionality_map = {(False, False): ('x', 'y', None, None),
+                          (True, False): ('x', 'y', 'z', None),
+                          (False, True): ('x', 'y', None, 'm'),
+                          (True, True): ('x', 'y', 'z', 'm'), }
 
     def __init__(self, factory):
         self.factory = factory
@@ -120,11 +123,11 @@ class EWKBParser:
             MULTILINETYPE: self.parse_multiline,
             MULTIPOLYGONTYPE: self.parse_multipolygon,
             COLLECTIONTYPE: self.parse_collection,
-            #CIRCSTRINGTYPE: self.parse_circstring,
-            #COMPOUNDTYPE: self.parse_compound,
-            #CURVEPOLYTYPE: self.parse_curvepoly,
-            #MULTICURVETYPE: self.parse_milticurve,
-            #MULTISURFACETYPE: self.parse_multisurface
+            #  CIRCSTRINGTYPE: self.parse_circstring,
+            #  COMPOUNDTYPE: self.parse_compound,
+            #  CURVEPOLYTYPE: self.parse_curvepoly,
+            #  MULTICURVETYPE: self.parse_milticurve,
+            #  MULTISURFACETYPE: self.parse_multisurface
         }
 
     def parse(self, data):
@@ -146,12 +149,16 @@ class EWKBParser:
         handler = self._handlers.get(geotype)
 
         if handler is None:
-            raise ValueError('unexpected geotype (%d) in EWKB data at offset %d' \
-                              % (geotype, unpacker.get_offset()))
+            raise ValueError(
+                'unexpected geotype ({}) in EWKB data at offset {}'.format(
+                    geotype, unpacker.get_offset()))
 
-        return handler(unpacker, z_dimension=z_dimension, m_dimension=m_dimension, srid=srid)
+        return handler(
+            unpacker, z_dimension=z_dimension, m_dimension=m_dimension,
+            srid=srid)
 
-    def parse_point(self, unpacker, z_dimension=False, m_dimension=False, srid=None):
+    def parse_point(
+            self, unpacker, z_dimension=False, m_dimension=False, srid=None):
         coords = [unpacker.double_unpack(), unpacker.double_unpack()]
 
         dimensions = self.dimensionality_map[z_dimension, m_dimension]
@@ -162,10 +169,11 @@ class EWKBParser:
         if m_dimension:
             coords.append(unpacker.double_unpack())
 
-        return self.factory.new_node('POINT', srid=srid, values=tuple(coords),
-                                     dimensions=dimensions)
+        return self.factory.new_node(
+            'POINT', srid=srid, values=tuple(coords), dimensions=dimensions)
 
-    def parse_line(self, unpacker, z_dimension=False, m_dimension=False, srid=None):
+    def parse_line(
+            self, unpacker, z_dimension=False, m_dimension=False, srid=None):
         num_points = unpacker.uint32_unpack()
 
         points = []
@@ -174,12 +182,13 @@ class EWKBParser:
             points.append(point)
 
         dimensions = self.dimensionality_map[z_dimension, m_dimension]
-        line_string = self.factory.new_node(type='LINESTRING', values=points, dimensions=dimensions,
-                                            srid=srid)
+        line_string = self.factory.new_node(
+            type='LINESTRING', values=points, dimensions=dimensions, srid=srid)
 
         return line_string
 
-    def parse_polygon(self, unpacker, z_dimension=False, m_dimension=False, srid=None):
+    def parse_polygon(
+            self, unpacker, z_dimension=False, m_dimension=False, srid=None):
         num_rings = unpacker.uint32_unpack()
 
         rings = []
@@ -188,21 +197,29 @@ class EWKBParser:
             rings.append(ring)
 
         dimensions = self.dimensionality_map[z_dimension, m_dimension]
-        polygon = self.factory.new_node('POLYGON', srid=srid, values=tuple(rings),
-                                        dimensions=dimensions)
+        polygon = self.factory.new_node(
+            'POLYGON', srid=srid, values=tuple(rings), dimensions=dimensions)
 
         return polygon
 
-    def parse_multipoint(self, unpacker, z_dimension=False, m_dimension=False, srid=None):
-        return self.parse_collection(unpacker, z_dimension, m_dimension, srid, type=MULTIPOINTTYPE)
+    def parse_multipoint(
+            self, unpacker, z_dimension=False, m_dimension=False, srid=None):
+        return self.parse_collection(
+            unpacker, z_dimension, m_dimension, srid, type=MULTIPOINTTYPE)
 
-    def parse_multiline(self, unpacker, z_dimension=False, m_dimension=False, srid=None):
-        return self.parse_collection(unpacker, z_dimension, m_dimension, srid, type=MULTILINETYPE)
+    def parse_multiline(
+            self, unpacker, z_dimension=False, m_dimension=False, srid=None):
+        return self.parse_collection(
+            unpacker, z_dimension, m_dimension, srid, type=MULTILINETYPE)
 
-    def parse_multipolygon(self, unpacker, z_dimension=False, m_dimension=False, srid=None):
-        return self.parse_collection(unpacker, z_dimension, m_dimension, srid, type=MULTIPOLYGONTYPE)
+    def parse_multipolygon(
+            self, unpacker, z_dimension=False, m_dimension=False, srid=None):
+        return self.parse_collection(
+            unpacker, z_dimension, m_dimension, srid, type=MULTIPOLYGONTYPE)
 
-    def parse_collection(self, unpacker, z_dimension=False, m_dimension=False, srid=None, type=COLLECTIONTYPE):
+    def parse_collection(
+            self, unpacker, z_dimension=False, m_dimension=False, srid=None,
+            type=COLLECTIONTYPE):
         num_elems = unpacker.uint32_unpack()
 
         geometry = self.factory.new_node(type, srid=srid)
@@ -225,11 +242,11 @@ class EWKBPacker:
             MULTILINETYPE: self.write_multiline,
             MULTIPOLYGONTYPE: self.write_multipolygon,
             COLLECTIONTYPE: self.write_collection,
-            #CIRCSTRINGTYPE: self.parse_circstring,
-            #COMPOUNDTYPE: self.parse_compound,
-            #CURVEPOLYTYPE: self.parse_curvepoly,
-            #MULTICURVETYPE: self.parse_milticurve,
-            #MULTISURFACETYPE: self.parse_multisurface
+            #  CIRCSTRINGTYPE: self.parse_circstring,
+            #  COMPOUNDTYPE: self.parse_compound,
+            #  CURVEPOLYTYPE: self.parse_curvepoly,
+            #  MULTICURVETYPE: self.parse_milticurve,
+            #  MULTISURFACETYPE: self.parse_multisurface
         }
 
     def pack(self, geometry):

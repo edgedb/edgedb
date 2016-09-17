@@ -5,11 +5,10 @@
 # See LICENSE for details.
 ##
 
-
 import sys
 
 from . import elements, serializer, renderers
-from .serializer import serialize, Context
+from .serializer import serialize
 from .serializer import base as _base_serializer
 from edgedb.lang.common.exceptions import ExceptionContext as _ExceptionContext
 from edgedb.lang.common import abc
@@ -56,7 +55,7 @@ def dump(*objs, header=None, file=None, trim=True):
         _dump(markup, None, file)
 
 
-def dump_code(code:str, *, lexer='python', header=None, file=None):
+def dump_code(code: str, *, lexer='python', header=None, file=None):
     markup = serializer.serialize_code(code, lexer=lexer)
     _dump(markup, header, file)
 

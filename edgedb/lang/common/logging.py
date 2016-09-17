@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import contextlib
 import logging
 import time
@@ -13,8 +12,7 @@ import time
 
 @contextlib.contextmanager
 def log_time(logger, msg, *, level=logging.DEBUG, **kwargs):
-    """
-    Use 'log_time' to time and log about some process:
+    """Use 'log_time' to time and log about some process.
 
     .. code-block:: python
 

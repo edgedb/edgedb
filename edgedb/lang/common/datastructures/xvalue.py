@@ -7,9 +7,7 @@
 
 
 class xvalue:
-    """xvalue is a "rich" value that can have an arbitrary set of additional
-    attributes attached to it."""
-
+    """A "rich" value with an arbitrary set of additional attributes."""
 
     __slots__ = ('value', 'attrs')
 

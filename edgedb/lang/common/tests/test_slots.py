@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 from edgedb.lang.common import slots
 from edgedb.lang.common.debug import assert_raises
 
@@ -14,27 +13,36 @@ class TestUtilsSlotsMeta:
     def test_utils_slots_meta_1(self):
         for mcls in (slots.SlotsAbstractMeta, slots.SlotsMeta):
             with assert_raises(TypeError, error_re='must have __slots__'):
+
                 class Foo(metaclass=mcls):
                     pass
 
             with assert_raises(TypeError, error_re='must be a tuple'):
-                class Foo(metaclass=mcls):
+
+                class Foo(metaclass=mcls):  # NOQA
                     __slots__ = ('foo')
 
-            class Foo(metaclass=mcls):
+            class Foo(metaclass=mcls):  # NOQA
                 __slots__ = ()
 
             with assert_raises(TypeError, error_re='must have __slots__'):
+
                 class Bar(Foo):
                     pass
 
             with assert_raises(TypeError, error_re='must be a tuple'):
-                class Bar(Foo):
+
+                class Bar(Foo):  # NOQA
                     __slots__ = 'foo'
 
     def test_utils_slots_meta_2(self):
-        class A(metaclass=slots.SlotsMeta): __slots__ = ('a',)
-        class B(A): __slots__ = ('b',)
+        class A(metaclass=slots.SlotsMeta):
+            __slots__ = ('a', )
+
+        class B(A):
+            __slots__ = ('b', )
 
         with assert_raises(TypeError, error_re='intersection'):
-            class C(B): __slots__ = ('a',)
+
+            class C(B):
+                __slots__ = ('a', )

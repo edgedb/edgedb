@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import ctypes
 import ctypes.util
 import os
@@ -22,7 +21,8 @@ MAGIC_MIME = 0x000010
 
 
 def _find_libmagic():
-    lib = ctypes.util.find_library('magic') or ctypes.util.find_library('magic1')
+    lib = ctypes.util.find_library('magic') or ctypes.util.find_library(
+        'magic1')
 
     if lib:
         return ctypes.cdll.LoadLibrary(lib)
@@ -33,12 +33,12 @@ def _find_libmagic():
 
 class _MagicSet(ctypes.Structure):
     pass
+
+
 _MagicSet._fields_ = []
 _magic_t = ctypes.POINTER(_MagicSet)
 
-
 _libmagic = _find_libmagic()
-
 
 _magic_error = _libmagic.magic_error
 _magic_error.argtypes = [_magic_t]
@@ -127,7 +127,9 @@ def get_mime_from_path(path):
     cookie = _init()
 
     try:
-        result = _magic_file(cookie, path.encode(sys.getfilesystemencoding())).decode('latin-1')
+        result = _magic_file(
+            cookie,
+            path.encode(sys.getfilesystemencoding())).decode('latin-1')
     finally:
         _fini(cookie)
 

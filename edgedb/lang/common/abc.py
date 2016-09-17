@@ -5,19 +5,20 @@
 # See LICENSE for details.
 ##
 
+__all__ = (
+    'AbstractMeta', 'abstractmethod', 'abstractproperty',
+    'abstractclassmethod', 'abstractstaticmethod', 'abstractattribute'
+)
 
-__all__ = ['AbstractMeta', 'abstractmethod', 'abstractproperty',
-           'abstractclassmethod', 'abstractstaticmethod',
-           'abstractattribute']
-
-from abc import abstractmethod, abstractproperty, abstractclassmethod, abstractstaticmethod
+from abc import (abstractmethod, abstractproperty, abstractclassmethod,
+                 abstractstaticmethod)
 
 
 class AbstractMeta(type):
-    """
-    Lightweight re-implementation of abc.ABCMeta metaclass, that does not add
-    __instancecheck__ and __subclasscheck__ methods, which can cut down
-    performance significantly in some cases.
+    """Lightweight re-implementation of abc.ABCMeta metaclass.
+
+    This class does not add __instancecheck__ and __subclasscheck__ methods,
+    which can cut down performance significantly in some cases.
 
     Supports standard @abstractmethod and @abstractproperty decorators.
     """
@@ -25,8 +26,8 @@ class AbstractMeta(type):
     def __init__(cls, name, bases, dct):
         super().__init__(name, bases, dct)
 
-        abstracts = {name for name, value in dct.items() \
-                                                if getattr(value, '__isabstractmethod__', False)}
+        abstracts = {name for name, value in dct.items()
+                     if getattr(value, '__isabstractmethod__', False)}
 
         try:
             abstracts |= getattr(cls, '__abstractmethods__')
@@ -50,5 +51,8 @@ class abstractattribute:
 
 
 _empty_set = frozenset()
+
+
 def push_abstract(cls, *names):
-    cls.__abstractmethods__ = frozenset(set(names) | getattr(cls, '__abstractmethods__', _empty_set))
+    cls.__abstractmethods__ = frozenset(
+        set(names) | getattr(cls, '__abstractmethods__', _empty_set))

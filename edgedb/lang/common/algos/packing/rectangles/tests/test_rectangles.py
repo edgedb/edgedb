@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 from edgedb.lang.common.algos.packing.rectangles import Point, Rectangle
 
 
@@ -40,7 +39,8 @@ class TestRectangles:
         rect.add_child(Rectangle(100, 10, data='child_rect2'))
         rect = rect.move(Point(10, 20))
         assert rect.data == 'rect1'
-        assert {c.data for c in rect.children} == {'child_rect1', 'child_rect2'}
+        assert {c.data
+                for c in rect.children} == {'child_rect1', 'child_rect2'}
 
     def test_rectangles_children(self):
         children = (Rectangle(20, 20, Point(1, 2)), Rectangle(1, 1))
@@ -52,9 +52,10 @@ class TestRectangles:
         assert rect.move(Point(1, 1)) == Rectangle(50, 50, Point(1, 1))
 
     def test_rectangles_moving2(self):
-        children = (Rectangle(20, 20, Point(1, 2)), Rectangle(1, 1, Point(1, 1)))
+        children = (
+            Rectangle(20, 20, Point(1, 2)), Rectangle(1, 1, Point(1, 1)))
         rect = Rectangle(100, 100, Point(1, 1), children=children)
         rect = rect.move(Point(20, 40))
         assert rect == Rectangle(100, 100, Point(20, 40))
-        assert rect.children == set([Rectangle(20, 20, Point(20, 41)),
-                                     Rectangle(1, 1, Point(20, 40))])
+        assert rect.children == set(
+            [Rectangle(20, 20, Point(20, 41)), Rectangle(1, 1, Point(20, 40))])

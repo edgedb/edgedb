@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 from .geometry import Geometry, GeometryError
 
 
@@ -13,13 +12,17 @@ class Point(Geometry):
     geo_class_id = 1
     geo_class_name = 'Point'
 
-    def __new__(cls, value=None, *, x=None, y=None, z=None, m=None, srid=0, dimensions=None):
+    def __new__(
+            cls, value=None, *, x=None, y=None, z=None, m=None, srid=0,
+            dimensions=None):
         result = None
 
         if value is not None:
-            if x is not None or y is not None or z is not None or m is not None:
-                raise TypeError('geometry can either be specified by a single value or '
-                                'separate coordinates, not both')
+            if (x is not None or y is not None or
+                    z is not None or m is not None):
+                raise TypeError(
+                    'geometry can either be specified by a single value or '
+                    'separate coordinates, not both')
         else:
             if dimensions:
                 value = (locals()[c] for c in dimensions if c is not None)
@@ -51,8 +54,10 @@ class Point(Geometry):
 
             result._is_empty = x is None
             result._dimensions = tuple(dimensions)
-            result._nonempty_dimensions = tuple(d for d in dimensions if d is not None)
-            result.x, result.y, result.z, result.m, result.srid = x, y, z, m, srid
+            result._nonempty_dimensions = \
+                tuple(d for d in dimensions if d is not None)
+            result.x, result.y, result.z, result.m, result.srid = \
+                x, y, z, m, srid
 
         return result
 

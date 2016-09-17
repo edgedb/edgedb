@@ -5,9 +5,7 @@
 # See LICENSE for details.
 ##
 
-
-"""Fixed-exponent decimal and cascaded decimal context implementation"""
-
+"""Fixed-exponent decimal and cascaded decimal context implementation."""
 
 import decimal
 import threading
@@ -17,22 +15,18 @@ local = threading.local()
 if hasattr(local, '__sx_decimal_cascaded_contexts__'):
     del local.__sx_decimal_cascaded_contexts__
 
-
 _signals = (
     decimal.Clamped, decimal.DivisionByZero, decimal.Inexact, decimal.Overflow,
-    decimal.Rounded, decimal.Underflow, decimal.InvalidOperation, decimal.Subnormal,
-    decimal.FloatOperation
-)
+    decimal.Rounded, decimal.Underflow, decimal.InvalidOperation,
+    decimal.Subnormal, decimal.FloatOperation)
 
 
 class DecimalContext(decimal.Context):
     zero_flags = dict.fromkeys(_signals, 0)
 
-    def __init__(self, prec=None, rounding=None,
-                 traps=None, flags=None,
-                 Emin=None, Emax=None,
-                 capitals=None, _clamp=0,
-                 _ignored_flags=None):
+    def __init__(
+            self, prec=None, rounding=None, traps=None, flags=None, Emin=None,
+            Emax=None, capitals=None, _clamp=0, _ignored_flags=None):
 
         if _ignored_flags is None:
             _ignored_flags = []
@@ -51,30 +45,35 @@ class DecimalContext(decimal.Context):
         self._ignored_flags = _ignored_flags
         self.traps = traps
         self.prec = prec if prec is not None else decimal.DefaultContext.prec
-        self.rounding = rounding if rounding is not None else decimal.DefaultContext.rounding
+        self.rounding = rounding if rounding is not None \
+            else decimal.DefaultContext.rounding
         self.Emin = Emin if Emin is not None else decimal.DefaultContext.Emin
         self.Emax = Emax if Emax is not None else decimal.DefaultContext.Emax
-        self.capitals = capitals if capitals is not None else decimal.DefaultContext.capitals
+        self.capitals = capitals if capitals is not None \
+            else decimal.DefaultContext.capitals
         self._clamp = _clamp
 
 
 class CascadedContext:
-    """Fixed-exponent cascaded decimal context
+    """Fixed-exponent cascaded decimal context.
 
-    Cascaded context, as its name implies, allows to perform and nest partial modifications
-    to the decimal context.  In other words, cascaded contexts serve as a cumulative diff to
-    whatever base context is used for an operation.
+    Cascaded context, as its name implies, allows to perform and nest partial
+    modifications to the decimal context.  In other words, cascaded contexts
+    serve as a cumulative diff to whatever base context is used for an
+    operation.
 
-    One important distinction from standard decimal context is that CascadedContext forces
-    fixed-exponent calculations: Emax is always set to prec - scale - 1, where scale is
-    a minimum number of significant fractional digits.  In this regard, in CascadedContext
-    decimals behave similarly to SQL standard's decimal type.
+    One important distinction from standard decimal context is that
+    CascadedContext forces fixed-exponent calculations: Emax is always set to
+    prec - scale - 1, where scale is a minimum number of significant fractional
+    digits.  In this regard, in CascadedContext decimals behave similarly to
+    SQL standard's decimal type.
     """
 
     local = local
 
-    def __init__(self, prec=None, rounding=None, traps=None, Emin=None, Emax=None, scale=None,
-                                                                        quantize_exponent=None):
+    def __init__(
+            self, prec=None, rounding=None, traps=None, Emin=None, Emax=None,
+            scale=None, quantize_exponent=None):
         self.prec = prec
         self.rounding = rounding
         if traps is None:
@@ -97,7 +96,7 @@ class CascadedContext:
 
         if quantize_exponent is None:
             if scale is not None:
-                quantize_exponent = decimal.Decimal(10)**-scale
+                quantize_exponent = decimal.Decimal(10) ** -scale
 
         self.quantize_exponent = quantize_exponent
 
@@ -114,24 +113,30 @@ class CascadedContext:
 
     def increment(self, increment):
         prec = increment.prec if increment.prec is not None else self.prec
-        rounding = increment.rounding if increment.rounding is not None else self.rounding
+        rounding = increment.rounding if increment.rounding is not None \
+            else self.rounding
         traps = self.traps.copy()
         traps.update(increment.traps)
         Emin = increment.Emin if increment.Emin is not None else self.Emin
 
         scale = increment.scale if increment.scale is not None else self.scale
-        quantize_exponent = increment.quantize_exponent if increment.quantize_exponent is not None else self.quantize_exponent
+        quantize_exponent = increment.quantize_exponent \
+            if increment.quantize_exponent is not None \
+            else self.quantize_exponent
 
         if increment.Emax is None and scale is not None and prec is not None:
             Emax = prec - scale - 1
         else:
             Emax = increment.Emax
 
-        if scale is not None and prec is not None and (prec - scale - 1) < Emax:
-            raise ValueError('requested precision is less than existing fixed-point scale')
+        if scale is not None and prec is not None and (
+                prec - scale - 1) < Emax:
+            raise ValueError(
+                'requested precision is less than existing fixed-point scale')
 
-        result = CascadedContext(prec=prec, rounding=rounding, traps=traps, Emin=Emin, Emax=Emax,
-                                 scale=scale, quantize_exponent=quantize_exponent)
+        result = CascadedContext(
+            prec=prec, rounding=rounding, traps=traps, Emin=Emin, Emax=Emax,
+            scale=scale, quantize_exponent=quantize_exponent)
 
         return result
 
@@ -149,16 +154,23 @@ class CascadedContext:
         else:
             prec = context.prec or decimal.DefaultContext.prec
 
-        Emax = prec - (cumulative.scale or 0) - 1 if cumulative.Emax is None else cumulative.Emax
+        Emax = prec - (
+            cumulative.scale or 0
+        ) - 1 if cumulative.Emax is None else cumulative.Emax
 
         result = DecimalContext(
-                    prec = prec,
-                    rounding = cumulative.rounding if cumulative.rounding is not None \
-                               else context.rounding,
-                    traps = traps,
-                    Emin = cumulative.Emin if cumulative.Emin is not None else context.Emin,
-                    Emax = Emax
-                  )
+            prec=prec,
+            rounding=(
+                cumulative.rounding if cumulative.rounding is not None
+                else context.rounding
+            ),
+            traps=traps,
+            Emin=(
+                cumulative.Emin if cumulative.Emin is not None
+                else context.Emin
+            ),
+            Emax=Emax
+        )
 
         return result
 
@@ -169,14 +181,16 @@ class CascadedContext:
         except AttributeError:
             cumulative = CascadedContext()
             incremental = CascadedContext()
-            cls.local.__sx_decimal_cascaded_contexts__ = [(cumulative, incremental)]
+            cls.local.__sx_decimal_cascaded_contexts__ = [(
+                cumulative, incremental)]
             return cumulative, incremental
 
     @classmethod
     def push(cls, increment):
         cumulative, last_increment = cls.get()
         cumulative = cumulative.increment(increment)
-        cls.local.__sx_decimal_cascaded_contexts__.append((cumulative, increment))
+        cls.local.__sx_decimal_cascaded_contexts__.append(
+            (cumulative, increment))
         return cumulative
 
     @classmethod
@@ -190,12 +204,14 @@ del threading, local
 
 
 class FPDecimal(decimal.Decimal):
-    """Fixed-point decimal
+    """Fixed-point decimal.
 
-    Fixed-point decimals interpret prec as a number of significant digits around decimal point.
-    The point is always fixed, E.g Emax is always set to the number of significant digits of
-    integer part minus one. An optional scale variable in the context determines the number of
-    significant fractional digits.  FPDecimal automatically quantizes its value when constructed.
+    Fixed-point decimals interpret prec as a number of significant digits
+    around decimal point. The point is always fixed, E.g Emax is always set to
+    the number of significant digits of integer part minus one. An optional
+    scale variable in the context determines the number of significant
+    fractional digits.  FPDecimal automatically quantizes its value when
+    constructed.
     """
 
     def __new__(cls, value):
@@ -206,14 +222,16 @@ class FPDecimal(decimal.Decimal):
 
         if cumulative.quantize_exponent is not None:
             try:
-                result = result.quantize(cumulative.quantize_exponent, context=context)
+                result = result.quantize(
+                    cumulative.quantize_exponent, context=context)
             except decimal.InvalidOperation as e:
                 raise decimal.Overflow from e
         else:
             try:
                 _fix = result.fix
             except AttributeError:
-                # C implementation does not have the _fix hack and apparently does not need it.
+                # C implementation does not have the _fix hack and apparently
+                # does not need it.
                 pass
             else:
                 _fix(context)

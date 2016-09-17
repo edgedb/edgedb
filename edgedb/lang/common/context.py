@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 import types
 from edgedb.lang.common import ast, parsing
 from importkit import context as lang_context
@@ -37,16 +36,12 @@ def get_context(*kids):
     if not start_ctx:
         return None
 
-    return parsing.ParserContext(name=start_ctx.name,
-                                 buffer=start_ctx.buffer,
-                                 start=lang_context.SourcePoint(
-                                     start_ctx.start.line,
-                                     start_ctx.start.column,
-                                     start_ctx.start.pointer),
-                                 end=lang_context.SourcePoint(
-                                     end_ctx.end.line,
-                                     end_ctx.end.column,
-                                     end_ctx.end.pointer))
+    return parsing.ParserContext(
+        name=start_ctx.name, buffer=start_ctx.buffer,
+        start=lang_context.SourcePoint(
+            start_ctx.start.line, start_ctx.start.column,
+            start_ctx.start.pointer), end=lang_context.SourcePoint(
+                end_ctx.end.line, end_ctx.end.column, end_ctx.end.pointer))
 
 
 def merge_context(ctxlist):
@@ -54,16 +49,13 @@ def merge_context(ctxlist):
 
     # assume same name and buffer apply to all
     #
-    return parsing.ParserContext(name=ctxlist[0].name,
-                                 buffer=ctxlist[0].buffer,
-                                 start=lang_context.SourcePoint(
-                                     ctxlist[0].start.line,
-                                     ctxlist[0].start.column,
-                                     ctxlist[0].start.pointer),
-                                 end=lang_context.SourcePoint(
-                                     ctxlist[-1].end.line,
-                                     ctxlist[-1].end.column,
-                                     ctxlist[-1].end.pointer))
+    return parsing.ParserContext(
+        name=ctxlist[0].name, buffer=ctxlist[0].buffer,
+        start=lang_context.SourcePoint(
+            ctxlist[0].start.line, ctxlist[0].start.column,
+            ctxlist[0].start.pointer), end=lang_context.SourcePoint(
+                ctxlist[-1].end.line, ctxlist[-1].end.column,
+                ctxlist[-1].end.pointer))
 
 
 def force_context(node, context):
@@ -73,8 +65,7 @@ def force_context(node, context):
 
 
 def has_context(func):
-    '''This is a decorator meant to be used with Nonterm production rules.'''
-
+    """Provide automatic context for Nonterm production rules."""
     def wrapper(*args, **kwargs):
         result = func(*args, **kwargs)
         obj, *args = args
@@ -210,7 +201,8 @@ class ContextNontermMeta(parsing.NontermMeta):
             return result
 
         for name, attr in result.__dict__.items():
-            if (name.startswith('reduce_') and
+            if (
+                    name.startswith('reduce_') and
                     isinstance(attr, types.FunctionType)):
                 a = has_context(attr)
                 a.__doc__ = attr.__doc__
@@ -227,6 +219,6 @@ class Nonterm(parsing.Nonterm, metaclass=ContextNontermMeta):
     pass
 
 
-class ListNonterm(parsing.ListNonterm, metaclass=ContextListNontermMeta,
-                  element=None):
+class ListNonterm(
+        parsing.ListNonterm, metaclass=ContextListNontermMeta, element=None):
     pass

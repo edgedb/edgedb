@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-
 from edgedb.lang.common.datastructures import immutables
 from edgedb.lang.common.debug import assert_raises
 

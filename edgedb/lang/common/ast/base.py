@@ -5,10 +5,8 @@
 # See LICENSE for details.
 ##
 
-
 import copy
 import collections
-
 
 from edgedb.lang.common import markup
 
@@ -18,8 +16,9 @@ class ASTError(Exception):
 
 
 class Field:
-    def __init__(self, name, type_, default, traverse, child_traverse=None,
-                 field_hidden=False):
+    def __init__(
+            self, name, type_, default, traverse, child_traverse=None,
+            field_hidden=False):
         self.name = name
         self.type = type_
         self.default = default
@@ -67,10 +66,9 @@ class MetaAST(type):
                         field_hidden = field[5]
 
                 if field_name not in fields:
-                    fields[field_name] = Field(field_name, field_type,
-                                               field_default, field_traverse,
-                                               field_child_traverse,
-                                               field_hidden)
+                    fields[field_name] = Field(
+                        field_name, field_type, field_default, field_traverse,
+                        field_child_traverse, field_hidden)
 
         cls._fields = fields
 
@@ -99,8 +97,9 @@ class AST(object, metaclass=MetaAST):
                         if isinstance(v, AST):
                             v.parent = self
             else:
-                raise ASTError('cannot set attribute "%s" in ast class "%s"' %
-                               (arg, self.__class__.__name__))
+                raise ASTError(
+                    'cannot set attribute "%s" in ast class "%s"' %
+                    (arg, self.__class__.__name__))
 
         if 'parent' in kwargs:
             self.parent = kwargs['parent']
@@ -136,6 +135,7 @@ class AST(object, metaclass=MetaAST):
         return copied
 
     if __debug__:
+
         def __setattr__(self, name, value):
             super().__setattr__(name, value)
             field = self._fields.get(name)
@@ -143,13 +143,13 @@ class AST(object, metaclass=MetaAST):
                 self.check_field_type(field, value)
 
     def check_field_type(self, field, value):
-        if (field.type and value is not None and
+        if (
+                field.type and value is not None and
                 not isinstance(value, field.type)):
-            raise TypeError('%s.%s.%s: expected %s but got %s'
-                            % (self.__class__.__module__,
-                               self.__class__.__name__,
-                               field.name, field.type.__name__,
-                               value.__class__.__name__))
+            raise TypeError(
+                '%s.%s.%s: expected %s but got %s' % (
+                    self.__class__.__module__, self.__class__.__name__,
+                    field.name, field.type.__name__, value.__class__.__name__))
 
     def dump(self):
         markup.dump(self)

@@ -5,9 +5,7 @@
 # See LICENSE for details.
 ##
 
-
 """Persistent hash implementation for builtin types."""
-
 
 import abc
 import contextlib
@@ -26,7 +24,6 @@ class persistent_hash(int):
 
         The hash is guaranteed to be universally stable.
         """
-
         hash = None
 
         if value is None:
@@ -36,7 +33,8 @@ class persistent_hash(int):
         elif isinstance(value, bytes):
             hash = cls.bytes_hash(value)
         elif isinstance(value, bool):
-            hash = cls.str_hash('__edgedb__TRUE__' if value else '__edgedb__FALSE__')
+            hash = cls.str_hash(
+                '__edgedb__TRUE__' if value else '__edgedb__FALSE__')
         elif isinstance(value, int):
             hash = cls.int_hash(value)
         elif isinstance(value, float):
@@ -60,41 +58,41 @@ class persistent_hash(int):
                     hash = phm()
 
         if hash is None:
-            raise TypeError("un(persistently-)hashable type: '%s'" % type(value).__name__)
+            raise TypeError(
+                "un(persistently-)hashable type: '%s'" % type(value).__name__)
 
         return super().__new__(cls, hash)
 
     @classmethod
     def str_hash(cls, value):
-        """Compute a persistent hash for a string value"""
+        """Compute a persistent hash for a string value."""
         return int(md5(value.encode()).hexdigest(), 16)
 
     @classmethod
     def bytes_hash(cls, value):
-        """Compute a persistent hash for a bytes value"""
+        """Compute a persistent hash for a bytes value."""
         return int(md5(value).hexdigest(), 16)
 
     @classmethod
     def int_hash(cls, value):
-        """Compute a persistent hash for an integer value"""
+        """Compute a persistent hash for an integer value."""
         return value
 
     @classmethod
     def float_hash(cls, value):
-        """Compute a persistent hash for a float value"""
+        """Compute a persistent hash for a float value."""
         # XXX: Check if this is really persistent cross-arch
         return hash(value)
 
     @classmethod
     def decimal_hash(cls, value):
-        """Compute a persistent hash for a Decimal value"""
+        """Compute a persistent hash for a Decimal value."""
         # XXX: Check if this is really persistent cross-arch
         return hash(value)
 
     @classmethod
     def tuple_hash(cls, value):
-        """Compute a persistent hash for a tuple"""
-
+        """Compute a persistent hash for a tuple."""
         # This algorithm is borrowed from CPython implementation.
 
         multiplier = 1000003
@@ -113,14 +111,13 @@ class persistent_hash(int):
 
     @classmethod
     def frozenset_hash(cls, value):
-        """Compute a persistent hash for a frozenset"""
-
+        """Compute a persistent hash for a frozenset."""
         # This algorithm is borrowed from CPython implementation.
 
         result = 1927868237
 
         for hash in sorted(cls(item) for item in value):
-            result ^= (hash ^ (hash << 16) ^ 89869747)  * 3644798167
+            result ^= (hash ^ (hash << 16) ^ 89869747) * 3644798167
 
         result = result * 69069 + 907133923
 
@@ -138,8 +135,8 @@ class persistent_hash(int):
 
 
 _NoneType = type(None)
-_hashables = (_NoneType, str, bool, int, float, decimal.Decimal, tuple,
-              frozenset, UUID)
+_hashables = (
+    _NoneType, str, bool, int, float, decimal.Decimal, tuple, frozenset, UUID)
 
 
 class PersistentlyHashable(metaclass=abc.ABCMeta):

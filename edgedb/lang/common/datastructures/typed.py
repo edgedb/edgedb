@@ -5,13 +5,9 @@
 # See LICENSE for details.
 ##
 
-
 import abc
 import builtins
 import collections
-
-from edgedb.lang.common.datastructures.marker import Void
-
 
 __all__ = 'TypedList', 'TypedDict', 'OrderedTypedDict'
 
@@ -24,11 +20,14 @@ class TypedCollectionMeta(abc.ABCMeta):
             try:
                 arg_value = kwargs[arg]
             except KeyError:
-                raise TypeError('{!r} class argument is required for {!r}'.format(arg, cls))
+                raise TypeError(
+                    '{!r} class argument is required for {!r}'.format(
+                        arg, cls))
 
-            if arg_value is not None and not isinstance(arg_value, builtins.type):
-                raise ValueError('type expected for {!r} class, got object {!r}'. \
-                                 format(cls, arg_value))
+            if arg_value is not None and not isinstance(
+                    arg_value, builtins.type):
+                raise ValueError('type expected for {!r} class, '
+                                 'got object {!r}'.format(cls, arg_value))
 
             setattr(cls, arg, arg_value)
 
@@ -45,22 +44,25 @@ class AbstractTypedCollection(metaclass=TypedCollectionMeta):
         for arg in self._TYPE_ARGS:
             _type = getattr(self, arg, None)
             if _type is None:
-                raise ValueError('cannot instantiate typed collection {!r} without "type"'. \
-                                 format(self))
+                raise ValueError(
+                    'cannot instantiate typed collection {!r} '
+                    'without "type"'.format(self))
 
             setattr(self, arg, _type)
 
     def _check_type(self, value, _type, name):
         if not isinstance(value, _type):
-            raise ValueError('{!r} accepts only {} of type {!r}, got {!r}'. \
-                             format(type(self), name, _type, type(value)))
+            raise ValueError(
+                '{!r} accepts only {} of type {!r}, got {!r}'.format(
+                    type(self), name, _type, type(value)))
 
 
 class AbstractTypedSequence(AbstractTypedCollection, type=None):
-    _TYPE_ARGS = ('type',)
+    _TYPE_ARGS = ('type', )
 
     def _check_item(self, value):
-        return AbstractTypedCollection._check_type(self, value, self.type, 'items')
+        return AbstractTypedCollection._check_type(
+            self, value, self.type, 'items')
 
     def _check_items(self, lst):
         if isinstance(lst, TypedList) and issubclass(lst.type, self.type):
@@ -71,10 +73,11 @@ class AbstractTypedSequence(AbstractTypedCollection, type=None):
 
 
 class AbstractTypedSet(AbstractTypedCollection, type=None):
-    _TYPE_ARGS = ('type',)
+    _TYPE_ARGS = ('type', )
 
     def _check_item(self, value):
-        return AbstractTypedCollection._check_type(self, value, self.type, 'items')
+        return AbstractTypedCollection._check_type(
+            self, value, self.type, 'items')
 
     def _check_items(self, set):
         if isinstance(set, TypedSet) and issubclass(set.type, self.type):
@@ -84,14 +87,16 @@ class AbstractTypedSet(AbstractTypedCollection, type=None):
             self._check_item(item)
 
 
-class AbstractTypedMapping(AbstractTypedCollection, keytype=None, valuetype=None):
+class AbstractTypedMapping(
+        AbstractTypedCollection, keytype=None, valuetype=None):
     _TYPE_ARGS = ('keytype', 'valuetype')
 
     def _check_key(self, key):
         AbstractTypedCollection._check_type(self, key, self.keytype, 'keys')
 
     def _check_value(self, value):
-        AbstractTypedCollection._check_type(self, value, self.valuetype, 'values')
+        AbstractTypedCollection._check_type(
+            self, value, self.valuetype, 'values')
 
     def _check_values(self, dct):
         for key, value in dct.items():
@@ -125,7 +130,9 @@ class _AbstractTypedDict(AbstractTypedMapping, keytype=None, valuetype=None):
         super().__setitem__(key, value)
 
 
-class TypedDict(_AbstractTypedDict, collections.UserDict, keytype=None, valuetype=None):
+class TypedDict(
+        _AbstractTypedDict, collections.UserDict, keytype=None,
+        valuetype=None):
     """Dict-like mapping with typed keys and values.
 
     .. code-block:: pycon
@@ -143,7 +150,9 @@ class TypedDict(_AbstractTypedDict, collections.UserDict, keytype=None, valuetyp
     _base_dict_cls = collections.UserDict
 
 
-class OrderedTypedDict(_AbstractTypedDict, collections.OrderedDict, keytype=None, valuetype=None):
+class OrderedTypedDict(
+        _AbstractTypedDict, collections.OrderedDict, keytype=None,
+        valuetype=None):
     _base_dict_cls = collections.OrderedDict
 
 
@@ -244,6 +253,7 @@ class TypedSet(AbstractTypedSet, collections.MutableSet, type=None):
         >>> tl.add('2')
         ValueError
     """
+
     def __init__(self, inititerable=None):
         AbstractTypedSet.__init__(self)
         if inititerable is not None:
