@@ -19,6 +19,7 @@ class TestInsert(tb.QueryTestCase):
                 required link name to str
 
             concept InsertTest:
+                link name to str
                 link l1 to int
                 required link l2 to int
                 link l3 to str:
@@ -41,21 +42,25 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_simple01(self):
         result = await self.con.execute(r"""
             INSERT test::InsertTest {
+                name := 'insert simple 01',
                 l2 := 0,
                 l3 := 'test'
             };
 
             INSERT test::InsertTest {
+                name := 'insert simple 01',
                 l3 := "Test\"1\"",
                 l2 := 1
             };
 
             INSERT test::InsertTest {
+                name := 'insert simple 01',
                 l3 := 'Test\'2\'',
                 l2 := 2
             };
 
             INSERT test::InsertTest {
+                name := 'insert simple 01',
                 l3 := '\"Test\'3\'\"',
                 l2 := 3
             };
@@ -64,7 +69,10 @@ class TestInsert(tb.QueryTestCase):
                 test::InsertTest {
                     l2, l3
                 }
-            ORDER BY test::InsertTest.l2;
+            WHERE
+                test::InsertTest.name = 'insert simple 01'
+            ORDER BY
+                test::InsertTest.l2;
         """)
 
         self.assert_data_shape(result, [
@@ -114,6 +122,7 @@ class TestInsert(tb.QueryTestCase):
             };
 
             INSERT test::InsertTest {
+                name := 'insert nested',
                 l2 := 0,
                 l3 := 'test',
                 subordinates := (
@@ -126,7 +135,9 @@ class TestInsert(tb.QueryTestCase):
                 subordinates: {
                     name
                 } ORDER BY test::Subordinate.name
-            };
+            }
+            WHERE
+                test::InsertTest.name = 'insert nested';
         ''')
 
         self.assert_data_shape(

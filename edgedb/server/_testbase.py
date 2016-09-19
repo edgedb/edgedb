@@ -50,13 +50,15 @@ class TestCaseMeta(type(unittest.TestCase)):
 
 
 class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
-    def setUp(self):
+    @classmethod
+    def setUpClass(cls):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(None)
-        self.loop = loop
+        cls.loop = loop
 
-    def tearDown(self):
-        self.loop.close()
+    @classmethod
+    def tearDownClass(cls):
+        cls.loop.close()
         asyncio.set_event_loop(None)
 
 
@@ -81,9 +83,10 @@ def _shutdown_cluster(cluster):
 
 
 class ClusterTestCase(TestCase):
-    def setUp(self):
-        super().setUp()
-        self.cluster = _start_cluster()
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.cluster = _start_cluster()
 
 
 class RollbackChanges:
@@ -99,21 +102,23 @@ class RollbackChanges:
 
 
 class ConnectedTestCase(ClusterTestCase):
-    def setUp(self):
-        super().setUp()
-        self.con = self.loop.run_until_complete(
-            self.cluster.connect(
-                database='edgedb0', user='edgedb', loop=self.loop))
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.con = cls.loop.run_until_complete(
+            cls.cluster.connect(
+                database='edgedb0', user='edgedb', loop=cls.loop))
 
-    def tearDown(self):
+    @classmethod
+    def tearDownClass(cls):
         try:
-            self.con.close()
+            cls.con.close()
             # Give event loop another iteration so that connection
             # transport has a chance to properly close.
-            self.loop.run_until_complete(asyncio.sleep(0, loop=self.loop))
-            self.con = None
+            cls.loop.run_until_complete(asyncio.sleep(0, loop=cls.loop))
+            cls.con = None
         finally:
-            super().tearDown()
+            super().tearDownClass()
 
     def _run_and_rollback(self):
         return RollbackChanges(self)
@@ -124,51 +129,53 @@ class DatabaseTestCase(ConnectedTestCase):
     TEARDOWN = None
     SCHEMA = None
 
-    def setUp(self):
-        super().setUp()
-        self.admin_conn = self.con
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.admin_conn = cls.con
         script = 'CREATE DATABASE edgedb_test;'
 
-        self.loop.run_until_complete(self.admin_conn.execute(script))
+        cls.loop.run_until_complete(cls.admin_conn.execute(script))
 
-        self.con = self.loop.run_until_complete(
-            self.cluster.connect(
-                database='edgedb_test', user='edgedb', loop=self.loop))
+        cls.con = cls.loop.run_until_complete(
+            cls.cluster.connect(
+                database='edgedb_test', user='edgedb', loop=cls.loop))
 
         script = '\nCREATE MODULE test;'
 
-        if self.SCHEMA:
-            with open(self.SCHEMA, 'r') as sf:
+        if cls.SCHEMA:
+            with open(cls.SCHEMA, 'r') as sf:
                 schema = sf.read()
 
             script += '\nCREATE DELTA test::d1 TO $${schema}$$;'.format(
                 schema=schema)
             script += '\nCOMMIT DELTA test::d1;'
 
-        if self.SETUP:
-            script += '\n' + self.SETUP
+        if cls.SETUP:
+            script += '\n' + cls.SETUP
 
-        self.loop.run_until_complete(self.con.execute(script))
+        cls.loop.run_until_complete(cls.con.execute(script))
 
-    def tearDown(self):
+    @classmethod
+    def tearDownClass(cls):
         script = ''
 
-        if self.TEARDOWN:
-            script = self.TEARDOWN.strip()
+        if cls.TEARDOWN:
+            script = cls.TEARDOWN.strip()
 
         try:
             if script:
-                self.loop.run_until_complete(self.con.execute(script))
+                cls.loop.run_until_complete(cls.con.execute(script))
         finally:
-            self.con.close()
-            self.con = self.admin_conn
+            cls.con.close()
+            cls.con = cls.admin_conn
 
             script = 'DROP DATABASE edgedb_test;'
 
             try:
-                self.loop.run_until_complete(self.admin_conn.execute(script))
+                cls.loop.run_until_complete(cls.admin_conn.execute(script))
             finally:
-                super().tearDown()
+                super().tearDownClass()
 
 
 class nullable:

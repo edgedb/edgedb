@@ -54,10 +54,11 @@ class TranslatorTest(tb.BaseSyntaxTest, metaclass=BaseSchemaTestMeta):
     re_filter = re.compile(r'''[\s,;]+''')
     re_eql_filter = re.compile(r'''[\s'"();,]+|(\#.*?\n)''')
 
-    def setUp(self):
-        super().setUp()
-        self.schema = s_std.load_std_schema()
-        s_decl.parse_module_declarations(self.schema, self._decls)
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.schema = s_std.load_std_schema()
+        s_decl.parse_module_declarations(cls.schema, cls._decls)
 
     def run_test(self, *, source, spec, expected=None):
         debug = bool(os.environ.get('DEBUG_GRAPHQL'))
