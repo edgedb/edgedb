@@ -225,11 +225,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_SelectExprNode(self, node):
         self.visit(node.expr)
-        if node.alias:
-            self.write(' AS ')
-            self.write('"')
-            self.write(ident_to_str(node.alias))
-            self.write('"')
 
     def visit_SortExprNode(self, node):
         self.visit(node.path)

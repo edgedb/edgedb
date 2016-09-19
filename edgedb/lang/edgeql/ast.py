@@ -444,10 +444,6 @@ class DeleteQueryNode(StatementNode):
                 ('targets', list), ('cges', list), ('single', bool, False)]
 
 
-class SubqueryNode(Base):
-    __fields = ['expr']
-
-
 class CGENode(Base):
     __fields = ['expr', 'alias']
 
@@ -473,7 +469,7 @@ class ExistsPredicateNode(PredicateNode):
 
 
 class SelectExprNode(Base):
-    __fields = ['expr', 'alias']
+    __fields = ['expr']
 
 
 class SelectPathSpecNode(Base):

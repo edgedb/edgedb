@@ -181,10 +181,6 @@ class EdgeQLOptimizer:
             for tgt in expr.targets:
                 self._process_expr(context, tgt.expr)
 
-        elif isinstance(expr, qlast.SubqueryNode):
-            with context(Context.SUBQUERY):
-                self._process_expr(context, expr.expr)
-
         elif isinstance(expr, qlast.PredicateNode):
             self._process_expr(context, expr.expr)
 

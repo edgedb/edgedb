@@ -798,8 +798,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    # XXX: do we even need this anymore?
-    @unittest.expectedFailure
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=24)
     def test_edgeql_syntax_shape25(self):
         """
         SELECT Foo.bar AS bar;

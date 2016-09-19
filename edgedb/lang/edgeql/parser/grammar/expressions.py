@@ -227,9 +227,6 @@ class OptDistinct(Nonterm):
 
 
 class SelectTargetEl(Nonterm):
-    def reduce_Expr_AS_ShortName(self, *kids):
-        self.val = qlast.SelectExprNode(expr=kids[0].val, alias=kids[2].val)
-
     def reduce_Expr(self, *kids):
         self.val = qlast.SelectExprNode(expr=kids[0].val)
 

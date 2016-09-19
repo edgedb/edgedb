@@ -373,8 +373,7 @@ class EdgeQLCompiler:
                     if (isinstance(n, qlast.FunctionCallNode) and
                             n.func[0] == 'agg'):
                         return True
-                    elif isinstance(n, (qlast.SubqueryNode,
-                                        qlast.SelectQueryNode)):
+                    elif isinstance(n, qlast.SelectQueryNode):
                         # Make sure we don't dip into subqueries
                         raise ast.SkipNode()
 
@@ -795,10 +794,7 @@ class EdgeQLCompiler:
     def _process_expr(self, context, expr):
         node = None
 
-        if isinstance(expr, qlast.SubqueryNode):
-            node = self._process_expr(context, expr.expr)
-
-        elif isinstance(expr, qlast.SelectQueryNode):
+        if isinstance(expr, qlast.SelectQueryNode):
             node = context.current.subgraphs_map.get(expr)
 
             if node is None:
@@ -1620,10 +1616,7 @@ class EdgeQLCompiler:
             for target in targets:
                 expr = self._process_expr(context, target.expr)
                 expr = self.merge_paths(expr)
-                if target.alias:
-                    params = {'name': target.alias}
-                else:
-                    params = {'autoname': context.current.genalias()}
+                params = {'autoname': context.current.genalias()}
 
                 if isinstance(expr, irast.Disjunction):
                     path = next(iter(expr.paths))

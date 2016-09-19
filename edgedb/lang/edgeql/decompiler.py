@@ -250,8 +250,7 @@ class IRDecompiler:
                     result = qlast.ConstantNode(value=value, index=index)
 
         elif isinstance(expr, irast.SelectorExpr):
-            result = qlast.SelectExprNode(expr=self._process_expr(context, expr.expr),
-                                          alias=expr.name)
+            result = qlast.SelectExprNode(expr=self._process_expr(context, expr.expr))
 
         elif isinstance(expr, irast.SortExpr):
             result = qlast.SortExprNode(path=self._process_expr(context, expr.expr),
