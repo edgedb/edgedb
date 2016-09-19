@@ -45,13 +45,12 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_CGENode(self, node):
         self.write(ident_to_str(node.alias))
-        self.write(' := (')
+        self.write(' := ')
         self.new_lines = 1
         self.indentation += 1
         self.visit(node.expr)
         self.indentation -= 1
         self.new_lines = 1
-        self.write(')')
 
     def visit_InsertQueryNode(self, node):
         self._visit_aliases(node)
@@ -130,12 +129,15 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                     self.write(', ')
                 self.visit(e)
 
-    def visit_SubqueryNode(self, node):
-        self.write('(')
-        self.visit(node.expr)
-        self.write(')')
-
     def visit_SelectQueryNode(self, node):
+        # need to parenthesise when SELECT appears as an expression
+        #
+        parenthesise = (isinstance(node.parent, edgeql_ast.Base) and
+                        not isinstance(node.parent, edgeql_ast.DDLNode))
+
+        if parenthesise:
+            self.write('(')
+
         self._visit_aliases(node)
 
         if node.op:
@@ -206,6 +208,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.limit)
             self.indentation -= 1
             self.new_lines = 1
+        if parenthesise:
+            self.write(')')
 
     def visit_NamespaceAliasDeclNode(self, node):
         if node.alias:

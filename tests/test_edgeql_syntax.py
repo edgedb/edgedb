@@ -1094,9 +1094,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT (get_nested_obj())['a']['b']['c'];
         """
 
-    # XXX: codegen or parser issue
-    #
-    @unittest.expectedFailure
     def test_edgeql_syntax_cast01(self):
         """
         SELECT <float> (SELECT User.age);
