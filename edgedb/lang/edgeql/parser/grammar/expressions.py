@@ -1096,6 +1096,12 @@ class BaseName(Nonterm):
         self.val = [kids[0].val]
 
     def reduce_IDENT_DOUBLECOLON_AnyIdentifier(self, *kids):
+        # the identifier following a '::' cannot start with '@'
+        #
+        if kids[2].val[0] == '@':
+            raise EdgeQLSyntaxError("name cannot start with '@'",
+                                    context=kids[2].context)
+
         self.val = [kids[0].val, kids[2].val]
 
 
@@ -1106,6 +1112,12 @@ class OpName(Nonterm):
         self.val = [kids[0].val]
 
     def reduce_UnreservedKeyword_DOUBLECOLON_AnyIdentifier(self, *kids):
+        # the identifier following a '::' cannot start with '@'
+        #
+        if kids[2].val[0] == '@':
+            raise EdgeQLSyntaxError("name cannot start with '@'",
+                                    context=kids[2].context)
+
         self.val = [kids[0].val, kids[2].val]
 
 
@@ -1140,9 +1152,9 @@ class NodeName(Nonterm):
     # This name is safe to be used anywhere as it starts with IDENT only.
 
     def reduce_BaseName(self, *kids):
-        # NodeName cannot start with a '@' in any way
+        # NodeName must not start with a '@' in any way
         #
-        if kids[0].val[0][0] == '@':
+        if kids[0].val[-1][0] == '@':
             raise EdgeQLSyntaxError("name cannot start with '@'",
                                     context=kids[0].context)
         self.val = qlast.PrototypeRefNode(
@@ -1180,8 +1192,7 @@ class OpOnlyNodeName(Nonterm):
     # future.
 
     def reduce_OpName(self, *kids):
-        # OpNodeName cannot start with a '@' in any way (it starts
-        # with UNRESERVED_KEYWORD)
+        # OpNodeName cannot start with a '@' in any way already
         #
         self.val = qlast.PrototypeRefNode(
             module='.'.join(kids[0].val[:-1]) or None,

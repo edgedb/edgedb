@@ -452,7 +452,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT @event;
         """
 
-    @unittest.expectedFailure
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=21)
     def test_edgeql_syntax_name12(self):
         """
