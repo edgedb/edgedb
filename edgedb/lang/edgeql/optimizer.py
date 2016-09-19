@@ -235,9 +235,6 @@ class EdgeQLOptimizer:
                 for subtype in expr.subtypes:
                     self._process_expr(context, subtype)
 
-        elif isinstance(expr, qlast.TypeRefNode):
-            self._process_expr(context, expr.expr)
-
         elif isinstance(expr, qlast.NoneTestNode):
             self._process_expr(context, expr.expr)
 

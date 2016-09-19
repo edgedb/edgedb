@@ -351,9 +351,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.new_lines = 1
         self.write('}')
 
-    def visit_TypeIndirection(self, node):
-        self.write('__type__')
-
     def visit_SelectPathSpecNode(self, node):
         # PathSpecNode can only contain LinkExpr or LinkPropExpr,
         # and must not be quoted.
@@ -474,11 +471,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(node.name)
         self.write(' := ')
         self.visit(node.arg)
-
-    def visit_TypeRefNode(self, node):
-        self.write('type(')
-        self.visit(node.expr)
-        self.write(')')
 
     def visit_TypeCastNode(self, node):
         self.write('<')

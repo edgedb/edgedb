@@ -1266,12 +1266,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT type(Text);
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=27)
-    def test_edgeql_syntax_function02(self):
-        """
-        SELECT type(Text, 42);
-        """
-
     # DDL
     #
 

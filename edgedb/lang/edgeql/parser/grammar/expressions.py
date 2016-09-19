@@ -945,19 +945,19 @@ class Path(Nonterm):
 
 
 class PathStep(Nonterm):
-    def reduce_DOT_PathPtrOrType(self, *kids):
+    def reduce_DOT_PathPtr(self, *kids):
         self.val = qlast.LinkExprNode(expr=kids[1].val)
         if isinstance(kids[1].val, qlast.LinkNode):
             from edgedb.lang.schema import pointers as s_pointers
             kids[1].val.direction = s_pointers.PointerDirection.Outbound
 
-    def reduce_DOTFW_PathPtrOrType(self, *kids):
+    def reduce_DOTFW_PathPtr(self, *kids):
         self.val = qlast.LinkExprNode(expr=kids[1].val)
         if isinstance(kids[1].val, qlast.LinkNode):
             from edgedb.lang.schema import pointers as s_pointers
             kids[1].val.direction = s_pointers.PointerDirection.Outbound
 
-    def reduce_DOTBW_PathPtrOrType(self, *kids):
+    def reduce_DOTBW_PathPtr(self, *kids):
         self.val = qlast.LinkExprNode(expr=kids[1].val)
         if isinstance(kids[1].val, qlast.LinkNode):
             from edgedb.lang.schema import pointers as s_pointers
@@ -966,14 +966,6 @@ class PathStep(Nonterm):
     def reduce_AT_PathPtr(self, *kids):
         self.val = qlast.LinkPropExprNode(expr=kids[1].val)
         kids[1].val.type = 'property'
-
-
-class PathPtrOrType(Nonterm):
-    def reduce_PathPtr(self, *kids):
-        if kids[0].val.name == '__type__':
-            self.val = qlast.TypeIndirection()
-        else:
-            self.val = kids[0].val
 
 
 class PathPtr(Nonterm):
@@ -1020,18 +1012,10 @@ class FuncApplication(Nonterm):
         module = kids[0].val.module
         func_name = kids[0].val.name
         args = kids[2].val
-
-        if not module and func_name == 'type':
-            if len(args) != 1:
-                msg = 'type() takes exactly one argument, {} given' \
-                    .format(len(args))
-                raise EdgeQLSyntaxError(msg, context=args[1].context)
-            self.val = qlast.TypeRefNode(expr=args[0])
-        else:
-            name = func_name if not module else (module, func_name)
-            self.val = qlast.FunctionCallNode(func=name, args=args,
-                                              agg_sort=kids[3].val,
-                                              agg_filter=kids[5].val)
+        name = func_name if not module else (module, func_name)
+        self.val = qlast.FunctionCallNode(func=name, args=args,
+                                          agg_sort=kids[3].val,
+                                          agg_filter=kids[5].val)
 
 
 class FuncExpr(Nonterm):

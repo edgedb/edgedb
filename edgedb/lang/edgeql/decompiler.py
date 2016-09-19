@@ -289,9 +289,10 @@ class IRDecompiler:
             result = qlast.ExistsPredicateNode(expr=self._process_expr(context, expr.expr))
 
         elif isinstance(expr, irast.MetaRef):
-            typstep = qlast.TypeRefNode(expr=self._process_expr(context, expr.ref))
+            inistep = self._process_expr(context, expr.ref)
+            typstep = qlast.LinkExprNode(expr=qlast.LinkNode(name='__type__'))
             refstep = qlast.LinkExprNode(expr=qlast.LinkNode(name=expr.name))
-            result = qlast.PathNode(steps=[typstep, refstep])
+            result = qlast.PathNode(steps=[inistep, typstep, refstep])
 
         elif isinstance(expr, irast.AtomicRefSimple):
             path = self._process_expr(context, expr.ref)

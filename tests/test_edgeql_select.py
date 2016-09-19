@@ -381,7 +381,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_type02(self):
         res = await self.con.execute('''
             WITH MODULE test

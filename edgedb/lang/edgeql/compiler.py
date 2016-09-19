@@ -1329,8 +1329,10 @@ class EdgeQLCompiler:
 
                     tip = node
 
-                elif isinstance(node, qlast.TypeRefNode):
-                    tip = node
+                else:
+                    raise errors.EdgeQLError(
+                        'unexpected path node: {!r}'.format(node))
+
             else:
                 tip = node
 
@@ -1362,14 +1364,6 @@ class EdgeQLCompiler:
 
                 path_tip = step
 
-            elif isinstance(tip, qlast.TypeRefNode):
-                typeref = self._process_path(context, tip.expr)
-                if isinstance(typeref, irast.PathCombination):
-                    if len(typeref.paths) > 1:
-                        msg = "type() argument must not be a path combination"
-                        raise errors.EdgeQLError(msg)
-                    typeref = next(iter(typeref.paths))
-
             elif isinstance(tip, qlast.LinkExprNode) and typeref:
                 path_tip = irast.MetaRef(ref=typeref, name=tip.expr.name)
 
@@ -1382,16 +1376,12 @@ class EdgeQLCompiler:
                 link_expr = tip.expr
                 link_target = None
 
-                if isinstance(link_expr, qlast.LinkNode):
-                    direction = (link_expr.direction or
-                                 s_pointers.PointerDirection.Outbound)
-                    if link_expr.target:
-                        link_target = self._normalize_concept(
-                            context, link_expr.target.name,
-                            link_expr.target.module)
-                else:
-                    msg = "complex link expressions are not supported yet"
-                    raise errors.EdgeQLError()
+                direction = (link_expr.direction or
+                             s_pointers.PointerDirection.Outbound)
+                if link_expr.target:
+                    link_target = self._normalize_concept(
+                        context, link_expr.target.name,
+                        link_expr.target.module)
 
                 linkname = (link_expr.namespace, link_expr.name)
 

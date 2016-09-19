@@ -90,10 +90,6 @@ class PathStepNode(Base):
     __fields = ['namespace', 'expr', 'link_expr']
 
 
-class TypeIndirection(Base):
-    pass
-
-
 class LinkNode(Base):
     __fields = ['name', 'namespace', 'direction', 'target', 'type']
 
@@ -511,10 +507,6 @@ class ArrayNode(Base):
 
 class MappingNode(Base):
     __fields = [('items', list)]
-
-
-class TypeRefNode(Base):
-    __fields = ['expr']
 
 
 class NoneTestNode(Base):
