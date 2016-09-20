@@ -158,6 +158,14 @@ class TestExpressions(tb.QueryTestCase):
             ])
 
     @unittest.expectedFailure
+    async def test_edgeql_expr_cast04(self):
+        await self.assert_query_result(r"""
+            SELECT <str><int><float>'123.45' + 'foo';
+            """, [
+                ['123foo'],
+            ])
+
+    @unittest.expectedFailure
     async def test_edgeql_expr_list01(self):
         await self.assert_query_result("""
             SELECT [1];

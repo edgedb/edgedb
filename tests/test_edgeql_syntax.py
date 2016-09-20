@@ -1381,7 +1381,18 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT foo();
         SELECT bar(User.name);
         SELECT baz(User.name, User.age);
-        SELECT type(Text);
+        SELECT lower(User.name);
+        """
+
+    def test_edgeql_syntax_function02(self):
+        """
+        SELECT lower(string:=User.name);
+        SELECT baz(name:=User.name, for:=User.age);
+        """
+
+    def test_edgeql_syntax_function03(self):
+        """
+        SELECT some_agg(name:=User.name ORDER BY User.age ASC);
         """
 
     # DDL

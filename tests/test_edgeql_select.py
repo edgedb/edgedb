@@ -568,7 +568,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '3'}, {'number': '4'}],
         ])
 
-    async def test_edgeql_select_type01(self):
+    async def test_edgeql_select_specialized01(self):
         res = await self.con.execute(r'''
             WITH MODULE test
             SELECT
@@ -610,40 +610,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     @unittest.expectedFailure
-    async def test_edgeql_select_type02(self):
-        res = await self.con.execute(r'''
-            WITH MODULE test
-            SELECT
-                Text {body}
-            WHERE Text IS Comment
-            ORDER BY Text.body;
-        ''')
-
-        self.assert_data_shape(res, [
-            [
-                {'body': 'EdgeDB needs to happen soon.'},
-            ],
-        ])
-
-    @unittest.expectedFailure
-    async def test_edgeql_select_type03(self):
-        res = await self.con.execute(r'''
-            WITH MODULE test
-            SELECT
-                Text {body}
-            WHERE Text IS Issue AND (Text AS Issue).number = 1
-            ORDER BY Text.body;
-        ''')
-
-        self.assert_data_shape(res, [
-            [
-                {'body': 'Initial public release of EdgeDB.'},
-            ],
-        ])
-
-
-    @unittest.expectedFailure
-    async def test_edgeql_select_type04(self):
+    async def test_edgeql_select_specialized02(self):
         res = await self.con.execute(r'''
             WITH MODULE test
             SELECT User{
@@ -664,6 +631,37 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     @unittest.expectedFailure
+    async def test_edgeql_select_instance01(self):
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT
+                Text {body}
+            WHERE Text IS Comment
+            ORDER BY Text.body;
+        ''')
+
+        self.assert_data_shape(res, [
+            [
+                {'body': 'EdgeDB needs to happen soon.'},
+            ],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_instance02(self):
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT
+                Text {body}
+            WHERE Text IS Issue AND (Text AS Issue).number = 1
+            ORDER BY Text.body;
+        ''')
+
+        self.assert_data_shape(res, [
+            [
+                {'body': 'Initial public release of EdgeDB.'},
+            ],
+        ])
+
     async def test_edgeql_select_combined01(self):
         res = await self.con.execute(r'''
             WITH MODULE test
@@ -678,8 +676,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Text {body}
             INTERSECT
             SELECT
-                Comment {body}
-            ORDER BY Text.body;
+                Comment {body};
 
             WITH MODULE test
             SELECT
@@ -688,8 +685,85 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT
                 Comment {body};
         ''')
+        # sorting manually to test basic functionality first
+        for r in res:
+            r.sort(key=lambda x: x['body'])
 
-        # XXX: how do I order these by Text.body, since they all _have_ a body?
+        self.assert_data_shape(res, [
+            [
+                {'body': 'EdgeDB needs to happen soon.'},
+                {'body': 'Fix regression introduced by lexer tweak.',
+                 'name': 'Regression.'},
+                {'body': 'Initial public release of EdgeDB.',
+                 'name': 'Release EdgeDB'},
+                {'body': 'Minor lexer tweaks.',
+                 'name': 'Repl tweak.'},
+                {'body': 'We need to be able to render data in tabular format.',
+                 'name': 'Improve EdgeDB repl output rendering.'}
+            ],
+            [
+                {'body': 'EdgeDB needs to happen soon.'},
+            ],
+            [
+                {'body': 'Fix regression introduced by lexer tweak.'},
+                {'body': 'Initial public release of EdgeDB.'},
+                {'body': 'Minor lexer tweaks.'},
+                {'body': 'Rewriting everything.'},
+                {'body': 'We need to be able to render data in tabular format.'}
+            ],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_combined02(self):
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT
+                Issue {name, body}
+            UNION
+            SELECT
+                Comment {body}
+            ORDER BY (Object AS Text).body;
+
+            WITH MODULE test
+            SELECT
+                Text {body}
+            INTERSECT
+            SELECT
+                Comment {body}
+            ORDER BY (Object AS Text).body;
+
+            WITH MODULE test
+            SELECT
+                Text {body}
+            EXCEPT
+            SELECT
+                Comment {body}
+            ORDER BY (Object AS Text).body;
+        ''')
+
+        self.assert_data_shape(res, [
+            [
+                {'body': 'EdgeDB needs to happen soon.'},
+                {'body': 'Fix regression introduced by lexer tweak.',
+                 'name': 'Regression.'},
+                {'body': 'Initial public release of EdgeDB.',
+                 'name': 'Release EdgeDB'},
+                {'body': 'Minor lexer tweaks.',
+                 'name': 'Repl tweak.'},
+                {'body': 'We need to be able to render data in tabular format.',
+                 'name': 'Improve EdgeDB repl output rendering.'}
+            ],
+            [
+                {'body': 'EdgeDB needs to happen soon.'},
+            ],
+            [
+                {'body': 'Fix regression introduced by lexer tweak.'},
+                {'body': 'Initial public release of EdgeDB.'},
+                {'body': 'Minor lexer tweaks.'},
+                {'body': 'Rewriting everything.'},
+                {'body': 'We need to be able to render data in tabular format.'}
+            ],
+        ])
 
     async def test_edgeql_select_order01(self):
         res = await self.con.execute(r'''
@@ -715,4 +789,29 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 {'name': 'Improve EdgeDB repl output rendering.'},
                 {'name': 'Repl tweak.'},
             ]
+        ])
+
+    async def test_edgeql_select_func01(self):
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT std::strlen(User.name) ORDER BY User.name;
+
+            WITH MODULE test
+            SELECT std::sum(<std::int>Issue.number);
+        ''')
+
+        self.assert_data_shape(res, [
+            [5, 4],
+            [10]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_func02(self):
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT std::lower(string:=User.name) ORDER BY User.name;
+        ''')
+
+        self.assert_data_shape(res, [
+            ['elvis', 'yury'],
         ])
