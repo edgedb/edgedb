@@ -142,15 +142,11 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         if node.op:
             # Upper level set operation node (UNION/INTERSECT)
-            self.write('(')
             self.visit(node.op_larg)
-            self.write(')')
             self.new_lines = 1
-            self.write(' ' + node.op + ' ')
+            self.write(' ', node.op, ' ')
             self.new_lines = 1
-            self.write('(')
             self.visit(node.op_rarg)
-            self.write(')')
         else:
             self.write('SELECT')
             if node.single:
@@ -233,7 +229,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(node.direction)
         if node.nones_order:
             self.write(' NULLS ')
-            self.write(node.nones_order)
+            self.write(node.nones_order.upper())
 
     def visit_ExistsPredicateNode(self, node):
         self.write('EXISTS (')
@@ -407,10 +403,11 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         elif node.index is not None:
             self.write('$')
-            if '.' in node.index:
+            index = str(node.index)
+            if '.' in index:
                 self.write('{')
-            self.write(node.index)
-            if '.' in node.index:
+            self.write(index)
+            if '.' in index:
                 self.write('}')
         else:
             self.write('NULL')
@@ -524,13 +521,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(' IS None')
 
     def visit_TypeNameNode(self, node):
-        if node.maintype.module:
-            self.write(ident_to_str(node.maintype.module))
-            self.write('::')
-        self.write(ident_to_str(node.maintype.name))
+        if isinstance(node.maintype, edgeql_ast.PathNode):
+            self.visit(node.maintype)
+        else:
+            self.visit(node.maintype, parenthesise=False)
         if node.subtypes:
             self.write('<')
-            self.visit_list(node.subtypes, newlines=False)
+            self.visit_list(node.subtypes, newlines=False, parenthesise=False)
             self.write('>')
 
     # DDL nodes

@@ -97,7 +97,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             body := 'Minor lexer tweaks.',
             owner := (SELECT User WHERE User.name = 'Yury'),
             status := (SELECT Status WHERE Status.name = 'Open'),
-            related_to := (SELECT Issue WHERE Issue.number = '2')
+            related_to := (SELECT Issue WHERE Issue.number = '2'),
+            priority := (SELECT Priority WHERE Priority.name = 'Low')
         };
 
         WITH MODULE test
@@ -538,4 +539,183 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     'number': '3',
                 }]
             }],
+        ])
+
+    async def test_edgeql_select_limit01(self):
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT
+                Issue {number}
+            ORDER BY Issue.number
+            OFFSET 2;
+
+            WITH MODULE test
+            SELECT
+                Issue {number}
+            ORDER BY Issue.number
+            LIMIT 3;
+
+            WITH MODULE test
+            SELECT
+                Issue {number}
+            ORDER BY Issue.number
+            OFFSET 2 LIMIT 3;
+        ''')
+
+        self.assert_data_shape(res, [
+            [{'number': '3'}, {'number': '4'}],
+            [{'number': '1'}, {'number': '2'}, {'number': '3'}],
+            [{'number': '3'}, {'number': '4'}],
+        ])
+
+    async def test_edgeql_select_type01(self):
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT
+                Text {body}
+            ORDER BY Text.body;
+
+            WITH MODULE test
+            SELECT
+                Text {
+                    Issue.name,
+                    body,
+                }
+            ORDER BY Text.body;
+        ''')
+
+        self.assert_data_shape(res, [
+            [
+                {'body': 'EdgeDB needs to happen soon.'},
+                {'body': 'Fix regression introduced by lexer tweak.'},
+                {'body': 'Initial public release of EdgeDB.'},
+                {'body': 'Minor lexer tweaks.'},
+                {'body': 'Rewriting everything.'},
+                {'body': 'We need to be able to render data in tabular format.'}
+            ],
+            [
+                {'body': 'EdgeDB needs to happen soon.',
+                 'name': None},
+                {'body': 'Fix regression introduced by lexer tweak.',
+                 'name': 'Regression.'},
+                {'body': 'Initial public release of EdgeDB.',
+                 'name': 'Release EdgeDB'},
+                {'body': 'Minor lexer tweaks.',
+                 'name': 'Repl tweak.'},
+                {'body': 'Rewriting everything.',
+                 'name': None},
+                {'body': 'We need to be able to render data in tabular format.',
+                 'name': 'Improve EdgeDB repl output rendering.'}
+            ]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_type02(self):
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT
+                Text {body}
+            WHERE Text IS Comment
+            ORDER BY Text.body;
+        ''')
+
+        self.assert_data_shape(res, [
+            [
+                {'body': 'EdgeDB needs to happen soon.'},
+            ],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_type03(self):
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT
+                Text {body}
+            WHERE Text IS Issue AND (Text AS Issue).number = 1
+            ORDER BY Text.body;
+        ''')
+
+        self.assert_data_shape(res, [
+            [
+                {'body': 'Initial public release of EdgeDB.'},
+            ],
+        ])
+
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_type04(self):
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT User{
+                name,
+                <owner: LogEntry {
+                    body
+                },
+            } WHERE User.name = 'Elvis';
+        ''')
+
+        self.assert_data_shape(res, [
+            [{
+                'name': 'Elvis',
+                '<owner': [
+                    {'body': 'Rewriting everything.'}
+                ],
+            }],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_combined01(self):
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT
+                Issue {name, body}
+            UNION
+            SELECT
+                Comment {body};
+
+            WITH MODULE test
+            SELECT
+                Text {body}
+            INTERSECT
+            SELECT
+                Comment {body}
+            ORDER BY Text.body;
+
+            WITH MODULE test
+            SELECT
+                Text {body}
+            EXCEPT
+            SELECT
+                Comment {body};
+        ''')
+
+        # XXX: how do I order these by Text.body, since they all _have_ a body?
+
+    async def test_edgeql_select_order01(self):
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT Issue {name}
+            ORDER BY Issue.priority.name ASC NULLS LAST THEN Issue.name;
+
+            WITH MODULE test
+            SELECT Issue {name}
+            ORDER BY Issue.priority.name ASC NULLS FIRST THEN Issue.name;
+        ''')
+
+        from edgedb.lang.common import markup
+        markup.dump(res)
+
+        self.assert_data_shape(res, [
+            [
+                {'name': 'Improve EdgeDB repl output rendering.'},
+                {'name': 'Repl tweak.'},
+                {'name': 'Regression.'},
+                {'name': 'Release EdgeDB'},
+            ],
+            [
+                {'name': 'Regression.'},
+                {'name': 'Release EdgeDB'},
+                {'name': 'Improve EdgeDB repl output rendering.'},
+                {'name': 'Repl tweak.'},
+            ]
         ])

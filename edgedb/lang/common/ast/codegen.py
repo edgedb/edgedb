@@ -49,13 +49,14 @@ class SourceGenerator(NodeVisitor):
             self.result.append(chunk)
 
     def visit_list(
-            self, items, *, separator=',', terminator=None, newlines=True):
+            self, items, *,
+            separator=',', terminator=None, newlines=True, **kwargs):
         # terminator overrides separator setting
         #
         separator = terminator if terminator is not None else separator
         size = len(items)
         for i, item in enumerate(items):
-            self.visit(item)
+            self.visit(item, **kwargs)
             if i < size - 1 or terminator is not None:
                 self.write(separator)
                 if newlines:

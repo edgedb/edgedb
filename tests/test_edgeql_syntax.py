@@ -130,6 +130,14 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         SELECT TRUE;
         SELECT FALSE;
+        SELECT NULL;
+        """
+
+    def test_edgeql_syntax_contants06(self):
+        """
+        SELECT $1;
+        SELECT $123;
+        SELECT $somevar;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=1, col=12)
@@ -227,6 +235,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ops10(self):
         """
         SELECT (User.name IN ('Alice', 'Bob'));
+        SELECT (User.name NOT IN ('Alice', 'Bob'));
         SELECT (User.name IS (std::str));
         SELECT (User IS SystemUser);
         SELECT (User.name IS NOT (std::str));
@@ -468,6 +477,12 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_name14(self):
         """
         SELECT Foo.`@event`;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=24)
+    def test_edgeql_syntax_name15(self):
+        """
+        SELECT (event::`@event`);
         """
 
     def test_edgeql_syntax_shape01(self):
@@ -829,6 +844,25 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
+    def test_edgeql_syntax_shape29(self):
+        """
+        SELECT Issue{
+            name,
+            related_to *$var,
+        };
+        """
+
+    @unittest.expectedFailure
+    def test_edgeql_syntax_shape32(self):
+        """
+        SELECT User{
+            name,
+            <owner: LogEntry {
+                body
+            },
+        };
+        """
+
     def test_edgeql_syntax_path01(self):
         """
         SELECT Foo.bar;
@@ -979,6 +1013,12 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT User.__type__.name LIMIT 1;
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=20)
+    def test_edgeql_syntax_path15(self):
+        """
+        SELECT (42).foo;
+        """
+
     def test_edgeql_syntax_type_interpretation01(self):
         """
         SELECT (Foo AS Bar);
@@ -1103,6 +1143,24 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_cast01(self):
         """
         SELECT <float> (SELECT User.age);
+        """
+
+    def test_edgeql_syntax_cast02(self):
+        """
+        SELECT <float> (((SELECT User.age)));
+
+% OK %
+
+        SELECT <float> (SELECT User.age);
+        """
+
+    def test_edgeql_syntax_cast03(self):
+        """
+        SELECT
+            <User {name, description}> {
+                'name': 'Alice',
+                'description': 'sample'
+            };
         """
 
     def test_edgeql_syntax_cardinality01(self):
@@ -1260,6 +1318,64 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         OFFSET 2 LIMIT 5;
         """
 
+    def test_edgeql_syntax_select07(self):
+        """
+        (SELECT User.name) OFFSET 2;
+        (SELECT User.name) LIMIT 2;
+        (SELECT User.name) OFFSET 2 LIMIT 5;
+
+% OK %
+
+        SELECT User.name OFFSET 2;
+        SELECT User.name LIMIT 2;
+        SELECT User.name OFFSET 2 LIMIT 5;
+        """
+
+    def test_edgeql_syntax_select08(self):
+        """
+        WITH MODULE test
+        SELECT User{name} ORDER BY User.name ASC;
+        WITH MODULE test
+        (SELECT User{name}) ORDER BY User.name ASC;
+        SELECT User{name} ORDER BY User.name ASC;
+        (SELECT User{name}) ORDER BY User.name ASC;
+
+% OK %
+
+        WITH MODULE test
+        SELECT User{name} ORDER BY User.name ASC;
+        WITH MODULE test
+        SELECT User{name} ORDER BY User.name ASC;
+        SELECT User{name} ORDER BY User.name ASC;
+        SELECT User{name} ORDER BY User.name ASC;
+        """
+
+    def test_edgeql_syntax_select09(self):
+        """
+        SELECT Foo UNION SELECT Bar;
+        SELECT Foo INTERSECT SELECT Bar;
+        SELECT Foo EXCEPT SELECT Bar;
+
+% OK %
+
+        (SELECT Foo) UNION (SELECT Bar);
+        (SELECT Foo) INTERSECT (SELECT Bar);
+        (SELECT Foo) EXCEPT (SELECT Bar);
+        """
+
+    def test_edgeql_syntax_select10(self):
+        """
+        SELECT Issue {name} ORDER BY Issue.priority.name ASC NULLS FIRST;
+        SELECT Issue {name} ORDER BY Issue.priority.name DESC NULLS LAST;
+        """
+
+    def test_edgeql_syntax_select11(self):
+        """
+        SELECT User.name OFFSET $1;
+        SELECT User.name LIMIT $2;
+        SELECT User.name OFFSET $1 LIMIT $2;
+        """
+
     def test_edgeql_syntax_function01(self):
         """
         SELECT foo();
@@ -1331,4 +1447,9 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         CREATE ABSTRACT ATOM std::`any`;
         CREATE ATOM std::typeref;
         CREATE ATOM std::atomref INHERITING std::typeref;
+        """
+
+    def test_edgeql_syntax_attribute01(self):
+        """
+        CREATE ATTRIBUTE std::paramtypes map<std::str, std::typeref>;
         """

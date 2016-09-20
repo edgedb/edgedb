@@ -419,6 +419,7 @@ class OptPointerRecursionSpec(Nonterm):
         self.val = None
 
 
+# XXX: should be killed perhaps?
 class PointerGlob(Nonterm):
     def reduce_STAR(self, *kids):
         flt = qlast.PointerGlobFilter(property='loading', value='eager')
@@ -1138,7 +1139,7 @@ class ExtTypeExpr(Nonterm):
         self.val = kids[0].val
 
     def reduce_TypedShape(self, *kids):
-        self.val = kids[0].val
+        self.val = qlast.TypeNameNode(maintype=kids[0].val)
 
 
 class ParamName(Nonterm):
