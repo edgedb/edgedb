@@ -852,7 +852,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    @unittest.expectedFailure
     def test_edgeql_syntax_shape32(self):
         """
         SELECT User{

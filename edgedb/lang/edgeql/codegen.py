@@ -277,12 +277,12 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         self.write('}')
 
-    def visit_PathNode(self, node):
+    def visit_PathNode(self, node, *, withtarget=True):
         for i, e in enumerate(node.steps):
             if i > 0:
                 if not isinstance(e, edgeql_ast.LinkPropExprNode):
                     self.write('.')
-            self.visit(e)
+            self.visit(e, withtarget=withtarget)
 
         if node.pathspec:
             self._visit_pathspec(node.pathspec)
@@ -301,7 +301,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.new_lines = 1
             self.write('}')
 
-    def visit_PathStepNode(self, node):
+    def visit_PathStepNode(self, node, *, withtarget=True):
         # XXX: this one and other places need identifier quoting
         if node.namespace:
             self.write('({}::{})'.format(ident_to_str(node.namespace),
@@ -309,13 +309,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         else:
             self.write(ident_to_str(node.expr))
 
-    def visit_LinkExprNode(self, node):
-        self.visit(node.expr)
+    def visit_LinkExprNode(self, node, *, withtarget=True):
+        self.visit(node.expr, withtarget=withtarget)
 
-    def visit_LinkPropExprNode(self, node):
-        self.visit(node.expr)
+    def visit_LinkPropExprNode(self, node, *, withtarget=True):
+        self.visit(node.expr, withtarget=withtarget)
 
-    def visit_LinkNode(self, node, quote=True):
+    def visit_LinkNode(self, node, *, quote=True, withtarget=True):
         if node.type == 'property':
             self.write('@')
         elif node.direction and node.direction != '>':
@@ -327,7 +327,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         else:
             self.write(ident_to_str(node.name))
 
-        if node.target and node.type != 'property':
+        if withtarget and node.target and node.type != 'property':
             self.write('[TO ')
             self.visit(node.target, parenthesise=False)
             self.write(']')
@@ -350,8 +350,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         # PathSpecNode can only contain LinkExpr or LinkPropExpr,
         # and must not be quoted.
 
-        self.visit(node.expr)
-
+        self.visit(node.expr, withtarget=False)
         if node.recurse:
             self.write('*')
             if node.recurse_limit:
@@ -359,6 +358,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         if node.pathspec and not node.compexpr:
             self.write(': ')
+            if node.expr.steps[-1].expr.target:
+                self.visit(node.expr.steps[-1].expr.target)
             self._visit_pathspec(node.pathspec)
 
         if node.where:
@@ -475,7 +476,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write('>')
         self.visit(node.expr)
 
-    def visit_TypeInterpretationNode(self, node):
+    def visit_TypeInterpretationNode(self, node, *, withtarget=True):
         self.write('(')
         self.visit(node.expr)
         self.write(' AS ')
@@ -503,7 +504,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.index)
         self.write(']')
 
-    def visit_PrototypeRefNode(self, node, parenthesise=True):
+    def visit_PrototypeRefNode(self, node, *, parenthesise=True):
         if node.module and parenthesise:
             self.write('(')
 

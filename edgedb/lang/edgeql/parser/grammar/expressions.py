@@ -268,7 +268,14 @@ class OptAnySubShape(Nonterm):
         self.val = kids[1].val
 
     def reduce_COLON_TypedShape(self, *kids):
-        self.val = kids[1].val
+        # typed shape needs to be transformed here into a different
+        # expression
+        shape = kids[1].val
+        name = shape.steps[0]
+        typenode = qlast.PrototypeRefNode(name=name.expr,
+                                          module=name.namespace,
+                                          context=name.context)
+        self.val = [typenode] + shape.pathspec
 
     def reduce_empty(self, *kids):
         self.val = None
@@ -298,7 +305,12 @@ class ShapeElement(Nonterm):
                 self.val.recurse = True
                 self.val.recurse_limit = kids[1].val
 
-            self.val.pathspec = kids[2].val
+            shape = kids[2].val
+            if shape and isinstance(shape[0], qlast.PrototypeRefNode):
+                self.val.expr.steps[-1].expr.target = shape[0]
+                self.val.pathspec = shape[1:]
+            else:
+                self.val.pathspec = shape
             self.val.where = kids[3].val
             self.val.orderby = kids[4].val
             self.val.offset = kids[5].val[0]
