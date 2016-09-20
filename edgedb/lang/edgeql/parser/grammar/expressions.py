@@ -973,26 +973,18 @@ class LinkDirection(Nonterm):
         self.val = s_pointers.PointerDirection.Outbound
 
 
-class OptFilterClause(Nonterm):
-    def reduce_FILTER_LPAREN_WhereClause_RPAREN(self, *kids):
-        self.val = kids[2].val
-
-    def reduce_empty(self, *kids):
-        self.val = None
-
-
 class FuncApplication(Nonterm):
     def reduce_FuncApplication(self, *kids):
-        r"""%reduce NodeName LPAREN OptFuncArgList OptSortClause \
-                    RPAREN OptFilterClause \
+        r"""%reduce NodeName LPAREN OptFuncArgList OptWhereClause \
+                    OptSortClause RPAREN \
         """
         module = kids[0].val.module
         func_name = kids[0].val.name
         args = kids[2].val
         name = func_name if not module else (module, func_name)
         self.val = qlast.FunctionCallNode(func=name, args=args,
-                                          agg_sort=kids[3].val,
-                                          agg_filter=kids[5].val)
+                                          agg_filter=kids[3].val,
+                                          agg_sort=kids[4].val)
 
 
 class FuncExpr(Nonterm):

@@ -123,14 +123,6 @@ class InnerDDLStmtBlock(ListNonterm, element=InnerDDLStmt):
     pass
 
 
-class OptInnerDDLStmtBlock(Nonterm):
-    def reduce_empty(self):
-        self.val = None
-
-    def reduce_InnerDDLStmtBlock(self, *kids):
-        self.val = kids[0].val
-
-
 def _new_nonterm(clsname, clsdict={}, clskwds={}, clsbases=(Nonterm,)):
     mod = sys.modules[__name__]
 

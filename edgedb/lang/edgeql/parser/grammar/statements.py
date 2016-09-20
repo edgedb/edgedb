@@ -75,24 +75,6 @@ class UpdateStmt(Nonterm):
         self.val = kids[0].val
 
 
-class SetClauseList(Nonterm):
-    def reduce_SetClause(self, *kids):
-        self.val = [kids[0].val]
-
-    def reduce_SetClauseList_COMMA_SetClause(self, *kids):
-        self.val = kids[0].val + [kids[2].val]
-
-
-class SetClause(Nonterm):
-    def reduce_SetTarget_EQUALS_Expr(self, *kids):
-        self.val = qlast.UpdateExprNode(expr=kids[0].val, value=kids[2].val)
-
-
-class SetTarget(Nonterm):
-    def reduce_NodeName(self, *kids):
-        self.val = kids[0].val
-
-
 class DeleteStmt(Nonterm):
     def reduce_DeleteExpr(self, *kids):
         self.val = kids[0].val
