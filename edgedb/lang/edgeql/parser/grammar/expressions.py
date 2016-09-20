@@ -419,45 +419,6 @@ class OptPointerRecursionSpec(Nonterm):
         self.val = None
 
 
-# XXX: should be killed perhaps?
-class PointerGlob(Nonterm):
-    def reduce_STAR(self, *kids):
-        flt = qlast.PointerGlobFilter(property='loading', value='eager')
-        self.val = qlast.PointerGlobNode(filters=[flt], type='link')
-
-    def reduce_STAR_PointerGlobFilterListClause(self, *kids):
-        self.val = qlast.PointerGlobNode(filters=kids[1].val, type='link')
-
-    def reduce_AT_STAR(self, *kids):
-        flt = qlast.PointerGlobFilter(property='loading', value='eager')
-        self.val = qlast.PointerGlobNode(filters=[flt], type='property')
-
-    def reduce_AT_STAR_PointerGlobFilterListClause(self, *kids):
-        self.val = qlast.PointerGlobNode(filters=kids[2].val, type='property')
-
-
-class PointerGlobFilterListClause(Nonterm):
-    def reduce_LPAREN_PointerGlobFilterList_RPAREN(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_LPAREN_PointerGlobFilterList_COMMA_RPAREN(self, *kids):
-        self.val = kids[0].val
-
-
-class PointerGlobFilter(Nonterm):
-    def reduce_ShortName_EQUALS_ShortName(self, *kids):
-        self.val = qlast.PointerGlobFilter(property=kids[0].val,
-                                           value=kids[2].val)
-
-    def reduce_ANY_ShortName(self, *kids):
-        self.val = qlast.PointerGlobFilter(property=kids[1].val, any=True)
-
-
-class PointerGlobFilterList(ListNonterm, element=PointerGlobFilter,
-                            separator=T_COMMA):
-    pass
-
-
 class WhereClause(Nonterm):
     def reduce_WHERE_Expr(self, *kids):
         self.val = kids[1].val
