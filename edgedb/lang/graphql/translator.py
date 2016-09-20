@@ -265,10 +265,12 @@ class GraphQLTranslator:
                 target = target.target
 
         spec = qlast.SelectPathSpecNode(
-            expr=qlast.LinkExprNode(
-                expr=qlast.LinkNode(
-                    name=field.name
-                )
+            expr=qlast.PathNode(
+                steps=[qlast.LinkExprNode(
+                    expr=qlast.LinkNode(
+                        name=field.name
+                    )
+                )]
             ),
             where=self._process_path_where(field.arguments)
         )
