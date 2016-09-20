@@ -1079,6 +1079,12 @@ class EdgeQLCompiler:
 
         return node
 
+    def _process_unlimited_recursion(self):
+        type = s_types.normalize_type((0).__class__,
+                                      self.proto_schema)
+        return irast.Constant(
+            value=0, index=None, type=type)
+
     def _process_pathspec(self, context, source, rlink_proto, pathspec,
                           is_typeref=False):
         result = []
@@ -1224,8 +1230,13 @@ class EdgeQLCompiler:
                     target_proto = ptr.get_far_endpoint(ptr_direction)
                     compexpr = None
 
-                if ptrspec.recurse is not None:
-                    recurse = self._process_constant(context, ptrspec.recurse)
+                if ptrspec.recurse:
+                    if ptrspec.recurse_limit is not None:
+                        recurse = self._process_constant(
+                            context, ptrspec.recurse_limit)
+                    else:
+                        # XXX - temp hack
+                        recurse = self._process_unlimited_recursion()
                 else:
                     recurse = None
 

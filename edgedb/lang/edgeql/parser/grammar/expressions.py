@@ -291,7 +291,13 @@ class ShapeElement(Nonterm):
         if isinstance(self.val, qlast.SelectTypeRefNode):
             self.val.attrs = [s.expr for s in kids[2].val]
         else:
-            self.val.recurse = kids[1].val
+            if kids[1].val is True:
+                self.val.recurse = True
+                self.val.recurse_limit = None
+            elif kids[1].val is not None:
+                self.val.recurse = True
+                self.val.recurse_limit = kids[1].val
+
             self.val.pathspec = kids[2].val
             self.val.where = kids[3].val
             self.val.orderby = kids[4].val
@@ -404,7 +410,7 @@ class ShapePointer(Nonterm):
 
 class OptPointerRecursionSpec(Nonterm):
     def reduce_STAR(self, *kids):
-        self.val = qlast.ConstantNode(value=0)
+        self.val = True
 
     def reduce_STAR_NumberConstant(self, *kids):
         self.val = kids[1].val

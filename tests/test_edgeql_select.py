@@ -89,6 +89,26 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             status := (SELECT Status WHERE Status.name = 'Open'),
             priority := (SELECT Priority WHERE Priority.name = 'High')
         };
+
+        WITH MODULE test
+        INSERT Issue {
+            number := '3',
+            name := 'Repl tweak.',
+            body := 'Minor lexer tweaks.',
+            owner := (SELECT User WHERE User.name = 'Yury'),
+            status := (SELECT Status WHERE Status.name = 'Open'),
+            related_to := (SELECT Issue WHERE Issue.number = '2')
+        };
+
+        WITH MODULE test
+        INSERT Issue {
+            number := '4',
+            name := 'Regression.',
+            body := 'Fix regression introduced by lexer tweak.',
+            owner := (SELECT User WHERE User.name = 'Yury'),
+            status := (SELECT Status WHERE Status.name = 'Open'),
+            related_to := (SELECT Issue WHERE Issue.number = '3')
+        };
     """
 
     async def test_edgeql_select_computable(self):
@@ -183,9 +203,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ''')
 
         self.assert_data_shape(res, [
-            [{'number': '1'}, {'number': '2'}],
-            [{'number': '2'}],
-            [],
+            [{'number': '1'}, {'number': '2'}, {'number': '3'},
+             {'number': '4'}],
+            [{'number': '2'}, {'number': '3'}, {'number': '4'}],
+            [{'number': '3'}, {'number': '4'}],
         ])
 
     async def test_edgeql_select_match03(self):
@@ -215,7 +236,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         self.assert_data_shape(res, [
             [{'number': '1'}],
             [{'number': '1'}],
-            [{'number': '1'}, {'number': '2'}],
+            [{'number': '1'}, {'number': '2'}, {'number': '3'},
+             {'number': '4'}],
         ])
 
     async def test_edgeql_select_match04(self):
@@ -243,8 +265,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ''')
 
         self.assert_data_shape(res, [
-            [{'number': '2'}],
-            [{'number': '2'}],
+            [{'number': '2'}, {'number': '3'}, {'number': '4'}],
+            [{'number': '2'}, {'number': '3'}, {'number': '4'}],
             [],
         ])
 
@@ -319,10 +341,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
         self.assert_data_shape(res, [
             [{'body': 'EdgeDB needs to happen soon.'},
+             {'body': 'Fix regression introduced by lexer tweak.'},
              {'body': 'We need to be able to render data in tabular format.'}],
             [{'body': 'EdgeDB needs to happen soon.'},
              {'body': 'Initial public release of EdgeDB.'}],
-            [{'body': 'We need to be able to render data in tabular format.'}]
+            [{'body': 'Fix regression introduced by lexer tweak.'},
+             {'body': 'We need to be able to render data in tabular format.'}]
         ])
 
     async def test_edgeql_select_match08(self):
@@ -351,12 +375,15 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
         self.assert_data_shape(res, [
             [{'body': 'EdgeDB needs to happen soon.'},
+             {'body': 'Fix regression introduced by lexer tweak.'},
              {'body': 'Initial public release of EdgeDB.'},
              {'body': 'We need to be able to render data in tabular format.'}],
             [{'body': 'EdgeDB needs to happen soon.'},
+             {'body': 'Fix regression introduced by lexer tweak.'},
              {'body': 'Initial public release of EdgeDB.'},
              {'body': 'We need to be able to render data in tabular format.'}],
             [{'body': 'EdgeDB needs to happen soon.'},
+             {'body': 'Fix regression introduced by lexer tweak.'},
              {'body': 'We need to be able to render data in tabular format.'}],
         ])
 
@@ -404,6 +431,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
         self.assert_data_shape(res[0], [{
             'number': '2',
+        }, {
+            'number': '3',
+        }, {
+            'number': '4',
         }])
 
         res = await self.con.execute('''
@@ -418,6 +449,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
         self.assert_data_shape(res[0], [{
             'number': '2',
+        }, {
+            'number': '3',
+        }, {
+            'number': '4',
         }])
 
         res = await self.con.execute('''
@@ -443,13 +478,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }
             WHERE
                 NOT EXISTS Issue.time_estimate;
-        ''')
 
-        self.assert_data_shape(res[0], [{
-            'number': '2',
-        }])
-
-        res = await self.con.execute('''
             WITH MODULE test
             SELECT
                 Issue {
@@ -457,8 +486,56 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }
             WHERE
                 EXISTS Issue.time_estimate;
+
         ''')
 
-        self.assert_data_shape(res[0], [{
-            'number': '1',
-        }])
+        self.assert_data_shape(res, [
+            [{
+                'number': '2',
+            }, {
+                'number': '3',
+            }, {
+                'number': '4',
+            }],
+            [{
+                'number': '1',
+            }]
+        ])
+
+    async def test_edgeql_select_recursive01(self):
+        res = await self.con.execute('''
+            WITH MODULE test
+            SELECT
+                Issue {
+                    number,
+                    <related_to: {
+                        number,
+                    },
+                }
+            WHERE
+                Issue.number = '2';
+
+            WITH MODULE test
+            SELECT
+                Issue {
+                    number,
+                    <related_to *1
+                }
+            WHERE
+                Issue.number = '2';
+        ''')
+
+        self.assert_data_shape(res, [
+            [{
+                'number': '2',
+                'related_to': [{
+                    'number': '3',
+                }]
+            }],
+            [{
+                'number': '2',
+                'related_to': [{
+                    'number': '3',
+                }]
+            }],
+        ])

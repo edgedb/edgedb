@@ -473,8 +473,9 @@ class SelectExprNode(Base):
 
 
 class SelectPathSpecNode(Base):
-    __fields = ['expr', 'pathspec', 'recurse', 'where', 'orderby', 'offset',
-                'limit', 'compexpr']
+    __fields = ['expr', 'pathspec', 'where',
+                'orderby', 'offset', 'limit', 'compexpr',
+                ('recurse', bool, False), 'recurse_limit']
 
 
 class SelectTypeRefNode(Base):

@@ -358,7 +358,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         if node.recurse:
             self.write('*')
-            self.visit(node.recurse)
+            if node.recurse_limit:
+                self.visit(node.recurse_limit)
 
         if node.pathspec and not node.compexpr:
             self.write(': ')

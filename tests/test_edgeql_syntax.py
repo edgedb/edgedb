@@ -629,8 +629,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    @unittest.expectedFailure
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=21)
+    # NOTE: this is syntactically allowed, but the compiler should
+    # throw an error
     def test_edgeql_syntax_shape11(self):
         """
         SELECT Foo {
@@ -665,8 +665,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    @unittest.expectedFailure
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=16)
+    # NOTE: this is syntactically allowed, but the compiler should
+    # throw an error
     def test_edgeql_syntax_shape15(self):
         """
         SELECT {
@@ -804,8 +804,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT Foo.bar AS bar;
         """
 
-    # XXX: is '*0' actually correct? or should it be just '*'
-    @unittest.expectedFailure
     def test_edgeql_syntax_shape26(self):
         """
         SELECT Issue{
@@ -819,6 +817,15 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT Issue{
             name,
             related_to *5,
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=4, col=25)
+    def test_edgeql_syntax_shape28(self):
+        """
+        SELECT Issue{
+            name,
+            related_to *-1,
         };
         """
 
