@@ -702,9 +702,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ORDER BY Issue.priority.name ASC NULLS FIRST THEN Issue.name;
         ''')
 
-        from edgedb.lang.common import markup
-        markup.dump(res)
-
         self.assert_data_shape(res, [
             [
                 {'name': 'Improve EdgeDB repl output rendering.'},
