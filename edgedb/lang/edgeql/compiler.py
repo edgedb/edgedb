@@ -350,7 +350,7 @@ class EdgeQLCompiler:
                         expr=_cge, alias=cge.alias))
 
         if edgeql_tree.op:
-            graph.set_op = irast.SetOperator(edgeql_tree.op)
+            graph.set_op = qlast.SetOperator(edgeql_tree.op)
             graph.set_op_larg = self._transform_select(
                 context, edgeql_tree.op_larg, arg_types)
             graph.set_op_rarg = self._transform_select(
