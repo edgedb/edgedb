@@ -432,11 +432,12 @@ class IRCompilerBase:
                         pgsql.ast.SelectExprNode(expr=selexpr, alias=colname))
 
                 selexpr = pgsql.ast.FieldRefNode(
-                    table=table, field='concept_id', origin=table,
-                    origin_field='concept_id')
+                    table=table, field='std::__class__', origin=table,
+                    origin_field='std::__class__')
 
                 qry.targets.append(
-                    pgsql.ast.SelectExprNode(expr=selexpr, alias='concept_id'))
+                    pgsql.ast.SelectExprNode(
+                        expr=selexpr, alias='std::__class__'))
 
                 if cc:
                     # Make sure that all sets produced by each UNION member are
@@ -469,6 +470,9 @@ class IRCompilerBase:
                 concept.name, catenate=False)
             if node._backend_rel_suffix:
                 table_name += node._backend_rel_suffix
+            if concept.name.module == 'schema':
+                # Redirect all queries to schema tables to edgedbss
+                table_schema_name = 'edgedbss'
 
             relation = pgsql.ast.TableNode(
                 name=table_name, schema=table_schema_name,
@@ -485,6 +489,9 @@ class IRCompilerBase:
         """Return a TableNode corresponding to a given Link."""
         table_schema_name, table_name = common.get_table_name(
             link_class, catenate=False)
+        if link_class.normal_name().module == 'schema':
+            # Redirect all queries to schema tables to edgedbss
+            table_schema_name = 'edgedbss'
         return pgsql.ast.TableNode(
             name=table_name, schema=table_schema_name,
             alias=context.current.genalias(hint=table_name))
@@ -1985,7 +1992,7 @@ class IRCompiler(IRCompilerBase):
 
     def _process_insert_stmt(self, context, graph, query, opvalues):
         """Generate SQL INSERTs from an Insert IR."""
-        cols = [pgsql.ast.FieldRefNode(field='concept_id')]
+        cols = [pgsql.ast.FieldRefNode(field='std::__class__')]
         select = pgsql.ast.SelectQueryNode()
         values = pgsql.ast.SequenceNode()
         select.values = [values]
@@ -3104,7 +3111,7 @@ class IRCompiler(IRCompilerBase):
             ref = cte_refs.get(ref_key)
         else:
             if schema and field_name == 'id':
-                field_name = 'concept_id'
+                field_name = 'std::__class__'
 
             if isinstance(ref_table, list):
                 if len(ref_table) == 1:
@@ -3760,7 +3767,8 @@ class IRCompiler(IRCompilerBase):
             else:
                 cls = schema.get(expr.maintype)
                 concept_id = data_backend.get_concept_id(cls)
-                result = pgsql.ast.ConstantNode(value=concept_id)
+                result = pgsql.ast.ConstantNode(
+                    value=concept_id, type='uuid')
 
         elif isinstance(expr, irast.IndexIndirection):
             result = self._process_index_indirection(context, expr, cte)
@@ -3886,6 +3894,148 @@ class IRCompiler(IRCompilerBase):
                 context.current.link_node_map[edgedblink][
                     field].expr.table = target_rel
 
+    def _join_mapping_rel(self, context, *, weak, edgedb_path_tip,
+                          link_class, link, step_cte, tip_concepts,
+                          join, concept_table):
+        id_field = common.edgedb_name_to_pg_name('std::id')
+        map_join_type = 'left' if weak else 'inner'
+        tip_pathvar = edgedb_path_tip.pathvar if edgedb_path_tip else None
+        linkmap_key = link_class, link.direction, link.source, tip_pathvar
+
+        try:
+            # The same link map must not be joined more than once,
+            # otherwise the cardinality of the result set will be wrong.
+            #
+            map_rel, map_join = step_cte.linkmap[linkmap_key]
+        except KeyError:
+            map_rel = self._relation_from_link(context, link)
+            map_rel.concepts = tip_concepts
+            map_join = None
+
+        # Set up references according to link direction
+        #
+        src_col = common.edgedb_name_to_pg_name('std::source')
+        source_ref = pgsql.ast.FieldRefNode(
+            table=map_rel, field=src_col, origin=map_rel,
+            origin_field=src_col)
+
+        tgt_col = common.edgedb_name_to_pg_name('std::target')
+        target_ref = pgsql.ast.FieldRefNode(
+            table=map_rel, field=tgt_col, origin=map_rel,
+            origin_field=tgt_col)
+
+        valent_bond = join.bonds(link.source.id)[-1]
+        forward_bond = self._join_condition(
+            context, valent_bond, source_ref, op='=')
+        backward_bond = self._join_condition(
+            context, valent_bond, target_ref, op='=')
+
+        if link.direction == s_pointers.PointerDirection.Inbound:
+            map_join_cond = backward_bond
+        else:
+            map_join_cond = forward_bond
+
+        if map_join is None:
+            if link and link.propfilter:
+                # Switch context to link filter and make the concept table
+                # available for atoms in filter expression to reference.
+                #
+                context.push()
+                context.current.location = 'linkfilter'
+                context.current.link_node_map[link] = {
+                    'local_ref_map': {link_class: map_rel}
+                }
+                propfilter_expr = self._process_expr(
+                    context, link.propfilter)
+                if propfilter_expr:
+                    map_join_cond = pgsql.ast.BinOpNode(
+                        left=map_join_cond, op=ast.ops.AND,
+                        right=propfilter_expr)
+                context.pop()
+
+            map_join = pgsql.ast.JoinNode(left=map_rel)
+            map_join.updatebonds(map_rel)
+
+            # Join link relation to source relation
+            #
+            join = self._simple_join(
+                context, join, map_join, link.source.id,
+                type=map_join_type, condition=map_join_cond)
+
+            step_cte.linkmap[linkmap_key] = map_rel, map_join
+
+        if concept_table:
+            # Join the target relation, if we have it
+            #
+
+            target_id_field = pgsql.ast.FieldRefNode(
+                table=concept_table, field=id_field, origin=concept_table,
+                origin_field=id_field)
+
+            if link.direction == s_pointers.PointerDirection.Inbound:
+                map_tgt_ref = source_ref
+            else:
+                map_tgt_ref = target_ref
+
+            cond_expr = pgsql.ast.BinOpNode(
+                left=map_tgt_ref, op='=', right=target_id_field)
+
+            prev_bonds = join.bonds(edgedb_path_tip.id)
+
+            # We use inner join for target relations to make sure this join
+            # relation is not producing dangling links, either as a result
+            # of partial data, or query constraints.
+            #
+            if map_join.right is None:
+                map_join.right = concept_table
+                map_join.condition = cond_expr
+                map_join.type = 'inner'
+                map_join.updatebonds(concept_table)
+
+            else:
+                pre_map_join = map_join.copy()
+                new_map_join = self._simple_join(
+                    context, pre_map_join, concept_table,
+                    edgedb_path_tip.id, type='inner', condition=cond_expr)
+                map_join.copyfrom(new_map_join)
+
+            join.updatebonds(concept_table)
+
+            if prev_bonds:
+                join.addbond(edgedb_path_tip.id, prev_bonds[-1])
+
+        return join, map_rel
+
+    def _join_inline_rel(self, context, *, weak, edgedb_path_tip,
+                         link_class, link, step_cte, tip_concepts,
+                         join, concept_table):
+        id_field = common.edgedb_name_to_pg_name('std::id')
+        cls_field = common.edgedb_name_to_pg_name('std::__class__')
+        source = join.bonds(link.source.id)[-1]
+
+        source_ref_field = pgsql.ast.FieldRefNode(
+            table=source.table, field=cls_field, origin=source.table,
+            origin_field=cls_field)
+
+        target_ref_field = pgsql.ast.FieldRefNode(
+            table=concept_table, field=id_field, origin=concept_table,
+            origin_field=id_field)
+
+        cond_expr = pgsql.ast.BinOpNode(
+            left=source_ref_field, op='=', right=target_ref_field)
+
+        prev_bonds = join.bonds(edgedb_path_tip.id)
+
+        new_join = self._simple_join(
+            context, join, concept_table,
+            edgedb_path_tip.id, type='inner', condition=cond_expr)
+
+        join.updatebonds(concept_table)
+        if prev_bonds:
+            join.addbond(edgedb_path_tip.id, prev_bonds[-1])
+
+        return new_join
+
     def edgedb_path_to_sql_path(
             self, context, root_cte, step_cte, edgedb_path_tip, sql_path_tip,
             link, weak=False):
@@ -3966,112 +4116,22 @@ class IRCompiler(IRCompilerBase):
                 step_cte.ctes.add(sql_path_tip)
 
             join = fromnode.expr if fromnode.expr else sql_path_tip
+            map_rel = None
 
-            map_join_type = 'left' if weak else 'inner'
-            tip_pathvar = edgedb_path_tip.pathvar if edgedb_path_tip else None
-            linkmap_key = link_class, link.direction, link.source, tip_pathvar
-
-            try:
-                # The same link map must not be joined more than once,
-                # otherwise the cardinality of the result set will be wrong.
-                #
-                map_rel, map_join = step_cte.linkmap[linkmap_key]
-            except KeyError:
-                map_rel = self._relation_from_link(context, link)
-                map_rel.concepts = tip_concepts
-                map_join = None
-
-            # Set up references according to link direction
-            #
-            src_col = common.edgedb_name_to_pg_name('std::source')
-            source_ref = pgsql.ast.FieldRefNode(
-                table=map_rel, field=src_col, origin=map_rel,
-                origin_field=src_col)
-
-            tgt_col = common.edgedb_name_to_pg_name('std::target')
-            target_ref = pgsql.ast.FieldRefNode(
-                table=map_rel, field=tgt_col, origin=map_rel,
-                origin_field=tgt_col)
-
-            valent_bond = join.bonds(link.source.id)[-1]
-            forward_bond = self._join_condition(
-                context, valent_bond, source_ref, op='=')
-            backward_bond = self._join_condition(
-                context, valent_bond, target_ref, op='=')
-
-            if link.direction == s_pointers.PointerDirection.Inbound:
-                map_join_cond = backward_bond
+            if link_class.normal_name() == 'std::__class__':
+                join = self._join_inline_rel(
+                    context, weak=weak, edgedb_path_tip=edgedb_path_tip,
+                    link_class=link_class, link=link, step_cte=step_cte,
+                    tip_concepts=tip_concepts, join=join,
+                    concept_table=concept_table
+                )
             else:
-                map_join_cond = forward_bond
-
-            if map_join is None:
-                if link and link.propfilter:
-                    # Switch context to link filter and make the concept table
-                    # available for atoms in filter expression to reference.
-                    #
-                    context.push()
-                    context.current.location = 'linkfilter'
-                    context.current.link_node_map[link] = {
-                        'local_ref_map': {link_class: map_rel}
-                    }
-                    propfilter_expr = self._process_expr(
-                        context, link.propfilter)
-                    if propfilter_expr:
-                        map_join_cond = pgsql.ast.BinOpNode(
-                            left=map_join_cond, op=ast.ops.AND,
-                            right=propfilter_expr)
-                    context.pop()
-
-                map_join = pgsql.ast.JoinNode(left=map_rel)
-                map_join.updatebonds(map_rel)
-
-                # Join link relation to source relation
-                #
-                join = self._simple_join(
-                    context, join, map_join, link.source.id,
-                    type=map_join_type, condition=map_join_cond)
-
-                step_cte.linkmap[linkmap_key] = map_rel, map_join
-
-            if concept_table:
-                # Join the target relation, if we have it
-                #
-
-                target_id_field = pgsql.ast.FieldRefNode(
-                    table=concept_table, field=id_field, origin=concept_table,
-                    origin_field=id_field)
-
-                if link.direction == s_pointers.PointerDirection.Inbound:
-                    map_tgt_ref = source_ref
-                else:
-                    map_tgt_ref = target_ref
-
-                cond_expr = pgsql.ast.BinOpNode(
-                    left=map_tgt_ref, op='=', right=target_id_field)
-
-                prev_bonds = join.bonds(edgedb_path_tip.id)
-
-                # We use inner join for target relations to make sure this join
-                # relation is not producing dangling links, either as a result
-                # of partial data, or query constraints.
-                #
-                if map_join.right is None:
-                    map_join.right = concept_table
-                    map_join.condition = cond_expr
-                    map_join.type = 'inner'
-                    map_join.updatebonds(concept_table)
-
-                else:
-                    pre_map_join = map_join.copy()
-                    new_map_join = self._simple_join(
-                        context, pre_map_join, concept_table,
-                        edgedb_path_tip.id, type='inner', condition=cond_expr)
-                    map_join.copyfrom(new_map_join)
-
-                join.updatebonds(concept_table)
-
-                if prev_bonds:
-                    join.addbond(edgedb_path_tip.id, prev_bonds[-1])
+                join, map_rel = self._join_mapping_rel(
+                    context, weak=weak, edgedb_path_tip=edgedb_path_tip,
+                    link_class=link_class, link=link, step_cte=step_cte,
+                    tip_concepts=tip_concepts, join=join,
+                    concept_table=concept_table
+                )
 
             fromnode.expr = join
 
@@ -4215,7 +4275,7 @@ class IRCompiler(IRCompilerBase):
                     alias=context.current.genalias(hint='object'))
 
                 left = pgsql.ast.FieldRefNode(
-                    table=concept_table, field='concept_id')
+                    table=concept_table, field='std::__class__')
                 right = pgsql.ast.FieldRefNode(table=datatable, field='id')
                 joincond = pgsql.ast.BinOpNode(op='=', left=left, right=right)
 
@@ -4225,7 +4285,7 @@ class IRCompiler(IRCompilerBase):
 
             for metaref in metarefs:
                 if metaref == 'id':
-                    metaref_name = 'concept_id'
+                    metaref_name = 'std::__class__'
                     srctable = concept_table
                 else:
                     metaref_name = metaref

@@ -5,14 +5,11 @@
 # See LICENSE for details.
 ##
 
-import bisect
 import collections
 import importlib
 import json
 import pickle
 import re
-
-from importkit.import_ import get_object
 
 import asyncpg
 
@@ -360,8 +357,6 @@ class Backend(s_deltarepo.DeltaProvider):
         common.edgedb_name_to_pg_name('std::target'))
 
     def __init__(self, connection):
-        self.features = None
-        self.backend_info = None
         self.modules = None
 
         self.schema = None
@@ -393,56 +388,16 @@ class Backend(s_deltarepo.DeltaProvider):
     def get_constr_mech(self):
         return self._constr_mech
 
-    def init_connection(self, connection):
-        need_upgrade = False
-
-        if self.backend_info is None:
-            self.backend_info = self.read_backend_info()
-
-        bver = self.backend_info['format_version']
-
-        if bver < delta_cmds.BACKEND_FORMAT_VERSION:
-            need_upgrade = True
-            self.upgrade_backend(connection)
-
-        elif bver > delta_cmds.BACKEND_FORMAT_VERSION:
-            msg = 'unsupported backend format version: ' \
-                  '{:d}'.format(self.backend_info['format_version'])
-            details = 'The largest supported backend format version is ' \
-                      '{:d}'.format(delta_cmds.BACKEND_FORMAT_VERSION)
-            raise s_err.SchemaError(msg, details=details)
-
-        if need_upgrade:
-            with connection.xact():
-                self.upgrade_backend(connection)
-                self._read_and_init_features(connection)
-                self.getschema()
-        else:
-            self._read_and_init_features(connection)
-
-    def reset_connection(self, connection):
-        for feature_classname in self.features.values():
-            feature_class = get_object(feature_classname)
-            feature_class.reset_connection(connection)
-
-    def _read_and_init_features(self, connection):
-        if self.features is None:
-            self.features = self.read_features(connection)
-        self.init_features(connection)
-
     async def _init_introspection_cache(self):
-        self.backend_info = await self.read_backend_info()
-
-        if self.backend_info['initialized']:
-            await self._type_mech.init_cache(self.connection)
-            await self._constr_mech.init_cache(self.connection)
-            t2pn, pn2t = await self._init_relid_cache()
-            self.table_id_to_class_name_cache = t2pn
-            self.classname_to_table_id_cache = pn2t
-            self.domain_to_atom_map = await self._init_atom_map_cache()
-            # Concept map needed early for type filtering operations
-            # in schema queries
-            await self.get_concept_map(force_reload=True)
+        await self._type_mech.init_cache(self.connection)
+        await self._constr_mech.init_cache(self.connection)
+        t2pn, pn2t = await self._init_relid_cache()
+        self.table_id_to_class_name_cache = t2pn
+        self.classname_to_table_id_cache = pn2t
+        self.domain_to_atom_map = await self._init_atom_map_cache()
+        # Concept map needed early for type filtering operations
+        # in schema queries
+        await self.get_concept_map(force_reload=True)
 
     async def _init_relid_cache(self):
         ds = introspection.tables.TableList(self.connection)
@@ -519,13 +474,6 @@ class Backend(s_deltarepo.DeltaProvider):
             domain_to_atom_map[domain_name] = name
 
         return domain_to_atom_map
-
-    async def upgrade_backend(self, connection):
-        with self.connection.xact():
-            context = delta_cmds.CommandContext(connection)
-            upgrade = delta_cmds.UpgradeBackend(self.backend_info)
-            await upgrade.execute(context)
-            self.backend_info = self.read_backend_info()
 
     async def readschema(self):
         schema = so.Schema()
@@ -606,6 +554,7 @@ class Backend(s_deltarepo.DeltaProvider):
                 await self._commit_delta(delta, ddl_plan)
 
     async def _commit_delta(self, delta, ddl_plan):
+        return  # XXX
         table = deltadbops.DeltaTable()
         rec = table.record(
             name=delta.name, module_id=dbops.Query(
@@ -648,8 +597,6 @@ class Backend(s_deltarepo.DeltaProvider):
 
     async def invalidate_schema_cache(self):
         self.schema = None
-        self.backend_info = await self.read_backend_info()
-        self.features = await self.read_features(self.connection)
         self.invalidate_transient_cache()
 
     def invalidate_transient_cache(self):
@@ -665,107 +612,6 @@ class Backend(s_deltarepo.DeltaProvider):
         self.table_id_to_class_name_cache.clear()
         self.classname_to_table_id_cache.clear()
         self.attribute_link_map_cache.clear()
-
-    def concept_name_from_id(self, id, session):
-        concept = sn.Name('std::Object')
-        query = '''SELECT c.name
-                   FROM
-                       %s AS e
-                       INNER JOIN edgedb.concept AS c ON c.id = e.concept_id
-                   WHERE e."std::id" = $1
-                ''' % (common.concept_name_to_table_name(concept))
-        ps = session.get_prepared_statement(query)
-        concept_name = ps.first(id)
-        if concept_name:
-            concept_name = sn.Name(concept_name)
-        return concept_name
-
-    def entity_from_row(self, session, record_info, links):
-        if record_info.recursive_link:
-            # Array representing a hierarchy connecting via cyclic link.
-            # All entities have been initialized by now, but the recursive link
-            # is None at this point and needs to be injected.
-            return self._rebuild_tree_from_list(
-                session, links['data'], record_info.recursive_link)
-
-        concept_map = self.get_concept_map(session)
-        concept_id = links.pop('id', None)
-
-        if concept_id is None:
-            # empty record
-            return None
-
-        real_concept = concept_map[concept_id]
-        concept_cls = session.schema.get(real_concept)
-        # Filter out foreign pointers that may have been included in the record
-        # in a combined multi-target query.
-        valid_link_names = {l[0] for l in concept_cls._iter_all_pointers()}
-
-        links = {
-            l: v
-            for l, v in links.items()
-            if l in valid_link_names or getattr(
-                l, 'direction', s_pointers.PointerDirection.Outbound) ==
-            s_pointers.PointerDirection.Inbound
-        }
-
-        return session._merge(links['std::id'], concept_cls, links)
-
-    def _rebuild_tree_from_list(self, session, items, connecting_attribute):
-        # Build a tree from a list of (parent, child_id) tuples, while
-        # maintaining total order.
-        #
-        updates = {}
-        uuid = session.schema.std.Object.id
-
-        toplevel = []
-
-        if items:
-            total_order = {
-                item[str(connecting_attribute)]: i
-                for i, item in enumerate(items)
-            }
-
-            for item in items:
-                entity = item[str(connecting_attribute)]
-
-                target_id = item['__target__']
-
-                if target_id is not None:
-                    target_id = uuid(target_id)
-
-                    if target_id not in session:
-                        # The items below us have been cut off by recursion
-                        # depth limit
-                        continue
-
-                    target = session.get(target_id)
-
-                    if item['__depth__'] == 0:
-                        bisect.insort(toplevel, (total_order[target], target))
-                    else:
-                        try:
-                            parent_updates = updates[entity.id]
-                        except KeyError:
-                            parent_updates = updates[entity.id] = []
-
-                        # Use insort to maintain total order on each level
-                        bisect.insort(
-                            parent_updates, (total_order[target], target))
-
-                else:
-                    # If it turns out to be a leaf node, make sure we force an
-                    # empty set update
-                    try:
-                        parent_updates = updates[entity.id]
-                    except KeyError:
-                        parent_updates = updates[entity.id] = []
-
-        for parent_id, items in updates.items():
-            session._merge(
-                parent_id, None, {connecting_attribute: (i[1] for i in items)})
-
-        return [i[1] for i in toplevel]
 
     async def get_concept_map(self, force_reload=False):
         connection = self.connection
@@ -842,7 +688,7 @@ class Backend(s_deltarepo.DeltaProvider):
 
     async def read_modules(self, schema):
         ds = introspection.schemas.SchemasList(self.connection)
-        schemas = await ds.fetch(schema_name='edgedb%')
+        schemas = await ds.fetch(schema_name='edgedb_%')
         schemas = {
             s['name']
             for s in schemas if not s['name'].startswith('edgedb_aux_')
@@ -851,7 +697,7 @@ class Backend(s_deltarepo.DeltaProvider):
         ds = datasources.schema.modules.ModuleList(self.connection)
         modules = await ds.fetch()
         modules = {
-            m['schema_name']:
+            common.edgedb_module_name_to_schema_name(m['name']):
             {'name': m['name'],
              'imports': m['imports']}
             for m in modules
@@ -860,7 +706,7 @@ class Backend(s_deltarepo.DeltaProvider):
         recorded_schemas = set(modules.keys())
 
         # Sanity checks
-        extra_schemas = schemas - recorded_schemas - {'edgedb'}
+        extra_schemas = schemas - recorded_schemas - {'edgedb', 'edgedbss'}
         missing_schemas = recorded_schemas - schemas
 
         if extra_schemas:
@@ -872,15 +718,14 @@ class Backend(s_deltarepo.DeltaProvider):
         if missing_schemas:
             msg = 'internal metadata incosistency'
             details = 'Missing schemas for modules: {}'.format(
-                ', '.join('"%s"' % s for s in extra_schemas))
+                ', '.join('{!r}'.format(s) for s in missing_schemas))
             raise s_err.SchemaError(msg, details=details)
 
         mods = []
 
         for module in modules.values():
             mod = s_mod.Module(
-                name=module['name'],
-                imports=frozenset(module['imports'] or ()))
+                name=module['name'])
             schema.add_module(mod)
             mods.append(mod)
 
@@ -895,21 +740,6 @@ class Backend(s_deltarepo.DeltaProvider):
                         impmod = so.DummyModule(imp_name)
 
                     schema.add_module(impmod)
-
-    async def read_features(self, connection):
-        try:
-            ds = datasources.schema.features.FeatureList(connection)
-            features = await ds.fetch()
-            return {f['name']: f['classname'] for f in features}
-        except (asyncpg.SchemaNameError, asyncpg.UndefinedTableError):
-            return {}
-
-    async def read_backend_info(self):
-        ds = datasources.schema.backend_info.BackendInfo(self.connection)
-        info = await ds.fetch()
-        info = dict(info[0].items())
-        info['initialized'] = True
-        return info
 
     async def read_atoms(self, schema):
         ds = introspection.domains.DomainsList(self.connection)
@@ -934,13 +764,12 @@ class Backend(s_deltarepo.DeltaProvider):
 
             atom_data = {
                 'name': name,
-                'title': self.hstore_to_word_combination(row['title']),
+                'title': self.json_to_word_combination(row['title']),
                 'description': row['description'],
                 'is_abstract': row['is_abstract'],
                 'is_final': row['is_final'],
                 'bases': row['bases'],
                 'default': row['default'],
-                'attributes': row['attributes'] or {}
             }
 
             self.atom_cache[name] = atom_data
@@ -953,8 +782,7 @@ class Backend(s_deltarepo.DeltaProvider):
                 name=name, default=atom_data['default'],
                 title=atom_data['title'], description=atom_data['description'],
                 is_abstract=atom_data['is_abstract'],
-                is_final=atom_data['is_final'],
-                attributes=atom_data['attributes'])
+                is_final=atom_data['is_final'])
 
             schema.add(atom)
 
@@ -998,7 +826,7 @@ class Backend(s_deltarepo.DeltaProvider):
 
             func_data = {
                 'name': name,
-                'title': self.hstore_to_word_combination(row['title']),
+                'title': self.json_to_word_combination(row['title']),
                 'description': row['description'],
                 'is_abstract': row['is_abstract'],
                 'is_final': row['is_final'],
@@ -1039,7 +867,7 @@ class Backend(s_deltarepo.DeltaProvider):
             elif name != 'std::constraint':
                 bases = (sn.Name('std::constraint'), )
 
-            title = self.hstore_to_word_combination(r['title'])
+            title = self.json_to_word_combination(r['title'])
             description = r['description']
             subject = schema.get(r['subject']) if r['subject'] else None
 
@@ -1355,7 +1183,7 @@ class Backend(s_deltarepo.DeltaProvider):
             elif name != 'std::link':
                 bases = (sn.Name('std::link'), )
 
-            title = self.hstore_to_word_combination(r['title'])
+            title = self.json_to_word_combination(r['title'])
             description = r['description']
 
             source = schema.get(r['source']) if r['source'] else None
@@ -1502,7 +1330,7 @@ class Backend(s_deltarepo.DeltaProvider):
             elif name != 'std::linkproperty':
                 bases = (sn.Name('std::linkproperty'), )
 
-            title = self.hstore_to_word_combination(r['title'])
+            title = self.json_to_word_combination(r['title'])
             description = r['description']
             source = schema.get(r['source']) if r['source'] else None
 
@@ -1584,7 +1412,7 @@ class Backend(s_deltarepo.DeltaProvider):
 
         for r in attributes:
             name = sn.Name(r['name'])
-            title = self.hstore_to_word_combination(r['title'])
+            title = self.json_to_word_combination(r['title'])
             description = r['description']
 
             coll = r['type']['collection']
@@ -1624,7 +1452,7 @@ class Backend(s_deltarepo.DeltaProvider):
 
         for r in actions:
             name = sn.Name(r['name'])
-            title = self.hstore_to_word_combination(r['title'])
+            title = self.json_to_word_combination(r['title'])
             description = r['description']
 
             action = s_policy.Action(
@@ -1642,7 +1470,7 @@ class Backend(s_deltarepo.DeltaProvider):
 
         for r in events:
             name = sn.Name(r['name'])
-            title = self.hstore_to_word_combination(r['title'])
+            title = self.json_to_word_combination(r['title'])
             description = r['description']
 
             if r['bases']:
@@ -1678,7 +1506,7 @@ class Backend(s_deltarepo.DeltaProvider):
 
         for r in policies:
             name = sn.Name(r['name'])
-            title = self.hstore_to_word_combination(r['title'])
+            title = self.json_to_word_combination(r['title'])
             description = r['description']
             policy = s_policy.Policy(
                 name=name, title=title, description=description,
@@ -1717,7 +1545,7 @@ class Backend(s_deltarepo.DeltaProvider):
         for name, row in concept_list.items():
             concept = {
                 'name': name,
-                'title': self.hstore_to_word_combination(row['title']),
+                'title': self.json_to_word_combination(row['title']),
                 'description': row['description'],
                 'is_abstract': row['is_abstract'],
                 'is_final': row['is_final']
@@ -1872,9 +1700,9 @@ class Backend(s_deltarepo.DeltaProvider):
         assert atom
         return atom
 
-    def hstore_to_word_combination(self, hstore):
-        if hstore:
-            return morphology.WordCombination.from_dict(hstore)
+    def json_to_word_combination(self, data):
+        if data:
+            return morphology.WordCombination.from_dict(json.loads(data))
         else:
             return None
 
@@ -1890,9 +1718,6 @@ class Backend(s_deltarepo.DeltaProvider):
 
 
 async def open_database(pgconn):
-    await pgconn.set_builtin_type_codec(
-        'hstore', schema='edgedb', codec_name='pg_contrib.hstore')
-
     bk = Backend(pgconn)
     await bk.getschema()
     return bk

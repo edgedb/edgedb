@@ -283,5 +283,11 @@ class LinkProperty(pointers.Pointer):
         return result
 
     @classmethod
+    def get_root_classes(cls):
+        return (
+            sn.Name(module='std', name='linkproperty'),
+        )
+
+    @classmethod
     def get_default_base_name(self):
         return 'std::linkproperty'

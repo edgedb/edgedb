@@ -222,10 +222,11 @@ class DeclarationLoader:
                     raise s_err.SchemaError(msg, context=decl)
 
                 bases.append(base)
-        else:
+
+        elif obj.name not in type(obj).get_root_classes():
             # Implicit inheritance from the default base class
             default_base_name = type(obj).get_default_base_name()
-            if default_base_name is not None and obj.name != default_base_name:
+            if default_base_name is not None:
                 default_base = self._schema.get(default_base_name)
                 bases.append(default_base)
 

@@ -147,5 +147,11 @@ class Concept(sources.Source, constraints.ConsistencySubject, so.NodeClass):
                     break
 
     @classmethod
-    def get_default_base_name(self):
+    def get_root_classes(cls):
+        return (
+            sn.Name(module='std', name='Object')
+        )
+
+    @classmethod
+    def get_default_base_name(cls):
         return sn.Name(module='std', name='Object')

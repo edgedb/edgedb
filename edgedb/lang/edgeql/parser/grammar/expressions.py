@@ -411,7 +411,7 @@ class ShapePathPtr(Nonterm):
 
 class ShapePointer(Nonterm):
     def reduce_ShapePath(self, *kids):
-        if getattr(kids[0].val.steps[0].expr, 'name', None) == '__class__':
+        if getattr(kids[0].val.steps[0].expr, 'name', None) == '__class__' and False:
             # fill out attrs later from the shape
             self.val = qlast.SelectTypeRefNode()
         else:

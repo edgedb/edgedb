@@ -43,7 +43,7 @@ source: |
     SELECT
             e.id           AS id,
             e.name         AS name,
-            (SELECT array_agg(name) FROM edgedb.object
+            (SELECT array_agg(name) FROM edgedb.NamedClass
              WHERE id = any(e.bases)) AS bases,
             e.title        AS title,
             e.description  AS description
@@ -81,7 +81,7 @@ source: |
             )              AS actions
         FROM
             edgedb.policy p
-            INNER JOIN edgedb.object o ON o.id = p.subject
+            INNER JOIN edgedb.NamedClass o ON o.id = p.subject
             INNER JOIN edgedb.event e ON e.id = p.event
         WHERE
             %(name)s::text IS NULL OR p.name LIKE %(name)s::text

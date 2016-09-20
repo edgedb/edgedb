@@ -29,7 +29,7 @@ class Insert(DMLOperation):
 
     async def code(self, context):
         cols = [(c.name, c.type)
-                for c in self.table.columns(writable_only=True)]
+                for c in self.table.iter_columns(writable_only=True)]
 
         vals = []
         placeholders = []
@@ -102,7 +102,7 @@ class Update(DMLOperation):
         self.returning = returning
         self.cols = {
             c.name: c.type
-            for c in self.table.columns(writable_only=True)
+            for c in self.table.iter_columns(writable_only=True)
         }
         self.include_children = include_children
 

@@ -5,6 +5,8 @@
 # See LICENSE for details.
 ##
 
+import collections
+
 from edgedb.lang.common import datastructures
 
 from .. import common
@@ -17,47 +19,51 @@ from . import ddl
 
 
 class Table(composites.CompositeDBObject):
-    def __init__(self, name):
-        super().__init__(name)
-
-        self.__columns = datastructures.OrderedSet()
-        self._columns = []
-
-        self.constraints = set()
-        self.bases = set()
+    def __init__(self, name, *, columns=None, bases=None, constraints=None):
+        self.constraints = datastructures.OrderedSet(constraints or [])
+        self.bases = datastructures.OrderedSet(bases or [])
         self.data = []
+        super().__init__(name, columns=columns)
 
-    def columns(self, writable_only=False, only_self=False):
-        cols = []
-        tables = [self.__class__
-                  ] if only_self else reversed(self.__class__.__mro__)
-        for c in tables:
-            if issubclass(c, Table):
-                columns = getattr(self, '_' + c.__name__ + '__columns', [])
-                if writable_only:
-                    cols.extend(c for c in columns if not c.readonly)
-                else:
-                    cols.extend(columns)
-        return cols
+    def iter_columns(self, writable_only=False, only_self=False):
+        cols = collections.OrderedDict()
+        cols.update((c.name, c) for c in self._columns
+                    if not writable_only or not c.readonly)
+
+        if not only_self:
+            for c in reversed(self.bases):
+                cols.update((name, bc) for name, bc in c.columns.items()
+                            if not writable_only or not bc.readonly)
+
+        return datastructures.OrderedSet(cols.values())
 
     def __iter__(self):
         return iter(self._columns)
 
+    def add_bases(self, iterable):
+        self.bases.update(iterable)
+        self.columns = \
+            collections.OrderedDict((c.name, c) for c in self.iter_columns())
+
     def add_columns(self, iterable):
-        self.__columns.update(iterable)
-        self._columns = self.columns()
+        super().add_columns(iterable)
+        self.columns = \
+            collections.OrderedDict((c.name, c) for c in self.iter_columns())
 
     def get_column(self, name):
-        cols = self.columns()
-        for col in cols:
-            if col.name == name:
-                return col
+        return self.columns.get(name)
 
     def get_type(self):
         return 'TABLE'
 
     def get_id(self):
         return common.qname(*self.name)
+
+    @property
+    def record(self):
+        return composites.Record(
+            self.__class__.__name__ + '_record',
+            list(self.columns), default=base.Default)
 
     @property
     def system_catalog(self):
@@ -238,7 +244,8 @@ class CreateTable(ddl.SchemaObjectOperation):
         self.temporary = temporary
 
     async def code(self, context):
-        elems = [c.code(context) for c in self.table.columns(only_self=True)]
+        elems = [c.code(context)
+                 for c in self.table.iter_columns(only_self=True)]
         for c in self.table.constraints:
             elems.append(await c.constraint_code(context))
 
@@ -250,7 +257,7 @@ class CreateTable(ddl.SchemaObjectOperation):
 
         if self.table.bases:
             code += ' INHERITS (' + ','.join(
-                common.qname(*b) for b in self.table.bases) + ')'
+                common.qname(*b.name) for b in self.table.bases) + ')'
 
         return code
 
@@ -330,9 +337,9 @@ class AlterTableDDLTriggerMixin:
                 cmd = cmd[0]
 
             if isinstance(cmd, AlterTableAddParent):
-                added_parents.append(cmd.parent_name)
+                added_parents.append(Table(cmd.parent_name))
             elif isinstance(cmd, AlterTableDropParent):
-                dropped_parents.append(cmd.parent_name)
+                dropped_parents.append(Table(cmd.parent_name))
 
         if dropped_parents:
             objects_to_drop = await list_inherited_objects(

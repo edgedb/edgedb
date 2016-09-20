@@ -231,7 +231,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedClass):
 
             base_prop_name = sn.Name('std::source')
             s_name = lproperties.LinkProperty.generate_specialized_name(
-                        cmd.classname, base_prop_name)
+                cmd.classname, base_prop_name)
             src_prop_name = sn.Name(name=s_name,
                                     module=cmd.classname.module)
 
@@ -282,7 +282,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedClass):
 
             base_prop_name = sn.Name('std::target')
             s_name = lproperties.LinkProperty.generate_specialized_name(
-                        cmd.classname, base_prop_name)
+                cmd.classname, base_prop_name)
             tgt_prop_name = sn.Name(name=s_name,
                                     module=cmd.classname.module)
 
@@ -350,7 +350,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedClass):
             if op.new_value:
                 node.targets = [
                     qlast.ClassRefNode(name=t.classname.name,
-                                           module=t.classname.module)
+                                       module=t.classname.module)
                     for t in op.new_value
                 ]
         elif op.property == 'default':
@@ -538,7 +538,7 @@ class AlterLink(LinkCommand, named.AlterNamedClass):
                 node.commands.append(qlast.AlterTargetNode(
                     targets=[
                         qlast.ClassRefNode(name=t.classname.name,
-                                               module=t.classname.module)
+                                           module=t.classname.module)
                         for t in op.new_value
                     ]
                 ))
@@ -680,7 +680,7 @@ class Link(pointers.Pointer, sources.Source):
 
     def atomic(self):
         assert not self.generic(), \
-               "atomicity is not determined for generic links"
+            "atomicity is not determined for generic links"
         return isinstance(self.target, atoms.Atom)
 
     def has_user_defined_properties(self):
@@ -726,6 +726,13 @@ class Link(pointers.Pointer, sources.Source):
                     new_value=self.mapping,
                     source='default'
                 ))
+
+    @classmethod
+    def get_root_classes(cls):
+        return (
+            sn.Name(module='std', name='link'),
+            sn.Name(module='schema', name='__class__'),
+        )
 
     @classmethod
     def get_default_base_name(self):

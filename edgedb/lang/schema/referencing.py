@@ -172,7 +172,7 @@ class ReferencedClassCommand(derivable.DerivableClassCommand):
             basename = self.metaclass.normalize_name(self.classname)
             base = schema.get(basename, type=self.metaclass)
             self.scls = base.derive(schema, referrer, attrs=attrs,
-                                         add_to_schema=True, init_props=False)
+                                    add_to_schema=True, init_props=False)
         else:
             super()._create_begin(schema, context)
 
@@ -304,7 +304,7 @@ class CreateReferencedClass(inheriting.CreateInheritingClass):
 
 
 class ReferencingClass(inheriting.InheritingClass,
-                           metaclass=ReferencingClassMeta):
+                       metaclass=ReferencingClassMeta):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -345,9 +345,9 @@ class ReferencingClass(inheriting.InheritingClass,
             attr = refdict.attr
             local_attr = refdict.local_attr
             self._resolve_classref_dict(
-                    _objects, _resolve, local_attr)
+                _objects, _resolve, local_attr)
             self._resolve_inherited_classref_dict(
-                    _objects, _resolve, attr, local_attr)
+                _objects, _resolve, attr, local_attr)
 
     @hybridmethod
     def copy(scope, obj=None):
@@ -391,8 +391,7 @@ class ReferencingClass(inheriting.InheritingClass,
                     theirs = set()
 
                 ref_similarity = so.ClassSet.compare_values(
-                                    ours, theirs, context=context,
-                                    compcoef=refdict.compcoef)
+                    ours, theirs, context=context, compcoef=refdict.compcoef)
 
                 similarity *= ref_similarity
 
@@ -460,7 +459,7 @@ class ReferencingClass(inheriting.InheritingClass,
         return full_delta
 
     def get_classref_origin(self, name, attr, local_attr, classname,
-                                                          farthest=False):
+                            farthest=False):
         assert name in getattr(self, attr)
 
         result = None
@@ -480,7 +479,7 @@ class ReferencingClass(inheriting.InheritingClass,
 
         if result is None:
             raise KeyError(
-                    'could not find {} "{}" origin'.format(classname, name))
+                'could not find {} "{}" origin'.format(classname, name))
 
         return result
 
@@ -497,7 +496,7 @@ class ReferencingClass(inheriting.InheritingClass,
         existing = local_coll.get(key)
         if existing is not None:
             msg = '{} {!r} is already present in {!r}'.format(
-                        coll_obj, key, self.name)
+                coll_obj, key, self.name)
             raise schema_error.SchemaError(msg)
 
         local_coll[key] = obj
@@ -547,7 +546,7 @@ class ReferencingClass(inheriting.InheritingClass,
                     values[n] = _resolve(v.classname)
 
     def _resolve_inherited_classref_dict(self, _objects, _resolve,
-                                               attr, local_attr):
+                                         attr, local_attr):
         values = getattr(self, attr)
 
         if values is not None and values.__class__ is list:
@@ -580,7 +579,7 @@ class ReferencingClass(inheriting.InheritingClass,
             ref_cls = refdict.ref_cls
 
             ref_keys = self.begin_classref_dict_merge(
-                                     schema, bases=bases, attr=attr)
+                schema, bases=bases, attr=attr)
 
             self.merge_classref_dict(schema, bases=bases, attr=attr,
                                      local_attr=local_attr,

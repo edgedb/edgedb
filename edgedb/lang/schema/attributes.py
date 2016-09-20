@@ -68,8 +68,7 @@ class CreateAttribute(AttributeCommand, named.CreateNamedClass):
                 stt = tp.get_subtypes()
 
                 for st in stt:
-                    eltype = qlast.ClassRefNode(module=st.module,
-                                                    name=st.name)
+                    eltype = qlast.ClassRefNode(module=st.module, name=st.name)
                 tnn = qlast.TypeNameNode(
                     maintype=maintype,
                     subtypes=[eltype])

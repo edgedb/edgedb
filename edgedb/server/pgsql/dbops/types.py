@@ -16,12 +16,10 @@ from . import ddl
 class CompositeType(composites.CompositeDBObject):
     def __init__(self, name, columns=()):
         super().__init__(name)
+        self._columns = datastructures.OrderedSet(columns)
 
-        self.__columns = datastructures.OrderedSet(columns)
-        self._columns = []
-
-    def columns(self):
-        return getattr(self, '_' + self.__class__.__name__ + '__columns', [])
+    def iter_columns(self):
+        return iter(self._columns)
 
 
 class TypeExists(base.Condition):
@@ -70,7 +68,7 @@ class CreateCompositeType(ddl.SchemaObjectOperation):
         self.type = type
 
     async def code(self, context):
-        elems = [c.code(context, short=True) for c in self.type.columns()]
+        elems = [c.code(context, short=True) for c in self.type.iter_columns()]
 
         name = common.qname(*self.type.name)
         cols = ', '.join(c for c in elems)

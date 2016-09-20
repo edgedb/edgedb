@@ -13,26 +13,51 @@ from edgedb.lang.common.algos import persistent_hash
 from edgedb.lang.schema import concepts as s_concepts
 from edgedb.lang.schema import links as s_links
 
+from edgedb.server.pgsql.parser import keywords as pg_keywords
+
 
 def quote_literal(string):
     return "'" + string.replace("'", "''") + "'"
+
+
+def quote_ident_if_needed(string):
+    return quote_ident(string) if needs_quoting(string) else string
+
+
+def needs_quoting(string):
+    isalnum = (string and not string[0].isdecimal() and
+               string.replace('_', 'a').isalnum())
+    return (
+        not isalnum or
+        string.lower() in pg_keywords.by_type[pg_keywords.RESERVED_KEYWORD]
+    )
 
 
 def quote_ident(string):
     return '"' + string.replace('"', '""') + '"'
 
 
-def needs_quoting(string):
-    return (not (string and not string[0].isdecimal() and
-            string.replace('_', 'a').isalnum()))
-
-
-def quote_ident_if_needed(text):
-    return quote_ident(text) if needs_quoting(text) else text
-
-
 def qname(*parts):
     return '.'.join([quote_ident(q) for q in parts])
+
+
+def quote_type(type_):
+    if isinstance(type_, tuple):
+        first = qname(*type_[:-1]) + '.' if len(type_) > 1 else ''
+        last = type_[-1]
+    else:
+        first = ''
+        last = type_
+
+    is_array = last.endswith('[]')
+    if is_array:
+        last = last[:-2]
+
+    last = quote_ident_if_needed(last)
+    if is_array:
+        last += '[]'
+
+    return first + last
 
 
 def edgedb_module_name_to_schema_name(module, prefix='edgedb_'):

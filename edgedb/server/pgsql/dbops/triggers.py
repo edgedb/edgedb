@@ -222,7 +222,7 @@ class DisableTrigger(ddl.DDLOperation):
 class DDLTriggerBase:
     @classmethod
     async def get_inherited_triggers(cls, db, table_name, bases):
-        bases = ['{}.{}'.format(*base) for base in bases]
+        bases = ['{}.{}'.format(*base.name) for base in bases]
 
         tc = introspection.tables.TableTriggers(db)
         trig_records = await tc.fetch(table_list=bases, inheritable_only=True)

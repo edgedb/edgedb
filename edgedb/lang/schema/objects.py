@@ -21,11 +21,8 @@ from . import name as sn
 
 def is_named_class(scls):
     if hasattr(scls.__class__, 'get_field'):
-        try:
-            scls.__class__.get_field('name')
-            return True
-        except KeyError:
-            pass
+        name_field = scls.__class__.get_field('name')
+        return name_field is not None
 
     return False
 
@@ -88,9 +85,12 @@ class ComparisonContext:
 
 
 class MetaClass(struct.MixedStructMeta):
+    _schema_metaclasses = []
+
     def __new__(mcls, name, bases, dct, **kwargs):
         cls = super().__new__(mcls, name, bases, dct, **kwargs)
         cls._ref_type = None
+        mcls._schema_metaclasses.append(cls)
         return cls
 
     @property
@@ -106,6 +106,10 @@ class MetaClass(struct.MixedStructMeta):
                 cls._ref_type._fields[fn] = f
 
         return cls._ref_type
+
+    @classmethod
+    def get_schema_metaclasses(mcls):
+        return mcls._schema_metaclasses
 
 
 class Class(struct.MixedStruct, metaclass=MetaClass):
@@ -173,13 +177,13 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
         self._attr_sources[field_name] = 'default'
 
     def persistent_hash(self):
-        """Compute object 'snapshot' hash
+        """Compute object 'snapshot' hash.
 
         This is an explicit method since Class objects are mutable.
         The hash must be externally stable, i.e. stable across the runs
         and thus must not contain default object hashes (addresses),
-        including that of None"""
-
+        including that of None.
+        """
         return phash.persistent_hash(self.hash_criteria())
 
     def mergeable_fields(self):
@@ -243,7 +247,7 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
                 comparator = getattr(FieldType, 'compare_values', None)
                 if callable(comparator):
                     fcoef = comparator(ours, theirs, context=context,
-                                                     compcoef=field.compcoef)
+                                       compcoef=field.compcoef)
                 elif ours != theirs:
                     fcoef = field.compcoef
 

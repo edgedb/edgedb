@@ -5,9 +5,26 @@
 # See LICENSE for details.
 ##
 
+import textwrap
+
 from .. import common
 from . import base
 from . import ddl
+
+
+class Function(base.DBObject):
+    def __init__(self, name, *, args=None, returns, text,
+                 volatility='volatile', language='sql'):
+        self.name = name
+        self.args = args
+        self.returns = returns
+        self.text = text
+        self.volatility = volatility
+        self.language = language
+
+    def __repr__(self):
+        return '<{} {} at 0x{}>'.format(
+            self.__class__.__name__, self.name, id(self))
 
 
 class FunctionExists(base.Condition):
@@ -36,43 +53,44 @@ class FunctionExists(base.Condition):
 
 
 class CreateFunction(ddl.DDLOperation):
-    def __init__(
-            self, name, args, returns, text, language='plpgsql',
-            volatility='volatile', **kwargs):
+    def __init__(self, function, **kwargs):
         super().__init__(**kwargs)
-        self.name = name
-        self.args = args
-        self.returns = returns
-        self.text = text
-        self.volatility = volatility
-        self.language = language
+        self.function = function
 
     async def code(self, context):
-        code = '''CREATE FUNCTION %(name)s(%(args)s)
-                  RETURNS %(return)s
-                  LANGUAGE %(lang)s
-                  %(volatility)s
-                  AS $____funcbody____$
-                      %(text)s
-                  $____funcbody____$;
-               ''' % {
-            'name': common.qname(*self.name),
-            'args': ', '.join(common.quote_ident(a) for a in self.args),
-            'return': common.quote_ident(self.returns),
-            'lang': self.language,
-            'volatility': self.volatility,
-            'text': self.text
-        }
-        return code
+        args = []
+        if self.function.args:
+            for arg in self.function.args:
+                arg_expr = ''
 
+                if isinstance(arg, tuple):
+                    arg_expr += common.qname(arg[0])
+                    if len(arg) > 1:
+                        arg_expr += ' ' + common.quote_type(arg[1])
+                    if len(arg) > 2:
+                        arg_expr += ' = ' + arg[2]
 
-class CreateTriggerFunction(CreateFunction):
-    def __init__(
-            self, name, text, language='plpgsql', volatility='volatile',
-            **kwargs):
-        super().__init__(
-            name, args=(), returns='trigger', text=text, language=language,
-            volatility=volatility, **kwargs)
+                else:
+                    arg_expr = arg
+
+                args.append(arg_expr)
+
+        code = textwrap.dedent('''
+            CREATE FUNCTION {name}({args})
+            RETURNS {returns}
+            AS $____funcbody____$
+            {text}
+            $____funcbody____$
+            LANGUAGE {lang} {volatility};
+        ''').format(**{
+            'name': common.qname(*self.function.name),
+            'args': ', '.join(args),
+            'returns': common.quote_type(self.function.returns),
+            'lang': self.function.language,
+            'volatility': self.function.volatility.upper(),
+            'text': textwrap.dedent(self.function.text).strip()
+        })
+        return code.strip()
 
 
 class RenameFunction(base.CommandGroup):

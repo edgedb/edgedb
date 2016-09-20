@@ -22,11 +22,9 @@ source: |
             c.description AS description,
             c.is_abstract AS is_abstract,
             c.is_final AS is_final,
-            (SELECT array_agg(name) FROM edgedb.object
+            (SELECT array_agg(name) FROM edgedb.NamedClass
              WHERE id = any(c.bases)) AS bases,
-            c.constraints AS constraints,
-            c.default AS default,
-            c.attributes AS attributes
+            c.default AS default
         FROM
             edgedb.atom c
         ORDER BY

@@ -1,4 +1,14 @@
+##
+# Copyright (c) 2016 MagicStack Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
 CREATE MODULE std;
+CREATE MODULE stdattrs;  # standard schema attributes need to be in a separate
+                         # module to avoid name conflicts.
 
 CREATE ABSTRACT ATOM std::any;
 CREATE ATOM std::typeref;
@@ -31,23 +41,23 @@ CREATE ATTRIBUTE std::pattern std::str;
 
 CREATE ABSTRACT ATOM std::sequence;
 
-CREATE ATTRIBUTE std::precision list<std::int>;
+CREATE ATTRIBUTE stdattrs::precision list<std::int>;
 
-CREATE ATTRIBUTE std::name std::str;
-CREATE ATTRIBUTE std::bases list<std::typeref>;
-CREATE ATTRIBUTE std::is_abstract std::bool;
-CREATE ATTRIBUTE std::is_final std::bool;
-CREATE ATTRIBUTE std::title std::str;
-CREATE ATTRIBUTE std::description std::str;
+CREATE ATTRIBUTE stdattrs::name std::str;
+CREATE ATTRIBUTE stdattrs::bases list<std::typeref>;
+CREATE ATTRIBUTE stdattrs::is_abstract std::bool;
+CREATE ATTRIBUTE stdattrs::is_final std::bool;
+CREATE ATTRIBUTE stdattrs::title std::str;
+CREATE ATTRIBUTE stdattrs::description std::str;
 
-CREATE ATTRIBUTE std::expr std::str;
-CREATE ATTRIBUTE std::subjectexpr std::str;
-CREATE ATTRIBUTE std::finalexpr std::str;
-CREATE ATTRIBUTE std::subject std::typeref;
-CREATE ATTRIBUTE std::paramtypes map<std::str, std::typeref>;
-CREATE ATTRIBUTE std::inferredparamtypes map<std::str, std::typeref>;
-CREATE ATTRIBUTE std::args map<std::str, std::any>;
-CREATE ATTRIBUTE std::errmessage std::str;
+CREATE ATTRIBUTE stdattrs::expr std::str;
+CREATE ATTRIBUTE stdattrs::subjectexpr std::str;
+CREATE ATTRIBUTE stdattrs::finalexpr std::str;
+CREATE ATTRIBUTE stdattrs::subject std::typeref;
+CREATE ATTRIBUTE stdattrs::paramtypes map<std::str, std::typeref>;
+CREATE ATTRIBUTE stdattrs::inferredparamtypes map<std::str, std::typeref>;
+CREATE ATTRIBUTE stdattrs::args map<std::str, std::any>;
+CREATE ATTRIBUTE stdattrs::errmessage std::str;
 
 CREATE FUNCTION std::strlen(string std::str) RETURNING std::int;
 CREATE FUNCTION std::lower(string std::str) RETURNING std::str;
@@ -225,9 +235,191 @@ CREATE CONCEPT std::Object {
     };
 };
 
+
+# INTROSPECTION SCHEMA
+
 CREATE MODULE schema;
 
-CREATE LINK schema::__class__ INHERITING std::link {
-    SET mapping := '*1';
+
+CREATE ABSTRACT CONCEPT schema::Class {
+    CREATE REQUIRED LINK schema::name TO std::str;
+};
+
+
+CREATE LINK schema::typeref {
+    CREATE LINK PROPERTY schema::collection TO std::str;
+};
+
+
+CREATE LINK schema::type INHERITING schema::typeref;
+
+
+CREATE CONCEPT schema::Attribute INHERITING schema::Class {
+    CREATE LINK schema::type TO schema::Class;
+};
+
+
+CREATE LINK schema::attributes {
+    CREATE LINK PROPERTY schema::value TO std::str;
+};
+
+
+ALTER CONCEPT schema::Class {
+    CREATE LINK schema::attributes TO schema::Attribute {
+        SET mapping := '**';
+    };
+};
+
+
+CREATE LINK std::__class__ {
     SET readonly := True;
+};
+
+
+ALTER CONCEPT std::Object {
+    CREATE LINK std::__class__ TO schema::Class {
+        SET readonly := True;
+    };
+};
+
+
+CREATE CONCEPT schema::Module INHERITING schema::Class;
+
+
+CREATE CONCEPT schema::Delta INHERITING schema::Class {
+    CREATE LINK schema::parents TO schema::Delta {
+        SET mapping := '**';
+    };
+};
+
+
+CREATE ABSTRACT CONCEPT schema::InheritingClass INHERITING schema::Class {
+    CREATE LINK schema::bases TO schema::InheritingClass {
+        SET mapping := '**';
+    };
+
+    CREATE LINK schema::mro TO schema::InheritingClass {
+        SET mapping := '**';
+    };
+
+    CREATE LINK schema::is_abstract TO std::bool {
+        SET default := false;
+    };
+
+    CREATE LINK schema::is_final TO std::bool {
+        SET default := false;
+    };
+};
+
+
+CREATE ABSTRACT CONCEPT schema::PrimaryClass
+    INHERITING schema::InheritingClass
+{
+    CREATE LINK schema::title TO std::str;
+    CREATE LINK schema::description TO std::str;
+};
+
+
+CREATE LINK schema::constraintparams {
+    CREATE LINK PROPERTY schema::paramname TO std::str;
+};
+
+
+CREATE LINK schema::paramtypes
+    INHERITING (schema::constraintparams, schema::typeref);
+
+
+CREATE LINK schema::inferredparamtypes
+    INHERITING  (schema::constraintparams, schema::typeref);
+
+
+CREATE LINK schema::args INHERITING schema::constraintparams;
+
+
+CREATE CONCEPT schema::Constraint INHERITING schema::PrimaryClass {
+    CREATE LINK schema::expr TO std::str;
+    CREATE LINK schema::subjectexpr TO std::str;
+    CREATE LINK schema::finalexpr TO std::str;
+    CREATE LINK schema::errmessage TO std::str;
+    CREATE LINK schema::paramtypes TO schema::Class {
+        SET mapping := '**';
+    };
+    CREATE LINK schema::inferredparamtypes TO schema::Class {
+        SET mapping := '**';
+    };
+    CREATE LINK schema::args TO std::str {
+        SET mapping := '**';
+    };
+};
+
+
+CREATE ABSTRACT CONCEPT schema::ConsistencySubject INHERITING schema::Class {
+    CREATE LINK schema::constraints TO schema::Constraint {
+        SET mapping := '**';
+    };
+};
+
+
+CREATE ABSTRACT CONCEPT schema::Node INHERITING schema::Class;
+
+
+CREATE ABSTRACT CONCEPT schema::Source INHERITING schema::Class;
+
+
+CREATE ABSTRACT CONCEPT schema::Pointer INHERITING schema::Class;
+
+
+CREATE CONCEPT schema::Atom INHERITING
+        (schema::PrimaryClass, schema::ConsistencySubject, schema::Node) {
+    CREATE LINK schema::default TO std::str;
+};
+
+
+CREATE CONCEPT schema::Concept INHERITING
+        (schema::PrimaryClass, schema::ConsistencySubject, schema::Node,
+         schema::Source);
+
+
+CREATE CONCEPT schema::Link INHERITING
+        (schema::PrimaryClass, schema::ConsistencySubject, schema::Pointer,
+         schema::Source);
+
+
+CREATE CONCEPT schema::LinkProperty INHERITING
+        (schema::PrimaryClass, schema::ConsistencySubject, schema::Pointer);
+
+
+ALTER CONCEPT schema::Pointer {
+    CREATE LINK schema::source TO schema::Source;
+    CREATE LINK schema::target TO schema::Node;
+};
+
+
+ALTER CONCEPT schema::Link {
+    CREATE LINK schema::link_properties TO schema::LinkProperty {
+        SET mapping := '1*';
+    };
+};
+
+
+ALTER CONCEPT schema::Concept {
+    CREATE LINK schema::links TO schema::Link {
+        SET mapping := '1*';
+    };
+};
+
+
+CREATE LINK schema::params INHERITING schema::typeref {
+    CREATE LINK PROPERTY schema::paramname TO std::str;
+    CREATE REQUIRED LINK PROPERTY schema::paramkind TO std::str;
+    CREATE LINK PROPERTY schema::paramdefault TO std::any;
+};
+
+
+CREATE CONCEPT schema::Function INHERITING schema::PrimaryClass {
+    CREATE LINK schema::params TO schema::Node {
+        SET mapping := '**';
+    };
+    CREATE LINK schema::returntype TO schema::Node;
+    CREATE LINK schema::aggregate TO std::bool;
 };

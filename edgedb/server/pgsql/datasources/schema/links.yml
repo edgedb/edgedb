@@ -62,7 +62,7 @@ source: |
             tc.name AS target,
             l.spectargets AS spectargets,
             l.name AS name,
-            (SELECT array_agg(name) FROM edgedb.object
+            (SELECT array_agg(name) FROM edgedb.NamedClass
              WHERE id = any(l.bases)) AS bases,
             l.mapping,
             l.exposed_behaviour,
@@ -73,13 +73,11 @@ source: |
             l.is_final,
             l.readonly,
             l.loading,
-            l.constraints,
-            l.abstract_constraints,
             l.default
         FROM
             edgedb.link l
-            LEFT JOIN edgedb.object sc ON l.source = sc.id
-            LEFT JOIN edgedb.object tc ON l.target = tc.id
+            LEFT JOIN edgedb.NamedClass sc ON l.source = sc.id
+            LEFT JOIN edgedb.NamedClass tc ON l.target = tc.id
         WHERE
             (%(source_concept)s::text IS NULL OR %(source_concept)s::text = sc.name)
             AND (%(target_concept)s::text IS NULL OR %(target_concept)s::text = tc.name)
@@ -116,7 +114,7 @@ source: |
     SELECT
             p.id            AS id,
             p.name          AS name,
-            (SELECT array_agg(name) FROM edgedb.object
+            (SELECT array_agg(name) FROM edgedb.NamedClass
              WHERE id = any(p.bases)) AS bases,
             p.title         AS title,
             p.description   AS description,
@@ -124,14 +122,12 @@ source: |
             p.readonly      AS readonly,
             p.loading       AS loading,
             p.default       AS default,
-            p.constraints   AS constraints,
-            p.abstract_constraints AS abstract_constraints,
             l.name          AS source,
             a.name          AS target
         FROM
-            edgedb.link_property p
+            edgedb.LinkProperty p
             LEFT JOIN edgedb.link l ON l.id = p.source
-            LEFT JOIN edgedb.object a ON a.id = p.target
+            LEFT JOIN edgedb.NamedClass a ON a.id = p.target
         WHERE
             (%(source)s::text IS NULL OR %(source)s::text = l.name)
             AND (%(target)s::text IS NULL OR %(target)s::text = a.name)
@@ -169,8 +165,8 @@ source: |
             p.is_local      AS is_local
         FROM
             edgedb.computable p
-            LEFT JOIN edgedb.object s ON s.id = p.source
-            LEFT JOIN edgedb.object t ON t.id = p.target
+            LEFT JOIN edgedb.NamedClass s ON s.id = p.source
+            LEFT JOIN edgedb.NamedClass t ON t.id = p.target
         WHERE
             (%(source)s::text IS NULL OR %(source)s::text = s.name)
             AND (%(name)s::text IS NULL OR %(name)s::text = p.name)

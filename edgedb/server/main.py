@@ -18,6 +18,8 @@ import importkit
 
 from asyncpg import cluster as pg_cluster
 
+from edgedb.lang.common import exceptions
+
 from . import cluster as edgedb_cluster
 from . import daemon
 from . import logsetup
@@ -166,6 +168,7 @@ def main(argv=sys.argv[1:]):
     args = parser.parse_args(argv)
 
     logsetup.setup_logging(args.log_level, args.log_destination)
+    exceptions.install_excepthook()
 
     if args.background:
         daemon_opts = {'detach_process': True}

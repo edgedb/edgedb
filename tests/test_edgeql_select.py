@@ -289,7 +289,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{
                 'name': 'Elvis',
                 'special_texts': [
-                    {'body': 'We need to be able to render data in tabular format.'},
+                    {'body': 'We need to be able to render data in '
+                             'tabular format.'},
                     {'body': 'Fix regression introduced by lexer tweak.'},
                     {'body': 'Initial public release of EdgeDB.'},
                     {'body': 'EdgeDB needs to happen soon.'},
@@ -368,7 +369,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                  'name': 'Repl tweak.'},
                 {'body': 'Rewriting everything.',
                  'name': 'log'},
-                {'body': 'We need to be able to render data in tabular format.',
+                {'body': 'We need to be able to render data in '
+                         'tabular format.',
                  'name': 'Improve EdgeDB repl output rendering.'}
             ],
         ])
@@ -749,7 +751,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 {'body': 'Initial public release of EdgeDB.'},
                 {'body': 'Minor lexer tweaks.'},
                 {'body': 'Rewriting everything.'},
-                {'body': 'We need to be able to render data in tabular format.'}
+                {'body': 'We need to be able to render data '
+                         'in tabular format.'}
             ],
             [
                 {'body': 'EdgeDB needs to happen soon.',
@@ -762,7 +765,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                  'name': 'Repl tweak.'},
                 {'body': 'Rewriting everything.',
                  'name': None},
-                {'body': 'We need to be able to render data in tabular format.',
+                {'body': 'We need to be able to render data in '
+                         'tabular format.',
                  'name': 'Improve EdgeDB repl output rendering.'}
             ]
         ])
@@ -965,7 +969,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                  'name': 'Release EdgeDB'},
                 {'body': 'Minor lexer tweaks.',
                  'name': 'Repl tweak.'},
-                {'body': 'We need to be able to render data in tabular format.',
+                {'body': 'We need to be able to render data '
+                         'in tabular format.',
                  'name': 'Improve EdgeDB repl output rendering.'}
             ],
             [
@@ -976,7 +981,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 {'body': 'Initial public release of EdgeDB.'},
                 {'body': 'Minor lexer tweaks.'},
                 {'body': 'Rewriting everything.'},
-                {'body': 'We need to be able to render data in tabular format.'}
+                {'body': 'We need to be able to render '
+                         'data in tabular format.'}
             ],
         ])
 
@@ -1089,7 +1095,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT Issue{number}
             # issue where the owner also has a comment with non-empty body
-            WHERE Issue.owner.<owner[TO Comment].body != '';
+            WHERE Issue.owner.<owner[TO Comment].body != ''
+            ORDER BY Issue.number;
         ''', [
             [{'number': '1'}, {'number': '4'}],
         ])
@@ -1117,7 +1124,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 status: {
                     name
                 }
-            } WHERE strlen(Issue.status.name) = 4;
+            } WHERE strlen(Issue.status.name) = 4
+            ORDER BY Issue.number;
             ''', [
             [{
                 'owner': {'name': 'Elvis'},
@@ -1181,7 +1189,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     number
                 }
             WHERE
-                NOT EXISTS Issue.time_estimate;
+                NOT EXISTS Issue.time_estimate
+            ORDER BY
+                Issue.number;
 
             WITH MODULE test
             SELECT
@@ -1189,7 +1199,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     number
                 }
             WHERE
-                EXISTS Issue.time_estimate;
+                EXISTS Issue.time_estimate
+            ORDER BY
+                Issue.number;
         ''', [
             [{'number': '2'}, {'number': '3'}, {'number': '4'}],
             [{'number': '1'}],
@@ -1203,7 +1215,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     number
                 }
             WHERE
-                NOT EXISTS (Issue.<issue[TO Comment]);
+                NOT EXISTS (Issue.<issue[TO Comment])
+            ORDER BY
+                Issue.number;
         ''', [
             [{'number': '2'}, {'number': '3'}, {'number': '4'}],
         ])
@@ -1216,7 +1230,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     number
                 }
             WHERE
-                NOT EXISTS (SELECT Issue.<issue[TO Comment]);
+                NOT EXISTS (SELECT Issue.<issue[TO Comment])
+            ORDER BY
+                Issue.number;
         ''', [
             [{'number': '2'}, {'number': '3'}, {'number': '4'}],
         ])
@@ -1229,7 +1245,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     number
                 }
             WHERE
-                EXISTS (Issue.<issue[TO Comment]);
+                EXISTS (Issue.<issue[TO Comment])
+            ORDER BY
+                Issue.number;
         ''', [
             [{'number': '1'}],
         ])
@@ -1338,7 +1356,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT Issue{number}
             # issue where the owner also has a comment
-            WHERE EXISTS Issue.owner.<owner[TO Comment];
+            WHERE EXISTS Issue.owner.<owner[TO Comment]
+            ORDER BY Issue.number;
         ''', [
             [{'number': '1'}, {'number': '4'}],
         ])
@@ -1355,7 +1374,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         Comment.owner = Issue.owner
                         AND
                         Comment.issue = Issue
-                );
+                )
+            ORDER BY
+                Issue.number;
         ''', [
             [{'number': '1'}],
         ])
@@ -1373,7 +1394,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         Comment.owner = Issue.owner
                         AND
                         Comment.issue != Issue
-                );
+                )
+            ORDER BY
+                Issue.number;
         ''', [
             [{'number': '4'}],
         ])
@@ -1391,7 +1414,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         Comment.owner = Issue.owner
                         AND
                         Comment.issue.id != Issue.id
-                );
+                )
+            ORDER BY
+                Issue.number;
         ''', [
             [{'number': '4'}],
         ])
@@ -1409,7 +1434,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         Comment.owner = Issue.owner
                         AND
                         NOT Comment.issue = Issue
-                );
+                )
+            ORDER BY
+                Issue.number;
         ''', [
             [{'number': '4'}],
         ])

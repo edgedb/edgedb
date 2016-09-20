@@ -17,7 +17,6 @@ filters:
 source: |
     SELECT
             name,
-            schema_name,
             imports
         FROM
             edgedb.module

@@ -236,7 +236,7 @@ class Event(primary.PrimaryClass):
     )
 
 
-class Policy(derivable.DerivableClass):
+class Policy(derivable.DerivableClass, primary.PrimaryClass):
     _type = 'policy'
 
     delta_driver = sd.DeltaDriver(

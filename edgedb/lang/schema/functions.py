@@ -64,7 +64,7 @@ class DeleteFunction(named.DeleteNamedClass, FunctionCommand):
     astnode = qlast.DropFunctionNode
 
 
-class Function(named.NamedClass):
+class Function(primary.PrimaryClass):
     _type = 'function'
 
     paramtypes = so.Field(so.ClassDict, default=None, coerce=True,

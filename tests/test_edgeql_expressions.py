@@ -326,3 +326,12 @@ class TestExpressions(tb.QueryTestCase):
             await self.con.execute(r"""
                 SELECT (1, 'foo') = ('1', 'foo');
             """)
+
+    async def test_edgeql_expr_cannot_assign_dunder_class(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError, r'cannot assign to __class__'):
+            await self.con.execute(r"""
+                SELECT test::Text {
+                    std::__class__ := 42
+                };
+            """)

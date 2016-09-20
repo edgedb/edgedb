@@ -82,7 +82,7 @@ class DeleteModule(ModuleCommand):
 
 class Module(named.NamedClass):
     name = so.Field(str)
-    imports = so.Field(frozenset, frozenset)
+    imports = so.Field(so.ClassSet, so.ClassSet)
 
     def get_object_key(self, obj):
         return obj.__class__.get_canonical_class(), obj.name

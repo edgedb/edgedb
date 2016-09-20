@@ -6,6 +6,7 @@
 ##
 
 import collections
+import sys
 
 
 def _get_contexts(ex, *, auto_init=False):
@@ -88,6 +89,11 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
             self._attrs['H'] = hint
         if details is not None:
             self._attrs['D'] = details
+
+        if (hint or details) is not None:
+            add_context(
+                self, DefaultExceptionContext(hint=hint, details=details))
+
         for k, v in kwargs.items():
             if isinstance(v, ExceptionContext):
                 add_context(self, v)
@@ -134,3 +140,40 @@ class DefaultExceptionContext(ExceptionContext):
 
 class EdgeDBExceptionContext(ExceptionContext):
     pass
+
+
+_old_excepthook = sys.excepthook
+
+
+def excepthook(exctype, exc, tb):
+    try:
+        from edgedb.lang.common import markup
+        markup.dump(exc, file=sys.stderr)
+
+    except Exception as ex:
+        print('!!! exception in edgedb.excepthook !!!', file=sys.stderr)
+
+        # Attach the original exception as a context to top of the new chain,
+        # but only if it's not already there.  Take some care to avoid looping
+        # forever.
+        visited = set()
+        parent = ex
+        while parent.__cause__ or (
+                not parent.__suppress_context__ and parent.__context__):
+            if (parent in visited or parent.__context__ is exc or
+                    parent.__cause__ is exc):
+                break
+            visited.add(parent)
+            parent = parent.__cause__ or parent.__context__
+        parent.__context__ = exc
+        parent.__cause__ = None
+
+        _old_excepthook(type(ex), ex, ex.__traceback__)
+
+
+def install_excepthook():
+    sys.excepthook = excepthook
+
+
+def uninstall_excepthook():
+    sys.excepthook = _old_excepthook

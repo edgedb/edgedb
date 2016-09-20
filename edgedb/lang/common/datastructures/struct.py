@@ -64,6 +64,10 @@ class Field:
 
         return value
 
+    @property
+    def required(self):
+        return self.default is NoDefault
+
     def __get__(self, instance, owner):
         if instance is not None:
             return None
@@ -117,7 +121,7 @@ class StructMeta(type):
         super().__init__(name, bases, clsdict)
 
     def get_field(cls, name):
-        return cls._fields[name]
+        return cls._fields.get(name)
 
     def get_fields(cls, sorted=False):
         return cls._sorted_fields if sorted else cls._fields

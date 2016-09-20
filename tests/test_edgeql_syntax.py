@@ -786,14 +786,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=23)
-    def test_edgeql_syntax_shape22(self):
-        """
-        SELECT Foo{
-            __class__ := 42
-        };
-        """
-
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=22)
     def test_edgeql_syntax_shape23(self):
         """

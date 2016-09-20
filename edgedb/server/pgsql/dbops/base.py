@@ -87,7 +87,6 @@ class Command(BaseCommand):
         self.neg_conditions = neg_conditions or set()
         self.priority = priority
 
-    @debug
     async def execute(self, context):
         ok = (
             await self.check_conditions(context, self.conditions, True) and
@@ -97,12 +96,6 @@ class Command(BaseCommand):
         result = None
         if ok:
             code, vars = await self.get_code_and_vars(context)
-            """LOG [delta.execute] Executing DDL:
-            print(repr(self))
-            print()
-            print('CODE:', code)
-            print('VARS:', vars)
-            """
             result = await self.execute_code(context, code, vars)
         return result
 
@@ -118,7 +111,6 @@ class Command(BaseCommand):
 
         return extra_before, extra_after
 
-    @debug
     async def execute_code(self, context, code, vars):
         extra_before, extra_after = await self.get_extra_commands(context)
 
@@ -134,7 +126,17 @@ class Command(BaseCommand):
 
         return result
 
+    @debug
     async def _execute(self, context, code, vars):
+        """"""
+
+        """LOG [delta.execute] Executing DDL:
+        print(repr(self))
+        print()
+        print('CODE:', code)
+        print('VARS:', vars)
+        """
+
         stmt = await context.db.prepare(code)
 
         if vars is None:

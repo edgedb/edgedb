@@ -74,8 +74,7 @@ class AlterInherit(sd.Command):
         return None
 
 
-class CreateInheritingClass(named.CreateNamedClass,
-                                InheritingClassCommand):
+class CreateInheritingClass(named.CreateNamedClass, InheritingClassCommand):
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
@@ -114,8 +113,9 @@ class CreateInheritingClass(named.CreateNamedClass,
             for b in getattr(astnode, 'bases', None) or []
         )
 
-        if not bases:
-            default_base = cls._get_metaclass().get_default_base_name()
+        mcls = cls._get_metaclass()
+        if not bases and classname not in mcls.get_root_classes():
+            default_base = mcls.get_default_base_name()
 
             if default_base is not None and classname != default_base:
                 bases = so.ClassList([
@@ -125,8 +125,7 @@ class CreateInheritingClass(named.CreateNamedClass,
         return bases
 
 
-class AlterInheritingClass(named.AlterNamedClass,
-                               InheritingClassCommand):
+class AlterInheritingClass(named.AlterNamedClass, InheritingClassCommand):
     def _alter_begin(self, schema, context, scls):
         super()._alter_begin(schema, context, scls)
 
@@ -138,8 +137,7 @@ class AlterInheritingClass(named.AlterNamedClass,
         return scls
 
 
-class DeleteInheritingClass(named.DeleteNamedClass,
-                                InheritingClassCommand):
+class DeleteInheritingClass(named.DeleteNamedClass, InheritingClassCommand):
     def _delete_finalize(self, schema, context, scls):
         super()._delete_finalize(schema, context, scls)
         schema.drop_inheritance_cache_for_child(scls)
@@ -350,6 +348,10 @@ class InheritingClass(named.NamedClass):
         super().finalize(schema, bases=bases, dctx=dctx)
         self.mro = compute_mro(self)[1:]
         self.acquire_ancestor_inheritance(schema, dctx=dctx)
+
+    @classmethod
+    def get_root_classes(cls):
+        return tuple()
 
     @classmethod
     def get_default_base_name(self):

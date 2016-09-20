@@ -45,15 +45,13 @@ source: |
     SELECT
             a.id           AS id,
             a.name         AS name,
-            a.title        AS title,
-            a.description  AS description,
             subj.name      AS subject_name,
             attr.name      AS attribute_name,
             a.value        AS value
         FROM
-            edgedb.attribute_value a
-            INNER JOIN edgedb.object subj ON (subj.id = a.subject)
-            INNER JOIN edgedb.object attr ON (attr.id = a.attribute)
+            edgedb.AttributeValue a
+            INNER JOIN edgedb.NamedClass subj ON (subj.id = a.subject)
+            INNER JOIN edgedb.NamedClass attr ON (attr.id = a.attribute)
         WHERE
             %(name)s::text IS NULL OR a.name LIKE %(name)s::text
 ...

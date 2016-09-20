@@ -15,6 +15,7 @@ from edgedb.lang.schema import ddl as s_ddl
 from edgedb.server import defines as edgedb_defines
 
 from . import backend
+from . import metaschema
 
 
 logger = logging.getLogger('edgedb.server')
@@ -121,13 +122,7 @@ async def _ensure_edgedb_template_database(conn):
 
 async def _ensure_meta_schema(conn):
     logger.info('Bootstrapping meta schema...')
-
-    metaschema = os.path.join(os.path.dirname(os.path.dirname(__file__)),
-                              'metaschema.sql')
-    with open(metaschema, 'r') as f:
-        metaschema_script = f.read()
-
-    await conn.execute(metaschema_script)
+    await metaschema.bootstrap(conn)
 
 
 async def _init_std_schema(conn):
@@ -147,6 +142,8 @@ async def _init_std_schema(conn):
     for statement in statements:
         cmd = s_ddl.delta_from_ddl(statement, schema=bk.schema)
         await bk.run_ddl_command(cmd)
+
+    await metaschema.generate_views(conn, bk.schema)
 
 
 async def bootstrap(cluster, loop=None):

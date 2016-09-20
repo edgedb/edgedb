@@ -498,15 +498,14 @@ class TypeMech:
 
             if isinstance(scls, s_links.Link):
                 cols.extend([
-                    dbops.Column(
-                        name='link_type_id', type='int'), dbops.Column(
-                            name='std::linkid', type='uuid'), dbops.Column(
-                                name='std::source', type='uuid'), dbops.Column(
-                                    name='std::target', type='uuid')
+                    dbops.Column(name='link_type_id', type='uuid'),
+                    dbops.Column(name='std::linkid', type='uuid'),
+                    dbops.Column(name='std::source', type='uuid'),
+                    dbops.Column(name='std::target', type='uuid')
                 ])
 
             elif isinstance(scls, s_concepts.Concept):
-                cols.extend([dbops.Column(name='concept_id', type='int')])
+                cols.extend([dbops.Column(name='std::__class__', type='uuid')])
 
             else:
                 assert False

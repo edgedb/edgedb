@@ -1297,34 +1297,6 @@ class EdgeQLCompiler:
                 result = self._merge_pathspecs(
                     result, glob_specs, target_most_generic=False)
 
-            elif isinstance(ptrspec, qlast.SelectTypeRefNode):
-                schema = context.current.schema
-                ptr_class = schema.get('schema::__class__').derive(
-                    schema, source, schema.get('std::Object'))
-
-                node = irast.PtrPathSpec(
-                    type_indirection=True,
-                    ptr_class=ptr_class)
-
-                node.pathspec = self._process_pathspec(
-                    context, source, ptr_class, ptrspec.attrs,
-                    is_typeref=True)
-
-                result.append(node)
-
-            elif is_typeref:
-                type_prop_name = ptrspec.steps[0].expr.name
-                type_prop = source.get_type_property(
-                    type_prop_name, context.current.schema)
-
-                node = irast.PtrPathSpec(
-                    ptr_class=type_prop,
-                    ptr_direction=s_pointers.PointerDirection.Outbound,
-                    target_class=type_prop.target,
-                    trigger=irast.ExplicitPathSpecTrigger())
-
-                result.append(node)
-
             else:
                 steps = ptrspec.expr.steps
                 ptrsource = source
@@ -1379,6 +1351,10 @@ class EdgeQLCompiler:
                             module=ptrname[0] or ptrsource.name.module,
                             name=ptrname[1]),
                     ).derive(schema, ptrsource, target_class)
+
+                    if ptr.normal_name() == 'std::__class__':
+                        msg = 'cannot assign to __class__'
+                        raise errors.EdgeQLError(msg, context=lexpr.context)
                 else:
                     ptr = self._resolve_ptr(
                         context,
@@ -1516,7 +1492,7 @@ class EdgeQLCompiler:
                     context.current.local_link_source is not None and
                     isinstance(tip, qlast.PathStepNode)):
                 scls = self._get_schema_object(context, tip.expr,
-                                                tip.namespace)
+                                               tip.namespace)
                 if isinstance(scls, s_links.Link):
                     tip = qlast.LinkExprNode(expr=qlast.LinkNode(
                         namespace=tip.namespace, name=tip.expr))
@@ -1525,7 +1501,7 @@ class EdgeQLCompiler:
             if isinstance(tip, qlast.PathStepNode):
 
                 scls = self._get_schema_object(context, tip.expr,
-                                                tip.namespace)
+                                               tip.namespace)
 
                 if isinstance(scls, s_obj.NodeClass):
                     step = irast.EntitySet()
@@ -1732,8 +1708,8 @@ class EdgeQLCompiler:
             ptr_fqname = sn.Name(module=ptr_module, name=ptr_nqname)
             modaliases = context.current.namespaces
             pointer = self.schema.get(ptr_fqname,
-                                            module_aliases=modaliases,
-                                            type=ptr_type)
+                                      module_aliases=modaliases,
+                                      type=ptr_type)
             pointer_name = pointer.name
         else:
             pointer_name = ptr_fqname = ptr_nqname
@@ -1742,7 +1718,7 @@ class EdgeQLCompiler:
             target_name = '.'.join(filter(None, target))
             modaliases = context.current.namespaces
             target = self.schema.get(target_name,
-                                           module_aliases=modaliases)
+                                     module_aliases=modaliases)
 
         if ptr_nqname == '%':
             pointer_name = self.schema.get_root_class(ptr_type).name

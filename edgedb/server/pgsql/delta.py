@@ -38,7 +38,7 @@ from edgedb.lang.common import markup
 from edgedb.lang.common.nlang import morphology
 
 from edgedb.server.pgsql import common
-from edgedb.server.pgsql import dbops, deltadbops
+from edgedb.server.pgsql import dbops, deltadbops, metaschema
 
 from . import ast as pg_ast
 from . import codegen
@@ -163,7 +163,7 @@ class NamedClassMetaCommand(
 
         elif isinstance(value, morphology.WordCombination):
             result = value
-            recvalue = value.as_dict()
+            recvalue = json.dumps(value)
 
         elif isinstance(value, collections.abc.Mapping):
             # Other dicts are JSON'ed by default
@@ -180,10 +180,10 @@ class NamedClassMetaCommand(
                     '''SELECT
                             array_agg(id ORDER BY st.i)
                         FROM
-                            edgedb.object AS o,
+                            edgedb.NamedClass AS o,
                             UNNEST($1::text[]) WITH ORDINALITY AS st(t, i)
                         WHERE
-                            o.name = st.t''', [names], type='integer[]')
+                            o.name = st.t''', [names], type='uuid[]')
 
             elif (
                     isinstance(names, tuple) or col is not None and
@@ -193,12 +193,12 @@ class NamedClassMetaCommand(
 
                 recvalue = dbops.Query(
                     '''SELECT ROW(
-                            (SELECT id FROM edgedb.object WHERE name = $1),
+                            (SELECT id FROM edgedb.NamedClass WHERE name = $1),
                             $2,
                             (SELECT
                                     array_agg(id ORDER BY st.i)
                                 FROM
-                                    edgedb.object AS o,
+                                    edgedb.NamedClass AS o,
                                     UNNEST($3::text[])
                                         WITH ORDINALITY AS st(t, i)
                                 WHERE
@@ -227,10 +227,10 @@ class NamedClassMetaCommand(
                             jsonb_build_object({json_seq})
                         FROM
                             (SELECT array_agg(ROW(
-                                (SELECT id FROM edgedb.object
+                                (SELECT id FROM edgedb.NamedClass
                                 WHERE name = t.type),
                                 t.collection,
-                                (SELECT array_agg(id) FROM edgedb.object
+                                (SELECT array_agg(id) FROM edgedb.NamedClass
                                 WHERE name = any(t.subtypes))
                                 )::edgedb.type_t) AS types
                             FROM
@@ -242,8 +242,8 @@ class NamedClassMetaCommand(
 
             else:
                 recvalue = dbops.Query(
-                    '''(SELECT id FROM edgedb.object
-                       WHERE name = $1)''', [names], type='integer')
+                    '''(SELECT id FROM edgedb.NamedClass
+                       WHERE name = $1)''', [names], type='uuid')
 
         elif recvalue is None:
             recvalue = result
@@ -380,7 +380,7 @@ class AlterClassProperty(MetaCommand, adapts=sd.AlterClassProperty):
 
 
 class FunctionCommand:
-    table = deltadbops.FunctionTable()
+    table = metaschema.get_metaclass_table(s_funcs.Function)
 
 
 class CreateFunction(
@@ -404,7 +404,7 @@ class DeleteFunction(
 
 
 class AttributeCommand:
-    table = deltadbops.AttributeTable()
+    table = metaschema.get_metaclass_table(s_attrs.Attribute)
 
 
 class CreateAttribute(
@@ -431,7 +431,7 @@ class DeleteAttribute(
 
 
 class AttributeValueCommand(metaclass=CommandMeta):
-    table = deltadbops.AttributeValueTable()
+    table = metaschema.get_metaclass_table(s_attrs.AttributeValue)
     op_priority = 1
 
     def fill_record(self, schema):
@@ -441,14 +441,15 @@ class AttributeValueCommand(metaclass=CommandMeta):
             subj = updates.get('subject')
             if subj:
                 rec.subject = dbops.Query(
-                    '(SELECT id FROM edgedb.object WHERE name = $1)', [subj],
-                    type='integer')
+                    '(SELECT id FROM edgedb.NamedClass WHERE name = $1)',
+                    [subj],
+                    type='uuid')
 
             attribute = updates.get('attribute')
             if attribute:
                 rec.attribute = dbops.Query(
-                    '(SELECT id FROM edgedb.object WHERE name = $1)',
-                    [attribute], type='integer')
+                    '(SELECT id FROM edgedb.NamedClass WHERE name = $1)',
+                    [attribute], type='uuid')
 
             value = updates.get('value')
             if value:
@@ -482,7 +483,7 @@ class DeleteAttributeValue(
 
 
 class ConstraintCommand(metaclass=CommandMeta):
-    table = deltadbops.ConstraintTable()
+    table = metaschema.get_metaclass_table(s_constr.Constraint)
     op_priority = 3
 
     def fill_record(self, schema):
@@ -594,9 +595,7 @@ class DeleteConstraint(
 
 
 class AtomMetaCommand(NamedClassMetaCommand):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.table = deltadbops.AtomTable()
+    table = metaschema.get_metaclass_table(s_atoms.Atom)
 
     def is_sequence(self, schema, atom):
         seq = schema.get('std::sequence', default=None)
@@ -824,7 +823,7 @@ class DeleteAtom(AtomMetaCommand, adapts=s_atoms.DeleteAtom):
                 name=old_domain_name, conditions=[cond], priority=3))
         ops.add(
             dbops.Delete(
-                table=deltadbops.AtomTable(), condition=[(
+                table=self.table, condition=[(
                     'name', str(self.classname))]))
 
         if self.is_sequence(schema, atom):
@@ -1354,9 +1353,7 @@ class DeleteSourceIndex(
 
 
 class ConceptMetaCommand(CompositeClassMetaCommand):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.table = deltadbops.ConceptTable()
+    table = metaschema.get_metaclass_table(s_concepts.Concept)
 
 
 class CreateConcept(ConceptMetaCommand, adapts=s_concepts.CreateConcept):
@@ -1379,33 +1376,38 @@ class CreateConcept(ConceptMetaCommand, adapts=s_concepts.CreateConcept):
 
         fields = self.create_object(schema, concept)
 
-        constr_name = common.edgedb_name_to_pg_name(
-            self.classname + '.concept_id_check')
+        if concept.name.module != 'schema':
+            constr_name = common.edgedb_name_to_pg_name(
+                self.classname + '.class_check')
 
-        constr_expr = dbops.Query(
-            """
-            SELECT 'concept_id = ' || id FROM edgedb.concept WHERE name = $1
-        """, [concept.name], type='text')
+            constr_expr = dbops.Query("""
+                SELECT '"std::__class__" = ' || quote_literal(id)
+                FROM edgedb.concept WHERE name = $1
+            """, [concept.name], type='text')
 
-        cid_constraint = dbops.CheckConstraint(
-            self.table_name, constr_name, constr_expr, inherit=False)
-        alter_table.add_operation(
-            dbops.AlterTableAddConstraint(cid_constraint))
+            cid_constraint = dbops.CheckConstraint(
+                self.table_name, constr_name, constr_expr, inherit=False)
+            alter_table.add_operation(
+                dbops.AlterTableAddConstraint(cid_constraint))
 
-        cid_col = dbops.Column(
-            name='concept_id', type='integer', required=True)
+            cid_col = dbops.Column(
+                name='std::__class__', type='uuid', required=True)
 
-        if concept.name == 'std::Object':
-            alter_table.add_operation(dbops.AlterTableAddColumn(cid_col))
+            if concept.name == 'std::Object':
+                alter_table.add_operation(dbops.AlterTableAddColumn(cid_col))
 
-        constraint = dbops.PrimaryKey(
-            table_name=alter_table.name, columns=['std::id'])
-        alter_table.add_operation(dbops.AlterTableAddConstraint(constraint))
+            constraint = dbops.PrimaryKey(
+                table_name=alter_table.name, columns=['std::id'])
+            alter_table.add_operation(
+                dbops.AlterTableAddConstraint(constraint))
+
+        cntn = common.concept_name_to_table_name
 
         bases = (
-            common.concept_name_to_table_name(sn.Name(p), catenate=False)
-            for p in fields['bases'])
-        concept_table.bases = list(bases)
+            dbops.Table(name=cntn(sn.Name(p), catenate=False))
+            for p in fields['bases']
+        )
+        concept_table.add_bases(bases)
 
         self.affirm_pointer_defaults(concept, schema, context)
 
@@ -1449,9 +1451,9 @@ class RenameConcept(ConceptMetaCommand, adapts=s_concepts.RenameConcept):
         # Need to update all bits that reference concept name
 
         old_constr_name = common.edgedb_name_to_pg_name(
-            self.classname + '.concept_id_check')
+            self.classname + '.class_check')
         new_constr_name = common.edgedb_name_to_pg_name(
-            self.new_name + '.concept_id_check')
+            self.new_name + '.class_check')
 
         alter_table = self.get_alter_table(context, manual=True)
         rc = dbops.AlterTableRenameConstraintSimple(
@@ -1520,7 +1522,7 @@ class DeleteConcept(ConceptMetaCommand, adapts=s_concepts.DeleteConcept):
 
 
 class ActionCommand:
-    table = deltadbops.ActionTable()
+    table = metaschema.get_metaclass_table(s_policy.Action)
 
 
 class CreateAction(
@@ -1544,7 +1546,7 @@ class DeleteAction(
 
 
 class EventCommand(metaclass=CommandMeta):
-    table = deltadbops.EventTable()
+    table = metaschema.get_metaclass_table(s_policy.Event)
 
 
 class CreateEvent(
@@ -1573,7 +1575,7 @@ class DeleteEvent(
 
 
 class PolicyCommand(metaclass=CommandMeta):
-    table = deltadbops.PolicyTable()
+    table = metaschema.get_metaclass_table(s_policy.Policy)
     op_priority = 2
 
     def fill_record(self, schema):
@@ -1583,22 +1585,24 @@ class PolicyCommand(metaclass=CommandMeta):
             subj = updates.get('subject')
             if subj:
                 rec.subject = dbops.Query(
-                    '(SELECT id FROM edgedb.object WHERE name = $1)', [subj],
-                    type='integer')
+                    '(SELECT id FROM edgedb.NamedClass WHERE name = $1)',
+                    [subj],
+                    type='uuid')
 
             event = updates.get('event')
             if event:
                 rec.event = dbops.Query(
-                    '(SELECT id FROM edgedb.object WHERE name = $1)', [event],
-                    type='integer')
+                    '(SELECT id FROM edgedb.NamedClass WHERE name = $1)',
+                    [event],
+                    type='uuid')
 
             actions = updates.get('actions')
             if actions:
                 rec.actions = dbops.Query(
                     '''(SELECT array_agg(id)
-                        FROM edgedb.object
+                        FROM edgedb.NamedClass
                         WHERE name = any($1::text[]))''', [actions],
-                    type='integer[]')
+                    type='uuid[]')
 
         return rec, updates
 
@@ -1830,9 +1834,7 @@ class PointerMetaCommand(MetaCommand):
 
 
 class LinkMetaCommand(CompositeClassMetaCommand, PointerMetaCommand):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.table = deltadbops.LinkTable()
+    table = metaschema.get_metaclass_table(s_links.Link)
 
     @classmethod
     def _create_table(
@@ -1859,7 +1861,7 @@ class LinkMetaCommand(CompositeClassMetaCommand, PointerMetaCommand):
                     comment='std::target'))
             columns.append(
                 dbops.Column(
-                    name='link_type_id', type='integer', required=True))
+                    name='link_type_id', type='uuid', required=True))
 
         constraints.append(
             dbops.UniqueConstraint(
@@ -1894,9 +1896,9 @@ class LinkMetaCommand(CompositeClassMetaCommand, PointerMetaCommand):
                         create_c.add_command(bc)
 
                     tabname = common.get_table_name(parent, catenate=False)
-                    bases.append(tabname)
+                    bases.append(dbops.Table(name=tabname))
 
-            table.bases = bases
+            table.add_bases(bases)
 
         ct = dbops.CreateTable(table=table)
 
@@ -2208,9 +2210,7 @@ class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
 
 
 class LinkPropertyMetaCommand(NamedClassMetaCommand, PointerMetaCommand):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.table = deltadbops.LinkPropertyTable()
+    table = metaschema.get_metaclass_table(s_lprops.LinkProperty)
 
 
 class CreateLinkProperty(
@@ -2240,7 +2240,7 @@ class CreateLinkProperty(
                     table_name=alter_table.name, column_name=col.name)
 
                 if property.required:
-                    # For some reaseon, Postgres allows dropping NOT NULL
+                    # For some reason, Postgres allows dropping NOT NULL
                     # constraints from inherited columns, but we really should
                     # only always increase constraints down the inheritance
                     # chain.
@@ -2620,10 +2620,14 @@ class CommandContext(sd.CommandContext):
         return link_map
 
 
-class CreateModule(CompositeClassMetaCommand, adapts=s_mod.CreateModule):
+class ModuleMetaCommand(NamedClassMetaCommand):
+    table = metaschema.get_metaclass_table(s_mod.Module)
+
+
+class CreateModule(ModuleMetaCommand, adapts=s_mod.CreateModule):
     def apply(self, schema, context):
         CompositeClassMetaCommand.apply(self, schema, context)
-        module = s_mod.CreateModule.apply(self, schema, context)
+        self.scls = module = s_mod.CreateModule.apply(self, schema, context)
 
         module_name = module.name
         schema_name = common.edgedb_module_name_to_schema_name(module_name)
@@ -2631,22 +2635,15 @@ class CreateModule(CompositeClassMetaCommand, adapts=s_mod.CreateModule):
 
         cmd = dbops.CommandGroup(neg_conditions={condition})
         cmd.add_command(dbops.CreateSchema(name=schema_name))
-
-        modtab = deltadbops.ModuleTable()
-        rec = modtab.record()
-        rec.name = module_name
-        rec.schema_name = schema_name
-        rec.imports = module.imports
-        cmd.add_command(dbops.Insert(modtab, [rec]))
-
         self.pgops.add(cmd)
+
+        self.create_object(schema, module)
 
         return module
 
 
 class AlterModule(CompositeClassMetaCommand, adapts=s_mod.AlterModule):
     def apply(self, schema, context):
-        self.table = deltadbops.ModuleTable()
         module = s_mod.AlterModule.apply(self, schema, context=context)
         CompositeClassMetaCommand.apply(self, schema, context)
 
@@ -2678,7 +2675,7 @@ class DeleteModule(CompositeClassMetaCommand, adapts=s_mod.DeleteModule):
                 name=schema_name, conditions={condition}, priority=4))
         cmd.add_command(
             dbops.Delete(
-                table=deltadbops.ModuleTable(), condition=[(
+                table=self.table, condition=[(
                     'name', str(module.name))]))
 
         self.pgops.add(cmd)
@@ -2734,29 +2731,3 @@ class DropDatabase(MetaCommand, adapts=s_db.DropDatabase):
     def apply(self, schema, context):
         s_db.CreateDatabase.apply(self, schema, context)
         self.pgops.add(dbops.DropDatabase(self.name))
-
-
-class UpgradeBackend(MetaCommand):
-    def __init__(self, backend_info, **kwargs):
-        super().__init__(**kwargs)
-
-        self.actual_version = backend_info['format_version']
-        self.current_version = BACKEND_FORMAT_VERSION
-
-    async def execute(self, context):
-        for version in range(self.actual_version, self.current_version):
-            print(
-                'Upgrading PostgreSQL backend metadata to version {}'.format(
-                    version + 1))
-            getattr(self, 'update_to_version_{}'.format(version + 1))(context)
-        op = self.update_backend_info()
-        await op.execute(context)
-
-    @classmethod
-    def update_backend_info(cls):
-        backendinfotable = deltadbops.BackendInfoTable()
-        record = backendinfotable.record()
-        record.format_version = BACKEND_FORMAT_VERSION
-        condition = [('format_version', '<', BACKEND_FORMAT_VERSION)]
-        return dbops.Merge(
-            table=backendinfotable, record=record, condition=condition)

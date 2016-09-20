@@ -50,7 +50,7 @@ class Index(tables.InheritableTableObject):
 
         self.name = name
         self.table_name = table_name
-        self.__columns = datastructures.OrderedSet()
+        self._columns = datastructures.OrderedSet()
         if columns:
             self.add_columns(columns)
         self.predicate = predicate
@@ -73,7 +73,7 @@ class Index(tables.InheritableTableObject):
             return self.name
 
     def add_columns(self, columns):
-        self.__columns.update(columns)
+        self._columns.update(columns)
 
     async def creation_code(self, context):
         if self.expr:
@@ -96,7 +96,7 @@ class Index(tables.InheritableTableObject):
 
     @property
     def columns(self):
-        return iter(self.__columns)
+        return iter(self._columns)
 
     def get_type(self):
         return 'INDEX'
@@ -264,7 +264,7 @@ class DropIndex(tables.DropInheritableTableObject):
 class DDLTriggerBase:
     @classmethod
     async def get_inherited_indexes(cls, db, table_name, bases):
-        bases = ['{}.{}'.format(*base) for base in bases]
+        bases = ['{}.{}'.format(*base.name) for base in bases]
 
         ti = introspection.tables.TableIndexes(db)
         idx_records = await ti.fetch(

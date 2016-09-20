@@ -25,13 +25,13 @@ source: |
             (SELECT jsonb_object(array_agg(pt.key), array_agg(o.name))
              FROM
                 jsonb_each_text(f.paramtypes) pt
-                INNER JOIN edgedb.object o
-                    ON o.id = pt.value::int
+                INNER JOIN edgedb.NamedClass o
+                    ON o.id = pt.value::uuid
             ) AS paramtypes,
             f.paramkinds,
             f.paramdefaults,
             f.aggregate,
-            (SELECT name FROM edgedb.object WHERE id = f.returntype)
+            (SELECT name FROM edgedb.NamedClass WHERE id = f.returntype)
                 AS returntype
         FROM
             edgedb.function f
