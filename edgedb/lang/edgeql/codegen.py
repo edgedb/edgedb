@@ -7,7 +7,7 @@
 
 
 from edgedb.lang.common.exceptions import EdgeDBError
-from edgedb.lang.common.ast import codegen, AST
+from edgedb.lang.common.ast import codegen, AST, base
 
 from . import ast as edgeql_ast
 from . import quote as edgeql_quote
@@ -52,7 +52,25 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.indentation -= 1
         self.new_lines = 1
 
+    def _visit_returning(self, node):
+        if node.targets:
+            self.new_lines = 1
+            self.write('RETURNING')
+            if node.single:
+                self.write(' SINGLE')
+            self.indentation += 1
+            self.new_lines = 1
+            self.visit_list(node.targets)
+            self.indentation -= 1
+
     def visit_InsertQueryNode(self, node):
+        # need to parenthesise when SELECT appears as an expression
+        #
+        parenthesise = (isinstance(node.parent, edgeql_ast.Base) and
+                        not isinstance(node.parent, edgeql_ast.DDLNode))
+
+        if parenthesise:
+            self.write('(')
         self._visit_aliases(node)
         self.write('INSERT')
         self.indentation += 1
@@ -66,17 +84,18 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self._visit_pathspec(node.pathspec)
             self.indentation -= 1
 
-        if node.targets:
-            self.new_lines = 1
-            self.write('RETURNING')
-            if node.single:
-                self.write(' SINGLE')
-            self.indentation += 1
-            self.new_lines = 1
-            self.visit_list(node.targets)
-            self.indentation -= 1
+        self._visit_returning(node)
+        if parenthesise:
+            self.write(')')
 
     def visit_UpdateQueryNode(self, node):
+        # need to parenthesise when SELECT appears as an expression
+        #
+        parenthesise = (isinstance(node.parent, edgeql_ast.Base) and
+                        not isinstance(node.parent, edgeql_ast.DDLNode))
+
+        if parenthesise:
+            self.write('(')
         self._visit_aliases(node)
         self.write('UPDATE')
         self.indentation += 1
@@ -98,15 +117,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.where)
             self.indentation -= 1
 
-        if node.targets:
-            self.new_lines = 1
-            self.write('RETURNING')
-            if node.single:
-                self.write(' SINGLE')
-            self.indentation += 1
-            self.new_lines = 1
-            self.visit_list(node.targets)
-            self.indentation -= 1
+        self._visit_returning(node)
+        if parenthesise:
+            self.write(')')
 
     def visit_UpdateExprNode(self, node):
         self.visit(node.expr)
@@ -114,20 +127,22 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.value)
 
     def visit_DeleteQueryNode(self, node):
+        # need to parenthesise when SELECT appears as an expression
+        #
+        parenthesise = (isinstance(node.parent, edgeql_ast.Base) and
+                        not isinstance(node.parent, edgeql_ast.DDLNode))
+
+        if parenthesise:
+            self.write('(')
         self._visit_aliases(node)
         self.write('DELETE ')
         self.visit(node.subject)
         if node.where:
             self.write(' WHERE ')
             self.visit(node.where)
-        if node.targets:
-            self.write(' RETURNING ')
-            if node.single:
-                self.write('SINGLE ')
-            for i, e in enumerate(node.targets):
-                if i > 0:
-                    self.write(', ')
-                self.visit(e)
+        self._visit_returning(node)
+        if parenthesise:
+            self.write(')')
 
     def visit_SelectQueryNode(self, node):
         # need to parenthesise when SELECT appears as an expression
@@ -151,6 +166,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write('SELECT')
             if node.single:
                 self.write(' SINGLE')
+            if node.distinct:
+                self.write(' DISTINCT')
             self.new_lines = 1
             self.indentation += 1
             for i, e in enumerate(node.targets):
@@ -171,11 +188,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.write('GROUP BY')
                 self.new_lines = 1
                 self.indentation += 1
-                for i, e in enumerate(node.groupby):
-                    if i > 0:
-                        self.write(' THEN')
-                        self.new_lines = 1
-                    self.visit(e)
+                self.visit_list(node.groupby, separator=' THEN')
                 self.new_lines = 1
                 self.indentation -= 1
 
@@ -183,11 +196,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write('ORDER BY')
             self.new_lines = 1
             self.indentation += 1
-            for i, e in enumerate(node.orderby):
-                if i > 0:
-                    self.write(' THEN')
-                    self.new_lines = 1
-                self.visit(e)
+            self.visit_list(node.orderby, separator=' THEN')
             self.new_lines = 1
             self.indentation -= 1
         if node.offset is not None:
@@ -368,10 +377,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         if node.orderby:
             self.write(' ORDER BY ')
-            for i, e in enumerate(node.orderby):
-                if i > 0:
-                    self.write(' THEN ')
-                self.visit(e)
+            self.visit_list(node.orderby, separator=' THEN', newlines=False)
 
         if node.offset:
             self.write(' OFFSET ')
@@ -429,40 +435,32 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.write(', ')
             self.visit(arg)
 
+        if node.agg_filter:
+            self.write(' WHERE ')
+            self.visit(node.agg_filter)
+
         if node.agg_sort:
             self.write(' ORDER BY ')
-            for i, sortexpr in enumerate(node.agg_sort):
-                if i > 0:
-                    self.write(', ')
-                self.visit(sortexpr)
+            self.visit_list(node.agg_sort, separator=' THEN')
 
         self.write(')')
 
-        if node.agg_filter:
-            self.write(' FILTER (WHERE ')
-            self.visit(node.agg_filter)
-            self.write(')')
-
         if node.window:
             self.write(' OVER (')
+            self.new_lines = 1
+            self.indentation += 1
 
             if node.window.partition:
-                self.write('PARTITION BY')
-
-                count = len(node.window.partition)
-                for i, groupexpr in enumerate(node.window.partition):
-                    self.visit(groupexpr)
-                    if i != count - 1:
-                        self.write(',')
+                self.write('PARTITION BY ')
+                self.visit_list(node.window.partition, newlines=False)
+                self.new_lines = 1
 
             if node.window.orderby:
-                self.write(' ORDER BY ')
-                count = len(node.window.orderby)
-                for i, sortexpr in enumerate(node.window.orderby):
-                    self.visit(sortexpr)
-                    if i != count - 1:
-                        self.write(',')
+                self.write('ORDER BY ')
+                self.visit_list(node.window.orderby, separator=' THEN')
 
+            self.indentation -= 1
+            self.new_lines = 1
             self.write(')')
 
     def visit_NamedArgNode(self, node):
@@ -881,6 +879,21 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if node.default:
             self.write(' = ')
             self.visit(node.default)
+
+    @classmethod
+    def to_source(
+            cls, node, indent_with=' ' * 4, add_line_information=False,
+            pretty=True):
+        # make sure that all the parents are properly set
+        #
+        if isinstance(node, (list, tuple)):
+            for n in node:
+                base.fix_parent_links(n)
+        else:
+            base.fix_parent_links(node)
+
+        return super().to_source(
+            node, indent_with, add_line_information, pretty)
 
 
 generate_source = EdgeQLSourceGenerator.to_source

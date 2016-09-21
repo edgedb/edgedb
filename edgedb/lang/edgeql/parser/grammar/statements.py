@@ -78,18 +78,3 @@ class UpdateStmt(Nonterm):
 class DeleteStmt(Nonterm):
     def reduce_DeleteExpr(self, *kids):
         self.val = kids[0].val
-
-
-class ReturningClause(Nonterm):
-    def reduce_RETURNING_OptSingle_SelectTargetEl(self, *kids):
-        # XXX: for historical reasons a list is expected here by the compiler
-        #
-        self.val = [kids[1].val, [kids[2].val]]
-
-
-class OptReturningClause(Nonterm):
-    def reduce_ReturningClause(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_empty(self, *kids):
-        self.val = [False, None]

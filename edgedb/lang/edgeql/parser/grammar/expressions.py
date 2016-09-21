@@ -924,21 +924,18 @@ class Path(Nonterm):
 class PathStep(Nonterm):
     def reduce_DOT_PathPtr(self, *kids):
         self.val = qlast.LinkExprNode(expr=kids[1].val)
-        if isinstance(kids[1].val, qlast.LinkNode):
-            from edgedb.lang.schema import pointers as s_pointers
-            kids[1].val.direction = s_pointers.PointerDirection.Outbound
+        from edgedb.lang.schema import pointers as s_pointers
+        kids[1].val.direction = s_pointers.PointerDirection.Outbound
 
     def reduce_DOTFW_PathPtr(self, *kids):
         self.val = qlast.LinkExprNode(expr=kids[1].val)
-        if isinstance(kids[1].val, qlast.LinkNode):
-            from edgedb.lang.schema import pointers as s_pointers
-            kids[1].val.direction = s_pointers.PointerDirection.Outbound
+        from edgedb.lang.schema import pointers as s_pointers
+        kids[1].val.direction = s_pointers.PointerDirection.Outbound
 
     def reduce_DOTBW_PathPtr(self, *kids):
         self.val = qlast.LinkExprNode(expr=kids[1].val)
-        if isinstance(kids[1].val, qlast.LinkNode):
-            from edgedb.lang.schema import pointers as s_pointers
-            kids[1].val.direction = s_pointers.PointerDirection.Inbound
+        from edgedb.lang.schema import pointers as s_pointers
+        kids[1].val.direction = s_pointers.PointerDirection.Inbound
 
     def reduce_AT_PathPtr(self, *kids):
         self.val = qlast.LinkPropExprNode(expr=kids[1].val)
@@ -1221,3 +1218,18 @@ class UnreservedKeyword(Nonterm, metaclass=KeywordMeta,
 class ReservedKeyword(Nonterm, metaclass=KeywordMeta,
                       type=keywords.RESERVED_KEYWORD):
     pass
+
+
+class ReturningClause(Nonterm):
+    def reduce_RETURNING_OptSingle_SelectTargetEl(self, *kids):
+        # XXX: for historical reasons a list is expected here by the compiler
+        #
+        self.val = [kids[1].val, [kids[2].val]]
+
+
+class OptReturningClause(Nonterm):
+    def reduce_ReturningClause(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_empty(self, *kids):
+        self.val = [False, None]

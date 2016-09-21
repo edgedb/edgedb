@@ -1375,6 +1375,277 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT User.name OFFSET $1 LIMIT $2;
         """
 
+    def test_edgeql_syntax_select12(self):
+        """
+        SELECT DISTINCT User.age;
+        """
+
+    def test_edgeql_syntax_insert01(self):
+        """
+        INSERT Foo;
+        INSERT Foo RETURNING Foo;
+        INSERT Foo RETURNING Foo{bar};
+        INSERT Foo RETURNING SINGLE Foo;
+        INSERT Foo RETURNING SINGLE Foo{bar};
+        """
+
+    def test_edgeql_syntax_insert02(self):
+        """
+        INSERT Foo{bar:= 42};
+        INSERT Foo{bar:= 42} RETURNING Foo;
+        INSERT Foo{bar:= 42} RETURNING Foo{bar};
+        INSERT Foo{bar:= 42} RETURNING SINGLE Foo;
+        INSERT Foo{bar:= 42} RETURNING SINGLE Foo{bar};
+        """
+
+    def test_edgeql_syntax_insert03(self):
+        """
+        WITH MODULE test
+        INSERT Foo;
+        WITH MODULE test
+        INSERT Foo RETURNING Foo;
+        WITH MODULE test
+        INSERT Foo RETURNING Foo{bar};
+        WITH MODULE test
+        INSERT Foo RETURNING SINGLE Foo;
+        WITH MODULE test
+        INSERT Foo RETURNING SINGLE Foo{bar};
+        """
+
+    def test_edgeql_syntax_insert04(self):
+        """
+        WITH MODULE test
+        INSERT Foo{bar:= 42};
+        WITH MODULE test
+        INSERT Foo{bar:= 42} RETURNING Foo;
+        WITH MODULE test
+        INSERT Foo{bar:= 42} RETURNING Foo{bar};
+        WITH MODULE test
+        INSERT Foo{bar:= 42} RETURNING SINGLE Foo;
+        WITH MODULE test
+        INSERT Foo{bar:= 42} RETURNING SINGLE Foo{bar};
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=18)
+    def test_edgeql_syntax_insert05(self):
+        """
+        INSERT 42;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=20)
+    def test_edgeql_syntax_insert06(self):
+        """
+        INSERT Foo WHERE Foo.bar = 42;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=20)
+    def test_edgeql_syntax_insert07(self):
+        """
+        INSERT Foo GROUP BY Foo.bar;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=20)
+    def test_edgeql_syntax_insert08(self):
+        """
+        INSERT Foo ORDER BY Foo.bar;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=20)
+    def test_edgeql_syntax_insert09(self):
+        """
+        INSERT Foo OFFSET 2;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=20)
+    def test_edgeql_syntax_insert10(self):
+        """
+        INSERT Foo LIMIT 5;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=33)
+    def test_edgeql_syntax_insert11(self):
+        """
+        INSERT Foo RETURNING Foo, Foo.bar;
+        """
+
+    def test_edgeql_syntax_insert12(self):
+        """
+        INSERT Foo{
+            bar:= 42,
+            baz: Baz{
+                spam:= 'ham'
+            }
+        };
+        """
+
+    def test_edgeql_syntax_insert13(self):
+        """
+        INSERT Foo{
+            bar:= 42,
+            baz:= (SELECT Baz WHERE (Baz.spam = 'ham'))
+        };
+        """
+
+    def test_edgeql_syntax_insert14(self):
+        """
+        INSERT Foo{
+            bar:= 42,
+            baz: Baz{
+                spam:= 'ham',
+                @weight:= 2,
+            }
+        };
+        """
+
+    def test_edgeql_syntax_insert15(self):
+        """
+        INSERT Foo{
+            bar:= 42,
+            baz:= 'spam' {
+                @weight:= 2,
+            }
+        };
+
+        INSERT Foo{
+            bar:= 42,
+            baz:= 24 {
+                @weight:= 2,
+            }
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=4, col=18)
+    def test_edgeql_syntax_insert16(self):
+        """
+        INSERT Foo{
+            bar:= 42,
+            baz: 'spam' {
+                @weight:= 2,
+            }
+        };
+        """
+
+    def test_edgeql_syntax_insert17(self):
+        """
+        INSERT Foo{
+            bar:= 42,
+            baz:= (
+                SELECT Baz{
+                    @weight:= 2
+                } WHERE (Baz.spam = 'ham')
+            )
+        };
+        """
+
+    def test_edgeql_syntax_insert18(self):
+        """
+        SELECT (INSERT Foo{bar:= 42} RETURNING Foo);
+        """
+
+    def test_edgeql_syntax_delete01(self):
+        """
+        DELETE Foo;
+        DELETE Foo RETURNING Foo;
+        DELETE Foo RETURNING Foo{bar};
+        DELETE Foo RETURNING SINGLE Foo;
+        DELETE Foo RETURNING SINGLE Foo{bar};
+        DELETE Foo WHERE (Foo.bar = 42);
+        DELETE Foo WHERE (Foo.bar = 42) RETURNING Foo;
+        """
+
+    def test_edgeql_syntax_delete02(self):
+        """
+        WITH MODULE test
+        DELETE Foo;
+        WITH MODULE test
+        DELETE Foo RETURNING Foo;
+        WITH MODULE test
+        DELETE Foo RETURNING Foo{bar};
+        WITH MODULE test
+        DELETE Foo RETURNING SINGLE Foo;
+        WITH MODULE test
+        DELETE Foo RETURNING SINGLE Foo{bar};
+        WITH MODULE test
+        DELETE Foo WHERE (Foo.bar = 42);
+        WITH MODULE test
+        DELETE Foo WHERE (Foo.bar = 42) RETURNING Foo;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=18)
+    def test_edgeql_syntax_delete03(self):
+        """
+        DELETE 42;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=19)
+    def test_edgeql_syntax_delete04(self):
+        """
+        DELETE Foo{bar};
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=33)
+    def test_edgeql_syntax_delete05(self):
+        """
+        DELETE Foo RETURNING Foo, Foo.bar;
+        """
+
+    def test_edgeql_syntax_delete06(self):
+        """
+        SELECT (DELETE Foo RETURNING Foo);
+        """
+
+    def test_edgeql_syntax_update01(self):
+        """
+        UPDATE Foo{bar:= 42};
+        UPDATE Foo{bar:= 42} RETURNING Foo;
+        UPDATE Foo{bar:= 42} RETURNING Foo{bar};
+        UPDATE Foo{bar:= 42} RETURNING SINGLE Foo;
+        UPDATE Foo{bar:= 42} RETURNING SINGLE Foo{bar};
+        UPDATE Foo{bar:= 42} WHERE (Foo.bar = 24);
+        UPDATE Foo{bar:= 42} WHERE (Foo.bar = 24) RETURNING Foo;
+        """
+
+    def test_edgeql_syntax_update02(self):
+        """
+        WITH MODULE test
+        UPDATE Foo{bar:= 42};
+        WITH MODULE test
+        UPDATE Foo{bar:= 42} RETURNING Foo;
+        WITH MODULE test
+        UPDATE Foo{bar:= 42} RETURNING Foo{bar};
+        WITH MODULE test
+        UPDATE Foo{bar:= 42} RETURNING SINGLE Foo;
+        WITH MODULE test
+        UPDATE Foo{bar:= 42} RETURNING SINGLE Foo{bar};
+        WITH MODULE test
+        UPDATE Foo{bar:= 42} WHERE (Foo.bar = 24);
+        WITH MODULE test
+        UPDATE Foo{bar:= 42} WHERE (Foo.bar = 24) RETURNING Foo;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=16)
+    def test_edgeql_syntax_update03(self):
+        """
+        UPDATE 42;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=19)
+    def test_edgeql_syntax_update04(self):
+        """
+        UPDATE Foo;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=43)
+    def test_edgeql_syntax_update05(self):
+        """
+        UPDATE Foo{bar:= 42} RETURNING Foo, Foo.bar;
+        """
+
+    def test_edgeql_syntax_update06(self):
+        """
+        SELECT (UPDATE Foo{bar:= 42} RETURNING Foo);
+        """
+
     def test_edgeql_syntax_function01(self):
         """
         SELECT foo();
@@ -1391,7 +1662,27 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_function03(self):
         """
-        SELECT some_agg(name:=User.name ORDER BY User.age ASC);
+        SELECT some_agg(User.name ORDER BY User.age ASC);
+        SELECT some_agg(User.name
+                        WHERE (strlen(User.name) > 2)
+                        ORDER BY User.age DESC);
+        SELECT some_agg(User.name
+                        WHERE (strlen(User.name) > 2)
+                        ORDER BY User.age DESC THEN User.email ASC);
+        """
+
+    def test_edgeql_syntax_function04(self):
+        """
+        SELECT some_agg(User.name) OVER (ORDER BY User.age ASC);
+        SELECT some_agg(User.name) OVER (
+            PARTITION BY strlen(User.name)
+            ORDER BY User.age ASC);
+        SELECT some_agg(User.name) OVER (
+            PARTITION BY User.email, User.age
+            ORDER BY User.age ASC);
+        SELECT some_agg(User.name) OVER (
+            PARTITION BY User.email, User.age
+            ORDER BY User.age ASC THEN User.name ASC);
         """
 
     # DDL
@@ -1462,4 +1753,27 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_attribute01(self):
         """
         CREATE ATTRIBUTE std::paramtypes map<std::str, std::typeref>;
+        """
+
+    def test_edgeql_syntax_linkproperty01(self):
+        """
+        CREATE LINK PROPERTY std::linkproperty {
+            SET title := 'Base link property';
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=21)
+    def test_edgeql_syntax_linkproperty02(self):
+        """
+        CREATE LINK LINK PROPERTY std::linkproperty {
+            SET title := 'Base link property';
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=30)
+    def test_edgeql_syntax_linkproperty03(self):
+        """
+        CREATE LINK PROPERTY PROPERTY std::linkproperty {
+            SET title := 'Base link property';
+        };
         """

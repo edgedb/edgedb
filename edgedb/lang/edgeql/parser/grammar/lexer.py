@@ -230,7 +230,9 @@ class EdgeQLLexer(lexer.Lexer):
                 if not buffer:
                     buffer.append(tok)
                 else:
-                    yield tok
+                    yield from iter(buffer)
+                    buffer[:] = [tok]
+
             elif tok_type == 'PROPERTY':
                 prev_token = buffer[-1] if buffer else None
                 if prev_token and prev_token.attrs['type'] == 'LINK':
