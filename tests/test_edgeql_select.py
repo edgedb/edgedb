@@ -814,3 +814,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         self.assert_data_shape(res, [
             ['elvis', 'yury'],
         ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_func03(self):
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT std::count(User.<owner.id)
+            GROUP BY User ORDER BY User.name;
+        ''')
+        self.assert_data_shape(res, [
+            [3, 3],
+        ])

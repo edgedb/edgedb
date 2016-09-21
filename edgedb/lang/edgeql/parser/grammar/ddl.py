@@ -1251,7 +1251,7 @@ class FuncDeclArg(Nonterm):
         )
 
 
-class FuncDeclArgList(ListNonterm, element=FuncDeclArg):
+class FuncDeclArgList(ListNonterm, element=FuncDeclArg, separator=T_COMMA):
     pass
 
 
