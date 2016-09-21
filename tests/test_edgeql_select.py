@@ -609,7 +609,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_specialized02(self):
         res = await self.con.execute(r'''
             WITH MODULE test
@@ -624,7 +623,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         self.assert_data_shape(res, [
             [{
                 'name': 'Elvis',
-                '<owner': [
+                'owner': [
                     {'body': 'Rewriting everything.'}
                 ],
             }],

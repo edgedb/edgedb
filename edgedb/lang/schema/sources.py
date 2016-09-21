@@ -315,9 +315,9 @@ class Source(primary.Prototype, indexes.IndexableSubject):
                                 target = ptr.source
                                 source = req_endpoint
 
-                            dptr = ptr.get_derived(schema, source, target,
-                                                           mark_derived=True,
-                                                           add_to_schema=True)
+                            dptr = ptr.get_derived(
+                                schema, source, target,
+                                mark_derived=True, add_to_schema=True)
 
                             targeted_ptrs.append(dptr)
 

@@ -356,7 +356,10 @@ class BasePointer(primary.Prototype, derivable.DerivablePrototype):
             fqname = self.derive_name(source, target)
             ptr = schema.get(fqname, default=None)
             if ptr is None:
-                ptr = self.derive(schema, source, target, **kwargs)
+                if self.generic():
+                    ptr = self.derive(schema, source, target, **kwargs)
+                else:
+                    ptr = self.derive_copy(schema, source, target, **kwargs)
 
         return ptr
 
