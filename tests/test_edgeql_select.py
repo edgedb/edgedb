@@ -44,7 +44,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             name := 'Elvis'
         };
 
-
         WITH MODULE test
         INSERT User {
             name := 'Yury'
@@ -58,7 +57,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             body := 'Rewriting everything.'
         };
 
-
         WITH MODULE test
         INSERT Issue {
             number := '1',
@@ -70,7 +68,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             time_spent_log := (SELECT LogEntry),
             time_estimate := 3000
         };
-
 
         WITH MODULE test
         INSERT Comment {
@@ -96,7 +93,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             name := 'Repl tweak.',
             body := 'Minor lexer tweaks.',
             owner := (SELECT User WHERE User.name = 'Yury'),
-            status := (SELECT Status WHERE Status.name = 'Open'),
+            status := (SELECT Status WHERE Status.name = 'Closed'),
             related_to := (SELECT Issue WHERE Issue.number = '2'),
             priority := (SELECT Priority WHERE Priority.name = 'Low')
         };
@@ -106,8 +103,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             number := '4',
             name := 'Regression.',
             body := 'Fix regression introduced by lexer tweak.',
-            owner := (SELECT User WHERE User.name = 'Yury'),
-            status := (SELECT Status WHERE Status.name = 'Open'),
+            owner := (SELECT User WHERE User.name = 'Elvis'),
+            status := (SELECT Status WHERE Status.name = 'Closed'),
             related_to := (SELECT Issue WHERE Issue.number = '3')
         };
     """
@@ -419,90 +416,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['test::User']
         ])
 
-    async def test_edgeql_select_exists01(self):
-        res = await self.con.execute('''
-            WITH MODULE test
-            SELECT
-                Issue {
-                    number
-                }
-            WHERE
-                NOT EXISTS (Issue.<issue[TO Comment]);
-        ''')
-
-        self.assert_data_shape(res[0], [{
-            'number': '2',
-        }, {
-            'number': '3',
-        }, {
-            'number': '4',
-        }])
-
-        res = await self.con.execute('''
-            WITH MODULE test
-            SELECT
-                Issue {
-                    number
-                }
-            WHERE
-                NOT EXISTS (SELECT Issue.<issue[TO Comment]);
-        ''')
-
-        self.assert_data_shape(res[0], [{
-            'number': '2',
-        }, {
-            'number': '3',
-        }, {
-            'number': '4',
-        }])
-
-        res = await self.con.execute('''
-            WITH MODULE test
-            SELECT
-                Issue {
-                    number
-                }
-            WHERE
-                EXISTS (Issue.<issue[TO Comment]);
-        ''')
-
-        self.assert_data_shape(res[0], [{
-            'number': '1',
-        }])
-
-    async def test_edgeql_select_exists02(self):
-        res = await self.con.execute('''
-            WITH MODULE test
-            SELECT
-                Issue {
-                    number
-                }
-            WHERE
-                NOT EXISTS Issue.time_estimate;
-
-            WITH MODULE test
-            SELECT
-                Issue {
-                    number
-                }
-            WHERE
-                EXISTS Issue.time_estimate;
-
-        ''')
-
-        self.assert_data_shape(res, [
-            [{
-                'number': '2',
-            }, {
-                'number': '3',
-            }, {
-                'number': '4',
-            }],
-            [{
-                'number': '1',
-            }]
-        ])
-
     async def test_edgeql_select_recursive01(self):
         res = await self.con.execute('''
             WITH MODULE test
@@ -803,6 +716,27 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]
         ])
 
+    async def test_edgeql_select_where01(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            # issue where the owner also has a comment with non-empty body
+            WHERE Issue.owner.<owner[TO Comment].body != '';
+        ''', [
+            [{'number': '1'}, {'number': '4'}],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_where02(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            # issue where the owner also has a comment to it
+            WHERE Issue.owner.<owner[TO Comment].issue = Issue;
+        ''', [
+            [{'number': '1'}],
+        ])
+
     async def test_edgeql_select_func01(self):
         res = await self.con.execute(r'''
             WITH MODULE test
@@ -837,4 +771,623 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ''')
         self.assert_data_shape(res, [
             [3, 3],
+        ])
+
+    async def test_edgeql_select_exists01(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT
+                Issue {
+                    number
+                }
+            WHERE
+                NOT EXISTS Issue.time_estimate;
+
+            WITH MODULE test
+            SELECT
+                Issue {
+                    number
+                }
+            WHERE
+                EXISTS Issue.time_estimate;
+        ''', [
+            [{'number': '2'}, {'number': '3'}, {'number': '4'}],
+            [{'number': '1'}],
+        ])
+
+    async def test_edgeql_select_exists02(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT
+                Issue {
+                    number
+                }
+            WHERE
+                NOT EXISTS (Issue.<issue[TO Comment]);
+        ''', [
+            [{'number': '2'}, {'number': '3'}, {'number': '4'}],
+        ])
+
+    async def test_edgeql_select_exists03(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT
+                Issue {
+                    number
+                }
+            WHERE
+                NOT EXISTS (SELECT Issue.<issue[TO Comment]);
+        ''', [
+            [{'number': '2'}, {'number': '3'}, {'number': '4'}],
+        ])
+
+    async def test_edgeql_select_exists04(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT
+                Issue {
+                    number
+                }
+            WHERE
+                EXISTS (Issue.<issue[TO Comment]);
+        ''', [
+            [{'number': '1'}],
+        ])
+
+    async def test_edgeql_select_exists05(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                EXISTS Issue.priority           # has Priority [2, 3]
+            ORDER BY Issue.number;
+        ''', [
+            [{'number': '2'}, {'number': '3'}],
+        ])
+
+    async def test_edgeql_select_exists06(self):
+        # using IDs in EXISTS clauses should be semantically identical
+        # to using concepts
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                EXISTS Issue.priority.id        # has Priority [2, 3]
+            ORDER BY Issue.number;
+        ''', [
+            [{'number': '2'}, {'number': '3'}],
+        ])
+
+    async def test_edgeql_select_exists07(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                EXISTS Issue.<issue             # has Comment [1]
+            ORDER BY Issue.number;
+        ''', [
+            [{'number': '1'}],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_exists08(self):
+        # using IDs in EXISTS clauses should be semantically identical
+        # to using concepts
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                EXISTS Issue.<issue.id          # has Comment [1]
+            ORDER BY Issue.number;
+        ''', [
+            [{'number': '1'}],
+        ])
+
+    async def test_edgeql_select_exists09(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                NOT EXISTS Issue.priority       # has no Priority [1, 4]
+            ORDER BY Issue.number;
+        ''', [
+            [{'number': '1'}, {'number': '4'}],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_exists10(self):
+        # using IDs in EXISTS clauses should be semantically identical
+        # to using concepts
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                NOT EXISTS Issue.priority.id    # has no Priority [1, 4]
+            ORDER BY Issue.number;
+        ''', [
+            [{'number': '1'}, {'number': '4'}],
+        ])
+
+    async def test_edgeql_select_exists11(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                NOT EXISTS Issue.<issue         # has no Comment [2, 3, 4]
+            ORDER BY Issue.number;
+        ''', [
+            [{'number': '2'}, {'number': '3'}, {'number': '4'}],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_exists12(self):
+        # using IDs in EXISTS clauses should be semantically identical
+        # to using concepts
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                NOT EXISTS Issue.<issue.id      # has no Comment [2, 3, 4]
+            ORDER BY Issue.number;
+        ''', [
+            [{'number': '2'}, {'number': '3'}, {'number': '4'}],
+        ])
+
+    async def test_edgeql_select_exists13(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            # issue where the owner also has a comment
+            WHERE EXISTS Issue.owner.<owner[TO Comment];
+        ''', [
+            [{'number': '1'}, {'number': '4'}],
+        ])
+
+    async def test_edgeql_select_exists14(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            # issue where the owner also has a comment to it
+            WHERE
+                EXISTS (
+                    SELECT Comment
+                    WHERE
+                        Comment.owner = Issue.owner
+                        AND
+                        Comment.issue = Issue
+                );
+        ''', [
+            [{'number': '1'}],
+        ])
+
+    async def test_edgeql_select_exists15(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            # issue where the owner also has a comment, but not to the
+            # issue itself
+            WHERE
+                EXISTS (
+                    SELECT Comment
+                    WHERE
+                        Comment.owner = Issue.owner
+                        AND
+                        Comment.issue != Issue
+                );
+        ''', [
+            [{'number': '4'}],
+        ])
+
+    async def test_edgeql_select_exists16(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            # issue where the owner also has a comment, but not to the
+            # issue itself
+            WHERE
+                EXISTS (
+                    SELECT Comment
+                    WHERE
+                        Comment.owner = Issue.owner
+                        AND
+                        Comment.issue.id != Issue.id
+                );
+        ''', [
+            [{'number': '4'}],
+        ])
+
+    async def test_edgeql_select_exists17(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            # issue where the owner also has a comment, but not to the
+            # issue itself
+            WHERE
+                EXISTS (
+                    SELECT Comment
+                    WHERE
+                        Comment.owner = Issue.owner
+                        AND
+                        NOT Comment.issue = Issue
+                );
+        ''', [
+            [{'number': '4'}],
+        ])
+
+    async def test_edgeql_select_and01(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                EXISTS Issue.priority           # has Priority [2, 3]
+                AND
+                EXISTS Issue.<issue             # has Comment [1]
+            ORDER BY Issue.number;
+        ''', [
+            [],
+        ])
+
+    async def test_edgeql_select_and02(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                EXISTS Issue.priority.id        # has Priority [2, 3]
+                AND
+                EXISTS Issue.<issue             # has Comment [1]
+            ORDER BY Issue.number;
+        ''', [
+            [],
+        ])
+
+    async def test_edgeql_select_and03(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                NOT EXISTS Issue.priority       # has no Priority [1, 4]
+                AND
+                NOT EXISTS Issue.<issue         # has no Comment [2, 3, 4]
+            ORDER BY Issue.number;
+        ''', [
+            [{'number': '4'}],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_and04(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                NOT EXISTS Issue.priority.id    # has no Priority [1, 4]
+                AND
+                NOT EXISTS Issue.<issue         # has no Comment [2, 3, 4]
+            ORDER BY Issue.number;
+        ''', [
+            [{'number': '4'}],
+        ])
+
+    async def test_edgeql_select_and05(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                NOT EXISTS Issue.priority       # has no Priority [1, 4]
+                AND
+                EXISTS Issue.<issue             # has Comment [1]
+            ORDER BY Issue.number;
+        ''', [
+            [{'number': '1'}],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_and06(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                NOT EXISTS Issue.priority       # has no Priority [1, 4]
+                AND
+                EXISTS Issue.<issue.id          # has Comment [1]
+            ORDER BY Issue.number;
+        ''', [
+            [{'number': '1'}],
+        ])
+
+    async def test_edgeql_select_and07(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                EXISTS Issue.priority           # has Priority [2, 3]
+                AND
+                NOT EXISTS Issue.<issue         # has no Comment [2, 3, 4]
+            ORDER BY Issue.number;
+        ''', [
+            [{'number': '2'}, {'number': '3'}],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_and08(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                EXISTS Issue.priority           # has Priority [2, 3]
+                AND
+                NOT EXISTS Issue.<issue.id      # has no Comment [2, 3, 4]
+            ORDER BY Issue.number;
+        ''', [
+            [{'number': '2'}, {'number': '3'}],
+        ])
+
+    async def test_edgeql_select_or01(self):
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                Issue.priority.name = 'High'
+            ORDER BY Issue.number;
+
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                Issue.priority.name = 'Low'
+            ORDER BY Issue.number;
+        ''')
+
+        issues_h, issues_l = res
+
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                Issue.priority.name = 'High'
+                OR
+                Issue.priority.name = 'Low'
+            ORDER BY Issue.priority.name THEN Issue.number;
+        ''')
+
+        self.assert_data_shape(res, [
+            issues_h + issues_l,
+        ])
+
+    async def test_edgeql_select_or02(self):
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                Issue.priority.name = 'High'
+            ORDER BY Issue.number;
+
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                NOT EXISTS Issue.priority
+            ORDER BY Issue.number;
+        ''')
+
+        issues_h, issues_n = res
+
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                Issue.priority.name = 'High'
+                OR
+                NOT EXISTS Issue.priority.name
+            ORDER BY Issue.priority.name NULLS LAST THEN Issue.number;
+
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                Issue.priority.name = 'High'
+                OR
+                NOT EXISTS Issue.priority.id
+            ORDER BY Issue.priority.name NULLS LAST THEN Issue.number;
+        ''')
+
+        self.assert_data_shape(res, [
+            issues_h + issues_n,
+            issues_h + issues_n,
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_or03(self):
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                Issue.priority.name = 'High'
+            ORDER BY Issue.number;
+
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                NOT EXISTS Issue.priority
+            ORDER BY Issue.number;
+        ''')
+
+        issues_h, issues_n = res
+
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                Issue.priority.name = 'High'
+                OR
+                NOT EXISTS Issue.priority
+            ORDER BY Issue.priority.name NULLS LAST THEN Issue.number;
+        ''')
+
+        self.assert_data_shape(res, [
+            issues_h + issues_n,
+        ])
+
+    async def test_edgeql_select_or04(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                Issue.priority.name = 'High'
+                OR
+                Issue.status.name = 'Closed'
+            ORDER BY Issue.number;
+
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                Issue.priority.name = 'High'
+                OR
+                Issue.priority.name = 'Low'
+                OR
+                Issue.status.name = 'Closed'
+            ORDER BY Issue.number;
+
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                Issue.priority.name IN ('High', 'Low')
+                OR
+                Issue.status.name = 'Closed'
+            ORDER BY Issue.number;
+        ''', [
+            [{'number': '2'}, {'number': '3'}, {'number': '4'}],
+            # it so happens that all low priority issues are also closed
+            [{'number': '2'}, {'number': '3'}, {'number': '4'}],
+            [{'number': '2'}, {'number': '3'}, {'number': '4'}],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_or05(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                NOT EXISTS Issue.priority.id
+                OR
+                Issue.status.name = 'Closed'
+            ORDER BY Issue.number;
+
+            # should be identical
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                NOT EXISTS Issue.priority
+                OR
+                Issue.status.name = 'Closed'
+            ORDER BY Issue.number;
+        ''', [
+            [{'number': '1'}, {'number': '3'}, {'number': '4'}],
+            [{'number': '1'}, {'number': '3'}, {'number': '4'}],
+        ])
+
+    async def test_edgeql_select_or06(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                EXISTS Issue.priority           # has Priority [2, 3]
+                OR
+                EXISTS Issue.<issue             # has Comment [1]
+            ORDER BY Issue.number;
+        ''', [
+            [{'number': '1'}, {'number': '2'}, {'number': '3'}],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_or07(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                EXISTS Issue.priority.id        # has Priority [2, 3]
+                OR
+                EXISTS Issue.<issue             # has Comment [1]
+            ORDER BY Issue.number;
+        ''', [
+            [{'number': '1'}, {'number': '2'}, {'number': '3'}],
+        ])
+
+    async def test_edgeql_select_or08(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                NOT EXISTS Issue.priority       # has no Priority [1, 4]
+                OR
+                NOT EXISTS Issue.<issue         # has no Comment [2, 3, 4]
+            ORDER BY Issue.number;
+        ''', [
+            [{'number': '1'}, {'number': '2'}, {'number': '3'},
+             {'number': '4'}],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_or09(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                NOT EXISTS Issue.priority.id    # has no Priority [1, 4]
+                OR
+                NOT EXISTS Issue.<issue         # has no Comment [2, 3, 4]
+            ORDER BY Issue.number;
+        ''', [
+            [{'number': '1'}, {'number': '2'}, {'number': '3'},
+             {'number': '4'}],
+        ])
+
+    async def test_edgeql_select_or10(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                NOT EXISTS Issue.priority       # has no Priority [1, 4]
+                OR
+                EXISTS Issue.<issue             # has Comment [1]
+            ORDER BY Issue.number;
+        ''', [
+            [{'number': '1'}, {'number': '4'}],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_or11(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                NOT EXISTS Issue.priority       # has no Priority [1, 4]
+                OR
+                EXISTS Issue.<issue.id          # has Comment [1]
+            ORDER BY Issue.number;
+        ''', [
+            [{'number': '1'}, {'number': '4'}],
+        ])
+
+    async def test_edgeql_select_or12(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                EXISTS Issue.priority           # has Priority [2, 3]
+                OR
+                NOT EXISTS Issue.<issue         # has no Comment [2, 3, 4]
+            ORDER BY Issue.number;
+        ''', [
+            [{'number': '2'}, {'number': '3'}, {'number': '4'}],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_or13(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                EXISTS Issue.priority           # has Priority [2, 3]
+                OR
+                NOT EXISTS Issue.<issue.id      # has no Comment [2, 3, 4]
+            ORDER BY Issue.number;
+        ''', [
+            [{'number': '2'}, {'number': '3'}, {'number': '4'}],
         ])
