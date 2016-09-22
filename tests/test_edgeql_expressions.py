@@ -81,6 +81,13 @@ class TestExpressions(tb.QueryTestCase):
                 [True],
             ])
 
+    async def test_edgeql_expr_op05(self):
+        await self.assert_query_result(r"""
+            SELECT 'foo' + 'bar';
+            """, [
+                ['foobar'],
+            ])
+
     async def test_edgeql_expr_paths_01(self):
         cases = [
             "Issue.owner.name",
