@@ -6,7 +6,6 @@
 ##
 
 import numbers
-import postgresql.string
 
 from edgedb.server.pgsql import common
 from edgedb.server.pgsql import ast as pgast
@@ -423,13 +422,13 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
                 if isinstance(node.table, pgast.PseudoRelationNode):
                     self.write(
-                        alias + "." + postgresql.string.quote_ident(
+                        alias + "." + common.quote_ident(
                             str(node.field)))
                 else:
                     self.write(common.qname(alias, str(node.field)))
             else:
                 self.write(
-                    postgresql.string.quote_ident_if_needed(str(node.field)))
+                    common.quote_ident_if_needed(str(node.field)))
 
     def visit_FromExprNode(self, node):
         self.visit(node.expr)
@@ -517,7 +516,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             elif isinstance(node.value, (bool, numbers.Number)):
                 self.write(str(node.value))
             else:
-                self.write(postgresql.string.quote_literal(str(node.value)))
+                self.write(common.quote_literal(str(node.value)))
 
     def visit_SequenceNode(self, node):
         self.write('(')

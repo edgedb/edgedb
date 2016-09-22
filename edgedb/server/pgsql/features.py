@@ -6,7 +6,7 @@
 ##
 """Database features."""
 
-import postgresql.exceptions
+import asyncpg.exceptions
 
 from edgedb.server.pgsql import deltadbops
 
@@ -31,7 +31,7 @@ class HstoreFeature(deltadbops.Feature):
     def init_feature(cls, db):
         try:
             db.typio.identify(contrib_hstore='edgedb.hstore')
-        except postgresql.exceptions.SchemaNameError:
+        except asyncpg.exceptions.InvalidSchemaNameError:
             pass
 
 
@@ -101,7 +101,7 @@ class GisFeature(deltadbops.Feature):
             try:
                 db.typio.identify(
                     contrib_postgis='{}.{}'.format('edgedb_aux_feat_gis', typ))
-            except postgresql.exceptions.SchemaNameError:
+            except asyncpg.exceptions.InvalidSchemaNameError:
                 pass
 
     @classmethod

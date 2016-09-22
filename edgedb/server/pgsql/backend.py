@@ -11,7 +11,6 @@ import functools
 import importlib
 import json
 import pickle
-import postgresql
 import re
 
 from importkit.import_ import get_object
@@ -213,7 +212,7 @@ class PreparedQuery:
 
     def _embed_args(self, query, args):
         qargs = self.convert_arguments(**args)
-        quote = postgresql.string.quote_literal
+        quote = common.quote_literal
 
         chunks = query.chunks[:]
 

@@ -7,8 +7,7 @@
 
 import json
 
-import postgresql.string
-
+from .. import common
 from . import base
 
 
@@ -108,7 +107,7 @@ class Comment(DDLOperation):
 
         code = 'COMMENT ON {type} {id} IS {text}'.format(
             type=object_type, id=object_id,
-            text=postgresql.string.quote_literal(self.text))
+            text=common.quote_literal(self.text))
 
         return code
 
@@ -161,7 +160,7 @@ class PutMetadata(DDLOperation):
 
         code = 'COMMENT ON {type} {id} IS {text}'.format(
             type=object_type, id=object_id,
-            text=postgresql.string.quote_literal(desc))
+            text=common.quote_literal(desc))
 
         result = await base.Query(code).execute(context)
 
@@ -186,7 +185,7 @@ class SetMetadata(PutMetadata):
 
         code = 'COMMENT ON {type} {id} IS {text}'.format(
             type=object_type, id=object_id,
-            text=postgresql.string.quote_literal(desc))
+            text=common.quote_literal(desc))
 
         result = await base.Query(code).execute(context)
 
@@ -209,7 +208,7 @@ class UpdateMetadata(PutMetadata):
 
         code = 'COMMENT ON {type} {id} IS {text}'.format(
             type=object_type, id=object_id,
-            text=postgresql.string.quote_literal(desc))
+            text=common.quote_literal(desc))
 
         result = await base.Query(code).execute(context)
 

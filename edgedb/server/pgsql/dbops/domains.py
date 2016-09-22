@@ -5,8 +5,6 @@
 # See LICENSE for details.
 ##
 
-import postgresql.string
-
 from .. import common
 from . import base
 from . import constraints
@@ -115,7 +113,7 @@ class AlterDomainAlterDefault(AlterDomain):
         if self.default is None:
             code += ' DROP DEFAULT '
         else:
-            value = postgresql.string.quote_literal(str(
+            value = common.quote_literal(str(
                 self.default)) if self.default is not None else 'None'
             code += ' SET DEFAULT ' + value
         return code

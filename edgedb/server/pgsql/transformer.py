@@ -1236,26 +1236,38 @@ class IRCompilerBase:
 
         return cols, query
 
+    def _schema_type_to_pg_type(self, context, schema_type):
+        if isinstance(schema_type, s_atoms.Atom):
+            const_type = types.pg_type_from_atom(
+                context.current.proto_schema, schema_type, topbase=True)
+        elif isinstance(schema_type, (s_concepts.Concept, s_links.Link)):
+            const_type = 'json'
+        elif isinstance(schema_type, s_obj.PrototypeClass):
+            const_type = 'int'
+        elif isinstance(schema_type, tuple):
+            item_type = schema_type[1]
+            if isinstance(item_type, s_atoms.Atom):
+                item_type = types.pg_type_from_atom(
+                    context.current.proto_schema, item_type, topbase=True)
+                const_type = '%s[]' % item_type
+            elif isinstance(item_type, (s_concepts.Concept, s_links.Link)):
+                item_type = 'json'
+                const_type = '%s[]' % item_type
+            elif isinstance(item_type, s_obj.PrototypeClass):
+                item_type = 'int'
+                const_type = '%s[]' % item_type
+            else:
+                raise ValueError('unexpected constant type: '
+                                 '{!r}'.format(schema_type))
+        else:
+            raise ValueError('unexpected constant type: '
+                             '{!r}'.format(schema_type))
+
+        return const_type
+
     def _process_constant(self, context, expr):
         if expr.type:
-            if isinstance(expr.type, s_atoms.Atom):
-                const_type = types.pg_type_from_atom(
-                    context.current.proto_schema, expr.type, topbase=True)
-            elif isinstance(expr.type, (s_concepts.Concept, s_links.Link)):
-                const_type = 'json'
-            elif isinstance(expr.type, tuple):
-                item_type = expr.type[1]
-                if isinstance(item_type, s_atoms.Atom):
-                    item_type = types.pg_type_from_atom(
-                        context.current.proto_schema, item_type, topbase=True)
-                    const_type = '%s[]' % item_type
-                elif isinstance(item_type, (s_concepts.Concept, s_links.Link)):
-                    item_type = 'json'
-                    const_type = '%s[]' % item_type
-                else:
-                    const_type = common.py_type_to_pg_type(expr.type)
-            else:
-                const_type = common.py_type_to_pg_type(expr.type)
+            const_type = self._schema_type_to_pg_type(context, expr.type)
         else:
             const_type = None
 
@@ -3516,8 +3528,8 @@ class IRCompiler(IRCompilerBase):
                                     (not isinstance(left_type, tuple) or
                                      not isinstance(
                                         left_type[1], s_obj.ProtoObject))):
-                                left_type = common.py_type_to_pg_type(
-                                    left_type)
+                                left_type = self._schema_type_to_pg_type(
+                                    context, left_type)
 
                             if isinstance(right_type, s_obj.ProtoNode):
                                 if isinstance(right_type, s_concepts.Concept):
@@ -3532,8 +3544,8 @@ class IRCompiler(IRCompilerBase):
                                     (not isinstance(right_type, tuple) or
                                      not isinstance(
                                         right_type[1], s_obj.ProtoObject))):
-                                right_type = common.py_type_to_pg_type(
-                                    right_type)
+                                right_type = self._schema_type_to_pg_type(
+                                    context, right_type)
 
                             if (
                                     left_type in ('text', 'varchar') and

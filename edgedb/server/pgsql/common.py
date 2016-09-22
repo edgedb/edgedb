@@ -5,26 +5,30 @@
 # See LICENSE for details.
 ##
 
-import importlib
-import itertools
 import hashlib
 import base64
-
-import postgresql
 
 from edgedb.lang.common.algos import persistent_hash
 
 from edgedb.lang.schema import concepts as s_concepts
 from edgedb.lang.schema import links as s_links
-from edgedb.lang.schema import objects as s_obj
 
 
-def quote_ident(text):
-    """Quote the identifier."""
-    result = postgresql.string.quote_ident(text)
-    if result[0] != '"':
-        return '"' + result + '"'
-    return result
+def quote_literal(string):
+    return "'" + string.replace("'", "''") + "'"
+
+
+def quote_ident(string):
+    return '"' + string.replace('"', '""') + '"'
+
+
+def needs_quoting(string):
+    return (not (string and not string[0].isdecimal() and
+            string.replace('_', 'a').isalnum()))
+
+
+def quote_ident_if_needed(text):
+    return quote_ident(text) if needs_quoting(text) else text
 
 
 def qname(*parts):
@@ -93,64 +97,6 @@ def get_table_name(obj, catenate=True):
         return link_name_to_table_name(obj.name, catenate)
     else:
         assert False
-
-
-_type_index = None
-
-
-def py_type_to_pg_type(typ):
-    global _type_index
-
-    if _type_index is None:
-        import postgresql.types
-        import postgresql.types.io
-
-        _type_index = {}
-
-        postgres_io_mods = {
-            'postgresql.types.io.{}'.format(m)
-            for m in postgresql.types.io.io_modules
-        }
-
-        edgedb_io_mods = {
-            'edgedb.server.pgsql.driver.io.{}'.format(m)
-            for m in custom_type_io.io_modules
-        }
-
-        for mod in itertools.chain(postgres_io_mods, edgedb_io_mods):
-            try:
-                mod = importlib.import_module(mod)
-            except ImportError:
-                continue
-
-            oid_to_type = getattr(mod, 'oid_to_type', None)
-            if oid_to_type:
-                _type_index.update({
-                    k: postgresql.types.oid_to_name[v]
-                    for k, v in zip(oid_to_type.values(), oid_to_type.keys())
-                })
-
-        _type_index.update({
-            k: postgresql.types.oid_to_name[v]
-            for k, v in zip(
-                driver.oid_to_type.values(), driver.oid_to_type.keys())
-        })
-
-    if isinstance(typ, tuple):
-        supertyp, typ = typ
-        assert issubclass(supertyp, list)
-
-        if isinstance(typ, s_obj.PrototypeClass):
-            basetyp = 'int'
-        else:
-            basetyp = _type_index[typ]
-
-        return '%s[]' % basetyp
-    else:
-        if isinstance(typ, s_obj.PrototypeClass):
-            return 'int'
-        else:
-            return _type_index[typ]
 
 
 class RecordInfo:

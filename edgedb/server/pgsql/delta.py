@@ -8,7 +8,6 @@
 import collections.abc
 import itertools
 import pickle
-import postgresql.string
 import re
 
 from edgedb.lang import edgeql
@@ -1715,7 +1714,7 @@ class PointerMetaCommand(MetaCommand):
                     default_value = schemamech.ptr_default_to_col_default(
                         schema, link, default)
                 else:
-                    default_value = postgresql.string.quote_literal(
+                    default_value = common.quote_literal(
                         str(default))
 
         return default_value

@@ -8,7 +8,6 @@
 import binascii
 import struct
 import types
-from postgresql.python import structlib
 
 from .base import Serializer, SerializerError
 
@@ -254,7 +253,7 @@ class EWKBPacker:
         return bytes(self.buf)
 
     def write_geometry(self, geometry):
-        self.buf.extend(structlib.byte_pack(0))
+        self.buf.extend(byte_pack(0))
 
         type = geometry.geo_class_id
         if geometry.has_z_dimension:
@@ -277,13 +276,7 @@ class EWKBPacker:
         handler(geometry)
 
     def write_point(self, geometry):
-        if geometry.has_z_dimension and geometry.has_m_dimension:
-            v = structlib.dddd_pack(geometry.coords)
-        elif geometry.has_z_dimension or geometry.has_m_dimension:
-            v = structlib.ddd_pack(geometry.coords)
-        else:
-            v = structlib.dd_pack(geometry.coords)
-
+        v = b''.join(self.double_pack(c) for c in geometry.coords)
         self.buf.extend(v)
 
     def write_line(self, geometry):

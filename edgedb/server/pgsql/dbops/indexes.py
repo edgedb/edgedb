@@ -6,7 +6,6 @@
 ##
 
 import json
-import postgresql.string
 
 from edgedb.lang.common import datastructures
 
@@ -34,7 +33,7 @@ class TextSearchIndexColumn(IndexColumn):
         self.language = language
 
     async def code(self, context):
-        ql = postgresql.string.quote_literal
+        ql = common.quote_literal
         qi = common.quote_ident
 
         return "setweight(to_tsvector(%s, coalesce(%s, '')), %s)" % \

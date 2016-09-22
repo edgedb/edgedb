@@ -5,7 +5,6 @@
 # See LICENSE for details.
 ##
 
-import postgresql
 import re
 
 from .. import common
@@ -240,25 +239,3 @@ class Delete(DMLOperation):
         where = ','.join('%s=%s' % (c[0], c[1]) for c in self.condition)
         return '<edgedb.sync.%s %s (%s)>' % (
             self.__class__.__name__, self.table.name, where)
-
-
-class CopyFrom(DMLOperation):
-    def __init__(self, table, producer, *, format='text', priority=0):
-        super().__init__(priority=priority)
-
-        self.table = table
-        self.producer = producer
-        self.format = format
-
-    async def code(self, context):
-        code = 'COPY %s FROM STDIN WITH (FORMAT "%s")' % (
-            common.qname(*self.table.name), self.format)
-        return code, ()
-
-    async def execute(self, context):
-        code, vars = await self.code(context)
-        receive_stmt = context.db.prepare(code)
-        receiver = postgresql.copyman.StatementReceiver(receive_stmt)
-
-        cm = postgresql.copyman.CopyManager(self.producer, receiver)
-        cm.run()

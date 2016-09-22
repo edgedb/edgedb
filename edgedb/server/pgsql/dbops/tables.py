@@ -5,8 +5,6 @@
 # See LICENSE for details.
 ##
 
-import postgresql.string
-
 from edgedb.lang.common import datastructures
 
 from .. import common
@@ -438,7 +436,7 @@ class AlterTableAlterColumnDefault(AlterTableFragment):
         else:
             return 'ALTER COLUMN {} SET DEFAULT {}'.format(
                 common.quote_ident(str(self.column_name)),
-                postgresql.string.quote_literal(str(self.default)))
+                common.quote_literal(str(self.default)))
 
     def __repr__(self):
         return '<{}.{} "{}" {} DEFAULT{}>'.format(
