@@ -1277,6 +1277,7 @@ class IRCompilerBase:
         else:
             value = expr.value
             const_expr = None
+            index = None
 
             if expr.index is not None and not isinstance(expr.index, int):
                 if expr.index in context.current.argmap:
@@ -1284,37 +1285,6 @@ class IRCompilerBase:
                 else:
                     context.current.argmap.add(expr.index)
                     index = len(context.current.argmap) - 1
-            else:
-                index = expr.index
-                data_backend = context.current.backend
-
-                if isinstance(value, s_concepts.Concept):
-                    classes = (value, )
-                elif (
-                        isinstance(value, tuple) and value and
-                        isinstance(value[0], s_concepts.Concept)):
-                    classes = value
-                else:
-                    classes = None
-
-                if classes:
-                    concept_ids = {
-                        data_backend.get_concept_id(cls)
-                        for cls in classes
-                    }
-                    for cls in classes:
-                        for c in cls.descendants(context.current.proto_schema):
-                            concept_id = data_backend.get_concept_id(c)
-                            concept_ids.add(concept_id)
-
-                    const_type = common.py_type_to_pg_type(
-                        classes[0].__class__)
-                    elements = [
-                        pgsql.ast.ConstantNode(value=cid)
-                        for cid in concept_ids
-                    ]
-                    const_expr = pgsql.ast.SequenceNode(elements=elements)
-                    value = None
 
             result = pgsql.ast.ConstantNode(
                 value=value, expr=const_expr, index=index, type=const_type)
@@ -3418,6 +3388,18 @@ class IRCompiler(IRCompilerBase):
                     extended=expr.op == qlast.SEARCHEX)
                 result = pgsql.ast.BinOpNode(
                     left=vector, right=query, op=qlast.SEARCH)
+
+            elif isinstance(expr.op, ast.ops.TypeCheckOperator):
+                result = pgsql.ast.FunctionCallNode(
+                    name='edgedb.issubclass',
+                    args=[left, right])
+
+                if expr.op == ast.ops.IS_NOT:
+                    result = pgsql.ast.UnaryOpNode(
+                        op=ast.ops.NOT,
+                        operand=result
+                    )
+
             else:
                 context.current.append_graphs = False
 
@@ -3718,6 +3700,17 @@ class IRCompiler(IRCompilerBase):
                 expr = self._process_expr(context, expr.expr, cte)
 
             result = pgsql.ast.ExistsNode(expr=expr)
+
+        elif isinstance(expr, irast.TypeRef):
+            data_backend = context.current.backend
+            schema = context.current.proto_schema
+
+            if expr.subtypes:
+                raise NotImplementedError()
+            else:
+                cls = schema.get(expr.maintype)
+                concept_id = data_backend.get_concept_id(cls)
+                result = pgsql.ast.ConstantNode(value=concept_id)
 
         else:
             assert False, "Unexpected expression: %s" % expr

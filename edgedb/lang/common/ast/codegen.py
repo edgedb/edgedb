@@ -45,7 +45,7 @@ class SourceGenerator(NodeVisitor):
         for chunk in chunks:
             if not isinstance(chunk, str):
                 raise ValueError(
-                    'invalid text chunk in codegen: %r'.format(chunk))
+                    'invalid text chunk in codegen: {!r}'.format(chunk))
             self.result.append(chunk)
 
     def visit_list(

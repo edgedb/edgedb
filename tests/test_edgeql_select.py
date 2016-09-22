@@ -629,7 +629,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_instance01(self):
         res = await self.con.execute(r'''
             WITH MODULE test
@@ -642,6 +641,20 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         self.assert_data_shape(res, [
             [
                 {'body': 'EdgeDB needs to happen soon.'},
+            ],
+        ])
+
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT
+                Text {body}
+            WHERE Text IS NOT (Comment, Issue)
+            ORDER BY Text.body;
+        ''')
+
+        self.assert_data_shape(res, [
+            [
+                {'body': 'Rewriting everything.'},
             ],
         ])
 

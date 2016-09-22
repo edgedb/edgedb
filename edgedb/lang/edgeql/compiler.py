@@ -59,6 +59,7 @@ class ParseContextLevel(object):
                 self.apply_access_control_rewrite = \
                     prevlevel.apply_access_control_rewrite
                 self.local_link_source = None
+                self.in_type_check = False
             else:
                 self.graph = prevlevel.graph
                 self.pathvars = prevlevel.pathvars
@@ -79,6 +80,7 @@ class ParseContextLevel(object):
                 self.apply_access_control_rewrite = \
                     prevlevel.apply_access_control_rewrite
                 self.local_link_source = prevlevel.local_link_source
+                self.in_type_check = False
         else:
             self.graph = None
             self.pathvars = {}
@@ -98,6 +100,7 @@ class ParseContextLevel(object):
             self.weak_path = None
             self.apply_access_control_rewrite = False
             self.local_link_source = None
+            self.in_type_check = False
 
     def genalias(self, hint=None):
         if hint is None:
@@ -816,17 +819,13 @@ class EdgeQLCompiler:
 
         elif isinstance(expr, qlast.BinOpNode):
             left = self._process_expr(context, expr.left)
-            right = self._process_expr(context, expr.right)
 
-            # The entityref_to_record transform must be reverted
-            # for typecheck ops.
-            if isinstance(expr.op, ast.ops.TypeCheckOperator) \
-                    and isinstance(left, irast.Record) \
-                    and isinstance(right, irast.Constant) \
-                    and (isinstance(right.type, s_obj.PrototypeClass) or
-                         isinstance(right.type, tuple) and
-                         isinstance(right.type[1], s_obj.PrototypeClass)):
-                left = left.elements[0].ref
+            if isinstance(expr.op, ast.ops.TypeCheckOperator):
+                right = self.process_type_ref_expr(context, expr.right)
+                if isinstance(left, irast.Record):
+                    left = left.elements[0].ref
+            else:
+                right = self._process_expr(context, expr.right)
 
             node = self.process_binop(left, right, expr.op)
 
@@ -1814,6 +1813,9 @@ class EdgeQLCompiler:
         elif isinstance(expr, irast.SubgraphRef):
             self.apply_fixups(expr.ref)
 
+        elif isinstance(expr, irast.TypeRef):
+            pass
+
         else:
             assert False, 'unexpected node: "%r"' % expr
 
@@ -2069,6 +2071,9 @@ class EdgeQLCompiler:
 
         elif isinstance(expr, irast.SubgraphRef):
             self.apply_rewrites(expr.ref)
+
+        elif isinstance(expr, irast.TypeRef):
+            pass
 
         else:
             assert False, 'unexpected node: "%r"' % expr
@@ -2755,6 +2760,9 @@ class EdgeQLCompiler:
         elif isinstance(expr, irast.SubgraphRef):
             pass
 
+        elif isinstance(expr, irast.TypeRef):
+            pass
+
         else:
             # All other nodes fall through
             assert False, 'unexpected node "%r"' % expr
@@ -2866,6 +2874,9 @@ class EdgeQLCompiler:
 
         elif isinstance(expr, irast.SelectorExpr):
             self.link_subqueries(expr.expr)
+
+        elif isinstance(expr, irast.TypeRef):
+            pass
 
         else:
             # All other nodes fall through
@@ -3099,6 +3110,9 @@ class EdgeQLCompiler:
             pass
 
         elif isinstance(expr, irast.SubgraphRef):
+            pass
+
+        elif isinstance(expr, irast.TypeRef):
             pass
 
         else:
@@ -3950,6 +3964,44 @@ class EdgeQLCompiler:
 
         return result
 
+    def process_type_ref_elem(self, context, expr, qlcontext):
+        if isinstance(expr, irast.EntitySet):
+            if expr.rlink is not None:
+                raise errors.EdgeQLSyntaxError(
+                    'expecting a type reference',
+                    context=qlcontext)
+
+            result = irast.TypeRef(
+                maintype=expr.concept.name,
+            )
+
+        else:
+            raise errors.EdgeQLSyntaxError(
+                'expecting a type reference',
+                context=qlcontext)
+
+        return result
+
+    def process_type_ref_expr(self, context, qlexpr):
+        expr = self._process_expr(context, qlexpr)
+
+        if isinstance(expr, irast.Sequence):
+            elems = []
+
+            for elem in expr.elements:
+                ref_elem = self.process_type_ref_elem(
+                    context, elem, elem.context)
+
+                elems.append(ref_elem)
+
+            expr.elements = elems
+            expr.is_array = True
+
+        else:
+            expr = self.process_type_ref_elem(context, expr, expr.context)
+
+        return expr
+
     def is_join(self, left, right, op, reversed):
         return (isinstance(left, irast.Path)
                 and isinstance(right, irast.Path)
@@ -3957,11 +4009,7 @@ class EdgeQLCompiler:
 
     def is_type_check(self, left, right, op, reversed):
         return (not reversed and op in (ast.ops.IS, ast.ops.IS_NOT)
-                and isinstance(left, irast.Path)
-                and isinstance(right, irast.Constant)
-                and (isinstance(right.type, s_obj.PrototypeClass)
-                     or isinstance(right.type, tuple)
-                     and isinstance(right.type[1], s_obj.PrototypeClass)))
+                and isinstance(left, irast.Path))
 
     def is_concept_path(self, expr):
         if isinstance(expr, irast.PathCombination):
@@ -4070,17 +4118,9 @@ class EdgeQLCompiler:
                     # Type check expression: <path> IS [NOT] <concept>
                     paths = set()
 
-                    if (isinstance(right.type, tuple)
-                            and issubclass(right.type[0], (tuple, list))):
-                        filter_op = \
-                            ast.ops.IN if op == ast.ops.IS else ast.ops.NOT_IN
-                    else:
-                        filter_op = \
-                            ast.ops.EQ if op == ast.ops.IS else ast.ops.NE
-
                     for path in left_exprs.paths:
                         ref = irast.MetaRef(ref=path, name='id')
-                        expr = irast.BinOp(left=ref, right=right, op=filter_op)
+                        expr = irast.BinOp(left=ref, right=right, op=op)
                         paths.add(irast.MetaRefExpr(expr=expr))
 
                     result = self.path_from_set(paths)

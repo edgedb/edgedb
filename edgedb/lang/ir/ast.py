@@ -431,5 +431,9 @@ class CompositeType(Base):
     __fields = ['node', 'pathspec']
 
 
+class TypeRef(Expr):
+    __fields = ['maintype', 'subtypes']
+
+
 TextSearchOperator = qlast.TextSearchOperator
 EdgeDBMatchOperator = qlast.EdgeQLMatchOperator
