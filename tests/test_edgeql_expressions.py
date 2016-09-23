@@ -171,17 +171,23 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_cast03(self):
         await self.assert_query_result(r"""
             SELECT <std::str><std::int><std::float>'123.45' + 'foo';
-            """, [
-                ['123foo'],
-            ])
+        """, [
+            ['123foo'],
+        ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_cast04(self):
         await self.assert_query_result(r"""
             SELECT <str><int><float>'123.45' + 'foo';
-            """, [
-                ['123foo'],
-            ])
+        """, [
+            ['123foo'],
+        ])
+
+    async def test_edgeql_expr_cast05(self):
+        await self.assert_query_result(r"""
+            SELECT <list<int>>['123', '11'];
+        """, [
+            [[123, 11]],
+        ])
 
     @unittest.expectedFailure
     async def test_edgeql_expr_list01(self):

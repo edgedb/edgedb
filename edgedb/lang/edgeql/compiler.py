@@ -868,6 +868,10 @@ class EdgeQLCompiler:
             node = self.process_sequence(
                 node, squash_homogeneous=squash_homogeneous)
 
+        elif isinstance(expr, qlast.ArrayNode):
+            elements = [self._process_expr(context, e) for e in expr.elements]
+            node = irast.Sequence(elements=elements, is_array=True)
+
         elif isinstance(expr, qlast.FunctionCallNode):
             with context():
                 if expr.func[0] == 'agg':
@@ -994,10 +998,12 @@ class EdgeQLCompiler:
             subtypes = expr.type.subtypes
 
             schema = context.current.proto_schema
-            aliases = context.current.namespaces
 
             if subtypes:
-                typ = [maintype.name]
+                typ = irast.TypeRef(
+                    maintype=maintype.name,
+                    subtypes=[]
+                )
 
                 for subtype in subtypes:
                     if isinstance(subtype, qlast.PathNode):
@@ -1017,17 +1023,16 @@ class EdgeQLCompiler:
                         subtype = irast.CompositeType(
                             node=stype, pathspec=pathspec)
                     else:
-                        stn = sn.SchemaName(module=subtype.module,
-                                            name=subtype.name)
-                        subtype = schema.get(stn, module_aliases=aliases)
+                        subtype = self._get_schema_object(
+                            context, subtype.name, subtype.module)
 
-                    typ.append(subtype)
-
-                typ = tuple(typ)
+                    typ.subtypes.append(subtype.name)
             else:
-                mtn = stn = sn.SchemaName(module=maintype.module,
-                                          name=maintype.name)
-                typ = schema.get(mtn, module_aliases=aliases)
+                typ = irast.TypeRef(
+                    maintype=self._get_schema_object(
+                        context, maintype.name, maintype.module).name,
+                    subtypes=[]
+                )
 
             node = irast.TypeCast(
                 expr=self._process_expr(context, expr.expr), type=typ)
@@ -1169,7 +1174,7 @@ class EdgeQLCompiler:
                 ptrsource = source
 
                 if len(steps) == 2:
-                    ptrsource = self._normalize_concept(
+                    ptrsource = self._get_schema_object(
                         context, steps[0].expr, steps[0].namespace)
                     lexpr = steps[1].expr
                 elif len(steps) == 1:
@@ -1348,7 +1353,7 @@ class EdgeQLCompiler:
             if (path_tip is None and
                     context.current.local_link_source is not None and
                     isinstance(tip, qlast.PathStepNode)):
-                proto = self._normalize_concept(context, tip.expr,
+                proto = self._get_schema_object(context, tip.expr,
                                                 tip.namespace)
                 if isinstance(proto, s_links.Link):
                     tip = qlast.LinkExprNode(expr=qlast.LinkNode(
@@ -1357,7 +1362,7 @@ class EdgeQLCompiler:
 
             if isinstance(tip, qlast.PathStepNode):
 
-                proto = self._normalize_concept(context, tip.expr,
+                proto = self._get_schema_object(context, tip.expr,
                                                 tip.namespace)
 
                 if isinstance(proto, s_obj.ProtoNode):
@@ -1385,7 +1390,7 @@ class EdgeQLCompiler:
                 direction = (link_expr.direction or
                              s_pointers.PointerDirection.Outbound)
                 if link_expr.target:
-                    link_target = self._normalize_concept(
+                    link_target = self._get_schema_object(
                         context, link_expr.target.name,
                         link_expr.target.module)
 
@@ -1606,17 +1611,11 @@ class EdgeQLCompiler:
 
         return ptr
 
-    def _normalize_concept(self, context, concept, namespace):
-        if concept == '%':
-            concept = self.proto_schema.get(name='std::Object')
-        else:
-            if namespace:
-                name = sn.Name(name=concept, module=namespace)
-            else:
-                name = concept
-            concept = self.proto_schema.get(
-                name=name, module_aliases=context.current.namespaces)
-        return concept
+    def _get_schema_object(self, context, name, module):
+        if module:
+            name = sn.Name(name=name, module=module)
+        return self.proto_schema.get(
+            name=name, module_aliases=context.current.namespaces)
 
     def _process_select_targets(self, context, targets):
         selector = list()
@@ -3104,7 +3103,8 @@ class EdgeQLCompiler:
                 expr = expr.__class__(
                     elements=elements, concept=expr.concept, rlink=expr.rlink)
             else:
-                expr = expr.__class__(elements=elements)
+                expr = expr.__class__(elements=elements,
+                                      is_array=expr.is_array)
 
         elif isinstance(expr, irast.GraphExpr):
             pass

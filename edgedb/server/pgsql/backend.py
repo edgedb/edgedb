@@ -970,33 +970,12 @@ class Backend(s_deltarepo.DeltaProvider):
         restypes = {}
 
         for k, v in query_ir.result_types.items():
-            if v[0] is not None:  # XXX get_expr_type
-                if isinstance(v[0], tuple):
-                    typ = (v[0][0], v[0][1].name)
-                else:
-                    typ = v[0].name
-                restypes[k] = (typ, v[1])
-            else:
-                restypes[k] = v
+            restypes[k] = v
 
         argtypes = {}
 
         for k, v in query_ir.argument_types.items():
-            if v is not None:  # XXX get_expr_type
-                if isinstance(v, tuple):
-                    if isinstance(v[1], s_obj.PrototypeClass):
-                        name = 'type'
-                    else:
-                        name = v[1].name
-                    argtypes[k] = (v[0], name)
-                else:
-                    if isinstance(v, s_obj.PrototypeClass):
-                        name = 'type'
-                    else:
-                        name = v.name
-                    argtypes[k] = name
-            else:
-                argtypes[k] = v
+            argtypes[k] = v
 
         return Query(
             chunks=qchunks, arg_index=arg_index, argmap=argmap,

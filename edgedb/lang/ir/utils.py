@@ -178,7 +178,12 @@ def infer_type(ir, schema):
             result = None
 
     elif isinstance(ir, irast.TypeCast):
-        result = ir.type
+        if ir.type.subtypes:
+            coll = s_obj.Collection.get_class(ir.type.maintype)
+            result = coll.from_subtypes(
+                [schema.get(t) for t in ir.type.subtypes])
+        else:
+            result = schema.get(ir.type.maintype)
 
     elif isinstance(ir, irast.SubgraphRef):
         subgraph = ir.ref

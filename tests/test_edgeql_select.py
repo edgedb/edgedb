@@ -1394,7 +1394,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '2'}, {'number': '3'}, {'number': '4'}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_null01(self):
         await self.assert_query_result(r"""
             SELECT test::Issue.number = NULL;

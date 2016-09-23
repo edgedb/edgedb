@@ -397,22 +397,22 @@ class IRDecompiler:
             result = qlast.SequenceNode(elements=elements)
 
         elif isinstance(expr, irast.TypeCast):
-            if isinstance(expr.type, tuple):
-                if expr.type[0] is not list:
-                    raise ValueError('unexpected collection type: {!r}'.format(expr.type[0]))
-
-                stn = expr.type[1].name
-                st = qlast.PrototypeRefNode(module=stn.module, name=stn.name)
+            if expr.type.subtypes:
                 typ = qlast.TypeNameNode(
-                    maintype=qlast.PrototypeRefNode(name='list'),
-                    subtypes=[st])
+                    maintype=qlast.PrototypeRefNode(name=expr.type.maintype),
+                    subtypes=[
+                        qlast.PrototypeRefNode(
+                            module=stn.module, name=stn.name)
+                        for stn in expr.type.subtypes
+                    ]
+                )
             else:
-                mtn = expr.type.name
+                mtn = expr.type.maintype
                 mt = qlast.PrototypeRefNode(module=mtn.module, name=mtn.name)
                 typ = qlast.TypeNameNode(maintype=mt)
 
             result = qlast.TypeCastNode(
-                        expr=self._process_expr(context, expr.expr), type=typ)
+                expr=self._process_expr(context, expr.expr), type=typ)
 
         elif isinstance(expr, irast.NoneTest):
             arg = self._process_expr(context, expr.expr)

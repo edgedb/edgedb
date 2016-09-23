@@ -1313,27 +1313,42 @@ class IRCompilerBase:
             expr_type = None
 
         schema = context.current.proto_schema
-        int_proto = schema.get('std::int')
 
         pg_expr = self._process_expr(context, expr.expr, cte)
 
-        if expr_type and expr_type is bool and expr.type.issubclass(int_proto):
-            when_expr = pgsql.ast.CaseWhenNode(
-                expr=pg_expr, result=pgsql.ast.ConstantNode(value=1))
-            default = pgsql.ast.ConstantNode(value=0)
-            result = pgsql.ast.CaseExprNode(args=[when_expr], default=default)
-        else:
-            if isinstance(expr.type, tuple):
-                typ = expr.type[1]
-            else:
-                typ = expr.type
-            type = types.pg_type_from_atom(schema, typ, topbase=True)
+        target_type = expr.type
 
-            if isinstance(expr.type, tuple):
-                type = pgsql.ast.TypeNode(name=type, array_bounds=[-1])
+        if target_type.subtypes:
+            if target_type.maintype == 'list':
+                elem_type = types.pg_type_from_atom(
+                    schema, schema.get(target_type.subtypes[0]), topbase=True)
+                result = pgsql.ast.TypeCastNode(
+                    expr=pg_expr,
+                    type=pgsql.ast.TypeNode(name=elem_type, array_bounds=[-1]))
             else:
-                type = pgsql.ast.TypeNode(name=type)
-            result = pgsql.ast.TypeCastNode(expr=pg_expr, type=type)
+                raise NotImplementedError(
+                    '{} composite type is not supported '
+                    'yet'.format(target_type.maintype))
+
+        else:
+            int_proto = schema.get('std::int')
+            target_type = schema.get(target_type.maintype)
+
+            if (expr_type and expr_type is bool and
+                    target_type.issubclass(int_proto)):
+                when_expr = pgsql.ast.CaseWhenNode(
+                    expr=pg_expr, result=pgsql.ast.ConstantNode(value=1))
+                default = pgsql.ast.ConstantNode(value=0)
+                result = pgsql.ast.CaseExprNode(
+                    args=[when_expr], default=default)
+            else:
+                result = pgsql.ast.TypeCastNode(
+                    expr=pg_expr,
+                    type=pgsql.ast.TypeNode(
+                        name=types.pg_type_from_atom(
+                            schema, target_type, topbase=True)
+                    )
+                )
 
         return result
 
