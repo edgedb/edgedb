@@ -88,6 +88,18 @@ class TestExpressions(tb.QueryTestCase):
                 ['foobar'],
             ])
 
+    @unittest.expectedFailure
+    async def test_edgeql_expr_op06(self):
+        await self.assert_query_result(r"""
+            SELECT NULL = NULL;
+            SELECT NULL = 42;
+            SELECT NULL = 'NULL';
+            """, [
+                [None],
+                [None],
+                [None],
+            ])
+
     async def test_edgeql_expr_paths_01(self):
         cases = [
             "Issue.owner.name",

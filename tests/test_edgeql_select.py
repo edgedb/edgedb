@@ -10,7 +10,7 @@ import os.path
 import unittest
 
 from edgedb.server import _testbase as tb
-from edgedb.client import exceptions
+from edgedb.client import exceptions as exc
 
 
 class TestEdgeQLSelect(tb.QueryTestCase):
@@ -83,6 +83,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             name := 'Improve EdgeDB repl output rendering.',
             body := 'We need to be able to render data in tabular format.',
             owner := (SELECT User WHERE User.name = 'Yury'),
+            watchers := (SELECT User WHERE User.name = 'Elvis'),
             status := (SELECT Status WHERE Status.name = 'Open'),
             priority := (SELECT Priority WHERE Priority.name = 'High')
         };
@@ -93,6 +94,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             name := 'Repl tweak.',
             body := 'Minor lexer tweaks.',
             owner := (SELECT User WHERE User.name = 'Yury'),
+            watchers := (SELECT User WHERE User.name = 'Elvis'),
             status := (SELECT Status WHERE Status.name = 'Closed'),
             related_to := (SELECT Issue WHERE Issue.number = '2'),
             priority := (SELECT Priority WHERE Priority.name = 'Low')
@@ -1390,4 +1392,251 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ORDER BY Issue.number;
         ''', [
             [{'number': '2'}, {'number': '3'}, {'number': '4'}],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_null01(self):
+        await self.assert_query_result(r"""
+            SELECT test::Issue.number = NULL;
+            """, [
+            [None, None, None, None],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_null02(self):
+        await self.assert_query_result(r"""
+            # the WHERE clause is always NULL, so it can never be true
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE Issue.number = NULL;
+
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE Issue.priority = NULL;
+
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE Issue.priority.name = NULL;
+            """, [
+            [],
+            [],
+            [],
+        ])
+
+    async def test_edgeql_select_subqueries01(self):
+        await self.assert_query_result(r"""
+            WITH
+                MODULE test,
+                Issue2:= Issue
+            # this is string concatenation, not integer arithmetic
+            SELECT Issue.number + Issue2.number;
+            """, [
+            ['{}{}'.format(a, b) for a in range(1, 5) for b in range(1, 5)],
+        ])
+
+    async def test_edgeql_select_subqueries02(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                Issue.number IN ('2', '3', '4')
+                AND
+                EXISTS (
+                    # due to common prefix, the Issue referred to here is
+                    # the same Issue as in the LHS of AND, therefore
+                    # this condition can never be true
+                    SELECT Issue WHERE Issue.number IN ('1', '6')
+                );
+            """, [
+            [],
+        ])
+
+    async def test_edgeql_select_subqueries03(self):
+        await self.assert_query_result(r"""
+            WITH
+                MODULE test,
+                # subqueries aliased here are independent of the main query,
+                # therefore Issue in this subquery is different from the
+                # main query
+                sub:= (SELECT Issue WHERE Issue.number IN ('1', '6'))
+            SELECT Issue{number}
+            WHERE
+                Issue.number IN ('2', '3', '4')
+                AND
+                EXISTS sub;
+            """, [
+            [{'number': '2'}, {'number': '3'}, {'number': '4'}],
+        ])
+
+    async def test_edgeql_select_subqueries04(self):
+        # XXX: aliases vs. independent queries need to be fixed
+        await self.assert_query_result(r"""
+            # find all issues such that there's at least one more
+            # issue with the same priority
+            WITH
+                MODULE test,
+                Issue2:= Issue
+            SELECT Issue{number}
+            WHERE
+                Issue != Issue2
+                AND
+                # NOTE: this condition is false when one of the sides is NULL
+                Issue.priority = Issue2.priority;
+            """, [
+            [],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_subqueries05(self):
+        # XXX: aliases vs. independent queries need to be fixed
+        await self.assert_query_result(r"""
+            # find all issues such that there's at least one more
+            # issue with the same priority (even if the "same" means NULL)
+            WITH
+                MODULE test,
+                Issue2:= Issue
+            SELECT Issue{number}
+            WHERE
+                Issue != Issue2
+                AND
+                (
+                    Issue.priority = Issue2.priority
+                    OR
+
+                    NOT EXISTS Issue.priority.id
+                    AND
+                    NOT EXISTS Issue2.priority.id
+                );
+            """, [
+            [{'number': '1'}, {'number': '4'}],
+        ])
+
+    async def test_edgeql_select_subqueries06(self):
+        await self.assert_query_result(r"""
+            # find all issues such that there's at least one more
+            # issue watched by the same user as this one
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                EXISTS Issue.watchers
+                AND
+                EXISTS (
+                    SELECT User.<watchers
+                    WHERE
+                        User = Issue.watchers
+                        AND
+                        User.<watchers != Issue
+                );
+            """, [
+            [{'number': '2'}, {'number': '3'}],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_subqueries07(self):
+        await self.assert_query_result(r"""
+            # find all issues such that there's at least one more
+            # issue watched by the same user as this one
+            WITH
+                MODULE test
+            SELECT Issue{number}
+            WHERE
+                EXISTS Issue.watchers
+                AND
+                EXISTS (
+                    SELECT Text
+                    WHERE
+                        Text IS Issue
+                        AND
+                        (Text AS Issue).watchers = Issue.watchers
+                        AND
+                        Text != Issue
+                );
+            """, [
+            [{'number': '2'}, {'number': '3'}],
+        ])
+
+    async def test_edgeql_select_subqueries08(self):
+        # XXX: I'm not actually sure that this should work, much less
+        # what the result should be
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT Issue.number + (SELECT Issue.number);
+            """, [
+            ['1"1"', '2"2"', '3"3"', '4"4"'],
+        ])
+
+    async def test_edgeql_select_subqueries09(self):
+        with self.assertRaisesRegex(
+                exc._base.UnknownEdgeDBError,
+                r'unexpected binop operands'):
+            await self.con.execute(r"""
+                WITH
+                    MODULE test,
+                    sub:= (SELECT Issue.number)
+                SELECT Issue.number + sub;
+                """)
+
+    async def test_edgeql_select_subqueries10(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT Text{
+                Issue.number,
+                body_length:= strlen(Text.body)
+            } ORDER BY strlen(Text.body);
+
+            # find all issues such that there's at least one more
+            # Text item of similar body length (+/-5 characters)
+            WITH MODULE test
+            SELECT Issue{
+                number,
+            }
+            WHERE
+                EXISTS (
+                    SELECT Text
+                    WHERE
+                        Text != Issue
+                        AND
+                        (
+                            (strlen(Text.body) - strlen(Issue.body))
+                            * (strlen(Text.body) - strlen(Issue.body))
+                            # XXX: power operator doesn't work yet
+                        ) <= 25
+                )
+            ORDER BY Issue.number;
+            """, [
+            [
+                {'number': '3', 'body_length': 19},
+                {'number': None, 'body_length': 21},
+                {'number': None, 'body_length': 28},
+                {'number': '1', 'body_length': 33},
+                {'number': '4', 'body_length': 41},
+                {'number': '2', 'body_length': 52},
+            ],
+            [{'number': '1'}, {'number': '3'}],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_subqueries11(self):
+        await self.assert_query_result(r"""
+            # same as above, but also include the body_length computable
+            WITH MODULE test
+            SELECT Issue{
+                number,
+                body_length:= strlen(Issue.body)
+            }
+            WHERE
+                EXISTS (
+                    SELECT Text
+                    WHERE
+                        Text != Issue
+                        AND
+                        (
+                            (strlen(Text.body) - strlen(Issue.body))
+                            * (strlen(Text.body) - strlen(Issue.body))
+                            # XXX: power operator doesn't work yet
+                        ) <= 25
+                )
+            ORDER BY Issue.number;
+            """, [
+            [{'number': '1'}, {'number': '3'}],
         ])
