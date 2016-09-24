@@ -111,8 +111,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         };
     """
 
-    async def test_edgeql_select_computable(self):
-        res = await self.con.execute('''
+    async def test_edgeql_select_computable01(self):
+        await self.assert_query_result('''
             WITH MODULE test
             SELECT
                 Issue {
@@ -124,15 +124,16 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }
             WHERE
                 Issue.number = '1';
-        ''')
+        ''', [
+            [{
+                'number': '1',
+                'aliased_number': '1',
+                'total_time_spent': 50000
+            }]
+        ])
 
-        self.assert_data_shape(res[0], [{
-            'number': '1',
-            'aliased_number': '1',
-            'total_time_spent': 50000
-        }])
-
-        res = await self.con.execute('''
+    async def test_edgeql_select_computable02(self):
+        await self.assert_query_result('''
             WITH MODULE test
             SELECT
                 Issue {
@@ -141,12 +142,221 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }
             WHERE
                 Issue.number = '1';
-        ''')
+        ''', [
+            [{
+                'number': '1',
+                'total_time_spent': 50000
+            }]
+        ])
 
-        self.assert_data_shape(res[0], [{
-            'number': '1',
-            'total_time_spent': 50000
-        }])
+    async def test_edgeql_select_computable03(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT
+                User {
+                    name,
+                    shortest_own_text := (
+                        SELECT Text {body}
+                        WHERE Text.owner = User
+                        ORDER BY strlen(Text.body) ASC
+                        LIMIT 1
+                    ),
+                }
+            WHERE User.name = 'Elvis';
+        ''', [
+            [{
+                'name': 'Elvis',
+                'shortest_own_text': {
+                    'body': 'Rewriting everything.',
+                },
+            }]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_computable04(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE test,
+                # we aren't referencing User in any way, so this works
+                # best as a subquery, rather than inline computable
+                sub := (
+                    SELECT Text {body}
+                    ORDER BY strlen(Text.body) ASC
+                    LIMIT 1
+                )
+            SELECT
+                User {
+                    name,
+                    shortest_text := sub,
+                }
+            WHERE User.name = 'Elvis';
+        ''', [
+            [{
+                'name': 'Elvis',
+                'shortest_text': {
+                    'body': 'Minor lexer tweaks.',
+                },
+            }]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_computable05(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE test,
+                # we aren't referencing User in any way, so this works
+                # best as a subquery, than inline computable
+                sub := (
+                    SELECT Text {body}
+                    ORDER BY strlen(Text.body) ASC
+                    LIMIT 1
+                )
+            SELECT
+                User {
+                    name,
+                    shortest_own_text := (
+                        SELECT Text {body}
+                        WHERE Text.owner = User
+                        ORDER BY strlen(Text.body) ASC
+                        LIMIT 1
+                    ),
+                    shortest_text := sub,
+                }
+            WHERE User.name = 'Elvis';
+        ''', [
+            [{
+                'name': 'Elvis',
+                'shortest_own_text': {
+                    'body': 'Rewriting everything.',
+                },
+                'shortest_text': {
+                    'body': 'Minor lexer tweaks.',
+                },
+            }]
+        ])
+
+    async def test_edgeql_select_computable06(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT
+                User {
+                    name,
+                    shortest_text := (
+                        SELECT Text {body}
+                        # a clause that references User and is always true
+                        WHERE User IS User
+                        ORDER BY strlen(Text.body) ASC
+                        LIMIT 1
+                    ),
+                }
+            WHERE User.name = 'Elvis';
+        ''', [
+            [{
+                'name': 'Elvis',
+                'shortest_text': {
+                    'body': 'Minor lexer tweaks.',
+                },
+            }]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_computable07(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT
+                User {
+                    name,
+                    # ad-hoc computable with many results
+                    special_texts := (
+                        SELECT Text {body}
+                        WHERE Text.owner != User
+                        ORDER BY strlen(Text.body) DESC
+                    ),
+                }
+            WHERE User.name = 'Elvis';
+        ''', [
+            [{
+                'name': 'Elvis',
+                'special_texts': [
+                    {'body': 'We need to be able to render data in tabular format.'},
+                    {'body': 'Fix regression introduced by lexer tweak.'},
+                    {'body': 'Initial public release of EdgeDB.'},
+                    {'body': 'EdgeDB needs to happen soon.'},
+                    {'body': 'Rewriting everything.'},
+                    {'body': 'Minor lexer tweaks.'}
+                ],
+            }]
+        ])
+
+    async def test_edgeql_select_computable08(self):
+        await self.assert_query_result(r"""
+            # get a user + the latest issue (regardless of owner), which has
+            # the same number of characters in the status as the user's name
+            WITH MODULE test
+            SELECT User{
+                name,
+                special_issues := (
+                    SELECT Issue{
+                        name,
+                        number,
+                        owner: {
+                            name
+                        },
+                        status: {
+                            name
+                        }
+                    }
+                    WHERE strlen(Issue.status.name) = strlen(User.name)
+                    ORDER BY Issue.start_date DESC
+                    LIMIT 1
+                )
+            }
+            ORDER BY User.name;
+            """, [
+            [
+                {
+                    'name': 'Elvis',
+                    'special_issues': None
+                }, {
+                    'name': 'Yury',
+                    'special_issues': {
+                        'name': 'Improve EdgeDB repl output rendering.',
+                        'owner': {'name': 'Yury'},
+                        'status': {'name': 'Open'},
+                        'number': '2'
+                    },
+                }
+            ],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_computable09(self):
+        await self.assert_query_result(r"""
+            # XXX: need a specialized ad-hoc computable
+            WITH MODULE test
+            SELECT Text{
+                body,
+                Issue.name,
+                LogEntry.name := 'log',
+                Comment.name := 'comment',
+            }
+            ORDER BY Text.body;
+            """, [
+            [
+                {'body': 'EdgeDB needs to happen soon.',
+                 'name': 'comment'},
+                {'body': 'Fix regression introduced by lexer tweak.',
+                 'name': 'Regression.'},
+                {'body': 'Initial public release of EdgeDB.',
+                 'name': 'Release EdgeDB'},
+                {'body': 'Minor lexer tweaks.',
+                 'name': 'Repl tweak.'},
+                {'body': 'Rewriting everything.',
+                 'name': 'log'},
+                {'body': 'We need to be able to render data in tabular format.',
+                 'name': 'Improve EdgeDB repl output rendering.'}
+            ],
+        ])
 
     async def test_edgeql_select_match01(self):
         res = await self.con.execute(r'''
@@ -388,7 +598,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_type01(self):
-        res = await self.con.execute('''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT
                 Issue {
@@ -399,9 +609,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }
             WHERE
                 Issue.number = '1';
-        ''')
-
-        self.assert_data_shape(res, [
+        ''', [
             [{
                 'number': '1',
                 '__type__': {'name': 'test::Issue'},
@@ -409,17 +617,15 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_type02(self):
-        res = await self.con.execute('''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT User.__type__.name LIMIT 1;
-        ''')
-
-        self.assert_data_shape(res, [
+        ''', [
             ['test::User']
         ])
 
     async def test_edgeql_select_recursive01(self):
-        res = await self.con.execute('''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT
                 Issue {
@@ -439,9 +645,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }
             WHERE
                 Issue.number = '2';
-        ''')
-
-        self.assert_data_shape(res, [
+        ''', [
             [{
                 'number': '2',
                 'related_to': [{
@@ -457,7 +661,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_limit01(self):
-        res = await self.con.execute(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT
                 Issue {number}
@@ -475,16 +679,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue {number}
             ORDER BY Issue.number
             OFFSET 2 LIMIT 3;
-        ''')
-
-        self.assert_data_shape(res, [
+        ''', [
             [{'number': '3'}, {'number': '4'}],
             [{'number': '1'}, {'number': '2'}, {'number': '3'}],
             [{'number': '3'}, {'number': '4'}],
         ])
 
     async def test_edgeql_select_specialized01(self):
-        res = await self.con.execute(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT
                 Text {body}
@@ -497,9 +699,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     body,
                 }
             ORDER BY Text.body;
-        ''')
-
-        self.assert_data_shape(res, [
+        ''', [
             [
                 {'body': 'EdgeDB needs to happen soon.'},
                 {'body': 'Fix regression introduced by lexer tweak.'},
@@ -525,7 +725,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_specialized02(self):
-        res = await self.con.execute(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT User{
                 name,
@@ -533,9 +733,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     body
                 },
             } WHERE User.name = 'Elvis';
-        ''')
-
-        self.assert_data_shape(res, [
+        ''', [
             [{
                 'name': 'Elvis',
                 'owner': [
@@ -544,46 +742,136 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         ])
 
+    async def test_edgeql_select_specialized03(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT User{
+                name,
+                <owner: Issue {
+                    number
+                } WHERE <int>(User.<owner[TO Issue].number) < 3,
+            } WHERE User.name = 'Elvis';
+        ''', [
+            [{
+                'name': 'Elvis',
+                'owner': [
+                    {'number': '1'},
+                ],
+            }],
+        ])
+
+    async def test_edgeql_select_shape01(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{
+                number,
+                related_to: {
+                    number
+                } WHERE Issue.related_to.owner = Issue.owner,
+            } ORDER BY Issue.number;
+        ''', [
+            [{
+                'number': '1',
+                'related_to': []
+            }, {
+                'number': '2',
+                'related_to': []
+            }, {
+                'number': '3',
+                'related_to': [
+                    {'number': '2'}
+                ]
+            }, {
+                'number': '4',
+                'related_to': []
+            }],
+        ])
+
+    async def test_edgeql_select_shape02(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT User{
+                name,
+                <owner: Issue {
+                    number
+                } WHERE EXISTS User.<owner[TO Issue].related_to,
+            } ORDER BY User.name;
+        ''', [
+            [{
+                'name': 'Elvis',
+                'owner': [{
+                    'number': '4'
+                }]
+            }, {
+                'name': 'Yury',
+                'owner': [{
+                    'number': '3'
+                }]
+            }],
+        ])
+
+    async def test_edgeql_select_shape03(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT User{
+                name,
+                <owner: Issue {
+                    number
+                } ORDER BY User.<owner[TO Issue].number DESC,
+            } ORDER BY User.name;
+        ''', [
+            [{
+                'name': 'Elvis',
+                'owner': [{
+                    'number': '4'
+                }, {
+                    'number': '1'
+                }]
+            }, {
+                'name': 'Yury',
+                'owner': [{
+                    'number': '3'
+                }, {
+                    'number': '2'
+                }]
+            }],
+        ])
+
     async def test_edgeql_select_instance01(self):
-        res = await self.con.execute(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT
                 Text {body}
             WHERE Text IS Comment
             ORDER BY Text.body;
-        ''')
-
-        self.assert_data_shape(res, [
+        ''', [
             [
                 {'body': 'EdgeDB needs to happen soon.'},
             ],
         ])
 
-        res = await self.con.execute(r'''
+    async def test_edgeql_select_instance02(self):
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT
                 Text {body}
             WHERE Text IS NOT (Comment, Issue)
             ORDER BY Text.body;
-        ''')
-
-        self.assert_data_shape(res, [
+        ''', [
             [
                 {'body': 'Rewriting everything.'},
             ],
         ])
 
     @unittest.expectedFailure
-    async def test_edgeql_select_instance02(self):
-        res = await self.con.execute(r'''
+    async def test_edgeql_select_instance03(self):
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT
                 Text {body}
             WHERE Text IS Issue AND (Text AS Issue).number = 1
             ORDER BY Text.body;
-        ''')
-
-        self.assert_data_shape(res, [
+        ''', [
             [
                 {'body': 'Initial public release of EdgeDB.'},
             ],
@@ -693,7 +981,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_order01(self):
-        res = await self.con.execute(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue {name}
             ORDER BY Issue.priority.name ASC NULLS LAST THEN Issue.name;
@@ -701,9 +989,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT Issue {name}
             ORDER BY Issue.priority.name ASC NULLS FIRST THEN Issue.name;
-        ''')
-
-        self.assert_data_shape(res, [
+        ''', [
             [
                 {'name': 'Improve EdgeDB repl output rendering.'},
                 {'name': 'Repl tweak.'},
@@ -715,6 +1001,34 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 {'name': 'Release EdgeDB'},
                 {'name': 'Improve EdgeDB repl output rendering.'},
                 {'name': 'Repl tweak.'},
+            ]
+        ])
+
+    async def test_edgeql_select_order02(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Text {body}
+            ORDER BY strlen(Text.body) DESC;
+        ''', [[
+            {'body': 'We need to be able to render data in tabular format.'},
+            {'body': 'Fix regression introduced by lexer tweak.'},
+            {'body': 'Initial public release of EdgeDB.'},
+            {'body': 'EdgeDB needs to happen soon.'},
+            {'body': 'Rewriting everything.'},
+            {'body': 'Minor lexer tweaks.'}
+        ]])
+
+    async def test_edgeql_select_order03(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT User {name}
+            ORDER BY (
+                SELECT sum(<int>User.<watchers.number)
+            );
+        ''', [
+            [
+                {'name': 'Yury'},
+                {'name': 'Elvis'},
             ]
         ])
 
@@ -739,40 +1053,74 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '1'}],
         ])
 
+    async def test_edgeql_select_where03(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{
+                name,
+                number,
+                owner: {
+                    name
+                },
+                status: {
+                    name
+                }
+            } WHERE strlen(Issue.status.name) = 4;
+            ''', [
+            [{
+                'owner': {'name': 'Elvis'},
+                'status': {'name': 'Open'},
+                'name': 'Release EdgeDB',
+                'number': '1'
+            }, {
+                'owner': {'name': 'Yury'},
+                'status': {'name': 'Open'},
+                'name': 'Improve EdgeDB repl output rendering.',
+                'number': '2'
+            }],
+        ])
+
     async def test_edgeql_select_func01(self):
-        res = await self.con.execute(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT std::strlen(User.name) ORDER BY User.name;
 
             WITH MODULE test
             SELECT std::sum(<std::int>Issue.number);
-        ''')
-
-        self.assert_data_shape(res, [
+        ''', [
             [5, 4],
             [10]
         ])
 
     @unittest.expectedFailure
     async def test_edgeql_select_func02(self):
-        res = await self.con.execute(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT std::lower(string:=User.name) ORDER BY User.name;
-        ''')
-
-        self.assert_data_shape(res, [
+        ''', [
             ['elvis', 'yury'],
         ])
 
     @unittest.expectedFailure
     async def test_edgeql_select_func03(self):
-        res = await self.con.execute(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT std::count(User.<owner.id)
             GROUP BY User ORDER BY User.name;
-        ''')
-        self.assert_data_shape(res, [
+        ''', [
             [3, 3],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_func04(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT sum(<int>Issue.number)
+            WHERE EXISTS Issue.watchers.name
+            GROUP BY Issue.watchers.name
+            ORDER BY Issue.watchers.name;
+        ''', [
+            [5, 1],
         ])
 
     async def test_edgeql_select_exists01(self):
@@ -1401,7 +1749,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [None, None, None, None],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_null02(self):
         await self.assert_query_result(r"""
             # the WHERE clause is always NULL, so it can never be true
@@ -1637,5 +1984,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 )
             ORDER BY Issue.number;
             """, [
-            [{'number': '1'}, {'number': '3'}],
+            [{
+                'number': '1',
+                'body_length': 33,
+            }, {
+                'number': '3',
+                'body_length': 19,
+            }],
         ])

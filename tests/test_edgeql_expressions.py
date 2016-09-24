@@ -229,3 +229,17 @@ class TestExpressions(tb.QueryTestCase):
                 [{'foo': 42, 'bar': 'something'}],
                 [42],
             ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_coalesce01(self):
+        await self.assert_query_result(r"""
+            SELECT coalesce(NULL, 4, 5);
+            SELECT coalesce(NULL, 'foo', 'bar');
+            SELECT coalesce(4, NULL, 5);
+            SELECT coalesce('foo', NULL, 'bar');
+            """, [
+                [4],
+                ['foo'],
+                [4],
+                ['foo'],
+            ])
