@@ -108,6 +108,8 @@ class ConstraintMech:
                 ptr = ref.link_proto
                 src = ptr.source.concept if ptr.source else None
             elif isinstance(ref, irast.EntitySet):
+                if isinstance(ref.concept, s_atoms.Atom):
+                    continue
                 ptr = ref.rlink.link_proto
                 src = ref.rlink.source.concept
             else:
@@ -223,8 +225,7 @@ class ConstraintMech:
         ir = edgeql.compile_to_ir(
             constraint.finalexpr, schema, anchors={'subject': subject})
 
-        terminal_refs = ir_utils.get_terminal_references(ir)
-
+        terminal_refs = ir_utils.get_terminal_references(ir.selector[0].expr)
         ref_tables = cls._get_ref_storage_info(schema, terminal_refs)
 
         if len(ref_tables) > 1:

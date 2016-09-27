@@ -14,8 +14,6 @@ from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import atoms as s_atoms
 from edgedb.lang.schema import concepts as s_concepts
-from edgedb.lang.schema import expr as s_expr
-from edgedb.lang.schema import hooks as s_hooks
 from edgedb.lang.schema import links as s_links
 from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import name as sn
@@ -30,10 +28,11 @@ from edgedb.lang.edgeql import parser
 from edgedb.lang.common import ast
 from edgedb.lang.common import debug
 from edgedb.lang.common import exceptions as edgedb_error
-from edgedb.lang.common import datastructures
-from edgedb.lang.common import markup
-from edgedb.lang.common.algos import boolean
+from edgedb.lang.common import markup  # NOQA
 from edgedb.lang.common.datastructures import Void
+
+from . import pathmerger
+from . import rewriter
 
 
 class ParseContextLevel(object):
@@ -185,6 +184,156 @@ def get_ns_aliases_cges(node):
     return namespaces, aliases, cges
 
 
+def is_aggregated_expr(expr, deep=False):
+    agg = getattr(expr, 'aggregates', False)
+
+    if not agg and deep:
+        return bool(
+            list(
+                ast.find_children(
+                    expr, lambda i: getattr(i, 'aggregates', None))))
+    return agg
+
+
+class FixupTransformer(ast.NodeTransformer):
+    """Attempt to fixup potential brokenness of a fully processed tree."""
+
+    def visit_EntitySet(self, expr):
+        if expr.rlink:
+            self.visit(expr.rlink.source)
+
+        if expr.conjunction.paths:
+            # Move non-filtering paths out of a conjunction
+            # into a disjunction where it belongs.
+
+            cpaths = set()
+            dpaths = set()
+
+            for path in expr.conjunction.paths:
+                if isinstance(path, irast.EntitySet):
+                    if 'generator' not in path.users:
+                        dpaths.add(path)
+                    else:
+                        cpaths.add(path)
+                elif isinstance(path, irast.EntityLink):
+                    if (path.target and
+                            'generator' not in path.target.users and
+                            'generator' not in path.users):
+                        dpaths.add(path)
+                    else:
+                        cpaths.add(path)
+
+            expr.conjunction.paths = frozenset(cpaths)
+            if dpaths:
+                expr.disjunction.paths = expr.disjunction.paths | dpaths
+
+        return expr
+
+
+class SubqueryLinker(ast.NodeTransformer):
+    """Link subqueries to the main query."""
+
+    def visit_GraphExpr(self, expr):
+        paths = irutils.get_path_index(expr)
+
+        subpaths = irutils.extract_paths(
+            expr,
+            reverse=True,
+            resolve_arefs=False,
+            recurse_subqueries=2,
+            all_fragments=True)
+
+        if isinstance(subpaths, irast.PathCombination):
+            irutils.flatten_path_combination(subpaths, recursive=True)
+            subpaths = subpaths.paths
+        elif subpaths is not None:
+            subpaths = {subpaths}
+        else:
+            subpaths = set()
+
+        for subpath in subpaths:
+            if isinstance(subpath, irast.EntitySet):
+                outer = paths.getlist(subpath.id)
+
+                if outer and subpath not in outer:
+                    subpath.reference = outer[0]
+
+        return self.generic_visit(expr)
+
+
+class AggregateSorter(ast.NodeTransformer):
+    """Reorder aggregate expressions."""
+
+    def node_visit(self, expr):
+        if getattr(expr, 'aggregates', False):
+            # No need to drill-down, the expression is known to be a
+            # pure aggregate.
+            return expr
+        else:
+            return super().node_visit(expr)
+
+    def visit_FunctionCall(self, expr):
+        has_agg_args = False
+
+        for arg in expr.args:
+            self.visit(arg)
+
+            if is_aggregated_expr(arg):
+                has_agg_args = True
+            elif has_agg_args and not isinstance(expr, irast.Constant):
+                raise EdgeQLCompilerError(
+                    'invalid expression mix of aggregates '
+                    'and non-aggregates')
+
+        if has_agg_args:
+            expr.aggregates = True
+
+        return expr
+
+    def visit_BinOp(self, expr):
+        left = self.visit(expr.left)
+        right = self.visit(expr.right)
+
+        left_aggregates = is_aggregated_expr(left)
+        right_aggregates = is_aggregated_expr(right)
+
+        if (left_aggregates and
+                (right_aggregates or isinstance(right, irast.Constant))
+                or (isinstance(left, irast.Constant)
+                    and right_aggregates)):
+            expr.aggregates = True
+
+        elif expr.op == ast.ops.AND:
+            if right_aggregates:
+                # Reorder the operands so that aggregate expr is
+                # always on the left.
+                expr.left, expr.right = expr.right, expr.left
+
+        elif left_aggregates or right_aggregates:
+            raise EdgeQLCompilerError(
+                'invalid expression mix of aggregates and non-aggregates')
+
+        return expr
+
+    def visit_Sequence(self, expr):
+        has_agg_elems = False
+        for item in expr.elements:
+            self.visit(item)
+            if is_aggregated_expr(item):
+                has_agg_elems = True
+            elif has_agg_elems and not isinstance(expr, irast.Constant):
+                raise EdgeQLCompilerError(
+                    'invalid expression mix of aggregates '
+                    'and non-aggregates')
+
+        if has_agg_elems:
+            expr.aggregates = True
+
+        return expr
+
+    visit_Record = visit_Sequence
+
+
 class EdgeQLCompiler:
     def __init__(self, proto_schema, module_aliases=None):
         self.proto_schema = proto_schema
@@ -244,8 +393,9 @@ class EdgeQLCompiler:
             msg = 'unexpected statement type: {!r}'.format(edgeql_tree)
             raise ValueError(msg)
 
-        self.apply_fixups(stree)
-        self.apply_rewrites(stree)
+        FixupTransformer.run(stree)
+        rewriter.RewriteTransformer.run(stree, context=self.context)
+
         return stree
 
     def transform_fragment(self,
@@ -439,15 +589,15 @@ class EdgeQLCompiler:
                 [s.expr for s in graph.sorter] + \
                 [s for s in graph.grouper]
         union = irast.Disjunction(paths=frozenset(paths))
-        self.flatten_and_unify_path_combination(
-            union, deep=True, merge_filters=True)
+        pathmerger.flatten_and_unify_path_combination(
+            context, union, deep=True, merge_filters=True)
 
         # Merge the resulting disjunction with generator conjunction
         if graph.generator:
             paths = [graph.generator] + list(union.paths)
             union = irast.Disjunction(paths=frozenset(paths))
-            self.flatten_and_unify_path_combination(
-                union, deep=True, merge_filters=True)
+            pathmerger.flatten_and_unify_path_combination(
+                context, union, deep=True, merge_filters=True)
 
         # Reorder aggregate expressions so that all of them appear as the
         # first sub-tree in the generator expression.
@@ -527,8 +677,8 @@ class EdgeQLCompiler:
             paths.append(graph.generator)
 
         union = irast.Disjunction(paths=frozenset(paths))
-        self.flatten_and_unify_path_combination(
-            union, deep=True, merge_filters=True)
+        pathmerger.flatten_and_unify_path_combination(
+            context, union, deep=True, merge_filters=True)
 
         # Reorder aggregate expressions so that all of them appear as the
         # first sub-tree in the generator expression.
@@ -605,8 +755,8 @@ class EdgeQLCompiler:
             paths.append(graph.generator)
 
         union = irast.Disjunction(paths=frozenset(paths))
-        self.flatten_and_unify_path_combination(
-            union, deep=True, merge_filters=True)
+        pathmerger.flatten_and_unify_path_combination(
+            context, union, deep=True, merge_filters=True)
 
         # Reorder aggregate expressions so that all of them appear as the
         # first sub-tree in the generator expression.
@@ -639,8 +789,8 @@ class EdgeQLCompiler:
             else:
                 v = self._process_expr(context, value)
                 paths = irast.Conjunction(paths=frozenset((v, graph.optarget)))
-                self.flatten_and_unify_path_combination(
-                    paths, deep=True, merge_filters=True)
+                pathmerger.flatten_and_unify_path_combination(
+                    context, paths, deep=True, merge_filters=True)
                 # self._check_update_expr(graph.optarget, targetexpr, v)
 
             ref = irast.UpdateExpr(expr=targetexpr, value=v)
@@ -667,8 +817,8 @@ class EdgeQLCompiler:
                     v = self._process_expr(context, value)
 
                 paths = irast.Conjunction(paths=frozenset((v, graph.optarget)))
-                self.flatten_and_unify_path_combination(
-                    paths, deep=True, merge_filters=True)
+                pathmerger.flatten_and_unify_path_combination(
+                    context, paths, deep=True, merge_filters=True)
                 # self._check_update_expr(graph.optarget, targetexpr, v)
 
             ref = irast.UpdateExpr(expr=targetexpr, value=v)
@@ -770,8 +920,8 @@ class EdgeQLCompiler:
             paths.append(graph.generator)
 
         union = irast.Disjunction(paths=frozenset(paths))
-        self.flatten_and_unify_path_combination(
-            union, deep=True, merge_filters=True)
+        pathmerger.flatten_and_unify_path_combination(
+            context, union, deep=True, merge_filters=True)
 
         # Reorder aggregate expressions so that all of them appear as the
         # first sub-tree in the generator expression.
@@ -794,7 +944,7 @@ class EdgeQLCompiler:
 
             if where:
                 expr = self._process_expr(context, where)
-                expr = self.merge_paths(expr)
+                expr = self._merge_paths(context, expr)
                 self.postprocess_expr(expr)
                 return expr
             else:
@@ -1048,7 +1198,7 @@ class EdgeQLCompiler:
             for indirection_el in expr.indirection:
                 if isinstance(indirection_el, qlast.IndexNode):
                     idx = self._process_expr(context, indirection_el.index)
-                    node = irast.FunctionCall(name='getitem', args=[node, idx])
+                    node = irast.IndexIndirection(expr=node, index=idx)
 
                 elif isinstance(indirection_el, qlast.SliceNode):
                     if indirection_el.start:
@@ -1630,7 +1780,7 @@ class EdgeQLCompiler:
             context.current.location = 'selector'
             for target in targets:
                 expr = self._process_expr(context, target.expr)
-                expr = self.merge_paths(expr)
+                expr = self._merge_paths(context, expr)
                 params = {'autoname': context.current.genalias()}
 
                 if isinstance(expr, irast.Disjunction):
@@ -1681,7 +1831,7 @@ class EdgeQLCompiler:
                 context.current.location = 'sorter'
                 for sorter in sorters:
                     expr = self._process_expr(context, sorter.path)
-                    expr = self.merge_paths(expr)
+                    expr = self._merge_paths(context, expr)
                     if isinstance(expr, irast.PathCombination):
                         assert len(expr.paths) == 1
                         expr = next(iter(expr.paths))
@@ -1702,386 +1852,10 @@ class EdgeQLCompiler:
                 context.current.location = 'grouper'
                 for grouper in groupers:
                     expr = self._process_expr(context, grouper)
-                    expr = self.merge_paths(expr)
+                    expr = self._merge_paths(context, expr)
                     result.append(expr)
 
         return result
-
-    def apply_fixups(self, expr):
-        """Attempt to fixup potential brokenness of a fully processed tree."""
-        if isinstance(expr, irast.PathCombination):
-            for path in expr.paths:
-                self.apply_fixups(path)
-
-        elif isinstance(expr, irast.AtomicRefSimple):
-            self.apply_fixups(expr.ref)
-
-        elif isinstance(expr, irast.EntitySet):
-            if expr.rlink:
-                self.apply_fixups(expr.rlink.source)
-
-            if expr.conjunction.paths:
-                # Move non-filtering paths out of a conjunction
-                # into a disjunction where it belongs.
-
-                cpaths = set()
-                dpaths = set()
-
-                for path in expr.conjunction.paths:
-                    if isinstance(path, irast.EntitySet):
-                        if 'generator' not in path.users:
-                            dpaths.add(path)
-                        else:
-                            cpaths.add(path)
-                    elif isinstance(path, irast.EntityLink):
-                        if (path.target and
-                                'generator' not in path.target.users and
-                                'generator' not in path.users):
-                            dpaths.add(path)
-                        else:
-                            cpaths.add(path)
-
-                expr.conjunction.paths = frozenset(cpaths)
-                if dpaths:
-                    expr.disjunction.paths = expr.disjunction.paths | dpaths
-
-        elif isinstance(expr, irast.EntityLink):
-            if expr.source is not None:
-                self.apply_fixups(expr.source)
-
-        elif isinstance(expr, irast.LinkPropRefSimple):
-            self.apply_fixups(expr.ref)
-
-        elif isinstance(expr, irast.BinOp):
-            self.apply_fixups(expr.left)
-            self.apply_fixups(expr.right)
-
-        elif isinstance(expr, irast.UnaryOp):
-            self.apply_fixups(expr.expr)
-
-        elif isinstance(expr, irast.ExistPred):
-            self.apply_fixups(expr.expr)
-
-        elif isinstance(expr, (irast.InlineFilter, irast.InlinePropFilter)):
-            self.apply_fixups(expr.ref)
-            self.apply_fixups(expr.expr)
-
-        elif isinstance(expr, (irast.AtomicRefExpr, irast.LinkPropRefExpr)):
-            self.apply_fixups(expr.expr)
-
-        elif isinstance(expr, irast.FunctionCall):
-            for arg in expr.args:
-                self.apply_fixups(arg)
-            for sortexpr in expr.agg_sort:
-                self.apply_fixups(sortexpr.expr)
-            if expr.agg_filter:
-                self.apply_fixups(expr.agg_filter)
-            for partition_expr in expr.partition:
-                self.apply_fixups(partition_expr)
-
-        elif isinstance(expr, irast.TypeCast):
-            self.apply_fixups(expr.expr)
-
-        elif isinstance(expr, irast.NoneTest):
-            self.apply_fixups(expr.expr)
-
-        elif isinstance(expr, (irast.Sequence, irast.Record)):
-            for path in expr.elements:
-                self.apply_fixups(path)
-
-        elif isinstance(expr, irast.Constant):
-            pass
-
-        elif isinstance(expr, irast.GraphExpr):
-            if expr.generator:
-                self.apply_fixups(expr.generator)
-
-            if expr.selector:
-                for e in expr.selector:
-                    self.apply_fixups(e.expr)
-
-            if expr.grouper:
-                for e in expr.grouper:
-                    self.apply_fixups(e)
-
-            if expr.sorter:
-                for e in expr.sorter:
-                    self.apply_fixups(e)
-
-            if expr.set_op:
-                self.apply_fixups(expr.set_op_larg)
-                self.apply_fixups(expr.set_op_rarg)
-
-        elif isinstance(expr, irast.SortExpr):
-            self.apply_fixups(expr.expr)
-
-        elif isinstance(expr, irast.SubgraphRef):
-            self.apply_fixups(expr.ref)
-
-        elif isinstance(expr, irast.TypeRef):
-            pass
-
-        else:
-            assert False, 'unexpected node: "%r"' % expr
-
-    def _apply_rewrite_hooks(self, expr, type):
-        sources = []
-        ln = None
-
-        if isinstance(expr, irast.EntitySet):
-            sources = [expr.concept]
-        elif isinstance(expr, irast.EntityLink):
-            ln = expr.link_proto.normal_name()
-
-            if expr.source.concept.is_virtual:
-                schema = self.context.current.proto_schema
-                for c in expr.source.concept.children(schema):
-                    if ln in c.pointers:
-                        sources.append(c)
-            else:
-                sources = [expr.source.concept]
-        else:
-            raise TypeError(
-                'unexpected node to _apply_rewrite_hooks: {!r}'.format(expr))
-
-        for source in sources:
-            mro = source.get_mro()
-
-            mro = [cls for cls in mro if isinstance(cls, s_obj.ProtoObject)]
-
-            for proto in mro:
-                if ln:
-                    key = (proto.name, ln)
-                else:
-                    key = proto.name
-
-                try:
-                    hooks = s_hooks._rewrite_hooks[key, 'read', type]
-                except KeyError:
-                    pass
-                else:
-                    for hook in hooks:
-                        result = hook(self.context.current.graph, expr,
-                                      self.context.current.context_vars)
-                        if result:
-                            self.apply_rewrites(result)
-                    break
-            else:
-                continue
-
-            break
-        else:
-            if isinstance(expr, irast.EntityLink):
-                if (type == 'computable' and
-                        expr.link_proto.is_pure_computable()):
-                    deflt = expr.link_proto.default[0]
-                    if isinstance(deflt, s_expr.ExpressionText):
-                        edgeql_expr = deflt
-                    else:
-                        edgeql_expr = "'" + str(deflt).replace("'", "''") + "'"
-                        target_type = expr.link_proto.target.name
-                        edgeql_expr = 'CAST ({} AS [{}])'.format(edgeql_expr,
-                                                                 target_type)
-
-                    anchors = {'self': expr.source.concept}
-                    self._rewrite_with_edgeql_expr(expr, edgeql_expr, anchors)
-
-    def _rewrite_with_edgeql_expr(self, expr, edgeql_expr, anchors):
-        from edgedb.lang import edgeql
-
-        schema = self.context.current.proto_schema
-        ir = edgeql.compile_fragment_to_ir(
-            edgeql_expr, schema, anchors=anchors)
-
-        node = expr.source
-        rewrite_target = expr.target
-
-        path_id = irutils.LinearPath([node.concept])
-        nodes = ast.find_children(
-            ir, lambda n: isinstance(n, irast.EntitySet) and n.id == path_id)
-
-        for expr_node in nodes:
-            expr_node.reference = node
-
-        ptrname = expr.link_proto.normal_name()
-
-        expr_ref = irast.SubgraphRef(
-            name=ptrname,
-            force_inline=True,
-            rlink=expr,
-            is_rewrite_product=True,
-            rewrite_original=rewrite_target)
-
-        self.context.current.graph.replace_refs(
-            [rewrite_target], expr_ref, deep=True)
-
-        if not isinstance(ir, irast.GraphExpr):
-            ir = irast.GraphExpr(selector=[irast.SelectorExpr(
-                expr=ir, name=ptrname)])
-
-        ir.referrers.append('exists')
-        ir.referrers.append('generator')
-
-        self.context.current.graph.subgraphs.add(ir)
-        expr_ref.ref = ir
-
-    def apply_rewrites(self, expr):
-        """Apply rewrites from policies."""
-        if isinstance(expr, irast.PathCombination):
-            for path in expr.paths:
-                self.apply_rewrites(path)
-
-        elif isinstance(expr, irast.AtomicRefSimple):
-            if expr.rlink is not None:
-                self.apply_rewrites(expr.rlink)
-            self.apply_rewrites(expr.ref)
-
-        elif isinstance(expr, irast.EntitySet):
-            if expr.rlink:
-                self.apply_rewrites(expr.rlink)
-
-            if ('access_rewrite' not in expr.rewrite_flags and
-                    expr.reference is None and expr.origin is None and
-                    getattr(self.context.current,
-                            'apply_access_control_rewrite', False)):
-                self._apply_rewrite_hooks(expr, 'filter')
-                expr.rewrite_flags.add('access_rewrite')
-
-        elif isinstance(expr, irast.EntityLink):
-            if expr.source is not None:
-                self.apply_rewrites(expr.source)
-
-            if 'lang_rewrite' not in expr.rewrite_flags:
-                schema = self.context.current.proto_schema
-                localizable = schema.get('std::localizable', default=None)
-
-                link_proto = expr.link_proto
-
-                if (localizable is not None and
-                        link_proto.issubclass(localizable)):
-                    cvars = self.context.current.context_vars
-
-                    lang = irast.Constant(
-                        index='__context_lang', type=schema.get('std::str'))
-                    cvars['lang'] = 'en-US'
-
-                    propn = sn.Name('std::lang')
-
-                    for langprop in expr.proprefs:
-                        if langprop.name == propn:
-                            break
-                    else:
-                        lprop_proto = link_proto.pointers[propn]
-                        langprop = irast.LinkPropRefSimple(
-                            name=propn, ref=expr, ptr_proto=lprop_proto)
-                        expr.proprefs.add(langprop)
-
-                    eq_lang = irast.BinOp(
-                        left=langprop, right=lang, op=ast.ops.EQ)
-                    lang_none = irast.NoneTest(expr=lang)
-                    # Test for property emptiness is for LEFT JOIN cases
-                    prop_none = irast.NoneTest(expr=langprop)
-                    lang_prop_none = irast.BinOp(
-                        left=lang_none, right=prop_none, op=ast.ops.OR)
-                    lang_test = irast.BinOp(
-                        left=lang_prop_none,
-                        right=eq_lang,
-                        op=ast.ops.OR,
-                        strong=True)
-                    expr.propfilter = self.extend_binop(expr.propfilter,
-                                                        lang_test)
-                    expr.rewrite_flags.add('lang_rewrite')
-
-            if ('access_rewrite' not in expr.rewrite_flags and
-                    expr.source is not None
-                    # An optimization to avoid applying filtering rewrite
-                    # unnecessarily.
-                    and expr.source.reference is None and
-                    expr.source.origin is None and getattr(
-                        self.context.current, 'apply_access_control_rewrite',
-                        False)):
-                self._apply_rewrite_hooks(expr, 'filter')
-                expr.rewrite_flags.add('access_rewrite')
-
-            if ('computable_rewrite' not in expr.rewrite_flags and
-                    expr.source is not None):
-                self._apply_rewrite_hooks(expr, 'computable')
-                expr.rewrite_flags.add('computable_rewrite')
-
-        elif isinstance(expr, irast.LinkPropRefSimple):
-            self.apply_rewrites(expr.ref)
-
-        elif isinstance(expr, irast.BinOp):
-            self.apply_rewrites(expr.left)
-            self.apply_rewrites(expr.right)
-
-        elif isinstance(expr, irast.UnaryOp):
-            self.apply_rewrites(expr.expr)
-
-        elif isinstance(expr, irast.ExistPred):
-            self.apply_rewrites(expr.expr)
-
-        elif isinstance(expr, (irast.InlineFilter, irast.InlinePropFilter)):
-            self.apply_rewrites(expr.ref)
-            self.apply_rewrites(expr.expr)
-
-        elif isinstance(expr, (irast.AtomicRefExpr, irast.LinkPropRefExpr)):
-            self.apply_rewrites(expr.expr)
-
-        elif isinstance(expr, irast.FunctionCall):
-            for arg in expr.args:
-                self.apply_rewrites(arg)
-            for sortexpr in expr.agg_sort:
-                self.apply_rewrites(sortexpr.expr)
-            if expr.agg_filter:
-                self.apply_rewrites(expr.agg_filter)
-            for partition_expr in expr.partition:
-                self.apply_rewrites(partition_expr)
-
-        elif isinstance(expr, irast.TypeCast):
-            self.apply_rewrites(expr.expr)
-
-        elif isinstance(expr, irast.NoneTest):
-            self.apply_rewrites(expr.expr)
-
-        elif isinstance(expr, (irast.Sequence, irast.Record)):
-            for path in expr.elements:
-                self.apply_rewrites(path)
-
-        elif isinstance(expr, irast.Constant):
-            pass
-
-        elif isinstance(expr, irast.GraphExpr):
-            if expr.generator:
-                self.apply_rewrites(expr.generator)
-
-            if expr.selector:
-                for e in expr.selector:
-                    self.apply_rewrites(e.expr)
-
-            if expr.grouper:
-                for e in expr.grouper:
-                    self.apply_rewrites(e)
-
-            if expr.sorter:
-                for e in expr.sorter:
-                    self.apply_rewrites(e)
-
-            if expr.set_op:
-                self.apply_rewrites(expr.set_op_larg)
-                self.apply_rewrites(expr.set_op_rarg)
-
-        elif isinstance(expr, irast.SortExpr):
-            self.apply_rewrites(expr.expr)
-
-        elif isinstance(expr, irast.SubgraphRef):
-            self.apply_rewrites(expr.ref)
-
-        elif isinstance(expr, irast.TypeRef):
-            pass
-
-        else:
-            assert False, 'unexpected node: "%r"' % expr
 
     def add_path_user(self, path, user):
         while path:
@@ -2423,7 +2197,8 @@ class EdgeQLCompiler:
                         (targetstep, )))
                     generator.paths = frozenset(generator.paths |
                                                 {filter_generator})
-                    generator = self.merge_paths(generator)
+                    generator = pathmerger.PathMerger.run(
+                        generator, context=self.context)
 
                     # merge_paths fails to update all refs, because
                     # some nodes that need to be updated are behind
@@ -2586,7 +2361,7 @@ class EdgeQLCompiler:
                         ptr_direction=item1.ptr_direction,
                         target_proto=item1.target_proto,
                         recurse=item1.recurse,
-                        sorter=item1.orderexprs,
+                        sorter=item1.sorter,
                         generator=item1.generator,
                         offset=item1.offset,
                         limit=item1.limit,
@@ -2625,7 +2400,7 @@ class EdgeQLCompiler:
                         ptr_direction=item1.ptr_direction,
                         target_proto=target,
                         recurse=item1.recurse,
-                        sorter=item1.orderexprs,
+                        sorter=item1.sorter,
                         generator=item1.generator,
                         offset=item1.offset,
                         limit=item1.limit,
@@ -2645,249 +2420,14 @@ class EdgeQLCompiler:
 
         return result
 
-    def _dump(self, tree):
-        if tree is not None:
-            markup.dump(tree)
-        else:
-            markup.dump(None)
-
-    def extend_binop(self,
-                     binop,
-                     *exprs,
-                     op=ast.ops.AND,
-                     reversed=False,
-                     cls=irast.BinOp):
-        exprs = list(exprs)
-        binop = binop or exprs.pop(0)
-
-        for expr in exprs:
-            if expr is not binop:
-                if reversed:
-                    binop = cls(right=binop, op=op, left=expr)
-                else:
-                    binop = cls(left=binop, op=op, right=expr)
-
-        return binop
-
-    def is_aggregated_expr(self, expr, deep=False):
-        agg = getattr(expr, 'aggregates', False)
-
-        if not agg and deep:
-            return bool(
-                list(
-                    ast.find_children(
-                        expr, lambda i: getattr(i, 'aggregates', None))))
-        return agg
-
     def reorder_aggregates(self, expr):
-        if getattr(expr, 'aggregates', False):
-            # No need to drill-down, the expression is known to be a
-            # pure aggregate.
-            return expr
-
-        if isinstance(expr, irast.FunctionCall):
-            has_agg_args = False
-
-            for arg in expr.args:
-                self.reorder_aggregates(arg)
-
-                if self.is_aggregated_expr(arg):
-                    has_agg_args = True
-                elif has_agg_args and not isinstance(expr, irast.Constant):
-                    raise EdgeQLCompilerError(
-                        'invalid expression mix of aggregates '
-                        'and non-aggregates')
-
-            if has_agg_args:
-                expr.aggregates = True
-
-        elif isinstance(expr, irast.BinOp):
-            left = self.reorder_aggregates(expr.left)
-            right = self.reorder_aggregates(expr.right)
-
-            left_aggregates = self.is_aggregated_expr(left)
-            right_aggregates = self.is_aggregated_expr(right)
-
-            if (left_aggregates and
-                    (right_aggregates or isinstance(right, irast.Constant))
-                    or (isinstance(left, irast.Constant)
-                        and right_aggregates)):
-                expr.aggregates = True
-
-            elif expr.op == ast.ops.AND:
-                if right_aggregates:
-                    # Reorder the operands so that aggregate expr is
-                    # always on the left.
-                    expr.left, expr.right = expr.right, expr.left
-
-            elif left_aggregates or right_aggregates:
-                raise EdgeQLCompilerError(
-                    'invalid expression mix of aggregates and non-aggregates')
-
-        elif isinstance(expr, irast.UnaryOp):
-            self.reorder_aggregates(expr.expr)
-
-        elif isinstance(expr, irast.ExistPred):
-            self.reorder_aggregates(expr.expr)
-
-        elif isinstance(expr, irast.NoneTest):
-            self.reorder_aggregates(expr.expr)
-
-        elif isinstance(expr, irast.TypeCast):
-            self.reorder_aggregates(expr.expr)
-
-        elif isinstance(expr, (irast.BaseRef, irast.Constant,
-                               irast.InlineFilter, irast.EntitySet,
-                               irast.InlinePropFilter, irast.EntityLink)):
-            pass
-
-        elif isinstance(expr, irast.PathCombination):
-            for p in expr.paths:
-                self.reorder_aggregates(p)
-
-        elif isinstance(expr, (irast.Sequence, irast.Record)):
-            has_agg_elems = False
-            for item in expr.elements:
-                self.reorder_aggregates(item)
-                if self.is_aggregated_expr(item):
-                    has_agg_elems = True
-                elif has_agg_elems and not isinstance(expr, irast.Constant):
-                    raise EdgeQLCompilerError(
-                        'invalid expression mix of aggregates '
-                        'and non-aggregates')
-
-            if has_agg_elems:
-                expr.aggregates = True
-
-        elif isinstance(expr, irast.GraphExpr):
-            pass
-
-        elif isinstance(expr, irast.SubgraphRef):
-            pass
-
-        elif isinstance(expr, irast.TypeRef):
-            pass
-
-        else:
-            # All other nodes fall through
-            assert False, 'unexpected node "%r"' % expr
-
-        return expr
-
-    def build_paths_index(self, graph):
-        paths = irutils.extract_paths(
-            graph,
-            reverse=True,
-            resolve_arefs=False,
-            recurse_subqueries=1,
-            all_fragments=True)
-
-        if isinstance(paths, irast.PathCombination):
-            irutils.flatten_path_combination(paths, recursive=True)
-            paths = paths.paths
-        else:
-            paths = [paths]
-
-        path_idx = datastructures.Multidict()
-        for path in paths:
-            if isinstance(path, irast.EntitySet):
-                path_idx.add(path.id, path)
-
-        return path_idx
+        return AggregateSorter.run(expr)
 
     def link_subqueries(self, expr):
-        if isinstance(expr, irast.FunctionCall):
-            for arg in expr.args:
-                self.link_subqueries(arg)
+        return SubqueryLinker.run(expr)
 
-        elif isinstance(expr, irast.BinOp):
-            self.link_subqueries(expr.left)
-            self.link_subqueries(expr.right)
-
-        elif isinstance(expr, irast.UnaryOp):
-            self.link_subqueries(expr.expr)
-
-        elif isinstance(expr, irast.ExistPred):
-            self.link_subqueries(expr.expr)
-
-        elif isinstance(expr, irast.NoneTest):
-            self.link_subqueries(expr.expr)
-
-        elif isinstance(expr, irast.TypeCast):
-            self.link_subqueries(expr.expr)
-
-        elif isinstance(expr, (irast.BaseRef, irast.Constant,
-                               irast.InlineFilter, irast.EntitySet,
-                               irast.InlinePropFilter, irast.EntityLink)):
-            pass
-
-        elif isinstance(expr, irast.PathCombination):
-            for p in expr.paths:
-                self.link_subqueries(p)
-
-        elif isinstance(expr, (irast.Sequence, irast.Record)):
-            for item in expr.elements:
-                self.link_subqueries(item)
-
-        elif isinstance(expr, irast.GraphExpr):
-            paths = self.build_paths_index(expr)
-
-            subpaths = irutils.extract_paths(
-                expr,
-                reverse=True,
-                resolve_arefs=False,
-                recurse_subqueries=2,
-                all_fragments=True)
-
-            if isinstance(subpaths, irast.PathCombination):
-                irutils.flatten_path_combination(subpaths, recursive=True)
-                subpaths = subpaths.paths
-            else:
-                subpaths = {subpaths}
-
-            for subpath in subpaths:
-                if isinstance(subpath, irast.EntitySet):
-                    outer = paths.getlist(subpath.id)
-
-                    if outer and subpath not in outer:
-                        subpath.reference = outer[0]
-
-            if expr.generator:
-                self.link_subqueries(expr.generator)
-
-            if expr.selector:
-                for e in expr.selector:
-                    self.link_subqueries(e.expr)
-
-            if expr.grouper:
-                for e in expr.grouper:
-                    self.link_subqueries(e)
-
-            if expr.sorter:
-                for e in expr.sorter:
-                    self.link_subqueries(e)
-
-            if expr.set_op:
-                self.link_subqueries(expr.set_op_larg)
-                self.link_subqueries(expr.set_op_rarg)
-
-        elif isinstance(expr, irast.SubgraphRef):
-            self.link_subqueries(expr.ref)
-
-        elif isinstance(expr, irast.SortExpr):
-            self.link_subqueries(expr.expr)
-
-        elif isinstance(expr, irast.SelectorExpr):
-            self.link_subqueries(expr.expr)
-
-        elif isinstance(expr, irast.TypeRef):
-            pass
-
-        else:
-            # All other nodes fall through
-            assert False, 'unexpected node "%r"' % expr
-
-        return expr
+    def _merge_paths(self, context, expr):
+        return pathmerger.PathMerger.run(expr, context=context)
 
     def postprocess_expr(self, expr):
         paths = irutils.extract_paths(expr, reverse=True)
@@ -2943,818 +2483,6 @@ class EdgeQLCompiler:
     def is_weak_op(self, op):
         return irutils.is_weak_op(op) \
             or self.context.current.location != 'generator'
-
-    def merge_paths(self, expr):
-        if isinstance(expr, irast.AtomicRefExpr):
-            if self.context.current.location == 'generator' and expr.inline:
-                expr.ref.filter = self.extend_binop(expr.ref.filter, expr.expr)
-                self.merge_paths(expr.ref)
-                arefs = ast.find_children(
-                    expr, lambda i: isinstance(i, irast.AtomicRefSimple))
-                for aref in arefs:
-                    self.merge_paths(aref)
-                expr = irast.InlineFilter(expr=expr.ref.filter, ref=expr.ref)
-            else:
-                self.merge_paths(expr.expr)
-
-        elif isinstance(expr, irast.LinkPropRefExpr):
-            if self.context.current.location == 'generator' and expr.inline:
-                prefs = ast.find_children(
-                    expr.expr,
-                    lambda i: (isinstance(i, irast.LinkPropRefSimple)
-                               and i.ref == expr.ref))
-                expr.ref.proprefs.update(prefs)
-                expr.ref.propfilter = self.extend_binop(expr.ref.propfilter,
-                                                        expr.expr)
-                if expr.ref.target:
-                    self.merge_paths(expr.ref.target)
-                else:
-                    self.merge_paths(expr.ref.source)
-                expr = irast.InlinePropFilter(
-                    expr=expr.ref.propfilter, ref=expr.ref)
-            else:
-                self.merge_paths(expr.expr)
-
-        elif isinstance(expr, irast.BinOp):
-            left = self.merge_paths(expr.left)
-            right = self.merge_paths(expr.right)
-
-            weak_op = self.is_weak_op(expr.op)
-
-            if weak_op:
-                combination = irast.Disjunction
-            else:
-                combination = irast.Conjunction
-
-            paths = set()
-            for operand in (left, right):
-                if isinstance(operand,
-                              (irast.InlineFilter, irast.AtomicRefSimple)):
-                    paths.add(operand.ref)
-                else:
-                    paths.add(operand)
-
-            e = combination(paths=frozenset(paths))
-            merge_filters = \
-                self.context.current.location != 'generator' or weak_op
-            if merge_filters:
-                merge_filters = expr.op
-            self.flatten_and_unify_path_combination(
-                e, deep=False, merge_filters=merge_filters)
-
-            if len(e.paths) > 1:
-                expr = irast.BinOp(
-                    left=left,
-                    op=expr.op,
-                    right=right,
-                    aggregates=expr.aggregates)
-            else:
-                expr = next(iter(e.paths))
-
-        elif isinstance(expr, irast.UnaryOp):
-            expr.expr = self.merge_paths(expr.expr)
-
-        elif isinstance(expr, irast.ExistPred):
-            expr.expr = self.merge_paths(expr.expr)
-
-        elif isinstance(expr, irast.TypeCast):
-            expr.expr = self.merge_paths(expr.expr)
-
-        elif isinstance(expr, irast.NoneTest):
-            expr.expr = self.merge_paths(expr.expr)
-
-        elif isinstance(expr, irast.PathCombination):
-            expr = self.flatten_and_unify_path_combination(expr, deep=True)
-
-        elif isinstance(expr, irast.MetaRef):
-            expr.ref.metarefs.add(expr)
-
-        elif isinstance(expr, irast.AtomicRefSimple):
-            expr.ref.atomrefs.add(expr)
-
-        elif isinstance(expr, irast.LinkPropRefSimple):
-            expr.ref.proprefs.add(expr)
-
-        elif isinstance(expr, irast.EntitySet):
-            if expr.rlink:
-                self.merge_paths(expr.rlink.source)
-
-        elif isinstance(expr, irast.EntityLink):
-            if expr.source:
-                self.merge_paths(expr.source)
-
-        elif isinstance(expr, (irast.InlineFilter, irast.Constant,
-                               irast.InlinePropFilter)):
-            pass
-
-        elif isinstance(expr, irast.FunctionCall):
-            args = []
-            for arg in expr.args:
-                args.append(self.merge_paths(arg))
-
-            for sortexpr in expr.agg_sort:
-                self.merge_paths(sortexpr.expr)
-
-            if expr.agg_filter:
-                self.merge_paths(expr.agg_filter)
-
-            for partition_expr in expr.partition:
-                self.merge_paths(partition_expr)
-
-            if (len(args) > 1 or expr.agg_sort or expr.agg_filter or
-                    expr.partition):
-                # Make sure that function args are properly merged against
-                # each other. This is simply a matter of unification of the
-                # conjunction of paths generated by function argument
-                # expressions.
-                #
-                paths = []
-                for arg in args:
-                    path = irutils.extract_paths(arg, reverse=True)
-                    if path:
-                        paths.append(path)
-                for sortexpr in expr.agg_sort:
-                    path = irutils.extract_paths(sortexpr, reverse=True)
-                    if path:
-                        paths.append(path)
-                if expr.agg_filter:
-                    paths.append(
-                        irutils.extract_paths(
-                            expr.agg_filter, reverse=True))
-                for partition_expr in expr.partition:
-                    path = irutils.extract_paths(partition_expr, reverse=True)
-                    if path:
-                        paths.append(path)
-                e = irast.Conjunction(paths=frozenset(paths))
-                self.flatten_and_unify_path_combination(e)
-
-            expr = expr.__class__(
-                name=expr.name,
-                args=args,
-                aggregates=expr.aggregates,
-                kwargs=expr.kwargs,
-                agg_sort=expr.agg_sort,
-                agg_filter=expr.agg_filter,
-                window=expr.window,
-                partition=expr.partition)
-
-        elif isinstance(expr, (irast.Sequence, irast.Record)):
-            elements = []
-            for element in expr.elements:
-                elements.append(self.merge_paths(element))
-
-            self.unify_paths(paths=elements, mode=irast.Disjunction)
-
-            if isinstance(expr, irast.Record):
-                expr = expr.__class__(
-                    elements=elements, concept=expr.concept, rlink=expr.rlink)
-            else:
-                expr = expr.__class__(elements=elements,
-                                      is_array=expr.is_array)
-
-        elif isinstance(expr, irast.GraphExpr):
-            pass
-
-        elif isinstance(expr, irast.SubgraphRef):
-            pass
-
-        elif isinstance(expr, irast.TypeRef):
-            pass
-
-        else:
-            assert False, 'unexpected node "%r"' % expr
-
-        return expr
-
-    def flatten_and_unify_path_combination(self,
-                                           expr,
-                                           deep=False,
-                                           merge_filters=False):
-        # Flatten nested disjunctions and conjunctions since
-        # they are associative.
-        #
-        assert isinstance(expr, irast.PathCombination)
-
-        irutils.flatten_path_combination(expr)
-
-        if deep:
-            newpaths = set()
-            for path in expr.paths:
-                path = self.merge_paths(path)
-                newpaths.add(path)
-
-            expr = expr.__class__(paths=frozenset(newpaths))
-
-        self.unify_paths(
-            expr.paths, mode=expr.__class__, merge_filters=merge_filters)
-        """LOG [edgedb.graph.merge] UNIFICATION RESULT
-        self._dump(expr)
-        """
-
-        expr.paths = frozenset(p for p in expr.paths)
-        return expr
-
-    nest = 0
-
-    def unify_paths(self, paths, mode, reverse=True, merge_filters=False):
-        mypaths = set(paths)
-
-        result = None
-
-        while mypaths and not result:
-            result = irutils.extract_paths(mypaths.pop(), reverse)
-
-        return self._unify_paths(result, mypaths, mode, reverse, merge_filters)
-
-    @debug.debug
-    def _unify_paths(self,
-                     result,
-                     paths,
-                     mode,
-                     reverse=True,
-                     merge_filters=False):
-        mypaths = set(paths)
-
-        while mypaths:
-            path = irutils.extract_paths(mypaths.pop(), reverse)
-
-            if not path or result is path:
-                continue
-
-            if issubclass(mode, irast.Disjunction):
-                """LOG [edgedb.graph.merge] ADDING
-                print(' ' * self.nest, 'ADDING', result, path,
-                      getattr(result, 'id', '??'),
-                      getattr(path, 'id', '??'), merge_filters)
-                self.nest += 2
-
-                self._dump(result)
-                self._dump(path)
-                """
-
-                result = self.add_paths(
-                    result, path, merge_filters=merge_filters)
-                assert result
-                """LOG [edgedb.graph.merge] ADDITION RESULT
-                self.nest -= 2
-                self._dump(result)
-                """
-            else:
-                """LOG [edgedb.graph.merge] INTERSECTING
-                print(' ' * self.nest, result, path,
-                      getattr(result, 'id', '??'),
-                      getattr(path, 'id', '??'), merge_filters)
-                self.nest += 2
-                """
-
-                result = self.intersect_paths(
-                    result, path, merge_filters=merge_filters)
-                assert result
-                """LOG [edgedb.graph.merge] INTERSECTION RESULT
-                self._dump(result)
-                self.nest -= 2
-                """
-
-        return result
-
-    def miniterms_from_conjunctions(self, paths):
-        variables = collections.OrderedDict()
-
-        terms = []
-
-        for path in paths:
-            term = 0
-
-            if isinstance(path, irast.Conjunction):
-                for subpath in path.paths:
-                    if subpath not in variables:
-                        variables[subpath] = len(variables)
-                    term += 1 << variables[subpath]
-
-            elif isinstance(path, irast.EntityLink):
-                if path not in variables:
-                    variables[path] = len(variables)
-                term += 1 << variables[path]
-
-            terms.append(term)
-
-        return list(variables), boolean.ints_to_terms(*terms)
-
-    def conjunctions_from_miniterms(self, terms, variables):
-        paths = set()
-
-        for term in terms:
-            conjpaths = [variables[i] for i, bit in enumerate(term) if bit]
-            if len(conjpaths) > 1:
-                paths.add(irast.Conjunction(paths=frozenset(conjpaths)))
-            else:
-                paths.add(conjpaths[0])
-        return paths
-
-    def minimize_disjunction(self, paths):
-        variables, miniterms = self.miniterms_from_conjunctions(paths)
-        minimized = boolean.minimize(miniterms)
-        paths = self.conjunctions_from_miniterms(minimized, variables)
-        result = irast.Disjunction(paths=frozenset(paths))
-        return result
-
-    def add_sets(self, left, right, merge_filters=False):
-        if left is right:
-            return left
-
-        if merge_filters:
-            if (isinstance(merge_filters, ast.ops.Operator) and
-                    self.is_weak_op(merge_filters)):
-                merge_op = ast.ops.OR
-            else:
-                merge_op = ast.ops.AND
-
-        match = self.match_prefixes(left, right, ignore_filters=merge_filters)
-        if match:
-            if isinstance(left, irast.EntityLink):
-                left_link = left
-                left = left.target
-            else:
-                left_link = left.rlink
-
-            if isinstance(right, irast.EntityLink):
-                right_link = right
-                right = right.target
-            else:
-                right_link = right.rlink
-
-            if left_link:
-                self.fixup_refs([right_link], left_link)
-                if merge_filters and right_link.propfilter:
-                    left_link.propfilter = self.extend_binop(
-                        left_link.propfilter,
-                        right_link.propfilter,
-                        op=merge_op)
-
-                left_link.proprefs.update(right_link.proprefs)
-                left_link.users.update(right_link.users)
-                if right_link.target:
-                    left_link.target = right_link.target
-
-            if left and right:
-                self.fixup_refs([right], left)
-
-                if merge_filters and right.filter:
-                    left.filter = self.extend_binop(
-                        left.filter, right.filter, op=ast.ops.AND)
-
-                if merge_filters:
-                    paths_left = set()
-                    for dpath in right.disjunction.paths:
-                        if isinstance(dpath,
-                                      (irast.EntitySet, irast.EntityLink)):
-                            merged = self.intersect_paths(left.conjunction,
-                                                          dpath, merge_filters)
-                            if merged is not left.conjunction:
-                                paths_left.add(dpath)
-                        else:
-                            paths_left.add(dpath)
-                    right.disjunction = irast.Disjunction(
-                        paths=frozenset(paths_left))
-
-                left.disjunction = self.add_paths(
-                    left.disjunction, right.disjunction, merge_filters)
-
-                if merge_filters and merge_op == ast.ops.OR:
-                    left.disjunction.fixed = True
-
-                left.atomrefs.update(right.atomrefs)
-                left.metarefs.update(right.metarefs)
-                left.users.update(right.users)
-                left.joins.update(right.joins)
-                left.joins.discard(left)
-
-                if left.origin is None and right.origin is not None:
-                    left.origin = right.origin
-
-                if right.concept.issubclass(left.concept):
-                    left.concept = right.concept
-
-                if merge_filters:
-                    left.conjunction = self.intersect_paths(
-                        left.conjunction, right.conjunction, merge_filters)
-
-                    # If greedy disjunction merging is requested, we must
-                    # also try to merge disjunctions.
-                    paths = frozenset(left.conjunction.paths) | frozenset(
-                        left.disjunction.paths)
-                    self.unify_paths(
-                        paths,
-                        irast.Conjunction,
-                        reverse=False,
-                        merge_filters=merge_filters)
-                    left.disjunction.paths = \
-                        left.disjunction.paths - left.conjunction.paths
-                else:
-                    conjunction = self.add_paths(
-                        left.conjunction, right.conjunction, merge_filters)
-                    if conjunction.paths:
-                        left.disjunction.update(conjunction)
-                    left.conjunction.paths = frozenset()
-
-            if isinstance(left, irast.EntitySet):
-                return left
-            elif isinstance(right, irast.EntitySet):
-                return right
-            else:
-                return left_link
-        else:
-            result = irast.Disjunction(paths=frozenset((left, right)))
-
-        return result
-
-    def add_to_disjunction(self, disjunction, path, merge_filters):
-        # Other operand is a disjunction -- look for path we can merge with,
-        # if not found, append to disjunction.
-        for dpath in disjunction.paths:
-            if isinstance(dpath, (irast.EntityLink, irast.EntitySet)):
-                merge = self.add_sets(dpath, path, merge_filters)
-                if merge is dpath:
-                    break
-        else:
-            disjunction.update(path)
-
-        return disjunction
-
-    def add_to_conjunction(self, conjunction, path, merge_filters):
-        result = None
-        if merge_filters:
-            for cpath in conjunction.paths:
-                if isinstance(cpath, (irast.EntityLink, irast.EntitySet)):
-                    merge = self.add_sets(cpath, path, merge_filters)
-                    if merge is cpath:
-                        result = conjunction
-                        break
-
-        if not result:
-            result = irast.Disjunction(paths=frozenset({conjunction, path}))
-
-        return result
-
-    def add_disjunctions(self, left, right, merge_filters=False):
-        result = irast.Disjunction()
-        result.update(left)
-        result.update(right)
-
-        if len(result.paths) > 1:
-            self.unify_paths(
-                result.paths,
-                mode=result.__class__,
-                reverse=False,
-                merge_filters=merge_filters)
-            result.paths = frozenset(p for p in result.paths)
-
-        return result
-
-    def add_conjunction_to_disjunction(self, disjunction, conjunction):
-        if disjunction.paths and conjunction.paths:
-            return irast.Disjunction(
-                paths=frozenset({disjunction, conjunction}))
-        elif disjunction.paths:
-            return disjunction
-        elif conjunction.paths:
-            return irast.Disjunction(paths=frozenset({conjunction}))
-        else:
-            return irast.Disjunction()
-
-    def add_conjunctions(self, left, right):
-        paths = frozenset(p for p in (left, right) if p.paths)
-        return irast.Disjunction(paths=paths)
-
-    def add_paths(self, left, right, merge_filters=False):
-        if isinstance(left, (irast.EntityLink, irast.EntitySet)):
-            if isinstance(right, (irast.EntityLink, irast.EntitySet)):
-                # Both operands are sets -- simply merge them
-                result = self.add_sets(left, right, merge_filters)
-
-            elif isinstance(right, irast.Disjunction):
-                result = self.add_to_disjunction(right, left, merge_filters)
-
-            elif isinstance(right, irast.Conjunction):
-                result = self.add_to_conjunction(right, left, merge_filters)
-
-        elif isinstance(left, irast.Disjunction):
-            if isinstance(right, (irast.EntityLink, irast.EntitySet)):
-                result = self.add_to_disjunction(left, right, merge_filters)
-
-            elif isinstance(right, irast.Disjunction):
-                result = self.add_disjunctions(left, right, merge_filters)
-
-            elif isinstance(right, irast.Conjunction):
-                result = self.add_conjunction_to_disjunction(left, right)
-
-        elif isinstance(left, irast.Conjunction):
-            if isinstance(right, (irast.EntityLink, irast.EntitySet)):
-                result = self.add_to_conjunction(left, right, merge_filters)
-
-            elif isinstance(right, irast.Disjunction):
-                result = self.add_conjunction_to_disjunction(right, left)
-
-            elif isinstance(right, irast.Conjunction):
-                result = self.add_conjunctions(left, right)
-
-        else:
-            assert False, 'unexpected nodes "{!r}", "{!r}"'.format(left, right)
-
-        return result
-
-    def intersect_sets(self, left, right, merge_filters=False):
-        if left is right:
-            return left
-
-        match = self.match_prefixes(left, right, ignore_filters=True)
-        if match:
-            if isinstance(left, irast.EntityLink):
-                left_set = left.target
-                right_set = right.target
-                left_link = left
-                right_link = right
-            else:
-                left_set = left
-                right_set = right
-                left_link = left.rlink
-                right_link = right.rlink
-
-            if left_link:
-                self.fixup_refs([right_link], left_link)
-                if right_link.propfilter:
-                    left_link.propfilter = self.extend_binop(
-                        left_link.propfilter,
-                        right_link.propfilter,
-                        op=ast.ops.AND)
-
-                left_link.proprefs.update(right_link.proprefs)
-                left_link.users.update(right_link.users)
-                if right_link.target:
-                    left_link.target = right_link.target
-
-            if right_set and left_set:
-                self.fixup_refs([right_set], left_set)
-
-                if right_set.filter:
-                    left_set.filter = self.extend_binop(
-                        left_set.filter, right_set.filter, op=ast.ops.AND)
-
-                left_set.conjunction = self.intersect_paths(
-                    left_set.conjunction, right_set.conjunction, merge_filters)
-                left_set.atomrefs.update(right_set.atomrefs)
-                left_set.metarefs.update(right_set.metarefs)
-                left_set.users.update(right_set.users)
-                left_set.joins.update(right_set.joins)
-                left_set.joins.discard(left_set)
-
-                if left_set.origin is None and right_set.origin is not None:
-                    left_set.origin = right_set.origin
-
-                if right_set.concept.issubclass(left_set.concept):
-                    left_set.concept = right_set.concept
-
-                disjunction = self.intersect_paths(
-                    left_set.disjunction, right_set.disjunction, merge_filters)
-
-                left_set.disjunction = irast.Disjunction()
-
-                if isinstance(disjunction, irast.Disjunction):
-                    self.unify_paths(
-                        left_set.conjunction.paths | disjunction.paths,
-                        irast.Conjunction,
-                        reverse=False,
-                        merge_filters=merge_filters)
-
-                    left_set.disjunction = disjunction
-
-                    if len(left_set.disjunction.paths) == 1:
-                        first_disj = next(iter(left_set.disjunction.paths))
-                        if isinstance(first_disj, irast.Conjunction):
-                            left_set.conjunction = first_disj
-                            left_set.disjunction = irast.Disjunction()
-
-                elif disjunction.paths:
-                    left_set.conjunction = self.intersect_paths(
-                        left_set.conjunction, disjunction, merge_filters)
-
-                    irutils.flatten_path_combination(left_set.conjunction)
-
-                    if len(left_set.conjunction.paths) == 1:
-                        first_conj = next(iter(left_set.conjunction.paths))
-                        if isinstance(first_conj, irast.Disjunction):
-                            left_set.disjunction = first_conj
-                            left_set.conjunction = irast.Conjunction()
-
-            if isinstance(left, irast.EntitySet):
-                return left
-            elif isinstance(right, irast.EntitySet):
-                return right
-            else:
-                return left_link
-
-        else:
-            result = irast.Conjunction(paths=frozenset({left, right}))
-
-        return result
-
-    def intersect_with_disjunction(self, disjunction, path):
-        result = irast.Conjunction(paths=frozenset((disjunction, path)))
-        return result
-
-    def intersect_with_conjunction(self, conjunction, path):
-        # Other operand is a disjunction -- look for path we can merge with,
-        # if not found, append to conjunction.
-        for cpath in conjunction.paths:
-            if isinstance(cpath, (irast.EntityLink, irast.EntitySet)):
-                merge = self.intersect_sets(cpath, path)
-                if merge is cpath:
-                    break
-        else:
-            conjunction = irast.Conjunction(
-                paths=frozenset(conjunction.paths | {path}))
-
-        return conjunction
-
-    def intersect_conjunctions(self, left, right, merge_filters=False):
-        result = irast.Conjunction(paths=left.paths)
-        result.update(right)
-
-        if len(result.paths) > 1:
-            irutils.flatten_path_combination(result)
-            self.unify_paths(
-                result.paths,
-                mode=result.__class__,
-                reverse=False,
-                merge_filters=merge_filters)
-            result.paths = frozenset(p for p in result.paths)
-
-        return result
-
-    def intersect_disjunctions(self, left, right):
-        """Produce a conjunction of two disjunctions."""
-        if left.paths and right.paths:
-            # (a | b) & (c | d) --> a & c | a & d | b & c | b & d
-            # We unroll the expression since it is highly probable that
-            # the resulting conjunctions will merge and we'll get a simpler
-            # expression which is we further attempt to minimize using boolean
-            # minimizer.
-            #
-            paths = set()
-
-            for l in left.paths:
-                for r in right.paths:
-                    paths.add(self.intersect_paths(l, r))
-
-            result = self.minimize_disjunction(paths)
-            return result
-
-        else:
-            # Degenerate case
-            if not left.paths:
-                paths = right.paths
-                fixed = right.fixed
-            elif not right.paths:
-                paths = left.paths
-                fixed = left.fixed
-
-            if len(paths) <= 1 and not fixed:
-                return irast.Conjunction(paths=frozenset(paths))
-            else:
-                return irast.Disjunction(paths=frozenset(paths), fixed=fixed)
-
-    def intersect_disjunction_with_conjunction(self, disjunction, conjunction):
-        if disjunction.paths and conjunction.paths:
-            return irast.Disjunction(paths=frozenset(
-                {disjunction, conjunction}))
-        elif conjunction.paths:
-            return conjunction
-        elif disjunction.paths:
-            return irast.Conjunction(paths=frozenset({disjunction}))
-        else:
-            return irast.Conjunction()
-
-    def intersect_paths(self, left, right, merge_filters=False):
-        if isinstance(left, (irast.EntityLink, irast.EntitySet)):
-            if isinstance(right, (irast.EntityLink, irast.EntitySet)):
-                # Both operands are sets -- simply merge them
-                result = self.intersect_sets(left, right, merge_filters)
-
-            elif isinstance(right, irast.Disjunction):
-                result = self.intersect_with_disjunction(right, left)
-
-            elif isinstance(right, irast.Conjunction):
-                result = self.intersect_with_conjunction(right, left)
-
-        elif isinstance(left, irast.Disjunction):
-            if isinstance(right, (irast.EntityLink, irast.EntitySet)):
-                result = self.intersect_with_disjunction(left, right)
-
-            elif isinstance(right, irast.Disjunction):
-                result = self.intersect_disjunctions(left, right)
-
-            elif isinstance(right, irast.Conjunction):
-                result = self.intersect_disjunction_with_conjunction(left,
-                                                                     right)
-
-        elif isinstance(left, irast.Conjunction):
-            if isinstance(right, (irast.EntityLink, irast.EntitySet)):
-                result = self.intersect_with_conjunction(left, right)
-
-            elif isinstance(right, irast.Disjunction):
-                result = self.intersect_disjunction_with_conjunction(right,
-                                                                     left)
-
-            elif isinstance(right, irast.Conjunction):
-                result = self.intersect_conjunctions(left, right,
-                                                     merge_filters)
-
-        return result
-
-    @debug.debug
-    def match_prefixes(self, our, other, ignore_filters):
-        result = None
-
-        if isinstance(our, irast.EntityLink):
-            link = our
-            our_node = our.target
-            if our_node is None:
-                our_id = irutils.LinearPath(our.source.id)
-                our_id.add(link.link_proto, link.direction, None)
-                our_node = our.source
-            else:
-                our_id = our_node.id
-        else:
-            link = None
-            our_node = our
-            our_id = our.id
-
-        if isinstance(other, irast.EntityLink):
-            other_link = other
-            other_node = other.target
-            if other_node is None:
-                other_node = other.source
-                other_id = irutils.LinearPath(other.source.id)
-                other_id.add(other_link.link_proto, other_link.direction, None)
-            else:
-                other_id = other_node.id
-        else:
-            other_link = None
-            other_node = other
-            other_id = other.id
-
-        if our_id[-1] is None and other_id[-1] is not None:
-            other_id = irutils.LinearPath(other_id)
-            other_id[-1] = None
-
-        if other_id[-1] is None and our_id[-1] is not None:
-            our_id = irutils.LinearPath(our_id)
-            our_id[-1] = None
-
-        ok = (
-            (our_node is None and other_node is None)
-            or (our_node is not None and other_node is not None
-                and (our_id == other_id
-                     and our_node.pathvar == other_node.pathvar
-                     and (ignore_filters
-                          or (not our_node.filter
-                              and not other_node.filter
-                              and not our_node.conjunction.paths
-                              and not other_node.conjunction.paths))))
-            and (not link or (link.link_proto == other_link.link_proto
-                              and link.direction == other_link.direction))
-        )
-
-        """LOG [edgedb.graph.merge] MATCH PREFIXES
-        print(' ' * self.nest, our, other, ignore_filters)
-        print(' ' * self.nest, '   PATHS: ', our_id)
-        print(' ' * self.nest, '      *** ', other_id)
-        print(' ' * self.nest, 'PATHVARS: ',
-              our_node.pathvar if our_node is not None else None)
-        print(' ' * self.nest, '      *** ',
-              other_node.pathvar if other_node is not None else None)
-        print(' ' * self.nest, '    LINK: ', link.link_proto if link else None)
-        print(' ' * self.nest, '      *** ',
-              other_link.link_proto if other_link else None)
-        print(' ' * self.nest, '     DIR: ', link.direction if link else None)
-        print(' ' * self.nest, '      *** ',
-              other_link.direction if other_link else None)
-        print(' ' * self.nest, '      EQ: ', ok)
-        """
-
-        if ok:
-            if other_link:
-                result = other_link
-            else:
-                result = other_node
-        """LOG [edgedb.graph.merge] MATCH PREFIXES RESULT
-        print(' ' * self.nest, '    ----> ', result)
-        """
-
-        return result
-
-    def fixup_refs(self, refs, newref):
-        irast.Base.fixup_refs(refs, newref)
 
     @classmethod
     def get_query_schema_scope(cls, tree):
@@ -4090,8 +2818,8 @@ class EdgeQLCompiler:
             proppathdict = self.check_atomic_disjunction(left_exprs,
                                                          irast.LinkPropRef)
 
-            is_agg = (self.is_aggregated_expr(left, deep=True)
-                      or self.is_aggregated_expr(right, deep=True))
+            is_agg = (is_aggregated_expr(left, deep=True)
+                      or is_aggregated_expr(right, deep=True))
 
             if is_agg:
                 result = newbinop(left, right, uninline=True)
@@ -4233,7 +2961,8 @@ class EdgeQLCompiler:
                         for aexpr in aexprs:
                             aexpr.inline = False
 
-                        _binop = self.merge_paths(_binop)
+                        _binop = pathmerger.PathMerger.run(
+                            _binop, context=self.context)
 
                         result = exprnode_type(expr=_binop)
                     else:
@@ -4312,7 +3041,8 @@ class EdgeQLCompiler:
                             # path
 
                             _binop = newbinop(left, right)
-                            _binop = self.merge_paths(_binop)
+                            _binop = pathmerger.PathMerger.run(
+                                _binop, context=self.context)
                             result = exprtype(expr=_binop)
 
                         else:
@@ -4340,7 +3070,7 @@ class EdgeQLCompiler:
                             operand_id = operand.ref.id
                             ref = pathdict.get(operand_id)
                             if ref:
-                                ref.expr = self.extend_binop(
+                                ref.expr = irutils.extend_binop(
                                     ref.expr, operand, op=op, reverse=reversed)
                                 folded_operand = operand
                                 break

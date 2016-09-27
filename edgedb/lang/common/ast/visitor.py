@@ -107,9 +107,12 @@ class NodeVisitor:
                 result.append(elem)
         return node.__class__(result)
 
+    def repeated_node_visit(self, node):
+        return node
+
     def node_visit(self, node):
         if node in self._memo:
-            return node
+            return self.repeated_node_visit(node)
         else:
             self._memo.add(node)
 

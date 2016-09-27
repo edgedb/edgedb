@@ -289,6 +289,7 @@ def serialize_str(obj, *, ctx):
     handles=(
         collections.UserList, list, tuple, collections.Set, weakref.WeakSet,
         set, frozenset))
+@no_ref_detect
 def serialize_sequence(obj, *, ctx, trim_at=100):
     els = []
     cnt = 0
@@ -302,6 +303,7 @@ def serialize_sequence(obj, *, ctx, trim_at=100):
 
 
 @serializer(handles=(dict, collections.Mapping))
+@no_ref_detect
 def serialize_mapping(obj, *, ctx, trim_at=100):
     map = collections.OrderedDict()
     cnt = 0

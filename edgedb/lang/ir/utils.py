@@ -5,8 +5,10 @@
 # See LICENSE for details.
 ##
 
+import functools
 
 from edgedb.lang.common import ast
+from edgedb.lang.common import datastructures
 
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import types as s_types
@@ -77,8 +79,8 @@ def infer_arg_types(ir, schema):
             typ = schema.get('std::bool')
 
         else:
-            msg = 'cannot infer expr type: unsupported operator: {!r}'\
-                    .format(binop.op)
+            msg = 'cannot infer expr type: unsupported ' \
+                  'operator: {!r}'.format(binop.op)
             raise ValueError(msg)
 
         if typ is None:
@@ -137,7 +139,7 @@ def infer_type(ir, schema):
         result = ir.concept
 
     elif isinstance(ir, irast.FunctionCall):
-        argtypes = tuple(infer_type(arg, schema) for arg in ir.args)
+        # argtypes = tuple(infer_type(arg, schema) for arg in ir.args)
 
         func_obj = schema.get(ir.name)
         result = func_obj.returntype
@@ -150,18 +152,17 @@ def infer_type(ir, schema):
 
     elif isinstance(ir, irast.BinOp):
         if isinstance(ir.op, (ast.ops.ComparisonOperator,
-                                ast.ops.TypeCheckOperator,
-                                ast.ops.MembershipOperator)):
+                              ast.ops.TypeCheckOperator,
+                              ast.ops.MembershipOperator)):
             result = schema.get('std::bool')
         else:
             left_type = infer_type(ir.left, schema)
             right_type = infer_type(ir.right, schema)
             result = s_types.TypeRules.get_result(
-                            ir.op, (left_type, right_type), schema)
+                ir.op, (left_type, right_type), schema)
             if result is None:
                 result = s_types.TypeRules.get_result(
-                            (ir.op, 'reversed'),
-                            (right_type, left_type), schema)
+                    (ir.op, 'reversed'), (right_type, left_type), schema)
 
     elif isinstance(ir, irast.UnaryOp):
         operand_type = infer_type(ir.expr, schema)
@@ -279,21 +280,44 @@ def flatten_path_combination(expr, recursive=False):
     return expr
 
 
-def extract_paths(path, reverse=False, resolve_arefs=True, recurse_subqueries=0,
-                        all_fragments=False, extract_subgraph_refs=False):
-    if isinstance(path, irast.GraphExpr):
-        if recurse_subqueries <= 0:
+class PathExtractor(ast.NodeVisitor):
+    def __init__(self, reverse=False, resolve_arefs=True, recurse_subqueries=0,
+                 all_fragments=False, extract_subgraph_refs=False):
+        super().__init__()
+        self.reverse = reverse
+        self.resolve_arefs = resolve_arefs
+        self.recurse_subqueries = recurse_subqueries
+        self.all_fragments = all_fragments
+        self.extract_subgraph_refs = extract_subgraph_refs
+
+    def combine_field_results(self, results, *,
+                              combination=irast.Disjunction, flatten=True):
+        paths = set(results)
+
+        if len(paths) == 1:
+            return next(iter(paths))
+        elif len(paths) == 0:
+            return None
+        else:
+            result = combination(paths=frozenset(paths))
+            if flatten:
+                return flatten_path_combination(result)
+            else:
+                return result
+
+    def repeated_node_visit(self, node):
+        return None
+
+    def visit_GraphExpr(self, path):
+        if self.recurse_subqueries <= 0:
             return None
         else:
             paths = set()
 
-            recurse_subqueries -= 1
+            self.recurse_subqueries -= 1
 
             if path.generator:
-                normalized = extract_paths(path.generator, reverse,
-                                           resolve_arefs, recurse_subqueries,
-                                           all_fragments,
-                                           extract_subgraph_refs)
+                normalized = self.visit(path.generator)
                 if normalized:
                     paths.add(normalized)
 
@@ -301,87 +325,64 @@ def extract_paths(path, reverse=False, resolve_arefs=True, recurse_subqueries=0,
                 e = getattr(path, part)
                 if e:
                     for p in e:
-                        normalized = extract_paths(p, reverse, resolve_arefs,
-                                                   recurse_subqueries,
-                                                   all_fragments,
-                                                   extract_subgraph_refs)
+                        normalized = self.visit(p)
                         if normalized:
                             paths.add(normalized)
 
             if path.set_op:
                 for arg in (path.set_op_larg, path.set_op_rarg):
-                    normalized = extract_paths(arg, reverse, resolve_arefs,
-                                               recurse_subqueries,
-                                               all_fragments,
-                                               extract_subgraph_refs)
+                    normalized = self.visit(arg)
                     if normalized:
                         paths.add(normalized)
 
-            if len(paths) == 1:
-                return next(iter(paths))
-            elif len(paths) == 0:
-                return None
-            else:
-                result = irast.Disjunction(paths=frozenset(paths))
-                return flatten_path_combination(result)
+            self.recurse_subqueries += 1
 
-    elif isinstance(path, irast.SubgraphRef):
-        if not recurse_subqueries and extract_subgraph_refs:
+            return self.combine_field_results(paths)
+
+    def visit_SubgraphRef(self, path):
+        if not self.recurse_subqueries and self.extract_subgraph_refs:
             return path
         else:
-            return extract_paths(path.ref, reverse, resolve_arefs,
-                                 recurse_subqueries, all_fragments,
-                                 extract_subgraph_refs)
+            return self.visit(path.ref)
 
-    elif isinstance(path, irast.SelectorExpr):
-        return extract_paths(path.expr, reverse, resolve_arefs,
-                             recurse_subqueries, all_fragments,
-                             extract_subgraph_refs)
+    def visit_EntitySet(self, path):
+        result = path
 
-    elif isinstance(path, irast.SortExpr):
-        return extract_paths(path.expr, reverse, resolve_arefs,
-                             recurse_subqueries, all_fragments,
-                             extract_subgraph_refs)
+        if self.reverse:
+            paths = []
+            paths.append(result)
 
-    elif isinstance(path, (irast.EntitySet, irast.InlineFilter,
-                           irast.AtomicRef)):
-        if isinstance(path, (irast.InlineFilter, irast.AtomicRef)) and \
-                                                (resolve_arefs or reverse):
-            result = path.ref
-        else:
-            result = path
-
-        if isinstance(result, irast.EntitySet):
-            if reverse:
-                paths = []
+            while result.rlink:
+                result = result.rlink.source
                 paths.append(result)
 
-                while result.rlink:
-                    result = result.rlink.source
-                    paths.append(result)
-
-                if len(paths) == 1 or not all_fragments:
-                    result = paths[-1]
-                else:
-                    result = irast.Disjunction(paths=frozenset(paths))
+            if len(paths) == 1 or not self.all_fragments:
+                result = paths[-1]
+            else:
+                result = irast.Disjunction(paths=frozenset(paths))
 
         return result
 
-    elif isinstance(path, irast.InlinePropFilter):
-        return extract_paths(path.ref, reverse, resolve_arefs,
-                             recurse_subqueries, all_fragments,
-                             extract_subgraph_refs)
-
-    elif isinstance(path, irast.LinkPropRef):
-        if resolve_arefs or reverse:
-            return extract_paths(path.ref, reverse, resolve_arefs,
-                                 recurse_subqueries, all_fragments,
-                                 extract_subgraph_refs)
+    def visit_InlineFilter(self, path):
+        if self.resolve_arefs or self.reverse:
+            return self.visit(path.ref)
         else:
             return path
 
-    elif isinstance(path, irast.EntityLink):
-        if reverse:
+    def visit_AtomicRef(self, path):
+        if self.resolve_arefs or self.reverse:
+            return self.visit(path.ref)
+        else:
+            return path
+
+    def visit_LinkPropRef(self, path):
+        if self.resolve_arefs or self.reverse:
+            return self.visit(path.ref)
+        else:
+            return path
+
+    def visit_EntityLink(self, path):
+        if self.reverse:
             result = path
             if path.source:
                 result = path.source
@@ -391,114 +392,36 @@ def extract_paths(path, reverse=False, resolve_arefs=True, recurse_subqueries=0,
             result = path
         return result
 
-    elif isinstance(path, irast.PathCombination):
-        result = set()
-        for p in path.paths:
-            normalized = extract_paths(p, reverse, resolve_arefs,
-                                       recurse_subqueries, all_fragments,
-                                       extract_subgraph_refs)
-            if normalized:
-                result.add(normalized)
-        if len(result) == 1:
-            return next(iter(result))
-        elif len(result) == 0:
-            return None
-        else:
-            return flatten_path_combination(
-                        path.__class__(paths=frozenset(result)))
+    def visit_PathCombination(self, path):
+        return self.generic_visit(path, combination=path.__class__)
 
-    elif isinstance(path, irast.BinOp):
-        combination = irast.Disjunction if is_weak_op(path.op) \
-                                           else irast.Conjunction
+    def visit_BinOp(self, path):
+        combination = \
+            irast.Disjunction if is_weak_op(path.op) else irast.Conjunction
 
-        paths = set()
-        for p in (path.left, path.right):
-            normalized = extract_paths(p, reverse, resolve_arefs,
-                                       recurse_subqueries, all_fragments,
-                                       extract_subgraph_refs)
-            if normalized:
-                paths.add(normalized)
+        return self.generic_visit(path, combination=combination)
 
-        if len(paths) == 1:
-            return next(iter(paths))
-        elif len(paths) == 0:
-            return None
-        else:
-            return flatten_path_combination(combination(paths=frozenset(paths)))
+    def visit_FunctionCall(self, path):
+        return self.generic_visit(path, combination=irast.Conjunction,
+                                  flatten=False)
 
-    elif isinstance(path, irast.UnaryOp):
-        return extract_paths(path.expr, reverse, resolve_arefs,
-                             recurse_subqueries, all_fragments,
-                             extract_subgraph_refs)
+    def generic_visit(self, node, *,
+                      combine_results=None, combination=irast.Disjunction,
+                      flatten=True):
+        if combine_results is None:
+            combine_results = functools.partial(
+                self.combine_field_results,
+                combination=combination, flatten=flatten)
 
-    elif isinstance(path, irast.ExistPred):
-        return extract_paths(path.expr, reverse, resolve_arefs,
-                             recurse_subqueries, all_fragments,
-                             extract_subgraph_refs)
-
-    elif isinstance(path, irast.TypeCast):
-        return extract_paths(path.expr, reverse, resolve_arefs,
-                             recurse_subqueries, all_fragments,
-                             extract_subgraph_refs)
-
-    elif isinstance(path, irast.NoneTest):
-        return extract_paths(path.expr, reverse, resolve_arefs,
-                             recurse_subqueries, all_fragments,
-                             extract_subgraph_refs)
-
-    elif isinstance(path, irast.FunctionCall):
-        paths = set()
-        for p in path.args:
-            p = extract_paths(p, reverse, resolve_arefs, recurse_subqueries,
-                              all_fragments, extract_subgraph_refs)
-            if p:
-                paths.add(p)
-
-        for p in path.agg_sort:
-            p = extract_paths(p, reverse, resolve_arefs, recurse_subqueries,
-                              all_fragments, extract_subgraph_refs)
-            if p:
-                paths.add(p)
-
-        for p in path.partition:
-            p = extract_paths(p, reverse, resolve_arefs, recurse_subqueries,
-                              all_fragments, extract_subgraph_refs)
-            if p:
-                paths.add(p)
-
-        if len(paths) == 1:
-            return next(iter(paths))
-        elif len(paths) == 0:
-            return None
-        else:
-            return irast.Conjunction(paths=frozenset(paths))
-
-    elif isinstance(path, (irast.Sequence, irast.Record)):
-        paths = set()
-        for p in path.elements:
-            p = extract_paths(p, reverse, resolve_arefs, recurse_subqueries,
-                                  all_fragments, extract_subgraph_refs)
-            if p:
-                paths.add(p)
-
-        if len(paths) == 1:
-            return next(iter(paths))
-        elif len(paths) == 0:
-            return None
-        else:
-            return irast.Disjunction(paths=frozenset(paths))
-
-    elif isinstance(path, irast.Constant):
-        return None
-
-    else:
-        assert False, 'unexpected node "%r"' % path
+        return super().generic_visit(node, combine_results=combine_results)
 
 
 class LinearPath(list):
-    """
-    Denotes a linear path in the graph.  The path is considered linear if it does not have
-    branches and is in the form <concept> <link> <concept> <link> ... <concept>
+    """Denotes a linear path in the graph.
+
+    The path is considered linear if it
+    does not have branches and is in the form
+    <concept> <link> <concept> <link> ... <concept>
     """
 
     def __eq__(self, other):
@@ -759,3 +682,47 @@ def copy_path(path: (irast.EntitySet, irast.EntityLink, irast.BaseRef),
             rlink = None
 
     return result
+
+
+def extract_paths(path, **kwargs):
+    return PathExtractor.run(path, **kwargs)
+
+
+def get_path_index(expr):
+    paths = extract_paths(
+        expr,
+        reverse=True,
+        resolve_arefs=False,
+        recurse_subqueries=1,
+        all_fragments=True)
+
+    if isinstance(paths, irast.PathCombination):
+        flatten_path_combination(paths, recursive=True)
+        paths = paths.paths
+    else:
+        paths = [paths]
+
+    path_idx = datastructures.Multidict()
+    for path in paths:
+        if isinstance(path, irast.EntitySet):
+            path_idx.add(path.id, path)
+
+    return path_idx
+
+
+def extend_binop(binop,
+                 *exprs,
+                 op=ast.ops.AND,
+                 reversed=False,
+                 cls=irast.BinOp):
+    exprs = list(exprs)
+    binop = binop or exprs.pop(0)
+
+    for expr in exprs:
+        if expr is not binop:
+            if reversed:
+                binop = cls(right=binop, op=op, left=expr)
+            else:
+                binop = cls(left=binop, op=op, right=expr)
+
+    return binop

@@ -309,7 +309,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         }
                     }
                     WHERE strlen(Issue.status.name) = strlen(User.name)
-                    ORDER BY Issue.start_date DESC
+                    ORDER BY Issue.number DESC
                     LIMIT 1
                 )
             }

@@ -25,7 +25,7 @@ class ASTError(EdgeDBError):
 
 class Base(ast.AST):
     __fields = [('refs', weakref.WeakSet, weakref.WeakSet, False),
-                ('backrefs', weakref.WeakSet, weakref.WeakSet, False),
+                ('backrefs', weakref.WeakSet, weakref.WeakSet, False, None, True),
                 # Pointer to an original node replaced by this node during rewrites
                 ('rewrite_original', object, None, False, False),
                 # Whether or not the node is a product of a rewrite
