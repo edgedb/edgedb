@@ -25,6 +25,11 @@ class SourceGenerator(NodeVisitor):
         self.current_line = 1
         self.pretty = pretty
 
+    def node_visit(self, node):
+        method = 'visit_' + node.__class__.__name__
+        visitor = getattr(self, method, self.generic_visit)
+        return visitor(node)
+
     def write(self, *x, delimiter=None):
         if self.new_lines:
             if self.result and self.pretty:

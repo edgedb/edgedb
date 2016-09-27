@@ -60,7 +60,7 @@ def merge_context(ctxlist):
 
 def force_context(node, context):
     if hasattr(node, 'context'):
-        ContextPropagator(default=context).visit(node)
+        ContextPropagator.run(node, default=context)
         node.context = context
 
 
@@ -107,19 +107,12 @@ def rebase_context(base, context):
 
 
 class ContextVisitor(ast.NodeVisitor):
-    def visit_list(self, node):
-        for el in node:
-            if isinstance(el, (list, ast.AST)):
-                self.visit(el)
-
-    def generic_visit(self, node):
-        for field, value in ast.iter_fields(node):
-            if isinstance(value, (list, ast.AST)):
-                self.visit(value)
+    pass
 
 
 class ContextRebaser(ContextVisitor):
     def __init__(self, base):
+        super().__init__()
         self._base = base
 
     def generic_visit(self, node):
@@ -128,8 +121,7 @@ class ContextRebaser(ContextVisitor):
 
 
 def rebase_ast_context(base, root):
-    rebaser = ContextRebaser(base)
-    return rebaser.visit(root)
+    return ContextRebaser.run(root, base=base)
 
 
 class ContextPropagator(ContextVisitor):
@@ -142,12 +134,13 @@ class ContextPropagator(ContextVisitor):
     """
 
     def __init__(self, default=None):
+        super().__init__()
         self._default = default
 
-    def visit_list(self, node):
+    def container_visit(self, node):
         ctxlist = []
         for el in node:
-            if isinstance(el, (list, ast.AST)):
+            if isinstance(el, ast.AST) or ast.is_container(el):
                 ctx = self.visit(el)
 
                 if isinstance(ctx, list):
@@ -164,12 +157,7 @@ class ContextPropagator(ContextVisitor):
 
         # we need to derive context based on the children
         #
-        ctxlist = []
-        for field, value in ast.iter_fields(node):
-            if isinstance(value, list):
-                ctxlist.extend(self.visit(value))
-            if isinstance(value, ast.AST):
-                ctxlist.append(self.visit(value))
+        ctxlist = self.container_visit(v[1] for v in ast.iter_fields(node))
 
         # now that we have all of the children contexts, let's merge
         # them into one

@@ -16,6 +16,7 @@ from .errors import GraphQLParserError
 
 class Validator(NodeVisitor):
     def __init__(self):
+        super().__init__()
         self._fragments = {}
         self._ops = {}
         self._curroot = None

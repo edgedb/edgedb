@@ -194,9 +194,16 @@ class ASTBlockNode(AST):
             self.body.append(node)
 
 
+def is_container(value):
+    return (
+        isinstance(value, (collections.abc.Sequence, collections.abc.Set)) and
+        not isinstance(value, (str, bytes, bytearray, memoryview))
+    )
+
+
 def fix_parent_links(node):
     for field, value in iter_fields(node):
-        if isinstance(value, list):
+        if is_container(value):
             for n in value:
                 if isinstance(n, AST):
                     n.parent = node

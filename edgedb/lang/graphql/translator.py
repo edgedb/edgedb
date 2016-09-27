@@ -236,7 +236,7 @@ class GraphQLTranslator:
         #
         dup = self._fields[-1].get(field.name)
         if dup:
-            if dup != field:
+            if not ast.nodes_equal(dup, field):
                 raise GraphQLValidationError(
                     "field {!r} has ambiguous definition".format(field.name),
                     context=field.context)

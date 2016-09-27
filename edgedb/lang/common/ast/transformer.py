@@ -47,28 +47,18 @@ class NodeTransformer(NodeVisitor):
     def generic_visit(self, node):
         for field, old_value in iter_fields(node):
             old_value = getattr(node, field, None)
-            if isinstance(old_value, list):
-                new_values = []
-                for value in old_value:
-                    if isinstance(value, AST):
-                        value = self.visit(value)
-                        if value is None:
-                            continue
-                    new_values.append(value)
 
-                for value in new_values:
-                    if value is not None:
-                        value.parent = node
-
-                setattr(node, field, new_values)
+            if is_container(old_value):
+                new_values = old_value.__class__(self.visit(old_value))
+                setattr(node, field, old_value.__class__(new_values))
 
             elif isinstance(old_value, AST):
                 new_node = self.visit(old_value)
-                if new_node is None:
-                    delattr(node, field)
-                else:
-                    new_node.parent = node
+                if new_node is not old_value:
+                    if new_node is not None:
+                        new_node.parent = node
                     setattr(node, field, new_node)
+
         return node
 
     def replace_child(self, child, new_child):
