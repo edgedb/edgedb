@@ -1212,8 +1212,8 @@ class EdgeQLCompiler:
                     else:
                         stop = irast.Constant(value=None)
 
-                    node = irast.FunctionCall(
-                        name='getslice', args=[node, start, stop])
+                    node = irast.SliceIndirection(
+                        expr=node, start=start, stop=stop)
                 else:
                     raise ValueError('unexpected indirection node: '
                                      '{!r}'.format(indirection_el))

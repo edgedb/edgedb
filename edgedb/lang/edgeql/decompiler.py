@@ -169,28 +169,7 @@ class IRDecompiler:
 
     def _process_function(self, context, expr):
         args = [self._process_expr(context, arg) for arg in expr.args]
-
-        if expr.name == 'getslice':
-            result = qlast.IndirectionNode(
-                arg=args[0],
-                indirection=[
-                    qlast.SliceNode(
-                        start=None if self._is_none(context, args[1]) else args[1],
-                        stop=None if self._is_none(context, args[2]) else args[2],
-                    )
-                ]
-            )
-        elif expr.name == 'getitem':
-            result = qlast.IndirectionNode(
-                arg=args[0],
-                indirection=[
-                    qlast.IndexNode(
-                        index=args[1]
-                    )
-                ]
-            )
-        else:
-            result = qlast.FunctionCallNode(func=expr.name, args=args)
+        result = qlast.FunctionCallNode(func=expr.name, args=args)
 
         return result
 
@@ -419,6 +398,30 @@ class IRDecompiler:
             result = qlast.UnaryOpNode(
                 operand=qlast.ExistsPredicateNode(expr=arg),
                 op=qlast.NOT)
+
+        elif isinstance(expr, irast.SliceIndirection):
+            start = self._process_expr(context, expr.start)
+            stop = self._process_expr(context, expr.stop)
+
+            result = qlast.IndirectionNode(
+                arg=self._process_expr(context, expr.expr),
+                indirection=[
+                    qlast.SliceNode(
+                        start=(None if self._is_none(context, start) else start),
+                        stop=(None if self._is_none(context, stop) else stop),
+                    )
+                ]
+            )
+
+        elif isinstance(expr, irast.IndexIndirection):
+            result = qlast.IndirectionNode(
+                arg=self._process_expr(context, expr.expr),
+                indirection=[
+                    qlast.IndexNode(
+                        index=self._process_expr(context, expr.index),
+                    )
+                ]
+            )
 
         else:
             assert False, "Unexpected expression type: %r" % expr

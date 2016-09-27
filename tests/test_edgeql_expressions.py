@@ -189,12 +189,12 @@ class TestExpressions(tb.QueryTestCase):
             [[123, 11]],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_list01(self):
         await self.assert_query_result("""
             SELECT [1];
             SELECT [1, 2, 3, 4, 5];
             SELECT [1, 2, 3, 4, 5][2];
+            SELECT [1, 2, 3, 4, 5][-2];
 
             SELECT [1, 2, 3, 4, 5][2:4];
             SELECT [1, 2, 3, 4, 5][2:];
@@ -203,20 +203,20 @@ class TestExpressions(tb.QueryTestCase):
             SELECT [1, 2, 3, 4, 5][2:-1];
             SELECT [1, 2, 3, 4, 5][-2:];
             SELECT [1, 2, 3, 4, 5][:-2];
-            """, [
-                [[1]],
-                [[1, 2, 3, 4, 5]],
-                [3],
+        """, [
+            [[1]],
+            [[1, 2, 3, 4, 5]],
+            [3],
+            [4],
 
-                [[3, 4]],
-                [[3, 4, 5]],
-                [[1, 2]],
+            [[3, 4]],
+            [[3, 4, 5]],
+            [[1, 2]],
 
-                [[3, 4]],
-                [[4, 5]],
-                [[1, 2, 3]],
-            ])
-
+            [[3, 4]],
+            [[4, 5]],
+            [[1, 2, 3]],
+        ])
 
     @unittest.expectedFailure
     async def test_edgeql_expr_map01(self):
@@ -224,11 +224,11 @@ class TestExpressions(tb.QueryTestCase):
             SELECT {'foo': 42};
             SELECT {'foo': 42, 'bar': 'something'};
             SELECT {'foo': 42, 'bar': 'something'}['foo'];
-            """, [
-                [{'foo': 42}],
-                [{'foo': 42, 'bar': 'something'}],
-                [42],
-            ])
+        """, [
+            [{'foo': 42}],
+            [{'foo': 42, 'bar': 'something'}],
+            [42],
+        ])
 
     @unittest.expectedFailure
     async def test_edgeql_expr_coalesce01(self):
@@ -237,9 +237,9 @@ class TestExpressions(tb.QueryTestCase):
             SELECT coalesce(NULL, 'foo', 'bar');
             SELECT coalesce(4, NULL, 5);
             SELECT coalesce('foo', NULL, 'bar');
-            """, [
-                [4],
-                ['foo'],
-                [4],
-                ['foo'],
-            ])
+        """, [
+            [4],
+            ['foo'],
+            [4],
+            ['foo'],
+        ])

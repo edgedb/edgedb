@@ -423,6 +423,14 @@ class FunctionCall(Expr):
         self.refs.update(args)
 
 
+class IndexIndirection(Expr):
+    __fields = ['expr', 'index']
+
+
+class SliceIndirection(Expr):
+    __fields = ['expr', 'start', 'stop', 'step']
+
+
 class TypeCast(Expr):
     __fields = ['expr', 'type']
 

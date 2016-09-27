@@ -1009,108 +1009,6 @@ class IRCompilerBase:
                     expr=args[0], type=pgsql.ast.TypeNode(name='int'))
                 name = common.qname('edgedb', 'gen_random_bytes')
 
-            elif funcname == 'getitem':
-                is_string = False
-                arg_type = irutils.infer_type(
-                    expr.args[0], context.current.proto_schema)
-
-                if isinstance(arg_type, s_atoms.Atom):
-                    b = arg_type.get_topmost_base()
-                    is_string = b.name == 'std::str'
-
-                one = pgsql.ast.ConstantNode(value=1)
-                index = pgsql.ast.BinOpNode(
-                    left=args[1], op=ast.ops.ADD, right=one)
-
-                if is_string:
-                    name = 'substr'
-                    args = [args[0], index, one]
-                else:
-                    indirection = pgsql.ast.IndexIndirectionNode(upper=index)
-                    result = pgsql.ast.IndirectionNode(
-                        expr=args[0], indirection=indirection)
-
-            elif funcname == 'getslice':
-                start = args[1]
-                stop = args[2]
-                one = pgsql.ast.ConstantNode(value=1)
-                zero = pgsql.ast.ConstantNode(value=0)
-
-                is_string = False
-                arg_type = irutils.infer_type(
-                    expr.args[0], context.current.proto_schema)
-
-                if isinstance(arg_type, s_atoms.Atom):
-                    b = arg_type.get_topmost_base()
-                    is_string = b.name == 'std::str'
-
-                if is_string:
-                    upper_bound = pgsql.ast.FunctionCallNode(
-                        name='char_length', args=[args[0]])
-                else:
-                    upper_bound = pgsql.ast.FunctionCallNode(
-                        name='array_upper', args=[args[0], one])
-
-                if (
-                        isinstance(start, pgsql.ast.ConstantNode) and
-                        start.value is None and start.index is None and
-                        start.expr is None):
-                    lower = one
-                else:
-                    lower = start
-
-                    when_cond = pgsql.ast.BinOpNode(
-                        left=lower, right=zero, op=ast.ops.LT)
-                    lower_plus_one = pgsql.ast.BinOpNode(
-                        left=lower, right=one, op=ast.ops.ADD)
-
-                    neg_off = pgsql.ast.BinOpNode(
-                        left=upper_bound, right=lower_plus_one, op=ast.ops.SUB)
-
-                    when_expr = pgsql.ast.CaseWhenNode(
-                        expr=when_cond, result=neg_off)
-                    lower = pgsql.ast.CaseExprNode(
-                        args=[when_expr], default=lower_plus_one)
-
-                if (
-                        isinstance(stop, pgsql.ast.ConstantNode) and
-                        stop.value is None and stop.index is None and
-                        stop.expr is None):
-                    upper = upper_bound
-                else:
-                    upper = stop
-
-                    when_cond = pgsql.ast.BinOpNode(
-                        left=upper, right=zero, op=ast.ops.LT)
-                    upper_plus_one = pgsql.ast.BinOpNode(
-                        left=upper, right=one, op=ast.ops.ADD)
-
-                    neg_off = pgsql.ast.BinOpNode(
-                        left=upper_bound, right=upper_plus_one, op=ast.ops.SUB)
-
-                    when_expr = pgsql.ast.CaseWhenNode(
-                        expr=when_cond, result=neg_off)
-                    upper = pgsql.ast.CaseExprNode(
-                        args=[when_expr], default=upper)
-
-                if is_string:
-                    args = [args[0], lower]
-
-                    if upper is not upper_bound:
-                        for_length = pgsql.ast.BinOpNode(
-                            left=upper, op=ast.ops.SUB, right=lower)
-                        for_length = pgsql.ast.BinOpNode(
-                            left=for_length, op=ast.ops.ADD, right=one)
-                        args.append(for_length)
-
-                    name = 'substr'
-
-                else:
-                    indirection = pgsql.ast.IndexIndirectionNode(
-                        lower=lower, upper=upper)
-                    result = pgsql.ast.IndirectionNode(
-                        expr=args[0], indirection=indirection)
-
             elif expr.name == ('geo', 'covers'):
                 # _st_covers instead of st_covers, because Postgres chokes
                 # on && operator inside st_covers for some reason.
@@ -1352,6 +1250,137 @@ class IRCompilerBase:
 
         return result
 
+    def _process_index_indirection(self, context, expr, cte=None):
+        is_string = False
+        arg_type = irutils.infer_type(
+            expr.expr, context.current.proto_schema)
+
+        subj = self._process_expr(context, expr.expr, cte)
+        index = self._process_expr(context, expr.index, cte)
+
+        if isinstance(arg_type, s_atoms.Atom):
+            b = arg_type.get_topmost_base()
+            is_string = b.name == 'std::str'
+
+        one = pgsql.ast.ConstantNode(value=1)
+        zero = pgsql.ast.ConstantNode(value=0)
+
+        when_cond = pgsql.ast.BinOpNode(
+            left=index, right=zero, op=ast.ops.LT)
+
+        index_plus_one = pgsql.ast.BinOpNode(
+            left=index, op=ast.ops.ADD, right=one)
+
+        if is_string:
+            upper_bound = pgsql.ast.FunctionCallNode(
+                name='char_length', args=[subj])
+        else:
+            upper_bound = pgsql.ast.FunctionCallNode(
+                name='array_upper', args=[subj, one])
+
+        neg_off = pgsql.ast.BinOpNode(
+            left=upper_bound, right=index_plus_one, op=ast.ops.ADD)
+
+        when_expr = pgsql.ast.CaseWhenNode(
+            expr=when_cond, result=neg_off)
+
+        index = pgsql.ast.CaseExprNode(
+            args=[when_expr], default=index_plus_one)
+
+        if is_string:
+            result = pgsql.ast.FunctionCallNode(
+                name='substr',
+                args=[subj, index, one]
+            )
+        else:
+            indirection = pgsql.ast.IndexIndirectionNode(upper=index)
+            result = pgsql.ast.IndirectionNode(
+                expr=subj, indirection=indirection)
+
+        return result
+
+    def _process_slice_indirection(self, context, expr, cte=None):
+        subj = self._process_expr(context, expr.expr, cte)
+        start = self._process_expr(context, expr.start, cte)
+        stop = self._process_expr(context, expr.stop, cte)
+        one = pgsql.ast.ConstantNode(value=1)
+        zero = pgsql.ast.ConstantNode(value=0)
+
+        is_string = False
+        arg_type = irutils.infer_type(
+            expr.expr, context.current.proto_schema)
+
+        if isinstance(arg_type, s_atoms.Atom):
+            b = arg_type.get_topmost_base()
+            is_string = b.name == 'std::str'
+
+        if is_string:
+            upper_bound = pgsql.ast.FunctionCallNode(
+                name='char_length', args=[subj])
+        else:
+            upper_bound = pgsql.ast.FunctionCallNode(
+                name='array_upper', args=[subj, one])
+
+        if (
+                isinstance(start, pgsql.ast.ConstantNode) and
+                start.value is None and start.index is None and
+                start.expr is None):
+            lower = one
+        else:
+            lower = start
+
+            when_cond = pgsql.ast.BinOpNode(
+                left=lower, right=zero, op=ast.ops.LT)
+            lower_plus_one = pgsql.ast.BinOpNode(
+                left=lower, right=one, op=ast.ops.ADD)
+
+            neg_off = pgsql.ast.BinOpNode(
+                left=upper_bound, right=lower_plus_one, op=ast.ops.ADD)
+
+            when_expr = pgsql.ast.CaseWhenNode(
+                expr=when_cond, result=neg_off)
+            lower = pgsql.ast.CaseExprNode(
+                args=[when_expr], default=lower_plus_one)
+
+        if (
+                isinstance(stop, pgsql.ast.ConstantNode) and
+                stop.value is None and stop.index is None and
+                stop.expr is None):
+            upper = upper_bound
+        else:
+            upper = stop
+
+            when_cond = pgsql.ast.BinOpNode(
+                left=upper, right=zero, op=ast.ops.LT)
+
+            neg_off = pgsql.ast.BinOpNode(
+                left=upper_bound, right=upper, op=ast.ops.ADD)
+
+            when_expr = pgsql.ast.CaseWhenNode(
+                expr=when_cond, result=neg_off)
+            upper = pgsql.ast.CaseExprNode(
+                args=[when_expr], default=upper)
+
+        if is_string:
+            args = [subj, lower]
+
+            if upper is not upper_bound:
+                for_length = pgsql.ast.BinOpNode(
+                    left=upper, op=ast.ops.SUB, right=lower)
+                for_length = pgsql.ast.BinOpNode(
+                    left=for_length, op=ast.ops.ADD, right=one)
+                args.append(for_length)
+
+            result = pgsql.ast.FunctionCallNode(name='substr', args=args)
+
+        else:
+            indirection = pgsql.ast.IndexIndirectionNode(
+                lower=lower, upper=upper)
+            result = pgsql.ast.IndirectionNode(
+                expr=subj, indirection=indirection)
+
+        return result
+
 
 class SimpleIRCompiler(IRCompilerBase):
     def transform(self, expr, protoschema, local=False, link_bias=False):
@@ -1471,6 +1500,12 @@ class SimpleIRCompiler(IRCompilerBase):
 
         elif isinstance(expr, irast.TypeCast):
             result = self._process_typecast(context, expr, cte)
+
+        elif isinstance(expr, irast.IndexIndirection):
+            result = self._process_index_indirection(context, expr, cte)
+
+        elif isinstance(expr, irast.SliceIndirection):
+            result = self._process_slice_indirection(context, expr, cte)
 
         else:
             assert False, "unexpected node type: %r" % expr
@@ -3726,6 +3761,12 @@ class IRCompiler(IRCompilerBase):
                 cls = schema.get(expr.maintype)
                 concept_id = data_backend.get_concept_id(cls)
                 result = pgsql.ast.ConstantNode(value=concept_id)
+
+        elif isinstance(expr, irast.IndexIndirection):
+            result = self._process_index_indirection(context, expr, cte)
+
+        elif isinstance(expr, irast.SliceIndirection):
+            result = self._process_slice_indirection(context, expr, cte)
 
         else:
             assert False, "Unexpected expression: %s" % expr
