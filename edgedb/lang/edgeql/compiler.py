@@ -213,6 +213,13 @@ class EdgeQLCompiler:
 
         return context
 
+    def _is_func_agg(self, name):
+        if isinstance(name, str):
+            name = (None, name)
+
+        return self._get_schema_object(
+            self.context, name=name[1], module=name[0]).aggregate
+
     def transform(self,
                   edgeql_tree,
                   arg_types,
@@ -373,9 +380,8 @@ class EdgeQLCompiler:
                 # instructing the transformer that we are implicitly grouping
                 # the whole set.
                 def checker(n):
-                    if (isinstance(n, qlast.FunctionCallNode) and
-                            n.func[0] == 'agg'):
-                        return True
+                    if isinstance(n, qlast.FunctionCallNode):
+                        return self._is_func_agg(n.func)
                     elif isinstance(n, qlast.SelectQueryNode):
                         # Make sure we don't dip into subqueries
                         raise ast.SkipNode()
@@ -393,7 +399,7 @@ class EdgeQLCompiler:
                     isinstance(edgeql_tree.targets[0].expr, qlast.PathNode) and
                     not graph.generator):
                 # This is a node selector query, ensure it is treated as
-                # a generator path even in potential absense of an explicit
+                # a generator path even in potential absence of an explicit
                 # generator expression.
                 def augmenter(n):
                     if isinstance(n, irast.Record):
@@ -874,7 +880,7 @@ class EdgeQLCompiler:
 
         elif isinstance(expr, qlast.FunctionCallNode):
             with context():
-                if expr.func[0] == 'agg':
+                if self._is_func_agg(expr.func):
                     context.current.in_aggregate.append(expr)
                 context.current.in_func_call = True
 
@@ -3808,7 +3814,7 @@ class EdgeQLCompiler:
                 args=[vector, node.args[1]],
                 kwargs=node.kwargs)
 
-        elif node.name[0] == 'agg':
+        elif self._is_func_agg(node.name):
             node.aggregates = True
 
         elif node.name[0] == 'window':

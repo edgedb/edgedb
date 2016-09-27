@@ -118,6 +118,9 @@ class InnerDDLStmt(Nonterm):
     def reduce_CreateFunctionStmt(self, *kids):
         self.val = kids[0].val
 
+    def reduce_CreateAggregateStmt(self, *kids):
+        self.val = kids[0].val
+
 
 class InnerDDLStmtBlock(ListNonterm, element=InnerDDLStmt):
     pass
@@ -1277,4 +1280,19 @@ class CreateFunctionStmt(Nonterm):
             args=kids[4].val,
             returning=kids[7].val,
             single=kids[6].val,
+        )
+
+
+class CreateAggregateStmt(Nonterm):
+    def reduce_CreateFunction(self, *kids):
+        r"""%reduce OptAliasBlock CREATE AGGREGATE NodeName \
+                CreateFunctionArgs RETURNING OptSingle TypeName \
+        """
+        self.val = qlast.CreateFunctionNode(
+            aliases=kids[0].val,
+            name=kids[3].val,
+            args=kids[4].val,
+            returning=kids[7].val,
+            single=kids[6].val,
+            aggregate=True,
         )

@@ -808,10 +808,11 @@ class FunctionTable(PrimarySchemaObjectTable):
         ])
 
         self.__columns = datastructures.OrderedSet([
-            dbops.Column(name='paramtypes', type='jsonb'), dbops.Column(
-                name='paramkinds', type='jsonb'), dbops.Column(
-                    name='paramdefaults', type='jsonb'), dbops.Column(
-                        name='returntype', type='integer', required=True)
+            dbops.Column(name='paramtypes', type='jsonb'),
+            dbops.Column(name='aggregate', type='bool'),
+            dbops.Column(name='paramkinds', type='jsonb'),
+            dbops.Column(name='paramdefaults', type='jsonb'),
+            dbops.Column(name='returntype', type='integer', required=True)
         ])
 
         self._columns = self.columns()

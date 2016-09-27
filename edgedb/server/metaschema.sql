@@ -83,6 +83,7 @@ CREATE TABLE function (
     paramkinds jsonb,
     paramdefaults jsonb,
     returntype integer,
+    aggregate bool,
 
     PRIMARY KEY (id),
     UNIQUE (name)

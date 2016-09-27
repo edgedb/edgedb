@@ -138,7 +138,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT
                 Issue {
                     number,
-                    total_time_spent := sum(Issue.time_spent_log.spent_time)
+                    total_time_spent := (
+                        SELECT sum(Issue.time_spent_log.spent_time)
+                    )
                 }
             WHERE
                 Issue.number = '1';
@@ -1101,17 +1103,15 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['elvis', 'yury'],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_func03(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT std::count(User.<owner.id)
-            GROUP BY User ORDER BY User.name;
+            GROUP BY User.name ORDER BY User.name;
         ''', [
-            [3, 3],
+            [4, 2],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_func04(self):
         await self.assert_query_result(r'''
             WITH MODULE test

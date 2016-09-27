@@ -407,7 +407,8 @@ class FuncArgNode(Base):
 
 
 class CreateFunctionNode(CreateObjectNode):
-    __fields = ['args', 'returning', ('single', bool, False)]
+    __fields = ['args', 'returning', ('single', bool, False),
+                ('aggregate', bool, False)]
 
 
 class AlterFunctionNode(AlterObjectNode):

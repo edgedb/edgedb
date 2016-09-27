@@ -1147,6 +1147,7 @@ class Backend(s_deltarepo.DeltaProvider):
                 'description': row['description'],
                 'is_abstract': row['is_abstract'],
                 'is_final': row['is_final'],
+                'aggregate': row['aggregate'],
                 'paramtypes': so.PrototypeDict({
                     k: schema.get(v)
                     for k, v in json.loads(row['paramtypes'])

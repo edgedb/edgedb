@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2010 MagicStack Inc.
+# Copyright (c) 2010, 2016 MagicStack Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -13,6 +13,7 @@ edgeql_keywords = {
     "abstract": ("ABSTRACT", UNRESERVED_KEYWORD),
     "action": ("ACTION", UNRESERVED_KEYWORD),
     "after": ("AFTER", UNRESERVED_KEYWORD),
+    "aggregate": ("AGGREGATE", UNRESERVED_KEYWORD),
     "all": ("ALL", RESERVED_KEYWORD),
     "alter": ("ALTER", RESERVED_KEYWORD),
     "and": ("AND", RESERVED_KEYWORD),

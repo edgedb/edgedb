@@ -50,6 +50,11 @@ class CreateFunction(named.CreateNamedPrototype, FunctionCommand):
             )
         ))
 
+        cmd.add(sd.AlterPrototypeProperty(
+            property='aggregate',
+            new_value=astnode.aggregate
+        ))
+
         return cmd
 
 
@@ -73,6 +78,7 @@ class Function(named.NamedPrototype):
     paramkinds = so.Field(dict, compcoef=0.3, default=None)
     paramdefaults = so.Field(expr.ExpressionDict, default=None, coerce=True)
     returntype = so.Field(primary.Prototype, compcoef=0.2)
+    aggregate = so.Field(bool, default=False, compcoef=0.4)
 
     delta_driver = sd.DeltaDriver(
         create=CreateFunction,

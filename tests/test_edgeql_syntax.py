@@ -1688,7 +1688,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     # DDL
     #
 
-    def test_edgeql_syntax_database01(self):
+    def test_edgeql_syntax_ddl_database01(self):
         """
         CREATE DATABASE mytestdb;
         DROP DATABASE mytestdb;
@@ -1697,18 +1697,18 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=25)
-    def test_edgeql_syntax_database02(self):
+    def test_edgeql_syntax_ddl_database02(self):
         """
         CREATE DATABASE (mytestdb);
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=28)
-    def test_edgeql_syntax_database03(self):
+    def test_edgeql_syntax_ddl_database03(self):
         """
         CREATE DATABASE foo::mytestdb;
         """
 
-    def test_edgeql_syntax_delta01(self):
+    def test_edgeql_syntax_ddl_delta01(self):
         """
         ALTER DELTA test::d_links01_0 {
             RENAME TO test::pretty_name;
@@ -1720,7 +1720,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             RENAME TO test::pretty_name;
         """
 
-    def test_edgeql_syntax_delta02(self):
+    def test_edgeql_syntax_ddl_delta02(self):
         """
         CREATE DELTA test::d_links01_0 TO $$concept Foo$$;
         ALTER DELTA test::d_links01_0
@@ -1729,7 +1729,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         DROP DELTA test::d_links01_0;
         """
 
-    def test_edgeql_syntax_action01(self):
+    def test_edgeql_syntax_ddl_action01(self):
         """
         CREATE ACTION std::restrict {
             SET title := 'Abort the event if a pointer exists';
@@ -1737,25 +1737,35 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=13)
-    def test_edgeql_syntax_action02(self):
+    def test_edgeql_syntax_ddl_action02(self):
         """
         CREATE ACTION std::restrict
             SET title := 'Abort the event if a pointer exists';
         """
 
-    def test_edgeql_syntax_atom01(self):
+    def test_edgeql_syntax_ddl_aggregate01(self):
+        """
+        CREATE AGGREGATE std::sum(v std::int) RETURNING std::int;
+        """
+
+    def test_edgeql_syntax_ddl_atom01(self):
         """
         CREATE ABSTRACT ATOM std::`any`;
         CREATE ATOM std::typeref;
         CREATE ATOM std::atomref INHERITING std::typeref;
         """
 
-    def test_edgeql_syntax_attribute01(self):
+    def test_edgeql_syntax_ddl_attribute01(self):
         """
         CREATE ATTRIBUTE std::paramtypes map<std::str, std::typeref>;
         """
 
-    def test_edgeql_syntax_linkproperty01(self):
+    def test_edgeql_syntax_ddl_function01(self):
+        """
+        CREATE FUNCTION std::strlen(string std::str) RETURNING std::int;
+        """
+
+    def test_edgeql_syntax_ddl_linkproperty01(self):
         """
         CREATE LINK PROPERTY std::linkproperty {
             SET title := 'Base link property';
@@ -1763,7 +1773,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=21)
-    def test_edgeql_syntax_linkproperty02(self):
+    def test_edgeql_syntax_ddl_linkproperty02(self):
         """
         CREATE LINK LINK PROPERTY std::linkproperty {
             SET title := 'Base link property';
@@ -1771,7 +1781,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=30)
-    def test_edgeql_syntax_linkproperty03(self):
+    def test_edgeql_syntax_ddl_linkproperty03(self):
         """
         CREATE LINK PROPERTY PROPERTY std::linkproperty {
             SET title := 'Base link property';

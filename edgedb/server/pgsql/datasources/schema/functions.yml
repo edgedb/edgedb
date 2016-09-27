@@ -30,6 +30,7 @@ source: |
             ) AS paramtypes,
             f.paramkinds,
             f.paramdefaults,
+            f.aggregate,
             (SELECT name FROM edgedb.object WHERE id = f.returntype)
                 AS returntype
         FROM
