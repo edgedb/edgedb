@@ -1363,15 +1363,15 @@ class EdgeQLCompiler:
 
                 if ptrspec.compexpr is not None:
                     schema = context.current.proto_schema
-                    if not isinstance(ptrspec.compexpr, qlast.StatementNode):
-                        cexpr = qlast.SelectQueryNode(
-                            targets=[
-                                qlast.SelectExprNode(expr=ptrspec.compexpr)
-                            ]
+                    compexpr = self._process_expr(context, ptrspec.compexpr)
+                    if not isinstance(
+                            compexpr, (irast.GraphExpr, irast.SubgraphRef)):
+                        compexpr = irast.GraphExpr(
+                            selector=[irast.SelectorExpr(
+                                expr=compexpr
+                            )]
                         )
-                    else:
-                        cexpr = ptrspec.compexpr
-                    compexpr = self._process_expr(context, cexpr)
+
                     target_proto = irutils.infer_type(compexpr, schema)
                     assert target_proto is not None
                     ptr = s_links.Link(
@@ -2026,11 +2026,25 @@ class EdgeQLCompiler:
 
             if recurse_spec.compexpr is not None:
                 if not isinstance(recurse_spec.compexpr, irast.SubgraphRef):
-                    selexpr = irast.SelectorExpr(expr=recurse_spec.compexpr)
-                    subgraph = irast.GraphExpr()
-                    subgraph.selector.append(selexpr)
-                    el = irast.SubgraphRef(ref=subgraph, name=link_name,
-                                           rlink=link_node, force_inline=True)
+                    if not isinstance(recurse_spec.compexpr, irast.GraphExpr):
+                        compexpr = irast.GraphExpr(
+                            selector=[irast.SelectorExpr(
+                                expr=recurse_spec.compexpr
+                            )]
+                        )
+                        force_inline = True
+                        refname = link_name
+                    else:
+                        compexpr = recurse_spec.compexpr
+                        force_inline = False
+                        refname = (
+                            compexpr.selector[0].name
+                            or compexpr.selector[0].autoname
+                        )
+
+                    el = irast.SubgraphRef(
+                        ref=compexpr, name=refname, rlink=link_node,
+                        force_inline=force_inline)
                     elements.append(el)
                 else:
                     recurse_spec.compexpr.rlink = link_node

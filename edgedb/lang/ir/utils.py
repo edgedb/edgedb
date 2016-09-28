@@ -186,12 +186,14 @@ def infer_type(ir, schema):
         else:
             result = schema.get(ir.type.maintype)
 
-    elif isinstance(ir, irast.SubgraphRef):
-        subgraph = ir.ref
-        if len(subgraph.selector) == 1:
-            result = infer_type(subgraph.selector[0].expr, schema)
+    elif isinstance(ir, irast.GraphExpr):
+        if len(ir.selector) == 1:
+            result = infer_type(ir.selector[0].expr, schema)
         else:
             result = None
+
+    elif isinstance(ir, irast.SubgraphRef):
+        result = infer_type(ir.ref, schema)
 
     elif isinstance(ir, irast.ExistPred):
         result = schema.get('std::bool')

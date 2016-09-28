@@ -174,7 +174,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_computable04(self):
         await self.assert_query_result(r'''
             WITH
@@ -201,7 +200,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_computable05(self):
         await self.assert_query_result(r'''
             WITH
@@ -1961,7 +1959,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '1'}, {'number': '3'}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_subqueries11(self):
         await self.assert_query_result(r"""
             # same as above, but also include the body_length computable
