@@ -1940,11 +1940,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     WHERE
                         Text != Issue
                         AND
-                        (
-                            (strlen(Text.body) - strlen(Issue.body))
-                            * (strlen(Text.body) - strlen(Issue.body))
-                            # XXX: power operator doesn't work yet
-                        ) <= 25
+                        (strlen(Text.body) - strlen(Issue.body)) ^ 2 <= 25
                 )
             ORDER BY Issue.number;
             """, [
@@ -1973,11 +1969,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     WHERE
                         Text != Issue
                         AND
-                        (
-                            (strlen(Text.body) - strlen(Issue.body))
-                            * (strlen(Text.body) - strlen(Issue.body))
-                            # XXX: power operator doesn't work yet
-                        ) <= 25
+                        (strlen(Text.body) - strlen(Issue.body)) ^ 2 <= 25
                 )
             ORDER BY Issue.number;
             """, [

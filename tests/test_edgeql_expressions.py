@@ -39,12 +39,13 @@ class TestExpressions(tb.QueryTestCase):
                 [0],
             ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_op02(self):
         await self.assert_query_result(r"""
-            SELECT 40 ** 2;
+            SELECT 40 ^ 2;
+            SELECT 121 ^ 0.5;
             """, [
                 [1600],
+                [11],
             ])
 
     async def test_edgeql_expr_op03(self):

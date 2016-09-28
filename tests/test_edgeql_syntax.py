@@ -191,7 +191,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT (40 * 2);
         SELECT (40 / 2);
         SELECT (40 % 2);
-        SELECT (40 ** 2);
+        SELECT (40 ^ 2);
         SELECT (40 < 2);
         SELECT (40 > 2);
         SELECT (40 <= 2);
@@ -216,7 +216,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT (User.age * 2);
         SELECT (User.age / 2);
         SELECT (User.age % 2);
-        SELECT (User.age ** 2);
+        SELECT (User.age ^ 2);
         SELECT (User.age < 2);
         SELECT (User.age > 2);
         SELECT (User.age <= 2);

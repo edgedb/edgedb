@@ -78,7 +78,7 @@ class P_MUL_OP(Precedence, assoc='left', tokens=('STAR', 'SLASH', 'PERCENT')):
     pass
 
 
-class P_POW_OP(Precedence, assoc='left', tokens=('STARSTAR',)):
+class P_POW_OP(Precedence, assoc='left', tokens=('CIRCUMFLEX',)):
     pass
 
 

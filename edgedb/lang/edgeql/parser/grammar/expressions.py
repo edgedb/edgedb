@@ -679,7 +679,7 @@ class Expr(Nonterm):
         self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.MOD,
                                    right=kids[2].val)
 
-    def reduce_Expr_STARSTAR_Expr(self, *kids):
+    def reduce_Expr_CIRCUMFLEX_Expr(self, *kids):
         self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.POW,
                                    right=kids[2].val)
 

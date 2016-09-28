@@ -76,7 +76,7 @@ MUL = BinaryArithmeticOperator(
     '*', funcname='__mul__', rfuncname='__rmul__', commutative=True)
 DIV = BinaryArithmeticOperator(
     '/', funcname='__truediv__', rfuncname='__rtruediv__')
-POW = BinaryArithmeticOperator('**', funcname='__pow__', rfuncname='__rpow__')
+POW = BinaryArithmeticOperator('^', funcname='__pow__', rfuncname='__rpow__')
 MOD = BinaryArithmeticOperator('%', funcname='__mod__', rfuncname='__rmod__')
 
 
