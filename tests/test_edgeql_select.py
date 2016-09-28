@@ -505,24 +505,25 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     @unittest.expectedFailure
     async def test_edgeql_select_match06(self):
         res = await self.con.execute(r'''
+            # XXX: @@ used with a query operand, as opposed to a literal
             WITH MODULE test
             SELECT
                 Issue {number}
             WHERE
-                Issue.name @@! 'edgedb'
+                Issue.name @@ to_tsquery('edgedb & repl')
             ORDER BY Issue.number;
 
             WITH MODULE test
             SELECT
                 Issue {number}
             WHERE
-                Issue.body @@! 'need'
+                Issue.name @@ to_tsquery('edgedb | repl')
             ORDER BY Issue.number;
         ''')
 
         self.assert_data_shape(res, [
-            [],
-            [{'number': '1'}],
+            [{'number': '1'}, {'number': '2'}, {'number': '3'}],
+            [{'number': '2'}],
         ])
 
     async def test_edgeql_select_match07(self):

@@ -519,7 +519,6 @@ class TextSearchOperator(EdgeQLOperator):
     pass
 
 SEARCH = TextSearchOperator('@@')
-SEARCHEX = TextSearchOperator('@@!')
 
 
 class EdgeQLComparisonOperator(EdgeQLOperator, ast.ops.ComparisonOperator):

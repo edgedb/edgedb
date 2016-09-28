@@ -3435,7 +3435,7 @@ class IRCompiler(IRCompilerBase):
             if isinstance(expr.op, irast.TextSearchOperator):
                 vector, query = self._text_search_args(
                     context, expr.left, expr.right,
-                    extended=expr.op == qlast.SEARCHEX)
+                    extended=False)
                 result = pgsql.ast.BinOpNode(
                     left=vector, right=query, op=qlast.SEARCH)
 

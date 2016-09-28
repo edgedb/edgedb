@@ -708,8 +708,6 @@ class Expr(Nonterm):
             op = ast.ops.LE
         elif op == '@@':
             op = qlast.SEARCH
-        elif op == '@@!':
-            op = qlast.SEARCHEX
         elif op == '~':
             op = qlast.REMATCH
         elif op == '~*':

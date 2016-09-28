@@ -258,7 +258,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ops13(self):
         """
         SELECT (User.name @@ 'bob');
-        SELECT (User.name @@! 'bob');
         SELECT (User.name ~ '^[[:lower:]]+$');
         SELECT (User.name ~* 'don');
         """

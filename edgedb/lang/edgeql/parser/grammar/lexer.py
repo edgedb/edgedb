@@ -75,10 +75,6 @@ class EdgeQLLexer(lexer.Lexer):
 
         Rule(token='OP',
              next_state=STATE_KEEP,
-             regexp=r'@@!'),
-
-        Rule(token='OP',
-             next_state=STATE_KEEP,
              regexp=r'@@'),
 
         Rule(token='**',
