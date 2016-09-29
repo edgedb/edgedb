@@ -1790,6 +1790,27 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [],
         ])
 
+    async def test_edgeql_select_cross01(self):
+        await self.assert_query_result(r"""
+            # the cross product of status and priority names
+            WITH MODULE test
+            SELECT Status.name + Priority.name
+            ORDER BY Status.name THEN Priority.name;
+            """, [
+            ['{}{}'.format(a, b) for a in ('Closed', 'Open')
+             for b in ('High', 'Low')],
+        ])
+
+    async def test_edgeql_select_cross02(self):
+        await self.assert_query_result(r"""
+            # status and priority name for each issue
+            WITH MODULE test
+            SELECT Issue.status.name + Issue.priority.name
+            ORDER BY Issue.number;
+            """, [
+            [None, 'OpenHigh', 'ClosedLow', None],
+        ])
+
     async def test_edgeql_select_subqueries01(self):
         await self.assert_query_result(r"""
             WITH
