@@ -332,7 +332,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     @unittest.expectedFailure
     async def test_edgeql_select_computable09(self):
         await self.assert_query_result(r"""
-            # XXX: need a specialized ad-hoc computable
+            # Use specialized ad-hoc computables to give every Text
+            # object some kind of 'name', perhaps for purposes of
+            # displaying a normalized result in some general table.
+            # The 'name' given is different depending on the
+            # particular object we're dealing with.
             WITH MODULE test
             SELECT Text{
                 body,
@@ -356,6 +360,24 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 {'body': 'We need to be able to render data in tabular format.',
                  'name': 'Improve EdgeDB repl output rendering.'}
             ],
+        ])
+
+    async def test_edgeql_select_computable10(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT Issue{
+                name,
+                number,
+                # use shorthand with some simple operations
+                foo := <int>Issue.number + 10,
+            }
+            WHERE Issue.number = '1';
+            """, [
+            [{
+                'name': 'Release EdgeDB',
+                'number': '1',
+                'foo': 11,
+            }],
         ])
 
     async def test_edgeql_select_match01(self):
@@ -1980,5 +2002,114 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }, {
                 'number': '3',
                 'body_length': 19,
+            }],
+        ])
+
+    async def test_edgeql_select_slice01(self):
+        await self.assert_query_result(r"""
+            # full name of the Issue is 'Release EdgeDB'
+            WITH MODULE test
+            SELECT Issue.name[2]
+            WHERE Issue.number = '1';
+            WITH MODULE test
+            SELECT Issue.name[-2]
+            WHERE Issue.number = '1';
+
+            WITH MODULE test
+            SELECT Issue.name[2:4]
+            WHERE Issue.number = '1';
+            WITH MODULE test
+            SELECT Issue.name[2:]
+            WHERE Issue.number = '1';
+            WITH MODULE test
+            SELECT Issue.name[:2]
+            WHERE Issue.number = '1';
+
+            WITH MODULE test
+            SELECT Issue.name[2:-1]
+            WHERE Issue.number = '1';
+            WITH MODULE test
+            SELECT Issue.name[-2:]
+            WHERE Issue.number = '1';
+            WITH MODULE test
+            SELECT Issue.name[:-2]
+            WHERE Issue.number = '1';
+            """, [
+            ['l'],
+            ['D'],
+
+            ['le'],
+            ['lease EdgeDB'],
+            ['Re'],
+
+            ['lease EdgeD'],
+            ['DB'],
+            ['Release Edge'],
+        ])
+
+    async def test_edgeql_select_slice02(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT Issue.__type__.name
+            WHERE Issue.number = '1';
+            WITH MODULE test
+            SELECT Issue.__type__.name[2]
+            WHERE Issue.number = '1';
+            WITH MODULE test
+            SELECT Issue.__type__.name[-2]
+            WHERE Issue.number = '1';
+
+            WITH MODULE test
+            SELECT Issue.__type__.name[2:4]
+            WHERE Issue.number = '1';
+            WITH MODULE test
+            SELECT Issue.__type__.name[2:]
+            WHERE Issue.number = '1';
+            WITH MODULE test
+            SELECT Issue.__type__.name[:2]
+            WHERE Issue.number = '1';
+
+            WITH MODULE test
+            SELECT Issue.__type__.name[2:-1]
+            WHERE Issue.number = '1';
+            WITH MODULE test
+            SELECT Issue.__type__.name[-2:]
+            WHERE Issue.number = '1';
+            WITH MODULE test
+            SELECT Issue.__type__.name[:-2]
+            WHERE Issue.number = '1';
+        """, [
+            ['test::Issue'],
+            ['s'],
+            ['u'],
+
+            ['st'],
+            ['st::Issue'],
+            ['te'],
+
+            ['st::Issu'],
+            ['ue'],
+            ['test::Iss'],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_slice03(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT Issue{
+                name,
+                type_name := Issue.__type__.name,
+                a := Issue.name[2],
+                b := Issue.name[2:-1],
+                c := Issue.__type__.name[2:-1],
+            }
+            WHERE Issue.number = '1';
+        """, [
+            [{
+                'name': 'Release EdgeDB',
+                'type_name': 'test::Issue',
+                'a': 'l',
+                'b': 'lease EdgeD',
+                'c': 'st::Issu',
             }],
         ])

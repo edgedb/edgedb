@@ -244,3 +244,30 @@ class TestExpressions(tb.QueryTestCase):
             [4],
             ['foo'],
         ])
+
+    async def test_edgeql_expr_string01(self):
+        await self.assert_query_result("""
+            SELECT 'qwerty';
+            SELECT 'qwerty'[2];
+            SELECT 'qwerty'[-2];
+
+            SELECT 'qwerty'[2:4];
+            SELECT 'qwerty'[2:];
+            SELECT 'qwerty'[:2];
+
+            SELECT 'qwerty'[2:-1];
+            SELECT 'qwerty'[-2:];
+            SELECT 'qwerty'[:-2];
+        """, [
+            ['qwerty'],
+            ['e'],
+            ['t'],
+
+            ['er'],
+            ['erty'],
+            ['qw'],
+
+            ['ert'],
+            ['ty'],
+            ['qwer'],
+        ])
