@@ -1811,6 +1811,28 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [None, 'OpenHigh', 'ClosedLow', None],
         ])
 
+    @unittest.expectedFailure
+    async def test_edgeql_select_cross03(self):
+        await self.assert_query_result(r"""
+            # cross-product of all user names and issue numbers
+            WITH MODULE test
+            SELECT User.name + Issue.number
+            ORDER BY User.name THEN Issue.number;
+            """, [
+            ['{}{}'.format(a, b) for a in ('Elvis', 'Yury')
+             for b in range(1, 5)],
+        ])
+
+    async def test_edgeql_select_cross04(self):
+        await self.assert_query_result(r"""
+            # concatenate the user name with every issue number that user has
+            WITH MODULE test
+            SELECT User.name + User.<owner[TO Issue].number
+            ORDER BY User.name THEN User.<owner[TO Issue].number;
+            """, [
+            ['Elvis1', 'Elvis4', 'Yury2', 'Yury3'],
+        ])
+
     async def test_edgeql_select_subqueries01(self):
         await self.assert_query_result(r"""
             WITH
