@@ -565,7 +565,7 @@ class ParenExpr(Nonterm):
     def reduce_LPAREN_DeleteExpr_RPAREN(self, *kids):
         self.val = kids[1].val
 
-    def reduce_LPAREN_Expr_AS_Expr_RPAREN(self, *kids):
+    def reduce_LPAREN_Expr_AS_TypeName_RPAREN(self, *kids):
         # LHS has to be a Path, also the result of this operation is
         # also a Path.
         #

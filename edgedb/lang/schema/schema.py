@@ -194,6 +194,11 @@ class ProtoSchema:
 
         name, module, nqname = schema_name.split_name(name)
 
+        if module is not None:
+            # Can only fallback to implicit resolution if the module
+            # was not specified.
+            implicit_builtins = False
+
         fq_module = None
 
         if module_aliases is not None:

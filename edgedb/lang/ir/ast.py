@@ -31,6 +31,7 @@ class Base(ast.AST):
                 # Whether or not the node is a product of a rewrite
                 ('is_rewrite_product', bool, False),
                 ('rewrite_flags', set),
+                ('as_type', so.BasePrototype, None),
                 ('context', parsing.ParserContext, None,
                  True, None, True)  # this last True is "hidden" attribute
                 ]

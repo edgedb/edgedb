@@ -51,9 +51,9 @@ class TestTransactions(tb.QueryTestCase):
 
         result = await self.con.execute('''
             SELECT
-                test::Object
+                test::TransactionTest
             WHERE
-                test::Object.name = 'Test Transaction';
+                test::TransactionTest.name = 'Test Transaction';
         ''')
 
         self.assertEqual(result[0], [])
@@ -94,11 +94,11 @@ class TestTransactions(tb.QueryTestCase):
 
                 result = await self.con.execute('''
                     SELECT
-                        test::Object {
+                        test::TransactionTest {
                             name
                         }
                     WHERE
-                        test::Object.name LIKE 'TXTEST%';
+                        test::TransactionTest.name LIKE 'TXTEST%';
                 ''')
 
                 recs = result[0]
@@ -113,11 +113,11 @@ class TestTransactions(tb.QueryTestCase):
 
         result = await self.con.execute('''
             SELECT
-                test::Object {
+                test::TransactionTest {
                     name
                 }
             WHERE
-                test::Object.name LIKE 'TXTEST%';
+                test::TransactionTest.name LIKE 'TXTEST%';
         ''')
 
         recs = result[0]

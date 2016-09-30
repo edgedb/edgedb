@@ -1453,7 +1453,13 @@ class EdgeQLCompiler:
         typeref = None
 
         for i, node in enumerate(path.steps):
-            if isinstance(node, (qlast.PathNode, qlast.PathStepNode)):
+            if isinstance(node, qlast.TypeInterpretationNode):
+                path_tip = self._process_expr(context, node.expr)
+                path_tip.as_type = self._get_schema_object(
+                    context, node.type.maintype)
+                continue
+
+            elif isinstance(node, (qlast.PathNode, qlast.PathStepNode)):
                 if isinstance(node, qlast.PathNode):
                     if len(node.steps) > 1:
                         raise errors.EdgeQLError(
@@ -1558,7 +1564,7 @@ class EdgeQLCompiler:
 
                 link_proto = self._resolve_ptr(
                     context,
-                    path_tip.concept,
+                    path_tip.as_type or path_tip.concept,
                     linkname,
                     direction,
                     target=link_target)
@@ -1750,7 +1756,7 @@ class EdgeQLCompiler:
             self.proto_schema,
             pointer_name,
             direction=direction,
-            look_in_children=True,
+            look_in_children=False,
             include_inherited=True,
             far_endpoints=far_endpoints)
 
@@ -1767,9 +1773,14 @@ class EdgeQLCompiler:
 
         return ptr
 
-    def _get_schema_object(self, context, name, module):
+    def _get_schema_object(self, context, name, module=None):
+        if isinstance(name, qlast.PrototypeRefNode):
+            module = name.module
+            name = name.name
+
         if module:
             name = sn.Name(name=name, module=module)
+
         return self.proto_schema.get(
             name=name, module_aliases=context.current.namespaces)
 

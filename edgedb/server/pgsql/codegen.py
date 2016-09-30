@@ -517,6 +517,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
                 self.write(str(node.value))
             else:
                 self.write(common.quote_literal(str(node.value)))
+                if node.type is not None:
+                    self.write('::{}'.format(node.type))
 
     def visit_SequenceNode(self, node):
         self.write('(')
