@@ -190,6 +190,16 @@ class TestExpressions(tb.QueryTestCase):
             [[123, 11]],
         ])
 
+    @unittest.expectedFailure
+    # this is currently a syntax error, but that should be changed in
+    # the future
+    async def test_edgeql_expr_type01(self):
+        await self.assert_query_result(r"""
+            SELECT 'foo'.__type__.name;
+        """, [
+            ['std::str'],
+        ])
+
     async def test_edgeql_expr_list01(self):
         await self.assert_query_result("""
             SELECT [1];

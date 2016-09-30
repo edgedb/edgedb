@@ -647,6 +647,15 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['test::User']
         ])
 
+    @unittest.expectedFailure
+    async def test_edgeql_select_type03(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT User.name.__type__.name LIMIT 1;
+        ''', [
+            ['std::str']
+        ])
+
     async def test_edgeql_select_recursive01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
