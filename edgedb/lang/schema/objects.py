@@ -19,10 +19,10 @@ from . import error as s_err
 from . import name as sn
 
 
-def is_named_proto(proto):
-    if hasattr(proto.__class__, 'get_field'):
+def is_named_class(scls):
+    if hasattr(scls.__class__, 'get_field'):
         try:
-            proto.__class__.get_field('name')
+            scls.__class__.get_field('name')
             return True
         except KeyError:
             pass
@@ -66,7 +66,7 @@ class ComparisonContext:
 
         cls = obj.__class__
 
-        if not issubclass(cls, BasePrototype):
+        if not issubclass(cls, Class):
             raise ValueError('invalid argument type for comparison context')
 
         cls = cls.get_canonical_class()
@@ -87,29 +87,7 @@ class ComparisonContext:
         return ComparisonContextWrapper(self, (left, right))
 
 
-class PrototypeClass(type):
-    pass
-
-
-class ProtoObject(metaclass=PrototypeClass):
-    @classmethod
-    def get_canonical_class(cls):
-        return cls
-
-
-class ProtoNode(ProtoObject):
-    @classmethod
-    def compare_values(cls, ours, theirs, context, compcoef):
-        if isinstance(ours, Collection) or isinstance(theirs, Collection):
-            return ours.__class__.compare_values(
-                ours, theirs, context, compcoef)
-        elif ours != theirs:
-            return compcoef
-        else:
-            return 1.0
-
-
-class PrototypeMeta(PrototypeClass, struct.MixedStructMeta):
+class MetaClass(struct.MixedStructMeta):
     def __new__(mcls, name, bases, dct, **kwargs):
         cls = super().__new__(mcls, name, bases, dct, **kwargs)
         cls._ref_type = None
@@ -120,7 +98,7 @@ class PrototypeMeta(PrototypeClass, struct.MixedStructMeta):
         if cls._ref_type is None:
             name = cls.__name__ + '_ref'
             dct = {'__module__': cls.__module__}
-            cls._ref_type = cls.__class__(name, (PrototypeRef, cls), dct)
+            cls._ref_type = cls.__class__(name, (ClassRef, cls), dct)
 
             for fn, f in list(cls._ref_type._fields.items()):
                 f = f.copy()
@@ -130,7 +108,11 @@ class PrototypeMeta(PrototypeClass, struct.MixedStructMeta):
         return cls._ref_type
 
 
-class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
+class Class(struct.MixedStruct, metaclass=MetaClass):
+    @classmethod
+    def get_canonical_class(cls):
+        return cls
+
     def __init__(self, **kwargs):
         self._attr_sources = {}
         super().__init__(**kwargs)
@@ -158,7 +140,7 @@ class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
                         not isinstance(v, abc.Hashable)):
                     v = tuple(v)
 
-            if is_named_proto(v):
+            if is_named_class(v):
                 v = v.name
 
             criteria.append((f, v))
@@ -180,7 +162,7 @@ class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
             self._attr_sources[name] = source
             setattr(self, name, value)
             if dctx is not None:
-                dctx.op.add(sd.AlterPrototypeProperty(
+                dctx.op.add(sd.AlterClassProperty(
                     property=name,
                     new_value=value,
                     source=source
@@ -193,7 +175,7 @@ class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
     def persistent_hash(self):
         """Compute object 'snapshot' hash
 
-        This is an explicit method since prototype objects are mutable.
+        This is an explicit method since Class objects are mutable.
         The hash must be externally stable, i.e. stable across the runs
         and thus must not contain default object hashes (addresses),
         including that of None"""
@@ -312,9 +294,9 @@ class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
             except AttributeError:
                 pass
             else:
-                command_args['prototype_name'] = name
+                command_args['classname'] = name
 
-            delta = delta_driver.alter(prototype_class=new.__class__,
+            delta = delta_driver.alter(metaclass=new.__class__,
                                        **command_args)
             self.delta_properties(delta, other, reverse, context=context)
 
@@ -324,9 +306,9 @@ class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
             except AttributeError:
                 pass
             else:
-                command_args['prototype_name'] = name
+                command_args['classname'] = name
 
-            delta = delta_driver.create(prototype_class=new.__class__,
+            delta = delta_driver.create(metaclass=new.__class__,
                                         **command_args)
             self.delta_properties(delta, other, reverse, context=context)
 
@@ -336,9 +318,9 @@ class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
             except AttributeError:
                 pass
             else:
-                command_args['prototype_name'] = name
+                command_args['classname'] = name
 
-            delta = delta_driver.delete(prototype_class=old.__class__,
+            delta = delta_driver.delete(metaclass=old.__class__,
                                         **command_args)
 
         return delta
@@ -348,23 +330,23 @@ class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
         comparison_v = {}
 
         for k, p in v.items():
-            if is_named_proto(p):
-                result[k] = PrototypeRef(prototype_name=p.name)
+            if is_named_class(p):
+                result[k] = ClassRef(classname=p.name)
                 comparison_v[k] = p.name
 
             elif isinstance(p, Collection):
                 strefs = []
 
                 for st in p.get_subtypes():
-                    strefs.append(PrototypeRef(prototype_name=st.name))
+                    strefs.append(ClassRef(classname=st.name))
 
                 result[k] = p.__class__.from_subtypes(strefs)
                 comparison_v[k] = \
-                    (p.__class__, tuple(r.prototype_name for r in strefs))
+                    (p.__class__, tuple(r.classname for r in strefs))
 
             else:
                 result[k] = p
-                comparison_v[k] = p.class_name
+                comparison_v[k] = p.classname
 
         return result, frozenset(comparison_v.items())
 
@@ -373,13 +355,13 @@ class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
         comparison_v = []
 
         for p in v:
-            if is_named_proto(p):
-                result.append(PrototypeRef(prototype_name=p.name))
+            if is_named_class(p):
+                result.append(ClassRef(classname=p.name))
                 comparison_v.append(p.name)
 
             else:
                 result.append(p)
-                comparison_v.append(p.class_name)
+                comparison_v.append(p.classname)
 
         return result, tuple(comparison_v)
 
@@ -390,17 +372,17 @@ class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
         return result, frozenset(comparison_v)
 
     def _reduce_refs(self, value):
-        if is_named_proto(value):
+        if is_named_class(value):
             val = value.name
-            ref = PrototypeRef(prototype_name=val)
+            ref = ClassRef(classname=val)
 
-        elif isinstance(value, PrototypeDict):
+        elif isinstance(value, ClassDict):
             ref, val = self._reduce_obj_dict(value)
 
-        elif isinstance(value, PrototypeList):
+        elif isinstance(value, ClassList):
             ref, val = self._reduce_obj_list(value)
 
-        elif isinstance(value, PrototypeSet):
+        elif isinstance(value, ClassSet):
             ref, val = self._reduce_obj_set(value)
 
         else:
@@ -412,24 +394,24 @@ class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
     def _restore_refs(self, field_name, ref, resolve):
         ftype = self.__class__.get_field(field_name).type[0]
 
-        if is_named_proto(ftype):
-            val = resolve(ref.prototype_name)
+        if is_named_class(ftype):
+            val = resolve(ref.classname)
 
-        elif issubclass(ftype, (PrototypeSet, PrototypeList)):
-            val = ftype(resolve(r.prototype_name) for r in ref)
+        elif issubclass(ftype, (ClassSet, ClassList)):
+            val = ftype(resolve(r.classname) for r in ref)
 
-        elif issubclass(ftype, PrototypeDict):
+        elif issubclass(ftype, ClassDict):
             result = []
 
             for k, r in ref.items():
                 if isinstance(r, Collection):
                     subtypes = []
                     for stref in r.get_subtypes():
-                        subtypes.append(resolve(stref.prototype_name))
+                        subtypes.append(resolve(stref.classname))
 
                     r = r.__class__.from_subtypes(subtypes)
                 else:
-                    r = resolve(r.prototype_name)
+                    r = resolve(r.classname)
 
                 result.append((k, r))
 
@@ -455,14 +437,14 @@ class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
                 newattr, newattr_v = self._reduce_refs(getattr(new, f))
 
                 if oldattr_v != newattr_v:
-                    delta.add(sd.AlterPrototypeProperty(
+                    delta.add(sd.AlterClassProperty(
                         property=f, old_value=oldattr, new_value=newattr))
         elif not old:
             for f in fields:
                 value = getattr(new, f)
                 if value is not None:
                     value, _ = self._reduce_refs(value)
-                    delta.add(sd.AlterPrototypeProperty(
+                    delta.add(sd.AlterClassProperty(
                         property=f, old_value=None, new_value=value))
 
     @classmethod
@@ -485,7 +467,7 @@ class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
         return items
 
     def _get_deps(self):
-        return {getattr(b, 'class_name', getattr(b, 'name', None))
+        return {getattr(b, 'classname', getattr(b, 'name', None))
                 for b in self.bases}
 
     @classmethod
@@ -581,31 +563,31 @@ class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
             if has_bases:
                 g = {}
 
-                altered_idx = {p.prototype_name: p for p in altered}
+                altered_idx = {p.classname: p for p in altered}
                 for p in altered:
-                    for op in p(s_named.RenameNamedPrototype):
+                    for op in p(s_named.RenameNamedClass):
                         altered_idx[op.new_name] = p
 
                 for p in altered:
-                    old_proto = old_schema.get(p.prototype_name)
+                    old_class = old_schema.get(p.classname)
 
-                    for op in p(s_named.RenameNamedPrototype):
+                    for op in p(s_named.RenameNamedClass):
                         new_name = op.new_name
                         break
                     else:
-                        new_name = p.prototype_name
+                        new_name = p.classname
 
-                    new_proto = new_schema.get(new_name)
+                    new_class = new_schema.get(new_name)
 
-                    bases = {getattr(b, 'class_name', getattr(b, 'name', None))
-                             for b in old_proto.bases} | \
-                            {getattr(b, 'class_name', getattr(b, 'name', None))
-                             for b in new_proto.bases}
+                    bases = {getattr(b, 'classname', getattr(b, 'name', None))
+                             for b in old_class.bases} | \
+                            {getattr(b, 'classname', getattr(b, 'name', None))
+                             for b in new_class.bases}
 
                     deps = {b for b in bases if b in altered_idx}
 
-                    g[p.prototype_name] = {'item': p, 'deps': deps}
-                    if new_name != p.prototype_name:
+                    g[p.classname] = {'item': p, 'deps': deps}
+                    if new_name != p.classname:
                         g[new_name] = {'item': p, 'deps': deps}
 
                 altered = topological.sort(g)
@@ -637,23 +619,23 @@ class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
                 state[field_name] = ref
                 refs.append(field_name)
 
-        state['_protorefs'] = refs if refs else None
+        state['_classrefs'] = refs if refs else None
 
         return state
 
     def _finalize_setstate(self, _objects, _resolve):
-        protorefs = getattr(self, '_protorefs', None)
-        if not protorefs:
+        classrefs = getattr(self, '_classrefs', None)
+        if not classrefs:
             return
 
-        for field_name in protorefs:
+        for field_name in classrefs:
             ref = getattr(self, field_name)
             val = self._restore_refs(field_name, ref, _resolve)
             setattr(self, field_name, val)
 
-        delattr(self, '_protorefs')
+        delattr(self, '_classrefs')
 
-    def get_protoref_origin(self, name, attr, local_attr, classname,
+    def get_classref_origin(self, name, attr, local_attr, classname,
                                                           farthest=False):
         assert name in getattr(self, attr)
         return self
@@ -664,26 +646,39 @@ class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
         fields = self.setdefaults()
         if dctx is not None and fields:
             for field in fields:
-                dctx.current().op.add(sd.AlterPrototypeProperty(
+                dctx.current().op.add(sd.AlterClassProperty(
                     property=field,
                     new_value=getattr(self, field),
                     source='default'
                 ))
 
-class PrototypeRef(BasePrototype):
-    prototype_name = Field(sn.SchemaName, coerce=True)
+
+class ClassRef(Class):
+    classname = Field(sn.SchemaName, coerce=True)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
     def __repr__(self):
-        return '<SchemaRef "{}" at 0x{:x}>'.format(self.prototype_name, id(self))
+        return '<ClassRef "{}" at 0x{:x}>'.format(self.classname, id(self))
 
     __str__ = __repr__
 
 
-class Collection(BasePrototype, ProtoNode):
-    element_type = Field(BasePrototype)
+class NodeClass:
+    @classmethod
+    def compare_values(cls, ours, theirs, context, compcoef):
+        if isinstance(ours, Collection) or isinstance(theirs, Collection):
+            return ours.__class__.compare_values(
+                ours, theirs, context, compcoef)
+        elif ours != theirs:
+            return compcoef
+        else:
+            return 1.0
+
+
+class Collection(Class, NodeClass):
+    element_type = Field(Class)
 
     @classmethod
     def compare_values(cls, ours, theirs, context, compcoef):
@@ -711,8 +706,8 @@ class Collection(BasePrototype, ProtoNode):
         from . import atoms as s_atoms
         from . import types as s_types
 
-        if isinstance(typeref, PrototypeRef):
-            eltype = schema.get(typeref.prototype_name)
+        if isinstance(typeref, ClassRef):
+            eltype = schema.get(typeref.classname)
         else:
             eltype = typeref
 
@@ -774,7 +769,7 @@ class List(Collection):
 class Map(Collection):
     schema_name = 'map'
 
-    key_type = Field(BasePrototype)
+    key_type = Field(Class)
 
     def get_container(self):
         return dict
@@ -791,11 +786,11 @@ class Map(Collection):
         return cls(key_type=subtypes[0], element_type=subtypes[1])
 
 
-class PrototypeDict(typed.TypedDict, keytype=str, valuetype=BasePrototype):
+class ClassDict(typed.TypedDict, keytype=str, valuetype=Class):
     def persistent_hash(self):
         vals = []
         for k, v in self.items():
-            if is_named_proto(v):
+            if is_named_class(v):
                 v = v.name
             vals.append((k, v))
         return phash.persistent_hash(frozenset(vals))
@@ -824,7 +819,7 @@ class PrototypeDict(typed.TypedDict, keytype=str, valuetype=BasePrototype):
         return basecoef + (1 - basecoef) * compcoef
 
 
-class PrototypeSet(typed.TypedSet, type=BasePrototype):
+class ClassSet(typed.TypedSet, type=Class):
     @classmethod
     def merge_values(cls, ours, theirs, schema):
         if ours is None and theirs is not None:
@@ -871,7 +866,7 @@ class PrototypeSet(typed.TypedSet, type=BasePrototype):
         return self.__class__(self)
 
 
-class PrototypeList(typed.TypedList, type=BasePrototype):
+class ClassList(typed.TypedList, type=Class):
     pass
 
 

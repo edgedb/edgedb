@@ -149,13 +149,13 @@ class Curve(GeometryContainer):
 
 class LineString(Curve):
     geo_class_id = 2
-    geo_class_name = 'LineString'
+    geo_classname = 'LineString'
 
 
 class Line(LineString):
     """A line is a LineString with exactly two Points."""
 
-    geo_class_name = 'Line'
+    geo_classname = 'Line'
 
     def __new__(cls, value, *, srid=0, dimensions=None):
         result = super().__new__(value, srid=srid)
@@ -170,4 +170,4 @@ class Line(LineString):
 class LinearRing(LineString):
     """A LinearRing is a LineString which is both closed and simple."""
 
-    geo_class_name = 'LinearRing'
+    geo_classname = 'LinearRing'

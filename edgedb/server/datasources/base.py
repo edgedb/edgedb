@@ -119,12 +119,12 @@ class Datasource(metaclass=DatasourceMeta):
         return value
 
 
-def _restore_datasource(metacls, name, module, bases, proto):
+def _restore_datasource(metacls, name, module, bases, scls):
     bases = tuple(get_object(b) for b in bases)
     dct = metacls.__prepare__(name, bases)
     dct['__module__'] = module
     result = metacls(name, bases, dct)
-    result.descriptor = proto
+    result.descriptor = scls
     return result
 
 

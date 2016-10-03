@@ -272,7 +272,7 @@ class OptAnySubShape(Nonterm):
         # expression
         shape = kids[1].val
         name = shape.steps[0]
-        typenode = qlast.PrototypeRefNode(name=name.expr,
+        typenode = qlast.ClassRefNode(name=name.expr,
                                           module=name.namespace,
                                           context=name.context)
         self.val = [typenode] + shape.pathspec
@@ -306,7 +306,7 @@ class ShapeElement(Nonterm):
                 self.val.recurse_limit = kids[1].val
 
             shape = kids[2].val
-            if shape and isinstance(shape[0], qlast.PrototypeRefNode):
+            if shape and isinstance(shape[0], qlast.ClassRefNode):
                 self.val.expr.steps[-1].expr.target = shape[0]
                 self.val.pathspec = shape[1:]
             else:
@@ -1121,7 +1121,7 @@ class NodeName(Nonterm):
         if kids[0].val[-1][0] == '@':
             raise EdgeQLSyntaxError("name cannot start with '@'",
                                     context=kids[0].context)
-        self.val = qlast.PrototypeRefNode(
+        self.val = qlast.ClassRefNode(
             module='.'.join(kids[0].val[:-1]) or None,
             name=kids[0].val[-1])
 
@@ -1143,7 +1143,7 @@ class ShortOpNodeName(Nonterm):
         if kids[0].val[0] == '@':
             raise EdgeQLSyntaxError("name cannot start with '@'",
                                     context=kids[0].context)
-        self.val = qlast.PrototypeRefNode(
+        self.val = qlast.ClassRefNode(
             module=None,
             name=kids[0].val)
 
@@ -1158,7 +1158,7 @@ class OpOnlyNodeName(Nonterm):
     def reduce_OpName(self, *kids):
         # OpNodeName cannot start with a '@' in any way already
         #
-        self.val = qlast.PrototypeRefNode(
+        self.val = qlast.ClassRefNode(
             module='.'.join(kids[0].val[:-1]) or None,
             name=kids[0].val[-1])
 

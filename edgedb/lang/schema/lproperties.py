@@ -27,21 +27,21 @@ class LinkPropertySourceContext(sources.SourceCommandContext):
     pass
 
 
-class LinkPropertySourceCommand(sd.PrototypeCommand):
+class LinkPropertySourceCommand(sd.ClassCommand):
     def _create_innards(self, schema, context):
         for op in self(LinkPropertyCommand):
             op.apply(schema, context=context)
 
         super()._create_innards(schema, context)
 
-    def _alter_innards(self, schema, context, prototype):
+    def _alter_innards(self, schema, context, scls):
         for op in self(LinkPropertyCommand):
             op.apply(schema, context=context)
 
-        super()._alter_innards(schema, context, prototype)
+        super()._alter_innards(schema, context, scls)
 
-    def _delete_innards(self, schema, context, prototype):
-        super()._delete_innards(schema, context, prototype)
+    def _delete_innards(self, schema, context, scls):
+        super()._delete_innards(schema, context, scls)
 
         for op in self(LinkPropertyCommand):
             op.apply(schema, context=context)
@@ -63,12 +63,12 @@ class LinkPropertyCommand(pointers.PointerCommand):
     referrer_context_class = LinkPropertySourceContext
 
     @classmethod
-    def _get_prototype_class(cls):
+    def _get_metaclass(cls):
         return LinkProperty
 
 
 class CreateLinkProperty(LinkPropertyCommand,
-                         referencing.CreateReferencedPrototype):
+                         referencing.CreateReferencedClass):
     astnode = [qlast.CreateConcreteLinkPropertyNode,
                qlast.CreateLinkPropertyNode]
 
@@ -82,29 +82,29 @@ class CreateLinkProperty(LinkPropertyCommand,
             target = getattr(astnode, 'target', None)
 
             cmd.add(
-                sd.AlterPrototypeProperty(
+                sd.AlterClassProperty(
                     property='required',
                     new_value=astnode.is_required
                 )
             )
 
             parent_ctx = context.get(LinkPropertySourceContext)
-            source_name = parent_ctx.op.prototype_name
+            source_name = parent_ctx.op.classname
 
             cmd.add(
-                sd.AlterPrototypeProperty(
+                sd.AlterClassProperty(
                     property='source',
-                    new_value=so.PrototypeRef(
-                        prototype_name=source_name
+                    new_value=so.ClassRef(
+                        classname=source_name
                     )
                 )
             )
 
             cmd.add(
-                sd.AlterPrototypeProperty(
+                sd.AlterClassProperty(
                     property='target',
-                    new_value=so.PrototypeRef(
-                        prototype_name=sn.Name(
+                    new_value=so.ClassRef(
+                        classname=sn.Name(
                             module=target.module,
                             name=target.name
                         )
@@ -144,23 +144,23 @@ class CreateLinkProperty(LinkPropertyCommand,
         elif op.property == 'source':
             pass
         elif op.property == 'target' and link:
-            t = op.new_value.prototype_name
-            node.target = qlast.PrototypeRefNode(name=t.name, module=t.module)
+            t = op.new_value.classname
+            node.target = qlast.ClassRefNode(name=t.name, module=t.module)
         else:
             super()._apply_field_ast(context, node, op)
 
 
-class RenameLinkProperty(LinkPropertyCommand, named.RenameNamedPrototype):
+class RenameLinkProperty(LinkPropertyCommand, named.RenameNamedClass):
     pass
 
 
 class RebaseLinkProperty(LinkPropertyCommand,
-                         inheriting.RebaseNamedPrototype):
+                         inheriting.RebaseNamedClass):
     pass
 
 
 class AlterLinkProperty(LinkPropertyCommand,
-                        inheriting.AlterInheritingPrototype):
+                        inheriting.AlterInheritingClass):
     astnode = [qlast.AlterConcreteLinkPropertyNode,
                qlast.AlterLinkPropertyNode]
 
@@ -186,9 +186,9 @@ class AlterLinkProperty(LinkPropertyCommand,
             if op.new_value:
                 node.commands.append(qlast.AlterTargetNode(
                     targets=[
-                        qlast.PrototypeRefNode(
-                            name=op.new_value.prototype_name.name,
-                            module=op.new_value.prototype_name.module)
+                        qlast.ClassRefNode(
+                            name=op.new_value.classname.name,
+                            module=op.new_value.classname.module)
                     ]
                 ))
         elif op.property == 'source':
@@ -198,7 +198,7 @@ class AlterLinkProperty(LinkPropertyCommand,
 
 
 class DeleteLinkProperty(LinkPropertyCommand,
-                         inheriting.DeleteInheritingPrototype):
+                         inheriting.DeleteInheritingClass):
     astnode = [qlast.DropConcreteLinkPropertyNode,
                qlast.DropLinkPropertyNode]
 

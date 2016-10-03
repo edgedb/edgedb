@@ -7,7 +7,7 @@
 
 
 from .base import TypeRules, FunctionMeta, BaseTypeMeta
-from .base import proto_name_from_type, normalize_type
+from .base import classname_from_type, normalize_type
 
 from . import boolean
 from . import bytes

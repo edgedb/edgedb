@@ -36,13 +36,13 @@ class RewriteTransformer(ast.NodeTransformer):
             self.visit(expr.source)
 
         if 'lang_rewrite' not in expr.rewrite_flags:
-            schema = self._context.current.proto_schema
+            schema = self._context.current.schema
             localizable = schema.get('std::localizable', default=None)
 
-            link_proto = expr.link_proto
+            link_class = expr.link_class
 
             if (localizable is not None and
-                    link_proto.issubclass(localizable)):
+                    link_class.issubclass(localizable)):
                 cvars = self._context.current.context_vars
 
                 lang = irast.Constant(
@@ -55,9 +55,9 @@ class RewriteTransformer(ast.NodeTransformer):
                     if langprop.name == propn:
                         break
                 else:
-                    lprop_proto = link_proto.pointers[propn]
+                    lprop_class = link_class.pointers[propn]
                     langprop = irast.LinkPropRefSimple(
-                        name=propn, ref=expr, ptr_proto=lprop_proto)
+                        name=propn, ref=expr, ptr_class=lprop_class)
                     expr.proprefs.add(langprop)
 
                 eq_lang = irast.BinOp(
@@ -97,13 +97,13 @@ class RewriteTransformer(ast.NodeTransformer):
     def _apply_rewrite_hooks(self, expr, type):
         if isinstance(expr, irast.EntityLink):
             if (type == 'computable' and
-                    expr.link_proto.is_pure_computable()):
-                deflt = expr.link_proto.default[0]
+                    expr.link_class.is_pure_computable()):
+                deflt = expr.link_class.default[0]
                 if isinstance(deflt, s_expr.ExpressionText):
                     edgeql_expr = deflt
                 else:
                     edgeql_expr = "'" + str(deflt).replace("'", "''") + "'"
-                    target_type = expr.link_proto.target.name
+                    target_type = expr.link_class.target.name
                     edgeql_expr = 'CAST ({} AS [{}])'.format(edgeql_expr,
                                                              target_type)
 
@@ -113,7 +113,7 @@ class RewriteTransformer(ast.NodeTransformer):
     def _rewrite_with_edgeql_expr(self, expr, edgeql_expr, anchors):
         from edgedb.lang import edgeql
 
-        schema = self._context.current.proto_schema
+        schema = self._context.current.schema
         ir = edgeql.compile_fragment_to_ir(
             edgeql_expr, schema, anchors=anchors)
 
@@ -127,7 +127,7 @@ class RewriteTransformer(ast.NodeTransformer):
         for expr_node in nodes:
             expr_node.reference = node
 
-        ptrname = expr.link_proto.normal_name()
+        ptrname = expr.link_class.normal_name()
 
         expr_ref = irast.SubgraphRef(
             name=ptrname,

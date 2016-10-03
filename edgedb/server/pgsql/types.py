@@ -54,8 +54,8 @@ base_type_name_map_r = {
 
 def get_atom_base(schema, atom):
     if atom.bases:
-        # Base is another atom prototype, check if it is fundamental,
-        # if not, then it is another domain.
+        # Base is another Atom, check if it is fundamental, if not,
+        # then it is another domain.
         #
         try:
             base = base_type_name_map[atom.bases[0].name]
@@ -123,12 +123,12 @@ class PointerStorageInfo:
         return table, table_type, col_name
 
     @classmethod
-    def _resolve_type(cls, pointer, proto_schema):
+    def _resolve_type(cls, pointer, schema):
         if pointer.target is not None:
             if isinstance(pointer.target, s_concepts.Concept):
                 column_type = 'uuid'
             else:
-                column_type = pg_type_from_object(proto_schema, pointer.target)
+                column_type = pg_type_from_object(schema, pointer.target)
         else:
             # The target may not be known in circular concept-to-concept
             # linking scenarios.
@@ -152,11 +152,11 @@ class PointerStorageInfo:
             pointer.has_user_defined_properties())
 
     def __new__(
-            cls, proto_schema, pointer, source=None, resolve_type=True,
+            cls, schema, pointer, source=None, resolve_type=True,
             link_bias=False):
         is_prop = isinstance(pointer, s_lprops.LinkProperty)
 
-        if resolve_type and proto_schema is None:
+        if resolve_type and schema is None:
             msg = 'PointerStorageInfo needs a schema to resolve column_type'
             raise ValueError(msg)
 
@@ -181,7 +181,7 @@ class PointerStorageInfo:
                 return None
 
         column_type = cls._resolve_type(
-            pointer, proto_schema) if resolve_type else None
+            pointer, schema) if resolve_type else None
 
         result = super().__new__(cls)
 

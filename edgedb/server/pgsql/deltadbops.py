@@ -18,10 +18,10 @@ from edgedb.server.pgsql import dbops
 from edgedb.server.pgsql.dbops import catalogs as pg_catalogs
 
 
-class SchemaDBObjectMeta(functional.Adapter, type(s_obj.BasePrototype)):
+class SchemaDBObjectMeta(functional.Adapter, type(s_obj.Class)):
     def __init__(cls, name, bases, dct, *, adapts=None):
         functional.Adapter.__init__(cls, name, bases, dct, adapts=adapts)
-        type(s_obj.BasePrototype).__init__(cls, name, bases, dct)
+        type(s_obj.Class).__init__(cls, name, bases, dct)
 
 
 class SchemaDBObject(metaclass=SchemaDBObjectMeta):
@@ -32,7 +32,7 @@ class SchemaDBObject(metaclass=SchemaDBObjectMeta):
     @classmethod
     def get_canonical_class(cls):
         for base in cls.__bases__:
-            if issubclass(base, s_obj.ProtoObject) and not issubclass(
+            if issubclass(base, s_obj.Class) and not issubclass(
                     base, SchemaDBObject):
                 return base
 
@@ -1024,7 +1024,7 @@ class FeatureTable(dbops.Table):
 
         self.__columns = datastructures.OrderedSet([
             dbops.Column(name='name', type='text', required=True),
-            dbops.Column(name='class_name', type='text', required=True)
+            dbops.Column(name='classname', type='text', required=True)
         ])
 
         self.constraints = set([dbops.PrimaryKey(name, columns=('name', )), ])
@@ -1108,7 +1108,7 @@ class EnableFeature(dbops.DDLOperation):
         table = FeatureTable()
         record = table.record()
         record.name = self.feature.name
-        record.class_name = '%s.%s' % (
+        record.classname = '%s.%s' % (
             self.feature.__class__.__module__, self.feature.__class__.__name__)
         return [dbops.Insert(table, records=[record])]
 

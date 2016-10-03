@@ -19,7 +19,7 @@ from . import referencing
 from . import sources
 
 
-class ConceptCommandContext(sd.PrototypeCommandContext,
+class ConceptCommandContext(sd.ClassCommandContext,
                             constraints.ConsistencySubjectCommandContext,
                             links.LinkSourceCommandContext):
     pass
@@ -31,31 +31,31 @@ class ConceptCommand(constraints.ConsistencySubjectCommand,
     context_class = ConceptCommandContext
 
     @classmethod
-    def _get_prototype_class(cls):
+    def _get_metaclass(cls):
         return Concept
 
 
-class CreateConcept(ConceptCommand, inheriting.CreateInheritingPrototype):
+class CreateConcept(ConceptCommand, inheriting.CreateInheritingClass):
     astnode = qlast.CreateConceptNode
 
 
-class RenameConcept(ConceptCommand, named.RenameNamedPrototype):
+class RenameConcept(ConceptCommand, named.RenameNamedClass):
     pass
 
 
-class RebaseConcept(ConceptCommand, referencing.RebaseReferencingPrototype):
+class RebaseConcept(ConceptCommand, referencing.RebaseReferencingClass):
     pass
 
 
-class AlterConcept(ConceptCommand, inheriting.AlterInheritingPrototype):
+class AlterConcept(ConceptCommand, inheriting.AlterInheritingClass):
     astnode = qlast.AlterConceptNode
 
 
-class DeleteConcept(ConceptCommand, inheriting.DeleteInheritingPrototype):
+class DeleteConcept(ConceptCommand, inheriting.DeleteInheritingClass):
     astnode = qlast.DropConceptNode
 
 
-class Concept(sources.Source, constraints.ConsistencySubject, so.ProtoNode):
+class Concept(sources.Source, constraints.ConsistencySubject, so.NodeClass):
     _type = 'concept'
 
     is_virtual = so.Field(bool, default=bool, compcoef=0.5)
@@ -117,10 +117,10 @@ class Concept(sources.Source, constraints.ConsistencySubject, so.ProtoNode):
 
         @classmethod
         def getptr_inherited_from(cls, source, schema,
-                                  base_ptr_proto, skip_atomic):
+                                  base_ptr_class, skip_atomic):
             result = set()
             for link in schema('link'):
-                if link.issubclass(base_ptr_proto) \
+                if link.issubclass(base_ptr_class) \
                         and link.target is not None \
                         and (not skip_atomic or not link.atomic()) \
                         and source.issubclass(link.target):

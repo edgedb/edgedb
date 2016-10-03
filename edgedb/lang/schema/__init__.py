@@ -9,10 +9,10 @@
 from .error import SchemaError, SchemaNameError
 from .name import SchemaName
 
-from .objects import ProtoObject, PrototypeClass
+from .objects import Class, MetaClass
 from .schema import ObjectClass
-from .schema import ProtoSchema
-from .modules import ProtoModule
+from .schema import Schema
+from .modules import Module
 
 from . import ast
 from .codegen import generate_source

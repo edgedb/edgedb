@@ -106,7 +106,7 @@ class StatementNode(Base):
     __fields = [('namespaces', list), ('aliases', list)]
 
 
-class PrototypeRefNode(Base):
+class ClassRefNode(Base):
     __fields = ['name', 'module']
 
 
@@ -171,7 +171,7 @@ class AlterTargetNode(DDLNode):
 
 
 class ObjectDDLNode(CompositeDDLNode):
-    __fields = ['namespaces', ('name', PrototypeRefNode), ('commands', list)]
+    __fields = ['namespaces', ('name', ClassRefNode), ('commands', list)]
 
 
 class CreateObjectNode(ObjectDDLNode):
@@ -191,7 +191,7 @@ class CreateInheritingObjectNode(CreateObjectNode):
 
 
 class RenameNode(DDLNode):
-    __fields = [('new_name', PrototypeRefNode)]
+    __fields = [('new_name', ClassRefNode)]
 
 
 class DeltaNode:

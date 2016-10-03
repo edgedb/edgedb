@@ -18,37 +18,37 @@ _rewrite_hooks = {}
 def register_rewrite_hook(cls, action, callback, type):
     if isinstance(cls, tuple):
         # (source, link) tuple
-        proto = cls[0].__sx_prototype__
-        ptr_proto = cls[1].__sx_prototype__
-        ptr_name = ptr_proto.normal_name()
-        source_proto = proto
+        scls = cls[0].__sx_class__
+        ptr_class = cls[1].__sx_class__
+        ptr_name = ptr_class.normal_name()
+        source_class = scls
     else:
-        if hasattr(cls, '__sx_prototype__'):
-            proto = cls.__sx_prototype__
+        if hasattr(cls, '__sx_class__'):
+            scls = cls.__sx_class__
 
-            if isinstance(proto, pointers.Pointer):
-                proto = cls.__sx_prototype__
-                ptr_name = proto.normal_name()
-                source_proto = proto.source
+            if isinstance(scls, pointers.Pointer):
+                scls = cls.__sx_class__
+                ptr_name = scls.normal_name()
+                source_class = scls.source
             else:
-                source_proto = proto
+                source_class = scls
                 ptr_name = None
 
         elif isinstance(cls, abc.ABCMeta):
             # Abstract base class
-            source_proto = [c.__sx_prototype__ for c in cls._abc_registry]
+            source_class = [c.__sx_class__ for c in cls._abc_registry]
             ptr_name = None
 
         else:
             raise TypeError('unsupported object type: {!r}'.format(cls))
 
-    if not isinstance(source_proto, list):
-        source_proto = [source_proto]
+    if not isinstance(source_class, list):
+        source_class = [source_class]
 
-    for proto in source_proto:
-        proto_name = proto.name
+    for scls in source_class:
+        classname = scls.name
 
-        key = (proto_name, ptr_name) if ptr_name else proto_name
+        key = (classname, ptr_name) if ptr_name else classname
 
         try:
             cls_hooks = _rewrite_hooks[key, action, type]
@@ -62,25 +62,25 @@ def register_access_control_hook(cls, action, callback):
     return register_rewrite_hook(cls, action, callback, type='filter')
 
 
-def get_access_control_hooks(proto, action):
-    if isinstance(proto, pointers.Pointer):
-        source = proto.source
-        pn = proto.normal_name()
+def get_access_control_hooks(scls, action):
+    if isinstance(scls, pointers.Pointer):
+        source = scls.source
+        pn = scls.normal_name()
     else:
-        source = proto
+        source = scls
         pn = None
 
     mro = source.get_mro()
 
-    mro = [cls for cls in mro if isinstance(cls, so.ProtoObject)]
+    mro = [cls for cls in mro if isinstance(cls, so.Class)]
 
     hooks = []
 
-    for proto in mro:
+    for scls in mro:
         if pn:
-            key = (proto.name, pn)
+            key = (scls.name, pn)
         else:
-            key = proto.name
+            key = scls.name
 
         try:
             clshooks = _rewrite_hooks[key, action, 'filter']

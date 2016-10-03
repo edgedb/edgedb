@@ -31,7 +31,7 @@ class Base(ast.AST):
                 # Whether or not the node is a product of a rewrite
                 ('is_rewrite_product', bool, False),
                 ('rewrite_flags', set),
-                ('as_type', so.BasePrototype, None),
+                ('as_type', so.Class, None),
                 ('context', parsing.ParserContext, None,
                  True, None, True)  # this last True is "hidden" attribute
                 ]
@@ -165,7 +165,7 @@ class SubgraphRef(Path):
 class BaseRef(Path):
     __fields = [('ref', Base, None, False),
                 ('rlink', Base, None, (False, True), False, True),
-                'ptr_proto', ('users', set)]
+                'ptr_class', ('users', set)]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -244,7 +244,7 @@ class LinkPropRefExpr(LinkPropRef, BaseRefExpr):
 
 
 class EntityLink(Base):
-    __fields = ['propfilter', 'source', 'target', 'link_proto', ('proprefs', set),
+    __fields = ['propfilter', 'source', 'target', 'link_class', ('proprefs', set),
                 ('metarefs', set), ('users', set), 'anchor', 'show_as_anchor',
                 'pathvar', 'direction', 'pathspec_trigger']
 
@@ -301,7 +301,7 @@ class AtomicRefSet(typed.TypedSet, type=AtomicRef):
 
 
 class EntitySet(Path):
-    __fields = [('concept', so.ProtoNode), 'atom',
+    __fields = [('concept', so.NodeClass), 'atom',
                 'filter',
                 ('conjunction', Conjunction),
                 ('disjunction', Disjunction),
@@ -324,8 +324,8 @@ class EntitySet(Path):
 
 
 class PtrPathSpec(Base):
-    __fields = ['ptr_proto', 'ptr_direction', 'pathspec', 'recurse',
-                'target_proto', 'sorter', 'generator', 'trigger',
+    __fields = ['ptr_class', 'ptr_direction', 'pathspec', 'recurse',
+                'target_class', 'sorter', 'generator', 'trigger',
                 'offset', 'limit', 'compexpr', 'type_indirection']
 
 
@@ -357,9 +357,9 @@ class Constant(Base):
             else:
                 item_type = type
 
-            if not isinstance(item_type, (so.ProtoObject, so.PrototypeClass)):
+            if not isinstance(item_type, (so.Class, so.MetaClass)):
                 raise ASTError(('unexpected constant type representation, '
-                                'expected ProtoObject, got "%r"') % (type,))
+                                'expected Class, got "%r"') % (type,))
 
 class Expr(Base):
     pass

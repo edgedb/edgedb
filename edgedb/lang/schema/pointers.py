@@ -78,12 +78,12 @@ class PointerVector(sn.Name):
             return False
 
 
-class PointerCommandContext(sd.PrototypeCommandContext):
+class PointerCommandContext(sd.ClassCommandContext):
     pass
 
 
 class PointerCommand(constraints.ConsistencySubjectCommand,
-                     referencing.ReferencedPrototypeCommand):
+                     referencing.ReferencedClassCommand):
 
     @classmethod
     def _extract_union_operands(cls, expr, operands):
@@ -96,7 +96,7 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
     @classmethod
     def _parse_default(cls, cmd):
         return
-        for sub in cmd(sd.AlterPrototypeProperty):
+        for sub in cmd(sd.AlterClassProperty):
             if sub.property == 'default':
                 if isinstance(sub.new_value, sexpr.ExpressionText):
                     expr = edgeql.parse(sub.new_value)
@@ -142,10 +142,10 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
             # This is a specialized pointer, check that appropriate
             # generic parent exists, and if not, create it.
             base_ref = self.get_attribute_value('bases')[0]
-            base_name = base_ref.prototype_name
+            base_name = base_ref.classname
             base = schema.get(base_name, default=None)
             if base is None:
-                cls = self.prototype_class
+                cls = self.metaclass
                 std_link = schema.get(cls.get_default_base_name())
                 base = cls(name=base_name, bases=[std_link])
                 delta = base.delta(None)
@@ -164,16 +164,16 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
 
         referrer_ctx = context.get(self.referrer_context_class)
         if referrer_ctx is not None:
-            for ap in self(sd.AlterPrototypeProperty):
+            for ap in self(sd.AlterClassProperty):
                 if ap.property == 'target':
-                    self.prototype.target = \
-                        schema.get(ap.new_value.prototype_name)
+                    self.scls.target = \
+                        schema.get(ap.new_value.classname)
                     break
 
 
-class BasePointer(primary.Prototype, derivable.DerivablePrototype):
-    source = so.Field(primary.Prototype, None, compcoef=0.933)
-    target = so.Field(primary.Prototype, None, compcoef=0.833)
+class BasePointer(primary.Class, derivable.DerivableClass):
+    source = so.Field(primary.Class, None, compcoef=0.933)
+    target = so.Field(primary.Class, None, compcoef=0.833)
 
     def get_near_endpoint(self, direction):
         return self.source if direction == PointerDirection.Outbound \
@@ -190,10 +190,10 @@ class BasePointer(primary.Prototype, derivable.DerivablePrototype):
             return next(iter(targets))
 
         if minimize_by == 'most_generic':
-            targets = utils.minimize_prototype_set_by_most_generic(
+            targets = utils.minimize_class_set_by_most_generic(
                             targets)
         elif minimize_by == 'least_generic':
-            targets = utils.minimize_prototype_set_by_least_generic(
+            targets = utils.minimize_class_set_by_least_generic(
                             targets)
 
         if len(targets) == 1:
@@ -233,7 +233,7 @@ class BasePointer(primary.Prototype, derivable.DerivablePrototype):
                 seen_concepts = True
 
         if seen_atoms and len(targets) > 1:
-            target = utils.get_prototype_nearest_common_ancestor(targets)
+            target = utils.get_class_nearest_common_ancestor(targets)
             if target is None:
                 raise schema_error.SchemaError(
                         'cannot set multiple atom targets for a link')

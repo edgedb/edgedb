@@ -74,10 +74,10 @@ class IRDecompiler:
                     raise ValueError(msg)
 
                 target = el.rlink.target.concept.name
-                target = qlast.PrototypeRefNode(name=target.name, module=target.module)
+                target = qlast.ClassRefNode(name=target.name, module=target.module)
 
-                refpath = qlast.LinkNode(name=el.rlink.link_proto.normal_name().name,
-                                         namespace=el.rlink.link_proto.normal_name().module,
+                refpath = qlast.LinkNode(name=el.rlink.link_class.normal_name().name,
+                                         namespace=el.rlink.link_class.normal_name().module,
                                          target=target, direction=el.rlink.direction)
                 refpath = qlast.LinkExprNode(expr=refpath)
                 sitem = qlast.SelectPathSpecNode(expr=refpath)
@@ -108,10 +108,10 @@ class IRDecompiler:
                     raise ValueError(msg)
 
                 target = el.concept.name
-                target = qlast.PrototypeRefNode(name=target.name, module=target.module)
+                target = qlast.ClassRefNode(name=target.name, module=target.module)
 
-                refpath = qlast.LinkNode(name=el.rlink.link_proto.normal_name().name,
-                                         namespace=el.rlink.link_proto.normal_name().module,
+                refpath = qlast.LinkNode(name=el.rlink.link_class.normal_name().name,
+                                         namespace=el.rlink.link_class.normal_name().module,
                                          target=target, direction=el.rlink.direction)
                 refpath = qlast.LinkExprNode(expr=refpath)
                 sitem = qlast.SelectPathSpecNode(expr=refpath)
@@ -220,8 +220,8 @@ class IRDecompiler:
                     elements = []
 
                     for v in value:
-                        if isinstance(v, edgedb_types.ProtoObject):
-                            v = qlast.PrototypeRefNode(module=v.name.module, name=v.name.name)
+                        if isinstance(v, edgedb_types.Class):
+                            v = qlast.ClassRefNode(module=v.name.module, name=v.name.name)
                         elements.append(v)
 
                     result = qlast.SequenceNode(elements=elements)
@@ -287,11 +287,11 @@ class IRDecompiler:
 
             while expr.rlink and (not expr.show_as_anchor or context.inline_anchors):
                 linknode = expr.rlink
-                linkproto = linknode.link_proto
-                lname = linkproto.normal_name()
+                linkclass = linknode.link_class
+                lname = linkclass.normal_name()
 
                 target = linknode.target.concept.name
-                target = qlast.PrototypeRefNode(name=target.name, module=target.module)
+                target = qlast.ClassRefNode(name=target.name, module=target.module)
                 link = qlast.LinkNode(name=lname.name, namespace=lname.module,
                                       direction=linknode.direction, target=target)
                 link = qlast.LinkExprNode(expr=link)
@@ -351,12 +351,12 @@ class IRDecompiler:
                 else:
                     path = qlast.PathNode()
 
-                linkproto = expr.link_proto
-                lname = linkproto.normal_name()
+                linkclass = expr.link_class
+                lname = linkclass.normal_name()
 
                 if expr.target and isinstance(expr.target, irast.EntitySet):
                     target = expr.target.concept.name
-                    target = qlast.PrototypeRefNode(name=target.name, module=target.module)
+                    target = qlast.ClassRefNode(name=target.name, module=target.module)
                 else:
                     target = None
 
@@ -378,16 +378,16 @@ class IRDecompiler:
         elif isinstance(expr, irast.TypeCast):
             if expr.type.subtypes:
                 typ = qlast.TypeNameNode(
-                    maintype=qlast.PrototypeRefNode(name=expr.type.maintype),
+                    maintype=qlast.ClassRefNode(name=expr.type.maintype),
                     subtypes=[
-                        qlast.PrototypeRefNode(
+                        qlast.ClassRefNode(
                             module=stn.module, name=stn.name)
                         for stn in expr.type.subtypes
                     ]
                 )
             else:
                 mtn = expr.type.maintype
-                mt = qlast.PrototypeRefNode(module=mtn.module, name=mtn.name)
+                mt = qlast.ClassRefNode(module=mtn.module, name=mtn.name)
                 typ = qlast.TypeNameNode(maintype=mt)
 
             result = qlast.TypeCastNode(

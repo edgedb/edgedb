@@ -19,5 +19,5 @@ class SchemaNameError(SchemaError):
     pass
 
 
-class NoPrototypeError(SchemaError):
+class NoClassError(SchemaError):
     pass

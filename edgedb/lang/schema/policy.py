@@ -18,7 +18,7 @@ from . import primary
 from . import referencing
 
 
-class ActionCommandContext(sd.PrototypeCommandContext):
+class ActionCommandContext(sd.ClassCommandContext):
     pass
 
 
@@ -26,11 +26,11 @@ class ActionCommand:
     context_class = ActionCommandContext
 
     @classmethod
-    def _get_prototype_class(cls):
+    def _get_metaclass(cls):
         return Action
 
 
-class EventCommandContext(sd.PrototypeCommandContext):
+class EventCommandContext(sd.ClassCommandContext):
     pass
 
 
@@ -38,11 +38,11 @@ class EventCommand:
     context_class = EventCommandContext
 
     @classmethod
-    def _get_prototype_class(cls):
+    def _get_metaclass(cls):
         return Event
 
 
-class PolicyCommandContext(sd.PrototypeCommandContext):
+class PolicyCommandContext(sd.ClassCommandContext):
     pass
 
 
@@ -51,54 +51,54 @@ class InternalPolicySubjectCommandContext:
     pass
 
 
-class CreateAction(named.CreateNamedPrototype, ActionCommand):
+class CreateAction(named.CreateNamedClass, ActionCommand):
     astnode = qlast.CreateActionNode
 
 
-class RenameAction(named.RenameNamedPrototype, ActionCommand):
+class RenameAction(named.RenameNamedClass, ActionCommand):
     pass
 
 
-class AlterAction(named.AlterNamedPrototype, ActionCommand):
+class AlterAction(named.AlterNamedClass, ActionCommand):
     astnode = qlast.AlterActionNode
 
 
-class DeleteAction(named.DeleteNamedPrototype, ActionCommand):
+class DeleteAction(named.DeleteNamedClass, ActionCommand):
     astnode = qlast.DropActionNode
 
 
-class CreateEvent(inheriting.CreateInheritingPrototype, EventCommand):
+class CreateEvent(inheriting.CreateInheritingClass, EventCommand):
     astnode = qlast.CreateEventNode
 
 
-class RenameEvent(named.RenameNamedPrototype, EventCommand):
+class RenameEvent(named.RenameNamedClass, EventCommand):
     pass
 
 
-class RebaseEvent(inheriting.RebaseNamedPrototype, EventCommand):
+class RebaseEvent(inheriting.RebaseNamedClass, EventCommand):
     pass
 
 
-class AlterEvent(inheriting.AlterInheritingPrototype, EventCommand):
+class AlterEvent(inheriting.AlterInheritingClass, EventCommand):
     astnode = qlast.AlterEventNode
 
 
-class DeleteEvent(inheriting.DeleteInheritingPrototype, EventCommand):
+class DeleteEvent(inheriting.DeleteInheritingClass, EventCommand):
     astnode = qlast.DropEventNode
 
 
-class PolicyCommand(referencing.ReferencedPrototypeCommand):
+class PolicyCommand(referencing.ReferencedClassCommand):
     context_class = PolicyCommandContext
     referrer_context_class = InternalPolicySubjectCommandContext
 
     @classmethod
-    def _get_prototype_class(cls):
+    def _get_metaclass(cls):
         return Policy
 
     @classmethod
-    def _protoname_from_ast(cls, astnode, context):
+    def _classname_from_ast(cls, astnode, context):
         parent_ctx = context.get(sd.CommandContextToken)
-        subject_name = parent_ctx.op.prototype_name
+        subject_name = parent_ctx.op.classname
         event_name = sn.Name(module=astnode.event.module,
                              name=astnode.event.name)
 
@@ -113,8 +113,8 @@ class PolicyCommand(referencing.ReferencedPrototypeCommand):
     def _apply_fields_ast(self, context, node):
         super()._apply_fields_ast(context, node)
         if node.event is None:
-            event_name = Policy.normalize_name(self.prototype_name)
-            node.event = qlast.PrototypeRefNode(
+            event_name = Policy.normalize_name(self.classname)
+            node.event = qlast.ClassRefNode(
                 name=event_name.name,
                 module=event_name.module
             )
@@ -123,20 +123,20 @@ class PolicyCommand(referencing.ReferencedPrototypeCommand):
         if op.property == 'name':
             pass
         elif op.property == 'event':
-            node.event = qlast.PrototypeRefNode(
-                name=op.new_value.prototype_name.name,
-                module=op.new_value.prototype_name.module
+            node.event = qlast.ClassRefNode(
+                name=op.new_value.classname.name,
+                module=op.new_value.classname.module
             )
         elif op.property == 'actions':
-            node.actions = [qlast.PrototypeRefNode(
-                name=a.prototype_name.name,
-                module=a.prototype_name.module
+            node.actions = [qlast.ClassRefNode(
+                name=a.classname.name,
+                module=a.classname.module
             ) for a in op.new_value]
         else:
             pass
 
 
-class CreatePolicy(PolicyCommand, named.CreateNamedPrototype):
+class CreatePolicy(PolicyCommand, named.CreateNamedClass):
     astnode = qlast.CreateLocalPolicyNode
 
     @classmethod
@@ -144,27 +144,27 @@ class CreatePolicy(PolicyCommand, named.CreateNamedPrototype):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
         parent_ctx = context.get(sd.CommandContextToken)
-        subject_name = parent_ctx.op.prototype_name
+        subject_name = parent_ctx.op.classname
 
         cmd.update((
-            sd.AlterPrototypeProperty(
+            sd.AlterClassProperty(
                 property='subject',
-                new_value=so.PrototypeRef(prototype_name=subject_name)
+                new_value=so.ClassRef(classname=subject_name)
             ),
-            sd.AlterPrototypeProperty(
+            sd.AlterClassProperty(
                 property='event',
-                new_value=so.PrototypeRef(
-                    prototype_name=sn.Name(
+                new_value=so.ClassRef(
+                    classname=sn.Name(
                         module=astnode.event.module,
                         name=astnode.event.name
                     )
                 )
             ),
-            sd.AlterPrototypeProperty(
+            sd.AlterClassProperty(
                 property='actions',
-                new_value=so.PrototypeList(
-                    so.PrototypeRef(
-                        prototype_name=sn.Name(
+                new_value=so.ClassList(
+                    so.ClassRef(
+                        classname=sn.Name(
                             module=action.module,
                             name=action.name
                         )
@@ -177,11 +177,11 @@ class CreatePolicy(PolicyCommand, named.CreateNamedPrototype):
         return cmd
 
 
-class RenamePolicy(PolicyCommand, named.RenameNamedPrototype):
+class RenamePolicy(PolicyCommand, named.RenameNamedClass):
     pass
 
 
-class AlterPolicy(PolicyCommand, named.AlterNamedPrototype):
+class AlterPolicy(PolicyCommand, named.AlterNamedClass):
     astnode = qlast.AlterLocalPolicyNode
 
     @classmethod
@@ -189,11 +189,11 @@ class AlterPolicy(PolicyCommand, named.AlterNamedPrototype):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
         cmd.update((
-            sd.AlterPrototypeProperty(
+            sd.AlterClassProperty(
                 property='actions',
-                new_value=so.PrototypeList(
-                    so.PrototypeRef(
-                        prototype_name=sn.Name(
+                new_value=so.ClassList(
+                    so.ClassRef(
+                        classname=sn.Name(
                             module=action.module,
                             name=action.name
                         )
@@ -206,11 +206,11 @@ class AlterPolicy(PolicyCommand, named.AlterNamedPrototype):
         return cmd
 
 
-class DeletePolicy(PolicyCommand, named.DeleteNamedPrototype):
+class DeletePolicy(PolicyCommand, named.DeleteNamedClass):
     pass
 
 
-class Action(primary.Prototype):
+class Action(primary.Class):
     _type = 'action'
 
     delta_driver = sd.DeltaDriver(
@@ -221,11 +221,11 @@ class Action(primary.Prototype):
     )
 
 
-class ActionSet(so.PrototypeSet, type=Action):
+class ActionSet(so.ClassSet, type=Action):
     pass
 
 
-class Event(primary.Prototype):
+class Event(primary.Class):
     _type = 'event'
 
     delta_driver = sd.DeltaDriver(
@@ -236,7 +236,7 @@ class Event(primary.Prototype):
     )
 
 
-class Policy(derivable.DerivablePrototype):
+class Policy(derivable.DerivableClass):
     _type = 'policy'
 
     delta_driver = sd.DeltaDriver(
@@ -248,7 +248,7 @@ class Policy(derivable.DerivablePrototype):
 
     # Policy subject, i.e object in the schema to which
     # this policy is applied
-    subject = so.Field(named.NamedPrototype, compcoef=0.714)
+    subject = so.Field(named.NamedClass, compcoef=0.714)
     # Event
     event = so.Field(Event, compcoef=0.429)
     # Actions in response to an event
@@ -263,14 +263,14 @@ class Policy(derivable.DerivablePrototype):
         return policy
 
 
-class InternalPolicySubject(referencing.ReferencingPrototype):
+class InternalPolicySubject(referencing.ReferencingClass):
     policy = referencing.RefDict(ref_cls=Policy, compcoef=0.857)
 
     def add_policy(self, policy, replace=False):
-        self.add_protoref('policy', policy, replace=replace)
+        self.add_classref('policy', policy, replace=replace)
 
-    def del_policy(self, policy_name, protoschema):
-        self.del_protoref('policy', policy_name, protoschema)
+    def del_policy(self, policy_name, schema):
+        self.del_classref('policy', policy_name, schema)
 
 
 class PolicySubject:

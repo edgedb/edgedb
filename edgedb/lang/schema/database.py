@@ -67,7 +67,7 @@ class AlterDatabase(DatabaseCommand):
 
             for link in schema(type='link'):
                 if link.target and not isinstance(link.target,
-                                                  so.BasePrototype):
+                                                  so.Class):
                     link.target = schema.get(link.target)
 
                 link.acquire_ancestor_inheritance(schema)
@@ -75,7 +75,7 @@ class AlterDatabase(DatabaseCommand):
 
             for link in schema(type='computable'):
                 if link.target and not isinstance(link.target,
-                                                  so.BasePrototype):
+                                                  so.Class):
                     link.target = schema.get(link.target)
 
             for concept in schema(type='concept'):

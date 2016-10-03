@@ -102,4 +102,4 @@ class Surface(GeometryContainer):
 
 class Polygon(Surface):
     geo_class_id = 3
-    geo_class_name = 'Polygon'
+    geo_classname = 'Polygon'

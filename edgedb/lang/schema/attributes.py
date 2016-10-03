@@ -17,19 +17,19 @@ from . import primary
 from . import referencing
 
 
-class AttributeCommandContext(sd.PrototypeCommandContext):
+class AttributeCommandContext(sd.ClassCommandContext):
     pass
 
 
-class AttributeCommand(sd.PrototypeCommand):
+class AttributeCommand(sd.ClassCommand):
     context_class = AttributeCommandContext
 
     @classmethod
-    def _get_prototype_class(cls):
+    def _get_metaclass(cls):
         return Attribute
 
 
-class CreateAttribute(AttributeCommand, named.CreateNamedPrototype):
+class CreateAttribute(AttributeCommand, named.CreateNamedClass):
     astnode = qlast.CreateAttributeNode
 
     @classmethod
@@ -41,18 +41,18 @@ class CreateAttribute(AttributeCommand, named.CreateNamedPrototype):
 
             subtypes = []
             for st in astnode.type.subtypes:
-                stref = so.PrototypeRef(
-                    prototype_name=sn.Name(module=st.module, name=st.name))
+                stref = so.ClassRef(
+                    classname=sn.Name(module=st.module, name=st.name))
                 subtypes.append(stref)
 
             typ = coll.from_subtypes(subtypes)
         else:
             mtn = sn.Name(module=astnode.type.maintype.module,
                           name=astnode.type.maintype.name)
-            typ = so.PrototypeRef(prototype_name=mtn)
+            typ = so.ClassRef(classname=mtn)
 
         cmd.add(
-            sd.AlterPrototypeProperty(
+            sd.AlterClassProperty(
                 property='type',
                 new_value=typ
             )
@@ -68,7 +68,7 @@ class CreateAttribute(AttributeCommand, named.CreateNamedPrototype):
                 stt = tp.get_subtypes()
 
                 for st in stt:
-                    eltype = qlast.PrototypeRefNode(module=st.module,
+                    eltype = qlast.ClassRefNode(module=st.module,
                                                     name=st.name)
                 tnn = qlast.TypeNameNode(
                     maintype=maintype,
@@ -82,15 +82,15 @@ class CreateAttribute(AttributeCommand, named.CreateNamedPrototype):
             super()._apply_field_ast(context, node, op)
 
 
-class RenameAttribute(AttributeCommand, named.RenameNamedPrototype):
+class RenameAttribute(AttributeCommand, named.RenameNamedClass):
     pass
 
 
-class AlterAttribute(AttributeCommand, named.AlterNamedPrototype):
+class AlterAttribute(AttributeCommand, named.AlterNamedClass):
     pass
 
 
-class DeleteAttribute(AttributeCommand, named.DeleteNamedPrototype):
+class DeleteAttribute(AttributeCommand, named.DeleteNamedClass):
     astnode = qlast.DropAttributeNode
 
 
@@ -98,21 +98,21 @@ class AttributeSubjectCommandContext:
     pass
 
 
-class AttributeSubjectCommand(sd.PrototypeCommand):
+class AttributeSubjectCommand(sd.ClassCommand):
     def _create_innards(self, schema, context):
         super()._create_innards(schema, context)
 
         for op in self(AttributeValueCommand):
             op.apply(schema, context=context)
 
-    def _alter_innards(self, schema, context, prototype):
-        super()._alter_innards(schema, context, prototype)
+    def _alter_innards(self, schema, context, scls):
+        super()._alter_innards(schema, context, scls)
 
         for op in self(AttributeValueCommand):
             op.apply(schema, context=context)
 
-    def _delete_innards(self, schema, context, prototype):
-        super()._delete_innards(schema, context, prototype)
+    def _delete_innards(self, schema, context, scls):
+        super()._delete_innards(schema, context, scls)
 
         for op in self(AttributeValueCommand):
             op.apply(schema, context=context)
@@ -124,23 +124,23 @@ class AttributeSubjectCommand(sd.PrototypeCommand):
             self._append_subcmd_ast(node, op, context)
 
 
-class AttributeValueCommandContext(sd.PrototypeCommandContext):
+class AttributeValueCommandContext(sd.ClassCommandContext):
     pass
 
 
-class AttributeValueCommand(sd.PrototypeCommand):
+class AttributeValueCommand(sd.ClassCommand):
     context_class = AttributeValueCommandContext
 
     @classmethod
-    def _get_prototype_class(cls):
+    def _get_metaclass(cls):
         return AttributeValue
 
     @classmethod
-    def _protoname_from_ast(cls, astnode, context):
-        propname = super()._protoname_from_ast(astnode, context)
+    def _classname_from_ast(cls, astnode, context):
+        propname = super()._classname_from_ast(astnode, context)
 
         parent_ctx = context.get(sd.CommandContextToken)
-        subject_name = parent_ctx.op.prototype_name
+        subject_name = parent_ctx.op.classname
 
         pnn = AttributeValue.generate_specialized_name(
             subject_name, sn.Name(propname)
@@ -157,7 +157,7 @@ class AttributeValueCommand(sd.PrototypeCommand):
             propname = astnode.name.module + '::' + propname
 
         if '::' not in propname:
-            return sd.AlterPrototypeProperty._cmd_tree_from_ast(
+            return sd.AlterClassProperty._cmd_tree_from_ast(
                 astnode, context)
         else:
             return super()._cmd_tree_from_ast(astnode, context, schema)
@@ -169,7 +169,7 @@ class AttributeValueCommand(sd.PrototypeCommand):
         parent.del_attribute(attribute_class, schema)
 
 
-class CreateAttributeValue(AttributeValueCommand, named.CreateNamedPrototype):
+class CreateAttributeValue(AttributeValueCommand, named.CreateNamedClass):
     astnode = qlast.CreateAttributeValueNode
 
     @classmethod
@@ -179,11 +179,11 @@ class CreateAttributeValue(AttributeValueCommand, named.CreateNamedPrototype):
             propname = astnode.name.module + '::' + propname
 
         if '::' not in propname:
-            return sd.AlterPrototypeProperty._cmd_tree_from_ast(
+            return sd.AlterClassProperty._cmd_tree_from_ast(
                 astnode, context, schema)
 
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
-        propname = AttributeValue.normalize_name(cmd.prototype_name)
+        propname = AttributeValue.normalize_name(cmd.classname)
 
         val = astnode.value
         if isinstance(val, qlast.ConstantNode):
@@ -195,18 +195,18 @@ class CreateAttributeValue(AttributeValueCommand, named.CreateNamedPrototype):
             raise ValueError(msg.format(val))
 
         parent_ctx = context.get(sd.CommandContextToken)
-        subject_name = parent_ctx.op.prototype_name
+        subject_name = parent_ctx.op.classname
 
         cmd.update((
-            sd.AlterPrototypeProperty(
+            sd.AlterClassProperty(
                 property='subject',
-                new_value=so.PrototypeRef(prototype_name=subject_name)
+                new_value=so.ClassRef(classname=subject_name)
             ),
-            sd.AlterPrototypeProperty(
+            sd.AlterClassProperty(
                 property='attribute',
-                new_value=so.PrototypeRef(prototype_name=propname)
+                new_value=so.ClassRef(classname=propname)
             ),
-            sd.AlterPrototypeProperty(
+            sd.AlterClassProperty(
                 property='value',
                 new_value=value
             )
@@ -233,19 +233,19 @@ class CreateAttributeValue(AttributeValueCommand, named.CreateNamedPrototype):
 
         with context(AttributeValueCommandContext(self, None)):
             name = AttributeValue.normalize_name(
-                self.prototype_name)
-            attribute = attrsubj.proto.local_attributes.get(name)
+                self.classname)
+            attribute = attrsubj.scls.local_attributes.get(name)
             if attribute is None:
                 attribute = super().apply(schema, context)
-                self.add_attribute(attribute, attrsubj.proto, schema)
+                self.add_attribute(attribute, attrsubj.scls, schema)
             else:
-                attribute = named.AlterNamedPrototype.apply(
+                attribute = named.AlterNamedClass.apply(
                     self, schema, context)
 
             return attribute
 
 
-class RenameAttributeValue(AttributeValueCommand, named.RenameNamedPrototype):
+class RenameAttributeValue(AttributeValueCommand, named.RenameNamedClass):
     def apply(self, schema, context):
         result = super().apply(schema, context)
 
@@ -255,25 +255,25 @@ class RenameAttributeValue(AttributeValueCommand, named.RenameNamedPrototype):
 
         norm = AttributeValue.normalize_name
 
-        own = attrsubj.proto.local_attributes.pop(
-            norm(self.prototype_name), None)
+        own = attrsubj.scls.local_attributes.pop(
+            norm(self.classname), None)
         if own:
-            attrsubj.proto.local_attributes[norm(self.new_name)] = own
+            attrsubj.scls.local_attributes[norm(self.new_name)] = own
 
-        inherited = attrsubj.proto.attributes.pop(
-            norm(self.prototype_name), None)
+        inherited = attrsubj.scls.attributes.pop(
+            norm(self.classname), None)
         if inherited is not None:
-            attrsubj.proto.attributes[norm(self.new_name)] = inherited
+            attrsubj.scls.attributes[norm(self.new_name)] = inherited
 
         return result
 
 
-class AlterAttributeValue(AttributeValueCommand, named.AlterNamedPrototype):
+class AlterAttributeValue(AttributeValueCommand, named.AlterNamedClass):
     astnode = qlast.AlterAttributeValueNode
 
     def _apply_fields_ast(self, context, node):
         super()._apply_fields_ast(context, node)
-        for op in self(sd.AlterPrototypeProperty):
+        for op in self(sd.AlterClassProperty):
             if op.property == 'value':
                 node.value = qlast.ConstantNode(value=op.new_value)
 
@@ -296,7 +296,7 @@ class AlterAttributeValue(AttributeValueCommand, named.AlterNamedPrototype):
             return super().apply(schema, context)
 
 
-class DeleteAttributeValue(AttributeValueCommand, named.DeleteNamedPrototype):
+class DeleteAttributeValue(AttributeValueCommand, named.DeleteNamedClass):
     astnode = qlast.DropAttributeValueNode
 
     def apply(self, schema, context):
@@ -304,15 +304,15 @@ class DeleteAttributeValue(AttributeValueCommand, named.DeleteNamedPrototype):
         assert attrsubj, "Attribute commands must be run in " + \
                          "AttributeSubject context"
 
-        self.delete_attribute(self.prototype_name, attrsubj.proto, schema)
+        self.delete_attribute(self.classname, attrsubj.scls, schema)
 
         return super().apply(schema, context)
 
 
-class Attribute(primary.Prototype):
+class Attribute(primary.Class):
     _type = 'attribute'
 
-    type = so.Field(so.ProtoNode, compcoef=0.909)
+    type = so.Field(so.Class, compcoef=0.909)
 
     delta_driver = sd.DeltaDriver(
         create=CreateAttribute,
@@ -322,10 +322,10 @@ class Attribute(primary.Prototype):
     )
 
 
-class AttributeValue(derivable.DerivablePrototype):
+class AttributeValue(derivable.DerivableClass):
     _type = 'attribute-value'
 
-    subject = so.Field(named.NamedPrototype, compcoef=1.0)
+    subject = so.Field(named.NamedClass, compcoef=1.0)
     attribute = so.Field(Attribute, compcoef=0.429)
     value = so.Field(object, compcoef=0.909)
 
@@ -345,7 +345,7 @@ class AttributeValue(derivable.DerivablePrototype):
     __repr__ = __str__
 
 
-class AttributeSubject(referencing.ReferencingPrototype):
+class AttributeSubject(referencing.ReferencingClass):
     attributes = referencing.RefDict(ref_cls=AttributeValue, compcoef=0.909)
 
     def __init__(self, **kwargs):
@@ -353,11 +353,11 @@ class AttributeSubject(referencing.ReferencingPrototype):
         self._attr_name_cache = None
 
     def add_attribute(self, attribute, replace=False):
-        self.add_protoref('attributes', attribute, replace=replace)
+        self.add_classref('attributes', attribute, replace=replace)
         self._attr_name_cache = None
 
-    def del_attribute(self, attribute_name, proto_schema):
-        self.del_protoref('attributes', attribute_name, proto_schema)
+    def del_attribute(self, attribute_name, schema):
+        self.del_classref('attributes', attribute_name, schema)
 
     def delta_all_attributes(self, old, new, delta, context):
         oldattributes = old.local_attributes if old else {}

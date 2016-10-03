@@ -79,7 +79,7 @@ class LinkMapping(enum.StrEnum):
         return result
 
 
-class LinkSearchConfiguration(so.BasePrototype):
+class LinkSearchConfiguration(so.Class):
     weight = so.Field(LinkSearchWeight, default=None, compcoef=0.9)
 
 
@@ -87,21 +87,21 @@ class LinkSourceCommandContext(sources.SourceCommandContext):
     pass
 
 
-class LinkSourceCommand(sd.PrototypeCommand):
+class LinkSourceCommand(sd.ClassCommand):
     def _create_innards(self, schema, context):
         super()._create_innards(schema, context)
 
         for op in self(LinkCommand):
             op.apply(schema, context=context)
 
-    def _alter_innards(self, schema, context, prototype):
-        super()._alter_innards(schema, context, prototype)
+    def _alter_innards(self, schema, context, scls):
+        super()._alter_innards(schema, context, scls)
 
         for op in self(LinkCommand):
             op.apply(schema, context=context)
 
-    def _delete_innards(self, schema, context, prototype):
-        super()._delete_innards(schema, context, prototype)
+    def _delete_innards(self, schema, context, scls):
+        super()._delete_innards(schema, context, scls)
 
         for op in self(LinkCommand):
             op.apply(schema, context=context)
@@ -127,11 +127,11 @@ class LinkCommand(lproperties.LinkPropertySourceCommand,
     referrer_context_class = LinkSourceCommandContext
 
     @classmethod
-    def _get_prototype_class(cls):
+    def _get_metaclass(cls):
         return Link
 
 
-class CreateLink(LinkCommand, referencing.CreateReferencedPrototype):
+class CreateLink(LinkCommand, referencing.CreateReferencedClass):
     astnode = [qlast.CreateConcreteLinkNode, qlast.CreateLinkNode]
     referenced_astnode = qlast.CreateConcreteLinkNode
 
@@ -143,7 +143,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedPrototype):
 
         if isinstance(astnode, qlast.CreateConcreteLinkNode):
             cmd.add(
-                sd.AlterPrototypeProperty(
+                sd.AlterClassProperty(
                     property='required',
                     new_value=astnode.is_required
                 )
@@ -151,9 +151,9 @@ class CreateLink(LinkCommand, referencing.CreateReferencedPrototype):
 
             # "source" attribute is set automatically as a refdict back-attr
             parent_ctx = context.get(LinkSourceCommandContext)
-            source_name = parent_ctx.op.prototype_name
+            source_name = parent_ctx.op.classname
 
-            for ap in cmd(sd.AlterPrototypeProperty):
+            for ap in cmd(sd.AlterClassProperty):
                 if ap.property == 'search_weight':
                     ap.property = 'search'
                     ap.new_value = LinkSearchConfiguration(
@@ -165,11 +165,11 @@ class CreateLink(LinkCommand, referencing.CreateReferencedPrototype):
 
             if len(astnode.targets) > 1:
                 cmd.add(
-                    sd.AlterPrototypeProperty(
+                    sd.AlterClassProperty(
                         property='spectargets',
-                        new_value=so.PrototypeList([
-                            so.PrototypeRef(
-                                prototype_name=sn.Name(
+                        new_value=so.ClassList([
+                            so.ClassRef(
+                                classname=sn.Name(
                                     module=t.module,
                                     name=t.name
                                 )
@@ -185,23 +185,23 @@ class CreateLink(LinkCommand, referencing.CreateReferencedPrototype):
                     module=source_name.module
                 )
 
-                target = so.PrototypeRef(prototype_name=target_name)
+                target = so.ClassRef(classname=target_name)
 
                 create_virt_parent = concepts.CreateConcept(
-                    prototype_name=target_name,
-                    prototype_class=concepts.Concept
+                    classname=target_name,
+                    metaclass=concepts.Concept
                 )
 
                 create_virt_parent.update((
-                    sd.AlterPrototypeProperty(
+                    sd.AlterClassProperty(
                         property='name',
                         new_value=target_name
                     ),
-                    sd.AlterPrototypeProperty(
+                    sd.AlterClassProperty(
                         property='is_virtual',
                         new_value=True
                     ),
-                    sd.AlterPrototypeProperty(
+                    sd.AlterClassProperty(
                         property='is_derived',
                         new_value=True
                     )
@@ -210,20 +210,20 @@ class CreateLink(LinkCommand, referencing.CreateReferencedPrototype):
                 alter_db_ctx = context.get(s_db.DatabaseCommandContext)
 
                 for cc in alter_db_ctx.op(concepts.CreateConcept):
-                    if cc.prototype_name == create_virt_parent.prototype_name:
+                    if cc.classname == create_virt_parent.classname:
                         break
                 else:
                     alter_db_ctx.op.add(create_virt_parent)
             else:
-                target = so.PrototypeRef(
-                    prototype_name=sn.Name(
+                target = so.ClassRef(
+                    classname=sn.Name(
                         module=astnode.targets[0].module,
                         name=astnode.targets[0].name
                     )
                 )
 
             cmd.add(
-                sd.AlterPrototypeProperty(
+                sd.AlterClassProperty(
                     property='target',
                     new_value=target
                 )
@@ -231,48 +231,48 @@ class CreateLink(LinkCommand, referencing.CreateReferencedPrototype):
 
             base_prop_name = sn.Name('std::source')
             s_name = lproperties.LinkProperty.generate_specialized_name(
-                        cmd.prototype_name, base_prop_name)
+                        cmd.classname, base_prop_name)
             src_prop_name = sn.Name(name=s_name,
-                                    module=cmd.prototype_name.module)
+                                    module=cmd.classname.module)
 
             src_prop = lproperties.CreateLinkProperty(
-                prototype_name=src_prop_name,
-                prototype_class=lproperties.LinkProperty
+                classname=src_prop_name,
+                metaclass=lproperties.LinkProperty
             )
             src_prop.update((
-                sd.AlterPrototypeProperty(
+                sd.AlterClassProperty(
                     property='name',
                     new_value=src_prop_name
                 ),
-                sd.AlterPrototypeProperty(
+                sd.AlterClassProperty(
                     property='bases',
                     new_value=[
-                        so.PrototypeRef(
-                            prototype_name=base_prop_name
+                        so.ClassRef(
+                            classname=base_prop_name
                         )
                     ]
                 ),
-                sd.AlterPrototypeProperty(
+                sd.AlterClassProperty(
                     property='source',
-                    new_value=so.PrototypeRef(
-                        prototype_name=cmd.prototype_name
+                    new_value=so.ClassRef(
+                        classname=cmd.classname
                     )
                 ),
-                sd.AlterPrototypeProperty(
+                sd.AlterClassProperty(
                     property='target',
-                    new_value=so.PrototypeRef(
-                        prototype_name=source_name
+                    new_value=so.ClassRef(
+                        classname=source_name
                     )
                 ),
-                sd.AlterPrototypeProperty(
+                sd.AlterClassProperty(
                     property='required',
                     new_value=True
                 ),
-                sd.AlterPrototypeProperty(
+                sd.AlterClassProperty(
                     property='readonly',
                     new_value=True
                 ),
-                sd.AlterPrototypeProperty(
+                sd.AlterClassProperty(
                     property='loading',
                     new_value='eager'
                 )
@@ -282,46 +282,46 @@ class CreateLink(LinkCommand, referencing.CreateReferencedPrototype):
 
             base_prop_name = sn.Name('std::target')
             s_name = lproperties.LinkProperty.generate_specialized_name(
-                        cmd.prototype_name, base_prop_name)
+                        cmd.classname, base_prop_name)
             tgt_prop_name = sn.Name(name=s_name,
-                                    module=cmd.prototype_name.module)
+                                    module=cmd.classname.module)
 
             tgt_prop = lproperties.CreateLinkProperty(
-                prototype_name=tgt_prop_name,
-                prototype_class=lproperties.LinkProperty
+                classname=tgt_prop_name,
+                metaclass=lproperties.LinkProperty
             )
             tgt_prop.update((
-                sd.AlterPrototypeProperty(
+                sd.AlterClassProperty(
                     property='name',
                     new_value=tgt_prop_name
                 ),
-                sd.AlterPrototypeProperty(
+                sd.AlterClassProperty(
                     property='bases',
                     new_value=[
-                        so.PrototypeRef(
-                            prototype_name=base_prop_name
+                        so.ClassRef(
+                            classname=base_prop_name
                         )
                     ]
                 ),
-                sd.AlterPrototypeProperty(
+                sd.AlterClassProperty(
                     property='source',
-                    new_value=so.PrototypeRef(
-                        prototype_name=cmd.prototype_name
+                    new_value=so.ClassRef(
+                        classname=cmd.classname
                     )
                 ),
-                sd.AlterPrototypeProperty(
+                sd.AlterClassProperty(
                     property='target',
                     new_value=target
                 ),
-                sd.AlterPrototypeProperty(
+                sd.AlterClassProperty(
                     property='required',
                     new_value=False
                 ),
-                sd.AlterPrototypeProperty(
+                sd.AlterClassProperty(
                     property='readonly',
                     new_value=True
                 ),
-                sd.AlterPrototypeProperty(
+                sd.AlterClassProperty(
                     property='loading',
                     new_value='eager'
                 )
@@ -349,8 +349,8 @@ class CreateLink(LinkCommand, referencing.CreateReferencedPrototype):
         elif op.property == 'spectargets':
             if op.new_value:
                 node.targets = [
-                    qlast.PrototypeRefNode(name=t.prototype_name.name,
-                                           module=t.prototype_name.module)
+                    qlast.ClassRefNode(name=t.classname.name,
+                                           module=t.classname.module)
                     for t in op.new_value
                 ]
         elif op.property == 'default':
@@ -365,9 +365,9 @@ class CreateLink(LinkCommand, referencing.CreateReferencedPrototype):
                 self._set_attribute_ast(context, node, 'search_weight', v)
         elif op.property == 'target' and concept:
             if not node.targets:
-                t = op.new_value.prototype_name
+                t = op.new_value.classname
                 node.targets = [
-                    qlast.PrototypeRefNode(name=t.name, module=t.module)
+                    qlast.ClassRefNode(name=t.name, module=t.module)
                 ]
         else:
             super()._apply_field_ast(context, node, op)
@@ -378,7 +378,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedPrototype):
         concept = context.get(LinkSourceCommandContext)
 
         for op in self(lproperties.LinkPropertyCommand):
-            name = op.prototype_class.normalize_name(op.prototype_name)
+            name = op.metaclass.normalize_name(op.classname)
             if name not in {'std::source',
                             'std::target'}:
                 self._append_subcmd_ast(node, op, context)
@@ -394,11 +394,11 @@ class CreateLink(LinkCommand, referencing.CreateReferencedPrototype):
             self._append_subcmd_ast(node, op, context)
 
 
-class RenameLink(LinkCommand, named.RenameNamedPrototype):
+class RenameLink(LinkCommand, named.RenameNamedClass):
     pass
 
 
-class RebaseLink(LinkCommand, inheriting.RebaseNamedPrototype):
+class RebaseLink(LinkCommand, inheriting.RebaseNamedClass):
     pass
 
 
@@ -407,7 +407,7 @@ class AlterTarget(sd.Command):
 
     @classmethod
     def _cmd_from_ast(cls, astnode, context, schema):
-        return sd.AlterPrototypeProperty(property='target')
+        return sd.AlterClassProperty(property='target')
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
@@ -416,17 +416,17 @@ class AlterTarget(sd.Command):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
         parent_ctx = context.get(LinkSourceCommandContext)
-        source_name = parent_ctx.op.prototype_name
+        source_name = parent_ctx.op.classname
 
         if len(astnode.targets) > 1:
             alter_ptr_ctx = context.get(pointers.PointerCommandContext)
 
             alter_ptr_ctx.op.add(
-                sd.AlterPrototypeProperty(
+                sd.AlterClassProperty(
                     property='spectargets',
-                    new_value=so.PrototypeList([
-                        so.PrototypeRef(
-                            prototype_name=sn.Name(
+                    new_value=so.ClassList([
+                        so.ClassRef(
+                            classname=sn.Name(
                                 module=t.module,
                                 name=t.name
                             )
@@ -442,23 +442,23 @@ class AlterTarget(sd.Command):
                 module=source_name.module
             )
 
-            target = so.PrototypeRef(prototype_name=target_name)
+            target = so.ClassRef(classname=target_name)
 
             create_virt_parent = concepts.CreateConcept(
-                prototype_name=target_name,
-                prototype_class=concepts.Concept
+                classname=target_name,
+                metaclass=concepts.Concept
             )
 
             create_virt_parent.update((
-                sd.AlterPrototypeProperty(
+                sd.AlterClassProperty(
                     property='name',
                     new_value=target_name
                 ),
-                sd.AlterPrototypeProperty(
+                sd.AlterClassProperty(
                     property='is_virtual',
                     new_value=True
                 ),
-                sd.AlterPrototypeProperty(
+                sd.AlterClassProperty(
                     property='is_derived',
                     new_value=True
                 )
@@ -467,13 +467,13 @@ class AlterTarget(sd.Command):
             alter_db_ctx = context.get(s_db.DatabaseCommandContext)
 
             for cc in alter_db_ctx.op(concepts.CreateConcept):
-                if cc.prototype_name == create_virt_parent.prototype_name:
+                if cc.classname == create_virt_parent.classname:
                     break
             else:
                 alter_db_ctx.op.add(create_virt_parent)
         else:
-            target = so.PrototypeRef(
-                prototype_name=sn.Name(
+            target = so.ClassRef(
+                classname=sn.Name(
                     module=astnode.targets[0].module,
                     name=astnode.targets[0].name
                 )
@@ -484,7 +484,7 @@ class AlterTarget(sd.Command):
         return cmd
 
 
-class AlterLink(LinkCommand, named.AlterNamedPrototype):
+class AlterLink(LinkCommand, named.AlterNamedClass):
     astnode = [qlast.AlterLinkNode, qlast.AlterConcreteLinkNode]
     referenced_astnode = qlast.AlterConcreteLinkNode
 
@@ -493,7 +493,7 @@ class AlterLink(LinkCommand, named.AlterNamedPrototype):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
         if isinstance(astnode, qlast.AlterConcreteLinkNode):
-            for ap in cmd(sd.AlterPrototypeProperty):
+            for ap in cmd(sd.AlterClassProperty):
                 if ap.property == 'search_weight':
                     ap.property = 'search'
                     if ap.new_value is not None:
@@ -537,8 +537,8 @@ class AlterLink(LinkCommand, named.AlterNamedPrototype):
             if op.new_value:
                 node.commands.append(qlast.AlterTargetNode(
                     targets=[
-                        qlast.PrototypeRefNode(name=t.prototype_name.name,
-                                               module=t.prototype_name.module)
+                        qlast.ClassRefNode(name=t.classname.name,
+                                               module=t.classname.module)
                         for t in op.new_value
                     ]
                 ))
@@ -546,9 +546,9 @@ class AlterLink(LinkCommand, named.AlterNamedPrototype):
             if op.new_value:
                 node.commands.append(qlast.AlterTargetNode(
                     targets=[
-                        qlast.PrototypeRefNode(
-                            name=op.new_value.prototype_name.name,
-                            module=op.new_value.prototype_name.module)
+                        qlast.ClassRefNode(
+                            name=op.new_value.classname.name,
+                            module=op.new_value.classname.module)
                     ]
                 ))
         elif op.property == 'source':
@@ -563,7 +563,7 @@ class AlterLink(LinkCommand, named.AlterNamedPrototype):
             super()._apply_field_ast(context, node, op)
 
 
-class DeleteLink(LinkCommand, named.DeleteNamedPrototype):
+class DeleteLink(LinkCommand, named.DeleteNamedClass):
     astnode = [qlast.DropLinkNode, qlast.DropConcreteLinkNode]
     referenced_astnode = qlast.DropConcreteLinkNode
 
@@ -597,7 +597,7 @@ class DeleteLink(LinkCommand, named.DeleteNamedPrototype):
 class Link(pointers.Pointer, sources.Source):
     _type = 'link'
 
-    spectargets = so.Field(named.NamedPrototypeSet, named.NamedPrototypeSet,
+    spectargets = so.Field(named.NamedClassSet, named.NamedClassSet,
                            coerce=True)
 
     mapping = so.Field(LinkMapping, default=None,
@@ -721,7 +721,7 @@ class Link(pointers.Pointer, sources.Source):
             if dctx is not None:
                 from . import delta as sd
 
-                dctx.current().op.add(sd.AlterPrototypeProperty(
+                dctx.current().op.add(sd.AlterClassProperty(
                     property='mapping',
                     new_value=self.mapping,
                     source='default'

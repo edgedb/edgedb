@@ -54,7 +54,7 @@ class RefDict:
                               ref_cls=self.ref_cls, compcoef=self.compcoef)
 
 
-class RebaseReferencingPrototype(inheriting.RebaseNamedPrototype):
+class RebaseReferencingClass(inheriting.RebaseNamedClass):
     def apply(self, schema, context):
         this_obj = super().apply(schema, context)
 
@@ -71,7 +71,7 @@ class RebaseReferencingPrototype(inheriting.RebaseNamedPrototype):
                 for ref_name in coll.copy():
                     if ref_name not in local_coll:
                         try:
-                            obj.get_protoref_origin(
+                            obj.get_classref_origin(
                                 ref_name, attr, local_attr, backref)
                         except KeyError:
                             del coll[ref_name]
@@ -79,7 +79,7 @@ class RebaseReferencingPrototype(inheriting.RebaseNamedPrototype):
         return this_obj
 
 
-class ReferencingPrototypeMeta(type(inheriting.InheritingPrototype)):
+class ReferencingClassMeta(type(inheriting.InheritingClass)):
     def __new__(mcls, name, bases, clsdict):
         refdicts = {}
         mydicts = {k: v for k, v in clsdict.items() if isinstance(v, RefDict)}
@@ -88,7 +88,7 @@ class ReferencingPrototypeMeta(type(inheriting.InheritingPrototype)):
         for parent in reversed(cls.__mro__):
             if parent is cls:
                 refdicts.update(mydicts)
-            elif isinstance(parent, ReferencingPrototypeMeta):
+            elif isinstance(parent, ReferencingClassMeta):
                 refdicts.update({k: d.copy()
                                 for k, d in parent.get_own_refdicts().items()})
 
@@ -135,16 +135,16 @@ class ReferencingPrototypeMeta(type(inheriting.InheritingPrototype)):
         return cls._refdicts_by_refclass[refcls]
 
 
-class ReferencedPrototypeCommand(derivable.DerivablePrototypeCommand):
+class ReferencedClassCommand(derivable.DerivableClassCommand):
     @classmethod
-    def _protoname_from_ast(cls, astnode, context):
-        name = super()._protoname_from_ast(astnode, context)
+    def _classname_from_ast(cls, astnode, context):
+        name = super()._classname_from_ast(astnode, context)
 
         parent_ctx = context.get(cls.referrer_context_class)
         if parent_ctx is not None:
-            referrer_name = parent_ctx.op.prototype_name
+            referrer_name = parent_ctx.op.classname
 
-            pcls = cls._get_prototype_class()
+            pcls = cls._get_metaclass()
             pnn = pcls.generate_specialized_name(
                 referrer_name, sn.Name(name)
             )
@@ -167,11 +167,11 @@ class ReferencedPrototypeCommand(derivable.DerivablePrototypeCommand):
     def _create_begin(self, schema, context):
         referrer_ctx = context.get(self.referrer_context_class)
         if referrer_ctx is not None:
-            referrer = referrer_ctx.proto
+            referrer = referrer_ctx.scls
             attrs = self.get_struct_properties(schema)
-            basename = self.prototype_class.normalize_name(self.prototype_name)
-            base = schema.get(basename, type=self.prototype_class)
-            self.prototype = base.derive(schema, referrer, attrs=attrs,
+            basename = self.metaclass.normalize_name(self.classname)
+            base = schema.get(basename, type=self.metaclass)
+            self.scls = base.derive(schema, referrer, attrs=attrs,
                                          add_to_schema=True, init_props=False)
         else:
             super()._create_begin(schema, context)
@@ -181,37 +181,37 @@ class ReferencedPrototypeCommand(derivable.DerivablePrototypeCommand):
 
         referrer_ctx = context.get(self.referrer_context_class)
         if referrer_ctx is not None:
-            referrer = referrer_ctx.proto
+            referrer = referrer_ctx.scls
             refdict = referrer.__class__.get_refdict_for_class(
-                self.prototype.__class__)
+                self.scls.__class__)
 
             if refdict.backref_attr:
                 # Set the back-reference on referenced object
                 # to the referrer.
-                setattr(self.prototype, refdict.backref_attr, referrer)
+                setattr(self.scls, refdict.backref_attr, referrer)
                 # Add the newly created referenced object to the
                 # appropriate refdict in self and all descendants
                 # that don't already have an existing reference.
                 #
-                referrer.add_protoref(refdict.attr, self.prototype)
-                refname = self.prototype.normalize_name(self.prototype.name)
+                referrer.add_classref(refdict.attr, self.scls)
+                refname = self.scls.normalize_name(self.scls.name)
                 for child in referrer.descendants(schema):
                     child_local_coll = getattr(child, refdict.local_attr)
                     child_coll = getattr(child, refdict.attr)
                     if refname not in child_local_coll:
-                        child_coll[refname] = self.prototype
+                        child_coll[refname] = self.scls
 
-    def _rename_innards(self, schema, context, prototype):
-        super()._rename_innards(schema, context, prototype)
+    def _rename_innards(self, schema, context, scls):
+        super()._rename_innards(schema, context, scls)
 
         referrer_ctx = context.get(self.referrer_context_class)
         if referrer_ctx is not None:
-            referrer = referrer_ctx.proto
-            old_name = prototype.normalize_name(self.old_name)
-            new_name = prototype.normalize_name(self.new_name)
+            referrer = referrer_ctx.scls
+            old_name = scls.normalize_name(self.old_name)
+            new_name = scls.normalize_name(self.new_name)
 
             refdict = referrer.__class__.get_refdict_for_class(
-                prototype.__class__)
+                scls.__class__)
 
             attr = refdict.attr
             local_attr = refdict.local_attr
@@ -233,32 +233,32 @@ class ReferencedPrototypeCommand(derivable.DerivablePrototypeCommand):
             if ref is not None:
                 coll[new_name] = ref
 
-    def _delete_innards(self, schema, context, prototype):
-        super()._delete_innards(schema, context, prototype)
+    def _delete_innards(self, schema, context, scls):
+        super()._delete_innards(schema, context, scls)
 
         referrer_ctx = context.get(self.referrer_context_class)
         if referrer_ctx is not None:
-            referrer = referrer_ctx.proto
+            referrer = referrer_ctx.scls
             refdict = referrer.__class__.get_refdict_for_class(
-                prototype.__class__)
-            referrer.del_protoref(refdict.attr, prototype.name, schema)
+                scls.__class__)
+            referrer.del_classref(refdict.attr, scls.name, schema)
 
 
-class CreateReferencedPrototype(inheriting.CreateInheritingPrototype):
+class CreateReferencedClass(inheriting.CreateInheritingClass):
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
         if isinstance(astnode, cls.referenced_astnode):
-            objcls = cls._get_prototype_class()
-            nname = objcls.normalize_name(cmd.prototype_name)
+            objcls = cls._get_metaclass()
+            nname = objcls.normalize_name(cmd.classname)
 
             cmd.add(
-                sd.AlterPrototypeProperty(
+                sd.AlterClassProperty(
                     property='bases',
-                    new_value=so.PrototypeList([
-                        so.PrototypeRef(
-                            prototype_name=sn.Name(
+                    new_value=so.ClassList([
+                        so.ClassRef(
+                            classname=sn.Name(
                                 module=nname.module,
                                 name=nname.name
                             )
@@ -268,22 +268,22 @@ class CreateReferencedPrototype(inheriting.CreateInheritingPrototype):
             )
 
             referrer_ctx = context.get(cls.referrer_context_class)
-            referrer_class = referrer_ctx.op.prototype_class
-            referrer_name = referrer_ctx.op.prototype_name
+            referrer_class = referrer_ctx.op.metaclass
+            referrer_name = referrer_ctx.op.classname
             refdict = referrer_class.get_refdict_for_class(objcls)
 
             cmd.add(
-                sd.AlterPrototypeProperty(
+                sd.AlterClassProperty(
                     property=refdict.backref_attr,
-                    new_value=so.PrototypeRef(
-                        prototype_name=referrer_name
+                    new_value=so.ClassRef(
+                        classname=referrer_name
                     )
                 )
             )
 
             if getattr(astnode, 'is_abstract', None):
                 cmd.add(
-                    sd.AlterPrototypeProperty(
+                    sd.AlterClassProperty(
                         property='is_abstract',
                         new_value=True
                     )
@@ -292,19 +292,19 @@ class CreateReferencedPrototype(inheriting.CreateInheritingPrototype):
         return cmd
 
     @classmethod
-    def _protobases_from_ast(cls, astnode, context):
+    def _classbases_from_ast(cls, astnode, context):
         if isinstance(astnode, cls.referenced_astnode):
             # The bases will be populated by a call to derive()
             # from within _create_begin()
             bases = None
         else:
-            bases = super()._protobases_from_ast(astnode, context)
+            bases = super()._classbases_from_ast(astnode, context)
 
         return bases
 
 
-class ReferencingPrototype(inheriting.InheritingPrototype,
-                           metaclass=ReferencingPrototypeMeta):
+class ReferencingClass(inheriting.InheritingClass,
+                           metaclass=ReferencingClassMeta):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -318,11 +318,11 @@ class ReferencingPrototype(inheriting.InheritingPrototype,
             attr = refdict.attr
             local_attr = refdict.local_attr
             title = refdict.title
-            state[local_attr] = self._get_protoref_dict(local_attr)
+            state[local_attr] = self._get_classref_dict(local_attr)
 
             coll = getattr(self, attr)
             state[attr] = [
-                (n, self.get_protoref_origin(n, attr, local_attr, title).name)
+                (n, self.get_classref_origin(n, attr, local_attr, title).name)
                 for n in coll
             ]
 
@@ -344,9 +344,9 @@ class ReferencingPrototype(inheriting.InheritingPrototype,
         for refdict in self.__class__.get_refdicts():
             attr = refdict.attr
             local_attr = refdict.local_attr
-            self._resolve_protoref_dict(
+            self._resolve_classref_dict(
                     _objects, _resolve, local_attr)
-            self._resolve_inherited_protoref_dict(
+            self._resolve_inherited_classref_dict(
                     _objects, _resolve, attr, local_attr)
 
     @hybridmethod
@@ -357,7 +357,7 @@ class ReferencingPrototype(inheriting.InheritingPrototype,
             obj = scope
             cls = obj.__class__
 
-        result = super(ReferencingPrototype, cls).copy(obj)
+        result = super(ReferencingClass, cls).copy(obj)
 
         for refdict in obj.__class__.get_refdicts():
             attr = refdict.attr
@@ -390,7 +390,7 @@ class ReferencingPrototype(inheriting.InheritingPrototype,
                 else:
                     theirs = set()
 
-                ref_similarity = so.PrototypeSet.compare_values(
+                ref_similarity = so.ClassSet.compare_values(
                                     ours, theirs, context=context,
                                     compcoef=refdict.compcoef)
 
@@ -402,7 +402,7 @@ class ReferencingPrototype(inheriting.InheritingPrototype,
         super().merge(obj, schema=schema, dctx=None)
 
         for refdict in self.__class__.get_refdicts():
-            # Merge prototype references in each registered collection.
+            # Merge Class references in each registered collection.
             #
             this_coll = getattr(self, refdict.attr)
             other_coll = getattr(obj, refdict.attr)
@@ -419,7 +419,7 @@ class ReferencingPrototype(inheriting.InheritingPrototype,
 
         with context(old, new):
             delta = super().delta(other, reverse=reverse, context=context)
-            if isinstance(delta, sd.CreatePrototype):
+            if isinstance(delta, sd.CreateClass):
                 # If this is a CREATE delta, we need to make
                 # sure it is returned separately from the creation
                 # of references, which will go into a separate ALTER
@@ -459,7 +459,7 @@ class ReferencingPrototype(inheriting.InheritingPrototype,
 
         return full_delta
 
-    def get_protoref_origin(self, name, attr, local_attr, classname,
+    def get_classref_origin(self, name, attr, local_attr, classname,
                                                           farthest=False):
         assert name in getattr(self, attr)
 
@@ -470,7 +470,7 @@ class ReferencingPrototype(inheriting.InheritingPrototype,
 
         if not result or farthest:
             bases = (c for c in self.get_mro()[1:]
-                     if isinstance(c, named.NamedPrototype))
+                     if isinstance(c, named.NamedClass))
 
             for c in bases:
                 if name in getattr(c, local_attr):
@@ -484,7 +484,7 @@ class ReferencingPrototype(inheriting.InheritingPrototype,
 
         return result
 
-    def add_protoref(self, collection, obj, replace=False):
+    def add_classref(self, collection, obj, replace=False):
         refdict = self.__class__.get_refdict(collection)
         attr = refdict.attr
         local_attr = refdict.local_attr
@@ -503,7 +503,7 @@ class ReferencingPrototype(inheriting.InheritingPrototype,
         local_coll[key] = obj
         all_coll[key] = obj
 
-    def del_protoref(self, collection, obj_name, schema):
+    def del_classref(self, collection, obj_name, schema):
         refdict = self.__class__.get_refdict(collection)
         attr = refdict.attr
         local_attr = refdict.local_attr
@@ -526,27 +526,27 @@ class ReferencingPrototype(inheriting.InheritingPrototype,
 
         local_coll.pop(key, None)
 
-    def _get_protoref_dict(self, attr):
+    def _get_classref_dict(self, attr):
         values = getattr(self, attr)
         result = collections.OrderedDict()
 
         if values:
             for k, v in values.items():
-                if isinstance(v, named.NamedPrototype):
-                    v = so.PrototypeRef(prototype_name=v.name)
+                if isinstance(v, named.NamedClass):
+                    v = so.ClassRef(classname=v.name)
                 result[k] = v
 
         return result
 
-    def _resolve_protoref_dict(self, _objects, _resolve, local_attr):
+    def _resolve_classref_dict(self, _objects, _resolve, local_attr):
         values = getattr(self, local_attr)
 
         if values:
             for n, v in values.items():
-                if isinstance(v, so.PrototypeRef):
-                    values[n] = _resolve(v.prototype_name)
+                if isinstance(v, so.ClassRef):
+                    values[n] = _resolve(v.classname)
 
-    def _resolve_inherited_protoref_dict(self, _objects, _resolve,
+    def _resolve_inherited_classref_dict(self, _objects, _resolve,
                                                attr, local_attr):
         values = getattr(self, attr)
 
@@ -560,7 +560,7 @@ class ReferencingPrototype(inheriting.InheritingPrototype,
                 except KeyError:
                     if _mro is None:
                         _mro = {c.name: c for c in self.get_mro()
-                                if isinstance(c, named.NamedPrototype)}
+                                if isinstance(c, named.NamedClass)}
                     subj = _objects[origin] = _mro[origin]
 
                 attrs[an] = getattr(subj, local_attr)[an]
@@ -579,27 +579,27 @@ class ReferencingPrototype(inheriting.InheritingPrototype,
             backref_attr = refdict.backref_attr
             ref_cls = refdict.ref_cls
 
-            ref_keys = self.begin_protoref_dict_merge(
+            ref_keys = self.begin_classref_dict_merge(
                                      schema, bases=bases, attr=attr)
 
-            self.merge_protoref_dict(schema, bases=bases, attr=attr,
+            self.merge_classref_dict(schema, bases=bases, attr=attr,
                                      local_attr=local_attr,
                                      backref_attr=backref_attr,
-                                     protorefcls=ref_cls,
-                                     protoref_keys=ref_keys,
+                                     classrefcls=ref_cls,
+                                     classref_keys=ref_keys,
                                      dctx=dctx)
 
-            self.finish_protoref_dict_merge(schema, bases=bases, attr=attr)
+            self.finish_classref_dict_merge(schema, bases=bases, attr=attr)
 
-    def begin_protoref_dict_merge(self, schema, bases, attr):
+    def begin_classref_dict_merge(self, schema, bases, attr):
         pass
 
-    def finish_protoref_dict_merge(self, schema, bases, attr):
+    def finish_classref_dict_merge(self, schema, bases, attr):
         pass
 
-    def merge_protoref_dict(self, schema, bases, attr, local_attr,
-                            backref_attr, protorefcls,
-                            protoref_keys=None, *, dctx=None):
+    def merge_classref_dict(self, schema, bases, attr, local_attr,
+                            backref_attr, classrefcls,
+                            classref_keys=None, *, dctx=None):
         """Merge reference collections from bases.
 
         :param schema:         The schema.
@@ -616,27 +616,27 @@ class ReferencingPrototype(inheriting.InheritingPrototype,
                                  object containing the reference back to
                                  this object.
 
-        :param protorefcls:    Referenced object class.
+        :param classrefcls:    Referenced object class.
 
-        :param protorefkeys:   An optional list of reference keys to consider
+        :param classrefkeys:   An optional list of reference keys to consider
                                for merging.  If not specified, all keys
                                in the collection will be used.
         """
-        protorefs = getattr(self, attr)
-        local_protorefs = getattr(self, local_attr)
+        classrefs = getattr(self, attr)
+        local_classrefs = getattr(self, local_attr)
 
         ODict = collections.OrderedDict
 
-        if protoref_keys is None:
-            protoref_keys = protorefs
+        if classref_keys is None:
+            classref_keys = classrefs
 
-        for protoref_key in protoref_keys:
-            local = local_protorefs.get(protoref_key)
+        for classref_key in classref_keys:
+            local = local_classrefs.get(classref_key)
 
-            base_refs = [getattr(b, attr, {}).get(protoref_key) for b in bases]
+            base_refs = [getattr(b, attr, {}).get(classref_key) for b in bases]
             inherited = filter(lambda i: i is not None, base_refs)
 
-            # Build a list of (source_proto, target_proto) tuples
+            # Build a list of (source_class, target_class) tuples
             # for this key.
             #
             inherited = list(ODict((getattr(pref, backref_attr), pref)
@@ -661,7 +661,7 @@ class ReferencingPrototype(inheriting.InheritingPrototype,
                 # as when a pointer has abstract constraints that must
                 # be materialized on inheritance.  We delegate the
                 # decision to the referenced class here.
-                merged = protorefcls.inherit_pure(
+                merged = classrefcls.inherit_pure(
                     schema, item, source=self, dctx=dctx)
                 pure_inheritance = merged is item
 
@@ -676,9 +676,9 @@ class ReferencingPrototype(inheriting.InheritingPrototype,
                         if delta.has_subcommands():
                             dctx.current().op.add(delta)
 
-                    local_protorefs[protoref_key] = merged
+                    local_classrefs[classref_key] = merged
 
-                protorefs[protoref_key] = merged
+                classrefs[classref_key] = merged
 
     def init_derived(self, schema, source, *qualifiers, as_copy,
                      merge_bases=None, add_to_schema=False, mark_derived=False,
@@ -690,12 +690,12 @@ class ReferencingPrototype(inheriting.InheritingPrototype,
             attrs=attrs, dctx=dctx, merge_bases=merge_bases, **kwargs)
 
         if as_copy:
-            derived.rederive_protorefs(schema, add_to_schema=add_to_schema,
+            derived.rederive_classrefs(schema, add_to_schema=add_to_schema,
                                        mark_derived=mark_derived)
 
         return derived
 
-    def rederive_protorefs(self, schema, add_to_schema=False,
+    def rederive_classrefs(self, schema, add_to_schema=False,
                            mark_derived=False, dctx=None):
         for refdict in self.__class__.get_refdicts():
             attr = refdict.attr

@@ -40,7 +40,7 @@ class BaseObject(LangMarkup):
 
 class Object(BaseObject):
     class_module = Field(str)
-    class_name = Field(str)
+    classname = Field(str)
     repr = Field(str, default=None)
     attributes = Field(base.MarkupMapping, default=None, coerce=True)
 

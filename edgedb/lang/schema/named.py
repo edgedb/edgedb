@@ -18,27 +18,27 @@ from . import objects as so
 from . import name as sn
 
 
-class NamedPrototypeCommand(sd.PrototypeCommand):
-    prototype_name = so.Field(sn.Name)
+class NamedClassCommand(sd.ClassCommand):
+    classname = so.Field(sn.Name)
 
     @classmethod
-    def _protoname_from_ast(cls, astnode, context):
-        prototype_name = sn.Name(module=astnode.name.module or 'std',
+    def _classname_from_ast(cls, astnode, context):
+        classname = sn.Name(module=astnode.name.module or 'std',
                                  name=astnode.name.name)
-        return prototype_name
+        return classname
 
     @classmethod
     def _cmd_from_ast(cls, astnode, context, schema):
-        gpc = getattr(cls, '_get_prototype_class', None)
+        gpc = getattr(cls, '_get_metaclass', None)
         if not callable(gpc):
-            msg = 'cannot determine prototype_class for {}' \
+            msg = 'cannot determine metaclass for {}' \
                         .format(cls.__name__)
             raise NotImplementedError(msg)
 
-        prototype_name = cls._protoname_from_ast(astnode, context)
-        prototype_class = gpc()
-        cmd = cls(prototype_name=prototype_name,
-                  prototype_class=prototype_class)
+        classname = cls._classname_from_ast(astnode, context)
+        metaclass = gpc()
+        cmd = cls(classname=classname,
+                  metaclass=metaclass)
 
         return cmd
 
@@ -52,15 +52,15 @@ class NamedPrototypeCommand(sd.PrototypeCommand):
 
     def _get_ast(self, context):
         astnode = self._get_ast_node(context)
-        if isinstance(self.prototype_name, sn.Name):
-            if hasattr(self.prototype_class, 'normalize_name'):
-                nname = self.prototype_class.normalize_name(
-                            self.prototype_name)
+        if isinstance(self.classname, sn.Name):
+            if hasattr(self.metaclass, 'normalize_name'):
+                nname = self.metaclass.normalize_name(
+                            self.classname)
             else:
-                nname = self.prototype_name
-            name = qlast.PrototypeRefNode(module=nname.module, name=nname.name)
+                nname = self.classname
+            name = qlast.ClassRefNode(module=nname.module, name=nname.name)
         else:
-            name = qlast.PrototypeRefNode(module='', name=self.prototype_name)
+            name = qlast.ClassRefNode(module='', name=self.classname)
 
         if astnode.get_field('name'):
             op = astnode(name=name)
@@ -76,20 +76,20 @@ class NamedPrototypeCommand(sd.PrototypeCommand):
             value = qlast.ExpressionTextNode(expr=str(value))
 
         as_expr = isinstance(value, qlast.ExpressionTextNode)
-        name_ref = qlast.PrototypeRefNode(
+        name_ref = qlast.ClassRefNode(
             name=name, module='')
         node.commands.append(qlast.CreateAttributeValueNode(
             name=name_ref, value=value, as_expr=as_expr))
 
     def _drop_attribute_ast(self, context, node, name):
-        name_ref = qlast.PrototypeRefNode(name=name, module='')
+        name_ref = qlast.ClassRefNode(name=name, module='')
         node.commands.append(qlast.DropAttributeValueNode(name=name_ref))
 
     def _apply_fields_ast(self, context, node):
-        for op in self(RenameNamedPrototype):
+        for op in self(RenameNamedClass):
             self._append_subcmd_ast(node, op, context)
 
-        for op in self(sd.AlterPrototypeProperty):
+        for op in self(sd.AlterClassProperty):
             self._apply_field_ast(context, node, op)
 
     def _apply_field_ast(self, context, node, op):
@@ -103,26 +103,26 @@ class NamedPrototypeCommand(sd.PrototypeCommand):
     def _create_begin(self, schema, context):
         super()._create_begin(schema, context)
 
-        if schema.get(self.prototype_name, default=None,
-                      type=self.prototype_class):
+        if schema.get(self.classname, default=None,
+                      type=self.metaclass):
             raise ValueError(
-                '{!r} already exists in schema'.format(self.prototype_name))
-        schema.add(self.prototype)
+                '{!r} already exists in schema'.format(self.classname))
+        schema.add(self.scls)
 
 
-class CreateOrAlterNamedPrototype(NamedPrototypeCommand):
+class CreateOrAlterNamedClass(NamedClassCommand):
     pass
 
 
-class CreateNamedPrototype(CreateOrAlterNamedPrototype, sd.CreatePrototype):
+class CreateNamedClass(CreateOrAlterNamedClass, sd.CreateClass):
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
         cmd.add(
-            sd.AlterPrototypeProperty(
+            sd.AlterClassProperty(
                 property='name',
-                new_value=cmd.prototype_name
+                new_value=cmd.classname
             )
         )
 
@@ -133,8 +133,8 @@ class CreateNamedPrototype(CreateOrAlterNamedPrototype, sd.CreatePrototype):
             pass
         elif op.property == 'bases':
             node.bases = [
-                qlast.PrototypeRefNode(name=b.prototype_name.name,
-                                       module=b.prototype_name.module)
+                qlast.ClassRefNode(name=b.classname.name,
+                                       module=b.classname.module)
                 for b in op.new_value
             ]
         elif op.property == 'mro':
@@ -147,22 +147,22 @@ class CreateNamedPrototype(CreateOrAlterNamedPrototype, sd.CreatePrototype):
             super()._apply_field_ast(context, node, op)
 
     def apply(self, schema, context):
-        if schema.get(self.prototype_name, default=None,
-                      type=self.prototype_class):
+        if schema.get(self.classname, default=None,
+                      type=self.metaclass):
             raise ValueError('{!r} already exists in schema'
-                                .format(self.prototype_name))
+                                .format(self.classname))
 
-        proto = sd.CreatePrototype.apply(self, schema, context)
-        schema.add(proto)
-        return proto
+        scls = sd.CreateClass.apply(self, schema, context)
+        schema.add(scls)
+        return scls
 
     def __repr__(self):
         return '<%s.%s "%s">' % (self.__class__.__module__,
                                  self.__class__.__name__,
-                                 self.prototype_name)
+                                 self.classname)
 
 
-class RenameNamedPrototype(NamedPrototypeCommand):
+class RenameNamedClass(NamedClassCommand):
     astnode = qlast.RenameNode
 
     new_name = so.Field(sn.Name)
@@ -170,45 +170,45 @@ class RenameNamedPrototype(NamedPrototypeCommand):
     def __repr__(self):
         return '<%s.%s "%s" to "%s">' % (self.__class__.__module__,
                                          self.__class__.__name__,
-                                         self.prototype_name, self.new_name)
+                                         self.classname, self.new_name)
 
-    def _rename_begin(self, schema, context, prototype):
-        schema.drop_inheritance_cache(prototype)
-        schema.drop_inheritance_cache_for_child(prototype)
+    def _rename_begin(self, schema, context, scls):
+        schema.drop_inheritance_cache(scls)
+        schema.drop_inheritance_cache_for_child(scls)
 
-        self.old_name = self.prototype_name
-        schema.delete(prototype)
-        prototype.name = self.new_name
-        schema.add(prototype)
+        self.old_name = self.classname
+        schema.delete(scls)
+        scls.name = self.new_name
+        schema.add(scls)
 
         parent_ctx = context.get(sd.CommandContextToken)
-        for subop in parent_ctx.op(NamedPrototypeCommand):
-            if subop is not self and subop.prototype_name == self.old_name:
-                subop.prototype_name = self.new_name
+        for subop in parent_ctx.op(NamedClassCommand):
+            if subop is not self and subop.classname == self.old_name:
+                subop.classname = self.new_name
 
-        return prototype
+        return scls
 
-    def _rename_innards(self, schema, context, prototype):
+    def _rename_innards(self, schema, context, scls):
         pass
 
-    def _rename_finalize(self, schema, context, prototype):
+    def _rename_finalize(self, schema, context, scls):
         pass
 
     def apply(self, schema, context):
-        prototype = schema.get(self.prototype_name, type=self.prototype_class)
-        self.prototype = prototype
+        scls = schema.get(self.classname, type=self.metaclass)
+        self.scls = scls
 
-        self._rename_begin(schema, context, prototype)
-        self._rename_innards(schema, context, prototype)
-        self._rename_finalize(schema, context, prototype)
+        self._rename_begin(schema, context, scls)
+        self._rename_innards(schema, context, scls)
+        self._rename_finalize(schema, context, scls)
 
-        return prototype
+        return scls
 
     def _get_ast(self, context):
         astnode = self._get_ast_node(context)
 
-        if hasattr(self.prototype_class, 'normalize_name'):
-            new_name = self.prototype_class.normalize_name(self.new_name)
+        if hasattr(self.metaclass, 'normalize_name'):
+            new_name = self.metaclass.normalize_name(self.new_name)
         else:
             new_name = self.new_name
 
@@ -221,22 +221,22 @@ class RenameNamedPrototype(NamedPrototypeCommand):
         else:
             new_name = self.new_name
 
-        ref = qlast.PrototypeRefNode(
+        ref = qlast.ClassRefNode(
             name=new_name.name, module=new_name.module)
         return astnode(new_name=ref)
 
     @classmethod
     def _cmd_from_ast(cls, astnode, context, schema):
         parent_ctx = context.get(sd.CommandContextToken)
-        parent_class = parent_ctx.op.prototype_class
-        rename_class = NamedPrototypeMeta.get_rename_command(parent_class)
+        parent_class = parent_ctx.op.metaclass
+        rename_class = NamedClassMeta.get_rename_command(parent_class)
         return rename_class._rename_cmd_from_ast(astnode, context)
 
     @classmethod
     def _rename_cmd_from_ast(cls, astnode, context):
         parent_ctx = context.get(sd.CommandContextToken)
-        parent_class = parent_ctx.op.prototype_class
-        rename_class = NamedPrototypeMeta.get_rename_command(parent_class)
+        parent_class = parent_ctx.op.metaclass
+        rename_class = NamedClassMeta.get_rename_command(parent_class)
 
         new_name = astnode.new_name
         if new_name.name.startswith('__b32_'):
@@ -245,8 +245,8 @@ class RenameNamedPrototype(NamedPrototypeCommand):
             new_name = sn.Name(module=new_name.module, name=new_nname)
 
         return rename_class(
-            prototype_class=parent_class,
-            prototype_name=parent_ctx.op.prototype_name,
+            metaclass=parent_class,
+            classname=parent_ctx.op.classname,
             new_name=sn.Name(
                 module=new_name.module,
                 name=new_name.name
@@ -254,7 +254,7 @@ class RenameNamedPrototype(NamedPrototypeCommand):
         )
 
 
-class AlterNamedPrototype(CreateOrAlterNamedPrototype):
+class AlterNamedClass(CreateOrAlterNamedClass):
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
@@ -266,8 +266,8 @@ class AlterNamedPrototype(CreateOrAlterNamedPrototype):
             for astcmd in astnode.commands:
                 if isinstance(astcmd, qlast.AlterDropInheritNode):
                     dropped_bases.extend(
-                        so.PrototypeRef(
-                            prototype_name=sn.Name(
+                        so.ClassRef(
+                            classname=sn.Name(
                                 module=b.module,
                                 name=b.name
                             )
@@ -277,8 +277,8 @@ class AlterNamedPrototype(CreateOrAlterNamedPrototype):
 
                 elif isinstance(astcmd, qlast.AlterAddInheritNode):
                     bases = [
-                        so.PrototypeRef(
-                            prototype_name=sn.Name(
+                        so.ClassRef(
+                            classname=sn.Name(
                                 module=b.module, name=b.name))
                         for b in astcmd.bases
                     ]
@@ -294,13 +294,13 @@ class AlterNamedPrototype(CreateOrAlterNamedPrototype):
                     added_bases.append((bases, pos))
 
         if added_bases or dropped_bases:
-            parent_class = cmd.prototype_class
-            rebase_class = NamedPrototypeMeta.get_rebase_command(parent_class)
+            parent_class = cmd.metaclass
+            rebase_class = NamedClassMeta.get_rebase_command(parent_class)
 
             cmd.add(
                 rebase_class(
-                    prototype_class=parent_class,
-                    prototype_name=cmd.prototype_name,
+                    metaclass=parent_class,
+                    classname=cmd.classname,
                     removed_bases=tuple(dropped_bases),
                     added_bases=tuple(added_bases)
                 )
@@ -313,7 +313,7 @@ class AlterNamedPrototype(CreateOrAlterNamedPrototype):
 
         parent_ctx = context.get(sd.CommandContextToken)
         parent_op = parent_ctx.op
-        rebase = next(iter(parent_op(inheriting.RebaseNamedPrototype)))
+        rebase = next(iter(parent_op(inheriting.RebaseNamedClass)))
 
         dropped = rebase.removed_bases
         added = rebase.added_bases
@@ -322,9 +322,9 @@ class AlterNamedPrototype(CreateOrAlterNamedPrototype):
             node.commands.append(
                 qlast.AlterDropInheritNode(
                     bases=[
-                        qlast.PrototypeRefNode(
-                            module=b.prototype_name.module,
-                            name=b.prototype_name.name
+                        qlast.ClassRefNode(
+                            module=b.classname.module,
+                            name=b.classname.name
                         )
                         for b in dropped
                     ]
@@ -335,18 +335,18 @@ class AlterNamedPrototype(CreateOrAlterNamedPrototype):
             if isinstance(pos, tuple):
                 pos_node = qlast.PositionNode(
                     position=pos[0],
-                    ref=qlast.PrototypeRefNode(
-                        module=pos[1].prototype_name.module,
-                        name=pos[1].prototype_name.name))
+                    ref=qlast.ClassRefNode(
+                        module=pos[1].classname.module,
+                        name=pos[1].classname.name))
             else:
                 pos_node = qlast.PositionNode(position=pos)
 
             node.commands.append(
                 qlast.AlterAddInheritNode(
                     bases=[
-                        qlast.PrototypeRefNode(
-                            module=b.prototype_name.module,
-                            name=b.prototype_name.name
+                        qlast.ClassRefNode(
+                            module=b.classname.module,
+                            name=b.classname.name
                         )
                         for b in bases
                     ],
@@ -380,63 +380,63 @@ class AlterNamedPrototype(CreateOrAlterNamedPrototype):
     def get_context_token(self):
         return self.context_class(self, None)
 
-    def _alter_begin(self, schema, context, prototype):
-        for op in self(RenameNamedPrototype):
+    def _alter_begin(self, schema, context, scls):
+        for op in self(RenameNamedClass):
             op.apply(schema, context)
 
         props = self.get_struct_properties(schema)
         for name, value in props.items():
-            setattr(prototype, name, value)
+            setattr(scls, name, value)
 
-        return prototype
+        return scls
 
-    def _alter_innards(self, schema, context, prototype):
+    def _alter_innards(self, schema, context, scls):
         pass
 
-    def _alter_finalize(self, schema, context, prototype):
+    def _alter_finalize(self, schema, context, scls):
         pass
 
     def apply(self, schema, context):
-        prototype = schema.get(self.prototype_name, type=self.prototype_class)
-        self.prototype = prototype
+        scls = schema.get(self.classname, type=self.metaclass)
+        self.scls = scls
 
-        with context(self.context_class(self, prototype)) as ctx:
-            ctx.original_proto = \
-                prototype.__class__.get_canonical_class().copy(prototype)
+        with context(self.context_class(self, scls)) as ctx:
+            ctx.original_class = \
+                scls.__class__.get_canonical_class().copy(scls)
 
-            self._alter_begin(schema, context, prototype)
-            self._alter_innards(schema, context, prototype)
-            self._alter_finalize(schema, context, prototype)
+            self._alter_begin(schema, context, scls)
+            self._alter_innards(schema, context, scls)
+            self._alter_finalize(schema, context, scls)
 
-        return prototype
+        return scls
 
 
-class DeleteNamedPrototype(NamedPrototypeCommand):
-    def _delete_begin(self, schema, context, prototype):
+class DeleteNamedClass(NamedClassCommand):
+    def _delete_begin(self, schema, context, scls):
         pass
 
-    def _delete_innards(self, schema, context, prototype):
+    def _delete_innards(self, schema, context, scls):
         pass
 
-    def _delete_finalize(self, schema, context, prototype):
-        schema.delete(prototype)
+    def _delete_finalize(self, schema, context, scls):
+        schema.delete(scls)
 
     def apply(self, schema, context=None):
-        prototype = schema.get(self.prototype_name, type=self.prototype_class)
-        self.prototype = prototype
-        self.old_prototype = prototype
+        scls = schema.get(self.classname, type=self.metaclass)
+        self.scls = scls
+        self.old_class = scls
 
-        with context(self.context_class(self, prototype)) as ctx:
-            ctx.original_proto = prototype
+        with context(self.context_class(self, scls)) as ctx:
+            ctx.original_class = scls
 
-            self._delete_begin(schema, context, prototype)
-            self._delete_innards(schema, context, prototype)
-            self._delete_finalize(schema, context, prototype)
+            self._delete_begin(schema, context, scls)
+            self._delete_innards(schema, context, scls)
+            self._delete_finalize(schema, context, scls)
 
-        return prototype
+        return scls
 
 
-class NamedPrototypeMeta(type(so.BasePrototype)):
+class NamedClassMeta(type(so.Class)):
     _rename_map = {}
     _rebase_map = {}
 
@@ -469,7 +469,7 @@ class NamedPrototypeMeta(type(so.BasePrototype)):
         return mcls._rebase_map.get(cobjcls)
 
 
-class NamedPrototype(so.BasePrototype, metaclass=NamedPrototypeMeta):
+class NamedClass(so.Class, metaclass=NamedClassMeta):
     name = so.Field(sn.Name, private=True, compcoef=0.640)
 
     def delta_properties(self, delta, other, reverse=False, context=None):
@@ -489,9 +489,9 @@ class NamedPrototype(so.BasePrototype, metaclass=NamedPrototypeMeta):
                     self.__class__.__name__)
             raise AttributeError(msg) from None
 
-        return delta_driver.rename(prototype_name=self.name,
+        return delta_driver.rename(classname=self.name,
                                    new_name=new_name,
-                                   prototype_class=self.get_canonical_class())
+                                   metaclass=self.get_canonical_class())
 
     @classmethod
     def compare_values(cls, ours, theirs, context, compcoef):
@@ -516,7 +516,7 @@ class NamedPrototype(so.BasePrototype, metaclass=NamedPrototypeMeta):
     __str__ = __repr__
 
 
-class NamedPrototypeList(so.PrototypeList, type=NamedPrototype):
+class NamedClassList(so.ClassList, type=NamedClass):
     def get_names(self):
         return tuple(ref.name for ref in self)
 
@@ -534,7 +534,7 @@ class NamedPrototypeList(so.PrototypeList, type=NamedPrototype):
             return 1.0
 
 
-class NamedPrototypeSet(so.PrototypeSet, type=NamedPrototype):
+class NamedClassSet(so.ClassSet, type=NamedClass):
     def get_names(self):
         return frozenset(ref.name for ref in self)
 

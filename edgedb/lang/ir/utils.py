@@ -107,7 +107,7 @@ def infer_type(ir, schema):
     elif isinstance(ir, irast.AtomicRefSimple):
         if isinstance(ir.ref, irast.PathCombination):
             targets = [t.concept for t in ir.ref.paths]
-            concept = s_utils.get_prototype_nearest_common_ancestor(targets)
+            concept = s_utils.get_class_nearest_common_ancestor(targets)
         else:
             concept = ir.ref.concept
 
@@ -123,10 +123,10 @@ def infer_type(ir, schema):
 
     elif isinstance(ir, irast.LinkPropRefSimple):
         if isinstance(ir.ref, irast.PathCombination):
-            targets = [t.link_proto for t in ir.ref.paths]
-            link = s_utils.get_prototype_nearest_common_ancestor(targets)
+            targets = [t.link_class for t in ir.ref.paths]
+            link = s_utils.get_class_nearest_common_ancestor(targets)
         else:
-            link = ir.ref.link_proto
+            link = ir.ref.link_class
 
         prop = link.getptr(schema, ir.name)
         assert prop, '"%s" is not a property of "%s"' % (ir.name, link.name)
@@ -202,11 +202,11 @@ def infer_type(ir, schema):
         result = None
 
     if result is not None:
-        allowed = (s_obj.ProtoObject, s_obj.PrototypeClass)
+        allowed = (s_obj.Class, s_obj.MetaClass)
         assert (isinstance(result, allowed) or
                 (isinstance(result, (tuple, list)) and
                  isinstance(result[1], allowed))), \
-               "infer_type({!r}) retured {!r} instead of a prototype" \
+               "infer_type({!r}) retured {!r} instead of a Class" \
                     .format(ir, result)
 
     return result
@@ -226,7 +226,7 @@ def get_source_references(ir):
                 if isinstance(node, irast.EntitySet):
                     result.append(node.concept)
                 else:
-                    result.append(node.link_proto)
+                    result.append(node.link_class)
 
     return set(result)
 
@@ -581,7 +581,7 @@ def copy_path(path: (irast.EntitySet, irast.EntityLink, irast.BaseRef),
             id=path.id,
             context=path.context,
             ref=path.ref,
-            ptr_proto=path.ptr_proto,
+            ptr_class=path.ptr_class,
             rewrite_flags=path.rewrite_flags.copy(),
             pathvar=path.pathvar,
             anchor=path.anchor,
@@ -607,7 +607,7 @@ def copy_path(path: (irast.EntitySet, irast.EntityLink, irast.BaseRef),
         link = irast.EntityLink(
             context=rlink.context,
             target=current,
-            link_proto=rlink.link_proto,
+            link_class=rlink.link_class,
             direction=rlink.direction,
             propfilter=rlink.propfilter,
             users=rlink.users.copy(),

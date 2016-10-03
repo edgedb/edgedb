@@ -53,7 +53,7 @@ class WKTSerializer(Serializer):
         return result
 
     def dumps(self, geometry):
-        tag = geometry.__class__.geo_class_name.upper()
+        tag = geometry.__class__.geo_classname.upper()
         if geometry.is_empty():
             text = ' EMPTY'
         else:

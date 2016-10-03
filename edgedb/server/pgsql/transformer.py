@@ -84,7 +84,7 @@ class TransformerContextLevel:
             self.in_aggregate = prevlevel.in_aggregate
             self.query = prevlevel.query
             self.backend = prevlevel.backend
-            self.proto_schema = prevlevel.proto_schema
+            self.schema = prevlevel.schema
             self.unwind_rlinks = prevlevel.unwind_rlinks
             self.aliascnt = prevlevel.aliascnt
             self.record_info = prevlevel.record_info
@@ -160,7 +160,7 @@ class TransformerContextLevel:
             self.in_aggregate = False
             self.query = pgsql.ast.SelectQueryNode()
             self.backend = None
-            self.proto_schema = None
+            self.schema = None
             self.subquery_map = {}
             self.direct_subquery_ref = False
             self.node_callbacks = {}
@@ -296,7 +296,7 @@ class Decompiler(ast.visitor.NodeVisitor):
                         context.current.source,
                         s_pointers.PointerDirection.Outbound, None)
                     entlink = irast.EntityLink(
-                        link_proto=context.current.source)
+                        link_class=context.current.source)
                     result = irast.LinkPropRefSimple(
                         ref=entlink, name=name, id=id)
             else:
@@ -346,7 +346,7 @@ class IRCompilerBase:
             cols = [(aref, common.edgedb_name_to_pg_name(aref))
                     for aref in atomrefs]
 
-            schema = context.current.proto_schema
+            schema = context.current.schema
 
             union_list = []
             children = frozenset(concept.children(schema))
@@ -481,30 +481,30 @@ class IRCompilerBase:
         return self._table_from_concept(
             context, node.concept, node, parent_cte)
 
-    def _table_from_link_proto(self, context, link_proto):
-        """Return a TableNode corresponding to a given link prototype."""
+    def _table_from_link_class(self, context, link_class):
+        """Return a TableNode corresponding to a given Link."""
         table_schema_name, table_name = common.get_table_name(
-            link_proto, catenate=False)
+            link_class, catenate=False)
         return pgsql.ast.TableNode(
             name=table_name, schema=table_schema_name,
             alias=context.current.genalias(hint=table_name))
 
-    def _relation_from_link_proto(
-            self, context, link_proto, direction, proprefs):
+    def _relation_from_link_class(
+            self, context, link_class, direction, proprefs):
         """"Return a Relation subclass corresponding to a given ptr step.
 
-        If `link_proto` is a generic link, then a simple TableNode is returned,
+        If `link_class` is a generic link, then a simple TableNode is returned,
         otherwise the return value may potentially be a UNION of all tables
         corresponding to a set of specialized links computed from the given
-        `link_proto` taking source inheritance into account.
+        `link_class` taking source inheritance into account.
         """
-        linkname = link_proto.normal_name()
-        endpoint = link_proto.source
+        linkname = link_class.normal_name()
+        endpoint = link_class.source
 
-        if link_proto.generic():
+        if link_class.generic():
             # Generic links would capture the necessary set via inheritance.
             #
-            relation = self._table_from_link_proto(context, link_proto)
+            relation = self._table_from_link_class(context, link_class)
 
         else:
             if proprefs:
@@ -513,26 +513,26 @@ class IRCompilerBase:
             else:
                 cols = []
 
-            schema = context.current.proto_schema
+            schema = context.current.schema
 
             union_list = []
 
-            link_protos = set()
+            link_classes = set()
 
             for source in {endpoint} | set(endpoint.descendants(schema)):
                 # Sift through the descendants to see who has this link
                 try:
-                    src_link_proto = source.pointers[linkname]
+                    src_link_class = source.pointers[linkname]
                 except KeyError:
                     # This source has no such link, skip it
                     continue
                 else:
-                    if src_link_proto in link_protos:
+                    if src_link_class in link_classes:
                         # Seen this link already
                         continue
-                    link_protos.add(src_link_proto)
+                    link_classes.add(src_link_class)
 
-                table = self._table_from_link_proto(context, src_link_proto)
+                table = self._table_from_link_class(context, src_link_class)
 
                 qry = pgsql.ast.SelectQueryNode()
                 qry.fromlist.append(table)
@@ -551,8 +551,8 @@ class IRCompilerBase:
                 # We've been given a generic link that none of the potential
                 # sources contain directly, so fall back to general parent
                 # table. #
-                relation = self._table_from_link_proto(
-                    context, link_proto.bases[0])
+                relation = self._table_from_link_class(
+                    context, link_class.bases[0])
 
             elif len(union_list) > 1:
                 # More than one link table, generate a UNION clause.
@@ -566,29 +566,29 @@ class IRCompilerBase:
                 relation = union_list[0].fromlist[0]
 
             relation.alias = context.current.genalias(
-                hint=link_proto.normal_name().name)
+                hint=link_class.normal_name().name)
 
         return relation
 
     def _relation_from_link(self, context, link_node):
         proprefs = {}
 
-        link_proto = link_node.link_proto
-        if link_proto is None:
-            link_proto = context.current.proto_schema.get('std::link')
+        link_class = link_node.link_class
+        if link_class is None:
+            link_class = context.current.schema.get('std::link')
 
-        for ptr in link_proto.get_special_pointers():
+        for ptr in link_class.get_special_pointers():
             proprefs[ptr] = irast.LinkPropRefSimple(ref=link_node, name=ptr)
 
-        if not link_proto.generic() and link_proto.atomic():
+        if not link_class.generic() and link_class.atomic():
             atom_target = sn.Name("std::target@atom")
             proprefs[atom_target] = irast.LinkPropRefSimple(
                 ref=link_node, name=atom_target)
 
         proprefs.update({f.name: f for f in link_node.proprefs})
 
-        relation = self._relation_from_link_proto(
-            context, link_proto, link_node.direction, proprefs)
+        relation = self._relation_from_link_class(
+            context, link_class, link_node.direction, proprefs)
         relation.edgedbnode = link_node
         return relation
 
@@ -597,7 +597,7 @@ class IRCompilerBase:
         attribute_map = []
         virtuals_map = {}
         testref = None
-        schema = context.current.proto_schema
+        schema = context.current.schema
 
         for i, e in enumerate(expr.elements):
             element = self._process_expr(context, e, cte)
@@ -608,18 +608,18 @@ class IRCompilerBase:
                 ptr_name = e.name
                 testref = element
             elif isinstance(e, irast.BaseRef):
-                ptr_name = e.ptr_proto.normal_name()
-                ptr_target = e.ptr_proto.target
+                ptr_name = e.ptr_class.normal_name()
+                ptr_target = e.ptr_class.target
                 if ptr_name == 'std::id':
                     testref = element
             elif isinstance(e, (irast.Record, irast.SubgraphRef)):
-                ptr_name = e.rlink.link_proto.normal_name()
+                ptr_name = e.rlink.link_class.normal_name()
                 ptr_direction = e.rlink.direction or \
                     s_pointers.PointerDirection.Outbound
                 if ptr_direction == s_pointers.PointerDirection.Outbound:
-                    ptr_target = e.rlink.link_proto.target
+                    ptr_target = e.rlink.link_class.target
                 else:
-                    ptr_target = e.rlink.link_proto.source
+                    ptr_target = e.rlink.link_class.source
 
             if isinstance(ptr_name, sn.Name):
                 if (
@@ -668,12 +668,12 @@ class IRCompilerBase:
             else:
                 raise ValueError('cannot find id ptr in entitityref record')
         else:
-            proto_class = expr.concept.get_canonical_class()
-            proto_class_name = '{}.{}'.format(
-                proto_class.__module__, proto_class.__name__)
+            metaclass = expr.concept.get_canonical_class()
+            metaclass_name = '{}.{}'.format(
+                metaclass.__module__, metaclass.__name__)
             marker = common.RecordInfo(
                 attribute_map=attribute_map, virtuals_map=virtuals_map,
-                proto_class=proto_class_name, proto_name=expr.concept.name)
+                metaclass=metaclass_name, classname=expr.concept.name)
 
             context.current.record_info[marker.id] = marker
             context.current.backend._register_record_info(marker)
@@ -838,7 +838,7 @@ class IRCompilerBase:
 
             elif funcname == 'lag' or funcname == 'lead':
 
-                schema = context.current.proto_schema
+                schema = context.current.schema
                 name = expr.name[1]
                 if len(args) > 1:
                     args[1] = pgsql.ast.TypeCastNode(
@@ -1064,8 +1064,8 @@ class IRCompilerBase:
 
         if isinstance(vector, irast.EntitySet):
             refs = [(
-                r, r.ptr_proto.search.weight
-                if r.ptr_proto.search else s_links.LinkSearchWeight.A)
+                r, r.ptr_class.search.weight
+                if r.ptr_class.search else s_links.LinkSearchWeight.A)
                 for r in self._text_search_refs(context, vector)]
 
         elif isinstance(vector, irast.Sequence):
@@ -1074,8 +1074,8 @@ class IRCompilerBase:
             for r in vector.elements:
                 if isinstance(r, irast.BaseRef):
                     refs.append((
-                        r, r.ptr_proto.search.weight
-                        if r.ptr_proto.search else s_links.LinkSearchWeight.A))
+                        r, r.ptr_class.search.weight
+                        if r.ptr_class.search else s_links.LinkSearchWeight.A))
                 elif (
                         isinstance(r, irast.FunctionCall) and
                         r.name == ('search', 'weight')):
@@ -1086,16 +1086,16 @@ class IRCompilerBase:
 
         elif isinstance(vector, irast.AtomicRef):
             link = vector.ref.concept.getptr(
-                context.current.proto_schema, vector.name)
+                context.current.schema, vector.name)
             ref = irast.AtomicRefSimple(
-                ref=vector.ref, name=vector.name, ptr_proto=link)
+                ref=vector.ref, name=vector.name, ptr_class=link)
             refs = [(
-                ref, ref.ptr_proto.search.weight
-                if ref.ptr_proto.search else s_links.LinkSearchWeight.A)]
+                ref, ref.ptr_class.search.weight
+                if ref.ptr_class.search else s_links.LinkSearchWeight.A)]
 
         elif isinstance(vector, irast.LinkPropRef):
             ref = irast.LinkPropRefSimple(
-                ref=vector.ref, name=vector.name, ptr_proto=vector.ptr_proto)
+                ref=vector.ref, name=vector.name, ptr_class=vector.ptr_class)
             refs = [(ref, s_links.LinkSearchWeight.A)]
 
         else:
@@ -1137,21 +1137,21 @@ class IRCompilerBase:
     def _schema_type_to_pg_type(self, context, schema_type):
         if isinstance(schema_type, s_atoms.Atom):
             const_type = types.pg_type_from_atom(
-                context.current.proto_schema, schema_type, topbase=True)
+                context.current.schema, schema_type, topbase=True)
         elif isinstance(schema_type, (s_concepts.Concept, s_links.Link)):
             const_type = 'json'
-        elif isinstance(schema_type, s_obj.PrototypeClass):
+        elif isinstance(schema_type, s_obj.MetaClass):
             const_type = 'int'
         elif isinstance(schema_type, tuple):
             item_type = schema_type[1]
             if isinstance(item_type, s_atoms.Atom):
                 item_type = types.pg_type_from_atom(
-                    context.current.proto_schema, item_type, topbase=True)
+                    context.current.schema, item_type, topbase=True)
                 const_type = '%s[]' % item_type
             elif isinstance(item_type, (s_concepts.Concept, s_links.Link)):
                 item_type = 'json'
                 const_type = '%s[]' % item_type
-            elif isinstance(item_type, s_obj.PrototypeClass):
+            elif isinstance(item_type, s_obj.MetaClass):
                 item_type = 'int'
                 const_type = '%s[]' % item_type
             else:
@@ -1210,7 +1210,7 @@ class IRCompilerBase:
         else:
             expr_type = None
 
-        schema = context.current.proto_schema
+        schema = context.current.schema
 
         pg_expr = self._process_expr(context, expr.expr, cte)
 
@@ -1229,11 +1229,11 @@ class IRCompilerBase:
                     'yet'.format(target_type.maintype))
 
         else:
-            int_proto = schema.get('std::int')
+            int_class = schema.get('std::int')
             target_type = schema.get(target_type.maintype)
 
             if (expr_type and expr_type is bool and
-                    target_type.issubclass(int_proto)):
+                    target_type.issubclass(int_class)):
                 when_expr = pgsql.ast.CaseWhenNode(
                     expr=pg_expr, result=pgsql.ast.ConstantNode(value=1))
                 default = pgsql.ast.ConstantNode(value=0)
@@ -1253,7 +1253,7 @@ class IRCompilerBase:
     def _process_index_indirection(self, context, expr, cte=None):
         is_string = False
         arg_type = irutils.infer_type(
-            expr.expr, context.current.proto_schema)
+            expr.expr, context.current.schema)
 
         subj = self._process_expr(context, expr.expr, cte)
         index = self._process_expr(context, expr.index, cte)
@@ -1308,7 +1308,7 @@ class IRCompilerBase:
 
         is_string = False
         arg_type = irutils.infer_type(
-            expr.expr, context.current.proto_schema)
+            expr.expr, context.current.schema)
 
         if isinstance(arg_type, s_atoms.Atom):
             b = arg_type.get_topmost_base()
@@ -1383,10 +1383,10 @@ class IRCompilerBase:
 
 
 class SimpleIRCompiler(IRCompilerBase):
-    def transform(self, expr, protoschema, local=False, link_bias=False):
+    def transform(self, expr, schema, local=False, link_bias=False):
         context = TransformerContext()
         context.current.local = local
-        context.current.proto_schema = protoschema
+        context.current.schema = schema
         context.current.link_bias = link_bias
 
         if isinstance(expr, irast.GraphExpr):
@@ -1447,7 +1447,7 @@ class SimpleIRCompiler(IRCompilerBase):
 
         elif isinstance(expr, irast.LinkPropRefSimple):
             link_stor_info = types.get_pointer_storage_info(
-                expr.ptr_proto, resolve_type=False,
+                expr.ptr_class, resolve_type=False,
                 link_bias=context.current.link_bias)
 
             if link_stor_info.table_type == "concept":
@@ -1515,12 +1515,12 @@ class SimpleIRCompiler(IRCompilerBase):
 
 class IRCompiler(IRCompilerBase):
     @debug
-    def transform(self, query, backend, proto_schema, output_format=None):
+    def transform(self, query, backend, schema, output_format=None):
         try:
             # Transform to sql tree
             context = TransformerContext()
             context.current.backend = backend
-            context.current.proto_schema = proto_schema
+            context.current.schema = schema
             context.current.output_format = output_format
             qtree = self._transform_tree(context, query)
             argmap = context.current.argmap
@@ -1682,10 +1682,10 @@ class IRCompiler(IRCompilerBase):
                 # work on single tables and _relation_from_link can produce any
                 # relation.
                 #
-                query.fromexpr = self._table_from_link_proto(
-                    context, prop.ref.link_proto)
+                query.fromexpr = self._table_from_link_class(
+                    context, prop.ref.link_class)
 
-                ref_map = {prop.ref.link_proto: query.fromexpr}
+                ref_map = {prop.ref.link_class: query.fromexpr}
                 context.current.link_node_map[prop.ref] = {
                     'local_ref_map':
                     ref_map
@@ -1851,8 +1851,8 @@ class IRCompiler(IRCompilerBase):
                 # appearing as array elements.
                 #
                 pgtype = types.pg_type_from_atom(
-                    context.current.proto_schema,
-                    graph.selector[0].expr.ptr_proto.target, topbase=True)
+                    context.current.schema,
+                    graph.selector[0].expr.ptr_class.target, topbase=True)
                 pgtype = pgsql.ast.TypeNode(name=pgtype)
                 target = pgsql.ast.TypeCastNode(expr=target, type=pgtype)
 
@@ -1939,11 +1939,11 @@ class IRCompiler(IRCompilerBase):
                         s_pointers.PointerDirection.Inbound):
                     parent_end, child_end = child_end, parent_end
 
-                proto_class = child_end.concept.get_canonical_class()
-                proto_class_name = '{}.{}'.format(
-                    proto_class.__module__, proto_class.__name__)
+                metaclass = child_end.concept.get_canonical_class()
+                metaclass_name = '{}.{}'.format(
+                    metaclass.__module__, metaclass.__name__)
 
-                recptr_name = recurse_link.link_proto.normal_name()
+                recptr_name = recurse_link.link_class.normal_name()
                 recptr_direction = recurse_link.direction
 
                 recursive_attr = s_pointers.PointerVector(
@@ -1952,8 +1952,8 @@ class IRCompiler(IRCompilerBase):
 
                 marker = common.RecordInfo(
                     attribute_map=attribute_map, recursive_link=recursive_attr,
-                    proto_class=proto_class_name,
-                    proto_name=child_end.concept.name)
+                    metaclass=metaclass_name,
+                    classname=child_end.concept.name)
 
                 context.current.record_info[marker.id] = marker
                 context.current.backend._register_record_info(marker)
@@ -2014,10 +2014,10 @@ class IRCompiler(IRCompilerBase):
             instarget = expr.expr
             insvalue = expr.value
 
-            lproto = instarget.rlink.link_proto
+            lclass = instarget.rlink.link_class
 
             ptr_info = pg_types.get_pointer_storage_info(
-                lproto, schema=context.current.proto_schema, resolve_type=True,
+                lclass, schema=context.current.schema, resolve_type=True,
                 link_bias=False)
 
             props_only = False
@@ -2046,7 +2046,7 @@ class IRCompiler(IRCompilerBase):
                     values.elements.append(insvalue)
 
             ptr_info = pg_types.get_pointer_storage_info(
-                lproto, resolve_type=False, link_bias=True)
+                lclass, resolve_type=False, link_bias=True)
 
             if ptr_info and ptr_info.table_type == 'link':
                 external_inserts.append((expr, props_only, operation))
@@ -2095,12 +2095,12 @@ class IRCompiler(IRCompilerBase):
 
             if isinstance(updtarget, irast.LinkPropRefSimple):
                 # Update on non-singular atomic link
-                lproto = updtarget.ref.link_proto
+                lclass = updtarget.ref.link_class
             else:
-                lproto = updtarget.rlink.link_proto
+                lclass = updtarget.rlink.link_class
 
             ptr_info = pg_types.get_pointer_storage_info(
-                lproto, schema=context.current.proto_schema, resolve_type=True,
+                lclass, schema=context.current.schema, resolve_type=True,
                 link_bias=False)
             props_only = False
             upd_props = None
@@ -2122,7 +2122,7 @@ class IRCompiler(IRCompilerBase):
                     op_link = op_path.rlink if op_path else None
 
                 if op_link is not None:
-                    op_link = op_link.link_proto
+                    op_link = op_link.link_class
 
                 tg_path = irutils.extract_paths(updtarget, resolve_arefs=False)
 
@@ -2134,7 +2134,7 @@ class IRCompiler(IRCompilerBase):
                     tg_link = tg_path.rlink if tg_path else None
 
                 if tg_link is not None:
-                    tg_link = tg_link.link_proto
+                    tg_link = tg_link.link_class
 
                 is_relative = \
                     (not (tg_link is None and op_link is None) and
@@ -2170,7 +2170,7 @@ class IRCompiler(IRCompilerBase):
                         pgsql.ast.UpdateExprNode(expr=field, value=updvalue))
 
             ptr_info = pg_types.get_pointer_storage_info(
-                lproto, resolve_type=False, link_bias=True)
+                lclass, resolve_type=False, link_bias=True)
 
             if ptr_info and ptr_info.table_type == 'link':
                 external_updates.append((expr, props_only, operation))
@@ -2224,12 +2224,12 @@ class IRCompiler(IRCompilerBase):
         else:
             pspec = typ.pathspec
 
-        props = [p.ptr_proto.normal_name() for p in pspec]
+        props = [p.ptr_class.normal_name() for p in pspec]
         tgt_col = props.index('std::target')
 
         upd_props = [
-            p.ptr_proto.normal_name() for p in pspec
-            if not p.ptr_proto.is_special_pointer()
+            p.ptr_class.normal_name() for p in pspec
+            if not p.ptr_class.is_special_pointer()
         ]
 
         assert tgt_col >= 0
@@ -2292,7 +2292,7 @@ class IRCompiler(IRCompilerBase):
                 raise ValueError(
                     'unexpected value type in update expr: {!r}'.format(typ))
 
-            props = [p.ptr_proto.normal_name() for p in typ[1].pathspec]
+            props = [p.ptr_class.normal_name() for p in typ[1].pathspec]
 
         else:
             # Target-only update
@@ -2389,10 +2389,10 @@ class IRCompiler(IRCompilerBase):
 
         if isinstance(updtarget, irast.LinkPropRefSimple):
             # Update on non-singular atomic link
-            lproto = updtarget.ref.link_proto
+            lclass = updtarget.ref.link_class
             target_is_atom = True
         else:
-            lproto = updtarget.rlink.link_proto
+            lclass = updtarget.rlink.link_class
             target_is_atom = False
 
         lname_to_id = pgsql.ast.CTENode(
@@ -2405,7 +2405,7 @@ class IRCompiler(IRCompilerBase):
             ], where=pgsql.ast.BinOpNode(
                 left=pgsql.ast.FieldRefNode(table=edgedb_link,
                                             field='name'), op=ast.ops.EQ,
-                right=pgsql.ast.ConstantNode(value=lproto.name)),
+                right=pgsql.ast.ConstantNode(value=lclass.name)),
             alias=context.current.genalias(hint='lid'))
 
         query.ctes.add(lname_to_id)
@@ -2415,13 +2415,13 @@ class IRCompiler(IRCompilerBase):
         if isinstance(updvalue, irast.BaseRefExpr):
             updvalue = updvalue.expr
 
-        target_tab = self._table_from_link_proto(context, lproto)
+        target_tab = self._table_from_link_class(context, lclass)
 
         if target_is_atom:
             target_tab_name = (target_tab.schema, target_tab.name)
         else:
             target_tab_name = pgsql.common.link_name_to_table_name(
-                lproto.normal_name(), catenate=False)
+                lclass.normal_name(), catenate=False)
 
         data_backend = context.current.backend
         tab_cols = data_backend._type_mech.get_cached_table_columns(
@@ -3138,7 +3138,7 @@ class IRCompiler(IRCompilerBase):
             # will fail to process a query with custom domains appearing as
             # array elements.
             #
-            schema = context.current.proto_schema
+            schema = context.current.schema
             link = edgedb_node.concept.resolve_pointer(
                 schema, link_name, look_in_children=True)
             pgtype = types.pg_type_from_atom(schema, link.target, topbase=True)
@@ -3150,7 +3150,7 @@ class IRCompiler(IRCompilerBase):
     def _text_search_refs(self, context, vector):
         for link_name, link in vector.concept.get_searchable_links():
             yield irast.AtomicRefSimple(
-                ref=vector, name=link_name, ptr_proto=link)
+                ref=vector, name=link_name, ptr_class=link)
 
     def _build_text_search_conf_map_cte(self, context):
         code_map = [('en', 'english'), ('ru', 'russian')]
@@ -3474,13 +3474,13 @@ class IRCompiler(IRCompilerBase):
                             elements=right.expr.elements)
                     elif right.type == 'text[]':
                         left_type = irutils.infer_type(
-                            expr.left, context.current.proto_schema)
-                        if isinstance(left_type, s_obj.ProtoNode):
+                            expr.left, context.current.schema)
+                        if isinstance(left_type, s_obj.NodeClass):
                             if isinstance(left_type, s_concepts.Concept):
                                 left_type = left_type.pointers[
                                     'std::id'].target
                             left_type = types.pg_type_from_atom(
-                                context.current.proto_schema, left_type,
+                                context.current.schema, left_type,
                                 topbase=True)
                             right.type = left_type + '[]'
 
@@ -3542,40 +3542,40 @@ class IRCompiler(IRCompilerBase):
                         result = right
                     else:
                         left_type = irutils.infer_type(
-                            expr.left, context.current.proto_schema)
+                            expr.left, context.current.schema)
                         right_type = irutils.infer_type(
-                            expr.right, context.current.proto_schema)
+                            expr.right, context.current.schema)
 
                         if left_type and right_type:
-                            if isinstance(left_type, s_obj.ProtoNode):
+                            if isinstance(left_type, s_obj.NodeClass):
                                 if isinstance(left_type, s_concepts.Concept):
                                     left_type = left_type.pointers[
                                         'std::id'].target
                                 left_type = types.pg_type_from_atom(
-                                    context.current.proto_schema, left_type,
+                                    context.current.schema, left_type,
                                     topbase=True)
                             elif (
                                     not isinstance(
-                                        left_type, s_obj.ProtoObject) and
+                                        left_type, s_obj.Class) and
                                     (not isinstance(left_type, tuple) or
                                      not isinstance(
-                                        left_type[1], s_obj.ProtoObject))):
+                                        left_type[1], s_obj.Class))):
                                 left_type = self._schema_type_to_pg_type(
                                     context, left_type)
 
-                            if isinstance(right_type, s_obj.ProtoNode):
+                            if isinstance(right_type, s_obj.NodeClass):
                                 if isinstance(right_type, s_concepts.Concept):
                                     right_type = right_type.pointers[
                                         'std::id'].target
                                 right_type = types.pg_type_from_atom(
-                                    context.current.proto_schema, right_type,
+                                    context.current.schema, right_type,
                                     topbase=True)
                             elif (
                                     not isinstance(
-                                        right_type, s_obj.ProtoObject) and
+                                        right_type, s_obj.Class) and
                                     (not isinstance(right_type, tuple) or
                                      not isinstance(
-                                        right_type[1], s_obj.ProtoObject))):
+                                        right_type[1], s_obj.Class))):
                                 right_type = self._schema_type_to_pg_type(
                                     context, right_type)
 
@@ -3691,15 +3691,15 @@ class IRCompiler(IRCompilerBase):
             local_ref_map = cte_refs.get('local_ref_map')
 
             stor_info = types.get_pointer_storage_info(
-                expr.ptr_proto, resolve_type=False)
+                expr.ptr_class, resolve_type=False)
             colname = stor_info.column_name
 
             if stor_info.table_type == "concept":
                 fieldref = self.get_cte_fieldref_for_set(
-                    context, link.source, link.link_proto.normal_name(), False)
+                    context, link.source, link.link_class.normal_name(), False)
 
             elif local_ref_map:
-                table = local_ref_map[expr.ref.link_proto]
+                table = local_ref_map[expr.ref.link_class]
                 fieldref = pgsql.ast.FieldRefNode(
                     table=table, field=colname, origin=table,
                     origin_field=colname)
@@ -3718,27 +3718,27 @@ class IRCompiler(IRCompilerBase):
                 # domains and will fail to process a query with custom domains
                 # appearing as array elements.
                 #
-                prop = expr.ref.link_proto.getptr(
-                    context.current.proto_schema, expr.name)
+                prop = expr.ref.link_class.getptr(
+                    context.current.schema, expr.name)
                 pgtype = types.pg_type_from_atom(
-                    context.current.proto_schema, prop.target, topbase=True)
+                    context.current.schema, prop.target, topbase=True)
                 pgtype = pgsql.ast.TypeNode(name=pgtype)
                 fieldref = pgsql.ast.TypeCastNode(expr=fieldref, type=pgtype)
 
             result = fieldref
 
-            schema = context.current.proto_schema
+            schema = context.current.schema
 
             if expr.name == 'std::target':
                 localizable = schema.get('std::localizable', default=None)
                 str_t = schema.get('std::str')
 
-                link_proto = expr.ptr_proto.source
+                link_class = expr.ptr_class.source
 
                 if (
                         localizable is not None and
-                        link_proto.issubclass(localizable) and
-                        link_proto.target.issubclass(str_t)):
+                        link_class.issubclass(localizable) and
+                        link_class.target.issubclass(str_t)):
                     lang = pgsql.ast.IdentNode(name='C')
                     result = pgsql.ast.CollateClauseNode(
                         expr=result, collation_name=lang)
@@ -3753,7 +3753,7 @@ class IRCompiler(IRCompilerBase):
 
         elif isinstance(expr, irast.TypeRef):
             data_backend = context.current.backend
-            schema = context.current.proto_schema
+            schema = context.current.schema
 
             if expr.subtypes:
                 raise NotImplementedError()
@@ -3902,7 +3902,7 @@ class IRCompiler(IRCompilerBase):
         is_root = not step_cte
 
         if link is not None:
-            lp = link.link_proto
+            lp = link.link_class
             if (
                     isinstance(lp.target, s_atoms.Atom) and lp.singular() and
                     not lp.has_user_defined_properties()):
@@ -3959,7 +3959,7 @@ class IRCompiler(IRCompilerBase):
             # This is not the first relation on this level, do the joining
             # magic.
 
-            link_proto = link.link_proto
+            link_class = link.link_class
 
             if isinstance(sql_path_tip, pgsql.ast.CTENode) and is_root:
                 sql_path_tip.referrers.add(step_cte)
@@ -3969,7 +3969,7 @@ class IRCompiler(IRCompilerBase):
 
             map_join_type = 'left' if weak else 'inner'
             tip_pathvar = edgedb_path_tip.pathvar if edgedb_path_tip else None
-            linkmap_key = link_proto, link.direction, link.source, tip_pathvar
+            linkmap_key = link_class, link.direction, link.source, tip_pathvar
 
             try:
                 # The same link map must not be joined more than once,
@@ -4012,7 +4012,7 @@ class IRCompiler(IRCompilerBase):
                     context.push()
                     context.current.location = 'linkfilter'
                     context.current.link_node_map[link] = {
-                        'local_ref_map': {link_proto: map_rel}
+                        'local_ref_map': {link_class: map_rel}
                     }
                     propfilter_expr = self._process_expr(
                         context, link.propfilter)
@@ -4092,7 +4092,7 @@ class IRCompiler(IRCompilerBase):
             aliases = {}
 
             concept = edgedb_path_tip.concept
-            proto_schema = context.current.proto_schema
+            schema = context.current.schema
 
             ref_map = {
                 n: [concept_table]
@@ -4108,7 +4108,7 @@ class IRCompiler(IRCompilerBase):
                     atomref_tables = ref_map[field]
                 except KeyError:
                     sources = concept.get_ptr_sources(
-                        proto_schema, field, look_in_children=True,
+                        schema, field, look_in_children=True,
                         strict_ancestry=True)
                     assert sources
 
@@ -4117,15 +4117,15 @@ class IRCompiler(IRCompilerBase):
                         # virtual concept are guaranteed to be included in the
                         # relation representing the virtual concept.
                         #
-                        proto_schema = context.current.proto_schema
+                        schema = context.current.schema
                         chain = itertools.chain.from_iterable
                         child_ptrs = set(
                             chain(
                                 c.pointers
-                                for c in concept.children(proto_schema)))
+                                for c in concept.children(schema)))
                         if field in child_ptrs:
                             descendants = set(
-                                concept.descendants(proto_schema))
+                                concept.descendants(schema))
                             sources -= descendants
                             sources.add(concept)
                     for source in sources:
@@ -4296,18 +4296,18 @@ class IRCompiler(IRCompilerBase):
 
         if link and link.proprefs:
             for propref in link.proprefs:
-                link_proto = link.link_proto
+                link_class = link.link_class
 
-                proto_schema = context.current.proto_schema
+                schema = context.current.schema
                 prop_stor_info = types.get_pointer_storage_info(
-                    propref.ptr_proto, resolve_type=False)
+                    propref.ptr_class, resolve_type=False)
                 colname = prop_stor_info.column_name
 
                 fieldref = pgsql.ast.FieldRefNode(
                     table=map_rel, field=colname, origin=map_rel,
                     origin_field=colname)
 
-                alias = str(link_proto.name) + str(propref.name)
+                alias = str(link_class.name) + str(propref.name)
                 alias = step_cte.alias + (
                     '_' + context.current.genalias(hint=alias))
                 selectnode = pgsql.ast.SelectExprNode(
@@ -4388,7 +4388,7 @@ class IRCompiler(IRCompilerBase):
         return cte
 
     def _check_join_cardinality(self, context, link):
-        link_proto = link.link_proto
+        link_class = link.link_class
 
         flt = lambda i: set(('selector', 'sorter', 'grouper')) & i.users
         if link.target:
@@ -4404,11 +4404,11 @@ class IRCompiler(IRCompilerBase):
             context.current.ignore_cardinality or target_outside_generator or
             link_outside_generator or (
                 link.direction == s_pointers.PointerDirection.Outbound and
-                link_proto.mapping in
+                link_class.mapping in
                 (s_links.LinkMapping.OneToOne, s_links.LinkMapping.ManyToOne))
             or (
                 link.direction == s_pointers.PointerDirection.Inbound and
-                link_proto.mapping in
+                link_class.mapping in
                 (s_links.LinkMapping.OneToOne, s_links.LinkMapping.OneToMany)))
 
         return cardinality_ok
@@ -4674,7 +4674,7 @@ class IRCompiler(IRCompilerBase):
 
             path_concepts = sqlpath.concepts.union(
                 *[
-                    c.children(context.current.proto_schema)
+                    c.children(context.current.schema)
                     for c in sqlpath.concepts
                 ])
             if concepts is None:

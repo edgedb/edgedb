@@ -43,12 +43,12 @@ def delta_schemas(schema1, schema2):
     for added_module in added_modules:
         my_module = schema1.get_module(added_module)
         create = modules.CreateModule(
-                    prototype_name=added_module,
-                    prototype_class=modules.ProtoModule)
-        create.add(AlterPrototypeProperty(
+                    classname=added_module,
+                    metaclass=modules.Module)
+        create.add(AlterClassProperty(
                     property='name', old_value=None,
                     new_value=added_module))
-        create.add(AlterPrototypeProperty(
+        create.add(AlterClassProperty(
                     property='imports', old_value=None,
                     new_value=tuple(my_module.imports)))
         result.add(create)
@@ -59,9 +59,9 @@ def delta_schemas(schema1, schema2):
 
         if my_module.imports != other_module.imports:
             alter = modules.AlterModule(
-                        prototype_name=common_module,
-                        prototype_class=modules.ProtoModule)
-            alter.add(AlterPrototypeProperty(
+                        classname=common_module,
+                        metaclass=modules.Module)
+            alter.add(AlterClassProperty(
                         property='imports',
                         old_value=tuple(other_module.imports),
                         new_value=tuple(my_module.imports)))
@@ -78,7 +78,7 @@ def delta_schemas(schema1, schema2):
             new = filter(lambda i: i.generic(), new)
             old = filter(lambda i: i.generic(), old)
 
-        adds_mods, dels = so.BasePrototype._delta_sets(
+        adds_mods, dels = so.Class._delta_sets(
             old, new, old_schema=schema2, new_schema=schema1)
 
         global_adds_mods.append(adds_mods)
@@ -91,8 +91,8 @@ def delta_schemas(schema1, schema2):
         result.update(dels)
 
     for dropped_module in dropped_modules:
-        result.add(modules.DeleteModule(prototype_name=dropped_module,
-                                        prototype_class=modules.ProtoModule))
+        result.add(modules.DeleteModule(classname=dropped_module,
+                                        metaclass=modules.Module))
 
     return result
 
@@ -389,24 +389,24 @@ class Command(datastructures.MixedStruct, metaclass=CommandMeta):
 
     def _resolve_ref(self, ref, schema):
         try:
-            proto_name = ref.prototype_name
+            classname = ref.classname
         except AttributeError:
             # Not a ref
             return ref, None
         else:
-            obj = schema.get(proto_name)
+            obj = schema.get(classname)
             return obj, ref
 
     def _resolve_attr_value(self, value, fname, field, schema):
         ftype = field.type[0]
 
-        if isinstance(ftype, so.PrototypeClass):
+        if isinstance(ftype, so.MetaClass):
 
-            if isinstance(value, so.PrototypeRef):
+            if isinstance(value, so.ClassRef):
                 value, ref = self._resolve_ref(value, schema)
 
             elif (isinstance(value, so.Collection)
-                    and any(isinstance(st, so.PrototypeRef)
+                    and any(isinstance(st, so.ClassRef)
                             for st in value.get_subtypes())):
                 subtypes = []
                 for st in value.get_subtypes():
@@ -416,7 +416,7 @@ class Command(datastructures.MixedStruct, metaclass=CommandMeta):
                 value = value.__class__.from_subtypes(subtypes)
 
         elif issubclass(ftype, typed.AbstractTypedMapping):
-            if issubclass(ftype.valuetype, so.ProtoObject):
+            if issubclass(ftype.valuetype, so.Class):
                 vals = {}
 
                 for k, val in value.items():
@@ -427,7 +427,7 @@ class Command(datastructures.MixedStruct, metaclass=CommandMeta):
 
         elif issubclass(ftype, (typed.AbstractTypedSequence,
                                 typed.AbstractTypedSet)):
-            if issubclass(ftype.type, so.ProtoObject):
+            if issubclass(ftype.type, so.Class):
                 vals = []
 
                 for val in value:
@@ -443,9 +443,9 @@ class Command(datastructures.MixedStruct, metaclass=CommandMeta):
     def get_struct_properties(self, schema):
         result = {}
 
-        for op in self(AlterPrototypeProperty):
+        for op in self(AlterClassProperty):
             try:
-                field = self.prototype_class.get_field(op.property)
+                field = self.metaclass.get_field(op.property)
             except KeyError:
                 continue
 
@@ -455,7 +455,7 @@ class Command(datastructures.MixedStruct, metaclass=CommandMeta):
         return result
 
     def get_attribute_value(self, attr_name):
-        for op in self(AlterPrototypeProperty):
+        for op in self(AlterClassProperty):
             if op.property == attr_name:
                 return op.new_value
         else:
@@ -506,7 +506,7 @@ class Command(datastructures.MixedStruct, metaclass=CommandMeta):
 
     def sort_subcommands_by_type(self):
         def _key(c):
-            if isinstance(c, CreatePrototype):
+            if isinstance(c, CreateClass):
                 return 0
             else:
                 return 2
@@ -584,7 +584,7 @@ class Command(datastructures.MixedStruct, metaclass=CommandMeta):
         node = markup.elements.lang.TreeNode(name=str(self))
 
         for dd in self:
-            if isinstance(dd, AlterPrototypeProperty):
+            if isinstance(dd, AlterClassProperty):
                 diff = markup.elements.doc.ValueDiff(
                     before=repr(dd.old_value), after=repr(dd.new_value))
 
@@ -680,11 +680,11 @@ class DeltaUpgradeContext(CommandContext):
         self.new_format_ver = new_format_ver
 
 
-class PrototypeCommand(Command):
-    prototype_class = Field(so.PrototypeClass, str_formatter=None)
+class ClassCommand(Command):
+    metaclass = Field(so.MetaClass, str_formatter=None)
 
 
-class Ghost(PrototypeCommand):
+class Ghost(ClassCommand):
     """A special class to represent deleted delta commands."""
 
     def upgrade(self, context, format_ver, schema):
@@ -699,49 +699,49 @@ class Ghost(PrototypeCommand):
         pass
 
 
-class PrototypeCommandContext(CommandContextToken):
-    def __init__(self, op, proto=None):
+class ClassCommandContext(CommandContextToken):
+    def __init__(self, op, scls=None):
         super().__init__(op)
-        self.proto = proto
-        if proto is not None:
-            self.original_proto = proto.get_canonical_class().copy(proto)
+        self.scls = scls
+        if scls is not None:
+            self.original_class = scls.get_canonical_class().copy(scls)
         else:
-            self.original_proto = None
+            self.original_class = None
 
 
-class CreatePrototype(PrototypeCommand):
+class CreateClass(ClassCommand):
     def _create_begin(self, schema, context):
         props = self.get_struct_properties(schema)
 
-        self.prototype = self.prototype_class(
+        self.scls = self.metaclass(
             **props, _setdefaults_=False, _relaxrequired_=True)
 
     def _create_innards(self, schema, context):
         pass
 
     def _create_finalize(self, schema, context):
-        self.prototype.finalize(schema, dctx=context)
+        self.scls.finalize(schema, dctx=context)
 
     def apply(self, schema, context):
         self._create_begin(schema, context)
-        with context(self.context_class(self, self.prototype)):
+        with context(self.context_class(self, self.scls)):
             self._create_innards(schema, context)
             self._create_finalize(schema, context)
-        return self.prototype
+        return self.scls
 
 
-class AlterSpecialPrototypeProperty(Command):
+class AlterSpecialClassProperty(Command):
     astnode = qlast.SetSpecialFieldNode
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
-        return AlterPrototypeProperty(
+        return AlterClassProperty(
             property=astnode.name,
             new_value=astnode.value
         )
 
 
-class AlterPrototypeProperty(Command):
+class AlterClassProperty(Command):
     property = Field(str)
     old_value = Field(object, None)
     new_value = Field(object, None)
@@ -757,7 +757,7 @@ class AlterPrototypeProperty(Command):
 
         if isinstance(astnode, qlast.DropAttributeValueNode):
             parent_ctx = context.get(CommandContextToken)
-            parent_cls = parent_ctx.op.prototype_class
+            parent_cls = parent_ctx.op.metaclass
 
             field = parent_cls._fields.get(propname)
             if (field is not None and
@@ -792,13 +792,13 @@ class AlterPrototypeProperty(Command):
                             subtypes = []
                             for st in v.args[1:]:
                                 stname = s_name.Name(v.args[1].value)
-                                subtypes.append(so.PrototypeRef(
-                                    prototype_name=stname))
+                                subtypes.append(so.ClassRef(
+                                    classname=stname))
 
                             v = ct.from_subtypes(subtypes)
                         else:
-                            v = so.PrototypeRef(
-                                prototype_name=s_name.Name(v.args[0].value))
+                            v = so.ClassRef(
+                                classname=s_name.Name(v.args[0].value))
                     elif isinstance(v, qlast.TypeCastNode):
                         v = v.expr.value
                     elif isinstance(v, qlast.UnaryOpNode):
@@ -833,7 +833,7 @@ class AlterPrototypeProperty(Command):
 
         if new_value_empty and not old_value_empty:
             op = qlast.DropAttributeValueNode(
-                name=qlast.PrototypeRefNode(module='', name=self.property))
+                name=qlast.ClassRefNode(module='', name=self.property))
             return op
 
         if new_value_empty and old_value_empty:
@@ -862,7 +862,7 @@ class AlterPrototypeProperty(Command):
 
         as_expr = isinstance(value, qlast.ExpressionTextNode)
         op = qlast.CreateAttributeValueNode(
-                name=qlast.PrototypeRefNode(module='', name=self.property),
+                name=qlast.ClassRefNode(module='', name=self.property),
                 value=value, as_expr=as_expr)
         return op
 

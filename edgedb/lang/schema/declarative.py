@@ -47,12 +47,12 @@ class DeclarationLoader:
     def load_module(self, module_name, decl_ast):
         decls = decl_ast.declarations
 
-        module = s_mod.ProtoModule(name=module_name)
+        module = s_mod.Module(name=module_name)
         self._schema.add_module(module, alias=None)
 
         self._process_imports(decl_ast)
 
-        order = s_schema.ProtoSchema.global_dep_order
+        order = s_schema.Schema.global_dep_order
         objects = collections.OrderedDict(
             (t, collections.OrderedDict()) for t in order)
 
@@ -141,7 +141,7 @@ class DeclarationLoader:
         for concept, conceptdecl in objects['concept'].items():
             self._normalize_concept_expressions(concept, conceptdecl)
 
-        # Arrange prototypes in the resulting schema according to determined
+        # Arrange classes in the resulting schema according to determined
         # topological order.
         self._schema.reorder(itertools.chain(
             attributes, attrvals, actions, events, constraints,
@@ -229,7 +229,7 @@ class DeclarationLoader:
                 default_base = self._schema.get(default_base_name)
                 bases.append(default_base)
 
-        return s_obj.PrototypeList(bases)
+        return s_obj.ClassList(bases)
 
     def _init_constraints(self, constraints):
         module_aliases = {}
@@ -501,7 +501,7 @@ class DeclarationLoader:
                 else:
                     # Multiple explicit targets, create common virtual
                     # parent and use it as target.
-                    spectargets = s_obj.PrototypeSet(
+                    spectargets = s_obj.ClassSet(
                         self._schema.get(t) for t in _tnames)
                     target = link_base.create_common_target(
                         self._schema, spectargets)
@@ -592,7 +592,7 @@ class DeclarationLoader:
                 tgt_prop.target = first
 
         if (len(ir.result_types) > 1 or
-                not isinstance(first, s_obj.ProtoNode) or
+                not isinstance(first, s_obj.NodeClass) or
                 (ptr.target is not None and not first.issubclass(ptr.target))):
             raise s_err.SchemaError(
                 'default value query must yield a single result of '

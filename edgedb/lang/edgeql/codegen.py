@@ -502,7 +502,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.index)
         self.write(']')
 
-    def visit_PrototypeRefNode(self, node, *, parenthesise=True):
+    def visit_ClassRefNode(self, node, *, parenthesise=True):
         if node.module and parenthesise:
             self.write('(')
 

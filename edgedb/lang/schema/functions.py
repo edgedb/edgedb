@@ -6,8 +6,6 @@
 ##
 
 
-from edgedb.lang.common.functional import hybridmethod
-
 from edgedb.lang.edgeql import ast as qlast
 
 from . import delta as sd
@@ -18,39 +16,35 @@ from . import objects as so
 from . import primary
 
 
-class FunctionCommandContext(sd.PrototypeCommandContext):
-    def __setattr__(self, name, value):
-        super().__setattr__(name, value)
-        if (name == 'proto' and value is not None
-                and value.__class__.__name__ != 'Function'):
-            assert False, value
+class FunctionCommandContext(sd.ClassCommandContext):
+    pass
 
 
-class FunctionCommand(sd.PrototypeCommand):
+class FunctionCommand(sd.ClassCommand):
     context_class = FunctionCommandContext
 
     @classmethod
-    def _get_prototype_class(cls):
+    def _get_metaclass(cls):
         return Function
 
 
-class CreateFunction(named.CreateNamedPrototype, FunctionCommand):
+class CreateFunction(named.CreateNamedClass, FunctionCommand):
     astnode = qlast.CreateFunctionNode
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
-        cmd.add(sd.AlterPrototypeProperty(
+        cmd.add(sd.AlterClassProperty(
             property='returntype',
-            new_value=so.PrototypeRef(
-                prototype_name=sn.Name(
+            new_value=so.ClassRef(
+                classname=sn.Name(
                     module=astnode.returning.maintype.module,
                     name=astnode.returning.maintype.name)
             )
         ))
 
-        cmd.add(sd.AlterPrototypeProperty(
+        cmd.add(sd.AlterClassProperty(
             property='aggregate',
             new_value=astnode.aggregate
         ))
@@ -58,26 +52,26 @@ class CreateFunction(named.CreateNamedPrototype, FunctionCommand):
         return cmd
 
 
-class RenameFunction(named.RenameNamedPrototype, FunctionCommand):
+class RenameFunction(named.RenameNamedClass, FunctionCommand):
     pass
 
 
-class AlterFunction(named.AlterNamedPrototype, FunctionCommand):
+class AlterFunction(named.AlterNamedClass, FunctionCommand):
     astnode = qlast.AlterFunctionNode
 
 
-class DeleteFunction(named.DeleteNamedPrototype, FunctionCommand):
+class DeleteFunction(named.DeleteNamedClass, FunctionCommand):
     astnode = qlast.DropFunctionNode
 
 
-class Function(named.NamedPrototype):
+class Function(named.NamedClass):
     _type = 'function'
 
-    paramtypes = so.Field(so.PrototypeDict, default=None, coerce=True,
+    paramtypes = so.Field(so.ClassDict, default=None, coerce=True,
                           compcoef=0.4)
     paramkinds = so.Field(dict, compcoef=0.3, default=None)
     paramdefaults = so.Field(expr.ExpressionDict, default=None, coerce=True)
-    returntype = so.Field(primary.Prototype, compcoef=0.2)
+    returntype = so.Field(primary.Class, compcoef=0.2)
     aggregate = so.Field(bool, default=False, compcoef=0.4)
 
     delta_driver = sd.DeltaDriver(

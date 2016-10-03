@@ -24,11 +24,11 @@ class ObjectClass(type):
     pass
 
 
-class ProtoSchema:
+class Schema:
     global_dep_order = ('action', 'event', 'attribute', 'constraint',
                         'atom', 'link_property', 'link', 'concept')
 
-    """ProtoSchema is a collection of ProtoModules"""
+    """Schema is a collection of ProtoModules"""
 
     @classmethod
     def get_builtins_module(cls):
@@ -56,19 +56,19 @@ class ProtoSchema:
         result.module_aliases_r = self.module_aliases_r.copy()
         return result
 
-    def add_module(self, proto_module, alias=Void):
+    def add_module(self, class_module, alias=Void):
         """Add a module to the schema
 
-        :param ProtoModule proto_module: A module that should be added to the schema
+        :param Module class_module: A module that should be added to the schema
         :param str alias: An optional alias for this module to use when resolving names
         """
 
-        if isinstance(proto_module, schema_module.ProtoModule):
-            name = proto_module.name
-            self.modules[name] = proto_module
+        if isinstance(class_module, schema_module.Module):
+            name = class_module.name
+            self.modules[name] = class_module
         else:
-            name = proto_module.__name__
-            self.foreign_modules[name] = module_types.AutoloadingLightProxyModule(name, proto_module)
+            name = class_module.__name__
+            self.foreign_modules[name] = module_types.AutoloadingLightProxyModule(name, class_module)
 
         if alias is not Void:
             self.set_module_alias(name, alias)
@@ -82,16 +82,16 @@ class ProtoSchema:
     def get_module(self, module):
         return self.modules[module]
 
-    def delete_module(self, proto_module):
+    def delete_module(self, class_module):
         """Remove a module from the schema
 
-        :param proto_module: Either a string name of the module or a ProtoModule object
+        :param class_module: Either a string name of the module or a Module object
                              thet should be dropped from the schema.
         """
-        if isinstance(proto_module, str):
-            module_name = proto_module
+        if isinstance(class_module, str):
+            module_name = class_module
         else:
-            module_name = proto_module.name
+            module_name = class_module.name
 
         del self.modules[module_name]
 
@@ -218,12 +218,12 @@ class ProtoSchema:
         else:
             default_raise = False
 
-        errmsg = 'reference to a non-existent schema prototype: {}'.format(name)
+        errmsg = 'reference to a non-existent schema class: {}'.format(name)
 
         if module is None:
             if implicit_builtins:
-                proto_module = self.modules[self.get_builtins_module()]
-                result = proto_module.get(nqname, default=None, type=type,
+                class_module = self.modules[self.get_builtins_module()]
+                result = class_module.get(nqname, default=None, type=type,
                                           index_only=index_only)
                 if result is not None:
                     return result
@@ -233,53 +233,53 @@ class ProtoSchema:
             else:
                 return default
 
-        proto_module = None
+        class_module = None
 
         try:
-            proto_module = self.modules[module]
+            class_module = self.modules[module]
         except KeyError as e:
             module_err = e
 
             if include_pyobjects:
                 try:
-                    proto_module = self.foreign_modules[module]
+                    class_module = self.foreign_modules[module]
                 except KeyError as e:
                     module_err = e
                 else:
                     try:
-                        proto_module = sys.modules[proto_module.__name__]
+                        class_module = sys.modules[class_module.__name__]
                     except KeyError as e:
                         module_err = e
 
-            if proto_module is None:
+            if class_module is None:
                 if default_raise:
                     raise default(errmsg) from module_err
                 else:
                     return default
 
-        if isinstance(proto_module, schema_module.ProtoModule):
+        if isinstance(class_module, schema_module.Module):
             if default_raise:
                 try:
-                    result = proto_module.get(nqname, default=default,
+                    result = class_module.get(nqname, default=default,
                                               type=type,
                                               index_only=index_only)
                 except default:
                     if not implicit_builtins:
                         raise
                     else:
-                        proto_module = self.modules[self.get_builtins_module()]
-                        result = proto_module.get(nqname, default=None,
+                        class_module = self.modules[self.get_builtins_module()]
+                        result = class_module.get(nqname, default=None,
                                                   type=type,
                                                   index_only=index_only)
                         if result is None:
                             raise
             else:
-                result = proto_module.get(nqname, default=default, type=type,
+                result = class_module.get(nqname, default=default, type=type,
                                           include_pyobjects=include_pyobjects,
                                           index_only=index_only)
         else:
             try:
-                result = getattr(proto_module, nqname)
+                result = getattr(class_module, nqname)
             except AttributeError as e:
                 if default_raise:
                     raise default(errmsg) from e
@@ -294,40 +294,40 @@ class ProtoSchema:
     def has_module(self, module):
         return module in self.modules
 
-    def update_virtual_inheritance(self, proto, children):
+    def update_virtual_inheritance(self, scls, children):
         try:
-            proto_children = self._virtual_inheritance_cache[proto.name]
+            class_children = self._virtual_inheritance_cache[scls.name]
         except KeyError:
-            proto_children = self._virtual_inheritance_cache[proto.name] = set()
+            class_children = self._virtual_inheritance_cache[scls.name] = set()
 
-        proto_children.update(c.name for c in children if c is not proto)
-        proto._virtual_children = set(children)
+        class_children.update(c.name for c in children if c is not scls)
+        scls._virtual_children = set(children)
 
-    def drop_inheritance_cache(self, proto):
-        self._inheritance_cache.pop(proto.name, None)
+    def drop_inheritance_cache(self, scls):
+        self._inheritance_cache.pop(scls.name, None)
 
-    def drop_inheritance_cache_for_child(self, proto):
-        bases = getattr(proto, 'bases', ())
+    def drop_inheritance_cache_for_child(self, scls):
+        bases = getattr(scls, 'bases', ())
 
         for base in bases:
             self._inheritance_cache.pop(base.name, None)
 
-    def _get_descendants(self, proto, *, max_depth=None, depth=0):
+    def _get_descendants(self, scls, *, max_depth=None, depth=0):
         result = set()
 
         try:
-            children = proto._virtual_children
+            children = scls._virtual_children
         except AttributeError:
             try:
-                child_names = self._inheritance_cache[proto.name]
+                child_names = self._inheritance_cache[scls.name]
                 raise KeyError
             except KeyError:
-                child_names = self._inheritance_cache[proto.name] = \
-                                    self._find_children(proto)
+                child_names = self._inheritance_cache[scls.name] = \
+                                    self._find_children(scls)
         else:
             child_names = [c.name for c in children]
 
-        canonical_class = proto.get_canonical_class()
+        canonical_class = scls.get_canonical_class()
         children = {self.get(n, type=canonical_class) for n in child_names}
 
         if max_depth is not None and depth < max_depth:
@@ -338,9 +338,9 @@ class ProtoSchema:
         result.update(children)
         return result
 
-    def _find_children(self, proto):
-        flt = lambda p: proto in p.bases
-        return {c.name for c in filter(flt, self(proto._type))}
+    def _find_children(self, scls):
+        flt = lambda p: scls in p.bases
+        return {c.name for c in filter(flt, self(scls._type))}
 
     def get_root_class(self, cls):
         from . import concepts, lproperties, links
@@ -356,7 +356,7 @@ class ProtoSchema:
 
         return self.get(name, type=cls)
 
-    def get_event_policy(self, subject_proto, event_proto):
+    def get_event_policy(self, subject_class, event_class):
         from . import policy as spol
 
         if self._policy_schema is None:
@@ -371,7 +371,7 @@ class ProtoSchema:
             for concept in self('concept'):
                 concept.materialize_policies(self)
 
-        return self._policy_schema.get(subject_proto, event_proto)
+        return self._policy_schema.get(subject_class, event_class)
 
     def get_checksum(self):
         c = []
@@ -389,5 +389,5 @@ class ProtoSchema:
 
     def __call__(self, type=None):
         for mod in self.modules.values():
-            for proto in mod(type=type):
-                yield proto
+            for scls in mod(type=type):
+                yield scls

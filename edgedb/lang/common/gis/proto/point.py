@@ -10,7 +10,7 @@ from .geometry import Geometry, GeometryError
 
 class Point(Geometry):
     geo_class_id = 1
-    geo_class_name = 'Point'
+    geo_classname = 'Point'
 
     def __new__(
             cls, value=None, *, x=None, y=None, z=None, m=None, srid=0,

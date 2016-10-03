@@ -282,7 +282,7 @@ class EdgeQLAdapter:
         self.current_portal = None
 
     def transform(
-            self, query, scrolling_cursor=False, context=None, *, proto_schema,
+            self, query, scrolling_cursor=False, context=None, *, schema,
             output_format=None):
         if scrolling_cursor:
             offset = query.offset
@@ -296,7 +296,7 @@ class EdgeQLAdapter:
 
         qchunks, argmap, arg_index, query_type, record_info = \
             self.transformer.transform(query, self.session.backend,
-                                       self.session.proto_schema,
+                                       self.session.schema,
                                        output_format=output_format)
 
         if scrolling_cursor:
@@ -320,13 +320,13 @@ class EdgeQLAdapter:
         for k, v in query.argument_types.items():
             if v is not None:  # XXX get_expr_type
                 if isinstance(v, tuple):
-                    if isinstance(v[1], s_obj.PrototypeClass):
+                    if isinstance(v[1], s_obj.MetaClass):
                         name = 'type'
                     else:
                         name = v[1].name
                     argtypes[k] = (v[0], name)
                 else:
-                    if isinstance(v, s_obj.PrototypeClass):
+                    if isinstance(v, s_obj.MetaClass):
                         name = 'type'
                     else:
                         name = v.name
@@ -375,8 +375,8 @@ class Backend(s_deltarepo.DeltaProvider):
         self.concept_cache = {}
         self.table_cache = {}
         self.domain_to_atom_map = {}
-        self.table_id_to_proto_name_cache = {}
-        self.proto_name_to_table_id_cache = {}
+        self.table_id_to_class_name_cache = {}
+        self.classname_to_table_id_cache = {}
         self.attribute_link_map_cache = {}
         self._record_mapping_cache = {}
 
@@ -421,8 +421,8 @@ class Backend(s_deltarepo.DeltaProvider):
             self._read_and_init_features(connection)
 
     def reset_connection(self, connection):
-        for feature_class_name in self.features.values():
-            feature_class = get_object(feature_class_name)
+        for feature_classname in self.features.values():
+            feature_class = get_object(feature_classname)
             feature_class.reset_connection(connection)
 
     def _read_and_init_features(self, connection):
@@ -437,8 +437,8 @@ class Backend(s_deltarepo.DeltaProvider):
             await self._type_mech.init_cache(self.connection)
             await self._constr_mech.init_cache(self.connection)
             t2pn, pn2t = await self._init_relid_cache()
-            self.table_id_to_proto_name_cache = t2pn
-            self.proto_name_to_table_id_cache = pn2t
+            self.table_id_to_class_name_cache = t2pn
+            self.classname_to_table_id_cache = pn2t
             self.domain_to_atom_map = await self._init_atom_map_cache()
             # Concept map needed early for type filtering operations
             # in schema queries
@@ -460,17 +460,17 @@ class Backend(s_deltarepo.DeltaProvider):
         links_list = collections.OrderedDict((sn.Name(r['name']), r)
                                              for r in links_list)
 
-        table_id_to_proto_name_cache = {}
-        proto_name_to_table_id_cache = {}
+        table_id_to_class_name_cache = {}
+        classname_to_table_id_cache = {}
 
         for link_name, link in links_list.items():
             link_table_name = common.link_name_to_table_name(
                 link_name, catenate=False)
             t = link_tables.get(link_table_name)
             if t:
-                table_id_to_proto_name_cache[t['oid']] = link_name
-                table_id_to_proto_name_cache[t['typoid']] = link_name
-                proto_name_to_table_id_cache[link_name] = t['typoid']
+                table_id_to_class_name_cache[t['oid']] = link_name
+                table_id_to_class_name_cache[t['typoid']] = link_name
+                classname_to_table_id_cache[link_name] = t['typoid']
 
         ds = introspection.tables.TableList(self.connection)
         tables = await ds.fetch(schema_name='edgedb%', table_pattern='%_data')
@@ -492,11 +492,11 @@ class Backend(s_deltarepo.DeltaProvider):
                           'table is missing'.format(name)
                 raise s_err.SchemaError(msg, details=details)
 
-            table_id_to_proto_name_cache[table['oid']] = name
-            table_id_to_proto_name_cache[table['typoid']] = name
-            proto_name_to_table_id_cache[name] = table['typoid']
+            table_id_to_class_name_cache[table['oid']] = name
+            table_id_to_class_name_cache[table['typoid']] = name
+            classname_to_table_id_cache[name] = table['typoid']
 
-        return table_id_to_proto_name_cache, proto_name_to_table_id_cache
+        return table_id_to_class_name_cache, classname_to_table_id_cache
 
     def table_name_to_object_name(self, table_name):
         return self.table_cache.get(table_name)['name']
@@ -528,7 +528,7 @@ class Backend(s_deltarepo.DeltaProvider):
             self.backend_info = self.read_backend_info()
 
     async def readschema(self):
-        schema = so.ProtoSchema()
+        schema = so.Schema()
         await self._init_introspection_cache()
         await self.read_modules(schema)
         await self.read_atoms(schema)
@@ -622,7 +622,7 @@ class Backend(s_deltarepo.DeltaProvider):
 
     @debug
     async def run_ddl_command(self, ddl_plan):
-        proto_schema = await self.getschema()
+        schema = await self.getschema()
         """LOG [delta.plan.input] Delta Plan Input
             markup.dump(ddl_plan)
         """
@@ -633,7 +633,7 @@ class Backend(s_deltarepo.DeltaProvider):
         canonical_ddl_plan.apply(test_schema, context=context)
 
         # Apply and adapt delta, build native delta plan
-        plan = self.process_delta(canonical_ddl_plan, proto_schema)
+        plan = self.process_delta(canonical_ddl_plan, schema)
 
         context = delta_cmds.CommandContext(self.connection, None)
 
@@ -662,8 +662,8 @@ class Backend(s_deltarepo.DeltaProvider):
         self.atom_cache.clear()
         self.table_cache.clear()
         self.domain_to_atom_map.clear()
-        self.table_id_to_proto_name_cache.clear()
-        self.proto_name_to_table_id_cache.clear()
+        self.table_id_to_class_name_cache.clear()
+        self.classname_to_table_id_cache.clear()
         self.attribute_link_map_cache.clear()
 
     def concept_name_from_id(self, id, session):
@@ -794,10 +794,10 @@ class Backend(s_deltarepo.DeltaProvider):
         return concept_id
 
     def source_name_from_relid(self, table_oid):
-        return self.table_id_to_proto_name_cache.get(table_oid)
+        return self.table_id_to_class_name_cache.get(table_oid)
 
     def typrelid_for_source_name(self, source_name):
-        return self.proto_name_to_table_id_cache.get(source_name)
+        return self.classname_to_table_id_cache.get(source_name)
 
     def compile(
             self, query_ir, scrolling_cursor=False, context=None, *,
@@ -878,7 +878,7 @@ class Backend(s_deltarepo.DeltaProvider):
         mods = []
 
         for module in modules.values():
-            mod = s_mod.ProtoModule(
+            mod = s_mod.Module(
                 name=module['name'],
                 imports=frozenset(module['imports'] or ()))
             schema.add_module(mod)
@@ -900,7 +900,7 @@ class Backend(s_deltarepo.DeltaProvider):
         try:
             ds = datasources.schema.features.FeatureList(connection)
             features = await ds.fetch()
-            return {f['name']: f['class_name'] for f in features}
+            return {f['name']: f['classname'] for f in features}
         except (asyncpg.SchemaNameError, asyncpg.UndefinedTableError):
             return {}
 
@@ -1003,7 +1003,7 @@ class Backend(s_deltarepo.DeltaProvider):
                 'is_abstract': row['is_abstract'],
                 'is_final': row['is_final'],
                 'aggregate': row['aggregate'],
-                'paramtypes': so.PrototypeDict({
+                'paramtypes': so.ClassDict({
                     k: schema.get(v)
                     for k, v in json.loads(row['paramtypes'])
                 }) if row['paramtypes'] else None,
@@ -1101,13 +1101,13 @@ class Backend(s_deltarepo.DeltaProvider):
     async def order_constraints(self, schema):
         pass
 
-    def unpack_typeref(self, typeref, protoschema):
+    def unpack_typeref(self, typeref, schema):
         if typeref['type'] is not None:
-            type = protoschema.get(typeref['type'])
+            type = schema.get(typeref['type'])
 
         if typeref['collection'] is not None:
             coll_type = s_obj.Collection.get_class(typeref['collection'])
-            subtypes = [protoschema.get(st) for st in typeref['subtypes']]
+            subtypes = [schema.get(st) for st in typeref['subtypes']]
             type = coll_type.from_subtypes(subtypes)
 
         return type

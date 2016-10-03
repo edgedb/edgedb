@@ -44,8 +44,8 @@ class TypeRules:
 
         is_subclass = isinstance(arg, type) and issubclass(arg, sig_arg)
 
-        if not is_subclass and isinstance(arg, s_obj.ProtoObject):
-            if not isinstance(sig_arg, s_obj.ProtoObject):
+        if not is_subclass and isinstance(arg, s_obj.Class):
+            if not isinstance(sig_arg, s_obj.Class):
                 sig_arg_typ = BaseTypeMeta.type_to_edgedb_builtin(sig_arg)
                 if not sig_arg_typ:
                     return False
@@ -219,8 +219,8 @@ class BaseTypeMeta:
         return tuple(mixins) if mixins else tuple()
 
 
-def proto_name_from_type(typ):
-    """Return canonical prototype name for a given type.
+def classname_from_type(typ):
+    """Return canonical Class name for a given type.
 
     Arguments:
 
@@ -228,7 +228,7 @@ def proto_name_from_type(typ):
 
     Result:
 
-    Canonical prototype name.
+    Canonical Class name.
     """
 
     is_composite = isinstance(typ, tuple)
@@ -239,70 +239,70 @@ def proto_name_from_type(typ):
     else:
         item_type = typ
 
-    proto_name = None
+    classname = None
     NoneType = type(None)
 
     if item_type is None or item_type is NoneType:
-        proto_name = 'std::null'
+        classname = 'std::null'
 
-    elif isinstance(item_type, s_obj.ProtoNode):
-        proto_name = item_type.name
+    elif isinstance(item_type, s_obj.NodeClass):
+        classname = item_type.name
 
     elif isinstance(item_type, s_pointers.Pointer):
-        proto_name = item_type.name
+        classname = item_type.name
 
-    elif isinstance(item_type, s_obj.PrototypeClass):
-        proto_name = item_type
+    elif isinstance(item_type, s_obj.MetaClass):
+        classname = item_type
 
     else:
-        proto_name = BaseTypeMeta.type_to_edgedb_builtin(item_type)
+        classname = BaseTypeMeta.type_to_edgedb_builtin(item_type)
 
-    if proto_name is None:
+    if classname is None:
         raise s_err.SchemaError(
-            'could not find matching prototype for %r' % typ)
+            'could not find matching schema class for %r' % typ)
 
     if is_composite:
-        result = (container_type, proto_name)
+        result = (container_type, classname)
     else:
-        result = proto_name
+        result = classname
 
     return result
 
 
-def normalize_type(type, proto_schema):
-    """Normalize provided type description into a canonical prototype form.
+def normalize_type(type, schema):
+    """Normalize provided type description into a canonical Class form.
 
     Arguments:
 
     - type             -- Type to normalize
-    - proto_schema     -- Prototype schema to use for prototype lookups
+    - schema     -- Schema to use for Class lookups
 
     Result:
 
     Normalized type.
     """
 
-    proto_name = proto_name_from_type(type)
-    if proto_name is None:
+    classname = classname_from_type(type)
+    if classname is None:
         raise s_err.SchemaError(
-            'could not find matching prototype for %r' % type)
+            'could not find matching schema class for %r' % type)
 
-    is_composite = isinstance(proto_name, tuple)
-
-    if is_composite:
-        container_type = proto_name[0]
-        item_proto_name = proto_name[1]
-    else:
-        item_proto_name = proto_name
-
-    if isinstance(item_proto_name, s_obj.PrototypeClass):
-        item_proto = item_proto_name
-    else:
-        item_proto = proto_schema.get(item_proto_name)
+    is_composite = isinstance(classname, tuple)
 
     if is_composite:
-        result = (container_type, item_proto)
+        container_type = classname[0]
+        item_class_name = classname[1]
     else:
-        result = item_proto
+        item_class_name = classname
+
+    if isinstance(item_class_name, s_obj.MetaClass):
+        item_class = item_class_name
+    else:
+        item_class = schema.get(item_class_name)
+
+    if is_composite:
+        result = (container_type, item_class)
+    else:
+        result = item_class
 
     return result

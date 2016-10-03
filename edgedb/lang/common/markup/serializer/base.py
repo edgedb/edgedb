@@ -229,7 +229,7 @@ def serialize_exception(obj, *, ctx):
 
     markup = elements.lang.Exception(
         class_module=obj.__class__.__module__,
-        class_name=obj.__class__.__name__, msg=str(obj), contexts=contexts,
+        classname=obj.__class__.__name__, msg=str(obj), contexts=contexts,
         cause=cause, context=context, id=id(obj))
 
     obj.__sx_markup_cached__ = markup
@@ -325,7 +325,7 @@ def serialize_mapping(obj, *, ctx, trim_at=100):
 def serialize_uknown_object(obj, *, ctx):
     return elements.lang.Object(
         id=id(obj), class_module=type(obj).__module__,
-        class_name=type(obj).__name__, repr=xrepr(obj, max_len=200))
+        classname=type(obj).__name__, repr=xrepr(obj, max_len=200))
 
 
 def _serialize_known_object(obj, attrs, *, ctx):
@@ -334,4 +334,4 @@ def _serialize_known_object(obj, attrs, *, ctx):
         map[attr] = serialize(getattr(obj, attr, None), ctx=ctx)
     return elements.lang.Object(
         id=id(obj), class_module=obj.__class__.__module__,
-        class_name=obj.__class__.__name__, attributes=map)
+        classname=obj.__class__.__name__, attributes=map)

@@ -15,16 +15,16 @@ from . import name as sn
 from . import named
 
 
-class InheritingPrototypeCommand(named.NamedPrototypeCommand):
+class InheritingClassCommand(named.NamedClassCommand):
     def _create_finalize(self, schema, context):
-        self.prototype.acquire_ancestor_inheritance(schema, dctx=context)
-        self.prototype.update_descendants(schema)
+        self.scls.acquire_ancestor_inheritance(schema, dctx=context)
+        self.scls.update_descendants(schema)
         super()._create_finalize(schema, context)
 
 
 def delta_bases(old_bases, new_bases):
     dropped = frozenset(old_bases) - frozenset(new_bases)
-    removed_bases = [so.PrototypeRef(prototype_name=b) for b in dropped]
+    removed_bases = [so.ClassRef(classname=b) for b in dropped]
     common_bases = [b for b in old_bases if b not in dropped]
 
     added_bases = []
@@ -40,7 +40,7 @@ def delta_bases(old_bases, new_bases):
                 # Found common base, insert the accummulated
                 # list of new bases and continue
                 if added_base_refs:
-                    ref = so.PrototypeRef(prototype_name=common_bases[j])
+                    ref = so.ClassRef(classname=common_bases[j])
                     added_bases.append((added_base_refs, ('BEFORE', ref)))
                     added_base_refs = []
                 j += 1
@@ -50,12 +50,12 @@ def delta_bases(old_bases, new_bases):
                     continue
 
             # Base has been inserted at position j
-            added_base_refs.append(so.PrototypeRef(prototype_name=base))
+            added_base_refs.append(so.ClassRef(classname=base))
             added_set.add(base)
 
     # Finally, add all remaining bases to the end of the list
     tail_bases = added_base_refs + [
-        so.PrototypeRef(prototype_name=b) for b in new_bases
+        so.ClassRef(classname=b) for b in new_bases
         if b not in added_set and b not in common_bases
     ]
 
@@ -70,33 +70,33 @@ class AlterInherit(sd.Command):
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
-        # The base changes are handled by AlterNamedPrototype
+        # The base changes are handled by AlterNamedClass
         return None
 
 
-class CreateInheritingPrototype(named.CreateNamedPrototype,
-                                InheritingPrototypeCommand):
+class CreateInheritingClass(named.CreateNamedClass,
+                                InheritingClassCommand):
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
-        bases = cls._protobases_from_ast(astnode, context)
+        bases = cls._classbases_from_ast(astnode, context)
         if bases is not None:
             cmd.add(
-                sd.AlterPrototypeProperty(
+                sd.AlterClassProperty(
                     property='bases',
                     new_value=bases
                 )
             )
 
         if getattr(astnode, 'is_abstract', False):
-            cmd.add(sd.AlterPrototypeProperty(
+            cmd.add(sd.AlterClassProperty(
                 property='is_abstract',
                 new_value=True
             ))
 
         if getattr(astnode, 'is_final', False):
-            cmd.add(sd.AlterPrototypeProperty(
+            cmd.add(sd.AlterClassProperty(
                 property='is_final',
                 new_value=True
             ))
@@ -104,48 +104,48 @@ class CreateInheritingPrototype(named.CreateNamedPrototype,
         return cmd
 
     @classmethod
-    def _protobases_from_ast(cls, astnode, context):
-        proto_name = cls._protoname_from_ast(astnode, context)
+    def _classbases_from_ast(cls, astnode, context):
+        classname = cls._classname_from_ast(astnode, context)
 
-        bases = so.PrototypeList(
-            so.PrototypeRef(prototype_name=sn.Name(
+        bases = so.ClassList(
+            so.ClassRef(classname=sn.Name(
                 name=b.name, module=b.module or 'std'
             ))
             for b in getattr(astnode, 'bases', None) or []
         )
 
         if not bases:
-            default_base = cls._get_prototype_class().get_default_base_name()
+            default_base = cls._get_metaclass().get_default_base_name()
 
-            if default_base is not None and proto_name != default_base:
-                bases = so.PrototypeList([
-                    so.PrototypeRef(prototype_name=default_base)
+            if default_base is not None and classname != default_base:
+                bases = so.ClassList([
+                    so.ClassRef(classname=default_base)
                 ])
 
         return bases
 
 
-class AlterInheritingPrototype(named.AlterNamedPrototype,
-                               InheritingPrototypeCommand):
-    def _alter_begin(self, schema, context, prototype):
-        super()._alter_begin(schema, context, prototype)
+class AlterInheritingClass(named.AlterNamedClass,
+                               InheritingClassCommand):
+    def _alter_begin(self, schema, context, scls):
+        super()._alter_begin(schema, context, scls)
 
-        for op in self(RebaseNamedPrototype):
+        for op in self(RebaseNamedClass):
             op.apply(schema, context)
 
-        prototype.acquire_ancestor_inheritance(schema)
+        scls.acquire_ancestor_inheritance(schema)
 
-        return prototype
-
-
-class DeleteInheritingPrototype(named.DeleteNamedPrototype,
-                                InheritingPrototypeCommand):
-    def _delete_finalize(self, schema, context, prototype):
-        super()._delete_finalize(schema, context, prototype)
-        schema.drop_inheritance_cache_for_child(prototype)
+        return scls
 
 
-class RebaseNamedPrototype(named.NamedPrototypeCommand):
+class DeleteInheritingClass(named.DeleteNamedClass,
+                                InheritingClassCommand):
+    def _delete_finalize(self, schema, context, scls):
+        super()._delete_finalize(schema, context, scls)
+        schema.drop_inheritance_cache_for_child(scls)
+
+
+class RebaseNamedClass(named.NamedClassCommand):
     new_base = so.Field(tuple, default=tuple())
     removed_bases = so.Field(tuple)
     added_bases = so.Field(tuple)
@@ -153,15 +153,15 @@ class RebaseNamedPrototype(named.NamedPrototypeCommand):
     def __repr__(self):
         return '<%s.%s "%s">' % (self.__class__.__module__,
                                  self.__class__.__name__,
-                                 self.prototype_name)
+                                 self.classname)
 
     def apply(self, schema, context):
-        prototype = schema.get(self.prototype_name, type=self.prototype_class)
-        bases = list(prototype.bases)
-        removed_bases = {b.prototype_name for b in self.removed_bases}
+        scls = schema.get(self.classname, type=self.metaclass)
+        bases = list(scls.bases)
+        removed_bases = {b.classname for b in self.removed_bases}
         existing_bases = set()
 
-        for b in prototype.bases:
+        for b in scls.bases:
             if b.name in removed_bases:
                 bases.remove(b)
             else:
@@ -180,13 +180,13 @@ class RebaseNamedPrototype(named.NamedPrototypeCommand):
             else:
                 idx = index[ref]
 
-            bases[idx:idx] = [schema.get(b.prototype_name) for b in new_bases
-                              if b.prototype_name not in existing_bases]
+            bases[idx:idx] = [schema.get(b.classname) for b in new_bases
+                              if b.classname not in existing_bases]
             index = {b.name: i for i, b in enumerate(bases)}
 
-        prototype.bases = bases
+        scls.bases = bases
 
-        return prototype
+        return scls
 
 
 def _merge_mro(obj, mros):
@@ -226,12 +226,12 @@ def compute_mro(obj):
     return _merge_mro(obj, mros)
 
 
-class InheritingPrototype(named.NamedPrototype):
-    bases = so.Field(named.NamedPrototypeList,
-                     default=named.NamedPrototypeList,
+class InheritingClass(named.NamedClass):
+    bases = so.Field(named.NamedClassList,
+                     default=named.NamedClassList,
                      coerce=True, private=True, compcoef=0.714)
 
-    mro = so.Field(named.NamedPrototypeList,
+    mro = so.Field(named.NamedClassList,
                    coerce=True, default=None, derived=True)
 
     is_abstract = so.Field(bool, default=False, private=True, compcoef=0.909)
@@ -258,8 +258,8 @@ class InheritingPrototype(named.NamedPrototype):
                         old_base_names, new_base_names)
 
                     delta.add(delta_driver.rebase(
-                        prototype_name=new.name,
-                        prototype_class=new.__class__.get_canonical_class(),
+                        classname=new.name,
+                        metaclass=new.__class__.get_canonical_class(),
                         removed_bases=removed,
                         added_bases=added,
                         new_base=tuple(new_base_names)))
@@ -269,7 +269,7 @@ class InheritingPrototype(named.NamedPrototype):
     def __getstate__(self):
         state = super().__getstate__()
         state['bases'] = [
-            so.PrototypeRef(prototype_name=b.name)
+            so.ClassRef(classname=b.name)
             for b in self.bases
         ]
 
@@ -285,7 +285,7 @@ class InheritingPrototype(named.NamedPrototype):
         return compute_mro(self)
 
     def issubclass(self, parent):
-        if isinstance(parent, so.BasePrototype):
+        if isinstance(parent, so.Class):
             mro = self.get_mro()
 
             if parent in mro:

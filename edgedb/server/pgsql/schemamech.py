@@ -99,18 +99,18 @@ class ConstraintMech:
         ref_ptrs = {}
         for ref in refs:
             if isinstance(ref, irast.LinkPropRef):
-                ptr = ref.ptr_proto
-                src = ref.ref.link_proto
+                ptr = ref.ptr_class
+                src = ref.ref.link_class
             elif isinstance(ref, irast.AtomicRef):
-                ptr = ref.ptr_proto if ref.ptr_proto else ref.rlink.link_proto
+                ptr = ref.ptr_class if ref.ptr_class else ref.rlink.link_class
                 src = ref.ref
             elif isinstance(ref, irast.EntityLink):
-                ptr = ref.link_proto
+                ptr = ref.link_class
                 src = ptr.source.concept if ptr.source else None
             elif isinstance(ref, irast.EntitySet):
                 if isinstance(ref.concept, s_atoms.Atom):
                     continue
-                ptr = ref.rlink.link_proto
+                ptr = ref.rlink.link_class
                 src = ref.rlink.source.concept
             else:
                 raise ValueError('unexpected ref type: {!r}'.format(ref))
@@ -159,7 +159,7 @@ class ConstraintMech:
     def _edgeql_ref_to_pg_constr(cls, subject, tree, schema, link_bias):
         ircompiler = transformer.SimpleIRCompiler()
         sql_tree = ircompiler.transform(
-            tree, protoschema=schema, local=True, link_bias=link_bias)
+            tree, schema=schema, local=True, link_bias=link_bias)
 
         is_multicol = isinstance(tree, irast.Sequence)
 
@@ -484,19 +484,19 @@ class TypeMech:
 
         return self._column_cache.get(type_name)
 
-    def get_table(self, prototype, proto_schema):
+    def get_table(self, scls, schema):
         if self._table_cache is None:
             self._table_cache = {}
 
-        table = self._table_cache.get(prototype)
+        table = self._table_cache.get(scls)
 
         if table is None:
-            table_name = common.get_table_name(prototype, catenate=False)
+            table_name = common.get_table_name(scls, catenate=False)
             table = dbops.Table(table_name)
 
             cols = []
 
-            if isinstance(prototype, s_links.Link):
+            if isinstance(scls, s_links.Link):
                 cols.extend([
                     dbops.Column(
                         name='link_type_id', type='int'), dbops.Column(
@@ -505,18 +505,18 @@ class TypeMech:
                                     name='std::target', type='uuid')
                 ])
 
-            elif isinstance(prototype, s_concepts.Concept):
+            elif isinstance(scls, s_concepts.Concept):
                 cols.extend([dbops.Column(name='concept_id', type='int')])
 
             else:
                 assert False
 
-            if isinstance(prototype, s_concepts.Concept):
+            if isinstance(scls, s_concepts.Concept):
                 expected_table_type = 'concept'
             else:
                 expected_table_type = 'link'
 
-            for pointer_name, pointer in prototype.pointers.items():
+            for pointer_name, pointer in scls.pointers.items():
                 if not pointer.singular():
                     continue
 
@@ -527,7 +527,7 @@ class TypeMech:
                     continue
 
                 ptr_stor_info = types.get_pointer_storage_info(
-                    pointer, schema=proto_schema)
+                    pointer, schema=schema)
 
                 if ptr_stor_info.column_name == 'std::target':
                     continue
@@ -539,7 +539,7 @@ class TypeMech:
                             type=ptr_stor_info.column_type))
             table.add_columns(cols)
 
-            self._table_cache[prototype] = table
+            self._table_cache[scls] = table
 
         return table
 
@@ -556,7 +556,7 @@ def ptr_default_to_col_default(schema, ptr, expr):
         return None
 
     ircompiler = transformer.SimpleIRCompiler()
-    sql_tree = ircompiler.transform(ir, protoschema=schema, local=True)
+    sql_tree = ircompiler.transform(ir, schema=schema, local=True)
     sql_expr = codegen.SQLSourceGenerator.to_source(sql_tree)
 
     return sql_expr

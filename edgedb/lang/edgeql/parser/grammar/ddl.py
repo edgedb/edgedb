@@ -421,7 +421,7 @@ class CreateDatabaseStmt(Nonterm):
             raise EdgeQLSyntaxError('Unexpected token: {}'.format(kids[2]),
                                     context=kids[2].context)
         self.val = qlast.CreateDatabaseNode(
-            name=qlast.PrototypeRefNode(name=kids[3].val)
+            name=qlast.ClassRefNode(name=kids[3].val)
         )
 
 
@@ -435,7 +435,7 @@ class DropDatabaseStmt(Nonterm):
             raise EdgeQLSyntaxError('Unexpected token: {}'.format(kids[2]),
                                     context=kids[2].context)
         self.val = qlast.DropDatabaseNode(
-            name=qlast.PrototypeRefNode(name=kids[3].val),
+            name=qlast.ClassRefNode(name=kids[3].val),
         )
 
 

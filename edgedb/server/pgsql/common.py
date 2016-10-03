@@ -101,12 +101,12 @@ def get_table_name(obj, catenate=True):
 
 class RecordInfo:
     def __init__(
-            self, *, attribute_map, proto_class=None, proto_name=None,
+            self, *, attribute_map, metaclass=None, classname=None,
             is_xvalue=False, recursive_link=False, virtuals_map=None):
         self.attribute_map = attribute_map
         self.virtuals_map = virtuals_map
-        self.proto_class = proto_class
-        self.proto_name = proto_name
+        self.metaclass = metaclass
+        self.classname = classname
         self.is_xvalue = is_xvalue
         self.recursive_link = recursive_link
         self.id = str(persistent_hash.persistent_hash(self))
@@ -114,13 +114,13 @@ class RecordInfo:
     def persistent_hash(self):
         return persistent_hash.persistent_hash((
             tuple(self.attribute_map), frozenset(self.virtuals_map.items())
-            if self.virtuals_map else None, self.proto_class, self.proto_name,
+            if self.virtuals_map else None, self.metaclass, self.classname,
             self.is_xvalue, self.recursive_link))
 
     def __mm_serialize__(self):
         return dict(
             attribute_map=self.attribute_map, virtuals_map=self.virtuals_map,
-            proto_class=self.proto_class, proto_name=self.proto_name,
+            metaclass=self.metaclass, classname=self.classname,
             is_xvalue=self.is_xvalue, recursive_link=self.recursive_link,
             id=self.id)
 

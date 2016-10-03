@@ -234,7 +234,7 @@ class EdgeQLOptimizer:
         elif isinstance(expr, qlast.NoneTestNode):
             self._process_expr(context, expr.expr)
 
-        elif isinstance(expr, qlast.PrototypeRefNode):
+        elif isinstance(expr, qlast.ClassRefNode):
             if expr.module:
                 expr.module = self._process_module_ref(
                                 context, expr.module)

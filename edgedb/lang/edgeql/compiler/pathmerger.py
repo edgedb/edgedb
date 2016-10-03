@@ -619,7 +619,7 @@ def match_prefixes(our, other, ignore_filters):
         our_node = our.target
         if our_node is None:
             our_id = irutils.LinearPath(our.source.id)
-            our_id.add(link.link_proto, link.direction, None)
+            our_id.add(link.link_class, link.direction, None)
             our_node = our.source
         else:
             our_id = our_node.id
@@ -634,7 +634,7 @@ def match_prefixes(our, other, ignore_filters):
         if other_node is None:
             other_node = other.source
             other_id = irutils.LinearPath(other.source.id)
-            other_id.add(other_link.link_proto, other_link.direction, None)
+            other_id.add(other_link.link_class, other_link.direction, None)
         else:
             other_id = other_node.id
     else:
@@ -660,7 +660,7 @@ def match_prefixes(our, other, ignore_filters):
                           and not other_node.filter
                           and not our_node.conjunction.paths
                           and not other_node.conjunction.paths))))
-        and (not link or (link.link_proto == other_link.link_proto
+        and (not link or (link.link_class == other_link.link_class
                           and link.direction == other_link.direction))
     )
 
@@ -672,9 +672,9 @@ def match_prefixes(our, other, ignore_filters):
           our_node.pathvar if our_node is not None else None)
     print(' ' * nest, '      *** ',
           other_node.pathvar if other_node is not None else None)
-    print(' ' * nest, '    LINK: ', link.link_proto if link else None)
+    print(' ' * nest, '    LINK: ', link.link_class if link else None)
     print(' ' * nest, '      *** ',
-          other_link.link_proto if other_link else None)
+          other_link.link_class if other_link else None)
     print(' ' * nest, '     DIR: ', link.direction if link else None)
     print(' ' * nest, '      *** ',
           other_link.direction if other_link else None)

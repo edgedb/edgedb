@@ -20,12 +20,12 @@ from . import schema as s_schema
 from . import std as s_std
 
 
-class Delta(named.NamedPrototype):
-    parents = so.Field(named.NamedPrototypeList,
-                       default=named.NamedPrototypeList,
+class Delta(named.NamedClass):
+    parents = so.Field(named.NamedClassList,
+                       default=named.NamedClassList,
                        coerce=True, private=True)
 
-    target = so.Field(s_schema.ProtoSchema, private=True)
+    target = so.Field(s_schema.Schema, private=True)
 
     commands = so.Field(sd.CommandList,
                         default=sd.CommandList,
@@ -36,25 +36,25 @@ class DeltaCommandContext(sd.CommandContextToken):
     pass
 
 
-class DeltaCommand(named.NamedPrototypeCommand):
+class DeltaCommand(named.NamedClassCommand):
     context_class = DeltaCommandContext
 
     @classmethod
-    def _protoname_from_ast(cls, astnode, context):
+    def _classname_from_ast(cls, astnode, context):
         if astnode.name.module:
-            prototype_name = sn.Name(module=astnode.name.module,
+            classname = sn.Name(module=astnode.name.module,
                                      name=astnode.name.name)
         else:
-            prototype_name = astnode.name.name
+            classname = astnode.name.name
 
-        return prototype_name
+        return classname
 
     @classmethod
-    def _get_prototype_class(cls):
+    def _get_metaclass(cls):
         return Delta
 
 
-class CreateDelta(named.CreateNamedPrototype, DeltaCommand):
+class CreateDelta(named.CreateNamedClass, DeltaCommand):
     astnode = qlast.CreateDeltaNode
 
     @classmethod
@@ -64,10 +64,10 @@ class CreateDelta(named.CreateNamedPrototype, DeltaCommand):
         if astnode.target is not None:
             target = s_std.load_std_schema()
             s_decl.load_module_declarations(target, [
-                (cmd.prototype_name.module, astnode.target)
+                (cmd.classname.module, astnode.target)
             ])
 
-            cmd.add(sd.AlterPrototypeProperty(
+            cmd.add(sd.AlterClassProperty(
                 property='target',
                 new_value=target
             ))
@@ -76,16 +76,16 @@ class CreateDelta(named.CreateNamedPrototype, DeltaCommand):
 
     def apply(self, schema, context):
         props = self.get_struct_properties(schema)
-        delta = self.prototype_class(**props)
+        delta = self.metaclass(**props)
         schema.add_delta(delta)
         return delta
 
 
-class AlterDelta(named.CreateOrAlterNamedPrototype, DeltaCommand):
+class AlterDelta(named.CreateOrAlterNamedClass, DeltaCommand):
     astnode = qlast.AlterDeltaNode
 
     def apply(self, schema, context):
-        delta = schema.get_delta(self.prototype_name)
+        delta = schema.get_delta(self.classname)
 
         props = self.get_struct_properties(schema)
         for name, value in props.items():
@@ -98,7 +98,7 @@ class DeleteDelta(DeltaCommand):
     astnode = qlast.DropDeltaNode
 
     def apply(self, schema, context):
-        delta = schema.get_delta(self.prototype_name)
+        delta = schema.get_delta(self.classname)
         schema.delete_delta(delta)
         return delta
 
@@ -107,5 +107,5 @@ class CommitDelta(DeltaCommand):
     astnode = qlast.CommitDeltaNode
 
     def apply(self, schema, context):
-        delta = schema.get_delta(self.prototype_name)
+        delta = schema.get_delta(self.classname)
         return delta

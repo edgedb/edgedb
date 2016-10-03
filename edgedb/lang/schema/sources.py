@@ -23,11 +23,11 @@ class SourceCommandContext(indexes.IndexSourceCommandContext):
     pass
 
 
-class SourceCommand(named.NamedPrototypeCommand, indexes.IndexSourceCommand):
+class SourceCommand(named.NamedClassCommand, indexes.IndexSourceCommand):
     pass
 
 
-class Source(primary.Prototype, indexes.IndexableSubject):
+class Source(primary.Class, indexes.IndexableSubject):
     pointers = referencing.RefDict(
                     local_attr='own_pointers', ordered=True,
                     backref='source', ref_cls='get_pointer_class',
@@ -42,7 +42,7 @@ class Source(primary.Prototype, indexes.IndexableSubject):
         self._ro_pointers = None
 
     def get_pointer_origin(self, name, farthest=False):
-        return self.get_protoref_origin(name, 'pointers', 'own_pointers',
+        return self.get_classref_origin(name, 'pointers', 'own_pointers',
                                         'pointer', farthest=farthest)
 
     @property
@@ -126,11 +126,11 @@ class Source(primary.Prototype, indexes.IndexableSubject):
                 return cls.getptr_from_nqname(schema, source, name)
 
         @classmethod
-        def getptr_inherited_from(cls, source, schema, base_ptr_proto,
+        def getptr_inherited_from(cls, source, schema, base_ptr_class,
                                                        skip_atomic):
             result = set()
             for ptr in source.pointers.values():
-                if (ptr.issubclass(base_ptr_proto) and
+                if (ptr.issubclass(base_ptr_class) and
                         (not skip_atomic or not ptr.atomic())):
                     result.add(ptr)
                     break
@@ -183,12 +183,12 @@ class Source(primary.Prototype, indexes.IndexableSubject):
             ptr_names.append(name)
 
         for ptr_name in ptr_names:
-            base_ptr_proto = schema.get(ptr_name, default=None)
-            if base_ptr_proto:
+            base_ptr_class = schema.get(ptr_name, default=None)
+            if base_ptr_class:
                 root_class = schema.get_root_class(self.get_pointer_class())
-                skip_atomic = base_ptr_proto.name == root_class.name
+                skip_atomic = base_ptr_class.name == root_class.name
                 ptrs = resolver.getptr_inherited_from(
-                            self, schema, base_ptr_proto, skip_atomic)
+                            self, schema, base_ptr_class, skip_atomic)
                 break
 
         return ptrs
@@ -341,7 +341,7 @@ class Source(primary.Prototype, indexes.IndexableSubject):
                 minimize_by = 'least_generic'
 
             common_parent = \
-                utils.get_prototype_nearest_common_ancestor(ptrs)
+                utils.get_class_nearest_common_ancestor(ptrs)
 
             target = common_parent.create_common_target(
                         schema, targets, minimize_by)
@@ -402,12 +402,12 @@ class Source(primary.Prototype, indexes.IndexableSubject):
             return self.get_nearest_common_descendant(all_sources)
 
     def add_pointer(self, pointer):
-        self.add_protoref('pointers', pointer)
+        self.add_classref('pointers', pointer)
         if pointer.readonly and self._ro_pointers is not None:
             self._ro_pointers.add(pointer)
 
-    def del_pointer(self, pointer, proto_schema):
-        self.del_protoref('pointers', pointer.name, proto_schema)
+    def del_pointer(self, pointer, schema):
+        self.del_classref('pointers', pointer.name, schema)
         if self._ro_pointers is not None:
             pointer_name = pointer.normal_name()
             self._ro_pointers.discard(pointer_name)

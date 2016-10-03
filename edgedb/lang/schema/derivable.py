@@ -11,11 +11,11 @@ from . import objects as so
 from . import name as sn
 
 
-class DerivablePrototypeCommand(inheriting.InheritingPrototypeCommand):
+class DerivableClassCommand(inheriting.InheritingClassCommand):
     pass
 
 
-class DerivablePrototype(inheriting.InheritingPrototype):
+class DerivableClass(inheriting.InheritingClass):
     name = so.Field(sn.Name, private=True, compcoef=0.909)
     is_derived = so.Field(bool, False, compcoef=0.909)
 

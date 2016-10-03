@@ -17,6 +17,6 @@ filters:
 source: |
     SELECT
             name,
-            class_name
+            classname
         FROM
             edgedb.feature

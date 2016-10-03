@@ -15,7 +15,7 @@ from . import schema as s_schema
 
 
 def load_std_schema():
-    schema = s_schema.ProtoSchema()
+    schema = s_schema.Schema()
 
     std_eql_f = os.path.join(os.path.dirname(__file__), '_std.eql')
     with open(std_eql_f) as f:

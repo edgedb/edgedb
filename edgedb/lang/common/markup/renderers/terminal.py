@@ -382,7 +382,7 @@ class LangRenderer(BaseRenderer):
         if element.attributes or element.repr is None:
             self.buffer.write(
                 '<{}.{} at 0x{:x}'.format(
-                    element.class_module, element.class_name, element.id),
+                    element.class_module, element.classname, element.id),
                 style=self.styles.unknown_object)
 
             if element.attributes:
@@ -515,10 +515,10 @@ class LangRenderer(BaseRenderer):
                 self.buffer.new_line(2)
 
             if element.class_module == 'builtins':
-                excclass = element.class_name
+                excclass = element.classname
             else:
                 excclass = '{}.{}'.format(
-                    element.class_module, element.class_name)
+                    element.class_module, element.classname)
             base_excline = '{}: {}'.format(excclass, element.msg)
             self.buffer.write(
                 '{}. {}'.format(self.ex_depth, base_excline),

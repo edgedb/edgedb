@@ -49,7 +49,7 @@ class ParseContextLevel(object):
                 self.in_func_call = False
                 self.arguments = prevlevel.arguments
                 self.context_vars = prevlevel.context_vars
-                self.proto_schema = prevlevel.proto_schema
+                self.schema = prevlevel.schema
                 self.module_aliases = prevlevel.module_aliases
                 self.aliascnt = prevlevel.aliascnt.copy()
                 self.subgraphs_map = {}
@@ -70,7 +70,7 @@ class ParseContextLevel(object):
                 self.in_func_call = prevlevel.in_func_call
                 self.arguments = prevlevel.arguments
                 self.context_vars = prevlevel.context_vars
-                self.proto_schema = prevlevel.proto_schema
+                self.schema = prevlevel.schema
                 self.module_aliases = prevlevel.module_aliases
                 self.aliascnt = prevlevel.aliascnt
                 self.subgraphs_map = prevlevel.subgraphs_map
@@ -91,7 +91,7 @@ class ParseContextLevel(object):
             self.in_func_call = False
             self.arguments = {}
             self.context_vars = {}
-            self.proto_schema = None
+            self.schema = None
             self.module_aliases = None
             self.aliascnt = {}
             self.subgraphs_map = {}
@@ -335,8 +335,8 @@ class AggregateSorter(ast.NodeTransformer):
 
 
 class EdgeQLCompiler:
-    def __init__(self, proto_schema, module_aliases=None):
-        self.proto_schema = proto_schema
+    def __init__(self, schema, module_aliases=None):
+        self.schema = schema
         self.module_aliases = module_aliases
 
     def _init_context(self,
@@ -346,7 +346,7 @@ class EdgeQLCompiler:
                       *,
                       security_context=None):
         self.context = context = ParseContext()
-        self.context.current.proto_schema = self.proto_schema
+        self.context.current.schema = self.schema
         self.context.current.module_aliases = \
             module_aliases or self.module_aliases
 
@@ -415,42 +415,42 @@ class EdgeQLCompiler:
         return stree
 
     def _populate_anchors(self, context, anchors):
-        for anchor, proto in anchors.items():
-            if isinstance(proto, s_obj.ProtoNode):
+        for anchor, scls in anchors.items():
+            if isinstance(scls, s_obj.NodeClass):
                 step = irast.EntitySet()
-                step.concept = proto
+                step.concept = scls
                 step.id = irutils.LinearPath([step.concept])
                 step.anchor = anchor
                 step.show_as_anchor = anchor
                 # XXX
                 # step.users =
-            elif isinstance(proto, s_links.Link):
-                if proto.source:
+            elif isinstance(scls, s_links.Link):
+                if scls.source:
                     src = irast.EntitySet()
-                    src.concept = proto.source
+                    src.concept = scls.source
                     src.id = irutils.LinearPath([src.concept])
                 else:
                     src = None
 
-                step = irast.EntityLink(link_proto=proto, source=src)
+                step = irast.EntityLink(link_class=scls, source=src)
                 step.anchor = anchor
                 step.show_as_anchor = anchor
 
                 if src:
                     src.disjunction.update(step)
 
-            elif isinstance(proto, s_lprops.LinkProperty):
-                ptr_name = proto.normal_name()
+            elif isinstance(scls, s_lprops.LinkProperty):
+                ptr_name = scls.normal_name()
 
-                if proto.source.source:
+                if scls.source.source:
                     src = irast.EntitySet()
-                    src.concept = proto.source.source
+                    src.concept = scls.source.source
                     src.id = irutils.LinearPath([src.concept])
                 else:
                     src = None
 
                 link = irast.EntityLink(
-                    link_proto=proto.source,
+                    link_class=scls.source,
                     source=src,
                     direction=s_pointers.PointerDirection.Outbound)
 
@@ -460,16 +460,16 @@ class EdgeQLCompiler:
                 else:
                     pref_id = irutils.LinearPath([])
 
-                pref_id.add(proto.source, s_pointers.PointerDirection.Outbound,
-                            proto.target)
+                pref_id.add(scls.source, s_pointers.PointerDirection.Outbound,
+                            scls.target)
 
                 step = irast.LinkPropRefSimple(
-                    name=ptr_name, ref=link, id=pref_id, ptr_proto=proto)
+                    name=ptr_name, ref=link, id=pref_id, ptr_class=scls)
                 step.anchor = anchor
                 step.show_as_anchor = anchor
 
             else:
-                step = proto
+                step = scls
 
             context.current.anchors[anchor] = step
 
@@ -574,13 +574,13 @@ class EdgeQLCompiler:
             graph.offset = irast.Constant(
                 value=edgeql_tree.offset.value,
                 index=edgeql_tree.offset.index,
-                type=context.current.proto_schema.get('int'))
+                type=context.current.schema.get('int'))
 
         if edgeql_tree.limit:
             graph.limit = irast.Constant(
                 value=edgeql_tree.limit.value,
                 index=edgeql_tree.limit.index,
-                type=context.current.proto_schema.get('int'))
+                type=context.current.schema.get('int'))
 
         context.current.location = 'top'
 
@@ -606,7 +606,7 @@ class EdgeQLCompiler:
             self.reorder_aggregates(graph.generator)
 
         graph.result_types = self.get_selector_types(graph.selector,
-                                                     self.proto_schema)
+                                                     self.schema)
         graph.argument_types = self.context.current.arguments
         graph.context_vars = self.context.current.context_vars
 
@@ -643,7 +643,7 @@ class EdgeQLCompiler:
 
         idname = sn.Name('std::id')
         idref = irast.AtomicRefSimple(
-            name=idname, ref=tgt, ptr_proto=tgt.concept.pointers[idname])
+            name=idname, ref=tgt, ptr_class=tgt.concept.pointers[idname])
         tgt.atomrefs.add(idref)
         selexpr = irast.SelectorExpr(expr=idref, name=None)
         graph.selector.append(selexpr)
@@ -654,7 +654,7 @@ class EdgeQLCompiler:
                 graph.opselector = self._process_select_targets(
                     context, edgeql_tree.targets)
         else:
-            rec = self.entityref_to_record(tgt, self.proto_schema)
+            rec = self.entityref_to_record(tgt, self.schema)
             graph.opselector = [
                 irast.SelectorExpr(
                     expr=rec,
@@ -687,7 +687,7 @@ class EdgeQLCompiler:
             self.reorder_aggregates(graph.generator)
 
         graph.result_types = self.get_selector_types(graph.opselector,
-                                                     self.proto_schema)
+                                                     self.schema)
         graph.argument_types = self.context.current.arguments
         graph.context_vars = self.context.current.context_vars
 
@@ -724,7 +724,7 @@ class EdgeQLCompiler:
 
         idname = sn.Name('std::id')
         idref = irast.AtomicRefSimple(
-            name=idname, ref=tgt, ptr_proto=tgt.concept.pointers[idname])
+            name=idname, ref=tgt, ptr_class=tgt.concept.pointers[idname])
         tgt.atomrefs.add(idref)
         selexpr = irast.SelectorExpr(expr=idref, autoname='std::id')
         graph.selector.append(selexpr)
@@ -738,7 +738,7 @@ class EdgeQLCompiler:
                 graph.opselector = self._process_select_targets(
                     context, edgeql_tree.targets)
         else:
-            rec = self.entityref_to_record(tgt, self.proto_schema)
+            rec = self.entityref_to_record(tgt, self.schema)
             graph.opselector = [irast.SelectorExpr(expr=rec)]
 
         with context():
@@ -765,7 +765,7 @@ class EdgeQLCompiler:
             self.reorder_aggregates(graph.generator)
 
         graph.result_types = self.get_selector_types(graph.opselector,
-                                                     self.proto_schema)
+                                                     self.schema)
         graph.argument_types = self.context.current.arguments
         graph.context_vars = self.context.current.context_vars
 
@@ -870,9 +870,9 @@ class EdgeQLCompiler:
                 tgt.name == 'std::target'):
 
             idpropname = sn.Name('std::linkid')
-            idprop_proto = tgt.ref.link_proto.pointers[idpropname]
+            idprop_class = tgt.ref.link_class.pointers[idpropname]
             idref = irast.LinkPropRefSimple(
-                name=idpropname, ref=tgt.ref, ptr_proto=idprop_proto)
+                name=idpropname, ref=tgt.ref, ptr_class=idprop_class)
             graph.optarget.ref.proprefs.add(idref)
 
             selexpr = irast.SelectorExpr(expr=idref, name=None)
@@ -881,7 +881,7 @@ class EdgeQLCompiler:
         elif isinstance(tgt, irast.AtomicRefSimple):
             idname = sn.Name('std::id')
             idref = irast.AtomicRefSimple(
-                name=idname, ref=tgt.ref, ptr_proto=tgt.ptr_proto)
+                name=idname, ref=tgt.ref, ptr_class=tgt.ptr_class)
             tgt.ref.atomrefs.add(idref)
             selexpr = irast.SelectorExpr(expr=idref, name=None)
             graph.selector.append(selexpr)
@@ -889,7 +889,7 @@ class EdgeQLCompiler:
         else:
             idname = sn.Name('std::id')
             idref = irast.AtomicRefSimple(
-                name=idname, ref=tgt, ptr_proto=tgt.concept.pointers[idname])
+                name=idname, ref=tgt, ptr_class=tgt.concept.pointers[idname])
             tgt.atomrefs.add(idref)
             selexpr = irast.SelectorExpr(expr=idref, name=None)
             graph.selector.append(selexpr)
@@ -903,7 +903,7 @@ class EdgeQLCompiler:
                 graph.opselector = self._process_select_targets(
                     context, edgeql_tree.targets)
         else:
-            rec = self.entityref_to_record(tgt, self.proto_schema)
+            rec = self.entityref_to_record(tgt, self.schema)
             graph.opselector = [
                 irast.SelectorExpr(
                     expr=rec,
@@ -930,7 +930,7 @@ class EdgeQLCompiler:
             self.reorder_aggregates(graph.generator)
 
         graph.result_types = self.get_selector_types(graph.opselector,
-                                                     self.proto_schema)
+                                                     self.schema)
         graph.argument_types = self.context.current.arguments
         graph.context_vars = self.context.current.context_vars
 
@@ -1006,7 +1006,7 @@ class EdgeQLCompiler:
                  not context.current.in_func_call) or
                     context.current.in_aggregate):
                 if isinstance(node, irast.EntitySet):
-                    node = self.entityref_to_record(node, self.proto_schema)
+                    node = self.entityref_to_record(node, self.schema)
 
         elif isinstance(expr, qlast.ConstantNode):
             node = self._process_constant(context, expr)
@@ -1016,11 +1016,11 @@ class EdgeQLCompiler:
             node = irast.Sequence(elements=elements)
 
             # Squash the sequence if it comes from IS (type,...), since
-            # we unconditionally transform PrototypeRefNodes into list-type
+            # we unconditionally transform ClassRefNodes into list-type
             # constants below.
             #
             squash_homogeneous = expr.elements and \
-                isinstance(expr.elements[0], qlast.PrototypeRefNode)
+                isinstance(expr.elements[0], qlast.ClassRefNode)
             node = self.process_sequence(
                 node, squash_homogeneous=squash_homogeneous)
 
@@ -1076,15 +1076,15 @@ class EdgeQLCompiler:
 
                 node = self.process_function_call(node)
 
-        elif isinstance(expr, qlast.PrototypeRefNode):
+        elif isinstance(expr, qlast.ClassRefNode):
             if expr.module:
                 name = sn.Name(name=expr.name, module=expr.module)
             else:
                 name = expr.name
-            node = self.proto_schema.get(
+            node = self.schema.get(
                 name=name,
                 module_aliases=context.current.namespaces,
-                type=s_obj.ProtoNode)
+                type=s_obj.NodeClass)
 
             node = irast.Constant(value=(node, ), type=(list, node.__class__))
 
@@ -1104,18 +1104,18 @@ class EdgeQLCompiler:
                     self.context.current.weak_path = True
                 expr = self._process_expr(context, expr.expr)
                 nt = irast.NoneTest(expr=expr)
-                node = self.process_none_test(nt, context.current.proto_schema)
+                node = self.process_none_test(nt, context.current.schema)
 
         elif isinstance(expr, qlast.ExistsPredicateNode):
             subquery = self._process_expr(context, expr.expr)
             if (isinstance(subquery, irast.EntitySet) and
                     isinstance(subquery.concept, s_concepts.Concept)):
                 _id = sn.Name('std::id')
-                schema = context.current.proto_schema
+                schema = context.current.schema
                 aref = irast.AtomicRefSimple(
                     name=_id,
                     ref=subquery,
-                    ptr_proto=subquery.concept.resolve_pointer(
+                    ptr_class=subquery.concept.resolve_pointer(
                         schema, _id)
                 )
                 subquery.atomrefs.add(aref)
@@ -1153,7 +1153,7 @@ class EdgeQLCompiler:
             maintype = expr.type.maintype
             subtypes = expr.type.subtypes
 
-            schema = context.current.proto_schema
+            schema = context.current.schema
 
             if subtypes:
                 typ = irast.TypeRef(
@@ -1171,7 +1171,7 @@ class EdgeQLCompiler:
 
                         if subtype.pathspec:
                             pathspec = self._process_pathspec(
-                                context, stype.link_proto, None,
+                                context, stype.link_class, None,
                                 subtype.pathspec)
                         else:
                             pathspec = None
@@ -1227,13 +1227,13 @@ class EdgeQLCompiler:
         if expr.index is not None:
             type = self.arg_types.get(expr.index)
             if type is not None:
-                type = s_types.normalize_type(type, self.proto_schema)
+                type = s_types.normalize_type(type, self.schema)
             node = irast.Constant(
                 value=expr.value, index=expr.index, type=type)
             context.current.arguments[expr.index] = type
         else:
             type = s_types.normalize_type(expr.value.__class__,
-                                          self.proto_schema)
+                                          self.schema)
             node = irast.Constant(
                 value=expr.value, index=expr.index, type=type)
 
@@ -1241,11 +1241,11 @@ class EdgeQLCompiler:
 
     def _process_unlimited_recursion(self):
         type = s_types.normalize_type((0).__class__,
-                                      self.proto_schema)
+                                      self.schema)
         return irast.Constant(
             value=0, index=None, type=type)
 
-    def _process_pathspec(self, context, source, rlink_proto, pathspec,
+    def _process_pathspec(self, context, source, rlink_class, pathspec,
                           is_typeref=False):
         result = []
 
@@ -1274,21 +1274,21 @@ class EdgeQLCompiler:
                     for ptr in source.pointers.values():
                         if not filter_exprs or all((f[0](ptr) == f[1])
                                                    for f in filter_exprs):
-                            glob_specs.append(irast.PtrPathSpec(ptr_proto=ptr))
+                            glob_specs.append(irast.PtrPathSpec(ptr_class=ptr))
 
                 elif ptrspec.type == 'property':
-                    if rlink_proto is None:
+                    if rlink_class is None:
                         msg = 'link properties are not available at this ' \
                               'point in path'
                         raise errors.EdgeQLError(msg)
 
-                    for ptr_name, ptr in rlink_proto.pointers.items():
+                    for ptr_name, ptr in rlink_class.pointers.items():
                         if ptr.is_special_pointer():
                             continue
 
                         if not filter_exprs or all((f[0](ptr) == f[1])
                                                    for f in filter_exprs):
-                            glob_specs.append(irast.PtrPathSpec(ptr_proto=ptr))
+                            glob_specs.append(irast.PtrPathSpec(ptr_class=ptr))
 
                 else:
                     msg = 'unexpected pointer spec type'
@@ -1298,16 +1298,16 @@ class EdgeQLCompiler:
                     result, glob_specs, target_most_generic=False)
 
             elif isinstance(ptrspec, qlast.SelectTypeRefNode):
-                schema = context.current.proto_schema
-                ptr_proto = schema.get('schema::__type__').derive(
+                schema = context.current.schema
+                ptr_class = schema.get('std::__type__').derive(
                     schema, source, schema.get('std::Object'))
 
                 node = irast.PtrPathSpec(
                     type_indirection=True,
-                    ptr_proto=ptr_proto)
+                    ptr_class=ptr_class)
 
                 node.pathspec = self._process_pathspec(
-                    context, source, ptr_proto, ptrspec.attrs,
+                    context, source, ptr_class, ptrspec.attrs,
                     is_typeref=True)
 
                 result.append(node)
@@ -1315,12 +1315,12 @@ class EdgeQLCompiler:
             elif is_typeref:
                 type_prop_name = ptrspec.steps[0].expr.name
                 type_prop = source.get_type_property(
-                    type_prop_name, context.current.proto_schema)
+                    type_prop_name, context.current.schema)
 
                 node = irast.PtrPathSpec(
-                    ptr_proto=type_prop,
+                    ptr_class=type_prop,
                     ptr_direction=s_pointers.PointerDirection.Outbound,
-                    target_proto=type_prop.target,
+                    target_class=type_prop.target,
                     trigger=irast.ExplicitPathSpecTrigger())
 
                 result.append(node)
@@ -1339,7 +1339,7 @@ class EdgeQLCompiler:
                 ptrname = (lexpr.namespace, lexpr.name)
 
                 if lexpr.type == 'property':
-                    if rlink_proto is None:
+                    if rlink_class is None:
                         if isinstance(source, s_links.Link):
                             ptrsource = source
                         else:
@@ -1347,7 +1347,7 @@ class EdgeQLCompiler:
                                   'this point in path'
                             raise errors.EdgeQLError(msg)
                     else:
-                        ptrsource = rlink_proto
+                        ptrsource = rlink_class
 
                     ptrtype = s_lprops.LinkProperty
                 else:
@@ -1362,7 +1362,7 @@ class EdgeQLCompiler:
                     lexpr.direction or s_pointers.PointerDirection.Outbound
 
                 if ptrspec.compexpr is not None:
-                    schema = context.current.proto_schema
+                    schema = context.current.schema
                     compexpr = self._process_expr(context, ptrspec.compexpr)
                     if not isinstance(
                             compexpr, (irast.GraphExpr, irast.SubgraphRef)):
@@ -1372,13 +1372,13 @@ class EdgeQLCompiler:
                             )]
                         )
 
-                    target_proto = irutils.infer_type(compexpr, schema)
-                    assert target_proto is not None
+                    target_class = irutils.infer_type(compexpr, schema)
+                    assert target_class is not None
                     ptr = s_links.Link(
                         name=sn.SchemaName(
                             module=ptrname[0] or ptrsource.name.module,
                             name=ptrname[1]),
-                    ).derive(schema, ptrsource, target_proto)
+                    ).derive(schema, ptrsource, target_class)
                 else:
                     ptr = self._resolve_ptr(
                         context,
@@ -1387,7 +1387,7 @@ class EdgeQLCompiler:
                         ptr_direction,
                         ptr_type=ptrtype,
                         target=target_name)
-                    target_proto = ptr.get_far_endpoint(ptr_direction)
+                    target_class = ptr.get_far_endpoint(ptr_direction)
                     compexpr = None
 
                 if ptrspec.recurse:
@@ -1422,11 +1422,11 @@ class EdgeQLCompiler:
                     limit = None
 
                 node = irast.PtrPathSpec(
-                    ptr_proto=ptr,
+                    ptr_class=ptr,
                     ptr_direction=ptr_direction,
                     compexpr=compexpr,
                     recurse=recurse,
-                    target_proto=target_proto,
+                    target_class=target_class,
                     generator=generator,
                     sorter=sorter,
                     trigger=irast.ExplicitPathSpecTrigger(),
@@ -1435,7 +1435,7 @@ class EdgeQLCompiler:
 
                 if ptrspec.pathspec is not None:
                     node.pathspec = self._process_pathspec(
-                        context, target_proto, ptr, ptrspec.pathspec)
+                        context, target_class, ptr, ptrspec.pathspec)
                 else:
                     node.pathspec = None
 
@@ -1443,7 +1443,7 @@ class EdgeQLCompiler:
                     result, [node], target_most_generic=False)
 
         self._normalize_pathspec_recursion(result, source,
-                                           context.current.proto_schema)
+                                           context.current.schema)
 
         return result
 
@@ -1515,25 +1515,25 @@ class EdgeQLCompiler:
             if (path_tip is None and
                     context.current.local_link_source is not None and
                     isinstance(tip, qlast.PathStepNode)):
-                proto = self._get_schema_object(context, tip.expr,
+                scls = self._get_schema_object(context, tip.expr,
                                                 tip.namespace)
-                if isinstance(proto, s_links.Link):
+                if isinstance(scls, s_links.Link):
                     tip = qlast.LinkExprNode(expr=qlast.LinkNode(
                         namespace=tip.namespace, name=tip.expr))
                     path_tip = context.current.local_link_source
 
             if isinstance(tip, qlast.PathStepNode):
 
-                proto = self._get_schema_object(context, tip.expr,
+                scls = self._get_schema_object(context, tip.expr,
                                                 tip.namespace)
 
-                if isinstance(proto, s_obj.ProtoNode):
+                if isinstance(scls, s_obj.NodeClass):
                     step = irast.EntitySet()
-                    step.concept = proto
+                    step.concept = scls
                     step.id = irutils.LinearPath([step.concept])
                     step.users.add(context.current.location)
                 else:
-                    step = irast.EntityLink(link_proto=proto)
+                    step = irast.EntityLink(link_class=scls)
 
                 path_tip = step
 
@@ -1562,20 +1562,20 @@ class EdgeQLCompiler:
                     typeref = path_tip
                     continue
 
-                link_proto = self._resolve_ptr(
+                link_class = self._resolve_ptr(
                     context,
                     path_tip.as_type or path_tip.concept,
                     linkname,
                     direction,
                     target=link_target)
 
-                target = link_proto.get_far_endpoint(direction)
+                target = link_class.get_far_endpoint(direction)
 
                 if isinstance(target, s_concepts.Concept):
                     target_set = irast.EntitySet(context=tip.context)
                     target_set.concept = target
                     target_set.id = irutils.LinearPath(path_tip.id)
-                    target_set.id.add(link_proto, direction,
+                    target_set.id.add(link_class, direction,
                                       target_set.concept)
                     target_set.users.add(context.current.location)
 
@@ -1583,7 +1583,7 @@ class EdgeQLCompiler:
                         source=path_tip,
                         target=target_set,
                         direction=direction,
-                        link_proto=link_proto,
+                        link_class=link_class,
                         users={context.current.location})
 
                     path_tip.disjunction.update(link)
@@ -1596,40 +1596,40 @@ class EdgeQLCompiler:
                     target_set = irast.EntitySet(context=tip.context)
                     target_set.concept = target
                     target_set.id = irutils.LinearPath(path_tip.id)
-                    target_set.id.add(link_proto, direction,
+                    target_set.id.add(link_class, direction,
                                       target_set.concept)
                     target_set.users.add(context.current.location)
 
                     link = irast.EntityLink(
                         source=path_tip,
                         target=target_set,
-                        link_proto=link_proto,
+                        link_class=link_class,
                         direction=direction,
                         users={context.current.location})
 
                     target_set.rlink = link
 
                     atomref_id = irutils.LinearPath(path_tip.id)
-                    atomref_id.add(link_proto, direction, target)
+                    atomref_id.add(link_class, direction, target)
 
-                    if not link_proto.singular():
+                    if not link_class.singular():
                         ptr_name = sn.Name('std::target')
-                        ptr_proto = link_proto.pointers[ptr_name]
+                        ptr_class = link_class.pointers[ptr_name]
                         atomref = irast.LinkPropRefSimple(
                             name=ptr_name,
                             ref=link,
                             id=atomref_id,
-                            ptr_proto=ptr_proto)
+                            ptr_class=ptr_class)
                         link.proprefs.add(atomref)
                         path_tip.disjunction.update(link)
                         path_tip.disjunction.fixed = context.current.weak_path
                     else:
                         atomref = irast.AtomicRefSimple(
-                            name=link_proto.normal_name(),
+                            name=link_class.normal_name(),
                             ref=path_tip,
                             id=atomref_id,
                             rlink=link,
-                            ptr_proto=link_proto)
+                            ptr_class=link_class)
                         path_tip.atomrefs.add(atomref)
                         link.target = atomref
 
@@ -1649,13 +1649,13 @@ class EdgeQLCompiler:
                     prop_name = (link_expr.namespace, link_expr.name)
 
                     if (isinstance(path_tip, irast.LinkPropRefSimple) and
-                            not path_tip.ptr_proto.is_endpoint_pointer()):
+                            not path_tip.ptr_class.is_endpoint_pointer()):
                         # We are at propref point, the only valid
                         # step from here is @source taking us back
                         # to the link context.
                         if link_expr.name != 'source':
                             msg = 'invalid reference: {}.{}'.format(
-                                path_tip.ptr_proto, link_expr.name)
+                                path_tip.ptr_class, link_expr.name)
                             raise errors.EdgeQLReferenceError(msg)
 
                         link = path_tip.ref
@@ -1665,31 +1665,31 @@ class EdgeQLCompiler:
                     else:
                         if isinstance(path_tip, irast.LinkPropRefSimple):
                             link = path_tip.ref
-                            link_proto = link.link_proto
+                            link_class = link.link_class
                             id = path_tip.id
                         elif isinstance(path_tip, irast.EntityLink):
                             link = path_tip
-                            link_proto = link.link_proto
+                            link_class = link.link_class
                             id = irutils.LinearPath([None])
-                            id.add(link_proto,
+                            id.add(link_class,
                                    s_pointers.PointerDirection.Outbound, None)
                         else:
                             link = path_tip.rlink
-                            link_proto = link.link_proto
+                            link_class = link.link_class
                             id = path_tip.id
 
-                        prop_proto = self._resolve_ptr(
+                        prop_class = self._resolve_ptr(
                             context,
-                            link_proto,
+                            link_class,
                             prop_name,
                             s_pointers.PointerDirection.Outbound,
                             ptr_type=s_lprops.LinkProperty)
 
                         propref = irast.LinkPropRefSimple(
-                            name=prop_proto.normal_name(),
+                            name=prop_class.normal_name(),
                             ref=link,
                             id=id,
-                            ptr_proto=prop_proto)
+                            ptr_class=prop_class)
                         link.proprefs.add(propref)
 
                         path_tip = propref
@@ -1701,15 +1701,15 @@ class EdgeQLCompiler:
                 path_tip.source is not None):
             # Dangling link reference, possibly from an anchor ref,
             # complement it to target ref
-            link_proto = path_tip.link_proto
+            link_class = path_tip.link_class
 
             pref_id = irutils.LinearPath(path_tip.source.id)
-            pref_id.add(link_proto, s_pointers.PointerDirection.Outbound,
-                        link_proto.target)
-            ptr_proto = link_proto.pointers['std::target']
-            ptr_name = ptr_proto.normal_name()
+            pref_id.add(link_class, s_pointers.PointerDirection.Outbound,
+                        link_class.target)
+            ptr_class = link_class.pointers['std::target']
+            ptr_name = ptr_class.normal_name()
             propref = irast.LinkPropRefSimple(
-                name=ptr_name, ref=path_tip, id=pref_id, ptr_proto=ptr_proto)
+                name=ptr_name, ref=path_tip, id=pref_id, ptr_class=ptr_class)
             propref.anchor = path_tip.anchor
             propref.show_as_anchor = path_tip.show_as_anchor
             propref.pathvar = path_tip.pathvar
@@ -1731,21 +1731,21 @@ class EdgeQLCompiler:
         if ptr_module:
             ptr_fqname = sn.Name(module=ptr_module, name=ptr_nqname)
             modaliases = context.current.namespaces
-            pointer = self.proto_schema.get(ptr_fqname,
+            pointer = self.schema.get(ptr_fqname,
                                             module_aliases=modaliases,
                                             type=ptr_type)
             pointer_name = pointer.name
         else:
             pointer_name = ptr_fqname = ptr_nqname
 
-        if target is not None and not isinstance(target, s_obj.ProtoNode):
+        if target is not None and not isinstance(target, s_obj.NodeClass):
             target_name = '.'.join(filter(None, target))
             modaliases = context.current.namespaces
-            target = self.proto_schema.get(target_name,
+            target = self.schema.get(target_name,
                                            module_aliases=modaliases)
 
         if ptr_nqname == '%':
-            pointer_name = self.proto_schema.get_root_class(ptr_type).name
+            pointer_name = self.schema.get_root_class(ptr_type).name
 
         if target is not None:
             far_endpoints = (target, )
@@ -1753,7 +1753,7 @@ class EdgeQLCompiler:
             far_endpoints = None
 
         ptr = near_endpoint.resolve_pointer(
-            self.proto_schema,
+            self.schema,
             pointer_name,
             direction=direction,
             look_in_children=False,
@@ -1774,14 +1774,14 @@ class EdgeQLCompiler:
         return ptr
 
     def _get_schema_object(self, context, name, module=None):
-        if isinstance(name, qlast.PrototypeRefNode):
+        if isinstance(name, qlast.ClassRefNode):
             module = name.module
             name = name.name
 
         if module:
             name = sn.Name(name=name, module=module)
 
-        return self.proto_schema.get(
+        return self.schema.get(
             name=name, module_aliases=context.current.namespaces)
 
     def _process_select_targets(self, context, targets):
@@ -1802,11 +1802,11 @@ class EdgeQLCompiler:
                 if isinstance(path, irast.EntitySet):
                     if target.expr.pathspec is not None:
                         if path.rlink is not None:
-                            rlink_proto = path.rlink.link_proto
+                            rlink_class = path.rlink.link_class
                         else:
-                            rlink_proto = None
+                            rlink_class = None
                         pathspec = self._process_pathspec(
-                            context, path.concept, rlink_proto,
+                            context, path.concept, rlink_class,
                             target.expr.pathspec)
                     else:
                         pathspec = None
@@ -1814,7 +1814,7 @@ class EdgeQLCompiler:
                     if not isinstance(path.concept, s_atoms.Atom):
                         expr = self.entityref_to_record(
                             expr,
-                            self.proto_schema,
+                            self.schema,
                             pathspec=pathspec)
 
                 t = irast.SelectorExpr(expr=expr, **params)
@@ -1934,7 +1934,7 @@ class EdgeQLCompiler:
             implicit_links = (sn.Name('std::id'),)
 
             recurse_links = {(l, s_pointers.PointerDirection.Outbound):
-                             irast.PtrPathSpec(ptr_proto=ptrs[l])
+                             irast.PtrPathSpec(ptr_class=ptrs[l])
                              for l in implicit_links}
         else:
             recurse_links = {}
@@ -1953,52 +1953,52 @@ class EdgeQLCompiler:
                     el.rlink = irast.EntityLink(
                         source=p,
                         target=None,
-                        link_proto=ps.ptr_proto,
+                        link_class=ps.ptr_class,
                         direction=s_pointers.PointerDirection.Outbound,
                         users={'selector'})
 
                     elements.append(el)
 
-                elif isinstance(ps.ptr_proto, s_links.Link):
-                    k = ps.ptr_proto.normal_name(), ps.ptr_direction
+                elif isinstance(ps.ptr_class, s_links.Link):
+                    k = ps.ptr_class.normal_name(), ps.ptr_direction
                     recurse_links[k] = ps
 
-                elif isinstance(ps.ptr_proto, s_lprops.TypeProperty):
+                elif isinstance(ps.ptr_class, s_lprops.TypeProperty):
                     # metaref
-                    recurse_metarefs.append(ps.ptr_proto.normal_name().name)
+                    recurse_metarefs.append(ps.ptr_class.normal_name().name)
 
         for (link_name, link_direction), recurse_spec in recurse_links.items():
             el = None
 
-            link = recurse_spec.ptr_proto
+            link = recurse_spec.ptr_class
             link_direction = \
                 recurse_spec.ptr_direction \
                 or s_pointers.PointerDirection.Outbound
 
-            root_link_proto = link.bases[0]
-            link_proto = link
+            root_link_class = link.bases[0]
+            link_class = link
 
             if link_direction == s_pointers.PointerDirection.Outbound:
-                link_target_proto = link.target
+                link_target_class = link.target
                 link_singular = \
                     link.mapping in {s_links.LinkMapping.OneToOne,
                                      s_links.LinkMapping.ManyToOne}
             else:
-                link_target_proto = link.source
+                link_target_class = link.source
                 link_singular = \
                     link.mapping in {s_links.LinkMapping.OneToOne,
                                      s_links.LinkMapping.OneToMany}
 
-            if recurse_spec.target_proto is not None:
-                target_proto = recurse_spec.target_proto
+            if recurse_spec.target_class is not None:
+                target_class = recurse_spec.target_class
             else:
-                target_proto = link_target_proto
+                target_class = link_target_class
 
             recurse_link = \
                 recurse_spec.recurse if recurse_spec is not None else None
 
             full_path_id = irutils.LinearPath(ref.id)
-            full_path_id.add(link_proto, link_direction, target_proto)
+            full_path_id.add(link_class, link_direction, target_class)
 
             if not link_singular or recurse_link is not None:
                 lref = irutils.copy_path(ref, connect_to_origin=True)
@@ -2019,13 +2019,13 @@ class EdgeQLCompiler:
                     conjunction=irast.Conjunction(),
                     disjunction=irast.Disjunction(),
                     users={self.context.current.location},
-                    concept=target_proto,
+                    concept=target_class,
                     id=full_path_id)
 
                 link_node = irast.EntityLink(
                     source=lref,
                     target=targetstep,
-                    link_proto=link_proto,
+                    link_class=link_class,
                     direction=link_direction,
                     users={'selector'})
 
@@ -2086,8 +2086,8 @@ class EdgeQLCompiler:
                     sort_target = irutils.copy_path(sortpath)
 
                     if isinstance(sortpath, irast.LinkPropRef):
-                        if (sortpath.ref.link_proto.normal_name() ==
-                                link_node.link_proto.normal_name()):
+                        if (sortpath.ref.link_class.normal_name() ==
+                                link_node.link_class.normal_name()):
                             sort_target.ref = link_node
                             link_node.proprefs.add(sort_target)
                         else:
@@ -2100,7 +2100,7 @@ class EdgeQLCompiler:
                         sort_link = irast.EntityLink(
                             source=sort_source,
                             target=sort_target,
-                            link_proto=sortpath_link.link_proto,
+                            link_class=sortpath_link.link_class,
                             direction=sortpath_link.direction,
                             users=sortpath_link.users.copy())
 
@@ -2113,14 +2113,14 @@ class EdgeQLCompiler:
                             direction=sortexpr.direction,
                             nones_order=sortexpr.nones_order))
 
-            if isinstance(target_proto, s_atoms.Atom):
+            if isinstance(target_class, s_atoms.Atom):
                 if link_singular:
                     if not reusing_target:
                         newstep = irast.AtomicRefSimple(
                             ref=lref,
                             name=link_name,
                             id=full_path_id,
-                            ptr_proto=link_proto,
+                            ptr_class=link_class,
                             rlink=link_node,
                             users=link_node.users.copy())
                         link_node.target = newstep
@@ -2128,11 +2128,11 @@ class EdgeQLCompiler:
                 else:
                     ptr_name = sn.Name('std::target')
                     prop_id = irutils.LinearPath(ref.id)
-                    prop_id.add(root_link_proto,
+                    prop_id.add(root_link_class,
                                 s_pointers.PointerDirection.Outbound, None)
-                    prop_proto = link.pointers[ptr_name]
+                    prop_class = link.pointers[ptr_name]
                     newstep = irast.LinkPropRefSimple(
-                        name=ptr_name, id=full_path_id, ptr_proto=prop_proto)
+                        name=ptr_name, id=full_path_id, ptr_class=prop_class)
 
                 el = newstep
             else:
@@ -2167,38 +2167,38 @@ class EdgeQLCompiler:
                     recurse_props = {}
 
                     for ps in recurse_spec.pathspec:
-                        if (isinstance(ps.ptr_proto, s_lprops.LinkProperty) and
-                                not ps.ptr_proto.is_endpoint_pointer()):
-                            recurse_props[ps.ptr_proto.normal_name()] = ps
+                        if (isinstance(ps.ptr_class, s_lprops.LinkProperty) and
+                                not ps.ptr_class.is_endpoint_pointer()):
+                            recurse_props[ps.ptr_class.normal_name()] = ps
                 else:
                     recurse_props = {}
 
-                for prop_name, prop_proto in link.pointers.items():
+                for prop_name, prop_class in link.pointers.items():
                     if prop_name not in recurse_props:
                         continue
 
                     prop_id = irutils.LinearPath(ref.id)
-                    prop_id.add(root_link_proto,
+                    prop_id.add(root_link_class,
                                 s_pointers.PointerDirection.Outbound, None)
                     prop_ref = irast.LinkPropRefSimple(
                         name=prop_name,
                         id=full_path_id,
-                        ptr_proto=prop_proto,
+                        ptr_class=prop_class,
                         ref=link_node)
                     prop_elements.append(prop_ref)
                     link_node.proprefs.add(prop_ref)
 
                 if prop_elements:
                     if not isinstance(el, irast.Record):
-                        std_tgt = link_proto.pointers['std::target']
+                        std_tgt = link_class.pointers['std::target']
                         std_tgt_ref = irast.LinkPropRefSimple(
                             name=std_tgt.normal_name(),
                             id=full_path_id,
-                            ptr_proto=std_tgt,
+                            ptr_class=std_tgt,
                             ref=link_node)
                         link_node.proprefs.add(std_tgt_ref)
                         el = irast.Record(elements=[std_tgt_ref],
-                                          concept=target_proto,
+                                          concept=target_class,
                                           rlink=link_node)
 
                     el.elements.extend(prop_elements)
@@ -2299,17 +2299,17 @@ class EdgeQLCompiler:
 
             ref = p if len(expr.paths) == 1 else expr
             link_name = sn.Name('std::id')
-            link_proto = schema.get(link_name)
-            target_proto = link_proto.target
+            link_class = schema.get(link_name)
+            target_class = link_class.target
             id = irutils.LinearPath(ref.id)
-            id.add(link_proto, s_pointers.PointerDirection.Outbound,
-                   target_proto)
+            id.add(link_class, s_pointers.PointerDirection.Outbound,
+                   target_class)
             expr = irast.AtomicRefSimple(
-                ref=ref, name=link_name, id=id, ptr_proto=link_proto)
+                ref=ref, name=link_name, id=id, ptr_class=link_class)
 
         return expr
 
-    def _normalize_pathspec_recursion(self, pathspec, source, proto_schema):
+    def _normalize_pathspec_recursion(self, pathspec, source, schema):
         for ptrspec in pathspec:
             if ptrspec.recurse is not None:
                 # Push the looping spec one step down so that the
@@ -2319,17 +2319,17 @@ class EdgeQLCompiler:
                 if ptrspec.pathspec is None:
                     ptrspec.pathspec = []
 
-                    for ptr in ptrspec.target_proto.pointers.values():
+                    for ptr in ptrspec.target_class.pointers.values():
                         if ptr.get_loading_behaviour(
                         ) == s_pointers.PointerLoading.Eager:
                             ptrspec.pathspec.append(
-                                irast.PtrPathSpec(ptr_proto=ptr))
+                                irast.PtrPathSpec(ptr_class=ptr))
 
                 recspec = irast.PtrPathSpec(
-                    ptr_proto=ptrspec.ptr_proto,
+                    ptr_class=ptrspec.ptr_class,
                     ptr_direction=ptrspec.ptr_direction,
                     recurse=ptrspec.recurse,
-                    target_proto=ptrspec.target_proto,
+                    target_class=ptrspec.target_class,
                     generator=ptrspec.generator,
                     sorter=ptrspec.sorter,
                     limit=ptrspec.limit,
@@ -2338,8 +2338,8 @@ class EdgeQLCompiler:
                     type_indirection=ptrspec.type_indirection)
 
                 for i, subptrspec in enumerate(ptrspec.pathspec):
-                    if (subptrspec.ptr_proto.normal_name() ==
-                            ptrspec.ptr_proto.normal_name()):
+                    if (subptrspec.ptr_class.normal_name() ==
+                            ptrspec.ptr_class.normal_name()):
                         ptrspec.pathspec[i] = recspec
                         break
                 else:
@@ -2362,7 +2362,7 @@ class EdgeQLCompiler:
         for item1 in pathspec1:
             item1_subspec = item1.pathspec
 
-            item1_lname = item1.ptr_proto.normal_name()
+            item1_lname = item1.ptr_class.normal_name()
             item1_ldir = item1.ptr_direction
 
             for i, item2 in enumerate(pathspec2):
@@ -2371,7 +2371,7 @@ class EdgeQLCompiler:
 
                 item2_subspec = item2.pathspec
 
-                item2_lname = item2.ptr_proto.normal_name()
+                item2_lname = item2.ptr_class.normal_name()
                 item2_ldir = item2.ptr_direction
 
                 if item1.type_indirection and item2.type_indirection:
@@ -2381,10 +2381,10 @@ class EdgeQLCompiler:
                         target_most_generic=target_most_generic)
 
                     merged = item1.__class__(
-                        ptr_proto=item1.ptr_proto,
+                        ptr_class=item1.ptr_class,
                         pathspec=subspec,
                         ptr_direction=item1.ptr_direction,
-                        target_proto=item1.target_proto,
+                        target_class=item1.target_class,
                         recurse=item1.recurse,
                         sorter=item1.sorter,
                         generator=item1.generator,
@@ -2404,15 +2404,15 @@ class EdgeQLCompiler:
                 if item1_lname == item2_lname and item1_ldir == item2_ldir:
                     # Do merge
 
-                    if item1.target_proto != item2.target_proto:
-                        schema = self.context.current.proto_schema
+                    if item1.target_class != item2.target_class:
+                        schema = self.context.current.schema
                         minimize_by = \
                             'most_generic' if target_most_generic \
                             else 'least_generic'
-                        target = item1.ptr_proto.create_common_target(
+                        target = item1.ptr_class.create_common_target(
                             schema, (item1, item2), minimize_by=minimize_by)
                     else:
-                        target = item1.target_proto
+                        target = item1.target_class
 
                     subspec = self._merge_pathspecs(
                         item1_subspec,
@@ -2420,10 +2420,10 @@ class EdgeQLCompiler:
                         target_most_generic=target_most_generic)
 
                     merged = item1.__class__(
-                        ptr_proto=item1.ptr_proto,
+                        ptr_class=item1.ptr_class,
                         pathspec=subspec,
                         ptr_direction=item1.ptr_direction,
-                        target_proto=target,
+                        target_class=target,
                         recurse=item1.recurse,
                         sorter=item1.sorter,
                         generator=item1.generator,
@@ -2549,7 +2549,7 @@ class EdgeQLCompiler:
                            link.target)
                     cols.append(
                         irast.AtomicRefSimple(
-                            ref=ref, name=link_name, ptr_proto=link, id=id))
+                            ref=ref, name=link_name, ptr_class=link, id=id))
 
                 if not cols:
                     raise edgedb_error.EdgeDBError(
@@ -2708,7 +2708,7 @@ class EdgeQLCompiler:
                     elif ref.ref.source:
                         ref_id = ref.ref.source.get_id()
                     else:
-                        ref_id = irutils.LinearPath([ref.ref.link_proto])
+                        ref_id = irutils.LinearPath([ref.ref.link_class])
                 else:
                     ref_id = ref.get_id()
 
@@ -2904,7 +2904,7 @@ class EdgeQLCompiler:
                         membership_op = op
 
                     if isinstance(right.type, s_concepts.Concept):
-                        id_t = self.context.current.proto_schema.get('uuid')
+                        id_t = self.context.current.schema.get('uuid')
                         const_filter = irast.Constant(
                             value=right.value,
                             index=right.index,
@@ -3112,7 +3112,7 @@ class EdgeQLCompiler:
             if isinstance(right, irast.Constant):
                 l, r = (right, left) if reversed else (left, right)
 
-                schema = self.context.current.proto_schema
+                schema = self.context.current.schema
                 if isinstance(op, (ast.ops.ComparisonOperator,
                                    ast.ops.TypeCheckOperator)):
                     result_type = schema.get('std::bool')
@@ -3208,7 +3208,7 @@ class EdgeQLCompiler:
                              irast.LinkPropRefSimple, irast.Record)):
                 expr_kind = 'path'
             elif (isinstance(selexpr.expr, irast.AtomicRefExpr) and
-                  selexpr.expr.ptr_proto is not None):
+                  selexpr.expr.ptr_class is not None):
                 # RefExpr represents a computable
                 expr_kind = 'path'
             elif isinstance(selexpr.expr, irast.PathCombination):
@@ -3217,7 +3217,7 @@ class EdgeQLCompiler:
                                            irast.AtomicRefSimple,
                                            irast.LinkPropRefSimple))
                             and not (isinstance(p, irast.AtomicRefExpr)
-                                     and p.ptr_proto is not None)):
+                                     and p.ptr_class is not None)):
                         expr_kind = 'expression'
                         break
                 else:

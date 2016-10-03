@@ -28,41 +28,41 @@ class ModuleCommandContext(sd.CommandContextToken):
         self.module = module
 
 
-class ModuleCommand(named.NamedPrototypeCommand):
+class ModuleCommand(named.NamedClassCommand):
     context_class = ModuleCommandContext
 
-    prototype_name = so.Field(str)
+    classname = so.Field(str)
 
     @classmethod
-    def _protoname_from_ast(cls, astnode, context):
+    def _classname_from_ast(cls, astnode, context):
         if astnode.name.module:
-            prototype_name = sn.Name(module=astnode.name.module,
+            classname = sn.Name(module=astnode.name.module,
                                      name=astnode.name.name)
         else:
-            prototype_name = astnode.name.name
+            classname = astnode.name.name
 
-        return prototype_name
+        return classname
 
     @classmethod
-    def _get_prototype_class(cls):
-        return ProtoModule
+    def _get_metaclass(cls):
+        return Module
 
 
-class CreateModule(named.CreateNamedPrototype, ModuleCommand):
+class CreateModule(named.CreateNamedClass, ModuleCommand):
     astnode = qlast.CreateModuleNode
 
     def apply(self, schema, context):
         props = self.get_struct_properties(schema)
-        self.module = self.prototype_class(**props)
+        self.module = self.metaclass(**props)
         schema.add_module(self.module)
         return self.module
 
 
-class AlterModule(named.CreateOrAlterNamedPrototype, ModuleCommand):
+class AlterModule(named.CreateOrAlterNamedClass, ModuleCommand):
     astnode = qlast.AlterModuleNode
 
     def apply(self, schema, context):
-        self.module = schema.get_module(self.prototype_name)
+        self.module = schema.get_module(self.classname)
 
         props = self.get_struct_properties(schema)
         for name, value in props.items():
@@ -75,12 +75,12 @@ class DeleteModule(ModuleCommand):
     astnode = qlast.DropModuleNode
 
     def apply(self, schema, context):
-        self.module = schema.get_module(self.prototype_name)
+        self.module = schema.get_module(self.classname)
         schema.delete_module(self.module)
         return self.module
 
 
-class ProtoModule(named.NamedPrototype):
+class Module(named.NamedClass):
     name = so.Field(str)
     imports = so.Field(frozenset, frozenset)
 
@@ -163,45 +163,45 @@ class ProtoModule(named.NamedPrototype):
         if isinstance(type, tuple):
             for typ in type:
                 try:
-                    prototype = self.get(name, module_aliases=module_aliases,
+                    scls = self.get(name, module_aliases=module_aliases,
                                          type=typ,
                                          include_pyobjects=include_pyobjects,
                                          index_only=index_only, default=None)
                 except SchemaError:
                     pass
                 else:
-                    if prototype is not None:
-                        return prototype
+                    if scls is not None:
+                        return scls
         else:
-            prototype = None
+            scls = None
 
             fq_name = '{}::{}'.format(self.name, name)
-            prototype = self.lookup_qname(fq_name)
+            scls = self.lookup_qname(fq_name)
 
-            if type is not None and issubclass(type, so.ProtoObject):
+            if type is not None and issubclass(type, so.Class):
                 type = type.get_canonical_class()
 
         raise_ = None
 
-        if prototype is None:
+        if scls is None:
             if default is not None:
                 raise_ = (isinstance(default, Exception) or
                             (isinstance(default, builtins.type) and
                              issubclass(default, Exception)))
 
             if raise_:
-                msg = 'reference to non-existent schema prototype: {}::{}'. \
+                msg = 'reference to non-existent schema class: {}::{}'. \
                         format(self.name, name)
                 if fail_cause is not None:
                     raise default(msg) from fail_cause
                 else:
                     raise default(msg)
             else:
-                prototype = default
+                scls = default
 
         if (type is not None and
-                isinstance(prototype, so.ProtoObject) and
-                not isinstance(prototype, type)):
+                isinstance(scls, so.Class) and
+                not isinstance(scls, type)):
             if default is not None:
                 raise_ = (isinstance(default, Exception) or
                           (isinstance(default, builtins.type) and
@@ -219,8 +219,8 @@ class ProtoModule(named.NamedPrototype):
                 else:
                     raise default(msg)
             else:
-                prototype = default
-        return prototype
+                scls = default
+        return scls
 
     def match(self, name, module_aliases=None, type=None):
         name, module, nqname = sn.split_name(name)
@@ -270,10 +270,10 @@ class ProtoModule(named.NamedPrototype):
         return obj in self.index
 
     def __iter__(self):
-        return ProtoSchemaIterator(self, None)
+        return SchemaIterator(self, None)
 
     def __call__(self, type=None, include_derived=False):
-        return ProtoSchemaIterator(self, type, include_derived=include_derived)
+        return SchemaIterator(self, type, include_derived=include_derived)
 
     def get_checksum(self):
         if self.index:
@@ -285,7 +285,7 @@ class ProtoModule(named.NamedPrototype):
         return checksum
 
 
-class ProtoSchemaIterator:
+class SchemaIterator:
     def __init__(self, index, type, include_derived=False):
         self.index = index
         self.type = type
@@ -294,7 +294,7 @@ class ProtoSchemaIterator:
         sourceset = self.index.index
 
         if type is not None:
-            if isinstance(type, so.PrototypeClass):
+            if isinstance(type, so.MetaClass):
                 type = type._type
 
             itertype = index.index_by_type.get(type)

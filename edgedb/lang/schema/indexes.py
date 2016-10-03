@@ -23,21 +23,21 @@ class IndexSourceCommandContext:
     pass
 
 
-class IndexSourceCommand(sd.PrototypeCommand):
+class IndexSourceCommand(sd.ClassCommand):
     def _create_innards(self, schema, context):
         super()._create_innards(schema, context)
 
         for op in self(SourceIndexCommand):
             op.apply(schema, context=context)
 
-    def _alter_innards(self, schema, context, prototype):
-        super()._alter_innards(schema, context, prototype)
+    def _alter_innards(self, schema, context, scls):
+        super()._alter_innards(schema, context, scls)
 
         for op in self(SourceIndexCommand):
             op.apply(schema, context=context)
 
-    def _delete_innards(self, schema, context, prototype):
-        super()._delete_innards(schema, context, prototype)
+    def _delete_innards(self, schema, context, scls):
+        super()._delete_innards(schema, context, scls)
 
         for op in self(SourceIndexCommand):
             op.apply(schema, context=context)
@@ -49,22 +49,22 @@ class IndexSourceCommand(sd.PrototypeCommand):
             self._append_subcmd_ast(node, op, context)
 
 
-class SourceIndexCommandContext(sd.PrototypeCommandContext):
+class SourceIndexCommandContext(sd.ClassCommandContext):
     pass
 
 
-class SourceIndexCommand(referencing.ReferencedPrototypeCommand):
+class SourceIndexCommand(referencing.ReferencedClassCommand):
     context_class = SourceIndexCommandContext
     referrer_conext_class = IndexSourceCommandContext
 
     @classmethod
-    def _get_prototype_class(cls):
+    def _get_metaclass(cls):
         return SourceIndex
 
     @classmethod
-    def _protoname_from_ast(cls, astnode, context):
+    def _classname_from_ast(cls, astnode, context):
         parent_ctx = context.get(sd.CommandContextToken)
-        subject_name = parent_ctx.op.prototype_name
+        subject_name = parent_ctx.op.classname
 
         idx_name = SourceIndex.generate_specialized_name(
             subject_name,
@@ -74,7 +74,7 @@ class SourceIndexCommand(referencing.ReferencedPrototypeCommand):
         return sn.Name(name=idx_name, module=subject_name.module)
 
 
-class CreateSourceIndex(SourceIndexCommand, named.CreateNamedPrototype):
+class CreateSourceIndex(SourceIndexCommand, named.CreateNamedClass):
     astnode = qlast.CreateIndexNode
 
     @classmethod
@@ -82,14 +82,14 @@ class CreateSourceIndex(SourceIndexCommand, named.CreateNamedPrototype):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
         parent_ctx = context.get(sd.CommandContextToken)
-        subject_name = parent_ctx.op.prototype_name
+        subject_name = parent_ctx.op.classname
 
         cmd.update((
-            sd.AlterPrototypeProperty(
+            sd.AlterClassProperty(
                 property='subject',
-                new_value=so.PrototypeRef(prototype_name=subject_name)
+                new_value=so.ClassRef(classname=subject_name)
             ),
-            sd.AlterPrototypeProperty(
+            sd.AlterClassProperty(
                 property='expr',
                 new_value=expr.ExpressionText(
                     edgeql.generate_source(astnode.expr, pretty=False))
@@ -113,22 +113,22 @@ class CreateSourceIndex(SourceIndexCommand, named.CreateNamedPrototype):
             super()._apply_field_ast(context, node, op)
 
 
-class RenameSourceIndex(SourceIndexCommand, named.RenameNamedPrototype):
+class RenameSourceIndex(SourceIndexCommand, named.RenameNamedClass):
     pass
 
 
-class AlterSourceIndex(SourceIndexCommand, named.AlterNamedPrototype):
+class AlterSourceIndex(SourceIndexCommand, named.AlterNamedClass):
     pass
 
 
-class DeleteSourceIndex(SourceIndexCommand, named.DeleteNamedPrototype):
+class DeleteSourceIndex(SourceIndexCommand, named.DeleteNamedClass):
     astnode = qlast.DropIndexNode
 
 
-class SourceIndex(derivable.DerivablePrototype):
+class SourceIndex(derivable.DerivableClass):
     _type = 'index'
 
-    subject = so.Field(primary.Prototype)
+    subject = so.Field(primary.Class)
     expr = so.Field(str, compcoef=0.909)
 
     delta_driver = sd.DeltaDriver(
@@ -146,11 +146,11 @@ class SourceIndex(derivable.DerivablePrototype):
     __str__ = __repr__
 
 
-class IndexableSubject(referencing.ReferencingPrototype):
+class IndexableSubject(referencing.ReferencingClass):
     indexes = referencing.RefDict(ref_cls=SourceIndex, compcoef=0.909)
 
     def add_index(self, index):
-        self.add_protoref('indexes', index)
+        self.add_classref('indexes', index)
 
-    def del_index(self, index, proto_schema):
-        self.del_protoref('indexes', index, proto_schema)
+    def del_index(self, index, schema):
+        self.del_classref('indexes', index, schema)

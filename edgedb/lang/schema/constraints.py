@@ -28,21 +28,21 @@ class ConsistencySubjectCommandContext:
     pass
 
 
-class ConsistencySubjectCommand(sd.PrototypeCommand):
+class ConsistencySubjectCommand(sd.ClassCommand):
     def _create_innards(self, schema, context):
         super()._create_innards(schema, context)
 
         for op in self(ConstraintCommand):
             op.apply(schema, context=context)
 
-    def _alter_innards(self, schema, context, prototype):
-        super()._alter_innards(schema, context, prototype)
+    def _alter_innards(self, schema, context, scls):
+        super()._alter_innards(schema, context, scls)
 
         for op in self(ConstraintCommand):
             op.apply(schema, context=context)
 
-    def _delete_innards(self, schema, context, prototype):
-        super()._delete_innards(schema, context, prototype)
+    def _delete_innards(self, schema, context, scls):
+        super()._delete_innards(schema, context, scls)
 
         for op in self(ConstraintCommand):
             op.apply(schema, context=context)
@@ -54,16 +54,16 @@ class ConsistencySubjectCommand(sd.PrototypeCommand):
             self._append_subcmd_ast(node, op, context)
 
 
-class ConstraintCommandContext(sd.PrototypeCommandContext):
+class ConstraintCommandContext(sd.ClassCommandContext):
     pass
 
 
-class ConstraintCommand(referencing.ReferencedPrototypeCommand):
+class ConstraintCommand(referencing.ReferencedClassCommand):
     context_class = ConstraintCommandContext
     referrer_context_class = ConsistencySubjectCommandContext
 
     @classmethod
-    def _get_prototype_class(cls):
+    def _get_metaclass(cls):
         return Constraint
 
     def add_constraint(self, constraint, parent, schema):
@@ -79,8 +79,8 @@ class ConstraintCommand(referencing.ReferencedPrototypeCommand):
         items = []
 
         for key, value in op.new_value.items():
-            if isinstance(value, so.PrototypeRef):
-                v = qlast.ConstantNode(value=value.prototype_name)
+            if isinstance(value, so.ClassRef):
+                v = qlast.ConstantNode(value=value.classname)
                 v = qlast.FunctionCallNode(func='typeref', args=[v])
 
             elif isinstance(value, so.Collection):
@@ -88,7 +88,7 @@ class ConstraintCommand(referencing.ReferencedPrototypeCommand):
 
                 for subtype in value.get_subtypes():
                     args.append(qlast.ConstantNode(
-                        value=subtype.prototype_name))
+                        value=subtype.classname))
 
                 v = qlast.FunctionCallNode(func='typeref', args=args)
 
@@ -109,16 +109,16 @@ class ConstraintCommand(referencing.ReferencedPrototypeCommand):
         super()._create_begin(schema, context)
 
         referrer_ctx = context.get(self.referrer_context_class)
-        if referrer_ctx is not None and self.prototype.finalexpr is None:
+        if referrer_ctx is not None and self.scls.finalexpr is None:
             Constraint.process_specialized_constraint(
-                schema, self.prototype, self.prototype.args)
+                schema, self.scls, self.scls.args)
 
-    def _alter_begin(self, schema, context, prototype):
-        super()._alter_begin(schema, context, prototype)
+    def _alter_begin(self, schema, context, scls):
+        super()._alter_begin(schema, context, scls)
 
 
 class CreateConstraint(ConstraintCommand,
-                       referencing.CreateReferencedPrototype):
+                       referencing.CreateReferencedClass):
     astnode = [qlast.CreateConcreteConstraintNode, qlast.CreateConstraintNode]
     referenced_astnode = qlast.CreateConcreteConstraintNode
 
@@ -135,11 +135,11 @@ class CreateConstraint(ConstraintCommand,
             super()._apply_field_ast(context, node, op)
 
 
-class RenameConstraint(ConstraintCommand, named.RenameNamedPrototype):
+class RenameConstraint(ConstraintCommand, named.RenameNamedClass):
     pass
 
 
-class AlterConstraint(ConstraintCommand, named.AlterNamedPrototype):
+class AlterConstraint(ConstraintCommand, named.AlterNamedClass):
     astnode = [qlast.AlterConcreteConstraintNode, qlast.AlterConstraintNode]
     referenced_astnode = qlast.AlterConcreteConstraintNode
 
@@ -150,15 +150,15 @@ class AlterConstraint(ConstraintCommand, named.AlterNamedPrototype):
         if isinstance(astnode, qlast.AlterConcreteConstraintNode):
             subject_ctx = context.get(ConsistencySubjectCommandContext)
             new_subject_name = None
-            for op in subject_ctx.op(named.RenameNamedPrototype):
+            for op in subject_ctx.op(named.RenameNamedClass):
                 new_subject_name = op.new_name
 
             if new_subject_name is not None:
                 cmd.add(
-                    sd.AlterPrototypeProperty(
+                    sd.AlterClassProperty(
                         property='subject',
-                        new_value=so.PrototypeRef(
-                            prototype_name=new_subject_name
+                        new_value=so.ClassRef(
+                            classname=new_subject_name
                         )
                     )
                 )
@@ -169,7 +169,7 @@ class AlterConstraint(ConstraintCommand, named.AlterNamedPrototype):
 
             if new_name is not None:
                 cmd.add(
-                    sd.AlterPrototypeProperty(
+                    sd.AlterClassProperty(
                         property='name',
                         new_value=new_name
                     )
@@ -186,7 +186,7 @@ class AlterConstraint(ConstraintCommand, named.AlterNamedPrototype):
             super()._apply_field_ast(context, node, op)
 
 
-class DeleteConstraint(ConstraintCommand, named.DeleteNamedPrototype):
+class DeleteConstraint(ConstraintCommand, named.DeleteNamedClass):
     astnode = [qlast.DropConcreteConstraintNode, qlast.DropConstraintNode]
     referenced_astnode = qlast.DropConcreteConstraintNode
 
@@ -204,7 +204,7 @@ class CumulativeBoolExpr(s_expr.ExpressionText):
         return result
 
 
-class Constraint(primary.Prototype, derivable.DerivablePrototype):
+class Constraint(primary.Class, derivable.DerivableClass):
     _type = 'constraint'
 
     expr = so.Field(s_expr.ExpressionText, default=None, compcoef=0.909,
@@ -219,12 +219,12 @@ class Constraint(primary.Prototype, derivable.DerivablePrototype):
     finalexpr = so.Field(CumulativeBoolExpr, default=None,
                          coerce=True, derived=True, compcoef=0.909)
 
-    subject = so.Field(so.BasePrototype, default=None, private=True)
+    subject = so.Field(so.Class, default=None, private=True)
 
-    paramtypes = so.Field(so.PrototypeDict, default=None, coerce=True,
+    paramtypes = so.Field(so.ClassDict, default=None, coerce=True,
                           compcoef=0.857)
 
-    inferredparamtypes = so.Field(so.PrototypeDict, default=None,
+    inferredparamtypes = so.Field(so.ClassDict, default=None,
                                   coerce=True, derived=True)
 
     args = so.Field(so.ArgDict, default=None, coerce=True, private=True,
@@ -412,7 +412,7 @@ class Constraint(primary.Prototype, derivable.DerivablePrototype):
         return formatted
 
 
-class ConsistencySubject(referencing.ReferencingPrototype):
+class ConsistencySubject(referencing.ReferencingClass):
     constraints = referencing.RefDict(ref_cls=Constraint, compcoef=0.887)
 
     @classmethod
@@ -421,7 +421,7 @@ class ConsistencySubject(referencing.ReferencingPrototype):
 
         if any(c.is_abstract for c in item.constraints.values()):
             # Have abstract constraints, cannot go pure inheritance,
-            # must create a derived prototype with materialized
+            # must create a derived Class with materialized
             # constraints.
             generic = item.bases[0]
             item = generic.derive(schema, source=source, add_to_schema=True,
@@ -429,7 +429,7 @@ class ConsistencySubject(referencing.ReferencingPrototype):
 
         return item
 
-    def begin_protoref_dict_merge(self, schema, bases, attr):
+    def begin_classref_dict_merge(self, schema, bases, attr):
         if attr == 'constraints':
             # Make sure abstract constraints from parents are mixed in
             # properly.
@@ -441,10 +441,10 @@ class ConsistencySubject(referencing.ReferencingPrototype):
                                for c in inherited if c.is_abstract)
             return constraints
         else:
-            return super().begin_protoref_dict_merge(schema, bases, attr)
+            return super().begin_classref_dict_merge(schema, bases, attr)
 
-    def finish_protoref_dict_merge(self, schema, bases, attr):
-        super().finish_protoref_dict_merge(schema, bases, attr)
+    def finish_classref_dict_merge(self, schema, bases, attr):
+        super().finish_classref_dict_merge(schema, bases, attr)
 
         if attr == 'constraints':
             # Materialize unmerged abstract constraints
@@ -457,10 +457,10 @@ class ConsistencySubject(referencing.ReferencingPrototype):
                     self.add_constraint(constraint)
 
     def add_constraint(self, constraint, replace=False):
-        self.add_protoref('constraints', constraint, replace=replace)
+        self.add_classref('constraints', constraint, replace=replace)
 
-    def del_constraint(self, constraint_name, proto_schema):
-        self.del_protoref('constraints', constraint_name, proto_schema)
+    def del_constraint(self, constraint_name, schema):
+        self.del_classref('constraints', constraint_name, schema)
 
     @classmethod
     def delta_constraints(cls, set1, set2, delta, context=None):

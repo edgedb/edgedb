@@ -22,12 +22,12 @@ from . import primary
 from . import types as s_types
 
 
-class AtomCommandContext(sd.PrototypeCommandContext,
+class AtomCommandContext(sd.ClassCommandContext,
                          attributes.AttributeSubjectCommandContext,
                          constraints.ConsistencySubjectCommandContext):
     def __setattr__(self, name, value):
         super().__setattr__(name, value)
-        if (name == 'proto' and value is not None
+        if (name == 'scls' and value is not None
                 and value.__class__.__name__ != 'Atom'):
             assert False, value
 
@@ -37,18 +37,18 @@ class AtomCommand(constraints.ConsistencySubjectCommand,
     context_class = AtomCommandContext
 
     @classmethod
-    def _get_prototype_class(cls):
+    def _get_metaclass(cls):
         return Atom
 
 
-class CreateAtom(AtomCommand, inheriting.CreateInheritingPrototype):
+class CreateAtom(AtomCommand, inheriting.CreateInheritingClass):
     astnode = qlast.CreateAtomNode
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
-        for sub in cmd(sd.AlterPrototypeProperty):
+        for sub in cmd(sd.AlterClassProperty):
             if sub.property == 'default':
                 sub.new_value = [sub.new_value]
 
@@ -63,24 +63,24 @@ class CreateAtom(AtomCommand, inheriting.CreateInheritingPrototype):
             super()._apply_field_ast(context, node, op)
 
 
-class RenameAtom(AtomCommand, named.RenameNamedPrototype):
+class RenameAtom(AtomCommand, named.RenameNamedClass):
     pass
 
 
-class RebaseAtom(AtomCommand, inheriting.RebaseNamedPrototype):
+class RebaseAtom(AtomCommand, inheriting.RebaseNamedClass):
     pass
 
 
-class AlterAtom(AtomCommand, inheriting.AlterInheritingPrototype):
+class AlterAtom(AtomCommand, inheriting.AlterInheritingClass):
     astnode = qlast.AlterAtomNode
 
 
-class DeleteAtom(AtomCommand, inheriting.DeleteInheritingPrototype):
+class DeleteAtom(AtomCommand, inheriting.DeleteInheritingClass):
     astnode = qlast.DropAtomNode
 
 
-class Atom(primary.Prototype, constraints.ConsistencySubject,
-           attributes.AttributeSubject, so.ProtoNode):
+class Atom(primary.Class, constraints.ConsistencySubject,
+           attributes.AttributeSubject, so.NodeClass):
     _type = 'atom'
 
     default = so.Field(expr.ExpressionText, default=None,
@@ -121,9 +121,9 @@ class Atom(primary.Prototype, constraints.ConsistencySubject,
 
                             for subtype in subtypes:
                                 if subtype is not self:
-                                    if isinstance(subtype, so.PrototypeRef):
-                                        if subtype.prototype_name != self.name:
-                                            deps.add(subtype.prototype_name)
+                                    if isinstance(subtype, so.ClassRef):
+                                        if subtype.classname != self.name:
+                                            deps.add(subtype.classname)
                                     else:
                                         deps.add(subtype.name)
 
@@ -137,8 +137,8 @@ class Atom(primary.Prototype, constraints.ConsistencySubject,
     def get_implementation_type(self):
         """Get the underlying Python type that is used to implement this Atom.
         """
-        base_proto = self.get_topmost_base()
-        return s_types.BaseTypeMeta.get_implementation(base_proto.name)
+        base_class = self.get_topmost_base()
+        return s_types.BaseTypeMeta.get_implementation(base_class.name)
 
     def coerce(self, value, schema):
         base_t = self.get_implementation_type()

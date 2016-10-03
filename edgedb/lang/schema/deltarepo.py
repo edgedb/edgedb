@@ -101,7 +101,7 @@ class MetaDeltaRepository:
         if end_rev is None:
             end_rev = self.get_delta(id='HEAD', compat_mode=True).id
 
-        schema = so.ProtoSchema()
+        schema = so.Schema()
 
         context = sd.DeltaUpgradeContext(sd.Delta.CURRENT_FORMAT_VERSION)
         for d in self.walk_deltas(end_rev, start_rev, reverse=True,
@@ -117,13 +117,13 @@ class MetaDeltaRepository:
     def get_schema(self, delta_obj):
         deltas = self.get_deltas(None, delta_obj.id,
                                  take_closest_snapshot=True)
-        schema = so.ProtoSchema()
+        schema = so.Schema()
         deltas.apply(schema)
         return schema
 
     def get_schema_at(self, ref):
         if ref is None:
-            return so.ProtoSchema()
+            return so.Schema()
         else:
             delta = self.load_delta(ref)
             return self.get_schema(delta)
@@ -142,7 +142,7 @@ class MetaDeltaRepository:
         d = None
         v1 = self.load_delta(ref1) if ref1 else None
 
-        if isinstance(ref2, so.ProtoSchema):
+        if isinstance(ref2, so.Schema):
             v2 = None
             v2_schema = ref2
         else:
@@ -152,7 +152,7 @@ class MetaDeltaRepository:
         if v1 is not None:
             v1_schema = self.get_schema(v1)
         else:
-            v1_schema = so.ProtoSchema()
+            v1_schema = so.Schema()
 
         if v1 is None or v1.checksum != v2_schema.get_checksum():
             d = sd.delta_schemas(v2_schema, v1_schema)

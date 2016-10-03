@@ -13,7 +13,7 @@ from . import objects as so
 from . import referencing
 
 
-class Prototype(referencing.ReferencingPrototype):
+class Class(referencing.ReferencingClass):
     title = so.Field(morphology.WordCombination, default=None, compcoef=0.909,
                      coerce=True)
     description = so.Field(str, default=None, compcoef=0.909)

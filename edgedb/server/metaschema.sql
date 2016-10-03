@@ -198,7 +198,7 @@ SET search_path = DEFAULT;
 
 CREATE TABLE feature (
     name text NOT NULL,
-    class_name text NOT NULL
+    classname text NOT NULL
 );
 
 
