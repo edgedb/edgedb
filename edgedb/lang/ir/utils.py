@@ -475,37 +475,6 @@ class LinearPath(list):
         return result
 
 
-def walk_path_towards_root(expr, trail):
-    step = expr
-    while step is not None:
-        link = step.as_link()
-        if link is not None:
-            link_proto = link.__sx_prototype__
-            direction = step._class_metadata.link_direction
-            trail.add(link_proto, direction, link.source.__sx_prototype__)
-            step = link.source
-        else:
-            step = None
-
-
-def get_path_id(node, join=None):
-    """Return a LinearPath by walking the given expression's link chain."""
-    path = LinearPath()
-
-    concept = node.__sx_prototype__
-
-    path.append(concept)
-    walk_path_towards_root(node, path)
-
-    if join:
-        joinpoint = join(path[-1].name)
-        walk_path_towards_root(joinpoint, path)
-
-    # Since we walked backwards, the final path needs to be reversed
-    path.reverse()
-    return path
-
-
 def extract_prefixes(expr, prefixes=None):
     prefixes = prefixes if prefixes is not None else PathIndex()
 

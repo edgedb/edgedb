@@ -52,14 +52,9 @@ class DecimalMeta(type):
     }
 
     @classmethod
-    def new(metacls, cls, *, parent_selector=None, copied=False,
-            generic_link_class=None):
-        super().new(cls, parent_selector=parent_selector, copied=copied,
-                         generic_link_class=generic_link_class)
-
+    def new(metacls, cls, schema_obj):
         ctxargs = {}
-        precision = cls.__sx_prototype__.get_attribute(
-            'std::precision')
+        precision = schema_obj.get_attribute('std::precision')
         if precision:
             precision = precision.value
             ctxargs['prec'] = precision[0]
@@ -79,15 +74,14 @@ class DecimalMeta(type):
             decimal_scale = None
             quantize_exponent = None
 
-        rounding = cls.__sx_prototype__.get_attribute(
-            'std::rounding')
+        rounding = schema_obj.get_attribute('std::rounding')
         if rounding:
             ctxargs['rounding'] = metacls._rounding_map[rounding.value]
 
         context = decimal.Context(**ctxargs)
         cls.__sx_decimal_metadata__ = \
             DecimalMetadata(context, decimal_scale=decimal_scale,
-                                     quantize_exponent=quantize_exponent)
+                            quantize_exponent=quantize_exponent)
 
     @classmethod
     def init_methods(metacls, cls):
@@ -188,8 +182,7 @@ class Decimal(fpdecimal.FPDecimal, metaclass=DecimalMeta):
 
 
 class DecimalTypeInfo(s_types.TypeInfo, type=Decimal):
-    def op(self, other: (decimal.Decimal, int)) -> \
-                                'std::decimal':
+    def op(self, other: (decimal.Decimal, int)) -> 'std::decimal':
         pass
 
     __add__ = op

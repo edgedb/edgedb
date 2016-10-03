@@ -7,7 +7,6 @@
 
 import bisect
 import collections
-import functools
 import importlib
 import json
 import pickle
@@ -61,7 +60,6 @@ from .datasources import introspection
 
 from .transformer import IRCompiler
 
-from . import ast as pg_ast
 from . import astexpr
 from . import parser
 from . import types
@@ -155,12 +153,6 @@ class Query(backend_query.Query):
         self.__dict__.update(state)
         self.text = ''.join(self.chunks)
 
-    def prepare(self, session):
-        return PreparedQuery(self, session)
-
-    def prepare_partial(self, session, **kwargs):
-        return PreparedQuery(self, session, kwargs)
-
     def get_output_format_info(self):
         if self.output_format == 'json':
             return ('json', 1)
@@ -169,143 +161,6 @@ class Query(backend_query.Query):
 
     def get_output_metadata(self):
         return {'record_info': self.record_info}
-
-
-class PreparedQuery:
-    def __init__(self, query, session, args=None):
-        self.query = query
-        self.argmap = query.argmap
-
-        self._session = session
-        self._concept_map = session.backend.get_concept_map(session)
-        self._constr_mech = session.backend.get_constr_mech()
-
-        if args:
-            text = self._embed_args(self.query, args)
-            self.argmap = {}
-        else:
-            text = query.text
-
-        exc_handler = functools.partial(
-            ErrorMech._interpret_db_error, self._session, self._constr_mech)
-        self.statement = session.get_prepared_statement(
-            text, raw=not query.scrolling_cursor, exc_handler=exc_handler)
-        self.init_args = args
-
-        if query.record_info:
-            for record in query.record_info:
-                session.backend._register_record_info(record)
-
-        # PreparedStatement.rows() is a streaming iterator that uses scrolling
-        # cursor internally to stream data from the database.  Since PostgreSQL
-        # only allows DECLARE with SELECT or VALUES, but not UPDATE ...
-        # RETURNING or DELETE ... RETURNING, we must use a single transaction
-        # fetch, that does not use cursors, for non-SELECT queries.
-        if issubclass(self.query.query_type, pg_ast.SelectQueryNode):
-            self._native_iter = self.statement.rows
-        else:
-            if self.query.scrolling_cursor:
-                raise edgedb_error.EdgeDBError(
-                    'cannot create scrolling cursor for non-SELECT query')
-
-            self._native_iter = self.statement
-
-    def _embed_args(self, query, args):
-        qargs = self.convert_arguments(**args)
-        quote = common.quote_literal
-
-        chunks = query.chunks[:]
-
-        for i, arg in qargs.items():
-            if isinstance(arg, (tuple, list)):
-                arg = 'ARRAY[' + ', '.join(quote(str(a)) for a in arg) + ']'
-            else:
-                arg = quote(str(arg))
-            for ai in query.arg_index[i]:
-                chunks[ai] = arg
-
-        return ''.join(chunks)
-
-    def describe_output(self, session):
-        return self.query.describe_output(session)
-
-    def describe_arguments(self, session):
-        return self.query.describe_arguments(session)
-
-    def convert_arguments(self, **kwargs):
-        return collections.OrderedDict(enumerate(self._convert_args(kwargs)))
-
-    def rows(self, **kwargs):
-        vars = self._convert_args(kwargs)
-
-        try:
-            if self.query.scrolling_cursor:
-                return self._cursor_iterator(vars, **kwargs)
-            else:
-                return self._native_iter(*vars)
-
-        except asyncpg.PostgresError as e:
-            raise ErrorMech._interpret_db_error(
-                self._session, self._constr_mech, e) from e
-
-    __call__ = rows
-    __iter__ = rows
-
-    def first(self, **kwargs):
-        vars = self._convert_args(kwargs)
-        return self.statement.first(*vars)
-
-    def _convert_args(self, kwargs):
-        result = []
-        for k in self.argmap:
-            arg = kwargs.get(k)
-
-            if (
-                    isinstance(arg, tuple) and arg and
-                    isinstance(arg[0], type) and
-                    isinstance(arg[0].__sx_prototype__, s_concepts.Concept)):
-                ids = set()
-
-                for cls in arg:
-                    proto = cls.__sx_prototype__
-                    children = proto.descendants(cls.__sx_protoschema__)
-                    ids.add(self._concept_map[proto.name])
-                    ids.update(self._concept_map[c.name] for c in children)
-
-                arg = ids
-
-            elif (
-                    isinstance(arg, type) and
-                    isinstance(arg.__sx_prototype__, s_concepts.Concept)):
-                proto = arg.__sx_prototype__
-                children = proto.descendants(arg.__sx_protoschema__)
-                arg = [self._concept_map[proto.name]]
-                arg.extend(self._concept_map[c.name] for c in children)
-
-            elif not isinstance(arg, type):
-                proto = getattr(arg.__class__, '__sx_prototype__', None)
-                if proto is not None and isinstance(proto, s_concepts.Concept):
-                    arg = arg.id
-
-            result.append(arg)
-
-        return result
-
-    def _cursor_iterator(self, vars, **kwargs):
-        if not kwargs:
-            kwargs = self.init_args
-
-        if self.query.limit:
-            limit = kwargs.pop(self.query.limit)
-        else:
-            limit = None
-
-        if self.query.offset:
-            offset = kwargs.pop(self.query.offset)
-        else:
-            offset = None
-
-        return Cursor(self.statement.declare(*vars), offset, limit)
 
 
 class ErrorMech:

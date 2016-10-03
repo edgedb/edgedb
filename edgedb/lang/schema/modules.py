@@ -275,20 +275,6 @@ class ProtoModule(named.NamedPrototype):
     def __call__(self, type=None, include_derived=False):
         return ProtoSchemaIterator(self, type, include_derived=include_derived)
 
-    def normalize(self, imports):
-        "Revert reference reductions made by __getstate__ methods of prototype"
-
-        modules = {m.__name__: m.__sx_prototypes__ for m in imports
-                   if hasattr(m, '__sx_prototypes__')}
-
-        modules[self.name] = self
-
-        objects = {}
-
-        _resolve = lambda name: modules[name.module].get(name.name)
-        for obj in self(include_derived=True):
-            obj._finalize_setstate(objects, _resolve)
-
     def get_checksum(self):
         if self.index:
             objects = frozenset(self)

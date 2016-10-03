@@ -12,9 +12,7 @@ from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import expr as s_expr
-from edgedb.lang.schema import hooks as s_hooks
 from edgedb.lang.schema import name as sn
-from edgedb.lang.schema import objects as s_obj
 
 
 class RewriteTransformer(ast.NodeTransformer):
@@ -97,67 +95,20 @@ class RewriteTransformer(ast.NodeTransformer):
         return expr
 
     def _apply_rewrite_hooks(self, expr, type):
-        sources = []
-        ln = None
-
-        if isinstance(expr, irast.EntitySet):
-            sources = [expr.concept]
-        elif isinstance(expr, irast.EntityLink):
-            ln = expr.link_proto.normal_name()
-
-            if expr.source.concept.is_virtual:
-                schema = self._context.current.proto_schema
-                for c in expr.source.concept.children(schema):
-                    if ln in c.pointers:
-                        sources.append(c)
-            else:
-                sources = [expr.source.concept]
-        else:
-            raise TypeError(
-                'unexpected node to _apply_rewrite_hooks: {!r}'.format(expr))
-
-        for source in sources:
-            mro = source.get_mro()
-
-            mro = [cls for cls in mro if isinstance(cls, s_obj.ProtoObject)]
-
-            for proto in mro:
-                if ln:
-                    key = (proto.name, ln)
+        if isinstance(expr, irast.EntityLink):
+            if (type == 'computable' and
+                    expr.link_proto.is_pure_computable()):
+                deflt = expr.link_proto.default[0]
+                if isinstance(deflt, s_expr.ExpressionText):
+                    edgeql_expr = deflt
                 else:
-                    key = proto.name
+                    edgeql_expr = "'" + str(deflt).replace("'", "''") + "'"
+                    target_type = expr.link_proto.target.name
+                    edgeql_expr = 'CAST ({} AS [{}])'.format(edgeql_expr,
+                                                             target_type)
 
-                try:
-                    hooks = s_hooks._rewrite_hooks[key, 'read', type]
-                except KeyError:
-                    pass
-                else:
-                    for hook in hooks:
-                        result = hook(self._context.current.graph, expr,
-                                      self._context.current.context_vars)
-                        if result:
-                            RewriteTransformer.run(
-                                result, context=self._context)
-                    break
-            else:
-                continue
-
-            break
-        else:
-            if isinstance(expr, irast.EntityLink):
-                if (type == 'computable' and
-                        expr.link_proto.is_pure_computable()):
-                    deflt = expr.link_proto.default[0]
-                    if isinstance(deflt, s_expr.ExpressionText):
-                        edgeql_expr = deflt
-                    else:
-                        edgeql_expr = "'" + str(deflt).replace("'", "''") + "'"
-                        target_type = expr.link_proto.target.name
-                        edgeql_expr = 'CAST ({} AS [{}])'.format(edgeql_expr,
-                                                                 target_type)
-
-                    anchors = {'self': expr.source.concept}
-                    self._rewrite_with_edgeql_expr(expr, edgeql_expr, anchors)
+                anchors = {'self': expr.source.concept}
+                self._rewrite_with_edgeql_expr(expr, edgeql_expr, anchors)
 
     def _rewrite_with_edgeql_expr(self, expr, edgeql_expr, anchors):
         from edgedb.lang import edgeql

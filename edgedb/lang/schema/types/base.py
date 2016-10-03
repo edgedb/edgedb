@@ -257,14 +257,6 @@ def proto_name_from_type(typ):
     else:
         proto_name = BaseTypeMeta.type_to_edgedb_builtin(item_type)
 
-    if not proto_name:
-        if isinstance(item_type, type):
-            if hasattr(item_type, '__sx_prototype__'):
-                proto_name = item_type.__sx_prototype__.name
-        else:
-            if hasattr(item_type.__class__, '__sx_prototype__'):
-                proto_name = item_type.__class__.__sx_prototype__.name
-
     if proto_name is None:
         raise s_err.SchemaError(
             'could not find matching prototype for %r' % typ)
