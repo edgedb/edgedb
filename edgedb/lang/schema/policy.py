@@ -210,7 +210,7 @@ class DeletePolicy(PolicyCommand, named.DeleteNamedClass):
     pass
 
 
-class Action(primary.Class):
+class Action(primary.PrimaryClass):
     _type = 'action'
 
     delta_driver = sd.DeltaDriver(
@@ -225,7 +225,7 @@ class ActionSet(so.ClassSet, type=Action):
     pass
 
 
-class Event(primary.Class):
+class Event(primary.PrimaryClass):
     _type = 'event'
 
     delta_driver = sd.DeltaDriver(

@@ -10,7 +10,6 @@ from .error import SchemaError, SchemaNameError
 from .name import SchemaName
 
 from .objects import Class, MetaClass
-from .schema import ObjectClass
 from .schema import Schema
 from .modules import Module
 

@@ -71,7 +71,7 @@ class Function(named.NamedClass):
                           compcoef=0.4)
     paramkinds = so.Field(dict, compcoef=0.3, default=None)
     paramdefaults = so.Field(expr.ExpressionDict, default=None, coerce=True)
-    returntype = so.Field(primary.Class, compcoef=0.2)
+    returntype = so.Field(primary.PrimaryClass, compcoef=0.2)
     aggregate = so.Field(bool, default=False, compcoef=0.4)
 
     delta_driver = sd.DeltaDriver(

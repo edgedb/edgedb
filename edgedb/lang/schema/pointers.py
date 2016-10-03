@@ -171,9 +171,9 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
                     break
 
 
-class BasePointer(primary.Class, derivable.DerivableClass):
-    source = so.Field(primary.Class, None, compcoef=0.933)
-    target = so.Field(primary.Class, None, compcoef=0.833)
+class BasePointer(primary.PrimaryClass, derivable.DerivableClass):
+    source = so.Field(primary.PrimaryClass, None, compcoef=0.933)
+    target = so.Field(primary.PrimaryClass, None, compcoef=0.833)
 
     def get_near_endpoint(self, direction):
         return self.source if direction == PointerDirection.Outbound \

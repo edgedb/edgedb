@@ -128,7 +128,7 @@ class DeleteSourceIndex(SourceIndexCommand, named.DeleteNamedClass):
 class SourceIndex(derivable.DerivableClass):
     _type = 'index'
 
-    subject = so.Field(primary.Class)
+    subject = so.Field(primary.PrimaryClass)
     expr = so.Field(str, compcoef=0.909)
 
     delta_driver = sd.DeltaDriver(

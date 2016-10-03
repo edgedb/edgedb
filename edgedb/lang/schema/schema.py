@@ -20,10 +20,6 @@ from . import modules as schema_module
 from . import name as schema_name
 
 
-class ObjectClass(type):
-    pass
-
-
 class Schema:
     global_dep_order = ('action', 'event', 'attribute', 'constraint',
                         'atom', 'link_property', 'link', 'concept')

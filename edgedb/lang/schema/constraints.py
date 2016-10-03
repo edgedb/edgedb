@@ -204,7 +204,7 @@ class CumulativeBoolExpr(s_expr.ExpressionText):
         return result
 
 
-class Constraint(primary.Class, derivable.DerivableClass):
+class Constraint(primary.PrimaryClass, derivable.DerivableClass):
     _type = 'constraint'
 
     expr = so.Field(s_expr.ExpressionText, default=None, compcoef=0.909,

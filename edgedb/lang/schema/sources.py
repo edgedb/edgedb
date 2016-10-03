@@ -27,7 +27,7 @@ class SourceCommand(named.NamedClassCommand, indexes.IndexSourceCommand):
     pass
 
 
-class Source(primary.Class, indexes.IndexableSubject):
+class Source(primary.PrimaryClass, indexes.IndexableSubject):
     pointers = referencing.RefDict(
                     local_attr='own_pointers', ordered=True,
                     backref='source', ref_cls='get_pointer_class',

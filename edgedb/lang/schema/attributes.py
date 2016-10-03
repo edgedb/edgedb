@@ -309,7 +309,7 @@ class DeleteAttributeValue(AttributeValueCommand, named.DeleteNamedClass):
         return super().apply(schema, context)
 
 
-class Attribute(primary.Class):
+class Attribute(primary.PrimaryClass):
     _type = 'attribute'
 
     type = so.Field(so.Class, compcoef=0.909)

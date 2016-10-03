@@ -79,7 +79,7 @@ class DeleteAtom(AtomCommand, inheriting.DeleteInheritingClass):
     astnode = qlast.DropAtomNode
 
 
-class Atom(primary.Class, constraints.ConsistencySubject,
+class Atom(primary.PrimaryClass, constraints.ConsistencySubject,
            attributes.AttributeSubject, so.NodeClass):
     _type = 'atom'
 
