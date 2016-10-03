@@ -626,7 +626,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT
                 Issue {
                     number,
-                    __type__: {
+                    __class__: {
                         name
                     }
                 }
@@ -635,14 +635,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ''', [
             [{
                 'number': '1',
-                '__type__': {'name': 'test::Issue'},
+                '__class__': {'name': 'test::Issue'},
             }],
         ])
 
     async def test_edgeql_select_type02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
-            SELECT User.__type__.name LIMIT 1;
+            SELECT User.__class__.name LIMIT 1;
         ''', [
             ['test::User']
         ])
@@ -651,7 +651,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_type03(self):
         await self.assert_query_result(r'''
             WITH MODULE test
-            SELECT User.name.__type__.name LIMIT 1;
+            SELECT User.name.__class__.name LIMIT 1;
         ''', [
             ['std::str']
         ])
@@ -2099,33 +2099,33 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_slice02(self):
         await self.assert_query_result(r"""
             WITH MODULE test
-            SELECT Issue.__type__.name
+            SELECT Issue.__class__.name
             WHERE Issue.number = '1';
             WITH MODULE test
-            SELECT Issue.__type__.name[2]
+            SELECT Issue.__class__.name[2]
             WHERE Issue.number = '1';
             WITH MODULE test
-            SELECT Issue.__type__.name[-2]
-            WHERE Issue.number = '1';
-
-            WITH MODULE test
-            SELECT Issue.__type__.name[2:4]
-            WHERE Issue.number = '1';
-            WITH MODULE test
-            SELECT Issue.__type__.name[2:]
-            WHERE Issue.number = '1';
-            WITH MODULE test
-            SELECT Issue.__type__.name[:2]
+            SELECT Issue.__class__.name[-2]
             WHERE Issue.number = '1';
 
             WITH MODULE test
-            SELECT Issue.__type__.name[2:-1]
+            SELECT Issue.__class__.name[2:4]
             WHERE Issue.number = '1';
             WITH MODULE test
-            SELECT Issue.__type__.name[-2:]
+            SELECT Issue.__class__.name[2:]
             WHERE Issue.number = '1';
             WITH MODULE test
-            SELECT Issue.__type__.name[:-2]
+            SELECT Issue.__class__.name[:2]
+            WHERE Issue.number = '1';
+
+            WITH MODULE test
+            SELECT Issue.__class__.name[2:-1]
+            WHERE Issue.number = '1';
+            WITH MODULE test
+            SELECT Issue.__class__.name[-2:]
+            WHERE Issue.number = '1';
+            WITH MODULE test
+            SELECT Issue.__class__.name[:-2]
             WHERE Issue.number = '1';
         """, [
             ['test::Issue'],
@@ -2147,10 +2147,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT Issue{
                 name,
-                type_name := Issue.__type__.name,
+                type_name := Issue.__class__.name,
                 a := Issue.name[2],
                 b := Issue.name[2:-1],
-                c := Issue.__type__.name[2:-1],
+                c := Issue.__class__.name[2:-1],
             }
             WHERE Issue.number = '1';
         """, [

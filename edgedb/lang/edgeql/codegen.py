@@ -342,7 +342,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(']')
 
     def visit_SelectTypeRefNode(self, node):
-        self.write('__type__: ')
+        self.write('__class__: ')
         self.write('{')
         self.indentation += 1
         self.new_lines = 1

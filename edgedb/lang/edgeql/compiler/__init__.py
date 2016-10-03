@@ -1299,7 +1299,7 @@ class EdgeQLCompiler:
 
             elif isinstance(ptrspec, qlast.SelectTypeRefNode):
                 schema = context.current.schema
-                ptr_class = schema.get('std::__type__').derive(
+                ptr_class = schema.get('schema::__class__').derive(
                     schema, source, schema.get('std::Object'))
 
                 node = irast.PtrPathSpec(
@@ -1558,7 +1558,7 @@ class EdgeQLCompiler:
 
                 linkname = (link_expr.namespace, link_expr.name)
 
-                if linkname == (None, '__type__'):
+                if linkname == (None, '__class__'):
                     typeref = path_tip
                     continue
 

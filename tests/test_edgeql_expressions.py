@@ -195,7 +195,7 @@ class TestExpressions(tb.QueryTestCase):
     # the future
     async def test_edgeql_expr_type01(self):
         await self.assert_query_result(r"""
-            SELECT 'foo'.__type__.name;
+            SELECT 'foo'.__class__.name;
         """, [
             ['std::str'],
         ])

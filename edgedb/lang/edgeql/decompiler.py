@@ -268,7 +268,7 @@ class IRDecompiler:
 
         elif isinstance(expr, irast.MetaRef):
             inistep = self._process_expr(context, expr.ref)
-            typstep = qlast.LinkExprNode(expr=qlast.LinkNode(name='__type__'))
+            typstep = qlast.LinkExprNode(expr=qlast.LinkNode(name='__class__'))
             refstep = qlast.LinkExprNode(expr=qlast.LinkNode(name=expr.name))
             result = qlast.PathNode(steps=[inistep, typstep, refstep])
 

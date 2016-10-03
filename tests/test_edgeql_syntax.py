@@ -648,14 +648,14 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_shape11(self):
         """
         SELECT Foo {
-            __type__.name
+            __class__.name
         };
         """
 
     def test_edgeql_syntax_shape12(self):
         """
         SELECT Foo {
-            __type__: {
+            __class__: {
                 name,
             }
         };
@@ -664,7 +664,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_shape13(self):
         """
         SELECT Foo {
-            __type__: {
+            __class__: {
                 name,
                 description,
             }
@@ -786,11 +786,11 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=22)
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=23)
     def test_edgeql_syntax_shape22(self):
         """
         SELECT Foo{
-            __type__ := 42
+            __class__ := 42
         };
         """
 
@@ -1008,7 +1008,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_path14(self):
         """
-        SELECT User.__type__.name LIMIT 1;
+        SELECT User.__class__.name LIMIT 1;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=20)

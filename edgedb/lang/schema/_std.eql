@@ -227,7 +227,7 @@ CREATE CONCEPT std::Object {
 
 CREATE MODULE schema;
 
-CREATE LINK schema::__type__ INHERITING std::link {
+CREATE LINK schema::__class__ INHERITING std::link {
     SET mapping := '*1';
     SET readonly := True;
 };

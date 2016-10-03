@@ -251,7 +251,7 @@ class GraphQLTranslator:
         target = baseType = self.schema.get(base[0])
         target_is_typeref = False
         for step in base[1:]:
-            if step == '__type__':
+            if step == '__class__':
                 target_is_typeref = True
                 continue
             if target_is_typeref:
