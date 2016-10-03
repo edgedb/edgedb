@@ -2162,3 +2162,95 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 'c': 'st::Issu',
             }],
         ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_tuple01(self):
+        await self.assert_query_result(r"""
+            # get tuples (status, number of issues)
+            WITH MODULE test
+            SELECT (Status.name, count(Status.<status))
+            GROUP BY Status.name
+            ORDER BY Status.name;
+            """, [
+            ('Closed', 2), ('Open', 2)
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_tuple02(self):
+        await self.assert_query_result(r"""
+            # nested tuples
+            WITH MODULE test
+            SELECT
+                (
+                    User.name, (
+                        User.<owner[TO Issue].status.name,
+                        count(User.<owner[TO Issue])
+                    )
+                )
+            GROUP BY User.name, User.<owner[TO Issue].status.name
+            ORDER BY User.name THEN User.<owner[TO Issue].status.name;
+            """, [
+            ('Elvis', ('Closed', 1)),
+            ('Elvis', ('Open', 1)),
+            ('Yury', ('Closed', 1)),
+            ('Yury', ('Open', 1)),
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_anon01(self):
+        await self.assert_query_result(r"""
+            # get shapes {'status': ..., 'count': ...}
+            WITH MODULE test
+            SELECT {
+                status := Status.name,
+                count := count(Status.<status),
+            }
+            GROUP BY Status.name
+            ORDER BY Status.name;
+            """, [
+            {'status': 'Closed', 'count': 2},
+            {'status': 'Open', 'count': 2}
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_anon02(self):
+        await self.assert_query_result(r"""
+            # nested shapes
+            WITH MODULE test
+            SELECT
+                {
+                    name := User.name,
+                    issue := (SELECT {
+                        status := User.<owner[TO Issue].status.name,
+                        count := count(User.<owner[TO Issue]),
+                    } GROUP BY User.<owner[TO Issue].status.name)
+                }
+            GROUP BY User.name
+            ORDER BY User.name THEN User.<owner[TO Issue].status.name;
+            """, [
+            {
+                'name': 'Elvis',
+                'issues': {
+                    'status': 'Closed',
+                    'count': 1,
+                }
+            }, {
+                'name': 'Elvis',
+                'issues': {
+                    'status': 'Open',
+                    'count': 1,
+                }
+            }, {
+                'name': 'Yury',
+                'issues': {
+                    'status': 'Closed',
+                    'count': 1,
+                }
+            }, {
+                'name': 'Yury',
+                'issues': {
+                    'status': 'Open',
+                    'count': 1,
+                }
+            }
+        ])

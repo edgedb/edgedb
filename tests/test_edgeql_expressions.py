@@ -281,3 +281,38 @@ class TestExpressions(tb.QueryTestCase):
             ['ty'],
             ['qwer'],
         ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_tuple01(self):
+        await self.assert_query_result(r"""
+            SELECT (1, 'foo');
+        """, [
+            [(1, 'foo')],
+        ])
+
+    async def test_edgeql_expr_tuple02(self):
+        await self.assert_query_result(r"""
+            SELECT (1, 'foo') = (1, 'foo');
+            SELECT (1, 'foo') = (2, 'foo');
+            SELECT (1, 'foo') != (1, 'foo');
+            SELECT (1, 'foo') != (2, 'foo');
+        """, [
+            [True],
+            [False],
+            [False],
+            [True],
+        ])
+
+    async def test_edgeql_expr_tuple03(self):
+        with self.assertRaisesRegex(
+                exc._base.UnknownEdgeDBError, r'unexpected binop operands'):
+            await self.con.execute(r"""
+                SELECT (1, 2) = [1, 2];
+            """)
+
+    async def test_edgeql_expr_tuple04(self):
+        with self.assertRaisesRegex(
+                exc._base.UnknownEdgeDBError, r'operator does not exist'):
+            await self.con.execute(r"""
+                SELECT (1, 'foo') = ('1', 'foo');
+            """)
