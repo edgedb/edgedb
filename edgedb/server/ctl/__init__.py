@@ -11,7 +11,7 @@ import sys
 from . import init as init_mod
 
 
-def main(argv=sys.argv[1:]):
+def main(argv=sys.argv[1:], env=None):
     parser = argparse.ArgumentParser(description='EdgeDB Server Control')
     backend_info = parser.add_mutually_exclusive_group(required=True)
     backend_info.add_argument(
@@ -33,7 +33,7 @@ def main(argv=sys.argv[1:]):
     args = parser.parse_args(argv)
 
     if args.command == 'init':
-        init_mod.main(args)
+        init_mod.main(args, env)
 
 
 if __name__ == '__main__':

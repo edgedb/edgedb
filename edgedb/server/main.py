@@ -7,6 +7,8 @@
 
 import argparse
 import asyncio
+import ipaddress
+import logging
 import os.path
 import setproctitle
 import signal
@@ -18,10 +20,14 @@ from asyncpg import cluster as pg_cluster
 
 from . import cluster as edgedb_cluster
 from . import daemon
+from . import logsetup
 
 
-def abort(msg):
-    print(msg, file=sys.stderr)
+logger = logging.getLogger('edgedb.server')
+
+
+def abort(msg, *args):
+    logger.critical(msg, *args)
     sys.exit(1)
 
 
@@ -37,50 +43,84 @@ def init_import_system():
     from importkit import yaml  # NOQA
 
 
-def _run_server(cluster, port):
+def _run_server(cluster, args):
     loop = asyncio.get_event_loop()
     srv = None
 
+    from edgedb.server import pgsql as backend
     from edgedb.server import protocol as edgedb_protocol
+
+    loop.run_until_complete(backend.bootstrap(cluster, loop=loop))
 
     def protocol_factory():
         return edgedb_protocol.Protocol(cluster, loop=loop)
 
     try:
         srv = loop.run_until_complete(
-            loop.create_server(protocol_factory, host='localhost', port=port))
+            loop.create_server(
+                protocol_factory, host='localhost', port=args.port))
 
         loop.add_signal_handler(signal.SIGTERM, terminate_server, srv, loop)
+        logger.info('Serving on %s:%s', 'localhost', args.port)
         loop.run_forever()
 
     finally:
         if srv is not None:
+            logger.info('Shutting down.')
             srv.close()
 
 
 def run_server(args):
+    logger.info('EdgeDB server starting.')
+
     pg_cluster_started_by_us = False
 
     if args.data_dir:
+        server_settings = {
+            'log_connections': 'yes',
+            'log_statement': 'all',
+            'log_disconnections': 'yes',
+            'log_min_messages': 'INFO',
+        }
+
         cluster = pg_cluster.Cluster(data_dir=args.data_dir)
         cluster_status = cluster.get_status()
+
         if cluster_status == 'not-initialized':
-            abort(
-                'there is no valid EdgeDB cluster in {}'.format(args.data_dir))
-        elif cluster_status == 'stopped':
+            logger.info('Initializing database cluster in %s', args.data_dir)
+            initdb_output = cluster.init(username='postgres')
+            for line in initdb_output.splitlines():
+                logger.debug('initdb: %s', line)
+            cluster.reset_hba()
+            cluster.add_hba_entry(
+                type='local',
+                database='all', user='all',
+                auth_method='trust'
+            )
+            cluster.add_hba_entry(
+                type='local', address=ipaddress.ip_network('127.0.0.0/24'),
+                database='all', user='all',
+                auth_method='trust'
+            )
+
+        cluster_status = cluster.get_status()
+
+        if cluster_status == 'stopped':
             cluster.start(
                 port=edgedb_cluster.find_available_port(),
-                server_settings={
-                    'log_connections': 'yes',
-                    'log_statement': 'all',
-                    'log_disconnections': 'yes',
-                    'log_min_messages': 'INFO',
-                }, )
+                server_settings=server_settings)
             pg_cluster_started_by_us = True
-    else:
-        cluster = pg_cluster.RunningCluster(host=args.postgres)
 
-    _run_server(cluster, args.port)
+        elif cluster_status != 'running':
+            abort('Could not start database cluster in %s', args.data_dir)
+
+        cluster.override_connection_spec(
+            user='postgres', database='template1')
+
+    else:
+        cluster = pg_cluster.RunningCluster(dsn=args.postgres)
+
+    _run_server(cluster, args)
 
     if pg_cluster_started_by_us:
         cluster.stop()
@@ -97,7 +137,21 @@ def main(argv=sys.argv[1:]):
         '-D', '--data-dir', type=str, help='database cluster directory')
     backend_info.add_argument(
         '-P', '--postgres', type=str,
-        help='address of Postgres backend server')
+        help='address of Postgres backend server in DSN format')
+    parser.add_argument(
+        '-l', '--log-level', dest='log_level',
+        help=('Logging level.  Possible values: (d)ebug, (i)nfo, (w)arn, '
+              '(e)rror, (s)ilent'),
+        default=os.environ.get('EDGEDB_LOG_LEVEL') or 'i')
+    parser.add_argument(
+        '--log-to',
+        help=('send logs to DEST, where DEST can be a file name, "syslog", '
+              'or "stderr"'),
+        type=str, metavar='DEST', dest='log_destination',
+        default='stderr')
+    parser.add_argument(
+        '--bootstrap-database', type=str, default='template1',
+        help='name of PostgreSQL database to connect to for bootstrap')
     parser.add_argument(
         '-p', '--port', type=int, default=edgedb_defines.EDGEDB_PORT,
         help='port to listen on')
@@ -110,6 +164,8 @@ def main(argv=sys.argv[1:]):
     parser.add_argument('--daemon-group', type=int)
 
     args = parser.parse_args(argv)
+
+    logsetup.setup_logging(args.log_level, args.log_destination)
 
     if args.background:
         daemon_opts = {'detach_process': True}

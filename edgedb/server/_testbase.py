@@ -2,6 +2,7 @@ import asyncio
 import atexit
 import functools
 import inspect
+import os
 import pprint
 import textwrap
 import unittest
@@ -69,7 +70,13 @@ def _start_cluster():
     global _default_cluster
 
     if _default_cluster is None:
-        _default_cluster = edgedb_cluster.TempCluster()
+        if (not os.environ.get('EDGEDB_DEBUG_SERVER') and
+                not os.environ.get('EDGEDB_LOG_LEVEL')):
+            _env = {'EDGEDB_LOG_LEVEL': 'silent'}
+        else:
+            _env = {}
+
+        _default_cluster = edgedb_cluster.TempCluster(env=_env)
         _default_cluster.init()
         _default_cluster.start()
         atexit.register(_shutdown_cluster, _default_cluster)

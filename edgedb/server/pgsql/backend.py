@@ -1887,3 +1887,12 @@ class Backend(s_deltarepo.DeltaProvider):
     async def translate_pg_error(self, query, error):
         return await ErrorMech._interpret_db_error(
             self, self._constr_mech, self._type_mech, error)
+
+
+async def open_database(pgconn):
+    await pgconn.set_builtin_type_codec(
+        'hstore', schema='edgedb', codec_name='pg_contrib.hstore')
+
+    bk = Backend(pgconn)
+    await bk.getschema()
+    return bk

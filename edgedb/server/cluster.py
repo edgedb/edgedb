@@ -7,7 +7,7 @@
 
 import asyncio
 import errno
-import os.path
+import os
 import random
 import socket
 import subprocess
@@ -70,13 +70,14 @@ class ClusterError(Exception):
 class Cluster:
     def __init__(
             self, data_dir, *, pg_config_path=None, pg_superuser='postgres',
-            port=edgedb_defines.EDGEDB_PORT):
+            port=edgedb_defines.EDGEDB_PORT, env=None):
         self._data_dir = data_dir
         self._pg_cluster = self._get_pg_cluster(data_dir, pg_config_path)
         self._pg_superuser = pg_superuser
         self._daemon_process = None
         self._port = port
         self._effective_port = None
+        self._env = env
 
     def _get_pg_cluster(self, data_dir, pg_config_path):
         return pg_cluster.Cluster(data_dir, pg_config_path=pg_config_path)
@@ -170,10 +171,17 @@ class Cluster:
         extra_args = ['--{}={}'.format(k, v) for k, v in settings.items()]
         extra_args.append('--port={}'.format(self._effective_port))
 
+        if self._env:
+            env = os.environ.copy()
+            env.update(self._env)
+        else:
+            env = None
+
         self._daemon_process = subprocess.Popen(
             ['edgedb-server', '-D', self._data_dir, *extra_args],
             stdout=sys.stdout, stderr=sys.stderr,
-            preexec_fn=ensure_dead_with_parent)
+            preexec_fn=ensure_dead_with_parent,
+            env=env)
 
         self._test_connection()
 
@@ -187,79 +195,9 @@ class Cluster:
     def destroy(self):
         self._pg_cluster.destroy()
 
-    async def _check_superuser(conn):
-        st = await conn.prepare(
-            '''
-            SELECT rolname, rolsuper FROM pg_authid WHERE rolname = user
-        ''')
-
-        role_name, role_is_super = await st.get_first_row()
-
-        if not role_is_super:
-            raise ClusterError(
-                'fatal: {} is not a superuser'.format(role_name))
-
-    async def _ensure_edgedb_superuser(self, conn):
-        await conn.execute(
-            '''
-            CREATE ROLE {} WITH LOGIN SUPERUSER
-        '''.format(edgedb_defines.EDGEDB_SUPERUSER))
-
-    async def _ensure_edgedb_template(self, conn):
-        await conn.execute(
-            '''
-            CREATE DATABASE {} WITH OWNER = {} IS_TEMPLATE = TRUE
-        '''.format(
-                edgedb_defines.EDGEDB_TEMPLATE_DB,
-                edgedb_defines.EDGEDB_SUPERUSER))
-
-    async def _ensure_edgedb_metaschema(self, conn):
-        metaschema = os.path.join(os.path.dirname(__file__), 'metaschema.sql')
-        with open(metaschema, 'r') as f:
-            metaschema_script = f.read()
-
-        await conn.execute(metaschema_script)
-
-    async def _init_pg_bits(self, connector, *, loop):
-        conn = await connector.connect(loop=loop, user=self._pg_superuser)
-        try:
-            await self._ensure_edgedb_superuser(conn)
-            await self._ensure_edgedb_template(conn)
-        finally:
-            conn.terminate()
-
-        conn = await connector.connect(
-            loop=loop, user=edgedb_defines.EDGEDB_SUPERUSER,
-            database=edgedb_defines.EDGEDB_TEMPLATE_DB)
-        try:
-            await self._ensure_edgedb_metaschema(conn)
-        finally:
-            conn.terminate()
-
-    async def _init_std_schema(self, loop):
-        from edgedb.lang import schema as edgedb_schema
-
-        stdschema = os.path.join(
-            os.path.dirname(edgedb_schema.__file__), '_std.eql')
-        with open(stdschema, 'r') as f:
-            stdschema_script = f.read()
-
-        self.start()
-
-        conn = await self.connect(
-            database=edgedb_defines.EDGEDB_TEMPLATE_DB,
-            user=edgedb_defines.EDGEDB_SUPERUSER, loop=loop)
-
-        try:
-            await conn.execute(stdschema_script)
-        finally:
-            conn.close()
-            await asyncio.sleep(0, loop=loop)
-            self.stop()
-
     async def _init(self, pg_connector, *, loop):
-        await self._init_pg_bits(pg_connector, loop=loop)
-        await self._init_std_schema(loop)
+        self.start()
+        self.stop()
 
     async def _edgedb_template_exists(self, conn):
         st = await conn.prepare(
@@ -298,8 +236,10 @@ class Cluster:
 class TempCluster(Cluster):
     def __init__(
             self, *, data_dir_suffix=None, data_dir_prefix=None,
-            data_dir_parent=None, pg_config_path=None):
+            data_dir_parent=None, pg_config_path=None,
+            env=None):
         self._data_dir = tempfile.mkdtemp(
             suffix=data_dir_suffix, prefix=data_dir_prefix,
             dir=data_dir_parent)
-        super().__init__(self._data_dir, pg_config_path=pg_config_path)
+        super().__init__(self._data_dir, pg_config_path=pg_config_path,
+                         env=env)
