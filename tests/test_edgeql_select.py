@@ -908,6 +908,16 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         ])
 
+    async def test_edgeql_select_instance04(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT
+                (Text AS Issue).number
+            ORDER BY Text.body;
+        ''', [
+            [None, '4', '1', '3', None, '2'],
+        ])
+
     async def test_edgeql_select_combined01(self):
         res = await self.con.execute(r'''
             WITH MODULE test
@@ -1391,6 +1401,43 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 );
         ''', [
             [{'number': '4'}],
+        ])
+
+    async def test_edgeql_select_exists18(self):
+        # NOTE: for the expected ordering of Text see instance04 test
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT EXISTS (Text AS Issue)
+            ORDER BY Text.body;
+        ''', [
+            [False, True, True, True, False, True],
+        ])
+
+    async def test_edgeql_select_exists19(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT NOT EXISTS (Text AS Issue)
+            ORDER BY Text.body;
+        ''', [
+            [True, False, False, False, True, False],
+        ])
+
+    async def test_edgeql_select_exists20(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT EXISTS (Text AS Issue).id
+            ORDER BY Text.body;
+        ''', [
+            [False, True, True, True, False, True],
+        ])
+
+    async def test_edgeql_select_exists21(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT NOT EXISTS (Text AS Issue).id
+            ORDER BY Text.body;
+        ''', [
+            [True, False, False, False, True, False],
         ])
 
     async def test_edgeql_select_and01(self):
