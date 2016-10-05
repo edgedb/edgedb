@@ -18,7 +18,14 @@ abstract concept Dictionary extends Named:
         abstract constraint unique
 
 
-concept User extends Named
+link todo:
+    linkproperty rank to int:
+        default: 42
+
+
+concept User extends Named:
+    link todo to Issue:
+        mapping: **
 
 
 abstract concept Owned:

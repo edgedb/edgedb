@@ -17,7 +17,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'queries.eschema')
 
-    SETUP = """
+    SETUP = r"""
         WITH MODULE test
         INSERT Priority {
             name := 'High'
@@ -109,6 +109,17 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             status := (SELECT Status WHERE Status.name = 'Closed'),
             related_to := (SELECT Issue WHERE Issue.number = '3')
         };
+
+        # NOTE: UPDATE Users for testing the link properties
+        #
+        WITH MODULE test
+        UPDATE User {
+            todo := (SELECT Issue WHERE Issue.number in ('1', '2'))
+        } WHERE User.name = 'Elvis';
+        WITH MODULE test
+        UPDATE User {
+            todo := (SELECT Issue WHERE Issue.number in ('3', '4'))
+        } WHERE User.name = 'Yury';
     """
 
     async def test_edgeql_select_computable01(self):
@@ -1403,6 +1414,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '4'}],
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_select_exists18(self):
         # NOTE: for the expected ordering of Text see instance04 test
         await self.assert_query_result(r'''
@@ -1413,6 +1425,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [False, True, True, True, False, True],
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_select_exists19(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -1422,6 +1435,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True, False, False, False, True, False],
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_select_exists20(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -1431,6 +1445,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [False, True, True, True, False, True],
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_select_exists21(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -2300,4 +2315,58 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     'count': 1,
                 }
             }
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_linkproperty01(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT User.todo@rank + <int>User.todo.number
+            ORDER BY User.todo.number;
+            """, [
+            [43, 44, 45, 46]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_linkproperty02(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT Issue.<todo@rank + <int>Issue.number
+            ORDER BY Issue.number;
+            """, [
+            [43, 44, 45, 46]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_linkproperty03(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT User {
+                name,
+                todo: {
+                    number,
+                    @rank
+                } ORDER BY User.todo.number
+            }
+            ORDER BY User.name;
+            """, [
+            [{
+                'name': 'Elvis',
+                'todo': [{
+                    'number': '1',
+                    '@rank': 42,
+                }, {
+                    'number': '2',
+                    '@rank': 42,
+                }]
+            }, {
+                'name': 'Yury',
+                'todo': [{
+                    'number': '3',
+                    '@rank': 42,
+                }, {
+                    'number': '4',
+                    '@rank': 42,
+                }]
+            }],
         ])
