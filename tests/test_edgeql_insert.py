@@ -57,12 +57,12 @@ class TestInsert(tb.QueryTestCase):
                 INSERT test::InsertTest;
             ''')
 
+    @unittest.expectedFailure
     async def test_edgeql_insert_simple01(self):
         result = await self.con.execute(r"""
             INSERT test::InsertTest {
                 name := 'insert simple 01',
                 l2 := 0,
-                l3 := 'test'
             };
 
             INSERT test::InsertTest {

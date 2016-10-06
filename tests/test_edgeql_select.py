@@ -2317,7 +2317,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_linkproperty01(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -2327,7 +2326,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [43, 44, 45, 46]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_linkproperty02(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -2337,7 +2335,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [43, 44, 45, 46]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_linkproperty03(self):
         await self.assert_query_result(r"""
             WITH MODULE test

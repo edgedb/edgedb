@@ -343,8 +343,29 @@ class DeclarationLoader:
 
             link.add_pointer(prop)
 
+            if propdecl.attributes:
+                for attrdecl in propdecl.attributes:
+                    name = attrdecl.name.name
+                    if name == 'default':
+                        # the default can be computable or static
+                        #
+                        self._parse_ptr_default(attrdecl.value, link, prop)
+                        break
+
             if propdecl.constraints:
                 self._parse_subject_constraints(prop, propdecl)
+
+    def _parse_ptr_default(self, expr, source, ptr):
+        """Set the default value for a pointer."""
+        if isinstance(expr, edgeql.ast.SelectQueryNode):
+            # XXX: not sure how to correctly process a computable
+            return
+
+        else:
+            expr_text = self._get_literal_value(expr)
+
+        ptr.default = expr_text
+        ptr.normalize_defaults()
 
     def _parse_attribute_values(self, subject, subjdecl):
         attrs = {}
@@ -516,7 +537,8 @@ class DeclarationLoader:
                     name = attr.name.name
                     if name == 'mapping':
                         link.mapping = self._get_literal_value(attr.value)
-                        break
+                    elif name == 'default':
+                        self._parse_ptr_default(attr.value, concept, link)
 
                 if isinstance(linkdecl.target, edgeql.ast.SelectQueryNode):
                     # Computables are always readonly.
