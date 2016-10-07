@@ -220,10 +220,6 @@ class DeleteLinkProperty(LinkPropertyCommand,
             self._append_subcmd_ast(node, op, context)
 
 
-class TypeProperty(pointers.Pointer):
-    pass
-
-
 class LinkProperty(pointers.Pointer):
     _type = 'link_property'
 

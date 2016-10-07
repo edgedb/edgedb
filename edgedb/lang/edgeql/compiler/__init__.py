@@ -992,9 +992,6 @@ class EdgeQLCompiler:
                     and context.current.location in ('sorter', 'selector')
                     and not context.current.in_aggregate):
                 for p in node.paths:
-                    if isinstance(p, irast.MetaRef):
-                        p = p.ref
-
                     if p.id not in context.current.groupprefixes:
                         err = ('node reference "%s" must appear in the '
                                'GROUP BY expression or '
@@ -1245,8 +1242,7 @@ class EdgeQLCompiler:
         return irast.Constant(
             value=0, index=None, type=type)
 
-    def _process_pathspec(self, context, source, rlink_class, pathspec,
-                          is_typeref=False):
+    def _process_pathspec(self, context, source, rlink_class, pathspec):
         result = []
 
         for ptrspec in pathspec:
@@ -1426,7 +1422,6 @@ class EdgeQLCompiler:
     def _process_path(self, context, path, path_tip=None):
         pathvars = context.current.pathvars
         anchors = context.current.anchors
-        typeref = None
 
         for i, node in enumerate(path.steps):
             if isinstance(node, qlast.TypeInterpretationNode):
@@ -1513,14 +1508,10 @@ class EdgeQLCompiler:
 
                 path_tip = step
 
-            elif isinstance(tip, qlast.LinkExprNode) and typeref:
-                path_tip = irast.MetaRef(ref=typeref, name=tip.expr.name)
-
             elif isinstance(tip, qlast.LinkExprNode) and tip_is_cge:
                 path_tip = irast.SubgraphRef(ref=path_tip, name=tip.expr.name)
 
-            elif (isinstance(tip, qlast.LinkExprNode) and not tip_is_link and
-                  not typeref):
+            elif isinstance(tip, qlast.LinkExprNode) and not tip_is_link:
                 # LinkExprNode
                 link_expr = tip.expr
                 link_target = None
@@ -1534,10 +1525,6 @@ class EdgeQLCompiler:
 
                 linkname = (link_expr.namespace, link_expr.name)
 
-                if linkname == (None, '__class__'):
-                    typeref = path_tip
-                    continue
-
                 link_class = self._resolve_ptr(
                     context,
                     path_tip.as_type or path_tip.concept,
@@ -1545,71 +1532,10 @@ class EdgeQLCompiler:
                     direction,
                     target=link_target)
 
-                target = link_class.get_far_endpoint(direction)
-
-                if isinstance(target, s_concepts.Concept):
-                    target_set = irast.EntitySet(context=tip.context)
-                    target_set.concept = target
-                    target_set.id = irutils.LinearPath(path_tip.id)
-                    target_set.id.add(link_class, direction,
-                                      target_set.concept)
-                    target_set.users.add(context.current.location)
-
-                    link = irast.EntityLink(
-                        source=path_tip,
-                        target=target_set,
-                        direction=direction,
-                        link_class=link_class,
-                        users={context.current.location})
-
-                    path_tip.disjunction.update(link)
-                    path_tip.disjunction.fixed = context.current.weak_path
-                    target_set.rlink = link
-
-                    path_tip = target_set
-
-                elif isinstance(target, s_atoms.Atom):
-                    target_set = irast.EntitySet(context=tip.context)
-                    target_set.concept = target
-                    target_set.id = irutils.LinearPath(path_tip.id)
-                    target_set.id.add(link_class, direction,
-                                      target_set.concept)
-                    target_set.users.add(context.current.location)
-
-                    link = irast.EntityLink(
-                        source=path_tip,
-                        target=target_set,
-                        link_class=link_class,
-                        direction=direction,
-                        users={context.current.location})
-
-                    target_set.rlink = link
-
-                    atomref_id = irutils.LinearPath(path_tip.id)
-                    atomref_id.add(link_class, direction, target)
-
-                    if not link_class.singular():
-                        ptr_name = sn.Name('std::target')
-                        ptr_class = link_class.pointers[ptr_name]
-                        atomref = irast.LinkPropRefSimple(
-                            name=ptr_name,
-                            ref=link,
-                            id=atomref_id,
-                            ptr_class=ptr_class)
-                        link.proprefs.add(atomref)
-                        path_tip.disjunction.update(link)
-                        path_tip.disjunction.fixed = context.current.weak_path
-                    else:
-                        atomref = irast.AtomicRefSimple(
-                            name=link_class.normal_name(),
-                            ref=path_tip,
-                            id=atomref_id,
-                            rlink=link,
-                            ptr_class=link_class)
-                        path_tip.atomrefs.add(atomref)
-                        link.target = atomref
-
-                    path_tip = atomref
+                path_tip = irutils.extend_path(
+                    path_tip, link_class, direction=direction,
+                    location=context.current.location,
+                    weak_path=context.current.weak_path)
 
             elif isinstance(tip, qlast.LinkPropExprNode) or tip_is_link:
                 # LinkExprNode
@@ -1882,7 +1808,6 @@ class EdgeQLCompiler:
             _visited_records = {}
 
         recurse_links = None
-        recurse_metarefs = []
 
         concepts = {c.concept for c in expr.paths}
         assert len(concepts) == 1
@@ -1917,31 +1842,9 @@ class EdgeQLCompiler:
 
         if pathspec is not None:
             for ps in pathspec:
-                if ps.type_indirection:
-                    el = self.entityref_to_record(
-                        expr,
-                        schema,
-                        pathspec=ps.pathspec,
-                        _visited_records=_visited_records,
-                        _recurse=False,
-                        _include_implicit=False)
-
-                    el.rlink = irast.EntityLink(
-                        source=p,
-                        target=None,
-                        link_class=ps.ptr_class,
-                        direction=s_pointers.PointerDirection.Outbound,
-                        users={'selector'})
-
-                    elements.append(el)
-
-                elif isinstance(ps.ptr_class, s_links.Link):
+                if isinstance(ps.ptr_class, s_links.Link):
                     k = ps.ptr_class.normal_name(), ps.ptr_direction
                     recurse_links[k] = ps
-
-                elif isinstance(ps.ptr_class, s_lprops.TypeProperty):
-                    # metaref
-                    recurse_metarefs.append(ps.ptr_class.normal_name().name)
 
         for (link_name, link_direction), recurse_spec in recurse_links.items():
             el = None
@@ -2253,18 +2156,10 @@ class EdgeQLCompiler:
             if el is not None:
                 elements.append(el)
 
-        metarefs = []
-
-        for metaref in recurse_metarefs:
-            metarefs.append(irast.MetaRef(name=metaref, ref=ref))
-
         for p in expr.paths:
             p.atomrefs.update(atomrefs)
-            p.metarefs.update(metarefs)
 
-        elements.extend(metarefs)
         expr = rec
-
         return expr
 
     def entityref_to_idref(self, expr, schema):
@@ -2310,8 +2205,7 @@ class EdgeQLCompiler:
                     sorter=ptrspec.sorter,
                     limit=ptrspec.limit,
                     offset=ptrspec.offset,
-                    pathspec=ptrspec.pathspec[:],
-                    type_indirection=ptrspec.type_indirection)
+                    pathspec=ptrspec.pathspec[:])
 
                 for i, subptrspec in enumerate(ptrspec.pathspec):
                     if (subptrspec.ptr_class.normal_name() ==
@@ -2350,33 +2244,6 @@ class EdgeQLCompiler:
                 item2_lname = item2.ptr_class.normal_name()
                 item2_ldir = item2.ptr_direction
 
-                if item1.type_indirection and item2.type_indirection:
-                    subspec = self._merge_pathspecs(
-                        item1_subspec,
-                        item2_subspec,
-                        target_most_generic=target_most_generic)
-
-                    merged = item1.__class__(
-                        ptr_class=item1.ptr_class,
-                        pathspec=subspec,
-                        ptr_direction=item1.ptr_direction,
-                        target_class=item1.target_class,
-                        recurse=item1.recurse,
-                        sorter=item1.sorter,
-                        generator=item1.generator,
-                        offset=item1.offset,
-                        limit=item1.limit,
-                        type_indirection=True)
-
-                    result.append(merged)
-
-                    merged_right.add(i)
-                    continue
-
-                elif item1.type_indirection != item2.type_indirection:
-                    result.append(item1)
-                    continue
-
                 if item1_lname == item2_lname and item1_ldir == item2_ldir:
                     # Do merge
 
@@ -2404,8 +2271,7 @@ class EdgeQLCompiler:
                         sorter=item1.sorter,
                         generator=item1.generator,
                         offset=item1.offset,
-                        limit=item1.limit,
-                        type_indirection=item1.type_indirection)
+                        limit=item1.limit)
 
                     result.append(merged)
 
@@ -2852,11 +2718,20 @@ class EdgeQLCompiler:
                 elif self.is_type_check(left, right, op, reversed):
                     # Type check expression: <path> IS [NOT] <concept>
                     paths = set()
+                    cls_ptr = sn.Name('std::__class__')
+                    id_col = sn.Name('std::id')
 
                     for path in left_exprs.paths:
-                        ref = irast.MetaRef(ref=path, name='id')
+                        clsref = irutils.get_path_step(path, cls_ptr)
+                        if clsref is None:
+                            clsptr = path.concept.resolve_pointer(
+                                self.context.current.schema,
+                                cls_ptr
+                            )
+                            clsref = irutils.extend_path(path, clsptr)
+                        ref = irast.AtomicRefSimple(ref=clsref, name=id_col)
                         expr = irast.BinOp(left=ref, right=right, op=op)
-                        paths.add(irast.MetaRefExpr(expr=expr))
+                        paths.add(irast.AtomicRefExpr(expr=expr))
 
                     result = self.path_from_set(paths)
 

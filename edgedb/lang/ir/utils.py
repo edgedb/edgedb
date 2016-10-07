@@ -6,11 +6,16 @@
 ##
 
 import functools
+import itertools
 
 from edgedb.lang.common import ast
 from edgedb.lang.common import datastructures
 
+from edgedb.lang.schema import atoms as s_atoms
+from edgedb.lang.schema import concepts as s_concepts
+from edgedb.lang.schema import name as sn
 from edgedb.lang.schema import objects as s_obj
+from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import types as s_types
 from edgedb.lang.schema import utils as s_utils
 
@@ -101,10 +106,7 @@ def infer_arg_types(ir, schema):
 
 
 def infer_type(ir, schema):
-    if isinstance(ir, irast.MetaRef):
-        result = schema.get('std::str')
-
-    elif isinstance(ir, irast.AtomicRefSimple):
+    if isinstance(ir, irast.AtomicRefSimple):
         if isinstance(ir.ref, irast.PathCombination):
             targets = [t.concept for t in ir.ref.paths]
             concept = s_utils.get_class_nearest_common_ancestor(targets)
@@ -697,3 +699,82 @@ def extend_binop(binop,
                 binop = cls(left=binop, op=op, right=expr)
 
     return binop
+
+
+def get_path_step(path, ptr_name):
+    for p in itertools.chain(path.conjunction.paths, path.disjunction.paths):
+        if p.link_class.normal_name() == ptr_name:
+            return p.target
+
+
+def extend_path(path, ptr_class,
+                direction=s_pointers.PointerDirection.Outbound,
+                location='selector', weak_path=False):
+
+    target = ptr_class.get_far_endpoint(direction)
+
+    if isinstance(target, s_concepts.Concept):
+        target_set = irast.EntitySet()
+        target_set.concept = target
+        target_set.id = LinearPath(path.id)
+        target_set.id.add(ptr_class, direction,
+                          target_set.concept)
+        target_set.users.add(location)
+
+        link = irast.EntityLink(
+            source=path,
+            target=target_set,
+            direction=direction,
+            link_class=ptr_class,
+            users={location})
+
+        path.disjunction.update(link)
+        path.disjunction.fixed = weak_path
+        target_set.rlink = link
+
+        result = target_set
+
+    elif isinstance(target, s_atoms.Atom):
+        target_set = irast.EntitySet()
+        target_set.concept = target
+        target_set.id = LinearPath(path.id)
+        target_set.id.add(ptr_class, direction,
+                          target_set.concept)
+        target_set.users.add(location)
+
+        link = irast.EntityLink(
+            source=path,
+            target=target_set,
+            link_class=ptr_class,
+            direction=direction,
+            users={location})
+
+        target_set.rlink = link
+
+        atomref_id = LinearPath(path.id)
+        atomref_id.add(ptr_class, direction, target)
+
+        if not ptr_class.singular():
+            ptr_name = sn.Name('std::target')
+            ptr_class = ptr_class.pointers[ptr_name]
+            atomref = irast.LinkPropRefSimple(
+                name=ptr_name,
+                ref=link,
+                id=atomref_id,
+                ptr_class=ptr_class)
+            link.proprefs.add(atomref)
+            path.disjunction.update(link)
+            path.disjunction.fixed = weak_path
+        else:
+            atomref = irast.AtomicRefSimple(
+                name=ptr_class.normal_name(),
+                ref=path,
+                id=atomref_id,
+                rlink=link,
+                ptr_class=ptr_class)
+            path.atomrefs.add(atomref)
+            link.target = atomref
+
+        result = atomref
+
+    return result

@@ -479,10 +479,6 @@ class SelectPathSpecNode(Base):
                 ('recurse', bool, False), 'recurse_limit']
 
 
-class SelectTypeRefNode(Base):
-    __fields = ['attrs']
-
-
 class PointerGlobNode(Base):
     __fields = ['filters', 'type']
 

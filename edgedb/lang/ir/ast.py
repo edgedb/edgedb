@@ -215,18 +215,6 @@ class AtomicRefExpr(AtomicRef, BaseRefExpr):
         self.ref.backrefs.add(self)
 
 
-class MetaRefBase(AtomicRef):
-    pass
-
-
-class MetaRef(AtomicRefSimple, MetaRefBase):
-    __fields = ['name']
-
-
-class MetaRefExpr(MetaRefBase, AtomicRefExpr):
-    __fields = ['name']
-
-
 class LinkPropRef(BaseRef):
     pass
 
@@ -245,7 +233,7 @@ class LinkPropRefExpr(LinkPropRef, BaseRefExpr):
 
 class EntityLink(Base):
     __fields = ['propfilter', 'source', 'target', 'link_class', ('proprefs', set),
-                ('metarefs', set), ('users', set), 'anchor', 'show_as_anchor',
+                ('users', set), 'anchor', 'show_as_anchor',
                 'pathvar', 'direction', 'pathspec_trigger']
 
     def replace_refs(self, old, new, deep=False, _memo=None):
@@ -307,7 +295,7 @@ class EntitySet(Path):
                 ('disjunction', Disjunction),
                 ('origin', Path, None, False),
                 ('rlink', EntityLink, None, False),
-                ('atomrefs', set), ('metarefs', set), ('users', set),
+                ('atomrefs', set), ('users', set),
                 ('joins', set, set, False),
                 '_backend_rel_suffix']
 
@@ -326,7 +314,7 @@ class EntitySet(Path):
 class PtrPathSpec(Base):
     __fields = ['ptr_class', 'ptr_direction', 'pathspec', 'recurse',
                 'target_class', 'sorter', 'generator', 'trigger',
-                'offset', 'limit', 'compexpr', 'type_indirection']
+                'offset', 'limit', 'compexpr']
 
 
 class ExplicitPathSpecTrigger(Base):

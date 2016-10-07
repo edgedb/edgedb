@@ -295,32 +295,26 @@ class ShapeElement(Nonterm):
              OptAnySubShape OptWhereClause OptSortClause OptSelectLimit \
         """
         self.val = kids[0].val
-        if isinstance(self.val, qlast.SelectTypeRefNode):
-            self.val.attrs = [s.expr for s in kids[2].val]
-        else:
-            if kids[1].val is True:
-                self.val.recurse = True
-                self.val.recurse_limit = None
-            elif kids[1].val is not None:
-                self.val.recurse = True
-                self.val.recurse_limit = kids[1].val
+        if kids[1].val is True:
+            self.val.recurse = True
+            self.val.recurse_limit = None
+        elif kids[1].val is not None:
+            self.val.recurse = True
+            self.val.recurse_limit = kids[1].val
 
-            shape = kids[2].val
-            if shape and isinstance(shape[0], qlast.ClassRefNode):
-                self.val.expr.steps[-1].expr.target = shape[0]
-                self.val.pathspec = shape[1:]
-            else:
-                self.val.pathspec = shape
-            self.val.where = kids[3].val
-            self.val.orderby = kids[4].val
-            self.val.offset = kids[5].val[0]
-            self.val.limit = kids[5].val[1]
+        shape = kids[2].val
+        if shape and isinstance(shape[0], qlast.ClassRefNode):
+            self.val.expr.steps[-1].expr.target = shape[0]
+            self.val.pathspec = shape[1:]
+        else:
+            self.val.pathspec = shape
+        self.val.where = kids[3].val
+        self.val.orderby = kids[4].val
+        self.val.offset = kids[5].val[0]
+        self.val.limit = kids[5].val[1]
 
     def reduce_ShapePointer_TURNSTILE_Expr_OptShape(self, *kids):
         self.val = kids[0].val
-        if isinstance(self.val, qlast.SelectTypeRefNode):
-            raise EdgeQLSyntaxError('Unexpected token: {}'.format(kids[1]),
-                                    context=kids[1].context)
         self.val.compexpr = kids[2].val
         self.val.pathspec = kids[3].val
 
@@ -411,13 +405,9 @@ class ShapePathPtr(Nonterm):
 
 class ShapePointer(Nonterm):
     def reduce_ShapePath(self, *kids):
-        if getattr(kids[0].val.steps[0].expr, 'name', None) == '__class__' and False:
-            # fill out attrs later from the shape
-            self.val = qlast.SelectTypeRefNode()
-        else:
-            self.val = qlast.SelectPathSpecNode(
-                expr=kids[0].val
-            )
+        self.val = qlast.SelectPathSpecNode(
+            expr=kids[0].val
+        )
 
 
 class OptPointerRecursionSpec(Nonterm):

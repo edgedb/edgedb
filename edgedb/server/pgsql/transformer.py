@@ -611,10 +611,7 @@ class IRCompilerBase:
             ptr_direction = s_pointers.PointerDirection.Outbound
             ptr_target = None
 
-            if isinstance(e, irast.MetaRef):
-                ptr_name = e.name
-                testref = element
-            elif isinstance(e, irast.BaseRef):
+            if isinstance(e, irast.BaseRef):
                 ptr_name = e.ptr_class.normal_name()
                 ptr_target = e.ptr_class.target
                 if ptr_name == 'std::id':
@@ -3651,7 +3648,7 @@ class IRCompiler(IRCompilerBase):
         elif isinstance(expr, irast.LinkPropRefExpr):
             result = self._process_expr(context, expr.expr, cte)
 
-        elif isinstance(expr, (irast.AtomicRefSimple, irast.MetaRef)):
+        elif isinstance(expr, irast.AtomicRefSimple):
             self._process_expr(context, expr.ref, cte)
 
             if context.current.local_atom_expr_source is not None:
@@ -3669,9 +3666,7 @@ class IRCompiler(IRCompilerBase):
             fieldrefs = []
 
             for ref in datarefs:
-                is_metaref = isinstance(expr, irast.MetaRef)
-                ref = self.get_cte_fieldref_for_set(
-                    context, ref, expr.name, is_metaref)
+                ref = self.get_cte_fieldref_for_set(context, ref, expr.name)
                 fieldrefs.append(ref)
 
             if len(fieldrefs) > 1:
@@ -4260,70 +4255,26 @@ class IRCompiler(IRCompilerBase):
 
             # Process references to class attributes.
             #
-            metarefs = {'id'} | {f.name for f in edgedb_path_tip.metarefs}
+            mclsref_name = 'std::__class__'
+            fieldref = pgsql.ast.FieldRefNode(
+                table=concept_table, field=mclsref_name, origin=concept_table,
+                origin_field=mclsref_name)
 
-            if len(metarefs) > 1:
-                if isinstance(edgedb_path_tip.concept, s_concepts.Concept):
-                    metatable = 'concept'
-                else:
-                    msg = 'unexpected path tip type when resolving ' \
-                          'metarefs: {}'.format(edgedb_path_tip.concept)
-                    raise ValueError(msg)
+            alias = context.current.genalias(hint=mclsref_name)
+            selectnode = pgsql.ast.SelectExprNode(
+                expr=fieldref, alias=step_cte.alias + ('_schema_' + alias))
+            step_cte.targets.append(selectnode)
 
-                datatable = pgsql.ast.TableNode(
-                    name=metatable, schema='edgedb', concepts=None,
-                    alias=context.current.genalias(hint='object'))
-
-                left = pgsql.ast.FieldRefNode(
-                    table=concept_table, field='std::__class__')
-                right = pgsql.ast.FieldRefNode(table=datatable, field='id')
-                joincond = pgsql.ast.BinOpNode(op='=', left=left, right=right)
-
-                fromnode.expr = self._simple_join(
-                    context, fromnode.expr, datatable, key=None, type='left'
-                    if weak else 'inner', condition=joincond)
-
-            for metaref in metarefs:
-                if metaref == 'id':
-                    metaref_name = 'std::__class__'
-                    srctable = concept_table
-                else:
-                    metaref_name = metaref
-                    srctable = datatable
-
-                ref_map[('schema', metaref)] = srctable
-
-                fieldref = pgsql.ast.FieldRefNode(
-                    table=srctable, field=metaref_name, origin=srctable,
-                    origin_field=metaref_name)
-
-                if metaref == 'title':
-                    # Title is a WordCombination object with multiple
-                    # grammatical forms, which is stored as an hstore in the
-                    # database.  Direct reference defaults to the "singular"
-                    # form
-                    hstore_key = pgsql.ast.ConstantNode(value='singular')
-                    op = 'operator(edgedb.->)'
-                    fieldref = pgsql.ast.BinOpNode(
-                        left=fieldref, right=hstore_key, op=op)
-
-                alias = context.current.genalias(hint=metaref_name)
-                selectnode = pgsql.ast.SelectExprNode(
-                    expr=fieldref, alias=step_cte.alias + ('_schema_' + alias))
-                step_cte.targets.append(selectnode)
-                step_cte.concept_node_map[edgedb_path_tip][(
-                    'schema', metaref)] = selectnode
-
-                # Record schema references in the global map in case they have
-                # to be pulled up later
-                #
-                refexpr = pgsql.ast.FieldRefNode(
-                    table=step_cte, field=selectnode.alias, origin=srctable,
-                    origin_field=metaref_name)
-                selectnode = pgsql.ast.SelectExprNode(
-                    expr=refexpr, alias=selectnode.alias)
-                context.current.concept_node_map[edgedb_path_tip][(
-                    'schema', metaref)] = selectnode
+            # Record schema references in the global map in case they have
+            # to be pulled up later
+            #
+            refexpr = pgsql.ast.FieldRefNode(
+                table=step_cte, field=selectnode.alias, origin=concept_table,
+                origin_field=mclsref_name)
+            selectnode = pgsql.ast.SelectExprNode(
+                expr=refexpr, alias=selectnode.alias)
+            context.current.concept_node_map[edgedb_path_tip][(
+                'schema', '__class__')] = selectnode
 
         if edgedb_path_tip and edgedb_path_tip.filter:
             # Switch context to node filter and make the concept table

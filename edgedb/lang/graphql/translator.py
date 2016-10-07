@@ -249,20 +249,13 @@ class GraphQLTranslator:
         # validate the field
         #
         target = baseType = self.schema.get(base[0])
-        target_is_typeref = False
         for step in base[1:]:
-            if step == '__class__':
-                target_is_typeref = True
-                continue
-            if target_is_typeref:
-                target = target.get_type_property(step, self.schema)
-            else:
-                target = target.resolve_pointer(self.schema, step)
-                if target is None:
-                    raise GraphQLValidationError(
-                        "field {!r} is invalid for {}".format(
-                            step, baseType.name.name), context=field.context)
-                target = target.target
+            target = target.resolve_pointer(self.schema, step)
+            if target is None:
+                raise GraphQLValidationError(
+                    "field {!r} is invalid for {}".format(
+                        step, baseType.name.name), context=field.context)
+            target = target.target
 
         spec = qlast.SelectPathSpecNode(
             expr=qlast.PathNode(

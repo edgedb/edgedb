@@ -241,7 +241,6 @@ def add_sets(context, left, right, merge_filters=False):
                 left.disjunction.fixed = True
 
             left.atomrefs.update(right.atomrefs)
-            left.metarefs.update(right.metarefs)
             left.users.update(right.users)
             left.joins.update(right.joins)
             left.joins.discard(left)
@@ -432,7 +431,6 @@ def intersect_sets(context, left, right, merge_filters=False):
                 context, left_set.conjunction, right_set.conjunction,
                 merge_filters)
             left_set.atomrefs.update(right_set.atomrefs)
-            left_set.metarefs.update(right_set.metarefs)
             left_set.users.update(right_set.users)
             left_set.joins.update(right_set.joins)
             left_set.joins.discard(left_set)
@@ -772,10 +770,6 @@ class PathMerger(ast.NodeTransformer):
     def visit_PathCombination(self, expr):
         return flatten_and_unify_path_combination(
             self._context, expr, deep=True, memo=self._memo)
-
-    def visit_MetaRef(self, expr):
-        expr.ref.metarefs.add(expr)
-        return expr
 
     def visit_AtomicRefSimple(self, expr):
         expr.ref.atomrefs.add(expr)

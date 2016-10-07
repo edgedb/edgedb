@@ -41,10 +41,7 @@ class IRDecompiler:
             if el.rewrite_original:
                 el = el.rewrite_original
 
-            if isinstance(el, irast.MetaRef):
-                continue
-
-            elif isinstance(el, (irast.AtomicRefSimple, irast.LinkPropRefSimple)):
+            if isinstance(el, (irast.AtomicRefSimple, irast.LinkPropRefSimple)):
                 rlink = el.rlink if isinstance(el, irast.AtomicRefSimple) else el.ref
 
                 trigger = rlink.pathspec_trigger
@@ -265,12 +262,6 @@ class IRDecompiler:
 
         elif isinstance(expr, irast.ExistPred):
             result = qlast.ExistsPredicateNode(expr=self._process_expr(context, expr.expr))
-
-        elif isinstance(expr, irast.MetaRef):
-            inistep = self._process_expr(context, expr.ref)
-            typstep = qlast.LinkExprNode(expr=qlast.LinkNode(name='__class__'))
-            refstep = qlast.LinkExprNode(expr=qlast.LinkNode(name=expr.name))
-            result = qlast.PathNode(steps=[inistep, typstep, refstep])
 
         elif isinstance(expr, irast.AtomicRefSimple):
             path = self._process_expr(context, expr.ref)
