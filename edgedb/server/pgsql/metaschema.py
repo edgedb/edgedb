@@ -15,6 +15,7 @@ from edgedb.lang.common.nlang import morphology
 
 from edgedb.lang.schema import attributes as s_attrs
 from edgedb.lang.schema import derivable as s_derivable
+from edgedb.lang.schema import expr as s_expr
 from edgedb.lang.schema import functions as s_funcs
 from edgedb.lang.schema import inheriting as s_inheriting
 from edgedb.lang.schema import name as sn
@@ -435,7 +436,8 @@ def _field_to_column(field):
     elif issubclass(ftype, (s_obj.ClassSet, s_obj.ClassList)):
         coltype = 'uuid[]'
 
-    elif issubclass(ftype, (s_obj.ClassDict, s_obj.ArgDict)):
+    elif issubclass(ftype, (s_obj.ClassDict, s_obj.ArgDict,
+                            s_expr.ExpressionDict)):
         coltype = 'jsonb'
 
     elif issubclass(ftype, morphology.WordCombination):
@@ -454,7 +456,7 @@ def _field_to_column(field):
         coltype = 'bigint'
 
     else:
-        coltype = 'jsonb'
+        coltype = 'text'
 
     return dbops.Column(
         name=field.name,
@@ -564,9 +566,10 @@ dbname = lambda n: common.quote_ident(common.edgedb_name_to_pg_name(n))
 tabname = lambda obj: \
     ('edgedbss', common.get_table_name(obj, catenate=False)[1])
 q = common.quote_ident
+ql = common.quote_literal
 
 
-def _get_link_view(mcls, schema_cls, field, ptr, refdict):
+def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
     pn = ptr.normal_name()
 
     if refdict:
@@ -626,6 +629,102 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict):
                 src=dbname(sn.Name('std::source')),
                 tgt=dbname(sn.Name('std::target')),
             )
+
+        if pn.name == 'attributes':
+            link_query = '''
+                SELECT
+                    q.*,
+                    av.value    AS {valprop}
+                FROM
+                    ({query}
+                    ) AS q
+                    INNER JOIN edgedb.AttributeValue av
+                        ON (q.{tgt} = av.attribute AND q.{src} = av.subject)
+            '''.format(
+                query=link_query,
+                src=dbname(sn.Name('std::source')),
+                tgt=dbname(sn.Name('std::target')),
+                valprop=dbname(sn.Name('schema::value')),
+            )
+
+            # In addition to custom attributes returned by the
+            # generic refdict query above, collect and return
+            # standard system attributes.
+            partitions = []
+
+            for metaclass in get_interesting_metaclasses():
+                fields = metaclass.get_ownfields()
+                attrs = []
+                for fn in fields:
+                    field = metaclass.get_field(fn)
+                    if not field.introspectable:
+                        continue
+
+                    ftype = field.type[0]
+                    if issubclass(ftype,
+                                  (s_obj.Class, s_obj.ClassCollection,
+                                   s_obj.ArgDict, s_expr.ExpressionDict,
+                                   dict)):
+                        continue
+
+                    aname = 'stdattrs::{}'.format(fn)
+                    attrcls = schema.get(aname, default=None)
+                    if attrcls is None:
+                        raise RuntimeError(
+                            'introspection schema error: {}.{} is not '
+                            'defined as `stdattrs` Attribute'.format(
+                                metaclass.__name__, fn))
+                    aname = ql(aname) + '::text'
+                    aval = q(fn) + '::text'
+                    if fn == 'name':
+                        aval = 'edgedb.normalize_name({})'.format(aval)
+                    attrs.append([aname, aval])
+
+                if attrs:
+                    values = ', '.join(
+                        '({}, {})'.format(k, v) for k, v in attrs)
+
+                    qry = '''
+                        SELECT
+                            id AS subject_id,
+                            a.*
+                        FROM
+                            {schematab},
+                            UNNEST(ARRAY[{values}]) AS a(
+                                attr_name text,
+                                attr_value text
+                            )
+                    '''.format(
+                        schematab='edgedb.{}'.format(metaclass.__name__),
+                        values=values
+                    )
+
+                    partitions.append(qry)
+
+            if partitions:
+                union = ('\n' + (' ' * 16) + 'UNION \n').join(partitions)
+
+                stdattrs = '''
+                    SELECT
+                        vals.subject_id     AS {src},
+                        attrs.id            AS {tgt},
+                        vals.attr_value     AS {valprop}
+                    FROM
+                        ({union}
+                        ) AS vals
+                        INNER JOIN edgedb.Attribute attrs
+                            ON (vals.attr_name = attrs.name)
+                '''.format(
+                    union=union,
+                    src=dbname(sn.Name('std::source')),
+                    tgt=dbname(sn.Name('std::target')),
+                    valprop=dbname(sn.Name('schema::value')),
+                )
+
+                link_query += (
+                    '\n' + (' ' * 16) + 'UNION ALL (\n' + stdattrs +
+                    '\n' + (' ' * 16) + ')'
+                )
 
     else:
         link_query = None
@@ -892,7 +991,8 @@ async def generate_views(conn, schema):
 
                 cols.append((col_expr, dbname(ptr.normal_name())))
             else:
-                view = _get_link_view(mcls, schema_cls, field, ptr, refdict)
+                view = _get_link_view(mcls, schema_cls, field, ptr, refdict,
+                                      schema)
                 if view.name not in views:
                     views[view.name] = view
 

@@ -214,7 +214,8 @@ class Constraint(primary.PrimaryClass, derivable.DerivableClass):
                            default=None, compcoef=0.833, coerce=True)
 
     localfinalexpr = so.Field(CumulativeBoolExpr, default=None,
-                              coerce=True, derived=True, private=True)
+                              coerce=True, derived=True, private=True,
+                              introspectable=False)
 
     finalexpr = so.Field(CumulativeBoolExpr, default=None,
                          coerce=True, derived=True, compcoef=0.909)

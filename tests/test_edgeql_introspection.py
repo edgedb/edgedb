@@ -108,8 +108,10 @@ class TestIntrospection(tb.QueryTestCase):
                 links: {
                     name,
                     attributes: {
-                        name
-                    }
+                        name,
+                        @value
+                    } WHERE `Concept`.links.attributes.name = 'stdattrs::name'
+                      ORDER BY `Attribute`.name
                 } ORDER BY `Concept`.links.name
             }
             WHERE `Concept`.name = 'test::User';
@@ -119,20 +121,28 @@ class TestIntrospection(tb.QueryTestCase):
                 'is_abstract': False,
                 'links': [{
                     'name': 'std::__class__',
-                    'attributes': [
-                    ]
+                    'attributes': [{
+                        'name': 'stdattrs::name',
+                        '@value': 'std::__class__'
+                    }]
                 }, {
                     'name': 'std::id',
-                    'attributes': [
-                    ]
+                    'attributes': [{
+                        'name': 'stdattrs::name',
+                        '@value': 'std::id'
+                    }]
                 }, {
                     'name': 'test::name',
-                    'attributes': [
-                    ]
+                    'attributes': [{
+                        'name': 'stdattrs::name',
+                        '@value': 'test::name'
+                    }]
                 }, {
                     'name': 'test::todo',
-                    'attributes': [
-                    ]
+                    'attributes': [{
+                        'name': 'stdattrs::name',
+                        '@value': 'test::todo'
+                    }]
                 }]
             }]
         ])

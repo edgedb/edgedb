@@ -80,7 +80,8 @@ class LinkMapping(enum.StrEnum):
 
 
 class LinkSearchConfiguration(so.Class):
-    weight = so.Field(LinkSearchWeight, default=None, compcoef=0.9)
+    weight = so.Field(LinkSearchWeight, default=None, compcoef=0.9,
+                      introspectable=False)
 
 
 class LinkSourceCommandContext(sources.SourceCommandContext):

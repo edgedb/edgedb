@@ -28,16 +28,19 @@ def is_named_class(scls):
 
 
 class Field(struct.Field):
-    __name__ = ('compcoef', 'private', 'derived', 'simpledelta')
+    __name__ = ('compcoef', 'private', 'derived', 'simpledelta',
+                'merge_fn', 'introspectable')
 
     def __init__(self, *args, compcoef=None, private=False, derived=False,
-                 simpledelta=True, merge_fn=None, **kwargs):
+                 simpledelta=True, merge_fn=None, introspectable=True,
+                 **kwargs):
         super().__init__(*args, **kwargs)
         self.compcoef = compcoef
         self.private = private
         self.derived = derived
         self.simpledelta = simpledelta
         self.merge_fn = merge_fn
+        self.introspectable = introspectable
 
 
 class ComparisonContextWrapper:
@@ -790,7 +793,11 @@ class Map(Collection):
         return cls(key_type=subtypes[0], element_type=subtypes[1])
 
 
-class ClassDict(typed.TypedDict, keytype=str, valuetype=Class):
+class ClassCollection:
+    pass
+
+
+class ClassDict(typed.TypedDict, ClassCollection, keytype=str, valuetype=Class):
     def persistent_hash(self):
         vals = []
         for k, v in self.items():
@@ -823,7 +830,7 @@ class ClassDict(typed.TypedDict, keytype=str, valuetype=Class):
         return basecoef + (1 - basecoef) * compcoef
 
 
-class ClassSet(typed.TypedSet, type=Class):
+class ClassSet(typed.TypedSet, ClassCollection, type=Class):
     @classmethod
     def merge_values(cls, ours, theirs, schema):
         if ours is None and theirs is not None:
@@ -870,7 +877,7 @@ class ClassSet(typed.TypedSet, type=Class):
         return self.__class__(self)
 
 
-class ClassList(typed.TypedList, type=Class):
+class ClassList(typed.TypedList, ClassCollection, type=Class):
     pass
 
 

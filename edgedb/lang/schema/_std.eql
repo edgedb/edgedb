@@ -44,20 +44,25 @@ CREATE ABSTRACT ATOM std::sequence;
 CREATE ATTRIBUTE stdattrs::precision list<std::int>;
 
 CREATE ATTRIBUTE stdattrs::name std::str;
-CREATE ATTRIBUTE stdattrs::bases list<std::typeref>;
 CREATE ATTRIBUTE stdattrs::is_abstract std::bool;
 CREATE ATTRIBUTE stdattrs::is_final std::bool;
+CREATE ATTRIBUTE stdattrs::is_derived std::bool;
+CREATE ATTRIBUTE stdattrs::is_virtual std::bool;
 CREATE ATTRIBUTE stdattrs::title std::str;
 CREATE ATTRIBUTE stdattrs::description std::str;
 
 CREATE ATTRIBUTE stdattrs::expr std::str;
 CREATE ATTRIBUTE stdattrs::subjectexpr std::str;
 CREATE ATTRIBUTE stdattrs::finalexpr std::str;
-CREATE ATTRIBUTE stdattrs::subject std::typeref;
-CREATE ATTRIBUTE stdattrs::paramtypes map<std::str, std::typeref>;
-CREATE ATTRIBUTE stdattrs::inferredparamtypes map<std::str, std::typeref>;
-CREATE ATTRIBUTE stdattrs::args map<std::str, std::any>;
 CREATE ATTRIBUTE stdattrs::errmessage std::str;
+
+CREATE ATTRIBUTE stdattrs::value std::str;
+CREATE ATTRIBUTE stdattrs::required std::bool;
+CREATE ATTRIBUTE stdattrs::readonly std::bool;
+CREATE ATTRIBUTE stdattrs::default std::str;
+CREATE ATTRIBUTE stdattrs::exposed_behaviour std::str;
+CREATE ATTRIBUTE stdattrs::mapping std::str;
+CREATE ATTRIBUTE stdattrs::aggregate std::bool;
 
 CREATE FUNCTION std::strlen(string std::str) RETURNING std::int;
 CREATE FUNCTION std::lower(string std::str) RETURNING std::str;

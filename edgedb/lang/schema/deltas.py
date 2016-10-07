@@ -25,11 +25,13 @@ class Delta(named.NamedClass):
                        default=named.NamedClassList,
                        coerce=True, private=True)
 
-    target = so.Field(s_schema.Schema, private=True)
+    target = so.Field(s_schema.Schema, private=True,
+                      introspectable=False)
 
     commands = so.Field(sd.CommandList,
                         default=sd.CommandList,
-                        coerce=True, private=True)
+                        coerce=True, private=True,
+                        introspectable=False)
 
 
 class DeltaCommandContext(sd.CommandContextToken):

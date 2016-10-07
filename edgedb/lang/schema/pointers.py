@@ -443,7 +443,8 @@ class Pointer(BasePointer, constraints.ConsistencySubject,
                         merge_fn=_merge_sticky_bool)
     readonly = so.Field(bool, default=False, compcoef=0.909,
                         merge_fn=_merge_sticky_bool)
-    loading = so.Field(PointerLoading, default=None, compcoef=0.909)
+    loading = so.Field(PointerLoading, default=None, compcoef=0.909,
+                       introspectable=False)
     default = so.Field(sexpr.ExpressionText, default=None,
                        coerce=True, compcoef=0.909)
 
