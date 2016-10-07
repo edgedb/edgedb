@@ -669,6 +669,30 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['std::str']
         ])
 
+    async def test_edgeql_select_type04(self):
+        # Make sure that the __class__ attribute gets the same object
+        # as a direct schema::Concept query. As long as this is true,
+        # we can test the schema separately without any other data.
+        res1 = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT User {
+                __class__: {
+                    name,
+                    id,
+                }
+            } LIMIT 1;
+        ''')
+
+        res2 = await self.con.execute(r'''
+            WITH MODULE schema
+            SELECT `Concept` {
+                name,
+                id,
+            } WHERE `Concept`.name = 'test::User';
+        ''')
+
+        self.assert_data_shape(res1[0][0]['__class__'], res2[0][0])
+
     async def test_edgeql_select_recursive01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
