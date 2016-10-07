@@ -316,7 +316,8 @@ class QueryTestCase(DatabaseTestCase, metaclass=QueryTestCaseMeta):
 
             shape_iter = _list_shape_iter(shape)
 
-            for el in data:
+            i = 0
+            for i, el in enumerate(data):
                 try:
                     el_shape = next(shape_iter)
                 except StopIteration:
@@ -325,6 +326,12 @@ class QueryTestCase(DatabaseTestCase, metaclass=QueryTestCaseMeta):
                             message))
 
                 _assert_data_shape(el, el_shape)
+
+            if len(shape) > i + 1:
+                if shape[i + 1] is not Ellipsis:
+                    self.fail(
+                        '{}: expecting more elements in list'.format(
+                            message))
 
         def _assert_data_shape(data, shape):
             if isinstance(shape, nullable):

@@ -14,7 +14,9 @@ from edgedb.lang.common import functional
 from edgedb.lang.common.nlang import morphology
 
 from edgedb.lang.schema import attributes as s_attrs
+from edgedb.lang.schema import derivable as s_derivable
 from edgedb.lang.schema import functions as s_funcs
+from edgedb.lang.schema import inheriting as s_inheriting
 from edgedb.lang.schema import name as sn
 from edgedb.lang.schema import named as s_named
 from edgedb.lang.schema import objects as s_obj
@@ -309,6 +311,27 @@ class IsinstanceFunction(dbops.Function):
             text=self.__class__.text)
 
 
+class NormalizeNameFunction(dbops.Function):
+    text = '''
+        SELECT
+            CASE WHEN strpos(name, '@') = 0 THEN
+                name
+            ELSE
+                replace(replace(
+                    split_part(name, '@', 2), '~', '.'), '|', '::')
+            END;
+    '''
+
+    def __init__(self):
+        super().__init__(
+            name=('edgedb', 'normalize_name'),
+            args=[('name', 'text')],
+            returns='text',
+            volatility='immutable',
+            language='sql',
+            text=self.__class__.text)
+
+
 class ValidateLinkInsertFunction(dbops.Function):
     text = '''
     BEGIN
@@ -524,6 +547,7 @@ async def bootstrap(conn):
         dbops.CreateFunction(IssubclassFunction()),
         dbops.CreateFunction(IssubclassFunction2()),
         dbops.CreateFunction(IsinstanceFunction()),
+        dbops.CreateFunction(NormalizeNameFunction()),
         dbops.CreateFunction(ValidateLinkInsertFunction()),
     ])
 
@@ -546,18 +570,63 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict):
     pn = ptr.normal_name()
 
     if refdict:
-        link_query = '''
-            SELECT
-                {refattr}  AS {src},
-                id         AS {tgt}
-            FROM
-                {reftab}
-        '''.format(
-            reftab='edgedb.{}'.format(refdict.ref_cls.__name__),
-            refattr=q(refdict.backref_attr),
-            src=dbname(sn.Name('std::source')),
-            tgt=dbname(sn.Name('std::target')),
-        )
+        if (issubclass(mcls, s_inheriting.InheritingClass) or
+                mcls is s_named.NamedClass):
+
+            if mcls is s_named.NamedClass:
+                schematab = 'edgedb.InheritingClass'
+            else:
+                schematab = 'edgedb.{}'.format(mcls.__name__)
+
+            link_query = '''
+                SELECT DISTINCT ON ((cls.id, r.id))
+                    cls.id  AS {src},
+                    r.id    AS {tgt}
+                FROM
+                    (SELECT
+                        s.id                AS id,
+                        ancestry.ancestor   AS ancestor,
+                        ancestry.depth      AS depth
+                     FROM
+                        {schematab} s
+                        LEFT JOIN LATERAL
+                            UNNEST(s.mro) WITH ORDINALITY
+                                      AS ancestry(ancestor, depth) ON true
+
+                     UNION ALL
+                     SELECT
+                        s.id                AS id,
+                        s.id                AS ancestor,
+                        0                   AS depth
+                     FROM
+                        {schematab} s
+                    ) AS cls
+
+                    INNER JOIN {reftab} r
+                        ON (r.{refattr} = cls.ancestor)
+                ORDER BY
+                    (cls.id, r.id), cls.depth
+            '''.format(
+                schematab=schematab,
+                reftab='edgedb.{}'.format(refdict.ref_cls.__name__),
+                refattr=q(refdict.backref_attr),
+                src=dbname(sn.Name('std::source')),
+                tgt=dbname(sn.Name('std::target')),
+            )
+        else:
+            link_query = '''
+                SELECT
+                    {refattr}  AS {src},
+                    id         AS {tgt}
+                FROM
+                    {reftab}
+            '''.format(
+                reftab='edgedb.{}'.format(refdict.ref_cls.__name__),
+                refattr=q(refdict.backref_attr),
+                src=dbname(sn.Name('std::source')),
+                tgt=dbname(sn.Name('std::target')),
+            )
+
     else:
         link_query = None
 
@@ -815,7 +884,13 @@ async def generate_views(conn, schema):
             ptrstor = types.get_pointer_storage_info(ptr, schema=schema)
 
             if ptrstor.table_type == 'concept':
-                cols.append((q(pn.name), dbname(ptr.normal_name())))
+                if (pn.name == 'name' and
+                        issubclass(mcls, s_derivable.DerivableClass)):
+                    col_expr = 'edgedb.normalize_name({})'.format(q(pn.name))
+                else:
+                    col_expr = q(pn.name)
+
+                cols.append((col_expr, dbname(ptr.normal_name())))
             else:
                 view = _get_link_view(mcls, schema_cls, field, ptr, refdict)
                 if view.name not in views:

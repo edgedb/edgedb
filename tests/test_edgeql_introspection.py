@@ -55,7 +55,7 @@ class TestIntrospection(tb.QueryTestCase):
                 is_abstract,
                 links: {
                     name,
-                }
+                } ORDER BY `Concept`.links.name
             }
             WHERE `Concept`.name = 'test::User';
         """, [
@@ -63,7 +63,13 @@ class TestIntrospection(tb.QueryTestCase):
                 'name': 'test::User',
                 'is_abstract': False,
                 'links': [{
-                    'name': 'test::todo@test|todo@test|User',
+                    'name': 'std::__class__',
+                }, {
+                    'name': 'std::id',
+                }, {
+                    'name': 'test::name',
+                }, {
+                    'name': 'test::todo',
                 }]
             }]
         ])
@@ -76,7 +82,7 @@ class TestIntrospection(tb.QueryTestCase):
                 is_abstract,
                 links: {
                     name,
-                }
+                } ORDER BY `Concept`.links.name
             }
             WHERE `Concept`.name = 'test::Owned';
         """, [
@@ -84,12 +90,16 @@ class TestIntrospection(tb.QueryTestCase):
                 'name': 'test::Owned',
                 'is_abstract': True,
                 'links': [{
-                    'name': 'test::owner@test|owner@test|Owned',
+                    'name': 'std::__class__',
+                }, {
+                    'name': 'std::id',
+                }, {
+                    'name': 'test::owner',
                 }]
             }]
         ])
 
-    async def _test_edgeql_introspection_concept04(self):
+    async def test_edgeql_introspection_concept04(self):
         await self.assert_query_result(r"""
             WITH MODULE schema
             SELECT `Concept` {
@@ -100,7 +110,7 @@ class TestIntrospection(tb.QueryTestCase):
                     attributes: {
                         name
                     }
-                }
+                } ORDER BY `Concept`.links.name
             }
             WHERE `Concept`.name = 'test::User';
         """, [
@@ -108,9 +118,20 @@ class TestIntrospection(tb.QueryTestCase):
                 'name': 'test::User',
                 'is_abstract': False,
                 'links': [{
-                    'name': 'test::todo@test|todo@test|User',
+                    'name': 'std::__class__',
                     'attributes': [
-                        # XXX: not sure what goes here yet
+                    ]
+                }, {
+                    'name': 'std::id',
+                    'attributes': [
+                    ]
+                }, {
+                    'name': 'test::name',
+                    'attributes': [
+                    ]
+                }, {
+                    'name': 'test::todo',
+                    'attributes': [
                     ]
                 }]
             }]
@@ -123,14 +144,22 @@ class TestIntrospection(tb.QueryTestCase):
                 name,
                 link_properties: {
                     name,
-                }
+                } ORDER BY `Link`.link_properties.name
             }
-            WHERE `Link`.name = 'test::todo';
+            WHERE
+                `Link`.name = 'test::todo'
+                AND EXISTS `Link`.source;
         """, [
             [{
                 'name': 'test::todo',
                 'link_properties': [{
-                    'name': 'test::rank@test|rank@test|todo',
+                    'name': 'std::linkid',
+                }, {
+                    'name': 'std::source',
+                }, {
+                    'name': 'std::target',
+                }, {
+                    'name': 'test::rank',
                 }]
             }]
         ])

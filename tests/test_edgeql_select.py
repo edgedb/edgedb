@@ -1644,6 +1644,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             issues_h + issues_l,
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_select_or02(self):
         res = await self.con.execute(r'''
             WITH MODULE test
