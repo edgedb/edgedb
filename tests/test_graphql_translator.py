@@ -2250,3 +2250,81 @@ class TestGraphQLTranslation(TranslatorTest):
         WHERE
             ((`123lib`::Foo).`select` = 'bar');
         """
+
+    def test_graphql_translation_delete01(self):
+        r"""
+        mutation @edgedb(module: "test") {
+            delete_User {
+                name,
+                groups {
+                    id
+                    name
+                }
+            }
+        }
+
+% OK %
+
+        DELETE
+            test::User
+        RETURNING
+            (test::User) {
+                name,
+                groups: {
+                    id,
+                    name
+                }
+            };
+        """
+
+    def test_graphql_translation_delete02(self):
+        r"""
+        mutation @edgedb(module: "test") {
+            deleteUser(name: "John") {
+                name,
+                groups {
+                    id
+                    name
+                }
+            }
+        }
+
+% OK %
+
+        DELETE
+            test::User
+        WHERE
+            ((test::User).name = 'John')
+        RETURNING
+            (test::User) {
+                name,
+                groups: {
+                    id,
+                    name
+                }
+            };
+        """
+
+    def test_graphql_translation_delete03(self):
+        r"""
+        mutation delete @edgedb(module: "test") {
+            delete____User(name: "John", active: true) {
+                id,
+            }
+        }
+
+% OK %
+
+        # mutation delete
+        DELETE
+            test::User
+        WHERE
+            (
+                ((test::User).name = 'John') AND
+                ((test::User).active = True)
+            )
+        RETURNING
+            (test::User) {
+                id,
+            }
+        """

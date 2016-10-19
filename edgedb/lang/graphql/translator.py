@@ -6,6 +6,8 @@
 ##
 
 
+import re
+
 from edgedb.lang import edgeql
 from edgedb.lang.common import ast
 from edgedb.lang.edgeql import ast as qlast
@@ -46,6 +48,7 @@ class GraphQLTranslatorContext:
         self.vars = {}
         self.fields = []
         self.path = []
+        self.optype = None
 
 
 class GraphQLTranslator(ast.NodeVisitor):
@@ -72,8 +75,17 @@ class GraphQLTranslator(ast.NodeVisitor):
         #
         self._context.vars = {name: [val, False]
                       for name, val in self._context.variables.items()}
+        opname = None
+        self._context.optype = None
+
         if node.type is None or node.type == 'query':
-            query = self._visit_query(node)
+            stmt = self._visit_query(node)
+            if node.name:
+                opname = 'query {}'.format(node.name)
+        elif node.type == 'mutation':
+            stmt = self._visit_mutation(node)
+            if node.name:
+                opname = 'mutation {}'.format(node.name)
         else:
             raise ValueError('unsupported definition type: {!r}'.format(
                 node.type))
@@ -85,9 +97,10 @@ class GraphQLTranslator(ast.NodeVisitor):
                     in self._context.vars.items() if crit]
         critvars.sort()
 
-        return (node.name, (query, critvars))
+        return (opname, (stmt, critvars))
 
     def _visit_query(self, node):
+        self._context.optype = 'query'
         query = None
         # populate input variables with defaults, where applicable
         #
@@ -119,8 +132,61 @@ class GraphQLTranslator(ast.NodeVisitor):
 
         return query
 
+    def _visit_mutation(self, node):
+        query = None
+        # populate input variables with defaults, where applicable
+        #
+        if node.variables:
+            self.visit(node.variables)
+
+        module = self._get_module(node.directives)
+
+        # special treatment of the selection_set, different from inner
+        # recursion
+        #
+        for selection in node.selection_set.selections:
+            self._context.path = [[[module, None]]]
+
+            # in addition to figuring out the returned structure, this
+            # will determine the type of mutation
+            #
+            targets = [
+                self._visit_query_selset(selection)
+            ]
+
+            selquery = qlast.DeleteQueryNode(
+                targets=targets,
+                subject=self._visit_delete_target(selection),
+                where=self._visit_select_where(selection.arguments)
+            )
+
+            if query is None:
+                query = selquery
+            else:
+                raise GraphQLValidationError(
+                    "unexpected field {!r}".format(
+                        selection.name), context=selection.context)
+
+        return query
+
+    def get_concept_name(self, raw_name, context):
+        if self._context.optype is None:
+            # operation type has not been determined, which means
+            # it's one of the following mutations: 'insert', 'delete', 'update'
+            #
+            match = re.match(r'(delete|insert|update)_*(.+)', raw_name)
+            if match:
+                self._context.optype, name = match.groups()
+                return name
+            else:
+                raise GraphQLValidationError(
+                    "unexpected field {!r}".format(raw_name), context=context)
+
+        else:
+            return raw_name
+
     def _visit_query_selset(self, selection):
-        concept = selection.name
+        concept = self.get_concept_name(selection.name, selection.context)
         base = self._context.path[0][0] = (self._context.path[0][0][0],
                                            concept)
         self._context.fields.append({})
@@ -142,6 +208,12 @@ class GraphQLTranslator(ast.NodeVisitor):
         self._context.fields.pop()
 
         return expr
+
+    def _visit_delete_target(self, selection):
+        base = self._context.path[0][0]
+        return qlast.PathNode(
+            steps=[qlast.PathStepNode(namespace=base[0], expr=base[1])],
+        )
 
     def _visit_select_where(self, arguments):
         if not arguments:
@@ -467,9 +539,9 @@ def translate(schema, graphql, variables=None):
     code = []
     for name, (tree, critvars) in sorted(edge_forest_map.items()):
         if name:
-            code.append('# query {}'.format(name))
+            code.append('# {}'.format(name))
         if critvars:
-            crit = ['{}={!r}'.format(name, val) for name, val in critvars]
+            crit = ['{}={!r}'.format(vname, val) for vname, val in critvars]
             code.append('# critical variables: {}'.format(', '.join(crit)))
         code += [edgeql.generate_source(tree), ';']
 

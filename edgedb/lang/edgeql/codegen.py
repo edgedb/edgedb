@@ -136,7 +136,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write('(')
         self._visit_aliases(node)
         self.write('DELETE ')
-        self.visit(node.subject)
+        self.visit(node.subject, parenthesise=False)
+
         if node.where:
             self.write(' WHERE ')
             self.visit(node.where)
@@ -286,12 +287,16 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         self.write('}')
 
-    def visit_PathNode(self, node, *, withtarget=True):
+    def visit_PathNode(self, node, *, withtarget=True, parenthesise=True):
         for i, e in enumerate(node.steps):
             if i > 0:
                 if not isinstance(e, edgeql_ast.LinkPropExprNode):
                     self.write('.')
-            self.visit(e, withtarget=withtarget)
+
+            if i == 0 and isinstance(e, edgeql_ast.PathStepNode):
+                self.visit(e, withtarget=withtarget, parenthesise=parenthesise)
+            else:
+                self.visit(e, withtarget=withtarget)
 
         if node.pathspec:
             self._visit_pathspec(node.pathspec)
@@ -310,11 +315,12 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.new_lines = 1
             self.write('}')
 
-    def visit_PathStepNode(self, node, *, withtarget=True):
+    def visit_PathStepNode(self, node, *, withtarget=True, parenthesise=True):
         # XXX: this one and other places need identifier quoting
         if node.namespace:
-            self.write('({}::{})'.format(ident_to_str(node.namespace),
-                                         ident_to_str(node.expr)))
+            txt = '({}::{})' if parenthesise else '{}::{}'
+            self.write(txt.format(ident_to_str(node.namespace),
+                                  ident_to_str(node.expr)))
         else:
             self.write(ident_to_str(node.expr))
 
