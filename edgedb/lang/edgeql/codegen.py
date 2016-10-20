@@ -75,7 +75,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write('INSERT')
         self.indentation += 1
         self.new_lines = 1
-        self.visit(node.subject)
+        self.visit(node.subject, parenthesise=False)
         self.indentation -= 1
         self.new_lines = 1
 

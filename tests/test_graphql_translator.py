@@ -2328,3 +2328,56 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         """
+
+    def test_graphql_translation_insert01(self):
+        r"""
+        mutation @edgedb(module: "test") {
+            insert_Group(__data: {
+                name: "new"
+            }) {
+                id,
+                name,
+            }
+        }
+
+% OK %
+
+        INSERT
+            test::`Group` {
+                name := 'new'
+            }
+        RETURNING
+            (test::`Group`) {
+                id,
+                name
+            };
+        """
+
+    def test_graphql_translation_insert02(self):
+        r"""
+        mutation insert @edgedb(module: "test") {
+            insert_User(__data: {
+                name: "John",
+                active: true,
+                age: 25,
+                score: 3.14
+            }) {
+                id,
+            }
+        }
+
+% OK %
+
+        # mutation insert
+        INSERT
+            test::User {
+                name := 'John',
+                active := True,
+                age := 25,
+                score := 3.14
+            }
+        RETURNING
+            (test::User) {
+                id,
+            }
+        """

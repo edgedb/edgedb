@@ -153,15 +153,23 @@ class GraphQLTranslator(ast.NodeVisitor):
             targets = [
                 self._visit_query_selset(selection)
             ]
+            subject = self._visit_operation_subject()
 
-            selquery = qlast.DeleteQueryNode(
-                targets=targets,
-                subject=self._visit_delete_target(selection),
-                where=self._visit_select_where(selection.arguments)
-            )
+            if self._context.optype == 'delete':
+                mutation = qlast.DeleteQueryNode(
+                    targets=targets,
+                    subject=subject,
+                    where=self._visit_select_where(selection.arguments),
+                )
+            elif self._context.optype == 'insert':
+                mutation = qlast.InsertQueryNode(
+                    targets=targets,
+                    subject=subject,
+                    pathspec=self._visit_insert_data(selection.arguments),
+                )
 
             if query is None:
-                query = selquery
+                query = mutation
             else:
                 raise GraphQLValidationError(
                     "unexpected field {!r}".format(
@@ -209,11 +217,40 @@ class GraphQLTranslator(ast.NodeVisitor):
 
         return expr
 
-    def _visit_delete_target(self, selection):
+    def _visit_operation_subject(self):
         base = self._context.path[0][0]
         return qlast.PathNode(
             steps=[qlast.PathStepNode(namespace=base[0], expr=base[1])],
         )
+
+    def _visit_insert_data(self, arguments):
+        base = self._context.path[0][0]
+
+        if not arguments:
+            return None
+
+        for arg in arguments:
+            if arg.name == '__data':
+                return self._visit_mutation_data(arg.value)
+            else:
+                raise GraphQLValidationError(
+                    "unknown argument {!r}".format(arg.name),
+                    context=arg.context)
+
+    def _visit_mutation_data(self, node):
+        result = []
+
+        for field in node.value:
+            result.append(qlast.SelectPathSpecNode(
+                expr=qlast.PathNode(
+                    steps=[qlast.LinkExprNode(
+                        expr=qlast.LinkNode(name=field.name)
+                    )]
+                ),
+                compexpr=self.visit(field.value)
+            ))
+
+        return result
 
     def _visit_select_where(self, arguments):
         if not arguments:
