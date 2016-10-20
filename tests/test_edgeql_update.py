@@ -321,3 +321,37 @@ class TestUpdate(tb.QueryTestCase):
                     comment,
                 };
             """)
+
+    async def test_edgeql_update_generic01(self):
+        status = await self.con.execute(r"""
+            WITH MODULE test
+            SELECT Status.id
+            WHERE Status.name = 'Open';
+        """)
+
+        res = await self.con.execute(r"""
+            WITH MODULE test
+            UPDATE UpdateTest {
+                status := (
+                    SELECT Object
+                    WHERE Object.id = '""" + status[0][0] + r"""'
+                )
+            } WHERE UpdateTest.name = 'update-test3';
+
+            WITH MODULE test
+            SELECT UpdateTest {
+                name,
+                status: {
+                    name
+                }
+            } WHERE UpdateTest.name = 'update-test3';
+        """)
+
+        self.assert_data_shape(res[-1], [
+            {
+                'name': 'update-test3',
+                'status': {
+                    'name': 'Open',
+                },
+            },
+        ])
