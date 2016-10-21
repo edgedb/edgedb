@@ -66,6 +66,12 @@ def _run_server(cluster, args):
         logger.info('Serving on %s:%s', 'localhost', args.port)
         loop.run_forever()
 
+    except KeyboardInterrupt:
+        logger.info('Shutting down.')
+        srv.close()
+        loop.run_until_complete(srv.wait_closed())
+        srv = None
+
     finally:
         if srv is not None:
             logger.info('Shutting down.')

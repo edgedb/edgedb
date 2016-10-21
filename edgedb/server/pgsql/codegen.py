@@ -461,18 +461,29 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         if node.right is not None:
             self.new_lines = 1
             self.write(node.type.upper() + ' JOIN ')
-            if isinstance(
-                    node.right,
-                    pgast.JoinNode) and node.right.right is not None:
+            nested_join = (
+                isinstance(node.right, pgast.JoinNode) and
+                node.right.right is not None
+            )
+            if nested_join:
                 self.write('(')
+                self.new_lines = 1
+                self.indentation += 1
             self.visit(node.right)
-            if isinstance(
-                    node.right,
-                    pgast.JoinNode) and node.right.right is not None:
+            if nested_join:
+                self.indentation -= 1
+                self.new_lines = 1
                 self.write(')')
             if node.condition is not None:
-                self.write(' ON ')
+                if not nested_join:
+                    self.indentation += 1
+                    self.new_lines = 1
+                    self.write('ON ')
+                else:
+                    self.write(' ON ')
                 self.visit(node.condition)
+                if not nested_join:
+                    self.indentation -= 1
 
     def visit_TableNode(self, node):
         self.write(common.qname(node.schema, node.name))
@@ -486,7 +497,12 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         if '.' not in op:
             op = op.upper()
         self.write(' ' + op + ' ')
+        if op.lower() in {'or', 'and'}:
+            self.new_lines = 1
+            self.char_indentation += 1
         self.visit(node.right)
+        if op.lower() in {'or', 'and'}:
+            self.char_indentation -= 1
         self.write(')')
 
     def visit_UnaryOpNode(self, node):
@@ -653,7 +669,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_NullTestNode(self, node):
         self.visit(node.expr)
-        self.write(' IS NULL ')
+        self.write(' IS NULL')
 
     def visit_IndirectionNode(self, node):
         self.write('(')

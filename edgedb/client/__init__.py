@@ -31,9 +31,9 @@ class Connection:
     async def query(self, query, *args):
         return await self._protocol.execute(query, *args)
 
-    async def execute(self, query, *args, graphql=False):
+    async def execute(self, query, *args, graphql=False, flags={}):
         return await self._protocol.execute_script(
-            query, *args, graphql=graphql)
+            query, *args, graphql=graphql, flags=flags)
 
     def close(self):
         self._transport.close()

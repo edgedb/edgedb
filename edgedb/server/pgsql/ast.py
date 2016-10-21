@@ -76,9 +76,15 @@ class TableFuncElement(Base):
 
 
 class RelationNode(Base):
-    __fields = [('concepts', frozenset), 'alias', ('_bonds', dict),
-                'edgedbnode', ('outerbonds', list), ('proxyouterbonds', dict),
-                ('aggregates', bool), 'coldef']
+    __fields = [
+        ('concepts', frozenset),
+        'alias',
+        ('_bonds', dict),
+        ('edgedbnode', object, None, True, None, True),
+        ('outerbonds', list),
+        ('proxyouterbonds', dict),
+        ('aggregates', bool),
+        'coldef']
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -127,7 +133,9 @@ class SelectQueryNode(RelationNode):
         ('ctes', datastructures.OrderedSet), ('concept_node_map', dict),
         ('link_node_map', dict), ('linkmap', dict),
         ('subquery_referrers', list), 'op', 'larg', 'rarg', 'recursive',
-        'text_override'
+        'text_override',
+        'scls_rel',
+        'rptr_rel'
     ]
 
 
@@ -144,7 +152,8 @@ class InsertQueryNode(DMLNode):
         'fromexpr', ('cols', list), 'select', ('targets', list),
         ('subquery_referrers', list), 'alias',
         ('ctes', datastructures.OrderedSet),
-        ('on_conflict', OnConflictNode, None)
+        ('on_conflict', OnConflictNode, None),
+        ('concept_node_map', dict)
     ]
 
 
@@ -152,6 +161,7 @@ class UpdateQueryNode(DMLNode):
     __fields = [
         'fromexpr', ('values', list), 'where', ('targets', list),
         ('subquery_referrers', list), ('ctes', datastructures.OrderedSet),
+        ('concept_node_map', dict),
         'alias'
     ]
 
@@ -163,7 +173,8 @@ class UpdateExprNode(Base):
 class DeleteQueryNode(DMLNode):
     __fields = [
         'fromexpr', 'where', ('targets', list), ('subquery_referrers', list),
-        ('ctes', datastructures.OrderedSet), 'alias', ('using', list)
+        ('ctes', datastructures.OrderedSet), 'alias', ('using', list),
+        ('concept_node_map', dict)
     ]
 
 

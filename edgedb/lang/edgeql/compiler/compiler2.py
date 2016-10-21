@@ -1,0 +1,1383 @@
+##
+# Copyright (c) 2008-2015 MagicStack Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+"""EdgeQL to IR compiler."""
+
+import itertools
+
+from edgedb.lang.ir import ast2 as irast
+from edgedb.lang.ir import utils as irutils
+
+from edgedb.lang.schema import concepts as s_concepts
+from edgedb.lang.schema import links as s_links
+from edgedb.lang.schema import lproperties as s_lprops
+from edgedb.lang.schema import name as sn
+from edgedb.lang.schema import objects as s_obj
+from edgedb.lang.schema import pointers as s_pointers
+from edgedb.lang.schema import types as s_types
+
+from edgedb.lang.edgeql import ast as qlast
+from edgedb.lang.edgeql import errors
+from edgedb.lang.edgeql import parser
+
+from edgedb.lang.common import ast
+from edgedb.lang.common import debug
+from edgedb.lang.common import exceptions as edgedb_error
+from edgedb.lang.common import markup  # NOQA
+
+from . import rewriter
+
+
+class SubqueryLinker(ast.NodeTransformer):
+    """Link subqueries to the main query."""
+
+    def visit_GraphExpr(self, expr):
+        paths = irutils.get_path_index(expr)
+
+        subpaths = irutils.extract_paths(
+            expr,
+            reverse=True,
+            resolve_arefs=False,
+            recurse_subqueries=2,
+            all_fragments=True)
+
+        if isinstance(subpaths, irast.PathCombination):
+            irutils.flatten_path_combination(subpaths, recursive=True)
+            subpaths = subpaths.paths
+        elif subpaths is not None:
+            subpaths = {subpaths}
+        else:
+            subpaths = set()
+
+        for subpath in subpaths:
+            if isinstance(subpath, irast.EntitySet):
+                outer = paths.getlist(subpath.path_id)
+
+                if outer and subpath not in outer:
+                    subpath.reference = outer[0]
+
+        return self.generic_visit(expr)
+
+
+class ParseContextLevel(object):
+    def __init__(self, prevlevel=None, mode=None):
+        if prevlevel is not None:
+            if mode == ParseContext.SUBQUERY:
+                self.stmt = None
+                self.sets = {}
+                self.pathvars = {}
+                self.anchors = {}
+                self.namespaces = prevlevel.namespaces.copy()
+                self.location = None
+                self.groupprefixes = None
+                self.in_aggregate = []
+                self.in_func_call = False
+                self.arguments = prevlevel.arguments
+                self.context_vars = prevlevel.context_vars
+                self.schema = prevlevel.schema
+                self.modaliases = prevlevel.modaliases
+                self.aliascnt = prevlevel.aliascnt.copy()
+                self.subgraphs_map = {}
+                self.cge_map = prevlevel.cge_map.copy()
+                self.apply_access_control_rewrite = \
+                    prevlevel.apply_access_control_rewrite
+                self.local_link_source = None
+            else:
+                self.stmt = prevlevel.stmt
+                if mode == ParseContext.NEWSETS:
+                    self.sets = {}
+                else:
+                    self.sets = prevlevel.sets
+                self.pathvars = prevlevel.pathvars
+                self.anchors = prevlevel.anchors
+                self.namespaces = prevlevel.namespaces
+                self.location = prevlevel.location
+                self.groupprefixes = prevlevel.groupprefixes
+                self.in_aggregate = prevlevel.in_aggregate[:]
+                self.in_func_call = prevlevel.in_func_call
+                self.arguments = prevlevel.arguments
+                self.context_vars = prevlevel.context_vars
+                self.schema = prevlevel.schema
+                self.modaliases = prevlevel.modaliases
+                self.aliascnt = prevlevel.aliascnt
+                self.subgraphs_map = prevlevel.subgraphs_map
+                self.cge_map = prevlevel.cge_map
+                self.apply_access_control_rewrite = \
+                    prevlevel.apply_access_control_rewrite
+                self.local_link_source = prevlevel.local_link_source
+        else:
+            self.stmt = None
+            self.sets = {}
+            self.pathvars = {}
+            self.anchors = {}
+            self.namespaces = {}
+            self.location = None
+            self.groupprefixes = None
+            self.in_aggregate = []
+            self.in_func_call = False
+            self.arguments = {}
+            self.context_vars = {}
+            self.schema = None
+            self.modaliases = None
+            self.aliascnt = {}
+            self.subgraphs_map = {}
+            self.cge_map = {}
+            self.apply_access_control_rewrite = False
+            self.local_link_source = None
+
+    def genalias(self, hint=None):
+        if hint is None:
+            hint = 'a'
+
+        if hint not in self.aliascnt:
+            self.aliascnt[hint] = 1
+        else:
+            self.aliascnt[hint] += 1
+
+        alias = hint
+        number = self.aliascnt[hint]
+        if number > 1:
+            alias += str(number)
+
+        return alias
+
+
+class ParseContext(object):
+    CURRENT, NEW, SUBQUERY, NEWSETS = range(0, 4)
+
+    def __init__(self):
+        self.stack = []
+        self.push()
+
+    def push(self, mode=None):
+        level = ParseContextLevel(self.current, mode)
+        self.stack.append(level)
+
+        return level
+
+    def pop(self):
+        self.stack.pop()
+
+    def __call__(self, mode=None):
+        if not mode:
+            mode = ParseContext.NEW
+        return ParseContextWrapper(self, mode)
+
+    def _current(self):
+        if len(self.stack) > 0:
+            return self.stack[-1]
+        else:
+            return None
+
+    current = property(_current)
+
+
+class ParseContextWrapper(object):
+    def __init__(self, context, mode):
+        self.context = context
+        self.mode = mode
+
+    def __enter__(self):
+        if self.mode == ParseContext.CURRENT:
+            return self.context
+        else:
+            self.context.push()
+            return self.context
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.context.pop()
+
+
+class EdgeQLCompilerError(edgedb_error.EdgeDBError):
+    pass
+
+
+def get_ns_aliases_cges(node):
+    namespaces = []
+    aliases = []
+    cges = []
+
+    for alias in node.aliases:
+        if isinstance(alias, qlast.NamespaceAliasDeclNode):
+            namespaces.append(alias)
+        elif isinstance(alias, qlast.CGENode):
+            cges.append(alias)
+        else:
+            aliases.append(alias)
+
+    return namespaces, aliases, cges
+
+
+def is_aggregated_expr(expr, deep=False):
+    agg = getattr(expr, 'aggregates', False)
+
+    if not agg and deep:
+        return bool(
+            list(
+                ast.find_children(
+                    expr, lambda i: getattr(i, 'aggregates', None))))
+    return agg
+
+
+class PathExtractor(ast.visitor.NodeVisitor):
+    def __init__(self):
+        super().__init__()
+        self.prefixes = irutils.PathIndex()
+
+    def visit_Set(self, expr):
+        key = expr.path_id
+
+        if key not in self.prefixes:
+            self.prefixes[key] = {expr}
+        else:
+            self.prefixes[key].add(expr)
+
+        if expr.rptr:
+            self.visit(expr.rptr.source)
+
+
+def extract_prefixes(expr):
+    extractor = PathExtractor()
+    extractor.visit(expr)
+    return extractor.prefixes
+
+
+class EdgeQLCompiler(ast.visitor.NodeVisitor):
+    def __init__(self, schema, modaliases=None):
+        super().__init__()
+        self.schema = schema
+        self.modaliases = modaliases
+
+    def transform(self,
+                  edgeql_tree,
+                  arg_types,
+                  modaliases=None,
+                  anchors=None,
+                  security_context=None):
+
+        self._init_context(arg_types, modaliases, anchors,
+                           security_context=security_context)
+
+        stree = self.visit(edgeql_tree)
+        rewriter.RewriteTransformer.run(stree, context=self.context)
+
+        return stree
+
+    def transform_fragment(self,
+                           edgeql_tree,
+                           arg_types,
+                           modaliases=None,
+                           anchors=None,
+                           location=None):
+
+        context = self._init_context(arg_types, modaliases, anchors)
+        context.current.location = location or 'generator'
+        return self.visit(edgeql_tree)
+
+    def generic_visit(self, node, *, combine_results=None):
+        raise NotImplementedError(
+            'no EdgeQL compiler handler for {}'.format(node.__class__))
+
+    def visit_SelectQueryNode(self, edgeql_tree):
+        ctx = self.context.current
+
+        stmt = ctx.stmt = irast.SelectStmt()
+        self._visit_with_block(edgeql_tree)
+
+        if edgeql_tree.op:
+            stmt.set_op = qlast.SetOperator(edgeql_tree.op)
+            stmt.set_op_larg = self.visit(edgeql_tree.op_larg)
+            stmt.set_op_rarg = self.visit(edgeql_tree.op_rarg)
+        else:
+            stmt.where = self._process_select_where(edgeql_tree.where)
+
+            stmt.groupby = self._process_groupby(edgeql_tree.groupby)
+            if stmt.groupby:
+                ctx.groupprefixes = extract_prefixes(stmt.groupby)
+            else:
+                # Check if query() or order() contain any aggregate
+                # expressions and if so, add a sentinel group prefix
+                # instructing the transformer that we are implicitly grouping
+                # the whole set.
+                def checker(n):
+                    if isinstance(n, qlast.FunctionCallNode):
+                        return self._is_func_agg(n.func)
+                    elif isinstance(n, qlast.SelectQueryNode):
+                        # Make sure we don't dip into subqueries
+                        raise ast.SkipNode()
+
+                for node in itertools.chain(edgeql_tree.orderby or [],
+                                            edgeql_tree.targets or []):
+                    if ast.find_children(node, checker, force_traversal=True):
+                        ctx.groupprefixes = {True: True}
+                        break
+
+            stmt.result = self._process_stmt_result(edgeql_tree.targets[0])
+
+        stmt.orderby = self._process_orderby(edgeql_tree.orderby)
+
+        if edgeql_tree.offset:
+            stmt.offset = irast.Constant(
+                value=edgeql_tree.offset.value,
+                index=edgeql_tree.offset.index,
+                type=ctx.schema.get('int'))
+
+        if edgeql_tree.limit:
+            stmt.limit = irast.Constant(
+                value=edgeql_tree.limit.value,
+                index=edgeql_tree.limit.index,
+                type=ctx.schema.get('int'))
+
+        stmt.result_types = self._get_selector_types(stmt.result)
+        stmt.argument_types = self.context.current.arguments
+        stmt.context_vars = self.context.current.context_vars
+
+        self._link_subqueries(stmt)
+
+        return stmt
+
+    def visit_InsertQueryNode(self, edgeql_tree):
+        ctx = self.context.current
+
+        stmt = ctx.stmt = irast.InsertStmt()
+        self._visit_with_block(edgeql_tree)
+
+        with self.context():
+            self.context.current.location = 'selector'
+            subject = self.visit(edgeql_tree.subject)
+
+        if edgeql_tree.targets:
+            stmt.result = self._process_stmt_result(edgeql_tree.targets[0])
+        else:
+            stmt.result = self._process_shape(subject, None, [])
+
+        stmt.shape = self._process_shape(
+            subject, None, edgeql_tree.pathspec,
+            require_expressions=True,
+            include_implicit=False)
+
+        stmt.result_types = self._get_selector_types(stmt.result)
+        stmt.argument_types = self.context.current.arguments
+        stmt.context_vars = self.context.current.context_vars
+
+        self._link_subqueries(stmt)
+
+        return stmt
+
+    def visit_UpdateQueryNode(self, edgeql_tree):
+        ctx = self.context.current
+
+        stmt = ctx.stmt = irast.UpdateStmt()
+        self._visit_with_block(edgeql_tree)
+
+        with self.context():
+            self.context.current.location = 'selector'
+            subject = self.visit(edgeql_tree.subject)
+
+        stmt.where = self._process_select_where(edgeql_tree.where)
+        if edgeql_tree.targets:
+            stmt.result = self._process_stmt_result(edgeql_tree.targets[0])
+        else:
+            stmt.result = self._process_shape(subject, None, [])
+
+        stmt.shape = self._process_shape(
+            subject, None, edgeql_tree.pathspec,
+            require_expressions=True,
+            include_implicit=False)
+
+        stmt.result_types = self._get_selector_types(stmt.result)
+        stmt.argument_types = self.context.current.arguments
+        stmt.context_vars = self.context.current.context_vars
+
+        self._link_subqueries(stmt)
+
+        return stmt
+
+    def visit_DeleteQueryNode(self, edgeql_tree):
+        ctx = self.context.current
+
+        stmt = ctx.stmt = irast.DeleteStmt()
+        self._visit_with_block(edgeql_tree)
+
+        with self.context():
+            self.context.current.location = 'selector'
+            subject = self.visit(edgeql_tree.subject)
+
+        stmt.where = self._process_select_where(edgeql_tree.where)
+        if edgeql_tree.targets:
+            stmt.result = self._process_stmt_result(edgeql_tree.targets[0])
+        else:
+            stmt.result = self._process_shape(subject, None, [])
+
+        stmt.shape = self._process_shape(
+            subject, None, [],
+            require_expressions=True,
+            include_implicit=False)
+
+        stmt.result_types = self._get_selector_types(stmt.result)
+        stmt.argument_types = self.context.current.arguments
+        stmt.context_vars = self.context.current.context_vars
+
+        self._link_subqueries(stmt)
+
+        return stmt
+
+    def visit_PathNode(self, expr):
+        ctx = self.context.current
+
+        pathvars = ctx.pathvars
+        anchors = ctx.anchors
+
+        path_tip = None
+
+        for i, step in enumerate(expr.steps):
+            if isinstance(step, qlast.TypeInterpretationNode):
+                # First of all, handle the (Expr AS Type) expressions,
+                # as that alters path resolution.
+                path_tip = self.visit(step.expr)
+                path_tip.as_type = self._get_schema_object(step.type.maintype)
+                continue
+
+            elif isinstance(step, qlast.PathStepNode):
+                if i > 0:
+                    raise RuntimeError(
+                        'unexpected PathStepNode as a non-first path item')
+
+                refnode = None
+
+                if not step.namespace:
+                    # Check if the starting path label is a known anchor
+                    refnode = anchors.get(step.expr)
+
+                if refnode is None:
+                    # Check if the starting path label is a known
+                    # path variable (defined in a WITH clause).
+                    refnode = pathvars.get(step.expr)
+                    if refnode is None:
+                        fq_name = '{}::{}'.format(step.namespace, step.expr)
+                        refnode = pathvars.get(fq_name)
+
+                if refnode is None and not step.namespace:
+                    # Finally, check if the starting path label is
+                    # a query defined in a WITH clause.
+                    refnode = ctx.cge_map.get(step.expr)
+
+                if refnode is not None:
+                    path_tip = refnode
+                    continue
+
+            if (path_tip is None and ctx.local_link_source is not None and
+                    isinstance(step, qlast.PathStepNode)):
+                # We are in a context where any label is intepreted
+                # as a pointer reference of a known source.  For example,
+                # update expreessions need this.
+                scls = self._get_schema_object(step.expr, step.namespace)
+                if isinstance(scls, s_links.Link):
+                    step = qlast.LinkExprNode(expr=qlast.LinkNode(
+                        namespace=step.namespace, name=step.expr))
+                    path_tip = ctx.local_link_source
+
+            if isinstance(step, qlast.PathStepNode):
+                # Starting path label.  Must be a valid reference to an
+                # existing Concept class, as aliases and path variables
+                # have been checked above.
+                scls = self._get_schema_object(step.expr, step.namespace)
+                path_id = irutils.LinearPath([scls])
+
+                try:
+                    # We maintain a registry of Set nodes for each unique
+                    # Path to achieve path prefix matching.
+                    path_tip = ctx.sets[path_id]
+                except KeyError:
+                    path_tip = ctx.sets[path_id] = irast.Set()
+                    path_tip.scls = scls
+                    path_tip.path_id = path_id
+
+            elif isinstance(step, (qlast.LinkExprNode,
+                                   qlast.LinkPropExprNode)):
+                # Pointer traversal step
+                qlptr = step
+                ptr_expr = qlptr.expr
+                ptr_target = None
+
+                direction = (ptr_expr.direction or
+                             s_pointers.PointerDirection.Outbound)
+                if ptr_expr.target:
+                    ptr_target = self._get_schema_object(
+                        ptr_expr.target.name, ptr_expr.target.module)
+
+                ptr_name = (ptr_expr.namespace, ptr_expr.name)
+
+                if isinstance(step, qlast.LinkPropExprNode):
+                    # Link property reference; the source is the
+                    # link immediately preceding this step in the path.
+                    source = path_tip.rptr.ptrcls
+                else:
+                    # Link reference, the source is the current path tip.
+                    source = (path_tip.as_type or path_tip.scls)
+
+                ptrcls = self._resolve_ptr(
+                    source, ptr_name, direction, target=ptr_target)
+
+                target = ptrcls.get_far_endpoint(direction)
+
+                path_tip = self._extend_path(
+                    path_tip, ptrcls, direction, target)
+
+            else:
+                raise RuntimeError(
+                    'Unexpected path step expression: {!r}'.format(step))
+
+        if (ctx.groupprefixes
+                and ctx.location in ('orderby', 'selector')
+                and not ctx.in_aggregate):
+            if path_tip.path_id not in ctx.groupprefixes:
+                err = ('{!r} must appear in the '
+                       'GROUP BY expression or used in an aggregate '
+                       'function '.format(path_tip.path_id))
+                raise errors.EdgeQLError(err)
+
+        return path_tip
+
+    def visit_BinOpNode(self, expr):
+        ctx = self.context.current
+
+        left, right = self.visit((expr.left, expr.right))
+
+        if isinstance(expr.op, ast.ops.TypeCheckOperator):
+            right = self._process_type_ref_expr(right)
+
+        if self._is_type_check(left, right, expr.op):
+            # Type check expression: <path> IS [NOT] <concept>
+            raise NotImplementedError('IS not implemented yet')
+
+        binop = irast.BinOp(left=left, right=right, op=expr.op)
+
+        if expr.op not in {ast.ops.OR, ast.ops.AND}:
+            # For any operation except OR/AND, check if any of the operands
+            # are Sets, and if so, create a sub-Set with the BinOp as a
+            # narrowing criterium.
+            if isinstance(left, irast.Set):
+                node = self._get_subset(left)
+                node.criteria.add(
+                    irast.BinOp(left=left, right=binop.right, op=binop.op)
+                )
+                node.as_set = True
+            elif isinstance(right, irast.Set):
+                node = self._get_subset(right)
+                node.criteria.add(
+                    irast.BinOp(left=binop.left, right=right, op=binop.op)
+                )
+                node.as_set = True
+            else:
+                node = binop
+        else:
+            # For OR/AND ops, check if any of the operands are Sets that
+            # have a common path prefix, and if so, create a sub-Set
+            # representing that common path prefix with the BinOp as
+            # a narrowing criterium.
+            if isinstance(left, irast.Set) and isinstance(right, irast.Set):
+                left_id = left.path_id
+                right_id = right.path_id
+
+                prefix = irutils.LinearPath([
+                    e[0] for e in itertools.takewhile(lambda i: i[0] == i[1],
+                                                      zip(left_id, right_id))
+                ])
+
+                if prefix:
+                    parent_set = ctx.sets[prefix]
+                    node = self._get_subset(parent_set)
+                    node.criteria.add(binop)
+                    node.as_set = True
+                else:
+                    node = binop
+            else:
+                node = binop
+
+        return node
+
+    def visit_ConstantNode(self, expr):
+        ctx = self.context.current
+
+        if expr.index is not None:
+            type = self.arg_types.get(expr.index)
+            if type is not None:
+                type = s_types.normalize_type(type, ctx.schema)
+            node = irast.Constant(
+                value=expr.value, index=expr.index, type=type)
+            self.context.current.arguments[expr.index] = type
+        else:
+            type = s_types.normalize_type(expr.value.__class__, ctx.schema)
+            node = irast.Constant(
+                value=expr.value, index=expr.index, type=type)
+
+        return node
+
+    def visit_SequenceNode(self, expr):
+        elements = self.visit(expr.elements)
+        return irast.Sequence(elements=elements)
+
+    def visit_ArrayNode(self, expr):
+        elements = self.visit(expr.elements)
+        return irast.Sequence(elements=elements, is_array=True)
+
+    def visit_FunctionCallNode(self, expr):
+        with self.context():
+            ctx = self.context.current
+
+            if self._is_func_agg(expr.func):
+                ctx.in_aggregate.append(expr)
+            ctx.in_func_call = True
+
+            args = []
+            kwargs = {}
+
+            for a in expr.args:
+                if isinstance(a, qlast.NamedArgNode):
+                    kwargs[a.name] = self.visit(a.arg)
+                else:
+                    args.append(self.visit(a))
+
+            node = irast.FunctionCall(
+                name=expr.func, args=args, kwargs=kwargs)
+
+            if expr.agg_sort:
+                node.agg_sort = [
+                    irast.SortExpr(
+                        expr=self.visit(e.path),
+                        direction=e.direction) for e in expr.agg_sort
+                ]
+
+            elif expr.window:
+                if expr.window.orderby:
+                    node.agg_sort = [
+                        irast.SortExpr(
+                            expr=self.visit(e.path),
+                            direction=e.direction)
+                        for e in expr.window.orderby
+                    ]
+
+                if expr.window.partition:
+                    for partition_expr in expr.window.partition:
+                        partition_expr = self.visit(partition_expr)
+                        node.partition.append(partition_expr)
+
+                node.window = True
+
+            if expr.agg_filter:
+                node.agg_filter = self.visit(expr.agg_filter)
+
+            if self._is_func_agg(node.name):
+                node.aggregates = True
+
+            if node.args:
+                for arg in node.args:
+                    if not isinstance(arg, irast.Constant):
+                        break
+                else:
+                    node = irast.Constant(expr=node, type=node.args[0].type)
+
+        return node
+
+    def visit_UnaryOpNode(self, expr):
+        operand = self.visit(expr.operand)
+        return irast.UnaryOp(expr=operand, op=expr.op)
+
+    def visit_ExistsPredicateNode(self, expr):
+        subquery = self.visit(expr.expr)
+        return irast.ExistPred(expr=subquery)
+
+    def visit_TypeCastNode(self, expr):
+        maintype = expr.type.maintype
+        subtypes = expr.type.subtypes
+
+        if subtypes:
+            typ = irast.TypeRef(
+                maintype=maintype.name,
+                subtypes=[]
+            )
+
+            for subtype in subtypes:
+                if isinstance(subtype, qlast.PathNode):
+                    stype = self.visit(subtype)
+                    if isinstance(stype, irast.LinkPropRefSimple):
+                        stype = stype.ref
+                    elif not isinstance(stype, irast.EntityLink):
+                        stype = stype.rptr
+
+                    if subtype.pathspec:
+                        shape = self._process_shape(
+                            stype.ptrcls, None, subtype.pathspec)
+                    else:
+                        shape = None
+
+                    subtype = irast.CompositeType(node=stype, shape=shape)
+                else:
+                    subtype = self._get_schema_object(
+                        subtype.name, subtype.module)
+
+                typ.subtypes.append(subtype.name)
+        else:
+            typ = irast.TypeRef(
+                maintype=self._get_schema_object(
+                    maintype.name, maintype.module).name,
+                subtypes=[]
+            )
+
+        return irast.TypeCast(expr=self.visit(expr.expr), type=typ)
+
+    def visit_IndirectionNode(self, expr):
+        node = self.visit(expr.arg)
+        for indirection_el in expr.indirection:
+            if isinstance(indirection_el, qlast.IndexNode):
+                idx = self.visit(indirection_el.index)
+                node = irast.IndexIndirection(expr=node, index=idx)
+
+            elif isinstance(indirection_el, qlast.SliceNode):
+                if indirection_el.start:
+                    start = self.visit(indirection_el.start)
+                else:
+                    start = irast.Constant(value=None)
+
+                if indirection_el.stop:
+                    stop = self.visit(indirection_el.stop)
+                else:
+                    stop = irast.Constant(value=None)
+
+                node = irast.SliceIndirection(
+                    expr=node, start=start, stop=stop)
+            else:
+                raise ValueError('unexpected indirection node: '
+                                 '{!r}'.format(indirection_el))
+
+        return node
+
+    def _init_context(self,
+                      arg_types,
+                      modaliases,
+                      anchors,
+                      *,
+                      security_context=None):
+        self.context = context = ParseContext()
+        self.context.current.schema = self.schema
+        self.context.current.modaliases = \
+            modaliases or self.modaliases
+
+        if self.context.current.modaliases:
+            self.context.current.namespaces.update(
+                self.context.current.modaliases)
+
+        if anchors:
+            self._populate_anchors(anchors)
+
+        if security_context:
+            self.context.current.apply_access_control_rewrite = True
+
+        return context
+
+    def _populate_anchors(self, anchors):
+        ctx = self.context.current
+
+        for anchor, scls in anchors.items():
+            if isinstance(scls, s_obj.NodeClass):
+                step = irast.Set()
+                step.scls = scls
+                step.path_id = irutils.LinearPath([step.concept])
+                step.anchor = anchor
+                step.show_as_anchor = anchor
+            elif isinstance(scls, s_links.Link):
+                if scls.source:
+                    src = irast.Set()
+                    src.scls = scls.source
+                    src.path_id = irutils.LinearPath([scls.source])
+                else:
+                    src = None
+
+                step = irast.Pointer(ptrcls=scls, source=src)
+                step.anchor = anchor
+                step.show_as_anchor = anchor
+
+            elif isinstance(scls, s_lprops.LinkProperty):
+                if scls.source.source:
+                    src = irast.Set()
+                    src.scls = scls.source.source
+                    src.path_id = irutils.LinearPath([src.concept])
+                else:
+                    src = None
+
+                link = irast.Pointer(
+                    ptrcls=scls.source,
+                    source=src,
+                    direction=s_pointers.PointerDirection.Outbound)
+
+                if src:
+                    pref_id = irutils.LinearPath(src.path_id)
+                else:
+                    pref_id = irutils.LinearPath([])
+
+                pref_id.add(scls.source, s_pointers.PointerDirection.Outbound,
+                            scls.target)
+
+                step = irast.Pointer(
+                    source=link, path_id=pref_id, ptrcls=scls)
+                step.anchor = anchor
+                step.show_as_anchor = anchor
+
+            else:
+                step = scls
+
+            ctx.anchors[anchor] = step
+
+    def _visit_with_block(self, edgeql_tree):
+        ctx = self.context.current
+
+        stmt = ctx.stmt
+        pathvars = ctx.pathvars
+        namespaces = ctx.namespaces
+
+        t_ns, t_aliases, t_cges = get_ns_aliases_cges(edgeql_tree)
+
+        with self.context():
+            ctx.location = 'generator'
+
+            for alias_decl in t_ns:
+                namespaces[alias_decl.alias] = alias_decl.namespace
+
+            for alias_decl in t_aliases:
+                expr = self.visit(alias_decl.expr)
+                if isinstance(expr, irast.Path):
+                    expr.pathvar = alias_decl.alias
+
+                pathvars[alias_decl.alias] = expr
+
+        if ctx.modaliases:
+            ctx.namespaces.update(ctx.modaliases)
+
+        if t_cges:
+            stmt.substmts = []
+
+            for cge in t_cges:
+                with self.context(ParseContext.SUBQUERY):
+                    _cge = self.visit(cge.expr)
+                    _cge.name = cge.alias
+                ctx.cge_map[cge.alias] = _cge
+                stmt.substmts.append(_cge)
+
+    def _process_unlimited_recursion(self):
+        type = s_types.normalize_type((0).__class__, self.schema)
+        return irast.Constant(value=0, index=None, type=type)
+
+    def _process_shape(self, source_expr, rptrcls, shapespec, *,
+                       require_expressions=False, include_implicit=True,
+                       _visited=None, _recurse=True):
+        """Build a Shape node given shape spec."""
+        if _visited is None:
+            _visited = {}
+
+        scls = source_expr.scls
+
+        elements = []
+
+        shape = irast.Shape(elements=elements, scls=scls,
+                            rptr=source_expr.rptr)
+
+        _new_visited = _visited.copy()
+
+        if isinstance(scls, s_concepts.Concept):
+            _new_visited[scls] = shape
+
+            if include_implicit:
+                implicit_ptrs = (sn.Name('std::id'),)
+
+                implicit_shape_els = []
+
+                for pn in implicit_ptrs:
+                    shape_el = qlast.SelectPathSpecNode(
+                        expr=qlast.PathNode(steps=[
+                            qlast.PathStepNode(
+                                expr=qlast.LinkNode(
+                                    name=pn.name,
+                                    namespace=pn.module
+                                )
+                            )
+                        ])
+                    )
+
+                    implicit_shape_els.append(shape_el)
+
+                shapespec = implicit_shape_els + list(shapespec)
+
+        for shape_el in shapespec:
+            steps = shape_el.expr.steps
+            ptrsource = scls
+
+            if len(steps) == 2:
+                # Pointers may be qualified by the explicit source
+                # class, which is equivalent to (Expr AS Type).
+                ptrsource = self._get_schema_object(
+                    steps[0].expr, steps[0].namespace)
+                lexpr = steps[1].expr
+            elif len(steps) == 1:
+                lexpr = steps[0].expr
+
+            ptrname = (lexpr.namespace, lexpr.name)
+
+            if lexpr.type == 'property':
+                if rptrcls is None:
+                    if isinstance(scls, s_links.Link):
+                        ptrsource = scls
+                    else:
+                        msg = 'link properties are not available at ' \
+                              'this point in path'
+                        raise errors.EdgeQLError(msg)
+                else:
+                    ptrsource = rptrcls
+
+                ptrtype = s_lprops.LinkProperty
+            else:
+                ptrtype = s_links.Link
+
+            if lexpr.target is not None:
+                target_name = (lexpr.target.module, lexpr.target.name)
+            else:
+                target_name = None
+
+            ptr_direction = \
+                lexpr.direction or s_pointers.PointerDirection.Outbound
+
+            if shape_el.compexpr is not None:
+                # The shape element is defined as a computable expression.
+
+                schema = self.context.current.schema
+                compexpr = self.visit(shape_el.compexpr)
+                if not isinstance(compexpr, (irast.Stmt, irast.SubstmtRef)):
+                    compexpr = irast.SelectStmt(
+                        result=compexpr
+                    )
+
+                target_class = irutils.infer_type2(compexpr, schema)
+                if target_class is None:
+                    msg = 'cannot determine expression result type'
+                    raise errors.EdgeQLError(msg, context=lexpr.context)
+
+                ptrcls = s_links.Link(
+                    name=sn.SchemaName(
+                        module=ptrname[0] or ptrsource.name.module,
+                        name=ptrname[1]),
+                ).derive(schema, ptrsource, target_class)
+
+                if ptrcls.normal_name() == 'std::__class__':
+                    msg = 'cannot assign to __class__'
+                    raise errors.EdgeQLError(msg, context=lexpr.context)
+            else:
+                ptrcls = self._resolve_ptr(
+                    ptrsource,
+                    ptrname,
+                    direction=ptr_direction,
+                    ptr_type=ptrtype,
+                    target=target_name)
+                target_class = ptrcls.get_far_endpoint(ptr_direction)
+                compexpr = None
+
+            if shape_el.recurse:
+                if shape_el.recurse_limit is not None:
+                    recurse = self.visit(shape_el.recurse_limit)
+                else:
+                    # XXX - temp hack
+                    recurse = self._process_unlimited_recursion()
+            else:
+                recurse = None
+
+            if shape_el.where:
+                where = self._process_select_where(shape_el.where)
+            else:
+                where = None
+
+            if shape_el.orderby:
+                orderby = self._process_orderby(shape_el.orderby)
+            else:
+                orderby = None
+
+            if shape_el.offset is not None:
+                offset = self.visit(shape_el.offset)
+            else:
+                offset = None
+
+            if shape_el.limit is not None:
+                limit = self.visit(shape_el.limit)
+            else:
+                limit = None
+
+            ptr_singular = ptrcls.singular(ptr_direction)
+
+            full_path_id = irutils.LinearPath(source_expr.path_id)
+            full_path_id.add(ptrcls, ptr_direction, target_class)
+
+            targetstep = self._extend_path(
+                source_expr, ptrcls, ptr_direction, target_class)
+
+            ptr_node = targetstep.rptr
+
+            if compexpr is not None:
+                if not isinstance(compexpr, irast.SubstmtRef):
+                    if not isinstance(compexpr, irast.Stmt):
+                        compexpr = irast.SelectStmt(
+                            result=compexpr
+                        )
+
+                    el = irast.SubstmtRef(stmt=compexpr, rptr=ptr_node)
+                    elements.append(el)
+                else:
+                    compexpr.rptr = ptr_node
+                    elements.append(compexpr)
+
+                continue
+
+            if _recurse and shape_el.pathspec:
+                _memo = _new_visited
+
+                el = self._process_shape(
+                    targetstep,
+                    ptrcls,
+                    shape_el.pathspec or [],
+                    _visited=_memo,
+                    _recurse=True)
+            else:
+                el = targetstep
+
+            if (not ptr_singular or recurse is not None) and el is not None:
+                substmt = irast.SelectStmt()
+                substmt.where = where
+
+                if orderby:
+                    substmt.orderby = orderby
+
+                substmt.offset = offset
+                substmt.limit = limit
+
+                if recurse is not None:
+                    substmt.recurse_ptr = ptr_node
+                    substmt.recurse_depth = recurse
+
+                substmt.result = el
+                el = irast.SubstmtRef(stmt=substmt, rptr=ptr_node)
+
+            # Record element may be none if ptrcls target is non-atomic
+            # and recursion has been prohibited on this level to prevent
+            # infinite looping.
+            if el is not None:
+                elements.append(el)
+
+        return shape
+
+    def _extend_path(self, source_set, ptrcls, direction, target):
+        """Return a Set node representing the new path tip."""
+        ctx = self.context.current
+
+        path_id = irutils.LinearPath(source_set.path_id)
+        path_id.add(ptrcls, direction, target)
+
+        try:
+            target_set = ctx.sets[path_id]
+        except KeyError:
+            target_set = ctx.sets[path_id] = irast.Set()
+            target_set.scls = target
+            target_set.path_id = path_id
+
+            ptr = irast.Pointer(
+                source=source_set,
+                target=target_set,
+                ptrcls=ptrcls,
+                direction=direction
+            )
+
+            target_set.rptr = ptr
+
+        return target_set
+
+    def _get_subset(self, parent_set):
+        return irast.Set(
+            scls=parent_set.scls,
+            path_id=parent_set.path_id,
+            subset_of=parent_set
+        )
+
+    def _resolve_ptr(self,
+                     near_endpoint,
+                     ptr_name,
+                     direction,
+                     ptr_type=s_links.Link,
+                     target=None):
+        ptr_module, ptr_nqname = ptr_name
+
+        if ptr_module:
+            ptr_fqname = sn.Name(module=ptr_module, name=ptr_nqname)
+            modaliases = self.context.current.namespaces
+            pointer = self.schema.get(ptr_fqname,
+                                      module_aliases=modaliases,
+                                      type=ptr_type)
+            pointer_name = pointer.name
+        else:
+            pointer_name = ptr_fqname = ptr_nqname
+
+        if target is not None and not isinstance(target, s_obj.NodeClass):
+            target_name = '.'.join(filter(None, target))
+            modaliases = self.context.current.namespaces
+            target = self.schema.get(target_name,
+                                     module_aliases=modaliases)
+
+        if target is not None:
+            far_endpoints = (target, )
+        else:
+            far_endpoints = None
+
+        ptr = near_endpoint.resolve_pointer(
+            self.schema,
+            pointer_name,
+            direction=direction,
+            look_in_children=False,
+            include_inherited=True,
+            far_endpoints=far_endpoints)
+
+        if not ptr:
+            msg = ('({near_endpoint}).{direction}({ptr_name}{far_endpoint}) '
+                   'does not resolve to any known path')
+            far_endpoint_str = ' TO {}'.format(target.name) if target else ''
+            msg = msg.format(
+                near_endpoint=near_endpoint.name,
+                direction=direction,
+                ptr_name=pointer_name,
+                far_endpoint=far_endpoint_str)
+            raise errors.EdgeQLReferenceError(msg)
+
+        return ptr
+
+    def _get_schema_object(self, name, module=None):
+        ctx = self.context.current
+
+        if isinstance(name, qlast.ClassRefNode):
+            module = name.module
+            name = name.name
+
+        if module:
+            name = sn.Name(name=name, module=module)
+
+        return ctx.schema.get(name=name, module_aliases=ctx.namespaces)
+
+    def _process_stmt_result(self, target):
+        with self.context():
+            self.context.current.location = 'selector'
+
+            expr = self.visit(target.expr)
+
+            if isinstance(expr, irast.Set):
+                if target.expr.pathspec is not None:
+                    if expr.rptr is not None:
+                        rptrcls = expr.rptr.ptrcls
+                    else:
+                        rptrcls = None
+
+                    expr = self._process_shape(
+                        expr, rptrcls, target.expr.pathspec)
+
+        return expr
+
+    def _process_select_where(self, where):
+        with self.context():
+            self.context.current.location = 'generator'
+
+            if where is not None:
+                return self.visit(where)
+            else:
+                return None
+
+    def _process_orderby(self, sortexprs):
+
+        result = []
+
+        if not sortexprs:
+            return result
+
+        with self.context():
+            self.context.current.location = 'orderby'
+            exprs = self.visit([s.path for s in sortexprs])
+
+            for i, sortexpr in enumerate(sortexprs):
+                result.append(
+                    irast.SortExpr(
+                        expr=exprs[i],
+                        direction=sortexpr.direction,
+                        nones_order=sortexpr.nones_order))
+
+        return result
+
+    def _process_groupby(self, groupers):
+
+        result = []
+
+        if groupers:
+            with self.context():
+                self.context.current.location = 'grouper'
+                for grouper in groupers:
+                    expr = self.visit(grouper)
+                    result.append(expr)
+
+        return result
+
+    def _process_type_ref_elem(self, expr, qlcontext):
+        if isinstance(expr, irast.EntitySet):
+            if expr.rptr is not None:
+                raise errors.EdgeQLSyntaxError(
+                    'expecting a type reference',
+                    context=qlcontext)
+
+            result = irast.TypeRef(
+                maintype=expr.concept.name,
+            )
+
+        else:
+            raise errors.EdgeQLSyntaxError(
+                'expecting a type reference',
+                context=qlcontext)
+
+        return result
+
+    def _process_type_ref_expr(self, expr):
+        if isinstance(expr, irast.Sequence):
+            elems = []
+
+            for elem in expr.elements:
+                ref_elem = self._process_type_ref_elem(elem, elem.context)
+
+                elems.append(ref_elem)
+
+            expr.elements = elems
+            expr.is_array = True
+
+        else:
+            expr = self._process_type_ref_elem(expr, expr.context)
+
+        return expr
+
+    def _is_type_check(self, left, right, op):
+        return (not reversed and op in (ast.ops.IS, ast.ops.IS_NOT)
+                and isinstance(left, irast.Path))
+
+    def _is_constant(self, expr):
+        flt = lambda node: isinstance(node, irast.Path)
+        paths = ast.visitor.find_children(expr, flt)
+        return not paths and not isinstance(expr, irast.Path)
+
+    def _is_func_agg(self, name):
+        if isinstance(name, str):
+            name = (None, name)
+
+        return self._get_schema_object(
+            name=name[1], module=name[0]).aggregate
+
+    def _get_selector_types(self, selexpr):
+        schema = self.context.current.schema
+
+        expr_type = irutils.infer_type2(selexpr, schema)
+
+        if isinstance(selexpr, irast.Constant):
+            expr_kind = 'constant'
+        elif isinstance(selexpr, (irast.Set, irast.Shape)):
+            expr_kind = 'path'
+        else:
+            expr_kind = 'expression'
+        return (expr_type, expr_kind)
+
+    def _link_subqueries(self, expr):
+        return SubqueryLinker.run(expr)
+
+
+def compile_fragment_to_ir(expr,
+                           schema,
+                           *,
+                           anchors=None,
+                           location=None,
+                           modaliases=None):
+    """Compile given EdgeQL expression fragment into EdgeDB IR."""
+    tree = parser.parse_fragment(expr)
+    trans = EdgeQLCompiler(schema, modaliases)
+    return trans.transform_fragment(
+        tree, (), anchors=anchors, location=location)
+
+
+def compile_ast_fragment_to_ir(tree,
+                               schema,
+                               *,
+                               anchors=None,
+                               location=None,
+                               modaliases=None):
+    """Compile given EdgeQL AST fragment into EdgeDB IR."""
+    trans = EdgeQLCompiler(schema, modaliases)
+    return trans.transform_fragment(
+        tree, (), anchors=anchors, location=location)
+
+
+@debug.debug
+def compile_to_ir(expr,
+                  schema,
+                  *,
+                  anchors=None,
+                  arg_types=None,
+                  security_context=None,
+                  modaliases=None):
+    """Compile given EdgeQL statement into EdgeDB IR."""
+    """LOG [edgeql.compile] EdgeQL TEXT:
+    print(expr)
+    """
+    tree = parser.parse(expr, modaliases)
+    """LOG [edgeql.compile] EdgeQL AST:
+    from edgedb.lang.common import markup
+    markup.dump(tree)
+    """
+    trans = EdgeQLCompiler(schema, modaliases)
+
+    ir = trans.transform(
+        tree,
+        arg_types,
+        modaliases=modaliases,
+        anchors=anchors,
+        security_context=security_context)
+    """LOG [edgeql.compile] EdgeDB IR:
+    from edgedb.lang.common import markup
+    markup.dump(ir)
+    """
+
+    return ir
+
+
+@debug.debug
+def compile_ast_to_ir(tree,
+                      schema,
+                      *,
+                      anchors=None,
+                      arg_types=None,
+                      security_context=None,
+                      modaliases=None):
+    """Compile given EdgeQL AST into EdgeDB IR."""
+    """LOG [edgeql.compile] EdgeQL AST:
+    from edgedb.lang.common import markup
+    markup.dump(tree)
+    """
+    trans = EdgeQLCompiler(schema, modaliases)
+
+    ir = trans.transform(
+        tree,
+        arg_types,
+        modaliases=modaliases,
+        anchors=anchors,
+        security_context=security_context)
+    """LOG [edgeql.compile] EdgeDB IR:
+    from edgedb.lang.common import markup
+    markup.dump(ir)
+    """
+
+    return ir

@@ -27,7 +27,7 @@ class TransactionStatement:
         return '<{} {!r} at 0x{:x}>'.format(self.__name__, self.op, id(self))
 
 
-def plan_statement(stmt, backend):
+def plan_statement(stmt, backend, flags={}):
     if isinstance(stmt, qlast.DatabaseNode):
         return s_ddl.cmd_from_ddl(stmt, schema=backend.schema)
 
@@ -41,5 +41,13 @@ def plan_statement(stmt, backend):
         return TransactionStatement(stmt)
 
     else:
-        ir = edgeql.compile_ast_to_ir(stmt, schema=backend.schema)
-        return backend.compile(ir, output_format='json')
+        if 'experimental-compiler' in flags:
+            from edgedb.lang.edgeql.compiler import compiler2
+            compiler = compiler2
+            sql_compiler = backend.compile2
+        else:
+            compiler = edgeql.compiler
+            sql_compiler = backend.compile
+
+        ir = compiler.compile_ast_to_ir(stmt, schema=backend.schema)
+        return sql_compiler(ir, output_format='json')

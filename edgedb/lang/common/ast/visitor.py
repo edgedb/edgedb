@@ -90,7 +90,7 @@ class NodeVisitor:
         if memo is not None:
             self._memo = memo
         else:
-            self._memo = set()
+            self._memo = {}
         self._context = context
 
     @classmethod
@@ -108,13 +108,17 @@ class NodeVisitor:
         return node.__class__(result)
 
     def repeated_node_visit(self, node):
-        return node
+        result = self._memo[node]
+        if result is None:
+            return node
+        else:
+            return result
 
     def node_visit(self, node):
         if node in self._memo:
             return self.repeated_node_visit(node)
         else:
-            self._memo.add(node)
+            self._memo[node] = None
 
         for cls in node.__class__.__mro__:
             method = 'visit_' + cls.__name__
@@ -123,7 +127,9 @@ class NodeVisitor:
                 break
         else:
             visitor = self.generic_visit
-        return visitor(node)
+        result = visitor(node)
+        self._memo[node] = result
+        return result
 
     def visit(self, node):
         if is_container(node):

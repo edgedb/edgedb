@@ -52,7 +52,7 @@ async def execute_plan(plan, protocol):
                 'unexpected transaction statement: {!r}'.format(plan))
 
     elif isinstance(plan, edgedb_query.Query):
-        """LOG [sql] SQL QUERY
+        """LOG [sql] EXECUTING SQL QUERY
         print(plan.text)
         """
 

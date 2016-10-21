@@ -25,7 +25,7 @@ class TestExpressions(tb.QueryTestCase):
     """
 
     async def test_edgeql_expr_op01(self):
-        await self.assert_query_result(r"""
+        await self.assert_query_result_2(r"""
             SELECT 40 + 2;
             SELECT 40 - 2;
             SELECT 40 * 2;
@@ -130,7 +130,7 @@ class TestExpressions(tb.QueryTestCase):
                     }
                 WHERE
                     %s = 'Elvis';
-            ''' % (case,))
+            ''' % (case,), flags={'experimental-compiler'})
 
     async def test_edgeql_expr_polymorphic_01(self):
         await self.con.execute(r"""

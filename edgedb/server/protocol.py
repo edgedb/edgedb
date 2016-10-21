@@ -109,7 +109,8 @@ class Protocol(asyncio.Protocol):
                 raise ProtocolError('invalid script message')
 
             fut = self._loop.create_task(
-                self._run_script(script, graphql=message.get('__graphql__')))
+                self._run_script(script, graphql=message.get('__graphql__'),
+                                 flags=message.get('__flags__')))
             fut.add_done_callback(self._on_script_done)
 
     def send_message(self, msg):
@@ -137,7 +138,7 @@ class Protocol(asyncio.Protocol):
         })
 
     @debug
-    async def _run_script(self, script, *, graphql=False):
+    async def _run_script(self, script, *, graphql=False, flags={}):
         if graphql:
             script = graphql_compiler.translate(
                 self.backend.schema, script, {}) + ';'
@@ -150,7 +151,7 @@ class Protocol(asyncio.Protocol):
             """LOG [statement] Executing EdgeQL statement
             print(edgeql.generate_source(statement, pretty=True))
             """
-            plan = planner.plan_statement(statement, self.backend)
+            plan = planner.plan_statement(statement, self.backend, flags)
             result = await executor.execute_plan(plan, self)
             if result is not None and isinstance(result, list):
                 loaded = []

@@ -284,8 +284,8 @@ class IsinstanceFunction(dbops.Function):
     BEGIN
         ptabname := (
             SELECT
-                concept_name_to_table_name(split_part(name, '::', 1),
-                                           split_part(name, '::', 2))
+                edgedb.concept_name_to_table_name(split_part(name, '::', 1),
+                                                  split_part(name, '::', 2))
             FROM
                 edgedb.concept
             WHERE

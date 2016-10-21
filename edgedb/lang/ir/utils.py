@@ -20,6 +20,7 @@ from edgedb.lang.schema import types as s_types
 from edgedb.lang.schema import utils as s_utils
 
 from . import ast as irast
+from . import ast2 as irast2
 
 
 class PathIndex(dict):
@@ -209,6 +210,69 @@ def infer_type(ir, schema):
                 (isinstance(result, (tuple, list)) and
                  isinstance(result[1], allowed))), \
                "infer_type({!r}) retured {!r} instead of a Class" \
+                    .format(ir, result)
+
+    return result
+
+
+def infer_type2(ir, schema):
+    if isinstance(ir, (irast2.Set, irast2.Shape)):
+        result = ir.scls
+
+    elif isinstance(ir, irast2.FunctionCall):
+        func_obj = schema.get(ir.name)
+        result = func_obj.returntype
+
+    elif isinstance(ir, irast2.Constant):
+        if ir.expr:
+            result = infer_type2(ir.expr, schema)
+        else:
+            result = ir.type
+
+    elif isinstance(ir, irast2.BinOp):
+        if isinstance(ir.op, (ast.ops.ComparisonOperator,
+                              ast.ops.TypeCheckOperator,
+                              ast.ops.MembershipOperator)):
+            result = schema.get('std::bool')
+        else:
+            left_type = infer_type2(ir.left, schema)
+            right_type = infer_type2(ir.right, schema)
+            result = s_types.TypeRules.get_result(
+                ir.op, (left_type, right_type), schema)
+            if result is None:
+                result = s_types.TypeRules.get_result(
+                    (ir.op, 'reversed'), (right_type, left_type), schema)
+
+    elif isinstance(ir, irast2.UnaryOp):
+        operand_type = infer_type2(ir.expr, schema)
+        result = s_types.TypeRules.get_result(ir.op, (operand_type,), schema)
+
+    elif isinstance(ir, irast2.TypeCast):
+        if ir.type.subtypes:
+            coll = s_obj.Collection.get_class(ir.type.maintype)
+            result = coll.from_subtypes(
+                [schema.get(t) for t in ir.type.subtypes])
+        else:
+            result = schema.get(ir.type.maintype)
+
+    elif isinstance(ir, irast2.Stmt):
+        result = infer_type2(ir.result, schema)
+
+    elif isinstance(ir, irast2.SubstmtRef):
+        result = infer_type2(ir.stmt, schema)
+
+    elif isinstance(ir, irast2.ExistPred):
+        result = schema.get('std::bool')
+
+    else:
+        result = None
+
+    if result is not None:
+        allowed = (s_obj.Class, s_obj.MetaClass)
+        assert (isinstance(result, allowed) or
+                (isinstance(result, (tuple, list)) and
+                 isinstance(result[1], allowed))), \
+                 "infer_type2({!r}) retured {!r} instead of a Class" \
                     .format(ir, result)
 
     return result
@@ -455,6 +519,12 @@ class LinearPath(list):
         self.append((link, direction))
         self.append(target)
 
+    def rptr(self):
+        if len(self) > 1:
+            return self[-2][0]
+        else:
+            return None
+
     def __hash__(self):
         return hash(tuple(self))
 
@@ -462,18 +532,15 @@ class LinearPath(list):
         if not self:
             return ''
 
-        result = '%s' % self[0].name
+        result = '({})'.format(self[0].name)
 
         for i in range(1, len(self) - 1, 2):
             link = self[i][0].name
             if self[i + 1]:
-                if isinstance(self[i + 1], tuple):
-                    concept = '%s(%s)' % (self[i + 1][0].name, self[i + 1][1])
-                else:
-                    concept = self[i + 1].name
+                lexpr = '({} TO {})'.format(link, self[i + 1].name)
             else:
-                concept = 'NULL'
-            result += '[%s%s]%s' % (self[i][1], link, concept)
+                lexpr = '({})'.format(link)
+            result += '.{}{}'.format(self[i][1], lexpr)
         return result
 
 

@@ -21,6 +21,7 @@ class SourceGenerator(NodeVisitor):
         self.indent_with = indent_with
         self.add_line_information = add_line_information
         self.indentation = 0
+        self.char_indentation = 0
         self.new_lines = 0
         self.current_line = 1
         self.pretty = pretty
@@ -37,6 +38,7 @@ class SourceGenerator(NodeVisitor):
                 self.result.append('\n' * self.new_lines)
             if self.pretty:
                 self.result.append(self.indent_with * self.indentation)
+                self.result.append(' ' * self.char_indentation)
             else:
                 self.result.append(' ')
             self.new_lines = 0

@@ -56,6 +56,7 @@ from . import datasources
 from .datasources import introspection
 
 from .transformer import IRCompiler
+from . import compiler
 
 from . import astexpr
 from . import parser
@@ -673,6 +674,42 @@ class Backend(s_deltarepo.DeltaProvider):
         for k, v in query_ir.result_types.items():
             restypes[k] = v
 
+        argtypes = {}
+
+        for k, v in query_ir.argument_types.items():
+            argtypes[k] = v
+
+        return Query(
+            chunks=qchunks, arg_index=arg_index, argmap=argmap,
+            result_types=restypes, argument_types=argtypes,
+            context_vars=query_ir.context_vars,
+            scrolling_cursor=scrolling_cursor, offset=offset, limit=limit,
+            query_type=query_type, record_info=record_info,
+            output_format=output_format)
+
+    def compile2(self, query_ir, scrolling_cursor=False, context=None, *,
+                 output_format=None):
+        if scrolling_cursor:
+            offset = query_ir.offset
+            limit = query_ir.limit
+        else:
+            offset = limit = None
+
+        if scrolling_cursor:
+            query_ir.offset = None
+            query_ir.limit = None
+
+        ir_compiler = compiler.IRCompiler()
+
+        qchunks, argmap, arg_index, query_type, record_info = \
+            ir_compiler.transform(query_ir, self, self.schema,
+                                  output_format=output_format)
+
+        if scrolling_cursor:
+            query_ir.offset = offset
+            query_ir.limit = limit
+
+        restypes = {'_': query_ir.result_types}
         argtypes = {}
 
         for k, v in query_ir.argument_types.items():
