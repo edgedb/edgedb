@@ -128,7 +128,7 @@ class TestGraphQLMutation(tb.QueryTestCase):
         result = await self.con.execute(r"""
             mutation del @edgedb(module: "test") {
                 delete__User(name: "John") {
-                    name,
+                    name
                     groups {
                         name
                     }
@@ -137,7 +137,7 @@ class TestGraphQLMutation(tb.QueryTestCase):
 
             query sel @edgedb(module: "test") {
                 User {
-                    name,
+                    name
                     groups {
                         name
                     }
@@ -149,9 +149,9 @@ class TestGraphQLMutation(tb.QueryTestCase):
         self.assert_data_shape(result, [
             [{
                 'name': 'John',
-                'groups': {
+                'groups': [{
                     'name': 'basic'
-                },
+                }],
             }],
         ])
 
@@ -160,7 +160,7 @@ class TestGraphQLMutation(tb.QueryTestCase):
         result = await self.con.execute(r"""
             mutation @edgedb(module: "test") {
                 delete__User(name: "John", active: true) {
-                    name,
+                    name
                     groups {
                         name
                     }
@@ -172,9 +172,9 @@ class TestGraphQLMutation(tb.QueryTestCase):
         self.assert_data_shape(result, [
             [{
                 'name': 'John',
-                'groups': {
+                'groups': [{
                     'name': 'basic'
-                },
+                }],
             }],
         ])
 
@@ -183,7 +183,7 @@ class TestGraphQLMutation(tb.QueryTestCase):
         result = await self.con.execute(r"""
             mutation @edgedb(module: "test") {
                 delete__User(name: "John", active: false) {
-                    name,
+                    name
                     groups {
                         name
                     }
@@ -194,4 +194,70 @@ class TestGraphQLMutation(tb.QueryTestCase):
         result[0].sort(key=lambda x: x['name'])
         self.assert_data_shape(result, [
             [],
+        ])
+
+    async def test_graphql_mutation_insert01(self):
+        result = await self.con.execute(r"""
+            mutation @edgedb(module: "test") {
+                insert__Group(__data: {
+                    name: "new"
+                }) {
+                    id
+                    name
+                }
+            }
+        """, graphql=True)
+
+        result[0]
+        self.assert_data_shape(result, [
+            [{
+                'id': uuid.UUID,
+                'name': 'new',
+            }],
+        ])
+
+    @unittest.expectedFailure
+    async def test_graphql_mutation_insert02(self):
+        groups = await self.con.execute(r"""
+            query @edgedb(module: "test") {
+                Group(name: "basic") {
+                    id,
+                }
+            }
+        """, graphql=True)
+
+        result = await self.con.execute(r'''
+            mutation @edgedb(module: "test") {
+                insert__User(__data: {
+                    name: "Bob",
+                    active: true,
+                    age: 25,
+                    score: 2.34,
+                    groups__id: "''' + groups[0][0]['id'] + r'''"
+                }) {
+                    id
+                    name
+                    active
+                    age
+                    score
+                    groups {
+                        id
+                        name
+                    }
+                }
+            }
+        ''', graphql=True)
+
+        self.assert_data_shape(result, [
+            [{
+                'id': uuid.UUID,
+                'name': 'Bob',
+                'active': True,
+                'age': 25,
+                'score': 2.34,
+                'groups': [{
+                    'id': groups[0][0]['id'],
+                    'name': 'basic',
+                }],
+            }],
         ])
