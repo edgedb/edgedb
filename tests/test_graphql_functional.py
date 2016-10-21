@@ -25,12 +25,17 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             concept Setting extends NamedObject:
                 required link value to str
 
+            concept Profile extends NamedObject:
+                required link value to str
+
             concept User extends NamedObject:
                 required link active to bool
                 link groups to Group:
                     mapping: **
                 required link age to int
                 required link score to float
+                link profile to Profile:
+                    mapping: *1
         $$;
 
         COMMIT DELTA test::d1;

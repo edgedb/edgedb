@@ -2259,7 +2259,7 @@ class TestGraphQLTranslation(TranslatorTest):
     def test_graphql_translation_delete01(self):
         r"""
         mutation @edgedb(module: "test") {
-            delete_User {
+            delete__User {
                 name,
                 groups {
                     id
@@ -2285,7 +2285,7 @@ class TestGraphQLTranslation(TranslatorTest):
     def test_graphql_translation_delete02(self):
         r"""
         mutation @edgedb(module: "test") {
-            deleteUser(name: "John") {
+            delete__User(name: "John") {
                 name,
                 groups {
                     id
@@ -2313,7 +2313,7 @@ class TestGraphQLTranslation(TranslatorTest):
     def test_graphql_translation_delete03(self):
         r"""
         mutation delete @edgedb(module: "test") {
-            delete____User(name: "John", active: true) {
+            delete__User(name: "John", active: true) {
                 id,
             }
         }
@@ -2337,7 +2337,7 @@ class TestGraphQLTranslation(TranslatorTest):
     def test_graphql_translation_insert01(self):
         r"""
         mutation @edgedb(module: "test") {
-            insert_Group(__data: {
+            insert__Group(__data: {
                 name: "new"
             }) {
                 id,
@@ -2361,7 +2361,7 @@ class TestGraphQLTranslation(TranslatorTest):
     def test_graphql_translation_insert02(self):
         r"""
         mutation insert @edgedb(module: "test") {
-            insert_User(__data: {
+            insert__User(__data: {
                 name: "John",
                 active: true,
                 age: 25,
@@ -2390,7 +2390,7 @@ class TestGraphQLTranslation(TranslatorTest):
     def test_graphql_translation_insert03(self):
         r"""
         mutation insert @edgedb(module: "test") {
-            insert_User(__data: {
+            insert__User(__data: {
                 name: "John",
                 active: true,
                 age: 25,
@@ -2433,7 +2433,7 @@ class TestGraphQLTranslation(TranslatorTest):
     def test_graphql_translation_insert04(self):
         r"""
         mutation @edgedb(module: "test") {
-            insert_User(__data: {
+            insert__User(__data: {
                 name: "John",
                 active: true,
                 age: 25,
@@ -2483,7 +2483,7 @@ class TestGraphQLTranslation(TranslatorTest):
         # this creates a nested user + profile
         #
         mutation @edgedb(module: "test") {
-            insert_User(__data: {
+            insert__User(__data: {
                 name: "John",
                 active: true,
                 age: 25,
@@ -2529,7 +2529,7 @@ class TestGraphQLTranslation(TranslatorTest):
     def test_graphql_translation_update01(self):
         r"""
         mutation @edgedb(module: "test") {
-            update_User(__data: {
+            update__User(__data: {
                 name: "Jonathan",
             },
             name: "John"
@@ -2557,7 +2557,7 @@ class TestGraphQLTranslation(TranslatorTest):
     def test_graphql_translation_update02(self):
         r"""
         mutation special_update @edgedb(module: "test") {
-            update_User(__data: {
+            update__User(__data: {
                 name: "Jonathan",
                 groups__id: "21e16e2e-e445-494c-acfc-cc9378620501"
             },
@@ -2600,7 +2600,7 @@ class TestGraphQLTranslation(TranslatorTest):
     def test_graphql_translation_update03(self):
         r"""
         mutation special_update @edgedb(module: "test") {
-            update_User(__data: {
+            update__User(__data: {
                 name: "Jonathan",
                 groups__id: [
                     "21e16e2e-e445-494c-acfc-cc9378620501",

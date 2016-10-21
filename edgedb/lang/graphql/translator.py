@@ -6,8 +6,6 @@
 ##
 
 
-import re
-
 from edgedb.lang import edgeql
 from edgedb.lang.common import ast
 from edgedb.lang.edgeql import ast as qlast
@@ -194,9 +192,9 @@ class GraphQLTranslator(ast.NodeVisitor):
             # operation type has not been determined, which means
             # it's one of the following mutations: 'insert', 'delete', 'update'
             #
-            match = re.match(r'(delete|insert|update)_*(.+)', raw_name)
-            if match:
-                self._context.optype, name = match.groups()
+            parts = raw_name.split('__', 1)
+            if len(parts) == 2 and parts[0] in {'insert', 'delete', 'update'}:
+                self._context.optype, name = parts
                 return name
             else:
                 raise GraphQLValidationError(
