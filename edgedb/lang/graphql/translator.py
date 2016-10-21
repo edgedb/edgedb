@@ -118,7 +118,7 @@ class GraphQLTranslator(ast.NodeVisitor):
                 targets=[
                     self._visit_query_selset(selection)
                 ],
-                where=self._visit_select_where(selection.arguments)
+                where=self._visit_where(selection.arguments)
             )
 
             if query is None:
@@ -159,13 +159,25 @@ class GraphQLTranslator(ast.NodeVisitor):
                 mutation = qlast.DeleteQueryNode(
                     targets=targets,
                     subject=subject,
-                    where=self._visit_select_where(selection.arguments),
+                    where=self._visit_where(selection.arguments),
                 )
             elif self._context.optype == 'insert':
+                if len(selection.arguments) > 1:
+                    raise GraphQLValidationError(
+                        "too many arguments for {!r}".format(selection.name),
+                        context=selection.context)
+
                 mutation = qlast.InsertQueryNode(
                     targets=targets,
                     subject=subject,
-                    pathspec=self._visit_insert_data(selection.arguments),
+                    pathspec=self._visit_data(selection.arguments),
+                )
+            elif self._context.optype == 'update':
+                mutation = qlast.UpdateQueryNode(
+                    targets=targets,
+                    subject=subject,
+                    pathspec=self._visit_data(selection.arguments),
+                    where=self._visit_where(selection.arguments),
                 )
 
             if query is None:
@@ -223,36 +235,73 @@ class GraphQLTranslator(ast.NodeVisitor):
             steps=[qlast.PathStepNode(namespace=base[0], expr=base[1])],
         )
 
-    def _visit_insert_data(self, arguments):
-        base = self._context.path[0][0]
-
+    def _visit_data(self, arguments):
         if not arguments:
             return None
 
         for arg in arguments:
             if arg.name == '__data':
                 return self._visit_mutation_data(arg.value)
-            else:
-                raise GraphQLValidationError(
-                    "unknown argument {!r}".format(arg.name),
-                    context=arg.context)
 
     def _visit_mutation_data(self, node):
         result = []
 
         for field in node.value:
+            pathspec = value = None
+
+            if field.name.endswith('__id'):
+                # existing data referenced by ID
+                #
+                ids = self.visit(field.value)
+                if isinstance(ids, qlast.SequenceNode):
+                    op = ast.ops.IN
+                else:
+                    op = ast.ops.EQ
+
+                name = field.name[:-4]
+                value = qlast.SelectQueryNode(
+                    targets=[qlast.SelectExprNode(
+                        expr=qlast.PathNode(
+                            steps=[
+                                qlast.PathStepNode(
+                                    namespace='std', expr='Object')]
+                        )
+                    )],
+                    where=qlast.BinOpNode(
+                        left=qlast.PathNode(
+                            steps=[
+                                qlast.PathStepNode(
+                                    namespace='std', expr='Object'),
+                                qlast.LinkExprNode(
+                                    expr=qlast.LinkNode(name='id'))
+                            ]
+                        ),
+                        op=op,
+                        right=ids,
+                    )
+                )
+
+            else:
+                name = field.name
+
+                if isinstance(field.value, gqlast.ObjectLiteral):
+                    pathspec = self._visit_mutation_data(field.value)
+                else:
+                    value = self.visit(field.value)
+
             result.append(qlast.SelectPathSpecNode(
                 expr=qlast.PathNode(
                     steps=[qlast.LinkExprNode(
-                        expr=qlast.LinkNode(name=field.name)
+                        expr=qlast.LinkNode(name=name)
                     )]
                 ),
-                compexpr=self.visit(field.value)
+                compexpr=value,
+                pathspec=pathspec,
             ))
 
         return result
 
-    def _visit_select_where(self, arguments):
+    def _visit_where(self, arguments):
         if not arguments:
             return None
 
@@ -447,8 +496,11 @@ class GraphQLTranslator(ast.NodeVisitor):
     def _visit_arguments(self, args, *, get_path_prefix):
         result = []
         for arg in args:
-            result.append(self.visit_Argument(
-                arg, get_path_prefix=get_path_prefix))
+            # ignore the special '__data' argument
+            #
+            if arg.name != '__data':
+                result.append(self.visit_Argument(
+                    arg, get_path_prefix=get_path_prefix))
 
         return result
 

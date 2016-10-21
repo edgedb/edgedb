@@ -95,12 +95,17 @@ class TestGraphQLTranslation(TranslatorTest):
         concept Setting extends NamedObject:
             required link value to str
 
+        concept Profile extends NamedObject:
+            required link value to str
+
         concept User extends NamedObject:
             required link active to bool
             link groups to Group:
                 mapping: **
             required link age to int
             required link score to float
+            link profile to Profile:
+                mapping: *1
     """
 
     SCHEMA_MOD2 = r"""
@@ -2380,4 +2385,261 @@ class TestGraphQLTranslation(TranslatorTest):
             (test::User) {
                 id,
             }
+        """
+
+    def test_graphql_translation_insert03(self):
+        r"""
+        mutation insert @edgedb(module: "test") {
+            insert_User(__data: {
+                name: "John",
+                active: true,
+                age: 25,
+                score: 3.14,
+                groups__id: "21e16e2e-e445-494c-acfc-cc9378620501"
+            }) {
+                id,
+                groups {
+                    name
+                }
+            }
+        }
+
+% OK %
+
+        # mutation insert
+        INSERT
+            test::User {
+                name := 'John',
+                active := True,
+                age := 25,
+                score := 3.14,
+                groups := (
+                    SELECT (std::Object)
+                    WHERE (
+                        (std::Object).id =
+                            '21e16e2e-e445-494c-acfc-cc9378620501'
+                    )
+                )
+            }
+        RETURNING
+            (test::User) {
+                id,
+                groups: {
+                    name
+                }
+            }
+        """
+
+    def test_graphql_translation_insert04(self):
+        r"""
+        mutation @edgedb(module: "test") {
+            insert_User(__data: {
+                name: "John",
+                active: true,
+                age: 25,
+                score: 3.14,
+                groups__id: [
+                    "21e16e2e-e445-494c-acfc-cc9378620501",
+                    "fd5f4ad8-2e8c-4224-9243-361d61dee856"
+                ]
+            }) {
+                name,
+                id,
+                groups {
+                    name
+                }
+            }
+        }
+
+% OK %
+
+        INSERT
+            test::User {
+                name := 'John',
+                active := True,
+                age := 25,
+                score := 3.14,
+                groups := (
+                    SELECT (std::Object)
+                    WHERE (
+                        (std::Object).id IN
+                            ('21e16e2e-e445-494c-acfc-cc9378620501',
+                             'fd5f4ad8-2e8c-4224-9243-361d61dee856')
+                    )
+                )
+            }
+        RETURNING
+            (test::User) {
+                name,
+                id,
+                groups: {
+                    name
+                }
+            };
+        """
+
+    def test_graphql_translation_insert05(self):
+        r"""
+        # this creates a nested user + profile
+        #
+        mutation @edgedb(module: "test") {
+            insert_User(__data: {
+                name: "John",
+                active: true,
+                age: 25,
+                score: 3.14,
+                profile: {
+                    name: "New Profile",
+                    value: "default"
+                }
+            }) {
+                name,
+                id,
+                profile {
+                    name,
+                    value
+                }
+            }
+        }
+
+% OK %
+
+        INSERT
+            test::User {
+                name := 'John',
+                active := True,
+                age := 25,
+                score := 3.14,
+                profile: {
+                    name := 'New Profile',
+                    value := 'default'
+                }
+            }
+        RETURNING
+            (test::User) {
+                name,
+                id,
+                profile: {
+                    name,
+                    value
+                }
+            };
+        """
+
+    def test_graphql_translation_update01(self):
+        r"""
+        mutation @edgedb(module: "test") {
+            update_User(__data: {
+                name: "Jonathan",
+            },
+            name: "John"
+            ) {
+                name,
+                id,
+            }
+        }
+
+% OK %
+
+        UPDATE
+            test::User {
+                name := 'Jonathan'
+            }
+        WHERE
+            ((test::User).name = 'John')
+        RETURNING
+            (test::User) {
+                name,
+                id
+            };
+        """
+
+    def test_graphql_translation_update02(self):
+        r"""
+        mutation special_update @edgedb(module: "test") {
+            update_User(__data: {
+                name: "Jonathan",
+                groups__id: "21e16e2e-e445-494c-acfc-cc9378620501"
+            },
+            name: "John"
+            ) {
+                name,
+                id,
+                groups {
+                    name
+                }
+            }
+        }
+
+% OK %
+
+        # mutation special_update
+        UPDATE
+            test::User {
+                name := 'Jonathan',
+                groups := (
+                    SELECT (std::Object)
+                    WHERE (
+                        (std::Object).id =
+                            '21e16e2e-e445-494c-acfc-cc9378620501'
+                    )
+                )
+            }
+        WHERE
+            ((test::User).name = 'John')
+        RETURNING
+            (test::User) {
+                name,
+                id,
+                groups: {
+                    name
+                }
+            };
+        """
+
+    def test_graphql_translation_update03(self):
+        r"""
+        mutation special_update @edgedb(module: "test") {
+            update_User(__data: {
+                name: "Jonathan",
+                groups__id: [
+                    "21e16e2e-e445-494c-acfc-cc9378620501",
+                    "fd5f4ad8-2e8c-4224-9243-361d61dee856"
+                ]
+            },
+            name: "John"
+            ) {
+                name,
+                id,
+                groups {
+                    name
+                }
+            }
+        }
+
+% OK %
+
+        # mutation special_update
+        UPDATE
+            test::User {
+                name := 'Jonathan',
+                groups := (
+                    SELECT (std::Object)
+                    WHERE (
+                        (std::Object).id IN
+                            ('21e16e2e-e445-494c-acfc-cc9378620501',
+                             'fd5f4ad8-2e8c-4224-9243-361d61dee856')
+                    )
+                )
+            }
+        WHERE
+            ((test::User).name = 'John')
+        RETURNING
+            (test::User) {
+                name,
+                id,
+                groups: {
+                    name
+                }
+            };
         """

@@ -64,7 +64,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.indentation -= 1
 
     def visit_InsertQueryNode(self, node):
-        # need to parenthesise when SELECT appears as an expression
+        # need to parenthesise when INSERT appears as an expression
         #
         parenthesise = (isinstance(node.parent, edgeql_ast.Base) and
                         not isinstance(node.parent, edgeql_ast.DDLNode))
@@ -89,7 +89,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(')')
 
     def visit_UpdateQueryNode(self, node):
-        # need to parenthesise when SELECT appears as an expression
+        # need to parenthesise when UPDATE appears as an expression
         #
         parenthesise = (isinstance(node.parent, edgeql_ast.Base) and
                         not isinstance(node.parent, edgeql_ast.DDLNode))
@@ -100,7 +100,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write('UPDATE')
         self.indentation += 1
         self.new_lines = 1
-        self.visit(node.subject)
+        self.visit(node.subject, parenthesise=False)
         self.indentation -= 1
         self.new_lines = 1
 
@@ -127,7 +127,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.value)
 
     def visit_DeleteQueryNode(self, node):
-        # need to parenthesise when SELECT appears as an expression
+        # need to parenthesise when DELETE appears as an expression
         #
         parenthesise = (isinstance(node.parent, edgeql_ast.Base) and
                         not isinstance(node.parent, edgeql_ast.DDLNode))
