@@ -87,7 +87,7 @@ class OptSingle(Nonterm):
 class SimpleSelect(Nonterm):
     def reduce_Select(self, *kids):
         r"%reduce SELECT OptSingle OptDistinct SelectTargetEl \
-                  OptWhereClause OptGroupClause"
+                  OptWhereClause OptGroupClause OptHavingClause"
         self.val = qlast.SelectQueryNode(
             single=kids[1].val,
             distinct=kids[2].val,
@@ -96,7 +96,8 @@ class SimpleSelect(Nonterm):
             #
             targets=[kids[3].val],
             where=kids[4].val,
-            groupby=kids[5].val
+            groupby=kids[5].val,
+            having=kids[6].val,
         )
 
     def reduce_SelectClause_UNION_OptAll_SelectClause(self, *kids):
@@ -437,6 +438,19 @@ class OptWhereClause(Nonterm):
 class OptGroupClause(Nonterm):
     def reduce_GROUP_BY_ExprList(self, *kids):
         self.val = kids[2].val
+
+    def reduce_empty(self, *kids):
+        self.val = None
+
+
+class HavingClause(Nonterm):
+    def reduce_HAVING_Expr(self, *kids):
+        self.val = kids[1].val
+
+
+class OptHavingClause(Nonterm):
+    def reduce_HavingClause(self, *kids):
+        self.val = kids[0].val
 
     def reduce_empty(self, *kids):
         self.val = None

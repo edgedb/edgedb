@@ -192,6 +192,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.visit_list(node.groupby, separator=' THEN')
                 self.new_lines = 1
                 self.indentation -= 1
+            if node.having:
+                self.write('HAVING')
+                self.new_lines = 1
+                self.indentation += 1
+                self.visit(node.having)
+                self.new_lines = 1
+                self.indentation -= 1
 
         if node.orderby:
             self.write('ORDER BY')

@@ -45,6 +45,7 @@ edgeql_keywords = {
     "from": ("FROM", UNRESERVED_KEYWORD),
     "function": ("FUNCTION", UNRESERVED_KEYWORD),
     "group": ("GROUP", RESERVED_KEYWORD),
+    "having": ("HAVING", RESERVED_KEYWORD),
     "ilike": ("ILIKE", TYPE_FUNC_NAME_KEYWORD),
     "in": ("IN", RESERVED_KEYWORD),
     "index": ("INDEX", UNRESERVED_KEYWORD),

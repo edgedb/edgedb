@@ -1217,6 +1217,9 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             WHERE (User.age > 42);
         SELECT User.name
             GROUP BY User.name;
+        SELECT User.name
+            GROUP BY User.name
+            HAVING (User.name LIKE 'F%');
         SELECT User{name}
             ORDER BY User.name ASC;
         SELECT User{name}
@@ -1263,6 +1266,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             (User.age > 42)
         GROUP BY
             User.name
+        HAVING
+            (User.name LIKE 'F%')
         ORDER BY
             User.name ASC
         OFFSET 2 LIMIT 5;
@@ -1280,6 +1285,10 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         WITH MODULE test
         SELECT User.name
             GROUP BY User.name;
+        WITH MODULE test
+        SELECT User{name}
+            GROUP BY User.name
+            HAVING (User.name LIKE 'F%');
         WITH MODULE test
         SELECT User{name}
             ORDER BY User.name ASC;
@@ -1303,6 +1312,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             (User.age > 42)
         GROUP BY
             User.name
+        HAVING
+            (User.name LIKE 'F%')
         ORDER BY
             User.name ASC
         OFFSET 2 LIMIT 5;

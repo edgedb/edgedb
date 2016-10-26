@@ -421,7 +421,7 @@ class DropFunctionNode(DropObjectNode):
 
 class SelectQueryNode(StatementNode):
     __fields = [('single', bool, False), 'distinct', ('targets', list),
-                'where', ('groupby', list), ('orderby', list),
+                'where', ('groupby', list), 'having', ('orderby', list),
                 'offset', 'limit', '_hash', ('cges', list),
                 'op', 'op_larg', 'op_rarg']
 
