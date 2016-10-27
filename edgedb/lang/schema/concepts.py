@@ -14,6 +14,7 @@ from . import inheriting
 from . import links
 from . import name as sn
 from . import named
+from . import nodes
 from . import objects as so
 from . import referencing
 from . import sources
@@ -21,13 +22,15 @@ from . import sources
 
 class ConceptCommandContext(sd.ClassCommandContext,
                             constraints.ConsistencySubjectCommandContext,
-                            links.LinkSourceCommandContext):
+                            links.LinkSourceCommandContext,
+                            nodes.NodeCommandContext):
     pass
 
 
 class ConceptCommand(constraints.ConsistencySubjectCommand,
                      links.LinkSourceCommand,
-                     sources.SourceCommand):
+                     sources.SourceCommand,
+                     nodes.NodeCommand):
     context_class = ConceptCommandContext
 
     @classmethod
@@ -55,7 +58,8 @@ class DeleteConcept(ConceptCommand, inheriting.DeleteInheritingClass):
     astnode = qlast.DropConceptNode
 
 
-class Concept(sources.Source, constraints.ConsistencySubject, so.NodeClass):
+class Concept(sources.Source, nodes.Node,
+              constraints.ConsistencySubject, so.NodeClass):
     _type = 'concept'
 
     is_virtual = so.Field(bool, default=bool, compcoef=0.5)

@@ -6,8 +6,6 @@
 ##
 
 
-from edgedb.lang.common.functional import hybridmethod
-
 from edgedb.lang.edgeql import ast as qlast
 
 from . import attributes
@@ -17,6 +15,7 @@ from . import expr
 from . import inheriting
 from . import name as sn
 from . import named
+from . import nodes
 from . import objects as so
 from . import primary
 from . import types as s_types
@@ -24,7 +23,8 @@ from . import types as s_types
 
 class AtomCommandContext(sd.ClassCommandContext,
                          attributes.AttributeSubjectCommandContext,
-                         constraints.ConsistencySubjectCommandContext):
+                         constraints.ConsistencySubjectCommandContext,
+                         nodes.NodeCommandContext):
     def __setattr__(self, name, value):
         super().__setattr__(name, value)
         if (name == 'scls' and value is not None
@@ -33,7 +33,8 @@ class AtomCommandContext(sd.ClassCommandContext,
 
 
 class AtomCommand(constraints.ConsistencySubjectCommand,
-                  attributes.AttributeSubjectCommand):
+                  attributes.AttributeSubjectCommand,
+                  nodes.NodeCommand):
     context_class = AtomCommandContext
 
     @classmethod
@@ -79,7 +80,7 @@ class DeleteAtom(AtomCommand, inheriting.DeleteInheritingClass):
     astnode = qlast.DropAtomNode
 
 
-class Atom(primary.PrimaryClass, constraints.ConsistencySubject,
+class Atom(nodes.Node, constraints.ConsistencySubject,
            attributes.AttributeSubject, so.NodeClass):
     _type = 'atom'
 
