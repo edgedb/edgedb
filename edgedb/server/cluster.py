@@ -137,7 +137,8 @@ class Cluster:
             'log_connections': 'yes',
             'log_statement': 'all',
             'log_disconnections': 'yes',
-            'log_min_messages': 'INFO',
+            'log_min_messages': 'WARNING',
+            'client_min_messages': 'WARNING'
         }
 
         if cluster_status == 'not-initialized':
