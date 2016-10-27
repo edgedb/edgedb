@@ -1125,7 +1125,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             pointer_name = ptr_fqname = ptr_nqname
 
         if target is not None and not isinstance(target, s_obj.NodeClass):
-            target_name = '.'.join(filter(None, target))
+            target_name = '::'.join(filter(None, target))
             modaliases = self.context.current.namespaces
             target = self.schema.get(target_name,
                                      module_aliases=modaliases)
