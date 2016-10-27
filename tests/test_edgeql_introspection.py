@@ -191,6 +191,137 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         ])
 
+    async def test_edgeql_introspection_concept06(self):
+        await self.assert_query_result(r"""
+            # get all links, mappings and target names for Comment
+            WITH MODULE schema
+            SELECT `Concept` {
+                name,
+                links: {
+                    name,
+                    `target`: {
+                        name
+                    },
+                    attributes: {
+                        name,
+                        @value
+                    } WHERE
+                        `Concept`.links.attributes.name LIKE '%mapping'
+                } ORDER BY `Concept`.links.name
+            }
+            WHERE `Concept`.name LIKE '%Comment';
+        """, [
+            [{
+                'name': 'test::Comment',
+                'links': [{
+                    'name': 'std::__class__',
+                    'target': {'name': 'schema::Class'},
+                    'attributes': [{
+                        'name': 'stdattrs::mapping',
+                        '@value': '*1',
+                    }],
+                }, {
+                    'name': 'std::id',
+                    'target': {'name': 'std::uuid'},
+                    'attributes': [{
+                        'name': 'stdattrs::mapping',
+                        '@value': '11',
+                    }],
+                }, {
+                    'name': 'test::body',
+                    'target': {'name': 'std::str'},
+                    'attributes': [{
+                        'name': 'stdattrs::mapping',
+                        '@value': '*1',
+                    }],
+                }, {
+                    'name': 'test::issue',
+                    'target': {'name': 'test::Issue'},
+                    'attributes': [{
+                        'name': 'stdattrs::mapping',
+                        '@value': '*1',
+                    }],
+                }, {
+                    'name': 'test::owner',
+                    'target': {'name': 'test::User'},
+                    'attributes': [{
+                        'name': 'stdattrs::mapping',
+                        '@value': '*1',
+                    }],
+                }, {
+                    'name': 'test::parent',
+                    'target': {'name': 'test::Comment'},
+                    'attributes': [{
+                        'name': 'stdattrs::mapping',
+                        '@value': '*1',
+                    }],
+                }]
+            }]
+        ])
+
+    async def test_edgeql_introspection_concept07(self):
+        await self.assert_query_result(r"""
+            # get all user-defined concepts with at least one ** link
+            WITH MODULE schema
+            SELECT `Concept` {
+                name,
+            }
+            WHERE
+                `Concept`.name LIKE 'test::%'
+                AND
+                `Concept`.links.attributes.name = 'stdattrs::mapping'
+                AND
+                `Concept`.links.attributes@value = '**'
+            ORDER BY `Concept`.name;
+        """, [
+            [{
+                'name': 'test::Issue',
+            }, {
+                'name': 'test::User',
+            }]
+        ])
+
+    async def test_edgeql_introspection_concept08(self):
+        await self.assert_query_result(r"""
+            # get all user-defined concepts with at least one 1* link
+            WITH MODULE schema
+            SELECT `Concept` {
+                name,
+            }
+            WHERE
+                `Concept`.name LIKE 'test::%'
+                AND
+                `Concept`.links.attributes.name = 'stdattrs::mapping'
+                AND
+                `Concept`.links.attributes@value = '1*'
+            ORDER BY `Concept`.name;
+        """, [
+            [{
+                'name': 'test::Issue',
+            }]
+        ])
+
+    async def test_edgeql_introspection_concept09(self):
+        await self.assert_query_result(r"""
+            # get all user-defined concepts with at least one 1* link
+            WITH MODULE schema
+            SELECT `Concept` {
+                name,
+            }
+            WHERE
+                `Concept`.name LIKE 'test::%'
+                AND
+                `Concept`.<target[TO `Link`].attributes.name =
+                    'stdattrs::mapping'
+                AND
+                `Concept`.<target[TO `Link`].attributes@value = '1*'
+            ORDER BY `Concept`.name;
+        """, [
+            [{
+                'name': 'test::LogEntry',
+            }]
+        ])
+
     async def test_edgeql_introspection_link01(self):
         await self.assert_query_result(r"""
             WITH MODULE schema
