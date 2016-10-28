@@ -142,7 +142,7 @@ class Cluster:
         }
 
         if cluster_status == 'not-initialized':
-            self._pg_cluster.init(username=self._pg_superuser)
+            self._pg_cluster.init(username=self._pg_superuser, locale='C')
             self._pg_cluster.start(
                 server_settings=server_settings, **conn_args)
 
