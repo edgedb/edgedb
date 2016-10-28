@@ -911,6 +911,8 @@ class IRCompiler(ast.visitor.NodeVisitor):
                 # self._connect_subrels(ctx.query)
                 pass
 
+            ctx.entityref_as_id = True
+
             return self._process_insert_data(stmt)
 
     def visit_UpdateStmt(self, stmt):
@@ -957,6 +959,8 @@ class IRCompiler(ast.visitor.NodeVisitor):
                 where=pgast.BinOpNode(
                     left=id_ref, op='IN', right=update_range)
             )
+
+            ctx.entityref_as_id = True
 
             return self._process_update_data(stmt)
 

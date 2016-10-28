@@ -1175,14 +1175,13 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             expr = self.visit(target.expr)
 
             if isinstance(expr, irast.Set):
-                if target.expr.pathspec is not None:
-                    if expr.rptr is not None:
-                        rptrcls = expr.rptr.ptrcls
-                    else:
-                        rptrcls = None
+                if expr.rptr is not None:
+                    rptrcls = expr.rptr.ptrcls
+                else:
+                    rptrcls = None
 
-                    expr = self._process_shape(
-                        expr, rptrcls, target.expr.pathspec)
+                expr = self._process_shape(
+                    expr, rptrcls, target.expr.pathspec or [])
 
         return expr
 

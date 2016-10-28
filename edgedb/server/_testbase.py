@@ -263,10 +263,12 @@ class QueryTestCase(DatabaseTestCase, metaclass=QueryTestCaseMeta):
     async def assert_query_result(self, query, result):
         res = await self.con.execute(query)
         self.assert_data_shape(res, result)
+        return res
 
     async def assert_query_result_2(self, query, result):
         res = await self.con.execute(query, flags={'experimental-compiler'})
         self.assert_data_shape(res, result)
+        return res
 
     def assert_data_shape(self, data, shape, message=None):
         _void = object()
