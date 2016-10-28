@@ -688,8 +688,15 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         return irast.UnaryOp(expr=operand, op=expr.op)
 
     def visit_ExistsPredicateNode(self, expr):
-        subquery = self.visit(expr.expr)
-        return irast.ExistPred(expr=subquery)
+        ctx = self.context.current
+
+        subexpr = self.visit(expr.expr)
+
+        if isinstance(subexpr, irast.Set) and ctx.location == 'generator':
+            subexpr.as_set = True
+            return subexpr
+        else:
+            return irast.ExistPred(expr=subexpr)
 
     def visit_TypeCastNode(self, expr):
         maintype = expr.type.maintype

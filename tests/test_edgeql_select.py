@@ -1545,9 +1545,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '4'}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_and04(self):
-        await self.assert_query_result(r'''
+        await self.assert_query_result_2(r'''
             WITH MODULE test
             SELECT Issue{number}
             WHERE
@@ -1572,9 +1571,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '1'}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_and06(self):
-        await self.assert_query_result(r'''
+        await self.assert_query_result_2(r'''
             WITH MODULE test
             SELECT Issue{number}
             WHERE
@@ -1599,9 +1597,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '2'}, {'number': '3'}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_and08(self):
-        await self.assert_query_result(r'''
+        await self.assert_query_result_2(r'''
             WITH MODULE test
             SELECT Issue{number}
             WHERE
