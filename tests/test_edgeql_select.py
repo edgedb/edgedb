@@ -376,7 +376,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_computable10(self):
-        await self.assert_query_result(r"""
+        await self.assert_query_result_2(r"""
             WITH MODULE test
             SELECT Issue{
                 name,

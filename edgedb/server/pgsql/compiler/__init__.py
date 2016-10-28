@@ -381,12 +381,6 @@ class IRCompiler(ast.visitor.NodeVisitor):
                                (ast.ops.ComparisonOperator,
                                 ast.ops.TypeCheckOperator))):
             expr_type = bool
-        elif (
-                isinstance(expr.expr, irast.BaseRefExpr) and
-                isinstance(expr.expr.expr, irast.BinOp) and isinstance(
-                    expr.expr.expr.op,
-                    (ast.ops.ComparisonOperator, ast.ops.TypeCheckOperator))):
-            expr_type = bool
         elif isinstance(expr.expr, irast.Constant):
             expr_type = expr.expr.type
         else:
