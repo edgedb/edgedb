@@ -1542,7 +1542,7 @@ class IRCompiler(ast.visitor.NodeVisitor):
                             )
                             fromlist.add(lref.table)
 
-            else:
+            elif rel.fromlist:
                 innerrel = rel.fromlist[0].expr
                 fromlist = {f.expr for f in innerrel.fromlist}
                 fromlist.add(innerrel)
