@@ -129,9 +129,6 @@ class TestGraphQLMutation(tb.QueryTestCase):
             mutation del @edgedb(module: "test") {
                 delete__User(name: "John") {
                     name
-                    groups {
-                        name
-                    }
                 }
             }
 
@@ -149,8 +146,13 @@ class TestGraphQLMutation(tb.QueryTestCase):
         self.assert_data_shape(result, [
             [{
                 'name': 'John',
+            }],
+            [{
+                'name': 'Alice',
+            }, {
+                'name': 'Jane',
                 'groups': [{
-                    'name': 'basic'
+                    'name': 'basic',
                 }],
             }],
         ])
@@ -216,7 +218,6 @@ class TestGraphQLMutation(tb.QueryTestCase):
             }],
         ])
 
-    @unittest.expectedFailure
     async def test_graphql_mutation_insert02(self):
         groups = await self.con.execute(r"""
             query @edgedb(module: "test") {
@@ -227,7 +228,7 @@ class TestGraphQLMutation(tb.QueryTestCase):
         """, graphql=True)
 
         result = await self.con.execute(r'''
-            mutation @edgedb(module: "test") {
+            mutation in1 @edgedb(module: "test") {
                 insert__User(__data: {
                     name: "Bob",
                     active: true,
@@ -235,6 +236,16 @@ class TestGraphQLMutation(tb.QueryTestCase):
                     score: 2.34,
                     groups__id: "''' + groups[0][0]['id'] + r'''"
                 }) {
+                    id
+                    name
+                    active
+                    age
+                    score
+                }
+            }
+
+            query q1 @edgedb(module: "test") {
+                User(name: "Bob") {
                     id
                     name
                     active
@@ -255,6 +266,176 @@ class TestGraphQLMutation(tb.QueryTestCase):
                 'active': True,
                 'age': 25,
                 'score': 2.34,
+            }],
+            [{
+                'id': uuid.UUID,
+                'name': 'Bob',
+                'active': True,
+                'age': 25,
+                'score': 2.34,
+                'groups': [{
+                    'id': groups[0][0]['id'],
+                    'name': 'basic',
+                }],
+            }],
+        ])
+
+    @unittest.expectedFailure
+    async def test_graphql_mutation_insert03(self):
+        result = await self.con.execute(r'''
+            # nested insert of user and group
+            mutation in1 @edgedb(module: "test") {
+                insert__User(__data: {
+                    name: "Bob",
+                    active: true,
+                    age: 25,
+                    score: 2.34,
+                    groups: {
+                        name: "new"
+                    }
+                }) {
+                    id
+                    name
+                    active
+                    age
+                    score
+                }
+            }
+
+            query q1 @edgedb(module: "test") {
+                User(name: "Bob") {
+                    id
+                    name
+                    active
+                    age
+                    score
+                    groups {
+                        id
+                        name
+                    }
+                }
+            }
+        ''', graphql=True)
+
+        self.assert_data_shape(result, [
+            [{
+                'id': uuid.UUID,
+                'name': 'Bob',
+                'active': True,
+                'age': 25,
+                'score': 2.34,
+            }],
+            [{
+                'id': uuid.UUID,
+                'name': 'Bob',
+                'active': True,
+                'age': 25,
+                'score': 2.34,
+                'groups': [{
+                    'id': uuid.UUID,
+                    'name': 'new',
+                }],
+            }],
+        ])
+
+    async def test_graphql_mutation_update01(self):
+        result = await self.con.execute(r'''
+            # update all users to have 0 score
+            mutation up1 @edgedb(module: "test") {
+                update__User(__data: {
+                    score: 0
+                }) {
+                    id
+                }
+            }
+
+            query q1 @edgedb(module: "test") {
+                User {
+                    name
+                    score
+                }
+            }
+        ''', graphql=True)
+
+        result[1].sort(key=lambda x: x['name'])
+        self.assert_data_shape(result, [
+            [{
+                'id': uuid.UUID,
+            }, {
+                'id': uuid.UUID,
+            }, {
+                'id': uuid.UUID,
+            }],
+            [{
+                'name': 'Alice',
+                'score': 0,
+            }, {
+                'name': 'Jane',
+                'score': 0,
+            }, {
+                'name': 'John',
+                'score': 0,
+            }],
+        ])
+
+    @unittest.expectedFailure
+    async def test_graphql_mutation_update02(self):
+        groups = await self.con.execute(r"""
+            query @edgedb(module: "test") {
+                Group(name: "basic") {
+                    id,
+                }
+            }
+        """, graphql=True)
+
+        result = await self.con.execute(r'''
+            # update all users to have group "basic"
+            mutation up1 @edgedb(module: "test") {
+                update__User(__data: {
+                    groups__id: "''' + groups[0][0]['id'] + r'''"
+                }) {
+                    id
+                }
+            }
+
+            query q1 @edgedb(module: "test") {
+                User {
+                    id
+                    name
+                    groups {
+                        id
+                        name
+                    }
+                }
+            }
+        ''', graphql=True)
+
+        result[1].sort(key=lambda x: x['name'])
+        self.assert_data_shape(result, [
+            [{
+                'id': uuid.UUID,
+            }, {
+                'id': uuid.UUID,
+            }, {
+                'id': uuid.UUID,
+            }],
+            [{
+                'id': uuid.UUID,
+                'name': 'Alice',
+                'groups': [{
+                    'id': groups[0][0]['id'],
+                    'name': 'basic',
+                }],
+            }, {
+                'id': uuid.UUID,
+                'name': 'Jane',
+                'groups': [{
+                    'id': groups[0][0]['id'],
+                    'name': 'basic',
+                }],
+            }, {
+                'id': uuid.UUID,
+                'name': 'John',
                 'groups': [{
                     'id': groups[0][0]['id'],
                     'name': 'basic',

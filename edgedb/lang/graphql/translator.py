@@ -585,7 +585,9 @@ class GraphQLTranslator(ast.NodeVisitor):
         return qlast.ConstantNode(value=node.value)
 
     def _join_expressions(self, exprs, op=ast.ops.AND):
-        if len(exprs) == 1:
+        if not exprs:
+            return None
+        elif len(exprs) == 1:
             return exprs[0]
 
         result = qlast.BinOpNode(
