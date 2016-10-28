@@ -78,7 +78,7 @@ def _start_cluster():
 
         _default_cluster = edgedb_cluster.TempCluster(env=_env)
         _default_cluster.init()
-        _default_cluster.start()
+        _default_cluster.start(port='dynamic')
         atexit.register(_shutdown_cluster, _default_cluster)
 
     return _default_cluster
