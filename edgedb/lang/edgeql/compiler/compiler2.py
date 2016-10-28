@@ -545,6 +545,8 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             raise NotImplementedError('IS not implemented yet')
 
         binop = irast.BinOp(left=left, right=right, op=expr.op)
+        if ctx.location != 'generator':
+            return binop
 
         if expr.op not in {ast.ops.OR, ast.ops.AND}:
             # For any operation except OR/AND, check if any of the operands

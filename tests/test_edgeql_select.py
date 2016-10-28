@@ -2367,7 +2367,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_linkproperty01(self):
-        await self.assert_query_result(r"""
+        await self.assert_query_result_2(r"""
             WITH MODULE test
             SELECT User.todo@rank + <int>User.todo.number
             ORDER BY User.todo.number;
@@ -2376,7 +2376,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_linkproperty02(self):
-        await self.assert_query_result(r"""
+        await self.assert_query_result_2(r"""
             WITH MODULE test
             SELECT Issue.<todo@rank + <int>Issue.number
             ORDER BY Issue.number;
