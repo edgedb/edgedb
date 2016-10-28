@@ -287,7 +287,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         stmt = ctx.stmt = irast.SelectStmt()
         self._visit_with_block(edgeql_tree)
 
-        if edgeql_tree.op:
+        if edgeql_tree.op:  # UNION/INTERSECT/EXCEPT
             stmt.set_op = qlast.SetOperator(edgeql_tree.op)
             stmt.set_op_larg = self.visit(edgeql_tree.op_larg)
             stmt.set_op_rarg = self.visit(edgeql_tree.op_rarg)
@@ -469,17 +469,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     path_tip = refnode
                     continue
 
-            if (path_tip is None and ctx.local_link_source is not None and
-                    isinstance(step, qlast.PathStepNode)):
-                # We are in a context where any label is intepreted
-                # as a pointer reference of a known source.  For example,
-                # update expreessions need this.
-                scls = self._get_schema_object(step.expr, step.namespace)
-                if isinstance(scls, s_links.Link):
-                    step = qlast.LinkExprNode(expr=qlast.LinkNode(
-                        namespace=step.namespace, name=step.expr))
-                    path_tip = ctx.local_link_source
-
             if isinstance(step, qlast.PathStepNode):
                 # Starting path label.  Must be a valid reference to an
                 # existing Concept class, as aliases and path variables
@@ -506,6 +495,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 direction = (ptr_expr.direction or
                              s_pointers.PointerDirection.Outbound)
                 if ptr_expr.target:
+                    # ... link [TO Target]
                     ptr_target = self._get_schema_object(
                         ptr_expr.target.name, ptr_expr.target.module)
 
@@ -1020,9 +1010,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 limit = None
 
             ptr_singular = ptrcls.singular(ptr_direction)
-
-            full_path_id = irutils.LinearPath(source_expr.path_id)
-            full_path_id.add(ptrcls, ptr_direction, target_class)
 
             targetstep = self._extend_path(
                 source_expr, ptrcls, ptr_direction, target_class)

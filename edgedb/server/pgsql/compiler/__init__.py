@@ -1846,8 +1846,6 @@ class IRCompiler(ast.visitor.NodeVisitor):
     def _set_to_cte(self, ir_set):
         """Generate a Common Table Expression for a given IR Set.
 
-        @param context: Compiler context.
-        @param rel: Parent relation.
         @param ir_set: IR Set node.
         """
         ctx = self.context.current
