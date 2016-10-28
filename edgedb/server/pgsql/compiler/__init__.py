@@ -136,7 +136,7 @@ class IRCompiler(ast.visitor.NodeVisitor):
             attr_name = s_pointers.PointerVector(
                 name=ptr_name.name, module=ptr_name.module,
                 direction=ptr_direction, target=ptr_target.name,
-                is_linkprop=isinstance(e.rptr, s_lprops.LinkProperty))
+                is_linkprop=isinstance(e.rptr.ptrcls, s_lprops.LinkProperty))
 
             attribute_map.append(attr_name)
             my_elements.append(element)
