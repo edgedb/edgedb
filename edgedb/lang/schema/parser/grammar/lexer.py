@@ -109,10 +109,6 @@ class EdgeSchemaLexer(lexer.Lexer):
              next_state=STATE_KEEP,
              regexp=r'[1*][1*]'),
 
-        Rule(token='ICONST',
-             next_state=STATE_KEEP,
-             regexp=r'\d+(?![eE.0-9])'),
-
         Rule(token='FCONST',
              next_state=STATE_KEEP,
              regexp=r'''
@@ -129,6 +125,10 @@ class EdgeSchemaLexer(lexer.Lexer):
                     |
                     \.\d+)
              '''),
+
+        Rule(token='ICONST',
+             next_state=STATE_KEEP,
+             regexp=r'\d+(?![eE.0-9])'),
 
         Rule(token='DOT',
              next_state=STATE_KEEP,
