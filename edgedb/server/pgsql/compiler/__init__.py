@@ -592,11 +592,7 @@ class IRCompiler(ast.visitor.NodeVisitor):
 
             source_cte = wrapped_source_cte
 
-        try:
-            subrels = ctx.subquery_map[rel]
-        except KeyError:
-            subrels = ctx.subquery_map[rel] = set()
-
+        subrels = ctx.subquery_map[rel]
         if source_cte not in subrels:
             subrels.add(source_cte)
 
@@ -807,10 +803,7 @@ class IRCompiler(ast.visitor.NodeVisitor):
 
         with self.context(TransformerContext.SUBQUERY):
             ctx = self.context.current
-            try:
-                subrels = parent_ctx.subquery_map[parent_rel]
-            except KeyError:
-                subrels = parent_ctx.subquery_map[parent_rel] = set()
+            subrels = parent_ctx.subquery_map[parent_rel]
             subrels.add(ctx.query)
 
             if stmt.substmts:
@@ -1503,8 +1496,8 @@ class IRCompiler(ast.visitor.NodeVisitor):
 
     def _connect_subrels(self, query):
         ctx = self.context.current
-        rels = ctx.subquery_map.get(query)
 
+        rels = ctx.subquery_map.get(query)
         if not rels:
             return
 
