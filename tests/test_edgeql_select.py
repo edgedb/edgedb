@@ -755,7 +755,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_specialized01(self):
-        await self.assert_query_result(r'''
+        await self.assert_query_result_2(r'''
             WITH MODULE test
             SELECT
                 Text {body}
@@ -796,7 +796,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_specialized02(self):
-        await self.assert_query_result(r'''
+        await self.assert_query_result_2(r'''
             WITH MODULE test
             SELECT User{
                 name,
