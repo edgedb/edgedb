@@ -853,10 +853,10 @@ class IRCompiler(ast.visitor.NodeVisitor):
             self._process_groupby(stmt.groupby)
 
             if stmt.offset:
-                ctx.query.offset = self._process_constant(stmt.offset)
+                ctx.query.offset = self.visit(stmt.offset)
 
             if stmt.limit:
-                ctx.query.limit = self._process_constant(stmt.limit)
+                ctx.query.limit = self.visit(stmt.limit)
 
             self._connect_subrels(ctx.query)
 
