@@ -379,7 +379,6 @@ class TestGraphQLMutation(tb.QueryTestCase):
             }],
         ])
 
-    @unittest.expectedFailure
     async def test_graphql_mutation_update02(self):
         groups = await self.con.execute(r"""
             query @edgedb(module: "test") {
@@ -412,15 +411,8 @@ class TestGraphQLMutation(tb.QueryTestCase):
         ''', graphql=True)
 
         result[1].sort(key=lambda x: x['name'])
-        self.assert_data_shape(result, [
-            [{
-                'id': uuid.UUID,
-            }, {
-                'id': uuid.UUID,
-            }, {
-                'id': uuid.UUID,
-            }],
-            [{
+        self.assert_data_shape(result[1], [
+            {
                 'id': uuid.UUID,
                 'name': 'Alice',
                 'groups': [{
@@ -441,5 +433,5 @@ class TestGraphQLMutation(tb.QueryTestCase):
                     'id': groups[0][0]['id'],
                     'name': 'basic',
                 }],
-            }],
+            },
         ])
