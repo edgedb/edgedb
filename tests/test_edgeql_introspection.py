@@ -398,3 +398,77 @@ class TestIntrospection(tb.QueryTestCase):
                 {'name': 'test::watchers'},
             ]
         ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_introspection_count01(self):
+        await self.con.execute(r"""
+            WITH MODULE test
+            INSERT Priority {
+                name := 'High'
+            };
+
+            WITH MODULE test
+            INSERT Priority {
+                name := 'Low'
+            };
+
+            WITH MODULE test
+            INSERT Status {
+                name := 'Open'
+            };
+
+            WITH MODULE test
+            INSERT Status {
+                name := 'Closed'
+            };
+
+            WITH MODULE test
+            INSERT Status {
+                name := 'Flagged'
+            };
+
+            WITH MODULE test
+            INSERT User {
+                name := 'Elvis'
+            };
+
+            WITH MODULE test
+            INSERT User {
+                name := 'Yury'
+            };
+        """)
+
+        res = await self.assert_query_result(r"""
+            # Count the number of objects for each concept in module
+            # test. This is impossible to do without introspection for
+            # concepts that have 0 objects.
+            #
+            WITH MODULE schema
+            SELECT `Concept` {
+                name,
+                count := (
+                    SELECT std::count(`Concept`.<__class__)
+                )
+            }
+            WHERE `Concept`.name LIKE 'test::%'
+            ORDER BY `Concept`.name;
+        """, [
+            [
+                {'name': 'test::Comment', 'count': 0},
+                {'name': 'test::Dictionary', 'count': 0},
+                {'name': 'test::Issue', 'count': 0},
+                {'name': 'test::LogEntry', 'count': 0},
+                {'name': 'test::Named', 'count': 0},
+                {'name': 'test::Owned', 'count': 0},
+                {'name': 'test::Priority', 'count': 2},
+                {'name': 'test::Status', 'count': 3},
+                {'name': 'test::Text', 'count': 0},
+                {'name': 'test::User', 'count': 2},
+            ]
+        ])
+
+        await self.con.execute(r"""
+            DELETE test::Priority;
+            DELETE test::Status;
+            DELETE test::User;
+        """)
