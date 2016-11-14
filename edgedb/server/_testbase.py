@@ -4,8 +4,11 @@ import functools
 import inspect
 import os
 import pprint
+import sys
 import textwrap
 import unittest
+
+import pytest
 
 from edgedb.server import cluster as edgedb_cluster
 from edgedb.client import exceptions as edgeclient_exc
@@ -66,7 +69,7 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
 _default_cluster = None
 
 
-def _start_cluster():
+def _start_cluster(cleanup_atexit=True):
     global _default_cluster
 
     if _default_cluster is None:
@@ -76,24 +79,36 @@ def _start_cluster():
         else:
             _env = {}
 
+        print('Starting temporary database cluster...')
         _default_cluster = edgedb_cluster.TempCluster(env=_env)
         _default_cluster.init()
         _default_cluster.start(port='dynamic')
-        atexit.register(_shutdown_cluster, _default_cluster)
+        if cleanup_atexit:
+            atexit.register(_shutdown_cluster, _default_cluster)
 
     return _default_cluster
 
 
 def _shutdown_cluster(cluster):
+    print('Destroying temporary database cluster...')
     cluster.stop()
     cluster.destroy()
 
 
+@pytest.mark.usefixtures('cluster')
 class ClusterTestCase(TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.cluster = _start_cluster()
+        if getattr(sys, '_in_pytest', None):
+            # Under pytest we start the cluster via a session fixture.
+            # This dance is necessary to make sure the destruction of
+            # the cluster is done _before_ pytest plugin deinit, so
+            # pytest-cov et al work as expected.
+            #
+            cls.cluster = _start_cluster(False)
+        else:
+            cls.cluster = _start_cluster(True)
 
 
 class RollbackChanges:

@@ -20,3 +20,4 @@ __pycache__/
 docs/_build
 /AUTHORS
 /ChangeLog
+/.coverage*
