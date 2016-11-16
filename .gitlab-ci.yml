@@ -1,0 +1,27 @@
+image:
+  magicstack/edgedb-ci:latest
+
+variables:
+  WORKON_HOME: /var/lib/venvs
+  PIP_CACHE_DIR: /var/cache/pip
+
+build:
+  only:
+    - master
+
+  tags:
+    - python3
+
+  cache:
+    paths:
+      - /var/cache/pip/
+
+  script:
+    - mkdir -p /var/lib/venvs
+    - mkdir -p /var/cache/pip
+    - mkdir -p /var/cache/edgedb-build
+    - ln -s /var/cache/edgedb-build build
+    - pip --quiet install vex
+    - vex --python=python3 -m test pip --quiet install --upgrade setuptools wheel pip pbr
+    - vex test pip install -U .
+    - vex test gosu postgres:postgres pytest --verbose
