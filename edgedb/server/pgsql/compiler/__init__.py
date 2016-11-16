@@ -207,9 +207,7 @@ class IRCompiler(ast.visitor.NodeVisitor):
             with self.context(self.context.NEW_TRANSPARENT):
                 ctx.in_aggregate = True
                 ctx.query.aggregates = True
-                args = [
-                    self.visit(a) for a in expr.args
-                ]
+                args = [self.visit(a) for a in expr.args]
                 if expr.agg_filter:
                     agg_filter = self.visit(expr.agg_filter)
         else:
@@ -627,7 +625,11 @@ class IRCompiler(ast.visitor.NodeVisitor):
     def visit_BinOp(self, expr):
         ctx = self.context.current
 
-        left = self.visit(expr.left)
+        if isinstance(expr.op, ast.ops.TypeCheckOperator):
+            cl = self._get_ptr_set(expr.left, 'std::__class__')
+            left = self.visit(self._get_ptr_set(cl, 'std::id'))
+        else:
+            left = self.visit(expr.left)
 
         if expr.op in (ast.ops.IN, ast.ops.NOT_IN) \
                 and isinstance(expr.right, irast.Constant) \
@@ -1802,14 +1804,13 @@ class IRCompiler(ast.visitor.NodeVisitor):
 
         return join, map_rel
 
-    def _join_inline_rel(self, *, ir_set, cte, join, scls_rel):
+    def _join_inline_rel(self, *, ir_set, cte, join, scls_rel, join_field):
         id_field = common.edgedb_name_to_pg_name('std::id')
-        cls_field = common.edgedb_name_to_pg_name('std::__class__')
         source = join.bonds(ir_set.rptr.source.path_id)[-1]
 
         source_ref_field = pgast.FieldRefNode(
-            table=source.table, field=cls_field,
-            origin=source.table, origin_field=cls_field)
+            table=source.table, field=join_field,
+            origin=source.table, origin_field=join_field)
 
         target_ref_field = pgast.FieldRefNode(
             table=scls_rel, field=id_field,
@@ -1890,7 +1891,7 @@ class IRCompiler(ast.visitor.NodeVisitor):
 
             scls_rel.addbond(ir_set.path_id, bond)
 
-            id_set = self._get_id_set(ir_set)
+            id_set = self._get_ptr_set(ir_set, 'std::id')
             id_alias = self._add_inline_atom_ref(cte, id_set, ir_set.path_id)
 
             if not cte.bonds(ir_set.path_id):
@@ -1926,9 +1927,13 @@ class IRCompiler(ast.visitor.NodeVisitor):
                     ir_set=ir_set, cte=cte, join=join, scls_rel=scls_rel)
 
             elif isinstance(ir_set.scls, s_concepts.Concept):
+                # Reference to singular atom.
+                lalias = self._add_inline_atom_ref(parent_cte, ir_set)
+
                 # Direct reference to another object.
                 join = self._join_inline_rel(
-                    ir_set=ir_set, cte=cte, join=join, scls_rel=scls_rel)
+                    ir_set=ir_set, cte=cte, join=join, scls_rel=scls_rel,
+                    join_field=lalias)
 
             else:
                 # Reference to singular atom.
@@ -1961,12 +1966,12 @@ class IRCompiler(ast.visitor.NodeVisitor):
 
         return cte
 
-    def _get_id_set(self, source_set):
+    def _get_ptr_set(self, source_set, ptr_name):
         ctx = self.context.current
 
         schema = ctx.schema
         scls = source_set.scls
-        ptrcls = scls.resolve_pointer(schema, 'std::id')
+        ptrcls = scls.resolve_pointer(schema, ptr_name)
 
         path_id = irutils.LinearPath(source_set.path_id)
         path_id.add(ptrcls, s_pointers.PointerDirection.Outbound,

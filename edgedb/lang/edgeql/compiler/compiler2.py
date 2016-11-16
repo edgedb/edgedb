@@ -1224,14 +1224,14 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         return result
 
     def _process_type_ref_elem(self, expr, qlcontext):
-        if isinstance(expr, irast.EntitySet):
+        if isinstance(expr, irast.Set):
             if expr.rptr is not None:
                 raise errors.EdgeQLSyntaxError(
                     'expecting a type reference',
                     context=qlcontext)
 
             result = irast.TypeRef(
-                maintype=expr.concept.name,
+                maintype=expr.scls.name,
             )
 
         else:

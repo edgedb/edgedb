@@ -143,7 +143,11 @@ class PointerStorageInfo:
 
     @classmethod
     def _storable_in_source(cls, pointer):
-        return pointer.singular() and pointer.atomic()
+        return (
+            pointer.singular() and
+            (pointer.atomic() or
+             pointer.normal_name() == 'std::__class__')
+        )
 
     @classmethod
     def _storable_in_pointer(cls, pointer):
