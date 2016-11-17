@@ -96,7 +96,9 @@ class Set(Base):
     __fields = [
         'path_id',
         ('scls', so.NodeClass),
-        ('criteria', set),
+        ('sources', set),
+        ('source_conjunction', bool, False),
+        'expr',
         'as_set',
         ('subset_of', Base, None),
         ('folded_into_superset', bool, False),

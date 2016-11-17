@@ -668,8 +668,10 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.result)
 
     def visit_NullTestNode(self, node):
+        self.write('(')
         self.visit(node.expr)
         self.write(' IS NULL')
+        self.write(')')
 
     def visit_IndirectionNode(self, node):
         self.write('(')

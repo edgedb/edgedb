@@ -1875,14 +1875,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_null01(self):
-        await self.assert_query_result(r"""
+        await self.assert_query_result_2(r"""
             SELECT test::Issue.number = NULL;
             """, [
             [None, None, None, None],
         ])
 
     async def test_edgeql_select_null02(self):
-        await self.assert_query_result(r"""
+        await self.assert_query_result_2(r"""
             # the WHERE clause is always NULL, so it can never be true
             WITH MODULE test
             SELECT Issue{number}
@@ -1902,7 +1902,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def _test_edgeql_select_cross01(self):
-        await self.assert_query_result(r"""
+        await self.assert_query_result_2(r"""
             # the cross product of status and priority names
             WITH MODULE test
             SELECT Status.name + Priority.name

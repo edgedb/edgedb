@@ -88,14 +88,12 @@ class RelationNode(Base):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-
-        if not self._bonds:
-            self._bonds = {}
+        self._bonds = {}
 
     def bonds(self, key):
         bonds = self._bonds.get(key)
         if bonds:
-            return bonds[:]
+            return list(bonds)
 
     def addbond(self, key, bond):
         if key not in self._bonds:
@@ -108,7 +106,7 @@ class RelationNode(Base):
     def updatebonds(self, node):
         for key, values in node._bonds.items():
             if key not in self._bonds:
-                self._bonds[key] = values
+                self._bonds[key] = list(values)
             else:
                 self._bonds[key].extend(values)
 

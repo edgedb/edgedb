@@ -230,12 +230,16 @@ class PathExtractor(ast.visitor.NodeVisitor):
     def visit_Set(self, expr):
         key = expr.path_id
 
-        if key not in self.prefixes:
-            self.prefixes[key] = {expr}
-        else:
-            self.prefixes[key].add(expr)
+        if key:
+            if key not in self.prefixes:
+                self.prefixes[key] = {expr}
+            else:
+                self.prefixes[key].add(expr)
 
-        if expr.rptr:
+        if expr.expr is not None:
+            self.visit(expr.expr)
+
+        if expr.rptr is not None:
             self.visit(expr.rptr.source)
 
 
@@ -243,6 +247,40 @@ def extract_prefixes(expr):
     extractor = PathExtractor()
     extractor.visit(expr)
     return extractor.prefixes
+
+
+def get_prefix_trie(prefixes):
+    trie = {}
+
+    for path_id in prefixes:
+        branch = trie
+        for path_prefix in path_id.iter_prefixes():
+            branch = branch.setdefault(tuple(path_prefix), {})
+
+    return trie
+
+
+def get_common_prefixes(exprs):
+    prefixes = {}
+    for expr in exprs:
+        prefixes.update(extract_prefixes(expr))
+
+    trie = get_prefix_trie(prefixes)
+
+    trails = []
+
+    for root, subtrie in trie.items():
+        path_id = root
+        current = subtrie
+        while current:
+            if len(current) == 1:
+                path_id, current = next(iter(current.items()))
+            else:
+                break
+
+        trails.append(irutils.LinearPath(path_id))
+
+    return {trail: prefixes[trail] for trail in trails}
 
 
 class EdgeQLCompiler(ast.visitor.NodeVisitor):
@@ -540,55 +578,28 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         if isinstance(expr.op, ast.ops.TypeCheckOperator):
             right = self._process_type_ref_expr(right)
 
-        if self._is_type_check(left, right, expr.op):
-            # Type check expression: <path> IS [NOT] <concept>
-            raise NotImplementedError('IS not implemented yet')
-
         binop = irast.BinOp(left=left, right=right, op=expr.op)
-        if ctx.location != 'generator':
-            return binop
+        result_type = irutils.infer_type2(binop, ctx.schema)
 
-        if expr.op not in {ast.ops.OR, ast.ops.AND}:
-            # For any operation except OR/AND, check if any of the operands
-            # are Sets, and if so, create a sub-Set with the BinOp as a
-            # narrowing criterium.
-            if isinstance(left, irast.Set):
-                node = self._get_subset(left)
-                node.criteria.add(
-                    irast.BinOp(left=left, right=binop.right, op=binop.op)
-                )
-                node.as_set = True
-            elif isinstance(right, irast.Set):
-                node = self._get_subset(right)
-                node.criteria.add(
-                    irast.BinOp(left=binop.left, right=right, op=binop.op)
-                )
-                node.as_set = True
-            else:
-                node = binop
+        if result_type is None:
+            raise RuntimeError(
+                'could not resolve the binop '
+                'result type: {} {} {}'.format(left, expr.op, right))
+
+        prefixes = get_common_prefixes([left, right])
+
+        sources = set(itertools.chain.from_iterable(prefixes.values()))
+
+        if sources:
+            node = irast.Set(
+                path_id=irutils.LinearPath([]),
+                scls=result_type,
+                expr=binop,
+                sources=sources,
+                source_conjunction=expr.op == ast.ops.AND
+            )
         else:
-            # For OR/AND ops, check if any of the operands are Sets that
-            # have a common path prefix, and if so, create a sub-Set
-            # representing that common path prefix with the BinOp as
-            # a narrowing criterium.
-            if isinstance(left, irast.Set) and isinstance(right, irast.Set):
-                left_id = left.path_id
-                right_id = right.path_id
-
-                prefix = irutils.LinearPath([
-                    e[0] for e in itertools.takewhile(lambda i: i[0] == i[1],
-                                                      zip(left_id, right_id))
-                ])
-
-                if prefix:
-                    parent_set = ctx.sets[prefix]
-                    node = self._get_subset(parent_set)
-                    node.criteria.add(binop)
-                    node.as_set = True
-                else:
-                    node = binop
-            else:
-                node = binop
+            node = binop
 
         return node
 
@@ -676,19 +687,30 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         return node
 
     def visit_UnaryOpNode(self, expr):
-        operand = self.visit(expr.operand)
-        return irast.UnaryOp(expr=operand, op=expr.op)
-
-    def visit_ExistsPredicateNode(self, expr):
         ctx = self.context.current
 
-        subexpr = self.visit(expr.expr)
+        operand = self.visit(expr.operand)
+        result = irast.UnaryOp(expr=operand, op=expr.op)
+        set_expr = self._is_set_expr(operand)
+        if set_expr is not None:
+            result_type = irutils.infer_type2(result, ctx.schema)
+            if result_type is None:
+                raise RuntimeError(
+                    'could not resolve the unaryop '
+                    'result type: {} {}'.format(expr.op, operand))
 
-        if isinstance(subexpr, irast.Set) and ctx.location == 'generator':
-            subexpr.as_set = True
-            return subexpr
-        else:
-            return irast.ExistPred(expr=subexpr)
+            result = irast.Set(
+                path_id=irutils.LinearPath([]),
+                scls=result_type,
+                expr=result,
+                sources=set((set_expr,))
+            )
+
+        return result
+
+    def visit_ExistsPredicateNode(self, expr):
+        subexpr = self.visit(expr.expr)
+        return irast.ExistPred(expr=subexpr)
 
     def visit_TypeCastNode(self, expr):
         maintype = expr.type.maintype
@@ -848,7 +870,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
             for alias_decl in t_aliases:
                 expr = self.visit(alias_decl.expr)
-                if isinstance(expr, irast.Path):
+                if isinstance(expr, irast.Set):
                     expr.pathvar = alias_decl.alias
 
                 pathvars[alias_decl.alias] = expr
@@ -1170,7 +1192,8 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
             expr = self.visit(target.expr)
 
-            if isinstance(expr, irast.Set):
+            if (isinstance(expr, irast.Set) and
+                    isinstance(expr.scls, s_concepts.Concept)):
                 if expr.rptr is not None:
                     rptrcls = expr.rptr.ptrcls
                 else:
@@ -1257,6 +1280,15 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             expr = self._process_type_ref_elem(expr, expr.context)
 
         return expr
+
+    def _is_set_expr(self, expr):
+        if isinstance(expr, irast.Set):
+            return expr
+        elif (isinstance(expr, irast.ExistPred) and
+                isinstance(expr.expr, irast.Set)):
+            return expr.expr
+        else:
+            return None
 
     def _is_type_check(self, left, right, op):
         return (not reversed and op in (ast.ops.IS, ast.ops.IS_NOT)

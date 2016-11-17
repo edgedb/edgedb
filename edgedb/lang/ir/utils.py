@@ -237,6 +237,7 @@ def infer_type2(ir, schema):
         else:
             left_type = infer_type2(ir.left, schema)
             right_type = infer_type2(ir.right, schema)
+
             result = s_types.TypeRules.get_result(
                 ir.op, (left_type, right_type), schema)
             if result is None:
@@ -244,8 +245,12 @@ def infer_type2(ir, schema):
                     (ir.op, 'reversed'), (right_type, left_type), schema)
 
     elif isinstance(ir, irast2.UnaryOp):
-        operand_type = infer_type2(ir.expr, schema)
-        result = s_types.TypeRules.get_result(ir.op, (operand_type,), schema)
+        if ir.op == ast.ops.NOT:
+            result = schema.get('std::bool')
+        else:
+            operand_type = infer_type2(ir.expr, schema)
+            result = s_types.TypeRules.get_result(
+                ir.op, (operand_type,), schema)
 
     elif isinstance(ir, irast2.TypeCast):
         if ir.type.subtypes:
@@ -524,6 +529,15 @@ class LinearPath(list):
             return self[-2][0]
         else:
             return None
+
+    def iter_prefixes(self):
+        yield self[:1]
+
+        for i in range(1, len(self) - 1, 2):
+            if self[i + 1]:
+                yield self[:i + 2]
+            else:
+                break
 
     def __hash__(self):
         return hash(tuple(self))

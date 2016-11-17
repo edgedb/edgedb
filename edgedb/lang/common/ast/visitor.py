@@ -93,6 +93,10 @@ class NodeVisitor:
             self._memo = {}
         self._context = context
 
+    @property
+    def memo(self):
+        return self._memo
+
     @classmethod
     def run(cls, node, **kwargs):
         visitor = cls(**kwargs)
@@ -108,17 +112,17 @@ class NodeVisitor:
         return node.__class__(result)
 
     def repeated_node_visit(self, node):
-        result = self._memo[node]
+        result = self.memo[node]
         if result is None:
             return node
         else:
             return result
 
     def node_visit(self, node):
-        if node in self._memo:
+        if node in self.memo:
             return self.repeated_node_visit(node)
         else:
-            self._memo[node] = None
+            self.memo[node] = None
 
         for cls in node.__class__.__mro__:
             method = 'visit_' + cls.__name__
@@ -128,7 +132,7 @@ class NodeVisitor:
         else:
             visitor = self.generic_visit
         result = visitor(node)
-        self._memo[node] = result
+        self.memo[node] = result
         return result
 
     def visit(self, node):

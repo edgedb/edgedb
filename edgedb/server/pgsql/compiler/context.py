@@ -49,6 +49,7 @@ class TransformerContextLevel:
             self.local_atom_expr_source = prevlevel.local_atom_expr_source
             self.search_path = prevlevel.search_path
             self.entityref_as_id = prevlevel.entityref_as_id
+            self.memo = prevlevel.memo.copy()
 
             if mode == TransformerContext.NEW_TRANSPARENT:
                 self.location = prevlevel.location
@@ -79,7 +80,7 @@ class TransformerContextLevel:
                 self.in_aggregate = False
                 self.query = pgast.SelectQueryNode()
                 self.rel = self.query
-                self.subquery_map = collections.defaultdict(set)
+                self.subquery_map = collections.defaultdict(dict)
                 self.direct_subquery_ref = False
                 self.node_callbacks = {}
 
@@ -118,7 +119,7 @@ class TransformerContextLevel:
             self.rel = self.query
             self.backend = None
             self.schema = None
-            self.subquery_map = collections.defaultdict(set)
+            self.subquery_map = collections.defaultdict(dict)
             self.direct_subquery_ref = False
             self.node_callbacks = {}
             self.unwind_rlinks = True
@@ -129,6 +130,7 @@ class TransformerContextLevel:
             self.search_path = []
             self.entityref_as_id = False
             self.filter_null_records = True
+            self.memo = {}
 
     def genalias(self, hint=None):
         if hint is None:

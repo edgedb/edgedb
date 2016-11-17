@@ -67,9 +67,17 @@ class TypeRules:
         if rules:
             for sig, result in rules.items():
                 for i, arg in enumerate(args):
+                    if arg is not None:
+                        if hasattr(arg, 'get_implementation_type'):
+                            arg_impl = arg.get_implementation_type()
+                        else:
+                            arg_impl = arg
+                    else:
+                        arg_impl = None
+
                     sig_arg = sig[i]
 
-                    if not cls._issubclass(schema, arg, sig_arg):
+                    if not cls._issubclass(schema, arg_impl, sig_arg):
                         break
                 else:
                     match = result
@@ -230,7 +238,6 @@ def classname_from_type(typ):
 
     Canonical Class name.
     """
-
     is_composite = isinstance(typ, tuple)
 
     if is_composite:
