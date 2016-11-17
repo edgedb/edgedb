@@ -216,7 +216,7 @@ class IRCompiler(ast.visitor.NodeVisitor):
         agg_sort = []
 
         if expr.aggregate:
-            with self.context(self.context.NEW_TRANSPARENT):
+            with self.context.new():
                 ctx.in_aggregate = True
                 ctx.query.aggregates = True
                 args = [self.visit(a) for a in expr.args]
@@ -376,10 +376,6 @@ class IRCompiler(ast.visitor.NodeVisitor):
 
             result = pgast.ConstantNode(
                 value=value, expr=const_expr, index=index, type=const_type)
-
-        if expr.substitute_for:
-            result.origin_field = common.edgedb_name_to_pg_name(
-                expr.substitute_for)
 
         return result
 
@@ -583,7 +579,6 @@ class IRCompiler(ast.visitor.NodeVisitor):
         inverted = False
 
         rel = ctx.rel
-        parent_query = ctx.query
 
         source_cte = self._set_to_cte(expr)
 
@@ -612,13 +607,6 @@ class IRCompiler(ast.visitor.NodeVisitor):
         if source_cte not in subrels:
             subrels[source_cte] = False
 
-            if ctx.location != 'where' and parent_query == rel:
-                if isinstance(source_cte, pgast.CTENode):
-                    parent_query.fromlist.append(
-                        pgast.FromExprNode(expr=source_cte)
-                    )
-                self._pull_ir_map(parent_query, source_cte)
-
         if ctx.location == 'where':
             result = pgast.ExistsNode(expr=source_cte)
             if inverted:
@@ -635,14 +623,6 @@ class IRCompiler(ast.visitor.NodeVisitor):
             else:
                 result = source_cte.bonds(source_cte.edgedbnode.path_id)[0]
 
-        try:
-            callbacks = ctx.node_callbacks.pop(expr)
-        except KeyError:
-            pass
-        else:
-            for callback in callbacks:
-                callback(expr)
-
         return result
 
     def visit_BinOp(self, expr):
@@ -657,7 +637,7 @@ class IRCompiler(ast.visitor.NodeVisitor):
         if expr.op in (ast.ops.IN, ast.ops.NOT_IN) \
                 and isinstance(expr.right, irast.Constant) \
                 and isinstance(expr.right.expr, irast.Sequence):
-            with self.context(TransformerContext.NEW_TRANSPARENT):
+            with self.context.new():
                 ctx.sequence_is_array = True
                 right = self.visit(expr.right)
         else:
@@ -675,8 +655,6 @@ class IRCompiler(ast.visitor.NodeVisitor):
                 )
 
         else:
-            ctx.append_graphs = False
-
             if (expr.op in (ast.ops.IN, ast.ops.NOT_IN) and
                     isinstance(expr.right, irast.Constant)):
                 # "expr IN $CONST" translates into
@@ -864,9 +842,7 @@ class IRCompiler(ast.visitor.NodeVisitor):
     def visit_ExistPred(self, expr):
         ctx = self.context.current
 
-        with self.context(TransformerContext.NEW_TRANSPARENT):
-            ctx.direct_subquery_ref = True
-            ctx.ignore_cardinality = 'recursive'
+        with self.context.new():
             result = self.visit(expr.expr)
 
         if not isinstance(result, pgast.ExistsNode):
@@ -912,14 +888,14 @@ class IRCompiler(ast.visitor.NodeVisitor):
         parent_ctx = self.context.current
         parent_rel = parent_ctx.rel or parent_ctx.query
 
-        with self.context(TransformerContext.SUBQUERY):
+        with self.context.subquery():
             ctx = self.context.current
             subrels = parent_ctx.subquery_map[parent_rel]
             subrels[ctx.query] = False
 
             if stmt.substmts:
                 for substmt in stmt.substmts:
-                    with self.context(TransformerContext.SUBQUERY):
+                    with self.context.subquery():
                         ctx.rel = ctx.query = pgast.CTENode()
                         cte = self.visit(substmt)
                         cte.alias = substmt.name
@@ -927,25 +903,25 @@ class IRCompiler(ast.visitor.NodeVisitor):
                     ctx.explicit_cte_map[substmt] = cte
 
             if stmt.set_op:
-                with self.context(TransformerContext.NEW):
+                with self.context.subquery():
                     ctx.rel = ctx.query = pgast.SelectQueryNode()
                     larg = self.visit(stmt.set_op_larg)
 
-                with self.context(TransformerContext.NEW):
+                with self.context.subquery():
                     ctx.rel = ctx.query = pgast.SelectQueryNode()
                     rarg = self.visit(stmt.set_op_rarg)
 
                 set_op = pgast.PgSQLSetOperator(stmt.set_op)
                 self._setop_from_list(ctx.query, [larg, rarg], set_op)
 
+            self._process_selector(stmt.result, transform_output=True)
+
             if stmt.where:
-                with self.context(TransformerContext.NEW_TRANSPARENT):
+                with self.context.new():
                     self.context.current.location = 'where'
                     where = self.visit(stmt.where)
 
                 ctx.query.where = where
-
-            self._process_selector(stmt.result, transform_output=True)
 
             self._process_orderby(stmt.orderby)
 
@@ -962,13 +938,13 @@ class IRCompiler(ast.visitor.NodeVisitor):
             return ctx.query
 
     def visit_InsertStmt(self, stmt):
-        with self.context(TransformerContext.SUBQUERY):
+        with self.context.subquery():
             ctx = self.context.current
             ctx.query = pgast.InsertQueryNode()
 
             if stmt.substmts:
                 for substmt in stmt.substmts:
-                    with self.context(TransformerContext.SUBQUERY):
+                    with self.context.subquery():
                         ctx.rel = ctx.query = pgast.CTENode()
                         cte = self.visit(substmt)
                         cte.alias = substmt.name
@@ -988,7 +964,7 @@ class IRCompiler(ast.visitor.NodeVisitor):
                 pgast.SelectExprNode(expr=refexpr)
 
             if stmt.result is not None:
-                # with self.context(TransformerContext.SUBQUERY):
+                # with self.context.subquery():
                 #     self._process_selector(
                 #         stmt.result, transform_output=True)
                 #     returning = self.context.current.query
@@ -1009,7 +985,7 @@ class IRCompiler(ast.visitor.NodeVisitor):
             return self._process_insert_data(stmt)
 
     def visit_UpdateStmt(self, stmt):
-        with self.context(TransformerContext.SUBQUERY):
+        with self.context.subquery():
             ctx = self.context.current
             update_range = ctx.query
 
@@ -1020,7 +996,7 @@ class IRCompiler(ast.visitor.NodeVisitor):
 
             if stmt.substmts:
                 for substmt in stmt.substmts:
-                    with self.context(TransformerContext.SUBQUERY):
+                    with self.context.subquery():
                         ctx.rel = ctx.query = pgast.CTENode()
                         cte = self.visit(substmt)
                         cte.alias = substmt.name
@@ -1028,7 +1004,7 @@ class IRCompiler(ast.visitor.NodeVisitor):
                     ctx.explicit_cte_map[substmt] = cte
 
             if stmt.where:
-                with self.context(TransformerContext.NEW_TRANSPARENT):
+                with self.context.new():
                     self.context.current.location = 'where'
                     where = self.visit(stmt.where)
 
@@ -1058,18 +1034,15 @@ class IRCompiler(ast.visitor.NodeVisitor):
             return self._process_update_data(stmt)
 
     def visit_DeleteStmt(self, stmt):
-        with self.context(TransformerContext.SUBQUERY):
+        with self.context.subquery():
             ctx = self.context.current
             delete_range = ctx.query
 
             self._process_selector(stmt.result, transform_output=False)
 
-            path_id = irutils.LinearPath([stmt.shape.scls])
-            delete_range.targets = [delete_range.concept_node_map[path_id]]
-
             if stmt.substmts:
                 for substmt in stmt.substmts:
-                    with self.context(TransformerContext.SUBQUERY):
+                    with self.context.subquery():
                         ctx.rel = ctx.query = pgast.CTENode()
                         cte = self.visit(substmt)
                         cte.alias = substmt.name
@@ -1077,7 +1050,7 @@ class IRCompiler(ast.visitor.NodeVisitor):
                     ctx.explicit_cte_map[substmt] = cte
 
             if stmt.where:
-                with self.context(TransformerContext.NEW_TRANSPARENT):
+                with self.context.new():
                     self.context.current.location = 'where'
                     where = self.visit(stmt.where)
 
@@ -1089,6 +1062,9 @@ class IRCompiler(ast.visitor.NodeVisitor):
                 ctx.query.where = where
 
             self._connect_subrels(ctx.query)
+
+            path_id = irutils.LinearPath([stmt.shape.scls])
+            delete_range.targets = [delete_range.concept_node_map[path_id]]
 
             delete_target = self._table_from_concept(
                 stmt.shape.scls, stmt.shape, None)
@@ -1169,7 +1145,7 @@ class IRCompiler(ast.visitor.NodeVisitor):
                     field=ptr_info.column_name, table=None)
                 cols.append(field)
 
-                with self.context(TransformerContext.NEW_TRANSPARENT):
+                with self.context.new():
                     if self._is_composite_cast(insvalue):
                         insvalue, ins_props = self._extract_update_value(
                             insvalue, ptr_info.column_type)
@@ -1281,7 +1257,7 @@ class IRCompiler(ast.visitor.NodeVisitor):
             #
             return tranches
 
-        with self.context(TransformerContext.NEW_TRANSPARENT):
+        with self.context.new():
             self.context.current.output_format = None
             input_data = self.visit(data)
 
@@ -1524,7 +1500,7 @@ class IRCompiler(ast.visitor.NodeVisitor):
                     field=ptr_info.column_name, table=None)
                 props_only = True
 
-                with self.context(TransformerContext.NEW_TRANSPARENT):
+                with self.context.new():
                     if self._is_composite_cast(updvalue):
                         updvalue, upd_props = self._extract_update_value(
                             updvalue, ptr_info.column_type)
@@ -1601,6 +1577,10 @@ class IRCompiler(ast.visitor.NodeVisitor):
         return query
 
     def _connect_subrels(self, query):
+        # For any subquery or CTE referred to by the *query*
+        # generate the appropriate JOIN condition.  This also
+        # populates the FROM list in *query*.
+        #
         ctx = self.context.current
 
         rels = [
@@ -1610,87 +1590,84 @@ class IRCompiler(ast.visitor.NodeVisitor):
         if not rels:
             return
 
+        # Mark all rels as "connected" so that subsequent calls
+        # of this function on the same *query* work.
+        for rel in rels:
+            ctx.subquery_map[query][rel] = True
+
+        if query.fromlist:
+            fromexpr = query.fromlist[0].expr
+        else:
+            query.fromlist.append(pgast.FromExprNode(expr=None))
+            fromexpr = None
+
+        # Go through all CTE references and LEFT JOIN them
+        # in *query* FROM.
+        ctes = [rel for rel in rels if isinstance(rel, pgast.CTENode)]
+        for rel in ctes:
+            if fromexpr is None:
+                fromexpr = rel
+            else:
+                fromexpr = self._rel_join(fromexpr, rel, type='left')
+
+            if query != ctx.query:
+                # Make sure not to pollute the top-level query target list.
+                self._pull_fieldrefs(query, rel)
+
+            # Make sure that all bonds received by joining the CTEs
+            # are available for JOIN condition injection in the
+            # subqueries below.
+            self._pull_ir_map(query, rel)
+
+        query.fromlist[0].expr = fromexpr
+
         field_map = query.concept_node_map
 
-        for rel in rels:
-            if isinstance(rel, pgast.CTENode):
-                fromlist = {f.expr for f in query.fromlist}
-                fromlist.add(query)
+        subq = [rel for rel in rels
+                if not isinstance(rel, pgast.CTENode) and rel.fromlist]
 
-                for path_id, fieldref in rel._bonds.items():
-                    if path_id not in field_map:
-                        continue
+        for rel in subq:
+            innerrel = rel.fromlist[0].expr
+            fromlist = {f.expr for f in innerrel.fromlist}
+            fromlist.add(innerrel)
 
-                    lref = fieldref[0]
-                    rref = field_map[path_id].expr
+            for path_id, fieldref in innerrel._bonds.items():
+                if path_id not in field_map:
+                    continue
 
-                    if isinstance(lref, pgast.FieldRefNode):
-                        left_id = (lref.table, lref.field)
-                    else:
-                        left_id = lref
+                lref = fieldref[0]
+                rref = field_map[path_id].expr
 
-                    if isinstance(rref, pgast.FieldRefNode):
-                        right_id = (rref.table, rref.field)
-                    else:
-                        right_id = rref
+                if isinstance(lref, pgast.FieldRefNode):
+                    left_id = (lref.table, lref.field)
+                else:
+                    left_id = lref
 
-                    if left_id != right_id:
-                        bond_cond = pgast.BinOpNode(
-                            op='=', left=lref, right=rref)
-                        query.where = self._extend_binop(
-                            query.where, bond_cond)
+                if isinstance(rref, pgast.FieldRefNode):
+                    right_id = (rref.table, rref.field)
+                else:
+                    right_id = rref
 
-                        if isinstance(lref, pgast.FieldRefNode):
-                            if lref.table not in fromlist:
-                                query.fromlist.append(
-                                    pgast.FromExprNode(
-                                        expr=lref.table
-                                    )
-                                )
-                                fromlist.add(lref.table)
-
-            elif rel.fromlist:
-                innerrel = rel.fromlist[0].expr
-                fromlist = {f.expr for f in innerrel.fromlist}
-                fromlist.add(innerrel)
-
-                for path_id, fieldref in innerrel._bonds.items():
-                    if path_id not in field_map:
-                        continue
-
-                    lref = fieldref[0]
-                    rref = field_map[path_id].expr
+                if left_id != right_id:
+                    bond_cond = pgast.BinOpNode(
+                        op='=', left=lref, right=rref)
+                    rel.where = self._extend_binop(
+                        rel.where, bond_cond)
 
                     if isinstance(lref, pgast.FieldRefNode):
-                        left_id = (lref.table, lref.field)
-                    else:
-                        left_id = lref
-
-                    if isinstance(rref, pgast.FieldRefNode):
-                        right_id = (rref.table, rref.field)
-                    else:
-                        right_id = rref
-
-                    if left_id != right_id:
-                        bond_cond = pgast.BinOpNode(
-                            op='=', left=lref, right=rref)
-                        rel.where = self._extend_binop(
-                            rel.where, bond_cond)
-
-                        if isinstance(lref, pgast.FieldRefNode):
-                            if lref.table not in fromlist:
-                                innerrel.fromlist.append(
-                                    pgast.FromExprNode(
-                                        expr=lref.table
-                                    )
+                        if lref.table not in fromlist:
+                            innerrel.fromlist.append(
+                                pgast.FromExprNode(
+                                    expr=lref.table
                                 )
-                                fromlist.add(lref.table)
+                            )
+                            fromlist.add(lref.table)
 
     def _process_selector(self, result_expr, transform_output=True):
         ctx = self.context.current
         query = ctx.query
 
-        with self.context(TransformerContext.NEW_TRANSPARENT):
+        with self.context.new():
             self.context.current.location = 'selector'
             pgexpr = self.visit(result_expr)
             selexprs = [(pgexpr, None)]
@@ -1750,11 +1727,7 @@ class IRCompiler(ast.visitor.NodeVisitor):
 
         ctx = self.context.current
 
-        if ir_set.subset_of is not None:
-            rptr = ir_set.subset_of.rptr
-        else:
-            rptr = ir_set.rptr
-
+        rptr = ir_set.rptr
         ptr_name = rptr.ptrcls.normal_name()
 
         try:
@@ -1854,9 +1827,7 @@ class IRCompiler(ast.visitor.NodeVisitor):
 
     def _pull_ir_map(self, target_rel, source_rel):
         for path_id, ref in source_rel.concept_node_map.items():
-            refexpr = pgast.FieldRefNode(
-                table=source_rel, field=ref.alias,
-                origin=ref.expr.origin, origin_field=ref.expr.origin_field)
+            refexpr = pgast.FieldRefNode(table=source_rel, field=ref.alias)
 
             fieldref = pgast.SelectExprNode(
                 expr=refexpr, alias=ref.alias)
@@ -1884,14 +1855,10 @@ class IRCompiler(ast.visitor.NodeVisitor):
         # Set up references according to link direction
         #
         src_col = common.edgedb_name_to_pg_name('std::source')
-        source_ref = pgast.FieldRefNode(
-            table=map_rel, field=src_col, origin=map_rel,
-            origin_field=src_col)
+        source_ref = pgast.FieldRefNode(table=map_rel, field=src_col)
 
         tgt_col = common.edgedb_name_to_pg_name('std::target')
-        target_ref = pgast.FieldRefNode(
-            table=map_rel, field=tgt_col, origin=map_rel,
-            origin_field=tgt_col)
+        target_ref = pgast.FieldRefNode(table=map_rel, field=tgt_col)
 
         valent_bond = join.bonds(link.source.path_id)[-1]
         forward_bond = self._join_condition(
@@ -1919,8 +1886,7 @@ class IRCompiler(ast.visitor.NodeVisitor):
         if scls_rel:
             # Join the target relation, if we have it
             target_id_field = pgast.FieldRefNode(
-                table=scls_rel, field=id_field,
-                origin=scls_rel, origin_field=id_field)
+                table=scls_rel, field=id_field)
 
             if link.direction == s_pointers.PointerDirection.Inbound:
                 map_tgt_ref = source_ref
@@ -1961,25 +1927,17 @@ class IRCompiler(ast.visitor.NodeVisitor):
         source = join.bonds(ir_set.rptr.source.path_id)[-1]
 
         source_ref_field = pgast.FieldRefNode(
-            table=source.table, field=join_field,
-            origin=source.table, origin_field=join_field)
+            table=source.table, field=join_field)
 
         target_ref_field = pgast.FieldRefNode(
-            table=scls_rel, field=id_field,
-            origin=scls_rel, origin_field=id_field)
+            table=scls_rel, field=id_field)
 
         cond_expr = pgast.BinOpNode(
             left=source_ref_field, op='=', right=target_ref_field)
 
-        prev_bonds = join.bonds(ir_set.path_id)
-
         new_join = self._simple_join(
             join, scls_rel,
             ir_set.path_id, type='inner', condition=cond_expr)
-
-        join.updatebonds(scls_rel)
-        if prev_bonds:
-            join.addbond(ir_set.path_id, prev_bonds[-1])
 
         return new_join
 
@@ -1999,11 +1957,17 @@ class IRCompiler(ast.visitor.NodeVisitor):
 
         fromlist = []
         if ir_set.rptr is not None:
-            alias_hint = ir_set.rptr.ptrcls.normal_name().name
+            alias_hint = '{}_{}'.format(
+                ir_set.rptr.source.scls.name.name,
+                ir_set.rptr.ptrcls.normal_name().name
+            )
         elif ir_set.expr is not None and len(ir_set.sources) == 1:
             src = list(ir_set.sources)[0]
             if src.rptr is not None:
-                alias_hint = src.rptr.ptrcls.normal_name().name
+                alias_hint = '{}_{}'.format(
+                    src.rptr.source.scls.name.name,
+                    src.rptr.ptrcls.normal_name().name
+                )
             else:
                 alias_hint = src.scls.name.name
             alias_hint += '_expr'
@@ -2057,8 +2021,7 @@ class IRCompiler(ast.visitor.NodeVisitor):
                 fromlist.append(pgast.FromExprNode(expr=scls_rel))
 
             bond = pgast.FieldRefNode(
-                table=scls_rel, field=id_field,
-                origin=scls_rel, origin_field=id_field)
+                table=scls_rel, field=id_field)
 
             scls_rel.addbond(ir_set.path_id, bond)
 
@@ -2121,7 +2084,7 @@ class IRCompiler(ast.visitor.NodeVisitor):
             exist_expr, _ = self._is_exists_ir(ir_set.expr)
 
             if exist_expr is None:
-                with self.context(TransformerContext.NEW_TRANSPARENT):
+                with self.context.new():
                     self.context.current.location = 'set_expr'
                     self.context.current.rel = cte
                     set_expr = self.visit(ir_set.expr)
@@ -2154,7 +2117,6 @@ class IRCompiler(ast.visitor.NodeVisitor):
         target_set = irast.Set()
         target_set.scls = ptrcls.target
         target_set.path_id = path_id
-        target_set.subset_of = None
 
         ptr = irast.Pointer(
             source=source_set,
@@ -2262,9 +2224,7 @@ class IRCompiler(ast.visitor.NodeVisitor):
         colname = common.edgedb_name_to_pg_name(ptrname)
 
         fieldrefs = [
-            pgast.FieldRefNode(
-                table=atomref_table, field=colname,
-                origin=atomref_table, origin_field=colname)
+            pgast.FieldRefNode(table=atomref_table, field=colname)
             for atomref_table in atomref_tables
         ]
         alias = rel.alias + (
@@ -2288,11 +2248,8 @@ class IRCompiler(ast.visitor.NodeVisitor):
         # Record atom references in the global map in case they have to
         # be pulled up later
         #
-        refexpr = pgast.FieldRefNode(
-            table=rel, field=selectnode.alias,
-            origin=atomref_tables, origin_field=colname)
-        selectnode = pgast.SelectExprNode(
-            expr=refexpr, alias=selectnode.alias)
+        refexpr = pgast.FieldRefNode(table=rel, field=selectnode.alias)
+        selectnode = pgast.SelectExprNode(expr=refexpr, alias=selectnode.alias)
         ctx.ir_set_field_map[path_id] = selectnode
 
         return alias
@@ -2382,16 +2339,14 @@ class IRCompiler(ast.visitor.NodeVisitor):
                         aref = atomrefs[aname]
                         if isinstance(aref, irast.AtomicRefSimple):
                             selexpr = pgast.FieldRefNode(
-                                table=table, field=colname, origin=table,
-                                origin_field=colname)
+                                table=table, field=colname)
 
                         elif isinstance(aref, irast.SubgraphRef):
                             # Result of a rewrite
 
                             subquery = self.visit(aref.ref)
 
-                            with self.context(
-                                    TransformerContext.NEW_TRANSPARENT):
+                            with self.context.new():
                                 # Make sure subquery outerbonds are connected
                                 # to the proper table, which is an element of
                                 # this union.
@@ -2399,8 +2354,7 @@ class IRCompiler(ast.visitor.NodeVisitor):
                                         ) in enumerate(subquery.outerbonds):
                                     if outerref == node:
                                         fref = pgast.FieldRefNode(
-                                            table=table, field=idcol,
-                                            origin=table, origin_field=idcol)
+                                            table=table, field=idcol)
                                         cmap = ctx.ir_set_field_map
                                         cmap[node] = {
                                             idcol: pgast.SelectExprNode(
@@ -2418,11 +2372,9 @@ class IRCompiler(ast.visitor.NodeVisitor):
                             # lets  all outer references to this subgraph to be
                             # pointed to a SelectExpr in parent_cte.
                             try:
-                                computables = ctx.computable_map[
-                                    node]
+                                computables = ctx.computable_map[node]
                             except KeyError:
-                                computables = ctx.computable_map[
-                                    node] = {}
+                                computables = ctx.computable_map[node] = {}
 
                             computables[aref.name] = aref
 
@@ -2449,8 +2401,7 @@ class IRCompiler(ast.visitor.NodeVisitor):
                         pgast.SelectExprNode(expr=selexpr, alias=colname))
 
                 selexpr = pgast.FieldRefNode(
-                    table=table, field='std::__class__', origin=table,
-                    origin_field='std::__class__')
+                    table=table, field='std::__class__')
 
                 qry.targets.append(
                     pgast.SelectExprNode(
@@ -2557,8 +2508,7 @@ class IRCompiler(ast.visitor.NodeVisitor):
                 # Make sure all property references are pulled up properly
                 for propname, colname in cols:
                     selexpr = pgast.FieldRefNode(
-                        table=table, field=colname, origin=table,
-                        origin_field=colname)
+                        table=table, field=colname)
                     qry.targets.append(
                         pgast.SelectExprNode(expr=selexpr, alias=colname))
 

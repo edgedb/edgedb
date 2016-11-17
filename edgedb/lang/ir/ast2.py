@@ -85,7 +85,6 @@ class Pointer(Base):
         'source',
         'target',
         'ptrcls',
-        'users',
         'direction',
         'anchor',
         'show_as_anchor'
@@ -99,10 +98,6 @@ class Set(Base):
         ('sources', set),
         ('source_conjunction', bool, False),
         'expr',
-        'as_set',
-        ('subset_of', Base, None),
-        ('folded_into_superset', bool, False),
-        'users',
         'rptr',
         'reference',
         'pathvar',

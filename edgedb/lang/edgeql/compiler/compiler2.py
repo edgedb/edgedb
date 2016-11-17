@@ -1120,8 +1120,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
     def _get_subset(self, parent_set):
         return irast.Set(
             scls=parent_set.scls,
-            path_id=parent_set.path_id,
-            subset_of=parent_set
+            path_id=parent_set.path_id
         )
 
     def _resolve_ptr(self,
