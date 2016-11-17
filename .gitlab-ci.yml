@@ -15,6 +15,7 @@ build:
   cache:
     paths:
       - /var/cache/pip/
+      - /var/cache/edgedb-build/
 
   script:
     - mkdir -p /var/lib/venvs
@@ -24,4 +25,5 @@ build:
     - pip --quiet install vex
     - vex --python=python3 -m test pip --quiet install --upgrade setuptools wheel pip pbr
     - vex test pip install -U .
+    - find build -type f ! -name '*.pickle' -delete && find build -type d -empty -delete
     - vex test gosu postgres:postgres pytest --verbose
