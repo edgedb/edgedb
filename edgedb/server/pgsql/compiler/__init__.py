@@ -438,7 +438,7 @@ class IRCompiler(ast.visitor.NodeVisitor):
         ctx = self.context.current
 
         is_string = False
-        arg_type = irutils.infer_type(expr.expr, ctx.schema)
+        arg_type = irutils.infer_type2(expr.expr, ctx.schema)
 
         subj = self.visit(expr.expr)
         index = self.visit(expr.index)
@@ -496,7 +496,7 @@ class IRCompiler(ast.visitor.NodeVisitor):
         zero = pgast.ConstantNode(value=0)
 
         is_string = False
-        arg_type = irutils.infer_type(expr.expr, ctx.schema)
+        arg_type = irutils.infer_type2(expr.expr, ctx.schema)
 
         if isinstance(arg_type, s_atoms.Atom):
             b = arg_type.get_topmost_base()
@@ -635,10 +635,9 @@ class IRCompiler(ast.visitor.NodeVisitor):
             left = self.visit(expr.left)
 
         if expr.op in (ast.ops.IN, ast.ops.NOT_IN) \
-                and isinstance(expr.right, irast.Constant) \
-                and isinstance(expr.right.expr, irast.Sequence):
+                and isinstance(expr.right, irast.Sequence):
             with self.context.new():
-                ctx.sequence_is_array = True
+                self.context.current.sequence_is_array = True
                 right = self.visit(expr.right)
         else:
             right = self.visit(expr.right)
@@ -672,7 +671,7 @@ class IRCompiler(ast.visitor.NodeVisitor):
                     right.expr = pgast.ArrayNode(
                         elements=right.expr.elements)
                 elif right.type == 'text[]':
-                    left_type = irutils.infer_type(
+                    left_type = irutils.infer_type2(
                         expr.left, ctx.schema)
                     if isinstance(left_type, s_obj.NodeClass):
                         if isinstance(left_type, s_concepts.Concept):
@@ -1610,14 +1609,12 @@ class IRCompiler(ast.visitor.NodeVisitor):
             else:
                 fromexpr = self._rel_join(fromexpr, rel, type='left')
 
-            if query != ctx.query:
-                # Make sure not to pollute the top-level query target list.
-                self._pull_fieldrefs(query, rel)
-
             # Make sure that all bonds received by joining the CTEs
             # are available for JOIN condition injection in the
             # subqueries below.
-            self._pull_ir_map(query, rel)
+            # Make sure not to pollute the top-level query target list.
+            self._pull_fieldrefs(
+                query, rel, add_to_selector=query != ctx.query)
 
         query.fromlist[0].expr = fromexpr
 
@@ -1808,32 +1805,21 @@ class IRCompiler(ast.visitor.NodeVisitor):
 
         return join
 
-    def _pull_fieldrefs(self, target_rel, source_rel):
+    def _pull_fieldrefs(self, target_rel, source_rel, add_to_selector=True):
         for path_id, ref in source_rel.concept_node_map.items():
-            refexpr = pgast.FieldRefNode(
-                table=source_rel, field=ref.alias)
-
-            fieldref = pgast.SelectExprNode(
-                expr=refexpr, alias=ref.alias)
+            refexpr = pgast.FieldRefNode(table=source_rel, field=ref.alias)
+            fieldref = pgast.SelectExprNode(expr=refexpr, alias=ref.alias)
 
             if path_id not in target_rel.concept_node_map:
-                target_rel.targets.append(fieldref)
+                if add_to_selector:
+                    target_rel.targets.append(fieldref)
+
                 target_rel.concept_node_map[path_id] = fieldref
 
                 if isinstance(path_id[-1], s_concepts.Concept):
                     bondref = pgast.FieldRefNode(
                         table=target_rel, field=ref.alias)
                     target_rel.addbond(path_id, bondref)
-
-    def _pull_ir_map(self, target_rel, source_rel):
-        for path_id, ref in source_rel.concept_node_map.items():
-            refexpr = pgast.FieldRefNode(table=source_rel, field=ref.alias)
-
-            fieldref = pgast.SelectExprNode(
-                expr=refexpr, alias=ref.alias)
-
-            if path_id not in target_rel.concept_node_map:
-                target_rel.concept_node_map[path_id] = fieldref
 
     def _join_mapping_rel(self, *, ir_set, cte, join, scls_rel):
         id_field = common.edgedb_name_to_pg_name('std::id')
@@ -2227,16 +2213,14 @@ class IRCompiler(ast.visitor.NodeVisitor):
             pgast.FieldRefNode(table=atomref_table, field=colname)
             for atomref_table in atomref_tables
         ]
-        alias = rel.alias + (
-            '_' + ctx.genalias(hint=str(ptrname)))
+        alias = rel.alias + ('_' + ctx.genalias(hint=str(ptrname)))
 
         # If the required atom column was defined in multiple
         # descendant tables and there is no common parent with
         # this column, we'll have to coalesce fieldrefs to all tables.
         #
         if len(fieldrefs) > 1:
-            refexpr = pgast.FunctionCallNode(
-                name='coalesce', args=fieldrefs)
+            refexpr = pgast.FunctionCallNode(name='coalesce', args=fieldrefs)
         else:
             refexpr = fieldrefs[0]
 
