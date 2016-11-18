@@ -232,7 +232,7 @@ class Module(named.NamedClass):
             if not module:
                 return None
 
-            pattern = re.compile(re.escape(nqname).replace('\%', '.*'))
+            pattern = re.compile(re.escape(nqname).replace('%', '.*'))
             index = self.index_by_name
 
             for name, obj in index.items():

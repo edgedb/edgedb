@@ -2447,7 +2447,7 @@ class UpdateMappingIndexes(MetaCommand):
         link_type_ids = (
             int(i)
             for i in re.split(
-                '\D+', m.group('type_ids') or m.group('type_id')))
+                r'\D+', m.group('type_ids') or m.group('type_id')))
 
         links = []
         for i in link_type_ids:

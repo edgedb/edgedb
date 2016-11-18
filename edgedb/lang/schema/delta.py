@@ -205,7 +205,7 @@ class DeltaRefError(DeltaError):
 class DeltaRef:
     patterns = {
         'offset': re.compile(
-            '(?:(?P<repo>\w+):)?(?P<ref>\w+)(?:(?P<off1>~+)(?P<off2>\d*))?'),
+            r'(?:(?P<repo>\w+):)?(?P<ref>\w+)(?:(?P<off1>~+)(?P<off2>\d*))?'),
     }
 
     def __init__(self, ref, offset, repo=None):
