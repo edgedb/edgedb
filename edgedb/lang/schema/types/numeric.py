@@ -185,44 +185,7 @@ class DecimalTypeInfo(s_types.TypeInfo, type=Decimal):
     def op(self, other: (decimal.Decimal, int)) -> 'std::decimal':
         pass
 
-    __add__ = op
-    __radd__ = op
-    __sub__ = op
-    __rsub__ = op
-    __mul__ = op
-    __rmul__ = op
-
-    __truediv__ = op
-    __rtruediv__ = op
-
-    __floordiv__ = op
-    __rfloordiv__ = op
-
-    __mod__ = op
-    __rmod__ = op
-
-    __pow__ = op
-    __rpow__ = op
-
-    __neg__ = op
-    __pos__ = op
-
-    __abs__ = op
-    __invert__ = op
-
-
-_add_impl('std::decimal', Decimal)
-_add_map(Decimal, 'std::decimal')
-_add_map(fpdecimal.FPDecimal, 'std::decimal')
-_add_map(decimal.Decimal, 'std::decimal')
-
-
-class Float(float):
-    pass
-
-
-class FloatTypeInfo(s_types.TypeInfo, type=Float):
-    def op(self, other: (int, float)) -> 'std::float':
+    def unary_op(self) -> 'std::decimal':
         pass
 
     __add__ = op
@@ -244,11 +207,54 @@ class FloatTypeInfo(s_types.TypeInfo, type=Float):
     __pow__ = op
     __rpow__ = op
 
-    __neg__ = op
-    __pos__ = op
+    __neg__ = unary_op
+    __pos__ = unary_op
 
-    __abs__ = op
-    __invert__ = op
+    __abs__ = unary_op
+    __invert__ = unary_op
+
+
+_add_impl('std::decimal', Decimal)
+_add_map(Decimal, 'std::decimal')
+_add_map(fpdecimal.FPDecimal, 'std::decimal')
+_add_map(decimal.Decimal, 'std::decimal')
+
+
+class Float(float):
+    pass
+
+
+class FloatTypeInfo(s_types.TypeInfo, type=Float):
+    def op(self, other: (int, float)) -> 'std::float':
+        pass
+
+    def unary_op(self) -> 'std::float':
+        pass
+
+    __add__ = op
+    __radd__ = op
+    __sub__ = op
+    __rsub__ = op
+    __mul__ = op
+    __rmul__ = op
+
+    __truediv__ = op
+    __rtruediv__ = op
+
+    __floordiv__ = op
+    __rfloordiv__ = op
+
+    __mod__ = op
+    __rmod__ = op
+
+    __pow__ = op
+    __rpow__ = op
+
+    __neg__ = unary_op
+    __pos__ = unary_op
+
+    __abs__ = unary_op
+    __invert__ = unary_op
 
 
 _add_impl('std::float', Float)

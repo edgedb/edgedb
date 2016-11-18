@@ -35,6 +35,9 @@ class IntTypeInfo(s_types.TypeInfo, type=Int):
     def intop(self, other: int) -> 'std::int':
         pass
 
+    def unary_intop(self) -> 'std::int':
+        pass
+
     def float_result(self, other: int) -> 'std::float':
         pass
 
@@ -57,8 +60,8 @@ class IntTypeInfo(s_types.TypeInfo, type=Int):
     __pow__ = intop
     __rpow__ = intop
 
-    __neg__ = intop
-    __pos__ = intop
+    __neg__ = unary_intop
+    __pos__ = unary_intop
 
     __abs__ = intop
     __invert__ = intop

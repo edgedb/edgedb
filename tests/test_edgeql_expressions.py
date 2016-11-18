@@ -66,7 +66,7 @@ class TestExpressions(tb.QueryTestCase):
             ])
 
     async def test_edgeql_expr_op04(self):
-        await self.assert_query_result(r"""
+        await self.assert_query_result_2(r"""
             SELECT -1 + 2 * 3 - 5 - 6.0 / 2;
             SELECT
                 -1 + 2 * 3 - 5 - 6.0 / 2 > 0
