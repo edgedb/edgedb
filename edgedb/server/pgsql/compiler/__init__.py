@@ -435,45 +435,11 @@ class IRCompiler(ast.visitor.NodeVisitor,
     def visit_Set(self, expr):
         ctx = self.context.current
 
-        result = None
-        inverted = False
-
-        rel = ctx.rel
-
         source_cte = self._set_to_cte(expr)
+        ctx.subquery_map[ctx.rel].setdefault(source_cte, False)
 
         if ctx.location == 'where':
-            wrapped_source_cte = pgast.SelectQueryNode(
-                fromlist=[
-                    pgast.FromExprNode(
-                        expr=source_cte
-                    )
-                ]
-            )
-
-            if self._set_has_expr(expr):
-                wrapped_source_cte.where = pgast.FieldRefNode(
-                    table=source_cte,
-                    field='v'
-                )
-            else:
-                exists_set, inverted = self._is_exists_ir(expr.expr)
-
-            self._pull_fieldrefs(wrapped_source_cte, source_cte)
-
-            source_cte = wrapped_source_cte
-
-        subrels = ctx.subquery_map[rel]
-        if source_cte not in subrels:
-            subrels[source_cte] = False
-
-        if ctx.location == 'where':
-            result = pgast.ExistsNode(expr=source_cte)
-            if inverted:
-                result = pgast.UnaryOpNode(
-                    operand=result,
-                    op=ast.ops.NOT
-                )
+            result = self._wrap_set_rel(expr, source_cte)
         else:
             if isinstance(expr.scls, s_atoms.Atom):
                 if expr.expr:
@@ -484,6 +450,253 @@ class IRCompiler(ast.visitor.NodeVisitor,
                 result = source_cte.bonds(source_cte.edgedbnode.path_id)[0]
 
         return result
+
+    def _set_as_exists_op(self, ir_expr, pg_expr):
+        # Make sure *pg_expr* is an EXISTS() expression
+        # Set references inside WHERE are transformed into
+        # EXISTS expressions in visit_Set.  For other
+        # occurrences we do it here.
+        if isinstance(pg_expr, pgast.ExistsNode):
+            result = pg_expr
+        else:
+            if isinstance(pg_expr, pgast.FieldRefNode):
+                result = self._wrap_set_rel(ir_expr, pg_expr.table)
+            else:
+                result = pgast.ExistsNode(expr=pg_expr)
+
+        return result
+
+    def _set_has_expr(self, ir_set):
+        # Returns True if *ir_set* is produced by any expression.
+        # Literally this means that ``Set.expr`` is any expression
+        # except [NOT] EXISTS.
+        return (
+            ir_set.expr is not None and
+            self._is_exists_ir(ir_set.expr)[0] is None
+        )
+
+    def _is_exists_ir(self, ir_expr):
+        if isinstance(ir_expr, irast.Set):
+            ir_expr = ir_expr.expr
+
+        if isinstance(ir_expr, irast.ExistPred):
+            return ir_expr.expr, False
+        elif isinstance(ir_expr, irast.UnaryOp):
+            ex_set, inverted = self._is_exists_ir(ir_expr.expr)
+            if ex_set is not None:
+                return ex_set, not inverted
+            else:
+                return None, None
+        else:
+            return None, None
+
+    def _wrap_set_rel(self, ir_set, set_rel):
+        # For the *set_rel* relation representing the *ir_set*
+        # return the following:
+        #     [NOT] EXISTS (
+        #         SELECT
+        #         FROM <set_rel>
+        #         [WHERE <set_rel>.v]
+        #     )
+        #
+        ctx = self.context.current
+
+        wrapper = pgast.SelectQueryNode(
+            fromlist=[
+                pgast.FromExprNode(
+                    expr=set_rel
+                )
+            ]
+        )
+
+        if self._set_has_expr(ir_set):
+            wrapper.where = pgast.FieldRefNode(
+                table=set_rel,
+                field='v'
+            )
+            not_exists = False
+        else:
+            _, not_exists = self._is_exists_ir(ir_set.expr)
+
+        self._pull_fieldrefs(wrapper, set_rel)
+
+        subrels = ctx.subquery_map[ctx.rel]
+        subrels[wrapper] = False
+        subrels.pop(set_rel, None)
+
+        wrapper = pgast.ExistsNode(
+            expr=wrapper
+        )
+
+        if not_exists:
+            wrapper = pgast.UnaryOpNode(
+                operand=wrapper,
+                op=ast.ops.NOT
+            )
+
+        return wrapper
+
+    def _set_to_cte(self, ir_set):
+        """Generate a Common Table Expression for a given IR Set.
+
+        @param ir_set: IR Set node.
+        """
+        ctx = self.context.current
+
+        root_query = ctx.query
+
+        cte = ctx.ctemap.get(ir_set)
+        if cte is not None:
+            # Already have a CTE for this Set.
+            return cte
+
+        fromlist = []
+        if ir_set.rptr is not None:
+            alias_hint = '{}_{}'.format(
+                ir_set.rptr.source.scls.name.name,
+                ir_set.rptr.ptrcls.normal_name().name
+            )
+        elif ir_set.expr is not None and len(ir_set.sources) == 1:
+            src = list(ir_set.sources)[0]
+            if src.rptr is not None:
+                alias_hint = '{}_{}'.format(
+                    src.rptr.source.scls.name.name,
+                    src.rptr.ptrcls.normal_name().name
+                )
+            else:
+                alias_hint = src.scls.name.name
+            alias_hint += '_expr'
+        else:
+            alias_hint = ir_set.scls.name.name
+
+        cte = pgast.CTENode(
+            concepts=frozenset({ir_set.scls}),
+            alias=ctx.genalias(hint=str(alias_hint)),
+            edgedbnode=ir_set,
+            fromlist=fromlist)
+
+        ctx.ctemap[ir_set] = cte
+
+        sources = [self._set_to_cte(s) for s in ir_set.sources]
+
+        if not sources:
+            if ir_set.rptr is not None:
+                sources = [self._set_to_cte(ir_set.rptr.source)]
+
+        if not sources:
+            if isinstance(ir_set.scls, s_atoms.Atom):
+                # Atomic Sets cannot appear without a source superset.
+                raise RuntimeError('unexpected atomic set without sources')
+
+        if sources:
+            fromexpr = None
+
+            subrels = ctx.subquery_map[cte]
+            jtype = 'inner' if ir_set.source_conjunction else 'full'
+
+            for source in sources:
+                subrels[source] = True
+
+                if fromexpr is None:
+                    fromexpr = source
+                else:
+                    fromexpr = self._rel_join(fromexpr, source, type=jtype)
+
+                self._pull_fieldrefs(cte, source)
+
+            fromlist.append(pgast.FromExprNode(expr=fromexpr))
+
+        if isinstance(ir_set.scls, s_concepts.Concept):
+            id_field = common.edgedb_name_to_pg_name('std::id')
+
+            cte.scls_rel = scls_rel = self._relation_from_concepts(ir_set, cte)
+
+            if not fromlist:
+                # This is the root set, select directly from class table.
+                fromlist.append(pgast.FromExprNode(expr=scls_rel))
+
+            bond = pgast.FieldRefNode(
+                table=scls_rel, field=id_field)
+
+            scls_rel.addbond(ir_set.path_id, bond)
+
+            id_set = self._get_ptr_set(ir_set, 'std::id')
+            id_alias = self._add_inline_atom_ref(cte, id_set, ir_set.path_id)
+
+            bond = pgast.FieldRefNode(table=cte, field=id_alias)
+            cte.addbond(ir_set.path_id, bond)
+
+        else:
+            scls_rel = None
+
+        if ir_set.rptr is not None:
+            # This is the nth step in the path, where n > 1.
+            # Translate pointer traversal into a join clause.
+
+            ptrcls = ir_set.rptr.ptrcls
+
+            fromnode = fromlist[0]
+            parent_cte = fromnode.expr
+            join = parent_cte
+            map_rel = None
+
+            ptr_info = pg_types.get_pointer_storage_info(
+                ptrcls, resolve_type=False)
+
+            if isinstance(ptrcls, s_lprops.LinkProperty):
+                # Reference to singular atom.
+                self._add_inline_atom_ref(parent_cte, ir_set)
+
+                if not ir_set.expr:
+                    ctx.ctemap[ir_set] = parent_cte
+                    return parent_cte
+
+            elif ptr_info.table_type != 'concept':
+                # This is a 1* or ** cardinality, join via a mapping relation.
+                join, map_rel = self._join_mapping_rel(
+                    ir_set=ir_set, cte=cte, join=join, scls_rel=scls_rel)
+
+            elif isinstance(ir_set.scls, s_concepts.Concept):
+                lalias = self._add_inline_atom_ref(parent_cte, ir_set)
+
+                # Direct reference to another object.
+                join = self._join_inline_rel(
+                    ir_set=ir_set, cte=cte, join=join, scls_rel=scls_rel,
+                    join_field=lalias)
+
+            else:
+                # Reference to singular atom.
+                self._add_inline_atom_ref(parent_cte, ir_set)
+
+                if not ir_set.expr:
+                    ctx.ctemap[ir_set] = parent_cte
+                    return parent_cte
+
+            cte.rptr_rel = map_rel
+            fromnode.expr = join
+
+        if ir_set.expr:
+            exist_expr, _ = self._is_exists_ir(ir_set.expr)
+
+            if exist_expr is None:
+                with self.context.new():
+                    self.context.current.location = 'set_expr'
+                    self.context.current.rel = cte
+                    set_expr = self.visit(ir_set.expr)
+                    selectnode = pgast.SelectExprNode(
+                        expr=set_expr,
+                        alias='v')
+                    self._connect_subrels(cte)
+
+                cte.targets.append(selectnode)
+            else:
+                ctx.ctemap[ir_set] = fromlist[0].expr
+                return fromlist[0].expr
+
+        # Finally, attach the CTE to the parent query.
+        root_query.ctes.add(cte)
+
+        return cte
 
     def visit_BinOp(self, expr):
         ctx = self.context.current
@@ -606,74 +819,13 @@ class IRCompiler(ast.visitor.NodeVisitor,
                     right.type = None
 
             if ctx.location == 'set_expr' and op in {ast.ops.AND, ast.ops.OR}:
-                left = self._massage_binop_operand(expr.left, left)
-                right = self._massage_binop_operand(expr.right, right)
+                left = self._set_as_exists_op(expr.left, left)
+                right = self._set_as_exists_op(expr.right, right)
 
             result = pgast.BinOpNode(
                 op=op, left=left, right=right)
 
         return result
-
-    def _massage_binop_operand(self, ir_expr, pg_expr):
-        ctx = self.context.current
-
-        exists_set, inverted = self._is_exists_ir(ir_expr)
-
-        if isinstance(pg_expr, pgast.ExistsNode):
-            result = pg_expr
-        else:
-            wrapper = pgast.SelectQueryNode(
-                fromlist=[
-                    pgast.FromExprNode(
-                        expr=pg_expr.table
-                    )
-                ]
-            )
-
-            if self._set_has_expr(ir_expr):
-                wrapper.where = pgast.FieldRefNode(
-                    table=pg_expr.table,
-                    field='v'
-                )
-
-            self._pull_fieldrefs(wrapper, pg_expr.table)
-            subrels = ctx.subquery_map[ctx.rel]
-            subrels[wrapper] = False
-            subrels.pop(pg_expr.table, None)
-
-            result = pgast.ExistsNode(
-                expr=wrapper
-            )
-
-            if inverted:
-                # EXISTS == NOT IS NULL
-                result = pgast.UnaryOpNode(
-                    operand=result,
-                    op=ast.ops.NOT
-                )
-
-        return result
-
-    def _set_has_expr(self, ir_set):
-        return (
-            ir_set.expr is not None and
-            self._is_exists_ir(ir_set.expr)[0] is None
-        )
-
-    def _is_exists_ir(self, ir_expr):
-        if isinstance(ir_expr, irast.Set):
-            ir_expr = ir_expr.expr
-
-        if isinstance(ir_expr, irast.ExistPred):
-            return ir_expr.expr, False
-        elif isinstance(ir_expr, irast.UnaryOp):
-            ex_set, inverted = self._is_exists_ir(ir_expr.expr)
-            if ex_set is not None:
-                return ex_set, not inverted
-            else:
-                return None, None
-        else:
-            return None, None
 
     def visit_UnaryOp(self, expr):
         operand = self.visit(expr.expr)
@@ -695,33 +847,7 @@ class IRCompiler(ast.visitor.NodeVisitor,
         return result
 
     def visit_ExistPred(self, expr):
-        ctx = self.context.current
-
-        with self.context.new():
-            result = self.visit(expr.expr)
-
-        if not isinstance(result, pgast.ExistsNode):
-            if isinstance(result, pgast.FieldRefNode):
-                wrapper = pgast.SelectQueryNode(
-                    fromlist=[
-                        pgast.FromExprNode(
-                            expr=result.table
-                        )
-                    ]
-                )
-
-                self._pull_fieldrefs(wrapper, result.table)
-                subrels = ctx.subquery_map[ctx.rel]
-                subrels[wrapper] = False
-                subrels.pop(result.table, None)
-
-                result = pgast.ExistsNode(
-                    expr=wrapper
-                )
-            else:
-                result = pgast.ExistsNode(expr=result)
-
-        return result
+        return self._set_as_exists_op(expr.expr, self.visit(expr.expr))
 
     def visit_TypeRef(self, expr):
         ctx = self.context.current
@@ -1143,168 +1269,6 @@ class IRCompiler(ast.visitor.NodeVisitor,
             ir_set.path_id, type='inner', condition=cond_expr)
 
         return new_join
-
-    def _set_to_cte(self, ir_set):
-        """Generate a Common Table Expression for a given IR Set.
-
-        @param ir_set: IR Set node.
-        """
-        ctx = self.context.current
-
-        root_query = ctx.query
-
-        cte = ctx.ctemap.get(ir_set)
-        if cte is not None:
-            # Already have a CTE for this Set.
-            return cte
-
-        fromlist = []
-        if ir_set.rptr is not None:
-            alias_hint = '{}_{}'.format(
-                ir_set.rptr.source.scls.name.name,
-                ir_set.rptr.ptrcls.normal_name().name
-            )
-        elif ir_set.expr is not None and len(ir_set.sources) == 1:
-            src = list(ir_set.sources)[0]
-            if src.rptr is not None:
-                alias_hint = '{}_{}'.format(
-                    src.rptr.source.scls.name.name,
-                    src.rptr.ptrcls.normal_name().name
-                )
-            else:
-                alias_hint = src.scls.name.name
-            alias_hint += '_expr'
-        else:
-            alias_hint = ir_set.scls.name.name
-
-        cte = pgast.CTENode(
-            concepts=frozenset({ir_set.scls}),
-            alias=ctx.genalias(hint=str(alias_hint)),
-            edgedbnode=ir_set,
-            fromlist=fromlist)
-
-        ctx.ctemap[ir_set] = cte
-
-        sources = [self._set_to_cte(s) for s in ir_set.sources]
-
-        if not sources:
-            if ir_set.rptr is not None:
-                sources = [self._set_to_cte(ir_set.rptr.source)]
-
-        if not sources:
-            if isinstance(ir_set.scls, s_atoms.Atom):
-                # Atomic Sets cannot appear without a source superset.
-                raise RuntimeError('unexpected atomic set without sources')
-
-        if sources:
-            fromexpr = None
-
-            subrels = ctx.subquery_map[cte]
-            jtype = 'inner' if ir_set.source_conjunction else 'full'
-
-            for source in sources:
-                subrels[source] = True
-
-                if fromexpr is None:
-                    fromexpr = source
-                else:
-                    fromexpr = self._rel_join(fromexpr, source, type=jtype)
-
-                self._pull_fieldrefs(cte, source)
-
-            fromlist.append(pgast.FromExprNode(expr=fromexpr))
-
-        if isinstance(ir_set.scls, s_concepts.Concept):
-            id_field = common.edgedb_name_to_pg_name('std::id')
-
-            cte.scls_rel = scls_rel = self._relation_from_concepts(ir_set, cte)
-
-            if not fromlist:
-                # This is the root set, select directly from class table.
-                fromlist.append(pgast.FromExprNode(expr=scls_rel))
-
-            bond = pgast.FieldRefNode(
-                table=scls_rel, field=id_field)
-
-            scls_rel.addbond(ir_set.path_id, bond)
-
-            id_set = self._get_ptr_set(ir_set, 'std::id')
-            id_alias = self._add_inline_atom_ref(cte, id_set, ir_set.path_id)
-
-            bond = pgast.FieldRefNode(table=cte, field=id_alias)
-            cte.addbond(ir_set.path_id, bond)
-
-        else:
-            scls_rel = None
-
-        if ir_set.rptr is not None:
-            # This is the nth step in the path, where n > 1.
-            # Translate pointer traversal into a join clause.
-
-            ptrcls = ir_set.rptr.ptrcls
-
-            fromnode = fromlist[0]
-            parent_cte = fromnode.expr
-            join = parent_cte
-            map_rel = None
-
-            ptr_info = pg_types.get_pointer_storage_info(
-                ptrcls, resolve_type=False)
-
-            if isinstance(ptrcls, s_lprops.LinkProperty):
-                # Reference to singular atom.
-                self._add_inline_atom_ref(parent_cte, ir_set)
-
-                if not ir_set.expr:
-                    ctx.ctemap[ir_set] = parent_cte
-                    return parent_cte
-
-            elif ptr_info.table_type != 'concept':
-                # This is a 1* or ** cardinality, join via a mapping relation.
-                join, map_rel = self._join_mapping_rel(
-                    ir_set=ir_set, cte=cte, join=join, scls_rel=scls_rel)
-
-            elif isinstance(ir_set.scls, s_concepts.Concept):
-                lalias = self._add_inline_atom_ref(parent_cte, ir_set)
-
-                # Direct reference to another object.
-                join = self._join_inline_rel(
-                    ir_set=ir_set, cte=cte, join=join, scls_rel=scls_rel,
-                    join_field=lalias)
-
-            else:
-                # Reference to singular atom.
-                self._add_inline_atom_ref(parent_cte, ir_set)
-
-                if not ir_set.expr:
-                    ctx.ctemap[ir_set] = parent_cte
-                    return parent_cte
-
-            cte.rptr_rel = map_rel
-            fromnode.expr = join
-
-        if ir_set.expr:
-            exist_expr, _ = self._is_exists_ir(ir_set.expr)
-
-            if exist_expr is None:
-                with self.context.new():
-                    self.context.current.location = 'set_expr'
-                    self.context.current.rel = cte
-                    set_expr = self.visit(ir_set.expr)
-                    selectnode = pgast.SelectExprNode(
-                        expr=set_expr,
-                        alias='v')
-                    self._connect_subrels(cte)
-
-                cte.targets.append(selectnode)
-            else:
-                ctx.ctemap[ir_set] = fromlist[0].expr
-                return fromlist[0].expr
-
-        # Finally, attach the CTE to the parent query.
-        root_query.ctes.add(cte)
-
-        return cte
 
     def _get_ptr_set(self, source_set, ptr_name):
         ctx = self.context.current
