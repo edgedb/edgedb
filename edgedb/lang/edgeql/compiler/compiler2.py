@@ -582,9 +582,12 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         result_type = irutils.infer_type2(binop, ctx.schema)
 
         if result_type is None:
-            raise RuntimeError(
-                'could not resolve the binop '
-                'result type: {} {} {}'.format(left, expr.op, right))
+            left_type = irutils.infer_type2(binop.left, ctx.schema)
+            right_type = irutils.infer_type2(binop.right, ctx.schema)
+            err = 'operator does not exist: {} {} {}'.format(
+                left_type.name, expr.op, right_type.name)
+
+            raise errors.EdgeQLError(err, context=expr.context)
 
         prefixes = get_common_prefixes([left, right])
 

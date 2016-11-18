@@ -274,11 +274,15 @@ def infer_type2(ir, schema):
 
     elif isinstance(ir, irast2.IndexIndirection):
         arg = infer_type2(ir.expr, schema)
-        str_t = schema.get('std::str')
-        if arg.issubclass(str_t):
-            result = arg
-        else:
+
+        if arg is None:
             result = None
+        else:
+            str_t = schema.get('std::str')
+            if arg.issubclass(str_t):
+                result = arg
+            else:
+                result = None
 
     else:
         result = None

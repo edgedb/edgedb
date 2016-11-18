@@ -25,7 +25,7 @@ class TestIntrospection(tb.QueryTestCase):
     """
 
     async def test_edgeql_introspection_concept01(self):
-        await self.assert_query_result(r"""
+        await self.assert_query_result_2(r"""
             WITH MODULE schema
             SELECT `Concept` {
                 name
@@ -48,7 +48,7 @@ class TestIntrospection(tb.QueryTestCase):
         ])
 
     async def test_edgeql_introspection_concept02(self):
-        await self.assert_query_result(r"""
+        await self.assert_query_result_2(r"""
             WITH MODULE schema
             SELECT `Concept` {
                 name,
@@ -75,7 +75,7 @@ class TestIntrospection(tb.QueryTestCase):
         ])
 
     async def test_edgeql_introspection_concept03(self):
-        await self.assert_query_result(r"""
+        await self.assert_query_result_2(r"""
             WITH MODULE schema
             SELECT `Concept` {
                 name,

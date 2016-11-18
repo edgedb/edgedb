@@ -830,10 +830,6 @@ class IRCompiler(ast.visitor.NodeVisitor):
         elif getattr(ctx, 'sequence_is_array', False):
             result = pgast.SequenceNode(elements=elements)
         else:
-            if ctx.output_format == 'json':
-                elements.insert(
-                    0, pgast.ConstantNode(
-                        value=common.FREEFORM_RECORD_ID))
             result = pgast.RowExprNode(args=elements)
 
         return result
