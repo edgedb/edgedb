@@ -37,3 +37,11 @@ class Sequence(str):
 
 _add_impl('std::sequence', Sequence)
 _add_map(Sequence, 'std::sequence')
+
+
+class SequenceTypeInfo(s_types.TypeInfo, type=Sequence):
+    def strop(self, other: (str, Sequence)) -> 'std::sequence':
+        pass
+
+    __add__ = strop
+    __radd__ = strop

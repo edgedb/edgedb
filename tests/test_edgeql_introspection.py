@@ -25,7 +25,7 @@ class TestIntrospection(tb.QueryTestCase):
     """
 
     async def test_edgeql_introspection_concept01(self):
-        await self.assert_query_result_2(r"""
+        await self.assert_query_result(r"""
             WITH MODULE schema
             SELECT `Concept` {
                 name
@@ -48,7 +48,7 @@ class TestIntrospection(tb.QueryTestCase):
         ])
 
     async def test_edgeql_introspection_concept02(self):
-        await self.assert_query_result_2(r"""
+        await self.assert_query_result(r"""
             WITH MODULE schema
             SELECT `Concept` {
                 name,
@@ -75,7 +75,7 @@ class TestIntrospection(tb.QueryTestCase):
         ])
 
     async def test_edgeql_introspection_concept03(self):
-        await self.assert_query_result_2(r"""
+        await self.assert_query_result(r"""
             WITH MODULE schema
             SELECT `Concept` {
                 name,
@@ -111,7 +111,7 @@ class TestIntrospection(tb.QueryTestCase):
                         name,
                         @value
                     } WHERE `Concept`.links.attributes.name = 'stdattrs::name'
-                      ORDER BY `Attribute`.name
+                      ORDER BY `Concept`.links.attributes.name
                 } ORDER BY `Concept`.links.name
             }
             WHERE `Concept`.name = 'test::User';
@@ -158,9 +158,9 @@ class TestIntrospection(tb.QueryTestCase):
                         name,
                         @value
                     } WHERE EXISTS `Concept`.links.attributes@value
-                      ORDER BY `Attribute`.name
+                      ORDER BY `Concept`.links.attributes.name
                 } WHERE `Concept`.links.name LIKE 'test::%'
-                  ORDER BY `Link`.name
+                  ORDER BY `Concept`.links.name
             }
             WHERE `Concept`.name = 'test::User';
         """, [

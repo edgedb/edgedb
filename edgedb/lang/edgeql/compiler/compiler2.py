@@ -988,11 +988,27 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     msg = 'cannot determine expression result type'
                     raise errors.EdgeQLError(msg, context=lexpr.context)
 
-                ptrcls = s_links.Link(
-                    name=sn.SchemaName(
-                        module=ptrname[0] or ptrsource.name.module,
-                        name=ptrname[1]),
-                ).derive(schema, ptrsource, target_class)
+                if ptrname[0]:
+                    pointer_name = sn.SchemaName(
+                        module=ptrname[0], name=ptrname[1])
+                else:
+                    pointer_name = ptrname[1]
+
+                ptrcls = ptrsource.resolve_pointer(
+                    self.schema,
+                    pointer_name,
+                    direction=ptr_direction,
+                    look_in_children=False,
+                    include_inherited=True)
+
+                if ptrcls is None:
+                    # XXX: raise here if in UPDATE/INSERT
+
+                    ptrcls = s_links.Link(
+                        name=sn.SchemaName(
+                            module=ptrname[0] or ptrsource.name.module,
+                            name=ptrname[1]),
+                    ).derive(schema, ptrsource, target_class)
 
                 if ptrcls.normal_name() == 'std::__class__':
                     msg = 'cannot assign to __class__'

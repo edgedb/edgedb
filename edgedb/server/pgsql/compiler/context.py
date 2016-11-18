@@ -10,7 +10,7 @@ import collections
 
 from edgedb.lang.common.datastructures import OrderedSet
 
-from edgedb.server.pgsql import ast as pgast
+from edgedb.server.pgsql import ast2 as pgast
 from edgedb.server.pgsql import common
 
 
@@ -34,20 +34,21 @@ class TransformerContextLevel:
             self.aliascnt = {}
             self.ctemap = {}
             self.explicit_cte_map = {}
-            self.ir_set_field_map = {}
             self.computable_map = {}
             self.argmap = OrderedSet()
             self.location = 'query'
             self.in_aggregate = False
-            self.query = pgast.SelectQueryNode()
+            self.query = pgast.SelectStmt()
             self.rel = self.query
             self.backend = None
             self.schema = None
             self.subquery_map = collections.defaultdict(dict)
+            self.set_refs = set()
             self.record_info = {}
             self.output_format = None
             self.filter_null_records = True
             self.memo = {}
+            self.entityref_as_id = False
 
         else:
             self.argmap = prevlevel.argmap
@@ -63,21 +64,22 @@ class TransformerContextLevel:
             self.location = prevlevel.location
             self.ctemap = prevlevel.ctemap
             self.explicit_cte_map = prevlevel.explicit_cte_map
-            self.ir_set_field_map = prevlevel.ir_set_field_map
             self.computable_map = prevlevel.computable_map
             self.subquery_map = prevlevel.subquery_map
+            self.set_refs = prevlevel.set_refs
             self.filter_null_records = prevlevel.filter_null_records
+            self.entityref_as_id = prevlevel.entityref_as_id
 
             if mode == TransformerContext.SUBQUERY:
                 self.location = 'query'
                 self.ctemap = prevlevel.ctemap.copy()
                 self.explicit_cte_map = prevlevel.explicit_cte_map.copy()
-                self.ir_set_field_map = prevlevel.ir_set_field_map.copy()
                 self.computable_map = prevlevel.computable_map.copy()
                 self.in_aggregate = False
-                self.query = pgast.SelectQueryNode()
+                self.query = pgast.SelectStmt()
                 self.rel = self.query
                 self.subquery_map = collections.defaultdict(dict)
+                self.set_refs = set()
                 self.filter_null_records = True
 
     def genalias(self, hint=None):

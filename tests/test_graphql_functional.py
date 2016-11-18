@@ -129,7 +129,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             [{
                 'name': 'Alice',
                 'age': 27,
-                'groups': []
+                'groups': None
             }, {
                 'name': 'Jane',
                 'age': 26,

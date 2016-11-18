@@ -94,7 +94,7 @@ class Cli:
         self.conn_args = conn_args
         self.cur_db = None
         self.graphql = False
-        self.new_compiler = False
+        self.old_compiler = False
 
     def get_prompt(self):
         return '{}>'.format(self.cur_db)
@@ -115,8 +115,8 @@ class Cli:
             (pt_token.Token.Toolbar.On, 'On') if self.graphql else
                 (pt_token.Token.Toolbar, 'Off'),
 
-            (pt_token.Token.Toolbar, '   [F4] New Compiler: '),
-            (pt_token.Token.Toolbar.On, 'On') if self.new_compiler else
+            (pt_token.Token.Toolbar, '   [F4] Old Compiler: '),
+            (pt_token.Token.Toolbar.On, 'On') if self.old_compiler else
                 (pt_token.Token.Toolbar, 'Off')
         ]
 
@@ -135,7 +135,7 @@ class Cli:
 
         @key_binding_manager.registry.add_binding(pt_keys.Keys.F4)
         def _(event):
-            self.new_compiler = not self.new_compiler
+            self.old_compiler = not self.old_compiler
 
         @key_binding_manager.registry.add_binding(pt_keys.Keys.Tab)
         def _(event):
@@ -247,8 +247,8 @@ class Cli:
                     if self.graphql:
                         command = command.rstrip(';')
                     flags = set()
-                    if self.new_compiler:
-                        flags.add('experimental-compiler')
+                    if self.old_compiler:
+                        flags.add('compiler-v0')
 
                     result = self.run_coroutine(
                         self.connection.execute(

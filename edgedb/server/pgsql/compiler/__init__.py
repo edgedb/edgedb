@@ -18,8 +18,8 @@ from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
 
-from edgedb.server.pgsql import ast as pgast
-from edgedb.server.pgsql import codegen as pgcodegen
+from edgedb.server.pgsql import ast2 as pgast
+from edgedb.server.pgsql import codegen2 as pgcodegen
 from edgedb.server.pgsql import common
 from edgedb.server.pgsql import types as pg_types
 from edgedb.server.pgsql import exceptions as pg_errors
@@ -120,7 +120,6 @@ class IRCompiler(ast.visitor.NodeVisitor,
 
         my_elements = []
         attribute_map = []
-        virtuals_map = {}
         testref = None
 
         for i, e in enumerate(expr.elements):
@@ -134,16 +133,16 @@ class IRCompiler(ast.visitor.NodeVisitor,
             else:
                 ptr_target = e.rptr.ptrcls.source
 
-            if isinstance(element, pgast.SelectQueryNode):
+            if isinstance(element, pgast.SelectStmt):
                 if not e.rptr.ptrcls.singular(ptr_direction):
                     # Aggregate subquery results to keep correct
                     # cardinality.
-                    element.targets[0] = pgast.FunctionCallNode(
+                    element.target_list[0].val = pgast.FuncCall(
                         name='array_agg',
-                        args=[element.targets[0]],
-                        agg_sort=element.orderby
+                        args=[element.target_list[0].val],
+                        agg_order=element.sort_clause
                     )
-                    element.orderby = []
+                    element.sort_clause = []
 
             if ptr_name == 'std::id':
                 testref = element
@@ -165,10 +164,10 @@ class IRCompiler(ast.visitor.NodeVisitor,
                         key = '@' + key.name
                     else:
                         key = key.name
-                keyvals.append(pgast.ConstantNode(value=key))
+                keyvals.append(pgast.Constant(val=key))
                 keyvals.append(pgexpr)
 
-            result = pgast.FunctionCallNode(
+            result = pgast.FuncCall(
                 name='jsonb_build_object', args=keyvals)
 
         elif ctx.entityref_as_id:
@@ -180,51 +179,34 @@ class IRCompiler(ast.visitor.NodeVisitor,
                 raise ValueError('cannot find id ptr in entitityref record')
 
         else:
-            metaclass = expr.scls.get_canonical_class()
-            metaclass_name = '{}.{}'.format(
-                metaclass.__module__, metaclass.__name__)
-            marker = common.RecordInfo(
-                attribute_map=attribute_map, virtuals_map=virtuals_map,
-                metaclass=metaclass_name, classname=expr.scls.name)
-
-            ctx.record_info[marker.path_id] = marker
-            ctx.backend._register_record_info(marker)
-
-            marker = pgast.ConstantNode(value=marker.path_id)
-            marker_type = pgast.TypeNode(
-                name='edgedb.known_record_marker_t')
-            marker = pgast.TypeCastNode(expr=marker, type=marker_type)
-
-            my_elements.insert(0, marker)
-
-            result = pgast.RowExprNode(args=my_elements)
+            result = pgast.RowExpr(args=my_elements)
 
         if testref is not None and ctx.filter_null_records:
-            when_cond = pgast.NullTestNode(expr=testref)
+            when_cond = pgast.NullTest(arg=testref)
 
-            when_expr = pgast.CaseWhenNode(
-                expr=when_cond, result=pgast.ConstantNode(value=None))
-            result = pgast.CaseExprNode(
-                args=[when_expr], default=result,
-                filter_expr=pgast.UnaryOpNode(
-                    operand=when_cond, op=ast.ops.NOT))
+            when_expr = pgast.CaseWhen(
+                expr=when_cond,
+                result=pgast.Constant(val=None)
+            )
+
+            result = pgast.CaseExpr(
+                args=[when_expr],
+                defresult=result)
 
         return result
 
     def visit_Constant(self, expr):
         ctx = self.context.current
 
-        if expr.type:
+        if expr.type and expr.type.name != 'std::null':
             const_type = self._schema_type_to_pg_type(expr.type)
         else:
             const_type = None
 
         if expr.expr:
-            result = pgast.ConstantNode(
-                expr=self.visit(expr.expr))
+            result = self.visit(expr.expr)
         else:
-            value = expr.value
-            const_expr = None
+            val = expr.value
             index = None
 
             if expr.index is not None and not isinstance(expr.index, int):
@@ -234,8 +216,17 @@ class IRCompiler(ast.visitor.NodeVisitor,
                     ctx.argmap.add(expr.index)
                     index = len(ctx.argmap) - 1
 
-            result = pgast.ConstantNode(
-                value=value, expr=const_expr, index=index, type=const_type)
+                result = pgast.ParamRef(number=index)
+            else:
+                result = pgast.Constant(val=val)
+
+        if const_type not in {None, 'bigint'}:
+            result = pgast.TypeCast(
+                arg=result,
+                type_name=pgast.TypeName(
+                    name=const_type
+                )
+            )
 
         return result
 
@@ -262,9 +253,11 @@ class IRCompiler(ast.visitor.NodeVisitor,
             if target_type.maintype == 'list':
                 elem_type = pg_types.pg_type_from_atom(
                     schema, schema.get(target_type.subtypes[0]), topbase=True)
-                result = pgast.TypeCastNode(
-                    expr=pg_expr,
-                    type=pgast.TypeNode(name=elem_type, array_bounds=[-1]))
+                result = pgast.TypeCast(
+                    arg=pg_expr,
+                    type_name=pgast.TypeName(
+                        name=elem_type,
+                        array_bounds=[-1]))
             else:
                 raise NotImplementedError(
                     '{} composite type is not supported '
@@ -276,15 +269,15 @@ class IRCompiler(ast.visitor.NodeVisitor,
 
             if (expr_type and expr_type is bool and
                     target_type.issubclass(int_class)):
-                when_expr = pgast.CaseWhenNode(
-                    expr=pg_expr, result=pgast.ConstantNode(value=1))
-                default = pgast.ConstantNode(value=0)
-                result = pgast.CaseExprNode(
-                    args=[when_expr], default=default)
+                when_expr = pgast.CaseWhen(
+                    expr=pg_expr, result=pgast.Constant(val=1))
+                default = pgast.Constant(val=0)
+                result = pgast.CaseExpr(
+                    args=[when_expr], defresult=default)
             else:
-                result = pgast.TypeCastNode(
-                    expr=pg_expr,
-                    type=pgast.TypeNode(
+                result = pgast.TypeCast(
+                    arg=pg_expr,
+                    type_name=pgast.TypeName(
                         name=pg_types.pg_type_from_atom(
                             schema, target_type, topbase=True)
                     )
@@ -307,40 +300,40 @@ class IRCompiler(ast.visitor.NodeVisitor,
             b = arg_type.get_topmost_base()
             is_string = b.name == 'std::str'
 
-        one = pgast.ConstantNode(value=1)
-        zero = pgast.ConstantNode(value=0)
+        one = pgast.Constant(val=1)
+        zero = pgast.Constant(val=0)
 
-        when_cond = pgast.BinOpNode(
-            left=index, right=zero, op=ast.ops.LT)
+        when_cond = self._new_binop(
+            lexpr=index, rexpr=zero, op=ast.ops.LT)
 
-        index_plus_one = pgast.BinOpNode(
-            left=index, op=ast.ops.ADD, right=one)
+        index_plus_one = self._new_binop(
+            lexpr=index, op=ast.ops.ADD, rexpr=one)
 
         if is_string:
-            upper_bound = pgast.FunctionCallNode(
+            upper_bound = pgast.FuncCall(
                 name='char_length', args=[subj])
         else:
-            upper_bound = pgast.FunctionCallNode(
+            upper_bound = pgast.FuncCall(
                 name='array_upper', args=[subj, one])
 
-        neg_off = pgast.BinOpNode(
-            left=upper_bound, right=index_plus_one, op=ast.ops.ADD)
+        neg_off = self._new_binop(
+            lexpr=upper_bound, rexpr=index_plus_one, op=ast.ops.ADD)
 
-        when_expr = pgast.CaseWhenNode(
+        when_expr = pgast.CaseWhen(
             expr=when_cond, result=neg_off)
 
-        index = pgast.CaseExprNode(
-            args=[when_expr], default=index_plus_one)
+        index = pgast.CaseExpr(
+            args=[when_expr], defresult=index_plus_one)
 
         if is_string:
-            result = pgast.FunctionCallNode(
+            result = pgast.FuncCall(
                 name='substr',
                 args=[subj, index, one]
             )
         else:
-            indirection = pgast.IndexIndirectionNode(upper=index)
-            result = pgast.IndirectionNode(
-                expr=subj, indirection=indirection)
+            indirection = pgast.Indices(ridx=index)
+            result = pgast.Indirection(
+                arg=subj, indirection=[indirection])
 
         return result
 
@@ -352,8 +345,8 @@ class IRCompiler(ast.visitor.NodeVisitor,
         subj = self.visit(expr.expr)
         start = self.visit(expr.start)
         stop = self.visit(expr.stop)
-        one = pgast.ConstantNode(value=1)
-        zero = pgast.ConstantNode(value=0)
+        one = pgast.Constant(val=1)
+        zero = pgast.Constant(val=0)
 
         is_string = False
         arg_type = irutils.infer_type2(expr.expr, ctx.schema)
@@ -363,69 +356,63 @@ class IRCompiler(ast.visitor.NodeVisitor,
             is_string = b.name == 'std::str'
 
         if is_string:
-            upper_bound = pgast.FunctionCallNode(
+            upper_bound = pgast.FuncCall(
                 name='char_length', args=[subj])
         else:
-            upper_bound = pgast.FunctionCallNode(
+            upper_bound = pgast.FuncCall(
                 name='array_upper', args=[subj, one])
 
-        if (
-                isinstance(start, pgast.ConstantNode) and
-                start.value is None and start.index is None and
-                start.expr is None):
+        if isinstance(start, pgast.Constant) and start.val is None:
             lower = one
         else:
             lower = start
 
-            when_cond = pgast.BinOpNode(
-                left=lower, right=zero, op=ast.ops.LT)
-            lower_plus_one = pgast.BinOpNode(
-                left=lower, right=one, op=ast.ops.ADD)
+            when_cond = self._new_binop(
+                lexpr=lower, rexpr=zero, op=ast.ops.LT)
+            lower_plus_one = self._new_binop(
+                lexpr=lower, rexpr=one, op=ast.ops.ADD)
 
-            neg_off = pgast.BinOpNode(
-                left=upper_bound, right=lower_plus_one, op=ast.ops.ADD)
+            neg_off = self._new_binop(
+                lexpr=upper_bound, rexpr=lower_plus_one, op=ast.ops.ADD)
 
-            when_expr = pgast.CaseWhenNode(
+            when_expr = pgast.CaseWhen(
                 expr=when_cond, result=neg_off)
-            lower = pgast.CaseExprNode(
-                args=[when_expr], default=lower_plus_one)
+            lower = pgast.CaseExpr(
+                args=[when_expr], defresult=lower_plus_one)
 
-        if (
-                isinstance(stop, pgast.ConstantNode) and
-                stop.value is None and stop.index is None and
-                stop.expr is None):
+        if isinstance(stop, pgast.Constant) and stop.val is None:
             upper = upper_bound
         else:
             upper = stop
 
-            when_cond = pgast.BinOpNode(
-                left=upper, right=zero, op=ast.ops.LT)
+            when_cond = self._new_binop(
+                lexpr=upper, rexpr=zero, op=ast.ops.LT)
 
-            neg_off = pgast.BinOpNode(
-                left=upper_bound, right=upper, op=ast.ops.ADD)
+            neg_off = self._new_binop(
+                lexpr=upper_bound, rexpr=upper, op=ast.ops.ADD)
 
-            when_expr = pgast.CaseWhenNode(
+            when_expr = pgast.CaseWhen(
                 expr=when_cond, result=neg_off)
-            upper = pgast.CaseExprNode(
-                args=[when_expr], default=upper)
+            upper = pgast.CaseExpr(
+                args=[when_expr], defresult=upper)
 
         if is_string:
             args = [subj, lower]
 
             if upper is not upper_bound:
-                for_length = pgast.BinOpNode(
-                    left=upper, op=ast.ops.SUB, right=lower)
-                for_length = pgast.BinOpNode(
-                    left=for_length, op=ast.ops.ADD, right=one)
+                for_length = self._new_binop(
+                    lexpr=upper, op=ast.ops.SUB, rexpr=lower)
+                for_length = self._new_binop(
+                    lexpr=for_length, op=ast.ops.ADD, rexpr=one)
                 args.append(for_length)
 
-            result = pgast.FunctionCallNode(name='substr', args=args)
+            result = pgast.FuncCall(name='substr', args=args)
 
         else:
-            indirection = pgast.IndexIndirectionNode(
-                lower=lower, upper=upper)
-            result = pgast.IndirectionNode(
-                expr=subj, indirection=indirection)
+            indirection = pgast.Indices(
+                lidx=lower, ridx=upper)
+            result = pgast.Indirection(
+                arg=subj, indirection=[indirection])
 
         return result
 
@@ -436,33 +423,63 @@ class IRCompiler(ast.visitor.NodeVisitor,
         ctx = self.context.current
 
         source_cte = self._set_to_cte(expr)
-        ctx.subquery_map[ctx.rel].setdefault(source_cte, False)
 
-        if ctx.location == 'where':
+        if ctx.location in {'where', 'exists'}:
             result = self._wrap_set_rel(expr, source_cte)
         else:
-            if isinstance(expr.scls, s_atoms.Atom):
-                if expr.expr:
-                    result = pgast.FieldRefNode(table=source_cte, field='v')
-                else:
-                    result = self._get_fieldref_for_set(expr)
+            source_rvar = self._include_range(source_cte)
+
+            if expr.expr:
+                result = pgast.ColumnRef(
+                    name=[source_rvar.alias.aliasname, 'v']
+                )
             else:
-                result = source_cte.bonds(source_cte.edgedbnode.path_id)[0]
+                result = self._get_fieldref_for_set(expr)
 
         return result
+
+    def _include_range(self, relation):
+        ctx = self.context.current
+
+        subrel = ctx.subquery_map[ctx.rel].get(relation)
+
+        if subrel is None:
+            rvar = pgast.RangeVar(
+                relation=relation,
+                alias=pgast.Alias(
+                    aliasname=ctx.genalias(hint=getattr(relation, 'name'))
+                )
+            )
+
+            ctx.subquery_map[ctx.rel][relation] = {
+                'rvar': rvar,
+                'linked': False
+            }
+        else:
+            rvar = subrel['rvar']
+
+        # Make sure that all bonds received by joining the CTEs
+        # are available for JOIN condition injection in the
+        # subqueries below.
+        # Make sure not to pollute the top-level query target list.
+        self._pull_path_namespace(
+            target=ctx.rel, source=rvar,
+            add_to_selector=ctx.rel != ctx.query)
+
+        return rvar
 
     def _set_as_exists_op(self, ir_expr, pg_expr):
         # Make sure *pg_expr* is an EXISTS() expression
         # Set references inside WHERE are transformed into
         # EXISTS expressions in visit_Set.  For other
         # occurrences we do it here.
-        if isinstance(pg_expr, pgast.ExistsNode):
+        if (isinstance(pg_expr, pgast.SubLink)
+                and pg_expr.type == pgast.SubLinkType.EXISTS):
             result = pg_expr
         else:
-            if isinstance(pg_expr, pgast.FieldRefNode):
-                result = self._wrap_set_rel(ir_expr, pg_expr.table)
-            else:
-                result = pgast.ExistsNode(expr=pg_expr)
+            result = pgast.SubLink(
+                type=pgast.SubLinkType.EXISTS,
+                subselect=pg_expr)
 
         return result
 
@@ -501,37 +518,57 @@ class IRCompiler(ast.visitor.NodeVisitor,
         #
         ctx = self.context.current
 
-        wrapper = pgast.SelectQueryNode(
-            fromlist=[
-                pgast.FromExprNode(
-                    expr=set_rel
-                )
-            ]
+        rvar = pgast.RangeVar(
+            relation=set_rel,
+            alias=pgast.Alias(
+                aliasname=ctx.genalias(hint=set_rel.name + '_w')
+            )
         )
 
+        wrapper = pgast.SelectStmt(
+            from_clause=[rvar]
+        )
+
+        self._pull_path_namespace(target=wrapper, source=rvar)
+
         if self._set_has_expr(ir_set):
-            wrapper.where = pgast.FieldRefNode(
-                table=set_rel,
-                field='v'
+            wrapper.where_clause = pgast.ColumnRef(
+                name=[rvar.alias.aliasname, 'v']
             )
             not_exists = False
         else:
-            _, not_exists = self._is_exists_ir(ir_set.expr)
-
-        self._pull_fieldrefs(wrapper, set_rel)
+            exists_target, not_exists = self._is_exists_ir(ir_set.expr)
+            if exists_target is not None:
+                wrapper.where_clause = self._new_unop(
+                    op=ast.ops.NOT,
+                    expr=pgast.NullTest(
+                        arg=wrapper.path_namespace[exists_target.path_id]
+                    )
+                )
+            else:
+                wrapper.where_clause = self._new_unop(
+                    op=ast.ops.NOT,
+                    expr=pgast.NullTest(
+                        arg=wrapper.path_namespace[ir_set.path_id]
+                    )
+                )
 
         subrels = ctx.subquery_map[ctx.rel]
-        subrels[wrapper] = False
-        subrels.pop(set_rel, None)
+        subrels[wrapper] = {
+            'rvar': rvar,
+            'linked': False
+        }
 
-        wrapper = pgast.ExistsNode(
-            expr=wrapper
+        wrapper = pgast.SubLink(
+            type=pgast.SubLinkType.EXISTS,
+            subselect=wrapper
         )
 
         if not_exists:
-            wrapper = pgast.UnaryOpNode(
-                operand=wrapper,
-                op=ast.ops.NOT
+            wrapper = pgast.Expr(
+                rexpr=wrapper,
+                name=ast.ops.NOT,
+                kind=pgast.ExprKind.OP
             )
 
         return wrapper
@@ -569,65 +606,79 @@ class IRCompiler(ast.visitor.NodeVisitor,
         else:
             alias_hint = ir_set.scls.name.name
 
-        cte = pgast.CTENode(
-            concepts=frozenset({ir_set.scls}),
-            alias=ctx.genalias(hint=str(alias_hint)),
-            edgedbnode=ir_set,
-            fromlist=fromlist)
+        stmt = pgast.SelectStmt(from_clause=fromlist)
+        stmt.path_id = ir_set.path_id
+
+        cte = pgast.CommonTableExpr(
+            query=stmt,
+            name=ctx.genalias(hint=str(alias_hint)),
+        )
 
         ctx.ctemap[ir_set] = cte
 
-        sources = [self._set_to_cte(s) for s in ir_set.sources]
-
-        if not sources:
+        ir_sources = list(ir_set.sources)
+        if not ir_sources:
+            # If there are no explicit sources, check if this Set
+            # is a non-starting part of a path.
             if ir_set.rptr is not None:
-                sources = [self._set_to_cte(ir_set.rptr.source)]
+                ir_sources.append(ir_set.rptr.source)
 
-        if not sources:
-            if isinstance(ir_set.scls, s_atoms.Atom):
-                # Atomic Sets cannot appear without a source superset.
-                raise RuntimeError('unexpected atomic set without sources')
+        if not ir_sources and isinstance(ir_set.scls, s_atoms.Atom):
+            # Atomic Sets cannot appear without a source superset.
+            raise RuntimeError('unexpected atomic set without sources')
+
+        sources = []
+        for ir_source in ir_sources:
+            source_rel = self._set_to_cte(ir_source)
+            sources.append(source_rel)
 
         if sources:
-            fromexpr = None
-
-            subrels = ctx.subquery_map[cte]
-            jtype = 'inner' if ir_set.source_conjunction else 'full'
+            # Generate a flat JOIN list from the gathered sources
+            # using path bonds for conditions.
+            subrels = ctx.subquery_map[stmt]
+            jtype = 'inner' if ir_set.source_conjunction else 'left'
 
             for source in sources:
-                subrels[source] = True
+                src_rvar = pgast.RangeVar(
+                    relation=source,
+                    alias=pgast.Alias(
+                        aliasname=ctx.genalias(hint=source.name)
+                    )
+                )
 
-                if fromexpr is None:
-                    fromexpr = source
-                else:
-                    fromexpr = self._rel_join(fromexpr, source, type=jtype)
+                subrels[source] = {
+                    'rvar': src_rvar,
+                    'linked': True
+                }
 
-                self._pull_fieldrefs(cte, source)
+                self._pull_path_namespace(
+                    target=stmt, source=src_rvar)
 
-            fromlist.append(pgast.FromExprNode(expr=fromexpr))
+                self._rel_join(stmt, src_rvar, type=jtype)
 
         if isinstance(ir_set.scls, s_concepts.Concept):
             id_field = common.edgedb_name_to_pg_name('std::id')
 
-            cte.scls_rel = scls_rel = self._relation_from_concepts(ir_set, cte)
+            set_rvar = self._range_for_set(ir_set, stmt)
+            stmt.scls_rvar = set_rvar
 
             if not fromlist:
                 # This is the root set, select directly from class table.
-                fromlist.append(pgast.FromExprNode(expr=scls_rel))
+                fromlist.append(set_rvar)
 
-            bond = pgast.FieldRefNode(
-                table=scls_rel, field=id_field)
-
-            scls_rel.addbond(ir_set.path_id, bond)
+            path_id = ir_set.path_id
+            set_rvar.query.path_vars[path_id] = id_field
+            set_rvar.query.path_bonds[path_id] = id_field
 
             id_set = self._get_ptr_set(ir_set, 'std::id')
-            id_alias = self._add_inline_atom_ref(cte, id_set, ir_set.path_id)
+            self._add_path_var_reference(stmt, id_set, path_id=path_id)
 
-            bond = pgast.FieldRefNode(table=cte, field=id_alias)
-            cte.addbond(ir_set.path_id, bond)
+            stmt.path_bonds[path_id] = stmt.path_vars[path_id]
 
         else:
-            scls_rel = None
+            set_rvar = None
+
+        return_parent = ir_set.rptr is not None and not ir_set.expr
 
         if ir_set.rptr is not None:
             # This is the nth step in the path, where n > 1.
@@ -635,45 +686,46 @@ class IRCompiler(ast.visitor.NodeVisitor,
 
             ptrcls = ir_set.rptr.ptrcls
 
-            fromnode = fromlist[0]
-            parent_cte = fromnode.expr
-            join = parent_cte
-            map_rel = None
+            path_rvar = fromlist[0]
+            source_rel = path_rvar.relation
 
             ptr_info = pg_types.get_pointer_storage_info(
-                ptrcls, resolve_type=False)
+                ptrcls, resolve_type=False, link_bias=False)
 
             if isinstance(ptrcls, s_lprops.LinkProperty):
-                # Reference to singular atom.
-                self._add_inline_atom_ref(parent_cte, ir_set)
-
-                if not ir_set.expr:
-                    ctx.ctemap[ir_set] = parent_cte
-                    return parent_cte
+                # Reference to a link property.
+                self._join_mapping_rel(
+                    stmt=source_rel.query, set_rvar=set_rvar, ir_set=ir_set)
+                self._add_path_var_reference(source_rel, ir_set)
 
             elif ptr_info.table_type != 'concept':
                 # This is a 1* or ** cardinality, join via a mapping relation.
-                join, map_rel = self._join_mapping_rel(
-                    ir_set=ir_set, cte=cte, join=join, scls_rel=scls_rel)
+                map_rvar = self._join_mapping_rel(
+                    stmt=stmt, set_rvar=set_rvar, ir_set=ir_set)
+
+                stmt.rptr_rvar = map_rvar
+                return_parent = False
 
             elif isinstance(ir_set.scls, s_concepts.Concept):
-                lalias = self._add_inline_atom_ref(parent_cte, ir_set)
-
                 # Direct reference to another object.
-                join = self._join_inline_rel(
-                    ir_set=ir_set, cte=cte, join=join, scls_rel=scls_rel,
-                    join_field=lalias)
+                self._add_path_var_reference(source_rel, ir_set)
+                stmt.path_namespace[ir_set.path_id] = pgast.ColumnRef(
+                    name=[
+                        path_rvar.alias.aliasname,
+                        source_rel.query.path_vars[ir_set.path_id]
+                    ]
+                )
 
-            else:
-                # Reference to singular atom.
-                self._add_inline_atom_ref(parent_cte, ir_set)
+                self._join_inline_rel(
+                    stmt=stmt, set_rvar=set_rvar, ir_set=ir_set)
 
-                if not ir_set.expr:
-                    ctx.ctemap[ir_set] = parent_cte
-                    return parent_cte
+                return_parent = False
 
-            cte.rptr_rel = map_rel
-            fromnode.expr = join
+            elif ir_set.expr is None:
+                # The path step target is stored in the source's table,
+                # so we need to make sure that rel is returning the column
+                # ref we need.
+                self._add_path_var_reference(source_rel, ir_set)
 
         if ir_set.expr:
             exist_expr, _ = self._is_exists_ir(ir_set.expr)
@@ -681,50 +733,54 @@ class IRCompiler(ast.visitor.NodeVisitor,
             if exist_expr is None:
                 with self.context.new():
                     self.context.current.location = 'set_expr'
-                    self.context.current.rel = cte
+                    self.context.current.rel = stmt
                     set_expr = self.visit(ir_set.expr)
-                    selectnode = pgast.SelectExprNode(
-                        expr=set_expr,
-                        alias='v')
-                    self._connect_subrels(cte)
+                    restarget = pgast.ResTarget(
+                        val=set_expr,
+                        name='v')
+                    self._connect_subrels(stmt)
 
-                cte.targets.append(selectnode)
+                stmt.target_list.append(restarget)
             else:
-                ctx.ctemap[ir_set] = fromlist[0].expr
-                return fromlist[0].expr
+                return_parent = True
 
-        # Finally, attach the CTE to the parent query.
-        root_query.ctes.add(cte)
-
-        return cte
+        if return_parent:
+            source_rel = fromlist[0].relation
+            ctx.ctemap[ir_set] = source_rel
+            return source_rel
+        else:
+            root_query.ctes.append(cte)
+            return cte
 
     def visit_BinOp(self, expr):
         ctx = self.context.current
 
-        if isinstance(expr.op, ast.ops.TypeCheckOperator):
-            cl = self._get_ptr_set(expr.left, 'std::__class__')
-            left = self.visit(self._get_ptr_set(cl, 'std::id'))
-        else:
-            left = self.visit(expr.left)
+        with self.context.new():
+            op = expr.op
+            if ctx.location == 'set_expr' and op in {ast.ops.AND, ast.ops.OR}:
+                self.context.current.location = 'exists'
 
-        if expr.op in (ast.ops.IN, ast.ops.NOT_IN) \
-                and isinstance(expr.right, irast.Sequence):
-            with self.context.new():
-                self.context.current.sequence_is_array = True
+            if isinstance(expr.op, ast.ops.TypeCheckOperator):
+                cl = self._get_ptr_set(expr.left, 'std::__class__')
+                left = self.visit(self._get_ptr_set(cl, 'std::id'))
+            else:
+                left = self.visit(expr.left)
+
+            if expr.op in (ast.ops.IN, ast.ops.NOT_IN) \
+                    and isinstance(expr.right, irast.Sequence):
+                with self.context.new():
+                    self.context.current.sequence_is_array = True
+                    right = self.visit(expr.right)
+            else:
                 right = self.visit(expr.right)
-        else:
-            right = self.visit(expr.right)
 
         if isinstance(expr.op, ast.ops.TypeCheckOperator):
-            result = pgast.FunctionCallNode(
+            result = pgast.FuncCall(
                 name='edgedb.issubclass',
                 args=[left, right])
 
             if expr.op == ast.ops.IS_NOT:
-                result = pgast.UnaryOpNode(
-                    op=ast.ops.NOT,
-                    operand=result
-                )
+                result = self._new_unop(ast.ops.NOT, result)
 
         else:
             if (expr.op in (ast.ops.IN, ast.ops.NOT_IN) and
@@ -740,13 +796,13 @@ class IRCompiler(ast.visitor.NodeVisitor,
                     op = ast.ops.NE
                     qual_func = 'all'
 
-                if isinstance(right.expr, pgast.SequenceNode):
-                    right.expr = pgast.ArrayNode(
+                if isinstance(right.expr, pgast.Sequence):
+                    right.expr = pgast.ArrayExpr(
                         elements=right.expr.elements)
                 elif right.type == 'text[]':
                     left_type = irutils.infer_type2(
                         expr.left, ctx.schema)
-                    if isinstance(left_type, s_obj.NodeClass):
+                    if isinstance(left_type, s_obj.Class):
                         if isinstance(left_type, s_concepts.Concept):
                             left_type = left_type.pointers[
                                 'std::id'].target
@@ -755,7 +811,7 @@ class IRCompiler(ast.visitor.NodeVisitor,
                             topbase=True)
                         right.type = left_type + '[]'
 
-                right = pgast.FunctionCallNode(
+                right = pgast.FuncCall(
                     name=qual_func, args=[right])
             else:
                 op = expr.op
@@ -766,7 +822,7 @@ class IRCompiler(ast.visitor.NodeVisitor,
                 expr.right, ctx.schema)
 
             if left_type and right_type:
-                if isinstance(left_type, s_obj.NodeClass):
+                if isinstance(left_type, s_obj.Class):
                     if isinstance(left_type, s_concepts.Concept):
                         left_type = left_type.pointers[
                             'std::id'].target
@@ -782,7 +838,7 @@ class IRCompiler(ast.visitor.NodeVisitor,
                     left_type = self._schema_type_to_pg_type(
                         left_type)
 
-                if isinstance(right_type, s_obj.NodeClass):
+                if isinstance(right_type, s_obj.Class):
                     if isinstance(right_type, s_concepts.Concept):
                         right_type = right_type.pointers[
                             'std::id'].target
@@ -806,30 +862,25 @@ class IRCompiler(ast.visitor.NodeVisitor,
                 elif left_type != right_type:
                     if isinstance(
                             right, pgast.
-                            ConstantNode) and right_type == 'text':
+                            Constant) and right_type == 'text':
                         right.type = left_type
                     elif isinstance(
                             left, pgast.
-                            ConstantNode) and left_type == 'text':
+                            Constant) and left_type == 'text':
                         left.type = right_type
 
                 if ((
-                        isinstance(right, pgast.ConstantNode)
+                        isinstance(right, pgast.Constant)
                         and op in {ast.ops.IS, ast.ops.IS_NOT})):
                     right.type = None
 
-            if ctx.location == 'set_expr' and op in {ast.ops.AND, ast.ops.OR}:
-                left = self._set_as_exists_op(expr.left, left)
-                right = self._set_as_exists_op(expr.right, right)
-
-            result = pgast.BinOpNode(
-                op=op, left=left, right=right)
+            result = self._new_binop(left, right, op=op)
 
         return result
 
     def visit_UnaryOp(self, expr):
         operand = self.visit(expr.expr)
-        return pgast.UnaryOpNode(op=expr.op, operand=operand)
+        return pgast.Expr(name=expr.op, rexpr=operand, kind=pgast.ExprKind.OP)
 
     def visit_Sequence(self, expr):
         ctx = self.context.current
@@ -838,16 +889,18 @@ class IRCompiler(ast.visitor.NodeVisitor,
             self.visit(e) for e in expr.elements
         ]
         if expr.is_array:
-            result = pgast.ArrayNode(elements=elements)
+            result = pgast.ArrayExpr(elements=elements)
         elif getattr(ctx, 'sequence_is_array', False):
-            result = pgast.SequenceNode(elements=elements)
+            result = pgast.ImplicitRowExpr(args=elements)
         else:
-            result = pgast.RowExprNode(args=elements)
+            result = pgast.RowExpr(args=elements)
 
         return result
 
     def visit_ExistPred(self, expr):
-        return self._set_as_exists_op(expr.expr, self.visit(expr.expr))
+        with self.context.new():
+            self.context.current.location = 'exists'
+            return self._set_as_exists_op(expr.expr, self.visit(expr.expr))
 
     def visit_TypeRef(self, expr):
         ctx = self.context.current
@@ -860,60 +913,73 @@ class IRCompiler(ast.visitor.NodeVisitor,
         else:
             cls = schema.get(expr.maintype)
             concept_id = data_backend.get_concept_id(cls)
-            result = pgast.ConstantNode(
-                value=concept_id, type='uuid')
+            result = pgast.TypeCast(
+                arg=pgast.Constant(val=concept_id),
+                type_name=pgast.TypeName(
+                    name='uuid'
+                )
+            )
 
         return result
 
     def visit_SelectStmt(self, stmt):
         parent_ctx = self.context.current
-        parent_rel = parent_ctx.rel or parent_ctx.query
+        parent_rel = parent_ctx.rel
 
         with self.context.subquery():
             ctx = self.context.current
-            parent_ctx.subquery_map[parent_rel][ctx.query] = False
+            parent_ctx.subquery_map[parent_rel][ctx.query] = {
+                'linked': False,
+                'rvar': None
+            }
 
             if stmt.substmts:
                 for substmt in stmt.substmts:
                     with self.context.subquery():
-                        ctx.rel = ctx.query = pgast.CTENode()
-                        cte = self.visit(substmt)
-                        cte.alias = substmt.name
-                    ctx.query.ctes.add(cte)
+                        cte = pgast.CommonTableExpr(
+                            query=self.visit(substmt),
+                            name=substmt.name
+                        )
+                    ctx.query.ctes.append(cte)
                     ctx.explicit_cte_map[substmt] = cte
 
             if stmt.set_op:
                 with self.context.subquery():
-                    ctx.rel = ctx.query = pgast.SelectQueryNode()
                     larg = self.visit(stmt.set_op_larg)
 
                 with self.context.subquery():
-                    ctx.rel = ctx.query = pgast.SelectQueryNode()
                     rarg = self.visit(stmt.set_op_rarg)
 
                 set_op = pgast.PgSQLSetOperator(stmt.set_op)
                 self._setop_from_list(ctx.query, [larg, rarg], set_op)
 
-            self._process_selector(stmt.result, transform_output=True)
+            else:
+                self._process_selector(stmt.result, transform_output=True)
 
             if stmt.where:
                 with self.context.new():
                     self.context.current.location = 'where'
                     where = self.visit(stmt.where)
 
-                ctx.query.where = where
+                ctx.query.where_clause = where
 
             self._process_orderby(stmt.orderby)
 
             self._process_groupby(stmt.groupby)
 
             if stmt.offset:
-                ctx.query.offset = self.visit(stmt.offset)
+                ctx.query.limit_offset = self.visit(stmt.offset)
 
             if stmt.limit:
-                ctx.query.limit = self.visit(stmt.limit)
+                ctx.query.limit_count = self.visit(stmt.limit)
 
             self._connect_subrels(ctx.query)
+
+            for cte in ctx.query.ctes:
+                parent_ctx.subquery_map[parent_rel][cte.query] = {
+                    'linked': False,
+                    'rvar': None
+                }
 
             return ctx.query
 
@@ -925,62 +991,38 @@ class IRCompiler(ast.visitor.NodeVisitor,
         ctx = self.context.current
 
         rels = [
-            rel for rel, connected in ctx.subquery_map[query].items()
-            if not connected
+            (rel, info) for rel, info in ctx.subquery_map[query].items()
+            if not info['linked']
         ]
         if not rels:
             return
 
         # Mark all rels as "connected" so that subsequent calls
         # of this function on the same *query* work.
-        for rel in rels:
-            ctx.subquery_map[query][rel] = True
-
-        if query.fromlist:
-            fromexpr = query.fromlist[0].expr
-        else:
-            query.fromlist.append(pgast.FromExprNode(expr=None))
-            fromexpr = None
+        for _, info in rels:
+            info['linked'] = True
 
         # Go through all CTE references and LEFT JOIN them
         # in *query* FROM.
-        ctes = [rel for rel in rels if isinstance(rel, pgast.CTENode)]
-        for rel in ctes:
-            if fromexpr is None:
-                fromexpr = rel
-            else:
-                fromexpr = self._rel_join(fromexpr, rel, type='left')
+        ctes = [info['rvar'] for rel, info in rels
+                if isinstance(rel, pgast.CommonTableExpr)]
+        for rvar in ctes:
+            self._rel_join(query, rvar, type='left')
 
-            # Make sure that all bonds received by joining the CTEs
-            # are available for JOIN condition injection in the
-            # subqueries below.
-            # Make sure not to pollute the top-level query target list.
-            self._pull_fieldrefs(
-                query, rel, add_to_selector=query != ctx.query)
-
-        query.fromlist[0].expr = fromexpr
-
-        # Finally, go through the remaining subqueries and inject
-        # join conditions.
-        for rel in rels:
-            if not isinstance(rel, pgast.CTENode):
+        # Go through the remaining subqueries and inject join conditions.
+        for rel, _ in rels:
+            if not isinstance(rel, pgast.CommonTableExpr):
                 self._connect_subquery(rel, query)
 
     def _connect_subquery(self, subquery, parentquery):
         # Inject a WHERE condition corresponding to the full inner bond join
         # between the outer query and the subquery.
-        parent_inner_bonds = {
-            pid: [se.expr] for pid, se in parentquery.concept_node_map.items()
-        }
-
-        subq_inner_bonds = {
-            pid: [se.expr] for pid, se in subquery.concept_node_map.items()
-        }
-
-        cond = self._full_bond_condition(subq_inner_bonds, parent_inner_bonds)
+        cond = self._full_inner_bond_condition(
+            subquery, parentquery)
 
         if cond is not None:
-            subquery.where = self._extend_binop(subquery.where, cond)
+            subquery.where_clause = \
+                self._extend_binop(subquery.where_clause, cond)
 
     def _process_selector(self, result_expr, transform_output=True):
         ctx = self.context.current
@@ -994,18 +1036,16 @@ class IRCompiler(ast.visitor.NodeVisitor,
         if ctx.output_format == 'json' and transform_output:
             # Target list may be empty if selector is a set op product
             if selexprs:
-                filter_expr = getattr(pgexpr, 'filter_expr', None)
-
-                target = pgast.SelectExprNode(
-                    expr=pgast.FunctionCallNode(
-                        name='to_jsonb', args=[pgexpr]), alias=None,
-                    filter_expr=filter_expr)
-                query.targets.append(target)
+                target = pgast.ResTarget(
+                    name=None,
+                    val=pgast.FuncCall(name='to_jsonb', args=[pgexpr]),
+                )
+                query.target_list.append(target)
 
         else:
             for pgexpr, alias in selexprs:
-                target = pgast.SelectExprNode(expr=pgexpr, alias=alias)
-                query.targets.append(target)
+                target = pgast.ResTarget(name=alias, val=pgexpr)
+                query.target_list.append(target)
 
     def _process_orderby(self, sorter):
         ctx = self.context.current
@@ -1014,11 +1054,11 @@ class IRCompiler(ast.visitor.NodeVisitor,
         ctx.location = 'orderby'
 
         for expr in sorter:
-            sortexpr = pgast.SortExprNode(
-                expr=self.visit(expr.expr),
-                direction=expr.direction,
-                nulls_order=expr.nones_order)
-            query.orderby.append(sortexpr)
+            sortexpr = pgast.SortBy(
+                node=self.visit(expr.expr),
+                dir=expr.direction,
+                nulls=expr.nones_order)
+            query.sort_clause.append(sortexpr)
 
     def _process_groupby(self, grouper):
         ctx = self.context.current
@@ -1028,37 +1068,30 @@ class IRCompiler(ast.visitor.NodeVisitor,
 
         for expr in grouper:
             sortexpr = self.visit(expr)
-            query.groupby.append(sortexpr)
+            query.group_clause.append(sortexpr)
 
     def _get_fieldref_for_set(self, ir_set):
-        """Return FieldRef node corresponding to the specified atomic Set.
+        """Return an expression node corresponding to the specified atomic Set.
 
         Arguments:
-            - context: Current context
             - ir_set: IR Set
 
         Return:
-            A pgast.FieldRef node representing a set of atom/schema
+            An expression node representing a set of atom/schema
             values for the specified ir_set.
         """
-        if not isinstance(ir_set.scls, s_atoms.Atom):
-            raise ValueError('expecting atomic Set')
-
         ctx = self.context.current
 
-        rptr = ir_set.rptr
-        ptr_name = rptr.ptrcls.normal_name()
-
         try:
-            ref = ctx.ir_set_field_map[ir_set.path_id]
+            ref = ctx.rel.path_namespace[ir_set.path_id]
         except KeyError:
-            raise LookupError('could not resolve {!r} as table field'.format(
-                ir_set.path_id))
-
-        if isinstance(ref, pgast.SelectExprNode):
-            ref = ref.expr
+            raise LookupError(
+                'could not resolve {!r} as table field'.format(ir_set.path_id))
 
         if ctx.in_aggregate:
+            rptr = ir_set.rptr
+            ptr_name = rptr.ptrcls.normal_name()
+
             # Cast atom refs to the base type in aggregate expressions, since
             # PostgreSQL does not create array types for custom domains and
             # will fail to process a query with custom domains appearing as
@@ -1069,10 +1102,25 @@ class IRCompiler(ast.visitor.NodeVisitor,
                 schema, ptr_name, look_in_children=True)
             pgtype = pg_types.pg_type_from_atom(
                 schema, link.target, topbase=True)
-            pgtype = pgast.TypeNode(name=pgtype)
-            ref = pgast.TypeCastNode(expr=ref, type=pgtype)
+            pgtype = pgast.TypeName(name=pgtype)
+            ref = pgast.TypeCast(arg=ref, type_name=pgtype)
 
         return ref
+
+    def _new_binop(self, lexpr, rexpr, op):
+        return pgast.Expr(
+            kind=pgast.ExprKind.OP,
+            name=op,
+            lexpr=lexpr,
+            rexpr=rexpr
+        )
+
+    def _new_unop(self, op, expr):
+        return pgast.Expr(
+            kind=pgast.ExprKind.OP,
+            name=op,
+            rexpr=expr
+        )
 
     def _join_condition(self, left_refs, right_refs, op='='):
         if not isinstance(left_refs, tuple):
@@ -1082,8 +1130,8 @@ class IRCompiler(ast.visitor.NodeVisitor,
 
         condition = None
         for left_ref, right_ref in itertools.product(left_refs, right_refs):
-            op = pgast.BinOpNode(op='=', left=left_ref, right=right_ref)
-            condition = self._extend_binop(condition, op)
+            op = self._new_binop(left_ref, right_ref, op=op)
+            condition = self._extend_binop(condition)
 
         return condition
 
@@ -1093,7 +1141,7 @@ class IRCompiler(ast.visitor.NodeVisitor,
             right_refs = right.bonds(key)[-1]
             condition = self._join_condition(left_refs, right_refs)
 
-        join = pgast.JoinNode(
+        join = pgast.Join(
             type=type, left=left, right=right, condition=condition)
 
         join.updatebonds(left)
@@ -1101,83 +1149,116 @@ class IRCompiler(ast.visitor.NodeVisitor,
 
         return join
 
-    def _full_bond_condition(self, left_bonds, right_bonds):
+    def _full_inner_bond_condition(self, left, right):
         condition = None
 
-        for path_id, lrefs in left_bonds.items():
+        for path_id, lref in left.path_namespace.items():
+            if not isinstance(path_id[-1], s_concepts.Concept):
+                # Rather a hack.
+                continue
+
             try:
-                rrefs = right_bonds[path_id]
+                rref = right.path_namespace[path_id]
             except KeyError:
                 continue
 
-            path_cond = self._join_condition(lrefs[-1], rrefs[-1])
+            path_cond = self._new_binop(lref, rref, op='=')
             condition = self._extend_binop(condition, path_cond)
 
         return condition
 
-    def _full_outer_bond_condition(self, left, right):
-        return self._full_bond_condition(left._bonds, right._bonds)
+    def _full_outer_bond_condition(self, query, right_rvar):
+        condition = None
 
-    def _rel_join(self, left, right, type='inner'):
-        condition = self._full_outer_bond_condition(left, right)
+        for path_id, rname in right_rvar.path_bonds.items():
+            try:
+                lref = query.path_namespace[path_id]
+            except KeyError:
+                continue
+
+            rref = pgast.ColumnRef(
+                name=[right_rvar.alias.aliasname, rname]
+            )
+
+            path_cond = self._new_binop(lref, rref, op='=')
+            condition = self._extend_binop(condition, path_cond)
+
+        return condition
+
+    def _rel_join(self, query, right_rvar, type='inner'):
+        condition = self._full_outer_bond_condition(query, right_rvar)
 
         if condition is None:
             type = 'cross'
 
-        join = pgast.JoinNode(
-            type=type, left=left, right=right, condition=condition)
+        if query.from_clause:
+            query.from_clause[0] = pgast.JoinExpr(
+                type=type, larg=query.from_clause[0],
+                rarg=right_rvar, quals=condition)
+        else:
+            query.from_clause.append(right_rvar)
 
-        join.updatebonds(left)
-        join.updatebonds(right)
+    def _pull_path_namespace(self, *, target, source, add_to_selector=True):
+        ctx = self.context.current
 
-        return join
+        for path_id, name in source.path_vars.items():
+            if path_id in target.path_namespace:
+                continue
 
-    def _pull_fieldrefs(self, target_rel, source_rel, add_to_selector=True):
-        for path_id, ref in source_rel.concept_node_map.items():
-            refexpr = pgast.FieldRefNode(table=source_rel, field=ref.alias)
-            fieldref = pgast.SelectExprNode(expr=refexpr, alias=ref.alias)
+            ref = pgast.ColumnRef(
+                name=[source.alias.aliasname, name]
+            )
 
-            if path_id not in target_rel.concept_node_map:
-                if add_to_selector:
-                    target_rel.targets.append(fieldref)
+            target.path_namespace[path_id] = ref
 
-                target_rel.concept_node_map[path_id] = fieldref
+            if add_to_selector:
+                alias = ctx.genalias(hint=name)
+
+                target.target_list.append(
+                    pgast.ResTarget(
+                        name=alias,
+                        val=ref
+                    )
+                )
+
+                target.path_vars[path_id] = alias
 
                 if isinstance(path_id[-1], s_concepts.Concept):
-                    bondref = pgast.FieldRefNode(
-                        table=target_rel, field=ref.alias)
-                    target_rel.addbond(path_id, bondref)
+                    target.path_bonds[path_id] = alias
 
-    def _join_mapping_rel(self, *, ir_set, cte, join, scls_rel):
-        id_field = common.edgedb_name_to_pg_name('std::id')
-        map_join_type = 'inner'
+    def _join_mapping_rel(self, *, stmt, set_rvar, ir_set):
+        fromexpr = stmt.from_clause[0]
+
         tip_pathvar = ir_set.pathvar if ir_set else None
+
         link = ir_set.rptr
+        if isinstance(link.ptrcls, s_lprops.LinkProperty):
+            link = link.source.rptr
+
         linkmap_key = link.ptrcls, link.direction, link.source, tip_pathvar
 
         try:
             # The same link map must not be joined more than once,
             # otherwise the cardinality of the result set will be wrong.
             #
-            map_rel, map_join = cte.linkmap[linkmap_key]
+            map_rvar, map_join = stmt.ptr_rvar_map[linkmap_key]
         except KeyError:
-            map_rel = self._relation_from_link(link)
-            map_rel.concepts = frozenset((ir_set.scls,))
+            map_rvar = self._range_for_pointer(link)
             map_join = None
 
         # Set up references according to link direction
         #
         src_col = common.edgedb_name_to_pg_name('std::source')
-        source_ref = pgast.FieldRefNode(table=map_rel, field=src_col)
+        source_ref = pgast.ColumnRef(
+            name=[map_rvar.alias.aliasname, src_col])
 
         tgt_col = common.edgedb_name_to_pg_name('std::target')
-        target_ref = pgast.FieldRefNode(table=map_rel, field=tgt_col)
+        target_ref = pgast.ColumnRef(
+            name=[map_rvar.alias.aliasname, tgt_col])
 
-        valent_bond = join.bonds(link.source.path_id)[-1]
-        forward_bond = self._join_condition(
-            valent_bond, source_ref, op='=')
-        backward_bond = self._join_condition(
-            valent_bond, target_ref, op='=')
+        valent_bond = stmt.path_namespace[link.source.path_id]
+        forward_bond = self._new_binop(valent_bond, source_ref, op='=')
+        backward_bond = self._new_binop(valent_bond, target_ref, op='=')
 
         if link.direction == s_pointers.PointerDirection.Inbound:
             map_join_cond = backward_bond
@@ -1185,74 +1266,69 @@ class IRCompiler(ast.visitor.NodeVisitor,
             map_join_cond = forward_bond
 
         if map_join is None:
-            map_join = pgast.JoinNode(left=map_rel)
-            map_join.updatebonds(map_rel)
-
             # Join link relation to source relation
             #
-            join = self._simple_join(
-                join, map_join, link.source.path_id,
-                type=map_join_type, condition=map_join_cond)
+            map_join = pgast.JoinExpr(
+                larg=fromexpr,
+                rarg=map_rvar,
+                type='inner',
+                quals=map_join_cond
+            )
 
-            cte.linkmap[linkmap_key] = map_rel, map_join
+            stmt.ptr_rvar_map[linkmap_key] = map_rvar, map_join
 
-        if scls_rel:
+        if isinstance(ir_set.scls, s_concepts.Concept):
             # Join the target relation, if we have it
-            target_id_field = pgast.FieldRefNode(
-                table=scls_rel, field=id_field)
+            target_range_bond = pgast.ColumnRef(
+                name=[set_rvar.alias.aliasname,
+                      set_rvar.path_vars[ir_set.path_id]]
+            )
 
             if link.direction == s_pointers.PointerDirection.Inbound:
                 map_tgt_ref = source_ref
             else:
                 map_tgt_ref = target_ref
 
-            cond_expr = pgast.BinOpNode(
-                left=map_tgt_ref, op='=', right=target_id_field)
-
-            prev_bonds = join.bonds(ir_set.path_id)
+            cond_expr = self._new_binop(map_tgt_ref, target_range_bond, op='=')
 
             # We use inner join for target relations to make sure this join
             # relation is not producing dangling links, either as a result
             # of partial data, or query constraints.
             #
-            if map_join.right is None:
-                map_join.right = scls_rel
-                map_join.condition = cond_expr
+            if map_join.rarg is None:
+                map_join.rarg = set_rvar
+                map_join.quals = cond_expr
                 map_join.type = 'inner'
-                map_join.updatebonds(scls_rel)
 
             else:
                 pre_map_join = map_join.copy()
-                new_map_join = self._simple_join(
-                    pre_map_join, scls_rel,
-                    ir_set.path_id, type='inner', condition=cond_expr)
+                new_map_join = pgast.JoinExpr(
+                    type='inner',
+                    larg=pre_map_join,
+                    rarg=set_rvar,
+                    quals=cond_expr)
                 map_join.copyfrom(new_map_join)
 
-            join.updatebonds(scls_rel)
+        stmt.from_clause[0] = map_join
 
-            if prev_bonds:
-                join.addbond(ir_set.path_id, prev_bonds[-1])
+        return map_rvar
 
-        return join, map_rel
+    def _join_inline_rel(self, *, stmt, set_rvar, ir_set):
+        id_col = common.edgedb_name_to_pg_name('std::id')
+        src_ref = stmt.path_namespace[ir_set.path_id]
+        tgt_ref = pgast.ColumnRef(
+            name=[set_rvar.alias.aliasname, id_col]
+        )
 
-    def _join_inline_rel(self, *, ir_set, cte, join, scls_rel, join_field):
-        id_field = common.edgedb_name_to_pg_name('std::id')
-        source = join.bonds(ir_set.rptr.source.path_id)[-1]
+        fromexpr = stmt.from_clause[0]
 
-        source_ref_field = pgast.FieldRefNode(
-            table=source.table, field=join_field)
+        cond_expr = self._new_binop(src_ref, tgt_ref, op='=')
 
-        target_ref_field = pgast.FieldRefNode(
-            table=scls_rel, field=id_field)
-
-        cond_expr = pgast.BinOpNode(
-            left=source_ref_field, op='=', right=target_ref_field)
-
-        new_join = self._simple_join(
-            join, scls_rel,
-            ir_set.path_id, type='inner', condition=cond_expr)
-
-        return new_join
+        stmt.from_clause[0] = pgast.JoinExpr(
+            type='inner',
+            larg=fromexpr,
+            rarg=set_rvar,
+            quals=cond_expr)
 
     def _get_ptr_set(self, source_set, ptr_name):
         ctx = self.context.current
@@ -1293,21 +1369,23 @@ class IRCompiler(ast.visitor.NodeVisitor,
                 parent_qry.rarg = oplist[i + 1]
                 break
             else:
-                parent_qry.rarg = pgast.SelectQueryNode(op=op)
+                parent_qry.rarg = pgast.SelectQuery(op=op)
                 parent_qry = parent_qry.rarg
 
-    def _add_inline_atom_ref(self, rel, ir_set, path_id=None):
+    def _add_path_var_reference(self, rel, ir_set, path_id=None):
         ctx = self.context.current
+        id_field = common.edgedb_name_to_pg_name('std::id')
+
+        if isinstance(rel, pgast.CommonTableExpr):
+            rel = rel.query
 
         if path_id is None:
             path_id = ir_set.path_id
 
         try:
-            return rel.concept_node_map[path_id].alias
+            return rel.path_namespace[path_id]
         except KeyError:
             pass
-
-        id_field = common.edgedb_name_to_pg_name('std::id')
 
         rptr = ir_set.rptr
         ptrcls = rptr.ptrcls
@@ -1315,20 +1393,18 @@ class IRCompiler(ast.visitor.NodeVisitor,
 
         if isinstance(ptrcls, s_lprops.LinkProperty):
             source = rptr.source.rptr.ptrcls
-            scls_rel = rel.rptr_rel
+            rel_rvar = rel.rptr_rvar
         else:
             source = rptr.source.scls
-            scls_rel = rel.scls_rel
+            rel_rvar = rel.scls_rvar
 
         schema = ctx.schema
 
-        fromnode = rel.fromlist[0]
-
         ref_map = {
-            n: [scls_rel]
+            n: [rel_rvar]
             for n, p in source.pointers.items() if p.atomic()
         }
-        joined_atomref_sources = {source: scls_rel}
+        joined_atomref_sources = {source: rel_rvar}
 
         try:
             atomref_tables = ref_map[ptrname]
@@ -1355,19 +1431,19 @@ class IRCompiler(ast.visitor.NodeVisitor,
                     sources.add(source)
 
             for s in sources:
-                if s not in joined_atomref_sources:
-                    atomref_table = self._table_from_concept(
-                        s, ir_set, rel)
-                    joined_atomref_sources[s] = atomref_table
-                    left = pgast.FieldRefNode(
-                        table=scls_rel, field=id_field)
-                    right = pgast.FieldRefNode(
-                        table=atomref_table, field=id_field)
-                    joincond = pgast.BinOpNode(
-                        op='=', left=left, right=right)
-                    fromnode.expr = self._simple_join(
-                        fromnode.expr, atomref_table,
-                        key=None, type='left', condition=joincond)
+                if s in joined_atomref_sources:
+                    continue
+
+                src_rvar_pid = rel_rvar.query.path_id
+                src_rvar = self._range_for_concept(s, rel)
+                src_rvar.query.path_id = src_rvar_pid
+                src_rvar.path_vars[src_rvar_pid] = id_field
+                src_rvar.path_bonds[src_rvar_pid] = id_field
+
+                self._rel_join(rel, src_rvar, type='left')
+
+                joined_atomref_sources[s] = src_rvar
+
             ref_map[ptrname] = atomref_tables = [
                 joined_atomref_sources[c] for c in sources
             ]
@@ -1375,33 +1451,33 @@ class IRCompiler(ast.visitor.NodeVisitor,
         colname = common.edgedb_name_to_pg_name(ptrname)
 
         fieldrefs = [
-            pgast.FieldRefNode(table=atomref_table, field=colname)
+            pgast.ColumnRef(name=[atomref_table.alias.aliasname, colname])
             for atomref_table in atomref_tables
         ]
-        alias = rel.alias + ('_' + ctx.genalias(hint=str(ptrname)))
+
+        alias = ctx.genalias(
+            hint='{}_{}'.format(source.name.name, ptrname.name))
 
         # If the required atom column was defined in multiple
         # descendant tables and there is no common parent with
         # this column, we'll have to coalesce fieldrefs to all tables.
         #
         if len(fieldrefs) > 1:
-            refexpr = pgast.FunctionCallNode(name='coalesce', args=fieldrefs)
+            refexpr = pgast.CoalesceExpr(args=fieldrefs)
         else:
             refexpr = fieldrefs[0]
 
-        selectnode = pgast.SelectExprNode(expr=refexpr, alias=alias)
-        rel.targets.append(selectnode)
+        restarget = pgast.ResTarget(name=alias, val=refexpr)
+        rel.target_list.append(restarget)
 
-        rel.concept_node_map[path_id] = selectnode
+        rel.path_namespace[path_id] = refexpr
+        rel.path_vars[path_id] = alias
 
-        # Record atom references in the global map in case they have to
-        # be pulled up later
-        #
-        refexpr = pgast.FieldRefNode(table=rel, field=selectnode.alias)
-        selectnode = pgast.SelectExprNode(expr=refexpr, alias=selectnode.alias)
-        ctx.ir_set_field_map[path_id] = selectnode
+        if ir_set.path_id != path_id:
+            rel.path_namespace[ir_set.path_id] = refexpr
+            rel.path_vars[ir_set.path_id] = alias
 
-        return alias
+        return refexpr
 
     def _run_codegen(self, qtree):
         codegen = pgcodegen.SQLSourceGenerator()
@@ -1429,9 +1505,9 @@ class IRCompiler(ast.visitor.NodeVisitor,
         for expr in exprs:
             if expr is not binop:
                 if reversed:
-                    binop = pgast.BinOpNode(right=binop, op=op, left=expr)
+                    binop = self._new_binop(rexpr=binop, op=op, lexpr=expr)
                 else:
-                    binop = pgast.BinOpNode(left=binop, op=op, right=expr)
+                    binop = self._new_binop(lexpr=binop, op=op, rexpr=expr)
 
         return binop
 

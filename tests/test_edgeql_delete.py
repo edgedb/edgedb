@@ -63,7 +63,7 @@ class TestDelete(tb.QueryTestCase):
         id1 = result[0][0]['id']
         id2 = result[1][0]['id']
 
-        await self.assert_query_result_2(r"""
+        await self.assert_query_result(r"""
             WITH MODULE test
             DELETE DeleteTest
             WHERE DeleteTest.name = 'bad name';
@@ -95,7 +95,6 @@ class TestDelete(tb.QueryTestCase):
             [],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_delete_returning01(self):
         result = await self.con.execute(r"""
             INSERT test::DeleteTest {

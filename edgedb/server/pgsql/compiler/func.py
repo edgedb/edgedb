@@ -8,7 +8,7 @@
 
 from edgedb.lang.common import ast
 
-from edgedb.server.pgsql import ast as pgast
+from edgedb.server.pgsql import ast2 as pgast
 from edgedb.server.pgsql import common
 
 
@@ -34,9 +34,9 @@ class IRCompilerFunctionSupport:
             for sortexpr in expr.agg_sort:
                 _sortexpr = self.visit(sortexpr.expr)
                 agg_sort.append(
-                    pgast.SortExprNode(
-                        expr=_sortexpr, direction=sortexpr.direction,
-                        nulls_order=sortexpr.nones_order))
+                    pgast.SortBy(
+                        node=_sortexpr, dir=sortexpr.direction,
+                        nulls=sortexpr.nones_order))
 
         partition = []
         if expr.partition:
@@ -52,8 +52,8 @@ class IRCompilerFunctionSupport:
             cond = self.visit(expr.args[0])
             pos = self.visit(expr.args[1])
             neg = self.visit(expr.args[2])
-            when_expr = pgast.CaseWhenNode(expr=cond, result=pos)
-            result = pgast.CaseExprNode(args=[when_expr], default=neg)
+            when_expr = pgast.CaseWhen(expr=cond, result=pos)
+            result = pgast.CaseExpr(args=[when_expr], default=neg)
 
         elif funcname == 'join':
             name = 'string_agg'
@@ -64,11 +64,11 @@ class IRCompilerFunctionSupport:
                 ignore_nulls = False
 
             if not ignore_nulls:
-                array_agg = pgast.FunctionCallNode(
-                    name='array_agg', args=[ref], agg_sort=agg_sort)
-                result = pgast.FunctionCallNode(
+                array_agg = pgast.FuncCall(
+                    name='array_agg', args=[ref], agg_order=agg_sort)
+                result = pgast.FuncCall(
                     name='array_to_string', args=[array_agg, separator])
-                result.args.append(pgast.ConstantNode(value=''))
+                result.args.append(pgast.Constant(val=''))
             else:
                 args = [ref, separator]
 
@@ -76,11 +76,11 @@ class IRCompilerFunctionSupport:
             name = 'count'
 
         elif funcname == 'current_time':
-            result = pgast.FunctionCallNode(
+            result = pgast.FuncCall(
                 name='current_time', noparens=True)
 
         elif funcname == 'current_datetime':
-            result = pgast.FunctionCallNode(
+            result = pgast.FuncCall(
                 name='current_timestamp', noparens=True)
 
         elif funcname == 'uuid_generate_v1mc':
@@ -92,48 +92,48 @@ class IRCompilerFunctionSupport:
         elif funcname == 'lpad':
             name = 'lpad'
             # lpad expects the second argument to be int, so force cast it
-            args[1] = pgast.TypeCastNode(
-                expr=args[1], type=pgast.TypeNode(name='int'))
+            args[1] = pgast.TypeCast(
+                expr=args[1], type=pgast.Type(name='int'))
 
         elif funcname == 'rpad':
             name = 'rpad'
             # rpad expects the second argument to be int, so force cast it
-            args[1] = pgast.TypeCastNode(
-                expr=args[1], type=pgast.TypeNode(name='int'))
+            args[1] = pgast.TypeCast(
+                expr=args[1], type=pgast.Type(name='int'))
 
         elif funcname == 'levenshtein':
             name = common.qname('edgedb', 'levenshtein')
 
         elif funcname == 're_match':
-            subq = pgast.SelectQueryNode()
+            subq = pgast.SelectQuery()
 
-            flags = pgast.FunctionCallNode(
+            flags = pgast.FuncCall(
                 name='coalesce',
-                args=[args[2], pgast.ConstantNode(value='')])
+                args=[args[2], pgast.Constant(val='')])
 
             fargs = [args[1], args[0], flags]
-            op = pgast.FunctionCallNode(
+            op = pgast.FuncCall(
                 name='regexp_matches', args=fargs)
             subq.targets.append(op)
 
             result = subq
 
         elif funcname == 'strpos':
-            r = pgast.FunctionCallNode(name='strpos', args=args)
-            result = pgast.BinOpNode(
-                left=r, right=pgast.ConstantNode(value=1),
+            r = pgast.FuncCall(name='strpos', args=args)
+            result = pgast.BinOp(
+                left=r, right=pgast.Constant(val=1),
                 op=ast.ops.SUB)
 
         elif funcname == 'substr':
             name = 'substr'
-            args[1] = pgast.TypeCastNode(
-                expr=args[1], type=pgast.TypeNode(name='int'))
-            args[1] = pgast.BinOpNode(
-                left=args[1], right=pgast.ConstantNode(value=1),
+            args[1] = pgast.TypeCast(
+                expr=args[1], type=pgast.Type(name='int'))
+            args[1] = pgast.BinOp(
+                left=args[1], right=pgast.Constant(val=1),
                 op=ast.ops.ADD)
             if args[2] is not None:
-                args[2] = pgast.TypeCastNode(
-                    expr=args[2], type=pgast.TypeNode(name='int'))
+                args[2] = pgast.TypeCast(
+                    expr=args[2], type=pgast.Type(name='int'))
 
         elif isinstance(funcname, tuple):
             assert False, 'unsupported function %s' % (funcname, )
@@ -146,12 +146,12 @@ class IRCompilerFunctionSupport:
                 window_sort = agg_sort
                 agg_sort = None
 
-            result = pgast.FunctionCallNode(
-                name=name, args=args, aggregates=bool(expr.aggregate),
-                agg_sort=agg_sort, agg_filter=agg_filter)
+            result = pgast.FuncCall(
+                name=name, args=args,
+                agg_order=agg_sort, agg_filter=agg_filter)
 
             if expr.window:
-                result.over = pgast.WindowDefNode(
+                result.over = pgast.WindowDef(
                     orderby=window_sort, partition=partition)
 
         return result

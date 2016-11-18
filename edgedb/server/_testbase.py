@@ -265,7 +265,7 @@ class QueryTestCaseMeta(TestCaseMeta):
                 if not isinstance(output, Error):
                     raise
                 else:
-                    with self.assertRaisesRegex(output.cls, output.message):
+                    with self.RaisesRegex(output.cls, output.message):
                         raise
                     res = vars(e)
 
@@ -277,11 +277,6 @@ class QueryTestCaseMeta(TestCaseMeta):
 class QueryTestCase(DatabaseTestCase, metaclass=QueryTestCaseMeta):
     async def assert_query_result(self, query, result):
         res = await self.con.execute(query)
-        self.assert_data_shape(res, result)
-        return res
-
-    async def assert_query_result_2(self, query, result):
-        res = await self.con.execute(query, flags={'experimental-compiler'})
         self.assert_data_shape(res, result)
         return res
 

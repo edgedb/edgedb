@@ -15,7 +15,7 @@ from edgedb.lang.schema import name as sn
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import utils as s_utils
 
-from edgedb.server.pgsql import ast as pgast
+from edgedb.server.pgsql import ast2 as pgast
 from edgedb.server.pgsql import common
 from edgedb.server.pgsql import types as pg_types
 
@@ -54,7 +54,7 @@ class IRCompilerDBObjects:
 
         return const_type
 
-    def _table_from_concept(self, concept, node, parent_cte):
+    def _range_for_concept(self, concept, parent_cte):
         ctx = self.context.current
 
         if concept.is_virtual:
@@ -81,14 +81,14 @@ class IRCompilerDBObjects:
 
             for c, cc in inhmap.items():
                 table = self._table_from_concept(c, node, parent_cte)
-                qry = pgast.SelectQueryNode()
+                qry = pgast.SelectQuery()
                 qry.fromlist.append(table)
 
                 for aname, colname in cols:
                     if aname in c.pointers:
                         aref = atomrefs[aname]
                         if isinstance(aref, irast.AtomicRefSimple):
-                            selexpr = pgast.FieldRefNode(
+                            selexpr = pgast.FieldRef(
                                 table=table, field=colname)
 
                         elif isinstance(aref, irast.SubgraphRef):
@@ -103,11 +103,11 @@ class IRCompilerDBObjects:
                                 for i, (outerref, innerref
                                         ) in enumerate(subquery.outerbonds):
                                     if outerref == node:
-                                        fref = pgast.FieldRefNode(
+                                        fref = pgast.FieldRef(
                                             table=table, field=idcol)
                                         cmap = ctx.ir_set_field_map
                                         cmap[node] = {
-                                            idcol: pgast.SelectExprNode(
+                                            idcol: pgast.SelectExpr(
                                                 expr=fref)
                                         }
 
@@ -142,19 +142,19 @@ class IRCompilerDBObjects:
                                 schema, target_ptr.target)
                             coltypes[aname] = coltype
 
-                        selexpr = pgast.ConstantNode(value=None)
-                        pgtype = pgast.TypeNode(name=coltype)
-                        selexpr = pgast.TypeCastNode(
+                        selexpr = pgast.Constant(value=None)
+                        pgtype = pgast.Type(name=coltype)
+                        selexpr = pgast.TypeCast(
                             expr=selexpr, type=pgtype)
 
                     qry.targets.append(
-                        pgast.SelectExprNode(expr=selexpr, alias=colname))
+                        pgast.SelectExpr(expr=selexpr, alias=colname))
 
-                selexpr = pgast.FieldRefNode(
+                selexpr = pgast.FieldRef(
                     table=table, field='std::__class__')
 
                 qry.targets.append(
-                    pgast.SelectExprNode(
+                    pgast.SelectExpr(
                         expr=selexpr, alias='std::__class__'))
 
                 if cc:
@@ -165,17 +165,17 @@ class IRCompilerDBObjects:
                     get_concept_id = ctx.backend.get_concept_id
                     cc_ids = {get_concept_id(cls) for cls in cc}
                     cc_ids = [
-                        pgast.ConstantNode(value=cc_id) for cc_id in cc_ids
+                        pgast.Constant(value=cc_id) for cc_id in cc_ids
                     ]
-                    cc_ids = pgast.SequenceNode(elements=cc_ids)
+                    cc_ids = pgast.Sequence(elements=cc_ids)
 
-                    qry.where = pgast.BinOpNode(
+                    qry.where = pgast.BinOp(
                         left=selexpr, right=cc_ids, op=ast.ops.NOT_IN)
 
                 union_list.append(qry)
 
             if len(union_list) > 1:
-                relation = pgast.SelectQueryNode(
+                relation = pgast.SelectQuery(
                     edgedbnode=node, concepts=children, op=pgast.UNION)
                 self._setop_from_list(relation, union_list, pgast.UNION)
             else:
@@ -186,35 +186,58 @@ class IRCompilerDBObjects:
         else:
             table_schema_name, table_name = common.concept_name_to_table_name(
                 concept.name, catenate=False)
+
             if concept.name.module == 'schema':
                 # Redirect all queries to schema tables to edgedbss
                 table_schema_name = 'edgedbss'
 
-            relation = pgast.TableNode(
-                name=table_name, schema=table_schema_name,
-                concepts=frozenset({node.scls}),
-                alias=ctx.genalias(hint=table_name),
-                edgedbnode=node)
-        return relation
+            relation = pgast.Relation(
+                schemaname=table_schema_name,
+                relname=table_name
+            )
 
-    def _relation_from_concepts(self, node, parent_cte):
-        return self._table_from_concept(node.scls, node, parent_cte)
+            rvar = pgast.RangeVar(
+                relation=relation,
+                alias=pgast.Alias(
+                    aliasname=ctx.genalias(hint=concept.name.name)
+                )
+            )
+
+        return rvar
+
+    def _range_for_set(self, ir_set, parent_cte):
+        rvar = self._range_for_concept(ir_set.scls, parent_cte)
+        rvar.relation.path_id = ir_set.path_id
+
+        return rvar
 
     def _table_from_ptrcls(self, ptrcls):
-        """Return a TableNode corresponding to a given Link."""
+        """Return a Table corresponding to a given Link."""
         table_schema_name, table_name = common.get_table_name(
             ptrcls, catenate=False)
-        if ptrcls.normal_name().module == 'schema':
+
+        pname = ptrcls.normal_name()
+
+        if pname.module == 'schema':
             # Redirect all queries to schema tables to edgedbss
             table_schema_name = 'edgedbss'
-        return pgast.TableNode(
-            name=table_name, schema=table_schema_name,
-            alias=self.context.current.genalias(hint=table_name))
 
-    def _relation_from_ptrcls(self, ptrcls, direction):
-        """"Return a Relation subclass corresponding to a given ptr step.
+        relation = pgast.Relation(
+            schemaname=table_schema_name, relname=table_name)
 
-        If `ptrcls` is a generic link, then a simple TableNode is returned,
+        rvar = pgast.RangeVar(
+            relation=relation,
+            alias=pgast.Alias(
+                aliasname=self.context.current.genalias(hint=pname.name)
+            )
+        )
+
+        return rvar
+
+    def _range_for_ptrcls(self, ptrcls, direction):
+        """"Return a Range subclass corresponding to a given ptr step.
+
+        If `ptrcls` is a generic link, then a simple RangeVar is returned,
         otherwise the return value may potentially be a UNION of all tables
         corresponding to a set of specialized links computed from the given
         `ptrcls` taking source inheritance into account.
@@ -226,7 +249,7 @@ class IRCompilerDBObjects:
         if ptrcls.generic():
             # Generic links would capture the necessary set via inheritance.
             #
-            relation = self._table_from_ptrcls(ptrcls)
+            rvar = self._table_from_ptrcls(ptrcls)
 
         else:
             cols = []
@@ -252,15 +275,15 @@ class IRCompilerDBObjects:
 
                 table = self._table_from_ptrcls(src_ptrcls)
 
-                qry = pgast.SelectQueryNode()
-                qry.fromlist.append(table)
+                qry = pgast.SelectStmt()
+                qry.from_clause.append(table)
 
                 # Make sure all property references are pulled up properly
                 for propname, colname in cols:
-                    selexpr = pgast.FieldRefNode(
-                        table=table, field=colname)
-                    qry.targets.append(
-                        pgast.SelectExprNode(expr=selexpr, alias=colname))
+                    selexpr = pgast.ColumnRef(
+                        name=[table.alias.aliasname, colname])
+                    qry.target_list.append(
+                        pgast.ResTarget(val=selexpr, name=colname))
 
                 union_list.append(qry)
 
@@ -268,29 +291,27 @@ class IRCompilerDBObjects:
                 # We've been given a generic link that none of the potential
                 # sources contain directly, so fall back to general parent
                 # table. #
-                relation = self._table_from_ptrcls(ptrcls.bases[0])
+                rvar = self._table_from_ptrcls(ptrcls.bases[0])
 
             elif len(union_list) > 1:
                 # More than one link table, generate a UNION clause.
                 #
-                relation = pgast.SelectQueryNode(op=pgast.UNION)
-                self._setop_from_list(relation, union_list, pgast.UNION)
+                union = pgast.SelectStmt(op=pgast.UNION)
+                self._setop_from_list(union, union_list, pgast.UNION)
+
+                rvar = pgast.RangeSubselect(
+                    subquery=union,
+                    alias=pgast.Alias(
+                        aliasname=ctx.genalias(hint=ptrcls.normal_name().name)
+                    )
+                )
 
             else:
                 # Just one link table, so returin it directly
                 #
-                relation = union_list[0].fromlist[0]
+                rvar = union_list[0].from_clause[0]
 
-            relation.alias = ctx.genalias(hint=ptrcls.normal_name().name)
+        return rvar
 
-        return relation
-
-    def _relation_from_link(self, link_node):
-        ptrcls = link_node.ptrcls
-        if ptrcls is None:
-            ptrcls = self.context.current.schema.get('std::link')
-
-        relation = self._relation_from_ptrcls(
-            ptrcls, link_node.direction)
-        relation.edgedbnode = link_node
-        return relation
+    def _range_for_pointer(self, pointer):
+        return self._range_for_ptrcls(pointer.ptrcls, pointer.direction)

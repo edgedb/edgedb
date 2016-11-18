@@ -123,7 +123,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     """
 
     async def test_edgeql_select_computable01(self):
-        await self.assert_query_result_2('''
+        await self.assert_query_result('''
             WITH MODULE test
             SELECT
                 Issue {
@@ -144,7 +144,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_computable02(self):
-        await self.assert_query_result_2('''
+        await self.assert_query_result('''
             WITH MODULE test
             SELECT
                 Issue {
@@ -247,7 +247,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_computable06(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT
                 User {
@@ -376,7 +376,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_computable10(self):
-        await self.assert_query_result_2(r"""
+        await self.assert_query_result(r"""
             WITH MODULE test
             SELECT Issue{
                 name,
@@ -394,7 +394,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_match01(self):
-        res = await self.con.execute(r'''
+        await self.assert_query_result(r"""
             WITH MODULE test
             SELECT
                 Issue {number}
@@ -415,16 +415,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WHERE
                 Issue.name LIKE '%Edge%'
             ORDER BY Issue.number;
-        ''')
-
-        self.assert_data_shape(res, [
+        """, [
             [],
             [{'number': '1'}],
             [{'number': '1'}, {'number': '2'}],
         ])
 
     async def test_edgeql_select_match02(self):
-        res = await self.con.execute(r'''
+        await self.assert_query_result(r"""
             WITH MODULE test
             SELECT
                 Issue {number}
@@ -445,9 +443,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WHERE
                 Issue.name NOT LIKE '%Edge%'
             ORDER BY Issue.number;
-        ''')
-
-        self.assert_data_shape(res, [
+        """, [
             [{'number': '1'}, {'number': '2'}, {'number': '3'},
              {'number': '4'}],
             [{'number': '2'}, {'number': '3'}, {'number': '4'}],
@@ -455,7 +451,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_match03(self):
-        res = await self.con.execute(r'''
+        await self.assert_query_result(r"""
             WITH MODULE test
             SELECT
                 Issue {number}
@@ -476,9 +472,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WHERE
                 Issue.name ILIKE '%re%'
             ORDER BY Issue.number;
-        ''')
-
-        self.assert_data_shape(res, [
+        """, [
             [{'number': '1'}],
             [{'number': '1'}],
             [{'number': '1'}, {'number': '2'}, {'number': '3'},
@@ -486,7 +480,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_match04(self):
-        res = await self.con.execute(r'''
+        await self.assert_query_result(r"""
             WITH MODULE test
             SELECT
                 Issue {number}
@@ -507,16 +501,16 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WHERE
                 Issue.name NOT ILIKE '%re%'
             ORDER BY Issue.number;
-        ''')
-
-        self.assert_data_shape(res, [
+        """, [
             [{'number': '2'}, {'number': '3'}, {'number': '4'}],
             [{'number': '2'}, {'number': '3'}, {'number': '4'}],
             [],
         ])
 
+    # FTS is not implemented yet
+    @unittest.expectedFailure
     async def test_edgeql_select_match05(self):
-        res = await self.con.execute(r'''
+        await self.assert_query_result(r"""
             WITH MODULE test
             SELECT
                 Issue {number}
@@ -530,16 +524,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WHERE
                 Issue.body @@ 'need'
             ORDER BY Issue.number;
-        ''')
-
-        self.assert_data_shape(res, [
+        """, [
             [{'number': '1'}, {'number': '2'}],
             [{'number': '2'}],
         ])
 
     @unittest.expectedFailure
     async def test_edgeql_select_match06(self):
-        res = await self.con.execute(r'''
+        await self.assert_query_result(r"""
             # XXX: @@ used with a query operand, as opposed to a literal
             WITH MODULE test
             SELECT
@@ -554,15 +546,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WHERE
                 Issue.name @@ to_tsquery('edgedb | repl')
             ORDER BY Issue.number;
-        ''')
-
-        self.assert_data_shape(res, [
+        """, [
             [{'number': '1'}, {'number': '2'}, {'number': '3'}],
             [{'number': '2'}],
         ])
 
     async def test_edgeql_select_match07(self):
-        res = await self.con.execute(r'''
+        await self.assert_query_result(r"""
             WITH MODULE test
             SELECT
                 Text {body}
@@ -583,9 +573,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WHERE
                 Text.body ~ 'ed([S\s]|$)'
             ORDER BY Text.body;
-        ''')
-
-        self.assert_data_shape(res, [
+        """, [
             [{'body': 'EdgeDB needs to happen soon.'},
              {'body': 'Fix regression introduced by lexer tweak.'},
              {'body': 'We need to be able to render data in tabular format.'}],
@@ -596,7 +584,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_match08(self):
-        res = await self.con.execute(r'''
+        await self.assert_query_result(r"""
             WITH MODULE test
             SELECT
                 Text {body}
@@ -617,9 +605,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WHERE
                 Text.body ~* 'ed([S\s]|$)'
             ORDER BY Text.body;
-        ''')
-
-        self.assert_data_shape(res, [
+        """, [
             [{'body': 'EdgeDB needs to happen soon.'},
              {'body': 'Fix regression introduced by lexer tweak.'},
              {'body': 'Initial public release of EdgeDB.'},
@@ -693,6 +679,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
         self.assert_data_shape(res1[0][0]['__class__'], res2[0][0])
 
+    # Recursion isn't working properly yet
+    @unittest.expectedFailure
     async def test_edgeql_select_recursive01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -730,7 +718,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_limit01(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT
                 Issue {number}
@@ -755,7 +743,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_specialized01(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT
                 Text {body}
@@ -796,7 +784,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_specialized02(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT User{
                 name,
@@ -843,10 +831,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ''', [
             [{
                 'number': '1',
-                'related_to': []
+                'related_to': None
             }, {
                 'number': '2',
-                'related_to': []
+                'related_to': None
             }, {
                 'number': '3',
                 'related_to': [
@@ -854,7 +842,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 ]
             }, {
                 'number': '4',
-                'related_to': []
+                'related_to': None
             }],
         ])
 
@@ -1063,7 +1051,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_order01(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue {name}
             ORDER BY Issue.priority.name ASC NULLS LAST THEN Issue.name;
@@ -1087,7 +1075,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_order02(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Text {body}
             ORDER BY strlen(Text.body) DESC;
@@ -1101,7 +1089,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ]])
 
     async def test_edgeql_select_order03(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT User {name}
             ORDER BY (
@@ -1115,7 +1103,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_where01(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
             # issue where the owner also has a comment with non-empty body
@@ -1126,7 +1114,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_where02(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
             # issue where the owner also has a comment to it
@@ -1136,7 +1124,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_where03(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{
                 name,
@@ -1164,7 +1152,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_func01(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT std::strlen(User.name) ORDER BY User.name;
 
@@ -1185,7 +1173,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_func03(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT std::count(User.<owner.id)
             GROUP BY User.name ORDER BY User.name;
@@ -1194,7 +1182,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_func04(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT sum(<int>Issue.number)
             WHERE EXISTS Issue.watchers.name
@@ -1231,7 +1219,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_exists02(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT
                 Issue {
@@ -1246,7 +1234,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_exists03(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT
                 Issue {
@@ -1261,7 +1249,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_exists04(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT
                 Issue {
@@ -1276,7 +1264,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_exists05(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
             WHERE
@@ -1289,7 +1277,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_exists06(self):
         # using IDs in EXISTS clauses should be semantically identical
         # to using concepts
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
             WHERE
@@ -1300,7 +1288,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_exists07(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
             WHERE
@@ -1313,7 +1301,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_exists08(self):
         # using IDs in EXISTS clauses should be semantically identical
         # to using concepts
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
             WHERE
@@ -1324,7 +1312,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_exists09(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
             WHERE
@@ -1337,7 +1325,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_exists10(self):
         # using IDs in EXISTS clauses should be semantically identical
         # to using concepts
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
             WHERE
@@ -1348,7 +1336,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_exists11(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
             WHERE
@@ -1361,7 +1349,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_exists12(self):
         # using IDs in EXISTS clauses should be semantically identical
         # to using concepts
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
             WHERE
@@ -1372,7 +1360,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_exists13(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
             # issue where the owner also has a comment
@@ -1503,7 +1491,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_and01(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
             WHERE
@@ -1516,7 +1504,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_and02(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
             WHERE
@@ -1529,7 +1517,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_and03(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
             WHERE
@@ -1542,7 +1530,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_and04(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
             WHERE
@@ -1555,7 +1543,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_and05(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
             WHERE
@@ -1568,7 +1556,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_and06(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
             WHERE
@@ -1581,7 +1569,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_and07(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
             WHERE
@@ -1594,7 +1582,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_and08(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
             WHERE
@@ -1619,7 +1607,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WHERE
                 Issue.priority.name = 'Low'
             ORDER BY Issue.number;
-        ''', flags={'experimental-compiler'})
+        ''')
 
         issues_h, issues_l = res
 
@@ -1631,7 +1619,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 OR
                 Issue.priority.name = 'Low'
             ORDER BY Issue.priority.name THEN Issue.number;
-        ''', flags={'experimental-compiler'})
+        ''')
 
         self.assert_data_shape(res, [
             issues_h + issues_l,
@@ -1651,7 +1639,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WHERE
                 NOT EXISTS Issue.priority
             ORDER BY Issue.number;
-        ''', flags={'experimental-compiler'})
+        ''')
 
         issues_h, issues_n = res
 
@@ -1671,7 +1659,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 OR
                 NOT EXISTS Issue.priority.id
             ORDER BY Issue.priority.name NULLS LAST THEN Issue.number;
-        ''', flags={'experimental-compiler'})
+        ''')
 
         self.assert_data_shape(res, [
             issues_h + issues_n,
@@ -1711,7 +1699,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_or04(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
             WHERE
@@ -1745,7 +1733,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_or05(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
             WHERE
@@ -1768,7 +1756,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_or06(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
             WHERE
@@ -1781,7 +1769,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_or07(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
             WHERE
@@ -1794,7 +1782,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_or08(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
             WHERE
@@ -1808,7 +1796,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_or09(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
             WHERE
@@ -1822,7 +1810,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_or10(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
             WHERE
@@ -1835,7 +1823,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_or11(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
             WHERE
@@ -1848,7 +1836,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_or12(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
             WHERE
@@ -1861,7 +1849,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_or13(self):
-        await self.assert_query_result_2(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
             WHERE
@@ -1874,14 +1862,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_null01(self):
-        await self.assert_query_result_2(r"""
+        await self.assert_query_result(r"""
             SELECT test::Issue.number = NULL;
             """, [
             [None, None, None, None],
         ])
 
     async def test_edgeql_select_null02(self):
-        await self.assert_query_result_2(r"""
+        await self.assert_query_result(r"""
             # the WHERE clause is always NULL, so it can never be true
             WITH MODULE test
             SELECT Issue{number}
@@ -1901,7 +1889,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def _test_edgeql_select_cross01(self):
-        await self.assert_query_result_2(r"""
+        await self.assert_query_result(r"""
             # the cross product of status and priority names
             WITH MODULE test
             SELECT Status.name + Priority.name
@@ -1912,7 +1900,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def _test_edgeql_select_cross02(self):
-        await self.assert_query_result_2(r"""
+        await self.assert_query_result(r"""
             # status and priority name for each issue
             WITH MODULE test
             SELECT Issue.status.name + Issue.priority.name
@@ -1922,7 +1910,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def _test_edgeql_select_cross03(self):
-        await self.assert_query_result_2(r"""
+        await self.assert_query_result(r"""
             # cross-product of all user names and issue numbers
             WITH MODULE test
             SELECT User.name + Issue.number
@@ -1933,7 +1921,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_cross04(self):
-        await self.assert_query_result_2(r"""
+        await self.assert_query_result(r"""
             # concatenate the user name with every issue number that user has
             WITH MODULE test
             SELECT User.name + User.<owner[TO Issue].number
@@ -1942,11 +1930,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['Elvis1', 'Elvis4', 'Yury2', 'Yury3'],
         ])
 
+    @unittest.expectedFailure  # Needs DISCONNECTED impl
     async def test_edgeql_select_subqueries01(self):
         await self.assert_query_result(r"""
             WITH
                 MODULE test,
-                Issue2:= Issue
+                Issue2 := Issue
             # this is string concatenation, not integer arithmetic
             SELECT Issue.number + Issue2.number;
             """, [
@@ -1970,6 +1959,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [],
         ])
 
+    @unittest.expectedFailure  # Needs DISCONNECTED impl
     async def test_edgeql_select_subqueries03(self):
         await self.assert_query_result(r"""
             WITH
@@ -2073,16 +2063,21 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '2'}, {'number': '3'}],
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_select_subqueries08(self):
-        # XXX: I'm not actually sure that this should work, much less
-        # what the result should be
-        await self.assert_query_result(r"""
-            WITH MODULE test
-            SELECT Issue.number + (SELECT Issue.number);
-            """, [
-            ['1"1"', '2"2"', '3"3"', '4"4"'],
-        ])
+        with self.assertRaisesRegex(
+                exc._base.UnknownEdgeDBError,
+                r'unexpected binop operands'):
+            # XXX: I'm not actually sure that this should work, much less
+            # what the result should be
+            await self.assert_query_result(r"""
+                WITH MODULE test
+                SELECT Issue.number + (SELECT Issue.number);
+                """, [
+                ['1"1"', '2"2"', '3"3"', '4"4"'],
+            ])
 
+    @unittest.expectedFailure
     async def test_edgeql_select_subqueries09(self):
         with self.assertRaisesRegex(
                 exc._base.UnknownEdgeDBError,
@@ -2157,7 +2152,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_slice01(self):
-        await self.assert_query_result_2(r"""
+        await self.assert_query_result(r"""
             # full name of the Issue is 'Release EdgeDB'
             WITH MODULE test
             SELECT Issue.name[2]
@@ -2199,7 +2194,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_slice02(self):
-        await self.assert_query_result_2(r"""
+        await self.assert_query_result(r"""
             WITH MODULE test
             SELECT Issue.__class__.name
             WHERE Issue.number = '1';
@@ -2244,7 +2239,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_slice03(self):
-        await self.assert_query_result_2(r"""
+        await self.assert_query_result(r"""
             WITH MODULE test
             SELECT Issue{
                 name,
@@ -2357,7 +2352,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_linkproperty01(self):
-        await self.assert_query_result_2(r"""
+        await self.assert_query_result(r"""
             WITH MODULE test
             SELECT User.todo@rank + <int>User.todo.number
             ORDER BY User.todo.number;
@@ -2366,7 +2361,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_linkproperty02(self):
-        await self.assert_query_result_2(r"""
+        await self.assert_query_result(r"""
             WITH MODULE test
             SELECT Issue.<todo@rank + <int>Issue.number
             ORDER BY Issue.number;
@@ -2375,7 +2370,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_linkproperty03(self):
-        await self.assert_query_result_2(r"""
+        await self.assert_query_result(r"""
             WITH MODULE test
             SELECT User {
                 name,

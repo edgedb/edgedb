@@ -170,6 +170,7 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_update_simple04(self):
         orig1, orig2, orig3 = self.original
 
@@ -311,7 +312,7 @@ class TestUpdate(tb.QueryTestCase):
         # not a singleton set. The specific exception needs to be
         # updated once it is implemented.
         #
-        with self.assertRaises(exc._base.EdgeDBError):
+        with self.assertRaises(ValueError):
             res = await self.con.execute(r"""
                 WITH MODULE test
                 UPDATE UpdateTest {
@@ -334,7 +335,7 @@ class TestUpdate(tb.QueryTestCase):
             UPDATE UpdateTest {
                 status := (
                     SELECT Object
-                    WHERE Object.id = '""" + status[0][0] + r"""'
+                    WHERE Object.id = <uuid>'""" + status[0][0] + r"""'
                 )
             } WHERE UpdateTest.name = 'update-test3';
 
