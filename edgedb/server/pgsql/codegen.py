@@ -415,6 +415,11 @@ class SQLSourceGenerator(codegen.SourceGenerator):
                 common.quote_ident(node.table.alias) + '.' + str(node.field))
         else:
             if node.table:
+                if not node.table.alias:
+                    raise SQLSourceGeneratorError(
+                        'missing field {!r} relation alias: {!r}'.format(
+                            node.field, node.table))
+
                 if isinstance(node.table.alias, str):
                     alias = node.table.alias
                 else:

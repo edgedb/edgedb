@@ -871,8 +871,7 @@ class IRCompiler(ast.visitor.NodeVisitor,
 
         with self.context.subquery():
             ctx = self.context.current
-            subrels = parent_ctx.subquery_map[parent_rel]
-            subrels[ctx.query] = False
+            parent_ctx.subquery_map[parent_rel][ctx.query] = False
 
             if stmt.substmts:
                 for substmt in stmt.substmts:
@@ -961,47 +960,27 @@ class IRCompiler(ast.visitor.NodeVisitor,
 
         query.fromlist[0].expr = fromexpr
 
-        field_map = query.concept_node_map
+        # Finally, go through the remaining subqueries and inject
+        # join conditions.
+        for rel in rels:
+            if not isinstance(rel, pgast.CTENode):
+                self._connect_subquery(rel, query)
 
-        subq = [rel for rel in rels
-                if not isinstance(rel, pgast.CTENode) and rel.fromlist]
+    def _connect_subquery(self, subquery, parentquery):
+        # Inject a WHERE condition corresponding to the full inner bond join
+        # between the outer query and the subquery.
+        parent_inner_bonds = {
+            pid: [se.expr] for pid, se in parentquery.concept_node_map.items()
+        }
 
-        for rel in subq:
-            innerrel = rel.fromlist[0].expr
-            fromlist = {f.expr for f in innerrel.fromlist}
-            fromlist.add(innerrel)
+        subq_inner_bonds = {
+            pid: [se.expr] for pid, se in subquery.concept_node_map.items()
+        }
 
-            for path_id, fieldref in innerrel._bonds.items():
-                if path_id not in field_map:
-                    continue
+        cond = self._full_bond_condition(subq_inner_bonds, parent_inner_bonds)
 
-                lref = fieldref[0]
-                rref = field_map[path_id].expr
-
-                if isinstance(lref, pgast.FieldRefNode):
-                    left_id = (lref.table, lref.field)
-                else:
-                    left_id = lref
-
-                if isinstance(rref, pgast.FieldRefNode):
-                    right_id = (rref.table, rref.field)
-                else:
-                    right_id = rref
-
-                if left_id != right_id:
-                    bond_cond = pgast.BinOpNode(
-                        op='=', left=lref, right=rref)
-                    rel.where = self._extend_binop(
-                        rel.where, bond_cond)
-
-                    if isinstance(lref, pgast.FieldRefNode):
-                        if lref.table not in fromlist:
-                            innerrel.fromlist.append(
-                                pgast.FromExprNode(
-                                    expr=lref.table
-                                )
-                            )
-                            fromlist.add(lref.table)
+        if cond is not None:
+            subquery.where = self._extend_binop(subquery.where, cond)
 
     def _process_selector(self, result_expr, transform_output=True):
         ctx = self.context.current
@@ -1122,20 +1101,25 @@ class IRCompiler(ast.visitor.NodeVisitor,
 
         return join
 
-    def _rel_join(self, left, right, type='inner'):
+    def _full_bond_condition(self, left_bonds, right_bonds):
         condition = None
 
-        for path_id, fieldref in left._bonds.items():
-            lref = fieldref[-1]
+        for path_id, lrefs in left_bonds.items():
             try:
-                rref = right._bonds[path_id][-1]
+                rrefs = right_bonds[path_id]
             except KeyError:
                 continue
 
-            if (lref.table, lref.field) != (rref.table, rref.field):
-                bond_cond = pgast.BinOpNode(
-                    op='=', left=lref, right=rref)
-                condition = self._extend_binop(condition, bond_cond)
+            path_cond = self._join_condition(lrefs[-1], rrefs[-1])
+            condition = self._extend_binop(condition, path_cond)
+
+        return condition
+
+    def _full_outer_bond_condition(self, left, right):
+        return self._full_bond_condition(left._bonds, right._bonds)
+
+    def _rel_join(self, left, right, type='inner'):
+        condition = self._full_outer_bond_condition(left, right)
 
         if condition is None:
             type = 'cross'
