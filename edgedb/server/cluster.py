@@ -151,13 +151,7 @@ class Cluster:
                 server_settings=server_settings, **conn_args)
 
         try:
-            loop = asyncio.new_event_loop()
-            try:
-                loop.run_until_complete(
-                    self._init(self._pg_cluster, loop=loop))
-            finally:
-                loop.close()
-
+            self._init(self._pg_cluster)
         finally:
             if not is_running:
                 self._pg_cluster.stop()
@@ -196,8 +190,8 @@ class Cluster:
     def destroy(self):
         self._pg_cluster.destroy()
 
-    async def _init(self, pg_connector, *, loop):
-        self.start()
+    def _init(self, pg_connector):
+        self.start(port='dynamic')
         self.stop()
 
     async def _edgedb_template_exists(self, conn):

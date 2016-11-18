@@ -15,7 +15,7 @@ from edgedb.server import cluster as edgedb_cluster
 
 
 class TestCtl(tb.TestCase):
-    async def test_ctl_init_1(self):
+    def test_ctl_init_1(self):
         data_dir = tempfile.mkdtemp(prefix='edgedbtest-')
         conn = cluster = None
 
