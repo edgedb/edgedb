@@ -241,6 +241,14 @@ class GraphQLTranslator(ast.NodeVisitor):
             if arg.name == '__data':
                 return self._visit_mutation_data(arg.value)
 
+    def _cast_value(self, value, typename):
+        return qlast.TypeCastNode(
+            expr=value,
+            type=qlast.TypeNameNode(
+                maintype=qlast.ClassRefNode(module='std', name=typename)
+            )
+        )
+
     def _visit_mutation_data(self, node):
         result = []
 
@@ -251,10 +259,16 @@ class GraphQLTranslator(ast.NodeVisitor):
                 # existing data referenced by ID
                 #
                 ids = self.visit(field.value)
+
                 if isinstance(ids, qlast.SequenceNode):
                     op = ast.ops.IN
+                    ids = qlast.SequenceNode(
+                        elements=[self._cast_value(el, 'uuid')
+                                  for el in ids.elements]
+                    )
                 else:
                     op = ast.ops.EQ
+                    ids = self._cast_value(ids, 'uuid')
 
                 name = field.name[:-4]
                 value = qlast.SelectQueryNode(

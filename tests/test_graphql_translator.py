@@ -2417,7 +2417,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     SELECT (std::Object)
                     WHERE (
                         (std::Object).id =
-                            '21e16e2e-e445-494c-acfc-cc9378620501'
+                            <std::uuid>'21e16e2e-e445-494c-acfc-cc9378620501'
                     )
                 )
             }
@@ -2463,8 +2463,8 @@ class TestGraphQLTranslation(TranslatorTest):
                     SELECT (std::Object)
                     WHERE (
                         (std::Object).id IN
-                            ('21e16e2e-e445-494c-acfc-cc9378620501',
-                             'fd5f4ad8-2e8c-4224-9243-361d61dee856')
+                            (<std::uuid>'21e16e2e-e445-494c-acfc-cc9378620501',
+                             <std::uuid>'fd5f4ad8-2e8c-4224-9243-361d61dee856')
                     )
                 )
             }
@@ -2581,7 +2581,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     SELECT (std::Object)
                     WHERE (
                         (std::Object).id =
-                            '21e16e2e-e445-494c-acfc-cc9378620501'
+                            <std::uuid>'21e16e2e-e445-494c-acfc-cc9378620501'
                     )
                 )
             }
@@ -2627,8 +2627,8 @@ class TestGraphQLTranslation(TranslatorTest):
                     SELECT (std::Object)
                     WHERE (
                         (std::Object).id IN
-                            ('21e16e2e-e445-494c-acfc-cc9378620501',
-                             'fd5f4ad8-2e8c-4224-9243-361d61dee856')
+                            (<std::uuid>'21e16e2e-e445-494c-acfc-cc9378620501',
+                             <std::uuid>'fd5f4ad8-2e8c-4224-9243-361d61dee856')
                     )
                 )
             }
