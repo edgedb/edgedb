@@ -1155,13 +1155,13 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_cardinality01(self):
         """
-        SELECT SINGLE User.name WHERE (User.name = 'special');
-        INSERT User RETURNING SINGLE User{name};
-        INSERT User{name:= 'foo'} RETURNING SINGLE User{name};
+        SELECT SINGLETON User.name WHERE (User.name = 'special');
+        INSERT User RETURNING SINGLETON User{name};
+        INSERT User{name:= 'foo'} RETURNING SINGLETON User{name};
         UPDATE User{age:= (User.age + 10)}
-            WHERE (User.name = 'foo') RETURNING SINGLE User{name};
-        DELETE User WHERE (User.name = 'foo') RETURNING SINGLE User{name};
-        CREATE FUNCTION spam(foo str) RETURNING SINGLE str;
+            WHERE (User.name = 'foo') RETURNING SINGLETON User{name};
+        DELETE User WHERE (User.name = 'foo') RETURNING SINGLETON User{name};
+        CREATE FUNCTION spam(foo str) RETURNING SINGLETON str;
         """
 
     def test_edgeql_syntax_with01(self):
@@ -1387,8 +1387,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         INSERT Foo;
         INSERT Foo RETURNING Foo;
         INSERT Foo RETURNING Foo{bar};
-        INSERT Foo RETURNING SINGLE Foo;
-        INSERT Foo RETURNING SINGLE Foo{bar};
+        INSERT Foo RETURNING SINGLETON Foo;
+        INSERT Foo RETURNING SINGLETON Foo{bar};
         """
 
     def test_edgeql_syntax_insert02(self):
@@ -1396,8 +1396,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         INSERT Foo{bar:= 42};
         INSERT Foo{bar:= 42} RETURNING Foo;
         INSERT Foo{bar:= 42} RETURNING Foo{bar};
-        INSERT Foo{bar:= 42} RETURNING SINGLE Foo;
-        INSERT Foo{bar:= 42} RETURNING SINGLE Foo{bar};
+        INSERT Foo{bar:= 42} RETURNING SINGLETON Foo;
+        INSERT Foo{bar:= 42} RETURNING SINGLETON Foo{bar};
         """
 
     def test_edgeql_syntax_insert03(self):
@@ -1409,9 +1409,9 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         WITH MODULE test
         INSERT Foo RETURNING Foo{bar};
         WITH MODULE test
-        INSERT Foo RETURNING SINGLE Foo;
+        INSERT Foo RETURNING SINGLETON Foo;
         WITH MODULE test
-        INSERT Foo RETURNING SINGLE Foo{bar};
+        INSERT Foo RETURNING SINGLETON Foo{bar};
         """
 
     def test_edgeql_syntax_insert04(self):
@@ -1423,9 +1423,9 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         WITH MODULE test
         INSERT Foo{bar:= 42} RETURNING Foo{bar};
         WITH MODULE test
-        INSERT Foo{bar:= 42} RETURNING SINGLE Foo;
+        INSERT Foo{bar:= 42} RETURNING SINGLETON Foo;
         WITH MODULE test
-        INSERT Foo{bar:= 42} RETURNING SINGLE Foo{bar};
+        INSERT Foo{bar:= 42} RETURNING SINGLETON Foo{bar};
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=18)
@@ -1549,8 +1549,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         DELETE Foo;
         DELETE Foo RETURNING Foo;
         DELETE Foo RETURNING Foo{bar};
-        DELETE Foo RETURNING SINGLE Foo;
-        DELETE Foo RETURNING SINGLE Foo{bar};
+        DELETE Foo RETURNING SINGLETON Foo;
+        DELETE Foo RETURNING SINGLETON Foo{bar};
         DELETE Foo WHERE (Foo.bar = 42);
         DELETE Foo WHERE (Foo.bar = 42) RETURNING Foo;
         """
@@ -1564,9 +1564,9 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         WITH MODULE test
         DELETE Foo RETURNING Foo{bar};
         WITH MODULE test
-        DELETE Foo RETURNING SINGLE Foo;
+        DELETE Foo RETURNING SINGLETON Foo;
         WITH MODULE test
-        DELETE Foo RETURNING SINGLE Foo{bar};
+        DELETE Foo RETURNING SINGLETON Foo{bar};
         WITH MODULE test
         DELETE Foo WHERE (Foo.bar = 42);
         WITH MODULE test
@@ -1601,8 +1601,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         UPDATE Foo{bar:= 42};
         UPDATE Foo{bar:= 42} RETURNING Foo;
         UPDATE Foo{bar:= 42} RETURNING Foo{bar};
-        UPDATE Foo{bar:= 42} RETURNING SINGLE Foo;
-        UPDATE Foo{bar:= 42} RETURNING SINGLE Foo{bar};
+        UPDATE Foo{bar:= 42} RETURNING SINGLETON Foo;
+        UPDATE Foo{bar:= 42} RETURNING SINGLETON Foo{bar};
         UPDATE Foo{bar:= 42} WHERE (Foo.bar = 24);
         UPDATE Foo{bar:= 42} WHERE (Foo.bar = 24) RETURNING Foo;
         """
@@ -1616,9 +1616,9 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         WITH MODULE test
         UPDATE Foo{bar:= 42} RETURNING Foo{bar};
         WITH MODULE test
-        UPDATE Foo{bar:= 42} RETURNING SINGLE Foo;
+        UPDATE Foo{bar:= 42} RETURNING SINGLETON Foo;
         WITH MODULE test
-        UPDATE Foo{bar:= 42} RETURNING SINGLE Foo{bar};
+        UPDATE Foo{bar:= 42} RETURNING SINGLETON Foo{bar};
         WITH MODULE test
         UPDATE Foo{bar:= 42} WHERE (Foo.bar = 24);
         WITH MODULE test

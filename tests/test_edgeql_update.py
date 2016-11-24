@@ -292,7 +292,7 @@ class TestUpdate(tb.QueryTestCase):
             UPDATE UpdateTest {
                 comment := 'updated ' + UpdateTest.comment
             } WHERE UpdateTest.name = 'update-test2'
-            RETURNING SINGLE UpdateTest {
+            RETURNING SINGLETON UpdateTest {
                 name,
                 comment,
             };
@@ -317,7 +317,7 @@ class TestUpdate(tb.QueryTestCase):
                 WITH MODULE test
                 UPDATE UpdateTest {
                     comment := 'updated ' + UpdateTest.comment
-                } RETURNING SINGLE UpdateTest {
+                } RETURNING SINGLETON UpdateTest {
                     name,
                     comment,
                 };

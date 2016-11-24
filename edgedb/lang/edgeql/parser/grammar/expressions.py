@@ -77,7 +77,7 @@ class SelectClause(Nonterm):
 
 
 class OptSingle(Nonterm):
-    def reduce_SINGLE(self, *kids):
+    def reduce_SINGLETON(self, *kids):
         self.val = True
 
     def reduce_empty(self):

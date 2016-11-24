@@ -419,19 +419,19 @@ class TestInsert(tb.QueryTestCase):
             INSERT DefaultTest1 {
                 foo := 'ret1',
                 num := 1,
-            } RETURNING SINGLE DefaultTest1;
+            } RETURNING SINGLETON DefaultTest1;
 
             WITH MODULE test
             INSERT DefaultTest1 {
                 foo := 'ret2',
                 num := 2,
-            } RETURNING SINGLE DefaultTest1 {foo};
+            } RETURNING SINGLETON DefaultTest1 {foo};
 
             WITH MODULE test
             INSERT DefaultTest1 {
                 foo := 'ret3',
                 num := 3,
-            } RETURNING SINGLE DefaultTest1.num;
+            } RETURNING SINGLETON DefaultTest1.num;
         ''')
 
         self.assert_data_shape(
