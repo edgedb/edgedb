@@ -184,7 +184,7 @@ class ParseContextWrapper(object):
         if self.mode == ParseContext.CURRENT:
             return self.context
         else:
-            self.context.push()
+            self.context.push(self.mode)
             return self.context
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -193,22 +193,6 @@ class ParseContextWrapper(object):
 
 class EdgeQLCompilerError(edgedb_error.EdgeDBError):
     pass
-
-
-def get_ns_aliases_cges(node):
-    namespaces = []
-    aliases = []
-    cges = []
-
-    for alias in node.aliases:
-        if isinstance(alias, qlast.NamespaceAliasDeclNode):
-            namespaces.append(alias)
-        elif isinstance(alias, qlast.CGENode):
-            cges.append(alias)
-        else:
-            aliases.append(alias)
-
-    return namespaces, aliases, cges
 
 
 def is_aggregated_expr(expr, deep=False):
@@ -494,9 +478,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     # Check if the starting path label is a known
                     # path variable (defined in a WITH clause).
                     refnode = pathvars.get(step.expr)
-                    if refnode is None:
-                        fq_name = '{}::{}'.format(step.namespace, step.expr)
-                        refnode = pathvars.get(fq_name)
 
                 if refnode is None and not step.namespace:
                     # Finally, check if the starting path label is
@@ -860,36 +841,31 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         ctx = self.context.current
 
         stmt = ctx.stmt
-        pathvars = ctx.pathvars
-        namespaces = ctx.namespaces
+        stmt.substmts = []
 
-        t_ns, t_aliases, t_cges = get_ns_aliases_cges(edgeql_tree)
+        for with_entry in edgeql_tree.aliases:
+            if isinstance(with_entry, qlast.NamespaceAliasDeclNode):
+                ctx.namespaces[with_entry.alias] = with_entry.namespace
 
-        with self.context():
-            ctx.location = 'generator'
+            elif isinstance(with_entry, qlast.CGENode):
+                with self.context(ParseContext.SUBQUERY):
+                    _cge = self.visit(with_entry.expr)
+                    _cge.name = with_entry.alias
+                ctx.cge_map[with_entry.alias] = _cge
+                stmt.substmts.append(_cge)
 
-            for alias_decl in t_ns:
-                namespaces[alias_decl.alias] = alias_decl.namespace
+            elif isinstance(with_entry, qlast.DetachedPathDeclNode):
+                with self.context(ParseContext.NEWSETS):
+                    expr = self.visit(with_entry.expr)
+                    expr.path_id = irutils.LinearPath([with_entry.alias])
+                ctx.pathvars[with_entry.alias] = expr
 
-            for alias_decl in t_aliases:
-                expr = self.visit(alias_decl.expr)
-                if isinstance(expr, irast.Set):
-                    expr.pathvar = alias_decl.alias
-
-                pathvars[alias_decl.alias] = expr
+            else:
+                expr = self.visit(with_entry.expr)
+                ctx.pathvars[with_entry.alias] = expr
 
         if ctx.modaliases:
             ctx.namespaces.update(ctx.modaliases)
-
-        if t_cges:
-            stmt.substmts = []
-
-            for cge in t_cges:
-                with self.context(ParseContext.SUBQUERY):
-                    _cge = self.visit(cge.expr)
-                    _cge.name = cge.alias
-                ctx.cge_map[cge.alias] = _cge
-                stmt.substmts.append(_cge)
 
     def _process_unlimited_recursion(self):
         type = s_types.normalize_type((0).__class__, self.schema)
