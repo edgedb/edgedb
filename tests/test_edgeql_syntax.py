@@ -1687,6 +1687,27 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             ORDER BY User.age ASC THEN User.name ASC);
         """
 
+    def test_edgeql_syntax_detached01(self):
+        """
+        WITH
+            MODULE test,
+            U2 := DETACHED User
+        SELECT User {
+            same_name := (
+                SELECT (count(U2) - 1) WHERE (U2.name = User.name)
+            )
+        };
+        """
+
+    def test_edgeql_syntax_detached02(self):
+        """
+        WITH
+            MODULE test,
+            Foo := DETACHED User.groups
+        # cartesian product of user names and group names used by any user
+        SELECT ((User.name + ' ') + Foo.name);
+        """
+
     # DDL
     #
 

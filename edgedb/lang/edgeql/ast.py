@@ -457,6 +457,10 @@ class ExpressionAliasDeclNode(Base):
     __fields = ['expr', 'alias']
 
 
+class DetachedPathDeclNode(Base):
+    __fields = ['expr', 'alias']
+
+
 class SortExprNode(Base):
     __fields = ['path', 'direction', 'nones_order']
 

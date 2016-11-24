@@ -203,6 +203,11 @@ class AliasDecl(Nonterm):
             alias=kids[0].val,
             namespace='.'.join(kids[3].val))
 
+    def reduce_ShortName_TURNSTILE_DETACHED_Path(self, *kids):
+        self.val = qlast.DetachedPathDeclNode(
+            alias=kids[0].val,
+            expr=kids[3].val)
+
     def reduce_ShortName_TURNSTILE_Expr(self, *kids):
         # NOTE: if Expr is a subquery, we need to treat it specially
         if isinstance(kids[2].val, qlast.SelectQueryNode):

@@ -236,6 +236,11 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(' := ')
         self.visit(node.expr)
 
+    def visit_DetachedPathDeclNode(self, node):
+        self.write(ident_to_str(node.alias))
+        self.write(' := DETACHED ')
+        self.visit(node.expr)
+
     def visit_SelectExprNode(self, node):
         self.visit(node.expr)
 
