@@ -49,6 +49,7 @@ class TransformerContextLevel:
             self.filter_null_records = True
             self.memo = {}
             self.entityref_as_id = False
+            self.rel_overlays = collections.defaultdict(list)
 
         else:
             self.argmap = prevlevel.argmap
@@ -69,6 +70,7 @@ class TransformerContextLevel:
             self.set_refs = prevlevel.set_refs
             self.filter_null_records = prevlevel.filter_null_records
             self.entityref_as_id = prevlevel.entityref_as_id
+            self.rel_overlays = prevlevel.rel_overlays
 
             if mode == TransformerContext.SUBQUERY:
                 self.location = 'query'

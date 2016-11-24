@@ -263,6 +263,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.indentation -= 1
 
         if node.returning_list:
+            self.new_lines = 1
             self.write('RETURNING')
             self.new_lines = 1
             self.indentation += 1
@@ -297,6 +298,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.indentation -= 1
 
         if node.returning_list:
+            self.new_lines = 1
             self.write('RETURNING')
             self.new_lines = 1
             self.indentation += 1
@@ -364,6 +366,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
     def visit_ColumnDef(self, node):
         self.write(common.quote_ident(node.name))
         if node.typename:
+            self.write(' ')
             self.visit(node.typename)
 
     def visit_JoinExpr(self, node):

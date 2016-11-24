@@ -175,9 +175,7 @@ class IRCompilerDBObjects:
                 union_list.append(qry)
 
             if len(union_list) > 1:
-                relation = pgast.SelectQuery(
-                    edgedbnode=node, concepts=children, op=pgast.UNION)
-                self._setop_from_list(relation, union_list, pgast.UNION)
+                relation = self._setop_from_list(union_list, pgast.UNION)
             else:
                 relation = union_list[0]
 
@@ -252,11 +250,14 @@ class IRCompilerDBObjects:
             rvar = self._table_from_ptrcls(ptrcls)
 
         else:
-            cols = []
+            cols = [
+                'std::source',
+                'std::target'
+            ]
 
             schema = ctx.schema
 
-            union_list = []
+            set_ops = []
 
             ptrclses = set()
 
@@ -279,28 +280,55 @@ class IRCompilerDBObjects:
                 qry.from_clause.append(table)
 
                 # Make sure all property references are pulled up properly
-                for propname, colname in cols:
+                for colname in cols:
                     selexpr = pgast.ColumnRef(
                         name=[table.alias.aliasname, colname])
                     qry.target_list.append(
                         pgast.ResTarget(val=selexpr, name=colname))
 
-                union_list.append(qry)
+                set_ops.append(('union', qry))
 
-            if len(union_list) == 0:
+                overlays = ctx.rel_overlays.get(src_ptrcls)
+                if overlays:
+                    for op, cte in overlays:
+                        qry = pgast.SelectStmt(
+                            target_list=[
+                                pgast.ColumnRef(
+                                    name=[col]
+                                )
+                                for col in cols],
+                            from_clause=[
+                                pgast.RangeVar(
+                                    relation=cte
+                                )
+                            ]
+                        )
+                        set_ops.append((op, qry))
+
+            if len(set_ops) == 0:
                 # We've been given a generic link that none of the potential
                 # sources contain directly, so fall back to general parent
-                # table. #
+                # table.
                 rvar = self._table_from_ptrcls(ptrcls.bases[0])
 
-            elif len(union_list) > 1:
-                # More than one link table, generate a UNION clause.
-                #
-                union = pgast.SelectStmt(op=pgast.UNION)
-                self._setop_from_list(union, union_list, pgast.UNION)
+            elif len(set_ops) > 1:
+                # More than one link table, generate a UNION/EXCEPT clause.
+                qry = pgast.SelectStmt(
+                    all=True,
+                    larg=set_ops[0][1]
+                )
+
+                for op, rarg in set_ops[1:]:
+                    qry.op, qry.rarg = op, rarg
+                    qry = pgast.SelectStmt(
+                        all=True,
+                        larg=qry
+                    )
+
+                qry = qry.larg
 
                 rvar = pgast.RangeSubselect(
-                    subquery=union,
+                    subquery=qry,
                     alias=pgast.Alias(
                         aliasname=ctx.genalias(hint=ptrcls.normal_name().name)
                     )
@@ -308,8 +336,7 @@ class IRCompilerDBObjects:
 
             else:
                 # Just one link table, so returin it directly
-                #
-                rvar = union_list[0].from_clause[0]
+                rvar = set_ops[0][1].from_clause[0]
 
         return rvar
 

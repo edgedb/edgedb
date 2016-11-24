@@ -907,7 +907,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         elements = []
 
         shape = irast.Shape(elements=elements, scls=scls,
-                            rptr=source_expr.rptr)
+                            set=source_expr, rptr=source_expr.rptr)
 
         _new_visited = _visited.copy()
 

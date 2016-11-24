@@ -195,7 +195,6 @@ class TestGraphQLMutation(tb.QueryTestCase):
             [],
         ])
 
-    @unittest.expectedFailure
     async def test_graphql_mutation_insert01(self):
         result = await self.con.execute(r"""
             mutation @edgedb(module: "test") {
@@ -216,9 +215,6 @@ class TestGraphQLMutation(tb.QueryTestCase):
             }],
         ])
 
-    # The assignment of literal to groups__id causes an exception
-    # due to the lack of cast.
-    @unittest.expectedFailure
     async def test_graphql_mutation_insert02(self):
         groups = await self.con.execute(r"""
             query @edgedb(module: "test") {

@@ -819,6 +819,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         ])
 
+    # related_to INSERT in setup needs DETACHED
+    @unittest.expectedFailure
     async def test_edgeql_select_shape01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -846,6 +848,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         ])
 
+    # related_to INSERT in setup needs DETACHED
+    @unittest.expectedFailure
     async def test_edgeql_select_shape02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -1035,7 +1039,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                  'name': 'Release EdgeDB'},
                 {'body': 'Minor lexer tweaks.',
                  'name': 'Repl tweak.'},
-                {'body': 'We need to be able to render data in tabular format.',
+                {'body': 'We need to be able to render '
+                         'data in tabular format.',
                  'name': 'Improve EdgeDB repl output rendering.'}
             ],
             [
@@ -1046,7 +1051,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 {'body': 'Initial public release of EdgeDB.'},
                 {'body': 'Minor lexer tweaks.'},
                 {'body': 'Rewriting everything.'},
-                {'body': 'We need to be able to render data in tabular format.'}
+                {'body': 'We need to be able to render'
+                         'data in tabular format.'}
             ],
         ])
 

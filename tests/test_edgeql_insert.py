@@ -377,7 +377,6 @@ class TestInsert(tb.QueryTestCase):
             }],
         )
 
-    @unittest.expectedFailure
     async def test_edgeql_insert_returning01(self):
         res = await self.con.execute('''
             WITH MODULE test
@@ -412,7 +411,6 @@ class TestInsert(tb.QueryTestCase):
             ]
         )
 
-    @unittest.expectedFailure
     async def test_edgeql_insert_returning02(self):
         res = await self.con.execute('''
             WITH MODULE test
@@ -447,7 +445,6 @@ class TestInsert(tb.QueryTestCase):
             ]
         )
 
-    @unittest.expectedFailure
     async def test_edgeql_insert_returning03(self):
         res = await self.con.execute('''
             INSERT test::Subordinate {
@@ -474,7 +471,7 @@ class TestInsert(tb.QueryTestCase):
         self.assert_data_shape(
             res[-1],
             [{
-                'name': 'insert returning 1',
+                'name': 'insert nested returning 1',
                 'l2': 0,
                 'subordinates': [{
                     'name': 'sub returning 1'

@@ -139,6 +139,7 @@ class Shape(Expr):
     __fields = [
         ('elements', list),
         'scls',
+        ('set', Set, None),
         ('rptr', Pointer, None),
     ]
 

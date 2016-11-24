@@ -941,7 +941,6 @@ class IRCompiler(ast.visitor.NodeVisitor,
                             name=substmt.name
                         )
                     ctx.query.ctes.append(cte)
-                    ctx.explicit_cte_map[substmt] = cte
 
             if stmt.set_op:
                 with self.context.subquery():
@@ -1024,6 +1023,18 @@ class IRCompiler(ast.visitor.NodeVisitor,
             subquery.where_clause = \
                 self._extend_binop(subquery.where_clause, cond)
 
+    def _process_explicit_substmts(self, ir_stmt):
+        ctx = self.context.current
+
+        if ir_stmt.substmts:
+            for substmt in ir_stmt.substmts:
+                with self.context.subquery():
+                    cte = pgast.CommonTableExpr(
+                        subquery=self.visit(substmt),
+                        name=substmt.name
+                    )
+                ctx.query.ctes.append(cte)
+
     def _process_selector(self, result_expr, transform_output=True):
         ctx = self.context.current
         query = ctx.query
@@ -1040,6 +1051,7 @@ class IRCompiler(ast.visitor.NodeVisitor,
                     name=None,
                     val=pgast.FuncCall(name='to_jsonb', args=[pgexpr]),
                 )
+
                 query.target_list.append(target)
 
         else:
@@ -1361,7 +1373,11 @@ class IRCompiler(ast.visitor.NodeVisitor,
 
         assert nq >= 2, 'set operation requires at least two arguments'
 
+        if parent_qry is None:
+            parent_qry = pgast.SelectStmt()
+
         parent_qry.op = op
+        parent_qry.all = True
 
         for i in range(nq):
             parent_qry.larg = oplist[i]
@@ -1369,8 +1385,10 @@ class IRCompiler(ast.visitor.NodeVisitor,
                 parent_qry.rarg = oplist[i + 1]
                 break
             else:
-                parent_qry.rarg = pgast.SelectQuery(op=op)
+                parent_qry.rarg = pgast.SelectQuery(op=op, all=True)
                 parent_qry = parent_qry.rarg
+
+        return parent_qry
 
     def _add_path_var_reference(self, rel, ir_set, path_id=None):
         ctx = self.context.current
@@ -1468,7 +1486,13 @@ class IRCompiler(ast.visitor.NodeVisitor,
             refexpr = fieldrefs[0]
 
         restarget = pgast.ResTarget(name=alias, val=refexpr)
-        rel.target_list.append(restarget)
+
+        if rel != ctx.query:
+            if hasattr(rel, 'returning_list'):
+                # This is a DML statement
+                rel.returning_list.append(restarget)
+            else:
+                rel.target_list.append(restarget)
 
         rel.path_namespace[path_id] = refexpr
         rel.path_vars[path_id] = alias

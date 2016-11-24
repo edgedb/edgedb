@@ -129,7 +129,7 @@ class CommonTableExpr(Base):
     ]
 
 
-class Query(Base):
+class Query(Base, EdgeQLPathInfo):
     """Generic superclass representing a query."""
 
     __fields = [
@@ -178,7 +178,7 @@ class DeleteStmt(Query, DML):
     ]
 
 
-class SelectStmt(Query, EdgeQLPathInfo):
+class SelectStmt(Query):
     __fields = [
         ('distinct_clause', list, None),  # List of DISTINCT ON expressions,
                                           # empty list for DISTINCT ALL
