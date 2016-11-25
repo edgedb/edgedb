@@ -96,7 +96,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             owner := (SELECT User WHERE User.name = 'Yury'),
             watchers := (SELECT User WHERE User.name = 'Elvis'),
             status := (SELECT Status WHERE Status.name = 'Closed'),
-            related_to := (SELECT Issue WHERE Issue.number = '2'),
+            related_to := (
+                WITH I := DETACHED Issue
+                SELECT I WHERE I.number = '2'
+            ),
             priority := (SELECT Priority WHERE Priority.name = 'Low')
         };
 
@@ -107,7 +110,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             body := 'Fix regression introduced by lexer tweak.',
             owner := (SELECT User WHERE User.name = 'Elvis'),
             status := (SELECT Status WHERE Status.name = 'Closed'),
-            related_to := (SELECT Issue WHERE Issue.number = '3')
+            related_to := (
+                WITH I := DETACHED Issue
+                SELECT I WHERE I.number = '3'
+            )
         };
 
         # NOTE: UPDATE Users for testing the link properties
@@ -819,8 +825,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         ])
 
-    # related_to INSERT in setup needs DETACHED
-    @unittest.expectedFailure
     async def test_edgeql_select_shape01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -848,8 +852,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         ])
 
-    # related_to INSERT in setup needs DETACHED
-    @unittest.expectedFailure
     async def test_edgeql_select_shape02(self):
         await self.assert_query_result(r'''
             WITH MODULE test

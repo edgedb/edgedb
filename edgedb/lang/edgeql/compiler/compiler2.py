@@ -857,7 +857,14 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             elif isinstance(with_entry, qlast.DetachedPathDeclNode):
                 with self.context(ParseContext.NEWSETS):
                     expr = self.visit(with_entry.expr)
-                    expr.path_id = irutils.LinearPath([with_entry.alias])
+                    expr.path_id = irutils.LinearPath([
+                        s_concepts.Concept(
+                            name=sn.Name(
+                                module='__detached__',
+                                name=with_entry.alias
+                            )
+                        )
+                    ])
                 ctx.pathvars[with_entry.alias] = expr
 
             else:
