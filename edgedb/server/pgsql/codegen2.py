@@ -253,6 +253,14 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.visit_list(node.targets)
         self.indentation -= 1
 
+        if node.from_clause:
+            self.new_lines = 1
+            self.write('FROM')
+            self.new_lines = 1
+            self.indentation += 1
+            self.visit_list(node.from_clause)
+            self.indentation -= 1
+
         if node.where_clause:
             self.new_lines = 1
             self.write('WHERE')

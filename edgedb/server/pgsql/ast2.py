@@ -21,7 +21,10 @@ from edgedb.lang.edgeql import ast as qlast
 
 
 class Base(ast.AST):
-    pass
+    def __repr__(self):
+        return (
+            f'<pg.{self.__class__.__name__} at 0x{id(self):x}>'
+        )
 
 
 class Alias(Base):
@@ -167,14 +170,14 @@ class UpdateStmt(Query, DML):
     __fields = [
         ('targets', list),      # The UPDATE target list
         'where_clause',         # WHERE clause
-        'from_clause',          # optional FROM clause
+        ('from_clause', list),  # optional FROM clause
     ]
 
 
 class DeleteStmt(Query, DML):
     __fields = [
         'where_clause',         # WHERE clause
-        'using_clause',         # optional USING clause
+        ('using_clause', list)  # optional USING clause
     ]
 
 

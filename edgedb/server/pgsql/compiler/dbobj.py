@@ -116,18 +116,6 @@ class IRCompilerDBObjects:
                                     inline=True)
 
                             selexpr = subquery
-
-                            # Record this subquery in the computables map to
-                            # signal that the value has been computed, which
-                            # lets  all outer references to this subgraph to be
-                            # pointed to a SelectExpr in parent_cte.
-                            try:
-                                computables = ctx.computable_map[node]
-                            except KeyError:
-                                computables = ctx.computable_map[node] = {}
-
-                            computables[aref.name] = aref
-
                         else:
                             raise ValueError(
                                 'unexpected node in atomrefs list: {!r}'.

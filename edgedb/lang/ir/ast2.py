@@ -105,6 +105,10 @@ class Set(Base):
         'show_as_anchor'
     ]
 
+    def __repr__(self):
+        return \
+            f'<ir.Set \'{self.path_id or self.scls.name}\' at 0x{id(self):x}'
+
 
 class Constant(Base):
     __fields = ['value', 'index', 'expr', 'type', 'substitute_for']

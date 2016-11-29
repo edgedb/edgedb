@@ -9,7 +9,6 @@
 from edgedb.lang.common import ast
 
 from edgedb.lang.ir import ast2 as irast
-from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import atoms as s_atoms
 
@@ -20,142 +19,139 @@ from edgedb.server.pgsql import types as pg_types
 
 class IRCompilerDMLSupport:
     def visit_InsertStmt(self, stmt):
-        with self.context.subquery():
-            ctx = self.context.current
-            ctx.rel = ctx.query = pgast.InsertStmt()
+        with self.context.substmt():
+            toplevel, insert_cte, _ = \
+                self._init_dml_stmt(stmt, pgast.InsertStmt())
 
-            toplevel, insert_cte = self._init_dml_stmt(stmt)
+            self._process_insert_data(stmt, toplevel, insert_cte)
 
-            with self.context.new():
-                self.context.current.entityref_as_id = True
-                self._process_insert_data(stmt, toplevel, insert_cte)
-
-            with self.context.new():
-                ctx = self.context.current
-                ctx.rel = ctx.query = toplevel
-
-                self._process_selector(stmt.result)
-                self._connect_subrels(toplevel)
+            self._process_selector(stmt.result)
+            self._connect_subrels(toplevel)
 
             return toplevel
 
     def visit_UpdateStmt(self, stmt):
-        with self.context.subquery():
-            ctx = self.context.current
-            ctx.rel = ctx.query = pgast.UpdateStmt()
+        with self.context.substmt():
+            toplevel, update_cte, range_cte = \
+                self._init_dml_stmt(stmt, pgast.UpdateStmt())
 
-            toplevel, update_cte = self._init_dml_stmt(stmt)
+            self._process_update_data(stmt, toplevel, update_cte, range_cte)
 
-            with self.context.new():
-                self.context.current.entityref_as_id = True
-                self._process_update_data(
-                    stmt, toplevel, update_cte)
-
-            with self.context.new():
-                ctx = self.context.current
-                ctx.rel = ctx.query = toplevel
-
-                self._process_selector(stmt.result)
-                self._connect_subrels(toplevel)
+            self._process_selector(stmt.result)
+            self._connect_subrels(toplevel)
 
             return toplevel
 
     def visit_DeleteStmt(self, stmt):
         with self.context.subquery():
-            ctx = self.context.current
-            ctx.rel = ctx.query = pgast.DeleteStmt()
+            toplevel, delete_cte, _ = \
+                self._init_dml_stmt(stmt, pgast.DeleteStmt())
 
-            toplevel, delete_cte = self._init_dml_stmt(stmt)
-
-            if stmt.where:
-                self._process_dml_quals(
-                    stmt.shape.set, stmt.where, delete_cte.query)
-
-            with self.context.new():
-                ctx = self.context.current
-                ctx.rel = ctx.query = toplevel
-
-                self._process_selector(stmt.result)
-                self._connect_subrels(toplevel)
+            self._process_selector(stmt.result)
+            self._connect_subrels(toplevel)
 
             return toplevel
 
-    def _init_dml_stmt(self, ir_stmt):
+    def _init_dml_stmt(self, ir_stmt, dml_stmt):
         ctx = self.context.current
-        query = ctx.query
+
+        ctx.stmt = ctx.query = ctx.rel = toplevel = pgast.SelectStmt()
 
         self._process_explicit_substmts(ir_stmt)
 
-        query.relation = self._range_for_concept(ir_stmt.shape.scls, None)
-        query.scls_rvar = query.relation
+        target_ir_set = ir_stmt.shape.set
 
-        id_col = common.edgedb_name_to_pg_name('std::id')
+        dml_stmt.relation = self._range_for_concept(ir_stmt.shape.scls, None)
+        dml_stmt.scls_rvar = dml_stmt.relation
 
-        refexpr = pgast.ColumnRef(
-            name=[query.relation.alias.aliasname, id_col])
-
-        path_id = irutils.LinearPath([ir_stmt.shape.scls])
-        query.path_namespace[path_id] = refexpr
-        query.path_vars[path_id] = query.path_bonds[path_id] = id_col
-        query.returning_list.append(
-            pgast.ResTarget(val=pgast.ColumnRef(name=[id_col])))
-
-        query_cte = pgast.CommonTableExpr(
-            query=query,
+        dml_cte = pgast.CommonTableExpr(
+            query=dml_stmt,
             name=ctx.genalias(hint='m')
         )
 
-        query_cte_rvar = pgast.RangeVar(
-            relation=query_cte,
-            alias=pgast.Alias(aliasname=ctx.genalias(hint='i'))
-        )
+        if isinstance(ir_stmt, (irast.UpdateStmt, irast.DeleteStmt)):
+            # INSERT/UPDATE operate over a range, which we put as
+            # the primary source CTE for this statement.
+            range_cte = self._process_dml_quals(
+                ir_stmt.shape.set, ir_stmt.where, dml_cte.query, toplevel)
 
-        toplevel = pgast.SelectStmt(
-            ctes=[query_cte],
-            from_clause=[query_cte_rvar]
-        )
-
-        ctx.subquery_map[toplevel][query_cte] = {
-            'linked': True,
-            'rvar': query_cte_rvar
-        }
-
-        self._pull_path_namespace(
-            target=toplevel, source=query_cte_rvar,
-            add_to_selector=False)
-
-        ctx.ctemap[ir_stmt.shape.set] = query_cte
-
-        return toplevel, query_cte
-
-    def _process_dml_quals(self, target_ir_set, ir_qual_expr, dml_stmt):
-        with self.context.subquery():
-            ctx = self.context.current
-            ctx.ctemap.clear()
-
-            range_stmt = ctx.query
-
-            range_stmt.target_list = [
-                pgast.ResTarget(
-                    val=self.visit(
-                        self._get_ptr_set(target_ir_set, 'std::id')
-                    )
+            range_rvar = pgast.RangeVar(
+                relation=range_cte,
+                alias=pgast.Alias(
+                    aliasname=ctx.genalias(hint='range')
                 )
-            ]
+            )
 
-            with self.context.new():
-                self.context.current.location = 'where'
-                range_stmt.where_clause = self.visit(ir_qual_expr)
+            ctx.subquery_map[dml_stmt][range_cte] = {
+                'linked': True,
+                'rvar': range_rvar
+            }
 
-            target_rvar = dml_stmt.relation
+            self._pull_path_namespace(target=dml_stmt, source=range_rvar)
 
-            id_ref = pgast.ColumnRef(
-                name=[target_rvar.alias.aliasname, 'std::id'])
-
+            id_col = common.edgedb_name_to_pg_name('std::id')
             dml_stmt.where_clause = self._new_binop(
-                lexpr=id_ref, op='IN', rexpr=range_stmt)
+                lexpr=pgast.ColumnRef(name=[
+                    dml_stmt.relation.alias.aliasname,
+                    id_col
+                ]),
+                op=ast.ops.EQ,
+                rexpr=dml_stmt.path_namespace[target_ir_set.path_id]
+            )
+
+            if hasattr(dml_stmt, 'from_clause'):
+                dml_stmt.from_clause.append(range_rvar)
+            else:
+                dml_stmt.using_clause.append(range_rvar)
+
+        else:
+            range_cte = None
+
+            target_id_set = self._get_ptr_set(target_ir_set, 'std::id')
+
+            self._add_path_var_reference(
+                dml_stmt, target_id_set, path_id=target_ir_set.path_id,
+                add_to_target_list=True)
+
+        toplevel.ctes.append(dml_cte)
+        ctx.ctemap[ir_stmt.shape.set] = dml_cte
+
+        return toplevel, dml_cte, range_cte
+
+    def _process_dml_quals(self, target_ir_set, ir_qual_expr,
+                           dml_stmt, toplevel):
+        with self.context.new():
+            ctx = self.context.current
+
+            ctx.query = toplevel
+            range_stmt = ctx.rel = pgast.SelectStmt()
+
+            id_set = self._get_ptr_set(target_ir_set, 'std::id')
+            self.visit(id_set)
+
+            target_cte = ctx.ctemap[target_ir_set]
+
+            range_stmt.scls_rvar = \
+                ctx.subquery_map[range_stmt][target_cte]['rvar']
+
+            self._add_path_var_reference(
+                range_stmt, id_set, path_id=target_ir_set.path_id)
+
+            if ir_qual_expr is not None:
+                with self.context.new():
+                    self.context.current.location = 'where'
+                    range_stmt.where_clause = self.visit(ir_qual_expr)
+
+            range_cte = pgast.CommonTableExpr(
+                query=range_stmt,
+                name=ctx.genalias(hint='range')
+            )
+
+            toplevel.ctes.append(range_cte)
 
             self._connect_subrels(range_stmt)
+
+            return range_cte
 
     def _process_insert_data(self, stmt, toplevel, insert_cte):
         """Generate SQL INSERTs from an Insert IR."""
@@ -166,10 +162,10 @@ class IRCompilerDMLSupport:
         values = pgast.ImplicitRowExpr()
         select.values = [values]
 
-        query = ctx.query
+        insert_stmt = insert_cte.query
 
-        query.cols = cols
-        query.select_stmt = select
+        insert_stmt.cols = cols
+        insert_stmt.select_stmt = select
 
         # Type reference is always inserted.
         values.args.append(
@@ -235,31 +231,34 @@ class IRCompilerDMLSupport:
         #
         for expr, props_only, operation in external_inserts:
             self._process_update_expr(
-                expr, props_only, operation, toplevel, insert_cte)
+                stmt, expr, props_only, operation, toplevel, insert_cte)
 
-    def _process_update_data(self, stmt, toplevel, update_cte):
-        ctx = self.context.current
-        query = ctx.query
+    def _process_update_data(self, stmt, toplevel, update_cte, range_cte):
+        update_stmt = update_cte.query
 
         external_updates = []
 
-        for expr in stmt.shape.elements:
-            ptrcls = expr.rptr.ptrcls
-            updvalue = expr.stmt.result
+        with self.context.subquery():
+            ctx = self.context.current
+            ctx.rel = ctx.query = update_stmt
+            ctx.ctemap[stmt.shape.set] = range_cte
 
-            ptr_info = pg_types.get_pointer_storage_info(
-                ptrcls, schema=ctx.schema, resolve_type=True,
-                link_bias=False)
+            for expr in stmt.shape.elements:
+                ptrcls = expr.rptr.ptrcls
+                updvalue = expr.stmt.result
 
-            props_only = False
-            upd_props = None
-            operation = None
+                ptr_info = pg_types.get_pointer_storage_info(
+                    ptrcls, schema=ctx.schema, resolve_type=True,
+                    link_bias=False)
 
-            # First, process all internal link updates
-            if ptr_info.table_type == 'concept':
-                props_only = True
+                props_only = False
+                upd_props = None
+                operation = None
 
-                with self.context.new():
+                # First, process all internal link updates
+                if ptr_info.table_type == 'concept':
+                    props_only = True
+
                     if self._is_composite_cast(updvalue):
                         updvalue, upd_props = self._extract_update_value(
                             updvalue, ptr_info.column_type)
@@ -270,29 +269,26 @@ class IRCompilerDMLSupport:
                             type_name=pgast.TypeName(
                                 name=ptr_info.column_type))
 
-                    query.targets.append(
+                    update_stmt.targets.append(
                         pgast.UpdateTarget(
                             name=ptr_info.column_name,
                             val=updvalue))
 
-            ptr_info = pg_types.get_pointer_storage_info(
-                ptrcls, resolve_type=False, link_bias=True)
+                ptr_info = pg_types.get_pointer_storage_info(
+                    ptrcls, resolve_type=False, link_bias=True)
 
-            if ptr_info and ptr_info.table_type == 'link':
-                external_updates.append((expr, props_only, operation))
+                if ptr_info and ptr_info.table_type == 'link':
+                    external_updates.append((expr, props_only, operation))
 
-        if stmt.where:
-            self._process_dml_quals(
-                stmt.shape.set, stmt.where, update_cte.query)
+            self._connect_subrels(update_stmt)
 
-        if not query.targets:
+        if not update_stmt.targets:
             # No updates directly to the set target table,
             # so convert the UPDATE statement into a SELECT.
-            update_stmt = update_cte.query
             update_cte.query = pgast.SelectStmt(
                 ctes=update_stmt.ctes,
                 target_list=update_stmt.returning_list,
-                from_clause=[update_stmt.relation],
+                from_clause=[update_stmt.relation] + update_stmt.from_clause,
                 where_clause=update_stmt.where_clause,
                 path_namespace=update_stmt.path_namespace,
                 path_vars=update_stmt.path_vars,
@@ -302,10 +298,10 @@ class IRCompilerDMLSupport:
 
         for expr, props_only, operation in external_updates:
             self._process_update_expr(
-                expr, props_only, operation, toplevel, update_cte)
+                stmt, expr, props_only, operation, toplevel, update_cte)
 
-    def _process_update_expr(self, updexpr, props_only, operation, query,
-                             scope_cte):
+    def _process_update_expr(self, ir_stmt, updexpr, props_only, operation,
+                             query, scope_cte):
         ctx = self.context.current
 
         edgedb_link = pgast.RangeVar(
@@ -360,7 +356,8 @@ class IRCompilerDMLSupport:
             'link_type_id': pgast.ColumnRef(
                 name=[lname_to_id.name, 'id']),
             'std::source': pgast.ColumnRef(
-                name=[scope_cte.name, 'std::id'])
+                name=[scope_cte.name,
+                      scope_cte.query.path_vars[ir_stmt.shape.set.path_id]])
         }
 
         if operation is None:
@@ -564,6 +561,7 @@ class IRCompilerDMLSupport:
 
         with self.context.new():
             self.context.current.output_format = None
+            self.context.current.entityref_as_id = True
             input_data = self.visit(data)
 
         if (isinstance(input_data, pgast.Constant) and

@@ -7,9 +7,7 @@
 
 
 import unittest
-import uuid
 
-from edgedb.client import exceptions as exc
 from edgedb.server import _testbase as tb
 
 
@@ -137,7 +135,6 @@ class TestUpdate(tb.QueryTestCase):
             orig3,
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_update_simple03(self):
         orig1, orig2, orig3 = self.original
 
@@ -170,7 +167,6 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_update_simple04(self):
         orig1, orig2, orig3 = self.original
 
@@ -216,7 +212,6 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_update_returning01(self):
         orig1, orig2, orig3 = self.original
 
@@ -239,7 +234,6 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_update_returning02(self):
         orig1, orig2, orig3 = self.original
 
@@ -283,7 +277,6 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_update_returning03(self):
         orig1, orig2, orig3 = self.original
 
@@ -313,7 +306,7 @@ class TestUpdate(tb.QueryTestCase):
         # updated once it is implemented.
         #
         with self.assertRaises(ValueError):
-            res = await self.con.execute(r"""
+            await self.con.execute(r"""
                 WITH MODULE test
                 UPDATE UpdateTest {
                     comment := 'updated ' + UpdateTest.comment

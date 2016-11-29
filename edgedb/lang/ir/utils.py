@@ -572,6 +572,8 @@ class LinearPath(list):
             result += '.{}{}'.format(self[i][1], lexpr)
         return result
 
+    __repr__ = __str__
+
 
 def extract_prefixes(expr, prefixes=None):
     prefixes = prefixes if prefixes is not None else PathIndex()

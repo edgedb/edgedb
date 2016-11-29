@@ -115,6 +115,60 @@ class IRCompiler(ast.visitor.NodeVisitor,
         raise NotImplementedError(
             'no IR compiler handler for {}'.format(node.__class__))
 
+    def visit_SelectStmt(self, stmt):
+        parent_ctx = self.context.current
+        parent_rel = parent_ctx.rel
+
+        with self.context.substmt():
+            ctx = self.context.current
+
+            parent_ctx.subquery_map[parent_rel][ctx.query] = {
+                'linked': False,
+                'rvar': None
+            }
+
+            self._process_explicit_substmts(stmt)
+
+            if stmt.set_op:
+                with self.context.substmt():
+                    larg = self.visit(stmt.set_op_larg)
+
+                with self.context.substmt():
+                    rarg = self.visit(stmt.set_op_rarg)
+
+                set_op = pgast.PgSQLSetOperator(stmt.set_op)
+                self._setop_from_list(ctx.query, [larg, rarg], set_op)
+
+            else:
+                self._process_selector(stmt.result, transform_output=True)
+
+            if stmt.where:
+                with self.context.new():
+                    self.context.current.location = 'where'
+                    where = self.visit(stmt.where)
+
+                ctx.query.where_clause = where
+
+            self._process_orderby(stmt.orderby)
+
+            self._process_groupby(stmt.groupby)
+
+            if stmt.offset:
+                ctx.query.limit_offset = self.visit(stmt.offset)
+
+            if stmt.limit:
+                ctx.query.limit_count = self.visit(stmt.limit)
+
+            self._connect_subrels(ctx.query)
+
+            for cte in ctx.query.ctes:
+                parent_ctx.subquery_map[parent_rel][cte.query] = {
+                    'linked': False,
+                    'rvar': None
+                }
+
+            return ctx.query
+
     def visit_Shape(self, expr):
         ctx = self.context.current
 
@@ -181,7 +235,7 @@ class IRCompiler(ast.visitor.NodeVisitor,
         else:
             result = pgast.RowExpr(args=my_elements)
 
-        if testref is not None and ctx.filter_null_records:
+        if testref is not None:
             when_cond = pgast.NullTest(arg=testref)
 
             when_expr = pgast.CaseWhen(
@@ -233,10 +287,10 @@ class IRCompiler(ast.visitor.NodeVisitor,
     def visit_TypeCast(self, expr):
         ctx = self.context.current
 
-        if (isinstance(expr.expr, irast.BinOp)
-                and isinstance(expr.expr.op,
-                               (ast.ops.ComparisonOperator,
-                                ast.ops.TypeCheckOperator))):
+        if (isinstance(expr.expr, irast.BinOp) and
+                isinstance(expr.expr.op,
+                           (ast.ops.ComparisonOperator,
+                            ast.ops.TypeCheckOperator))):
             expr_type = bool
         elif isinstance(expr.expr, irast.Constant):
             expr_type = expr.expr.type
@@ -462,9 +516,7 @@ class IRCompiler(ast.visitor.NodeVisitor,
         # are available for JOIN condition injection in the
         # subqueries below.
         # Make sure not to pollute the top-level query target list.
-        self._pull_path_namespace(
-            target=ctx.rel, source=rvar,
-            add_to_selector=ctx.rel != ctx.query)
+        self._pull_path_namespace(target=ctx.rel, source=rvar)
 
         return rvar
 
@@ -473,8 +525,8 @@ class IRCompiler(ast.visitor.NodeVisitor,
         # Set references inside WHERE are transformed into
         # EXISTS expressions in visit_Set.  For other
         # occurrences we do it here.
-        if (isinstance(pg_expr, pgast.SubLink)
-                and pg_expr.type == pgast.SubLinkType.EXISTS):
+        if (isinstance(pg_expr, pgast.SubLink) and
+                pg_expr.type == pgast.SubLinkType.EXISTS):
             result = pg_expr
         else:
             result = pgast.SubLink(
@@ -651,8 +703,7 @@ class IRCompiler(ast.visitor.NodeVisitor,
                     'linked': True
                 }
 
-                self._pull_path_namespace(
-                    target=stmt, source=src_rvar)
+                self._pull_path_namespace(target=stmt, source=src_rvar)
 
                 self._rel_join(stmt, src_rvar, type=jtype)
 
@@ -869,9 +920,8 @@ class IRCompiler(ast.visitor.NodeVisitor,
                             Constant) and left_type == 'text':
                         left.type = right_type
 
-                if ((
-                        isinstance(right, pgast.Constant)
-                        and op in {ast.ops.IS, ast.ops.IS_NOT})):
+                if (isinstance(right, pgast.Constant) and
+                        op in {ast.ops.IS, ast.ops.IS_NOT}):
                     right.type = None
 
             result = self._new_binop(left, right, op=op)
@@ -922,66 +972,6 @@ class IRCompiler(ast.visitor.NodeVisitor,
 
         return result
 
-    def visit_SelectStmt(self, stmt):
-        parent_ctx = self.context.current
-        parent_rel = parent_ctx.rel
-
-        with self.context.subquery():
-            ctx = self.context.current
-            parent_ctx.subquery_map[parent_rel][ctx.query] = {
-                'linked': False,
-                'rvar': None
-            }
-
-            if stmt.substmts:
-                for substmt in stmt.substmts:
-                    with self.context.subquery():
-                        cte = pgast.CommonTableExpr(
-                            query=self.visit(substmt),
-                            name=substmt.name
-                        )
-                    ctx.query.ctes.append(cte)
-
-            if stmt.set_op:
-                with self.context.subquery():
-                    larg = self.visit(stmt.set_op_larg)
-
-                with self.context.subquery():
-                    rarg = self.visit(stmt.set_op_rarg)
-
-                set_op = pgast.PgSQLSetOperator(stmt.set_op)
-                self._setop_from_list(ctx.query, [larg, rarg], set_op)
-
-            else:
-                self._process_selector(stmt.result, transform_output=True)
-
-            if stmt.where:
-                with self.context.new():
-                    self.context.current.location = 'where'
-                    where = self.visit(stmt.where)
-
-                ctx.query.where_clause = where
-
-            self._process_orderby(stmt.orderby)
-
-            self._process_groupby(stmt.groupby)
-
-            if stmt.offset:
-                ctx.query.limit_offset = self.visit(stmt.offset)
-
-            if stmt.limit:
-                ctx.query.limit_count = self.visit(stmt.limit)
-
-            self._connect_subrels(ctx.query)
-
-            for cte in ctx.query.ctes:
-                parent_ctx.subquery_map[parent_rel][cte.query] = {
-                    'linked': False,
-                    'rvar': None
-                }
-
-            return ctx.query
-
     def _connect_subrels(self, query):
         # For any subquery or CTE referred to by the *query*
         # generate the appropriate JOIN condition.  This also
@@ -1028,9 +1018,9 @@ class IRCompiler(ast.visitor.NodeVisitor,
 
         if ir_stmt.substmts:
             for substmt in ir_stmt.substmts:
-                with self.context.subquery():
+                with self.context.substmt():
                     cte = pgast.CommonTableExpr(
-                        subquery=self.visit(substmt),
+                        query=self.visit(substmt),
                         name=substmt.name
                     )
                 ctx.query.ctes.append(cte)
@@ -1098,7 +1088,8 @@ class IRCompiler(ast.visitor.NodeVisitor,
             ref = ctx.rel.path_namespace[ir_set.path_id]
         except KeyError:
             raise LookupError(
-                'could not resolve {!r} as table field'.format(ir_set.path_id))
+                f'could not resolve {ir_set.path_id} as a column reference '
+                f'in context of {ctx.rel!r}')
 
         if ctx.in_aggregate:
             rptr = ir_set.rptr
@@ -1210,8 +1201,11 @@ class IRCompiler(ast.visitor.NodeVisitor,
         else:
             query.from_clause.append(right_rvar)
 
-    def _pull_path_namespace(self, *, target, source, add_to_selector=True):
+    def _pull_path_namespace(self, *, target, source, add_to_target_list=None):
         ctx = self.context.current
+
+        if add_to_target_list is None:
+            add_to_target_list = ctx.stmt != target
 
         for path_id, name in source.path_vars.items():
             if path_id in target.path_namespace:
@@ -1223,15 +1217,34 @@ class IRCompiler(ast.visitor.NodeVisitor,
 
             target.path_namespace[path_id] = ref
 
-            if add_to_selector:
+            if add_to_target_list:
                 alias = ctx.genalias(hint=name)
 
-                target.target_list.append(
-                    pgast.ResTarget(
-                        name=alias,
-                        val=ref
+                if isinstance(target, pgast.DML):
+                    if len(path_id) > 1:
+                        lname = path_id[-2][0].normal_name()
+                    else:
+                        lname = 'std::id'
+
+                    colname = common.edgedb_name_to_pg_name(lname)
+
+                    ref = pgast.ColumnRef(
+                        name=[target.relation.alias.aliasname, colname]
                     )
-                )
+
+                    target.returning_list.append(
+                        pgast.ResTarget(
+                            name=alias,
+                            val=ref
+                        )
+                    )
+                else:
+                    target.target_list.append(
+                        pgast.ResTarget(
+                            name=alias,
+                            val=ref
+                        )
+                    )
 
                 target.path_vars[path_id] = alias
 
@@ -1390,7 +1403,8 @@ class IRCompiler(ast.visitor.NodeVisitor,
 
         return parent_qry
 
-    def _add_path_var_reference(self, rel, ir_set, path_id=None):
+    def _add_path_var_reference(self, rel, ir_set, path_id=None, *,
+                                add_to_target_list=None):
         ctx = self.context.current
         id_field = common.edgedb_name_to_pg_name('std::id')
 
@@ -1415,6 +1429,22 @@ class IRCompiler(ast.visitor.NodeVisitor,
         else:
             source = rptr.source.scls
             rel_rvar = rel.scls_rvar
+
+        if rel_rvar is None:
+            raise RuntimeError(
+                f'{rel} is missing the relation context for {ir_set.path_id}')
+
+        colname = None
+
+        if isinstance(rel_rvar.relation, pgast.CommonTableExpr):
+            # If this is another query, need to make sure the ref
+            # is there too.
+            source_rel = rel_rvar.relation.query
+            self._add_path_var_reference(source_rel, ir_set, path_id)
+            colname = source_rel.path_vars[path_id]
+
+        if colname is None:
+            colname = common.edgedb_name_to_pg_name(ptrname)
 
         schema = ctx.schema
 
@@ -1466,8 +1496,6 @@ class IRCompiler(ast.visitor.NodeVisitor,
                 joined_atomref_sources[c] for c in sources
             ]
 
-        colname = common.edgedb_name_to_pg_name(ptrname)
-
         fieldrefs = [
             pgast.ColumnRef(name=[atomref_table.alias.aliasname, colname])
             for atomref_table in atomref_tables
@@ -1487,7 +1515,10 @@ class IRCompiler(ast.visitor.NodeVisitor,
 
         restarget = pgast.ResTarget(name=alias, val=refexpr)
 
-        if rel != ctx.query:
+        if add_to_target_list is None:
+            add_to_target_list = ctx.stmt != rel
+
+        if add_to_target_list:
             if hasattr(rel, 'returning_list'):
                 # This is a DML statement
                 rel.returning_list.append(restarget)

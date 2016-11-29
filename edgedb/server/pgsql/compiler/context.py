@@ -7,6 +7,7 @@
 
 
 import collections
+import re
 
 from edgedb.lang.common.datastructures import OrderedSet
 
@@ -31,31 +32,29 @@ class Alias(str):
 class TransformerContextLevel:
     def __init__(self, prevlevel=None, mode=None):
         if prevlevel is None:
+            self.stmt = None
+            self.query = pgast.SelectStmt()
+            self.rel = self.query
             self.aliascnt = {}
             self.ctemap = {}
-            self.explicit_cte_map = {}
-            self.computable_map = {}
             self.argmap = OrderedSet()
             self.location = 'query'
             self.in_aggregate = False
-            self.query = pgast.SelectStmt()
-            self.rel = self.query
             self.backend = None
             self.schema = None
             self.subquery_map = collections.defaultdict(dict)
-            self.set_refs = set()
             self.record_info = {}
             self.output_format = None
-            self.filter_null_records = True
             self.memo = {}
             self.entityref_as_id = False
             self.rel_overlays = collections.defaultdict(list)
 
         else:
-            self.argmap = prevlevel.argmap
-            self.in_aggregate = prevlevel.in_aggregate
+            self.stmt = prevlevel.stmt
             self.query = prevlevel.query
             self.rel = prevlevel.rel
+            self.argmap = prevlevel.argmap
+            self.in_aggregate = prevlevel.in_aggregate
             self.backend = prevlevel.backend
             self.schema = prevlevel.schema
             self.aliascnt = prevlevel.aliascnt
@@ -64,42 +63,42 @@ class TransformerContextLevel:
             self.memo = prevlevel.memo.copy()
             self.location = prevlevel.location
             self.ctemap = prevlevel.ctemap
-            self.explicit_cte_map = prevlevel.explicit_cte_map
-            self.computable_map = prevlevel.computable_map
             self.subquery_map = prevlevel.subquery_map
-            self.set_refs = prevlevel.set_refs
-            self.filter_null_records = prevlevel.filter_null_records
             self.entityref_as_id = prevlevel.entityref_as_id
             self.rel_overlays = prevlevel.rel_overlays
 
-            if mode == TransformerContext.SUBQUERY:
-                self.location = 'query'
-                self.ctemap = prevlevel.ctemap.copy()
-                self.explicit_cte_map = prevlevel.explicit_cte_map.copy()
-                self.computable_map = prevlevel.computable_map.copy()
-                self.in_aggregate = False
+            if mode in {TransformerContext.SUBQUERY,
+                        TransformerContext.SUBSTMT}:
                 self.query = pgast.SelectStmt()
                 self.rel = self.query
+                self.location = 'query'
+                self.ctemap = prevlevel.ctemap.copy()
+                self.in_aggregate = False
                 self.subquery_map = collections.defaultdict(dict)
-                self.set_refs = set()
-                self.filter_null_records = True
+
+            if mode == TransformerContext.SUBSTMT:
+                self.stmt = self.query
 
     def genalias(self, hint=None):
         if hint is None:
             hint = 'a'
+
+        m = re.search(r'~\d+$', hint)
+        if m:
+            hint = hint[:m.start()]
 
         if hint not in self.aliascnt:
             self.aliascnt[hint] = 1
         else:
             self.aliascnt[hint] += 1
 
-        alias = hint + '_' + str(self.aliascnt[hint])
+        alias = hint + '~' + str(self.aliascnt[hint])
 
         return Alias(alias)
 
 
 class TransformerContext:
-    TRANSPARENT, SUBQUERY = range(0, 2)
+    TRANSPARENT, SUBQUERY, SUBSTMT = range(0, 3)
 
     def __init__(self):
         self.stack = []
@@ -120,6 +119,9 @@ class TransformerContext:
 
     def subquery(self):
         return self.new(TransformerContext.SUBQUERY)
+
+    def substmt(self):
+        return self.new(TransformerContext.SUBSTMT)
 
     def _current(self):
         if len(self.stack) > 0:
