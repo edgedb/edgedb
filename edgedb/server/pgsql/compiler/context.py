@@ -43,10 +43,9 @@ class TransformerContextLevel:
             self.backend = None
             self.schema = None
             self.subquery_map = collections.defaultdict(dict)
-            self.record_info = {}
             self.output_format = None
             self.memo = {}
-            self.entityref_as_id = False
+            self.clsref_as_id = False
             self.rel_overlays = collections.defaultdict(list)
 
         else:
@@ -58,13 +57,12 @@ class TransformerContextLevel:
             self.backend = prevlevel.backend
             self.schema = prevlevel.schema
             self.aliascnt = prevlevel.aliascnt
-            self.record_info = prevlevel.record_info
             self.output_format = prevlevel.output_format
             self.memo = prevlevel.memo.copy()
             self.location = prevlevel.location
             self.ctemap = prevlevel.ctemap
             self.subquery_map = prevlevel.subquery_map
-            self.entityref_as_id = prevlevel.entityref_as_id
+            self.clsref_as_id = prevlevel.clsref_as_id
             self.rel_overlays = prevlevel.rel_overlays
 
             if mode in {TransformerContext.SUBQUERY,

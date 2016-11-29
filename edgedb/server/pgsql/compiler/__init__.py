@@ -108,8 +108,7 @@ class IRCompiler(ast.visitor.NodeVisitor,
             edgedb_error.replace_context(err, err_ctx)
             raise err from e
 
-        return qchunks, argmap, arg_index, type(qtree), tuple(
-            ctx.record_info.values())
+        return qchunks, argmap, arg_index, type(qtree), tuple()
 
     def generic_visit(self, node, *, combine_results=None):
         raise NotImplementedError(
@@ -127,9 +126,11 @@ class IRCompiler(ast.visitor.NodeVisitor,
                 'rvar': None
             }
 
+            # Process any substatments in the WITH block.
             self._process_explicit_substmts(stmt)
 
             if stmt.set_op:
+                # Process the UNION/EXCEPT/INTERSECT operation
                 with self.context.substmt():
                     larg = self.visit(stmt.set_op_larg)
 
@@ -138,29 +139,37 @@ class IRCompiler(ast.visitor.NodeVisitor,
 
                 set_op = pgast.PgSQLSetOperator(stmt.set_op)
                 self._setop_from_list(ctx.query, [larg, rarg], set_op)
-
             else:
+                # Process the result expression;
                 self._process_selector(stmt.result, transform_output=True)
 
-            if stmt.where:
-                with self.context.new():
-                    self.context.current.location = 'where'
-                    where = self.visit(stmt.where)
+                # The WHERE clause
+                if stmt.where:
+                    with self.context.new():
+                        self.context.current.location = 'where'
+                        where = self.visit(stmt.where)
 
-                ctx.query.where_clause = where
+                    ctx.query.where_clause = where
 
+                # The GROUP BY clause
+                self._process_groupby(stmt.groupby)
+
+            # The ORDER BY clause
             self._process_orderby(stmt.orderby)
 
-            self._process_groupby(stmt.groupby)
-
+            # The OFFSET clause
             if stmt.offset:
                 ctx.query.limit_offset = self.visit(stmt.offset)
 
+            # The LIMIT clause
             if stmt.limit:
                 ctx.query.limit_count = self.visit(stmt.limit)
 
+            # Make sure all sub-selects are linked according
+            # to path matching logic...
             self._connect_subrels(ctx.query)
 
+            # ..and give the parent query the opportunity to do the same.
             for cte in ctx.query.ctes:
                 parent_ctx.subquery_map[parent_rel][cte.query] = {
                     'linked': False,
@@ -180,8 +189,10 @@ class IRCompiler(ast.visitor.NodeVisitor,
             element = self.visit(e)
 
             ptr_name = e.rptr.ptrcls.normal_name()
+
             ptr_direction = e.rptr.direction or \
                 s_pointers.PointerDirection.Outbound
+
             if ptr_direction == s_pointers.PointerDirection.Outbound:
                 ptr_target = e.rptr.ptrcls.target
             else:
@@ -209,7 +220,21 @@ class IRCompiler(ast.visitor.NodeVisitor,
             attribute_map.append(attr_name)
             my_elements.append(element)
 
-        if ctx.output_format == 'json':
+        if ctx.clsref_as_id:
+            # DML statements want ``SELECT Object`` to return the object
+            # identity.
+            for i, a in enumerate(attribute_map):
+                if (a.module, a.name) == ('std', 'id'):
+                    result = my_elements[i]
+                    break
+            else:
+                raise ValueError('cannot find id ptr in entitityref record')
+
+            testref = None
+
+        elif ctx.output_format == 'json':
+            # In JSON mode we simply produce a JSONB object of
+            # the shape record...
             keyvals = []
             for i, pgexpr in enumerate(my_elements):
                 key = attribute_map[i]
@@ -223,19 +248,14 @@ class IRCompiler(ast.visitor.NodeVisitor,
 
             result = pgast.FuncCall(
                 name='jsonb_build_object', args=keyvals)
-
-        elif ctx.entityref_as_id:
-            for i, a in enumerate(attribute_map):
-                if (a.module, a.name) == ('std', 'id'):
-                    result = my_elements[i]
-                    break
-            else:
-                raise ValueError('cannot find id ptr in entitityref record')
-
         else:
+            # In non-JSON mode the result is an anonymous record.
             result = pgast.RowExpr(args=my_elements)
 
         if testref is not None:
+            # In case the object reference is NULL we want the
+            # entire result to be NULL rather than a record containing
+            # a series of NULLs.
             when_cond = pgast.NullTest(arg=testref)
 
             when_expr = pgast.CaseWhen(
@@ -340,8 +360,9 @@ class IRCompiler(ast.visitor.NodeVisitor,
         return result
 
     def visit_IndexIndirection(self, expr):
-        # Handle Expr[Index], where Expr may be text or array
-
+        # Handle Expr[Index], where Expr may be std::str or array<T>.
+        # For strings we translate this into substr calls, whereas
+        # for arrays the native slice syntax is used.
         ctx = self.context.current
 
         is_string = False
@@ -392,7 +413,9 @@ class IRCompiler(ast.visitor.NodeVisitor,
         return result
 
     def visit_SliceIndirection(self, expr):
-        # Handle Expr[Start:End], where Expr may be text or array
+        # Handle Expr[Start:End], where Expr may be std::str or array<T>.
+        # For strings we translate this into substr calls, whereas
+        # for arrays the native slice syntax is used.
 
         ctx = self.context.current
 
@@ -476,46 +499,63 @@ class IRCompiler(ast.visitor.NodeVisitor,
     def visit_Set(self, expr):
         ctx = self.context.current
 
+        # Get the CTE for this Set
         source_cte = self._set_to_cte(expr)
 
         if ctx.location in {'where', 'exists'}:
+            # When referred to in WHERE or as an argument to EXISTS(),
+            # we want to wrap the set CTE into
+            #    EXISTS(SELECT * FROM SetCTE WHERE SetCTE.expr)
             result = self._wrap_set_rel(expr, source_cte)
         else:
+            # Otherwise we join the CTE directly into the current rel
+            # and make its refs available in the path namespace.
             source_rvar = self._include_range(source_cte)
 
             if expr.expr:
+                # For expression sets the result is the result
+                # of the expression.
                 result = pgast.ColumnRef(
                     name=[source_rvar.alias.aliasname, 'v']
                 )
             else:
+                # Otherwise it is a regular link reference.
                 result = self._get_fieldref_for_set(expr)
 
         return result
 
-    def _include_range(self, relation):
+    def _include_range(self, cte):
+        """Ensure the *cte* is present in the from_clause of current rel.
+
+        :param cte:
+            The CTE node to join.
+
+        :return:
+            RangeVar representing the *cte* in the context of current rel.
+        """
         ctx = self.context.current
 
-        subrel = ctx.subquery_map[ctx.rel].get(relation)
+        subrel = ctx.subquery_map[ctx.rel].get(cte)
 
         if subrel is None:
+            # The cte has not been recorded as a sub-relation of this rel,
+            # so make it so.
             rvar = pgast.RangeVar(
-                relation=relation,
+                relation=cte,
                 alias=pgast.Alias(
-                    aliasname=ctx.genalias(hint=getattr(relation, 'name'))
+                    aliasname=ctx.genalias(hint=getattr(cte, 'name'))
                 )
             )
 
-            ctx.subquery_map[ctx.rel][relation] = {
+            ctx.subquery_map[ctx.rel][cte] = {
                 'rvar': rvar,
                 'linked': False
             }
         else:
             rvar = subrel['rvar']
 
-        # Make sure that all bonds received by joining the CTEs
-        # are available for JOIN condition injection in the
-        # subqueries below.
-        # Make sure not to pollute the top-level query target list.
+        # Make sure that the path namespace of *cte* is mapped
+        # onto the path namespace of the current rel.
         self._pull_path_namespace(target=ctx.rel, source=rvar)
 
         return rvar
@@ -545,6 +585,7 @@ class IRCompiler(ast.visitor.NodeVisitor,
         )
 
     def _is_exists_ir(self, ir_expr):
+        # Returns True if *ir_expr* is a ([NOT] EXISTS Expr) expression.
         if isinstance(ir_expr, irast.Set):
             ir_expr = ir_expr.expr
 

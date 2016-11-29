@@ -5,6 +5,23 @@
 # See LICENSE for details.
 ##
 
+"""IR compiler support for INSERT/UPDATE/DELETE statements."""
+
+#
+# The processing of the DML statement is done in three parts.
+#
+# 1. The statement's *range* query is built: the relation representing
+#    the statement's target Class with any WHERE quals taken into account.
+#
+# 2. The statement body is processed to generate a series of
+#    SQL substatements to modify all relations touched by the statement
+#    depending on the link layout.
+#
+# 3. The RETURNING statement is processed to and generates a SELECT statement
+#    producing the result rows.  Note that the SQL's RETURNING is not used
+#    on the top level, as need to be able to compute an arbitrary expression
+#    in EdgeQL RETURNING clause.
+#
 
 from edgedb.lang.common import ast
 
@@ -20,11 +37,14 @@ from edgedb.server.pgsql import types as pg_types
 class IRCompilerDMLSupport:
     def visit_InsertStmt(self, stmt):
         with self.context.substmt():
+            # Common DML bootstrap
             toplevel, insert_cte, _ = \
                 self._init_dml_stmt(stmt, pgast.InsertStmt())
 
-            self._process_insert_data(stmt, toplevel, insert_cte)
+            # Process INSERT body
+            self._process_insert_body(stmt, toplevel, insert_cte)
 
+            # Process INSERT RETURNING
             self._process_selector(stmt.result)
             self._connect_subrels(toplevel)
 
@@ -32,11 +52,14 @@ class IRCompilerDMLSupport:
 
     def visit_UpdateStmt(self, stmt):
         with self.context.substmt():
+            # Common DML bootstrap
             toplevel, update_cte, range_cte = \
                 self._init_dml_stmt(stmt, pgast.UpdateStmt())
 
-            self._process_update_data(stmt, toplevel, update_cte, range_cte)
+            # Process UPDATE body
+            self._process_update_body(stmt, toplevel, update_cte, range_cte)
 
+            # Process UPDATE RETURNING
             self._process_selector(stmt.result)
             self._connect_subrels(toplevel)
 
@@ -44,19 +67,38 @@ class IRCompilerDMLSupport:
 
     def visit_DeleteStmt(self, stmt):
         with self.context.subquery():
+            # Common DML bootstrap
             toplevel, delete_cte, _ = \
                 self._init_dml_stmt(stmt, pgast.DeleteStmt())
 
+            # Process DELETE RETURNING
             self._process_selector(stmt.result)
             self._connect_subrels(toplevel)
 
             return toplevel
 
     def _init_dml_stmt(self, ir_stmt, dml_stmt):
+        """Prepare the common structure of the query representing a DML stmt.
+
+        :param ir_stmt:
+            IR of the statement.
+        :param dml_stmt:
+            SQL DML node instance.
+
+        :return:
+            A (*toplevel*, *dml_cte*, *range_cte*) tuple, where *toplevel* the
+            the top-level SQL statement, *dml_cte* is the CTE representing the
+            SQL DML operation in the main relation of the Class, and
+            *range_cte* is the CTE for the subset affected by the statement.
+            *range_cte* is None for INSERT statmenets.
+        """
         ctx = self.context.current
 
+        # A top-level query is always a SELECT to support arbitrary
+        # expressions in the RETURNING clause.
         ctx.stmt = ctx.query = ctx.rel = toplevel = pgast.SelectStmt()
 
+        # Process any substatments in the WITH block.
         self._process_explicit_substmts(ir_stmt)
 
         target_ir_set = ir_stmt.shape.set
@@ -70,10 +112,11 @@ class IRCompilerDMLSupport:
         )
 
         if isinstance(ir_stmt, (irast.UpdateStmt, irast.DeleteStmt)):
-            # INSERT/UPDATE operate over a range, which we put as
-            # the primary source CTE for this statement.
-            range_cte = self._process_dml_quals(
-                ir_stmt.shape.set, ir_stmt.where, dml_cte.query, toplevel)
+            # UPDATE and DELETE operate over a range, so generate
+            # the corresponding CTE and connect it to the DML query.
+            range_cte = self._get_dml_range(ir_stmt, dml_stmt)
+
+            toplevel.ctes.append(range_cte)
 
             range_rvar = pgast.RangeVar(
                 relation=range_cte,
@@ -89,6 +132,8 @@ class IRCompilerDMLSupport:
 
             self._pull_path_namespace(target=dml_stmt, source=range_rvar)
 
+            # Auxillary relations are always joined via the WHERE
+            # clause due to the structure of the UPDATE/DELETE SQL statments.
             id_col = common.edgedb_name_to_pg_name('std::id')
             dml_stmt.where_clause = self._new_binop(
                 lexpr=pgast.ColumnRef(name=[
@@ -99,12 +144,17 @@ class IRCompilerDMLSupport:
                 rexpr=dml_stmt.path_namespace[target_ir_set.path_id]
             )
 
+            # UPDATE has "FROM", while DELETE has "USING".
             if hasattr(dml_stmt, 'from_clause'):
                 dml_stmt.from_clause.append(range_rvar)
             else:
                 dml_stmt.using_clause.append(range_rvar)
 
         else:
+            # No range CTE for INSERT statements, however we need
+            # to make sure it RETURNs the inserted entity id, which
+            # we will require when updating the link relations as
+            # a result of INSERT body processing.
             range_cte = None
 
             target_id_set = self._get_ptr_set(target_ir_set, 'std::id')
@@ -113,17 +163,34 @@ class IRCompilerDMLSupport:
                 dml_stmt, target_id_set, path_id=target_ir_set.path_id,
                 add_to_target_list=True)
 
+        # Finaly set the DML CTE as the source for paths originating
+        # in its relation.
         toplevel.ctes.append(dml_cte)
         ctx.ctemap[ir_stmt.shape.set] = dml_cte
 
         return toplevel, dml_cte, range_cte
 
-    def _process_dml_quals(self, target_ir_set, ir_qual_expr,
-                           dml_stmt, toplevel):
+    def _get_dml_range(self, ir_stmt, dml_stmt):
+        """Create a range CTE for the given DML statement.
+
+        :param ir_stmt:
+            IR of the statement.
+        :param dml_stmt:
+            SQL DML node instance.
+
+        :return:
+            A CommonTableExpr node representing the range affected
+            by the DML statement.
+        """
+        target_ir_set = ir_stmt.shape.set
+        ir_qual_expr = ir_stmt.where
+
         with self.context.new():
+            # Note that this is intentionally *not* a subquery
+            # context, as we want all CTEs produced by the qual
+            # condition to be attached to the top level query.
             ctx = self.context.current
 
-            ctx.query = toplevel
             range_stmt = ctx.rel = pgast.SelectStmt()
 
             id_set = self._get_ptr_set(target_ir_set, 'std::id')
@@ -142,19 +209,25 @@ class IRCompilerDMLSupport:
                     self.context.current.location = 'where'
                     range_stmt.where_clause = self.visit(ir_qual_expr)
 
+            self._connect_subrels(range_stmt)
+
             range_cte = pgast.CommonTableExpr(
                 query=range_stmt,
                 name=ctx.genalias(hint='range')
             )
 
-            toplevel.ctes.append(range_cte)
-
-            self._connect_subrels(range_stmt)
-
             return range_cte
 
-    def _process_insert_data(self, stmt, toplevel, insert_cte):
-        """Generate SQL INSERTs from an Insert IR."""
+    def _process_insert_body(self, ir_stmt, toplevel, insert_cte):
+        """Generate SQL DML CTEs from an InsertStmt IR.
+
+        :param ir_stmt:
+            IR of the statement.
+        :param toplevel:
+            Top-level SQL query.
+        :param insert_cte:
+            CTE representing the SQL INSERT to the main relation of the Class.
+        """
         ctx = self.context.current
 
         cols = [pgast.ColumnRef(name=['std::__class__'])]
@@ -162,12 +235,14 @@ class IRCompilerDMLSupport:
         values = pgast.ImplicitRowExpr()
         select.values = [values]
 
+        # The main INSERT query of this statement will always be
+        # present to insert at least the std::id and std::__class__
+        # links.
         insert_stmt = insert_cte.query
 
         insert_stmt.cols = cols
         insert_stmt.select_stmt = select
 
-        # Type reference is always inserted.
         values.args.append(
             pgast.SelectStmt(
                 target_list=[
@@ -181,14 +256,17 @@ class IRCompilerDMLSupport:
                 where_clause=self._new_binop(
                     op=ast.ops.EQ,
                     lexpr=pgast.ColumnRef(name=['name']),
-                    rexpr=pgast.Constant(val=stmt.shape.scls.name)
+                    rexpr=pgast.Constant(val=ir_stmt.shape.scls.name)
                 )
             )
         )
 
         external_inserts = []
 
-        for expr in stmt.shape.elements:
+        # Process the Insert IR and separate links that go
+        # into the main table from links that are inserted into
+        # a separate link table.
+        for expr in ir_stmt.shape.elements:
             ptrcls = expr.rptr.ptrcls
             insvalue = expr.stmt.result
 
@@ -198,7 +276,6 @@ class IRCompilerDMLSupport:
 
             props_only = False
             ins_props = None
-            operation = None
 
             # First, process all local link inserts.
             if ptr_info.table_type == 'concept':
@@ -223,27 +300,39 @@ class IRCompilerDMLSupport:
                 ptrcls, resolve_type=False, link_bias=True)
 
             if ptr_info and ptr_info.table_type == 'link':
-                external_inserts.append((expr, props_only, operation))
+                external_inserts.append((expr, props_only))
 
-        # Inserting externally-stored links requires repackaging everything
-        # into a series of CTEs so that multiple statements can be executed
-        # as a single query.
-        #
-        for expr, props_only, operation in external_inserts:
-            self._process_update_expr(
-                stmt, expr, props_only, operation, toplevel, insert_cte)
+        # Process necessary updates to the link tables.
+        for expr, props_only in external_inserts:
+            self._process_link_update(
+                ir_stmt, expr, props_only, toplevel, insert_cte)
 
-    def _process_update_data(self, stmt, toplevel, update_cte, range_cte):
+    def _process_update_body(self, ir_stmt, toplevel, update_cte, range_cte):
+        """Generate SQL DML CTEs from an UpdateStmt IR.
+
+        :param ir_stmt:
+            IR of the statement.
+        :param toplevel:
+            Top-level SQL query.
+        :param update_cte:
+            CTE representing the SQL UPDATE to the main relation of the Class.
+        :param range_cte:
+            CTE representing the range affected by the statement.
+        """
         update_stmt = update_cte.query
 
         external_updates = []
 
         with self.context.subquery():
+            # It is necessary to process the expressions in
+            # the UpdateStmt shape body in the context of the
+            # UPDATE statement so that references to the current
+            # values of the updated object are resolved correctly.
             ctx = self.context.current
             ctx.rel = ctx.query = update_stmt
-            ctx.ctemap[stmt.shape.set] = range_cte
+            ctx.ctemap[ir_stmt.shape.set] = range_cte
 
-            for expr in stmt.shape.elements:
+            for expr in ir_stmt.shape.elements:
                 ptrcls = expr.rptr.ptrcls
                 updvalue = expr.stmt.result
 
@@ -253,7 +342,6 @@ class IRCompilerDMLSupport:
 
                 props_only = False
                 upd_props = None
-                operation = None
 
                 # First, process all internal link updates
                 if ptr_info.table_type == 'concept':
@@ -278,7 +366,7 @@ class IRCompilerDMLSupport:
                     ptrcls, resolve_type=False, link_bias=True)
 
                 if ptr_info and ptr_info.table_type == 'link':
-                    external_updates.append((expr, props_only, operation))
+                    external_updates.append((expr, props_only))
 
             self._connect_subrels(update_stmt)
 
@@ -296,12 +384,26 @@ class IRCompilerDMLSupport:
                 scls_rvar=update_stmt.scls_rvar
             )
 
-        for expr, props_only, operation in external_updates:
-            self._process_update_expr(
-                stmt, expr, props_only, operation, toplevel, update_cte)
+        # Process necessary updates to the link tables.
+        for expr, props_only in external_updates:
+            self._process_link_update(
+                ir_stmt, expr, props_only, toplevel, update_cte)
 
-    def _process_update_expr(self, ir_stmt, updexpr, props_only, operation,
-                             query, scope_cte):
+    def _process_link_update(self, ir_stmt, ir_expr, props_only,
+                             toplevel, dml_cte):
+        """Perform updates to a link relation as part of a DML statement.
+
+        :param ir_stmt:
+            IR of the statement.
+        :param ir_expr:
+            IR of the INSERT/UPDATE body element.
+        :param props_only:
+            Whether this link update only touches link properties.
+        :param toplevel:
+            Top-level SQL query.
+        :param dml_cte:
+            CTE representing the SQL UPDATE to the main relation of the Class.
+        """
         ctx = self.context.current
 
         edgedb_link = pgast.RangeVar(
@@ -312,10 +414,11 @@ class IRCompilerDMLSupport:
 
         ltab_alias = edgedb_link.alias.aliasname
 
-        rptr = updexpr.rptr
+        rptr = ir_expr.rptr
         ptrcls = rptr.ptrcls
         target_is_atom = isinstance(rptr.target, s_atoms.Atom)
 
+        # Lookup link class id by link name.
         lname_to_id = pgast.CommonTableExpr(
             query=pgast.SelectStmt(
                 from_clause=[
@@ -335,8 +438,7 @@ class IRCompilerDMLSupport:
         )
 
         lname_to_id_rvar = pgast.RangeVar(relation=lname_to_id)
-
-        query.ctes.append(lname_to_id)
+        toplevel.ctes.append(lname_to_id)
 
         target_tab = self._range_for_ptrcls(ptrcls, '>')
         target_alias = target_tab.alias.aliasname
@@ -356,182 +458,156 @@ class IRCompilerDMLSupport:
             'link_type_id': pgast.ColumnRef(
                 name=[lname_to_id.name, 'id']),
             'std::source': pgast.ColumnRef(
-                name=[scope_cte.name,
-                      scope_cte.query.path_vars[ir_stmt.shape.set.path_id]])
+                name=[dml_cte.name,
+                      dml_cte.query.path_vars[ir_stmt.shape.set.path_id]])
         }
 
-        if operation is None:
-            # Drop previous entries first
-            delcte = pgast.CommonTableExpr(
-                query=pgast.DeleteStmt(
-                    relation=target_tab,
-                    where_clause=self._new_binop(
-                        lexpr=col_data['std::source'],
-                        op=ast.ops.EQ,
-                        rexpr=pgast.ColumnRef(
-                            name=[target_alias, 'std::source'])
-                    ),
-                    using_clause=[pgast.RangeVar(relation=scope_cte)],
-                    returning_list=[
-                        pgast.ResTarget(
-                            val=pgast.ColumnRef(
-                                name=[target_alias, pgast.Star()]))
-                    ]
+        # Drop all previous link records for this source.
+        delcte = pgast.CommonTableExpr(
+            query=pgast.DeleteStmt(
+                relation=target_tab,
+                where_clause=self._new_binop(
+                    lexpr=col_data['std::source'],
+                    op=ast.ops.EQ,
+                    rexpr=pgast.ColumnRef(
+                        name=[target_alias, 'std::source'])
                 ),
-                name=ctx.genalias(hint='d')
-            )
-            overlays = ctx.rel_overlays[ptrcls]
-            overlays.append(('except', delcte))
-            query.ctes.append(delcte)
-        else:
-            delcte = None
+                using_clause=[pgast.RangeVar(relation=dml_cte)],
+                returning_list=[
+                    pgast.ResTarget(
+                        val=pgast.ColumnRef(
+                            name=[target_alias, pgast.Star()]))
+                ]
+            ),
+            name=ctx.genalias(hint='d')
+        )
 
-        tranches = self._process_update_values(
-            updexpr, target_tab_name, tab_cols, col_data,
-            [pgast.RangeVar(relation=scope_cte), lname_to_id_rvar],
+        # Record the effect of this removal in the relation overlay
+        # context to ensure that the RETURNING clause potentially
+        # referencing this link yields the expected results.
+        overlays = ctx.rel_overlays[ptrcls]
+        overlays.append(('except', delcte))
+        toplevel.ctes.append(delcte)
+
+        # Turn the IR of the expression on the right side of :=
+        # into one or more sub-selects.
+        tranches = self._process_link_values(
+            ir_expr, target_tab_name, tab_cols, col_data,
+            [pgast.RangeVar(relation=dml_cte), lname_to_id_rvar],
             props_only, target_is_atom)
 
-        for cols, data in tranches:
-            query.ctes.append(data)
+        for cols, data_cte in tranches:
+            toplevel.ctes.append(data_cte)
             data_select = pgast.SelectStmt(
                 target_list=[
                     pgast.ResTarget(
-                        val=pgast.ColumnRef(name=[data.name, pgast.Star()]))
+                        val=pgast.ColumnRef(
+                            name=[data_cte.name, pgast.Star()]))
                 ],
                 from_clause=[
-                    pgast.RangeVar(relation=data)
+                    pgast.RangeVar(relation=data_cte)
                 ]
             )
 
-            if operation == ast.ops.SUB:
-                # Removing links
-                updcte = pgast.CommonTableExpr(
-                    query=pgast.DeleteStmt(
-                        returning_list=[
-                            pgast.ResTarget(
-                                val=pgast.ColumnRef(name=['std::source']),
-                                name='std::id')
+            # Inserting rows into the link table may produce cardinality
+            # constraint violations, since the INSERT into the link table
+            # is executed in the snapshot where the above DELETE from
+            # the link table is not visible.  Hence, we need to use
+            # the ON CONFLICT clause to resolve this.
+            conflict_cols = ['std::source', 'std::target', 'link_type_id']
+            conflict_inference = []
+            conflict_exc_row = []
+
+            for col in conflict_cols:
+                conflict_inference.append(
+                    pgast.ColumnRef(name=[col])
+                )
+                conflict_exc_row.append(
+                    pgast.ColumnRef(name=['excluded', col])
+                )
+
+            conflict_data = pgast.SelectStmt(
+                target_list=[
+                    pgast.ResTarget(
+                        val=pgast.ColumnRef(
+                            name=[data_cte.name, pgast.Star()]))
+                ],
+                from_clause=[
+                    pgast.RangeVar(relation=data_cte)
+                ],
+                where_clause=self._new_binop(
+                    lexpr=pgast.ImplicitRowExpr(args=conflict_inference),
+                    rexpr=pgast.ImplicitRowExpr(args=conflict_exc_row),
+                    op='='
+                )
+            )
+
+            cols = [pgast.ColumnRef(name=[col]) for col in cols]
+            updcte = pgast.CommonTableExpr(
+                name=ctx.genalias(hint='i'),
+                query=pgast.InsertStmt(
+                    relation=target_tab,
+                    select_stmt=data_select,
+                    cols=cols,
+                    on_conflict=pgast.OnConflictClause(
+                        action='update',
+                        infer=conflict_inference,
+                        target_list=[
+                            pgast.MultiAssignRef(
+                                columns=cols,
+                                source=conflict_data
+                            )
                         ]
                     ),
-                    name=ctx.genalias(hint='d'),
-                )
-
-                updcte.query.relation = target_tab
-
-                updcte.where = self._new_binop(
-                    lexpr=pgast.ColumnRef(name=['std::linkid']),
-                    op=ast.ops.IN,
-                    rexpr=pgast.SelectStmt(
-                        target_list=[
-                            pgast.ResTarget(
-                                val=pgast.ColumnRef(
-                                    name=['std::linkid']))
-                        ],
-                        from_clause=[
-                            pgast.RangeSubselect(
-                                subquery=data_select,
-                                alias=pgast.Alias(
-                                    aliasname=ctx.genalias(hint='q')
-                                )
-                            )
-                        ]
-                    )
-                )
-
-            else:
-                # Inserting links
-
-                cols = [pgast.ColumnRef(name=[col]) for col in cols]
-
-                conflict_cols = ['std::source', 'std::target', 'link_type_id']
-                conflict_inference = []
-                conflict_exc_row = []
-
-                for col in conflict_cols:
-                    conflict_inference.append(
-                        pgast.ColumnRef(name=[col])
-                    )
-                    conflict_exc_row.append(
-                        pgast.ColumnRef(name=['excluded', col])
-                    )
-
-                conflict_data = pgast.SelectStmt(
-                    target_list=[
+                    returning_list=[
                         pgast.ResTarget(
-                            val=pgast.ColumnRef(
-                                name=[data.name, pgast.Star()]))
-                    ],
-                    from_clause=[
-                        pgast.RangeVar(relation=data)
-                    ],
-                    where_clause=self._new_binop(
-                        lexpr=pgast.ImplicitRowExpr(
-                            args=conflict_inference),
-                        rexpr=pgast.ImplicitRowExpr(
-                            args=conflict_exc_row
-                        ),
-                        op='='
-                    )
+                            val=pgast.ColumnRef(name=[pgast.Star()])
+                        )
+                    ]
                 )
+            )
 
-                updcte = pgast.CommonTableExpr(
-                    name=ctx.genalias(hint='i'),
-                    query=pgast.InsertStmt(
-                        relation=target_tab,
-                        select_stmt=data_select,
-                        cols=cols,
-                        on_conflict=pgast.OnConflictClause(
-                            action='update',
-                            infer=conflict_inference,
-                            target_list=[
-                                pgast.MultiAssignRef(
-                                    columns=cols,
-                                    source=conflict_data
-                                )
-                            ]
-                        ),
-                        returning_list=[
-                            pgast.ResTarget(
-                                val=pgast.ColumnRef(name=[pgast.Star()])
-                            )
-                        ]
-                    )
-                )
+            # Record the effect of this insertion in the relation overlay
+            # context to ensure that the RETURNING clause potentially
+            # referencing this link yields the expected results.
+            overlays = ctx.rel_overlays[ptrcls]
+            overlays.append(('union', updcte))
 
-                overlays = ctx.rel_overlays[ptrcls]
-                overlays.append(('union', updcte))
+            toplevel.ctes.append(updcte)
 
-            query.ctes.append(updcte)
-
-    def _process_update_values(
-            self, updvalexpr, target_tab, tab_cols, col_data, sources,
+    def _process_link_values(
+            self, ir_expr, target_tab, tab_cols, col_data, sources,
             props_only, target_is_atom):
-        """Unpack data from an update expression into a series of selects."""
+        """Unpack data from an update expression into a series of selects.
+
+        :param ir_expr:
+            IR of the INSERT/UPDATE body element.
+        :param target_tab:
+            The link table being updated.
+        :param tab_cols:
+            A sequence of columns in the table being updated.
+        :param col_data:
+            Expressions used to populate well-known columns of the link
+            table such as std::source and std::__class__.
+        :param sources:
+            A list of relations which must be joined into the data query
+            to resolve expressions in *col_data*.
+        :param props_only:
+            Whether this link update only touches link properties.
+        :param target_is_atom:
+            Whether the link target is an Atom.
+        """
         ctx = self.context.current
 
-        # Recurse down to process update expressions like
-        # col := col + val1 + val2
-        #
-        if (isinstance(updvalexpr, irast.BinOp) and
-                isinstance(updvalexpr.left, irast.BinOp)):
-            tranches = self._process_update_values(
-                updvalexpr.left, target_tab, tab_cols, col_data,
-                sources, props_only, target_is_atom)
-        else:
-            tranches = []
+        tranches = []
 
-        if isinstance(updvalexpr, irast.BinOp):
-            updval = updvalexpr.right
-        else:
-            updval = updvalexpr
-
-        if isinstance(updval, irast.TypeCast):
+        if isinstance(ir_expr, irast.TypeCast):
             # Link property updates will have the data casted into
             # an appropriate selector shape which specifies which properties
             # are being updated.
             #
-            data = updval.expr
-            typ = updval.type
+            data = ir_expr.expr
+            typ = ir_expr.type
 
             if not isinstance(typ, tuple):
                 raise ValueError(
@@ -545,7 +621,7 @@ class IRCompilerDMLSupport:
 
         else:
             # Target-only update
-            data = updval
+            data = ir_expr
             props = ['std::target']
 
         e = common.edgedb_name_to_pg_name
@@ -561,7 +637,7 @@ class IRCompilerDMLSupport:
 
         with self.context.new():
             self.context.current.output_format = None
-            self.context.current.entityref_as_id = True
+            self.context.current.clsref_as_id = True
             input_data = self.visit(data)
 
         if (isinstance(input_data, pgast.Constant) and
