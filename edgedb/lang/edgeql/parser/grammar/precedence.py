@@ -25,6 +25,10 @@ class P_INTERSECT(Precedence, assoc='left', tokens=('INTERSECT',)):
     pass
 
 
+class P_IFELSE(Precedence, assoc='right', tokens=('IF', 'ELSE')):
+    pass
+
+
 class P_OR(Precedence, assoc='left', tokens=('OR',)):
     pass
 

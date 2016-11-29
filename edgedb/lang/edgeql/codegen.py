@@ -270,6 +270,15 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.right)
         self.write(')')
 
+    def visit_IfElseNode(self, node):
+        self.write('(')
+        self.visit(node.ifexpr)
+        self.write(' IF ')
+        self.visit(node.condition)
+        self.write(' ELSE ')
+        self.visit(node.elseexpr)
+        self.write(')')
+
     def visit_SequenceNode(self, node):
         self.write('(')
         count = len(node.elements)

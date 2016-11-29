@@ -310,6 +310,52 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         );
         """
 
+    def test_edgeql_syntax_ops16(self):
+        """
+        SELECT (42 IF foo ELSE 24);
+        SELECT (
+            42 IF Foo.bar ELSE
+            (
+                43 IF Foo.baz ELSE
+                44
+            )
+        );
+        """
+
+    def test_edgeql_syntax_ops17(self):
+        """
+        SELECT 42 IF Foo.bar ELSE
+               43 IF Foo.baz ELSE
+               44;
+
+% OK %
+
+        SELECT (
+            42 IF Foo.bar ELSE
+            (
+                43 IF Foo.baz ELSE
+                44
+            )
+        );
+        """
+
+    def test_edgeql_syntax_ops18(self):
+        """
+        SELECT 40 + 2 IF Foo.bar ELSE
+               40 + 3 IF Foo.baz ELSE
+               40 + 4;
+
+% OK %
+
+        SELECT (
+            (40 + 2) IF Foo.bar ELSE
+            (
+                (40 + 3) IF Foo.baz ELSE
+                (40 + 4)
+            )
+        );
+        """
+
     def test_edgeql_syntax_list01(self):
         """
         SELECT (some_list_fn())[2];

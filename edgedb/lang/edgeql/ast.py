@@ -130,6 +130,10 @@ class TypeInterpretationNode(Base):
     __fields = ['expr', 'type']
 
 
+class IfElseNode(Base):
+    __fields = ['condition', 'ifexpr', 'elseexpr']
+
+
 class TransactionNode(Base):
     pass
 

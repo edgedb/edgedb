@@ -602,6 +602,7 @@ class Expr(Nonterm):
     # | Expr '[' TO NodeName ']'
     # | '<' ExtTypeExpr '>' '(' Expr ')'
     # | '(' Expr AS Expr ')'
+    # | Expr IF Expr ELSE Expr
 
     def reduce_Path(self, *kids):
         self.val = kids[0].val
@@ -783,6 +784,10 @@ class Expr(Nonterm):
     def reduce_LANGBRACKET_ExtTypeExpr_RANGBRACKET_Expr(
             self, *kids):
         self.val = qlast.TypeCastNode(expr=kids[3].val, type=kids[1].val)
+
+    def reduce_Expr_IF_Expr_ELSE_Expr(self, *kids):
+        self.val = qlast.IfElseNode(
+            ifexpr=kids[0].val, condition=kids[2].val, elseexpr=kids[4].val)
 
 
 class Sequence(Nonterm):
