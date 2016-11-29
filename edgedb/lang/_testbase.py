@@ -13,8 +13,24 @@ import unittest
 from edgedb.lang.common import markup, context
 
 
-def must_fail(*args, **kwargs):
+def must_fail(exc_type, exc_msg_re=None, **kwargs):
+    """A decorator to ensure that the test fails with a specific exception.
+
+    If exc_msg_re is passed, assertRaisesRegex will be used to match the
+    exception message.
+
+    Example:
+
+        @must_fail(EdgeQLSyntaxError,
+                   'non-default argument follows', line=2, col=61)
+        def test_edgeql_syntax_1(self):
+            ...
+    """
     def wrap(func):
+        args = (exc_type,)
+        if exc_msg_re is not None:
+            args += (exc_msg_re,)
+
         _set_spec(func, 'must_fail', (args, kwargs))
         return func
     return wrap
@@ -70,17 +86,25 @@ class BaseParserTest(unittest.TestCase, metaclass=ParserTestMeta):
 
     def _run_test(self, *, source, spec=None, expected=None):
         if spec and 'must_fail' in spec:
-            with self.assertRaises(*spec['must_fail'][0]) as cm:
+            spec_args, spec_kwargs = spec['must_fail']
+
+            if len(spec_args) == 1:
+                assertRaises = self.assertRaises
+            else:
+                assertRaises = self.assertRaisesRegex
+
+            with assertRaises(*spec_args) as cm:
                 return self.run_test(source=source, spec=spec,
                                      expected=expected)
 
             if cm.exception:
                 exc = cm.exception
-                for key, val in spec['must_fail'][1].items():
-                    if getattr(exc, key) != val:
-                        raise exc
-            return
-
+                for attr_name, expected_val in spec_kwargs.items():
+                    val = getattr(exc, attr_name)
+                    if val != expected_val:
+                        raise AssertionError(
+                            f'must_fail: attribute {attr_name!r} is '
+                            f'{expected_val} (expected is {val!r})') from exc
         else:
             return self.run_test(source=source, spec=spec, expected=expected)
 
