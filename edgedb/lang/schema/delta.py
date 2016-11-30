@@ -71,8 +71,10 @@ def delta_schemas(schema1, schema2):
     global_dels = []
 
     for type in schema1.global_dep_order:
-        new = OrderedIndex(schema1(type), key=lambda o: o.persistent_hash())
-        old = OrderedIndex(schema2(type), key=lambda o: o.persistent_hash())
+        new = OrderedIndex(schema1.get_iterator(type=type),
+                           key=lambda o: o.persistent_hash())
+        old = OrderedIndex(schema2.get_iterator(type=type),
+                           key=lambda o: o.persistent_hash())
 
         if type in ('link', 'link_property', 'constraint'):
             new = filter(lambda i: i.generic(), new)

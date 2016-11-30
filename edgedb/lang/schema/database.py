@@ -65,7 +65,7 @@ class AlterDatabase(DatabaseCommand):
                                        modules.AlterModule)):
                     op.apply(schema, context)
 
-            for link in schema(type='link'):
+            for link in schema.get_iterator(type='link'):
                 if link.target and not isinstance(link.target,
                                                   so.Class):
                     link.target = schema.get(link.target)
@@ -73,12 +73,12 @@ class AlterDatabase(DatabaseCommand):
                 link.acquire_ancestor_inheritance(schema)
                 link.finalize(schema)
 
-            for link in schema(type='computable'):
+            for link in schema.get_iterator(type='computable'):
                 if link.target and not isinstance(link.target,
                                                   so.Class):
                     link.target = schema.get(link.target)
 
-            for concept in schema(type='concept'):
+            for concept in schema.get_iterator(type='concept'):
                 concept.acquire_ancestor_inheritance(schema)
                 concept.finalize(schema)
 

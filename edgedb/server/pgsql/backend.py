@@ -823,7 +823,7 @@ class Backend(s_deltarepo.DeltaProvider):
 
             schema.add(atom)
 
-        for atom in schema('atom'):
+        for atom in schema.get_iterator(type='atom'):
             try:
                 basename = basemap[atom.name]
             except KeyError:
@@ -832,7 +832,7 @@ class Backend(s_deltarepo.DeltaProvider):
                 atom.bases = [schema.get(sn.Name(basename[0]))]
 
         sequence = schema.get('std::sequence', None)
-        for atom in schema('atom'):
+        for atom in schema.get_iterator(type='atom'):
             if sequence is not None and atom.issubclass(sequence):
                 seq_name = common.atom_name_to_sequence_name(
                     atom.name, catenate=False)
@@ -851,7 +851,7 @@ class Backend(s_deltarepo.DeltaProvider):
             raise s_err.SchemaError(msg, details=details)
 
     async def order_atoms(self, schema):
-        for atom in schema(type='atom'):
+        for atom in schema.get_iterator(type='atom'):
             atom.acquire_ancestor_inheritance(schema)
 
     async def read_functions(self, schema):
@@ -952,7 +952,7 @@ class Backend(s_deltarepo.DeltaProvider):
 
             schema.add(constraint)
 
-        for constraint in schema(type='constraint'):
+        for constraint in schema.get_iterator(type='constraint'):
             try:
                 bases = basemap[constraint.name]
             except KeyError:
@@ -960,7 +960,7 @@ class Backend(s_deltarepo.DeltaProvider):
             else:
                 constraint.bases = [schema.get(b) for b in bases]
 
-        for constraint in schema(type='constraint'):
+        for constraint in schema.get_iterator(type='constraint'):
             constraint.acquire_ancestor_inheritance(schema)
 
     async def order_constraints(self, schema):
@@ -1294,7 +1294,7 @@ class Backend(s_deltarepo.DeltaProvider):
 
             schema.add(link)
 
-        for link in schema(type='link'):
+        for link in schema.get_iterator(type='link'):
             try:
                 bases = basemap[link.name]
             except KeyError:
@@ -1302,7 +1302,7 @@ class Backend(s_deltarepo.DeltaProvider):
             else:
                 link.bases = [schema.get(b) for b in bases]
 
-        for link in schema(type='link'):
+        for link in schema.get_iterator(type='link'):
             link.acquire_ancestor_inheritance(schema)
 
     async def order_links(self, schema):
@@ -1312,17 +1312,17 @@ class Backend(s_deltarepo.DeltaProvider):
 
         g = {}
 
-        for link in schema(type='link'):
+        for link in schema.get_iterator(type='link'):
             g[link.name] = {"item": link, "merge": [], "deps": []}
             if link.bases:
                 g[link.name]['merge'].extend(b.name for b in link.bases)
 
         topological.normalize(g, merger=s_links.Link.merge, schema=schema)
 
-        for link in schema(type='link'):
+        for link in schema.get_iterator(type='link'):
             link.finalize(schema)
 
-        for link in schema(type='link'):
+        for link in schema.get_iterator(type='link'):
             if link.generic():
                 table_name = common.get_table_name(link, catenate=False)
                 tabidx = indexes.get(table_name)
@@ -1408,7 +1408,7 @@ class Backend(s_deltarepo.DeltaProvider):
 
             schema.add(prop)
 
-        for prop in schema('link_property'):
+        for prop in schema.get_iterator(type='link_property'):
             try:
                 bases = basemap[prop.name]
             except KeyError:
@@ -1421,7 +1421,7 @@ class Backend(s_deltarepo.DeltaProvider):
     async def order_link_properties(self, schema):
         g = {}
 
-        for prop in schema(type='link_property'):
+        for prop in schema.get_iterator(type='link_property'):
             g[prop.name] = {"item": prop, "merge": [], "deps": []}
             if prop.bases:
                 g[prop.name]['merge'].extend(b.name for b in prop.bases)
@@ -1429,7 +1429,7 @@ class Backend(s_deltarepo.DeltaProvider):
         topological.normalize(
             g, merger=s_lprops.LinkProperty.merge, schema=schema)
 
-        for prop in schema(type='link_property'):
+        for prop in schema.get_iterator(type='link_property'):
             prop.finalize(schema)
 
             if not prop.generic() and prop.source.generic():
@@ -1523,7 +1523,7 @@ class Backend(s_deltarepo.DeltaProvider):
                 name=name, title=title, description=description)
             schema.add(event)
 
-        for event in schema(type='event'):
+        for event in schema.get_iterator(type='event'):
             try:
                 bases = basemap[event.name]
             except KeyError:
@@ -1531,7 +1531,7 @@ class Backend(s_deltarepo.DeltaProvider):
             else:
                 event.bases = [schema.get(b) for b in bases]
 
-        for event in schema(type='event'):
+        for event in schema.get_iterator(type='event'):
             event.acquire_ancestor_inheritance(schema)
 
     async def order_events(self, schema):
@@ -1613,7 +1613,7 @@ class Backend(s_deltarepo.DeltaProvider):
 
             schema.add(concept)
 
-        for concept in schema('concept'):
+        for concept in schema.get_iterator(type='concept'):
             try:
                 bases = basemap[concept.name]
             except KeyError:
@@ -1634,7 +1634,7 @@ class Backend(s_deltarepo.DeltaProvider):
         sql_decompiler = transformer.Decompiler()
 
         g = {}
-        for concept in schema(type='concept'):
+        for concept in schema.get_iterator(type='concept'):
             g[concept.name] = {"item": concept, "merge": [], "deps": []}
             if concept.bases:
                 g[concept.name]["merge"].extend(b.name for b in concept.bases)
@@ -1642,7 +1642,7 @@ class Backend(s_deltarepo.DeltaProvider):
         topological.normalize(
             g, merger=s_concepts.Concept.merge, schema=schema)
 
-        for concept in schema(type='concept'):
+        for concept in schema.get_iterator(type='concept'):
             concept.finalize(schema)
 
             table_name = common.get_table_name(concept, catenate=False)

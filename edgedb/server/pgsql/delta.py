@@ -615,7 +615,7 @@ class AtomMetaCommand(NamedClassMetaCommand):
 
         users = []
 
-        for link in schema(type='link'):
+        for link in schema.get_iterator(type='link'):
             if link.target and link.target.name == atom.name:
                 users.append((link.source, link))
 
@@ -665,7 +665,7 @@ class AtomMetaCommand(NamedClassMetaCommand):
             alter_table.add_operation(alter_type)
             self.pgops.add(alter_table)
 
-        for child_atom in schema(type='atom'):
+        for child_atom in schema.get_iterator(type='atom'):
             if [b.name for b in child_atom.bases] == [atom.name]:
                 self.alter_atom_type(child_atom, schema, target_type, 'alter')
 

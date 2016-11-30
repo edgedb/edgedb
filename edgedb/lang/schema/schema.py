@@ -184,9 +184,10 @@ class Schema:
 
         return aliased
 
-    def get(self, name, default=SchemaError, module_aliases=None, type=None,
-                  include_pyobjects=False, index_only=True,
-                  implicit_builtins=True):
+    def get(self, name, default=SchemaError, *,
+            module_aliases=None, type=None,
+            include_pyobjects=False, index_only=True,
+            implicit_builtins=True):
 
         name, module, nqname = schema_name.split_name(name)
 
@@ -336,7 +337,8 @@ class Schema:
 
     def _find_children(self, scls):
         flt = lambda p: scls in p.bases
-        return {c.name for c in filter(flt, self(scls._type))}
+        it = self.get_iterator(type=scls._type)
+        return {c.name for c in filter(flt, it)}
 
     def get_root_class(self, cls):
         from . import concepts, lproperties, links
@@ -381,9 +383,9 @@ class Schema:
         return [(str(o.name), persistent_hash(o)) for o in objects]
 
     def __iter__(self):
-        yield from self()
+        yield from self.get_iterator()
 
-    def __call__(self, type=None):
+    def get_iterator(self, *, type=None):
         for mod in self.modules.values():
             for scls in mod.get_iterator(type=type):
                 yield scls
