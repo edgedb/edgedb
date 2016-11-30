@@ -141,9 +141,10 @@ class Module(named.NamedClass):
     def lookup_qname(self, name):
         return self.index_by_name.get(name)
 
-    def get(self, name, default=SchemaError, module_aliases=None, type=None,
-                  include_pyobjects=False, index_only=True,
-                  implicit_builtins=True):
+    def get(self, name, default=SchemaError, *,
+            module_aliases=None, type=None,
+            include_pyobjects=False, index_only=True,
+            implicit_builtins=True):
 
         fail_cause = None
 
@@ -151,9 +152,9 @@ class Module(named.NamedClass):
             for typ in type:
                 try:
                     scls = self.get(name, module_aliases=module_aliases,
-                                         type=typ,
-                                         include_pyobjects=include_pyobjects,
-                                         index_only=index_only, default=None)
+                                    type=typ,
+                                    include_pyobjects=include_pyobjects,
+                                    index_only=index_only, default=None)
                 except SchemaError:
                     pass
                 else:
