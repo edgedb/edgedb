@@ -615,7 +615,7 @@ class AtomMetaCommand(NamedClassMetaCommand):
 
         users = []
 
-        for link in schema.get_iterator(type='link'):
+        for link in schema.get_objects(type='link'):
             if link.target and link.target.name == atom.name:
                 users.append((link.source, link))
 
@@ -665,7 +665,7 @@ class AtomMetaCommand(NamedClassMetaCommand):
             alter_table.add_operation(alter_type)
             self.pgops.add(alter_table)
 
-        for child_atom in schema.get_iterator(type='atom'):
+        for child_atom in schema.get_objects(type='atom'):
             if [b.name for b in child_atom.bases] == [atom.name]:
                 self.alter_atom_type(child_atom, schema, target_type, 'alter')
 
@@ -1039,7 +1039,7 @@ class CompositeClassMetaCommand(NamedClassMetaCommand):
         if (old_target.name != new_target.name or
                 old_ptr_stor_info.table_type != new_ptr_stor_info.table_type):
 
-            for op in self(s_atoms.AtomCommand):
+            for op in self.get_objects(type=s_atoms.AtomCommand):
                 for rename in op(s_atoms.RenameAtom):
                     if (old_target.name == rename.classname and
                             new_target.name == rename.new_name):
@@ -1144,7 +1144,7 @@ class CompositeClassMetaCommand(NamedClassMetaCommand):
             orig_source.acquire_ancestor_inheritance(schema)
 
             created_ptrs = set()
-            for ptr in source_ctx.op(ptr_cmd):
+            for ptr in source_ctx.op.get_objects(type=ptr_cmd):
                 created_ptrs.add(ptr.classname)
 
             inherited_aptrs = set()
@@ -1665,7 +1665,7 @@ class PointerMetaCommand(MetaCommand):
 
         dropped_atom = None
 
-        for op in self(s_atoms.AtomCommand):
+        for op in self.get_objects(type=s_atoms.AtomCommand):
             for rename in op(s_atoms.RenameAtom):
                 if (old_type == rename.classname and
                         new_type == rename.new_name):
@@ -2115,7 +2115,7 @@ class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
                             'name', str(link.name))], priority=1))
 
             new_type = None
-            for op in self(sd.AlterClassProperty):
+            for op in self.get_objects(type=sd.AlterClassProperty):
                 if op.property == 'target':
                     new_type = op.new_value.classname \
                         if op.new_value is not None else None
@@ -2309,7 +2309,7 @@ class AlterLinkProperty(
                         column_name=column_name, null=not prop.required))
 
             new_type = None
-            for op in self(sd.AlterClassProperty):
+            for op in self.get_objects(type=sd.AlterClassProperty):
                 if (op.property == 'target' and
                         prop.normal_name() not in
                         {'std::source', 'std::target'}):

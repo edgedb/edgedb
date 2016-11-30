@@ -337,7 +337,7 @@ class Schema:
 
     def _find_children(self, scls):
         flt = lambda p: scls in p.bases
-        it = self.get_iterator(type=scls._type)
+        it = self.get_objects(type=scls._type)
         return {c.name for c in filter(flt, it)}
 
     def get_root_class(self, cls):
@@ -360,13 +360,13 @@ class Schema:
         if self._policy_schema is None:
             self._policy_schema = spol.PolicySchema()
 
-            for policy in self('policy'):
+            for policy in self.get_objects(type='policy'):
                 self._policy_schema.add(policy)
 
-            for link in self('link'):
+            for link in self.get_objects(type='link'):
                 link.materialize_policies(self)
 
-            for concept in self('concept'):
+            for concept in self.get_objects(type='concept'):
                 concept.materialize_policies(self)
 
         return self._policy_schema.get(subject_class, event_class)
@@ -383,9 +383,9 @@ class Schema:
         return [(str(o.name), persistent_hash(o)) for o in objects]
 
     def __iter__(self):
-        yield from self.get_iterator()
+        yield from self.get_objects()
 
-    def get_iterator(self, *, type=None):
+    def get_objects(self, *, type=None):
         for mod in self.modules.values():
-            for scls in mod.get_iterator(type=type):
+            for scls in mod.get_objects(type=type):
                 yield scls

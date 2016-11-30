@@ -92,7 +92,7 @@ class Concept(sources.Source, nodes.Node,
         def getptr_from_nqname(cls, schema, source, name):
             ptrs = set()
 
-            for link in schema.get_iterator(type='link'):
+            for link in schema.get_objects(type='link'):
                 if (link.normal_name().name == name and
                         link.target is not None and
                         source.issubclass(link.target)):
@@ -104,7 +104,7 @@ class Concept(sources.Source, nodes.Node,
         def getptr_from_fqname(cls, schema, source, name):
             ptrs = set()
 
-            for link in schema.get_iterator(type='link'):
+            for link in schema.get_objects(type='link'):
                 if (link.normal_name() == name and
                         link.target is not None and
                         source.issubclass(link.target)):
@@ -123,7 +123,7 @@ class Concept(sources.Source, nodes.Node,
         def getptr_inherited_from(cls, source, schema,
                                   base_ptr_class, skip_atomic):
             result = set()
-            for link in schema.get_iterator(type='link'):
+            for link in schema.get_objects(type='link'):
                 if link.issubclass(base_ptr_class) \
                         and link.target is not None \
                         and (not skip_atomic or not link.atomic()) \

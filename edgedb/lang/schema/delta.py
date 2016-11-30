@@ -71,9 +71,9 @@ def delta_schemas(schema1, schema2):
     global_dels = []
 
     for type in schema1.global_dep_order:
-        new = OrderedIndex(schema1.get_iterator(type=type),
+        new = OrderedIndex(schema1.get_objects(type=type),
                            key=lambda o: o.persistent_hash())
-        old = OrderedIndex(schema2.get_iterator(type=type),
+        old = OrderedIndex(schema2.get_objects(type=type),
                            key=lambda o: o.persistent_hash())
 
         if type in ('link', 'link_property', 'constraint'):
@@ -445,7 +445,7 @@ class Command(datastructures.MixedStruct, metaclass=CommandMeta):
     def get_struct_properties(self, schema):
         result = {}
 
-        for op in self(AlterClassProperty):
+        for op in self.get_objects(type=AlterClassProperty):
             try:
                 field = self.metaclass.get_field(op.property)
             except KeyError:
@@ -457,7 +457,7 @@ class Command(datastructures.MixedStruct, metaclass=CommandMeta):
         return result
 
     def get_attribute_value(self, attr_name):
-        for op in self(AlterClassProperty):
+        for op in self.get_objects(type=AlterClassProperty):
             if op.property == attr_name:
                 return op.new_value
         else:
@@ -473,8 +473,8 @@ class Command(datastructures.MixedStruct, metaclass=CommandMeta):
             yield from op.before_ops
             yield op
 
-    def __call__(self, typ):
-        return filter(lambda i: isinstance(i, typ), self)
+    def get_objects(self, *, type):
+        return filter(lambda i: isinstance(i, type), self)
 
     def has_subcommands(self):
         return bool(self.ops)

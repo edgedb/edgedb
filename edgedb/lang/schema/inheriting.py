@@ -129,7 +129,7 @@ class AlterInheritingClass(named.AlterNamedClass, InheritingClassCommand):
     def _alter_begin(self, schema, context, scls):
         super()._alter_begin(schema, context, scls)
 
-        for op in self(RebaseNamedClass):
+        for op in self.get_objects(type=RebaseNamedClass):
             op.apply(schema, context)
 
         scls.acquire_ancestor_inheritance(schema)

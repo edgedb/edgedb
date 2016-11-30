@@ -42,10 +42,10 @@ class AlterDatabase(DatabaseCommand):
         with context(DatabaseCommandContext(self)):
             mods = []
 
-            for op in self(modules.CreateModule):
+            for op in self.get_objects(type=modules.CreateModule):
                 mods.append(op.apply(schema, context))
 
-            for op in self(modules.AlterModule):
+            for op in self.get_objects(type=modules.AlterModule):
                 mods.append(op.apply(schema, context))
 
             for mod in mods:
@@ -65,7 +65,7 @@ class AlterDatabase(DatabaseCommand):
                                        modules.AlterModule)):
                     op.apply(schema, context)
 
-            for link in schema.get_iterator(type='link'):
+            for link in schema.get_objects(type='link'):
                 if link.target and not isinstance(link.target,
                                                   so.Class):
                     link.target = schema.get(link.target)
@@ -73,12 +73,12 @@ class AlterDatabase(DatabaseCommand):
                 link.acquire_ancestor_inheritance(schema)
                 link.finalize(schema)
 
-            for link in schema.get_iterator(type='computable'):
+            for link in schema.get_objects(type='computable'):
                 if link.target and not isinstance(link.target,
                                                   so.Class):
                     link.target = schema.get(link.target)
 
-            for concept in schema.get_iterator(type='concept'):
+            for concept in schema.get_objects(type='concept'):
                 concept.acquire_ancestor_inheritance(schema)
                 concept.finalize(schema)
 

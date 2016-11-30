@@ -263,7 +263,7 @@ class Module(named.NamedClass):
     def __iter__(self):
         return SchemaIterator(self, None)
 
-    def get_iterator(self, *, type=None, include_derived=False):
+    def get_objects(self, *, type=None, include_derived=False):
         return SchemaIterator(self, type, include_derived=include_derived)
 
     def get_checksum(self):

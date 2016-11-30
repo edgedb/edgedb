@@ -101,16 +101,16 @@ class DeclarationLoader:
         # Constraints have no external dependencies, but need to
         # be fully initialized when we get to constraint users below.
         self._init_constraints(objects['constraint'])
-        constraints = self._sort(module.get_iterator(type='constraint'))
+        constraints = self._sort(module.get_objects(type='constraint'))
 
         # Ditto for attributes.
-        attributes = self._sort(module.get_iterator(type='attribute'))
+        attributes = self._sort(module.get_objects(type='attribute'))
 
         # Atoms depend only on constraints and attributes,
         # can process them now.
         self._init_atoms(objects['atom'])
         atoms = self._sort(
-            module.get_iterator(type='atom'), depsfn=self._get_atom_deps)
+            module.get_objects(type='atom'), depsfn=self._get_atom_deps)
 
         # Generic links depend on atoms (via props), constraints
         # and attributes.
@@ -121,15 +121,15 @@ class DeclarationLoader:
 
         # The inheritance merge pass may produce additional objects,
         # thus, it has to be performed in reverse order (mostly).
-        concepts = self._sort(module.get_iterator(type='concept'))
-        links = self._sort(module.get_iterator(type='link'))
-        linkprops = self._sort(module.get_iterator(type='linkproperty'))
-        events = self._sort(module.get_iterator(type='event'))
-        actions = self._sort(module.get_iterator(type='action'))
-        attrvals = module.get_iterator(type='attribute-value')
-        indexes = module.get_iterator(type='index')
+        concepts = self._sort(module.get_objects(type='concept'))
+        links = self._sort(module.get_objects(type='link'))
+        linkprops = self._sort(module.get_objects(type='linkproperty'))
+        events = self._sort(module.get_objects(type='event'))
+        actions = self._sort(module.get_objects(type='action'))
+        attrvals = module.get_objects(type='attribute-value')
+        indexes = module.get_objects(type='index')
 
-        constraints.update(c for c in module.get_iterator(type='constraint')
+        constraints.update(c for c in module.get_objects(type='constraint')
                            if c.subject is not None)
 
         # Final pass, set empty fields to default values amd do
@@ -283,7 +283,7 @@ class DeclarationLoader:
 
             # Add dependency on all builtin atoms unconditionally
             std = self._schema.get_module('std')
-            deps.update(std.get_iterator(type='atom'))
+            deps.update(std.get_objects(type='atom'))
 
         return deps
 
