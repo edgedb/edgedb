@@ -137,7 +137,6 @@ class Protocol(asyncio.Protocol):
             }
         })
 
-    @debug
     async def _run_script(self, script, *, graphql=False, flags={}):
         if graphql:
             script = graphql_compiler.translate(
@@ -148,9 +147,6 @@ class Protocol(asyncio.Protocol):
         results = []
 
         for statement in statements:
-            """LOG [statement] Executing EdgeQL statement
-            print(edgeql.generate_source(statement, pretty=True))
-            """
             plan = planner.plan_statement(statement, self.backend, flags)
             result = await executor.execute_plan(plan, self)
             if result is not None and isinstance(result, list):
@@ -161,9 +157,6 @@ class Protocol(asyncio.Protocol):
                         row = json.loads(row)
                     loaded.append(row)
                 result = loaded
-            """LOG [result] Statement result
-            print(result)
-            """
             results.append(result)
 
         return results
