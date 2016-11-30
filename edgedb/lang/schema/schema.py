@@ -385,5 +385,5 @@ class Schema:
 
     def __call__(self, type=None):
         for mod in self.modules.values():
-            for scls in mod(type=type):
+            for scls in mod.get_iterator(type=type):
                 yield scls

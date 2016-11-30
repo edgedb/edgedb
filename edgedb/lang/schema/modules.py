@@ -81,25 +81,18 @@ class DeleteModule(ModuleCommand):
 
 
 class Module(named.NamedClass):
+    # Override 'name' to str type, since modules don't have
+    # fully-qualified names.
     name = so.Field(str)
+
     imports = so.Field(so.ClassSet, so.ClassSet)
-
-    def get_object_key(self, obj):
-        return obj.__class__.get_canonical_class(), obj.name
-
-    def get_object_by_key(self, key):
-        cls, name = key
-        obj = self.lookup_qname(name)
-        assert obj, 'Could not find "%s" object named "%s"' % (cls, name)
-        return obj
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        self.index = OrderedSet()
         self.index_by_name = collections.OrderedDict()
         self.index_by_type = {}
-        self.index_derived = OrderedSet()
+        self.index_derived = set()
 
     def copy(self):
         result = self.__class__(name=self.name, imports=self.imports)
@@ -114,16 +107,11 @@ class Module(named.NamedClass):
 
         self.index_by_name[obj.name] = obj
 
-        key = self.get_object_key(obj)
-        self.index.add(key)
-
         idx_by_type = self.index_by_type.setdefault(obj._type, OrderedSet())
-        idx_by_type.add(key)
-
-        key = self.get_object_key(obj)
+        idx_by_type.add(obj.name)
 
         if getattr(obj, 'is_derived', None):
-            self.index_derived.add(key)
+            self.index_derived.add(obj.name)
 
     def discard(self, obj):
         existing = self.index_by_name.pop(obj.name, None)
@@ -146,10 +134,9 @@ class Module(named.NamedClass):
         self.add(obj)
 
     def _delete(self, obj):
-        key = self.get_object_key(obj)
-        self.index.remove(key)
-        self.index_by_type[obj.__class__._type].remove(key)
-        self.index_derived.discard(key)
+        self.index_by_name.pop(obj.name, None)
+        self.index_by_type[obj.__class__._type].remove(obj.name)
+        self.index_derived.discard(obj.name)
 
     def lookup_qname(self, name):
         return self.index_by_name.get(name)
@@ -249,36 +236,40 @@ class Module(named.NamedClass):
         return result
 
     def reorder(self, new_order):
-        name_order = [self.get_object_key(p) for p in new_order]
+        name_order = [p.name for p in new_order]
 
-        # The new_order may be partial, as the most common source
-        # is schema enumeration, which may filter out certain objects.
-        #
         def sortkey(item):
             try:
                 return name_order.index(item)
             except ValueError:
                 return -1
 
-        self.index = OrderedSet(sorted(self.index, key=sortkey))
+        # The new_order may be partial, as the most common source
+        # is schema enumeration, which may filter out certain objects.
+        names = OrderedSet(self.index_by_name)
+        names = OrderedSet(sorted(names, key=sortkey))
+
+        self.index_by_name = collections.OrderedDict(
+            (name, self.index_by_name[name]) for name in names)
+
         for typeindex in self.index_by_type.values():
             sortedindex = sorted(typeindex, key=sortkey)
             typeindex.clear()
             typeindex.update(sortedindex)
 
     def __contains__(self, obj):
-        return obj in self.index
+        return obj.name in self.index_by_name
 
     def __iter__(self):
         return SchemaIterator(self, None)
 
-    def __call__(self, type=None, include_derived=False):
+    def get_iterator(self, *, type=None, include_derived=False):
         return SchemaIterator(self, type, include_derived=include_derived)
 
     def get_checksum(self):
-        if self.index:
+        if self.index_by_name:
             objects = frozenset(self)
-            checksum = persistent_hash(str(persistent_hash(objects)))
+            checksum = persistent_hash(objects)
         else:
             checksum = persistent_hash(None)
 
@@ -286,36 +277,32 @@ class Module(named.NamedClass):
 
 
 class SchemaIterator:
-    def __init__(self, index, type, include_derived=False):
-        self.index = index
+    def __init__(self, module, type, include_derived=False):
+        self.module = module
         self.type = type
         self.include_derived = include_derived
+        self.iter = self._make_iter()
 
-        sourceset = self.index.index
+    def _make_iter(self):
+        names = OrderedSet(self.module.index_by_name)
+        if self.type is not None:
+            typ = self.type
+            if isinstance(self.type, so.MetaClass):
+                typ = self.type._type
 
-        if type is not None:
-            if isinstance(type, so.MetaClass):
-                type = type._type
-
-            itertype = index.index_by_type.get(type)
-
-            if itertype:
-                sourceset = itertype
+            itertyp = self.module.index_by_type.get(typ)
+            if itertyp:
+                names = itertyp
             else:
-                sourceset = OrderedSet()
+                names = OrderedSet()
 
-        filtered = self.filter_set(sourceset)
-        self.iter = iter(filtered)
-
-    def filter_set(self, sourceset):
-        filtered = sourceset
         if not self.include_derived:
-            filtered -= self.index.index_derived
-        return filtered
+            names -= self.module.index_derived
+
+        return iter(names)
 
     def __iter__(self):
         return self
 
     def __next__(self):
-        result = self.index.get_object_by_key(next(self.iter))
-        return result
+        return self.module.index_by_name[next(self.iter)]

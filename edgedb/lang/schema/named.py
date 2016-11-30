@@ -152,9 +152,8 @@ class CreateNamedClass(CreateOrAlterNamedClass, sd.CreateClass):
             raise ValueError('{!r} already exists in schema'
                                 .format(self.classname))
 
-        scls = sd.CreateClass.apply(self, schema, context)
-        schema.add(scls)
-        return scls
+        # apply will add to the schema
+        return sd.CreateClass.apply(self, schema, context)
 
     def __repr__(self):
         return '<%s.%s "%s">' % (self.__class__.__module__,
