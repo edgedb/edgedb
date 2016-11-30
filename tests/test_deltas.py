@@ -7,6 +7,7 @@
 
 
 import os.path
+import textwrap
 import unittest
 import uuid
 
@@ -122,3 +123,65 @@ class TestDeltas(tb.QueryTestCase):
             CREATE DELTA test::d_links01_1 TO $${schema}$$;
             COMMIT DELTA test::d_links01_1;
             '''.format(schema=schema))
+
+
+class TestDeltaDDLGeneration(tb.QueryTestCase):
+    def _assert_result(self, result, expected):
+        self.assertEqual(result.strip(), textwrap.dedent(expected).strip())
+
+    async def test_delta_ddlgen_01(self):
+        result = await self.con.execute("""
+            # setup delta
+            #
+            CREATE DELTA test::d1 TO $$
+                link name:
+                    linkproperty lang to str
+
+                concept NamedObject:
+                    required link name to str:
+                        linkproperty lang to str:
+                            title: 'Language'
+            $$;
+
+            GET DELTA test::d1;
+        """)
+
+        self._assert_result(
+            result[1],
+            '''\
+            CREATE LINK PROPERTY test::lang {
+                SET readonly := False;
+                SET title := 'Base link property';
+            };
+            CREATE LINK test::name INHERITING std::`link` {
+                SET readonly := False;
+            };
+            ALTER LINK test::name CREATE LINK PROPERTY test::lang TO (std::str) {
+                SET readonly := False;
+                SET title := 'Base link property';
+            };
+            CREATE CONCEPT test::NamedObject INHERITING std::Object {
+                SET is_virtual := False;
+            };
+            ALTER CONCEPT test::NamedObject {
+                CREATE REQUIRED LINK test::name TO (std::str) {
+                    SET mapping := '*1';
+                    SET readonly := False;
+                }
+                ALTER LINK test::name {
+                    CREATE LINK PROPERTY std::source TO (test::NamedObject) {
+                        SET readonly := False;
+                        SET title := 'Link source';
+                    }
+                    CREATE LINK PROPERTY std::`target` TO (std::str) {
+                        SET readonly := False;
+                        SET title := 'Link target';
+                    }
+                    CREATE LINK PROPERTY test::lang TO (std::str) {
+                        SET readonly := False;
+                        SET title := 'Base link property';
+                    }
+                }
+            };
+            '''
+        )

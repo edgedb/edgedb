@@ -674,6 +674,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.name, parenthesise=False)
         self.new_lines = 1
 
+    def visit_GetDeltaNode(self, node):
+        self._visit_aliases(node)
+        self.write('GET DELTA')
+        self.write(' ')
+        self.visit(node.name, parenthesise=False)
+        self.new_lines = 1
+
     def visit_AlterDeltaNode(self, node):
         self._visit_AlterObjectNode(node, 'DELTA')
 

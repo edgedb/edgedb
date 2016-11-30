@@ -111,3 +111,11 @@ class CommitDelta(DeltaCommand):
     def apply(self, schema, context):
         delta = schema.get_delta(self.classname)
         return delta
+
+
+class GetDelta(DeltaCommand):
+    astnode = qlast.GetDeltaNode
+
+    def apply(self, schema, context):
+        delta = schema.get_delta(self.classname)
+        return delta

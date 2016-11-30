@@ -206,6 +206,10 @@ class CreateDeltaNode(CreateObjectNode, DeltaNode):
     __fields = [('parents', list), 'target']
 
 
+class GetDeltaNode(ObjectDDLNode, DeltaNode):
+    pass
+
+
 class AlterDeltaNode(AlterObjectNode, DeltaNode):
     pass
 

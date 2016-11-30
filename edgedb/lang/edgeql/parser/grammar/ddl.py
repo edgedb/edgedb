@@ -39,6 +39,9 @@ class DDLStmt(Nonterm):
     def reduce_InnerDDLStmt(self, *kids):
         self.val = kids[0].val
 
+    def reduce_GetDeltaStmt(self, *kids):
+        self.val = kids[0].val
+
 
 # DDL statements that are allowed inside CREATE DATABASE and CREATE DELTA
 #
@@ -406,6 +409,15 @@ class DropDeltaStmt(Nonterm):
 class CommitDeltaStmt(Nonterm):
     def reduce_OptAliasBlock_COMMIT_DELTA_NodeName(self, *kids):
         self.val = qlast.CommitDeltaNode(
+            aliases=kids[0].val,
+            name=kids[3].val,
+        )
+
+
+# GET DELTA
+class GetDeltaStmt(Nonterm):
+    def reduce_OptAliasBlock_GET_DELTA_NodeName(self, *kids):
+        self.val = qlast.GetDeltaNode(
             aliases=kids[0].val,
             name=kids[3].val,
         )

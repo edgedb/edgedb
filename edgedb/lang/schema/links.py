@@ -378,12 +378,6 @@ class CreateLink(LinkCommand, referencing.CreateReferencedClass):
 
         concept = context.get(LinkSourceCommandContext)
 
-        for op in self.get_objects(type=lproperties.LinkPropertyCommand):
-            name = op.metaclass.normalize_name(op.classname)
-            if name not in {'std::source',
-                            'std::target'}:
-                self._append_subcmd_ast(node, op, context)
-
         if not concept:
             for op in self.get_objects(type=indexes.SourceIndexCommand):
                 self._append_subcmd_ast(node, op, context)
@@ -519,9 +513,6 @@ class AlterLink(LinkCommand, named.AlterNamedClass):
         super()._apply_fields_ast(context, node)
 
         concept = context.get(LinkSourceCommandContext)
-
-        for op in self.get_objects(type=lproperties.LinkPropertyCommand):
-            self._append_subcmd_ast(node, op, context)
 
         if not concept:
             for op in self.get_objects(type=indexes.SourceIndexCommand):

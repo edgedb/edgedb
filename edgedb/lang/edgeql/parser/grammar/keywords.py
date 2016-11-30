@@ -46,6 +46,7 @@ edgeql_keywords = {
     "for": ("FOR", UNRESERVED_KEYWORD),
     "from": ("FROM", UNRESERVED_KEYWORD),
     "function": ("FUNCTION", UNRESERVED_KEYWORD),
+    "get": ("GET", RESERVED_KEYWORD),
     "group": ("GROUP", RESERVED_KEYWORD),
     "having": ("HAVING", RESERVED_KEYWORD),
     "if": ("IF", UNRESERVED_KEYWORD),

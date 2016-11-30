@@ -25,6 +25,8 @@ from . import lproperties  # NOQA
 from . import modules  # NOQA
 from . import policy  # NOQA
 
+from . import delta as sd
+
 
 def cmd_from_ddl(stmt, *, context=None, schema):
     ddl = edgeql.deoptimize(stmt)
@@ -51,7 +53,7 @@ def ddl_from_delta(delta):
     return delta.get_ast()
 
 
-def ddl_text_from_delta(delta):
+def ddl_text_from_delta_command(delta):
     """Return DDL text for a delta command tree."""
     if isinstance(delta, s_db.AlterDatabase):
         commands = delta
@@ -62,6 +64,26 @@ def ddl_text_from_delta(delta):
     for command in commands:
         delta_ast = ddl_from_delta(command)
         if delta_ast:
-            text.append(edgeql.generate_source(edgeql.optimize(delta_ast)))
+            stmt_text = edgeql.generate_source(edgeql.optimize(delta_ast))
+            text.append(stmt_text + ';')
+
+    return '\n'.join(text)
+
+
+def ddl_text_from_delta(schema, delta):
+    """Return DDL text for a delta object."""
+    commands = []
+
+    if delta.target is not None:
+        diff = sd.delta_schemas(delta.target, schema)
+        commands.extend(diff)
+
+    if delta.commands:
+        commands.extend(delta.commands)
+
+    text = []
+    for command in commands:
+        cmd_text = ddl_text_from_delta_command(command)
+        text.append(cmd_text)
 
     return '\n'.join(text)

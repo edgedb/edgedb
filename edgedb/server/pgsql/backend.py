@@ -532,6 +532,8 @@ class Backend(s_deltarepo.DeltaProvider):
     async def run_delta_command(self, delta_cmd):
         schema = await self.getschema()
         context = sd.CommandContext()
+        result = None
+
         with context(s_deltas.DeltaCommandContext(delta_cmd)):
             delta = delta_cmd.apply(schema, context)
 
@@ -554,6 +556,18 @@ class Backend(s_deltarepo.DeltaProvider):
                 await self.run_ddl_command(ddl_plan)
                 await self._commit_delta(delta, ddl_plan)
 
+            elif isinstance(delta_cmd, s_deltas.CreateDelta):
+                pass
+
+            elif isinstance(delta_cmd, s_deltas.GetDelta):
+                result = s_ddl.ddl_text_from_delta(schema, delta)
+
+            else:
+                raise RuntimeError(
+                    f'unexpected delta command: {delta_cmd!r}')
+
+        return result
+
     async def _commit_delta(self, delta, ddl_plan):
         return  # XXX
         table = deltadbops.DeltaTable()
@@ -566,7 +580,7 @@ class Backend(s_deltarepo.DeltaProvider):
                 SELECT array_agg(id) FROM edgedb.delta WHERE name = any($1)
             ''', params=[[parent.name for parent in delta.parents]]),
             checksum=(await self.getschema()).get_checksum(), deltabin=b'1',
-            deltasrc=s_ddl.ddl_text_from_delta(ddl_plan))
+            deltasrc=s_ddl.ddl_text_from_delta_command(ddl_plan))
         context = delta_cmds.CommandContext(self.connection, None)
         await dbops.Insert(table, records=[rec]).execute(context)
 

@@ -54,8 +54,7 @@ class NamedClassCommand(sd.ClassCommand):
         astnode = self._get_ast_node(context)
         if isinstance(self.classname, sn.Name):
             if hasattr(self.metaclass, 'normalize_name'):
-                nname = self.metaclass.normalize_name(
-                            self.classname)
+                nname = self.metaclass.normalize_name(self.classname)
             else:
                 nname = self.classname
             name = qlast.ClassRefNode(module=nname.module, name=nname.name)

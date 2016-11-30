@@ -17,8 +17,16 @@ class TestDeltas(tb.QueryTestCase):
 
     async def test_edgeql_ddl02(self):
         await self.con.execute("""
+            CREATE LINK test::test_concept_link {
+                CREATE LINK PROPERTY test::test_link_prop TO std::int;
+            };
+
             CREATE CONCEPT test::TestConcept {
-                CREATE LINK test::test_concept_link TO std::str;
+                CREATE LINK test::test_concept_link TO std::str {
+                    CREATE LINK PROPERTY test::test_link_prop TO std::int {
+                        SET title := 'Test Property';
+                    };
+                };
             };
         """)
 

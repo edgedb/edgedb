@@ -32,12 +32,11 @@ class DerivableClass(inheriting.InheritingClass):
 
     @classmethod
     def mangle_name(cls, name):
-        return name.replace('~', '~~').replace('.', '~') \
-                   .replace('|', '||').replace('::', '|')
+        return name.replace('::', '|')
 
     @classmethod
     def unmangle_name(cls, name):
-        return name.replace('~', '.').replace('|', '::')
+        return name.replace('|', '::')
 
     @classmethod
     def generate_specialized_name(cls, source_name, pointer_name, *qualifiers):
