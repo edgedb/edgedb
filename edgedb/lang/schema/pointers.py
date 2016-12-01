@@ -164,7 +164,7 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
 
         referrer_ctx = context.get(self.referrer_context_class)
         if referrer_ctx is not None:
-            for ap in self.get_objects(type=sd.AlterClassProperty):
+            for ap in self.get_subcommands(type=sd.AlterClassProperty):
                 if ap.property == 'target':
                     self.scls.target = \
                         schema.get(ap.new_value.classname)

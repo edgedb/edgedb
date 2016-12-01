@@ -42,10 +42,10 @@ class AlterDatabase(DatabaseCommand):
         with context(DatabaseCommandContext(self)):
             mods = []
 
-            for op in self.get_objects(type=modules.CreateModule):
+            for op in self.get_subcommands(type=modules.CreateModule):
                 mods.append(op.apply(schema, context))
 
-            for op in self.get_objects(type=modules.AlterModule):
+            for op in self.get_subcommands(type=modules.AlterModule):
                 mods.append(op.apply(schema, context))
 
             for mod in mods:

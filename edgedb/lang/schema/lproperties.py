@@ -29,13 +29,13 @@ class LinkPropertySourceContext(sources.SourceCommandContext):
 
 class LinkPropertySourceCommand(sd.ClassCommand):
     def _create_innards(self, schema, context):
-        for op in self.get_objects(type=LinkPropertyCommand):
+        for op in self.get_subcommands(type=LinkPropertyCommand):
             op.apply(schema, context=context)
 
         super()._create_innards(schema, context)
 
     def _alter_innards(self, schema, context, scls):
-        for op in self.get_objects(type=LinkPropertyCommand):
+        for op in self.get_subcommands(type=LinkPropertyCommand):
             op.apply(schema, context=context)
 
         super()._alter_innards(schema, context, scls)
@@ -43,13 +43,13 @@ class LinkPropertySourceCommand(sd.ClassCommand):
     def _delete_innards(self, schema, context, scls):
         super()._delete_innards(schema, context, scls)
 
-        for op in self.get_objects(type=LinkPropertyCommand):
+        for op in self.get_subcommands(type=LinkPropertyCommand):
             op.apply(schema, context=context)
 
     def _apply_fields_ast(self, context, node):
         super()._apply_fields_ast(context, node)
 
-        for op in self.get_objects(type=LinkPropertyCommand):
+        for op in self.get_subcommands(type=LinkPropertyCommand):
             self._append_subcmd_ast(node, op, context)
 
 
@@ -126,10 +126,10 @@ class CreateLinkProperty(LinkPropertyCommand,
     def _apply_fields_ast(self, context, node):
         super()._apply_fields_ast(context, node)
 
-        for op in self.get_objects(type=constraints.ConstraintCommand):
+        for op in self.get_subcommands(type=constraints.ConstraintCommand):
             self._append_subcmd_ast(node, op, context)
 
-        for op in self.get_objects(type=policy.PolicyCommand):
+        for op in self.get_subcommands(type=policy.PolicyCommand):
             self._append_subcmd_ast(node, op, context)
 
     def _apply_field_ast(self, context, node, op):
@@ -175,10 +175,10 @@ class AlterLinkProperty(LinkPropertyCommand,
     def _apply_fields_ast(self, context, node):
         super()._apply_fields_ast(context, node)
 
-        for op in self.get_objects(type=constraints.ConstraintCommand):
+        for op in self.get_subcommands(type=constraints.ConstraintCommand):
             self._append_subcmd_ast(node, op, context)
 
-        for op in self.get_objects(type=policy.PolicyCommand):
+        for op in self.get_subcommands(type=policy.PolicyCommand):
             self._append_subcmd_ast(node, op, context)
 
     def _apply_field_ast(self, context, node, op):
@@ -213,10 +213,10 @@ class DeleteLinkProperty(LinkPropertyCommand,
     def _apply_fields_ast(self, context, node):
         super()._apply_fields_ast(context, node)
 
-        for op in self.get_objects(type=constraints.ConstraintCommand):
+        for op in self.get_subcommands(type=constraints.ConstraintCommand):
             self._append_subcmd_ast(node, op, context)
 
-        for op in self.get_objects(type=policy.PolicyCommand):
+        for op in self.get_subcommands(type=policy.PolicyCommand):
             self._append_subcmd_ast(node, op, context)
 
 

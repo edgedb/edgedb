@@ -49,7 +49,7 @@ class CreateAtom(AtomCommand, inheriting.CreateInheritingClass):
     def _cmd_tree_from_ast(cls, astnode, context, schema):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
-        for sub in cmd.get_objects(type=sd.AlterClassProperty):
+        for sub in cmd.get_subcommands(type=sd.AlterClassProperty):
             if sub.property == 'default':
                 sub.new_value = [sub.new_value]
 

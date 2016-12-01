@@ -32,25 +32,25 @@ class ConsistencySubjectCommand(sd.ClassCommand):
     def _create_innards(self, schema, context):
         super()._create_innards(schema, context)
 
-        for op in self.get_objects(type=ConstraintCommand):
+        for op in self.get_subcommands(type=ConstraintCommand):
             op.apply(schema, context=context)
 
     def _alter_innards(self, schema, context, scls):
         super()._alter_innards(schema, context, scls)
 
-        for op in self.get_objects(type=ConstraintCommand):
+        for op in self.get_subcommands(type=ConstraintCommand):
             op.apply(schema, context=context)
 
     def _delete_innards(self, schema, context, scls):
         super()._delete_innards(schema, context, scls)
 
-        for op in self.get_objects(type=ConstraintCommand):
+        for op in self.get_subcommands(type=ConstraintCommand):
             op.apply(schema, context=context)
 
     def _apply_fields_ast(self, context, node):
         super()._apply_fields_ast(context, node)
 
-        for op in self.get_objects(type=ConstraintCommand):
+        for op in self.get_subcommands(type=ConstraintCommand):
             self._append_subcmd_ast(node, op, context)
 
 

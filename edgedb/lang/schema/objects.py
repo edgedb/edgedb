@@ -572,13 +572,13 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
 
                 altered_idx = {p.classname: p for p in altered}
                 for p in altered:
-                    for op in p.get_objects(type=s_named.RenameNamedClass):
+                    for op in p.get_subcommands(type=s_named.RenameNamedClass):
                         altered_idx[op.new_name] = p
 
                 for p in altered:
                     old_class = old_schema.get(p.classname)
 
-                    for op in p.get_objects(type=s_named.RenameNamedClass):
+                    for op in p.get_subcommands(type=s_named.RenameNamedClass):
                         new_name = op.new_name
                         break
                     else:

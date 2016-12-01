@@ -92,25 +92,25 @@ class LinkSourceCommand(sd.ClassCommand):
     def _create_innards(self, schema, context):
         super()._create_innards(schema, context)
 
-        for op in self.get_objects(type=LinkCommand):
+        for op in self.get_subcommands(type=LinkCommand):
             op.apply(schema, context=context)
 
     def _alter_innards(self, schema, context, scls):
         super()._alter_innards(schema, context, scls)
 
-        for op in self.get_objects(type=LinkCommand):
+        for op in self.get_subcommands(type=LinkCommand):
             op.apply(schema, context=context)
 
     def _delete_innards(self, schema, context, scls):
         super()._delete_innards(schema, context, scls)
 
-        for op in self.get_objects(type=LinkCommand):
+        for op in self.get_subcommands(type=LinkCommand):
             op.apply(schema, context=context)
 
     def _apply_fields_ast(self, context, node):
         super()._apply_fields_ast(context, node)
 
-        for op in self.get_objects(type=LinkCommand):
+        for op in self.get_subcommands(type=LinkCommand):
             self._append_subcmd_ast(node, op, context)
 
 
@@ -154,7 +154,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedClass):
             parent_ctx = context.get(LinkSourceCommandContext)
             source_name = parent_ctx.op.classname
 
-            for ap in cmd.get_objects(type=sd.AlterClassProperty):
+            for ap in cmd.get_subcommands(type=sd.AlterClassProperty):
                 if ap.property == 'search_weight':
                     ap.property = 'search'
                     ap.new_value = LinkSearchConfiguration(
@@ -379,13 +379,13 @@ class CreateLink(LinkCommand, referencing.CreateReferencedClass):
         concept = context.get(LinkSourceCommandContext)
 
         if not concept:
-            for op in self.get_objects(type=indexes.SourceIndexCommand):
+            for op in self.get_subcommands(type=indexes.SourceIndexCommand):
                 self._append_subcmd_ast(node, op, context)
 
-        for op in self.get_objects(type=constraints.ConstraintCommand):
+        for op in self.get_subcommands(type=constraints.ConstraintCommand):
             self._append_subcmd_ast(node, op, context)
 
-        for op in self.get_objects(type=policy.PolicyCommand):
+        for op in self.get_subcommands(type=policy.PolicyCommand):
             self._append_subcmd_ast(node, op, context)
 
 
@@ -515,13 +515,13 @@ class AlterLink(LinkCommand, named.AlterNamedClass):
         concept = context.get(LinkSourceCommandContext)
 
         if not concept:
-            for op in self.get_objects(type=indexes.SourceIndexCommand):
+            for op in self.get_subcommands(type=indexes.SourceIndexCommand):
                 self._append_subcmd_ast(node, op, context)
 
-        for op in self.get_objects(type=constraints.ConstraintCommand):
+        for op in self.get_subcommands(type=constraints.ConstraintCommand):
             self._append_subcmd_ast(node, op, context)
 
-        for op in self.get_objects(type=policy.PolicyCommand):
+        for op in self.get_subcommands(type=policy.PolicyCommand):
             self._append_subcmd_ast(node, op, context)
 
     def _apply_field_ast(self, context, node, op):

@@ -445,7 +445,7 @@ class Command(datastructures.MixedStruct, metaclass=CommandMeta):
     def get_struct_properties(self, schema):
         result = {}
 
-        for op in self.get_objects(type=AlterClassProperty):
+        for op in self.get_subcommands(type=AlterClassProperty):
             try:
                 field = self.metaclass.get_field(op.property)
             except KeyError:
@@ -457,7 +457,7 @@ class Command(datastructures.MixedStruct, metaclass=CommandMeta):
         return result
 
     def get_attribute_value(self, attr_name):
-        for op in self.get_objects(type=AlterClassProperty):
+        for op in self.get_subcommands(type=AlterClassProperty):
             if op.property == attr_name:
                 return op.new_value
         else:
@@ -473,7 +473,7 @@ class Command(datastructures.MixedStruct, metaclass=CommandMeta):
             yield from op.before_ops
             yield op
 
-    def get_objects(self, *, type):
+    def get_subcommands(self, *, type):
         return filter(lambda i: isinstance(i, type), self)
 
     def has_subcommands(self):

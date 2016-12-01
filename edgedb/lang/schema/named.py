@@ -85,10 +85,10 @@ class NamedClassCommand(sd.ClassCommand):
         node.commands.append(qlast.DropAttributeValueNode(name=name_ref))
 
     def _apply_fields_ast(self, context, node):
-        for op in self.get_objects(type=RenameNamedClass):
+        for op in self.get_subcommands(type=RenameNamedClass):
             self._append_subcmd_ast(node, op, context)
 
-        for op in self.get_objects(type=sd.AlterClassProperty):
+        for op in self.get_subcommands(type=sd.AlterClassProperty):
             self._apply_field_ast(context, node, op)
 
     def _apply_field_ast(self, context, node, op):
@@ -180,7 +180,7 @@ class RenameNamedClass(NamedClassCommand):
         schema.add(scls)
 
         parent_ctx = context.get(sd.CommandContextToken)
-        for subop in parent_ctx.op.get_objects(type=NamedClassCommand):
+        for subop in parent_ctx.op.get_subcommands(type=NamedClassCommand):
             if subop is not self and subop.classname == self.old_name:
                 subop.classname = self.new_name
 
@@ -379,7 +379,7 @@ class AlterNamedClass(CreateOrAlterNamedClass):
         return self.context_class(self, None)
 
     def _alter_begin(self, schema, context, scls):
-        for op in self.get_objects(type=RenameNamedClass):
+        for op in self.get_subcommands(type=RenameNamedClass):
             op.apply(schema, context)
 
         props = self.get_struct_properties(schema)
