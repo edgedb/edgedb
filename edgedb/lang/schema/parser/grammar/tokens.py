@@ -147,4 +147,6 @@ def _gen_keyword_tokens():
         clskwds = dict(metaclass=parsing.TokenMeta, token=token)
         cls = types.new_class(clsname, (Token,), clskwds, clsexec)
         setattr(mod, clsname, cls)
+
+
 _gen_keyword_tokens()

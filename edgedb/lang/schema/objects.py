@@ -200,8 +200,8 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
         Most often use of this method is to implement property
         acquisition through inheritance.
         """
-        if (not isinstance(obj, self.__class__)
-                and not isinstance(self, obj.__class__)):
+        if (not isinstance(obj, self.__class__) and
+                not isinstance(self, obj.__class__)):
             msg = "cannot merge instances of %s and %s" % \
                 (obj.__class__.__name__, self.__class__.__name__)
             raise s_err.SchemaError(msg)
@@ -227,8 +227,8 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
                                        source='inheritance')
 
     def compare(self, other, context=None):
-        if (not isinstance(other, self.__class__)
-                and not isinstance(self, other.__class__)):
+        if (not isinstance(other, self.__class__) and
+                not isinstance(self, other.__class__)):
             return NotImplemented
 
         context = context or ComparisonContext()
@@ -287,9 +287,9 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
         try:
             delta_driver = self.delta_driver
         except AttributeError:
-            msg = 'missing required delta driver info for {}'.format(
-                    self.__class__.__name__)
-            raise AttributeError(msg) from None
+            raise AttributeError(
+                'missing required delta driver info for'
+                f'{self.__class__.__name__}') from None
 
         old, new = (other, self) if not reverse else (self, other)
 
@@ -303,8 +303,7 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
             else:
                 command_args['classname'] = name
 
-            delta = delta_driver.alter(metaclass=new.__class__,
-                                       **command_args)
+            delta = delta_driver.alter(metaclass=new.__class__, **command_args)
             self.delta_properties(delta, other, reverse, context=context)
 
         elif not old:
@@ -480,7 +479,7 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
     @classmethod
     # @debug.debug
     def delta_sets(cls, old, new, result, context=None, *,
-                                          old_schema=None, new_schema=None):
+                   old_schema=None, new_schema=None):
         adds_mods, dels = cls._delta_sets(old, new, context=context,
                                           old_schema=old_schema,
                                           new_schema=new_schema)
@@ -491,7 +490,7 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
     @classmethod
     # @debug.debug
     def _delta_sets(cls, old, new, context=None, *,
-                                   old_schema=None, new_schema=None):
+                    old_schema=None, new_schema=None):
         from edgedb.lang.schema import named as s_named
         from edgedb.lang.schema import database as s_db
 
@@ -643,7 +642,7 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
         delattr(self, '_classrefs')
 
     def get_classref_origin(self, name, attr, local_attr, classname,
-                                                          farthest=False):
+                            farthest=False):
         assert name in getattr(self, attr)
         return self
 
@@ -662,9 +661,6 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
 
 class ClassRef(Class):
     classname = Field(sn.SchemaName, coerce=True)
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
 
     def __repr__(self):
         return '<ClassRef "{}" at 0x{:x}>'.format(self.classname, id(self))
@@ -754,8 +750,7 @@ class Collection(Class, NodeClass):
     def from_subtypes(cls, subtypes):
         if len(subtypes) != 1:
             raise ValueError(
-                'unexpected number of subtypes, expecting 1: {!r}'.format(
-                    subtypes))
+                f'unexpected number of subtypes, expecting 1: {subtypes!r}')
         return cls(element_type=subtypes[0])
 
 
@@ -788,8 +783,7 @@ class Map(Collection):
     def from_subtypes(cls, subtypes):
         if len(subtypes) != 2:
             raise ValueError(
-                'unexpected number of subtypes, expecting 2: {!r}'.format(
-                    subtypes))
+                f'unexpected number of subtypes, expecting 2: {subtypes!r}')
         return cls(key_type=subtypes[0], element_type=subtypes[1])
 
 
@@ -797,7 +791,9 @@ class ClassCollection:
     pass
 
 
-class ClassDict(typed.TypedDict, ClassCollection, keytype=str, valuetype=Class):
+class ClassDict(typed.TypedDict, ClassCollection,
+                keytype=str, valuetype=Class):
+
     def persistent_hash(self):
         vals = []
         for k, v in self.items():

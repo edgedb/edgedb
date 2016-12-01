@@ -37,7 +37,7 @@ class ModuleCommand(named.NamedClassCommand):
     def _classname_from_ast(cls, astnode, context):
         if astnode.name.module:
             classname = sn.Name(module=astnode.name.module,
-                                     name=astnode.name.name)
+                                name=astnode.name.name)
         else:
             classname = astnode.name.name
 
@@ -174,12 +174,12 @@ class Module(named.NamedClass):
         if scls is None:
             if default is not None:
                 raise_ = (isinstance(default, Exception) or
-                            (isinstance(default, builtins.type) and
-                             issubclass(default, Exception)))
+                          (isinstance(default, builtins.type) and
+                           issubclass(default, Exception)))
 
             if raise_:
-                msg = 'reference to non-existent schema class: {}::{}'. \
-                        format(self.name, name)
+                msg = ('reference to non-existent schema class: '
+                       '{}::{}'.format(self.name, name))
                 if fail_cause is not None:
                     raise default(msg) from fail_cause
                 else:

@@ -24,7 +24,7 @@ class Schema:
     global_dep_order = ('action', 'event', 'attribute', 'constraint',
                         'atom', 'link_property', 'link', 'concept')
 
-    """Schema is a collection of ProtoModules"""
+    """Schema is a collection of ProtoModules."""
 
     @classmethod
     def get_builtins_module(cls):
@@ -55,8 +55,10 @@ class Schema:
     def add_module(self, class_module, alias=Void):
         """Add a module to the schema
 
-        :param Module class_module: A module that should be added to the schema
-        :param str alias: An optional alias for this module to use when resolving names
+        :param Module class_module: A module that should be added
+                                    to the schema.
+        :param str alias: An optional alias for this module to use when
+                          resolving names.
         """
 
         if isinstance(class_module, schema_module.Module):
@@ -64,7 +66,8 @@ class Schema:
             self.modules[name] = class_module
         else:
             name = class_module.__name__
-            self.foreign_modules[name] = module_types.AutoloadingLightProxyModule(name, class_module)
+            self.foreign_modules[name] = \
+                module_types.AutoloadingLightProxyModule(name, class_module)
 
         if alias is not Void:
             self.set_module_alias(name, alias)
@@ -81,8 +84,8 @@ class Schema:
     def delete_module(self, class_module):
         """Remove a module from the schema
 
-        :param class_module: Either a string name of the module or a Module object
-                             thet should be dropped from the schema.
+        :param class_module: Either a string name of the module or a Module
+                             object that should be dropped from the schema.
         """
         if isinstance(class_module, str):
             module_name = class_module
@@ -127,7 +130,8 @@ class Schema:
         try:
             module = self.modules[obj.name.module]
         except KeyError as e:
-            raise SchemaError('module {} is not in this schema'.format(obj.name.module)) from e
+            raise SchemaError(
+                f'module {obj.name.module} is not in this schema') from e
 
         module.add(obj)
 
@@ -143,7 +147,8 @@ class Schema:
         try:
             module = self.modules[obj.name.module]
         except KeyError as e:
-            raise SchemaError('module {} is not in this schema'.format(obj.name.module)) from e
+            raise SchemaError(
+                f'module {obj.name.module} is not in this schema') from e
 
         return module.delete(obj)
 

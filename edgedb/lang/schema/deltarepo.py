@@ -72,8 +72,8 @@ class MetaDeltaRepository:
         return sd.DeltaSet(deltas)
 
     def walk_deltas(self, end_rev, start_rev, reverse=False,
-                                   take_closest_snapshot=False,
-                                   compat_mode=False):
+                    take_closest_snapshot=False,
+                    compat_mode=False):
         current_rev = end_rev
 
         if not reverse:
@@ -96,7 +96,7 @@ class MetaDeltaRepository:
 
     @debug
     def upgrade(self, start_rev=None, end_rev=None,
-                      new_format_ver=sd.Delta.CURRENT_FORMAT_VERSION):
+                new_format_ver=sd.Delta.CURRENT_FORMAT_VERSION):
 
         if end_rev is None:
             end_rev = self.get_delta(id='HEAD', compat_mode=True).id
@@ -105,7 +105,7 @@ class MetaDeltaRepository:
 
         context = sd.DeltaUpgradeContext(sd.Delta.CURRENT_FORMAT_VERSION)
         for d in self.walk_deltas(end_rev, start_rev, reverse=True,
-                                                      compat_mode=True):
+                                  compat_mode=True):
             d.upgrade(context, schema)
             d.apply(schema)
             d.checksum = schema.get_checksum()

@@ -47,10 +47,10 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         self.visit(names[-1])
 
     def _visit_specs(self, node):
-        if (hasattr(node, 'attributes') and node.attributes
-                or hasattr(node, 'constraints') and node.constraints
-                or hasattr(node, 'links') and node.links
-                or hasattr(node, 'properties') and node.properties):
+        if (hasattr(node, 'attributes') and node.attributes or
+                hasattr(node, 'constraints') and node.constraints or
+                hasattr(node, 'links') and node.links or
+                hasattr(node, 'properties') and node.properties):
             self.write(':')
             self.new_lines = 1
             self.indentation += 1

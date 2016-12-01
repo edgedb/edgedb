@@ -254,9 +254,7 @@ class Policy(derivable.DerivableClass, primary.PrimaryClass):
     # Actions in response to an event
     actions = so.Field(ActionSet, ActionSet, coerce=True, compcoef=0.86)
 
-    def init_derived(self, schema, source, *, replace_original=None,
-                                              **kwargs):
-
+    def init_derived(self, schema, source, *, replace_original=None, **kwargs):
         policy = super().init_derived(schema, source, **kwargs)
         policy.subject = source
 

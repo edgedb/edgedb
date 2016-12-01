@@ -26,6 +26,7 @@ class Int(int):
             raise edgedb_error.AtomValueError('value is out of Int range')
         return value
 
+
 _add_impl('std::int', Int)
 _add_map(Int, 'std::int')
 _add_map(int, 'std::int')

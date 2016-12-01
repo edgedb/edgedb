@@ -34,23 +34,33 @@ class DateTime(DateTime):
 
     def __sub__(self, other):
         if isinstance(other, datetime.datetime):
-            return TimeDelta(dt1=datetime.datetime(self.year, self.month, self.day, self.hour,
-                                                   self.minute, self.second, self.microsecond,
-                                                   self.tzinfo),
-                             dt2=datetime.datetime(other.year, other.month, other.day, other.hour,
-                                                   other.minute, other.second, other.microsecond,
-                                                   other.tzinfo))
+            dt1 = datetime.datetime(
+                self.year, self.month, self.day, self.hour,
+                self.minute, self.second, self.microsecond,
+                self.tzinfo)
+
+            dt2 = datetime.datetime(
+                other.year, other.month, other.day, other.hour,
+                other.minute, other.second, other.microsecond,
+                other.tzinfo)
+
+            return TimeDelta(dt1=dt1, dt2=dt2)
         else:
             return NotImplemented
 
     def abssub(self, other):
-        # get the precise delta instead of the fuzzy years/months/days relative delta
-        dt1=datetime.datetime(self.year, self.month, self.day, self.hour,
-                              self.minute, self.second, self.microsecond,
-                              self.tzinfo)
-        dt2=datetime.datetime(other.year, other.month, other.day, other.hour,
-                              other.minute, other.second, other.microsecond,
-                              other.tzinfo)
+        # Get the precise delta instead of the fuzzy years/months/days
+        # relative delta.
+        dt1 = datetime.datetime(
+            self.year, self.month, self.day, self.hour,
+            self.minute, self.second, self.microsecond,
+            self.tzinfo)
+
+        dt2 = datetime.datetime(
+            other.year, other.month, other.day, other.hour,
+            other.minute, other.second, other.microsecond,
+            other.tzinfo)
+
         return dt1 - dt2
 
     def __add__(self, other):
@@ -68,6 +78,7 @@ class DateTime(DateTime):
         else:
             return self.strftime('%Y-%m-%dT%H:%M:%S%z')
 
+
 _add_map(DateTime, 'std::datetime')
 _add_impl('std::datetime', DateTime)
 
@@ -82,6 +93,7 @@ class Date(Date):
     def __str__(self):
         # ISO 8601 makes the most sense as a default representation
         return self.strftime('%Y-%m-%d')
+
 
 _add_impl('std::date', Date)
 _add_map(Date, 'std::date')
@@ -105,10 +117,11 @@ _add_map(TimeDelta, 'std::timedelta')
 
 
 class TimeDelta(TimeDelta):
-    def __new__(cls, value=None, *, dt1=None, dt2=None, years=0, months=0, days=0, leapdays=0,
-                      weeks=0, hours=0, minutes=0, seconds=0, microseconds=0, year=None,
-                      month=None, day=None, weekday=None, yearday=None, nlyearday=None, hour=None,
-                      minute=None, second=None, microsecond=None):
+    def __new__(cls, value=None, *, dt1=None, dt2=None, years=0, months=0,
+                days=0, leapdays=0, weeks=0, hours=0, minutes=0, seconds=0,
+                microseconds=0, year=None, month=None, day=None, weekday=None,
+                yearday=None, nlyearday=None, hour=None,
+                minute=None, second=None, microsecond=None):
         try:
             return super().__new__(cls, value, dt1=dt1, dt2=dt2, years=years,
                                    months=months, days=days,
@@ -126,14 +139,16 @@ class TimeDelta(TimeDelta):
                     .format(edgeql_quote.quote_literal(str(self)))
 
     def persistent_hash(self):
-        return persistent_hash((self.weekday, self.years, self.months, self.days, self.hours,
-                                self.minutes, self.seconds, self.microseconds,
-                                self.leapdays, self.year, self.month, self.day, self.hour,
-                                self.minute, self.second, self.microsecond))
+        return persistent_hash(
+            (self.weekday, self.years, self.months, self.days, self.hours,
+             self.minutes, self.seconds, self.microseconds,
+             self.leapdays, self.year, self.month, self.day, self.hour,
+             self.minute, self.second, self.microsecond))
 
     def format_value(self, value, template):
         if value:
-            return '%d %s%s' % (value, template, 's' if value % 10 != 1 else '')
+            return '%d %s%s' % (value, template,
+                                's' if value % 10 != 1 else '')
         else:
             return ''
 
@@ -170,6 +185,7 @@ class TimeDelta(TimeDelta):
         }
 
         return format.format(**items)
+
 
 _add_map(TimeDelta, 'std::timedelta')
 _add_impl('std::timedelta', TimeDelta)

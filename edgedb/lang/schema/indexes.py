@@ -141,7 +141,7 @@ class SourceIndex(derivable.DerivableClass):
     def __repr__(self):
         cls = self.__class__
         return '<{}.{} {!r} {!r} at 0x{:x}>'.format(
-                cls.__module__, cls.__name__, self.name, self.expr, id(self))
+            cls.__module__, cls.__name__, self.name, self.expr, id(self))
 
     __str__ = __repr__
 

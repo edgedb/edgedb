@@ -45,7 +45,7 @@ class DeltaCommand(named.NamedClassCommand):
     def _classname_from_ast(cls, astnode, context):
         if astnode.name.module:
             classname = sn.Name(module=astnode.name.module,
-                                     name=astnode.name.name)
+                                name=astnode.name.name)
         else:
             classname = astnode.name.name
 

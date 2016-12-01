@@ -42,15 +42,15 @@ def delta_schemas(schema1, schema2):
 
     for added_module in added_modules:
         my_module = schema1.get_module(added_module)
-        create = modules.CreateModule(
-                    classname=added_module,
-                    metaclass=modules.Module)
-        create.add(AlterClassProperty(
-                    property='name', old_value=None,
-                    new_value=added_module))
-        create.add(AlterClassProperty(
-                    property='imports', old_value=None,
-                    new_value=tuple(my_module.imports)))
+
+        create = modules.CreateModule(classname=added_module,
+                                      metaclass=modules.Module)
+
+        create.add(AlterClassProperty(property='name', old_value=None,
+                                      new_value=added_module))
+
+        create.add(AlterClassProperty(property='imports', old_value=None,
+                                      new_value=tuple(my_module.imports)))
         result.add(create)
 
     for common_module in common_modules:
@@ -58,13 +58,12 @@ def delta_schemas(schema1, schema2):
         other_module = schema2.get_module(common_module)
 
         if my_module.imports != other_module.imports:
-            alter = modules.AlterModule(
-                        classname=common_module,
-                        metaclass=modules.Module)
-            alter.add(AlterClassProperty(
-                        property='imports',
-                        old_value=tuple(other_module.imports),
-                        new_value=tuple(my_module.imports)))
+            alter = modules.AlterModule(classname=common_module,
+                                        metaclass=modules.Module)
+
+            alter.add(AlterClassProperty(property='imports',
+                                         old_value=tuple(other_module.imports),
+                                         new_value=tuple(my_module.imports)))
             result.add(alter)
 
     global_adds_mods = []
@@ -103,8 +102,8 @@ class DeltaExceptionSchemaContext(markup.MarkupExceptionContext):
     title = 'Protoschema Diff'
 
     def __init__(self, schema1, schema2,
-                       schema1_title=None, schema2_title=None,
-                       schema1_checksums=None, schema2_checksums=None):
+                 schema1_title=None, schema2_title=None,
+                 schema1_checksums=None, schema2_checksums=None):
         super().__init__()
         self.schema1 = schema1
         self.schema2 = schema2
@@ -119,8 +118,8 @@ class DeltaExceptionSchemaContext(markup.MarkupExceptionContext):
         body = []
 
         delta = delta_schemas(self.schema2, self.schema1)
-        title = 'Schema Delta Diff ({} -> {}):'.format(
-                    self.schema1_title, self.schema2_title)
+        title = (f'Schema Delta Diff ({self.schema1_title} -> '
+                 f'{self.schema2_title}):')
         body.append(me.doc.Section(
                         title=title, body=[markup.serialize(delta, ctx=ctx)]))
 

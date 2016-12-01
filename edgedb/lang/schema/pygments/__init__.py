@@ -1,39 +1,44 @@
-from pygments.lexer import RegexLexer, include
-from pygments.token import *
+from pygments import lexer, token
 
 
 __all__ = ['EdgeSchemaLexer']
 
 
-class EdgeSchemaLexer(RegexLexer):
+class EdgeSchemaLexer(lexer.RegexLexer):
     name = 'EdgeSchema'
     aliases = ['eschema']
     filenames = ['*.eschema']
 
     tokens = {
         'root': [
-            include('comments'),
-            include('keywords'),
-            (r'\*1|\*\*|1\*', String),
-            include('numbers'),
-            include('strings'),
-            (r'\b(true|false|null)\b', Keyword.Constant),
-            (r'\s+', Text),
-            (r'.', Text),
+            lexer.include('comments'),
+            lexer.include('keywords'),
+            (r'\*1|\*\*|1\*', token.String),
+            lexer.include('numbers'),
+            lexer.include('strings'),
+            (r'\b(true|false|null)\b', token.Keyword.Constant),
+            (r'\s+', token.Text),
+            (r'.', token.Text),
         ],
+
         'comments': [
-            (r'#.*?\n', Comment.Singleline),
+            (r'#.*?\n', token.Comment.Singleline),
         ],
+
         'keywords': [
             (r'''(?x)
                 \b(?<![:\.])(
                   action | atom | attribute | concept | constraint | event |
                   extends | index | link | linkproperty | properties
                 )\b
-            ''', Keyword.Reserved),
-            (r'\b(?<![:\.])(abstract|final|required)\b', Keyword.Declaration),
-            (r'\b(?<![:\.])(as|import|on|to)\b', Keyword.Namespace),
+            ''', token.Keyword.Reserved),
+
+            (r'\b(?<![:\.])(abstract|final|required)\b',
+             token.Keyword.Declaration),
+
+            (r'\b(?<![:\.])(as|import|on|to)\b', token.Keyword.Namespace),
         ],
+
         'strings': [
             (r'''(?x)
                 (?P<Q>['"])
@@ -41,7 +46,7 @@ class EdgeSchemaLexer(RegexLexer):
                     (\\['"] | \n | .)*?
                 )
                 (?P=Q)
-            ''', String),
+            ''', token.String),
             (r'''(?x)
                 (?P<Q>
                     # capture the opening quote in group Q
@@ -53,21 +58,22 @@ class EdgeSchemaLexer(RegexLexer):
                     (\\['"] | \n | .)*?
                 )
                 (?P=Q)
-            ''', String.Other),
-            (r'`.*?`', String.Backtick)
+            ''', token.String.Other),
+            (r'`.*?`', token.String.Backtick)
         ],
+
         'numbers': [
             (r'''(?x)
                 (?: \d+ (?:\.\d*)?
                     |
                     \. \d+
                 ) (?:[eE](?:[+\-])?[0-9]+)
-            ''', Number.Float),
+            ''', token.Number.Float),
             (r'''(?x)
                 (?: \d+\.(?!\.)\d*
                     |
                     \.\d+)
-            ''', Number.Float),
-            (r'\d+', Number.Integer),
+            ''', token.Number.Float),
+            (r'\d+', token.Number.Integer),
         ],
     }

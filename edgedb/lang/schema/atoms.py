@@ -17,7 +17,6 @@ from . import name as sn
 from . import named
 from . import nodes
 from . import objects as so
-from . import primary
 from . import types as s_types
 
 
@@ -27,8 +26,8 @@ class AtomCommandContext(sd.ClassCommandContext,
                          nodes.NodeCommandContext):
     def __setattr__(self, name, value):
         super().__setattr__(name, value)
-        if (name == 'scls' and value is not None
-                and value.__class__.__name__ != 'Atom'):
+        if (name == 'scls' and value is not None and
+                value.__class__.__name__ != 'Atom'):
             assert False, value
 
 

@@ -13,6 +13,8 @@ from . import referencing
 
 
 class PrimaryClass(referencing.ReferencingClass):
-    title = so.Field(morphology.WordCombination, default=None, compcoef=0.909,
-                     coerce=True)
+
+    title = so.Field(morphology.WordCombination,
+                     default=None, compcoef=0.909, coerce=True)
+
     description = so.Field(str, default=None, compcoef=0.909)

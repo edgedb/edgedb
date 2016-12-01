@@ -24,23 +24,19 @@ class NamedClassCommand(sd.ClassCommand):
     @classmethod
     def _classname_from_ast(cls, astnode, context):
         classname = sn.Name(module=astnode.name.module or 'std',
-                                 name=astnode.name.name)
+                            name=astnode.name.name)
         return classname
 
     @classmethod
     def _cmd_from_ast(cls, astnode, context, schema):
         gpc = getattr(cls, '_get_metaclass', None)
         if not callable(gpc):
-            msg = 'cannot determine metaclass for {}' \
-                        .format(cls.__name__)
-            raise NotImplementedError(msg)
+            raise NotImplementedError(
+                f'cannot determine metaclass for {cls.__name__}')
 
         classname = cls._classname_from_ast(astnode, context)
         metaclass = gpc()
-        cmd = cls(classname=classname,
-                  metaclass=metaclass)
-
-        return cmd
+        return cls(classname=classname, metaclass=metaclass)
 
     def _append_subcmd_ast(cls, node, subcmd, context):
         subnode = subcmd.get_ast(context)
@@ -104,8 +100,8 @@ class NamedClassCommand(sd.ClassCommand):
 
         if schema.get(self.classname, default=None,
                       type=self.metaclass):
-            raise ValueError(
-                '{!r} already exists in schema'.format(self.classname))
+            raise ValueError(f'{self.classname!r} already exists in schema')
+
         schema.add(self.scls)
 
 

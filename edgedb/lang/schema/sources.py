@@ -28,10 +28,11 @@ class SourceCommand(named.NamedClassCommand, indexes.IndexSourceCommand):
 
 
 class Source(primary.PrimaryClass, indexes.IndexableSubject):
-    pointers = referencing.RefDict(
-                    local_attr='own_pointers', ordered=True,
-                    backref='source', ref_cls='get_pointer_class',
-                    compcoef=0.857)
+    pointers = referencing.RefDict(local_attr='own_pointers',
+                                   ordered=True,
+                                   backref='source',
+                                   ref_cls='get_pointer_class',
+                                   compcoef=0.857)
 
     @classmethod
     def get_pointer_class(cls):
@@ -55,7 +56,7 @@ class Source(primary.PrimaryClass, indexes.IndexableSubject):
         return self._ro_pointers
 
     def get_children_common_pointers(self, schema):
-        "Get a set of compatible pointers defined in children but not in self"
+        "Get a set of compatible pointers defined in children but not in self."
 
         from . import atoms, concepts
 
@@ -127,7 +128,7 @@ class Source(primary.PrimaryClass, indexes.IndexableSubject):
 
         @classmethod
         def getptr_inherited_from(cls, source, schema, base_ptr_class,
-                                                       skip_atomic):
+                                  skip_atomic):
             result = set()
             for ptr in source.pointers.values():
                 if (ptr.issubclass(base_ptr_class) and
@@ -153,7 +154,7 @@ class Source(primary.PrimaryClass, indexes.IndexableSubject):
 
             if ambig:
                 raise schema_error.SchemaError(
-                        'reference to an ambiguous link: "%s"' % name)
+                    f'reference to an ambiguous link: {name!r}')
 
     def _getptr_descending(self, schema, name, resolver, _top=True):
         ptrs = resolver.getptr(schema, self, name)
@@ -227,9 +228,9 @@ class Source(primary.PrimaryClass, indexes.IndexableSubject):
         return None
 
     def get_ptr_sources(self, schema, pointer_name,
-                              look_in_children=False,
-                              include_inherited=False,
-                              strict_ancestry=False):
+                        look_in_children=False,
+                        include_inherited=False,
+                        strict_ancestry=False):
 
         sources = set()
 
@@ -263,11 +264,11 @@ class Source(primary.PrimaryClass, indexes.IndexableSubject):
         return sources
 
     def resolve_pointer(self, schema, pointer_name, *,
-                              direction='>',
-                              far_endpoints=None,
-                              look_in_children=False,
-                              include_inherited=False,
-                              target_most_generic=True):
+                        direction='>',
+                        far_endpoints=None,
+                        look_in_children=False,
+                        include_inherited=False,
+                        target_most_generic=True):
 
         # First, lookup the inheritance hierarchy up, and, if requested,
         # down, to select all pointers with the requested name.
@@ -382,7 +383,7 @@ class Source(primary.PrimaryClass, indexes.IndexableSubject):
         return ptr
 
     def resolve_pointers(self, schema, pointer_names, look_in_children=False,
-                               include_inherited=False, strict_ancestry=False):
+                         include_inherited=False, strict_ancestry=False):
         all_sources = set()
 
         for pointer_name in pointer_names:

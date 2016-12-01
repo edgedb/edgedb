@@ -8,11 +8,11 @@
 
 from edgedb.lang import edgeql
 from edgedb.lang.edgeql import ast as qlast
+from edgedb.lang.common import enum
 
 from . import constraints
 from . import delta as sd
 from . import derivable
-from edgedb.lang.common import enum
 from . import error as schema_error
 from . import expr as sexpr
 from . import name as sn
@@ -176,12 +176,12 @@ class BasePointer(primary.PrimaryClass, derivable.DerivableClass):
     target = so.Field(primary.PrimaryClass, None, compcoef=0.833)
 
     def get_near_endpoint(self, direction):
-        return self.source if direction == PointerDirection.Outbound \
-                           else self.target
+        return (self.source if direction == PointerDirection.Outbound
+                else self.target)
 
     def get_far_endpoint(self, direction):
-        return self.target if direction == PointerDirection.Outbound \
-                           else self.source
+        return (self.target if direction == PointerDirection.Outbound
+                else self.source)
 
     def get_common_target(self, schema, targets, minimize_by=None):
         from . import atoms, concepts
@@ -190,11 +190,9 @@ class BasePointer(primary.PrimaryClass, derivable.DerivableClass):
             return next(iter(targets))
 
         if minimize_by == 'most_generic':
-            targets = utils.minimize_class_set_by_most_generic(
-                            targets)
+            targets = utils.minimize_class_set_by_most_generic(targets)
         elif minimize_by == 'least_generic':
-            targets = utils.minimize_class_set_by_least_generic(
-                            targets)
+            targets = utils.minimize_class_set_by_least_generic(targets)
 
         if len(targets) == 1:
             return next(iter(targets))
@@ -236,7 +234,7 @@ class BasePointer(primary.PrimaryClass, derivable.DerivableClass):
             target = utils.get_class_nearest_common_ancestor(targets)
             if target is None:
                 raise schema_error.SchemaError(
-                        'cannot set multiple atom targets for a link')
+                    'cannot set multiple atom targets for a link')
         else:
             target = concepts.Concept(name=name, is_abstract=True,
                                       is_virtual=True)
@@ -267,14 +265,13 @@ class BasePointer(primary.PrimaryClass, derivable.DerivableClass):
             ccn1 = t1.get_canonical_class().__name__
             ccn2 = t2.get_canonical_class().__name__
 
-            msg = ('could not merge "{}" pointer: invalid atom/concept ' +
-                   'target mix').format(pn)
-            detail = ('[{}].[{}] targets {} "{}" while it also targets ' +
-                      '{} "{}" in other parent.') \
-                      .format(ptr.source.name, pn,
-                              ccn1, t1.name, ccn2, t2.name)
+            detail = (f'[{ptr.source.name}].[{pn}] targets {ccn1} "{t1.name}"'
+                      f'while it also targets {ccn2} "{t2.name}"'
+                      'in other parent.')
 
-            raise schema_error.SchemaError(msg, details=detail)
+            raise schema_error.SchemaError(
+                f'could not merge "{pn}" pointer: invalid atom/concept ' +
+                'target mix', details=detail)
 
         elif isinstance(t1, atoms.Atom):
             # Targets are both atoms
@@ -405,9 +402,9 @@ class BasePointer(primary.PrimaryClass, derivable.DerivableClass):
             attrs=attrs, **kwargs)
 
     def is_pure_computable(self):
-        return self.readonly and bool(self.default) and \
-                not self.is_id_pointer() and \
-                not self.shortname in {'std::ctime', 'std::mtime'}
+        return (self.readonly and bool(self.default) and
+                not self.is_id_pointer() and
+                not self.shortname in {'std::ctime', 'std::mtime'})
 
     def is_id_pointer(self):
         return self.shortname in {'std::linkid', 'std::id'}

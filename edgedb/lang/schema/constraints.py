@@ -245,8 +245,7 @@ class Constraint(primary.PrimaryClass, derivable.DerivableClass):
 
     def merge_localexprs(self, obj, schema):
         self.localfinalexpr = CumulativeBoolExpr.merge_values(
-                                self.localfinalexpr, obj.localfinalexpr,
-                                schema=schema)
+            self.localfinalexpr, obj.localfinalexpr, schema=schema)
 
     def init_derived(self, schema, source, *qualifiers,
                      as_copy, mark_derived=False, add_to_schema=False,
@@ -436,8 +435,8 @@ class ConsistencySubject(referencing.ReferencingClass):
             # properly.
             constraints = set(self.constraints)
             inherited = itertools.chain.from_iterable(
-                            getattr(b, 'constraints', {}).values()
-                            for b in bases)
+                getattr(b, 'constraints', {}).values()
+                for b in bases)
             constraints.update(c.shortname
                                for c in inherited if c.is_abstract)
             return constraints
