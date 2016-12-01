@@ -48,13 +48,7 @@ class MetaAST(type):
                 if f_type is object:
                     f_type = None
 
-                if f_name in dct:
-                    # Default value was provided
-                    f_default = dct.pop(f_name)
-                else:
-                    # Use type as a constructor for the default value
-                    f_default = f_type
-
+                f_default = dct.pop(f_name, None)
                 f_hidden = f_name in hidden
 
                 fields.append((f_name, f_type, f_default,
@@ -144,7 +138,7 @@ class AST(object, metaclass=MetaAST):
             if field_name in values:
                 value = values[field_name]
             elif field.default is not None:
-                if field.default is field.type:
+                if callable(field.default):
                     value = field.default()
                 else:
                     value = field.default

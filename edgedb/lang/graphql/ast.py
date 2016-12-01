@@ -15,7 +15,7 @@ class Base(ast.AST):
     ns = 'graphql'
 
     __ast_hidden__ = {'context'}
-    context: parsing.ParserContext = None
+    context: parsing.ParserContext
 
     def _extra_repr(self):
         return ''
@@ -88,23 +88,23 @@ class Variable(Base):
 
 
 class Document(Base):
-    definitions: list
+    definitions: list = list
 
 
 class Definition(Base):
-    name: str = None
+    name: str
     selection_set: object
 
 
 class OperationDefinition(Definition):
-    type: str = None
-    variables: list
-    directives: list
+    type: str
+    variables: list = list
+    directives: list = list
 
 
 class FragmentDefinition(Definition):
     on: object
-    directives: list
+    directives: list = list
 
 
 class VariableDefinition(Base):
@@ -120,7 +120,7 @@ class VariableType(Base):
 
 
 class SelectionSet(Base):
-    selections: list
+    selections: list = list
 
 
 class Selection(Base):
@@ -128,27 +128,27 @@ class Selection(Base):
 
 
 class Field(Selection):
-    alias: str = None
-    name: object = None
-    arguments: list
-    directives: list
+    alias: str
+    name: object
+    arguments: list = list
+    directives: list = list
     selection_set: object
 
 
 class FragmentSpread(Selection):
     name: object
-    directives: list
+    directives: list = list
 
 
 class InlineFragment(Selection):
     on: object
-    directives: list
+    directives: list = list
     selection_set: object
 
 
 class Directive(Base):
     name: object
-    arguments: list
+    arguments: list = list
 
 
 class Argument(Base):
