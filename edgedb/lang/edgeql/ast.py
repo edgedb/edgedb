@@ -7,55 +7,63 @@
 
 
 from edgedb.lang.common import enum as s_enum
-
 from edgedb.lang.common import ast, parsing
 
 
 class Base(ast.AST):
-    __fields = [('context', parsing.ParserContext, None,
-                 True, None, True  # this last True is "hidden" attribute
-                 )]
+    __ast_hidden__ = {'context'}
+    context: parsing.ParserContext = None
 
 
 class RootNode(Base):
-    __fields = ['children']
+    children: list
 
 
 class IndirectionNode(Base):
-    __fields = ['arg', 'indirection']
+    arg: Base = None
+    indirection: list
 
 
 class IndexNode(Base):
-    __fields = ['index']
+    index: Base = None
 
 
 class SliceNode(Base):
-    __fields = ['start', 'stop']
+    start: Base = None
+    stop: Base = None
 
 
 class ArgListNode(Base):
-    __fields = ['name', ('args', list)]
+    name: str = None
+    args: list
 
 
 class BinOpNode(Base):
-    __fields = ['left', 'op', 'right']
+    left: object
+    op: str = None
+    right: object
 
 
 class WindowSpecNode(Base):
-    __fields = [('orderby', list), ('partition', list)]
+    orderby: list
+    partition: list
 
 
 class NamedArgNode(Base):
-    __fields = [('name', str), 'arg']
+    name: str
+    arg: object
 
 
 class FunctionCallNode(Base):
-    __fields = ['func', ('args', list), ('agg_sort', list),
-                'agg_filter', 'window']
+    func: object  # tuple or str
+    args: list
+    agg_sort: list
+    agg_filter: object
+    window: object
 
 
 class VarNode(Base):
-    __fields = ['name']
+    name: str = None
 
 
 class PathVarNode(VarNode):
@@ -63,7 +71,8 @@ class PathVarNode(VarNode):
 
 
 class ConstantNode(Base):
-    __fields = ['value', 'index']
+    value: object
+    index: object
 
 
 class DefaultValueNode(Base):
@@ -71,67 +80,86 @@ class DefaultValueNode(Base):
 
 
 class UnaryOpNode(Base):
-    __fields = ['op', 'operand']
+    op: str = None
+    operand: Base = None
 
 
 class PostfixOpNode(Base):
-    __fields = ['op', 'operand']
+    op: str = None
+    operand: Base = None
 
 
 class PathNode(Base):
-    __fields = [('steps', list), 'quantifier', 'pathspec']
+    steps: list
+    quantifier: Base = None
+    pathspec: list
 
 
 class PathDisjunctionNode(Base):
-    __fields = ['left', 'right']
+    left: Base = None
+    right: Base = None
 
 
 class PathStepNode(Base):
-    __fields = ['namespace', 'expr', 'link_expr']
+    namespace: str = None
+    expr: object  # str or LinkNode
+    link_expr: object
 
 
 class LinkNode(Base):
-    __fields = ['name', 'namespace', 'direction', 'target', 'type']
+    name: str = None
+    namespace: str = None
+    direction: str = None
+    target: Base = None
+    type: str = None
 
 
 class LinkExprNode(Base):
-    __fields = ['expr']
+    expr: Base = None
 
 
 class LinkPropExprNode(Base):
-    __fields = ['expr']
+    expr: Base = None
 
 
 class StatementNode(Base):
-    __fields = [('namespaces', list), ('aliases', list)]
+    namespaces: list
+    aliases: list
 
 
 class ClassRefNode(Base):
-    __fields = ['name', 'module']
+    name: str = None
+    module: str = None
 
 
 class PositionNode(Base):
-    __fields = ['ref', 'position']
+    ref: str = None
+    position: str = None
 
 
 class ExpressionTextNode(Base):
-    __fields = ['expr']
+    expr: Base = None
 
 
 class TypeNameNode(Base):
-    __fields = [('maintype', Base), ('subtypes', list)]
+    maintype: Base = None
+    subtypes: list
 
 
 class TypeCastNode(Base):
-    __fields = ['expr', ('type', TypeNameNode)]
+    expr: Base = None
+    type: TypeNameNode = None
 
 
 class TypeInterpretationNode(Base):
-    __fields = ['expr', 'type']
+    expr: Base = None
+    type: TypeNameNode = None
 
 
 class IfElseNode(Base):
-    __fields = ['condition', 'ifexpr', 'elseexpr']
+    condition: Base = None
+    ifexpr: Base = None
+    elseexpr: Base = None
 
 
 class TransactionNode(Base):
@@ -159,23 +187,26 @@ class CompositeDDLNode(StatementNode, DDLNode):
 
 
 class AlterSchemaNode(Base):
-    __fields = ['commands']
+    commands: list
 
 
 class AlterAddInheritNode(DDLNode):
-    __fields = ['bases', 'position']
+    bases: list
+    position: object
 
 
 class AlterDropInheritNode(DDLNode):
-    __fields = ['bases']
+    bases: list
 
 
 class AlterTargetNode(DDLNode):
-    __fields = ['targets']
+    targets: list
 
 
 class ObjectDDLNode(CompositeDDLNode):
-    __fields = ['namespaces', ('name', ClassRefNode), ('commands', list)]
+    namespaces: list
+    name: ClassRefNode = None
+    commands: list
 
 
 class CreateObjectNode(ObjectDDLNode):
@@ -191,11 +222,13 @@ class DropObjectNode(ObjectDDLNode):
 
 
 class CreateInheritingObjectNode(CreateObjectNode):
-    __fields = ['bases', 'is_abstract', 'is_final']
+    bases: list
+    is_abstract: bool = False
+    is_final: bool = False
 
 
 class RenameNode(DDLNode):
-    __fields = [('new_name', ClassRefNode)]
+    new_name: ClassRefNode = None
 
 
 class DeltaNode:
@@ -203,7 +236,8 @@ class DeltaNode:
 
 
 class CreateDeltaNode(CreateObjectNode, DeltaNode):
-    __fields = [('parents', list), 'target']
+    parents: list
+    target: object
 
 
 class GetDeltaNode(ObjectDDLNode, DeltaNode):
@@ -271,7 +305,7 @@ class DropEventNode(DropObjectNode):
 
 
 class CreateAttributeNode(CreateObjectNode):
-    __fields = ['type']
+    type: TypeNameNode = None
 
 
 class DropAttributeNode(DropObjectNode):
@@ -303,7 +337,8 @@ class DropLinkPropertyNode(DropObjectNode):
 
 
 class CreateConcreteLinkPropertyNode(CreateObjectNode):
-    __fields = ['is_required', 'target']
+    is_required: bool = False
+    target: Base = None
 
 
 class AlterConcreteLinkPropertyNode(AlterObjectNode):
@@ -315,7 +350,9 @@ class DropConcreteLinkPropertyNode(AlterObjectNode):
 
 
 class SetSpecialFieldNode(Base):
-    __fields = ['name', 'value', ('as_expr', bool)]
+    name: str = None
+    value: object
+    as_expr: bool = False
 
 
 class CreateConceptNode(CreateInheritingObjectNode):
@@ -343,7 +380,8 @@ class DropLinkNode(DropObjectNode):
 
 
 class CreateConcreteLinkNode(CreateInheritingObjectNode):
-    __fields = ['is_required', 'targets']
+    is_required: bool = False
+    targets: list
 
 
 class AlterConcreteLinkNode(AlterObjectNode):
@@ -367,7 +405,8 @@ class DropConstraintNode(DropObjectNode):
 
 
 class CreateConcreteConstraintNode(CreateObjectNode):
-    __fields = ['args', 'is_abstract']
+    args: list
+    is_abstract: bool = False
 
 
 class AlterConcreteConstraintNode(AlterObjectNode):
@@ -379,19 +418,21 @@ class DropConcreteConstraintNode(DropObjectNode):
 
 
 class CreateLocalPolicyNode(CompositeDDLNode):
-    __fields = ['event', 'actions']
+    event: ClassRefNode = None
+    actions: list
 
 
 class AlterLocalPolicyNode(CompositeDDLNode):
-    __fields = ['event', 'actions']
+    event: ClassRefNode = None
+    actions: list
 
 
 class DropLocalPolicyNode(CompositeDDLNode):
-    __fields = ['event']
+    event: ClassRefNode = None
 
 
 class CreateIndexNode(CreateObjectNode):
-    __fields = ['expr']
+    expr: Base = None
 
 
 class DropIndexNode(DropObjectNode):
@@ -399,11 +440,12 @@ class DropIndexNode(DropObjectNode):
 
 
 class CreateAttributeValueNode(CreateObjectNode):
-    __fields = ['value', ('as_expr', bool)]
+    value: Base = None
+    as_expr: bool = False
 
 
 class AlterAttributeValueNode(AlterObjectNode):
-    __fields = ['value']
+    value: Base
 
 
 class DropAttributeValueNode(DropObjectNode):
@@ -411,16 +453,21 @@ class DropAttributeValueNode(DropObjectNode):
 
 
 class FuncArgNode(Base):
-    __fields = ['name', ('type', TypeNameNode), 'mode', 'default']
+    name: str = None
+    type: TypeNameNode = None
+    mode: Base = None
+    default: Base = None
 
 
 class CreateFunctionNode(CreateObjectNode):
-    __fields = ['args', 'returning', ('single', bool, False),
-                ('aggregate', bool, False)]
+    args: list
+    returning: Base = None
+    single: bool = False
+    aggregate: bool = False
 
 
 class AlterFunctionNode(AlterObjectNode):
-    __fields = ['value']
+    value: Base = None
 
 
 class DropFunctionNode(DropObjectNode):
@@ -428,53 +475,80 @@ class DropFunctionNode(DropObjectNode):
 
 
 class SelectQueryNode(StatementNode):
-    __fields = [('single', bool, False), 'distinct', ('targets', list),
-                'where', ('groupby', list), 'having', ('orderby', list),
-                'offset', 'limit', '_hash', ('cges', list),
-                'op', 'op_larg', 'op_rarg']
+    single: bool = False
+    distinct: bool = False
+    targets: list
+    where: Base = None
+    groupby: list
+    having: Base = None
+    orderby: list
+    offset: ConstantNode = None
+    limit: ConstantNode = None
+    _hash: tuple = None
+    cges: list
+    op: str = None
+    op_larg: Base = None
+    op_rarg: Base = None
 
 
 class InsertQueryNode(StatementNode):
-    __fields = ['subject', ('pathspec', list),
-                ('targets', list), ('cges', list), ('single', bool, False)]
+    subject: Base = None
+    pathspec: list
+    targets: list
+    cges: list
+    single: bool = False
 
 
 class UpdateQueryNode(StatementNode):
-    __fields = ['subject', ('pathspec', list), 'where',
-                ('targets', list), ('cges', list), ('single', bool, False)]
+    subject: Base = None
+    pathspec: list
+    where: Base = None
+    targets: list
+    cges: list
+    single: bool = False
 
 
 class UpdateExprNode(Base):
-    __fields = ['expr', 'value']
+    expr: Base = None
+    value: Base = None
 
 
 class DeleteQueryNode(StatementNode):
-    __fields = ['subject', 'where',
-                ('targets', list), ('cges', list), ('single', bool, False)]
+    subject: Base = None
+    where: Base = None
+    targets: list
+    cges: list
+    single: bool = False
 
 
 class CGENode(Base):
-    __fields = ['expr', 'alias']
+    expr: Base = None
+    alias: str = None
 
 
 class NamespaceAliasDeclNode(Base):
-    __fields = ['namespace', 'alias']
+    namespace: str = None
+    alias: object
 
 
 class ExpressionAliasDeclNode(Base):
-    __fields = ['expr', 'alias']
+    expr: Base = None
+    alias: object
 
 
 class DetachedPathDeclNode(Base):
-    __fields = ['expr', 'alias']
+    expr: Base = None
+    alias: str = None
 
 
 class SortExprNode(Base):
-    __fields = ['path', 'direction', 'nones_order']
+    path: Base = None
+    direction: str = None
+    nones_order: object
 
 
 class PredicateNode(Base):
-    __fields = ['expr']
+    expr: Base = None
 
 
 class ExistsPredicateNode(PredicateNode):
@@ -482,41 +556,51 @@ class ExistsPredicateNode(PredicateNode):
 
 
 class SelectExprNode(Base):
-    __fields = ['expr']
+    expr: Base = None
 
 
 class SelectPathSpecNode(Base):
-    __fields = ['expr', 'pathspec', 'where',
-                'orderby', 'offset', 'limit', 'compexpr',
-                ('recurse', bool, False), 'recurse_limit']
+    expr: Base = None
+    pathspec: list
+    where: Base = None
+    orderby: list
+    offset: ConstantNode = None
+    limit: ConstantNode = None
+    compexpr: Base = None
+    recurse: bool = False
+    recurse_limit: ConstantNode = None
 
 
 class PointerGlobNode(Base):
-    __fields = ['filters', 'type']
+    filters: list
+    type: ClassRefNode
 
 
 class PointerGlobFilter(Base):
-    __fields = ['property', 'value', 'any']
+    property: Base = None
+    value: object
+    any: bool = False
 
 
 class FromExprNode(Base):
-    __fields = ['expr', 'alias']
+    expr: Base = None
+    alias: Base = None
 
 
 class SequenceNode(Base):
-    __fields = [('elements', list)]
+    elements: list
 
 
 class ArrayNode(Base):
-    __fields = [('elements', list)]
+    elements: list
 
 
 class MappingNode(Base):
-    __fields = [('items', list)]
+    items: list
 
 
 class NoneTestNode(Base):
-    __fields = ['expr']
+    expr: Base = None
 
 
 class EdgeQLOperator(ast.ops.Operator):
