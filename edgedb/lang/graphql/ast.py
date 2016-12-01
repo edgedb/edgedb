@@ -13,9 +13,9 @@ from edgedb.lang.common import ast, parsing
 
 class Base(ast.AST):
     ns = 'graphql'
-    __fields = [('context', parsing.ParserContext, None,
-                 True, None, True  # this last True is "hidden" attribute
-                 )]
+
+    __ast_hidden__ = {'context'}
+    context: parsing.ParserContext = None
 
     def _extra_repr(self):
         return ''
@@ -29,7 +29,7 @@ class Base(ast.AST):
 
 
 class LiteralNode(Base):
-    __fields = ['value']
+    value: object
 
     def topython(self):
         return self.value
@@ -84,49 +84,43 @@ class ObjectLiteral(LiteralNode):
 
 
 class Variable(Base):
-    __fields = ['value']
+    value: object
 
 
 class Document(Base):
-    __fields = [('definitions', list, list)]
+    definitions: list
 
 
 class Definition(Base):
-    __fields = [
-        ('name', str, None),
-        'selection_set',
-    ]
+    name: str = None
+    selection_set: object
 
 
 class OperationDefinition(Definition):
-    __fields = [
-        ('type', str, None),
-        ('variables', list, list),
-        ('directives', list, list),
-    ]
+    type: str = None
+    variables: list
+    directives: list
 
 
 class FragmentDefinition(Definition):
-    __fields = [
-        'on',
-        ('directives', list, list),
-    ]
+    on: object
+    directives: list
 
 
 class VariableDefinition(Base):
-    __fields = ['name', 'type', 'value']
+    name: object
+    type: object
+    value: object
 
 
 class VariableType(Base):
-    __fields = [
-        'name',
-        ('nullable', bool, True),
-        ('list', bool, False),
-    ]
+    name: object
+    nullable: bool = True
+    list: bool = False
 
 
 class SelectionSet(Base):
-    __fields = [('selections', list, list)]
+    selections: list
 
 
 class Selection(Base):
@@ -134,40 +128,34 @@ class Selection(Base):
 
 
 class Field(Selection):
-    __fields = [
-        ('alias', str, None),
-        'name',
-        ('arguments', list, list),
-        ('directives', list, list),
-        'selection_set',
-    ]
+    alias: str = None
+    name: object = None
+    arguments: list
+    directives: list
+    selection_set: object
 
 
 class FragmentSpread(Selection):
-    __fields = [
-        'name',
-        ('directives', list, list),
-    ]
+    name: object
+    directives: list
 
 
 class InlineFragment(Selection):
-    __fields = [
-        'on',
-        ('directives', list, list),
-        'selection_set',
-    ]
+    on: object
+    directives: list
+    selection_set: object
 
 
 class Directive(Base):
-    __fields = [
-        'name',
-        ('arguments', list, list),
-    ]
+    name: object
+    arguments: list
 
 
 class Argument(Base):
-    __fields = ['name', 'value']
+    name: object
+    value: object
 
 
 class ObjectField(Base):
-    __fields = ['name', 'value']
+    name: object
+    value: object
