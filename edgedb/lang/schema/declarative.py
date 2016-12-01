@@ -385,8 +385,8 @@ class DeclarationLoader:
                     not isinstance(value, list)):
                 value = [value]
 
-            genname = s_attrs.AttributeValue.generate_specialized_name(
-                subject.name, attribute.name)
+            genname = s_attrs.AttributeValue.get_specialized_name(
+                attribute.name, subject.name)
 
             dername = s_name.Name(name=genname, module=subject.name.module)
 
@@ -461,8 +461,8 @@ class DeclarationLoader:
         for indexdecl in subjdecl.indexes:
             index_name = self._get_ref_name(indexdecl.name)
             index_name = subject.name + '.' + index_name
-            local_name = s_indexes.SourceIndex.generate_specialized_name(
-                subject.name, index_name)
+            local_name = s_indexes.SourceIndex.get_specialized_name(
+                index_name, subject.name)
 
             der_name = s_name.Name(name=local_name, module=subject.name.module)
 

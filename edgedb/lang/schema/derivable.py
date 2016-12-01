@@ -31,33 +31,13 @@ class DerivableClass(inheriting.InheritingClass):
         return similarity
 
     @classmethod
-    def generate_specialized_name(cls, source_name, pointer_name, *qualifiers):
-        pointer_name = sn.Name(pointer_name)
-
-        parts = [
-            pointer_name.name,
-            cls.mangle_name(pointer_name),
-            cls.mangle_name(source_name)
-        ]
-
-        for qualifier in qualifiers:
-            if qualifier:
-                parts.append(cls.mangle_name(qualifier))
-
-        return '@'.join(parts)
-
-    @classmethod
     def inherit_pure(cls, schema, item, source, *, dctx=None):
         return item
 
     def derive_name(self, source, *qualifiers):
-        qualnames = [qualifier.name for qualifier in qualifiers if qualifier]
-
-        name = self.__class__.generate_specialized_name(
-            source.name, self.shortname, *qualnames)
-        fqname = sn.Name(name=name, module=source.name.module)
-
-        return fqname
+        name = self.get_specialized_name(
+            self.shortname, source.name, *qualifiers)
+        return sn.Name(name=name, module=source.name.module)
 
     def generic(self):
         return self.shortname == self.name

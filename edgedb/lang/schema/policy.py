@@ -102,8 +102,8 @@ class PolicyCommand(referencing.ReferencedClassCommand):
         event_name = sn.Name(module=astnode.event.module,
                              name=astnode.event.name)
 
-        pnn = Policy.generate_specialized_name(
-            subject_name, event_name
+        pnn = Policy.get_specialized_name(
+            event_name, subject_name
         )
 
         pn = sn.Name(name=pnn, module=subject_name.module)

@@ -353,7 +353,7 @@ class BasePointer(primary.PrimaryClass, derivable.DerivableClass):
                 ptr = None
 
         if ptr is None:
-            fqname = self.derive_name(source, target)
+            fqname = self.derive_name(source, target.name)
             ptr = schema.get(fqname, default=None)
             if ptr is None:
                 if self.generic():
@@ -366,7 +366,7 @@ class BasePointer(primary.PrimaryClass, derivable.DerivableClass):
     def get_derived_name(self, source, target, *qualifiers,
                          mark_derived=False):
         if mark_derived:
-            fqname = self.derive_name(source, target)
+            fqname = self.derive_name(source, target.name)
         else:
             fqname = self.derive_name(source)
 

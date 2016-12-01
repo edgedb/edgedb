@@ -145,8 +145,8 @@ class ReferencedClassCommand(derivable.DerivableClassCommand):
             referrer_name = parent_ctx.op.classname
 
             pcls = cls._get_metaclass()
-            pnn = pcls.generate_specialized_name(
-                referrer_name, sn.Name(name)
+            pnn = pcls.get_specialized_name(
+                sn.Name(name), referrer_name
             )
 
             name = sn.Name(name=pnn, module=referrer_name.module)

@@ -141,8 +141,8 @@ class AttributeValueCommand(sd.ClassCommand):
         parent_ctx = context.get(sd.CommandContextToken)
         subject_name = parent_ctx.op.classname
 
-        pnn = AttributeValue.generate_specialized_name(
-            subject_name, sn.Name(propname)
+        pnn = AttributeValue.get_specialized_name(
+            sn.Name(propname), subject_name
         )
 
         pn = sn.Name(name=pnn, module=subject_name.module)

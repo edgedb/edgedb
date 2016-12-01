@@ -471,25 +471,30 @@ class NamedClass(so.Class, metaclass=NamedClassMeta):
     name = so.Field(sn.Name, private=True, compcoef=0.640)
 
     @classmethod
-    def mangle_name(cls, name):
+    def mangle_name(cls, name) -> str:
         return name.replace('::', '|')
 
     @classmethod
-    def unmangle_name(cls, name):
+    def unmangle_name(cls, name) -> str:
         return name.replace('|', '::')
 
     @classmethod
-    def get_shortname(cls, fullname):
-        name = str(fullname)
-        parts = name.split('@')
+    def get_shortname(cls, fullname) -> sn.Name:
+        parts = str(fullname.name).split('@@', 1)
+        if len(parts) == 2:
+            return sn.Name(cls.unmangle_name(parts[0]))
+        else:
+            return sn.Name(fullname)
 
-        if len(parts) < 3:
-            return sn.Name(name)
-
-        return sn.Name(cls.unmangle_name(parts[1]))
+    @classmethod
+    def get_specialized_name(cls, basename, *qualifiers) -> str:
+        return (cls.mangle_name(basename) +
+                '@@' +
+                '@'.join(cls.mangle_name(qualifier)
+                            for qualifier in qualifiers if qualifier))
 
     @property
-    def shortname(self):
+    def shortname(self) -> sn.Name:
         try:
             cached = self._cached_shortname
         except AttributeError:

@@ -231,8 +231,8 @@ class CreateLink(LinkCommand, referencing.CreateReferencedClass):
             )
 
             base_prop_name = sn.Name('std::source')
-            s_name = lproperties.LinkProperty.generate_specialized_name(
-                cmd.classname, base_prop_name)
+            s_name = lproperties.LinkProperty.get_specialized_name(
+                base_prop_name, cmd.classname)
             src_prop_name = sn.Name(name=s_name,
                                     module=cmd.classname.module)
 
@@ -282,8 +282,8 @@ class CreateLink(LinkCommand, referencing.CreateReferencedClass):
             cmd.add(src_prop)
 
             base_prop_name = sn.Name('std::target')
-            s_name = lproperties.LinkProperty.generate_specialized_name(
-                cmd.classname, base_prop_name)
+            s_name = lproperties.LinkProperty.get_specialized_name(
+                base_prop_name, cmd.classname)
             tgt_prop_name = sn.Name(name=s_name,
                                     module=cmd.classname.module)
 
