@@ -7,11 +7,11 @@
 
 
 import decimal
+import functools
 
 from edgedb.lang.common import exceptions as edgedb_error
 
 from edgedb.lang.common.datastructures import Void
-from edgedb.lang.common.functional import decorate
 from edgedb.lang.common import fpdecimal
 
 from . import base as s_types
@@ -90,7 +90,7 @@ class DecimalMeta(type):
                 orig_fn = getattr(cls, op)
                 wrapper = cls.get_wrapper(op, category.get('coerce'),
                                           category.get('quantize'))
-                decorate(wrapper, orig_fn)
+                functools.update_wrapper(wrapper, orig_fn)
                 setattr(cls, op, wrapper)
                 setattr(cls, op + '__orig', orig_fn)
 

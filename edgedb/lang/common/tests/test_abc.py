@@ -27,33 +27,3 @@ class TestAbc:
                 pass
 
         C()
-
-    def test_utils_abc_attr(self):
-        class A(metaclass=abc.AbstractMeta):
-            foo = abc.abstractattribute()
-
-        with assert_raises(TypeError, error_re='instantiate abstract'):
-            A()
-
-        class B(A):
-            foo = 1
-
-        assert B().foo == 1
-
-        class C(A):
-            def __init__(self):
-                self.foo = 2
-
-        with assert_raises(TypeError, error_re='instantiate abstract'):
-            C()
-
-        class D(A):
-            foo = 3
-            bar = abc.abstractattribute(doc='spam')
-
-        assert D.bar.__doc__ == 'spam'
-
-        class E(D):
-            bar = 4
-
-        assert E().foo == 3 and E().bar == 4

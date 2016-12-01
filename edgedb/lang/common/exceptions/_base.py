@@ -111,19 +111,6 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
         return buffer
 
 
-class MultiError(EdgeDBError):
-    def __init__(self, msg=None, *, errors):
-        assert errors
-        assert all(isinstance(error, BaseException) for error in errors)
-        self.errors = errors
-
-        if msg is None:
-            msg = '\n'.join(
-                '{}: {}'.format(type(ex).__name__, ex) for ex in self.errors)
-
-        super().__init__(msg)
-
-
 class ExceptionContext:
     title = 'Exception Context'
 

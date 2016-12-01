@@ -5,7 +5,7 @@
 # See LICENSE for details.
 ##
 
-from edgedb.lang.common.datastructures import Multidict, CombinedMultidict
+from edgedb.lang.common.datastructures import Multidict
 from edgedb.lang.common.debug import assert_raises
 
 
@@ -81,18 +81,3 @@ class TestDatastructMultidict:
         with assert_raises(KeyError):
             b.pop('c')
         assert 'c' not in b
-
-    def test_utils_ds_combined_multidict(self):
-        get = Multidict({'a': 'b'})
-        post = Multidict((('a', [1, 2]), ('z', 'zzz')))
-
-        r = CombinedMultidict(get, post)
-
-        assert r['a'] == 'b'
-
-        assert set(r.keys()) == {'a', 'z'}
-        assert set(r.getlist('a')) == {'b', 1, 2}
-
-        assert set(r.items()) == {('a', 'b'), ('z', 'zzz')}
-        assert list(sorted(list(r.itemlists()))) == [('a', ['b', 1, 2]), (
-            'z', ['zzz'])]

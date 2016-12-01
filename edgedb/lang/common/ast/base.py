@@ -196,32 +196,6 @@ def _serialize_to_markup(ast, *, ctx):
     return node
 
 
-class LanguageAST(AST):
-    def __init__(self, **kwargs):
-        self.source_position = (None, -1, -1)
-        if 'source_position' in kwargs:
-            self.source_position = kwargs['source_position']
-            del kwargs['source_position']
-
-        super().__init__(**kwargs)
-
-    def __deepcopy__(self, memo):
-        copied = super().__deepcopy__(memo)
-        copied.source_position = self.source_position
-        return copied
-
-
-class ASTBlockNode(AST):
-    __fields = [('body', list)]
-
-    def append_node(self, node):
-        if isinstance(node, list):
-            for n in node:
-                self.append_node(n)
-        else:
-            node.parent = self
-            self.body.append(node)
-
 
 def is_container(value):
     return (

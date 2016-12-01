@@ -6,8 +6,8 @@
 ##
 """Collection of various data structures."""
 
-from .marker import MarkerMeta, Marker, Void  # NOQA
-from .multidict import Multidict, CombinedMultidict  # NOQA
+from .marker import Void  # NOQA
+from .multidict import Multidict  # NOQA
 from .ordered import OrderedSet, OrderedIndex  # NOQA
 from .struct import (  # NOQA
     Field, Struct, StructMeta, MixedStruct, MixedStructMeta)

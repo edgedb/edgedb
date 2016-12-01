@@ -7,6 +7,7 @@
 
 
 import itertools
+import inspect
 import types
 
 from edgedb.lang.common import ast
@@ -101,7 +102,7 @@ class TypeInfoMeta(type):
                 astop = ast.ops.Operator.funcname_to_op(name)
 
                 if astop:
-                    args = functional.get_argsspec(proc)
+                    args = inspect.getfullargspec(proc)
 
                     argtypes = []
 
