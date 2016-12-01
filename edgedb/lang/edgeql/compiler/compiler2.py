@@ -670,6 +670,12 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         return node
 
+    def visit_IfElseNode(self, expr):
+        return irast.IfElseExpr(
+            condition=self.visit(expr.condition),
+            if_expr=self.visit(expr.if_expr),
+            else_expr=self.visit(expr.else_expr))
+
     def visit_UnaryOpNode(self, expr):
         ctx = self.context.current
 

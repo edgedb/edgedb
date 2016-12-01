@@ -158,8 +158,8 @@ class TypeInterpretationNode(Base):
 
 class IfElseNode(Base):
     condition: Base
-    ifexpr: Base
-    elseexpr: Base
+    if_expr: Base
+    else_expr: Base
 
 
 class TransactionNode(Base):

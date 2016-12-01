@@ -787,7 +787,7 @@ class Expr(Nonterm):
 
     def reduce_Expr_IF_Expr_ELSE_Expr(self, *kids):
         self.val = qlast.IfElseNode(
-            ifexpr=kids[0].val, condition=kids[2].val, elseexpr=kids[4].val)
+            if_expr=kids[0].val, condition=kids[2].val, else_expr=kids[4].val)
 
 
 class Sequence(Nonterm):

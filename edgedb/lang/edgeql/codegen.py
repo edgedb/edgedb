@@ -272,11 +272,11 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_IfElseNode(self, node):
         self.write('(')
-        self.visit(node.ifexpr)
+        self.visit(node.if_expr)
         self.write(' IF ')
         self.visit(node.condition)
         self.write(' ELSE ')
-        self.visit(node.elseexpr)
+        self.visit(node.else_expr)
         self.write(')')
 
     def visit_SequenceNode(self, node):

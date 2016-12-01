@@ -190,6 +190,12 @@ class SortExpr(Base):
     ]
 
 
+class IfElseExpr(Expr):
+    condition: Base
+    if_expr: Base
+    else_expr: Base
+
+
 class FunctionCall(Expr):
     __fields = [
         'name',

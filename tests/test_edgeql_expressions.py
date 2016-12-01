@@ -335,3 +335,14 @@ class TestExpressions(tb.QueryTestCase):
                     std::__class__ := 42
                 };
             """)
+
+    async def test_edgeql_expr_if_else_01(self):
+        await self.assert_query_result(r"""
+            SELECT 'yes' IF 1=1 ELSE 'no';
+            SELECT 'yes' IF 1=0 ELSE 'no';
+            SELECT 's1' IF 1=0 ELSE 's2' IF 2=2 ELSE 's3';
+            """, [
+                ['yes'],
+                ['no'],
+                ['s2'],
+            ])

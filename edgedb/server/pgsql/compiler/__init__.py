@@ -973,6 +973,15 @@ class IRCompiler(ast.visitor.NodeVisitor,
         operand = self.visit(expr.expr)
         return pgast.Expr(name=expr.op, rexpr=operand, kind=pgast.ExprKind.OP)
 
+    def visit_IfElseExpr(self, expr):
+        return pgast.CaseExpr(
+            args=[
+                pgast.CaseWhen(
+                    expr=self.visit(expr.condition),
+                    result=self.visit(expr.if_expr))
+            ],
+            defresult=self.visit(expr.else_expr))
+
     def visit_Sequence(self, expr):
         ctx = self.context.current
 
