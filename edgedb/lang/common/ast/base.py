@@ -29,6 +29,41 @@ class Field:
 
 
 class MetaAST(type):
+    def __new__(mcls, name, bases, dct):
+        if '__annotations__' in dct:
+            fields_attrname = f'_{name}__fields'
+
+            if fields_attrname in dct:
+                raise RuntimeError(
+                    'cannot combine class annotations and '
+                    'legacy __fields attribute in '
+                    f'{dct["__module__"]}.{dct["__qualname__"]}')
+
+            hidden = ()
+            if '__ast_hidden__' in dct:
+                hidden = set(dct['__ast_hidden__'])
+
+            fields = []
+            for f_name, f_type in dct['__annotations__'].items():
+                if f_type is object:
+                    f_type = None
+
+                if f_name in dct:
+                    # Default value was provided
+                    f_default = dct.pop(f_name)
+                else:
+                    # Use type as a constructor for the default value
+                    f_default = f_type
+
+                f_hidden = f_name in hidden
+
+                fields.append((f_name, f_type, f_default,
+                               True, None, f_hidden))
+
+            dct[fields_attrname] = fields
+
+        return super().__new__(mcls, name, bases, dct)
+
     def __init__(cls, name, bases, dct):
         super().__init__(name, bases, dct)
 
