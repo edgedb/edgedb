@@ -30,8 +30,8 @@ class Decompiler(ast.visitor.NodeVisitor):
             context.current.attmap = {}
 
             for l in local_to_source.pointers.values():
-                name = l.normal_name()
-                colname = common.edgedb_name_to_pg_name(l.normal_name())
+                name = l.shortname
+                colname = common.edgedb_name_to_pg_name(l.shortname)
                 source = context.current.source.get_pointer_origin(
                     name, farthest=True)
                 context.current.attmap[colname] = (name, source)

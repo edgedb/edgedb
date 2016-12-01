@@ -652,7 +652,7 @@ class AtomMetaCommand(NamedClassMetaCommand):
 
         for host_class, item_class in users:
             if isinstance(item_class, s_links.Link):
-                name = item_class.normal_name()
+                name = item_class.shortname
             else:
                 name = item_class.name
 
@@ -1152,10 +1152,10 @@ class CompositeClassMetaCommand(NamedClassMetaCommand):
             for base in source.bases:
                 for ptr in base.pointers.values():
                     if ptr.atomic():
-                        inherited_aptrs.add(ptr.normal_name())
+                        inherited_aptrs.add(ptr.shortname)
 
             added_inh_ptrs = inherited_aptrs - {
-                p.normal_name()
+                p.shortname
                 for p in orig_source.pointers.values()
             }
 
@@ -1687,7 +1687,7 @@ class PointerMetaCommand(MetaCommand):
         alter_table = context.get(
             s_concepts.ConceptCommandContext).op.get_alter_table(
                 context, priority=1)
-        column_name = common.edgedb_name_to_pg_name(ptr.normal_name())
+        column_name = common.edgedb_name_to_pg_name(ptr.shortname)
 
         if isinstance(new_target, s_atoms.Atom):
             target_type = types.pg_type_from_atom(schema, new_target)
@@ -1744,7 +1744,7 @@ class PointerMetaCommand(MetaCommand):
                 alter_table = source_ctx.op.get_alter_table(
                     context, contained=True, priority=3)
                 column_name = common.edgedb_name_to_pg_name(
-                    pointer.normal_name())
+                    pointer.shortname)
                 alter_table.add_operation(
                     dbops.AlterTableAlterColumnDefault(
                         column_name=column_name, default=new_default))
@@ -1755,13 +1755,13 @@ class PointerMetaCommand(MetaCommand):
             dbops.Column(
                 name=ptr_stor_info.column_name, type=ptr_stor_info.column_type,
                 required=pointer.required, default=default,
-                comment=pointer.normal_name())
+                comment=pointer.shortname)
         ]
 
     def rename_pointer(self, pointer, schema, context, old_name, new_name):
         if context:
-            old_name = pointer.normalize_name(old_name)
-            new_name = pointer.normalize_name(new_name)
+            old_name = pointer.get_shortname(old_name)
+            new_name = pointer.get_shortname(new_name)
 
             host = self.get_host(schema, context)
 
@@ -2142,7 +2142,7 @@ class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
                         s_concepts.ConceptCommandContext).op.get_alter_table(
                             context)
                     column_name = common.edgedb_name_to_pg_name(
-                        link.normal_name())
+                        link.shortname)
                     alter_table.add_operation(
                         dbops.AlterTableAlterColumnNull(
                             column_name=column_name, null=not link.required))
@@ -2172,7 +2172,7 @@ class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
                 result, schema=schema)
             concept = context.get(s_concepts.ConceptCommandContext)
 
-            name = result.normal_name()
+            name = result.shortname
 
             if ptr_stor_info.table_type == 'concept':
                 # Only drop the column if the link was not reinherited in the
@@ -2297,7 +2297,7 @@ class AlterLinkProperty(
                 src_ctx = context.get(s_links.LinkCommandContext)
                 src_op = src_ctx.op
                 alter_table = src_op.get_alter_table(context, priority=5)
-                column_name = common.edgedb_name_to_pg_name(prop.normal_name())
+                column_name = common.edgedb_name_to_pg_name(prop.shortname)
                 if prop.required:
                     table = src_op._type_mech.get_table(src_ctx.scls, schema)
                     rec = table.record(**{column_name: dbops.Default()})
@@ -2311,7 +2311,7 @@ class AlterLinkProperty(
             new_type = None
             for op in self.get_subcommands(type=sd.AlterClassProperty):
                 if (op.property == 'target' and
-                        prop.normal_name() not in
+                        prop.shortname not in
                         {'std::source', 'std::target'}):
                     new_type = op.new_value.classname \
                         if op.new_value is not None else None
@@ -2339,7 +2339,7 @@ class DeleteLinkProperty(
         if link:
             alter_table = link.op.get_alter_table(context)
 
-            column_name = common.edgedb_name_to_pg_name(property.normal_name())
+            column_name = common.edgedb_name_to_pg_name(property.shortname)
             # We don't really care about the type -- we're dropping the thing
             column_type = 'text'
 

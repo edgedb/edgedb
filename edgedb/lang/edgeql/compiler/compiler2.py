@@ -993,7 +993,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                             name=ptrname[1]),
                     ).derive(schema, ptrsource, target_class)
 
-                if ptrcls.normal_name() == 'std::__class__':
+                if ptrcls.shortname == 'std::__class__':
                     msg = 'cannot assign to __class__'
                     raise errors.EdgeQLError(msg, context=lexpr.context)
             else:

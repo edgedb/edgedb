@@ -402,7 +402,7 @@ class Constraint(primary.PrimaryClass, derivable.DerivableClass):
 
         if not subjtitle:
             try:
-                subjname = self.subject.normal_name()
+                subjname = self.subject.shortname
             except AttributeError:
                 subjname = self.subject.name
 
@@ -438,7 +438,7 @@ class ConsistencySubject(referencing.ReferencingClass):
             inherited = itertools.chain.from_iterable(
                             getattr(b, 'constraints', {}).values()
                             for b in bases)
-            constraints.update(c.normal_name()
+            constraints.update(c.shortname
                                for c in inherited if c.is_abstract)
             return constraints
         else:

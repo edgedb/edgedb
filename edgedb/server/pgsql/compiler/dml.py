@@ -447,7 +447,7 @@ class IRCompilerDMLSupport:
             target_tab_name = (target_tab.schema, target_tab.name)
         else:
             target_tab_name = common.link_name_to_table_name(
-                ptrcls.normal_name(), catenate=False)
+                ptrcls.shortname, catenate=False)
 
         tab_cols = \
             ctx.backend._type_mech.get_cached_table_columns(target_tab_name)
@@ -617,7 +617,7 @@ class IRCompilerDMLSupport:
                 raise ValueError(
                     'unexpected value type in update expr: {!r}'.format(typ))
 
-            props = [p.ptr_class.normal_name() for p in typ[1].pathspec]
+            props = [p.ptr_class.shortname for p in typ[1].pathspec]
 
         else:
             # Target-only update

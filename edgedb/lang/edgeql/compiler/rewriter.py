@@ -127,7 +127,7 @@ class RewriteTransformer(ast.NodeTransformer):
         for expr_node in nodes:
             expr_node.reference = node
 
-        ptrname = expr.link_class.normal_name()
+        ptrname = expr.link_class.shortname
 
         expr_ref = irast.SubgraphRef(
             name=ptrname,

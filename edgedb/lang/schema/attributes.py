@@ -182,7 +182,7 @@ class CreateAttributeValue(AttributeValueCommand, named.CreateNamedClass):
                 astnode, context, schema)
 
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
-        propname = AttributeValue.normalize_name(cmd.classname)
+        propname = AttributeValue.get_shortname(cmd.classname)
 
         val = astnode.value
         if isinstance(val, qlast.ConstantNode):
@@ -231,7 +231,7 @@ class CreateAttributeValue(AttributeValueCommand, named.CreateNamedClass):
                          "AttributeSubject context"
 
         with context(AttributeValueCommandContext(self, None)):
-            name = AttributeValue.normalize_name(
+            name = AttributeValue.get_shortname(
                 self.classname)
             attribute = attrsubj.scls.local_attributes.get(name)
             if attribute is None:
@@ -252,7 +252,7 @@ class RenameAttributeValue(AttributeValueCommand, named.RenameNamedClass):
         assert attrsubj, "Attribute commands must be run in " + \
                          "AttributeSubject context"
 
-        norm = AttributeValue.normalize_name
+        norm = AttributeValue.get_shortname
 
         own = attrsubj.scls.local_attributes.pop(
             norm(self.classname), None)

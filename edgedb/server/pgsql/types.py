@@ -103,7 +103,7 @@ class PointerStorageInfo:
     @classmethod
     def _source_table_info(cls, pointer):
         table = common.get_table_name(pointer.source, catenate=False)
-        ptr_name = pointer.normal_name()
+        ptr_name = pointer.shortname
         col_name = common.edgedb_name_to_pg_name(ptr_name)
         table_type = 'concept'
 
@@ -146,7 +146,7 @@ class PointerStorageInfo:
         return (
             pointer.singular() and
             (pointer.atomic() or
-             pointer.normal_name() == 'std::__class__')
+             pointer.shortname == 'std::__class__')
         )
 
     @classmethod
@@ -167,7 +167,7 @@ class PointerStorageInfo:
         if source is None:
             source = pointer.source
 
-        if is_prop and pointer.normal_name() == 'std::target':
+        if is_prop and pointer.shortname == 'std::target':
             # Normalize link@target to link
             pointer = source
             is_prop = False
@@ -175,7 +175,7 @@ class PointerStorageInfo:
         if is_prop:
             table = common.get_table_name(source, catenate=False)
             table_type = 'link'
-            col_name = common.edgedb_name_to_pg_name(pointer.normal_name())
+            col_name = common.edgedb_name_to_pg_name(pointer.shortname)
         else:
             if cls._storable_in_source(pointer) and not link_bias:
                 table, table_type, col_name = cls._source_table_info(pointer)

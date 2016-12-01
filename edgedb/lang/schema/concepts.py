@@ -93,7 +93,7 @@ class Concept(sources.Source, nodes.Node,
             ptrs = set()
 
             for link in schema.get_objects(type='link'):
-                if (link.normal_name().name == name and
+                if (link.shortname.name == name and
                         link.target is not None and
                         source.issubclass(link.target)):
                     ptrs.add(link)
@@ -105,7 +105,7 @@ class Concept(sources.Source, nodes.Node,
             ptrs = set()
 
             for link in schema.get_objects(type='link'):
-                if (link.normal_name() == name and
+                if (link.shortname == name and
                         link.target is not None and
                         source.issubclass(link.target)):
                     ptrs.add(link)

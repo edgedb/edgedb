@@ -53,8 +53,8 @@ class NamedClassCommand(sd.ClassCommand):
     def _get_ast(self, context):
         astnode = self._get_ast_node(context)
         if isinstance(self.classname, sn.Name):
-            if hasattr(self.metaclass, 'normalize_name'):
-                nname = self.metaclass.normalize_name(self.classname)
+            if hasattr(self.metaclass, 'get_shortname'):
+                nname = self.metaclass.get_shortname(self.classname)
             else:
                 nname = self.classname
             name = qlast.ClassRefNode(module=nname.module, name=nname.name)
@@ -205,8 +205,8 @@ class RenameNamedClass(NamedClassCommand):
     def _get_ast(self, context):
         astnode = self._get_ast_node(context)
 
-        if hasattr(self.metaclass, 'normalize_name'):
-            new_name = self.metaclass.normalize_name(self.new_name)
+        if hasattr(self.metaclass, 'get_shortname'):
+            new_name = self.metaclass.get_shortname(self.new_name)
         else:
             new_name = self.new_name
 
@@ -469,6 +469,40 @@ class NamedClassMeta(type(so.Class)):
 
 class NamedClass(so.Class, metaclass=NamedClassMeta):
     name = so.Field(sn.Name, private=True, compcoef=0.640)
+
+    @classmethod
+    def mangle_name(cls, name):
+        return name.replace('::', '|')
+
+    @classmethod
+    def unmangle_name(cls, name):
+        return name.replace('|', '::')
+
+    @classmethod
+    def get_shortname(cls, fullname):
+        name = str(fullname)
+        parts = name.split('@')
+
+        if len(parts) < 3:
+            return sn.Name(name)
+
+        return sn.Name(cls.unmangle_name(parts[1]))
+
+    @property
+    def shortname(self):
+        try:
+            cached = self._cached_shortname
+        except AttributeError:
+            pass
+        else:
+            # `.name` can be overridden at some point, so we
+            # want to guard our cache against that.
+            if cached[0] == self.name:
+                return cached[1]
+
+        shortname = self.get_shortname(self.name)
+        self._cached_shortname = (self.name, shortname)
+        return shortname
 
     def delta_properties(self, delta, other, reverse=False, context=None):
         old, new = (other, self) if not reverse else (self, other)

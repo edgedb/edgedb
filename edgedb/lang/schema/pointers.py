@@ -263,7 +263,7 @@ class BasePointer(primary.PrimaryClass, derivable.DerivableClass):
         if isinstance(t1, atoms.Atom) != isinstance(t2, atoms.Atom):
             # Targets are not of the same node type
 
-            pn = ptr.normal_name()
+            pn = ptr.shortname
             ccn1 = t1.get_canonical_class().__name__
             ccn2 = t2.get_canonical_class().__name__
 
@@ -282,7 +282,7 @@ class BasePointer(primary.PrimaryClass, derivable.DerivableClass):
             if t1 != t2:
                 print('111', t1, t2)
 
-                pn = ptr.normal_name()
+                pn = ptr.shortname
                 msg = 'could not merge "{}" pointer: targets conflict' \
                                                             .format(pn)
                 detail = ('[{}].[{}] targets atom "{}" while it also '
@@ -319,7 +319,7 @@ class BasePointer(primary.PrimaryClass, derivable.DerivableClass):
                     # The link is neither a subclass, nor a superclass
                     # of the previously seen targets, which creates an
                     # unresolvable target requirement conflict.
-                    pn = ptr.normal_name()
+                    pn = ptr.shortname
                     msg = 'could not merge "{}" pointer: targets conflict' \
                                                             .format(pn)
                     detail = ('[{}].[{}] targets concept "{}" which '
@@ -407,24 +407,17 @@ class BasePointer(primary.PrimaryClass, derivable.DerivableClass):
     def is_pure_computable(self):
         return self.readonly and bool(self.default) and \
                 not self.is_id_pointer() and \
-                not self.normal_name() in {
-                    'std::ctime',
-                    'std::mtime',
-                }
+                not self.shortname in {'std::ctime', 'std::mtime'}
 
     def is_id_pointer(self):
-        return self.normal_name() in {'std::linkid',
-                                      'std::id'}
+        return self.shortname in {'std::linkid', 'std::id'}
 
     def is_endpoint_pointer(self):
-        return self.normal_name() in {'std::source',
-                                      'std::target'}
+        return self.shortname in {'std::source', 'std::target'}
 
     def is_special_pointer(self):
-        return self.normal_name() in {'std::source',
-                                      'std::target',
-                                      'std::linkid',
-                                      'std::id'}
+        return self.shortname in {'std::source', 'std::target',
+                                  'std::linkid', 'std::id'}
 
 
 def _merge_sticky_bool(ours, theirs, schema):

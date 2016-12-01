@@ -188,7 +188,7 @@ class IRCompiler(ast.visitor.NodeVisitor,
         for i, e in enumerate(expr.elements):
             element = self.visit(e)
 
-            ptr_name = e.rptr.ptrcls.normal_name()
+            ptr_name = e.rptr.ptrcls.shortname
 
             ptr_direction = e.rptr.direction or \
                 s_pointers.PointerDirection.Outbound
@@ -684,14 +684,14 @@ class IRCompiler(ast.visitor.NodeVisitor,
         if ir_set.rptr is not None:
             alias_hint = '{}_{}'.format(
                 ir_set.rptr.source.scls.name.name,
-                ir_set.rptr.ptrcls.normal_name().name
+                ir_set.rptr.ptrcls.shortname.name
             )
         elif ir_set.expr is not None and len(ir_set.sources) == 1:
             src = list(ir_set.sources)[0]
             if src.rptr is not None:
                 alias_hint = '{}_{}'.format(
                     src.rptr.source.scls.name.name,
-                    src.rptr.ptrcls.normal_name().name
+                    src.rptr.ptrcls.shortname.name
                 )
             else:
                 alias_hint = src.scls.name.name
@@ -1134,7 +1134,7 @@ class IRCompiler(ast.visitor.NodeVisitor,
 
         if ctx.in_aggregate:
             rptr = ir_set.rptr
-            ptr_name = rptr.ptrcls.normal_name()
+            ptr_name = rptr.ptrcls.shortname
 
             # Cast atom refs to the base type in aggregate expressions, since
             # PostgreSQL does not create array types for custom domains and
@@ -1263,7 +1263,7 @@ class IRCompiler(ast.visitor.NodeVisitor,
 
                 if isinstance(target, pgast.DML):
                     if len(path_id) > 1:
-                        lname = path_id[-2][0].normal_name()
+                        lname = path_id[-2][0].shortname
                     else:
                         lname = 'std::id'
 
@@ -1462,7 +1462,7 @@ class IRCompiler(ast.visitor.NodeVisitor,
 
         rptr = ir_set.rptr
         ptrcls = rptr.ptrcls
-        ptrname = ptrcls.normal_name()
+        ptrname = ptrcls.shortname
 
         if isinstance(ptrcls, s_lprops.LinkProperty):
             source = rptr.source.rptr.ptrcls

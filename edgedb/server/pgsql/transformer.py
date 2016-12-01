@@ -257,8 +257,8 @@ class Decompiler(ast.visitor.NodeVisitor):
             context.current.attmap = {}
 
             for l in local_to_source.pointers.values():
-                name = l.normal_name()
-                colname = common.edgedb_name_to_pg_name(l.normal_name())
+                name = l.shortname
+                colname = common.edgedb_name_to_pg_name(l.shortname)
                 source = context.current.source.get_pointer_origin(
                     name, farthest=True)
                 context.current.attmap[colname] = (name, source)
@@ -489,7 +489,7 @@ class IRCompilerBase:
         """Return a TableNode corresponding to a given Link."""
         table_schema_name, table_name = common.get_table_name(
             link_class, catenate=False)
-        if link_class.normal_name().module == 'schema':
+        if link_class.shortname.module == 'schema':
             # Redirect all queries to schema tables to edgedbss
             table_schema_name = 'edgedbss'
         return pgsql.ast.TableNode(
@@ -505,7 +505,7 @@ class IRCompilerBase:
         corresponding to a set of specialized links computed from the given
         `link_class` taking source inheritance into account.
         """
-        linkname = link_class.normal_name()
+        linkname = link_class.shortname
         endpoint = link_class.source
 
         if link_class.generic():
@@ -573,7 +573,7 @@ class IRCompilerBase:
                 relation = union_list[0].fromlist[0]
 
             relation.alias = context.current.genalias(
-                hint=link_class.normal_name().name)
+                hint=link_class.shortname.name)
 
         return relation
 
@@ -612,12 +612,12 @@ class IRCompilerBase:
             ptr_target = None
 
             if isinstance(e, irast.BaseRef):
-                ptr_name = e.ptr_class.normal_name()
+                ptr_name = e.ptr_class.shortname
                 ptr_target = e.ptr_class.target
                 if ptr_name == 'std::id':
                     testref = element
             elif isinstance(e, (irast.Record, irast.SubgraphRef)):
-                ptr_name = e.rlink.link_class.normal_name()
+                ptr_name = e.rlink.link_class.shortname
                 ptr_direction = e.rlink.direction or \
                     s_pointers.PointerDirection.Outbound
                 if ptr_direction == s_pointers.PointerDirection.Outbound:
@@ -1947,7 +1947,7 @@ class IRCompiler(IRCompilerBase):
                 metaclass_name = '{}.{}'.format(
                     metaclass.__module__, metaclass.__name__)
 
-                recptr_name = recurse_link.link_class.normal_name()
+                recptr_name = recurse_link.link_class.shortname
                 recptr_direction = recurse_link.direction
 
                 recursive_attr = s_pointers.PointerVector(
@@ -2228,11 +2228,11 @@ class IRCompiler(IRCompilerBase):
         else:
             pspec = typ.pathspec
 
-        props = [p.ptr_class.normal_name() for p in pspec]
+        props = [p.ptr_class.shortname for p in pspec]
         tgt_col = props.index('std::target')
 
         upd_props = [
-            p.ptr_class.normal_name() for p in pspec
+            p.ptr_class.shortname for p in pspec
             if not p.ptr_class.is_special_pointer()
         ]
 
@@ -2296,7 +2296,7 @@ class IRCompiler(IRCompilerBase):
                 raise ValueError(
                     'unexpected value type in update expr: {!r}'.format(typ))
 
-            props = [p.ptr_class.normal_name() for p in typ[1].pathspec]
+            props = [p.ptr_class.shortname for p in typ[1].pathspec]
 
         else:
             # Target-only update
@@ -2425,7 +2425,7 @@ class IRCompiler(IRCompilerBase):
             target_tab_name = (target_tab.schema, target_tab.name)
         else:
             target_tab_name = pgsql.common.link_name_to_table_name(
-                lclass.normal_name(), catenate=False)
+                lclass.shortname, catenate=False)
 
         data_backend = context.current.backend
         tab_cols = data_backend._type_mech.get_cached_table_columns(
@@ -3698,7 +3698,7 @@ class IRCompiler(IRCompilerBase):
 
             if stor_info.table_type == "concept":
                 fieldref = self.get_cte_fieldref_for_set(
-                    context, link.source, link.link_class.normal_name(), False)
+                    context, link.source, link.link_class.shortname, False)
 
             elif local_ref_map:
                 table = local_ref_map[expr.ref.link_class]
@@ -4113,7 +4113,7 @@ class IRCompiler(IRCompilerBase):
             join = fromnode.expr if fromnode.expr else sql_path_tip
             map_rel = None
 
-            if link_class.normal_name() == 'std::__class__':
+            if link_class.shortname == 'std::__class__':
                 join = self._join_inline_rel(
                     context, weak=weak, edgedb_path_tip=edgedb_path_tip,
                     link_class=link_class, link=link, step_cte=step_cte,

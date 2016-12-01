@@ -202,7 +202,7 @@ class IRCompilerDBObjects:
         table_schema_name, table_name = common.get_table_name(
             ptrcls, catenate=False)
 
-        pname = ptrcls.normal_name()
+        pname = ptrcls.shortname
 
         if pname.module == 'schema':
             # Redirect all queries to schema tables to edgedbss
@@ -229,7 +229,7 @@ class IRCompilerDBObjects:
         `ptrcls` taking source inheritance into account.
         """
         ctx = self.context.current
-        linkname = ptrcls.normal_name()
+        linkname = ptrcls.shortname
         endpoint = ptrcls.source
 
         if ptrcls.generic():
@@ -318,7 +318,7 @@ class IRCompilerDBObjects:
                 rvar = pgast.RangeSubselect(
                     subquery=qry,
                     alias=pgast.Alias(
-                        aliasname=ctx.genalias(hint=ptrcls.normal_name().name)
+                        aliasname=ctx.genalias(hint=ptrcls.shortname.name)
                     )
                 )
 

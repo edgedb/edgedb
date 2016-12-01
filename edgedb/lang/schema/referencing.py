@@ -169,7 +169,7 @@ class ReferencedClassCommand(derivable.DerivableClassCommand):
         if referrer_ctx is not None:
             referrer = referrer_ctx.scls
             attrs = self.get_struct_properties(schema)
-            basename = self.metaclass.normalize_name(self.classname)
+            basename = self.metaclass.get_shortname(self.classname)
             base = schema.get(basename, type=self.metaclass)
             self.scls = base.derive(schema, referrer, attrs=attrs,
                                     add_to_schema=True, init_props=False)
@@ -194,7 +194,7 @@ class ReferencedClassCommand(derivable.DerivableClassCommand):
                 # that don't already have an existing reference.
                 #
                 referrer.add_classref(refdict.attr, self.scls)
-                refname = self.scls.normalize_name(self.scls.name)
+                refname = self.scls.get_shortname(self.scls.name)
                 for child in referrer.descendants(schema):
                     child_local_coll = getattr(child, refdict.local_attr)
                     child_coll = getattr(child, refdict.attr)
@@ -207,8 +207,8 @@ class ReferencedClassCommand(derivable.DerivableClassCommand):
         referrer_ctx = context.get(self.referrer_context_class)
         if referrer_ctx is not None:
             referrer = referrer_ctx.scls
-            old_name = scls.normalize_name(self.old_name)
-            new_name = scls.normalize_name(self.new_name)
+            old_name = scls.get_shortname(self.old_name)
+            new_name = scls.get_shortname(self.new_name)
 
             refdict = referrer.__class__.get_refdict_for_class(
                 scls.__class__)
@@ -251,7 +251,7 @@ class CreateReferencedClass(inheriting.CreateInheritingClass):
 
         if isinstance(astnode, cls.referenced_astnode):
             objcls = cls._get_metaclass()
-            nname = objcls.normalize_name(cmd.classname)
+            nname = objcls.get_shortname(cmd.classname)
 
             cmd.add(
                 sd.AlterClassProperty(
@@ -492,7 +492,7 @@ class ReferencingClass(inheriting.InheritingClass,
         local_coll = getattr(self, local_attr)
         all_coll = getattr(self, attr)
 
-        key = obj.normalize_name(obj.name)
+        key = obj.get_shortname(obj.name)
         existing = local_coll.get(key)
         if existing is not None:
             msg = '{} {!r} is already present in {!r}'.format(
@@ -511,7 +511,7 @@ class ReferencingClass(inheriting.InheritingClass,
         local_coll = getattr(self, local_attr)
         all_coll = getattr(self, attr)
 
-        key = refcls.normalize_name(obj_name)
+        key = refcls.get_shortname(obj_name)
         is_inherited = any(key in getattr(b, attr) for b in self.bases)
 
         if not is_inherited:

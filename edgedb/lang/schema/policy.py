@@ -113,7 +113,7 @@ class PolicyCommand(referencing.ReferencedClassCommand):
     def _apply_fields_ast(self, context, node):
         super()._apply_fields_ast(context, node)
         if node.event is None:
-            event_name = Policy.normalize_name(self.classname)
+            event_name = Policy.get_shortname(self.classname)
             node.event = qlast.ClassRefNode(
                 name=event_name.name,
                 module=event_name.module

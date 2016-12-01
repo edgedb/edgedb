@@ -912,7 +912,7 @@ class Backend(s_deltarepo.DeltaProvider):
             bases = tuple()
 
             if r['subject']:
-                bases = (s_constr.Constraint.normalize_name(name), )
+                bases = (s_constr.Constraint.get_shortname(name), )
             elif r['bases']:
                 bases = tuple(sn.Name(b) for b in r['bases'])
             elif name != 'std::constraint':
@@ -1113,11 +1113,11 @@ class Backend(s_deltarepo.DeltaProvider):
             details = (
                 'Record for {!r} hosted by {!r} exists, but ' +
                 'the corresponding table column is missing').format(
-                    pointer.normal_name(), pointer.source.name)
+                    pointer.shortname, pointer.source.name)
             raise s_err.SchemaError(msg, details=details)
 
         return self._get_pointer_column_target(
-            schema, pointer.source, pointer.normal_name(), col)
+            schema, pointer.source, pointer.shortname, col)
 
     def _get_pointer_column_target(self, schema, source, pointer_name, col):
         if col['column_type_schema'] == 'pg_catalog':
@@ -1228,7 +1228,7 @@ class Backend(s_deltarepo.DeltaProvider):
             bases = tuple()
 
             if r['source']:
-                bases = (s_links.Link.normalize_name(name), )
+                bases = (s_links.Link.get_shortname(name), )
             elif r['bases']:
                 bases = tuple(sn.Name(b) for b in r['bases'])
             elif name != 'std::link':
@@ -1375,7 +1375,7 @@ class Backend(s_deltarepo.DeltaProvider):
             bases = ()
 
             if r['source']:
-                bases = (s_lprops.LinkProperty.normalize_name(name), )
+                bases = (s_lprops.LinkProperty.get_shortname(name), )
             elif r['bases']:
                 bases = tuple(sn.Name(b) for b in r['bases'])
             elif name != 'std::linkproperty':
@@ -1451,7 +1451,7 @@ class Backend(s_deltarepo.DeltaProvider):
                     prop.source, catenate=False)
                 cols = await self._type_mech.get_table_columns(
                     source_table_name, connection=self.connection)
-                col_name = common.edgedb_name_to_pg_name(prop.normal_name())
+                col_name = common.edgedb_name_to_pg_name(prop.shortname)
                 col = cols[col_name]
                 self.verify_ptr_const_defaults(
                     schema, prop, col['column_default'])

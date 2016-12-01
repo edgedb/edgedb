@@ -25,18 +25,10 @@ class DerivableClass(inheriting.InheritingClass):
     #
     def compare(self, other, context=None):
         similarity = super().compare(other, context=context)
-        if self.normal_name() != other.normal_name():
+        if self.shortname != other.shortname:
             similarity *= 0.625
 
         return similarity
-
-    @classmethod
-    def mangle_name(cls, name):
-        return name.replace('::', '|')
-
-    @classmethod
-    def unmangle_name(cls, name):
-        return name.replace('|', '::')
 
     @classmethod
     def generate_specialized_name(cls, source_name, pointer_name, *qualifiers):
@@ -55,18 +47,6 @@ class DerivableClass(inheriting.InheritingClass):
         return '@'.join(parts)
 
     @classmethod
-    def normalize_name(cls, name):
-        name = str(name)
-
-        parts = name.split('@')
-        fq_index = 1
-
-        if len(parts) < 3:
-            return sn.Name(name)
-        else:
-            return sn.Name(cls.unmangle_name(parts[fq_index]))
-
-    @classmethod
     def inherit_pure(cls, schema, item, source, *, dctx=None):
         return item
 
@@ -74,20 +54,13 @@ class DerivableClass(inheriting.InheritingClass):
         qualnames = [qualifier.name for qualifier in qualifiers if qualifier]
 
         name = self.__class__.generate_specialized_name(
-            source.name, self.normal_name(), *qualnames)
+            source.name, self.shortname, *qualnames)
         fqname = sn.Name(name=name, module=source.name.module)
 
         return fqname
 
-    def normal_name(self):
-        try:
-            return self._normal_name
-        except AttributeError:
-            self._normal_name = self.normalize_name(self.name)
-            return self._normal_name
-
     def generic(self):
-        return self.normal_name() == self.name
+        return self.shortname == self.name
 
     def get_derived_name(self, source, *qualifiers, mark_derived=False):
         return self.derive_name(source, *qualifiers)
@@ -181,11 +154,3 @@ class DerivableClass(inheriting.InheritingClass):
             dctx=dctx)
 
         return derived
-
-    def __setattr__(self, name, value):
-        super().__setattr__(name, value)
-        if name == 'name':
-            try:
-                delattr(self, '_normal_name')
-            except AttributeError:
-                pass

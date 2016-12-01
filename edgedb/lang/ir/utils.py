@@ -801,7 +801,7 @@ def extend_binop(binop,
 
 def get_path_step(path, ptr_name):
     for p in itertools.chain(path.conjunction.paths, path.disjunction.paths):
-        if p.link_class.normal_name() == ptr_name:
+        if p.link_class.shortname == ptr_name:
             return p.target
 
 
@@ -865,7 +865,7 @@ def extend_path(path, ptr_class,
             path.disjunction.fixed = weak_path
         else:
             atomref = irast.AtomicRefSimple(
-                name=ptr_class.normal_name(),
+                name=ptr_class.shortname,
                 ref=path,
                 id=atomref_id,
                 rlink=link,

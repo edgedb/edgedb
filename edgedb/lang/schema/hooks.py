@@ -20,7 +20,7 @@ def register_rewrite_hook(cls, action, callback, type):
         # (source, link) tuple
         scls = cls[0].__sx_class__
         ptr_class = cls[1].__sx_class__
-        ptr_name = ptr_class.normal_name()
+        ptr_name = ptr_class.shortname
         source_class = scls
     else:
         if hasattr(cls, '__sx_class__'):
@@ -28,7 +28,7 @@ def register_rewrite_hook(cls, action, callback, type):
 
             if isinstance(scls, pointers.Pointer):
                 scls = cls.__sx_class__
-                ptr_name = scls.normal_name()
+                ptr_name = scls.shortname
                 source_class = scls.source
             else:
                 source_class = scls
@@ -65,7 +65,7 @@ def register_access_control_hook(cls, action, callback):
 def get_access_control_hooks(scls, action):
     if isinstance(scls, pointers.Pointer):
         source = scls.source
-        pn = scls.normal_name()
+        pn = scls.shortname
     else:
         source = scls
         pn = None

@@ -237,10 +237,10 @@ class LinkProperty(pointers.Pointer):
 
         ptr = super().derive(schema, source, target, attrs=attrs, **kwargs)
 
-        if ptr.normal_name() == 'std::source':
+        if ptr.shortname == 'std::source':
             ptr.target = source.source
 
-        if ptr.normal_name() == 'std::target':
+        if ptr.shortname == 'std::target':
             ptr.target = source.target
 
         return ptr

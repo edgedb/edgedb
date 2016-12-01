@@ -73,8 +73,8 @@ class IRDecompiler:
                 target = el.rlink.target.concept.name
                 target = qlast.ClassRefNode(name=target.name, module=target.module)
 
-                refpath = qlast.LinkNode(name=el.rlink.link_class.normal_name().name,
-                                         namespace=el.rlink.link_class.normal_name().module,
+                refpath = qlast.LinkNode(name=el.rlink.link_class.shortname.name,
+                                         namespace=el.rlink.link_class.shortname.module,
                                          target=target, direction=el.rlink.direction)
                 refpath = qlast.LinkExprNode(expr=refpath)
                 sitem = qlast.SelectPathSpecNode(expr=refpath)
@@ -107,8 +107,8 @@ class IRDecompiler:
                 target = el.concept.name
                 target = qlast.ClassRefNode(name=target.name, module=target.module)
 
-                refpath = qlast.LinkNode(name=el.rlink.link_class.normal_name().name,
-                                         namespace=el.rlink.link_class.normal_name().module,
+                refpath = qlast.LinkNode(name=el.rlink.link_class.shortname.name,
+                                         namespace=el.rlink.link_class.shortname.module,
                                          target=target, direction=el.rlink.direction)
                 refpath = qlast.LinkExprNode(expr=refpath)
                 sitem = qlast.SelectPathSpecNode(expr=refpath)
@@ -279,7 +279,7 @@ class IRDecompiler:
             while expr.rlink and (not expr.show_as_anchor or context.inline_anchors):
                 linknode = expr.rlink
                 linkclass = linknode.link_class
-                lname = linkclass.normal_name()
+                lname = linkclass.shortname
 
                 target = linknode.target.concept.name
                 target = qlast.ClassRefNode(name=target.name, module=target.module)
@@ -343,7 +343,7 @@ class IRDecompiler:
                     path = qlast.PathNode()
 
                 linkclass = expr.link_class
-                lname = linkclass.normal_name()
+                lname = linkclass.shortname
 
                 if expr.target and isinstance(expr.target, irast.EntitySet):
                     target = expr.target.concept.name

@@ -440,7 +440,7 @@ class EdgeQLCompiler:
                     src.disjunction.update(step)
 
             elif isinstance(scls, s_lprops.LinkProperty):
-                ptr_name = scls.normal_name()
+                ptr_name = scls.shortname
 
                 if scls.source.source:
                     src = irast.EntitySet()
@@ -1348,7 +1348,7 @@ class EdgeQLCompiler:
                             name=ptrname[1]),
                     ).derive(schema, ptrsource, target_class)
 
-                    if ptr.normal_name() == 'std::__class__':
+                    if ptr.shortname == 'std::__class__':
                         msg = 'cannot assign to __class__'
                         raise errors.EdgeQLError(msg, context=lexpr.context)
                 else:
@@ -1588,7 +1588,7 @@ class EdgeQLCompiler:
                             ptr_type=s_lprops.LinkProperty)
 
                         propref = irast.LinkPropRefSimple(
-                            name=prop_class.normal_name(),
+                            name=prop_class.shortname,
                             ref=link,
                             id=id,
                             ptr_class=prop_class)
@@ -1609,7 +1609,7 @@ class EdgeQLCompiler:
             pref_id.add(link_class, s_pointers.PointerDirection.Outbound,
                         link_class.target)
             ptr_class = link_class.pointers['std::target']
-            ptr_name = ptr_class.normal_name()
+            ptr_name = ptr_class.shortname
             propref = irast.LinkPropRefSimple(
                 name=ptr_name, ref=path_tip, id=pref_id, ptr_class=ptr_class)
             propref.anchor = path_tip.anchor
@@ -1826,7 +1826,7 @@ class EdgeQLCompiler:
 
         if concept.is_virtual:
             ptrs = concept.get_children_common_pointers(schema)
-            ptrs = {ptr.normal_name(): ptr for ptr in ptrs}
+            ptrs = {ptr.shortname: ptr for ptr in ptrs}
             ptrs.update(concept.pointers)
         else:
             ptrs = concept.pointers
@@ -1843,7 +1843,7 @@ class EdgeQLCompiler:
         if pathspec is not None:
             for ps in pathspec:
                 if isinstance(ps.ptr_class, s_links.Link):
-                    k = ps.ptr_class.normal_name(), ps.ptr_direction
+                    k = ps.ptr_class.shortname, ps.ptr_direction
                     recurse_links[k] = ps
 
         for (link_name, link_direction), recurse_spec in recurse_links.items():
@@ -1965,8 +1965,8 @@ class EdgeQLCompiler:
                     sort_target = irutils.copy_path(sortpath)
 
                     if isinstance(sortpath, irast.LinkPropRef):
-                        if (sortpath.ref.link_class.normal_name() ==
-                                link_node.link_class.normal_name()):
+                        if (sortpath.ref.link_class.shortname ==
+                                link_node.link_class.shortname):
                             sort_target.ref = link_node
                             link_node.proprefs.add(sort_target)
                         else:
@@ -2048,7 +2048,7 @@ class EdgeQLCompiler:
                     for ps in recurse_spec.pathspec:
                         if (isinstance(ps.ptr_class, s_lprops.LinkProperty) and
                                 not ps.ptr_class.is_endpoint_pointer()):
-                            recurse_props[ps.ptr_class.normal_name()] = ps
+                            recurse_props[ps.ptr_class.shortname] = ps
                 else:
                     recurse_props = {}
 
@@ -2071,7 +2071,7 @@ class EdgeQLCompiler:
                     if not isinstance(el, irast.Record):
                         std_tgt = link_class.pointers['std::target']
                         std_tgt_ref = irast.LinkPropRefSimple(
-                            name=std_tgt.normal_name(),
+                            name=std_tgt.shortname,
                             id=full_path_id,
                             ptr_class=std_tgt,
                             ref=link_node)
@@ -2208,8 +2208,8 @@ class EdgeQLCompiler:
                     pathspec=ptrspec.pathspec[:])
 
                 for i, subptrspec in enumerate(ptrspec.pathspec):
-                    if (subptrspec.ptr_class.normal_name() ==
-                            ptrspec.ptr_class.normal_name()):
+                    if (subptrspec.ptr_class.shortname ==
+                            ptrspec.ptr_class.shortname):
                         ptrspec.pathspec[i] = recspec
                         break
                 else:
@@ -2232,7 +2232,7 @@ class EdgeQLCompiler:
         for item1 in pathspec1:
             item1_subspec = item1.pathspec
 
-            item1_lname = item1.ptr_class.normal_name()
+            item1_lname = item1.ptr_class.shortname
             item1_ldir = item1.ptr_direction
 
             for i, item2 in enumerate(pathspec2):
@@ -2241,7 +2241,7 @@ class EdgeQLCompiler:
 
                 item2_subspec = item2.pathspec
 
-                item2_lname = item2.ptr_class.normal_name()
+                item2_lname = item2.ptr_class.shortname
                 item2_ldir = item2.ptr_direction
 
                 if item1_lname == item2_lname and item1_ldir == item2_ldir:

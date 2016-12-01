@@ -325,7 +325,7 @@ class NormalizeNameFunction(dbops.Function):
 
     def __init__(self):
         super().__init__(
-            name=('edgedb', 'normalize_name'),
+            name=('edgedb', 'get_shortname'),
             args=[('name', 'text')],
             returns='text',
             volatility='immutable',
@@ -570,7 +570,7 @@ ql = common.quote_literal
 
 
 def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
-    pn = ptr.normal_name()
+    pn = ptr.shortname
 
     if refdict:
         if (issubclass(mcls, s_inheriting.InheritingClass) or
@@ -677,7 +677,7 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
                     aname = ql(aname) + '::text'
                     aval = q(fn) + '::text'
                     if fn == 'name':
-                        aval = 'edgedb.normalize_name({})'.format(aval)
+                        aval = 'edgedb.get_shortname({})'.format(aval)
                     attrs.append([aname, aval])
 
                 if attrs:
@@ -985,11 +985,11 @@ async def generate_views(conn, schema):
             if ptrstor.table_type == 'concept':
                 if (pn.name == 'name' and
                         issubclass(mcls, s_derivable.DerivableClass)):
-                    col_expr = 'edgedb.normalize_name({})'.format(q(pn.name))
+                    col_expr = 'edgedb.get_shortname({})'.format(q(pn.name))
                 else:
                     col_expr = q(pn.name)
 
-                cols.append((col_expr, dbname(ptr.normal_name())))
+                cols.append((col_expr, dbname(ptr.shortname)))
             else:
                 view = _get_link_view(mcls, schema_cls, field, ptr, refdict,
                                       schema)

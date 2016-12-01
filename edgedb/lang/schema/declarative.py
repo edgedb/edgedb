@@ -337,7 +337,7 @@ class DeclarationLoader:
                         'link {!r} does not define property '
                         '{!r}'.format(link.name, prop_qname))
 
-                prop_qname = propdef.normal_name()
+                prop_qname = propdef.shortname
 
             prop = prop_base.derive(self._schema, link, prop_target,
                                     add_to_schema=True)
@@ -598,7 +598,7 @@ class DeclarationLoader:
             raise s_err.SchemaError(
                 'could not determine the result type of the default '
                 'expression on {!s}.{!s}'.format(
-                    source.name, ptr.normal_name()),
+                    source.name, ptr.shortname),
                 context=expr.context)
 
         ptr.default = expr_text

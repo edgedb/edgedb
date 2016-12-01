@@ -48,7 +48,7 @@ class Source(primary.PrimaryClass, indexes.IndexableSubject):
     @property
     def readonly_pointers(self):
         if self._ro_pointers is None:
-            self._ro_pointers = set(l.normal_name()
+            self._ro_pointers = set(l.shortname
                                     for l in self.pointers.values()
                                     if l.readonly)
 
@@ -143,12 +143,12 @@ class Source(primary.PrimaryClass, indexes.IndexableSubject):
             names = {}
 
             for ptr in ptrs:
-                nq_name = ptr.normal_name().name
+                nq_name = ptr.shortname.name
                 fq_name = names.get(nq_name)
 
                 if fq_name is None:
-                    names[nq_name] = ptr.normal_name()
-                elif fq_name != ptr.normal_name():
+                    names[nq_name] = ptr.shortname
+                elif fq_name != ptr.shortname:
                     ambig.add(ptr)
 
             if ambig:
@@ -409,7 +409,7 @@ class Source(primary.PrimaryClass, indexes.IndexableSubject):
     def del_pointer(self, pointer, schema):
         self.del_classref('pointers', pointer.name, schema)
         if self._ro_pointers is not None:
-            pointer_name = pointer.normal_name()
+            pointer_name = pointer.shortname
             self._ro_pointers.discard(pointer_name)
 
     @classmethod
