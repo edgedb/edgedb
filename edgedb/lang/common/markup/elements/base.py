@@ -5,7 +5,8 @@
 # See LICENSE for details.
 ##
 
-from edgedb.lang.common.datastructures import Struct, Field, typed
+from edgedb.lang.common.struct import Struct, Field
+from edgedb.lang.common import typed
 
 
 class MarkupMeta(type(Struct)):

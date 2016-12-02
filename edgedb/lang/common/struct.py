@@ -142,7 +142,7 @@ class Struct(metaclass=StructMeta):
 
     .. code-block:: pycon
 
-        >>> from edgedb.lang.common.datastructures import Struct, Field
+        >>> from edgedb.lang.common.struct import Struct, Field
 
         >>> class MyStruct(Struct):
         ...    name = Field(type=str)

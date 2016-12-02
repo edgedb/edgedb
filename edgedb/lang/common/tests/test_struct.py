@@ -6,9 +6,9 @@
 ##
 
 import pickle
+import unittest
 
-from edgedb.lang.common.datastructures.struct import Struct, MixedStruct, Field
-from edgedb.lang.common.debug import assert_raises
+from edgedb.lang.common.struct import Struct, MixedStruct, Field
 
 
 class PickleTest(Struct):
@@ -21,13 +21,14 @@ class PickleTestMixed(MixedStruct):
     b = Field(int)
 
 
-class TestUtilsDSStruct:
-    def test_utils_ds_struct_basics(self):
+class StructTests(unittest.TestCase):
+
+    def test_common_struct_basics(self):
         class Test(Struct):
             field1 = Field(type=str, default='42')
             field2 = Field(type=bool)
 
-        with assert_raises(TypeError, error_re='field2 is required'):
+        with self.assertRaisesRegex(TypeError, 'field2 is required'):
             Test()
 
         t = Test(field2=False)
@@ -36,23 +37,23 @@ class TestUtilsDSStruct:
 
         assert set(t) == {'field1', 'field2'}
 
-    def test_utils_ds_struct_coercion(self):
+    def test_common_struct_coercion(self):
         class Test(Struct):
             field = Field(type=int, coerce=True)
 
         assert Test(field=1).field == 1
         assert Test(field='42').field == 42
-        with assert_raises(TypeError, error_re='auto-coercion'):
+        with self.assertRaisesRegex(TypeError, 'cannot coerce'):
             Test(field='42.2')
 
         class Test(Struct):
             field = Field(type=int)
 
         assert Test(field=1).field == 1
-        with assert_raises(TypeError, error_re='expected int'):
+        with self.assertRaisesRegex(TypeError, 'expected int'):
             Test(field='42')
 
-    def test_utils_ds_struct_strictness(self):
+    def test_common_struct_strictness(self):
         class Test(Struct):
             field = Field(str, None)
 
@@ -61,7 +62,7 @@ class TestUtilsDSStruct:
         t = Test()
         t.field = 'foo'
         assert t.field == 'foo'
-        with assert_raises(AttributeError, error_re='has no attribute'):
+        with self.assertRaisesRegex(AttributeError, 'has no attribute'):
             t.foo = 'bar'
 
         class DTest(Test):
@@ -72,20 +73,20 @@ class TestUtilsDSStruct:
         t.field2 = 2
         assert t.field == '1'
         assert t.field2 == 2
-        with assert_raises(AttributeError, error_re='has no attribute'):
+        with self.assertRaisesRegex(AttributeError, 'has no attribute'):
             t.foo = 'bar'
 
-        with assert_raises(
-                TypeError, error_re='field3 is an invalid argument'):
+        with self.assertRaisesRegex(
+                TypeError, 'field3 is an invalid argument'):
             DTest(field='1', field2=2, field3='aaa')
 
         t = DTest()
 
-        with assert_raises(
-                TypeError, error_re='field3 is an invalid argument'):
+        with self.assertRaisesRegex(TypeError,
+                                    'field3 is an invalid argument'):
             t.update(field='1', field2=2, field3='aaa')
 
-    def test_utils_ds_struct_mixed(self):
+    def test_common_struct_mixed(self):
         class Test(MixedStruct):
             field1 = Field(type=str, default='42')
             field2 = Field(type=bool)
@@ -96,7 +97,7 @@ class TestUtilsDSStruct:
         t1.monty = 'python'
         assert t1.monty == 'python'
 
-    def test_utils_ds_struct_pickle(self):
+    def test_common_struct_pickle(self):
         s1 = PickleTest(b=41)
         s2 = pickle.loads(pickle.dumps(s1))
         assert s2.b == 41 and s2.a == '42'

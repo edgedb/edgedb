@@ -10,7 +10,7 @@ import unittest
 
 from edgedb.lang.common import markup
 from edgedb.lang.common.markup.format import xrepr
-from edgedb.lang.common.datastructures import Field
+from edgedb.lang.common.struct import Field
 
 
 class SpecialList(list):

@@ -5,12 +5,15 @@
 # See LICENSE for details.
 ##
 
-from edgedb.lang.common.datastructures import Multidict
-from edgedb.lang.common.debug import assert_raises
+
+import unittest
+
+from edgedb.lang.common.multidict import Multidict
 
 
-class TestDatastructMultidict:
-    def test_utils_ds_multidict(self):
+class MultidictTests(unittest.TestCase):
+
+    def test_common_multidict(self):
         a = Multidict((('a', 'b'), ('c', 'dd'), ('c', 'c'), ('z', (1, 2, 3)),
                        ('z', 2)))
 
@@ -25,7 +28,7 @@ class TestDatastructMultidict:
         assert a.getlist('c') == ['dd', 'c']
         assert a.getlist('z') == [1, 2, 3, 2]
 
-        with assert_raises(KeyError):
+        with self.assertRaises(KeyError):
             a['v']
 
         assert a.get('v') is None
@@ -78,6 +81,6 @@ class TestDatastructMultidict:
         assert b.pop('c') == 2
         assert b.pop('c', default=None) is None
         assert b.pop('c', default=22) is 22
-        with assert_raises(KeyError):
+        with self.assertRaises(KeyError):
             b.pop('c')
         assert 'c' not in b

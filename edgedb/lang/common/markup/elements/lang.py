@@ -7,8 +7,8 @@
 
 import linecache
 
-from edgedb.lang.common.datastructures import Field
-from edgedb.lang.common.datastructures import typed
+from edgedb.lang.common.struct import Field
+from edgedb.lang.common import typed
 from . import base
 
 

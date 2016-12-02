@@ -9,7 +9,7 @@ import functools
 import itertools
 
 from edgedb.lang.common import ast
-from edgedb.lang.common import datastructures
+from edgedb.lang.common import multidict
 
 from edgedb.lang.schema import atoms as s_atoms
 from edgedb.lang.schema import concepts as s_concepts
@@ -773,7 +773,7 @@ def get_path_index(expr):
     else:
         paths = [paths]
 
-    path_idx = datastructures.Multidict()
+    path_idx = multidict.Multidict()
     for path in paths:
         if isinstance(path, irast.EntitySet):
             path_idx.add(path.id, path)

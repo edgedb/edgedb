@@ -16,9 +16,7 @@ from edgedb.lang.common import adapter
 from edgedb.lang import edgeql
 from edgedb.lang.edgeql import ast as qlast
 
-from edgedb.lang.common import datastructures, markup, ordered
-from edgedb.lang.common.datastructures import Field
-from edgedb.lang.common.datastructures import typed
+from edgedb.lang.common import markup, ordered, struct, typed
 from edgedb.lang.common.nlang import morphology
 from edgedb.lang.common.algos.persistent_hash import persistent_hash
 
@@ -195,7 +193,7 @@ class DeltaHookNotFoundError(DeltaHookError):
     pass
 
 
-class DeltaMeta(datastructures.MixedStructMeta):
+class DeltaMeta(struct.MixedStructMeta):
     pass
 
 
@@ -247,20 +245,20 @@ class DeltaDriver:
         self.delete = delete
 
 
-class Delta(datastructures.MixedStruct, metaclass=DeltaMeta):
+class Delta(struct.MixedStruct, metaclass=DeltaMeta):
     CURRENT_FORMAT_VERSION = 14
 
-    id = datastructures.Field(int)
-    parent_id = datastructures.Field(int, None)
-    comment = datastructures.Field(str, None)
-    checksum = datastructures.Field(int)
-    checksum_details = datastructures.Field(list, list)
-    deltas = datastructures.Field(list, None)
-    script = datastructures.Field(str, None)
-    snapshot = datastructures.Field(object, None)
-    formatver = datastructures.Field(int, None)
-    preprocess = Field(str, None)
-    postprocess = Field(str, None)
+    id = struct.Field(int)
+    parent_id = struct.Field(int, None)
+    comment = struct.Field(str, None)
+    checksum = struct.Field(int)
+    checksum_details = struct.Field(list, list)
+    deltas = struct.Field(list, None)
+    script = struct.Field(str, None)
+    snapshot = struct.Field(object, None)
+    formatver = struct.Field(int, None)
+    preprocess = struct.Field(str, None)
+    postprocess = struct.Field(str, None)
 
     def __init__(self, **kwargs):
         hash_items = (kwargs['parent_id'], kwargs['checksum'],
@@ -343,12 +341,12 @@ class DeltaSet:
         return bool(self.deltas)
 
 
-class CommandMeta(adapter.Adapter, datastructures.MixedStructMeta):
+class CommandMeta(adapter.Adapter, struct.MixedStructMeta):
     _astnode_map = {}
 
     def __init__(cls, name, bases, clsdict, *, adapts=None):
         adapter.Adapter.__init__(cls, name, bases, clsdict, adapts=adapts)
-        datastructures.MixedStructMeta.__init__(cls, name, bases, clsdict)
+        struct.MixedStructMeta.__init__(cls, name, bases, clsdict)
         astnodes = clsdict.get('astnode')
         if astnodes:
             if not isinstance(astnodes, (list, tuple)):
@@ -367,7 +365,7 @@ class CommandMeta(adapter.Adapter, datastructures.MixedStructMeta):
 
 
 @markup.serializer.serializer(method='as_markup')
-class Command(datastructures.MixedStruct, metaclass=CommandMeta):
+class Command(struct.MixedStruct, metaclass=CommandMeta):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.ops = ordered.OrderedSet()
@@ -596,10 +594,10 @@ class Command(datastructures.MixedStruct, metaclass=CommandMeta):
         return node
 
     def __str__(self):
-        return datastructures.MixedStruct.__str__(self)
+        return struct.MixedStruct.__str__(self)
 
     def __repr__(self):
-        flds = datastructures.MixedStruct.__repr__(self)
+        flds = struct.MixedStruct.__repr__(self)
         return '<{}.{}{}>'.format(self.__class__.__module__,
                                   self.__class__.__name__,
                                   (' ' + flds) if flds else '')
@@ -682,7 +680,7 @@ class DeltaUpgradeContext(CommandContext):
 
 
 class ClassCommand(Command):
-    metaclass = Field(so.MetaClass, str_formatter=None)
+    metaclass = struct.Field(so.MetaClass, str_formatter=None)
 
 
 class Ghost(ClassCommand):
@@ -743,10 +741,10 @@ class AlterSpecialClassProperty(Command):
 
 
 class AlterClassProperty(Command):
-    property = Field(str)
-    old_value = Field(object, None)
-    new_value = Field(object, None)
-    source = Field(str, None)
+    property = struct.Field(str)
+    old_value = struct.Field(object, None)
+    new_value = struct.Field(object, None)
+    source = struct.Field(str, None)
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):

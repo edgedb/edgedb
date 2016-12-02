@@ -6,8 +6,7 @@
 ##
 
 
-from edgedb.lang.common.datastructures import typed
-
+from edgedb.lang.common import typed
 from . import literal
 
 

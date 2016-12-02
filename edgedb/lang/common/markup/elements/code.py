@@ -5,7 +5,7 @@
 # See LICENSE for details.
 ##
 
-from edgedb.lang.common.datastructures import typed, struct
+from edgedb.lang.common import struct, typed
 from . import base
 
 

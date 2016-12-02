@@ -6,6 +6,9 @@
 ##
 
 
+__all__ = 'xvalue',
+
+
 class xvalue:
     """A "rich" value with an arbitrary set of additional attributes."""
 

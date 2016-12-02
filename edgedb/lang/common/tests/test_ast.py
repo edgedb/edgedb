@@ -5,13 +5,74 @@
 # See LICENSE for details.
 ##
 
+
+import copy
+import unittest
+
+from edgedb.lang.common import ast
 from edgedb.lang.common.ast import match
 
-from . import ast as tast
-from . import astmatch as tastmatch
+
+class tast:
+
+    class Base(ast.AST):
+        pass
+
+    class BinOp(Base):
+        __fields = ['op', 'left', 'right']
+
+    class UnaryOp(Base):
+        __fields = ['op', 'operand']
+
+    class FunctionCall(Base):
+        __fields = ['name', ('args', list)]
+
+    class Constant(Base):
+        __fields = ['value']
 
 
-class TestUtilsASTMatch:
+class tastmatch:
+
+    for name, cls in tast.__dict__.items():
+        if isinstance(cls, type) and issubclass(cls, ast.AST):
+            adapter = match.MatchASTMeta(
+                name, (match.MatchASTNode, ), {'__module__': __name__},
+                adapts=cls)
+            locals()[name] = adapter
+
+
+class ASTBaseTests(unittest.TestCase):
+
+    def test_common_ast_copy(self):
+        lconst = tast.Constant(value='foo')
+        tree1 = tast.BinOp(left=lconst)
+        ctree11 = copy.copy(tree1)
+
+        assert ctree11 is not tree1
+        assert ctree11.left is lconst
+
+        ctree12 = copy.deepcopy(tree1)
+        assert ctree12 is not tree1
+        assert ctree12.left is not lconst
+        assert ctree12.left.value == lconst.value
+
+        class Dict(tast.Base):
+            __fields = [('node', dict)]
+
+        tree2 = tast.BinOp(
+            left=tast.FunctionCall(args=[Dict(node={'lconst': lconst})]))
+
+        ctree21 = copy.copy(tree2)
+        assert ctree21 is not tree2
+        assert ctree21.left.args[0].node['lconst'] is lconst
+
+        ctree22 = copy.deepcopy(tree2)
+        assert ctree22 is not tree2
+        assert ctree22.left.args[0].node['lconst'] is not lconst
+        assert ctree22.left.args[0].node['lconst'].value == lconst.value
+
+
+class ASTMatchTests(unittest.TestCase):
     tree1 = tast.BinOp(
         left=tast.BinOp(
             left=tast.FunctionCall(
@@ -85,7 +146,7 @@ class TestUtilsASTMatch:
 
     tree4 = tast.Constant(value='one and only')
 
-    def test_utils_ast_match(self):
+    def test_common_ast_match(self):
         assert match.match(self.pat1, self.tree1)
         assert not match.match(self.pat2, self.tree1)
 

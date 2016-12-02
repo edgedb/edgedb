@@ -8,7 +8,7 @@
 
 import re
 
-from edgedb.lang.common.datastructures import xvalue
+from edgedb.lang.common.xvalue import xvalue
 from edgedb.lang.common import lexer
 
 from .keywords import edge_schema_keywords

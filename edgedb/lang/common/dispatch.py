@@ -6,7 +6,7 @@
 ##
 """A limited implementation of Multiple Dispatch pattern."""
 
-from edgedb.lang.common.datastructures.registry import WeakObjectRegistry
+from edgedb.lang.common.registry import WeakObjectRegistry
 
 _TYPE_HANDLER = 1
 _TYPE_METHOD_NAME = 2

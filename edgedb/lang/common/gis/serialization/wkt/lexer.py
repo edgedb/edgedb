@@ -6,7 +6,7 @@
 ##
 
 from edgedb.lang.common import lexer
-from edgedb.lang.common.datastructures import xvalue
+from edgedb.lang.common.xvalue import xvalue
 
 from .errors import WKTSyntaxError
 

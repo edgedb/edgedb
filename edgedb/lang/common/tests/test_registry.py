@@ -6,16 +6,18 @@
 ##
 
 import gc
+import unittest
 
-from edgedb.lang.common.datastructures.registry import WeakObjectRegistry
+from edgedb.lang.common.registry import WeakObjectRegistry
 
 
 class Obj:
     pass
 
 
-class TestDatastructMultidict:
-    def test_utils_ds_registry_weak(self):
+class RegistryTests(unittest.TestCase):
+
+    def test_common_registry_weak(self):
         r = WeakObjectRegistry()
 
         obj = Obj()

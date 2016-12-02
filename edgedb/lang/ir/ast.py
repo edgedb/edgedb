@@ -10,8 +10,7 @@ import itertools
 import weakref
 
 from edgedb.lang.common.exceptions import EdgeDBError
-from edgedb.lang.common import ast, parsing
-from edgedb.lang.common.datastructures import typed
+from edgedb.lang.common import ast, parsing, typed
 
 from edgedb.lang.schema import name as sn
 from edgedb.lang.schema import objects as so

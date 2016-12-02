@@ -9,7 +9,7 @@ import re
 
 from importkit import context as lang_context
 from importkit.context import SourcePoint
-from edgedb.lang.common.datastructures import xvalue
+from edgedb.lang.common.xvalue import xvalue
 from edgedb.lang.common import markup
 
 

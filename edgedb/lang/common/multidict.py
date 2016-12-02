@@ -7,10 +7,12 @@
 
 import collections
 
+
 _NoDefault = object()
 
 
 class Multidict(collections.UserDict):
+
     def __init__(self, data=None):
         if isinstance(data, dict):
             self.data = collections.OrderedDict(
