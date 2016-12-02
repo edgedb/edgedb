@@ -11,7 +11,7 @@ from edgedb.lang.edgeql import parser
 from edgedb.lang.common import debug
 from edgedb.lang.common import markup  # NOQA
 
-from . import compiler2
+from . import compiler
 from .decompiler import decompile_ir  # NOQA
 
 
@@ -23,7 +23,7 @@ def compile_fragment_to_ir(expr,
                            modaliases=None):
     """Compile given EdgeQL expression fragment into EdgeDB IR."""
     tree = parser.parse_fragment(expr)
-    trans = compiler2.EdgeQLCompiler(schema, modaliases)
+    trans = compiler.EdgeQLCompiler(schema, modaliases)
     return trans.transform_fragment(
         tree, (), anchors=anchors, location=location)
 
@@ -35,7 +35,7 @@ def compile_ast_fragment_to_ir(tree,
                                location=None,
                                modaliases=None):
     """Compile given EdgeQL AST fragment into EdgeDB IR."""
-    trans = compiler2.EdgeQLCompiler(schema, modaliases)
+    trans = compiler.EdgeQLCompiler(schema, modaliases)
     return trans.transform_fragment(
         tree, (), anchors=anchors, location=location)
 
@@ -57,7 +57,7 @@ def compile_to_ir(expr,
     from edgedb.lang.common import markup
     markup.dump(tree)
     """
-    trans = compiler2.EdgeQLCompiler(schema, modaliases)
+    trans = compiler.EdgeQLCompiler(schema, modaliases)
 
     ir = trans.transform(
         tree,
@@ -86,7 +86,7 @@ def compile_ast_to_ir(tree,
     from edgedb.lang.common import markup
     markup.dump(tree)
     """
-    trans = compiler2.EdgeQLCompiler(schema, modaliases)
+    trans = compiler.EdgeQLCompiler(schema, modaliases)
 
     ir = trans.transform(
         tree,

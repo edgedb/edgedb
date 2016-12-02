@@ -6,7 +6,7 @@
 ##
 
 from edgedb.lang.common.ast import match as astmatch
-from . import ast2 as pgast  # NOQA
+from . import ast as pgast  # NOQA
 from . import astmatch as pgastmatch
 
 

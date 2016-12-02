@@ -12,7 +12,7 @@ from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import types as s_types
 
-from . import ast2 as irast
+from . import ast as irast
 
 
 class PathIndex(dict):

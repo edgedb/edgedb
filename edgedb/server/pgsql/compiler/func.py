@@ -8,7 +8,7 @@
 
 from edgedb.lang.common import ast
 
-from edgedb.server.pgsql import ast2 as pgast
+from edgedb.server.pgsql import ast as pgast
 from edgedb.server.pgsql import common
 
 

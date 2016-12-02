@@ -11,7 +11,7 @@ import re
 
 from edgedb.lang.common.ordered import OrderedSet
 
-from edgedb.server.pgsql import ast2 as pgast
+from edgedb.server.pgsql import ast as pgast
 from edgedb.server.pgsql import common
 
 

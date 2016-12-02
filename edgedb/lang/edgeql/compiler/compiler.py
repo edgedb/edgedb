@@ -8,7 +8,7 @@
 
 import itertools
 
-from edgedb.lang.ir import ast2 as irast
+from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import concepts as s_concepts

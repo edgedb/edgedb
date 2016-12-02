@@ -25,11 +25,11 @@
 
 from edgedb.lang.common import ast
 
-from edgedb.lang.ir import ast2 as irast
+from edgedb.lang.ir import ast as irast
 
 from edgedb.lang.schema import atoms as s_atoms
 
-from edgedb.server.pgsql import ast2 as pgast
+from edgedb.server.pgsql import ast as pgast
 from edgedb.server.pgsql import common
 from edgedb.server.pgsql import types as pg_types
 

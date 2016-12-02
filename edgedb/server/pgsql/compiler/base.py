@@ -6,7 +6,7 @@
 ##
 
 
-from edgedb.lang.ir import ast2 as irast
+from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import atoms as s_atoms
@@ -14,7 +14,7 @@ from edgedb.lang.schema import concepts as s_concepts
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
 
-from edgedb.server.pgsql import ast2 as pgast
+from edgedb.server.pgsql import ast as pgast
 from edgedb.server.pgsql import types as pg_types
 from edgedb.server.pgsql import exceptions as pg_errors
 

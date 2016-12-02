@@ -11,7 +11,7 @@ from edgedb.lang.common.debug import debug
 from edgedb.lang.schema import atoms as s_atoms
 from edgedb.lang.schema import lproperties as s_lprops
 
-from edgedb.server.pgsql import ast2 as pgast
+from edgedb.server.pgsql import ast as pgast
 from edgedb.server.pgsql import common
 
 from .context import TransformerContext

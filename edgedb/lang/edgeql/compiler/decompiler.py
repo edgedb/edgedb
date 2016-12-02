@@ -9,7 +9,7 @@
 from edgedb.lang.common import ast
 from edgedb.lang.schema import lproperties as s_lprops
 
-from edgedb.lang.ir import ast2 as irast
+from edgedb.lang.ir import ast as irast
 from edgedb.lang.edgeql import ast as qlast
 
 

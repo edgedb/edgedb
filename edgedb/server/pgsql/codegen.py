@@ -8,7 +8,7 @@
 import numbers
 
 from edgedb.server.pgsql import common
-from edgedb.server.pgsql import ast2 as pgast
+from edgedb.server.pgsql import ast as pgast
 from edgedb.lang.common.ast import codegen
 from edgedb.lang.common import markup
 from edgedb.lang.common import exceptions as edgedb_error

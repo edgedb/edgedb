@@ -8,7 +8,7 @@
 import collections
 import itertools
 
-from edgedb.lang.ir import ast2 as irast
+from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import astexpr as irastexpr
 from edgedb.lang.ir import utils as ir_utils
 from edgedb.lang import edgeql
@@ -23,13 +23,13 @@ from edgedb.lang.schema import name as sn
 from edgedb.lang.common import ast
 
 from .datasources import introspection
-from . import ast2 as pg_ast
+from . import ast as pg_ast
 from . import dbops
 from . import deltadbops
 from . import common
 from . import types
 from . import compiler
-from . import codegen2 as codegen
+from . import codegen
 
 
 class ConstraintMech:

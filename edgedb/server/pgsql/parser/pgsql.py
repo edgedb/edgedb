@@ -12,7 +12,7 @@
 import sys
 
 from edgedb.lang.common import ast, parsing
-from .. import ast2 as pgast
+from .. import ast as pgast
 
 from . import keywords
 from . import error

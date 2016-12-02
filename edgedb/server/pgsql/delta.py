@@ -40,9 +40,9 @@ from edgedb.lang.common.nlang import morphology
 from edgedb.server.pgsql import common
 from edgedb.server.pgsql import dbops, deltadbops, metaschema
 
-from . import ast2 as pg_ast
+from . import ast as pg_ast
 from . import compiler
-from . import codegen2 as codegen
+from . import codegen
 from . import datasources
 from . import schemamech
 from . import types
