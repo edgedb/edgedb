@@ -1,5 +1,5 @@
 ##
-# Portions Copyright (c) 2008-2010, 2016 MagicStack Inc.
+# Portions Copyright (c) 2008-present MagicStack Inc.
 # Portions Copyright (c) 2008 Armin Ronacher.
 # All rights reserved.
 #

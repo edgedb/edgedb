@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2012-2016 MagicStack Inc.
+# Copyright (c) 2012-present MagicStack Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
