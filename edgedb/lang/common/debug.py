@@ -31,7 +31,8 @@ __all__ = ()  # Don't.
 
 
 class flags:
-    pgsql_parse: 'Debug SQL parser' = False
+    pgsql_parser: 'Debug SQL parser' = False
+    edgeql_parser: 'Debug EdgeQL parser (rebuild grammar verbosly)' = False
     edgeql_compile: 'Dump EdgeQL/IR/SQL ASTs' = False
     delta_plan: 'Print expanded delta command tree prior to processing' = False
     delta_pgsql_plan: 'Print delta command tree annortated with DB ops' = False

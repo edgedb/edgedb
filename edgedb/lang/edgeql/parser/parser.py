@@ -6,10 +6,7 @@
 ##
 
 
-import os
-
-from edgedb.lang.common import parsing
-
+from edgedb.lang.common import debug, parsing
 from edgedb.lang.edgeql.errors import EdgeQLSyntaxError
 
 from .grammar import lexer
@@ -17,7 +14,7 @@ from .grammar import lexer
 
 class EdgeQLParserBase(parsing.Parser):
     def get_debug(self):
-        return bool(os.environ.get('EDGEDB_DEBUG_EDGEQL_PARSER'))
+        return debug.flags.edgeql_parser
 
     def get_exception(self, native_err, context):
         if isinstance(native_err, EdgeQLSyntaxError):
