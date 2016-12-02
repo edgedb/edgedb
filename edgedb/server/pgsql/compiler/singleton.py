@@ -6,8 +6,7 @@
 ##
 
 
-from edgedb.lang.common.debug import debug
-
+from edgedb.lang.common import debug
 from edgedb.lang.schema import atoms as s_atoms
 from edgedb.lang.schema import lproperties as s_lprops
 
@@ -19,7 +18,7 @@ from . import expr as expr_compiler
 
 
 class SingletonExprIRCompiler(expr_compiler.IRCompilerBase):
-    @debug
+
     def transform_to_sql_tree(self, ir_expr, *, schema):
         # Transform to sql tree
         self.context = TransformerContext()
@@ -27,10 +26,10 @@ class SingletonExprIRCompiler(expr_compiler.IRCompilerBase):
         ctx.memo = self._memo
         ctx.schema = schema
         qtree = self.visit(ir_expr)
-        """LOG [edgeql.compile] SQL Tree
-        from edgedb.lang.common import markup
-        markup.dump(qtree)
-        """
+
+        if debug.flags.edgeql_compile:
+            debug.header('SQL Tree')
+            debug.dump(qtree)
 
         return qtree
 

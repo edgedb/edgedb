@@ -23,7 +23,7 @@ from edgedb.server.pgsql import common
 from edgedb.server.pgsql import types as pg_types
 
 from edgedb.lang.common import ast
-from edgedb.lang.common.debug import debug
+from edgedb.lang.common import debug
 
 from .context import TransformerContext
 from . import expr as expr_compiler
@@ -43,7 +43,6 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         else:
             return self._memo
 
-    @debug
     def transform_to_sql_tree(self, ir_expr, *, schema, backend=None,
                               output_format=None):
         try:
@@ -55,10 +54,10 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             ctx.schema = schema
             ctx.output_format = output_format
             qtree = self.visit(ir_expr)
-            """LOG [edgeql.compile] SQL Tree
-            from edgedb.lang.common import markup
-            markup.dump(qtree)
-            """
+
+            if debug.flags.edgeql_compile:
+                debug.header('SQL Tree')
+                debug.dump(qtree)
 
         except Exception as e:
             try:
@@ -72,9 +71,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         return qtree
 
-    @debug
     def transform(self, ir_expr, *, schema, backend=None, output_format=None):
-
         qtree = self.transform_to_sql_tree(
             ir_expr, schema=schema, backend=backend,
             output_format=output_format)
@@ -85,11 +82,10 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         codegen = self._run_codegen(qtree)
         qchunks = codegen.result
         arg_index = codegen.param_index
-        """LOG [edgeql.compile]
-        from edgedb.lang.common import markup
-        qtext = ''.join(qchunks)
-        markup.dump_code(qtext, lexer='sql', header='SQL Query')
-        """
+
+        if debug.flags.edgeql_compile:
+            debug.header('SQL')
+            debug.dump_code(''.join(qchunks), lexer='sql')
 
         return qchunks, argmap, arg_index, type(qtree), tuple()
 

@@ -33,7 +33,7 @@ from edgedb.lang.schema import policy as s_policy
 from metamagic import json
 
 from edgedb.lang.common import ordered
-from edgedb.lang.common.debug import debug
+from edgedb.lang.common import debug
 from edgedb.lang.common import markup, nlang
 
 from edgedb.server.pgsql import common
@@ -62,13 +62,10 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
         for op in self.ops:
             self.pgops.add(op)
 
-    @debug
     async def execute(self, context):
-        """"""
+        if debug.flags.delta_execute:
+            debug.print('EXECUTING', repr(self))
 
-        """LINE [delta.execute] EXECUTING
-        repr(self)
-        """
         for op in sorted(
                 self.pgops, key=lambda i: getattr(i, 'priority', 0),
                 reverse=True):

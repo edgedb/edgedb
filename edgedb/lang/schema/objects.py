@@ -476,7 +476,6 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
                 for b in self.bases}
 
     @classmethod
-    # @debug.debug
     def delta_sets(cls, old, new, result, context=None, *,
                    old_schema=None, new_schema=None):
         adds_mods, dels = cls._delta_sets(old, new, context=context,
@@ -487,7 +486,6 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
         result.update(dels)
 
     @classmethod
-    # @debug.debug
     def _delta_sets(cls, old, new, context=None, *,
                     old_schema=None, new_schema=None):
         from edgedb.lang.schema import named as s_named

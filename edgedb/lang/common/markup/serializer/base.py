@@ -125,7 +125,7 @@ def _serialize_traceback_point(
     filename = frame.f_code.co_filename
 
     locals = None
-    if include_locals or ('markup.tb.locals' in debug.channels):
+    if include_locals or debug.flags.print_locals:
         locals = serialize(dict(frame.f_locals), ctx=ctx)
 
     if filename.startswith('.'):

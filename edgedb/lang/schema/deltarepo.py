@@ -11,8 +11,6 @@ from edgedb.lang import schema as so
 from edgedb.lang.schema import delta as sd
 from edgedb.lang.schema import database as s_db
 
-from edgedb.lang.common.debug import debug
-
 
 class MetaDeltaRepository:
 
@@ -94,7 +92,6 @@ class MetaDeltaRepository:
             for delta in reversed(deltas):
                 yield delta
 
-    @debug
     def upgrade(self, start_rev=None, end_rev=None,
                 new_format_ver=sd.Delta.CURRENT_FORMAT_VERSION):
 
@@ -109,9 +106,6 @@ class MetaDeltaRepository:
             d.upgrade(context, schema)
             d.apply(schema)
             d.checksum = schema.get_checksum()
-            """LOG [edgedb.delta.recordchecksums]
-            d.checksum_details = schema.get_checksum_details()
-            """
             self.write_delta(d)
 
     def get_schema(self, delta_obj):
@@ -164,7 +158,6 @@ class MetaDeltaRepository:
     def cumulative_delta(self, ref1, ref2):
         return self._cumulative_delta(ref1, ref2)[4]
 
-    @debug
     def calculate_delta(self, ref1, ref2, *, comment=None,
                         preprocess=None, postprocess=None):
         v1, v1_schema, v2, v2_schema, d = self._cumulative_delta(ref1, ref2)
@@ -177,10 +170,6 @@ class MetaDeltaRepository:
 
             checksum = v2_schema.get_checksum()
             checksum_details = None
-
-            """LOG [edgedb.delta.recordchecksums]
-            checksum_details = v2_schema.get_checksum_details()
-            """
 
             return sd.Delta(parent_id=parent_id, checksum=checksum,
                             checksum_details=checksum_details,

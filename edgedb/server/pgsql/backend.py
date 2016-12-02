@@ -14,7 +14,7 @@ import re
 import asyncpg
 
 from edgedb.lang.common import topological
-from edgedb.lang.common.debug import debug
+from edgedb.lang.common import debug
 from edgedb.lang.common import markup, nlang
 
 from edgedb.lang.common import exceptions as edgedb_error
@@ -440,22 +440,24 @@ class Backend(s_deltarepo.DeltaProvider):
     def adapt_delta(self, delta):
         return delta_cmds.CommandMeta.adapt(delta)
 
-    @debug
     def process_delta(self, delta, schema, session=None):
         """Adapt and process the delta command."""
-        """LOG [delta.plan] Delta Plan
-            markup.dump(delta)
-        """
+
+        if debug.flags.delta_plan:
+            debug.header('Delta Plan')
+            debug.dump(delta)
+
         delta = self.adapt_delta(delta)
         connection = session.get_connection() if session else self.connection
         context = delta_cmds.CommandContext(connection, session=session)
         delta.apply(schema, context)
-        """LOG [delta.plan.pgsql] PgSQL Delta Plan
-            markup.dump(delta)
-        """
+
+        if debug.flags.delta_pgsql_plan:
+            debug.header('PgSQL Delta Plan')
+            debug.dump(delta)
+
         return delta
 
-    @debug
     async def run_delta_command(self, delta_cmd):
         schema = await self.getschema()
         context = sd.CommandContext()
@@ -475,9 +477,6 @@ class Backend(s_deltarepo.DeltaProvider):
 
                 if delta.target is not None:
                     diff = sd.delta_schemas(delta.target, schema0)
-                    """LOG [migration.ddl] Migration DDL
-                        markup.dump(diff)
-                    """
                     ddl_plan.update(diff)
 
                 await self.run_ddl_command(ddl_plan)
@@ -511,12 +510,12 @@ class Backend(s_deltarepo.DeltaProvider):
         context = delta_cmds.CommandContext(self.connection, None)
         await dbops.Insert(table, records=[rec]).execute(context)
 
-    @debug
     async def run_ddl_command(self, ddl_plan):
         schema = await self.getschema()
-        """LOG [delta.plan.input] Delta Plan Input
-            markup.dump(ddl_plan)
-        """
+
+        if debug.flags.delta_plan_input:
+            debug.header('Delta Plan Input')
+            debug.dump(ddl_plan)
 
         test_schema = await self.readschema()
         context = sd.CommandContext()

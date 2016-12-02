@@ -40,7 +40,6 @@ def compile_ast_fragment_to_ir(tree,
         tree, (), anchors=anchors, location=location)
 
 
-@debug.debug
 def compile_to_ir(expr,
                   schema,
                   *,
@@ -49,14 +48,17 @@ def compile_to_ir(expr,
                   security_context=None,
                   modaliases=None):
     """Compile given EdgeQL statement into EdgeDB IR."""
-    """LOG [edgeql.compile] EdgeQL TEXT:
-    print(expr)
-    """
+
+    if debug.flags.edgeql_compile:
+        debug.header('EdgeQL TEXT')
+        debug.print(expr)
+
     tree = parser.parse(expr, modaliases)
-    """LOG [edgeql.compile] EdgeQL AST:
-    from edgedb.lang.common import markup
-    markup.dump(tree)
-    """
+
+    if debug.flags.edgeql_compile:
+        debug.header('EdgeQL AST')
+        debug.dump(tree)
+
     trans = compiler.EdgeQLCompiler(schema, modaliases)
 
     ir = trans.transform(
@@ -65,15 +67,14 @@ def compile_to_ir(expr,
         modaliases=modaliases,
         anchors=anchors,
         security_context=security_context)
-    """LOG [edgeql.compile] EdgeDB IR:
-    from edgedb.lang.common import markup
-    markup.dump(ir)
-    """
+
+    if debug.flags.edgeql_compile:
+        debug.header('EdgeDB IR')
+        debug.dump(ir)
 
     return ir
 
 
-@debug.debug
 def compile_ast_to_ir(tree,
                       schema,
                       *,
@@ -82,10 +83,11 @@ def compile_ast_to_ir(tree,
                       security_context=None,
                       modaliases=None):
     """Compile given EdgeQL AST into EdgeDB IR."""
-    """LOG [edgeql.compile] EdgeQL AST:
-    from edgedb.lang.common import markup
-    markup.dump(tree)
-    """
+
+    if debug.flags.edgeql_compile:
+        debug.header('EdgeQL AST')
+        debug.dump(tree)
+
     trans = compiler.EdgeQLCompiler(schema, modaliases)
 
     ir = trans.transform(
@@ -94,9 +96,9 @@ def compile_ast_to_ir(tree,
         modaliases=modaliases,
         anchors=anchors,
         security_context=security_context)
-    """LOG [edgeql.compile] EdgeDB IR:
-    from edgedb.lang.common import markup
-    markup.dump(ir)
-    """
+
+    if debug.flags.edgeql_compile:
+        debug.header('EdgeDB IR')
+        debug.dump(ir)
 
     return ir

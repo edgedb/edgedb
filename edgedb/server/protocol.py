@@ -21,7 +21,7 @@ from edgedb.lang.schema import database as s_db
 from edgedb.lang.schema import delta as s_delta
 from edgedb.lang.schema import deltas as s_deltas
 
-from edgedb.lang.common.debug import debug
+from edgedb.lang.common import debug
 from edgedb.lang.common import markup
 from edgedb.lang.common import exceptions
 from edgedb.lang.common import parsing
@@ -116,15 +116,15 @@ class Protocol(asyncio.Protocol):
     def send_message(self, msg):
         self.transport.write(json.dumps(msg).encode('utf-8'))
 
-    @debug
     def send_error(self, err):
         try:
             ctx = exceptions.get_context(err, parsing.ParserContext)
         except LookupError:
             ctx = None
-        """LOG [server] Error
-        markup.dump(err)
-        """
+
+        if debug.flags.server:
+            debug.header('Error')
+            debug.dump(err)
 
         self.send_message({
             '__type__': 'error',

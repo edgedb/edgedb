@@ -30,7 +30,7 @@ class WKTParser(parsing.Parser):
         return wkt
 
     def get_debug(self):
-        return 'utils.gis.parsers.wkt' in debug.channels
+        return False
 
     def get_exception(self, native_err, context):
         return WKTSyntaxError(native_err.args[0], context=context)

@@ -9,7 +9,7 @@ import base64
 import hashlib
 
 from edgedb.lang.common import markup
-from edgedb.lang.common.debug import debug
+from edgedb.lang.common import debug
 
 
 def pack_name(name, prefix_length=0):
@@ -34,7 +34,6 @@ class BaseCommand(metaclass=markup.MarkupCapableMeta):
 
         return code, vars
 
-    @debug
     async def execute(self, context):
         code, vars = await self.get_code_and_vars(context)
 
@@ -51,11 +50,12 @@ class BaseCommand(metaclass=markup.MarkupCapableMeta):
             if extra_before:
                 for cmd in extra_before:
                     await cmd.execute(context)
-            """LOG [delta.execute] Executing DDL:
-            print(repr(self))
-            print('CODE:', code)
-            print('VARS:', vars)
-            """
+
+            if debug.flags.delta_execute:
+                debug.header('Executing DDL')
+                debug.print(repr(self))
+                debug.print('CODE:', code)
+                debug.print('VARS:', vars)
 
             stmt = await context.db.prepare(code)
             result = await stmt.fetch(*vars)
@@ -125,16 +125,11 @@ class Command(BaseCommand):
 
         return result
 
-    @debug
     async def _execute(self, context, code, vars):
-        """"""
-
-        """LOG [delta.execute] Executing DDL:
-        print(repr(self))
-        print()
-        print('CODE:', code)
-        print('VARS:', vars)
-        """
+        if debug.flags.delta_execute:
+            debug.print(repr(self), '\n')
+            debug.print('CODE:', code)
+            debug.print('VARS:', vars)
 
         stmt = await context.db.prepare(code)
 
@@ -144,7 +139,6 @@ class Command(BaseCommand):
         result = await stmt.fetch(*vars)
         return result
 
-    @debug
     async def check_conditions(self, context, conditions, positive):
         result = True
         if conditions:

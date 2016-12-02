@@ -9,16 +9,12 @@ import asyncpg
 
 from edgedb.lang.schema import delta as s_delta
 from edgedb.lang.schema import deltas as s_deltas
-
-from edgedb.server import query as edgedb_query
-
-from edgedb.lang.common.debug import debug
 from edgedb.lang.common import exceptions
+from edgedb.server import query as edgedb_query
 
 from . import planner
 
 
-@debug
 async def execute_plan(plan, protocol):
     backend = protocol.backend
 
@@ -52,10 +48,6 @@ async def execute_plan(plan, protocol):
                 'unexpected transaction statement: {!r}'.format(plan))
 
     elif isinstance(plan, edgedb_query.Query):
-        """LOG [sql] EXECUTING SQL QUERY
-        print(plan.text)
-        """
-
         try:
             ps = await backend.connection.prepare(plan.text)
             return [r[0] for r in await ps.fetch()]
