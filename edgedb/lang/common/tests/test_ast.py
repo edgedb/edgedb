@@ -96,12 +96,14 @@ class ASTBaseTests(unittest.TestCase):
             Node().field_typing_list = ['abc']
 
         class Node(ast.AST):
+            field1: str
             field2: object
             field3: object = 123
 
-        Node().field = 123
+        Node().field1 = '123'
         Node().field2 = 'aaa'
         Node().field3 = 'aaa'
+        self.assertEqual(Node().field1, None)
         self.assertEqual(Node().field3, 123)
 
     def test_common_ast_type_anno(self):
