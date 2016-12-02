@@ -40,8 +40,8 @@ class TestInsert(tb.QueryTestCase):
                 required link num to int:
                     # XXX: circumventing sequence deficiency
                     default:=
-                        SELECT DefaultTest.num + 1
-                        ORDER BY DefaultTest.num DESC
+                        SELECT DefaultTest1.num + 1
+                        ORDER BY DefaultTest1.num DESC
                         LIMIT 1
                 link foo to str
         $$;

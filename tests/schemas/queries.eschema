@@ -85,7 +85,7 @@ concept Issue extends Named, Owned, Text:
         # 1* -- one-to-many mapping.
 
     link start_date to datetime:
-        default := SELECT datetime::current_datetime()
+        default := SELECT current_datetime()
         # The default value of start_date will be a
         # result of the EdgeQL expression above.
 

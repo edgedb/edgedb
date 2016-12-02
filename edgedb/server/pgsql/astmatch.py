@@ -9,7 +9,7 @@ import sys
 
 from edgedb.lang.common import ast
 from edgedb.lang.common.ast import match as astmatch
-from . import ast as pgast
+from . import ast2 as pgast
 
 for name, cls in pgast.__dict__.items():
     if isinstance(cls, type) and issubclass(cls, ast.AST):

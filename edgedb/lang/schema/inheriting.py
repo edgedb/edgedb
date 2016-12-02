@@ -124,6 +124,11 @@ class CreateInheritingClass(named.CreateNamedClass, InheritingClassCommand):
 
         return bases
 
+    def _create_finalize(self, schema, context):
+        super()._create_finalize(schema, context)
+        for base in self.scls.bases:
+            schema.drop_inheritance_cache(base)
+
 
 class AlterInheritingClass(named.AlterNamedClass, InheritingClassCommand):
     def _alter_begin(self, schema, context, scls):

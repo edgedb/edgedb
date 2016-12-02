@@ -55,15 +55,13 @@ from edgedb.server.pgsql import deltadbops
 from . import datasources
 from .datasources import introspection
 
-from .transformer import IRCompiler
-from . import compiler
-
 from . import astexpr
-from . import parser
-from . import types
-from . import transformer
-from . import schemamech
+from . import compiler
+from .compiler import decompiler
 from . import deltarepo as pgsql_deltarepo
+from . import parser
+from . import schemamech
+from . import types
 
 
 class Cursor:
@@ -268,76 +266,6 @@ class ErrorMech:
                 return errcls(msg=msg)
         else:
             return edgedb_error.EdgeDBBackendError(err.message)
-
-
-class EdgeQLAdapter:
-    cache = {}
-
-    def __init__(self, session):
-        self.session = session
-        self.connection = session.get_connection()
-        self.transformer = IRCompiler()
-        self.current_portal = None
-
-    def transform(
-            self, query, scrolling_cursor=False, context=None, *, schema,
-            output_format=None):
-        if scrolling_cursor:
-            offset = query.offset
-            limit = query.limit
-        else:
-            offset = limit = None
-
-        if scrolling_cursor:
-            query.offset = None
-            query.limit = None
-
-        qchunks, argmap, arg_index, query_type, record_info = \
-            self.transformer.transform(query, self.session.backend,
-                                       self.session.schema,
-                                       output_format=output_format)
-
-        if scrolling_cursor:
-            query.offset = offset
-            query.limit = limit
-
-        restypes = {}
-
-        for k, v in query.result_types.items():
-            if v[0] is not None:  # XXX get_expr_type
-                if isinstance(v[0], tuple):
-                    typ = (v[0][0], v[0][1].name)
-                else:
-                    typ = v[0].name
-                restypes[k] = (typ, v[1])
-            else:
-                restypes[k] = v
-
-        argtypes = {}
-
-        for k, v in query.argument_types.items():
-            if v is not None:  # XXX get_expr_type
-                if isinstance(v, tuple):
-                    if isinstance(v[1], s_obj.MetaClass):
-                        name = 'type'
-                    else:
-                        name = v[1].name
-                    argtypes[k] = (v[0], name)
-                else:
-                    if isinstance(v, s_obj.MetaClass):
-                        name = 'type'
-                    else:
-                        name = v.name
-                    argtypes[k] = name
-            else:
-                argtypes[k] = v
-
-        return Query(
-            chunks=qchunks, arg_index=arg_index, argmap=argmap,
-            result_types=restypes, argument_types=argtypes,
-            context_vars=query.context_vars, scrolling_cursor=scrolling_cursor,
-            offset=offset, limit=limit, query_type=query_type,
-            record_info=record_info, output_format=output_format)
 
 
 class Backend(s_deltarepo.DeltaProvider):
@@ -602,8 +530,13 @@ class Backend(s_deltarepo.DeltaProvider):
         context = delta_cmds.CommandContext(self.connection, None)
 
         try:
-            await plan.execute(context)
+            if not isinstance(plan, (s_db.CreateDatabase, s_db.DropDatabase)):
+                async with self.connection.transaction():
+                    await plan.execute(context)
+            else:
+                await plan.execute(context)
         except Exception as e:
+            await self.getschema()
             msg = 'failed to apply delta to data backend'
             raise RuntimeError(msg) from e
 
@@ -660,49 +593,8 @@ class Backend(s_deltarepo.DeltaProvider):
     def typrelid_for_source_name(self, source_name):
         return self.classname_to_table_id_cache.get(source_name)
 
-    def compile(
-            self, query_ir, scrolling_cursor=False, context=None, *,
-            output_format=None):
-        if scrolling_cursor:
-            offset = query_ir.offset
-            limit = query_ir.limit
-        else:
-            offset = limit = None
-
-        if scrolling_cursor:
-            query_ir.offset = None
-            query_ir.limit = None
-
-        ir_compiler = IRCompiler()
-
-        qchunks, argmap, arg_index, query_type, record_info = \
-            ir_compiler.transform(query_ir, self, self.schema,
-                                  output_format=output_format)
-
-        if scrolling_cursor:
-            query_ir.offset = offset
-            query_ir.limit = limit
-
-        restypes = {}
-
-        for k, v in query_ir.result_types.items():
-            restypes[k] = v
-
-        argtypes = {}
-
-        for k, v in query_ir.argument_types.items():
-            argtypes[k] = v
-
-        return Query(
-            chunks=qchunks, arg_index=arg_index, argmap=argmap,
-            result_types=restypes, argument_types=argtypes,
-            context_vars=query_ir.context_vars,
-            scrolling_cursor=scrolling_cursor, offset=offset, limit=limit,
-            query_type=query_type, record_info=record_info,
-            output_format=output_format)
-
-    def compile2(self, query_ir, scrolling_cursor=False, context=None, *,
-                 output_format=None):
+    def compile(self, query_ir, scrolling_cursor=False, context=None, *,
+                output_format=None):
         if scrolling_cursor:
             offset = query_ir.offset
             limit = query_ir.limit
@@ -716,7 +608,7 @@ class Backend(s_deltarepo.DeltaProvider):
         ir_compiler = compiler.IRCompiler()
 
         qchunks, argmap, arg_index, query_type, record_info = \
-            ir_compiler.transform(query_ir, self, self.schema,
+            ir_compiler.transform(query_ir, backend=self, schema=self.schema,
                                   output_format=output_format)
 
         if scrolling_cursor:
@@ -1090,7 +982,7 @@ class Backend(s_deltarepo.DeltaProvider):
         result = self.constant_expr.match(expr_tree)
 
         if result is None:
-            sql_decompiler = transformer.Decompiler()
+            sql_decompiler = decompiler.Decompiler()
             edgedb_tree = sql_decompiler.transform(expr_tree, source)
             edgeql_tree = edgeql.decompile_ir(
                 edgedb_tree, return_statement=True)
@@ -1165,6 +1057,7 @@ class Backend(s_deltarepo.DeltaProvider):
         return target, attr['attribute_required']
 
     def verify_ptr_const_defaults(self, schema, ptr, tab_default):
+        return
         schema_default = None
 
         if ptr.default is not None:
@@ -1322,7 +1215,7 @@ class Backend(s_deltarepo.DeltaProvider):
     async def order_links(self, schema):
         indexes = await self.read_indexes()
 
-        sql_decompiler = transformer.Decompiler()
+        sql_decompiler = decompiler.Decompiler()
 
         g = {}
 
@@ -1645,7 +1538,7 @@ class Backend(s_deltarepo.DeltaProvider):
     async def order_concepts(self, schema):
         indexes = await self.read_indexes()
 
-        sql_decompiler = transformer.Decompiler()
+        sql_decompiler = decompiler.Decompiler()
 
         g = {}
         for concept in schema.get_objects(type='concept'):

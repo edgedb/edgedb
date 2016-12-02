@@ -30,6 +30,10 @@ from edgedb.lang.common import debug
 from edgedb.lang.common import exceptions as edgedb_error
 from edgedb.lang.common import markup  # NOQA
 
+from .. import parser
+from . import compiler2
+from .decompiler import decompile_ir  # NOQA
+
 from . import pathmerger
 from . import rewriter
 
@@ -3087,10 +3091,10 @@ def compile_fragment_to_ir(expr,
                            *,
                            anchors=None,
                            location=None,
-                           module_aliases=None):
+                           modaliases=None):
     """Compile given EdgeQL expression fragment into EdgeDB IR."""
     tree = parser.parse_fragment(expr)
-    trans = EdgeQLCompiler(schema, module_aliases)
+    trans = compiler2.EdgeQLCompiler(schema, modaliases)
     return trans.transform_fragment(
         tree, (), anchors=anchors, location=location)
 
@@ -3100,9 +3104,9 @@ def compile_ast_fragment_to_ir(tree,
                                *,
                                anchors=None,
                                location=None,
-                               module_aliases=None):
+                               modaliases=None):
     """Compile given EdgeQL AST fragment into EdgeDB IR."""
-    trans = EdgeQLCompiler(schema, module_aliases)
+    trans = compiler2.EdgeQLCompiler(schema, modaliases)
     return trans.transform_fragment(
         tree, (), anchors=anchors, location=location)
 
@@ -3114,22 +3118,22 @@ def compile_to_ir(expr,
                   anchors=None,
                   arg_types=None,
                   security_context=None,
-                  module_aliases=None):
+                  modaliases=None):
     """Compile given EdgeQL statement into EdgeDB IR."""
     """LOG [edgeql.compile] EdgeQL TEXT:
     print(expr)
     """
-    tree = parser.parse(expr, module_aliases)
+    tree = parser.parse(expr, modaliases)
     """LOG [edgeql.compile] EdgeQL AST:
     from edgedb.lang.common import markup
     markup.dump(tree)
     """
-    trans = EdgeQLCompiler(schema, module_aliases)
+    trans = compiler2.EdgeQLCompiler(schema, modaliases)
 
     ir = trans.transform(
         tree,
         arg_types,
-        module_aliases=module_aliases,
+        modaliases=modaliases,
         anchors=anchors,
         security_context=security_context)
     """LOG [edgeql.compile] EdgeDB IR:
@@ -3147,18 +3151,18 @@ def compile_ast_to_ir(tree,
                       anchors=None,
                       arg_types=None,
                       security_context=None,
-                      module_aliases=None):
+                      modaliases=None):
     """Compile given EdgeQL AST into EdgeDB IR."""
     """LOG [edgeql.compile] EdgeQL AST:
     from edgedb.lang.common import markup
     markup.dump(tree)
     """
-    trans = EdgeQLCompiler(schema, module_aliases)
+    trans = compiler2.EdgeQLCompiler(schema, modaliases)
 
     ir = trans.transform(
         tree,
         arg_types,
-        module_aliases=module_aliases,
+        modaliases=modaliases,
         anchors=anchors,
         security_context=security_context)
     """LOG [edgeql.compile] EdgeDB IR:

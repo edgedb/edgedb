@@ -41,13 +41,5 @@ def plan_statement(stmt, backend, flags={}):
         return TransactionStatement(stmt)
 
     else:
-        if 'compiler-v0' in flags:
-            compiler = edgeql.compiler
-            sql_compiler = backend.compile
-        else:
-            from edgedb.lang.edgeql.compiler import compiler2
-            compiler = compiler2
-            sql_compiler = backend.compile2
-
-        ir = compiler.compile_ast_to_ir(stmt, schema=backend.schema)
-        return sql_compiler(ir, output_format='json')
+        ir = edgeql.compile_ast_to_ir(stmt, schema=backend.schema)
+        return backend.compile(ir, output_format='json')

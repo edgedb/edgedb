@@ -170,12 +170,6 @@ class UnaryOp(Expr):
     ]
 
 
-class NoneTest(Expr):
-    __fields = [
-        'expr'
-    ]
-
-
 class ExistPred(Expr):
     __fields = [
         'expr'

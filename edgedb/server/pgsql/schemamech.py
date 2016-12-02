@@ -8,7 +8,7 @@
 import collections
 import itertools
 
-from edgedb.lang.ir import ast as irast
+from edgedb.lang.ir import ast2 as irast
 from edgedb.lang.ir import astexpr as irastexpr
 from edgedb.lang.ir import utils as ir_utils
 from edgedb.lang import edgeql
@@ -17,18 +17,19 @@ from edgedb.lang.schema import atoms as s_atoms
 from edgedb.lang.schema import concepts as s_concepts
 from edgedb.lang.schema import error as s_err
 from edgedb.lang.schema import links as s_links
+from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import name as sn
 
 from edgedb.lang.common import ast
 
 from .datasources import introspection
-from . import ast as pg_ast
+from . import ast2 as pg_ast
 from . import dbops
 from . import deltadbops
 from . import common
 from . import types
-from . import transformer
-from . import codegen
+from . import compiler
+from . import codegen2 as codegen
 
 
 class ConstraintMech:
@@ -71,7 +72,7 @@ class ConstraintMech:
     def _get_unique_refs(cls, tree):
         # Check if the expression is
         #   std::is_dictinct(<arg>) [and std::is_distinct (<arg>)...]
-        expr = tree.selector[0].expr
+        expr = tree.result
 
         astexpr = irastexpr.DistinctConjunctionExpr()
         refs = astexpr.match(expr)
@@ -82,12 +83,7 @@ class ConstraintMech:
             all_refs = []
             for ref in refs:
                 # Unnest sequences in refs
-                if (
-                        isinstance(ref, irast.BaseRefExpr) and
-                        isinstance(ref.expr, irast.Sequence)):
-                    all_refs.append(ref.expr)
-                else:
-                    all_refs.append(ref)
+                all_refs.append(ref)
 
             return all_refs
 
@@ -98,24 +94,18 @@ class ConstraintMech:
 
         ref_ptrs = {}
         for ref in refs:
-            if isinstance(ref, irast.LinkPropRef):
-                ptr = ref.ptr_class
-                src = ref.ref.link_class
-            elif isinstance(ref, irast.AtomicRef):
-                ptr = ref.ptr_class if ref.ptr_class else ref.rlink.link_class
-                src = ref.ref
-            elif isinstance(ref, irast.EntityLink):
-                ptr = ref.link_class
-                src = ptr.source.concept if ptr.source else None
-            elif isinstance(ref, irast.EntitySet):
-                if isinstance(ref.concept, s_atoms.Atom):
-                    continue
-                ptr = ref.rlink.link_class
-                src = ref.rlink.source.concept
-            else:
-                raise ValueError('unexpected ref type: {!r}'.format(ref))
-
-            ref_ptrs[ref] = (ptr, src)
+            rptr = ref.rptr
+            if rptr is not None:
+                ptr = ref.rptr.ptrcls
+                if isinstance(ptr, s_lprops.LinkProperty):
+                    src = ref.rptr.source.rptr.ptrcls
+                    if src.is_derived:
+                        # This specialized pointer was derived specifically
+                        # for the purposes of constraint expr compilation.
+                        src = src.bases[0]
+                else:
+                    src = ref.rptr.source.scls
+                ref_ptrs[ref] = (ptr, src)
 
         for ref, (ptr, src) in ref_ptrs.items():
             ptr_info = types.get_pointer_storage_info(
@@ -157,9 +147,15 @@ class ConstraintMech:
 
     @classmethod
     def _edgeql_ref_to_pg_constr(cls, subject, tree, schema, link_bias):
-        ircompiler = transformer.SimpleIRCompiler()
-        sql_tree = ircompiler.transform(
-            tree, schema=schema, local=True, link_bias=link_bias)
+        ircompiler = compiler.SingletonExprIRCompiler()
+        sql_tree = ircompiler.transform_to_sql_tree(tree, schema=schema)
+
+        if isinstance(sql_tree, pg_ast.SelectStmt):
+            # XXX: use ast pattern matcher for this
+            sql_expr = sql_tree.from_clause[0].relation\
+                .query.target_list[0].val
+        else:
+            sql_expr = sql_tree
 
         is_multicol = isinstance(tree, irast.Sequence)
 
@@ -167,15 +163,15 @@ class ConstraintMech:
         # expressions.  This influences the type of Postgres constraint used.
         #
         is_trivial = (
-            isinstance(sql_tree, pg_ast.FieldRefNode) or (
-                isinstance(sql_tree, pg_ast.SequenceNode) and all(
-                    isinstance(el, pg_ast.FieldRefNode)
-                    for el in sql_tree.elements)))
+            isinstance(sql_expr, pg_ast.ColumnRef) or (
+                isinstance(sql_expr, pg_ast.ImplicitRowExpr) and all(
+                    isinstance(el, pg_ast.ColumnRef)
+                    for el in sql_expr.elements)))
 
         # Find all field references
         #
-        flt = lambda n: isinstance(n, pg_ast.FieldRefNode)
-        refs = set(ast.find_children(sql_tree, flt))
+        flt = lambda n: isinstance(n, pg_ast.ColumnRef) and len(n.name) == 1
+        refs = set(ast.find_children(sql_expr, flt))
 
         if isinstance(subject, s_atoms.Atom):
             # Domain constraint, replace <atom_name> with VALUE
@@ -183,33 +179,34 @@ class ConstraintMech:
             subject_pg_name = common.edgedb_name_to_pg_name(subject.name)
 
             for ref in refs:
-                if ref.field != subject_pg_name:
-                    msg = 'unexpected node reference in ' \
-                          'Atom constraint: {}'.format(ref.field)
-                    raise ValueError(msg)
+                if ref.name != [subject_pg_name]:
+                    raise ValueError(
+                        f'unexpected node reference in '
+                        f'Atom constraint: {".".join(ref.name)}'
+                    )
 
-                ref.field = 'VALUE'
+                ref.name = ['VALUE']
 
-        plain_expr = codegen.SQLSourceGenerator.to_source(sql_tree)
+        plain_expr = codegen.SQLSourceGenerator.to_source(sql_expr)
 
         if is_multicol:
             chunks = []
 
-            for elem in sql_tree.elements:
+            for elem in sql_expr.args:
                 chunks.append(codegen.SQLSourceGenerator.to_source(elem))
         else:
             chunks = [plain_expr]
 
-        if isinstance(sql_tree, pg_ast.FieldRefNode):
-            refs.add(sql_tree)
+        if isinstance(sql_expr, pg_ast.ColumnRef):
+            refs.add(sql_expr)
 
         for ref in refs:
-            ref.table = pg_ast.PseudoRelationNode(name="NEW", alias="NEW")
-        new_expr = codegen.SQLSourceGenerator.to_source(sql_tree)
+            ref.name.insert(0, 'NEW')
+        new_expr = codegen.SQLSourceGenerator.to_source(sql_expr)
 
         for ref in refs:
-            ref.table = pg_ast.PseudoRelationNode(name="OLD", alias="OLD")
-        old_expr = codegen.SQLSourceGenerator.to_source(sql_tree)
+            ref.name[0] = 'OLD'
+        old_expr = codegen.SQLSourceGenerator.to_source(sql_expr)
 
         exprdata = dict(
             plain=plain_expr, plain_chunks=chunks, new=new_expr, old=old_expr)
@@ -225,7 +222,7 @@ class ConstraintMech:
         ir = edgeql.compile_to_ir(
             constraint.finalexpr, schema, anchors={'subject': subject})
 
-        terminal_refs = ir_utils.get_terminal_references(ir.selector[0].expr)
+        terminal_refs = ir_utils.get_terminal_references(ir.result)
         ref_tables = cls._get_ref_storage_info(schema, terminal_refs)
 
         if len(ref_tables) > 1:
@@ -554,8 +551,8 @@ def ptr_default_to_col_default(schema, ptr, expr):
     if not ir_utils.is_const(ir):
         return None
 
-    ircompiler = transformer.SimpleIRCompiler()
-    sql_tree = ircompiler.transform(ir, schema=schema, local=True)
-    sql_expr = codegen.SQLSourceGenerator.to_source(sql_tree)
+    ircompiler = compiler.SingletonExprIRCompiler()
+    sql_expr = ircompiler.transform_to_sql_tree(ir, schema=schema)
+    sql_text = codegen.SQLSourceGenerator.to_source(sql_expr)
 
-    return sql_expr
+    return sql_text

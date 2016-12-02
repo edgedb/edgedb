@@ -358,15 +358,12 @@ class DeclarationLoader:
 
     def _parse_ptr_default(self, expr, source, ptr):
         """Set the default value for a pointer."""
-        if isinstance(expr, edgeql.ast.SelectQueryNode):
-            # XXX: not sure how to correctly process a computable
+        if not isinstance(expr, edgeql.ast.SelectQueryNode):
+            expr = self._get_literal_value(expr)
+        else:
             return
 
-        else:
-            expr_text = self._get_literal_value(expr)
-
-        ptr.default = expr_text
-        ptr.normalize_defaults()
+        ptr.default = expr
 
     def _parse_attribute_values(self, subject, subjdecl):
         attrs = {}
@@ -511,8 +508,7 @@ class DeclarationLoader:
                     _tnames = ['std::null']
 
                 elif isinstance(linkdecl.target, list):
-                    _tnames = [self._get_ref_name(t) for t in
-                               linkdecl.target]
+                    _tnames = [self._get_ref_name(t) for t in linkdecl.target]
                 else:
                     _tnames = [self._get_ref_name(linkdecl.target)]
 
@@ -572,34 +568,41 @@ class DeclarationLoader:
     def _normalize_concept_expressions(self, concept, conceptdecl):
         """Interpret and validate EdgeQL expressions in concept declaration."""
         for linkdecl in conceptdecl.links:
+            link_name = self._get_ref_name(linkdecl.name)
+            generic_link = self._schema.get(link_name)
+            spec_link = concept.pointers[generic_link.name]
+
             if isinstance(linkdecl.target, edgeql.ast.SelectQueryNode):
                 # Computable
-                link_name = self._get_ref_name(linkdecl.name)
-                generic_link = self._schema.get(link_name)
-                spec_link = concept.pointers[generic_link.name]
                 self._normalize_ptr_default(
                     linkdecl.target, concept, spec_link)
 
+            # for attr in linkdecl.attributes:
+            #     name = attr.name.name
+            #     if (name == 'default' and
+            #             isinstance(attr.value, edgeql.ast.SelectQueryNode)):
+            #         self._normalize_ptr_default(
+            #             attr.value, concept, spec_link)
+
             if linkdecl.constraints:
-                link_name = self._get_ref_name(linkdecl.name)
-                generic_link = self._schema.get(link_name)
-                spec_link = concept.pointers[generic_link.name]
                 self._parse_subject_constraints(spec_link, linkdecl)
 
     def _normalize_ptr_default(self, expr, source, ptr):
         module_aliases = {None: source.name.module}
 
         ir, _, expr_text = edgeql.utils.normalize_tree(
-            expr, self._schema, module_aliases=module_aliases,
+            expr, self._schema,
+            modaliases=module_aliases,
             anchors={'self': source})
 
-        first = list(ir.result_types.values())[0][0]
-        if first is None:
+        if not ir.result_types:
             raise s_err.SchemaError(
                 'could not determine the result type of the default '
                 'expression on {!s}.{!s}'.format(
                     source.name, ptr.shortname),
                 context=expr.context)
+
+        expr_type = ir.result_types[0]
 
         ptr.default = expr_text
         ptr.normalize_defaults()
@@ -607,16 +610,16 @@ class DeclarationLoader:
         if ptr.is_pure_computable():
             # Pure computable without explicit target.
             # Fixup pointer target and target property.
-            ptr.target = first
+            ptr.target = expr_type
 
             if isinstance(ptr, s_links.Link):
                 pname = s_name.Name('std::target')
                 tgt_prop = ptr.pointers[pname]
-                tgt_prop.target = first
+                tgt_prop.target = expr_type
 
-        if (len(ir.result_types) > 1 or
-                not isinstance(first, s_obj.NodeClass) or
-                (ptr.target is not None and not first.issubclass(ptr.target))):
+        if (not isinstance(expr_type, s_obj.NodeClass) or
+                (ptr.target is not None and
+                 not expr_type.issubclass(ptr.target))):
             raise s_err.SchemaError(
                 'default value query must yield a single result of '
                 'type {!r}'.format(ptr.target.name), context=expr.context)

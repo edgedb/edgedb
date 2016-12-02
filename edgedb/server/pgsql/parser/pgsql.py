@@ -12,7 +12,7 @@
 import sys
 
 from edgedb.lang.common import ast, parsing
-from .. import ast as pgast
+from .. import ast2 as pgast
 
 from . import keywords
 from . import error
@@ -343,39 +343,42 @@ class columnref(Nonterm):
 
     def reduce_ColId(self, *kids):
         "%reduce ColId"
-        self.val = pgast.FieldRefNode(field=kids[0].val)
+        self.val = pgast.ColumnRef(name=[kids[0].val])
 
     def reduce_ColId_indirection(self, *kids):
         "%reduce ColId indirection"
 
         colname = kids[0].val
-        fieldref = pgast.FieldRefNode()
+        colref = pgast.ColumnRef(name=[])
 
         nfields = 0
         for indirection in kids[1].val:
-            if isinstance(indirection, pgast.IndexIndirectionNode):
-                i = pgast.IndirectionNode()
+            if isinstance(indirection, pgast.Indices):
+                i = pgast.Indirection()
 
                 if nfields == 0:
-                    fieldref.field = colname
-                    i.indirection = indirection
+                    colref.name.append(colname)
+                    i.indirection = [indirection]
                 else:
                     i.indirection = kids[1].val[nfields:]
-                    fieldref.field = tuple(kids[1].val[:nfields])
+                    colref.name = list(kids[1].val[:nfields])
 
-                i.expr = fieldref
+                i.arg = colref
                 self.val = i
                 return
 
-            elif isinstance(indirection, pgast.StarIndirectionNode):
+            elif isinstance(indirection, pgast.Star):
                 if len(kids[1].val) > nfields + 1:
-                    raise error.PgSQLParserError('improper use if "*"')
+                    raise error.PgSQLParserError('improper use of "*"')
 
             nfields += 1
 
-        fieldref.field = colname if nfields == 0 else (colname,
-                                                       ) + tuple(kids[1].val)
-        self.val = fieldref
+        if nfields == 0:
+            colref.name.append(colname)
+        else:
+            colref.name = [colname] + list(kids[1].val)
+
+        self.val = colref
 
 
 class indirection_el(Nonterm):
@@ -385,16 +388,15 @@ class indirection_el(Nonterm):
 
     def reduce_dot_star(self, *kids):
         "%reduce DOT STAR"
-        self.val = pgast.StarIndirectionNode()
+        self.val = pgast.Star()
 
     def reduce_index_indirection(self, *kids):
         "%reduce LBRACKET a_expr RBRACKET"
-        self.val = pgast.IndexIndirectionNode(upper=kids[1].val)
+        self.val = pgast.Indices(ridx=kids[1].val)
 
     def reduce_slice_indirection(self, *kids):
         "%reduce LBRACKET a_expr COLON a_expr RBRACKET"
-        self.val = pgast.IndexIndirectionNode(
-            lower=kids[1].val, upper=kids[3].val)
+        self.val = pgast.Indices(lidx=kids[1].val, ridx=kids[3].val)
 
 
 class indirection(Nonterm):
@@ -433,9 +435,12 @@ class opt_asymmetric(Nonterm):
 
 
 class Typename(Nonterm):
-    # SimpleTypename opt_array_bounds | SETOF SimpleTypename opt_array_bounds
-    # | SimpleTypename ARRAY '[' ICONST ']' | SETOF SimpleTypename ARRAY '[' ICONST ']'
-    # | SimpleTypename ARRAY | SETOF SimpleTypename ARRAY
+    # SimpleTypename opt_array_bounds
+    # | SETOF SimpleTypename opt_array_bounds
+    # | SimpleTypename ARRAY '[' ICONST ']'
+    # | SETOF SimpleTypename ARRAY '[' ICONST ']'
+    # | SimpleTypename ARRAY
+    # | SETOF SimpleTypename ARRAY
 
     def reduce_SimpleTypename_opt_array_bounds(self, *kids):
         "%reduce SimpleTypename opt_array_bounds"
@@ -488,8 +493,9 @@ class opt_array_bounds(Nonterm):
 
 
 class SimpleTypename(Nonterm):
-    # GenericType | Numeric | Bit | Character | ConstDatetime | ConstInterval opt_interval
-    # ConstInterval '(' ICONST ')' opt_interval
+    # GenericType | Numeric | Bit | Character
+    # | ConstDatetime | ConstInterval opt_interval
+    # | ConstInterval '(' ICONST ')' opt_interval
 
     def reduce_GenericType(self, *kids):
         "%reduce GenericType"
@@ -557,11 +563,12 @@ class GenericType(Nonterm):
 
     def reduce_type_function_name_opt_type_modifiers(self, *kids):
         "%reduce type_function_name opt_type_modifiers"
-        self.val = pgast.TypeNode(name=kids[0].val, typmods=kids[1].val)
+        self.val = pgast.TypeName(
+            name=kids[0].val, typmods=kids[1].val)
 
     def reduce_type_function_name_attrs_opt_type_modifiers(self, *kids):
         "%reduce type_function_name attrs opt_type_modifiers"
-        self.val = pgast.TypeNode(
+        self.val = pgast.TypeName(
             name=[kids[0].val] + kids[1].val, typmods=kids[2].val)
 
 
@@ -581,23 +588,23 @@ class opt_type_modifiers(Nonterm):
 class Numeric(Nonterm):
     def reduce_INT_P(self, *kids):
         "%reduce INT_P"
-        self.val = pgast.TypeNode(name='int4')
+        self.val = pgast.TypeName(name='int4')
 
     def reduce_INTEGER(self, *kids):
         "%reduce INTEGER"
-        self.val = pgast.TypeNode(name='int4')
+        self.val = pgast.TypeName(name='int4')
 
     def reduce_SMALLINT(self, *kids):
         "%reduce SMALLINT"
-        self.val = pgast.TypeNode(name='int2')
+        self.val = pgast.TypeName(name='int2')
 
     def reduce_BIGINT(self, *kids):
         "%reduce BIGINT"
-        self.val = pgast.TypeNode(name='int8')
+        self.val = pgast.TypeName(name='int8')
 
     def reduce_REAL(self, *kids):
         "%reduce REAL"
-        self.val = pgast.TypeNode(name='float4')
+        self.val = pgast.TypeName(name='float4')
 
     def reduce_FLOAT_P_opt_float(self, *kids):
         "%reduce FLOAT_P opt_float"
@@ -605,23 +612,23 @@ class Numeric(Nonterm):
 
     def reduce_DOUBLE_P_PRECISION(self, *kids):
         "%reduce DOUBLE_P PRECISION"
-        self.val = pgast.TypeNode(name='float8')
+        self.val = pgast.TypeName(name='float8')
 
     def reduce_DECIMAL_P_opt_type_modifiers(self, *kids):
         "%reduce DECIMAL_P opt_type_modifiers"
-        self.val = pgast.TypeNode(name='numeric', typmods=kids[1].val)
+        self.val = pgast.TypeName(name='numeric', typmods=kids[1].val)
 
     def reduce_DEC_opt_type_modifiers(self, *kids):
         "%reduce DEC opt_type_modifiers"
-        self.val = pgast.TypeNode(name='numeric', typmods=kids[1].val)
+        self.val = pgast.TypeName(name='numeric', typmods=kids[1].val)
 
     def reduce_NUMERIC_opt_type_modifiers(self, *kids):
         "%reduce NUMERIC opt_type_modifiers"
-        self.val = pgast.TypeNode(name='numeric', typmods=kids[1].val)
+        self.val = pgast.TypeName(name='numeric', typmods=kids[1].val)
 
     def reduce_BOOLEAN_P(self, *kids):
         "%reduce BOOLEAN_P"
-        self.val = pgast.TypeNode(name='bool')
+        self.val = pgast.TypeName(name='bool')
 
 
 class opt_float(Nonterm):
@@ -633,16 +640,16 @@ class opt_float(Nonterm):
             raise error.PgSQLParserError(
                 'precision for type float must be at least 1 bit')
         elif precision <= 24:
-            self.val = pgast.TypeNode(name='float4')
+            self.val = pgast.TypeName(name='float4')
         elif precision <= 53:
-            self.val = pgast.TypeNode(name='float8')
+            self.val = pgast.TypeName(name='float8')
         else:
             raise error.PgSQLParserError(
                 'precision for type float must be less than 54 bits')
 
     def reduce_empty(self, *kids):
         "%reduce <e>"
-        self.val = pgast.TypeNode(name='float8')
+        self.val = pgast.TypeName(name='float8')
 
 
 class Bit(Nonterm):
@@ -677,9 +684,9 @@ class BitWithLength(Nonterm):
         "%reduce BIT opt_varying LPAREN expr_list RPAREN"
 
         if kids[1].val:
-            self.val = pgast.TypeNode(name='varbit')
+            self.val = pgast.TypeName(name='varbit')
         else:
-            self.val = pgast.TypeNode(name='bit')
+            self.val = pgast.TypeName(name='bit')
 
         self.val.typmods = kids[3].val
 
@@ -691,10 +698,10 @@ class BitWithoutLength(Nonterm):
         "%reduce BIT opt_varying"
 
         if kids[1].val:
-            self.val = pgast.TypeNode(name='varbit')
+            self.val = pgast.TypeName(name='varbit')
         else:
-            self.val = pgast.TypeNode(name='bit')
-            self.val.typmods = [pgast.ConstantNode(value=1)]
+            self.val = pgast.TypeName(name='bit')
+            self.val.typmods = [pgast.Constant(val=1)]
 
 
 class Character(Nonterm):
@@ -732,7 +739,7 @@ class CharacterWithLength(Nonterm):
         if kids[4].val and kids[4].val != 'sql_text':
             typname += '_' + kids[4].val
 
-        self.val = pgast.TypeNode(name=typname, typmods=[kids[2].val])
+        self.val = pgast.TypeName(name=typname, typmods=[kids[2].val])
 
 
 class CharacterWithoutLength(Nonterm):
@@ -745,7 +752,7 @@ class CharacterWithoutLength(Nonterm):
         if kids[1].val and kids[1].val != 'sql_text':
             typname += '_' + kids[1].val
 
-        self.val = pgast.TypeNode(name=typname)
+        self.val = pgast.TypeName(name=typname)
 
         if typname == 'bpchar':
             # CHAR defaults to 1
@@ -812,22 +819,22 @@ class ConstDatetime(Nonterm):
     def reduce_TIMESTAMP_ICONST_opt_timezone(self, *kids):
         "%reduce TIMESTAMP LPAREN ICONST RPAREN opt_timezone"
         typname = 'timestamptz' if kids[4].val else 'timestamp'
-        self.val = pgast.TypeNode(name=typname, typmods=[kids[2].val])
+        self.val = pgast.TypeName(name=typname, typmods=[kids[2].val])
 
     def reduce_TIMESTAMP_opt_timezone(self, *kids):
         "%reduce TIMESTAMP opt_timezone"
         typname = 'timestamptz' if kids[1].val else 'timestamp'
-        self.val = pgast.TypeNode(name=typname)
+        self.val = pgast.TypeName(name=typname)
 
     def reduce_TIME_ICONST_opt_timezone(self, *kids):
         "%reduce TIME LPAREN ICONST RPAREN opt_timezone"
         typname = 'timetz' if kids[4].val else 'time'
-        self.val = pgast.TypeNode(name=typname, typmods=[kids[2].val])
+        self.val = pgast.TypeName(name=typname, typmods=[kids[2].val])
 
     def reduce_TIME_opt_timezone(self, *kids):
         "%reduce TIME opt_timezone"
         typname = 'timetz' if kids[1].val else 'time'
-        self.val = pgast.TypeNode(name=typname)
+        self.val = pgast.TypeName(name=typname)
 
 
 class ConstInterval(Nonterm):
@@ -835,7 +842,7 @@ class ConstInterval(Nonterm):
 
     def reduce_INTERVAL(self, *kids):
         "%reduce INTERVAL"
-        self.val = pgast.TypeNode(name='interval')
+        self.val = pgast.TypeName(name='interval')
 
 
 class opt_timezone(Nonterm):
@@ -960,17 +967,15 @@ class a_expr(Nonterm):
     # | a_expr SIMILAR TO a_expr ESCAPE a_expr
     # | a_expr NOT SIMILAR TO a_expr %prec SIMILAR
     # | a_expr NOT SIMILAR TO a_expr ESCAPE a_expr
-    # | a_expr IS NULL_P | a_expr ISNULL | a_expr IS NOT NULL_P | a_expr NOTNULL
-    # | row OVERLAPS row | a_expr IS TRUE_P | a_expr IS NOT TRUE_P | a_expr IS FALSE_P
+    # | a_expr IS NULL_P | a_expr ISNULL
+    # | a_expr IS NOT NULL_P | a_expr NOTNULL
+    # | row OVERLAPS row | a_expr IS TRUE_P
+    # | a_expr IS NOT TRUE_P | a_expr IS FALSE_P
     # | a_expr IS NOT FALSE_P | a_expr IS UNKNOWN | a_expr IS NOT UNKNOWN
     # | a_expr IS DISTINCT FROM a_expr %prec IS
     # | a_expr IS NOT DISTINCT FROM a_expr %prec IS
     # | a_expr IS OF '(' type_list ')' %prec IS
     # | a_expr IS NOT OF '(' type_list ')' %prec IS
-    # | a_expr BETWEEN opt_asymmetric b_expr AND b_expr %prec BETWEEN
-    # | a_expr NOT BETWEEN opt_asymmetric b_expr AND b_expr %prec BETWEEN
-    # | a_expr BETWEEN SYMMETRIC b_expr AND b_expr %prec BETWEEN
-    # | a_expr NOT BETWEEN SYMMETRIC b_expr AND b_expr %prec BETWEEN
     # | a_expr IN_P in_expr | a_expr NOT IN_P in_expr
     # | a_expr subquery_Op sub_type select_with_parens %prec Op
     # | a_expr subquery_Op sub_type '(' a_expr ')' %prec Op
@@ -984,429 +989,363 @@ class a_expr(Nonterm):
 
     def reduce_a_expr_TYPECAST_Typename(self, *kids):
         "%reduce a_expr TYPECAST Typename"
-
-        if isinstance(kids[0].val, pgast.ConstantNode):
-            kids[0].val.type = kids[2].val
-            self.val = kids[0].val
-        else:
-            self.val = pgast.TypeCastNode(expr=kids[0].val, type=kids[2].val)
+        self.val = pgast.TypeCast(arg=kids[0].val, type_name=kids[2].val)
 
     def reduce_a_expr_AT_TIME_ZONE_a_expr(self, *kids):
         "%reduce a_expr AT TIME ZONE a_expr"
-        self.val = pgast.FunctionCallNode(
+        self.val = pgast.FuncCall(
             name='timezone', args=[kids[4], kids[0]])
 
     def reduce_unary_plus(self, *kids):
         "%reduce PLUS a_expr [P_UMINUS]"
-        self.val = pgast.UnaryOpNode(op=ast.ops.UPLUS, operand=kids[1].val)
+        self.val = pgast.Expr(
+            name=ast.ops.UPLUS, rexpr=kids[1].val,
+            kind=pgast.OP)
 
     def reduce_unary_minus(self, *kids):
         "%reduce MINUS a_expr [P_UMINUS]"
-        self.val = pgast.UnaryOpNode(op=ast.ops.UMINUS, operand=kids[1].val)
+        self.val = pgast.Expr(
+            name=ast.ops.UMINUS,
+            rexpr=kids[1].val,
+            kind=pgast.OP)
 
     def reduce_add(self, *kids):
         "%reduce a_expr PLUS a_expr"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.ADD, right=kids[2].val)
+        self.val = pgast.Expr(
+            name=ast.ops.ADD,
+            lexpr=kids[0].val,
+            rexpr=kids[2].val,
+            kind=pgast.OP)
 
     def reduce_sub(self, *kids):
         "%reduce a_expr MINUS a_expr"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.SUB, right=kids[2].val)
+        self.val = pgast.Expr(
+            name=ast.ops.SUB,
+            lexpr=kids[0].val,
+            rexpr=kids[2].val,
+            kind=pgast.OP)
 
     def reduce_mul(self, *kids):
         "%reduce a_expr STAR a_expr"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.MUL, right=kids[2].val)
+        self.val = pgast.Expr(
+            name=ast.ops.MUL,
+            lexpr=kids[0].val,
+            rexpr=kids[2].val,
+            kind=pgast.OP)
 
     def reduce_div(self, *kids):
         "%reduce a_expr SLASH a_expr"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.DIV, right=kids[2].val)
+        self.val = pgast.Expr(
+            name=ast.ops.DIV,
+            lexpr=kids[0].val,
+            rexpr=kids[2].val,
+            kind=pgast.OP)
 
     def reduce_mod(self, *kids):
         "%reduce a_expr PERCENT a_expr"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.MOD, right=kids[2].val)
+        self.val = pgast.Expr(
+            name=ast.ops.MOD,
+            lexpr=kids[0].val,
+            rexpr=kids[2].val,
+            kind=pgast.OP)
 
     def reduce_pow(self, *kids):
         "%reduce a_expr CIRCUM a_expr"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.POW, right=kids[2].val)
+        self.val = pgast.Expr(
+            name=ast.ops.POW,
+            lexpr=kids[0].val,
+            rexpr=kids[2].val,
+            kind=pgast.OP)
 
     def reduce_lt(self, *kids):
         "%reduce a_expr LANGBRACKET a_expr"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.LT, right=kids[2].val)
+        self.val = pgast.Expr(
+            name=ast.ops.LT,
+            lexpr=kids[0].val,
+            rexpr=kids[2].val,
+            kind=pgast.OP)
 
     def reduce_gt(self, *kids):
         "%reduce a_expr RANGBRACKET a_expr"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.GT, right=kids[2].val)
+        self.val = pgast.Expr(
+            name=ast.ops.GT,
+            lexpr=kids[0].val,
+            rexpr=kids[2].val,
+            kind=pgast.OP)
 
     def reduce_equals(self, *kids):
         "%reduce a_expr EQUALS a_expr"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.EQ, right=kids[2].val)
+        self.val = pgast.Expr(
+            name=ast.ops.EQ,
+            lexpr=kids[0].val,
+            rexpr=kids[2].val,
+            kind=pgast.OP)
 
     def reduce_a_expr_qual_Op_a_expr(self, *kids):
         "%reduce a_expr qual_Op a_expr [P_OP]"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=kids[1].val, right=kids[2].val)
+        self.val = pgast.Expr(
+            name=kids[1].val,
+            lexpr=kids[0].val,
+            rexpr=kids[2].val,
+            kind=pgast.OP)
 
     def reduce_qual_Op_a_expr(self, *kids):
         "%reduce qual_Op a_expr [P_OP]"
-        self.val = pgast.UnaryOpNode(op=kids[0].val, operand=kids[1].val)
+        self.val = pgast.Expr(
+            name=kids[0].val,
+            rexpr=kids[1].val,
+            kind=pgast.OP)
 
     def reduce_a_expr_qual_Op(self, *kids):
         "%reduce a_expr qual_Op [P_POSTFIXOP]"
-        self.val = pgast.PostfixOpNode(op=kids[1].val, operand=kids[0].val)
+        self.val = pgast.Expr(
+            name=kids[1].val,
+            lexpr=kids[0].val,
+            kind=pgast.OP)
 
     def reduce_a_expr_AND_a_expr(self, *kids):
         "%reduce a_expr AND a_expr"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.AND, right=kids[2].val)
+        self.val = pgast.Expr(
+            name=ast.ops.AND,
+            lexpr=kids[0].val,
+            rexpr=kids[2].val,
+            kind=pgast.OP)
 
     def reduce_a_expr_OR_a_expr(self, *kids):
         "%reduce a_expr OR a_expr"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.OR, right=kids[2].val)
+        self.val = pgast.Expr(
+            name=ast.ops.OR,
+            lexpr=kids[0].val,
+            rexpr=kids[2].val,
+            kind=pgast.OP)
 
     def reduce_NOT_a_expr(self, *kids):
         "%reduce NOT a_expr"
-        self.val = pgast.UnaryOpNode(op=ast.ops.NOT, operand=kids[1].val)
+        self.val = pgast.Expr(
+            name=ast.ops.NOT,
+            rexpr=kids[1].val,
+            kind=pgast.OP)
 
     def reduce_a_expr_LIKE_a_expr(self, *kids):
         "%reduce a_expr LIKE a_expr"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=pgast.LIKE, right=kids[2].val)
+        self.val = pgast.Expr(
+            name=pgast.LIKE,
+            lexpr=kids[0].val,
+            rexpr=kids[2].val,
+            kind=pgast.OP)
 
     def reduce_a_expr_LIKE_a_expr_ESCAPE_a_expr(self, *kids):
         "%reduce a_expr LIKE a_expr ESCAPE a_expr"
-        right = pgast.FunctionCallNode(
+        right = pgast.FuncCall(
             name='like_escape', args=[kids[2].val, kids[4].val])
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=pgast.LIKE, right=right)
+        self.val = pgast.Expr(
+            name=pgast.LIKE,
+            lexpr=kids[0].val,
+            rexpr=right,
+            kind=pgast.OP)
 
     def reduce_a_expr_NOT_LIKE_a_expr(self, *kids):
         "%reduce a_expr NOT LIKE a_expr"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=pgast.NOT_LIKE, right=kids[3].val)
+        self.val = pgast.Expr(
+            name=pgast.NOT_LIKE,
+            lexpr=kids[0].val,
+            rexpr=kids[3].val,
+            kind=pgast.OP)
 
     def reduce_a_expr_NOT_LIKE_a_expr_ESCAPE_a_expr(self, *kids):
         "%reduce a_expr NOT LIKE a_expr ESCAPE a_expr"
-        right = pgast.FunctionCallNode(
+        right = pgast.FuncCall(
             name='like_escape', args=[kids[3].val, kids[5].val])
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=pgast.NOT_LIKE, right=right)
+        self.val = pgast.Expr(
+            name=pgast.NOT_LIKE,
+            lexpr=kids[0].val,
+            rexpr=right,
+            kind=pgast.OP)
 
     def reduce_a_expr_ILIKE_a_expr(self, *kids):
         "%reduce a_expr ILIKE a_expr"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=pgast.ILIKE, right=kids[2].val)
+        self.val = pgast.Expr(
+            name=pgast.ILIKE,
+            lexpr=kids[0].val,
+            rexpr=kids[2].val,
+            kind=pgast.OP)
 
     def reduce_a_expr_ILIKE_a_expr_ESCAPE_a_expr(self, *kids):
         "%reduce a_expr ILIKE a_expr ESCAPE a_expr"
-        right = pgast.FunctionCallNode(
+        right = pgast.FuncCall(
             name='like_escape', args=[kids[2].val, kids[4].val])
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=pgast.ILIKE, right=right)
+        self.val = pgast.Expr(
+            name=pgast.ILIKE,
+            lexpr=kids[0].val,
+            rexpr=right,
+            kind=pgast.OP)
 
     def reduce_a_expr_NOT_ILIKE_a_expr(self, *kids):
         "%reduce a_expr NOT ILIKE a_expr"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=pgast.NOT_ILIKE, right=kids[3].val)
+        self.val = pgast.Expr(
+            name=pgast.NOT_ILIKE,
+            lexpr=kids[0].val,
+            rexpr=kids[3].val,
+            kind=pgast.OP)
 
     def reduce_a_expr_NOT_ILIKE_a_expr_ESCAPE_a_expr(self, *kids):
         "%reduce a_expr NOT ILIKE a_expr ESCAPE a_expr"
-        right = pgast.FunctionCallNode(
+        right = pgast.FuncCall(
             name='like_escape', args=[kids[3].val, kids[5].val])
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=pgast.NOT_ILIKE, right=right)
+        self.val = pgast.Expr(
+            name=pgast.NOT_ILIKE,
+            lexpr=kids[0].val,
+            rexpr=right,
+            kind=pgast.OP)
 
     def reduce_a_expr_SIMILAR_TO_a_expr(self, *kids):
         "%reduce a_expr SIMILAR TO a_expr [P_LIKE_ILIKE_SIMILAR]"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=pgast.SIMILAR_TO, right=kids[3].val)
+        self.val = pgast.Expr(
+            name=pgast.SIMILAR_TO,
+            lexpr=kids[0].val,
+            rexpr=kids[3].val,
+            kind=pgast.OP)
 
     def reduce_a_expr_SIMILAR_TO_a_expr_ESCAPE_a_expr(self, *kids):
         "%reduce a_expr SIMILAR TO a_expr ESCAPE a_expr"
-        right = pgast.FunctionCallNode(
+        right = pgast.FuncCall(
             name='similar_escape', args=[kids[3].val, kids[5].val])
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=pgast.SIMILAR_TO, right=right)
+        self.val = pgast.Expr(
+            name=pgast.SIMILAR_TO,
+            lexpr=kids[0].val,
+            rexpr=right,
+            kind=pgast.OP)
 
     def reduce_a_expr_NOT_SIMILAR_TO_a_expr(self, *kids):
         "%reduce a_expr NOT SIMILAR TO a_expr [P_LIKE_ILIKE_SIMILAR]"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=pgast.NOT_SIMILAR_TO, right=kids[4].val)
+        self.val = pgast.Expr(
+            name=pgast.NOT_SIMILAR_TO,
+            lexpr=kids[0].val,
+            rexpr=kids[4].val,
+            kind=pgast.OP)
 
     def reduce_a_expr_NOT_SIMILAR_TO_a_expr_ESCAPE_a_expr(self, *kids):
         "%reduce a_expr NOT SIMILAR TO a_expr ESCAPE a_expr"
-        right = pgast.FunctionCallNode(
-            name='similar_escape', args=[kids[4].val, kids[6].val])
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=pgast.NOT_SIMILAR_TO, right=right)
+        right = pgast.FuncCall(
+            name='like_escape', args=[kids[4].val, kids[6].val])
+        self.val = pgast.Expr(
+            name=pgast.NOT_SIMILAR_TO,
+            lexpr=kids[0].val,
+            rexpr=right,
+            kind=pgast.OP)
 
     def reduce_a_expr_IS_NULL_P(self, *kids):
         "%reduce a_expr IS NULL_P"
-        right = pgast.ConstantNode(value=None)
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.IS, right=right)
+        self.val = pgast.NullTest(arg=kids[0].val)
 
     def reduce_a_expr_ISNULL(self, *kids):
         "%reduce a_expr ISNULL"
-        right = pgast.ConstantNode(value=None)
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.IS, right=right)
+        self.val = pgast.NullTest(arg=kids[0].val)
 
     def reduce_a_expr_IS_NOT_NULL_P(self, *kids):
         "%reduce a_expr IS NOT NULL_P"
-        right = pgast.ConstantNode(value=None)
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.IS_NOT, right=right)
+        self.val = pgast.NullTest(arg=kids[0].val, negated=True)
 
     def reduce_a_expr_NOTNULL(self, *kids):
         "%reduce a_expr NOTNULL"
-        right = pgast.ConstantNode(value=None)
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.IS_NOT, right=right)
+        self.val = pgast.NullTest(arg=kids[0].val, negated=True)
 
     def reduce_row_OVERLAPS_row(self, *kids):
         "%reduce row OVERLAPS row"
-        self.val = pgast.FunctionCallNode(
+        self.val = pgast.FuncCall(
             name='overlaps', args=[kids[0].val, kids[2].val])
 
     def reduce_a_expr_IS_TRUE_P(self, *kids):
         "%reduce a_expr IS TRUE_P"
-        right = pgast.ConstantNode(value=True)
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.IS, right=right)
+        right = pgast.Constant(val=True)
+        self.val = pgast.Expr(
+            name=ast.ops.IS,
+            lexpr=kids[0].val,
+            rexpr=right,
+            kind=pgast.OP)
 
     def reduce_a_expr_IS_NOT_TRUE_P(self, *kids):
         "%reduce a_expr IS NOT TRUE_P"
-        right = pgast.ConstantNode(value=True)
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.IS_NOT, right=right)
+        right = pgast.Constant(val=True)
+        self.val = pgast.Expr(
+            name=ast.ops.IS_NOT,
+            lexpr=kids[0].val,
+            rexpr=right,
+            kind=pgast.OP)
 
     def reduce_a_expr_IS_FALSE_P(self, *kids):
         "%reduce a_expr IS FALSE_P"
-        right = pgast.ConstantNode(value=False)
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.IS, right=right)
+        right = pgast.Constant(val=False)
+        self.val = pgast.Expr(
+            name=ast.ops.IS,
+            lexpr=kids[0].val,
+            rexpr=right,
+            kind=pgast.OP)
 
     def reduce_a_expr_IS_NOT_FALSE_P(self, *kids):
         "%reduce a_expr IS NOT FALSE_P"
-        right = pgast.ConstantNode(value=False)
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.IS_NOT, right=right)
+        right = pgast.Constant(val=False)
+        self.val = pgast.Expr(
+            name=ast.ops.IS_NOT,
+            lexpr=kids[0].val,
+            rexpr=right,
+            kind=pgast.OP)
 
     def reduce_a_expr_IS_UNKNOWN(self, *kids):
         "%reduce a_expr IS UNKNOWN"
-        right = pgast.ConstantNode(value=None)
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.IS, right=right)
+        self.val = pgast.NullTest(arg=kids[0].val)
 
     def reduce_a_expr_IS_NOT_UNKNOWN(self, *kids):
         "%reduce a_expr IS NOT UNKNOWN"
-        right = pgast.ConstantNode(value=None)
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.IS_NOT, right=right)
+        self.val = pgast.NullTest(arg=kids[0].val, negated=True)
 
     def reduce_a_expr_IS_DISTINCT_FROM_a_expr(self, *kids):
         "%reduce a_expr IS DISTINCT FROM a_expr [P_IS]"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=pgast.IS_DISTINCT, right=kids[4].val)
+        self.val = pgast.Expr(
+            name=pgast.IS_DISTINCT,
+            lexpr=kids[0].val,
+            rexpr=kids[4].val,
+            kind=pgast.OP)
 
     def reduce_a_expr_IS_NOT_DISTINCT_FROM_a_expr(self, *kids):
         "%reduce a_expr IS NOT DISTINCT FROM a_expr [P_IS]"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=pgast.IS_NOT_DISTINCT, right=kids[5].val)
+        self.val = pgast.Expr(
+            name=pgast.IS_NOT_DISTINCT,
+            lexpr=kids[0].val,
+            rexpr=kids[5].val,
+            kind=pgast.OP)
 
     def reduce_a_expr_IS_OF_type_list(self, *kids):
         "%reduce a_expr IS OF LPAREN type_list RPAREN [P_IS]"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=pgast.IS_OF, right=kids[4].val)
+        self.val = pgast.Expr(
+            name=pgast.IS_OF,
+            lexpr=kids[0].val,
+            rexpr=kids[4].val,
+            kind=pgast.OP)
 
     def reduce_a_expr_IS_NOT_OF_type_list(self, *kids):
         "%reduce a_expr IS NOT OF LPAREN type_list RPAREN [P_IS]"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=pgast.IS_NOT_OF, right=kids[5].val)
-
-    def reduce_a_expr_BETWEEN_opt_asymmetric_b_expr_AND_b_expr(self, *kids):
-        "%reduce a_expr BETWEEN opt_asymmetric b_expr AND b_expr [P_BETWEEN]"
-
-        left = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.GE, right=kids[3].val)
-        right = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.LE, right=kids[5].val)
-        self.val = pgast.BinOpNode(left=left, op=ast.ops.AND, right=right)
-
-    def reduce_a_expr_NOT_BETWEEN_opt_asymmetric_b_expr_AND_b_expr(
-            self, *kids):
-        "%reduce a_expr NOT BETWEEN opt_asymmetric b_expr AND b_expr [P_BETWEEN]"
-
-        left = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.LT, right=kids[4].val)
-        right = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.GT, right=kids[6].val)
-        self.val = pgast.BinOpNode(left=left, op=ast.ops.OR, right=right)
-
-    def reduce_a_expr_BETWEEN_SYMMETRIC_b_expr_AND_b_expr(self, *kids):
-        "%reduce a_expr BETWEEN SYMMETRIC b_expr AND b_expr [P_BETWEEN]"
-
-        left = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.GE, right=kids[3].val)
-        right = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.LE, right=kids[5].val)
-        one = pgast.BinOpNode(left=left, op=ast.ops.AND, right=right)
-        left = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.GE, right=kids[5].val)
-        right = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.LE, right=kids[3].val)
-        second = pgast.BinOpNode(left=left, op=ast.ops.AND, right=right)
-        self.val = pgast.BinOpNode(left=one, op=ast.ops.OR, right=second)
-
-    def reduce_a_expr_NOT_BETWEEN_SYMMETRIC_b_expr_AND_b_expr(self, *kids):
-        "%reduce a_expr NOT BETWEEN SYMMETRIC b_expr AND b_expr [P_BETWEEN]"
-
-        left = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.LT, right=kids[4].val)
-        right = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.GT, right=kids[6].val)
-        one = pgast.BinOpNode(left=left, op=ast.ops.AND, right=right)
-        left = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.LT, right=kids[6].val)
-        right = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.GT, right=kids[4].val)
-        second = pgast.BinOpNode(left=left, op=ast.ops.AND, right=right)
-        self.val = pgast.BinOpNode(left=one, op=ast.ops.OR, right=second)
+        self.val = pgast.Expr(
+            name=pgast.IS_NOT_OF,
+            lexpr=kids[0].val,
+            rexpr=kids[5].val,
+            kind=pgast.OP)
 
     def reduce_a_expr_IN_P_in_expr(self, *kids):
         "%reduce a_expr IN_P in_expr"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.IN, right=kids[2].val)
+        self.val = pgast.Expr(
+            name=ast.ops.IN,
+            lexpr=kids[0].val,
+            rexpr=kids[2].val,
+            kind=pgast.OP)
 
     def reduce_a_expr_NOT_IN_P_in_expr(self, *kids):
         "%reduce a_expr NOT IN_P in_expr"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.NOT_IN, right=kids[3].val)
-
-    # ... XXX
-
-
-class b_expr(Nonterm):
-    # c_expr | b_expr TYPECAST Typename | b_expr AT TIME ZONE b_expr
-    # | '+' b_expr | '-' b_expr | b_expr '+' b_expr | b_expr '-' b_expr
-    # | b_expr '*' b_expr | b_expr '/' b_expr | b_expr '%' b_expr
-    # | b_expr '^' b_expr | b_expr '<' b_expr | b_expr '>' b_expr
-    # | b_expr '=' b_expr | b_expr qual_Op b_expr  %prec Op
-    # | qual_Op b_expr %prec Op | b_expr qual_Op %prec POSTFIXOP
-    # | b_expr IS DISTINCT FROM b_expr %prec IS
-    # | b_expr IS NOT DISTINCT FROM b_expr %prec IS
-    # | b_expr IS OF '(' type_list ')' %prec IS
-    # | b_expr IS NOT OF '(' type_list ')' %prec IS
-    # | b_expr IS DOCUMENT_P %prec IS
-    # | b_expr IS NOT DOCUMENT_P %prec IS
-
-    def reduce_c_expr(self, *kids):
-        "%reduce c_expr"
-        self.val = kids[0].val
-
-    def reduce_b_expr_TYPECAST_Typename(self, *kids):
-        "%reduce b_expr TYPECAST Typename"
-
-        if isinstance(kids[0].val, pgast.ConstantNode):
-            kids[0].val.type = kids[2].val
-            self.val = kids[0].val
-        else:
-            self.val = pgast.TypeCastNode(expr=kids[0].val, type=kids[2].val)
-
-    def reduce_unary_plus(self, *kids):
-        "%reduce PLUS b_expr [P_UMINUS]"
-        self.val = pgast.UnaryOpNode(op=ast.ops.UPLUS, operand=kids[1].val)
-
-    def reduce_unary_minus(self, *kids):
-        "%reduce MINUS b_expr [P_UMINUS]"
-        self.val = pgast.UnaryOpNode(op=ast.ops.UMINUS, operand=kids[1].val)
-
-    def reduce_add(self, *kids):
-        "%reduce b_expr PLUS b_expr"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.ADD, right=kids[2].val)
-
-    def reduce_sub(self, *kids):
-        "%reduce b_expr MINUS b_expr"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.SUB, right=kids[2].val)
-
-    def reduce_mul(self, *kids):
-        "%reduce b_expr STAR b_expr"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.MUL, right=kids[2].val)
-
-    def reduce_div(self, *kids):
-        "%reduce b_expr SLASH b_expr"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.DIV, right=kids[2].val)
-
-    def reduce_mod(self, *kids):
-        "%reduce b_expr PERCENT b_expr"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.MOD, right=kids[2].val)
-
-    def reduce_pow(self, *kids):
-        "%reduce b_expr CIRCUM b_expr"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.POW, right=kids[2].val)
-
-    def reduce_lt(self, *kids):
-        "%reduce b_expr LANGBRACKET b_expr"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.LT, right=kids[2].val)
-
-    def reduce_gt(self, *kids):
-        "%reduce b_expr RANGBRACKET b_expr"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.GT, right=kids[2].val)
-
-    def reduce_equals(self, *kids):
-        "%reduce b_expr EQUALS b_expr"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=ast.ops.EQ, right=kids[2].val)
-
-    def reduce_b_expr_qual_Op_b_expr(self, *kids):
-        "%reduce b_expr qual_Op b_expr [P_OP]"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=kids[1].val, right=kids[2].val)
-
-    def reduce_qual_Op_b_expr(self, *kids):
-        "%reduce qual_Op b_expr [P_OP]"
-        self.val = pgast.UnaryOpNode(op=kids[0].val, operand=kids[1].val)
-
-    def reduce_b_expr_qual_Op(self, *kids):
-        "%reduce b_expr qual_Op [P_POSTFIXOP]"
-        self.val = pgast.PostfixOpNode(op=kids[1].val, operand=kids[0].val)
-
-    def reduce_b_expr_IS_DISTINCT_FROM_b_expr(self, *kids):
-        "%reduce b_expr IS DISTINCT FROM b_expr [P_IS]"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=pgast.IS_DISTINCT, right=kids[4].val)
-
-    def reduce_b_expr_IS_NOT_DISTINCT_FROM_b_expr(self, *kids):
-        "%reduce b_expr IS NOT DISTINCT FROM b_expr [P_IS]"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=pgast.IS_NOT_DISTINCT, right=kids[5].val)
-
-    def reduce_b_expr_IS_OF_type_list(self, *kids):
-        "%reduce b_expr IS OF LPAREN type_list RPAREN [P_IS]"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=pgast.IS_OF, right=kids[4].val)
-
-    def reduce_b_expr_IS_NOT_OF_type_list(self, *kids):
-        "%reduce b_expr IS NOT OF LPAREN type_list RPAREN [P_IS]"
-        self.val = pgast.BinOpNode(
-            left=kids[0].val, op=pgast.IS_NOT_OF, right=kids[5].val)
+        self.val = pgast.Expr(
+            name=pgast.NOT_IN,
+            lexpr=kids[0].val,
+            rexpr=kids[3].val,
+            kind=pgast.OP)
 
     # ... XXX
 
@@ -1427,11 +1366,11 @@ class c_expr(Nonterm):
 
     def reduce_PARAM_opt_indirection(self, *kids):
         "%reduce PARAM opt_indirection"
-        paramref = pgast.ParamRefNode(param=kids[0].val)
+        paramref = pgast.ParamRef(number=kids[0].val)
 
         if kids[1].val:
-            self.val = pgast.IndirectionNode(
-                expr=paramref, indirection=kids[1].val)
+            self.val = pgast.Indirection(
+                arg=paramref, indirection=kids[1].val)
         else:
             self.val = paramref
 
@@ -1439,13 +1378,10 @@ class c_expr(Nonterm):
         "%reduce LPAREN a_expr RPAREN opt_indirection"
 
         if kids[3].val:
-            self.val = pgast.IndirectionNode(
-                expr=kids[1].val, indirection=kids[3].val)
+            self.val = pgast.Indirection(
+                arg=kids[1].val, indirection=kids[3].val)
         else:
             self.val = kids[1].val
-
-    #def reduce_case_expr(self, *kids):
-    #    "%reduce case_expr"
 
     def reduce_func_expr(self, *kids):
         "%reduce func_expr"
@@ -1455,11 +1391,11 @@ class c_expr(Nonterm):
 
     def reduce_ARRAY_array_expr(self, *kids):
         "%reduce ARRAY array_expr"
-        self.val = pgast.ArrayNode(elements=kids[1].val)
+        self.val = pgast.ArrayExpr(elements=kids[1].val)
 
     def reduce_row(self, *kids):
         "%reduce row"
-        self.val = pgast.RowExprNode(args=kids[0].val)
+        self.val = kids[0].val
 
 
 class func_expr(Nonterm):
@@ -1492,36 +1428,28 @@ class func_expr(Nonterm):
 
     def reduce_func_name_over_clause(self, *kids):
         "%reduce func_name LPAREN RPAREN over_clause"
-        self.val = pgast.FunctionCallNode(name=kids[0].val, over=kids[3].val)
+        self.val = pgast.FuncCall(name=kids[0].val, over=kids[3].val)
 
     def reduce_func_name_func_arg_list_over_clause(self, *kids):
         "%reduce func_name LPAREN func_arg_list RPAREN over_clause"
-        self.val = pgast.FunctionCallNode(
+        self.val = pgast.FuncCall(
             name=kids[0].val, args=kids[2].val, over=kids[4].val)
 
     # ... XXX
 
     def reduce_CAST_a_expr_AS_Typename(self, *kids):
         "%reduce CAST LPAREN a_expr AS Typename RPAREN"
-        self.val = pgast.TypeCastNode(expr=kids[2].val, type=kids[4].val)
+        self.val = pgast.TypeCast(expr=kids[2].val, type_name=kids[4].val)
 
     # ... XXX
 
     def reduce_COALESCE_expr_list(self, *kids):
         "%reduce COALESCE LPAREN expr_list RPAREN"
-        self.val = pgast.FunctionCallNode(name=kids[0].val, args=kids[2].val)
+        self.val = pgast.FuncCall(name=kids[0].val, args=kids[2].val)
 
 
 class over_clause(Nonterm):
     # OVER window_specification | OVER ColId | <e>
-
-    #def reduce_OVER_window_specification(self, *kids):
-    #    "%reduce OVER window_specification"
-    #    self.val = kids[0].val
-
-    #def reduce_OVER_ColId(self, *kids):
-    #    "%reduce OVER ColId"
-    #    self.val = pgast.WindowDefNode(name=kids[1].val)
 
     def reduce_empty(self, *kids):
         "%reduce <e>"
@@ -1533,15 +1461,16 @@ class row(Nonterm):
 
     def reduce_ROW_expr_list(self, *kids):
         "%reduce ROW LPAREN expr_list RPAREN"
-        self.val = kids[2].val
+        self.val = pgast.RowExpr(elements=kids[2].val)
 
     def reduce_ROW(self, *kids):
         "%reduce ROW LPAREN RPAREN"
-        self.val = None
+        self.val = pgast.RowExpr(elements=[])
 
     def reduce_expr_list_a_expr(self, *kids):
         "%reduce LPAREN expr_list COMMA a_expr RPAREN"
-        self.val = kids[1].val + [kids[3].val]
+        self.val = pgast.ImplicitRowExpr(
+            elements=[kids[1].val + [kids[3].val]])
 
 
 class all_Op(Nonterm):
@@ -1744,47 +1673,49 @@ class AexprConst(Nonterm):
 
     def reduce_ICONST(self, *kids):
         "%reduce ICONST"
-        self.val = pgast.ConstantNode(value=kids[0].val)
+        self.val = pgast.Constant(val=kids[0].val)
 
     def reduce_FCONST(self, *kids):
         "%reduce FCONST"
-        self.val = pgast.ConstantNode(value=kids[0].val)
+        self.val = pgast.Constant(val=kids[0].val)
 
     def reduce_SCONST(self, *kids):
         "%reduce SCONST"
-        self.val = pgast.ConstantNode(value=kids[0].val)
+        self.val = pgast.Constant(val=kids[0].val)
 
     def reduce_BCONST(self, *kids):
         "%reduce BCONST"
-        self.val = pgast.ConstantNode(value=kids[0].val)
+        self.val = pgast.Constant(val=kids[0].val)
 
     def reduce_XCONST(self, *kids):
         "%reduce XCONST"
-        self.val = pgast.ConstantNode(value=kids[0].val)
+        self.val = pgast.Constant(val=kids[0].val)
 
     def reduce_type_const(self, *kids):
         "%reduce func_name SCONST"
-        self.val = pgast.TypeCastNode(
-            expr=pgast.ConstantNode(value=kids[1].val),
-            type=pgast.TypeNode(name=kids[0].val))
+        self.val = pgast.TypeCast(
+            arg=pgast.Constant(val=kids[1].val),
+            type_name=pgast.TypeName(name=kids[0].val))
 
     def reduce_type_mods_const(self, *kids):
         "%reduce func_name LPAREN func_arg_list RPAREN SCONST"
-        self.val = pgast.TypeCastNode(
-            expr=pgast.ConstantNode(value=kids[4].val), type=pgast.TypeNode(
-                name=kids[0].val, typmods=kids[2].val))
+        self.val = pgast.TypeCast(
+            art=pgast.Constant(val=kids[4].val),
+            type_name=pgast.TypeName(name=kids[0].val, typmods=kids[2].val))
 
     def reduce_ConstTypename_const(self, *kids):
         "%reduce ConstTypename SCONST"
-        self.val = pgast.TypeCastNode(
-            expr=pgast.ConstantNode(value=kids[1].val), type=kids[0].val)
+        self.val = pgast.TypeCast(
+            arg=pgast.Constant(val=kids[1].val),
+            type_name=kids[0].val)
 
     def reduce_ConstInterval_SCONST_opt_interval(self, *kids):
         "%reduce ConstInterval SCONST opt_interval"
         typ = kids[0].val
         typ.typmods = kids[2].val
-        self.val = pgast.TypeCastNode(
-            expr=pgast.ConstantNode(value=kids[1].val), type=typ)
+        self.val = pgast.TypeCast(
+            argr=pgast.Constant(val=kids[1].val),
+            type_name=typ)
 
     def reduce_ConstInterval_ICONST_SCONST_opt_interval(self, *kids):
         "%reduce ConstInterval LPAREN ICONST RPAREN SCONST opt_interval"
@@ -1800,20 +1731,21 @@ class AexprConst(Nonterm):
         else:
             typ.typmods = [{'precision': kids[2].val}]
 
-        self.val = pgast.TypeCastNode(
-            expr=pgast.ConstantNode(value=kids[4].val), type=typ)
+        self.val = pgast.TypeCast(
+            expr=pgast.Constant(val=kids[4].val),
+            type_name=typ)
 
     def reduce_TRUE_P(self, *kids):
         "%reduce TRUE_P"
-        self.val = pgast.ConstantNode(value=True)
+        self.val = pgast.Constant(val=True)
 
     def reduce_FALSE_P(self, *kids):
         "%reduce FALSE_P"
-        self.val = pgast.ConstantNode(value=False)
+        self.val = pgast.Constant(val=False)
 
     def reduce_NULL_P(self, *kids):
         "%reduce NULL_P"
-        self.val = pgast.ConstantNode(value=None)
+        self.val = pgast.Constant(val=None)
 
 
 class ColId(Nonterm):

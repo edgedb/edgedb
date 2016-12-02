@@ -259,8 +259,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(')')
 
     def visit_UnaryOpNode(self, node):
-        self.write(str(node.op).upper())
-        self.write(' ')
+        op = str(node.op).upper()
+        self.write(op)
+        if op.isalnum():
+            self.write(' ')
         self.visit(node.operand)
 
     def visit_BinOpNode(self, node):
@@ -320,6 +322,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.visit(e, withtarget=withtarget)
 
         if node.pathspec:
+            self.write(' ')
             self._visit_pathspec(node.pathspec)
 
     def _visit_pathspec(self, pathspec):
@@ -327,11 +330,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write('{')
             self.indentation += 1
             self.new_lines = 1
-            for i, spec in enumerate(pathspec):
-                if i > 0:
-                    self.write(', ')
-                    self.new_lines = 1
-                self.visit(spec)
+            self.visit_list(pathspec)
             self.indentation -= 1
             self.new_lines = 1
             self.write('}')

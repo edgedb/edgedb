@@ -364,12 +364,20 @@ class SQLSourceGenerator(codegen.SourceGenerator):
     def visit_ColumnRef(self, node):
         names = node.name
         if isinstance(names[-1], pgast.Star):
-            self.write(common.qname(*node.name[:-1]))
+            self.write(common.qname(*names[:-1]))
             if len(names) > 1:
                 self.write('.')
             self.write('*')
         else:
-            self.write(common.qname(*node.name))
+            if names == ['VALUE']:
+                self.write(names[0])
+            elif names[0] in {'OLD', 'NEW'}:
+                self.write(names[0])
+                if len(names) > 1:
+                    self.write('.')
+                    self.write(common.qname(*names[1:]))
+            else:
+                self.write(common.qname(*names))
 
     def visit_ColumnDef(self, node):
         self.write(common.quote_ident(node.name))

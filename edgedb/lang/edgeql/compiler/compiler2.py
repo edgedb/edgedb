@@ -4,7 +4,7 @@
 #
 # See LICENSE for details.
 ##
-"""EdgeQL to IR compiler."""
+"""EdgeQL to IR compiler implementation."""
 
 import itertools
 
@@ -21,45 +21,10 @@ from edgedb.lang.schema import types as s_types
 
 from edgedb.lang.edgeql import ast as qlast
 from edgedb.lang.edgeql import errors
-from edgedb.lang.edgeql import parser
 
 from edgedb.lang.common import ast
-from edgedb.lang.common import debug
 from edgedb.lang.common import exceptions as edgedb_error
 from edgedb.lang.common import markup  # NOQA
-
-from . import rewriter
-
-
-class SubqueryLinker(ast.NodeTransformer):
-    """Link subqueries to the main query."""
-
-    def visit_GraphExpr(self, expr):
-        paths = irutils.get_path_index(expr)
-
-        subpaths = irutils.extract_paths(
-            expr,
-            reverse=True,
-            resolve_arefs=False,
-            recurse_subqueries=2,
-            all_fragments=True)
-
-        if isinstance(subpaths, irast.PathCombination):
-            irutils.flatten_path_combination(subpaths, recursive=True)
-            subpaths = subpaths.paths
-        elif subpaths is not None:
-            subpaths = {subpaths}
-        else:
-            subpaths = set()
-
-        for subpath in subpaths:
-            if isinstance(subpath, irast.EntitySet):
-                outer = paths.getlist(subpath.path_id)
-
-                if outer and subpath not in outer:
-                    subpath.reference = outer[0]
-
-        return self.generic_visit(expr)
 
 
 class ParseContextLevel(object):
@@ -85,6 +50,7 @@ class ParseContextLevel(object):
                 self.apply_access_control_rewrite = \
                     prevlevel.apply_access_control_rewrite
                 self.local_link_source = None
+                self.arg_types = prevlevel.arg_types
             else:
                 self.stmt = prevlevel.stmt
                 if mode == ParseContext.NEWSETS:
@@ -108,6 +74,7 @@ class ParseContextLevel(object):
                 self.apply_access_control_rewrite = \
                     prevlevel.apply_access_control_rewrite
                 self.local_link_source = prevlevel.local_link_source
+                self.arg_types = prevlevel.arg_types
         else:
             self.stmt = None
             self.sets = {}
@@ -127,6 +94,7 @@ class ParseContextLevel(object):
             self.cge_map = {}
             self.apply_access_control_rewrite = False
             self.local_link_source = None
+            self.arg_types = {}
 
     def genalias(self, hint=None):
         if hint is None:
@@ -283,10 +251,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         self._init_context(arg_types, modaliases, anchors,
                            security_context=security_context)
 
-        stree = self.visit(edgeql_tree)
-        rewriter.RewriteTransformer.run(stree, context=self.context)
-
-        return stree
+        return self.visit(edgeql_tree)
 
     def transform_fragment(self,
                            edgeql_tree,
@@ -357,8 +322,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         stmt.argument_types = self.context.current.arguments
         stmt.context_vars = self.context.current.context_vars
 
-        self._link_subqueries(stmt)
-
         return stmt
 
     def visit_InsertQueryNode(self, edgeql_tree):
@@ -384,8 +347,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         stmt.result_types = self._get_selector_types(stmt.result)
         stmt.argument_types = self.context.current.arguments
         stmt.context_vars = self.context.current.context_vars
-
-        self._link_subqueries(stmt)
 
         return stmt
 
@@ -414,8 +375,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         stmt.argument_types = self.context.current.arguments
         stmt.context_vars = self.context.current.context_vars
 
-        self._link_subqueries(stmt)
-
         return stmt
 
     def visit_DeleteQueryNode(self, edgeql_tree):
@@ -442,8 +401,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         stmt.result_types = self._get_selector_types(stmt.result)
         stmt.argument_types = self.context.current.arguments
         stmt.context_vars = self.context.current.context_vars
-
-        self._link_subqueries(stmt)
 
         return stmt
 
@@ -540,9 +497,9 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 raise RuntimeError(
                     'Unexpected path step expression: {!r}'.format(step))
 
-        if (ctx.groupprefixes
-                and ctx.location in ('orderby', 'selector')
-                and not ctx.in_aggregate):
+        if (ctx.groupprefixes and
+                ctx.location in ('orderby', 'selector') and
+                not ctx.in_aggregate):
             if path_tip.path_id not in ctx.groupprefixes:
                 err = ('{!r} must appear in the '
                        'GROUP BY expression or used in an aggregate '
@@ -560,11 +517,11 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             right = self._process_type_ref_expr(right)
 
         binop = irast.BinOp(left=left, right=right, op=expr.op)
-        result_type = irutils.infer_type2(binop, ctx.schema)
+        result_type = irutils.infer_type(binop, ctx.schema)
 
         if result_type is None:
-            left_type = irutils.infer_type2(binop.left, ctx.schema)
-            right_type = irutils.infer_type2(binop.right, ctx.schema)
+            left_type = irutils.infer_type(binop.left, ctx.schema)
+            right_type = irutils.infer_type(binop.right, ctx.schema)
             err = 'operator does not exist: {} {} {}'.format(
                 left_type.name, expr.op, right_type.name)
 
@@ -591,7 +548,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         ctx = self.context.current
 
         if expr.index is not None:
-            type = self.arg_types.get(expr.index)
+            type = ctx.arg_types.get(expr.index)
             if type is not None:
                 type = s_types.normalize_type(type, ctx.schema)
             node = irast.Constant(
@@ -616,8 +573,17 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         with self.context():
             ctx = self.context.current
 
-            if self._is_func_agg(expr.func):
+            if isinstance(expr.func, str):
+                funcname = (None, expr.func)
+            else:
+                funcname = expr.func
+
+            funcobj = self._get_schema_object(
+                name=funcname[1], module=funcname[0])
+
+            if funcobj.aggregate:
                 ctx.in_aggregate.append(expr)
+
             ctx.in_func_call = True
 
             args = []
@@ -630,7 +596,9 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     args.append(self.visit(a))
 
             node = irast.FunctionCall(
-                name=expr.func, args=args, kwargs=kwargs)
+                name=(funcobj.name.module, funcobj.name.name),
+                args=args,
+                kwargs=kwargs)
 
             if expr.agg_sort:
                 node.agg_sort = [
@@ -683,7 +651,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         result = irast.UnaryOp(expr=operand, op=expr.op)
         set_expr = self._is_set_expr(operand)
         if set_expr is not None:
-            result_type = irutils.infer_type2(result, ctx.schema)
+            result_type = irutils.infer_type(result, ctx.schema)
             if result_type is None:
                 raise RuntimeError(
                     'could not resolve the unaryop '
@@ -775,8 +743,9 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                       security_context=None):
         self.context = context = ParseContext()
         self.context.current.schema = self.schema
-        self.context.current.modaliases = \
-            modaliases or self.modaliases
+        self.context.current.modaliases = modaliases or self.modaliases
+        if arg_types:
+            self.context.current.arg_types = arg_types
 
         if self.context.current.modaliases:
             self.context.current.namespaces.update(
@@ -797,44 +766,61 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             if isinstance(scls, s_obj.NodeClass):
                 step = irast.Set()
                 step.scls = scls
-                step.path_id = irutils.LinearPath([step.concept])
+                step.path_id = irutils.LinearPath([step.scls])
                 step.anchor = anchor
                 step.show_as_anchor = anchor
+
             elif isinstance(scls, s_links.Link):
                 if scls.source:
-                    src = irast.Set()
-                    src.scls = scls.source
-                    src.path_id = irutils.LinearPath([scls.source])
+                    path = irast.Set()
+                    path.scls = scls.source
+                    path.path_id = irutils.LinearPath([path.scls])
+                    path = self._extend_path(
+                        path, scls,
+                        s_pointers.PointerDirection.Outbound,
+                        scls.target)
                 else:
-                    src = None
+                    path = irast.Set()
+                    path.scls = ctx.schema.get('std::Object')
+                    path.path_id = irutils.LinearPath([path.scls])
+                    ptrcls = scls.get_derived(
+                        ctx.schema, path.scls, ctx.schema.get('std::Object'),
+                        mark_derived=True, add_to_schema=False)
+                    path = self._extend_path(
+                        path, ptrcls,
+                        s_pointers.PointerDirection.Outbound,
+                        ptrcls.target)
 
-                step = irast.Pointer(ptrcls=scls, source=src)
+                step = path
                 step.anchor = anchor
                 step.show_as_anchor = anchor
 
             elif isinstance(scls, s_lprops.LinkProperty):
                 if scls.source.source:
-                    src = irast.Set()
-                    src.scls = scls.source.source
-                    src.path_id = irutils.LinearPath([src.concept])
+                    path = irast.Set()
+                    path.scls = scls.source.source
+                    path.path_id = irutils.LinearPath([path.scls])
+                    path = self._extend_path(
+                        path, scls.source,
+                        s_pointers.PointerDirection.Outbound,
+                        scls.source.target)
                 else:
-                    src = None
+                    path = irast.Set()
+                    path.scls = ctx.schema.get('std::Object')
+                    path.path_id = irutils.LinearPath([path.scls])
+                    ptrcls = scls.source.get_derived(
+                        ctx.schema, path.scls, ctx.schema.get('std::Object'),
+                        mark_derived=True, add_to_schema=False)
+                    path = self._extend_path(
+                        path, ptrcls,
+                        s_pointers.PointerDirection.Outbound,
+                        ptrcls.target)
 
-                link = irast.Pointer(
-                    ptrcls=scls.source,
-                    source=src,
-                    direction=s_pointers.PointerDirection.Outbound)
+                step = self._extend_path(
+                    path, scls,
+                    s_pointers.PointerDirection.Outbound,
+                    scls.target)
 
-                if src:
-                    pref_id = irutils.LinearPath(src.path_id)
-                else:
-                    pref_id = irutils.LinearPath([])
-
-                pref_id.add(scls.source, s_pointers.PointerDirection.Outbound,
-                            scls.target)
-
-                step = irast.Pointer(
-                    source=link, path_id=pref_id, ptrcls=scls)
                 step.anchor = anchor
                 step.show_as_anchor = anchor
 
@@ -972,7 +958,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                         result=compexpr
                     )
 
-                target_class = irutils.infer_type2(compexpr, schema)
+                target_class = irutils.infer_type(compexpr, schema)
                 if target_class is None:
                     msg = 'cannot determine expression result type'
                     raise errors.EdgeQLError(msg, context=lexpr.context)
@@ -1007,7 +993,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     ptrsource,
                     ptrname,
                     direction=ptr_direction,
-                    ptr_type=ptrtype,
                     target=target_name)
                 target_class = ptrcls.get_far_endpoint(ptr_direction)
                 compexpr = None
@@ -1135,7 +1120,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                      near_endpoint,
                      ptr_name,
                      direction,
-                     ptr_type=s_links.Link,
                      target=None):
         ptr_module, ptr_nqname = ptr_name
 
@@ -1143,8 +1127,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             ptr_fqname = sn.Name(module=ptr_module, name=ptr_nqname)
             modaliases = self.context.current.namespaces
             pointer = self.schema.get(ptr_fqname,
-                                      module_aliases=modaliases,
-                                      type=ptr_type)
+                                      module_aliases=modaliases)
             pointer_name = pointer.name
         else:
             pointer_name = ptr_fqname = ptr_nqname
@@ -1298,8 +1281,8 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             return None
 
     def _is_type_check(self, left, right, op):
-        return (not reversed and op in (ast.ops.IS, ast.ops.IS_NOT)
-                and isinstance(left, irast.Path))
+        return (not reversed and op in (ast.ops.IS, ast.ops.IS_NOT) and
+                isinstance(left, irast.Path))
 
     def _is_constant(self, expr):
         flt = lambda node: isinstance(node, irast.Path)
@@ -1316,7 +1299,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
     def _get_selector_types(self, selexpr):
         schema = self.context.current.schema
 
-        expr_type = irutils.infer_type2(selexpr, schema)
+        expr_type = irutils.infer_type(selexpr, schema)
 
         if isinstance(selexpr, irast.Constant):
             expr_kind = 'constant'
@@ -1325,93 +1308,3 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         else:
             expr_kind = 'expression'
         return (expr_type, expr_kind)
-
-    def _link_subqueries(self, expr):
-        return SubqueryLinker.run(expr)
-
-
-def compile_fragment_to_ir(expr,
-                           schema,
-                           *,
-                           anchors=None,
-                           location=None,
-                           modaliases=None):
-    """Compile given EdgeQL expression fragment into EdgeDB IR."""
-    tree = parser.parse_fragment(expr)
-    trans = EdgeQLCompiler(schema, modaliases)
-    return trans.transform_fragment(
-        tree, (), anchors=anchors, location=location)
-
-
-def compile_ast_fragment_to_ir(tree,
-                               schema,
-                               *,
-                               anchors=None,
-                               location=None,
-                               modaliases=None):
-    """Compile given EdgeQL AST fragment into EdgeDB IR."""
-    trans = EdgeQLCompiler(schema, modaliases)
-    return trans.transform_fragment(
-        tree, (), anchors=anchors, location=location)
-
-
-@debug.debug
-def compile_to_ir(expr,
-                  schema,
-                  *,
-                  anchors=None,
-                  arg_types=None,
-                  security_context=None,
-                  modaliases=None):
-    """Compile given EdgeQL statement into EdgeDB IR."""
-    """LOG [edgeql.compile] EdgeQL TEXT:
-    print(expr)
-    """
-    tree = parser.parse(expr, modaliases)
-    """LOG [edgeql.compile] EdgeQL AST:
-    from edgedb.lang.common import markup
-    markup.dump(tree)
-    """
-    trans = EdgeQLCompiler(schema, modaliases)
-
-    ir = trans.transform(
-        tree,
-        arg_types,
-        modaliases=modaliases,
-        anchors=anchors,
-        security_context=security_context)
-    """LOG [edgeql.compile] EdgeDB IR:
-    from edgedb.lang.common import markup
-    markup.dump(ir)
-    """
-
-    return ir
-
-
-@debug.debug
-def compile_ast_to_ir(tree,
-                      schema,
-                      *,
-                      anchors=None,
-                      arg_types=None,
-                      security_context=None,
-                      modaliases=None):
-    """Compile given EdgeQL AST into EdgeDB IR."""
-    """LOG [edgeql.compile] EdgeQL AST:
-    from edgedb.lang.common import markup
-    markup.dump(tree)
-    """
-    trans = EdgeQLCompiler(schema, modaliases)
-
-    ir = trans.transform(
-        tree,
-        arg_types,
-        modaliases=modaliases,
-        anchors=anchors,
-        security_context=security_context)
-    """LOG [edgeql.compile] EdgeDB IR:
-    from edgedb.lang.common import markup
-    markup.dump(ir)
-    """
-
-    return ir

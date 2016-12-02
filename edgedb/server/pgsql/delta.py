@@ -40,11 +40,11 @@ from edgedb.lang.common.nlang import morphology
 from edgedb.server.pgsql import common
 from edgedb.server.pgsql import dbops, deltadbops, metaschema
 
-from . import ast as pg_ast
-from . import codegen
+from . import ast2 as pg_ast
+from . import compiler
+from . import codegen2 as codegen
 from . import datasources
 from . import schemamech
-from . import transformer
 from . import types
 
 BACKEND_FORMAT_VERSION = 30
@@ -1137,8 +1137,8 @@ class CompositeClassMetaCommand(NamedClassMetaCommand):
 
         alter_table = source_ctx.op.get_alter_table(context, force_new=True)
 
-        if (isinstance(source, s_concepts.Concept)
-                or source_ctx.op.has_table(source, schema)):
+        if (isinstance(source, s_concepts.Concept) or
+                source_ctx.op.has_table(source, schema)):
 
             source.acquire_ancestor_inheritance(schema)
             orig_source.acquire_ancestor_inheritance(schema)
@@ -1274,8 +1274,8 @@ class CreateSourceIndex(
         ir = edgeql.compile_fragment_to_ir(
             index.expr, schema, location='selector')
 
-        ircompiler = transformer.SimpleIRCompiler()
-        sql_tree = ircompiler.transform(ir, schema, local=True)
+        ircompiler = compiler.SingletonExprIRCompiler()
+        sql_tree = ircompiler.transform_to_sql_tree(ir, schema)
         sql_expr = codegen.SQLSourceGenerator.to_source(sql_tree)
         if isinstance(sql_tree, pg_ast.SequenceNode):
             # Trim the parentheses to avoid PostgreSQL choking on double
@@ -2642,7 +2642,7 @@ class CreateModule(ModuleMetaCommand, adapts=s_mod.CreateModule):
         return module
 
 
-class AlterModule(CompositeClassMetaCommand, adapts=s_mod.AlterModule):
+class AlterModule(ModuleMetaCommand, adapts=s_mod.AlterModule):
     def apply(self, schema, context):
         module = s_mod.AlterModule.apply(self, schema, context=context)
         CompositeClassMetaCommand.apply(self, schema, context)
@@ -2660,7 +2660,7 @@ class AlterModule(CompositeClassMetaCommand, adapts=s_mod.AlterModule):
         return module
 
 
-class DeleteModule(CompositeClassMetaCommand, adapts=s_mod.DeleteModule):
+class DeleteModule(ModuleMetaCommand, adapts=s_mod.DeleteModule):
     def apply(self, schema, context):
         CompositeClassMetaCommand.apply(self, schema, context)
         module = s_mod.DeleteModule.apply(self, schema, context)

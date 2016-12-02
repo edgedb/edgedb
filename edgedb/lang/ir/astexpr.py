@@ -27,18 +27,22 @@ class DistinctConjunctionExpr:
             # A logical conjunction of unique constraint expressions
             binop = irastmatch.BinOp(op=ast.ops.AND)
 
-            # A RefExpr node containing an unique constraint expression
-            refexpr = irastmatch.BaseRefExpr()
+            # Set expression with the above binop
+            set_expr = irastmatch.Set(
+                expr=astmatch.Or(
+                    distinct_expr, binop
+                )
+            )
 
             # A unique constraint expression can be either one of the
             # three above
             constr_expr = astmatch.Or(
-                distinct_expr, binop, refexpr
+                distinct_expr, binop, set_expr
             )
 
             # Populate expression alternatives to complete recursive
             # pattern definition.
-            binop.left = binop.right = refexpr.expr = constr_expr
+            binop.left = binop.right = constr_expr
 
             self.pattern = constr_expr
 

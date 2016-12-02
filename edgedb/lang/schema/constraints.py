@@ -281,19 +281,12 @@ class Constraint(primary.PrimaryClass, derivable.DerivableClass):
             tree = expr
 
         ir, edgeql_tree, _ = edgeql_utils.normalize_tree(
-            tree, schema, module_aliases=module_aliases,
+            tree, schema, modaliases=module_aliases,
             anchors={'subject': subject}, inline_anchors=inline_anchors)
 
         arg_types = ir_utils.infer_arg_types(ir, schema)
 
-        sel = ir.selector
-        if len(sel) != 1:
-            msg = 'invalid constraint expression: must be a simple expression'
-            raise ValueError(msg)
-
-        edgedb_tree = sel[0].expr
-
-        return edgeql_tree.targets[0].expr, edgedb_tree, arg_types
+        return edgeql_tree.targets[0].expr, ir.result, arg_types
 
     @classmethod
     def normalize_constraint_expr(cls, schema, module_aliases, expr):
