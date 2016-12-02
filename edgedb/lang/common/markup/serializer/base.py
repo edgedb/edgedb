@@ -10,7 +10,7 @@ import decimal
 import collections
 import weakref
 
-from edgedb.lang.common.functional.dispatch import TypeDispatcher
+from edgedb.lang.common.dispatch import TypeDispatcher
 from .. import elements
 
 from edgedb.lang.common import exceptions

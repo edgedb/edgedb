@@ -12,13 +12,13 @@ import re
 from edgedb.lang.common.exceptions import EdgeDBError
 from edgedb.lang.common import exceptions as base_err
 from edgedb.lang.common import debug as edgedb_debug
+from edgedb.lang.common import adapter
 from edgedb.lang import edgeql
 from edgedb.lang.edgeql import ast as qlast
 
-from edgedb.lang.common import datastructures, functional, markup
+from edgedb.lang.common import datastructures, markup, ordered
 from edgedb.lang.common.datastructures import Field
 from edgedb.lang.common.datastructures import typed
-from edgedb.lang.common.datastructures import OrderedIndex
 from edgedb.lang.common.nlang import morphology
 from edgedb.lang.common.algos.persistent_hash import persistent_hash
 
@@ -70,10 +70,10 @@ def delta_schemas(schema1, schema2):
     global_dels = []
 
     for type in schema1.global_dep_order:
-        new = OrderedIndex(schema1.get_objects(type=type),
-                           key=lambda o: o.persistent_hash())
-        old = OrderedIndex(schema2.get_objects(type=type),
-                           key=lambda o: o.persistent_hash())
+        new = ordered.OrderedIndex(schema1.get_objects(type=type),
+                                   key=lambda o: o.persistent_hash())
+        old = ordered.OrderedIndex(schema2.get_objects(type=type),
+                                   key=lambda o: o.persistent_hash())
 
         if type in ('link', 'link_property', 'constraint'):
             new = filter(lambda i: i.generic(), new)
@@ -327,7 +327,7 @@ class Delta(datastructures.MixedStruct, metaclass=DeltaMeta):
 
 class DeltaSet:
     def __init__(self, deltas):
-        self.deltas = datastructures.OrderedSet(deltas)
+        self.deltas = ordered.OrderedSet(deltas)
 
     def apply(self, schema):
         for d in self.deltas:
@@ -343,11 +343,11 @@ class DeltaSet:
         return bool(self.deltas)
 
 
-class CommandMeta(functional.Adapter, datastructures.MixedStructMeta):
+class CommandMeta(adapter.Adapter, datastructures.MixedStructMeta):
     _astnode_map = {}
 
     def __init__(cls, name, bases, clsdict, *, adapts=None):
-        functional.Adapter.__init__(cls, name, bases, clsdict, adapts=adapts)
+        adapter.Adapter.__init__(cls, name, bases, clsdict, adapts=adapts)
         datastructures.MixedStructMeta.__init__(cls, name, bases, clsdict)
         astnodes = clsdict.get('astnode')
         if astnodes:
@@ -370,14 +370,14 @@ class CommandMeta(functional.Adapter, datastructures.MixedStructMeta):
 class Command(datastructures.MixedStruct, metaclass=CommandMeta):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.ops = datastructures.OrderedSet()
-        self.before_ops = datastructures.OrderedSet()
+        self.ops = ordered.OrderedSet()
+        self.before_ops = ordered.OrderedSet()
 
     def copy(self):
         result = super().copy()
-        result.ops = datastructures.OrderedSet(
+        result.ops = ordered.OrderedSet(
             op.copy() for op in self.ops)
-        result.before_ops = datastructures.OrderedSet(
+        result.before_ops = ordered.OrderedSet(
             op.copy() for op in self.before_ops)
         return result
 
@@ -512,7 +512,7 @@ class Command(datastructures.MixedStruct, metaclass=CommandMeta):
             else:
                 return 2
 
-        self.ops = datastructures.OrderedSet(sorted(self.ops, key=_key))
+        self.ops = ordered.OrderedSet(sorted(self.ops, key=_key))
 
     def apply(self, schema, context):
         pass

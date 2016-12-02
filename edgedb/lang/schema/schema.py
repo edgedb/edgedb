@@ -12,12 +12,14 @@ import sys
 
 from importkit.import_ import module as module_types
 
-from edgedb.lang.common.datastructures import Void
 from edgedb.lang.common.algos.persistent_hash import persistent_hash
 
 from .error import SchemaError
 from . import modules as schema_module
 from . import name as schema_name
+
+
+_void = object()
 
 
 class Schema:
@@ -52,7 +54,7 @@ class Schema:
         result.module_aliases_r = self.module_aliases_r.copy()
         return result
 
-    def add_module(self, class_module, alias=Void):
+    def add_module(self, class_module, alias=_void):
         """Add a module to the schema
 
         :param Module class_module: A module that should be added
@@ -69,7 +71,7 @@ class Schema:
             self.foreign_modules[name] = \
                 module_types.AutoloadingLightProxyModule(name, class_module)
 
-        if alias is not Void:
+        if alias is not _void:
             self.set_module_alias(name, alias)
 
         self._policy_schema = None

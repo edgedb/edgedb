@@ -5,13 +5,16 @@
 # See LICENSE for details.
 ##
 
-from edgedb.lang.common.nlang.morphology import (
-    Singular, Plural, WordCombination)
+
+import unittest
+
+from edgedb.lang.common.nlang import morphology as m
 
 
-class TestNLangMorphology(object):
-    def test_nlang_morphology_gram_numbers(self):
-        w = WordCombination({Singular('test'), Plural('tests')})
+class NLangTests(unittest.TestCase):
+
+    def test_common_nlang_morphology_gram_numbers(self):
+        w = m.WordCombination({m.Singular('test'), m.Plural('tests')})
         assert w == 'test'
         assert w.singular == 'test' and w.plural == 'tests'
         with self.assertRaises(AttributeError):

@@ -33,7 +33,7 @@ from edgedb.server.pgsql import exceptions as pg_errors
 
 from edgedb.lang.common import ast, markup
 from edgedb.lang.common.debug import debug
-from edgedb.lang.common.datastructures import OrderedSet
+from edgedb.lang.common.ordered import OrderedSet
 
 from . import types
 

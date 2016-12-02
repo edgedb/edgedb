@@ -7,7 +7,7 @@
 
 import weakref
 
-from edgedb.lang.common import datastructures, ast
+from edgedb.lang.common import ordered, ast
 from edgedb.lang.edgeql import ast as qlast
 
 
@@ -128,7 +128,7 @@ class SelectQueryNode(RelationNode):
         'distinct', ('fromlist', list), ('targets', list), 'where',
         'where_weak', 'where_strong', ('from_only', bool), ('values', list),
         ('orderby', list), 'offset', 'limit', ('groupby', list), 'having',
-        ('ctes', datastructures.OrderedSet), ('concept_node_map', dict),
+        ('ctes', ordered.OrderedSet), ('concept_node_map', dict),
         ('link_node_map', dict), ('linkmap', dict),
         ('subquery_referrers', list), 'op', 'larg', 'rarg', 'recursive',
         'text_override',
@@ -149,7 +149,7 @@ class InsertQueryNode(DMLNode):
     __fields = [
         'fromexpr', ('cols', list), 'select', ('targets', list),
         ('subquery_referrers', list), 'alias',
-        ('ctes', datastructures.OrderedSet),
+        ('ctes', ordered.OrderedSet),
         ('on_conflict', OnConflictNode, None),
         ('concept_node_map', dict)
     ]
@@ -158,7 +158,7 @@ class InsertQueryNode(DMLNode):
 class UpdateQueryNode(DMLNode):
     __fields = [
         'fromexpr', ('values', list), 'where', ('targets', list),
-        ('subquery_referrers', list), ('ctes', datastructures.OrderedSet),
+        ('subquery_referrers', list), ('ctes', ordered.OrderedSet),
         ('concept_node_map', dict),
         'alias'
     ]
@@ -171,13 +171,13 @@ class UpdateExprNode(Base):
 class DeleteQueryNode(DMLNode):
     __fields = [
         'fromexpr', 'where', ('targets', list), ('subquery_referrers', list),
-        ('ctes', datastructures.OrderedSet), 'alias', ('using', list),
+        ('ctes', ordered.OrderedSet), 'alias', ('using', list),
         ('concept_node_map', dict)
     ]
 
 
 class CompositeNode(RelationNode):
-    __fields = [('queries', list), ('ctes', datastructures.OrderedSet),
+    __fields = [('queries', list), ('ctes', ordered.OrderedSet),
                 ('concept_node_map', dict)]
 
 

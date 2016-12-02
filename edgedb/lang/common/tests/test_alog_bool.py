@@ -8,7 +8,7 @@
 from edgedb.lang.common.algos import boolean
 
 
-def test_algos_boolean_minimize():
+def test_common_algos_boolean_minimize():
     ones = boolean.ints_to_terms(0, 1, 2, 4, 5, 6, 9, 12, 13)
     assert boolean.minimize(ones) == {(1, 0, None, None), (None, 0, 1, None), (
         0, None, None, 0)}

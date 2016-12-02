@@ -11,8 +11,6 @@ import inspect
 import types
 
 from edgedb.lang.common import ast
-from edgedb.lang.common import functional
-
 from edgedb.lang.schema import error as s_err
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers

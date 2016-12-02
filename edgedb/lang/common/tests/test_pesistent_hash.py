@@ -10,7 +10,7 @@ import uuid
 from edgedb.lang.common.algos.persistent_hash import persistent_hash
 
 
-def test_utils_algos_persistent_hash_1():
+def test_common_algos_persistent_hash_1():
     assert persistent_hash(1) == persistent_hash(1)
     assert persistent_hash((1, '2')) == persistent_hash((1, '2'))
 

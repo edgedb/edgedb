@@ -6,7 +6,7 @@
 ##
 
 
-from edgedb.lang.common.functional import hybridmethod
+from edgedb.lang.common import hybrid
 
 from edgedb.lang.edgeql import ast as qlast
 
@@ -263,7 +263,7 @@ class LinkProperty(pointers.Pointer):
     def get_exposed_behaviour(self):
         return pointers.PointerExposedBehaviour.FirstItem
 
-    @hybridmethod
+    @hybrid.method
     def copy(scope, obj=None):
         if isinstance(scope, LinkProperty):
             obj = scope

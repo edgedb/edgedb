@@ -5,12 +5,15 @@
 # See LICENSE for details.
 ##
 
+
+import unittest
+
 from edgedb.lang.common import abc
-from edgedb.lang.common.debug import assert_raises
 
 
-class TestAbc:
-    def test_utils_abc_method(self):
+class AbcTests(unittest.TestCase):
+
+    def test_common_abc_method(self):
         class A(metaclass=abc.AbstractMeta):
             @abc.abstractmethod
             def tmp(self):
@@ -19,7 +22,7 @@ class TestAbc:
         class B(A):
             pass
 
-        with assert_raises(TypeError, error_re='instantiate abstract'):
+        with self.assertRaisesRegex(TypeError, 'instantiate abstract'):
             B()
 
         class C(A):

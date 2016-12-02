@@ -7,7 +7,7 @@
 
 import json
 
-from edgedb.lang.common import datastructures
+from edgedb.lang.common import ordered
 
 from .. import common
 from ..datasources import introspection
@@ -50,7 +50,7 @@ class Index(tables.InheritableTableObject):
 
         self.name = name
         self.table_name = table_name
-        self._columns = datastructures.OrderedSet()
+        self._columns = ordered.OrderedSet()
         if columns:
             self.add_columns(columns)
         self.predicate = predicate

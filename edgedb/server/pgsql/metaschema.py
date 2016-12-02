@@ -10,7 +10,7 @@
 import collections
 import textwrap
 
-from edgedb.lang.common import functional
+from edgedb.lang.common import adapter
 from edgedb.lang.common.nlang import morphology
 
 from edgedb.lang.schema import attributes as s_attrs
@@ -482,7 +482,7 @@ def get_interesting_metaclasses():
     metaclasses = [
         mcls for mcls in metaclasses
         if (not issubclass(mcls, (s_obj.ClassRef, s_obj.Collection)) and
-            not isinstance(mcls, functional.Adapter))
+            not isinstance(mcls, adapter.Adapter))
     ]
 
     return metaclasses[1:]

@@ -1,14 +1,15 @@
 ##
-# Copyright (c) 2008-2010 MagicStack Inc.
+# Copyright (c) 2008-2010, 2016 MagicStack Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
 ##
 
+
 import types
 
 
-class hybridmethod:
+class method:
     __slots__ = ('__wrapped__', )
 
     def __init__(self, func):

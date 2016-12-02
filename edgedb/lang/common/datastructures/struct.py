@@ -7,11 +7,10 @@
 
 import collections
 
-from edgedb.lang.common.functional import hybridmethod
-from .marker import Void
+from edgedb.lang.common import hybrid
 
 
-class NoDefault(Void):
+class NoDefault:
     pass
 
 
@@ -235,7 +234,7 @@ class Struct(metaclass=StructMeta):
             if formatter_obj:
                 yield (name, formatter_obj(getattr(self, name)))
 
-    @hybridmethod
+    @hybrid.method
     def copy(scope, obj=None):
         if isinstance(scope, Struct):
             obj = scope
@@ -294,7 +293,7 @@ class Struct(metaclass=StructMeta):
 
     def _check_field_type(self, field, name, value):
         if (
-                field.type and value is not None and value is not Void and
+                field.type and value is not None and
                 not isinstance(value, field.type)):
             if field.coerce:
                 try:

@@ -8,8 +8,8 @@
 
 import collections
 
-from edgedb.lang.common.functional import hybridmethod
-from edgedb.lang.common import datastructures as ds
+from edgedb.lang.common import hybrid
+from edgedb.lang.common import ordered
 
 from . import delta as sd
 from . import derivable
@@ -349,7 +349,7 @@ class ReferencingClass(inheriting.InheritingClass,
             self._resolve_inherited_classref_dict(
                 _objects, _resolve, attr, local_attr)
 
-    @hybridmethod
+    @hybrid.method
     def copy(scope, obj=None):
         if isinstance(scope, type):
             cls = scope
@@ -438,13 +438,13 @@ class ReferencingClass(inheriting.InheritingClass,
 
                 if old:
                     oldcoll = getattr(old, local_attr).values()
-                    oldcoll_idx = ds.OrderedIndex(oldcoll, key=idx_key)
+                    oldcoll_idx = ordered.OrderedIndex(oldcoll, key=idx_key)
                 else:
                     oldcoll_idx = {}
 
                 if new:
                     newcoll = getattr(new, local_attr).values()
-                    newcoll_idx = ds.OrderedIndex(newcoll, key=idx_key)
+                    newcoll_idx = ordered.OrderedIndex(newcoll, key=idx_key)
                 else:
                     newcoll_idx = {}
 

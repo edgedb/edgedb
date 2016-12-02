@@ -5,12 +5,15 @@
 # See LICENSE for details.
 ##
 
-from edgedb.lang.common.debug import assert_raises
+
+import unittest
+
 from edgedb.lang.common.term import Style16, Style256
 
 
-class TestUtilsIOTermStyle:
-    def test_utils_term_style16(self):
+class TermStyleTests(unittest.TestCase):
+
+    def test_common_term_style16(self):
         s = Style16(color='red', bgcolor='green', bold=True)
 
         assert s.color == 'red'
@@ -25,17 +28,17 @@ class TestUtilsIOTermStyle:
         s.color = 'yellow'
         assert s.color == 'yellow'
 
-        with assert_raises(ValueError, error_re='unknown color'):
+        with self.assertRaisesRegex(ValueError, 'unknown color'):
             s.color = '#FFF'
 
         assert not s.empty
         assert Style16().empty
 
-    def test_utils_term_style256(self):
+    def test_common_term_style256(self):
         assert Style256(color='red')._color == 196
         assert Style256(color='#FF0000')._color == 196
         assert Style256(color='#FE0000')._color == 196
         assert Style256(color='darkmagenta')._color == 90
 
-        with assert_raises(ValueError, error_re='Unknown color'):
+        with self.assertRaisesRegex(ValueError, 'Unknown color'):
             Style256(color='foooocolor')

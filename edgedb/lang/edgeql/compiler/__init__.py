@@ -29,10 +29,12 @@ from edgedb.lang.common import ast
 from edgedb.lang.common import debug
 from edgedb.lang.common import exceptions as edgedb_error
 from edgedb.lang.common import markup  # NOQA
-from edgedb.lang.common.datastructures import Void
 
 from . import pathmerger
 from . import rewriter
+
+
+Void = object()
 
 
 class ParseContextLevel(object):

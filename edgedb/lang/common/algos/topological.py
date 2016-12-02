@@ -7,7 +7,7 @@
 
 from collections import defaultdict, OrderedDict
 
-from edgedb.lang.common.datastructures import OrderedSet
+from edgedb.lang.common.ordered import OrderedSet
 
 
 class UnresolvedReferenceError(Exception):

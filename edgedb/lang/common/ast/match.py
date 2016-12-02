@@ -8,8 +8,7 @@
 
 import collections
 
-from edgedb.lang.common import ast
-from edgedb.lang.common.functional import adapter
+from edgedb.lang.common import adapter, ast
 
 
 class MatchASTMeta(adapter.Adapter, ast.MetaAST):

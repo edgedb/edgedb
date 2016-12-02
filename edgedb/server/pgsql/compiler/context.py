@@ -9,7 +9,7 @@
 import collections
 import re
 
-from edgedb.lang.common.datastructures import OrderedSet
+from edgedb.lang.common.ordered import OrderedSet
 
 from edgedb.server.pgsql import ast2 as pgast
 from edgedb.server.pgsql import common

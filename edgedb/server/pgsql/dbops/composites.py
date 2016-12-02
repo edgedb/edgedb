@@ -5,7 +5,7 @@
 # See LICENSE for details.
 ##
 
-from edgedb.lang.common import datastructures
+from edgedb.lang.common import ordered
 
 from .. import common
 from . import base
@@ -77,7 +77,7 @@ class CompositeDBObject(base.DBObject):
     def __init__(self, name, columns=None):
         super().__init__()
         self.name = name
-        self._columns = datastructures.OrderedSet()
+        self._columns = ordered.OrderedSet()
         self.add_columns(columns or [])
 
     def add_columns(self, iterable):

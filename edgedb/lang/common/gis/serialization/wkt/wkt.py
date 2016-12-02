@@ -161,11 +161,11 @@ class Result(Nonterm):
 
 
 class Geometry(Nonterm):
-    def reduce_opt_srid_GeometryTaggedText(self, *kids):
+    def reduce_OptSrid_GeometryTaggedText(self, *kids):
         self.val = kids[1].val
 
 
-class opt_srid(Nonterm):
+class OptSrid(Nonterm):
     def reduce_SRID_SEMICOLON(self, *kids):
         self.val = kids[0].val
 

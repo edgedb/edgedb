@@ -10,7 +10,7 @@
 import collections
 import itertools
 
-from edgedb.lang.common import datastructures
+from edgedb.lang.common import ordered
 from edgedb.lang.common.algos import topological
 
 from edgedb.lang import edgeql
@@ -181,12 +181,12 @@ class DeclarationLoader:
                         g[base.name] = {'item': base, 'merge': [], 'deps': []}
 
         if not g:
-            return datastructures.OrderedSet()
+            return ordered.OrderedSet()
 
         item = next(iter(g.values()))['item']
         modname = item.name.module
         objs = topological.sort(g)
-        return datastructures.OrderedSet(
+        return ordered.OrderedSet(
             filter(lambda obj: obj.name.module == modname, objs))
 
     def _get_ref_name(self, ref):

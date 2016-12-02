@@ -32,7 +32,7 @@ from edgedb.lang.schema import policy as s_policy
 
 from metamagic import json
 
-from edgedb.lang.common import datastructures
+from edgedb.lang.common import ordered
 from edgedb.lang.common.debug import debug
 from edgedb.lang.common import markup
 from edgedb.lang.common.nlang import morphology
@@ -57,7 +57,7 @@ class CommandMeta(sd.CommandMeta):
 class MetaCommand(sd.Command, metaclass=CommandMeta):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.pgops = datastructures.OrderedSet()
+        self.pgops = ordered.OrderedSet()
 
     def apply(self, schema, context=None):
         for op in self.ops:
@@ -1222,7 +1222,7 @@ class CompositeClassMetaCommand(NamedClassMetaCommand):
                                 (op, (cond, ), ()))
 
             current_bases = list(
-                datastructures.OrderedSet(b.name for b in orig_source.bases) -
+                ordered.OrderedSet(b.name for b in orig_source.bases) -
                 dropped_bases)
 
             new_bases = [b.name for b in source.bases]

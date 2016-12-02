@@ -10,17 +10,16 @@
 from edgedb.lang.schema import delta as sd
 from edgedb.lang.schema import objects as s_obj
 
-from edgedb.lang.common import datastructures
-from edgedb.lang.common import functional
+from edgedb.lang.common import adapter
 
 from edgedb.server.pgsql import common
 from edgedb.server.pgsql import dbops
 from edgedb.server.pgsql.dbops import catalogs as pg_catalogs
 
 
-class SchemaDBObjectMeta(functional.Adapter, type(s_obj.Class)):
+class SchemaDBObjectMeta(adapter.Adapter, type(s_obj.Class)):
     def __init__(cls, name, bases, dct, *, adapts=None):
-        functional.Adapter.__init__(cls, name, bases, dct, adapts=adapts)
+        adapter.Adapter.__init__(cls, name, bases, dct, adapts=adapts)
         type(s_obj.Class).__init__(cls, name, bases, dct)
 
 

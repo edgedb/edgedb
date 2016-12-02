@@ -6,10 +6,10 @@
 ##
 
 import collections
+import unittest
 
 from edgedb.lang.common import markup
 from edgedb.lang.common.markup.format import xrepr
-
 from edgedb.lang.common.datastructures import Field
 
 
@@ -34,7 +34,7 @@ def serialize_special(obj, *, ctx):
         return SpecialListNode()
 
 
-class TestUtilsMarkup:
+class MarkupTests(unittest.TestCase):
     def _get_test_markup(self):
         def foobar():
             raise ValueError('foobar: spam ham!')
@@ -47,25 +47,6 @@ class TestUtilsMarkup:
             exc = ex
 
         return markup.serialize(exc, ctx=markup.Context())
-
-    def test_utils_markup_renderers_dhtml(self):
-        from edgedb.lang.common.markup.renderers import dhtml
-
-        html = dhtml.render_html(self._get_test_markup())
-
-        assert 'foobar: spam ham!' in html
-        assert 'ValueError' in html
-
-    def test_utils_markup_renderers_json(self):
-        from edgedb.lang.common.markup.renderers import json
-
-        rendered = json.render(self._get_test_markup())
-        assert 'foobar: spam ham!' in rendered
-        assert 'ValueError' in rendered
-
-        rendered = json.render(self._get_test_markup(), as_bytes=True)
-        assert b'foobar: spam ham!' in rendered
-        assert b'ValueError' in rendered
 
     def test_utils_markup_dumps(self):
         assert markup.dumps('123') == "'123'"

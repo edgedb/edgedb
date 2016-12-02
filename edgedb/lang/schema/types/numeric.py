@@ -10,8 +10,6 @@ import decimal
 import functools
 
 from edgedb.lang.common import exceptions as edgedb_error
-
-from edgedb.lang.common.datastructures import Void
 from edgedb.lang.common import fpdecimal
 
 from . import base as s_types
@@ -19,6 +17,7 @@ from . import base as s_types
 
 _add_impl = s_types.BaseTypeMeta.add_implementation
 _add_map = s_types.BaseTypeMeta.add_mapping
+_void = object()
 
 
 class DecimalMetadata:
@@ -134,12 +133,12 @@ class DecimalMeta(type):
 
 
 class Decimal(fpdecimal.FPDecimal, metaclass=DecimalMeta):
-    def __new__(cls, value=Void):
+    def __new__(cls, value=_void):
         cumulative, last_increment = fpdecimal.CascadedContext.get()
         context = fpdecimal.CascadedContext.apply(
             cls.__sx_decimal_metadata__.decimal_context)
 
-        if value is Void:
+        if value is _void:
             value = cls.default()
 
         if value is None:

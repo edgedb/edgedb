@@ -6,13 +6,14 @@
 ##
 
 import inspect
+import unittest
 
-from edgedb.lang.common.functional import dispatch
-from edgedb.lang.common.debug import assert_raises
+from edgedb.lang.common import dispatch
 
 
-class TestUtilsFunctionalDispatch:
-    def test_utils_functional_typedispatch_basics(self):
+class DispatchTests(unittest.TestCase):
+
+    def test_typedispatch_basics(self):
         # Step 1. Test basics.
         #
 
@@ -45,7 +46,7 @@ class TestUtilsFunctionalDispatch:
         class test2(dispatch.TypeDispatcher):
             pass
 
-        with assert_raises(LookupError):
+        with self.assertRaises(LookupError):
             test2.get_handler(int)
 
         @test2(handles=int)
@@ -54,7 +55,7 @@ class TestUtilsFunctionalDispatch:
 
         assert test2.get_handler(int) is ham
 
-    def test_utils_functional_typedispatch_classmethod(self):
+    def test_typedispatch_classmethod(self):
         class test(dispatch.TypeDispatcher):
             pass
 
@@ -80,9 +81,9 @@ class TestUtilsFunctionalDispatch:
         assert test.get_handler(bar)() == 'bar::test'
         assert test.get_handler(baz)() == 'baz::test'
 
-    def test_utils_functional_typedispatch_no_instance(self):
+    def test_typedispatch_no_instance(self):
         class test(dispatch.TypeDispatcher):
             pass
 
-        with assert_raises(TypeError):
+        with self.assertRaises(TypeError):
             test()

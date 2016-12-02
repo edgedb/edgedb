@@ -11,7 +11,7 @@ import itertools
 
 from edgedb.lang.common.algos import persistent_hash as phash
 from edgedb.lang.common.algos import topological
-from edgedb.lang.common.datastructures import OrderedSet
+from edgedb.lang.common.ordered import OrderedSet
 from edgedb.lang.common.datastructures import struct
 from edgedb.lang.common.datastructures import typed
 

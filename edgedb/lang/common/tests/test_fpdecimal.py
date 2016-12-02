@@ -6,16 +6,18 @@
 ##
 
 import decimal
+import unittest
+
 from edgedb.lang.common import fpdecimal
-from edgedb.lang.common.debug import assert_raises
 
 
-class TestDecimal:
+class FPDecimalTests(unittest.TestCase):
+
     def test_utils_fpdecimal(self):
         dc = fpdecimal.FPDecimal
 
         with fpdecimal.CascadedContext(prec=4, scale=2):
-            with assert_raises(decimal.Overflow):
+            with self.assertRaises(decimal.Overflow):
                 # decimal_t is declared as 6, 2
                 # yielding a maximum exponent of 3
                 dc('100.50')
@@ -30,7 +32,7 @@ class TestDecimal:
 
                 with fpdecimal.CascadedContext(traps=[decimal.Rounded]):
                     # Rounding traps
-                    with assert_raises(decimal.Rounded):
+                    with self.assertRaises(decimal.Rounded):
                         dc('100.451')
 
                     with fpdecimal.CascadedContext(
@@ -40,7 +42,7 @@ class TestDecimal:
                         assert result == decimal.Decimal('Infinity')
 
                         # Rounding still traps
-                        with assert_raises(decimal.Rounded):
+                        with self.assertRaises(decimal.Rounded):
                             dc('100.451')
 
                 # Rounding no longer traps
@@ -55,21 +57,21 @@ class TestDecimal:
 
                     assert str(dc('100.452')) == '100.46'
 
-        with assert_raises(ValueError):
+        with self.assertRaises(ValueError):
             fpdecimal.CascadedContext(prec=1, scale=2)
 
         with fpdecimal.CascadedContext(prec=4, scale=3):
-            with assert_raises(ValueError):
+            with self.assertRaises(ValueError):
                 with fpdecimal.CascadedContext(prec=3):
                     pass
 
         with fpdecimal.CascadedContext(prec=4, scale=0):
             assert str(dc('1000.600')) == '1001'
 
-            with assert_raises(decimal.Overflow):
+            with self.assertRaises(decimal.Overflow):
                 dc('10000')
 
-            with assert_raises(decimal.Overflow):
+            with self.assertRaises(decimal.Overflow):
                 # Regular decimal is affected too
                 decimal.Decimal('10000') + 0
 

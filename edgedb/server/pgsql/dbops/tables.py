@@ -7,7 +7,7 @@
 
 import collections
 
-from edgedb.lang.common import datastructures
+from edgedb.lang.common import ordered
 
 from .. import common
 from ..datasources import introspection
@@ -20,8 +20,8 @@ from . import ddl
 
 class Table(composites.CompositeDBObject):
     def __init__(self, name, *, columns=None, bases=None, constraints=None):
-        self.constraints = datastructures.OrderedSet(constraints or [])
-        self.bases = datastructures.OrderedSet(bases or [])
+        self.constraints = ordered.OrderedSet(constraints or [])
+        self.bases = ordered.OrderedSet(bases or [])
         self.data = []
         super().__init__(name, columns=columns)
 
@@ -35,7 +35,7 @@ class Table(composites.CompositeDBObject):
                 cols.update((name, bc) for name, bc in c.columns.items()
                             if not writable_only or not bc.readonly)
 
-        return datastructures.OrderedSet(cols.values())
+        return ordered.OrderedSet(cols.values())
 
     def __iter__(self):
         return iter(self._columns)

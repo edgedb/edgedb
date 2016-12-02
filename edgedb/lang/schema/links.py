@@ -6,7 +6,7 @@
 ##
 
 
-from edgedb.lang.common.functional import hybridmethod
+from edgedb.lang.common import hybrid
 
 from edgedb.lang.edgeql import ast as qlast
 
@@ -688,7 +688,7 @@ class Link(pointers.Pointer, sources.Source):
 
         return super().compare(other, context=context)
 
-    @hybridmethod
+    @hybrid.method
     def copy(scope, obj=None):
         if isinstance(scope, Link):
             obj = scope
