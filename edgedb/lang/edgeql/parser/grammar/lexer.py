@@ -186,19 +186,19 @@ class EdgeQLLexer(lexer.Lexer):
         tok = super().token_from_text(rule_token, txt)
 
         if rule_token == 'self':
-            tok.attrs['type'] = txt
+            tok = tok._replace(type=txt)
 
         elif rule_token == 'QIDENT':
-            tok.attrs['type'] = 'IDENT'
-            tok.value = txt[1:-1]
+            tok = tok._replace(type='IDENT', value=txt[1:-1])
 
         elif rule_token == 'SCONST':
             # the process of string normalization is slightly different for
             # regular '-quoted strings and $$-quoted ones
             #
             if txt[0] in ("'", '"'):
-                tok.value = clean_string.sub('', txt[1:-1].replace(
-                    R"\'", "'").replace(R'\"', '"'))
+                tok = tok._replace(
+                    value=clean_string.sub('', txt[1:-1].replace(
+                        R"\'", "'").replace(R'\"', '"')))
             else:
                 # Because of implicit string concatenation there may
                 # be more than one pair of dollar quotes in the txt.
@@ -206,9 +206,10 @@ class EdgeQLLexer(lexer.Lexer):
                 # txt with the quote.
                 #
                 quote = string_quote.match(txt).group(0)
-                tok.value = ''.join((
-                    part for n, part in enumerate(txt.split(quote))
-                    if n % 2 == 1))
+                tok = tok._replace(
+                    value=''.join((
+                        part for n, part in enumerate(txt.split(quote))
+                        if n % 2 == 1)))
 
         return tok
 
@@ -216,7 +217,7 @@ class EdgeQLLexer(lexer.Lexer):
         buffer = []
 
         for tok in super().lex():
-            tok_type = tok.attrs['type']
+            tok_type = tok.type
 
             if tok_type in {'WS', 'NL', 'COMMENT'}:
                 # Strip out whitespace and comments
@@ -231,10 +232,10 @@ class EdgeQLLexer(lexer.Lexer):
 
             elif tok_type == 'PROPERTY':
                 prev_token = buffer[-1] if buffer else None
-                if prev_token and prev_token.attrs['type'] == 'LINK':
-                    tok = tok.__class__(prev_token.value + ' ' + tok.value)
-                    tok.attrs = prev_token.attrs.copy()
-                    tok.attrs['type'] = 'LINKPROPERTY'
+                if prev_token and prev_token.type == 'LINK':
+                    tok = prev_token._replace(
+                        value=prev_token.value + ' ' + tok.value,
+                        type='LINKPROPERTY')
                     buffer.pop()
                 yield tok
             else:

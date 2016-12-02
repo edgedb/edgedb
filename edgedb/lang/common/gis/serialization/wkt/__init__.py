@@ -19,7 +19,7 @@ class WKTParser(parsing.Parser):
         return lexer.WKTLexer()
 
     def process_lex_token(self, mod, tok):
-        tok_type = tok.attrs['type']
+        tok_type = tok.type
         if tok_type in ('WS', 'NL'):
             return None
 

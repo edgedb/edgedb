@@ -435,7 +435,7 @@ class Parser:
         self.lexer.setinputstr(input)
 
     def process_lex_token(self, mod, tok):
-        return mod.TokenMeta.for_lex_token(tok.attrs['type'])(
+        return mod.TokenMeta.for_lex_token(tok.type)(
             self.parser, tok.value, self.context(tok))
 
     def parse(self, input):
@@ -477,7 +477,7 @@ class Parser:
 
         else:
             context = ParserContext(
-                name=name, buffer=lex.inputstr, start=tok.attrs['start'],
-                end=tok.attrs['end'])
+                name=name, buffer=lex.inputstr, start=tok.start,
+                end=tok.end)
 
         return context

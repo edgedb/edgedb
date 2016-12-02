@@ -5,10 +5,13 @@
 # See LICENSE for details.
 ##
 
+
+import collections
+
 from edgedb.lang.common import lexer
-from edgedb.lang.common.xvalue import xvalue
 
 from .errors import WKTSyntaxError
+
 
 __all__ = ('WKTLexer', )
 
@@ -16,6 +19,7 @@ STATE_KEEP = 0
 STATE_BASE = 1
 
 Rule = lexer.Rule
+Tag = collections.namedtuple('Tag', 'value has_z has_m')
 
 
 def make_tag(value):
@@ -26,7 +30,7 @@ def make_tag(value):
     if value[-1] == 'Z':
         has_z = True
         value = value[:-1]
-    return xvalue(value, has_z=has_z, has_m=has_m)
+    return Tag(value, has_z=has_z, has_m=has_m)
 
 
 class WKTLexer(lexer.Lexer):
@@ -70,14 +74,14 @@ class WKTLexer(lexer.Lexer):
         tok = super().token_from_text(rule_token, txt)
 
         if rule_token == 'SRID':
-            tok.value = int(txt[5:])
+            tok = tok._replace(value=int(txt[5:]))
 
         elif rule_token == 'FCONST':
-            tok.value = float(txt)
+            tok = tok._replace(value=float(txt))
 
         elif rule_token == 'DIM':
-            tok.value = make_tag(txt)
-            tok.attrs['type'] = tok.value.value
+            tag = make_tag(txt)
+            tok = tok._replace(value=tag, type=tag.value)
 
         return tok
 

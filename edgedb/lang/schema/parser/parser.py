@@ -19,7 +19,7 @@ class EdgeSchemaParser(parsing.Parser):
         return lexer.EdgeSchemaLexer()
 
     def process_lex_token(self, mod, tok):
-        if tok.attrs['type'] in {'NEWLINE', 'WS', 'COMMENT'}:
+        if tok.type in {'NEWLINE', 'WS', 'COMMENT'}:
             return None
         else:
             return super().process_lex_token(mod, tok)

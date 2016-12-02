@@ -47,7 +47,7 @@ class EdgeQLLexer(pt_lexers.Lexer):
             line = 0
             try:
                 for tok in tok_stream:
-                    tok_type = tok.attrs['type']
+                    tok_type = tok.type
 
                     if tok_type == 'NL':
                         line += 1
@@ -57,7 +57,7 @@ class EdgeQLLexer(pt_lexers.Lexer):
                             continue
 
                     if line == i:
-                        txt = tok.attrs['text']
+                        txt = tok.text
                         pt_tok = translate_token_type(tok_type)
 
                         if '\n' in txt:
@@ -67,9 +67,9 @@ class EdgeQLLexer(pt_lexers.Lexer):
                         else:
                             yield pt_tok, txt
 
-                    elif '\n' in tok.attrs['text']:
+                    elif '\n' in tok.text:
                         # multi-line token
-                        lines = tok.attrs['text'].split('\n')
+                        lines = tok.text.split('\n')
                         if len(lines) + line > i:
                             yield (translate_token_type(tok_type),
                                    lines[i - line])

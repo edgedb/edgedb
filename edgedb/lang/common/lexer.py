@@ -5,11 +5,11 @@
 # See LICENSE for details.
 ##
 
+import collections
 import re
 
 from importkit import context as lang_context
 from importkit.context import SourcePoint
-from edgedb.lang.common.xvalue import xvalue
 from edgedb.lang.common import markup
 
 
@@ -32,6 +32,10 @@ class LexError(Exception):
         if filename:
             position += ' of ' + str(filename)
         return position
+
+
+Token = collections.namedtuple(
+    'Token', ['value', 'type', 'text', 'start', 'end', 'filename'])
 
 
 class UnknownTokenError(LexError):
@@ -186,9 +190,9 @@ class Lexer:
         self.start += len_txt
         end_pos = SourcePoint(self.lineno, self.column, self.start)
 
-        return xvalue(
-            txt, type=rule_token, text=txt, start=start_pos, end=end_pos,
-            filename=self.filename)
+        return Token(txt, type=rule_token, text=txt,
+                     start=start_pos, end=end_pos,
+                     filename=self.filename)
 
     def lex(self):
         """Tokenize the src.

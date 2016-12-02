@@ -58,7 +58,7 @@ class InputBuffer(pt_buffer.Buffer):
             except core_lexer.UnknownTokenError as ex:
                 return True
 
-            if toks[-1].attrs['type'] == ';':
+            if toks[-1].type == ';':
                 return False
 
         return True

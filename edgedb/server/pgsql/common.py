@@ -127,12 +127,11 @@ def get_table_name(obj, catenate=True):
 class RecordInfo:
     def __init__(
             self, *, attribute_map, metaclass=None, classname=None,
-            is_xvalue=False, recursive_link=False, virtuals_map=None):
+            recursive_link=False, virtuals_map=None):
         self.attribute_map = attribute_map
         self.virtuals_map = virtuals_map
         self.metaclass = metaclass
         self.classname = classname
-        self.is_xvalue = is_xvalue
         self.recursive_link = recursive_link
         self.id = str(persistent_hash.persistent_hash(self))
 
@@ -140,14 +139,13 @@ class RecordInfo:
         return persistent_hash.persistent_hash((
             tuple(self.attribute_map), frozenset(self.virtuals_map.items())
             if self.virtuals_map else None, self.metaclass, self.classname,
-            self.is_xvalue, self.recursive_link))
+            self.recursive_link))
 
     def __mm_serialize__(self):
         return dict(
             attribute_map=self.attribute_map, virtuals_map=self.virtuals_map,
             metaclass=self.metaclass, classname=self.classname,
-            is_xvalue=self.is_xvalue, recursive_link=self.recursive_link,
-            id=self.id)
+            recursive_link=self.recursive_link, id=self.id)
 
 
 FREEFORM_RECORD_ID = '6e51108d-7440-47f7-8c65-dc4d43fd90d2'

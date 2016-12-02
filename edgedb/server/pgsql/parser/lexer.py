@@ -159,33 +159,35 @@ class PgSQLLexer(lexer.Lexer):
         tok = super().token_from_text(rule_token, txt)
 
         if rule_token == 'self':
-            tok.attrs['type'] = txt
+            tok = tok._replace(type=txt)
 
         elif rule_token == 'IDENT':
-            tok.value = txt.lower()
+            tok = tok._replace(value=txt.lower())
 
         elif rule_token == 'KEYWORD':
             # process keywords here since having separate rules for them
             # creates > 100 re groups.
-            tok.value = txt.lower()
-            tok.attrs['type'] = pg_keywords[tok.value][0]
+            txt_low = txt.lower()
+            tok = tok._replace(
+                value=txt_low,
+                type=pg_keywords[txt_low][0])
 
         elif rule_token in ('SCONST', 'BCONST', 'XCONST'):
             txt = txt[:-1].split("'", 1)[1]
             txt = clean_string.sub('', txt.replace("''", "'"))
-            tok.value = txt
+            tok = tok._replace(value=txt)
 
         elif rule_token == 'PARAM':
-            tok.value = txt[1:]
+            tok = tok._replace(value=txt[1:])
 
         elif rule_token == 'QIDENT':
-            tok.attrs['type'] = 'IDENT'
-            tok.value = txt[:-1].split('"', 1)[1]
+            tok = tok._replace(
+                type='IDENT',
+                value=txt[:-1].split('"', 1)[1])
 
         elif rule_token == 'DQCONST':
-            tok.attrs['type'] = 'SCONST'
             txt = txt.rsplit("$", 2)[2]
             txt = txt.split("$", 2)[2]
-            tok.value = txt
+            tok = tok._replace(type='SCONST', value=txt)
 
         return tok

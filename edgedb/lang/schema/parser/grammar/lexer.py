@@ -8,7 +8,6 @@
 
 import re
 
-from edgedb.lang.common.xvalue import xvalue
 from edgedb.lang.common import lexer
 
 from .keywords import edge_schema_keywords
@@ -192,8 +191,7 @@ class EdgeSchemaLexer(lexer.Lexer):
         tok = super().token_from_text(rule_token, txt)
 
         if rule_token == 'QIDENT':
-            tok.attrs['type'] = 'IDENT'
-            tok.value = txt[1:-1]
+            tok = tok._replace(type='IDENT', value=txt[1:-1])
 
         return tok
 
@@ -213,15 +211,15 @@ class EdgeSchemaLexer(lexer.Lexer):
                 yield self.token_from_text('DEDENT', '')
 
     def insert_token(self, toktype, token, pos='start'):
-        return xvalue('', type=toktype, text='',
-                      start=token.attrs[pos],
-                      end=token.attrs[pos],
-                      filename=self.filename)
+        return lexer.Token('', type=toktype, text='',
+                           start=getattr(token, pos),
+                           end=getattr(token, pos),
+                           filename=self.filename)
 
     def token_generator(self, token):
         """Given the current lexer token, yield one or more tokens."""
 
-        tok_type = token.attrs['type']
+        tok_type = token.type
 
         # handle indentation
         #
@@ -231,7 +229,7 @@ class EdgeSchemaLexer(lexer.Lexer):
 
             # we have potential indentation change
             last_indent = self.indent[-1]
-            cur_indent = token.attrs['start'].column - 1
+            cur_indent = token.start.column - 1
 
             if cur_indent > last_indent:
                 # increase indentation level
@@ -246,8 +244,8 @@ class EdgeSchemaLexer(lexer.Lexer):
                         # indentation level mismatch
                         raise EdgeIndentationError(
                             'Incorrect unindent at {position}',
-                            line=token.attrs['start'].line,
-                            col=token.attrs['start'].column,
+                            line=token.start.line,
+                            col=token.start.column,
                             filename=self.filename)
 
                     yield self.insert_token('DEDENT', token)
@@ -270,8 +268,8 @@ class EdgeSchemaLexer(lexer.Lexer):
                     # indentation level mismatch
                     raise EdgeIndentationError(
                         'Incorrect indentation at {position}',
-                        line=token.attrs['end'].line,
-                        col=token.attrs['end'].column,
+                        line=token.end.line,
+                        col=token.end.column,
                         filename=self.filename)
 
             elif (tok_type == 'RAWLEADWS' and
@@ -288,15 +286,15 @@ class EdgeSchemaLexer(lexer.Lexer):
                         # indentation level mismatch
                         raise EdgeIndentationError(
                             'Incorrect unindent at {position}',
-                            line=token.attrs['end'].line,
-                            col=token.attrs['end'].column,
+                            line=token.end.line,
+                            col=token.end.column,
                             filename=self.filename)
 
                     yield self.insert_token('DEDENT', token, 'end')
 
                 self._next_state = STATE_WS_SENSITIVE
                 # alter the token type
-                token.attrs['type'] = 'WS'
+                token = token._replace(type='WS')
 
         # handle logical newline
         #

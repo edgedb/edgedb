@@ -132,8 +132,8 @@ class Nonterm(parsing.Nonterm):
     def make_obj(self, tag, values):
         factory = self.parser.parser_data['factory']
         try:
-            z_dimension = tag.val.attrs['has_z']
-            m_dimension = tag.val.attrs['has_m']
+            z_dimension = tag.val.has_z
+            m_dimension = tag.val.has_m
 
             if z_dimension and m_dimension:
                 dimensions = ('x', 'y', 'z', 'm')
