@@ -38,6 +38,15 @@ class IRDecompiler(ast.visitor.NodeVisitor):
         if node.groupby:
             result.groupby = self.visit(node.groupby)
 
+        if node.orderby:
+            result.orderby = self.visit(node.orderby)
+
+        if node.offset is not None:
+            result.offset = self.visit(node.offset)
+
+        if node.limit is not None:
+            result.limit = self.visit(node.limit)
+
         if node.result is not None:
             result.targets = [
                 qlast.SelectExprNode(
@@ -172,6 +181,15 @@ class IRDecompiler(ast.visitor.NodeVisitor):
             typ = qlast.TypeNameNode(maintype=mt)
 
         result = qlast.TypeCastNode(expr=self.visit(node.expr), type=typ)
+
+        return result
+
+    def visit_SortExpr(self, node):
+        result = qlast.SortExprNode(
+            path=self.visit(node.expr),
+            direction=node.direction,
+            nones_order=node.nones_order
+        )
 
         return result
 

@@ -263,44 +263,56 @@ class IRCompilerDMLSupport:
 
         external_inserts = []
 
-        # Process the Insert IR and separate links that go
-        # into the main table from links that are inserted into
-        # a separate link table.
-        for expr in ir_stmt.shape.elements:
-            ptrcls = expr.rptr.ptrcls
-            insvalue = expr.stmt.result
+        with self.context.subquery():
+            # It is necessary to process the expressions in
+            # the UpdateStmt shape body in the context of the
+            # UPDATE statement so that references to the current
+            # values of the updated object are resolved correctly.
+            ctx = self.context.current
+            ctx.rel = ctx.query = select
+            ctx.output_format = None
+            ctx.clsref_as_id = True
 
-            ptr_info = pg_types.get_pointer_storage_info(
-                ptrcls, schema=ctx.schema, resolve_type=True,
-                link_bias=False)
+            # Process the Insert IR and separate links that go
+            # into the main table from links that are inserted into
+            # a separate link table.
+            for expr in ir_stmt.shape.elements:
+                ptrcls = expr.rptr.ptrcls
+                insvalue = expr.stmt
 
-            props_only = False
-            ins_props = None
+                ptr_info = pg_types.get_pointer_storage_info(
+                    ptrcls, schema=ctx.schema, resolve_type=True,
+                    link_bias=False)
 
-            # First, process all local link inserts.
-            if ptr_info.table_type == 'concept':
-                props_only = True
-                field = pgast.ColumnRef(name=[ptr_info.column_name])
-                cols.append(field)
+                props_only = False
+                ins_props = None
 
-                with self.context.new():
-                    if self._is_composite_cast(insvalue):
-                        insvalue, ins_props = self._extract_update_value(
-                            insvalue, ptr_info.column_type)
+                # First, process all local link inserts.
+                if ptr_info.table_type == 'concept':
+                    props_only = True
+                    field = pgast.ColumnRef(name=[ptr_info.column_name])
+                    cols.append(field)
 
-                    else:
-                        insvalue = pgast.TypeCast(
-                            arg=self.visit(insvalue),
-                            type_name=pgast.TypeName(
-                                name=ptr_info.column_type))
+                    with self.context.new():
+                        if self._is_composite_cast(insvalue):
+                            insvalue, ins_props = self._extract_update_value(
+                                insvalue, ptr_info.column_type)
 
-                    values.args.append(insvalue)
+                        else:
+                            insvalue = pgast.TypeCast(
+                                arg=self.visit(insvalue),
+                                type_name=pgast.TypeName(
+                                    name=ptr_info.column_type))
 
-            ptr_info = pg_types.get_pointer_storage_info(
-                ptrcls, resolve_type=False, link_bias=True)
+                        values.args.append(insvalue)
 
-            if ptr_info and ptr_info.table_type == 'link':
-                external_inserts.append((expr, props_only))
+                ptr_info = pg_types.get_pointer_storage_info(
+                    ptrcls, resolve_type=False, link_bias=True)
+
+                if ptr_info and ptr_info.table_type == 'link':
+                    external_inserts.append((expr, props_only))
+
+            self._connect_subrels(insert_stmt)
 
         # Process necessary updates to the link tables.
         for expr, props_only in external_inserts:

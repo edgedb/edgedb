@@ -360,8 +360,6 @@ class DeclarationLoader:
         """Set the default value for a pointer."""
         if not isinstance(expr, edgeql.ast.SelectQueryNode):
             expr = self._get_literal_value(expr)
-        else:
-            return
 
         ptr.default = expr
 
@@ -534,8 +532,6 @@ class DeclarationLoader:
                     name = attr.name.name
                     if name == 'mapping':
                         link.mapping = self._get_literal_value(attr.value)
-                    elif name == 'default':
-                        self._parse_ptr_default(attr.value, concept, link)
 
                 if isinstance(linkdecl.target, edgeql.ast.SelectQueryNode):
                     # Computables are always readonly.
@@ -577,12 +573,17 @@ class DeclarationLoader:
                 self._normalize_ptr_default(
                     linkdecl.target, concept, spec_link)
 
-            # for attr in linkdecl.attributes:
-            #     name = attr.name.name
-            #     if (name == 'default' and
-            #             isinstance(attr.value, edgeql.ast.SelectQueryNode)):
-            #         self._normalize_ptr_default(
-            #             attr.value, concept, spec_link)
+            for attr in linkdecl.attributes:
+                name = attr.name.name
+                if name == 'default':
+                    if isinstance(attr.value, edgeql.ast.SelectQueryNode):
+                        self._normalize_ptr_default(
+                            attr.value, concept, spec_link)
+                    else:
+                        expr = edgeql.ast.ConstantNode(
+                            value=self._get_literal_value(attr.value))
+                        _, _, spec_link.default = edgeql.utils.normalize_tree(
+                            expr, self._schema)
 
             if linkdecl.constraints:
                 self._parse_subject_constraints(spec_link, linkdecl)

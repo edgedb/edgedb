@@ -6,6 +6,8 @@
 ##
 
 
+import textwrap
+
 from edgedb.lang.edgeql import utils as eql_utils
 from edgedb.lang.schema import declarative as s_decl
 from edgedb.lang.schema import std as s_std
@@ -51,7 +53,10 @@ class TestEdgeQLUtils(tb.BaseSyntaxTest):
             text, self.__class__.schema,
             anchors=anchors, inline_anchors=inline_anchors)
 
-        self.assertEqual(normalized, expected)
+        self.assertEqual(
+            textwrap.dedent(normalized).strip(),
+            textwrap.dedent(expected).strip()
+        )
 
     def test_edgeql_utils_normalize_01(self):
         self._assert_normalize_expr(

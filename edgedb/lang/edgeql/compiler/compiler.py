@@ -12,6 +12,7 @@ from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import concepts as s_concepts
+from edgedb.lang.schema import expr as s_expr
 from edgedb.lang.schema import links as s_links
 from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import name as sn
@@ -21,6 +22,7 @@ from edgedb.lang.schema import types as s_types
 
 from edgedb.lang.edgeql import ast as qlast
 from edgedb.lang.edgeql import errors
+from edgedb.lang.edgeql import parser as qlparser
 
 from edgedb.lang.common import ast
 from edgedb.lang.common import exceptions as edgedb_error
@@ -343,6 +345,29 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             subject, None, edgeql_tree.pathspec,
             require_expressions=True,
             include_implicit=False)
+
+        explicit_ptrs = {
+            el.rptr.ptrcls.shortname for el in stmt.shape.elements
+        }
+
+        for pn, ptrcls in subject.scls.pointers.items():
+            if (not ptrcls.default or
+                    pn in explicit_ptrs or
+                    ptrcls.is_special_pointer()):
+                continue
+
+            targetstep = self._extend_path(subject, ptrcls)
+
+            if isinstance(ptrcls.default, s_expr.ExpressionText):
+                default_expr = qlparser.parse(ptrcls.default)
+            else:
+                default_expr = qlast.ConstantNode(value=ptrcls.default)
+
+            el = irast.SubstmtRef(
+                stmt=self.visit(default_expr),
+                rptr=targetstep.rptr)
+
+            stmt.shape.elements.append(el)
 
         stmt.result_types = self._get_selector_types(stmt.result)
         stmt.argument_types = self.context.current.arguments
@@ -936,10 +961,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 else:
                     ptrsource = rptrcls
 
-                ptrtype = s_lprops.LinkProperty
-            else:
-                ptrtype = s_links.Link
-
             if lexpr.target is not None:
                 target_name = (lexpr.target.module, lexpr.target.name)
             else:
@@ -1085,9 +1106,14 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         return shape
 
-    def _extend_path(self, source_set, ptrcls, direction, target):
+    def _extend_path(self, source_set, ptrcls,
+                     direction=s_pointers.PointerDirection.Outbound,
+                     target=None):
         """Return a Set node representing the new path tip."""
         ctx = self.context.current
+
+        if target is None:
+            target = ptrcls.get_far_endpoint(direction)
 
         path_id = irutils.LinearPath(source_set.path_id)
         path_id.add(ptrcls, direction, target)

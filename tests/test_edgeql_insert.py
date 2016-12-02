@@ -57,7 +57,6 @@ class TestInsert(tb.QueryTestCase):
                 INSERT test::InsertTest;
             ''')
 
-    @unittest.expectedFailure
     async def test_edgeql_insert_simple01(self):
         result = await self.con.execute(r"""
             INSERT test::InsertTest {
@@ -129,18 +128,17 @@ class TestInsert(tb.QueryTestCase):
             }]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_insert_simple02(self):
         res = await self.con.execute('''
             WITH MODULE test
-            INSERT DefaultTest1;
+            INSERT DefaultTest1 { foo := '02' };
 
-            INSERT test::DefaultTest1;
+            INSERT test::DefaultTest1 { foo := '02' };
 
-            INSERT test::DefaultTest1;
+            INSERT test::DefaultTest1 { foo := '02' };
 
             WITH MODULE test
-            SELECT DefaultTest1 { num };
+            SELECT DefaultTest1 { num } WHERE DefaultTest1.foo = '02';
         ''')
 
         self.assert_data_shape(
@@ -148,15 +146,18 @@ class TestInsert(tb.QueryTestCase):
             [{'num': 42}, {'num': 42}, {'num': 42}],
         )
 
-    @unittest.expectedFailure
     async def test_edgeql_insert_simple03(self):
         res = await self.con.execute('''
-            INSERT test::DefaultTest2{ num:=0 };
+            INSERT test::DefaultTest1 { num:=100 };
 
             WITH MODULE test
             INSERT DefaultTest2;
 
+            INSERT test::DefaultTest1 { num:=101 };
+
             INSERT test::DefaultTest2;
+
+            INSERT test::DefaultTest1 { num:=102 };
 
             INSERT test::DefaultTest2;
 
@@ -167,7 +168,7 @@ class TestInsert(tb.QueryTestCase):
 
         self.assert_data_shape(
             res[-1],
-            [{'num': 0}, {'num': 1}, {'num': 2}, {'num': 3}],
+            [{'num': 101}, {'num': 102}, {'num': 103}],
         )
 
     async def test_edgeql_insert_nested01(self):
