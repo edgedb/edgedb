@@ -6,7 +6,7 @@
 ##
 
 
-from edgedb.lang.common.nlang import morphology
+from edgedb.lang.common import nlang
 
 from . import objects as so
 from . import referencing
@@ -14,7 +14,7 @@ from . import referencing
 
 class PrimaryClass(referencing.ReferencingClass):
 
-    title = so.Field(morphology.WordCombination,
+    title = so.Field(nlang.WordCombination,
                      default=None, compcoef=0.909, coerce=True)
 
     description = so.Field(str, default=None, compcoef=0.909)

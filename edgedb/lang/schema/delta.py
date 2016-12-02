@@ -16,8 +16,7 @@ from edgedb.lang.common import adapter
 from edgedb.lang import edgeql
 from edgedb.lang.edgeql import ast as qlast
 
-from edgedb.lang.common import markup, ordered, struct, typed
-from edgedb.lang.common.nlang import morphology
+from edgedb.lang.common import markup, nlang, ordered, struct, typed
 from edgedb.lang.common.algos.persistent_hash import persistent_hash
 
 from . import objects as so
@@ -845,7 +844,7 @@ class AlterClassProperty(Command):
             value = qlast.SequenceNode(elements=[
                 qlast.ConstantNode(value=el) for el in value
             ])
-        elif isinstance(value, morphology.WordCombination):
+        elif isinstance(value, nlang.WordCombination):
             forms = value.as_dict()
             if len(forms) > 1:
                 items = []

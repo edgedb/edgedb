@@ -10,8 +10,7 @@
 import collections
 import textwrap
 
-from edgedb.lang.common import adapter
-from edgedb.lang.common.nlang import morphology
+from edgedb.lang.common import adapter, nlang
 
 from edgedb.lang.schema import attributes as s_attrs
 from edgedb.lang.schema import derivable as s_derivable
@@ -448,7 +447,7 @@ def _field_to_column(field):
                             s_expr.ExpressionDict)):
         coltype = 'jsonb'
 
-    elif issubclass(ftype, morphology.WordCombination):
+    elif issubclass(ftype, nlang.WordCombination):
         coltype = 'jsonb'
 
     elif issubclass(ftype, dict):

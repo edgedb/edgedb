@@ -34,8 +34,7 @@ from metamagic import json
 
 from edgedb.lang.common import ordered
 from edgedb.lang.common.debug import debug
-from edgedb.lang.common import markup
-from edgedb.lang.common.nlang import morphology
+from edgedb.lang.common import markup, nlang
 
 from edgedb.server.pgsql import common
 from edgedb.server.pgsql import dbops, deltadbops, metaschema
@@ -161,7 +160,7 @@ class NamedClassMetaCommand(
             result = value
             recvalue = str(value)
 
-        elif isinstance(value, morphology.WordCombination):
+        elif isinstance(value, nlang.WordCombination):
             result = value
             recvalue = json.dumps(value)
 

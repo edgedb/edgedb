@@ -15,8 +15,7 @@ import asyncpg
 
 from edgedb.lang.common.algos import topological
 from edgedb.lang.common.debug import debug
-from edgedb.lang.common.nlang import morphology
-from edgedb.lang.common import markup
+from edgedb.lang.common import markup, nlang
 
 from edgedb.lang.common import exceptions as edgedb_error
 
@@ -1646,7 +1645,7 @@ class Backend(s_deltarepo.DeltaProvider):
 
     def json_to_word_combination(self, data):
         if data:
-            return morphology.WordCombination.from_dict(json.loads(data))
+            return nlang.WordCombination.from_dict(json.loads(data))
         else:
             return None
 
