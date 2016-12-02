@@ -9,8 +9,8 @@
 import collections.abc
 import itertools
 
-from edgedb.lang.common.algos import persistent_hash as phash
-from edgedb.lang.common.algos import topological
+from edgedb.lang.common import persistent_hash as phash
+from edgedb.lang.common import topological
 from edgedb.lang.common.ordered import OrderedSet
 from edgedb.lang.common import struct, typed
 

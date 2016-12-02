@@ -17,7 +17,7 @@ from edgedb.lang import edgeql
 from edgedb.lang.edgeql import ast as qlast
 
 from edgedb.lang.common import markup, nlang, ordered, struct, typed
-from edgedb.lang.common.algos.persistent_hash import persistent_hash
+from edgedb.lang.common.persistent_hash import persistent_hash
 
 from . import objects as so
 from . import expr as s_expr

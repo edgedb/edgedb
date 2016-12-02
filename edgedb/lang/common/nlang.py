@@ -5,7 +5,7 @@
 # See LICENSE for details.
 ##
 
-from edgedb.lang.common.algos.persistent_hash import persistent_hash
+from edgedb.lang.common.persistent_hash import persistent_hash
 
 
 class NaturalLanguageObject(object):

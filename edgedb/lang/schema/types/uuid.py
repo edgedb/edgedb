@@ -10,7 +10,7 @@ import uuid
 
 
 from edgedb.lang.common import exceptions as edgedb_error
-from edgedb.lang.common.algos.persistent_hash import persistent_hash
+from edgedb.lang.common.persistent_hash import persistent_hash
 
 from . import base as s_types
 

@@ -10,7 +10,7 @@ import builtins
 import collections
 import re
 
-from edgedb.lang.common.algos.persistent_hash import persistent_hash
+from edgedb.lang.common.persistent_hash import persistent_hash
 from edgedb.lang.common.ordered import OrderedSet
 
 from edgedb.lang.edgeql import ast as qlast

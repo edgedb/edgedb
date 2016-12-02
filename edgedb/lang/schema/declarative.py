@@ -11,7 +11,7 @@ import collections
 import itertools
 
 from edgedb.lang.common import ordered
-from edgedb.lang.common.algos import topological
+from edgedb.lang.common import topological
 
 from edgedb.lang import edgeql
 

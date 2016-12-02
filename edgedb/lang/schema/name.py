@@ -7,7 +7,7 @@
 
 
 from .error import SchemaNameError
-from edgedb.lang.common.algos.persistent_hash import persistent_hash
+from edgedb.lang.common.persistent_hash import persistent_hash
 
 
 class SchemaName(str):

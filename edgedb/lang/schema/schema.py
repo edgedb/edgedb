@@ -12,7 +12,7 @@ import sys
 
 from importkit.import_ import module as module_types
 
-from edgedb.lang.common.algos.persistent_hash import persistent_hash
+from edgedb.lang.common.persistent_hash import persistent_hash
 
 from .error import SchemaError
 from . import modules as schema_module

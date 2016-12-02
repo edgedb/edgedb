@@ -8,7 +8,7 @@
 import hashlib
 import base64
 
-from edgedb.lang.common.algos import persistent_hash
+from edgedb.lang.common import persistent_hash
 
 from edgedb.lang.schema import concepts as s_concepts
 from edgedb.lang.schema import links as s_links

@@ -6,7 +6,7 @@
 ##
 
 
-from edgedb.lang.common.algos.persistent_hash import persistent_hash
+from edgedb.lang.common.persistent_hash import persistent_hash
 from edgedb.lang.common import hybrid
 
 from . import error as schema_error

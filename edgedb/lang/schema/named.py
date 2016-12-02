@@ -8,7 +8,7 @@
 
 import base64
 
-from edgedb.lang.common.algos.persistent_hash import persistent_hash
+from edgedb.lang.common.persistent_hash import persistent_hash
 
 from edgedb.lang.edgeql import ast as qlast
 

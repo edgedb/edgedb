@@ -13,7 +13,7 @@ import re
 
 import asyncpg
 
-from edgedb.lang.common.algos import topological
+from edgedb.lang.common import topological
 from edgedb.lang.common.debug import debug
 from edgedb.lang.common import markup, nlang
 
