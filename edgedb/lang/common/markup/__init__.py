@@ -8,13 +8,13 @@
 import abc
 import sys
 
+from edgedb.lang.common import exceptions
 from . import elements, serializer, renderers
 from .serializer import serialize
 from .serializer import base as _base_serializer
-from edgedb.lang.common.exceptions import ExceptionContext as _ExceptionContext
 
 
-class MarkupCapableMeta(abc.ABCMeta):
+class MarkupCapableMeta(type):
 
     def __new__(mcls, name, bases, dct):
         cls = super().__new__(mcls, name, bases, dct)
@@ -23,7 +23,12 @@ class MarkupCapableMeta(abc.ABCMeta):
         return cls
 
 
-class MarkupExceptionContext(_ExceptionContext, metaclass=MarkupCapableMeta):
+class MarkupExceptionContextMeta(MarkupCapableMeta, abc.ABCMeta):
+    pass
+
+
+class MarkupExceptionContext(exceptions.ExceptionContext,
+                             metaclass=MarkupExceptionContextMeta):
 
     @abc.abstractclassmethod
     def as_markup(cls, *, ctx):
