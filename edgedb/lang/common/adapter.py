@@ -130,19 +130,3 @@ class Adapter(type):
 
     def get_adaptee(cls):
         return cls.__sx_adaptee__
-
-
-class MultiAdapter(Adapter):
-    @classmethod
-    def register_adapter(mcls, registry, adaptee, adapter):
-        try:
-            registry[adaptee] += (adapter, )
-        except KeyError:
-            registry[adaptee] = (adapter, )
-
-    @classmethod
-    def match_adapter(mcls, obj, adaptee, adapter):
-        if issubclass(obj, adapter) and obj not in adapter:
-            return (obj, )
-        elif issubclass(obj, adaptee):
-            return adapter
