@@ -184,7 +184,7 @@ class AST(object, metaclass=MetaAST):
         markup.dump(self)
 
 
-@markup.serializer.serializer(handles=AST)
+@markup.serializer.serializer.register(AST)
 def _serialize_to_markup(ast, *, ctx):
     node = markup.elements.lang.TreeNode(id=id(ast), name=type(ast).__name__)
 

@@ -5,12 +5,12 @@
 # See LICENSE for details.
 ##
 
-import types
-import decimal
 import collections
+import decimal
+import functools
+import types
 import weakref
 
-from edgedb.lang.common.dispatch import TypeDispatcher
 from .. import elements
 
 from edgedb.lang.common import exceptions
@@ -42,8 +42,10 @@ def no_ref_detect(func):
     return func
 
 
-class serializer(TypeDispatcher):
+@functools.singledispatch
+def serializer(obj, *, ctx):
     """Markup serializers dispatcher"""
+    raise NotImplementedError
 
 
 class Context:
@@ -72,13 +74,9 @@ class Context:
 def serialize(obj, *, ctx):
     """Serialize arbitrary python object to Markup elements"""
 
-    try:
-        # Find serialization function
-        #
-        sr = serializer.get_handler(type=type(obj))
-    except LookupError:
-        raise LookupError(
-            'unable to find serializer for object {!r}'.format(obj))
+    sr = serializer.dispatch(type(obj))
+    if sr == serializer:
+        raise LookupError(f'unable to find serializer for object {obj!r}')
 
     ctx.level += 1
     ctx.run_cnt += 1
@@ -168,7 +166,7 @@ def serialize_callstack_point(
         point_cls=point_cls)
 
 
-@serializer(handles=types.TracebackType)
+@serializer.register(types.TracebackType)
 def serialize_traceback(obj, *, ctx):
     result = []
 
@@ -180,7 +178,7 @@ def serialize_traceback(obj, *, ctx):
     return elements.lang.Traceback(items=result, id=id(obj))
 
 
-@serializer(handles=BaseException)
+@serializer.register(BaseException)
 def serialize_exception(obj, *, ctx):
     try:
         # Serializing an exception to markup maybe a very time-wise
@@ -236,14 +234,14 @@ def serialize_exception(obj, *, ctx):
     return markup
 
 
-@serializer(handles=exceptions.ExceptionContext)
+@serializer.register(exceptions.ExceptionContext)
 def serialize_generic_exception_context(obj, *, ctx):
     msg = 'No markup serializer for {!r} context'.format(obj)
     return elements.lang.ExceptionContext(
         title=obj.title, body=[elements.doc.Text(text=msg)])
 
 
-@serializer(handles=exceptions.DefaultExceptionContext)
+@serializer.register(exceptions.DefaultExceptionContext)
 def serialize_default_exception_context(obj, *, ctx):
     body = []
 
@@ -258,13 +256,13 @@ def serialize_default_exception_context(obj, *, ctx):
     return elements.lang.ExceptionContext(title=obj.title, body=body)
 
 
-@serializer(handles=type(None))
+@serializer.register(type(None))
 @no_ref_detect
 def serialize_none(obj, *, ctx):
     return elements.lang.Constants.none
 
 
-@serializer(handles=bool)
+@serializer.register(bool)
 @no_ref_detect
 def serialize_bool(obj, *, ctx):
     if obj:
@@ -273,22 +271,27 @@ def serialize_bool(obj, *, ctx):
         return elements.lang.Constants.false
 
 
-@serializer(handles=(int, float, decimal.Decimal))
+@serializer.register(int)
+@serializer.register(float)
+@serializer.register(decimal.Decimal)
 @no_ref_detect
 def serialize_number(obj, *, ctx):
     return elements.lang.Number(num=obj)
 
 
-@serializer(handles=str)
+@serializer.register(str)
 @no_ref_detect
 def serialize_str(obj, *, ctx):
     return elements.lang.String(str=obj)
 
 
-@serializer(
-    handles=(
-        collections.UserList, list, tuple, collections.Set, weakref.WeakSet,
-        set, frozenset))
+@serializer.register(collections.UserList)
+@serializer.register(list)
+@serializer.register(tuple)
+@serializer.register(collections.Set)
+@serializer.register(weakref.WeakSet)
+@serializer.register(set)
+@serializer.register(frozenset)
 @no_ref_detect
 def serialize_sequence(obj, *, ctx, trim_at=100):
     els = []
@@ -302,7 +305,8 @@ def serialize_sequence(obj, *, ctx, trim_at=100):
         items=els, id=id(obj), trimmed=(trim and cnt >= trim_at))
 
 
-@serializer(handles=(dict, collections.Mapping))
+@serializer.register(dict)
+@serializer.register(collections.Mapping)
 @no_ref_detect
 def serialize_mapping(obj, *, ctx, trim_at=100):
     map = collections.OrderedDict()
@@ -320,7 +324,7 @@ def serialize_mapping(obj, *, ctx, trim_at=100):
         items=map, id=id(obj), trimmed=(trim and cnt >= trim_at))
 
 
-@serializer(handles=object)
+@serializer.register(object)
 @no_ref_detect
 def serialize_uknown_object(obj, *, ctx):
     return elements.lang.Object(

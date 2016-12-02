@@ -341,7 +341,9 @@ class DeltaSet:
         return bool(self.deltas)
 
 
-class CommandMeta(adapter.Adapter, struct.MixedStructMeta):
+class CommandMeta(adapter.Adapter, struct.MixedStructMeta,
+                  markup.MarkupCapableMeta):
+
     _astnode_map = {}
 
     def __init__(cls, name, bases, clsdict, *, adapts=None):
@@ -364,7 +366,6 @@ class CommandMeta(adapter.Adapter, struct.MixedStructMeta):
                 mapping[astnode] = cls
 
 
-@markup.serializer.serializer(method='as_markup')
 class Command(struct.MixedStruct, metaclass=CommandMeta):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

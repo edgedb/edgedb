@@ -14,8 +14,17 @@ from .serializer import base as _base_serializer
 from edgedb.lang.common.exceptions import ExceptionContext as _ExceptionContext
 
 
-@serializer.serializer(method='as_markup')
-class MarkupExceptionContext(_ExceptionContext, metaclass=abc.ABCMeta):
+class MarkupCapableMeta(abc.ABCMeta):
+
+    def __new__(mcls, name, bases, dct):
+        cls = super().__new__(mcls, name, bases, dct)
+        if 'as_markup' in dct:
+            serializer.serializer.register(cls)(getattr(cls, 'as_markup'))
+        return cls
+
+
+class MarkupExceptionContext(_ExceptionContext, metaclass=MarkupCapableMeta):
+
     @abc.abstractclassmethod
     def as_markup(cls, *, ctx):
         pass

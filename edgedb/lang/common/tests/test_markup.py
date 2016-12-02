@@ -25,7 +25,7 @@ class SpecialListNode(_SpecialListNode):
     node = Field(_SpecialListNode, default=None)
 
 
-@markup.serializer.serializer(handles=SpecialList)
+@markup.serializer.serializer.register(SpecialList)
 def serialize_special(obj, *, ctx):
     if obj and isinstance(obj[0], SpecialList):
         child = markup.serialize(obj[0], ctx=ctx)

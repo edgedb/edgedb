@@ -23,8 +23,7 @@ def pack_name(name, prefix_length=0):
     return name
 
 
-@markup.serializer.serializer(method='as_markup')
-class BaseCommand:
+class BaseCommand(metaclass=markup.MarkupCapableMeta):
     async def get_code_and_vars(self, context):
         code = await self.code(context)
         assert code is not None

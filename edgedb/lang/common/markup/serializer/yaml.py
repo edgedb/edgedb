@@ -11,7 +11,7 @@ from .base import serializer, serialize
 from .. import elements
 
 
-@serializer(handles=nodes.Node)
+@serializer.register(nodes.Node)
 def serialize_to_markup(node, *, ctx):
     me = elements.lang.TreeNode(id=id(node), name=node.__class__.__name__)
 
