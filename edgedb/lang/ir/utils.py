@@ -8,6 +8,7 @@
 
 from edgedb.lang.common import ast
 
+from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import types as s_types
@@ -279,15 +280,25 @@ class LinearPath(list):
         if not self:
             return ''
 
-        result = '({})'.format(self[0].name)
+        result = f'({self[0].name})'
 
         for i in range(1, len(self) - 1, 2):
-            link = self[i][0].name
-            if self[i + 1]:
-                lexpr = '({} TO {})'.format(link, self[i + 1].name)
+            ptr = self[i][0]
+            ptrdir = self[i][1]
+            tgt = self[i + 1]
+
+            if tgt:
+                lexpr = f'({ptr.name} [TO {tgt.name}])'
             else:
-                lexpr = '({})'.format(link)
-            result += '.{}{}'.format(self[i][1], lexpr)
+                lexpr = f'({ptr.name})'
+
+            if isinstance(ptr, s_lprops.LinkProperty):
+                step = '@'
+            else:
+                step = f'.{ptrdir}'
+
+            result += f'{step}{lexpr}'
+
         return result
 
     __repr__ = __str__

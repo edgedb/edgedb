@@ -16,7 +16,6 @@ from edgedb.server import _testbase as tb
 
 
 class TestDeltas(tb.QueryTestCase):
-    @unittest.expectedFailure
     async def test_delta_simple01(self):
         result = await self.con.execute("""
             # setup delta

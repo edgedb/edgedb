@@ -16,6 +16,10 @@ from edgedb.server import _testbase as tb
 class TestInsert(tb.QueryTestCase):
     SETUP = """
         CREATE DELTA test::d_insert01 TO $$
+            link l3:
+                linkproperty comment to str:
+                    default: "N/A"
+
             link subordinates:
                 linkproperty comment to str
 

@@ -935,6 +935,31 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
                 shapespec = implicit_shape_els + list(shapespec)
 
+        else:
+            _new_visited[scls] = shape
+
+            if include_implicit:
+                implicit_ptrs = (sn.Name('std::target'),)
+
+                implicit_shape_els = []
+
+                for pn in implicit_ptrs:
+                    shape_el = qlast.SelectPathSpecNode(
+                        expr=qlast.PathNode(steps=[
+                            qlast.PathStepNode(
+                                expr=qlast.LinkNode(
+                                    name=pn.name,
+                                    namespace=pn.module,
+                                    type='property'
+                                )
+                            )
+                        ])
+                    )
+
+                    implicit_shape_els.append(shape_el)
+
+                shapespec = implicit_shape_els + list(shapespec)
+
         for shape_el in shapespec:
             steps = shape_el.expr.steps
             ptrsource = scls

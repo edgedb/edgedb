@@ -535,22 +535,27 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
             path_rvar = fromlist[0]
             source_rel = path_rvar.relation
+            source_stmt = source_rel.query
 
             ptr_info = pg_types.get_pointer_storage_info(
                 ptrcls, resolve_type=False, link_bias=False)
 
             if isinstance(ptrcls, s_lprops.LinkProperty):
                 # Reference to a link property.
-                self._join_mapping_rel(
-                    stmt=source_rel.query, set_rvar=set_rvar, ir_set=ir_set)
-                self._add_path_var_reference(source_rel, ir_set)
+                map_rvar = self._join_mapping_rel(
+                    stmt=source_stmt, set_rvar=set_rvar, ir_set=ir_set,
+                    map_join_type='left')
+
+                source_stmt.rptr_rvar = map_rvar
+
+                self._add_path_var_reference(source_stmt, ir_set)
 
             elif ptr_info.table_type != 'concept':
-                # This is a 1* or ** cardinality, join via a mapping relation.
                 map_rvar = self._join_mapping_rel(
                     stmt=stmt, set_rvar=set_rvar, ir_set=ir_set)
 
                 stmt.rptr_rvar = map_rvar
+
                 return_parent = False
 
             elif isinstance(ir_set.scls, s_concepts.Concept):
@@ -868,7 +873,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 if isinstance(path_id[-1], s_concepts.Concept):
                     target.path_bonds[path_id] = alias
 
-    def _join_mapping_rel(self, *, stmt, set_rvar, ir_set):
+    def _join_mapping_rel(self, *, stmt, set_rvar, ir_set,
+                          map_join_type='inner'):
         fromexpr = stmt.from_clause[0]
 
         tip_pathvar = ir_set.pathvar if ir_set else None
@@ -913,7 +919,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             map_join = pgast.JoinExpr(
                 larg=fromexpr,
                 rarg=map_rvar,
-                type='inner',
+                type=map_join_type,
                 quals=map_join_cond
             )
 
@@ -1014,11 +1020,20 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         ptrcls = rptr.ptrcls
         ptrname = ptrcls.shortname
 
-        if isinstance(ptrcls, s_lprops.LinkProperty):
+        ptr_info = pg_types.get_pointer_storage_info(
+            ptrcls, resolve_type=False, link_bias=False)
+
+        if ptr_info.table_type == 'link':
             source = rptr.source.rptr.ptrcls
             rel_rvar = rel.rptr_rvar
         else:
-            source = rptr.source.scls
+            if isinstance(ptrcls, s_lprops.LinkProperty):
+                source = rptr.source.rptr.source.scls
+                ptrcls = rptr.source.rptr.ptrcls
+                ptrname = ptrcls.shortname
+            else:
+                source = rptr.source.scls
+
             rel_rvar = rel.scls_rvar
 
         if rel_rvar is None:
@@ -1036,7 +1051,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             colname = source_rel.path_vars[path_id]
 
         if colname is None:
-            colname = common.edgedb_name_to_pg_name(ptrname)
+            colname = ptr_info.column_name
 
         schema = ctx.schema
 
