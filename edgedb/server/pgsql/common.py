@@ -20,8 +20,12 @@ def quote_literal(string):
     return "'" + string.replace("'", "''") + "'"
 
 
-def quote_ident_if_needed(string):
-    return quote_ident(string) if needs_quoting(string) else string
+def _quote_ident(string):
+    return '"' + string.replace('"', '""') + '"'
+
+
+def quote_ident(string, *, force=False):
+    return _quote_ident(string) if needs_quoting(string) or force else string
 
 
 def needs_quoting(string):
@@ -29,12 +33,9 @@ def needs_quoting(string):
                string.replace('_', 'a').isalnum())
     return (
         not isalnum or
-        string.lower() in pg_keywords.by_type[pg_keywords.RESERVED_KEYWORD]
+        string.lower() in pg_keywords.by_type[pg_keywords.RESERVED_KEYWORD] or
+        string.lower() != string
     )
-
-
-def quote_ident(string):
-    return '"' + string.replace('"', '""') + '"'
 
 
 def qname(*parts):
@@ -53,7 +54,7 @@ def quote_type(type_):
     if is_array:
         last = last[:-2]
 
-    last = quote_ident_if_needed(last)
+    last = quote_ident(last)
     if is_array:
         last += '[]'
 

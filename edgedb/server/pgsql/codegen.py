@@ -339,6 +339,9 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.visit_list(node.colnames)
             self.write(')')
 
+    def visit_Keyword(self, node):
+        self.write(node.name)
+
     def visit_RangeVar(self, node):
         rel = node.relation
 

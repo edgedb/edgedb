@@ -76,12 +76,10 @@ class IRCompilerFunctionSupport:
             name = 'count'
 
         elif funcname == 'current_time':
-            result = pgast.FuncCall(
-                name='current_time', noparens=True)
+            result = pgast.Keyword(name='current_time')
 
         elif funcname == 'current_datetime':
-            result = pgast.FuncCall(
-                name='current_timestamp', noparens=True)
+            result = pgast.Keyword(name='current_timestamp')
 
         elif funcname == 'uuid_generate_v1mc':
             name = common.qname('edgedb', 'uuid_generate_v1mc')

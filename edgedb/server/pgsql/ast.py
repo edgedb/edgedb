@@ -36,6 +36,14 @@ class Alias(Base):
     ]
 
 
+class Keyword(Base):
+    """An SQL keyword that must be output without quoting."""
+
+    __fields = [
+        'name'                  # Keyword name
+    ]
+
+
 class EdgeQLPathInfo:
     """A general mixin providing EdgeQL-specific metadata on certain nodes."""
 
