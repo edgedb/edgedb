@@ -5,17 +5,17 @@
 # See LICENSE for details.
 ##
 
+import abc
 import sys
 
 from . import elements, serializer, renderers
 from .serializer import serialize
 from .serializer import base as _base_serializer
 from edgedb.lang.common.exceptions import ExceptionContext as _ExceptionContext
-from edgedb.lang.common import abc
 
 
 @serializer.serializer(method='as_markup')
-class MarkupExceptionContext(_ExceptionContext, metaclass=abc.AbstractMeta):
+class MarkupExceptionContext(_ExceptionContext, metaclass=abc.ABCMeta):
     @abc.abstractclassmethod
     def as_markup(cls, *, ctx):
         pass
