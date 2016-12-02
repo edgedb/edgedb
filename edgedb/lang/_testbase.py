@@ -104,7 +104,7 @@ class BaseParserTest(unittest.TestCase, metaclass=ParserTestMeta):
                     if val != expected_val:
                         raise AssertionError(
                             f'must_fail: attribute {attr_name!r} is '
-                            f'{expected_val} (expected is {val!r})') from exc
+                            f'{val} (expected is {expected_val!r})') from exc
         else:
             return self.run_test(source=source, spec=spec, expected=expected)
 
