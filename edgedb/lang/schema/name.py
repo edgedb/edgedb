@@ -40,9 +40,6 @@ class SchemaName(str):
     def __repr__(self):
         return '<SchemaName %s>' % self
 
-    def persistent_hash(self):
-        return persistent_hash(self)
-
     @staticmethod
     def is_qualified(name):
         return isinstance(name, SchemaName) or '::' in name

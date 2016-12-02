@@ -10,133 +10,98 @@
 import abc
 import contextlib
 import decimal
+import functools
+
 from hashlib import md5
 from uuid import UUID
 
 
-class persistent_hash(int):
-    magic_method = 'persistent_hash'
+def _any_type(value):
+    try:
+        meth = value.persistent_hash
+    except AttributeError:
+        raise TypeError(
+            f"un(persistently-)hashable type: {type(value)!r}") from None
 
-    _hash_memory = []
-
-    def __new__(cls, value):
-        """Compute a persistent hash for a given value.
-
-        The hash is guaranteed to be universally stable.
-        """
-        hash = None
-
-        if value is None:
-            hash = cls.str_hash('__edgedb__NONE__')
-        elif isinstance(value, str):
-            hash = cls.str_hash(value)
-        elif isinstance(value, bytes):
-            hash = cls.bytes_hash(value)
-        elif isinstance(value, bool):
-            hash = cls.str_hash(
-                '__edgedb__TRUE__' if value else '__edgedb__FALSE__')
-        elif isinstance(value, int):
-            hash = cls.int_hash(value)
-        elif isinstance(value, float):
-            hash = cls.float_hash(value)
-        elif isinstance(value, decimal.Decimal):
-            hash = cls.decimal_hash(value)
-        elif isinstance(value, tuple):
-            hash = cls.tuple_hash(value)
-        elif isinstance(value, frozenset):
-            hash = cls.frozenset_hash(value)
-        elif isinstance(value, UUID):
-            hash = cls.tuple_hash(('__stdlib_UUID__', value.hex))
-        else:
-            for bucket in reversed(cls._hash_memory):
-                hash = bucket.get(id(value))
-                if hash is not None:
-                    break
-            else:
-                phm = getattr(value, cls.magic_method, None)
-                if phm:
-                    hash = phm()
-
-        if hash is None:
-            raise TypeError(
-                "un(persistently-)hashable type: '%s'" % type(value).__name__)
-
-        return super().__new__(cls, hash)
-
-    @classmethod
-    def str_hash(cls, value):
-        """Compute a persistent hash for a string value."""
-        return int(md5(value.encode()).hexdigest(), 16)
-
-    @classmethod
-    def bytes_hash(cls, value):
-        """Compute a persistent hash for a bytes value."""
-        return int(md5(value).hexdigest(), 16)
-
-    @classmethod
-    def int_hash(cls, value):
-        """Compute a persistent hash for an integer value."""
-        return value
-
-    @classmethod
-    def float_hash(cls, value):
-        """Compute a persistent hash for a float value."""
-        # XXX: Check if this is really persistent cross-arch
-        return hash(value)
-
-    @classmethod
-    def decimal_hash(cls, value):
-        """Compute a persistent hash for a Decimal value."""
-        # XXX: Check if this is really persistent cross-arch
-        return hash(value)
-
-    @classmethod
-    def tuple_hash(cls, value):
-        """Compute a persistent hash for a tuple."""
-        # This algorithm is borrowed from CPython implementation.
-
-        multiplier = 1000003
-
-        result = 0x345678
-
-        length = len(value)
-
-        for i, item in enumerate(value):
-            hash = cls(item)
-            result = ((result ^ hash) * multiplier) & ((1 << 128) - 1)
-            multiplier += 82520 + (length - i) * 2
-        result += 97531
-
-        return result
-
-    @classmethod
-    def frozenset_hash(cls, value):
-        """Compute a persistent hash for a frozenset."""
-        # This algorithm is borrowed from CPython implementation.
-
-        result = 1927868237
-
-        for hash in sorted(cls(item) for item in value):
-            result ^= (hash ^ (hash << 16) ^ 89869747) * 3644798167
-
-        result = result * 69069 + 907133923
-
-        return result
-
-    @classmethod
-    @contextlib.contextmanager
-    def memory(cls, *pairs):
-        try:
-            bucket = {id(obj): hash for obj, hash in pairs}
-            cls._hash_memory.append(bucket)
-            yield bucket
-        finally:
-            cls._hash_memory.pop()
+    return meth()
 
 
-_NoneType = type(None)
-_hashables = (
-    _NoneType, str, bool, int, float, decimal.Decimal, tuple, frozenset, UUID)
+persistent_hash = functools.singledispatch(_any_type)
+
+
+@persistent_hash.register(type(None))
+def _none(value):
+    return _str('__edgedb__NONE__')
+
+
+@persistent_hash.register(str)
+def _str(value):
+    return int(md5(value.encode()).hexdigest(), 16)
+
+
+@persistent_hash.register(bytes)
+def _bytes(value):
+    return int(md5(value).hexdigest(), 16)
+
+
+@persistent_hash.register(bool)
+def _bool(value):
+    return _str('__edgedb__TRUE__' if value else '__edgedb__FALSE__')
+
+
+@persistent_hash.register(int)
+def _int(value):
+    return value
+
+
+@persistent_hash.register(float)
+def _float(value):
+    return int(value * 1_000_000)
+
+
+@persistent_hash.register(decimal.Decimal)
+def _decimal(value):
+    return _str(str(value))
+
+
+@persistent_hash.register(UUID)
+def _uuid(value):
+    return _tuple(('__stdlib_UUID__', value.hex))
+
+
+@persistent_hash.register(tuple)
+def _tuple(value):
+    """Compute a persistent hash for a tuple."""
+    # This algorithm is borrowed from CPython implementation.
+
+    multiplier = 1000003
+
+    result = 0x345678
+
+    length = len(value)
+
+    for i, item in enumerate(value):
+        hash = persistent_hash(item)
+        result = ((result ^ hash) * multiplier) & ((1 << 128) - 1)
+        multiplier += 82520 + (length - i) * 2
+    result += 97531
+
+    return result
+
+
+@persistent_hash.register(frozenset)
+def _frozenset(value):
+    """Compute a persistent hash for a frozenset."""
+    # This algorithm is borrowed from CPython implementation.
+
+    result = 1927868237
+
+    for hash in sorted(persistent_hash(item) for item in value):
+        result ^= (hash ^ (hash << 16) ^ 89869747) * 3644798167
+
+    result = result * 69069 + 907133923
+
+    return result
 
 
 class PersistentlyHashable(metaclass=abc.ABCMeta):
@@ -149,10 +114,10 @@ class PersistentlyHashable(metaclass=abc.ABCMeta):
     @classmethod
     def __subclasshook__(cls, C):
         if cls is PersistentlyHashable:
-            for B in C.__mro__:
-                if issubclass(B, _hashables):
-                    return True
+            if persistent_hash.dispatch(C) is not _any_type:
+                return True
 
+            for B in C.__mro__:
                 if 'persistent_hash' in B.__dict__:
                     if B.__dict__['persistent_hash']:
                         return True
