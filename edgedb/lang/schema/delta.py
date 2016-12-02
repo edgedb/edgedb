@@ -381,7 +381,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
 
     @classmethod
     def adapt(cls, obj):
-        result = super().copy(obj)
+        result = obj.copy_with_class(cls)
         for op in obj:
             result.ops.add(type(cls).adapt(op))
         return result

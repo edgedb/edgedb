@@ -8,7 +8,6 @@
 
 import collections
 
-from edgedb.lang.common import hybrid
 from edgedb.lang.common import ordered
 
 from . import delta as sd
@@ -349,21 +348,14 @@ class ReferencingClass(inheriting.InheritingClass,
             self._resolve_inherited_classref_dict(
                 _objects, _resolve, attr, local_attr)
 
-    @hybrid.method
-    def copy(scope, obj=None):
-        if isinstance(scope, type):
-            cls = scope
-        else:
-            obj = scope
-            cls = obj.__class__
+    def copy(self):
+        result = super(ReferencingClass, self).copy()
 
-        result = super(ReferencingClass, cls).copy(obj)
-
-        for refdict in obj.__class__.get_refdicts():
+        for refdict in self.__class__.get_refdicts():
             attr = refdict.attr
             local_attr = refdict.local_attr
-            all_coll = getattr(obj, attr)
-            local_coll = getattr(obj, local_attr)
+            all_coll = getattr(self, attr)
+            local_coll = getattr(self, local_attr)
 
             coll_copy = {n: p.copy() for n, p in all_coll.items()}
             setattr(result, attr, coll_copy)

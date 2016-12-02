@@ -7,8 +7,6 @@
 
 import collections
 
-from edgedb.lang.common import hybrid
-
 
 class NoDefault:
     pass
@@ -234,16 +232,12 @@ class Struct(metaclass=StructMeta):
             if formatter_obj:
                 yield (name, formatter_obj(getattr(self, name)))
 
-    @hybrid.method
-    def copy(scope, obj=None):
-        if isinstance(scope, Struct):
-            obj = scope
-            cls = obj.__class__
-        else:
-            cls = scope
-
-        args = {f: getattr(obj, f) for f in cls._fields.keys()}
+    def copy_with_class(self, cls):
+        args = {f: getattr(self, f) for f in cls._fields.keys()}
         return cls(**args)
+
+    def copy(self):
+        return self.copy_with_class(type(self))
 
     def items(self):
         for field in self.__class__._fields:

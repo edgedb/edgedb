@@ -6,8 +6,6 @@
 ##
 
 
-from edgedb.lang.common import hybrid
-
 from edgedb.lang.edgeql import ast as qlast
 
 from . import atoms
@@ -688,19 +686,11 @@ class Link(pointers.Pointer, sources.Source):
 
         return super().compare(other, context=context)
 
-    @hybrid.method
-    def copy(scope, obj=None):
-        if isinstance(scope, Link):
-            obj = scope
-            cls = obj.__class__.get_canonical_class()
-        else:
-            cls = scope = scope.get_canonical_class()
-
-        result = super(cls, cls).copy(obj)
-
-        result.source = obj.source
-        result.target = obj.target
-        result.default = obj.default
+    def copy(self):
+        result = super().copy()
+        result.source = self.source
+        result.target = self.target
+        result.default = self.default
 
         return result
 

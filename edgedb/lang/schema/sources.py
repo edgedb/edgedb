@@ -7,7 +7,6 @@
 
 
 from edgedb.lang.common.persistent_hash import persistent_hash
-from edgedb.lang.common import hybrid
 
 from . import error as schema_error
 from . import indexes
@@ -420,17 +419,10 @@ class Source(primary.PrimaryClass, indexes.IndexableSubject):
             module = next(iter(names)).module
         return sn.Name(name=name, module=module)
 
-    @hybrid.method
-    def copy(scope, obj=None):
-        if isinstance(scope, type):
-            cls = scope
-        else:
-            obj = scope
-            cls = obj.__class__
+    def copy(self):
+        result = super().copy()
 
-        result = super().copy(obj)
-
-        virt_children = getattr(obj, '_virtual_children', None)
+        virt_children = getattr(self, '_virtual_children', None)
         if virt_children:
             result._virtual_children = virt_children.copy()
 

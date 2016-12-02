@@ -6,8 +6,6 @@
 ##
 
 
-from edgedb.lang.common import hybrid
-
 from edgedb.lang.edgeql import ast as qlast
 
 from . import atoms
@@ -263,19 +261,11 @@ class LinkProperty(pointers.Pointer):
     def get_exposed_behaviour(self):
         return pointers.PointerExposedBehaviour.FirstItem
 
-    @hybrid.method
-    def copy(scope, obj=None):
-        if isinstance(scope, LinkProperty):
-            obj = scope
-            cls = obj.__class__.get_canonical_class()
-        else:
-            cls = scope = scope.get_canonical_class()
-
-        result = super(cls, cls).copy(obj)
-
-        result.source = obj.source
-        result.target = obj.target
-        result.default = obj.default
+    def copy(self):
+        result = super().copy()
+        result.source = self.source
+        result.target = self.target
+        result.default = self.default
         return result
 
     @classmethod
