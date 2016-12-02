@@ -6,6 +6,8 @@
 ##
 
 
+import typing
+
 from edgedb.lang.common import enum as s_enum
 from edgedb.lang.common import ast, parsing
 
@@ -16,12 +18,12 @@ class Base(ast.AST):
 
 
 class RootNode(Base):
-    children: list = list
+    children: list
 
 
 class IndirectionNode(Base):
     arg: Base
-    indirection: list = list
+    indirection: list
 
 
 class IndexNode(Base):
@@ -35,7 +37,7 @@ class SliceNode(Base):
 
 class ArgListNode(Base):
     name: str
-    args: list = list
+    args: list
 
 
 class BinOpNode(Base):
@@ -45,8 +47,8 @@ class BinOpNode(Base):
 
 
 class WindowSpecNode(Base):
-    orderby: list = list
-    partition: list = list
+    orderby: list
+    partition: list
 
 
 class NamedArgNode(Base):
@@ -56,8 +58,8 @@ class NamedArgNode(Base):
 
 class FunctionCallNode(Base):
     func: object  # tuple or str
-    args: list = list
-    agg_sort: list = list
+    args: typing.List[Base]
+    agg_sort: list
     agg_filter: object
     window: object
 
@@ -90,9 +92,9 @@ class PostfixOpNode(Base):
 
 
 class PathNode(Base):
-    steps: list = list
+    steps: list
     quantifier: Base
-    pathspec: list = list
+    pathspec: list
 
 
 class PathDisjunctionNode(Base):
@@ -123,8 +125,8 @@ class LinkPropExprNode(Base):
 
 
 class StatementNode(Base):
-    namespaces: list = list
-    aliases: list = list
+    namespaces: list
+    aliases: list
 
 
 class ClassRefNode(Base):
@@ -143,7 +145,7 @@ class ExpressionTextNode(Base):
 
 class TypeNameNode(Base):
     maintype: Base
-    subtypes: list = list
+    subtypes: list
 
 
 class TypeCastNode(Base):
@@ -187,26 +189,26 @@ class CompositeDDLNode(StatementNode, DDLNode):
 
 
 class AlterSchemaNode(Base):
-    commands: list = list
+    commands: list
 
 
 class AlterAddInheritNode(DDLNode):
-    bases: list = list
+    bases: list
     position: object
 
 
 class AlterDropInheritNode(DDLNode):
-    bases: list = list
+    bases: list
 
 
 class AlterTargetNode(DDLNode):
-    targets: list = list
+    targets: list
 
 
 class ObjectDDLNode(CompositeDDLNode):
-    namespaces: list = list
+    namespaces: list
     name: ClassRefNode
-    commands: list = list
+    commands: list
 
 
 class CreateObjectNode(ObjectDDLNode):
@@ -222,7 +224,7 @@ class DropObjectNode(ObjectDDLNode):
 
 
 class CreateInheritingObjectNode(CreateObjectNode):
-    bases: list = list
+    bases: list
     is_abstract: bool = False
     is_final: bool = False
 
@@ -236,7 +238,7 @@ class DeltaNode:
 
 
 class CreateDeltaNode(CreateObjectNode, DeltaNode):
-    parents: list = list
+    parents: list
     target: object
 
 
@@ -381,7 +383,7 @@ class DropLinkNode(DropObjectNode):
 
 class CreateConcreteLinkNode(CreateInheritingObjectNode):
     is_required: bool = False
-    targets: list = list
+    targets: list
 
 
 class AlterConcreteLinkNode(AlterObjectNode):
@@ -405,7 +407,7 @@ class DropConstraintNode(DropObjectNode):
 
 
 class CreateConcreteConstraintNode(CreateObjectNode):
-    args: list = list
+    args: list
     is_abstract: bool = False
 
 
@@ -419,12 +421,12 @@ class DropConcreteConstraintNode(DropObjectNode):
 
 class CreateLocalPolicyNode(CompositeDDLNode):
     event: ClassRefNode
-    actions: list = list
+    actions: list
 
 
 class AlterLocalPolicyNode(CompositeDDLNode):
     event: ClassRefNode
-    actions: list = list
+    actions: list
 
 
 class DropLocalPolicyNode(CompositeDDLNode):
@@ -460,7 +462,7 @@ class FuncArgNode(Base):
 
 
 class CreateFunctionNode(CreateObjectNode):
-    args: list = list
+    args: list
     returning: Base
     single: bool = False
     aggregate: bool = False
@@ -477,15 +479,15 @@ class DropFunctionNode(DropObjectNode):
 class SelectQueryNode(StatementNode):
     single: bool = False
     distinct: bool = False
-    targets: list = list
+    targets: list
     where: Base
-    groupby: list = list
+    groupby: list
     having: Base
-    orderby: list = list
+    orderby: list
     offset: ConstantNode
     limit: ConstantNode
     _hash: tuple
-    cges: list = list
+    cges: list
     op: str
     op_larg: Base
     op_rarg: Base
@@ -493,18 +495,18 @@ class SelectQueryNode(StatementNode):
 
 class InsertQueryNode(StatementNode):
     subject: Base
-    pathspec: list = list
-    targets: list = list
-    cges: list = list
+    pathspec: list
+    targets: list
+    cges: list
     single: bool = False
 
 
 class UpdateQueryNode(StatementNode):
     subject: Base
-    pathspec: list = list
+    pathspec: list
     where: Base
-    targets: list = list
-    cges: list = list
+    targets: list
+    cges: list
     single: bool = False
 
 
@@ -516,8 +518,8 @@ class UpdateExprNode(Base):
 class DeleteQueryNode(StatementNode):
     subject: Base
     where: Base
-    targets: list = list
-    cges: list = list
+    targets: list
+    cges: list
     single: bool = False
 
 
@@ -561,9 +563,9 @@ class SelectExprNode(Base):
 
 class SelectPathSpecNode(Base):
     expr: Base
-    pathspec: list = list
+    pathspec: list
     where: Base
-    orderby: list = list
+    orderby: list
     offset: ConstantNode
     limit: ConstantNode
     compexpr: Base
@@ -572,7 +574,7 @@ class SelectPathSpecNode(Base):
 
 
 class PointerGlobNode(Base):
-    filters: list = list
+    filters: list
     type: ClassRefNode
 
 
@@ -588,15 +590,15 @@ class FromExprNode(Base):
 
 
 class SequenceNode(Base):
-    elements: list = list
+    elements: list
 
 
 class ArrayNode(Base):
-    elements: list = list
+    elements: list
 
 
 class MappingNode(Base):
-    items: list = list
+    items: list
 
 
 class NoneTestNode(Base):

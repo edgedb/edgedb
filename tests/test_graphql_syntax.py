@@ -132,7 +132,8 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         {id, name, description}
         """
 
-    @tb.must_fail(GraphQLParserError, line=2, col=9)
+    @tb.must_fail(GraphQLParserError, 'short form is not allowed here',
+                  line=2, col=9)
     def test_graphql_syntax_short03(self):
         """
         {id}

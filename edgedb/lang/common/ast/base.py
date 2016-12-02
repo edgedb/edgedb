@@ -6,7 +6,8 @@
 ##
 
 import copy
-import collections
+import collections.abc
+import typing
 
 from edgedb.lang.common import markup
 
@@ -26,11 +27,13 @@ class Field:
         self.child_traverse = \
             child_traverse if child_traverse is not None else traverse
         self.hidden = field_hidden
+        self._typing_type = isinstance(type_, typing.TypingMeta)
 
 
 class MetaAST(type):
     def __new__(mcls, name, bases, dct):
         if '__annotations__' in dct:
+            module_name = dct['__module__']
             fields_attrname = f'_{name}__fields'
 
             if fields_attrname in dct:
@@ -45,10 +48,44 @@ class MetaAST(type):
 
             fields = []
             for f_name, f_type in dct['__annotations__'].items():
+                f_fullname = f'{module_name}.{dct["__qualname__"]}.{f_name}'
+
                 if f_type is object:
                     f_type = None
+                if f_type is not None and not isinstance(f_type, type):
+                    raise RuntimeError(
+                        f'invalid type annotation on {f_fullname}: '
+                        f'{f_type!r} is not a type')
 
-                f_default = dct.pop(f_name, None)
+                if f_name in dct:
+                    f_default = dct.pop(f_name)
+                else:
+                    f_default = None
+
+                if isinstance(f_type, typing.TypingMeta):
+                    if (issubclass(f_type, typing.Container) and
+                            f_default is not None):
+                        raise RuntimeError(
+                            f'invalid type annotation on {f_fullname}: '
+                            f'default is defined for container type '
+                            f'{f_type!r}')
+
+                    if issubclass(f_type, typing.List):
+                        f_default = list
+                    else:
+                        raise RuntimeError(
+                            f'invalid type annotation on {f_fullname}: '
+                            f'{f_type!r} is not supported')
+                elif f_type is not None:
+                    if (issubclass(f_type, collections.abc.Container) and
+                            not issubclass(f_type, (str, bytes))):
+                        if f_default is not None:
+                            raise RuntimeError(
+                                f'invalid type annotation on {f_fullname}: '
+                                f'default is defined for container type '
+                                f'{f_type!r}')
+                        f_default = f_type
+
                 f_hidden = f_name in hidden
 
                 fields.append((f_name, f_type, f_default,
@@ -172,13 +209,26 @@ class AST(object, metaclass=MetaAST):
                 self.check_field_type(field, value)
 
     def check_field_type(self, field, value):
-        if (
-                field.type and value is not None and
-                not isinstance(value, field.type)):
+        def raise_error(field_type_name, value):
             raise TypeError(
                 '%s.%s.%s: expected %s but got %s' % (
                     self.__class__.__module__, self.__class__.__name__,
-                    field.name, field.type.__name__, value.__class__.__name__))
+                    field.name, field_type_name, value.__class__.__name__))
+
+        if field._typing_type:
+            if issubclass(field.type, typing.List):
+                if not isinstance(value, list):
+                    raise_error(str(field.type), value)
+                for el in value:
+                    if not isinstance(el, field.type.__args__[0]):
+                        raise_error(str(field.type), value)
+                return
+            else:
+                raise TypeError(f'unsupported typing type: {field.type!r}')
+
+        if (field.type and value is not None and
+                not isinstance(value, field.type)):
+            raise_error(field.type.__name__, value)
 
     def dump(self):
         markup.dump(self)

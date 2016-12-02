@@ -88,7 +88,7 @@ class Variable(Base):
 
 
 class Document(Base):
-    definitions: list = list
+    definitions: list
 
 
 class Definition(Base):
@@ -98,13 +98,13 @@ class Definition(Base):
 
 class OperationDefinition(Definition):
     type: str
-    variables: list = list
-    directives: list = list
+    variables: list
+    directives: list
 
 
 class FragmentDefinition(Definition):
     on: object
-    directives: list = list
+    directives: list
 
 
 class VariableDefinition(Base):
@@ -120,7 +120,7 @@ class VariableType(Base):
 
 
 class SelectionSet(Base):
-    selections: list = list
+    selections: list
 
 
 class Selection(Base):
@@ -130,25 +130,25 @@ class Selection(Base):
 class Field(Selection):
     alias: str
     name: object
-    arguments: list = list
-    directives: list = list
+    arguments: list
+    directives: list
     selection_set: object
 
 
 class FragmentSpread(Selection):
     name: object
-    directives: list = list
+    directives: list
 
 
 class InlineFragment(Selection):
     on: object
-    directives: list = list
+    directives: list
     selection_set: object
 
 
 class Directive(Base):
     name: object
-    arguments: list = list
+    arguments: list
 
 
 class Argument(Base):

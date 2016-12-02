@@ -7,6 +7,7 @@
 
 
 import copy
+import typing
 import unittest
 
 from edgedb.lang.common import ast
@@ -70,6 +71,64 @@ class ASTBaseTests(unittest.TestCase):
         assert ctree22 is not tree2
         assert ctree22.left.args[0].node['lconst'] is not lconst
         assert ctree22.left.args[0].node['lconst'].value == lconst.value
+
+    def test_common_ast_typing(self):
+        class Base(ast.AST):
+            pass
+
+        class Node(Base):
+            field_list: list
+            field_typing_list: typing.List[Base]
+
+        self.assertEqual(Node().field_list, [])
+        self.assertEqual(Node().field_typing_list, [])
+
+        Node().field_list = []
+        Node().field_list = [12, 2]
+        with self.assertRaises(TypeError):
+            Node().field_list = 'abc'
+
+        Node().field_typing_list = []
+        Node().field_typing_list = [Base()]
+        with self.assertRaises(TypeError):
+            Node().field_typing_list = 'abc'
+        with self.assertRaises(TypeError):
+            Node().field_typing_list = ['abc']
+
+        class Node(ast.AST):
+            field2: object
+            field3: object = 123
+
+        Node().field = 123
+        Node().field2 = 'aaa'
+        Node().field3 = 'aaa'
+        self.assertEqual(Node().field3, 123)
+
+    def test_common_ast_type_anno(self):
+        with self.assertRaisesRegex(RuntimeError,
+                                   r"Any is not a type"):
+            class Node(ast.AST):
+                field: typing.Any  # We don't want to use/support it.
+
+        with self.assertRaisesRegex(RuntimeError,
+                                    r"'abc' is not a type"):
+            class Node(ast.AST):
+                field: 'abc'
+
+        with self.assertRaisesRegex(RuntimeError,
+                                    r"Mapping.*is not supported"):
+            class Node(ast.AST):
+                field: typing.Mapping[int, str]
+
+        with self.assertRaisesRegex(RuntimeError,
+                                    r"default is defined for.*List"):
+            class Node(ast.AST):
+                field: typing.List[int] = [1]
+
+        with self.assertRaisesRegex(RuntimeError,
+                                    r"default is defined for.*list"):
+            class Node(ast.AST):
+                field: list = list
 
 
 class ASTMatchTests(unittest.TestCase):
