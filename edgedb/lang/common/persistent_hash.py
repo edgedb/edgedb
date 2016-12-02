@@ -7,6 +7,10 @@
 
 """Persistent hash implementation for builtin types."""
 
+
+__all__ = ('persistent_hash', 'PersistentlyHashable')
+
+
 import abc
 import contextlib
 import decimal
