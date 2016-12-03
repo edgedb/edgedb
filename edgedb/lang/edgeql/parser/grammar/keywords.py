@@ -33,7 +33,6 @@ edgeql_keywords = {
     "delta": ("DELTA", UNRESERVED_KEYWORD),
     "desc": ("DESC", RESERVED_KEYWORD),
     "detached": ("DETACHED", UNRESERVED_KEYWORD),
-    "distinct": ("DISTINCT", RESERVED_KEYWORD),
     "drop": ("DROP", RESERVED_KEYWORD),
     "else": ("ELSE", UNRESERVED_KEYWORD),
     "except": ("EXCEPT", RESERVED_KEYWORD),
@@ -95,6 +94,7 @@ edgeql_keywords = {
     "true": ("TRUE", RESERVED_KEYWORD),
     "update": ("UPDATE", RESERVED_KEYWORD),
     "union": ("UNION", RESERVED_KEYWORD),
+    "values": ("VALUES", RESERVED_KEYWORD),
     "where": ("WHERE", RESERVED_KEYWORD),
     "with": ("WITH", RESERVED_KEYWORD)
 }

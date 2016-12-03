@@ -84,6 +84,14 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self._visit_pathspec(node.pathspec)
             self.indentation -= 1
 
+        if node.source:
+            self.write(' FROM')
+            self.indentation += 1
+            self.new_lines = 1
+            self.visit(node.source)
+            self.indentation -= 1
+            self.new_lines = 1
+
         self._visit_returning(node)
         if parenthesise:
             self.write(')')
@@ -167,8 +175,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write('SELECT')
             if node.single:
                 self.write(' SINGLETON')
-            if node.distinct:
-                self.write(' DISTINCT')
             self.new_lines = 1
             self.indentation += 1
             for i, e in enumerate(node.targets):
@@ -221,6 +227,52 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.limit)
             self.indentation -= 1
             self.new_lines = 1
+        if parenthesise:
+            self.write(')')
+
+    def visit_ValuesQueryNode(self, node):
+        # need to parenthesise when VALUES appears as an expression
+        #
+        parenthesise = (isinstance(node.parent, edgeql_ast.Base) and
+                        not isinstance(node.parent, edgeql_ast.DDLNode))
+
+        if parenthesise:
+            self.write('(')
+
+        self._visit_aliases(node)
+        self.write('VALUES')
+        self.indentation += 1
+        self.new_lines = 1
+        for i, e in enumerate(node.targets):
+            if i > 0:
+                self.write(',')
+                self.new_lines = 1
+            self.visit(e)
+        self.indentation -= 1
+        self.new_lines = 1
+
+        if node.orderby:
+            self.write('ORDER BY')
+            self.new_lines = 1
+            self.indentation += 1
+            self.visit_list(node.orderby, separator=' THEN')
+            self.new_lines = 1
+            self.indentation -= 1
+        if node.offset is not None:
+            self.write('OFFSET')
+            self.new_lines = 1
+            self.indentation += 1
+            self.visit(node.offset)
+            self.indentation -= 1
+            self.new_lines = 1
+        if node.limit is not None:
+            self.write('LIMIT')
+            self.new_lines = 1
+            self.indentation += 1
+            self.visit(node.limit)
+            self.indentation -= 1
+            self.new_lines = 1
+
         if parenthesise:
             self.write(')')
 

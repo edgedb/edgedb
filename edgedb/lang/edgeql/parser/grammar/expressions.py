@@ -27,6 +27,28 @@ class ListNonterm(context.ListNonterm, element=None):
     pass
 
 
+class SetStmt(Nonterm):
+    # SelectNoParens is used instead of SelectExpr to avoid
+    # a conflict with a Stmt|Expr production, as Expr contains a
+    # SelectWithParens production.  Additionally, this is consistent
+    # with other statement productions in disallowing parentheses.
+    #
+    def reduce_SelectNoParens(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_InsertExpr(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_UpdateExpr(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_DeleteExpr(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_ValuesExpr(self, *kids):
+        self.val = kids[0].val
+
+
 class SelectWithParens(Nonterm):
     def reduce_LPAREN_SelectNoParens_RPAREN(self, *kids):
         self.val = kids[1].val
@@ -86,18 +108,17 @@ class OptSingle(Nonterm):
 
 class SimpleSelect(Nonterm):
     def reduce_Select(self, *kids):
-        r"%reduce SELECT OptSingle OptDistinct SelectTargetEl \
+        r"%reduce SELECT OptSingle SelectTargetEl \
                   OptWhereClause OptGroupClause OptHavingClause"
         self.val = qlast.SelectQueryNode(
             single=kids[1].val,
-            distinct=kids[2].val,
             # XXX: for historical reasons a list is expected here by
             # the compiler
             #
-            targets=[kids[3].val],
-            where=kids[4].val,
-            groupby=kids[5].val,
-            having=kids[6].val,
+            targets=[kids[2].val],
+            where=kids[3].val,
+            groupby=kids[4].val,
+            having=kids[5].val,
         )
 
     def reduce_SelectClause_UNION_OptAll_SelectClause(self, *kids):
@@ -144,6 +165,49 @@ class InsertExpr(Nonterm):
             targets=targets,
         )
 
+    def reduce_InsertFrom(self, *kids):
+        r'%reduce OptAliasBlock INSERT TypedShape FROM FromClause \
+          OptReturningClause'
+        pathspec = kids[2].val.pathspec
+        kids[2].val.pathspec = None
+        single, targets = kids[5].val
+        self.val = qlast.InsertQueryNode(
+            aliases=kids[0].val,
+            subject=kids[2].val,
+            pathspec=pathspec,
+            single=single,
+            targets=targets,
+            source=kids[4].val,
+        )
+
+
+class FromClause(Nonterm):
+    def reduce_SelectWithParens(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_ParenthesisedStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_ValuesExpr(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_SelectNoParens(self, *kids):
+        self.val = kids[0].val
+
+
+class ParenthesisedStmt(Nonterm):
+    def reduce_LPAREN_InsertExpr_RPAREN(self, *kids):
+        self.val = kids[1].val
+
+    def reduce_LPAREN_UpdateExpr_RPAREN(self, *kids):
+        self.val = kids[1].val
+
+    def reduce_LPAREN_DeleteExpr_RPAREN(self, *kids):
+        self.val = kids[1].val
+
+    def reduce_LPAREN_ParenthesisedStmt_RPAREN(self, *kids):
+        self.val = kids[1].val
+
 
 class UpdateExpr(Nonterm):
     def reduce_UpdateExpr(self, *kids):
@@ -173,6 +237,28 @@ class DeleteExpr(Nonterm):
             single=single,
             targets=targets,
         )
+
+
+class ValuesExpr(Nonterm):
+    def reduce_ValuesExpr(self, *kids):
+        "%reduce OptAliasBlock VALUES ValueTargetList \
+                 OptSortClause OptSelectLimit"
+        self.val = qlast.ValuesQueryNode(
+            aliases=kids[0].val,
+            targets=kids[2].val,
+            orderby=kids[3].val,
+            offset=kids[4].val[0],
+            limit=kids[4].val[1],
+        )
+
+
+class ValueTarget(Nonterm):
+    def reduce_Expr(self, *kids):
+        self.val = qlast.SelectExprNode(expr=kids[0].val)
+
+
+class ValueTargetList(ListNonterm, element=ValueTarget, separator=T_COMMA):
+    pass
 
 
 class OptAliasBlock(Nonterm):
@@ -222,14 +308,6 @@ class AliasDecl(Nonterm):
 
 class AliasDeclList(ListNonterm, element=AliasDecl, separator=T_COMMA):
     pass
-
-
-class OptDistinct(Nonterm):
-    def reduce_DISTINCT(self, *kids):
-        self.val = True
-
-    def reduce_empty(self, *kids):
-        self.val = False
 
 
 class SelectTargetEl(Nonterm):
@@ -572,6 +650,9 @@ class ParenExpr(Nonterm):
         self.val = kids[1].val
 
     def reduce_LPAREN_DeleteExpr_RPAREN(self, *kids):
+        self.val = kids[1].val
+
+    def reduce_LPAREN_ValuesExpr_RPAREN(self, *kids):
         self.val = kids[1].val
 
     def reduce_LPAREN_Expr_AS_TypeName_RPAREN(self, *kids):

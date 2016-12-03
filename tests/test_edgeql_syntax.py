@@ -1423,11 +1423,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT User.name OFFSET $1 LIMIT $2;
         """
 
-    def test_edgeql_syntax_select12(self):
-        """
-        SELECT DISTINCT User.age;
-        """
-
     def test_edgeql_syntax_insert01(self):
         """
         INSERT Foo;
@@ -1692,6 +1687,58 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_update06(self):
         """
         SELECT (UPDATE Foo{bar:= 42} RETURNING Foo);
+        """
+
+    def test_edgeql_syntax_values01(self):
+        """
+        VALUES 42;
+        VALUES 1, 2, 3;
+        VALUES 1, '2', 3;
+        VALUES 1, User.name, 3;
+        VALUES 1, 2, 3
+            OFFSET 2;
+        VALUES 1, 2, 3
+            LIMIT 2;
+        VALUES 1, 2, 3
+            OFFSET 2 LIMIT 2;
+        """
+
+    def test_edgeql_syntax_values02(self):
+        """
+        VALUES 1, 2, 3 OFFSET $1;
+        VALUES 1, 2, 3 LIMIT $2;
+        VALUES 1, 2, 3 OFFSET $1 LIMIT $2;
+        """
+
+    def test_edgeql_syntax_insertfrom01(self):
+        """
+        INSERT User{name} FROM VALUES 'a', 'b', 'c';
+
+% OK %
+
+        INSERT User{name} FROM (VALUES 'a', 'b', 'c');
+        """
+
+    def test_edgeql_syntax_insertfrom02(self):
+        """
+        INSERT User{name} FROM (SELECT Foo.bar WHERE (Foo.baz = TRUE));
+        """
+
+    def test_edgeql_syntax_insertfrom03(self):
+        """
+        INSERT Foo{name} FROM (INSERT Bar{name := 'bar'} RETURNING Bar{name});
+        """
+
+    def test_edgeql_syntax_insertfrom04(self):
+        """
+        INSERT Foo{name} FROM (DELETE Bar RETURNING Bar{name});
+        """
+
+    def test_edgeql_syntax_insertfrom05(self):
+        """
+        INSERT Foo{name} FROM (
+            UPDATE Bar{name:= (name + 'bar')} RETURNING Bar{name}
+        );
         """
 
     def test_edgeql_syntax_function01(self):

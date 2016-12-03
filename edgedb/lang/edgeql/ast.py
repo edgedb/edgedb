@@ -486,7 +486,6 @@ class SelectQueryNode(StatementNode):
     orderby: list
     offset: ConstantNode
     limit: ConstantNode
-    _hash: tuple
     cges: list
     op: str
     op_larg: Base
@@ -499,6 +498,7 @@ class InsertQueryNode(StatementNode):
     targets: list
     cges: list
     single: bool = False
+    source: StatementNode
 
 
 class UpdateQueryNode(StatementNode):
@@ -521,6 +521,14 @@ class DeleteQueryNode(StatementNode):
     targets: list
     cges: list
     single: bool = False
+
+
+class ValuesQueryNode(StatementNode):
+    targets: list
+    orderby: list
+    offset: ConstantNode
+    limit: ConstantNode
+    cges: list
 
 
 class CGENode(Base):
