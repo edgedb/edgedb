@@ -97,22 +97,19 @@ class EdgeQLLexer(lexer.Lexer):
         # multichar ops (so 2+ chars)
         Rule(token='OP',
              next_state=STATE_KEEP,
-             regexp=r'''
+             regexp=rf'''
                 # no multichar operator can be composed exclusively of
                 # ">" or "<", to avoid ambiguity of parsing nested "< ... >"
-                (?![<>]+(?:{notopchar} | $)) (?:
+                (?![<>]+(?:{re_not_opchars} | $)) (?:
                     # EdgeQL-specific multi-char ops
-                    {opchar_edgedb} {opchar}+
+                    {re_opchars_edgeql} {re_opchars}+
                     |
-                    {opchar}+ {opchar_edgedb} {opchar}*
+                    {re_opchars}+ {re_opchars_edgeql} {re_opchars}*
                     |
                     # SQL-only multi-char ops cannot end in + or -
-                    {opchar_sql}+[*/^<>=]
+                    {re_opchars_sql}+[*/^<>=]
                 )
-             '''.format(opchar_edgedb=re_opchars_edgeql,
-                        opchar=re_opchars,
-                        notopchar=re_not_opchars,
-                        opchar_sql=re_opchars_sql)),
+             '''),
 
         # EdgeQL/PgSQL single char ops
         Rule(token='OP',
@@ -126,12 +123,12 @@ class EdgeQLLexer(lexer.Lexer):
 
         Rule(token='FCONST',
              next_state=STATE_KEEP,
-             regexp=r"""
+             regexp=rf"""
                     (?: \d+ (?:\.\d*)?
                         |
                         \. \d+
-                    ) {exppart}
-                """.format(exppart=re_exppart)),
+                    ) {re_exppart}
+                """),
 
         Rule(token='FCONST',
              next_state=STATE_KEEP,
@@ -147,26 +144,25 @@ class EdgeQLLexer(lexer.Lexer):
 
         Rule(token='SCONST',
              next_state=STATE_KEEP,
-             regexp=r'''
+             regexp=rf'''
                 (?P<Q>
                     # capture the opening quote in group Q
                     (
                         ' | " |
-                        {dollar_quote}
+                        {re_dquote}
                     )
                 )
                 (?:
                     (\\['"] | \n | .)*?
                 )
                 (?P=Q)      # match closing quote type with whatever is in Q
-             '''.format(dollar_quote=re_dquote)),
+             '''),
 
         Rule(token='IDENT',
              next_state=STATE_KEEP,
-             regexp=r'''
-                    {ident_start}{ident_cont}*
-                '''.format(ident_start=re_ident_start,
-                           ident_cont=re_ident_cont)),
+             regexp=rf'''
+                    {re_ident_start}{re_ident_cont}*
+                '''),
 
         Rule(token='QIDENT',
              next_state=STATE_KEEP,
