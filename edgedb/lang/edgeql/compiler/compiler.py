@@ -32,6 +32,8 @@ from edgedb.lang.common import markup  # NOQA
 class ParseContextLevel(object):
     def __init__(self, prevlevel=None, mode=None):
         if prevlevel is not None:
+            self.toplevel_shape_rptrcls = None
+
             if mode == ParseContext.SUBQUERY:
                 self.stmt = None
                 self.sets = {}
@@ -97,6 +99,7 @@ class ParseContextLevel(object):
             self.apply_access_control_rewrite = False
             self.local_link_source = None
             self.arg_types = {}
+            self.toplevel_shape_rptrcls = None
 
     def genalias(self, hint=None):
         if hint is None:
@@ -977,14 +980,14 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
             if lexpr.type == 'property':
                 if rptrcls is None:
-                    if isinstance(scls, s_links.Link):
-                        ptrsource = scls
-                    else:
-                        msg = 'link properties are not available at ' \
-                              'this point in path'
-                        raise errors.EdgeQLError(msg)
-                else:
-                    ptrsource = rptrcls
+                    raise errors.EdgeQLError(
+                        'invalid reference to link property '
+                        'in top level shape')
+
+                ptrsource = rptrcls
+                ptr_metacls = s_lprops.LinkProperty
+            else:
+                ptr_metacls = s_links.Link
 
             if lexpr.target is not None:
                 target_name = (lexpr.target.module, lexpr.target.name)
@@ -998,16 +1001,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 # The shape element is defined as a computable expression.
 
                 schema = self.context.current.schema
-                compexpr = self.visit(shape_el.compexpr)
-                if not isinstance(compexpr, (irast.Stmt, irast.SubstmtRef)):
-                    compexpr = irast.SelectStmt(
-                        result=compexpr
-                    )
-
-                target_class = irutils.infer_type(compexpr, schema)
-                if target_class is None:
-                    msg = 'cannot determine expression result type'
-                    raise errors.EdgeQLError(msg, context=lexpr.context)
 
                 if ptrname[0]:
                     pointer_name = sn.SchemaName(
@@ -1022,10 +1015,28 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     look_in_children=False,
                     include_inherited=True)
 
+                with self.context():
+                    # Put current pointer class in context, so
+                    # that references to link properties in sub-SELECT
+                    # can be resolved.  This is necessary for proper
+                    # evaluation of link properties on computable links,
+                    # most importantly, in INSERT/UPDATE context.
+                    self.context.current.toplevel_shape_rptrcls = ptrcls
+                    compexpr = self.visit(shape_el.compexpr)
+
+                if not isinstance(compexpr, (irast.Stmt, irast.SubstmtRef)):
+                    compexpr = irast.SelectStmt(
+                        result=compexpr
+                    )
+
+                target_class = irutils.infer_type(compexpr, schema)
+                if target_class is None:
+                    msg = 'cannot determine expression result type'
+                    raise errors.EdgeQLError(msg, context=lexpr.context)
+
                 if ptrcls is None:
                     # XXX: raise here if in UPDATE/INSERT
-
-                    ptrcls = s_links.Link(
+                    ptrcls = ptr_metacls(
                         name=sn.SchemaName(
                             module=ptrname[0] or ptrsource.name.module,
                             name=ptrname[1]),
@@ -1081,11 +1092,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
             if compexpr is not None:
                 if not isinstance(compexpr, irast.SubstmtRef):
-                    if not isinstance(compexpr, irast.Stmt):
-                        compexpr = irast.SelectStmt(
-                            result=compexpr
-                        )
-
                     el = irast.SubstmtRef(stmt=compexpr, rptr=ptr_node)
                     elements.append(el)
                 else:
@@ -1228,6 +1234,8 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         return ctx.schema.get(name=name, module_aliases=ctx.namespaces)
 
     def _process_stmt_result(self, target):
+        toplevel_rptrcls = self.context.current.toplevel_shape_rptrcls
+
         with self.context():
             self.context.current.location = 'selector'
 
@@ -1238,7 +1246,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 if expr.rptr is not None:
                     rptrcls = expr.rptr.ptrcls
                 else:
-                    rptrcls = None
+                    rptrcls = toplevel_rptrcls
 
                 expr = self._process_shape(
                     expr, rptrcls, target.expr.pathspec or [])

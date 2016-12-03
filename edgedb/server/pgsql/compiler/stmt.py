@@ -6,7 +6,9 @@
 ##
 
 
+import collections
 import itertools
+import functools
 
 from edgedb.lang.common import exceptions as edgedb_error
 
@@ -28,6 +30,9 @@ from edgedb.lang.common import debug
 from .context import TransformerContext
 from . import expr as expr_compiler
 from . import dml
+
+
+ResTargetList = collections.namedtuple('ResTargetList', ['targets', 'attmap'])
 
 
 class IRCompiler(expr_compiler.IRCompilerBase,
@@ -120,7 +125,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 self._setop_from_list(ctx.query, [larg, rarg], set_op)
             else:
                 # Process the result expression;
-                self._process_selector(stmt.result, transform_output=True)
+                self._process_selector(stmt.result)
 
                 # The WHERE clause
                 if stmt.where:
@@ -199,16 +204,10 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             attribute_map.append(attr_name)
             my_elements.append(element)
 
-        if ctx.clsref_as_id:
+        if ctx.output_format == 'flat':
             # DML statements want ``SELECT Object`` to return the object
-            # identity.
-            for i, a in enumerate(attribute_map):
-                if (a.module, a.name) == ('std', 'id'):
-                    result = my_elements[i]
-                    break
-            else:
-                raise ValueError('cannot find id ptr in entitityref record')
-
+            # identity and properties in addressable column format.
+            result = ResTargetList(my_elements, attribute_map)
             testref = None
 
         elif ctx.output_format == 'json':
@@ -662,16 +661,29 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                     )
                 ctx.query.ctes.append(cte)
 
-    def _process_selector(self, result_expr, transform_output=True):
+    def _process_selector(self, result_expr):
         ctx = self.context.current
         query = ctx.query
 
         with self.context.new():
             self.context.current.location = 'selector'
             pgexpr = self.visit(result_expr)
-            selexprs = [(pgexpr, None)]
 
-        if ctx.output_format == 'json' and transform_output:
+            if isinstance(pgexpr, ResTargetList):
+                selexprs = []
+
+                for i, rt in enumerate(pgexpr.targets):
+                    att = pgexpr.attmap[i]
+
+                    name = str(att)
+
+                    selexprs.append(
+                        (rt, common.edgedb_name_to_pg_name(name))
+                    )
+            else:
+                selexprs = [(pgexpr, None)]
+
+        if ctx.output_format == 'json':
             # Target list may be empty if selector is a set op product
             if selexprs:
                 target = pgast.ResTarget(
@@ -1000,13 +1012,33 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         return parent_qry
 
+    def _for_each_query_in_set(self, qry, cb):
+        if qry.op:
+            self._for_each_query_in_set(qry.larg, cb)
+            self._for_each_query_in_set(qry.rarg, cb)
+        else:
+            cb(qry)
+
     def _add_path_var_reference(self, rel, ir_set, path_id=None, *,
-                                add_to_target_list=None):
+                                add_to_target_list=None, alias=None):
         ctx = self.context.current
         id_field = common.edgedb_name_to_pg_name('std::id')
 
         if isinstance(rel, pgast.CommonTableExpr):
             rel = rel.query
+
+        rptr = ir_set.rptr
+        ptrcls = rptr.ptrcls
+        ptrname = ptrcls.shortname
+
+        if getattr(rel, 'op', None) is not None:
+            cb = functools.partial(
+                self._add_path_var_reference,
+                ir_set=ir_set, path_id=path_id,
+                alias=common.edgedb_name_to_pg_name(ptrname))
+
+            self._for_each_query_in_set(rel, cb)
+            return
 
         if path_id is None:
             path_id = ir_set.path_id
@@ -1015,10 +1047,6 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             return rel.path_namespace[path_id]
         except KeyError:
             pass
-
-        rptr = ir_set.rptr
-        ptrcls = rptr.ptrcls
-        ptrname = ptrcls.shortname
 
         ptr_info = pg_types.get_pointer_storage_info(
             ptrcls, resolve_type=False, link_bias=False)
@@ -1037,15 +1065,22 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             rel_rvar = rel.scls_rvar
 
         if rel_rvar is None:
+            import edgedb.lang.common.markup
+            edgedb.lang.common.markup.dump(rel)
+
             raise RuntimeError(
                 f'{rel} is missing the relation context for '
                 f'{ir_set.path_id}')
 
         colname = None
 
-        if isinstance(rel_rvar.relation, pgast.CommonTableExpr):
-            # If this is another query, need to make sure the ref
-            # is there too.
+        # If this is another query, need to make sure the ref
+        # is there too.
+        if isinstance(rel_rvar, pgast.RangeSubselect):
+            source_rel = rel_rvar.subquery
+            self._add_path_var_reference(source_rel, ir_set, path_id)
+
+        elif isinstance(rel_rvar.relation, pgast.CommonTableExpr):
             source_rel = rel_rvar.relation.query
             self._add_path_var_reference(source_rel, ir_set, path_id)
             colname = source_rel.path_vars[path_id]
@@ -1112,8 +1147,9 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             for atomref_table in atomref_tables
         ]
 
-        alias = ctx.genalias(
-            hint='{}_{}'.format(source.name.name, ptrname.name))
+        if alias is None:
+            alias = ctx.genalias(
+                hint='{}_{}'.format(source.name.name, ptrname.name))
 
         # If the required atom column was defined in multiple
         # descendant tables and there is no common parent with

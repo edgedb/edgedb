@@ -266,6 +266,7 @@ class IRCompilerDBObjects:
 
                 qry = pgast.SelectStmt()
                 qry.from_clause.append(table)
+                qry.rptr_rvar = table
 
                 # Make sure all property references are pulled up properly
                 for colname in cols:
@@ -279,17 +280,21 @@ class IRCompilerDBObjects:
                 overlays = ctx.rel_overlays.get(src_ptrcls)
                 if overlays:
                     for op, cte in overlays:
+                        rvar = pgast.RangeVar(
+                            relation=cte,
+                            alias=pgast.Alias(
+                                aliasname=ctx.genalias(hint=cte.name)
+                            )
+                        )
+
                         qry = pgast.SelectStmt(
                             target_list=[
                                 pgast.ColumnRef(
                                     name=[col]
                                 )
                                 for col in cols],
-                            from_clause=[
-                                pgast.RangeVar(
-                                    relation=cte
-                                )
-                            ]
+                            from_clause=[rvar],
+                            rptr_rvar=rvar
                         )
                         set_ops.append((op, qry))
 

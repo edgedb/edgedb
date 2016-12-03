@@ -270,8 +270,7 @@ class IRCompilerDMLSupport:
             # values of the updated object are resolved correctly.
             ctx = self.context.current
             ctx.rel = ctx.query = select
-            ctx.output_format = None
-            ctx.clsref_as_id = True
+            ctx.output_format = 'flat'
 
             # Process the Insert IR and separate links that go
             # into the main table from links that are inserted into
@@ -489,7 +488,8 @@ class IRCompilerDMLSupport:
                     pgast.ResTarget(
                         val=pgast.ColumnRef(
                             name=[target_alias, pgast.Star()]))
-                ]
+                ],
+                rptr_rvar=target_tab
             ),
             name=ctx.genalias(hint='d')
         )
@@ -559,6 +559,7 @@ class IRCompilerDMLSupport:
                 name=ctx.genalias(hint='i'),
                 query=pgast.InsertStmt(
                     relation=target_tab,
+                    rptr_rvar=target_tab,
                     select_stmt=data_select,
                     cols=cols,
                     on_conflict=pgast.OnConflictClause(
@@ -636,10 +637,6 @@ class IRCompilerDMLSupport:
             data = ir_expr
             props = ['std::target']
 
-        e = common.edgedb_name_to_pg_name
-
-        spec_cols = {e(prop): i for i, prop in enumerate(props)}
-
         if (props == ['std::target'] and props_only and not target_is_atom):
             # No property upates and the target value is stored
             # in the source table, so we don't need to modify
@@ -648,39 +645,21 @@ class IRCompilerDMLSupport:
             return tranches
 
         with self.context.new():
-            self.context.current.output_format = None
-            self.context.current.clsref_as_id = True
+            self.context.current.output_format = 'flat'
             input_data = self.visit(data)
-
-        if (isinstance(input_data, pgast.Constant) and
-                input_data.type.endswith('[]')):
-            data_is_json = input_data.type == 'json[]'
-            input_data = pgast.FuncCall(
-                name='UNNEST', args=[input_data])
-        else:
-            data_is_json = False
-            if isinstance(input_data, pgast.SelectStmt):
-                input_data.target_list[0] = pgast.TypeCast(
-                    arg=input_data.target_list[0],
-                    type_name=pgast.TypeName(name='uuid')
-                )
-            else:
-                input_data = pgast.TypeCast(
-                    arg=input_data,
-                    type_name=pgast.TypeName(name='uuid')
-                )
 
         input_rel = pgast.RangeSubselect(
             subquery=input_data,
             alias=pgast.Alias(
-                aliasname=ctx.genalias('val'),
-                colnames=[
-                    pgast.ColumnDef(
-                        name='_'
-                    )
-                ]
+                aliasname=ctx.genalias('val')
             )
         )
+
+        ptrcls = ir_expr.rptr.ptrcls
+        if isinstance(ptrcls, s_atoms.Atom):
+            target_id_col = common.edgedb_name_to_pg_name('std::target')
+        else:
+            target_id_col = common.edgedb_name_to_pg_name('std::id')
 
         input_rel_alias = input_rel.alias.aliasname
 
@@ -688,56 +667,46 @@ class IRCompilerDMLSupport:
             target_list=[
                 pgast.ResTarget(
                     val=pgast.ColumnRef(
-                        name=[input_rel_alias, '_']))
+                        name=[input_rel_alias, pgast.Star()]))
             ],
             from_clause=[input_rel],
             where_clause=pgast.NullTest(
-                arg=pgast.ColumnRef(name=[input_rel_alias, '_']),
+                arg=pgast.ColumnRef(name=[input_rel_alias, target_id_col]),
                 negated=True
             )
         )
 
         unnested_rvar = pgast.RangeSubselect(
             subquery=unnested,
-            alias=pgast.Alias(
-                aliasname=ctx.genalias('j'),
-                colnames=[
-                    pgast.ColumnDef(
-                        name='_'
-                    )
-                ])
+            alias=pgast.Alias(aliasname=ctx.genalias('j'))
         )
 
         unnested_alias = unnested_rvar.alias.aliasname
 
         row = pgast.ImplicitRowExpr()
 
-        for col in tab_cols:
-            if (col == 'std::target' and (props_only or target_is_atom)):
-                expr = pgast.TypeCast(
-                    arg=pgast.Constant(val=None),
-                    type_name=pgast.TypeName(name='uuid'))
-            else:
-                if col == 'std::target@atom':
-                    col = 'std::target'
+        source_data = {}
+        for rt in input_data.target_list:
+            source_data[rt.name] = expr = pgast.ColumnRef(
+                name=[unnested_alias, rt.name])
 
-                data_idx = spec_cols.get(col)
-                if data_idx is None:
-                    try:
-                        expr = col_data[col]
-                    except KeyError:
-                        if tab_cols[col]['column_default'] is not None:
-                            expr = pgast.LiteralExpr(
-                                expr=tab_cols[col]['column_default'])
-                        else:
-                            expr = pgast.Constant(val=None)
+        for col in tab_cols:
+            if col in {'std::target@atom', 'std::target'}:
+                col = 'std::target'
+                source_col = target_id_col
+            else:
+                source_col = col
+
+            expr = col_data.get(col)
+            if expr is None:
+                expr = source_data.get(source_col)
+
+            if expr is None:
+                if tab_cols[col]['column_default'] is not None:
+                    expr = pgast.LiteralExpr(
+                        expr=tab_cols[col]['column_default'])
                 else:
-                    expr = pgast.ColumnRef(
-                        name=[unnested_alias, '_'])
-                    if data_is_json:
-                        expr = self._new_binop(
-                            lexpr=expr, op='->>',
-                            rexpr=pgast.Constant(val=data_idx))
+                    expr = pgast.Constant(val=None)
 
             row.args.append(expr)
 

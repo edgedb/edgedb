@@ -45,7 +45,6 @@ class TransformerContextLevel:
             self.subquery_map = collections.defaultdict(dict)
             self.output_format = None
             self.memo = {}
-            self.clsref_as_id = False
             self.rel_overlays = collections.defaultdict(list)
 
         else:
@@ -62,7 +61,6 @@ class TransformerContextLevel:
             self.location = prevlevel.location
             self.ctemap = prevlevel.ctemap
             self.subquery_map = prevlevel.subquery_map
-            self.clsref_as_id = prevlevel.clsref_as_id
             self.rel_overlays = prevlevel.rel_overlays
 
             if mode in {TransformerContext.SUBQUERY,
