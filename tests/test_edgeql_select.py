@@ -136,7 +136,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     number,
                     aliased_number := Issue.number,
                     total_time_spent := (
-                        SELECT sum(Issue.time_spent_log.spent_time)
+                        SELECT SINGLETON
+                            sum(Issue.time_spent_log.spent_time)
                     )
                 }
             WHERE
@@ -156,7 +157,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue {
                     number,
                     total_time_spent := (
-                        SELECT sum(Issue.time_spent_log.spent_time)
+                        SELECT SINGLETON
+                            sum(Issue.time_spent_log.spent_time)
                     )
                 }
             WHERE
@@ -175,10 +177,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 User {
                     name,
                     shortest_own_text := (
-                        SELECT Text {body}
-                        WHERE (Text AS Issue).owner = User
-                        ORDER BY strlen(Text.body) ASC
-                        LIMIT 1
+                        SELECT SINGLETON
+                            Text {body}
+                        WHERE
+                            (Text AS Issue).owner = User
+                        ORDER BY
+                            strlen(Text.body) ASC
+                        LIMIT
+                            1
                     ),
                 }
             WHERE User.name = 'Elvis';
@@ -198,9 +204,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 # we aren't referencing User in any way, so this works
                 # best as a subquery, rather than inline computable
                 sub := (
-                    SELECT Text {body}
-                    ORDER BY strlen(Text.body) ASC
-                    LIMIT 1
+                    SELECT SINGLETON
+                        Text {body}
+                    ORDER BY
+                        strlen(Text.body) ASC
+                    LIMIT
+                        1
                 )
             SELECT
                 User {
@@ -232,10 +241,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 User {
                     name,
                     shortest_own_text := (
-                        SELECT Text {body}
-                        WHERE (Text AS Issue).owner = User
-                        ORDER BY strlen(Text.body) ASC
-                        LIMIT 1
+                        SELECT SINGLETON
+                            Text {body}
+                        WHERE
+                            (Text AS Issue).owner = User
+                        ORDER BY
+                            strlen(Text.body) ASC
+                        LIMIT
+                            1
                     ),
                     shortest_text := sub,
                 }
@@ -259,11 +272,15 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 User {
                     name,
                     shortest_text := (
-                        SELECT Text {body}
+                        SELECT SINGLETON
+                            Text {body}
                         # a clause that references User and is always true
-                        WHERE User IS User
-                        ORDER BY strlen(Text.body) ASC
-                        LIMIT 1
+                        WHERE
+                            User IS User
+                        ORDER
+                            BY strlen(Text.body) ASC
+                        LIMIT
+                            1
                     ),
                 }
             WHERE User.name = 'Elvis';
@@ -276,7 +293,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_computable07(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -297,10 +313,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 'special_texts': [
                     {'body': 'We need to be able to render data in '
                              'tabular format.'},
-                    {'body': 'Fix regression introduced by lexer tweak.'},
-                    {'body': 'Initial public release of EdgeDB.'},
-                    {'body': 'EdgeDB needs to happen soon.'},
-                    {'body': 'Rewriting everything.'},
                     {'body': 'Minor lexer tweaks.'}
                 ],
             }]
@@ -313,8 +325,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT User{
                 name,
-                special_issues := (
-                    SELECT Issue{
+                special_issue := (
+                    SELECT SINGLETON Issue {
                         name,
                         number,
                         owner: {
@@ -334,10 +346,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [
                 {
                     'name': 'Elvis',
-                    'special_issues': None
+                    'special_issue': None
                 }, {
                     'name': 'Yury',
-                    'special_issues': {
+                    'special_issue': {
                         'name': 'Improve EdgeDB repl output rendering.',
                         'owner': {'name': 'Yury'},
                         'status': {'name': 'Open'},

@@ -186,12 +186,39 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 if not e.rptr.ptrcls.singular(ptr_direction):
                     # Aggregate subquery results to keep correct
                     # cardinality.
-                    element.target_list[0].val = pgast.FuncCall(
-                        name='array_agg',
-                        args=[element.target_list[0].val],
-                        agg_order=element.sort_clause
+                    rt = element.target_list[0]
+                    if not rt.name:
+                        rt.name = ctx.genalias(hint='r')
+
+                    subrvar = pgast.RangeSubselect(
+                        subquery=element,
+                        alias=pgast.Alias(
+                            aliasname=ctx.genalias(hint='q')
+                        )
                     )
-                    element.sort_clause = []
+
+                    result = pgast.SelectStmt(
+                        target_list=[
+                            pgast.ResTarget(
+                                val=pgast.FuncCall(
+                                    name='array_agg',
+                                    args=[
+                                        pgast.ColumnRef(
+                                            name=[
+                                                subrvar.alias.aliasname,
+                                                rt.name
+                                            ]
+                                        )
+                                    ]
+                                )
+                            )
+                        ],
+                        from_clause=[
+                            subrvar
+                        ]
+                    )
+
+                    element = result
 
             if ptr_name == 'std::id':
                 testref = element

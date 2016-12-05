@@ -1043,6 +1043,12 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                             name=ptrname[1]),
                     ).derive(schema, ptrsource, target_class)
 
+                    if isinstance(shape_el.compexpr, qlast.StatementNode):
+                        if shape_el.compexpr.single:
+                            ptrcls.mapping = s_links.LinkMapping.ManyToOne
+                        else:
+                            ptrcls.mapping = s_links.LinkMapping.ManyToMany
+
                 if ptrcls.shortname == 'std::__class__':
                     msg = 'cannot assign to __class__'
                     raise errors.EdgeQLError(msg, context=lexpr.context)
