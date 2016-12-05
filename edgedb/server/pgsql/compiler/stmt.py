@@ -602,7 +602,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 )
 
                 self._join_inline_rel(
-                    stmt=stmt, set_rvar=set_rvar, ir_set=ir_set)
+                    stmt=stmt, set_rvar=set_rvar, ir_set=ir_set,
+                    back_id_col=ptr_info.column_name)
 
                 return_parent = False
 
@@ -1006,9 +1007,14 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         return map_rvar
 
-    def _join_inline_rel(self, *, stmt, set_rvar, ir_set):
-        id_col = common.edgedb_name_to_pg_name('std::id')
-        src_ref = stmt.path_namespace[ir_set.path_id]
+    def _join_inline_rel(self, *, stmt, set_rvar, ir_set, back_id_col):
+        if ir_set.rptr.direction == s_pointers.PointerDirection.Inbound:
+            id_col = back_id_col
+            src_ref = stmt.path_namespace[ir_set.rptr.source.path_id]
+        else:
+            id_col = common.edgedb_name_to_pg_name('std::id')
+            src_ref = stmt.path_namespace[ir_set.path_id]
+
         tgt_ref = pgast.ColumnRef(
             name=[set_rvar.alias.aliasname, id_col]
         )

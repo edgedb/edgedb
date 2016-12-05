@@ -7,10 +7,7 @@
 
 
 import os.path
-import unittest
 
-from edgedb.lang.common import datetime
-from edgedb.client import exceptions as exc
 from edgedb.server import _testbase as tb
 
 
@@ -399,7 +396,6 @@ class TestIntrospection(tb.QueryTestCase):
             ]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_introspection_count01(self):
         await self.con.execute(r"""
             WITH MODULE test
@@ -438,7 +434,7 @@ class TestIntrospection(tb.QueryTestCase):
             };
         """)
 
-        res = await self.assert_query_result(r"""
+        await self.assert_query_result(r"""
             # Count the number of objects for each concept in module
             # test. This is impossible to do without introspection for
             # concepts that have 0 objects.
@@ -447,7 +443,7 @@ class TestIntrospection(tb.QueryTestCase):
             SELECT `Concept` {
                 name,
                 count := (
-                    SELECT std::count(`Concept`.<__class__)
+                    SELECT SINGLETON std::count(`Concept`.<__class__)
                 )
             }
             WHERE `Concept`.name LIKE 'test::%'
