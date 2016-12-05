@@ -303,7 +303,6 @@ class TestInsert(tb.QueryTestCase):
             }]
         )
 
-    @unittest.expectedFailure
     async def test_edgeql_insert_nested04(self):
         res = await self.con.execute('''
             WITH MODULE test
@@ -321,7 +320,7 @@ class TestInsert(tb.QueryTestCase):
                 subordinates: {
                     name,
                     @comment,
-                } ORDER BY Subordinate.name
+                } ORDER BY InsertTest.subordinates.name
             }
             WHERE
                 InsertTest.name = 'insert nested 4';

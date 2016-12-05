@@ -1131,24 +1131,52 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             if _recurse and shape_el.pathspec:
                 _memo = _new_visited
 
-                el = self._process_shape(
-                    targetstep,
-                    ptrcls,
-                    shape_el.pathspec or [],
-                    _visited=_memo,
-                    _recurse=True,
-                    require_expressions=require_expressions,
-                    include_implicit=include_implicit)
-
                 if (isinstance(ctx.stmt, irast.MutatingStmt) and
                         ctx.location != 'selector'):
+
+                    mutation_pathspec = []
+                    for subel in shape_el.pathspec or []:
+                        if not isinstance(subel.expr.steps[0],
+                                          qlast.LinkPropExprNode):
+                            mutation_pathspec.append(subel)
+
+                    el = self._process_shape(
+                        targetstep,
+                        ptrcls,
+                        mutation_pathspec,
+                        _visited=_memo,
+                        _recurse=True,
+                        require_expressions=require_expressions,
+                        include_implicit=include_implicit)
+
+                    returning_pathspec = []
+                    for subel in shape_el.pathspec or []:
+                        if isinstance(subel.expr.steps[0],
+                                      qlast.LinkPropExprNode):
+                            returning_pathspec.append(subel)
+
                     substmt = irast.InsertStmt(
                         shape=el,
-                        result=self._process_shape(targetstep, None, [])
+                        result=self._process_shape(
+                            targetstep,
+                            ptrcls,
+                            returning_pathspec,
+                            include_implicit=True
+                        )
                     )
                     el = irast.SubstmtRef(stmt=substmt, rptr=ptr_node)
                     elements.append(el)
                     continue
+
+                else:
+                    el = self._process_shape(
+                        targetstep,
+                        ptrcls,
+                        shape_el.pathspec or [],
+                        _visited=_memo,
+                        _recurse=True,
+                        require_expressions=require_expressions,
+                        include_implicit=include_implicit)
             else:
                 el = targetstep
 

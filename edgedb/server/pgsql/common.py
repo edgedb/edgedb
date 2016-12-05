@@ -122,7 +122,7 @@ def get_table_name(obj, catenate=True):
     elif isinstance(obj, s_links.Link):
         return link_name_to_table_name(obj.name, catenate)
     else:
-        assert False
+        raise ValueError(f'cannot determine table for {obj!r}')
 
 
 class RecordInfo:
