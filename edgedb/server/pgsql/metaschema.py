@@ -340,90 +340,6 @@ class NormalizeNameFunction(dbops.Function):
             text=self.__class__.text)
 
 
-class ValidateLinkInsertFunction(dbops.Function):
-    text = '''
-    BEGIN
-        PERFORM
-            True
-        FROM
-            edgedb.Link l
-        WHERE
-            l.id = NEW.link_type_id
-            AND edgedb.isinstance(NEW."std::target", l.target);
-
-        IF NOT FOUND THEN
-            DECLARE
-                srcname text;
-                ptrname text;
-                tgtnames text;
-                inserted text;
-                detail text;
-            BEGIN
-                SELECT INTO srcname, ptrname, tgtnames
-                    c.name,
-                    l2.name,
-                    (SELECT
-                        string_agg('"' || c2.name || '"', ', ')
-                     FROM
-                        edgedb.Concept c2
-                     WHERE
-                        c2.id = any(COALESCE(l.spectargets, ARRAY[l.target]))
-                    )
-                FROM
-                    edgedb.Link l,
-                    edgedb.Link l2,
-                    edgedb.Concept c
-                WHERE
-                    l.id = NEW.link_type_id
-                    AND l2.id = l.bases[1]
-                    AND c.id = l.source;
-
-                inserted := (
-                    SELECT
-                        c.name
-                    FROM
-                        "edgedb_std"."Object_data" o,
-                        edgedb.Concept c
-                    WHERE
-                        o."std::id" = NEW."std::target"
-                        AND c.id = o."std::__class__"
-                );
-
-                detail := (
-                    SELECT
-                        format('{
-                                    "source": "%s",
-                                    "pointer": "%s",
-                                    "target": "%s",
-                                    "expected": [%s]
-                                }', srcname, ptrname, inserted, tgtnames)
-                );
-
-                RAISE EXCEPTION
-                    'new row for relation "%" violates link target constraint',
-                    TG_TABLE_NAME
-                    USING
-                        ERRCODE = 'check_violation',
-                        COLUMN = 'std::target',
-                        TABLE = TG_TABLE_NAME,
-                        DETAIL = detail,
-                        SCHEMA = TG_TABLE_SCHEMA;
-            END;
-        END IF;
-
-        RETURN NEW;
-    END;
-    '''
-
-    def __init__(self):
-        super().__init__(
-            name=('edgedb', 'tgrf_validate_link_insert'),
-            returns='trigger',
-            volatility='stable',
-            language='plpgsql',
-            text=self.__class__.text)
-
-
 def _field_to_column(field):
     ftype = field.type[0]
     coltype = None
@@ -557,7 +473,6 @@ async def bootstrap(conn):
         dbops.CreateFunction(IssubclassFunction2()),
         dbops.CreateFunction(IsinstanceFunction()),
         dbops.CreateFunction(NormalizeNameFunction()),
-        dbops.CreateFunction(ValidateLinkInsertFunction()),
     ])
 
     await commands.execute(Context(conn))

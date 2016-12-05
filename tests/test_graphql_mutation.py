@@ -6,7 +6,6 @@
 ##
 
 
-import unittest
 import uuid
 
 from edgedb.server import _testbase as tb
@@ -277,7 +276,6 @@ class TestGraphQLMutation(tb.QueryTestCase):
             }],
         ])
 
-    @unittest.expectedFailure
     async def test_graphql_mutation_insert03(self):
         result = await self.con.execute(r'''
             # nested insert of user and group

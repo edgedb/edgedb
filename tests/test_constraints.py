@@ -26,7 +26,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
         )
 
         for val, expected in cases:
-            expr = qry.format(value=val)
+            expr = qry.format(value=str(val))
 
             if expected == 'good':
                 await self.con.execute(expr)

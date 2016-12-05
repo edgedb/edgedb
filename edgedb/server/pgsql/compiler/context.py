@@ -32,9 +32,11 @@ class Alias(str):
 class TransformerContextLevel:
     def __init__(self, prevlevel=None, mode=None):
         if prevlevel is None:
-            self.stmt = None
-            self.query = pgast.SelectStmt()
-            self.rel = self.query
+            stmt = pgast.SelectStmt()
+            self.toplevel_stmt = None
+            self.stmt = stmt
+            self.query = stmt
+            self.rel = stmt
             self.aliascnt = {}
             self.ctemap = {}
             self.argmap = OrderedSet()
@@ -48,6 +50,7 @@ class TransformerContextLevel:
             self.rel_overlays = collections.defaultdict(list)
 
         else:
+            self.toplevel_stmt = prevlevel.toplevel_stmt
             self.stmt = prevlevel.stmt
             self.query = prevlevel.query
             self.rel = prevlevel.rel

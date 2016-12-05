@@ -339,10 +339,10 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             self.context.current.location = 'selector'
             subject = self.visit(edgeql_tree.subject)
 
-        if edgeql_tree.targets:
-            stmt.result = self._process_stmt_result(edgeql_tree.targets[0])
-        else:
-            stmt.result = self._process_shape(subject, None, [])
+            if edgeql_tree.targets:
+                stmt.result = self._process_stmt_result(edgeql_tree.targets[0])
+            else:
+                stmt.result = self._process_shape(subject, None, [])
 
         stmt.shape = self._process_shape(
             subject, None, edgeql_tree.pathspec,
@@ -902,6 +902,8 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                        require_expressions=False, include_implicit=True,
                        _visited=None, _recurse=True):
         """Build a Shape node given shape spec."""
+        ctx = self.context.current
+
         if _visited is None:
             _visited = {}
 
@@ -1000,7 +1002,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             if shape_el.compexpr is not None:
                 # The shape element is defined as a computable expression.
 
-                schema = self.context.current.schema
+                schema = ctx.schema
 
                 if ptrname[0]:
                     pointer_name = sn.SchemaName(
@@ -1035,7 +1037,12 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     raise errors.EdgeQLError(msg, context=lexpr.context)
 
                 if ptrcls is None:
-                    # XXX: raise here if in UPDATE/INSERT
+                    if (isinstance(ctx.stmt, irast.MutatingStmt) and
+                            ctx.location != 'selector'):
+                        raise errors.EdgeQLError(
+                            'reference to unknown pointer',
+                            context=lexpr.context)
+
                     ptrcls = ptr_metacls(
                         name=sn.SchemaName(
                             module=ptrname[0] or ptrsource.name.module,
@@ -1045,6 +1052,27 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 if ptrcls.shortname == 'std::__class__':
                     msg = 'cannot assign to __class__'
                     raise errors.EdgeQLError(msg, context=lexpr.context)
+
+                if (isinstance(ctx.stmt, irast.MutatingStmt) and
+                        ctx.location != 'selector'):
+                    if (isinstance(ptrcls.target, s_concepts.Concept) and
+                            not target_class.issubclass(ptrcls.target) and
+                            target_class.name != 'std::Object'):
+                        # Validate that the insert/update expression is
+                        # of the correct class.  Make an exception for
+                        # expressions returning std::Object, as the
+                        # GraphQL translator relies on that to support
+                        # insert-by-object-id.  XXX: remove this
+                        # exemption once support for class casts is added
+                        # to DML.
+                        lname = f'{ptrsource.name}.{ptrcls.shortname.name}'
+                        expected = [repr(str(ptrcls.target.name))]
+                        raise edgedb_error.InvalidPointerTargetError(
+                            f'invalid target for link {str(lname)!r}: '
+                            f'{str(target_class.name)!r} (expecting '
+                            f'{" or ".join(expected)})'
+                        )
+
             else:
                 ptrcls = self._resolve_ptr(
                     ptrsource,
@@ -1108,7 +1136,19 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     ptrcls,
                     shape_el.pathspec or [],
                     _visited=_memo,
-                    _recurse=True)
+                    _recurse=True,
+                    require_expressions=require_expressions,
+                    include_implicit=include_implicit)
+
+                if (isinstance(ctx.stmt, irast.MutatingStmt) and
+                        ctx.location != 'selector'):
+                    substmt = irast.InsertStmt(
+                        shape=el,
+                        result=self._process_shape(targetstep, None, [])
+                    )
+                    el = irast.SubstmtRef(stmt=substmt, rptr=ptr_node)
+                    elements.append(el)
+                    continue
             else:
                 el = targetstep
 

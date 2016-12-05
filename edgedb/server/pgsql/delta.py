@@ -1910,15 +1910,8 @@ class LinkMetaCommand(CompositeClassMetaCommand, PointerMetaCommand):
         else:
             c = dbops.CommandGroup()
 
-        trg = dbops.Trigger(
-            name='link_target_check', table_name=new_table_name,
-            events=['INSERT', 'UPDATE'], is_constraint=True,
-            procedure=('edgedb', 'tgrf_validate_link_insert'))
-        ctrg = dbops.CreateTrigger(trg)
-
         c.add_command(ct)
         c.add_command(ci)
-        c.add_command(ctrg)
 
         c.add_command(dbops.Comment(table, link.name))
 

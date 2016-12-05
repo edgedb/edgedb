@@ -38,44 +38,44 @@ class IRCompilerDMLSupport:
     def visit_InsertStmt(self, stmt):
         with self.context.substmt():
             # Common DML bootstrap
-            toplevel, insert_cte, _ = \
+            wrapper, insert_cte, _ = \
                 self._init_dml_stmt(stmt, pgast.InsertStmt())
 
             # Process INSERT body
-            self._process_insert_body(stmt, toplevel, insert_cte)
+            self._process_insert_body(stmt, wrapper, insert_cte)
 
             # Process INSERT RETURNING
             self._process_selector(stmt.result)
-            self._connect_subrels(toplevel)
+            self._connect_subrels(wrapper)
 
-            return toplevel
+            return wrapper
 
     def visit_UpdateStmt(self, stmt):
         with self.context.substmt():
             # Common DML bootstrap
-            toplevel, update_cte, range_cte = \
+            wrapper, update_cte, range_cte = \
                 self._init_dml_stmt(stmt, pgast.UpdateStmt())
 
             # Process UPDATE body
-            self._process_update_body(stmt, toplevel, update_cte, range_cte)
+            self._process_update_body(stmt, wrapper, update_cte, range_cte)
 
             # Process UPDATE RETURNING
             self._process_selector(stmt.result)
-            self._connect_subrels(toplevel)
+            self._connect_subrels(wrapper)
 
-            return toplevel
+            return wrapper
 
     def visit_DeleteStmt(self, stmt):
         with self.context.subquery():
             # Common DML bootstrap
-            toplevel, delete_cte, _ = \
+            wrapper, delete_cte, _ = \
                 self._init_dml_stmt(stmt, pgast.DeleteStmt())
 
             # Process DELETE RETURNING
             self._process_selector(stmt.result)
-            self._connect_subrels(toplevel)
+            self._connect_subrels(wrapper)
 
-            return toplevel
+            return wrapper
 
     def _init_dml_stmt(self, ir_stmt, dml_stmt):
         """Prepare the common structure of the query representing a DML stmt.
@@ -86,24 +86,30 @@ class IRCompilerDMLSupport:
             SQL DML node instance.
 
         :return:
-            A (*toplevel*, *dml_cte*, *range_cte*) tuple, where *toplevel* the
-            the top-level SQL statement, *dml_cte* is the CTE representing the
+            A (*wrapper*, *dml_cte*, *range_cte*) tuple, where *wrapper* the
+            the wrapping SQL statement, *dml_cte* is the CTE representing the
             SQL DML operation in the main relation of the Class, and
             *range_cte* is the CTE for the subset affected by the statement.
             *range_cte* is None for INSERT statmenets.
         """
         ctx = self.context.current
 
-        # A top-level query is always a SELECT to support arbitrary
+        # The wrapping query is always a SELECT to support arbitrary
         # expressions in the RETURNING clause.
-        ctx.stmt = ctx.query = ctx.rel = toplevel = pgast.SelectStmt()
+        ctx.stmt = ctx.query = ctx.rel = wrapper = pgast.SelectStmt()
+
+        if ctx.toplevel_stmt is None:
+            ctx.toplevel_stmt = ctx.stmt
+
+        toplevel = ctx.toplevel_stmt
 
         # Process any substatments in the WITH block.
         self._process_explicit_substmts(ir_stmt)
 
         target_ir_set = ir_stmt.shape.set
 
-        dml_stmt.relation = self._range_for_concept(ir_stmt.shape.scls, None)
+        dml_stmt.relation = self._range_for_concept(
+            ir_stmt.shape.scls, None, include_overlays=False)
         dml_stmt.scls_rvar = dml_stmt.relation
 
         dml_cte = pgast.CommonTableExpr(
@@ -163,12 +169,18 @@ class IRCompilerDMLSupport:
                 dml_stmt, target_id_set, path_id=target_ir_set.path_id,
                 add_to_target_list=True)
 
+        # Record the effect of this insertion in the relation overlay
+        # context to ensure that the RETURNING clause potentially
+        # referencing this class yields the expected results.
+        overlays = ctx.rel_overlays[ir_stmt.shape.scls]
+        overlays.append(('union', dml_cte))
+
         # Finaly set the DML CTE as the source for paths originating
         # in its relation.
         toplevel.ctes.append(dml_cte)
         ctx.ctemap[ir_stmt.shape.set] = dml_cte
 
-        return toplevel, dml_cte, range_cte
+        return wrapper, dml_cte, range_cte
 
     def _get_dml_range(self, ir_stmt, dml_stmt):
         """Create a range CTE for the given DML statement.
@@ -218,12 +230,12 @@ class IRCompilerDMLSupport:
 
             return range_cte
 
-    def _process_insert_body(self, ir_stmt, toplevel, insert_cte):
+    def _process_insert_body(self, ir_stmt, wrapper, insert_cte):
         """Generate SQL DML CTEs from an InsertStmt IR.
 
         :param ir_stmt:
             IR of the statement.
-        :param toplevel:
+        :param wrapper:
             Top-level SQL query.
         :param insert_cte:
             CTE representing the SQL INSERT to the main relation of the Class.
@@ -316,14 +328,14 @@ class IRCompilerDMLSupport:
         # Process necessary updates to the link tables.
         for expr, props_only in external_inserts:
             self._process_link_update(
-                ir_stmt, expr, props_only, toplevel, insert_cte)
+                ir_stmt, expr, props_only, wrapper, insert_cte)
 
-    def _process_update_body(self, ir_stmt, toplevel, update_cte, range_cte):
+    def _process_update_body(self, ir_stmt, wrapper, update_cte, range_cte):
         """Generate SQL DML CTEs from an UpdateStmt IR.
 
         :param ir_stmt:
             IR of the statement.
-        :param toplevel:
+        :param wrapper:
             Top-level SQL query.
         :param update_cte:
             CTE representing the SQL UPDATE to the main relation of the Class.
@@ -398,10 +410,10 @@ class IRCompilerDMLSupport:
         # Process necessary updates to the link tables.
         for expr, props_only in external_updates:
             self._process_link_update(
-                ir_stmt, expr, props_only, toplevel, update_cte)
+                ir_stmt, expr, props_only, wrapper, update_cte)
 
     def _process_link_update(self, ir_stmt, ir_expr, props_only,
-                             toplevel, dml_cte):
+                             wrapper, dml_cte):
         """Perform updates to a link relation as part of a DML statement.
 
         :param ir_stmt:
@@ -410,12 +422,14 @@ class IRCompilerDMLSupport:
             IR of the INSERT/UPDATE body element.
         :param props_only:
             Whether this link update only touches link properties.
-        :param toplevel:
+        :param wrapper:
             Top-level SQL query.
         :param dml_cte:
             CTE representing the SQL UPDATE to the main relation of the Class.
         """
         ctx = self.context.current
+
+        toplevel = ctx.toplevel_stmt
 
         edgedb_link = pgast.RangeVar(
             relation=pgast.Relation(
@@ -451,7 +465,8 @@ class IRCompilerDMLSupport:
         lname_to_id_rvar = pgast.RangeVar(relation=lname_to_id)
         toplevel.ctes.append(lname_to_id)
 
-        target_tab = self._range_for_ptrcls(ptrcls, '>')
+        target_tab = self._range_for_ptrcls(
+            ptrcls, '>', include_overlays=False)
         target_alias = target_tab.alias.aliasname
 
         if target_is_atom:
@@ -646,10 +661,12 @@ class IRCompilerDMLSupport:
 
         with self.context.new():
             self.context.current.output_format = 'flat'
-            input_data = self.visit(data)
+            input_rel = self.visit(data)
 
-        input_rel = pgast.RangeSubselect(
-            subquery=input_data,
+        input_stmt = input_rel
+
+        input_rvar = pgast.RangeSubselect(
+            subquery=input_rel,
             alias=pgast.Alias(
                 aliasname=ctx.genalias('val')
             )
@@ -661,7 +678,7 @@ class IRCompilerDMLSupport:
         else:
             target_id_col = common.edgedb_name_to_pg_name('std::id')
 
-        input_rel_alias = input_rel.alias.aliasname
+        input_rel_alias = input_rvar.alias.aliasname
 
         unnested = pgast.SelectStmt(
             target_list=[
@@ -669,7 +686,7 @@ class IRCompilerDMLSupport:
                     val=pgast.ColumnRef(
                         name=[input_rel_alias, pgast.Star()]))
             ],
-            from_clause=[input_rel],
+            from_clause=[input_rvar],
             where_clause=pgast.NullTest(
                 arg=pgast.ColumnRef(name=[input_rel_alias, target_id_col]),
                 negated=True
@@ -686,7 +703,7 @@ class IRCompilerDMLSupport:
         row = pgast.ImplicitRowExpr()
 
         source_data = {}
-        for rt in input_data.target_list:
+        for rt in input_stmt.target_list:
             source_data[rt.name] = expr = pgast.ColumnRef(
                 name=[unnested_alias, rt.name])
 

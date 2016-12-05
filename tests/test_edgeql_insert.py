@@ -238,7 +238,7 @@ class TestInsert(tb.QueryTestCase):
                 l2 := 0,
                 subordinates := (
                     SELECT Subordinate {
-                        @comment:= (SELECT 'comment ' + Subordinate.name)
+                        @comment := (SELECT 'comment ' + Subordinate.name)
                     }
                     WHERE Subordinate.name IN ('subtest 3', 'subtest 4')
                 )
@@ -271,7 +271,6 @@ class TestInsert(tb.QueryTestCase):
             }]
         )
 
-    @unittest.expectedFailure
     async def test_edgeql_insert_nested03(self):
         res = await self.con.execute('''
             WITH MODULE test
@@ -287,7 +286,7 @@ class TestInsert(tb.QueryTestCase):
             SELECT InsertTest {
                 subordinates: {
                     name
-                } ORDER BY Subordinate.name
+                } ORDER BY InsertTest.subordinates.name
             }
             WHERE
                 InsertTest.name = 'insert nested 3';

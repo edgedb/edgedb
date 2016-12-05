@@ -513,13 +513,20 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 fromlist.append(set_rvar)
 
             path_id = ir_set.path_id
-            set_rvar.query.path_vars[path_id] = id_field
-            set_rvar.query.path_bonds[path_id] = id_field
+
+            if isinstance(set_rvar, pgast.RangeSubselect):
+                rvar_rel = set_rvar.subquery
+            else:
+                rvar_rel = set_rvar.query
+
+            rvar_rel.path_vars[path_id] = id_field
+            rvar_rel.path_bonds[path_id] = id_field
 
             id_set = self._get_ptr_set(ir_set, 'std::id')
             self._add_path_var_reference(stmt, id_set, path_id=path_id)
 
             stmt.path_bonds[path_id] = stmt.path_vars[path_id]
+            stmt.inner_path_bonds[path_id] = stmt.path_namespace[path_id]
 
         else:
             set_rvar = None
@@ -789,13 +796,9 @@ class IRCompiler(expr_compiler.IRCompilerBase,
     def _full_inner_bond_condition(self, left, right):
         condition = None
 
-        for path_id, lref in left.path_namespace.items():
-            if not isinstance(path_id[-1], s_concepts.Concept):
-                # Rather a hack.
-                continue
-
+        for path_id, lref in left.inner_path_bonds.items():
             try:
-                rref = right.path_namespace[path_id]
+                rref = right.inner_path_bonds[path_id]
             except KeyError:
                 continue
 
@@ -851,6 +854,9 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
             target.path_namespace[path_id] = ref
 
+            if path_id in source.inner_path_bonds:
+                target.inner_path_bonds[path_id] = ref
+
             if add_to_target_list:
                 alias = ctx.genalias(hint=name)
 
@@ -882,7 +888,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
                 target.path_vars[path_id] = alias
 
-                if isinstance(path_id[-1], s_concepts.Concept):
+                if path_id in source.path_bonds:
                     target.path_bonds[path_id] = alias
 
     def _join_mapping_rel(self, *, stmt, set_rvar, ir_set,
@@ -1035,6 +1041,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             cb = functools.partial(
                 self._add_path_var_reference,
                 ir_set=ir_set, path_id=path_id,
+                add_to_target_list=add_to_target_list,
                 alias=common.edgedb_name_to_pg_name(ptrname))
 
             self._for_each_query_in_set(rel, cb)
@@ -1065,9 +1072,6 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             rel_rvar = rel.scls_rvar
 
         if rel_rvar is None:
-            import edgedb.lang.common.markup
-            edgedb.lang.common.markup.dump(rel)
-
             raise RuntimeError(
                 f'{rel} is missing the relation context for '
                 f'{ir_set.path_id}')
@@ -1172,12 +1176,15 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             else:
                 rel.target_list.append(restarget)
 
+            rel.path_vars[path_id] = alias
+
         rel.path_namespace[path_id] = refexpr
-        rel.path_vars[path_id] = alias
 
         if ir_set.path_id != path_id:
             rel.path_namespace[ir_set.path_id] = refexpr
-            rel.path_vars[ir_set.path_id] = alias
+
+            if add_to_target_list:
+                rel.path_vars[ir_set.path_id] = alias
 
         return refexpr
 

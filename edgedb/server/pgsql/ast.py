@@ -64,6 +64,22 @@ class BaseRangeVar(Base):
         ('alias', Alias, None),
     ]
 
+    @property
+    def path_id(self):
+        return self.query.path_id
+
+    @property
+    def path_vars(self):
+        return self.query.path_vars
+
+    @property
+    def path_bonds(self):
+        return self.query.path_bonds
+
+    @property
+    def inner_path_bonds(self):
+        return self.query.inner_path_bonds
+
 
 class Relation(Base, EdgeQLPathInfo):
     """Regular relation."""
@@ -89,18 +105,6 @@ class RangeVar(BaseRangeVar):
             return self.relation.query
         else:
             return self.relation
-
-    @property
-    def path_id(self):
-        return self.query.path_id
-
-    @property
-    def path_vars(self):
-        return self.query.path_vars
-
-    @property
-    def path_bonds(self):
-        return self.query.path_bonds
 
 
 class TypeName(Base):
@@ -148,6 +152,9 @@ class Query(Base, EdgeQLPathInfo):
 
         ('path_namespace', dict),   # A map of paths onto Vars visible in this
                                     # Query.
+
+        ('inner_path_bonds', dict),  # A subset of path_namespace used for
+                                     # path joining.
 
         ('ptr_rvar_map', dict),     # Map of RangeVars corresponding to pointer
                                     # relations.
@@ -381,6 +388,13 @@ class RangeSubselect(BaseRangeVar):
         'lateral',
         'subquery'
     ]
+
+    @property
+    def query(self):
+        if isinstance(self.subquery, CommonTableExpr):
+            return self.subquery.query
+        else:
+            return self.subquery
 
 
 class RangeFunction(BaseRangeVar):
