@@ -564,54 +564,64 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             # This is the nth step in the path, where n > 1.
             # Translate pointer traversal into a join clause.
 
-            ptrcls = ir_set.rptr.ptrcls
+            rptr = ir_set.rptr
+            ptrcls = rptr.ptrcls
 
-            path_rvar = fromlist[0]
-            source_rel = path_rvar.relation
-            source_stmt = source_rel.query
-
-            ptr_info = pg_types.get_pointer_storage_info(
-                ptrcls, resolve_type=False, link_bias=False)
-
-            if isinstance(ptrcls, s_lprops.LinkProperty):
-                # Reference to a link property.
-                map_rvar = self._join_mapping_rel(
-                    stmt=source_stmt, set_rvar=set_rvar, ir_set=ir_set,
-                    map_join_type='left')
-
-                source_stmt.rptr_rvar = map_rvar
-
-                self._add_path_var_reference(source_stmt, ir_set)
-
-            elif ptr_info.table_type != 'concept':
-                map_rvar = self._join_mapping_rel(
+            if (isinstance(rptr.source.scls, s_atoms.Atom) and
+                    ptrcls.shortname == 'std::__class__'):
+                # Special case to support Path.atom.__class__ paths
+                self._join_class_rel(
                     stmt=stmt, set_rvar=set_rvar, ir_set=ir_set)
 
-                stmt.rptr_rvar = map_rvar
-
                 return_parent = False
 
-            elif isinstance(ir_set.scls, s_concepts.Concept):
-                # Direct reference to another object.
-                self._add_path_var_reference(source_rel, ir_set)
-                stmt.path_namespace[ir_set.path_id] = pgast.ColumnRef(
-                    name=[
-                        path_rvar.alias.aliasname,
-                        source_rel.query.path_vars[ir_set.path_id]
-                    ]
-                )
+            else:
+                path_rvar = fromlist[0]
+                source_rel = path_rvar.relation
+                source_stmt = source_rel.query
 
-                self._join_inline_rel(
-                    stmt=stmt, set_rvar=set_rvar, ir_set=ir_set,
-                    back_id_col=ptr_info.column_name)
+                ptr_info = pg_types.get_pointer_storage_info(
+                    ptrcls, resolve_type=False, link_bias=False)
 
-                return_parent = False
+                if isinstance(ptrcls, s_lprops.LinkProperty):
+                    # Reference to a link property.
+                    map_rvar = self._join_mapping_rel(
+                        stmt=source_stmt, set_rvar=set_rvar, ir_set=ir_set,
+                        map_join_type='left')
 
-            elif ir_set.expr is None:
-                # The path step target is stored in the source's table,
-                # so we need to make sure that rel is returning the column
-                # ref we need.
-                self._add_path_var_reference(source_rel, ir_set)
+                    source_stmt.rptr_rvar = map_rvar
+
+                    self._add_path_var_reference(source_stmt, ir_set)
+
+                elif ptr_info.table_type != 'concept':
+                    map_rvar = self._join_mapping_rel(
+                        stmt=stmt, set_rvar=set_rvar, ir_set=ir_set)
+
+                    stmt.rptr_rvar = map_rvar
+
+                    return_parent = False
+
+                elif isinstance(ir_set.scls, s_concepts.Concept):
+                    # Direct reference to another object.
+                    self._add_path_var_reference(source_rel, ir_set)
+                    stmt.path_namespace[ir_set.path_id] = pgast.ColumnRef(
+                        name=[
+                            path_rvar.alias.aliasname,
+                            source_rel.query.path_vars[ir_set.path_id]
+                        ]
+                    )
+
+                    self._join_inline_rel(
+                        stmt=stmt, set_rvar=set_rvar, ir_set=ir_set,
+                        back_id_col=ptr_info.column_name)
+
+                    return_parent = False
+
+                elif ir_set.expr is None:
+                    # The path step target is stored in the source's table,
+                    # so we need to make sure that rel is returning the column
+                    # ref we need.
+                    self._add_path_var_reference(source_rel, ir_set)
 
         if ir_set.expr:
             exist_expr, _ = self._is_exists_ir(ir_set.expr)
@@ -1006,6 +1016,28 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         stmt.from_clause[0] = map_join
 
         return map_rvar
+
+    def _join_class_rel(self, *, stmt, set_rvar, ir_set):
+        fromexpr = stmt.from_clause[0]
+
+        nref = pgast.ColumnRef(
+            name=[
+                set_rvar.alias.aliasname,
+                common.edgedb_name_to_pg_name('schema::name')
+            ]
+        )
+
+        val = pgast.Constant(
+            val=ir_set.rptr.source.scls.name
+        )
+
+        cond_expr = self._new_binop(nref, val, op='=')
+
+        stmt.from_clause[0] = pgast.JoinExpr(
+            type='inner',
+            larg=fromexpr,
+            rarg=set_rvar,
+            quals=cond_expr)
 
     def _join_inline_rel(self, *, stmt, set_rvar, ir_set, back_id_col):
         if ir_set.rptr.direction == s_pointers.PointerDirection.Inbound:

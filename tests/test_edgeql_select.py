@@ -664,7 +664,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['test::User']
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_type03(self):
         await self.assert_query_result(r'''
             WITH MODULE test

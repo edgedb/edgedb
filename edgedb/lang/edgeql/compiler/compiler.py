@@ -18,6 +18,7 @@ from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import name as sn
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
+from edgedb.lang.schema import sources as s_sources
 from edgedb.lang.schema import types as s_types
 
 from edgedb.lang.edgeql import ast as qlast
@@ -1268,13 +1269,23 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         else:
             far_endpoints = None
 
-        ptr = near_endpoint.resolve_pointer(
-            self.schema,
-            pointer_name,
-            direction=direction,
-            look_in_children=False,
-            include_inherited=True,
-            far_endpoints=far_endpoints)
+        ptr = None
+
+        if isinstance(near_endpoint, s_sources.Source):
+            ptr = near_endpoint.resolve_pointer(
+                self.schema,
+                pointer_name,
+                direction=direction,
+                look_in_children=False,
+                include_inherited=True,
+                far_endpoints=far_endpoints)
+        else:
+            if direction == s_pointers.PointerDirection.Outbound:
+                modaliases = self.context.current.namespaces
+                bptr = self.schema.get(pointer_name, module_aliases=modaliases)
+                schema_cls = self.schema.get('schema::Atom')
+                if bptr.shortname == 'std::__class__':
+                    ptr = bptr.derive(self.schema, near_endpoint, schema_cls)
 
         if not ptr:
             msg = ('({near_endpoint}).{direction}({ptr_name}{far_endpoint}) '
