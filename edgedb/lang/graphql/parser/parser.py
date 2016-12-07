@@ -35,7 +35,7 @@ class Validator(NodeVisitor):
             if cycle:
                 cycle.reverse()
                 raise GraphQLParserError(
-                    'cycle in fragment definitions: {}'.format(cycle),
+                    f'cycle in fragment definitions: {cycle}',
                     context=frag.context)
 
         # validate variable usage in operations
@@ -49,8 +49,7 @@ class Validator(NodeVisitor):
                     frag = self._fragments[fragname]
                 except KeyError:
                     raise GraphQLParserError(
-                        "undefined fragment '{}' used in operation".format(
-                            fragname),
+                        f"undefined fragment {fragname!r} used in operation",
                         context=spread.context)
                 op['all_spreads'] |= frag['all_spreads']
                 frag['used_in_spead'] = True
@@ -69,20 +68,17 @@ class Validator(NodeVisitor):
                                           x.context.start.column))
                 uvar = uvars[0]
                 if opnode.name:
-                    op_str = "{!r} ".format(opnode.name)
+                    op_str = f"{opnode.name!r} "
                 else:
                     op_str = ""
-                op_str += "at {}, {}".format(
-                    opnode.context.start.line,
-                    opnode.context.start.column)
+                octx_start = opnode.context.start
+                op_str += f"at {octx_start.line}, {octx_start.column}"
 
+                uctx_start = uvar.context.start
                 raise GraphQLParserError(
-                    "operation {} uses an undefined variable {!r} at {}, {}"
-                    .format(
-                        op_str,
-                        uvar.value,
-                        uvar.context.start.line,
-                        uvar.context.start.column),
+                    f"operation {op_str} uses an undefined variable " +
+                    f"{uvar.value!r} at " +
+                    f"{uctx_start.line}, {uctx_start.column}",
                     context=uvar.context)
 
         # detect unused fragments
@@ -90,7 +86,7 @@ class Validator(NodeVisitor):
         for frag in fragnodes:
             if not self._fragments[frag.name].get('used_in_spead'):
                 raise GraphQLParserError(
-                    "unused fragment definition '{}'".format(frag.name),
+                    f"unused fragment definition {frag.name!r}",
                     context=frag.context)
 
     def detect_cycle(self, fragname, visited):

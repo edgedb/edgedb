@@ -22,10 +22,8 @@ class Base(ast.AST):
 
     def __repr__(self):
         ar = self._extra_repr()
-        return '<{}.{} at {:#x}{}>'.format(self.__class__.ns,
-                                           self.__class__.__name__,
-                                           id(self),
-                                           ar)
+        return f'<{self.__class__.ns}.{self.__class__.__name__} at ' + \
+               f'{id(self):#x}{ar}>'
 
 
 class LiteralNode(Base):

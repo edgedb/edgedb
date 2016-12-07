@@ -31,8 +31,7 @@ class Token(parsing.Token, metaclass=TokenMeta,
 
     def __repr__(self):
         position = self.context.start.line, self.context.start.column
-        return '<Token 0x{:x} {!r} {!r} {}>'.format(
-            id(self), self.type, self.val, position)
+        return f'<Token 0x{id(self):x} {self.type!r} {self.val!r} {position}>'
 
     __str__ = __repr__
 
@@ -129,7 +128,7 @@ class T_STRING(Token):
             context.end.line = context.start.line
             context.end.column = context.start.column + len(invalid.group())
             raise InvalidStringTokenError(
-                "invalid {!r} within string token".format(invalid.group()),
+                f"invalid {invalid.group()!r} within string token",
                 context=context)
         super().__init__(parser, val, context)
 
@@ -156,7 +155,7 @@ def _gen_keyword_tokens():
         return ns
 
     for val, (token, typ) in keywords.graphql_keywords.items():
-        clsname = 'T_{}'.format(token)
+        clsname = f'T_{token}'
         clskwds = dict(metaclass=parsing.TokenMeta, token=token)
         cls = types.new_class(clsname, (Token,), clskwds, clsexec)
         setattr(mod, clsname, cls)

@@ -24,7 +24,7 @@ class GraphQLUniquenessError(GraphQLParserError):
             entity = node.__class__.__name__.lower()
 
         return GraphQLUniquenessError(
-            "{} with name '{}' already exists".format(entity, node.name),
+            f"{entity} with name {node.name!r} already exists",
             context=node.context)
 
 

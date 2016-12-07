@@ -138,7 +138,7 @@ class GraphQLSourceGenerator(codegen.SourceGenerator):
         self.write(str(node.value))
 
     def visit_FloatLiteral(self, node):
-        self.write('{:g}'.format(node.value))
+        self.write(f'{node.value:g}')
 
     def visit_BooleanLiteral(self, node):
         if node.value:

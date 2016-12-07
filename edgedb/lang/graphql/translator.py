@@ -77,14 +77,13 @@ class GraphQLTranslator(ast.NodeVisitor):
         if node.type is None or node.type == 'query':
             stmt = self._visit_query(node)
             if node.name:
-                opname = 'query {}'.format(node.name)
+                opname = f'query {node.name}'
         elif node.type == 'mutation':
             stmt = self._visit_mutation(node)
             if node.name:
-                opname = 'mutation {}'.format(node.name)
+                opname = f'mutation {node.name}'
         else:
-            raise ValueError('unsupported definition type: {!r}'.format(
-                node.type))
+            raise ValueError(f'unsupported definition type: {node.type!r}')
 
         # produce the list of variables critical to the shape
         # of the query
@@ -160,7 +159,7 @@ class GraphQLTranslator(ast.NodeVisitor):
             elif self._context.optype == 'insert':
                 if len(selection.arguments) > 1:
                     raise GraphQLValidationError(
-                        "too many arguments for {!r}".format(selection.name),
+                        f"too many arguments for {selection.name!r}",
                         context=selection.context)
 
                 mutation = qlast.InsertQueryNode(
@@ -180,8 +179,8 @@ class GraphQLTranslator(ast.NodeVisitor):
                 query = mutation
             else:
                 raise GraphQLValidationError(
-                    "unexpected field {!r}".format(
-                        selection.name), context=selection.context)
+                    f"unexpected field {selection.name!r}",
+                    context=selection.context)
 
         return query
 
@@ -196,7 +195,7 @@ class GraphQLTranslator(ast.NodeVisitor):
                 return name
             else:
                 raise GraphQLValidationError(
-                    "unexpected field {!r}".format(raw_name), context=context)
+                    f"unexpected field {raw_name!r}", context=context)
 
         else:
             return raw_name
@@ -211,8 +210,8 @@ class GraphQLTranslator(ast.NodeVisitor):
             self._context.schema.get(base)
         except s_error.SchemaError:
             raise GraphQLValidationError(
-                "{!r} does not exist in the schema module {!r}".format(
-                    base[1], base[0]), context=selection.context)
+                f"{base[1]!r} does not exist in the schema module {base[0]!r}",
+                context=selection.context)
 
         expr = qlast.SelectExprNode(
             expr=qlast.PathNode(
@@ -345,8 +344,9 @@ class GraphQLTranslator(ast.NodeVisitor):
 
                 if not isinstance(cond, bool):
                     raise GraphQLValidationError(
-                        "'if' argument of {} directive must be a Boolean"
-                        .format(directive.name), context=directive.context)
+                        f"'if' argument of {directive.name} " +
+                        "directive must be a Boolean",
+                        context=directive.context)
 
                 if directive.name == 'include' and cond is False:
                     return False
@@ -360,8 +360,9 @@ class GraphQLTranslator(ast.NodeVisitor):
         #
         if node.value is not None and not node.type.nullable:
             raise GraphQLValidationError(
-                "variable {!r} cannot be non-nullable and have a default"
-                .format(node.name), context=node.context)
+                f"variable {node.name!r} cannot be non-nullable and have a " +
+                "default",
+                context=node.context)
 
         variables = self._context.vars
         if not variables.get(node.name):
@@ -377,13 +378,13 @@ class GraphQLTranslator(ast.NodeVisitor):
         if val is None:
             if not node.type.nullable:
                 raise GraphQLValidationError(
-                    "non-nullable variable {!r} is missing a value"
-                    .format(node.name), context=node.context)
+                    f"non-nullable variable {node.name!r} is missing a value",
+                    context=node.context)
         else:
             if node.type.list:
                 if not isinstance(val, list):
                     raise GraphQLValidationError(
-                        "variable {!r} should be a List".format(node.name),
+                        f"variable {node.name!r} should be a List",
                         context=node.context)
                 self._validate_value(
                     node.name, val,
@@ -610,7 +611,7 @@ class GraphQLTranslator(ast.NodeVisitor):
         if as_sequence:
             if not isinstance(value, list):
                 raise GraphQLValidationError(
-                    "argument {!r} should be a List".format(name),
+                    f"argument {name!r} should be a List",
                     context=context)
         else:
             value = [value]
@@ -618,8 +619,9 @@ class GraphQLTranslator(ast.NodeVisitor):
         for val in value:
             if not issubclass(base_t, PY_COERCION_MAP[type(val)]):
                 raise GraphQLValidationError(
-                    "value {!r} is not of type {} accepted by {!r}".format(
-                        val, base_t, name), context=context)
+                    f"value {val!r} is not of type {base_t} " +
+                    f"accepted by {name!r}",
+                    context=context)
 
     def visit_ListLiteral(self, node):
         return qlast.SequenceNode(elements=self.visit(node.value))
@@ -679,10 +681,10 @@ def translate(schema, graphql, variables=None):
     code = []
     for name, (tree, critvars) in sorted(edge_forest_map.items()):
         if name:
-            code.append('# {}'.format(name))
+            code.append(f'# {name}')
         if critvars:
-            crit = ['{}={!r}'.format(vname, val) for vname, val in critvars]
-            code.append('# critical variables: {}'.format(', '.join(crit)))
+            crit = [f'{vname}={val!r}' for vname, val in critvars]
+            code.append(f'# critical variables: {", ".join(crit)}')
         code += [edgeql.generate_source(tree), ';']
 
     return '\n'.join(code)
