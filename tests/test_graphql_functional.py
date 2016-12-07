@@ -248,3 +248,102 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 'score': 5,
             }],
         ])
+
+    async def test_graphql_functional_fragment01(self):
+        result = await self.con.execute(r"""
+            fragment namedFrag on NamedObject @edgedb(module: "test") {
+                name
+            }
+
+            query @edgedb(module: "test") {
+                User(age__ne: 26, name__in: ["Alice", "Jane"]) {
+                    ... namedFrag
+                    age
+                    score
+                }
+            }
+        """, graphql=True)
+
+        self.assert_data_shape(result, [
+            [{
+                'name': 'Alice',
+                'age': 27,
+                'score': 5,
+            }],
+        ])
+
+    async def test_graphql_functional_fragment02(self):
+        result = await self.con.execute(r"""
+            fragment userFrag on User @edgedb(module: "test") {
+                age
+                score
+            }
+
+            query @edgedb(module: "test") {
+                NamedObject(name: "Alice") {
+                    name
+                    ... userFrag
+                }
+            }
+        """, graphql=True)
+
+        self.assert_data_shape(result, [
+            [{
+                'name': 'Alice',
+                'age': 27,
+                'score': 5,
+            }],
+        ])
+
+    async def test_graphql_functional_fragment03(self):
+        result = await self.con.execute(r"""
+            fragment namedFrag on NamedObject @edgedb(module: "test") {
+                name
+                ... userFrag
+            }
+
+            fragment userFrag on User @edgedb(module: "test") {
+                age
+            }
+
+            query @edgedb(module: "test") {
+                User(age__ne: 26, name__in: ["Alice", "Jane"]) {
+                    ... namedFrag
+                    score
+                }
+            }
+        """, graphql=True)
+
+        self.assert_data_shape(result, [
+            [{
+                'name': 'Alice',
+                'age': 27,
+                'score': 5,
+            }],
+        ])
+
+    async def test_graphql_functional_fragment04(self):
+        result = await self.con.execute(r"""
+            query @edgedb(module: "test") {
+                NamedObject(name__in: ["Alice", "basic"]) {
+                    name
+                    ... on User {
+                        age
+                        score
+                    }
+                }
+            }
+        """, graphql=True)
+
+        result[0].sort(key=lambda x: x['name'])
+        self.assert_data_shape(result, [
+            [{
+                'name': 'Alice',
+                'age': 27,
+                'score': 5,
+            }, {
+                'name': 'basic',
+                'age': None,
+                'score': None,
+            }],
+        ])

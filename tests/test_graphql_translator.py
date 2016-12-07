@@ -1848,8 +1848,7 @@ class TestGraphQLTranslation(TranslatorTest):
             };
         """
 
-    @unittest.expectedFailure
-    @tb.must_fail(GraphQLValidationError, line=9, col=17)
+    @tb.must_fail(GraphQLValidationError, 'are not related', line=9, col=17)
     def test_graphql_translation_fragment_type04(self):
         r"""
         fragment userFrag on User @edgedb(module: "test") {
@@ -1864,8 +1863,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @unittest.expectedFailure
-    @tb.must_fail(GraphQLValidationError, line=8, col=13)
+    @tb.must_fail(GraphQLValidationError, 'are not related', line=8, col=13)
     def test_graphql_translation_fragment_type05(self):
         r"""
         fragment userFrag on User @edgedb(module: "test") {
@@ -1906,8 +1904,8 @@ class TestGraphQLTranslation(TranslatorTest):
         SELECT
             (test::NamedObject){
                 id,
-                name,
-                age,
+                (test::User).name,
+                (test::User).age,
             };
         """
 
@@ -1933,7 +1931,8 @@ class TestGraphQLTranslation(TranslatorTest):
             };
         """
 
-    @tb.must_fail(GraphQLValidationError, line=5, col=13)
+    @tb.must_fail(GraphQLValidationError, r'field \S+ is invalid for',
+                  line=5, col=13)
     def test_graphql_translation_fragment_type08(self):
         r"""
         fragment frag on NamedObject @edgedb(module: "test") {
@@ -1949,7 +1948,8 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @tb.must_fail(GraphQLValidationError, line=7, col=21)
+    @tb.must_fail(GraphQLValidationError, r'field \S+ is invalid for',
+                  line=7, col=21)
     def test_graphql_translation_fragment_type09(self):
         r"""
         query @edgedb(module: "test") {
@@ -1987,7 +1987,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (test::NamedObject){
                 id,
                 name,
-                age,
+                (test::User).age,
             };
         """
 
@@ -2015,7 +2015,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (test::User){
                 id,
                 name,
-                age,
+                (test::User).age,
             };
         """
 
@@ -2033,7 +2033,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
         SELECT
             (test::NamedObject) {
-                age
+                (test::User).age
             }
         """
 

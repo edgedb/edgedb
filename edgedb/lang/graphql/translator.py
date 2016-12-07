@@ -47,12 +47,10 @@ class GraphQLTranslatorContext:
         self.fields = []
         self.path = []
         self.optype = None
+        self.include_base = [False]
 
 
 class GraphQLTranslator(ast.NodeVisitor):
-    # def visit(self, node):
-    #     return self._translate(node)
-
     def visit_Document(self, node):
         # we need to index all of the fragments before we process operations
         #
@@ -416,6 +414,8 @@ class GraphQLTranslator(ast.NodeVisitor):
     def visit_Field(self, node):
         base = self._context.path[-1]
         base.append(node.name)
+        prev_base = None
+        include_base = self._context.include_base[-1]
 
         # if this field is a duplicate, that is not identical to the
         # original, throw an exception
@@ -424,7 +424,7 @@ class GraphQLTranslator(ast.NodeVisitor):
         if dup:
             if not ast.nodes_equal(dup, node):
                 raise GraphQLValidationError(
-                    "field {!r} has ambiguous definition".format(node.name),
+                    f"field {node.name!r} has ambiguous definition",
                     context=node.context)
             else:
 
@@ -434,23 +434,31 @@ class GraphQLTranslator(ast.NodeVisitor):
 
         # validate the field
         #
-        target = baseType = self._context.schema.get(base[0])
+        target = base_type = self._context.schema.get(base[0])
         for step in base[1:]:
             target = target.resolve_pointer(self._context.schema, step)
             if target is None:
                 raise GraphQLValidationError(
-                    "field {!r} is invalid for {}".format(
-                        step, baseType.name.name), context=node.context)
+                    f"field {step!r} is invalid for {base_type.name.name}",
+                    context=node.context)
             target = target.target
 
+        # insert normal or specialized link
+        #
+        steps = []
+
+        if include_base:
+            steps.append(qlast.PathStepNode(
+                namespace=base[0][0], expr=base[0][1]))
+
+        steps.append(qlast.LinkExprNode(
+            expr=qlast.LinkNode(
+                name=node.name
+            )
+        ))
+
         spec = qlast.SelectPathSpecNode(
-            expr=qlast.PathNode(
-                steps=[qlast.LinkExprNode(
-                    expr=qlast.LinkNode(
-                        name=node.name
-                    )
-                )]
-            ),
+            expr=qlast.PathNode(steps=steps),
             where=self._visit_path_where(node.arguments)
         )
 
@@ -477,6 +485,8 @@ class GraphQLTranslator(ast.NodeVisitor):
         return result
 
     def _validate_fragment_type(self, frag, spread):
+        is_specialized = False
+
         # validate the fragment type w.r.t. the base
         #
         if frag.on is None:
@@ -485,7 +495,34 @@ class GraphQLTranslator(ast.NodeVisitor):
         fragmodule = self._get_module(frag.directives)
         if fragmodule is None:
             fragmodule = self._context.path[0][0][0]
-        self._context.path.append([(fragmodule, frag.on)])
+
+        frag_path = (fragmodule, frag.on)
+        # validate the base if it's nested
+        #
+        if len(self._context.path) > 0:
+            base = self._context.path[-1]
+            base_type = self._context.schema.get(base[0])
+            for step in base[1:]:
+                base_type = base_type.resolve_pointer(self._context.schema, step)
+                base_type = base_type.target
+
+            frag_type = self._context.schema.get(frag_path)
+
+            if base_type.issubclass(frag_type):
+                # legal hierarchy, no change
+                #
+                pass
+            elif frag_type.issubclass(base_type):
+                # specialized link, but still legal
+                #
+                is_specialized = True
+            else:
+                raise GraphQLValidationError(
+                    f"{base_type.name.name} and {frag_type.name.name} " +
+                    "are not related", context=spread.context)
+
+        self._context.path.append([frag_path])
+        self._context.include_base.append(is_specialized)
 
     def _visit_path_where(self, arguments):
         if not arguments:
