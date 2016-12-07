@@ -810,7 +810,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '3'}, {'number': '4'}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_limit04(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -2046,14 +2045,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['Elvis1', 'Elvis4', 'Yury2', 'Yury3'],
         ])
 
-    @unittest.expectedFailure  # Needs DISCONNECTED impl
     async def test_edgeql_select_subqueries01(self):
         await self.assert_query_result(r"""
             WITH
                 MODULE test,
-                Issue2 := Issue
+                Issue2 := DETACHED Issue
             # this is string concatenation, not integer arithmetic
-            SELECT Issue.number + Issue2.number;
+            SELECT Issue.number + Issue2.number
+            ORDER BY Issue.number + Issue2.number;
             """, [
             ['{}{}'.format(a, b) for a in range(1, 5) for b in range(1, 5)],
         ])
@@ -2075,16 +2074,20 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [],
         ])
 
-    @unittest.expectedFailure  # Needs DISCONNECTED impl
     async def test_edgeql_select_subqueries03(self):
         await self.assert_query_result(r"""
             WITH
                 MODULE test,
-                # subqueries aliased here are independent of the main query,
-                # therefore Issue in this subquery is different from the
-                # main query
-                sub:= (SELECT Issue WHERE Issue.number IN ('1', '6'))
-            SELECT Issue{number}
+                sub:= (
+                    WITH
+                        Issue2 := DETACHED Issue
+                    SELECT
+                        Issue2
+                    WHERE
+                        Issue2.number IN ('1', '6')
+                )
+            SELECT
+                Issue{number}
             WHERE
                 Issue.number IN ('2', '3', '4')
                 AND
@@ -2094,19 +2097,23 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_subqueries04(self):
-        # XXX: aliases vs. independent queries need to be fixed
         await self.assert_query_result(r"""
             # find all issues such that there's at least one more
             # issue with the same priority
             WITH
                 MODULE test,
-                Issue2:= Issue
-            SELECT Issue{number}
+                Issue2 := DETACHED Issue
+            SELECT
+                Issue {
+                    number
+                }
             WHERE
                 Issue != Issue2
                 AND
                 # NOTE: this condition is false when one of the sides is NULL
-                Issue.priority = Issue2.priority;
+                Issue.priority = Issue2.priority
+            ORDER BY
+                Issue.number;
             """, [
             [],
         ])
