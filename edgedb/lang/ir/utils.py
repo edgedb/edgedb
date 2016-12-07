@@ -136,6 +136,15 @@ def infer_type(ir, schema):
             result = s_types.TypeRules.get_result(
                 ir.op, (operand_type,), schema)
 
+    elif isinstance(ir, irast.IfElseExpr):
+        if_expr = infer_type(ir.if_expr, schema)
+        else_expr = infer_type(ir.else_expr, schema)
+
+        if if_expr == else_expr:
+            result = if_expr
+        else:
+            result = None
+
     elif isinstance(ir, irast.TypeCast):
         if ir.type.subtypes:
             coll = s_obj.Collection.get_class(ir.type.maintype)

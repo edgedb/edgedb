@@ -2409,3 +2409,52 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }]
             }],
         ])
+
+    async def test_edgeql_select_if_else01(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT Issue {
+                number,
+                open := 'yes' IF Issue.status.name = 'Open' ELSE 'no'
+            }
+            ORDER BY Issue.number;
+            """, [
+            [{
+                'number': '1',
+                'open': 'yes',
+            }, {
+                'number': '2',
+                'open': 'yes',
+            }, {
+                'number': '3',
+                'open': 'no',
+            }, {
+                'number': '4',
+                'open': 'no',
+            }],
+        ])
+
+    async def test_edgeql_select_if_else02(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT Issue {
+                number,
+                # foo is 'bar' for Issue number 1 and status name for the rest
+                foo := 'bar' IF Issue.number = '1' ELSE Issue.status.name
+            }
+            ORDER BY Issue.number;
+            """, [
+            [{
+                'number': '1',
+                'foo': 'bar',
+            }, {
+                'number': '2',
+                'foo': 'Open',
+            }, {
+                'number': '3',
+                'foo': 'Closed',
+            }, {
+                'number': '4',
+                'foo': 'Closed',
+            }],
+        ])
