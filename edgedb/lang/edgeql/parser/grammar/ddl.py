@@ -1196,11 +1196,11 @@ class CreateEventStmt(Nonterm):
 # CREATE MODULE
 #
 class CreateModuleStmt(Nonterm):
-    def reduce_OptAliasBlock_CREATE_MODULE_NodeName_OptCreateCommandsBlock(
+    def reduce_OptAliasBlock_CREATE_MODULE_ModuleName_OptCreateCommandsBlock(
             self, *kids):
         self.val = qlast.CreateModuleNode(
             aliases=kids[0].val,
-            name=kids[3].val,
+            name=qlast.ClassRefNode(module=None, name='.'.join(kids[3].val)),
             commands=kids[4].val
         )
 
@@ -1209,11 +1209,11 @@ class CreateModuleStmt(Nonterm):
 # ALTER MODULE
 #
 class AlterModuleStmt(Nonterm):
-    def reduce_OptAliasBlock_ALTER_MODULE_NodeName_AlterCommandsBlock(
+    def reduce_OptAliasBlock_ALTER_MODULE_ModuleName_AlterCommandsBlock(
             self, *kids):
         self.val = qlast.AlterModuleNode(
             aliases=kids[0].val,
-            name=kids[3].val,
+            name=qlast.ClassRefNode(module=None, name='.'.join(kids[3].val)),
             commands=kids[4].val
         )
 
@@ -1222,10 +1222,10 @@ class AlterModuleStmt(Nonterm):
 # DROP MODULE
 #
 class DropModuleStmt(Nonterm):
-    def reduce_OptAliasBlock_DROP_MODULE_NodeName(self, *kids):
+    def reduce_OptAliasBlock_DROP_MODULE_ModuleName(self, *kids):
         self.val = qlast.DropModuleNode(
             aliases=kids[0].val,
-            name=kids[3].val
+            name=qlast.ClassRefNode(module=None, name='.'.join(kids[3].val))
         )
 
 

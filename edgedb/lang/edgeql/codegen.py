@@ -6,11 +6,16 @@
 ##
 
 
+import re
+
 from edgedb.lang.common.exceptions import EdgeDBError
 from edgedb.lang.common.ast import codegen, AST, base
 
 from . import ast as edgeql_ast
 from . import quote as edgeql_quote
+
+
+_module_name_re = re.compile(r'^(?!=\d)\w+(\.(?!=\d)\w+)*$')
 
 
 def ident_to_str(ident):
@@ -281,7 +286,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(ident_to_str(node.alias))
             self.write(' := ')
         self.write('MODULE ')
-        self.write(ident_to_str(node.namespace))
+        if _module_name_re.match(node.namespace):
+            self.write(node.namespace)
+        else:
+            self.write(ident_to_str(node.namespace))
 
     def visit_ExpressionAliasDeclNode(self, node):
         self.write(ident_to_str(node.alias))

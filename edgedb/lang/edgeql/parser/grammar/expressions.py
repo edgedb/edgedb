@@ -274,11 +274,6 @@ class AliasBlock(Nonterm):
         self.val = kids[1].val
 
 
-class ModuleName(Nonterm):
-    def reduce_IDENT(self, *kids):
-        self.val = [kids[0].val]
-
-
 class AliasDecl(Nonterm):
     def reduce_MODULE_ModuleName(self, *kids):
         self.val = qlast.NamespaceAliasDeclNode(
@@ -1146,6 +1141,10 @@ class AnyIdentifier(Nonterm):
 class ShortName(Nonterm):
     def reduce_IDENT(self, *kids):
         self.val = kids[0].val
+
+
+class ModuleName(ListNonterm, element=AnyIdentifier, separator=T_DOT):
+    pass
 
 
 # this can appear anywhere

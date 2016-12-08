@@ -1214,7 +1214,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         WITH
             MODULE test,
-            extra:= MODULE `lib.extra`,
+            extra:= MODULE lib.extra,
             foo:= Bar.foo,
             baz:= (SELECT (extra::Foo).baz)
         SELECT Bar {
@@ -1253,6 +1253,27 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         WITH MODULE test CREATE ACTION sample;
         WITH MODULE test DROP ACTION sample;
+        """
+
+    def test_edgeql_syntax_with06(self):
+        """
+        WITH MODULE abstract SELECT Foo;
+        WITH MODULE all SELECT Foo;
+        WITH MODULE all.abstract.bar SELECT Foo;
+        """
+
+    def test_edgeql_syntax_with07(self):
+        """
+        WITH MODULE `all.abstract.bar` SELECT Foo;
+
+% OK %
+
+        WITH MODULE all.abstract.bar SELECT Foo;
+        """
+
+    def test_edgeql_syntax_with08(self):
+        """
+        WITH MODULE `~all.abstract.bar` SELECT Foo;
         """
 
     def test_edgeql_syntax_select01(self):
@@ -1909,4 +1930,17 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         CREATE LINK PROPERTY PROPERTY std::linkproperty {
             SET title := 'Base link property';
         };
+        """
+
+    def test_edgeql_syntax_ddl_module01(self):
+        """
+        CREATE MODULE foo;
+        CREATE MODULE foo.bar;
+        CREATE MODULE all.abstract.bar;
+
+% OK %
+
+        CREATE MODULE foo;
+        CREATE MODULE `foo.bar`;
+        CREATE MODULE `all.abstract.bar`;
         """
