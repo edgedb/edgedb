@@ -18,6 +18,13 @@ from . import quote as edgeql_quote
 _module_name_re = re.compile(r'^(?!=\d)\w+(\.(?!=\d)\w+)*$')
 
 
+def any_ident_to_str(ident):
+    if _module_name_re.match(ident):
+        return ident
+    else:
+        return ident_to_str(ident)
+
+
 def ident_to_str(ident):
     return edgeql_quote.disambiguate_identifier(ident)
 
@@ -286,10 +293,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(ident_to_str(node.alias))
             self.write(' := ')
         self.write('MODULE ')
-        if _module_name_re.match(node.namespace):
-            self.write(node.namespace)
-        else:
-            self.write(ident_to_str(node.namespace))
+        self.write(any_ident_to_str(node.namespace))
 
     def visit_ExpressionAliasDeclNode(self, node):
         self.write(ident_to_str(node.alias))

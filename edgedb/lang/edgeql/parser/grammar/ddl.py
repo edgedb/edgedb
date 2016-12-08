@@ -427,28 +427,24 @@ class GetDeltaStmt(Nonterm):
 # CREATE DATABASE
 #
 class CreateDatabaseStmt(Nonterm):
-    def reduce_OptAliasBlock_CREATE_DATABASE_ShortName(self, *kids):
+    def reduce_OptAliasBlock_CREATE_DATABASE_AnyNodeName(self, *kids):
         # NOTE: OptAliasBlock is trying to avoid conflicts
         if kids[0].val:
             raise EdgeQLSyntaxError('Unexpected token: {}'.format(kids[2]),
                                     context=kids[2].context)
-        self.val = qlast.CreateDatabaseNode(
-            name=qlast.ClassRefNode(name=kids[3].val)
-        )
+        self.val = qlast.CreateDatabaseNode(name=kids[3].val)
 
 
 #
 # DROP DATABASE
 #
 class DropDatabaseStmt(Nonterm):
-    def reduce_OptAliasBlock_DROP_DATABASE_ShortName(self, *kids):
+    def reduce_OptAliasBlock_DROP_DATABASE_AnyNodeName(self, *kids):
         # NOTE: OptAliasBlock is trying to avoid conflicts
         if kids[0].val:
             raise EdgeQLSyntaxError('Unexpected token: {}'.format(kids[2]),
                                     context=kids[2].context)
-        self.val = qlast.DropDatabaseNode(
-            name=qlast.ClassRefNode(name=kids[3].val),
-        )
+        self.val = qlast.DropDatabaseNode(name=kids[3].val)
 
 
 #

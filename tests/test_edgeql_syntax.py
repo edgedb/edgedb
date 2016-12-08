@@ -1852,6 +1852,28 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         CREATE DATABASE foo::mytestdb;
         """
 
+    def test_edgeql_syntax_ddl_database04(self):
+        """
+        CREATE DATABASE all;
+        CREATE DATABASE abstract;
+
+% OK %
+
+        CREATE DATABASE `all`;
+        CREATE DATABASE `abstract`;
+        """
+
+    def test_edgeql_syntax_ddl_database05(self):
+        """
+        DROP DATABASE all;
+        DROP DATABASE abstract;
+
+% OK %
+
+        DROP DATABASE `all`;
+        DROP DATABASE `abstract`;
+        """
+
     def test_edgeql_syntax_ddl_delta01(self):
         """
         ALTER DELTA test::d_links01_0 {

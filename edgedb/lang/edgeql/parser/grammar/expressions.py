@@ -1225,11 +1225,12 @@ class NodeNameList(ListNonterm, element=NodeName, separator=T_COMMA):
 
 
 class ShortOpNodeName(Nonterm):
-    # NOTE: A non-qualified name that can be ANY identifier.
+    # NOTE: A non-qualified name that can be an identifier or
+    # UNRESERVED_KEYWORD.
     #
-    # This name is used as part of paths after the DOT. It can be any
-    # identifier including RESERVED_KEYWORD and UNRESERVED_KEYWORD and
-    # does not need to be quoted or parenthesized.
+    # This name is used as part of paths after the DOT. It can be an
+    # identifier including UNRESERVED_KEYWORD and does not need to be
+    # quoted or parenthesized.
 
     def reduce_Identifier(self, *kids):
         # ShortOpNodeName cannot start with a '@' in any way
@@ -1280,6 +1281,29 @@ class NodeNameParens(Nonterm):
 
     def reduce_LPAREN_OpNodeName_RPAREN(self, *kids):
         self.val = kids[1].val
+
+
+class AnyNodeName(Nonterm):
+    # NOTE: A non-qualified name that can be ANY identifier.
+    #
+    # This name is used as part of paths after the DOT. It can be any
+    # identifier including RESERVED_KEYWORD and UNRESERVED_KEYWORD and
+    # does not need to be quoted or parenthesized.
+    #
+    # This is mainly used in DDL statements that have another keyword
+    # completely disambiguating that what comes next is a name. It
+    # CANNOT be used in Expr productions because it will cause
+    # ambiguity with NodeName, etc.
+
+    def reduce_AnyIdentifier(self, *kids):
+        # ShortOpNodeName cannot start with a '@' in any way
+        #
+        if kids[0].val[0] == '@':
+            raise EdgeQLSyntaxError("name cannot start with '@'",
+                                    context=kids[0].context)
+        self.val = qlast.ClassRefNode(
+            module=None,
+            name=kids[0].val)
 
 
 class KeywordMeta(context.ContextNontermMeta):
