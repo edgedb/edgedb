@@ -356,6 +356,11 @@ class OptAnySubShape(Nonterm):
                                           context=name.context)
         self.val = [typenode] + shape.pathspec
 
+    def reduce_COLON_TypeName(self, *kids):
+        # this kind of shape definition appears in function signatures
+        #
+        self.val = [kids[1].val]
+
     def reduce_empty(self, *kids):
         self.val = None
 
@@ -385,6 +390,8 @@ class ShapeElement(Nonterm):
         if shape and isinstance(shape[0], qlast.ClassRefNode):
             self.val.expr.steps[-1].expr.target = shape[0]
             self.val.pathspec = shape[1:]
+        elif shape and isinstance(shape[0], qlast.TypeNameNode):
+            self.val.expr.steps[-1].expr.target = shape[0]
         else:
             self.val.pathspec = shape
         self.val.where = kids[3].val

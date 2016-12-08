@@ -1280,7 +1280,7 @@ class CreateFunctionArgs(Nonterm):
 class CreateFunctionStmt(Nonterm):
     def reduce_CreateFunction(self, *kids):
         r"""%reduce OptAliasBlock CREATE FUNCTION NodeName \
-                CreateFunctionArgs RETURNING OptSingle TypeName \
+                CreateFunctionArgs RETURNING OptSingle FunctionType \
         """
         self.val = qlast.CreateFunctionNode(
             aliases=kids[0].val,
@@ -1294,7 +1294,7 @@ class CreateFunctionStmt(Nonterm):
 class CreateAggregateStmt(Nonterm):
     def reduce_CreateFunction(self, *kids):
         r"""%reduce OptAliasBlock CREATE AGGREGATE NodeName \
-                CreateFunctionArgs RETURNING OptSingle TypeName \
+                CreateFunctionArgs RETURNING OptSingle FunctionType \
         """
         self.val = qlast.CreateFunctionNode(
             aliases=kids[0].val,
@@ -1304,3 +1304,12 @@ class CreateAggregateStmt(Nonterm):
             single=kids[6].val,
             aggregate=True,
         )
+
+
+class FunctionType(Nonterm):
+    def reduce_TypeName(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_Shape(self, *kids):
+        self.val = qlast.SelectExprNode(
+            expr=qlast.PathNode(pathspec=kids[0].val))

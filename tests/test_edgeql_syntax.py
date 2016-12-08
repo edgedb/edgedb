@@ -1931,6 +1931,25 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         CREATE FUNCTION std::strlen(string std::str) RETURNING std::int;
         """
 
+    def test_edgeql_syntax_ddl_function02(self):
+        """
+        CREATE AGGREGATE std::count(expression std::`any`) RETURNING std::int;
+        """
+
+    def test_edgeql_syntax_ddl_function03(self):
+        """
+        CREATE FUNCTION foo(string std::str) RETURNING {bar: std::int};
+        """
+
+    def test_edgeql_syntax_ddl_function04(self):
+        """
+        CREATE AGGREGATE foo(string std::str)
+        RETURNING {
+            bar: std::int,
+            baz: std::str
+        };
+        """
+
     def test_edgeql_syntax_ddl_linkproperty01(self):
         """
         CREATE LINK PROPERTY std::linkproperty {

@@ -441,11 +441,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             if node.recurse_limit:
                 self.visit(node.recurse_limit)
 
-        if node.pathspec and not node.compexpr:
+        if not node.compexpr and (
+                node.pathspec or node.expr.steps[-1].expr.target):
             self.write(': ')
             if node.expr.steps[-1].expr.target:
                 self.visit(node.expr.steps[-1].expr.target)
-            self._visit_pathspec(node.pathspec)
+            if node.pathspec:
+                self._visit_pathspec(node.pathspec)
 
         if node.where:
             self.write(' WHERE ')
@@ -940,9 +942,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write('(')
             self.visit_list(node.args, newlines=False)
             self.write(')')
-            self.write('RETURNING')
+            self.write(' RETURNING ')
             if node.single:
-                self.write(' SINGLETON ')
+                self.write('SINGLETON ')
             self.visit(node.returning)
 
         self._visit_CreateObjectNode(
