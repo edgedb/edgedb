@@ -312,16 +312,10 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         stmt.orderby = self._process_orderby(edgeql_tree.orderby)
 
         if edgeql_tree.offset:
-            stmt.offset = irast.Constant(
-                value=edgeql_tree.offset.value,
-                index=edgeql_tree.offset.index,
-                type=ctx.schema.get('int'))
+            stmt.offset = self.visit(edgeql_tree.offset)
 
         if edgeql_tree.limit:
-            stmt.limit = irast.Constant(
-                value=edgeql_tree.limit.value,
-                index=edgeql_tree.limit.index,
-                type=ctx.schema.get('int'))
+            stmt.limit = self.visit(edgeql_tree.limit)
 
         stmt.result_types = self._get_selector_types(stmt.result)
         stmt.argument_types = self.context.current.arguments

@@ -484,8 +484,8 @@ class SelectQueryNode(StatementNode):
     groupby: list
     having: Base
     orderby: list
-    offset: ConstantNode
-    limit: ConstantNode
+    offset: Base
+    limit: Base
     cges: list
     op: str
     op_larg: Base
@@ -526,8 +526,8 @@ class DeleteQueryNode(StatementNode):
 class ValuesQueryNode(StatementNode):
     targets: list
     orderby: list
-    offset: ConstantNode
-    limit: ConstantNode
+    offset: Base
+    limit: Base
     cges: list
 
 
@@ -574,8 +574,8 @@ class SelectPathSpecNode(Base):
     pathspec: list
     where: Base
     orderby: list
-    offset: ConstantNode
-    limit: ConstantNode
+    offset: Base
+    limit: Base
     compexpr: Base
     recurse: bool = False
     recurse_limit: ConstantNode

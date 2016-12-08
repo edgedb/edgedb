@@ -1423,6 +1423,13 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT User.name OFFSET $1 LIMIT $2;
         """
 
+    def test_edgeql_syntax_select12(self):
+        """
+        SELECT User.name OFFSET Foo.bar;
+        SELECT User.name LIMIT (Foo.bar * 10);
+        SELECT User.name OFFSET Foo.bar LIMIT (Foo.bar * 10);
+        """
+
     def test_edgeql_syntax_insert01(self):
         """
         INSERT Foo;

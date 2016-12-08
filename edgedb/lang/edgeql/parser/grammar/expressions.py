@@ -583,12 +583,12 @@ class SelectLimit(Nonterm):
 
 
 class OffsetClause(Nonterm):
-    def reduce_OFFSET_NumberConstant(self, *kids):
+    def reduce_OFFSET_Expr(self, *kids):
         self.val = kids[1].val
 
 
 class LimitClause(Nonterm):
-    def reduce_LIMIT_NumberConstant(self, *kids):
+    def reduce_LIMIT_Expr(self, *kids):
         self.val = kids[1].val
 
 

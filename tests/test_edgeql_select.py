@@ -748,6 +748,103 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '3'}, {'number': '4'}],
         ])
 
+    async def test_edgeql_select_limit02(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT
+                Issue {number}
+            ORDER BY Issue.number
+            OFFSET 1 + 1;
+
+            WITH MODULE test
+            SELECT
+                Issue {number}
+            ORDER BY Issue.number
+            LIMIT 6 / 2;
+
+            WITH MODULE test
+            SELECT
+                Issue {number}
+            ORDER BY Issue.number
+            OFFSET 4 - 2 LIMIT 5 * 2 - 7;
+        ''', [
+            [{'number': '3'}, {'number': '4'}],
+            [{'number': '1'}, {'number': '2'}, {'number': '3'}],
+            [{'number': '3'}, {'number': '4'}],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_limit03(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT
+                Issue {number}
+            ORDER BY Issue.number
+            OFFSET (SELECT count(Status));
+
+            WITH MODULE test
+            SELECT
+                Issue {number}
+            ORDER BY Issue.number
+            LIMIT (SELECT count(Status) + 1);
+
+            WITH MODULE test
+            SELECT
+                Issue {number}
+            ORDER BY Issue.number
+            OFFSET (SELECT count(Status)) LIMIT (SELECT count(Priority) + 1);
+        ''', [
+            [{'number': '3'}, {'number': '4'}],
+            [{'number': '1'}, {'number': '2'}, {'number': '3'}],
+            [{'number': '3'}, {'number': '4'}],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_limit04(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT
+                User {
+                    name,
+                    <owner: Issue{
+                        number
+                    } ORDER BY User.<owner[TO Issue].number
+                      LIMIT 1
+                }
+            ORDER BY User.name;
+        ''', [
+            [{
+                'name': 'Elvis',
+                'owner': [{'number': '1'}],
+            }, {
+                'name': 'Yury',
+                'owner': [{'number': '2'}],
+            }]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_limit05(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT
+                User {
+                    name,
+                    <owner: Issue{
+                        number
+                    } ORDER BY User.<owner[TO Issue].number
+                      LIMIT strlen(User.name) - 3
+                }
+            ORDER BY User.name;
+        ''', [
+            [{
+                'name': 'Elvis',
+                'owner': [{'number': '1'}, {'number': '4'}],
+            }, {
+                'name': 'Yury',
+                'owner': [{'number': '2'}],
+            }]
+        ])
+
     async def test_edgeql_select_specialized01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
