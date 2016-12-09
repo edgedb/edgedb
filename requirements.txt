@@ -2,6 +2,7 @@ asyncpg
 importkit
 pyyaml
 pytest
+pytest-cov
 python-dateutil
 metamagic.json
 Parsing
