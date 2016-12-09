@@ -24,9 +24,10 @@ class build(build.build):
         for spec in (edgeql_spec, edgeql_spec2, pgsql_spec,
                      schema_spec, graphql_spec):
             subpath = os.path.dirname(spec.__file__)[len(base_path) + 1:]
-            cache = os.path.join(self.build_lib,
-                                 subpath,
-                                 spec.__name__.rpartition('.')[2] + '.pickle')
+            cache_dir = os.path.join(self.build_lib, subpath)
+            os.makedirs(cache_dir)
+            cache = os.path.join(
+                cache_dir, spec.__name__.rpartition('.')[2] + '.pickle')
             parsing.Spec(spec, pickleFile=cache, verbose=True)
 
     def run(self, *args, **kwargs):
