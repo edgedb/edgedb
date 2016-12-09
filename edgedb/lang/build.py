@@ -25,7 +25,7 @@ class build(build.build):
                      schema_spec, graphql_spec):
             subpath = os.path.dirname(spec.__file__)[len(base_path) + 1:]
             cache_dir = os.path.join(self.build_lib, subpath)
-            os.makedirs(cache_dir)
+            os.makedirs(cache_dir, exist_ok=True)
             cache = os.path.join(
                 cache_dir, spec.__name__.rpartition('.')[2] + '.pickle')
             parsing.Spec(spec, pickleFile=cache, verbose=True)
