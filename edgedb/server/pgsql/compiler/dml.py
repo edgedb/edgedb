@@ -165,7 +165,7 @@ class IRCompilerDMLSupport:
 
             target_id_set = self._get_ptr_set(target_ir_set, 'std::id')
 
-            self._add_path_var_reference(
+            self._pull_path_var(
                 dml_stmt, target_id_set, path_id=target_ir_set.path_id,
                 add_to_target_list=True)
 
@@ -213,7 +213,7 @@ class IRCompilerDMLSupport:
             range_stmt.scls_rvar = \
                 ctx.subquery_map[range_stmt][target_cte]['rvar']
 
-            self._add_path_var_reference(
+            self._pull_path_var(
                 range_stmt, id_set, path_id=target_ir_set.path_id)
 
             if ir_qual_expr is not None:

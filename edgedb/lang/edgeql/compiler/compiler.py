@@ -169,17 +169,6 @@ class EdgeQLCompilerError(edgedb_error.EdgeDBError):
     pass
 
 
-def is_aggregated_expr(expr, deep=False):
-    agg = getattr(expr, 'aggregates', False)
-
-    if not agg and deep:
-        return bool(
-            list(
-                ast.find_children(
-                    expr, lambda i: getattr(i, 'aggregates', None))))
-    return agg
-
-
 class PathExtractor(ast.visitor.NodeVisitor):
     def __init__(self):
         super().__init__()
@@ -621,7 +610,8 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             node = irast.FunctionCall(
                 name=(funcobj.name.module, funcobj.name.name),
                 args=args,
-                kwargs=kwargs)
+                kwargs=kwargs,
+                aggregate=funcobj.aggregate)
 
             if expr.agg_sort:
                 node.agg_sort = [

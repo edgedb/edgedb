@@ -784,7 +784,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '3'}, {'number': '4'}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_limit03(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -832,7 +831,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_limit05(self):
         await self.assert_query_result(r'''
             WITH MODULE test

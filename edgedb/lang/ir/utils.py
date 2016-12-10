@@ -232,6 +232,17 @@ def is_const(ir):
     return not ir_sets and not variables
 
 
+def is_aggregated_expr(ir):
+    def flt(n):
+        if isinstance(n, irast.FunctionCall):
+            return n.aggregate
+        elif isinstance(n, irast.Stmt):
+            # Make sure we don't dip into subqueries
+            raise ast.SkipNode()
+
+    return bool(set(ast.find_children(ir, flt)))
+
+
 class LinearPath(list):
     """Denotes a linear path in the graph.
 
