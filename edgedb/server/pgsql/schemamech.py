@@ -532,7 +532,7 @@ class TypeMech:
                     cols.append(
                         dbops.Column(
                             name=ptr_stor_info.column_name,
-                            type=ptr_stor_info.column_type))
+                            type=common.qname(*ptr_stor_info.column_type)))
             table.add_columns(cols)
 
             self._table_cache[scls] = table

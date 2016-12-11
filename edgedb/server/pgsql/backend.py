@@ -1012,10 +1012,10 @@ class Backend(s_deltarepo.DeltaProvider):
     def _get_pointer_column_target(self, schema, source, pointer_name, col):
         if col['column_type_schema'] == 'pg_catalog':
             col_type_schema = common.edgedb_module_name_to_schema_name('std')
-            col_type = col['column_type_formatted']
+            col_type = col['column_type']
         else:
             col_type_schema = col['column_type_schema']
-            col_type = col['column_type_formatted'] or col['column_type']
+            col_type = col['column_type']
 
         if col['column_default'] is not None:
             atom_default = self.interpret_sql(col['column_default'], source)
@@ -1603,6 +1603,11 @@ class Backend(s_deltarepo.DeltaProvider):
         return typname, typmods
 
     def pg_type_to_atom_name_and_constraints(self, typname, typmods):
+        if len(typname) > 1 and typname[0] != 'pg_catalog':
+            return None
+        else:
+            typname = typname[-1]
+
         typeconv = types.base_type_name_map_r.get(typname)
         if typeconv:
             if isinstance(typeconv, sn.Name):
@@ -1617,12 +1622,7 @@ class Backend(s_deltarepo.DeltaProvider):
     def atom_from_pg_type(self, type_expr, atom_schema, atom_default, schema):
 
         typname, typmods = self.parse_pg_type(type_expr)
-        if isinstance(typname, tuple):
-            domain_name = typname[-1]
-        else:
-            domain_name = typname
-            if atom_schema != common.edgedb_module_name_to_schema_name('std'):
-                typname = (atom_schema, typname)
+        domain_name = typname[-1]
         atom_name = self.domain_to_atom_map.get((atom_schema, domain_name))
 
         if atom_name:

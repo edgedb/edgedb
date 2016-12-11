@@ -106,9 +106,6 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.rarg)
         else:
             self.write('SELECT')
-            if node.distinct_clause is not None:
-                self.write(' DISTINCT')
-
             self.new_lines = 1
             self.indentation += 2
 
@@ -213,7 +210,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
             if node.on_conflict.infer:
                 self.write(' (')
-                self.visit_list(node.on_conflict.infer, newlines=False)
+                self.visit(node.on_conflict.infer)
                 self.write(')')
 
             self.write(' DO ')
@@ -312,6 +309,9 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.indentation += 1
             self.visit_list(node.returning_list)
             self.indentation -= 1
+
+    def visit_InferClause(self, node):
+        self.visit_list(node.index_elems, newlines=False)
 
     def visit_MultiAssignRef(self, node):
         self.write('(')
@@ -460,7 +460,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.write(']')
 
     def visit_FuncCall(self, node):
-        self.write(node.name)
+        self.write(common.qname(*node.name))
 
         self.write('(')
         self.visit_list(node.args, newlines=False)
@@ -530,7 +530,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.type_name)
 
     def visit_TypeName(self, node):
-        self.write(node.name)
+        self.write(common.qname(*node.name))
         if node.array_bounds:
             for array_bound in node.array_bounds:
                 self.write('[')

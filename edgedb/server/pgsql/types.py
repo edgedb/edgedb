@@ -5,10 +5,14 @@
 # See LICENSE for details.
 ##
 
+import typing
+
 from edgedb.lang.schema import atoms as s_atoms
 from edgedb.lang.schema import concepts as s_concepts
 from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import name as sn
+from edgedb.lang.schema import objects as s_obj
+from edgedb.lang.schema import schema as s_schema
 
 from . import common
 
@@ -19,11 +23,11 @@ base_type_name_map = {
     sn.Name('std::null'): 'text',
     sn.Name('std::decimal'): 'numeric',
     sn.Name('std::bool'): 'boolean',
-    sn.Name('std::float'): 'double precision',
+    sn.Name('std::float'): 'float8',
     sn.Name('std::uuid'): 'uuid',
-    sn.Name('std::datetime'): 'timestamp with time zone',
+    sn.Name('std::datetime'): 'timestamptz',
     sn.Name('std::date'): 'date',
-    sn.Name('std::time'): 'time without time zone',
+    sn.Name('std::time'): 'timetz',
     sn.Name('std::timedelta'): 'interval',
     sn.Name('std::bytes'): 'bytea',
 }
@@ -45,7 +49,7 @@ base_type_name_map_r = {
     'timestamp with time zone': sn.Name('std::datetime'),
     'timestamptz': sn.Name('std::datetime'),
     'date': sn.Name('std::date'),
-    'time without time zone': sn.Name('std::time'),
+    'timetz': sn.Name('std::time'),
     'time': sn.Name('std::time'),
     'interval': sn.Name('std::timedelta'),
     'bytea': sn.Name('std::bytes'),
@@ -71,7 +75,11 @@ def get_atom_base(schema, atom):
     return base
 
 
-def pg_type_from_atom(schema, atom, topbase=False):
+def pg_type_from_atom(
+        schema: s_schema.Schema,
+        atom: s_atoms.Atom,
+        topbase: bool=False) -> typing.Tuple[str, ...]:
+
     if topbase:
         base = atom.get_topmost_base()
     else:
@@ -81,22 +89,29 @@ def pg_type_from_atom(schema, atom, topbase=False):
         column_type = base_type_name_map.get(base.name)
         if not column_type:
             base_class = base.bases[0]
-            column_type = base_type_name_map[base_class.adapts]
+            column_type = (base_type_name_map[base_class.adapts],)
+        else:
+            column_type = (column_type,)
     else:
         column_type = base_type_name_map.get(atom.name)
         if column_type:
-            column_type = base
+            column_type = (base,)
         else:
-            column_type = common.atom_name_to_domain_name(atom.name)
+            column_type = common.atom_name_to_domain_name(
+                atom.name, catenate=False)
 
     return column_type
 
 
-def pg_type_from_object(schema, obj, topbase=False):
+def pg_type_from_object(
+        schema: s_schema.Schema,
+        obj: s_obj.Class,
+        topbase: bool=False) -> typing.Tuple[str, ...]:
+
     if isinstance(obj, s_atoms.Atom):
         return pg_type_from_atom(schema, obj, topbase=topbase)
     else:
-        return common.get_table_name(obj, catenate=True)
+        return common.get_table_name(obj, catenate=False)
 
 
 class PointerStorageInfo:
@@ -126,18 +141,13 @@ class PointerStorageInfo:
     def _resolve_type(cls, pointer, schema):
         if pointer.target is not None:
             if isinstance(pointer.target, s_concepts.Concept):
-                column_type = 'uuid'
+                column_type = ('uuid',)
             else:
                 column_type = pg_type_from_object(schema, pointer.target)
         else:
             # The target may not be known in circular concept-to-concept
             # linking scenarios.
-            column_type = 'uuid'
-
-        if column_type is None:
-            msg = '{}: cannot determine pointer storage coltype: ' \
-                  'target is None'.format(pointer.name)
-            raise ValueError(msg)
+            column_type = ('uuid',)
 
         return column_type
 
@@ -184,8 +194,10 @@ class PointerStorageInfo:
             else:
                 return None
 
-        column_type = cls._resolve_type(
-            pointer, schema) if resolve_type else None
+        if resolve_type:
+            column_type = cls._resolve_type(pointer, schema)
+        else:
+            column_type = None
 
         result = super().__new__(cls)
 

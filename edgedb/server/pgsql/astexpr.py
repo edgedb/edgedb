@@ -114,8 +114,6 @@ class TypeExpr:
             else:
                 typmods = None
             typname = m.value[0].node.name
-            if isinstance(typname, list):
-                typname = tuple(typname)
             return (typname, typmods)
         else:
             return None

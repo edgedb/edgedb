@@ -24,27 +24,11 @@ class IRCompilerDBObjects:
             const_type = pg_types.pg_type_from_atom(
                 ctx.schema, schema_type, topbase=True)
         elif isinstance(schema_type, (s_concepts.Concept, s_links.Link)):
-            const_type = 'json'
+            const_type = ('json',)
         elif isinstance(schema_type, s_obj.MetaClass):
-            const_type = 'int'
-        elif isinstance(schema_type, tuple):
-            item_type = schema_type[1]
-            if isinstance(item_type, s_atoms.Atom):
-                item_type = pg_types.pg_type_from_atom(
-                    ctx.schema, item_type, topbase=True)
-                const_type = '%s[]' % item_type
-            elif isinstance(item_type, (s_concepts.Concept, s_links.Link)):
-                item_type = 'json'
-                const_type = '%s[]' % item_type
-            elif isinstance(item_type, s_obj.MetaClass):
-                item_type = 'int'
-                const_type = '%s[]' % item_type
-            else:
-                raise ValueError('unexpected constant type: '
-                                 '{!r}'.format(schema_type))
+            const_type = ('uuid',)
         else:
-            raise ValueError('unexpected constant type: '
-                             '{!r}'.format(schema_type))
+            raise ValueError(f'unexpected constant type: {schema_type!r}')
 
         return const_type
 
@@ -202,10 +186,13 @@ class IRCompilerDBObjects:
 
                         qry = pgast.SelectStmt(
                             target_list=[
-                                pgast.ColumnRef(
-                                    name=[col]
+                                pgast.ResTarget(
+                                    val=pgast.ColumnRef(
+                                        name=[col]
+                                    )
                                 )
-                                for col in cols],
+                                for col in cols
+                            ],
                             from_clause=[rvar],
                             rptr_rvar=rvar
                         )

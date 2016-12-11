@@ -10,8 +10,6 @@ from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import atoms as s_atoms
-from edgedb.lang.schema import concepts as s_concepts
-from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
 
 from edgedb.server.pgsql import ast as pgast
@@ -89,7 +87,7 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
             else:
                 result = pgast.Constant(val=val)
 
-        if const_type not in {None, 'bigint'}:
+        if const_type is not None and const_type[-1] != 'bigint':
             result = pgast.TypeCast(
                 arg=result,
                 type_name=pgast.TypeName(
@@ -181,10 +179,10 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
 
         if is_string:
             upper_bound = pgast.FuncCall(
-                name='char_length', args=[subj])
+                name=('char_length',), args=[subj])
         else:
             upper_bound = pgast.FuncCall(
-                name='array_upper', args=[subj, one])
+                name=('array_upper',), args=[subj, one])
 
         neg_off = self._new_binop(
             lexpr=upper_bound, rexpr=index_plus_one, op=ast.ops.ADD)
@@ -197,7 +195,7 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
 
         if is_string:
             result = pgast.FuncCall(
-                name='substr',
+                name=('substr',),
                 args=[subj, index, one]
             )
         else:
@@ -229,10 +227,10 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
 
         if is_string:
             upper_bound = pgast.FuncCall(
-                name='char_length', args=[subj])
+                name=('char_length',), args=[subj])
         else:
             upper_bound = pgast.FuncCall(
-                name='array_upper', args=[subj, one])
+                name=('array_upper',), args=[subj, one])
 
         if isinstance(start, pgast.Constant) and start.val is None:
             lower = one
@@ -278,7 +276,7 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
                     lexpr=for_length, op=ast.ops.ADD, rexpr=one)
                 args.append(for_length)
 
-            result = pgast.FuncCall(name='substr', args=args)
+            result = pgast.FuncCall(name=('substr',), args=args)
 
         else:
             indirection = pgast.Indices(
@@ -312,7 +310,7 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
 
         if isinstance(expr.op, ast.ops.TypeCheckOperator):
             result = pgast.FuncCall(
-                name='edgedb.issubclass',
+                name=('edgedb', 'issubclass'),
                 args=[left, right])
 
             if expr.op == ast.ops.IS_NOT:
@@ -332,82 +330,22 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
                     op = ast.ops.NE
                     qual_func = 'all'
 
-                if isinstance(right.expr, pgast.Sequence):
-                    right.expr = pgast.ArrayExpr(
-                        elements=right.expr.elements)
-                elif right.type == 'text[]':
-                    left_type = irutils.infer_type(
-                        expr.left, ctx.schema)
-                    if isinstance(left_type, s_obj.Class):
-                        if isinstance(left_type, s_concepts.Concept):
-                            left_type = left_type.pointers[
-                                'std::id'].target
-                        left_type = pg_types.pg_type_from_atom(
-                            ctx.schema, left_type,
-                            topbase=True)
-                        right.type = left_type + '[]'
-
                 right = pgast.FuncCall(
-                    name=qual_func, args=[right])
+                    name=(qual_func,), args=[right])
             else:
                 op = expr.op
 
-            left_type = irutils.infer_type(
-                expr.left, ctx.schema)
-            right_type = irutils.infer_type(
-                expr.right, ctx.schema)
+            left_type = irutils.infer_type(expr.left, ctx.schema)
+            right_type = irutils.infer_type(expr.right, ctx.schema)
 
             if left_type and right_type:
-                if isinstance(left_type, s_obj.Class):
-                    if isinstance(left_type, s_concepts.Concept):
-                        left_type = left_type.pointers[
-                            'std::id'].target
-                    left_type = pg_types.pg_type_from_atom(
-                        ctx.schema, left_type,
-                        topbase=True)
-                elif (
-                        not isinstance(
-                            left_type, s_obj.Class) and
-                        (not isinstance(left_type, tuple) or
-                         not isinstance(
-                            left_type[1], s_obj.Class))):
-                    left_type = self._schema_type_to_pg_type(
-                        left_type)
+                left_pg_type = self._schema_type_to_pg_type(left_type)
+                right_pg_type = self._schema_type_to_pg_type(right_type)
 
-                if isinstance(right_type, s_obj.Class):
-                    if isinstance(right_type, s_concepts.Concept):
-                        right_type = right_type.pointers[
-                            'std::id'].target
-                    right_type = pg_types.pg_type_from_atom(
-                        ctx.schema, right_type,
-                        topbase=True)
-                elif (
-                        not isinstance(
-                            right_type, s_obj.Class) and
-                        (not isinstance(right_type, tuple) or
-                         not isinstance(
-                            right_type[1], s_obj.Class))):
-                    right_type = self._schema_type_to_pg_type(
-                        right_type)
-
-                if (
-                        left_type in ('text', 'varchar') and
-                        right_type in ('text', 'varchar') and
+                if (left_pg_type in {('text',), ('varchar',)} and
+                        right_pg_type in {('text',), ('varchar',)} and
                         op == ast.ops.ADD):
                     op = '||'
-                elif left_type != right_type:
-                    if isinstance(
-                            right, pgast.
-                            Constant) and right_type == 'text':
-                        right.type = left_type
-                    elif isinstance(
-                            left, pgast.
-                            Constant) and left_type == 'text':
-                        left.type = right_type
-
-                if (isinstance(right, pgast.Constant) and
-                        op in {ast.ops.IS, ast.ops.IS_NOT}):
-                    right.type = None
 
             result = self._new_binop(left, right, op=op)
 
@@ -455,7 +393,7 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
             result = pgast.TypeCast(
                 arg=pgast.Constant(val=concept_id),
                 type_name=pgast.TypeName(
-                    name='uuid'
+                    name=('uuid',)
                 )
             )
 

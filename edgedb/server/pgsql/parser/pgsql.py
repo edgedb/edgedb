@@ -564,12 +564,12 @@ class GenericType(Nonterm):
     def reduce_type_function_name_opt_type_modifiers(self, *kids):
         "%reduce type_function_name opt_type_modifiers"
         self.val = pgast.TypeName(
-            name=kids[0].val, typmods=kids[1].val)
+            name=(kids[0].val,), typmods=kids[1].val)
 
     def reduce_type_function_name_attrs_opt_type_modifiers(self, *kids):
         "%reduce type_function_name attrs opt_type_modifiers"
         self.val = pgast.TypeName(
-            name=[kids[0].val] + kids[1].val, typmods=kids[2].val)
+            name=(kids[0].val,) + tuple(kids[1].val), typmods=kids[2].val)
 
 
 class opt_type_modifiers(Nonterm):
@@ -588,23 +588,23 @@ class opt_type_modifiers(Nonterm):
 class Numeric(Nonterm):
     def reduce_INT_P(self, *kids):
         "%reduce INT_P"
-        self.val = pgast.TypeName(name='int4')
+        self.val = pgast.TypeName(name=('int4',))
 
     def reduce_INTEGER(self, *kids):
         "%reduce INTEGER"
-        self.val = pgast.TypeName(name='int4')
+        self.val = pgast.TypeName(name=('int4',))
 
     def reduce_SMALLINT(self, *kids):
         "%reduce SMALLINT"
-        self.val = pgast.TypeName(name='int2')
+        self.val = pgast.TypeName(name=('int2',))
 
     def reduce_BIGINT(self, *kids):
         "%reduce BIGINT"
-        self.val = pgast.TypeName(name='int8')
+        self.val = pgast.TypeName(name=('int8',))
 
     def reduce_REAL(self, *kids):
         "%reduce REAL"
-        self.val = pgast.TypeName(name='float4')
+        self.val = pgast.TypeName(name=('float4',))
 
     def reduce_FLOAT_P_opt_float(self, *kids):
         "%reduce FLOAT_P opt_float"
@@ -612,23 +612,23 @@ class Numeric(Nonterm):
 
     def reduce_DOUBLE_P_PRECISION(self, *kids):
         "%reduce DOUBLE_P PRECISION"
-        self.val = pgast.TypeName(name='float8')
+        self.val = pgast.TypeName(name=('float8',))
 
     def reduce_DECIMAL_P_opt_type_modifiers(self, *kids):
         "%reduce DECIMAL_P opt_type_modifiers"
-        self.val = pgast.TypeName(name='numeric', typmods=kids[1].val)
+        self.val = pgast.TypeName(name=('numeric',), typmods=kids[1].val)
 
     def reduce_DEC_opt_type_modifiers(self, *kids):
         "%reduce DEC opt_type_modifiers"
-        self.val = pgast.TypeName(name='numeric', typmods=kids[1].val)
+        self.val = pgast.TypeName(name=('numeric',), typmods=kids[1].val)
 
     def reduce_NUMERIC_opt_type_modifiers(self, *kids):
         "%reduce NUMERIC opt_type_modifiers"
-        self.val = pgast.TypeName(name='numeric', typmods=kids[1].val)
+        self.val = pgast.TypeName(name=('numeric',), typmods=kids[1].val)
 
     def reduce_BOOLEAN_P(self, *kids):
         "%reduce BOOLEAN_P"
-        self.val = pgast.TypeName(name='bool')
+        self.val = pgast.TypeName(name=('bool',))
 
 
 class opt_float(Nonterm):
@@ -640,16 +640,16 @@ class opt_float(Nonterm):
             raise error.PgSQLParserError(
                 'precision for type float must be at least 1 bit')
         elif precision <= 24:
-            self.val = pgast.TypeName(name='float4')
+            self.val = pgast.TypeName(name=('float4',))
         elif precision <= 53:
-            self.val = pgast.TypeName(name='float8')
+            self.val = pgast.TypeName(name=('float8',))
         else:
             raise error.PgSQLParserError(
                 'precision for type float must be less than 54 bits')
 
     def reduce_empty(self, *kids):
         "%reduce <e>"
-        self.val = pgast.TypeName(name='float8')
+        self.val = pgast.TypeName(name=('float8',))
 
 
 class Bit(Nonterm):
@@ -684,9 +684,9 @@ class BitWithLength(Nonterm):
         "%reduce BIT opt_varying LPAREN expr_list RPAREN"
 
         if kids[1].val:
-            self.val = pgast.TypeName(name='varbit')
+            self.val = pgast.TypeName(name=('varbit',))
         else:
-            self.val = pgast.TypeName(name='bit')
+            self.val = pgast.TypeName(name=('bit',))
 
         self.val.typmods = kids[3].val
 
@@ -698,9 +698,9 @@ class BitWithoutLength(Nonterm):
         "%reduce BIT opt_varying"
 
         if kids[1].val:
-            self.val = pgast.TypeName(name='varbit')
+            self.val = pgast.TypeName(name=('varbit',))
         else:
-            self.val = pgast.TypeName(name='bit')
+            self.val = pgast.TypeName(name=('bit',))
             self.val.typmods = [pgast.Constant(val=1)]
 
 
@@ -739,7 +739,7 @@ class CharacterWithLength(Nonterm):
         if kids[4].val and kids[4].val != 'sql_text':
             typname += '_' + kids[4].val
 
-        self.val = pgast.TypeName(name=typname, typmods=[kids[2].val])
+        self.val = pgast.TypeName(name=(typname,), typmods=[kids[2].val])
 
 
 class CharacterWithoutLength(Nonterm):
@@ -752,7 +752,7 @@ class CharacterWithoutLength(Nonterm):
         if kids[1].val and kids[1].val != 'sql_text':
             typname += '_' + kids[1].val
 
-        self.val = pgast.TypeName(name=typname)
+        self.val = pgast.TypeName(name=(typname,))
 
         if typname == 'bpchar':
             # CHAR defaults to 1
@@ -819,22 +819,22 @@ class ConstDatetime(Nonterm):
     def reduce_TIMESTAMP_ICONST_opt_timezone(self, *kids):
         "%reduce TIMESTAMP LPAREN ICONST RPAREN opt_timezone"
         typname = 'timestamptz' if kids[4].val else 'timestamp'
-        self.val = pgast.TypeName(name=typname, typmods=[kids[2].val])
+        self.val = pgast.TypeName(name=(typname,), typmods=[kids[2].val])
 
     def reduce_TIMESTAMP_opt_timezone(self, *kids):
         "%reduce TIMESTAMP opt_timezone"
         typname = 'timestamptz' if kids[1].val else 'timestamp'
-        self.val = pgast.TypeName(name=typname)
+        self.val = pgast.TypeName(name=(typname,))
 
     def reduce_TIME_ICONST_opt_timezone(self, *kids):
         "%reduce TIME LPAREN ICONST RPAREN opt_timezone"
         typname = 'timetz' if kids[4].val else 'time'
-        self.val = pgast.TypeName(name=typname, typmods=[kids[2].val])
+        self.val = pgast.TypeName(name=(typname,), typmods=[kids[2].val])
 
     def reduce_TIME_opt_timezone(self, *kids):
         "%reduce TIME opt_timezone"
         typname = 'timetz' if kids[1].val else 'time'
-        self.val = pgast.TypeName(name=typname)
+        self.val = pgast.TypeName(name=(typname,))
 
 
 class ConstInterval(Nonterm):
@@ -842,7 +842,7 @@ class ConstInterval(Nonterm):
 
     def reduce_INTERVAL(self, *kids):
         "%reduce INTERVAL"
-        self.val = pgast.TypeName(name='interval')
+        self.val = pgast.TypeName(name=('interval',))
 
 
 class opt_timezone(Nonterm):
@@ -994,7 +994,7 @@ class a_expr(Nonterm):
     def reduce_a_expr_AT_TIME_ZONE_a_expr(self, *kids):
         "%reduce a_expr AT TIME ZONE a_expr"
         self.val = pgast.FuncCall(
-            name='timezone', args=[kids[4], kids[0]])
+            name=('timezone',), args=[kids[4], kids[0]])
 
     def reduce_unary_plus(self, *kids):
         "%reduce PLUS a_expr [P_UMINUS]"
@@ -1137,7 +1137,7 @@ class a_expr(Nonterm):
     def reduce_a_expr_LIKE_a_expr_ESCAPE_a_expr(self, *kids):
         "%reduce a_expr LIKE a_expr ESCAPE a_expr"
         right = pgast.FuncCall(
-            name='like_escape', args=[kids[2].val, kids[4].val])
+            name=('like_escape',), args=[kids[2].val, kids[4].val])
         self.val = pgast.Expr(
             name=pgast.LIKE,
             lexpr=kids[0].val,
@@ -1155,7 +1155,7 @@ class a_expr(Nonterm):
     def reduce_a_expr_NOT_LIKE_a_expr_ESCAPE_a_expr(self, *kids):
         "%reduce a_expr NOT LIKE a_expr ESCAPE a_expr"
         right = pgast.FuncCall(
-            name='like_escape', args=[kids[3].val, kids[5].val])
+            name=('like_escape',), args=[kids[3].val, kids[5].val])
         self.val = pgast.Expr(
             name=pgast.NOT_LIKE,
             lexpr=kids[0].val,
@@ -1173,7 +1173,7 @@ class a_expr(Nonterm):
     def reduce_a_expr_ILIKE_a_expr_ESCAPE_a_expr(self, *kids):
         "%reduce a_expr ILIKE a_expr ESCAPE a_expr"
         right = pgast.FuncCall(
-            name='like_escape', args=[kids[2].val, kids[4].val])
+            name=('like_escape',), args=[kids[2].val, kids[4].val])
         self.val = pgast.Expr(
             name=pgast.ILIKE,
             lexpr=kids[0].val,
@@ -1191,7 +1191,7 @@ class a_expr(Nonterm):
     def reduce_a_expr_NOT_ILIKE_a_expr_ESCAPE_a_expr(self, *kids):
         "%reduce a_expr NOT ILIKE a_expr ESCAPE a_expr"
         right = pgast.FuncCall(
-            name='like_escape', args=[kids[3].val, kids[5].val])
+            name=('like_escape',), args=[kids[3].val, kids[5].val])
         self.val = pgast.Expr(
             name=pgast.NOT_ILIKE,
             lexpr=kids[0].val,
@@ -1209,7 +1209,7 @@ class a_expr(Nonterm):
     def reduce_a_expr_SIMILAR_TO_a_expr_ESCAPE_a_expr(self, *kids):
         "%reduce a_expr SIMILAR TO a_expr ESCAPE a_expr"
         right = pgast.FuncCall(
-            name='similar_escape', args=[kids[3].val, kids[5].val])
+            name=('similar_escape',), args=[kids[3].val, kids[5].val])
         self.val = pgast.Expr(
             name=pgast.SIMILAR_TO,
             lexpr=kids[0].val,
@@ -1227,7 +1227,7 @@ class a_expr(Nonterm):
     def reduce_a_expr_NOT_SIMILAR_TO_a_expr_ESCAPE_a_expr(self, *kids):
         "%reduce a_expr NOT SIMILAR TO a_expr ESCAPE a_expr"
         right = pgast.FuncCall(
-            name='like_escape', args=[kids[4].val, kids[6].val])
+            name=('like_escape',), args=[kids[4].val, kids[6].val])
         self.val = pgast.Expr(
             name=pgast.NOT_SIMILAR_TO,
             lexpr=kids[0].val,
@@ -1253,7 +1253,7 @@ class a_expr(Nonterm):
     def reduce_row_OVERLAPS_row(self, *kids):
         "%reduce row OVERLAPS row"
         self.val = pgast.FuncCall(
-            name='overlaps', args=[kids[0].val, kids[2].val])
+            name=('overlaps',), args=[kids[0].val, kids[2].val])
 
     def reduce_a_expr_IS_TRUE_P(self, *kids):
         "%reduce a_expr IS TRUE_P"
@@ -1644,7 +1644,7 @@ class attr_name(Nonterm):
 class func_name(Nonterm):
     def reduce_type_function_name(self, *kids):
         "%reduce type_function_name"
-        self.val = kids[0].val
+        self.val = (kids[0].val,)
 
     def reduce_col_id_indirection(self, *kids):
         "%reduce ColId indirection"
@@ -1695,13 +1695,14 @@ class AexprConst(Nonterm):
         "%reduce func_name SCONST"
         self.val = pgast.TypeCast(
             arg=pgast.Constant(val=kids[1].val),
-            type_name=pgast.TypeName(name=kids[0].val))
+            type_name=pgast.TypeName(name=(kids[0].val,)))
 
     def reduce_type_mods_const(self, *kids):
         "%reduce func_name LPAREN func_arg_list RPAREN SCONST"
         self.val = pgast.TypeCast(
             art=pgast.Constant(val=kids[4].val),
-            type_name=pgast.TypeName(name=kids[0].val, typmods=kids[2].val))
+            type_name=pgast.TypeName(
+                name=(kids[0].val,), typmods=kids[2].val))
 
     def reduce_ConstTypename_const(self, *kids):
         "%reduce ConstTypename SCONST"

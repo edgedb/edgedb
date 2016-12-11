@@ -72,6 +72,8 @@ class MetaAST(type):
 
                     if issubclass(f_type, typing.List):
                         f_default = list
+                    elif issubclass(f_type, typing.Tuple):
+                        f_default = tuple
                     else:
                         raise RuntimeError(
                             f'invalid type annotation on {f_fullname}: '
@@ -219,8 +221,25 @@ class AST(object, metaclass=MetaAST):
             if issubclass(field.type, typing.List):
                 if not isinstance(value, list):
                     raise_error(str(field.type), value)
+
+                eltype = field.type.__args__[0]
+                if eltype.__class__ is typing.Union.__class__:
+                    eltype = eltype.__args__
+
                 for el in value:
-                    if not isinstance(el, field.type.__args__[0]):
+                    if not isinstance(el, eltype):
+                        raise_error(str(field.type), value)
+                return
+            elif issubclass(field.type, typing.Tuple):
+                if not isinstance(value, tuple):
+                    raise_error(str(field.type), value)
+
+                eltype = field.type.__args__[0]
+                if eltype.__class__ is typing.Union.__class__:
+                    eltype = eltype.__args__
+
+                for el in value:
+                    if not isinstance(el, eltype):
                         raise_error(str(field.type), value)
                 return
             else:

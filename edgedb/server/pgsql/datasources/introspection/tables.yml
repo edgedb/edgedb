@@ -28,7 +28,7 @@ source: |
                 c.relname                               AS table_name,
                 a.attname                               AS column_name,
                 t.typname                               AS column_type,
-                format_type(t.oid, a.atttypmod)         AS column_type_formatted,
+                a.atttypmod                             AS column_type_mod,
                 tns.nspname                             AS column_type_schema,
                 t.oid                                   AS column_type_oid,
                 a.attnotnull                            AS column_required,

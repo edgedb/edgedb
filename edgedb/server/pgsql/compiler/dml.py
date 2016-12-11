@@ -296,7 +296,6 @@ class IRCompilerDMLSupport:
                     link_bias=False)
 
                 props_only = False
-                ins_props = None
 
                 # First, process all local link inserts.
                 if ptr_info.table_type == 'concept':
@@ -305,15 +304,10 @@ class IRCompilerDMLSupport:
                     cols.append(field)
 
                     with self.context.new():
-                        if self._is_composite_cast(insvalue):
-                            insvalue, ins_props = self._extract_update_value(
-                                insvalue, ptr_info.column_type)
-
-                        else:
-                            insvalue = pgast.TypeCast(
-                                arg=self.visit(insvalue),
-                                type_name=pgast.TypeName(
-                                    name=ptr_info.column_type))
+                        insvalue = pgast.TypeCast(
+                            arg=self.visit(insvalue),
+                            type_name=pgast.TypeName(
+                                name=ptr_info.column_type))
 
                         values.args.append(insvalue)
 
@@ -364,21 +358,15 @@ class IRCompilerDMLSupport:
                     link_bias=False)
 
                 props_only = False
-                upd_props = None
 
                 # First, process all internal link updates
                 if ptr_info.table_type == 'concept':
                     props_only = True
 
-                    if self._is_composite_cast(updvalue):
-                        updvalue, upd_props = self._extract_update_value(
-                            updvalue, ptr_info.column_type)
-
-                    else:
-                        updvalue = pgast.TypeCast(
-                            arg=self.visit(updvalue),
-                            type_name=pgast.TypeName(
-                                name=ptr_info.column_type))
+                    updvalue = pgast.TypeCast(
+                        arg=self.visit(updvalue),
+                        type_name=pgast.TypeName(
+                            name=ptr_info.column_type))
 
                     update_stmt.targets.append(
                         pgast.UpdateTarget(
@@ -579,7 +567,9 @@ class IRCompilerDMLSupport:
                     cols=cols,
                     on_conflict=pgast.OnConflictClause(
                         action='update',
-                        infer=conflict_inference,
+                        infer=pgast.InferClause(
+                            index_elems=conflict_inference
+                        ),
                         target_list=[
                             pgast.MultiAssignRef(
                                 columns=cols,
@@ -735,7 +725,7 @@ class IRCompilerDMLSupport:
                             arg=pgast.TypeCast(
                                 arg=row,
                                 type_name=pgast.TypeName(
-                                    name=common.qname(*target_tab)
+                                    name=target_tab
                                 )
                             ),
                             indirection=[pgast.Star()]

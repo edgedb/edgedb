@@ -208,7 +208,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                         target_list=[
                             pgast.ResTarget(
                                 val=pgast.FuncCall(
-                                    name='array_agg',
+                                    name=('array_agg',),
                                     args=[
                                         pgast.ColumnRef(
                                             name=[
@@ -259,7 +259,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 keyvals.append(pgexpr)
 
             result = pgast.FuncCall(
-                name='jsonb_build_object', args=keyvals)
+                name=('jsonb_build_object',), args=keyvals)
         else:
             # In non-JSON mode the result is an anonymous record.
             result = pgast.RowExpr(args=my_elements)
@@ -802,7 +802,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             if selexprs:
                 target = pgast.ResTarget(
                     name=None,
-                    val=pgast.FuncCall(name='to_jsonb', args=[pgexpr]),
+                    val=pgast.FuncCall(name=('to_jsonb',), args=[pgexpr]),
                 )
 
                 query.target_list.append(target)

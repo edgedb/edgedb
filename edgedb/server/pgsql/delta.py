@@ -630,7 +630,7 @@ class AtomMetaCommand(NamedClassMetaCommand):
         if intent == 'alter':
             new_name = domain_name[0], domain_name[1] + '_tmp'
             self.pgops.add(dbops.RenameDomain(domain_name, new_name))
-            target_type = common.qname(*domain_name)
+            target_type = domain_name
 
             self.pgops.add(dbops.CreateDomain(
                 name=domain_name, base=new_type))
@@ -1058,12 +1058,12 @@ class CompositeClassMetaCommand(NamedClassMetaCommand):
                     # Moved from concept table to link table
                     col = dbops.Column(
                         name=old_ptr_stor_info.column_name,
-                        type=old_ptr_stor_info.column_type)
+                        type=common.qname(*old_ptr_stor_info.column_type))
                     at.add_command(dbops.AlterTableDropColumn(col))
 
                     newcol = dbops.Column(
                         name=new_ptr_stor_info.column_name,
-                        type=new_ptr_stor_info.column_type)
+                        type=common.qname(*new_ptr_stor_info.column_type))
 
                     cond = dbops.ColumnExists(
                         new_ptr_stor_info.table_name, column_name=newcol.name)
@@ -1078,7 +1078,7 @@ class CompositeClassMetaCommand(NamedClassMetaCommand):
 
                     oldcol = dbops.Column(
                         name=old_ptr_stor_info.column_name,
-                        type=old_ptr_stor_info.column_type)
+                        type=common.qname(*old_ptr_stor_info.column_type))
 
                     if oldcol.name != 'std::target':
                         pat.add_command(dbops.AlterTableDropColumn(oldcol))
@@ -1106,9 +1106,13 @@ class CompositeClassMetaCommand(NamedClassMetaCommand):
 
                         alter_table = source_op.get_alter_table(
                             context, priority=1)
+
+                        new_type = \
+                            types.pg_type_from_object(schema, new_target)
+
                         alter_type = dbops.AlterTableAlterColumnType(
                             old_ptr_stor_info.column_name,
-                            types.pg_type_from_object(schema, new_target))
+                            common.qname(*new_type))
                         alter_table.add_operation(alter_type)
 
     def apply_base_delta(self, orig_source, source, schema, context):
@@ -1169,7 +1173,8 @@ class CompositeClassMetaCommand(NamedClassMetaCommand):
                 if is_a_column:
                     col = dbops.Column(
                         name=ptr_stor_info.column_name,
-                        type=ptr_stor_info.column_type, required=ptr.required)
+                        type=common.qname(*ptr_stor_info.column_type),
+                        required=ptr.required)
                     cond = dbops.ColumnExists(
                         table_name=source_ctx.op.table_name,
                         column_name=ptr_stor_info.column_name)
@@ -1207,7 +1212,7 @@ class CompositeClassMetaCommand(NamedClassMetaCommand):
                         if is_a_column:
                             col = dbops.Column(
                                 name=ptr_stor_info.column_name,
-                                type=ptr_stor_info.column_type,
+                                type=common.qname(*ptr_stor_info.column_type),
                                 required=ptr.required)
 
                             cond = dbops.ColumnExists(
@@ -1693,7 +1698,7 @@ class PointerMetaCommand(MetaCommand):
                     self, schema, context, old_target, new_target,
                     in_place=False)
                 alter_type = dbops.AlterTableAlterColumnType(
-                    column_name, target_type)
+                    column_name, common.qname(*target_type))
                 alter_table.add_operation(alter_type)
             else:
                 cols = self.get_columns(ptr, schema)
@@ -1749,7 +1754,8 @@ class PointerMetaCommand(MetaCommand):
         ptr_stor_info = types.get_pointer_storage_info(pointer, schema=schema)
         return [
             dbops.Column(
-                name=ptr_stor_info.column_name, type=ptr_stor_info.column_type,
+                name=ptr_stor_info.column_name,
+                type=common.qname(*ptr_stor_info.column_type),
                 required=pointer.required, default=default,
                 comment=pointer.shortname)
         ]
@@ -1874,7 +1880,8 @@ class LinkMetaCommand(CompositeClassMetaCommand, PointerMetaCommand):
                     tgt_prop, schema=schema)
                 columns.append(
                     dbops.Column(
-                        name=tgt_ptr.column_name, type=tgt_ptr.column_type))
+                        name=tgt_ptr.column_name,
+                        type=common.qname(*tgt_ptr.column_type)))
 
         table = dbops.Table(name=new_table_name)
         table.add_columns(columns)
@@ -2174,7 +2181,7 @@ class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
                         context, manual=True, priority=2)
                     col = dbops.Column(
                         name=ptr_stor_info.column_name,
-                        type=ptr_stor_info.column_type)
+                        type=common.qname(*ptr_stor_info.column_type))
                     cond = dbops.ColumnExists(
                         table_name=concept.op.table_name, column_name=col.name)
                     col = dbops.AlterTableDropColumn(col)

@@ -98,14 +98,14 @@ class Decompiler(ast.visitor.NodeVisitor):
         return irast.Sequence(elements=[self.visit(e) for e in expr.elements])
 
     def visit_FuncCall(self, expr):
-        if expr.name in ('lower', 'upper'):
+        if expr.name in {('lower',), ('upper',)}:
             fname = ('std', expr.name)
             args = [self.visit(a) for a in expr.args]
-        elif expr.name == 'now':
+        elif expr.name == ('now',):
             fname = ('std', 'current_datetime')
             args = [self.visit(a) for a in expr.args]
-        elif expr.name in (
-                ('edgedb', 'uuid_generate_v1mc'), 'uuid_generate_v1mc'):
+        elif expr.name in {
+                ('edgedb', 'uuid_generate_v1mc'), ('uuid_generate_v1mc',)}:
             fname = ('std', 'uuid_generate_v1mc')
             args = [self.visit(a) for a in expr.args]
         else:
