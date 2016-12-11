@@ -94,7 +94,6 @@ class Cli:
         self.conn_args = conn_args
         self.cur_db = None
         self.graphql = False
-        self.old_compiler = False
 
     def get_prompt(self):
         return '{}>'.format(self.cur_db)
@@ -113,11 +112,7 @@ class Cli:
         return [
             (pt_token.Token.Toolbar, '[F3] GraphQL: '),
             (pt_token.Token.Toolbar.On, 'On') if self.graphql else
-                (pt_token.Token.Toolbar, 'Off'),
-
-            (pt_token.Token.Toolbar, '   [F4] Old Compiler: '),
-            (pt_token.Token.Toolbar.On, 'On') if self.old_compiler else
-                (pt_token.Token.Toolbar, 'Off')
+            (pt_token.Token.Toolbar, 'Off'),
         ]
 
     def build_cli(self):
@@ -132,10 +127,6 @@ class Cli:
         @key_binding_manager.registry.add_binding(pt_keys.Keys.F3)
         def _(event):
             self.graphql = not self.graphql
-
-        @key_binding_manager.registry.add_binding(pt_keys.Keys.F4)
-        def _(event):
-            self.old_compiler = not self.old_compiler
 
         @key_binding_manager.registry.add_binding(pt_keys.Keys.Tab)
         def _(event):
@@ -246,13 +237,9 @@ class Cli:
                 try:
                     if self.graphql:
                         command = command.rstrip(';')
-                    flags = set()
-                    if self.old_compiler:
-                        flags.add('compiler-v0')
-
                     result = self.run_coroutine(
                         self.connection.execute(
-                            command, graphql=self.graphql, flags=flags))
+                            command, graphql=self.graphql))
                 except KeyboardInterrupt:
                     continue
                 except Exception as ex:
