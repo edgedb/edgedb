@@ -27,7 +27,6 @@ class Field:
         self.child_traverse = \
             child_traverse if child_traverse is not None else traverse
         self.hidden = field_hidden
-        self._typing_type = isinstance(type_, typing.TypingMeta)
 
 
 class MetaAST(type):
@@ -52,41 +51,13 @@ class MetaAST(type):
 
                 if f_type is object:
                     f_type = None
-                if f_type is not None and not isinstance(f_type, type):
-                    raise RuntimeError(
-                        f'invalid type annotation on {f_fullname}: '
-                        f'{f_type!r} is not a type')
 
                 if f_name in dct:
                     f_default = dct.pop(f_name)
                 else:
                     f_default = None
 
-                if isinstance(f_type, typing.TypingMeta):
-                    if (issubclass(f_type, typing.Container) and
-                            f_default is not None):
-                        raise RuntimeError(
-                            f'invalid type annotation on {f_fullname}: '
-                            f'default is defined for container type '
-                            f'{f_type!r}')
-
-                    if issubclass(f_type, typing.List):
-                        f_default = list
-                    elif issubclass(f_type, typing.Tuple):
-                        f_default = tuple
-                    else:
-                        raise RuntimeError(
-                            f'invalid type annotation on {f_fullname}: '
-                            f'{f_type!r} is not supported')
-                elif f_type is not None:
-                    if (issubclass(f_type, collections.abc.Container) and
-                            not issubclass(f_type, (str, bytes))):
-                        if f_default is not None:
-                            raise RuntimeError(
-                                f'invalid type annotation on {f_fullname}: '
-                                f'default is defined for container type '
-                                f'{f_type!r}')
-                        f_default = f_type
+                f_default = _check_annotation(f_type, f_fullname, f_default)
 
                 f_hidden = f_name in hidden
 
@@ -217,37 +188,7 @@ class AST(object, metaclass=MetaAST):
                     self.__class__.__module__, self.__class__.__name__,
                     field.name, field_type_name, value.__class__.__name__))
 
-        if field._typing_type:
-            if issubclass(field.type, typing.List):
-                if not isinstance(value, list):
-                    raise_error(str(field.type), value)
-
-                eltype = field.type.__args__[0]
-                if eltype.__class__ is typing.Union.__class__:
-                    eltype = eltype.__args__
-
-                for el in value:
-                    if not isinstance(el, eltype):
-                        raise_error(str(field.type), value)
-                return
-            elif issubclass(field.type, typing.Tuple):
-                if not isinstance(value, tuple):
-                    raise_error(str(field.type), value)
-
-                eltype = field.type.__args__[0]
-                if eltype.__class__ is typing.Union.__class__:
-                    eltype = eltype.__args__
-
-                for el in value:
-                    if not isinstance(el, eltype):
-                        raise_error(str(field.type), value)
-                return
-            else:
-                raise TypeError(f'unsupported typing type: {field.type!r}')
-
-        if (field.type and value is not None and
-                not isinstance(value, field.type)):
-            raise_error(field.type.__name__, value)
+        _check_type(field.type, value, raise_error)
 
     def dump(self):
         markup.dump(self)
@@ -265,11 +206,18 @@ def _serialize_to_markup(ast, *, ctx):
     return node
 
 
-
 def is_container(value):
     return (
         isinstance(value, (collections.abc.Sequence, collections.abc.Set)) and
         not isinstance(value, (str, bytes, bytearray, memoryview))
+    )
+
+
+def is_container_type(type_):
+    return (
+        isinstance(type_, type) and
+        issubclass(type_, collections.abc.Container) and
+        not issubclass(type_, (str, bytes, bytearray, memoryview))
     )
 
 
@@ -300,3 +248,90 @@ def iter_fields(node):
             yield f, getattr(node, f)
         except AttributeError:
             pass
+
+
+def _is_union(type_):
+    return type_.__class__ is typing.Union.__class__
+
+
+def _is_typing(type_):
+    return _is_union(type_) or isinstance(type_, typing.TypingMeta)
+
+
+def _check_annotation(f_type, f_fullname, f_default):
+    if _is_typing(f_type):
+        if _is_union(f_type):
+            for t in f_type.__args__:
+                _check_annotation(t, f_fullname, f_default)
+
+        else:
+            if (issubclass(f_type, typing.Container) and
+                    f_default is not None):
+                raise RuntimeError(
+                    f'invalid type annotation on {f_fullname}: '
+                    f'default is defined for container type '
+                    f'{f_type!r}')
+
+            if issubclass(f_type, typing.List):
+                f_default = list
+            elif issubclass(f_type, typing.Tuple):
+                f_default = tuple
+            else:
+                raise RuntimeError(
+                    f'invalid type annotation on {f_fullname}: '
+                    f'{f_type!r} is not supported')
+
+    elif f_type is not None:
+        if not isinstance(f_type, type):
+            raise RuntimeError(
+                f'invalid type annotation on {f_fullname}: '
+                f'{f_type!r} is not a type')
+
+        if is_container_type(f_type):
+            if f_default is not None:
+                raise RuntimeError(
+                    f'invalid type annotation on {f_fullname}: '
+                    f'default is defined for container type '
+                    f'{f_type!r}')
+            f_default = f_type
+
+    return f_default
+
+
+def _check_container_type(type_, value, raise_error, instance_type):
+    if not isinstance(value, instance_type):
+        raise_error(str(type_), value)
+
+    eltype = type_.__args__[0]
+    for el in value:
+        _check_type(eltype, el, raise_error)
+
+
+def _check_type(type_, value, raise_error):
+    if type_ is None:
+        return
+
+    if not _is_typing(type_):
+        if value is not None and not isinstance(value, type_):
+            raise_error(type_.__name__, value)
+
+    else:
+        if _is_union(type_):
+            for t in type_.__args__:
+                try:
+                    _check_type(t, value, raise_error)
+                except TypeError as e:
+                    pass
+                else:
+                    break
+            else:
+                raise_error(str(type_), value)
+
+        elif issubclass(type_, typing.List):
+            _check_container_type(type_, value, raise_error, list)
+
+        elif issubclass(type_, typing.Tuple):
+            _check_container_type(type_, value, raise_error, tuple)
+
+        elif issubclass(type_, typing.Meta):
+            raise TypeError(f'unsupported typing type: {type_!r}')

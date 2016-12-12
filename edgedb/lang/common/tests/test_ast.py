@@ -79,9 +79,13 @@ class ASTBaseTests(unittest.TestCase):
         class Node(Base):
             field_list: list
             field_typing_list: typing.List[Base]
+            field_typing_tuple: typing.Tuple[Base, ...]
+            field_typing_union: typing.Union[str, bytes]
+            field_typing_union_list: typing.List[typing.Union[str, bytes]]
 
         self.assertEqual(Node().field_list, [])
         self.assertEqual(Node().field_typing_list, [])
+        self.assertEqual(Node().field_typing_tuple, ())
 
         Node().field_list = []
         Node().field_list = [12, 2]
@@ -94,6 +98,26 @@ class ASTBaseTests(unittest.TestCase):
             Node().field_typing_list = 'abc'
         with self.assertRaises(TypeError):
             Node().field_typing_list = ['abc']
+
+        Node().field_typing_tuple = ()
+        Node().field_typing_tuple = (Base(),)
+        with self.assertRaises(TypeError):
+            Node().field_typing_tuple = 'abc'
+        with self.assertRaises(TypeError):
+            Node().field_typing_tuple = ('abc',)
+
+        Node().field_typing_union = 'abc'
+        Node().field_typing_union = b'abc'
+        with self.assertRaises(TypeError):
+            Node().field_typing_union = 1
+
+        self.assertEqual(Node().field_typing_union_list, [])
+        Node().field_typing_union_list = ['abc', b'abc']
+        Node().field_typing_union_list = [b'abc', 'abc']
+        with self.assertRaises(TypeError):
+            Node().field_typing_union_list = [1]
+        with self.assertRaises(TypeError):
+            Node().field_typing_union_list = 'abc'
 
         class Node(ast.AST):
             field1: str
