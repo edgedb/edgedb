@@ -5,8 +5,8 @@
 # See LICENSE for details.
 ##
 
-from edgedb.lang import edgeql
 from edgedb.lang.edgeql import ast as qlast
+from edgedb.lang.edgeql import compiler as ql_compiler
 from edgedb.lang.schema import ddl as s_ddl
 
 
@@ -41,5 +41,5 @@ def plan_statement(stmt, backend, flags={}):
         return TransactionStatement(stmt)
 
     else:
-        ir = edgeql.compile_ast_to_ir(stmt, schema=backend.schema)
+        ir = ql_compiler.compile_ast_to_ir(stmt, schema=backend.schema)
         return backend.compile(ir, output_format='json')

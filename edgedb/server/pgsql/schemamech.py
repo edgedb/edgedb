@@ -11,7 +11,7 @@ import itertools
 from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import astexpr as irastexpr
 from edgedb.lang.ir import utils as ir_utils
-from edgedb.lang import edgeql
+from edgedb.lang.edgeql import compiler as ql_compiler
 
 from edgedb.lang.schema import atoms as s_atoms
 from edgedb.lang.schema import concepts as s_concepts
@@ -219,7 +219,7 @@ class ConstraintMech:
             cls, subject, constraint, schema):
         assert constraint.subject is not None
 
-        ir = edgeql.compile_to_ir(
+        ir = ql_compiler.compile_to_ir(
             constraint.finalexpr, schema, anchors={'subject': subject})
 
         terminal_refs = ir_utils.get_terminal_references(ir.result)
@@ -542,7 +542,7 @@ class TypeMech:
 
 def ptr_default_to_col_default(schema, ptr, expr):
     try:
-        ir = edgeql.compile_to_ir(expr, schema)
+        ir = ql_compiler.compile_to_ir(expr, schema)
     except s_err.SchemaError:
         # Referene errors mean that is is a non-constant default
         # referring to a not-yet-existing objects.

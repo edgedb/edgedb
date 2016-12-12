@@ -43,7 +43,8 @@ from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import policy as s_policy
 from edgedb.lang.schema import types as s_types
 
-from edgedb.lang import edgeql
+from edgedb.lang.edgeql import codegen as ql_codegen
+from edgedb.lang.edgeql.compiler import decompiler as ql_decompiler
 
 from edgedb.server import query as backend_query
 from edgedb.server.pgsql import common
@@ -120,7 +121,7 @@ class Cursor:
 class Query(backend_query.Query):
     def __init__(
             self, chunks, arg_index, argmap, result_types, argument_types,
-            context_vars, scrolling_cursor=False, offset=None, limit=None,
+            scrolling_cursor=False, offset=None, limit=None,
             query_type=None, record_info=None, output_format=None):
         self.chunks = chunks
         self.text = ''.join(chunks)
@@ -130,7 +131,6 @@ class Query(backend_query.Query):
         self.argument_types = collections.OrderedDict((k, argument_types[k])
                                                       for k in argmap
                                                       if k in argument_types)
-        self.context_vars = context_vars
 
         self.scrolling_cursor = scrolling_cursor
         self.offset = offset.index if offset is not None else None
@@ -617,7 +617,6 @@ class Backend(s_deltarepo.DeltaProvider):
         return Query(
             chunks=qchunks, arg_index=arg_index, argmap=argmap,
             result_types=restypes, argument_types=argtypes,
-            context_vars=query_ir.context_vars,
             scrolling_cursor=scrolling_cursor, offset=offset, limit=limit,
             query_type=query_type, record_info=record_info,
             output_format=output_format)
@@ -972,9 +971,9 @@ class Backend(s_deltarepo.DeltaProvider):
         if result is None:
             sql_decompiler = decompiler.Decompiler(schema)
             edgedb_tree = sql_decompiler.transform(expr_tree, source)
-            edgeql_tree = edgeql.decompile_ir(
+            edgeql_tree = ql_decompiler.decompile_ir(
                 edgedb_tree, return_statement=True)
-            result = edgeql.generate_source(edgeql_tree, pretty=False)
+            result = ql_codegen.generate_source(edgeql_tree, pretty=False)
             result = s_expr.ExpressionText(result)
 
         return result
@@ -1228,9 +1227,9 @@ class Backend(s_deltarepo.DeltaProvider):
                             continue
 
                         edgedb_tree = sql_decompiler.transform(index_sql, link)
-                        edgeql_tree = edgeql.decompile_ir(
+                        edgeql_tree = ql_decompiler.decompile_ir(
                             edgedb_tree, return_statement=True)
-                        expr = edgeql.generate_source(
+                        expr = ql_codegen.generate_source(
                             edgeql_tree, pretty=False)
                         schema_name = index.get_metadata('schemaname')
                         index = s_indexes.SourceIndex(
@@ -1550,9 +1549,10 @@ class Backend(s_deltarepo.DeltaProvider):
                         continue
 
                     ir_tree = sql_decompiler.transform(index_sql, concept)
-                    edgeql_tree = edgeql.decompile_ir(
+                    edgeql_tree = ql_decompiler.decompile_ir(
                         ir_tree, return_statement=True)
-                    expr = edgeql.generate_source(edgeql_tree, pretty=False)
+                    expr = ql_codegen.generate_source(
+                        edgeql_tree, pretty=False)
                     schema_name = index.get_metadata('schemaname')
                     index = s_indexes.SourceIndex(
                         name=sn.Name(schema_name), subject=concept, expr=expr)

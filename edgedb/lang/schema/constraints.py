@@ -8,8 +8,6 @@
 
 import itertools
 
-from edgedb.lang.ir import utils as ir_utils
-from edgedb.lang import edgeql
 from edgedb.lang.edgeql import ast as qlast
 
 from . import delta as sd
@@ -273,10 +271,12 @@ class Constraint(primary.PrimaryClass, derivable.DerivableClass):
     @classmethod
     def _normalize_constraint_expr(cls, schema, module_aliases, expr, subject,
                                    inline_anchors=False):
+        from edgedb.lang.edgeql import parser as edgeql_parser
         from edgedb.lang.edgeql import utils as edgeql_utils
+        from edgedb.lang.ir import utils as ir_utils
 
         if isinstance(expr, str):
-            tree = edgeql.parse(expr, module_aliases)
+            tree = edgeql_parser.parse(expr, module_aliases)
         else:
             tree = expr
 
@@ -290,25 +290,30 @@ class Constraint(primary.PrimaryClass, derivable.DerivableClass):
 
     @classmethod
     def normalize_constraint_expr(cls, schema, module_aliases, expr):
+        from edgedb.lang.edgeql import codegen as edgeql_codegen
+
         subject = cls._dummy_subject()
         edgeql_tree, tree, arg_types = cls._normalize_constraint_expr(
             schema, module_aliases, expr, subject)
 
-        expr = edgeql.generate_source(edgeql_tree, pretty=False)
+        expr = edgeql_codegen.generate_source(edgeql_tree, pretty=False)
         # XXX: check that expr has boolean result
         return expr
 
     @classmethod
     def normalize_constraint_subject_expr(cls, schema, module_aliases, expr):
+        from edgedb.lang.edgeql import codegen as edgeql_codegen
+
         subject = cls._dummy_subject()
         edgeql_tree, _, _ = cls._normalize_constraint_expr(
             schema, module_aliases, expr, subject)
-        expr = edgeql.generate_source(edgeql_tree, pretty=False)
+        expr = edgeql_codegen.generate_source(edgeql_tree, pretty=False)
         return expr
 
     @classmethod
     def process_specialized_constraint(cls, schema, constraint, params):
         from edgedb.lang.edgeql import utils as edgeql_utils
+        from edgedb.lang.edgeql import codegen as edgeql_codegen
 
         assert constraint.subject is not None
 
@@ -330,7 +335,7 @@ class Constraint(primary.PrimaryClass, derivable.DerivableClass):
                 schema, {}, subjectexpr, subject)
 
             if constraint.subjectexpr is None:
-                constraint.subjectexpr = edgeql.generate_source(
+                constraint.subjectexpr = edgeql_codegen.generate_source(
                     edgeql_tree, pretty=False)
 
         expr = constraint.get_field_value('expr')
@@ -381,7 +386,7 @@ class Constraint(primary.PrimaryClass, derivable.DerivableClass):
             constraint.errmessage = constraint.errmessage.format(
                 subject='{subject}', **fmtparams)
 
-        text = edgeql.generate_source(edgeql_tree, pretty=False)
+        text = edgeql_codegen.generate_source(edgeql_tree, pretty=False)
 
         constraint.localfinalexpr = text
         constraint.finalexpr = text

@@ -29,140 +29,7 @@ from edgedb.lang.common import ast
 from edgedb.lang.common import exceptions as edgedb_error
 from edgedb.lang.common import markup  # NOQA
 
-
-class ParseContextLevel(object):
-    def __init__(self, prevlevel=None, mode=None):
-        if prevlevel is not None:
-            self.toplevel_shape_rptrcls = None
-
-            if mode == ParseContext.SUBQUERY:
-                self.stmt = None
-                self.sets = {}
-                self.pathvars = {}
-                self.anchors = {}
-                self.namespaces = prevlevel.namespaces.copy()
-                self.location = None
-                self.groupprefixes = None
-                self.in_aggregate = []
-                self.in_func_call = False
-                self.arguments = prevlevel.arguments
-                self.context_vars = prevlevel.context_vars
-                self.schema = prevlevel.schema
-                self.modaliases = prevlevel.modaliases
-                self.aliascnt = prevlevel.aliascnt.copy()
-                self.subgraphs_map = {}
-                self.cge_map = prevlevel.cge_map.copy()
-                self.apply_access_control_rewrite = \
-                    prevlevel.apply_access_control_rewrite
-                self.local_link_source = None
-                self.arg_types = prevlevel.arg_types
-            else:
-                self.stmt = prevlevel.stmt
-                if mode == ParseContext.NEWSETS:
-                    self.sets = {}
-                else:
-                    self.sets = prevlevel.sets
-                self.pathvars = prevlevel.pathvars
-                self.anchors = prevlevel.anchors
-                self.namespaces = prevlevel.namespaces
-                self.location = prevlevel.location
-                self.groupprefixes = prevlevel.groupprefixes
-                self.in_aggregate = prevlevel.in_aggregate[:]
-                self.in_func_call = prevlevel.in_func_call
-                self.arguments = prevlevel.arguments
-                self.context_vars = prevlevel.context_vars
-                self.schema = prevlevel.schema
-                self.modaliases = prevlevel.modaliases
-                self.aliascnt = prevlevel.aliascnt
-                self.subgraphs_map = prevlevel.subgraphs_map
-                self.cge_map = prevlevel.cge_map
-                self.apply_access_control_rewrite = \
-                    prevlevel.apply_access_control_rewrite
-                self.local_link_source = prevlevel.local_link_source
-                self.arg_types = prevlevel.arg_types
-        else:
-            self.stmt = None
-            self.sets = {}
-            self.pathvars = {}
-            self.anchors = {}
-            self.namespaces = {}
-            self.location = None
-            self.groupprefixes = None
-            self.in_aggregate = []
-            self.in_func_call = False
-            self.arguments = {}
-            self.context_vars = {}
-            self.schema = None
-            self.modaliases = None
-            self.aliascnt = {}
-            self.subgraphs_map = {}
-            self.cge_map = {}
-            self.apply_access_control_rewrite = False
-            self.local_link_source = None
-            self.arg_types = {}
-            self.toplevel_shape_rptrcls = None
-
-    def genalias(self, hint=None):
-        if hint is None:
-            hint = 'a'
-
-        if hint not in self.aliascnt:
-            self.aliascnt[hint] = 1
-        else:
-            self.aliascnt[hint] += 1
-
-        alias = hint
-        number = self.aliascnt[hint]
-        if number > 1:
-            alias += str(number)
-
-        return alias
-
-
-class ParseContext(object):
-    CURRENT, NEW, SUBQUERY, NEWSETS = range(0, 4)
-
-    def __init__(self):
-        self.stack = []
-        self.push()
-
-    def push(self, mode=None):
-        level = ParseContextLevel(self.current, mode)
-        self.stack.append(level)
-
-        return level
-
-    def pop(self):
-        self.stack.pop()
-
-    def __call__(self, mode=None):
-        if not mode:
-            mode = ParseContext.NEW
-        return ParseContextWrapper(self, mode)
-
-    def _current(self):
-        if len(self.stack) > 0:
-            return self.stack[-1]
-        else:
-            return None
-
-    current = property(_current)
-
-
-class ParseContextWrapper(object):
-    def __init__(self, context, mode):
-        self.context = context
-        self.mode = mode
-
-    def __enter__(self):
-        if self.mode == ParseContext.CURRENT:
-            return self.context
-        else:
-            self.context.push(self.mode)
-            return self.context
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.context.pop()
+from .context import CompilerContext
 
 
 class EdgeQLCompilerError(edgedb_error.EdgeDBError):
@@ -278,7 +145,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
             stmt.groupby = self._process_groupby(edgeql_tree.groupby)
             if stmt.groupby:
-                ctx.groupprefixes = extract_prefixes(stmt.groupby)
+                ctx.group_paths = set(extract_prefixes(stmt.groupby))
             else:
                 # Check if query() or order() contain any aggregate
                 # expressions and if so, add a sentinel group prefix
@@ -294,7 +161,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 for node in itertools.chain(edgeql_tree.orderby or [],
                                             edgeql_tree.targets or []):
                     if ast.find_children(node, checker, force_traversal=True):
-                        ctx.groupprefixes = {True: True}
+                        ctx.group_paths = {...}
                         break
 
             stmt.result = self._process_stmt_result(edgeql_tree.targets[0])
@@ -309,7 +176,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         stmt.result_types = self._get_selector_types(stmt.result)
         stmt.argument_types = self.context.current.arguments
-        stmt.context_vars = self.context.current.context_vars
 
         return stmt
 
@@ -319,7 +185,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         stmt = ctx.stmt = irast.InsertStmt()
         self._visit_with_block(edgeql_tree)
 
-        with self.context():
+        with self.context.new():
             self.context.current.location = 'selector'
             subject = self.visit(edgeql_tree.subject)
 
@@ -358,7 +224,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         stmt.result_types = self._get_selector_types(stmt.result)
         stmt.argument_types = self.context.current.arguments
-        stmt.context_vars = self.context.current.context_vars
 
         return stmt
 
@@ -368,7 +233,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         stmt = ctx.stmt = irast.UpdateStmt()
         self._visit_with_block(edgeql_tree)
 
-        with self.context():
+        with self.context.new():
             self.context.current.location = 'selector'
             subject = self.visit(edgeql_tree.subject)
 
@@ -385,7 +250,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         stmt.result_types = self._get_selector_types(stmt.result)
         stmt.argument_types = self.context.current.arguments
-        stmt.context_vars = self.context.current.context_vars
 
         return stmt
 
@@ -395,7 +259,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         stmt = ctx.stmt = irast.DeleteStmt()
         self._visit_with_block(edgeql_tree)
 
-        with self.context():
+        with self.context.new():
             self.context.current.location = 'selector'
             subject = self.visit(edgeql_tree.subject)
 
@@ -412,7 +276,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         stmt.result_types = self._get_selector_types(stmt.result)
         stmt.argument_types = self.context.current.arguments
-        stmt.context_vars = self.context.current.context_vars
 
         return stmt
 
@@ -451,7 +314,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 if refnode is None and not step.namespace:
                     # Finally, check if the starting path label is
                     # a query defined in a WITH clause.
-                    refnode = ctx.cge_map.get(step.expr)
+                    refnode = ctx.substmts.get(step.expr)
 
                 if refnode is not None:
                     path_tip = refnode
@@ -509,14 +372,12 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 raise RuntimeError(
                     'Unexpected path step expression: {!r}'.format(step))
 
-        if (ctx.groupprefixes and
-                ctx.location in ('orderby', 'selector') and
-                not ctx.in_aggregate):
-            if path_tip.path_id not in ctx.groupprefixes:
-                err = ('{!r} must appear in the '
-                       'GROUP BY expression or used in an aggregate '
-                       'function '.format(path_tip.path_id))
-                raise errors.EdgeQLError(err)
+        if (ctx.group_paths and ctx.location in ('orderby', 'selector') and
+                not ctx.in_aggregate and
+                path_tip.path_id not in ctx.group_paths):
+            raise errors.EdgeQLError(
+                f'{path_tip.path_id!r} must appear in the '
+                'GROUP BY expression or used in an aggregate function.')
 
         return path_tip
 
@@ -560,12 +421,12 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         ctx = self.context.current
 
         if expr.index is not None:
-            type = ctx.arg_types.get(expr.index)
+            type = ctx.arguments.get(expr.index)
             if type is not None:
                 type = s_types.normalize_type(type, ctx.schema)
             node = irast.Constant(
                 value=expr.value, index=expr.index, type=type)
-            self.context.current.arguments[expr.index] = type
+            ctx.arguments[expr.index] = type
         else:
             type = s_types.normalize_type(expr.value.__class__, ctx.schema)
             node = irast.Constant(
@@ -582,7 +443,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         return irast.Sequence(elements=elements, is_array=True)
 
     def visit_FunctionCallNode(self, expr):
-        with self.context():
+        with self.context.new():
             ctx = self.context.current
 
             if isinstance(expr.func, str):
@@ -594,9 +455,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 name=funcname[1], module=funcname[0])
 
             if funcobj.aggregate:
-                ctx.in_aggregate.append(expr)
-
-            ctx.in_func_call = True
+                ctx.in_aggregate = True
 
             args = []
             kwargs = {}
@@ -744,27 +603,20 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         return node
 
-    def _init_context(self,
-                      arg_types,
-                      modaliases,
-                      anchors,
-                      *,
+    def _init_context(self, arg_types, modaliases, anchors, *,
                       security_context=None):
-        self.context = context = ParseContext()
-        self.context.current.schema = self.schema
-        self.context.current.modaliases = modaliases or self.modaliases
-        if arg_types:
-            self.context.current.arg_types = arg_types
+        self.context = context = CompilerContext()
+        ctx = self.context.current
+        ctx.schema = self.schema
 
-        if self.context.current.modaliases:
-            self.context.current.namespaces.update(
-                self.context.current.modaliases)
+        if modaliases or self.modaliases:
+            ctx.namespaces.update(modaliases or self.modaliases)
+
+        if arg_types:
+            ctx.arguments.update(arg_types)
 
         if anchors:
             self._populate_anchors(anchors)
-
-        if security_context:
-            self.context.current.apply_access_control_rewrite = True
 
         return context
 
@@ -849,14 +701,14 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 ctx.namespaces[with_entry.alias] = with_entry.namespace
 
             elif isinstance(with_entry, qlast.CGENode):
-                with self.context(ParseContext.SUBQUERY):
+                with self.context.subquery():
                     _cge = self.visit(with_entry.expr)
                     _cge.name = with_entry.alias
-                ctx.cge_map[with_entry.alias] = _cge
+                ctx.substmts[with_entry.alias] = _cge
                 stmt.substmts.append(_cge)
 
             elif isinstance(with_entry, qlast.DetachedPathDeclNode):
-                with self.context(ParseContext.NEWSETS):
+                with self.context.newsets():
                     expr = self.visit(with_entry.expr)
                     expr.path_id = irutils.LinearPath([
                         s_concepts.Concept(
@@ -871,9 +723,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             else:
                 expr = self.visit(with_entry.expr)
                 ctx.pathvars[with_entry.alias] = expr
-
-        if ctx.modaliases:
-            ctx.namespaces.update(ctx.modaliases)
 
     def _process_unlimited_recursion(self):
         type = s_types.normalize_type((0).__class__, self.schema)
@@ -998,7 +847,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     look_in_children=False,
                     include_inherited=True)
 
-                with self.context():
+                with self.context.new():
                     # Put current pointer class in context, so
                     # that references to link properties in sub-SELECT
                     # can be resolved.  This is necessary for proper
@@ -1238,8 +1087,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         if ptr_module:
             ptr_fqname = sn.Name(module=ptr_module, name=ptr_nqname)
             modaliases = self.context.current.namespaces
-            pointer = self.schema.get(ptr_fqname,
-                                      module_aliases=modaliases)
+            pointer = self.schema.get(ptr_fqname, module_aliases=modaliases)
             pointer_name = pointer.name
         else:
             pointer_name = ptr_fqname = ptr_nqname
@@ -1247,8 +1095,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         if target is not None and not isinstance(target, s_obj.NodeClass):
             target_name = '::'.join(filter(None, target))
             modaliases = self.context.current.namespaces
-            target = self.schema.get(target_name,
-                                     module_aliases=modaliases)
+            target = self.schema.get(target_name, module_aliases=modaliases)
 
         if target is not None:
             far_endpoints = (target, )
@@ -1301,7 +1148,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
     def _process_stmt_result(self, target):
         toplevel_rptrcls = self.context.current.toplevel_shape_rptrcls
 
-        with self.context():
+        with self.context.new():
             self.context.current.location = 'selector'
 
             expr = self.visit(target.expr)
@@ -1319,7 +1166,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         return expr
 
     def _process_select_where(self, where):
-        with self.context():
+        with self.context.new():
             self.context.current.location = 'generator'
 
             if where is not None:
@@ -1334,7 +1181,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         if not sortexprs:
             return result
 
-        with self.context():
+        with self.context.new():
             self.context.current.location = 'orderby'
             exprs = self.visit([s.path for s in sortexprs])
 
@@ -1352,7 +1199,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         result = []
 
         if groupers:
-            with self.context():
+            with self.context.new():
                 self.context.current.location = 'grouper'
                 for grouper in groupers:
                     expr = self.visit(grouper)

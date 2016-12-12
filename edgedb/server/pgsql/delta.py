@@ -10,7 +10,7 @@ import itertools
 import pickle
 import re
 
-from edgedb.lang import edgeql
+from edgedb.lang.edgeql import compiler as ql_compiler
 
 from edgedb.lang.schema import attributes as s_attrs
 from edgedb.lang.schema import atoms as s_atoms
@@ -1272,7 +1272,7 @@ class CreateSourceIndex(
         if not source:
             source = context.get(s_concepts.ConceptCommandContext)
         table_name = common.get_table_name(source.scls, catenate=False)
-        ir = edgeql.compile_fragment_to_ir(
+        ir = ql_compiler.compile_fragment_to_ir(
             index.expr, schema, location='selector')
 
         ircompiler = compiler.SingletonExprIRCompiler()
