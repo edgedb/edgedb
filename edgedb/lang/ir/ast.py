@@ -6,11 +6,12 @@
 ##
 
 
+import typing
+
 from edgedb.lang.common.exceptions import EdgeDBError
 from edgedb.lang.common import ast, parsing
-
+from edgedb.lang.schema import name as sn
 from edgedb.lang.schema import objects as so
-
 from edgedb.lang.edgeql import ast as qlast
 
 
@@ -19,49 +20,173 @@ class ASTError(EdgeDBError):
 
 
 class Base(ast.AST):
-    __fields = [
-        # Pointer to an original node replaced by this node during rewrites
-        ('rewrite_original', object, None, False, False),
-        # Whether or not the node is a product of a rewrite
-        ('is_rewrite_product', bool, False),
-        ('rewrite_flags', set),
-        ('as_type', so.Class, None),
-        ('context', parsing.ParserContext, None, True, None, True)
-    ]
+
+    __ast_hidden__ = {'context'}
+
+    as_type: so.Class
+    context: parsing.ParserContext
+
+    def __repr__(self):
+        return (
+            f'<ir.{self.__class__.__name__} at 0x{id(self):x}>'
+        )
+
+
+class Pointer(Base):
+
+    source: Base
+    target: Base
+    ptrcls: so.Class
+    direction: str
+    anchor: str
+    show_as_anchor: str
+
+
+class Set(Base):
+
+    path_id: list
+    scls: so.NodeClass
+    sources: set
+    source_conjunction: bool
+    expr: Base
+    rptr: Pointer
+    anchor: str
+    show_as_anchor: str
+
+    def __repr__(self):
+        return \
+            f'<ir.Set \'{self.path_id or self.scls.name}\' at 0x{id(self):x}'
+
+
+class Expr(Base):
+    pass
+
+
+class Constant(Expr):
+
+    value: object
+    index: str
+    expr: Base
+    type: so.NodeClass
+
+
+class Shape(Expr):
+
+    elements: typing.List[Base]
+    scls: so.NodeClass
+    set: Set
+    rptr: Pointer
+
+
+class Sequence(Expr):
+
+    elements: typing.List[Base]
+    is_array: bool
+
+
+class BinOp(Expr):
+
+    left: Base
+    right: Base
+    op: ast.ops.Operator
+
+
+class UnaryOp(Expr):
+
+    expr: Base
+    op: ast.ops.Operator
+
+
+class ExistPred(Expr):
+
+    expr: Base
+
+
+class IfElseExpr(Expr):
+
+    condition: Base
+    if_expr: Base
+    else_expr: Base
+
+
+class SortExpr(Base):
+
+    expr: Base
+    direction: str
+    nones_order: qlast.NonesOrder
+
+
+class FunctionCall(Expr):
+
+    func: so.Class
+    args: typing.List[Base]
+    kwargs: dict
+    agg_sort: typing.List[SortExpr]
+    agg_filter: Base
+    partition: typing.List[Base]
+    window: bool
+
+
+class IndexIndirection(Expr):
+
+    expr: Base
+    index: Base
+
+
+class SliceIndirection(Expr):
+
+    expr: Base
+    start: Base
+    stop: Base
+    step: Base
+
+
+class TypeRef(Expr):
+
+    maintype: str
+    subtypes: typing.List[sn.Name]
+
+
+class TypeCast(Expr):
+
+    expr: Base
+    type: TypeRef
+
+
+class CompositeType(Base):
+
+    node: so.Class
+    pathspec: list
 
 
 class Stmt(Base):
-    __fields = [
-        'result',
-        ('substmts', list),
-        'name'
-    ]
+
+    result: Base
+    substmts: list
+    name: str
 
 
 class SubstmtRef(Base):
-    __fields = [
-        ('stmt', Stmt),
-        'rptr'
-    ]
+
+    stmt: Stmt
+    rptr: Pointer
 
 
 class SelectStmt(Stmt):
-    __fields = [
-        'where',
-        ('groupby', list),
-        ('orderby', list),
-        'offset',
-        'limit',
-        'set_op',
-        'set_op_larg',
-        'set_op_rarg',
-    ]
+
+    where: Base
+    groupby: typing.List[Base]
+    orderby: typing.List[SortExpr]
+    offset: Base
+    limit: Base
+    set_op: ast.ops.Operator
+    set_op_larg: Stmt
+    set_op_rarg: Stmt
 
 
 class MutatingStmt(Stmt):
-    __fields = [
-        'shape'
-    ]
+
+    shape: Shape
 
 
 class InsertStmt(MutatingStmt):
@@ -69,159 +194,13 @@ class InsertStmt(MutatingStmt):
 
 
 class UpdateStmt(MutatingStmt):
-    __fields = [
-        'where'
-    ]
+
+    where: Base
 
 
 class DeleteStmt(MutatingStmt):
-    __fields = [
-        'where'
-    ]
 
-
-class Pointer(Base):
-    __fields = [
-        'source',
-        'target',
-        'ptrcls',
-        'direction',
-        'anchor',
-        'show_as_anchor'
-    ]
-
-
-class Set(Base):
-    __fields = [
-        'path_id',
-        ('scls', so.NodeClass),
-        ('sources', set),
-        ('source_conjunction', bool, False),
-        'expr',
-        'rptr',
-        'reference',
-        'pathvar',
-        'anchor',
-        'show_as_anchor'
-    ]
-
-    def __repr__(self):
-        return \
-            f'<ir.Set \'{self.path_id or self.scls.name}\' at 0x{id(self):x}'
-
-
-class Constant(Base):
-    __fields = ['value', 'index', 'expr', 'type', 'substitute_for']
-
-    def __init__(self, **kwargs):
-        self._check_type(kwargs.get('expr'), kwargs.get('type'))
-        super().__init__(**kwargs)
-
-    def __setattr__(self, name, value):
-        if name in ('expr', 'type'):
-            expr = value if name == 'expr' else self.expr
-            type = value if name == 'value' else self.type
-            self._check_type(expr, type)
-
-    def _check_type(self, expr, type):
-        if type:
-            if isinstance(type, tuple):
-                item_type = type[1]
-            else:
-                item_type = type
-
-            if not isinstance(item_type, (so.Class, so.MetaClass)):
-                raise ASTError('unexpected constant type representation, '
-                               'expected Class, got {!r}'.format(type))
-
-
-class Expr(Base):
-    pass
-
-
-class Shape(Expr):
-    __fields = [
-        ('elements', list),
-        'scls',
-        ('set', Set, None),
-        ('rptr', Pointer, None),
-    ]
-
-
-class Sequence(Expr):
-    __fields = [
-        ('elements', list),
-        ('is_array', bool)
-    ]
-
-
-class BinOp(Expr):
-    __fields = [
-        'left',
-        'right',
-        'op'
-    ]
-
-
-class UnaryOp(Expr):
-    __fields = [
-        'expr',
-        'op'
-    ]
-
-
-class ExistPred(Expr):
-    __fields = [
-        'expr'
-    ]
-
-
-class SortExpr(Base):
-    __fields = [
-        'expr',
-        'direction',
-        ('nones_order', qlast.NonesOrder, None)
-    ]
-
-
-class IfElseExpr(Expr):
-    condition: Base
-    if_expr: Base
-    else_expr: Base
-
-
-class FunctionCall(Expr):
-    __fields = [
-        'name',
-        'result_type',
-        ('args', list),
-        ('kwargs', dict),
-        ('aggregate', bool),
-        ('window', bool),
-        ('agg_sort', list),
-        'agg_filter',
-        ('partition', list)
-    ]
-
-
-class IndexIndirection(Expr):
-    __fields = ['expr', 'index']
-
-
-class SliceIndirection(Expr):
-    __fields = ['expr', 'start', 'stop', 'step']
-
-
-class TypeCast(Expr):
-    __fields = ['expr', 'type']
-
-
-class CompositeType(Base):
-    __fields = ['node', 'pathspec']
-
-
-class TypeRef(Expr):
-    __fields = ['maintype', 'subtypes']
+    where: Base
 
 
 TextSearchOperator = qlast.TextSearchOperator

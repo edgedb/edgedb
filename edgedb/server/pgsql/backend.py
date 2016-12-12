@@ -385,11 +385,6 @@ class Backend(s_deltarepo.DeltaProvider):
         return self.table_cache.get(table_name)['name']
 
     async def _init_atom_map_cache(self):
-        ds = introspection.domains.DomainsList(self.connection)
-        domains = await ds.fetch(schema_name='edgedb%', domain_name='%_domain')
-        domains = {(d['schema'], d['name']): self.normalize_domain_descr(d)
-                   for d in domains}
-
         ds = datasources.schema.atoms.AtomList(self.connection)
         atom_list = await ds.fetch()
 
@@ -683,11 +678,6 @@ class Backend(s_deltarepo.DeltaProvider):
                     schema.add_module(impmod)
 
     async def read_atoms(self, schema):
-        ds = introspection.domains.DomainsList(self.connection)
-        domains = await ds.fetch(schema_name='edgedb%', domain_name='%_domain')
-        domains = {(d['schema'], d['name']): self.normalize_domain_descr(d)
-                   for d in domains}
-
         ds = introspection.sequences.SequencesList(self.connection)
         seqs = await ds.fetch(
             schema_name='edgedb%', sequence_pattern='%_sequence')
@@ -966,7 +956,7 @@ class Backend(s_deltarepo.DeltaProvider):
 
         return indexes
 
-    def interpret_sql(self, expr, source=None):
+    def interpret_sql(self, schema, expr, source=None):
         try:
             expr_tree = self.parser.parse(expr)
         except parser.PgSQLParserError as e:
@@ -980,7 +970,7 @@ class Backend(s_deltarepo.DeltaProvider):
         result = self.constant_expr.match(expr_tree)
 
         if result is None:
-            sql_decompiler = decompiler.Decompiler()
+            sql_decompiler = decompiler.Decompiler(schema)
             edgedb_tree = sql_decompiler.transform(expr_tree, source)
             edgeql_tree = edgeql.decompile_ir(
                 edgedb_tree, return_statement=True)
@@ -1018,7 +1008,8 @@ class Backend(s_deltarepo.DeltaProvider):
             col_type = col['column_type']
 
         if col['column_default'] is not None:
-            atom_default = self.interpret_sql(col['column_default'], source)
+            atom_default = self.interpret_sql(
+                schema, col['column_default'], source)
         else:
             atom_default = None
 
@@ -1039,7 +1030,7 @@ class Backend(s_deltarepo.DeltaProvider):
 
         if attr['attribute_default'] is not None:
             atom_default = self.interpret_sql(
-                attr['attribute_default'], source)
+                schema, attr['attribute_default'], source)
         else:
             atom_default = None
 
@@ -1077,7 +1068,7 @@ class Backend(s_deltarepo.DeltaProvider):
             else:
                 return
 
-        table_default = self.interpret_sql(tab_default, ptr.source)
+        table_default = self.interpret_sql(schema, tab_default, ptr.source)
 
         if tab_default is not None and not ptr.default:
             msg = 'internal metadata inconsistency'
@@ -1213,7 +1204,7 @@ class Backend(s_deltarepo.DeltaProvider):
     async def order_links(self, schema):
         indexes = await self.read_indexes()
 
-        sql_decompiler = decompiler.Decompiler()
+        sql_decompiler = decompiler.Decompiler(schema)
 
         g = {}
 
@@ -1536,7 +1527,7 @@ class Backend(s_deltarepo.DeltaProvider):
     async def order_concepts(self, schema):
         indexes = await self.read_indexes()
 
-        sql_decompiler = decompiler.Decompiler()
+        sql_decompiler = decompiler.Decompiler(schema)
 
         g = {}
         for concept in schema.get_objects(type='concept'):
@@ -1567,19 +1558,6 @@ class Backend(s_deltarepo.DeltaProvider):
                         name=sn.Name(schema_name), subject=concept, expr=expr)
                     concept.add_index(index)
                     schema.add(index)
-
-    def normalize_domain_descr(self, d):
-        if d['basetype'] is not None:
-            typname, typmods = self.parse_pg_type(d['basetype_full'])
-            result = self.pg_type_to_atom_name_and_constraints(
-                typname, typmods)
-            if result:
-                base, constr = result
-
-        if d['default'] is not None:
-            d['default'] = self.interpret_sql(d['default'])
-
-        return d
 
     async def pg_table_inheritance(self, table_name, schema_name):
         inheritance = introspection.tables.TableInheritance(self.connection)

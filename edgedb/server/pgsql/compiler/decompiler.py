@@ -20,19 +20,25 @@ from .context import TransformerContext
 
 
 class Decompiler(ast.visitor.NodeVisitor):
+    def __init__(self, schema):
+        super().__init__()
+        self.schema = schema
+
     def transform(self, tree, local_to_source=None):
-        context = TransformerContext()
-        context.current.source = local_to_source
+        self.context = TransformerContext()
+        ctx = self.context.current
+        ctx.source = local_to_source
+        ctx.schema = self.schema
 
         if local_to_source:
-            context.current.attmap = {}
+            ctx.attmap = {}
 
             for l in local_to_source.pointers.values():
                 name = l.shortname
                 colname = common.edgedb_name_to_pg_name(l.shortname)
-                source = context.current.source.get_pointer_origin(
+                source = ctx.source.get_pointer_origin(
                     name, farthest=True)
-                context.current.attmap[colname] = (name, source)
+                ctx.attmap[colname] = (name, source)
 
         return self.visit(tree)
 
@@ -98,6 +104,8 @@ class Decompiler(ast.visitor.NodeVisitor):
         return irast.Sequence(elements=[self.visit(e) for e in expr.elements])
 
     def visit_FuncCall(self, expr):
+        ctx = self.context.current
+
         if expr.name in {('lower',), ('upper',)}:
             fname = ('std', expr.name)
             args = [self.visit(a) for a in expr.args]
@@ -111,4 +119,6 @@ class Decompiler(ast.visitor.NodeVisitor):
         else:
             raise ValueError('unexpected function: {}'.format(expr.name))
 
-        return irast.FunctionCall(name=fname, args=args)
+        func = ctx.schema.get(fname)
+
+        return irast.FunctionCall(func=func, args=args)

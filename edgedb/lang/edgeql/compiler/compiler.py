@@ -608,10 +608,9 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     args.append(self.visit(a))
 
             node = irast.FunctionCall(
-                name=(funcobj.name.module, funcobj.name.name),
+                func=funcobj,
                 args=args,
-                kwargs=kwargs,
-                aggregate=funcobj.aggregate)
+                kwargs=kwargs)
 
             if expr.agg_sort:
                 node.agg_sort = [
@@ -638,9 +637,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
             if expr.agg_filter:
                 node.agg_filter = self.visit(expr.agg_filter)
-
-            if self._is_func_agg(node.name):
-                node.aggregates = True
 
             if node.args:
                 for arg in node.args:

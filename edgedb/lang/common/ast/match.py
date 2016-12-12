@@ -7,6 +7,7 @@
 """Generic AST tree pattern matching."""
 
 import collections
+import types
 
 from edgedb.lang.common import adapter, ast
 
@@ -27,6 +28,13 @@ class MatchASTNode:
     def __iter__(self):
         for field_name, field_value in self.fields.items():
             yield field_name, field_value
+
+
+class Object(types.SimpleNamespace):
+    """Non-AST object in AST structure."""
+
+    def __iter__(self):
+        return iter(self.__dict__.items())
 
 
 class Match:
@@ -106,7 +114,8 @@ def group(name, node):
 
 
 def _match_node(pattern, node, context):
-    if not issubclass(node.__class__, pattern.__class__.get_adaptee()):
+    if (not isinstance(pattern, Object) and
+            not issubclass(node.__class__, pattern.__class__.get_adaptee())):
         return None
 
     for field_name, field_value in pattern:
@@ -134,7 +143,7 @@ def _match_node(pattern, node, context):
                         if cfv != cnv:
                             return None
 
-            elif isinstance(field_value, (MatchNode, MatchASTNode)):
+            elif isinstance(field_value, (MatchNode, MatchASTNode, Object)):
                 m = _match_node(field_value, node_value, context)
 
                 if not m:

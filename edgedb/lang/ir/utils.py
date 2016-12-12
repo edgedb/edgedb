@@ -104,8 +104,7 @@ def infer_type(ir, schema):
         result = ir.scls
 
     elif isinstance(ir, irast.FunctionCall):
-        func_obj = schema.get(ir.name)
-        result = func_obj.returntype
+        result = ir.func.returntype
 
     elif isinstance(ir, irast.Constant):
         if ir.expr:
@@ -235,7 +234,7 @@ def is_const(ir):
 def is_aggregated_expr(ir):
     def flt(n):
         if isinstance(n, irast.FunctionCall):
-            return n.aggregate
+            return n.func.aggregate
         elif isinstance(n, irast.Stmt):
             # Make sure we don't dip into subqueries
             raise ast.SkipNode()

@@ -1019,13 +1019,11 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                           map_join_type='inner'):
         fromexpr = stmt.from_clause[0]
 
-        tip_pathvar = ir_set.pathvar if ir_set else None
-
         link = ir_set.rptr
         if isinstance(link.ptrcls, s_lprops.LinkProperty):
             link = link.source.rptr
 
-        linkmap_key = link.ptrcls, link.direction, link.source, tip_pathvar
+        linkmap_key = link.ptrcls, link.direction, link.source
 
         try:
             # The same link map must not be joined more than once,

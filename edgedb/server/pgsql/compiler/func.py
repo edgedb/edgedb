@@ -19,7 +19,9 @@ class IRCompilerFunctionSupport:
         agg_filter = None
         agg_sort = []
 
-        if expr.aggregate:
+        funcobj = expr.func
+
+        if funcobj.aggregate:
             with self.context.new():
                 ctx.in_aggregate = True
                 ctx.query.aggregates = True
@@ -43,7 +45,7 @@ class IRCompilerFunctionSupport:
                 _pexpr = self.visit(partition_expr)
                 partition.append(_pexpr)
 
-        funcname = expr.name
+        funcname = (funcobj.name.module, funcobj.name.name)
         if funcname[0] == 'std':
             funcname = funcname[1]
 
