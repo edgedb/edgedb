@@ -177,15 +177,15 @@ class Source(primary.PrimaryClass, indexes.IndexableSubject):
         ptr_names = []
         if not sn.Name.is_qualified(name):
             ptr_names.append(sn.Name(module=self.name.module, name=name))
-            ptr_names.append(sn.Name(module=schema.get_builtins_module(),
-                                     name=name))
+            ptr_names.append(sn.Name(module='std', name=name))
         else:
             ptr_names.append(name)
 
         for ptr_name in ptr_names:
             base_ptr_class = schema.get(ptr_name, default=None)
             if base_ptr_class:
-                root_class = schema.get_root_class(self.get_pointer_class())
+                root_class = schema.get(
+                    self.get_pointer_class().get_default_base_name())
                 skip_atomic = base_ptr_class.name == root_class.name
                 ptrs = resolver.getptr_inherited_from(
                             self, schema, base_ptr_class, skip_atomic)

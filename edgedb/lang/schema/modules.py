@@ -8,7 +8,6 @@
 
 import builtins
 import collections
-import re
 
 from edgedb.lang.common.persistent_hash import persistent_hash
 from edgedb.lang.common.ordered import OrderedSet
@@ -210,32 +209,6 @@ class Module(named.NamedClass):
                 scls = default
         return scls
 
-    def match(self, name, module_aliases=None, type=None):
-        name, module, nqname = sn.split_name(name)
-
-        result = []
-
-        if '%' in nqname:
-            module = self.resolve_module(module, module_aliases)
-            if not module:
-                return None
-
-            pattern = re.compile(re.escape(nqname).replace('%', '.*'))
-            index = self.index_by_name
-
-            for name, obj in index.items():
-                if pattern.match(name):
-                    if type and isinstance(obj, type):
-                        result.append(obj)
-
-        else:
-            result = self.get(name, module_aliases=module_aliases, type=type,
-                              default=None)
-            if result:
-                result = [result]
-
-        return result
-
     def reorder(self, new_order):
         name_order = [p.name for p in new_order]
 
@@ -257,12 +230,6 @@ class Module(named.NamedClass):
             sortedindex = sorted(typeindex, key=sortkey)
             typeindex.clear()
             typeindex.update(sortedindex)
-
-    def __contains__(self, obj):
-        return obj.name in self.index_by_name
-
-    def __iter__(self):
-        return SchemaIterator(self, None)
 
     def get_objects(self, *, type=None, include_derived=False):
         return SchemaIterator(self, type, include_derived=include_derived)

@@ -43,12 +43,14 @@ _DECL_MAP = {
 class DeclarationLoader:
     def __init__(self, schema):
         self._schema = schema
+        self._mod_aliases = {}
 
     def load_module(self, module_name, decl_ast):
         decls = decl_ast.declarations
 
         module = s_mod.Module(name=module_name)
-        self._schema.add_module(module, alias=None)
+        self._schema.add_module(module)
+        self._mod_aliases[None] = module_name
 
         self._process_imports(decl_ast)
 
@@ -147,7 +149,7 @@ class DeclarationLoader:
             attributes, attrvals, actions, events, constraints,
             atoms, linkprops, indexes, links, concepts))
 
-        for obj in module:
+        for obj in module.get_objects():
             obj.finalize(self._schema)
 
     def _process_imports(self, tree):
@@ -159,7 +161,7 @@ class DeclarationLoader:
                             'cannot find module {!r}'.format(mod.module),
                             context=mod.context)
                     if mod.alias is not None:
-                        self._schema.set_module_alias(mod.module, mod.alias)
+                        self._mod_aliases[mod.alias] = mod.module
 
     def _sort(self, objects, depsfn=None):
         g = {}
@@ -215,7 +217,8 @@ class DeclarationLoader:
             for base_ref in decl.extends:
                 base_name = self._get_ref_name(base_ref)
 
-                base = self._schema.get(base_name, type=obj.__class__)
+                base = self._schema.get(base_name, type=obj.__class__,
+                                        module_aliases=self._mod_aliases)
                 if base.is_final:
                     msg = '{!r} is final and cannot be inherited ' \
                           'from'.format(base.name)
@@ -227,7 +230,8 @@ class DeclarationLoader:
             # Implicit inheritance from the default base class
             default_base_name = type(obj).get_default_base_name()
             if default_base_name is not None:
-                default_base = self._schema.get(default_base_name)
+                default_base = self._schema.get(
+                    default_base_name, module_aliases=self._mod_aliases)
                 bases.append(default_base)
 
         return s_obj.ClassList(bases)
@@ -296,7 +300,8 @@ class DeclarationLoader:
             prop_name = self._get_ref_name(propdecl.name)
             prop_base = self._schema.get(prop_name,
                                          type=s_lprops.LinkProperty,
-                                         default=None)
+                                         default=None,
+                                         module_aliases=self._mod_aliases)
             prop_target = None
 
             if prop_base is None:
@@ -314,7 +319,8 @@ class DeclarationLoader:
                         name=prop_name, module=link.name.module)
 
                     std_lprop = self._schema.get(
-                        s_lprops.LinkProperty.get_default_base_name())
+                        s_lprops.LinkProperty.get_default_base_name(),
+                        module_aliases=self._mod_aliases)
 
                     prop_base = s_lprops.LinkProperty(
                         name=prop_qname, bases=[std_lprop])
@@ -327,7 +333,8 @@ class DeclarationLoader:
 
             if propdecl.target is not None:
                 target_name = self._get_ref_name(propdecl.target[0])
-                prop_target = self._schema.get(target_name)
+                prop_target = self._schema.get(
+                    target_name, module_aliases=self._mod_aliases)
 
             elif not link.generic():
                 link_base = link.bases[0]
@@ -374,7 +381,8 @@ class DeclarationLoader:
                 # This is a builtin attribute should have already been set
                 continue
 
-            attribute = self._schema.get(attr_name)
+            attribute = self._schema.get(
+                attr_name, module_aliases=self._mod_aliases)
 
             if (attribute.type.is_container and
                     not isinstance(value, list)):
@@ -410,7 +418,8 @@ class DeclarationLoader:
         for constrdecl in subjdecl.constraints:
             constr_name = self._get_ref_name(constrdecl.name)
             constr_base = self._schema.get(constr_name,
-                                           type=s_constr.Constraint)
+                                           type=s_constr.Constraint,
+                                           module_aliases=self._mod_aliases)
 
             constraint = constr_base.derive(self._schema, subject)
             constraint.is_abstract = constrdecl.abstract
@@ -477,7 +486,8 @@ class DeclarationLoader:
             for linkdecl in conceptdecl.links:
                 link_name = self._get_ref_name(linkdecl.name)
                 link_base = self._schema.get(link_name, type=s_links.Link,
-                                             default=None)
+                                             default=None,
+                                             module_aliases=self._mod_aliases)
                 if link_base is None:
                     # The link has not been defined globally.
                     if not s_name.Name.is_qualified(link_name):
@@ -488,7 +498,8 @@ class DeclarationLoader:
                             name=link_name, module=concept.name.module)
 
                         std_link = self._schema.get(
-                            s_links.Link.get_default_base_name())
+                            s_links.Link.get_default_base_name(),
+                            module_aliases=self._mod_aliases)
 
                         link_base = s_links.Link(
                             name=link_qname, bases=[std_link])
@@ -513,12 +524,15 @@ class DeclarationLoader:
                 if len(_tnames) == 1:
                     # Usual case, just one target
                     spectargets = None
-                    target = self._schema.get(_tnames[0])
+                    target = self._schema.get(_tnames[0],
+                                              module_aliases=self._mod_aliases)
                 else:
                     # Multiple explicit targets, create common virtual
                     # parent and use it as target.
                     spectargets = s_obj.ClassSet(
-                        self._schema.get(t) for t in _tnames)
+                        self._schema.get(t, module_aliases=self._mod_aliases)
+                        for t in _tnames)
+
                     target = link_base.create_common_target(
                         self._schema, spectargets)
                     target.is_derived = True
@@ -553,7 +567,8 @@ class DeclarationLoader:
             if isinstance(propdecl.target, edgeql.ast.SelectQueryNode):
                 # Computable
                 prop_name = self._get_ref_name(propdecl.name)
-                generic_prop = self._schema.get(prop_name)
+                generic_prop = self._schema.get(
+                    prop_name, module_aliases=self._mod_aliases)
                 spec_prop = link.pointers[generic_prop.name]
                 self._normalize_ptr_default(
                     linkdecl.target, link, spec_prop)
@@ -565,7 +580,8 @@ class DeclarationLoader:
         """Interpret and validate EdgeQL expressions in concept declaration."""
         for linkdecl in conceptdecl.links:
             link_name = self._get_ref_name(linkdecl.name)
-            generic_link = self._schema.get(link_name)
+            generic_link = self._schema.get(
+                link_name, module_aliases=self._mod_aliases)
             spec_link = concept.pointers[generic_link.name]
 
             if isinstance(linkdecl.target, edgeql.ast.SelectQueryNode):

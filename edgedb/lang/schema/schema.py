@@ -28,18 +28,9 @@ class Schema:
 
     """Schema is a collection of ProtoModules."""
 
-    @classmethod
-    def get_builtins_module(cls):
-        return 'std'
-
     def __init__(self):
         self.modules = collections.OrderedDict()
-        self.foreign_modules = collections.OrderedDict()
-        self.module_aliases = {}
-        self.module_aliases_r = {}
         self.deltas = collections.OrderedDict()
-
-        self.builtins_module = self.get_builtins_module()
 
         self._policy_schema = None
         self._virtual_inheritance_cache = {}
@@ -50,35 +41,18 @@ class Schema:
         result.modules = collections.OrderedDict((
             (name, mod.copy()) for name, mod in self.modules.items()))
         result.deltas = self.deltas.copy()
-        result.module_aliases = self.module_aliases.copy()
-        result.module_aliases_r = self.module_aliases_r.copy()
         return result
 
-    def add_module(self, class_module, alias=_void):
+    def add_module(self, class_module):
         """Add a module to the schema
 
         :param Module class_module: A module that should be added
                                     to the schema.
-        :param str alias: An optional alias for this module to use when
-                          resolving names.
         """
 
-        if isinstance(class_module, schema_module.Module):
-            name = class_module.name
-            self.modules[name] = class_module
-        else:
-            name = class_module.__name__
-            self.foreign_modules[name] = \
-                module_types.AutoloadingLightProxyModule(name, class_module)
-
-        if alias is not _void:
-            self.set_module_alias(name, alias)
-
+        name = class_module.name
+        self.modules[name] = class_module
         self._policy_schema = None
-
-    def set_module_alias(self, module_name, alias):
-        self.module_aliases[alias] = module_name
-        self.module_aliases_r[module_name] = alias
 
     def get_module(self, module):
         return self.modules[module]
@@ -95,14 +69,6 @@ class Schema:
             module_name = class_module.name
 
         del self.modules[module_name]
-
-        try:
-            alias = self.module_aliases_r[module_name]
-        except KeyError:
-            pass
-        else:
-            del self.module_aliases_r[module_name]
-            del self.module_aliases[alias]
 
     def add_delta(self, delta):
         """Add a delta to the schema.
@@ -133,7 +99,7 @@ class Schema:
             module = self.modules[obj.name.module]
         except KeyError as e:
             raise SchemaError(
-                f'module {obj.name.module} is not in this schema') from e
+                f'module {obj.name.module!r} is not in this schema') from e
 
         module.add(obj)
 
@@ -156,9 +122,6 @@ class Schema:
 
     def clear(self):
         self.modules.clear()
-        self.foreign_modules.clear()
-        self.module_aliases.clear()
-        self.module_aliases_r.clear()
         self._virtual_inheritance_cache.clear()
         self._inheritance_cache.clear()
         self._policy_schema = None
@@ -177,123 +140,39 @@ class Schema:
             module = self.modules[module_name]
             module.reorder(module_order)
 
-    def module_name_by_alias(self, module, module_aliases):
-        aliased = None
-
-        if module:
-            parts = str(module).split('.')
-            aliased = module_aliases.get(parts[0])
-
-            if aliased and len(parts) > 1:
-                aliased += '.' + '.'.join(parts[1:])
-        else:
-            aliased = module_aliases.get(module)
-
-        return aliased
-
-    def get(self, name, default=SchemaError, *,
-            module_aliases=None, type=None,
-            include_pyobjects=False, index_only=True,
-            implicit_builtins=True):
-
-        name, module, nqname = schema_name.split_name(name)
+    def _resolve_module(self, module, *, module_aliases=None):
+        if module_aliases is not None:
+            # Alias has a priority over `self.modules` lookup.
+            fq_module = module_aliases.get(module)
+            if fq_module is not None:
+                module = fq_module
 
         if module is not None:
-            # Can only fallback to implicit resolution if the module
-            # was not specified.
-            implicit_builtins = False
+            return self.modules.get(module)
 
-        fq_module = None
+    def get(self, name, default=_void, *, module_aliases=None, type=None):
+        name, module, nqname = schema_name.split_name(name)
+        implicit_builtins = module is None
 
-        if module_aliases is not None:
-            fq_module = self.module_name_by_alias(module, module_aliases)
+        class_module = self._resolve_module(
+            module, module_aliases=module_aliases)
 
-        if fq_module is None:
-            fq_module = self.module_name_by_alias(module, self.module_aliases)
+        if class_module is not None:
+            result = class_module.get(nqname, default=None, type=type)
+            if result is not None:
+                return result
 
-        if fq_module is not None:
-            module = fq_module
+        if implicit_builtins:
+            std = self.modules['std']
+            result = std.get(nqname, default=None, type=type)
+            if result is not None:
+                return result
 
-        if default is not None and \
-                (isinstance(default, Exception) or
-                 (isinstance(default, builtins.type) and
-                  issubclass(default, Exception))):
-            default_raise = True
+        if default is _void:
+            raise SchemaError(
+                f'reference to a non-existent schema class: {name}')
         else:
-            default_raise = False
-
-        errmsg = 'reference to a non-existent schema class: {}'.format(name)
-
-        if module is None:
-            if implicit_builtins:
-                class_module = self.modules[self.get_builtins_module()]
-                result = class_module.get(nqname, default=None, type=type,
-                                          index_only=index_only)
-                if result is not None:
-                    return result
-
-            if default_raise:
-                raise default(errmsg)
-            else:
-                return default
-
-        class_module = None
-
-        try:
-            class_module = self.modules[module]
-        except KeyError as e:
-            module_err = e
-
-            if include_pyobjects:
-                try:
-                    class_module = self.foreign_modules[module]
-                except KeyError as e:
-                    module_err = e
-                else:
-                    try:
-                        class_module = sys.modules[class_module.__name__]
-                    except KeyError as e:
-                        module_err = e
-
-            if class_module is None:
-                if default_raise:
-                    raise default(errmsg) from module_err
-                else:
-                    return default
-
-        if isinstance(class_module, schema_module.Module):
-            if default_raise:
-                try:
-                    result = class_module.get(nqname, default=default,
-                                              type=type,
-                                              index_only=index_only)
-                except default:
-                    if not implicit_builtins:
-                        raise
-                    else:
-                        class_module = self.modules[self.get_builtins_module()]
-                        result = class_module.get(nqname, default=None,
-                                                  type=type,
-                                                  index_only=index_only)
-                        if result is None:
-                            raise
-            else:
-                result = class_module.get(nqname, default=default, type=type,
-                                          include_pyobjects=include_pyobjects,
-                                          index_only=index_only)
-        else:
-            try:
-                result = getattr(class_module, nqname)
-            except AttributeError as e:
-                if default_raise:
-                    raise default(errmsg) from e
-                else:
-                    result = default
-
-        return result
-
-    def iter_modules(self):
-        return iter(self.modules)
+            return default
 
     def has_module(self, module):
         return module in self.modules
@@ -347,20 +226,6 @@ class Schema:
         it = self.get_objects(type=scls._type)
         return {c.name for c in filter(flt, it)}
 
-    def get_root_class(self, cls):
-        from . import concepts, lproperties, links
-
-        if issubclass(cls, concepts.Concept):
-            name = 'std::Object'
-        elif issubclass(cls, links.Link):
-            name = 'std::link'
-        elif issubclass(cls, lproperties.LinkProperty):
-            name = 'std::linkproperty'
-        else:
-            assert False, 'get_root_class: unexpected object type: %r' % type
-
-        return self.get(name, type=cls)
-
     def get_event_policy(self, subject_class, event_class):
         from . import policy as spol
 
@@ -388,9 +253,6 @@ class Schema:
     def get_checksum_details(self):
         objects = list(sorted(self, key=lambda e: e.name))
         return [(str(o.name), persistent_hash(o)) for o in objects]
-
-    def __iter__(self):
-        yield from self.get_objects()
 
     def get_objects(self, *, type=None):
         for mod in self.modules.values():
