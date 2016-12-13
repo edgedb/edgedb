@@ -13,7 +13,7 @@ from edgedb.lang.edgeql import ast as qlast
 
 from ...errors import EdgeQLSyntaxError
 
-from . import keywords
+from . import keywords, precedence, tokens
 
 from .precedence import *  # NOQA
 from .tokens import *  # NOQA
@@ -254,7 +254,8 @@ class ValueTarget(Nonterm):
         self.val = kids[0].val
 
 
-class ValueTargetList(ListNonterm, element=ValueTarget, separator=T_COMMA):
+class ValueTargetList(ListNonterm, element=ValueTarget,
+                      separator=tokens.T_COMMA):
     pass
 
 
@@ -298,7 +299,8 @@ class AliasDecl(Nonterm):
                 expr=kids[2].val)
 
 
-class AliasDeclList(ListNonterm, element=AliasDecl, separator=T_COMMA):
+class AliasDeclList(ListNonterm, element=AliasDecl,
+                    separator=tokens.T_COMMA):
     pass
 
 
@@ -348,13 +350,12 @@ class OptAnySubShape(Nonterm):
         shape = kids[1].val
         name = shape.steps[0]
         typenode = qlast.ClassRefNode(name=name.expr,
-                                          module=name.namespace,
-                                          context=name.context)
+                                      module=name.namespace,
+                                      context=name.context)
         self.val = [typenode] + shape.pathspec
 
     def reduce_COLON_TypeName(self, *kids):
         # this kind of shape definition appears in function signatures
-        #
         self.val = [kids[1].val]
 
     def reduce_empty(self, *kids):
@@ -401,7 +402,8 @@ class ShapeElement(Nonterm):
         self.val.pathspec = kids[3].val
 
 
-class ShapeElementList(ListNonterm, element=ShapeElement, separator=T_COMMA):
+class ShapeElementList(ListNonterm, element=ShapeElement,
+                       separator=tokens.T_COMMA):
     pass
 
 
@@ -557,7 +559,8 @@ class OrderbyExpr(Nonterm):
                                       nones_order=kids[2].val)
 
 
-class OrderbyList(ListNonterm, element=OrderbyExpr, separator=T_THEN):
+class OrderbyList(ListNonterm, element=OrderbyExpr,
+                  separator=tokens.T_THEN):
     pass
 
 
@@ -711,9 +714,9 @@ class Expr(Nonterm):
         # incorrect grouping is more obvious is: "Foo.<(bar[TO Baz])"
         #
         path = kids[0].val
-        if (not isinstance(path, qlast.PathNode)
-                or not isinstance(path.steps[-1], qlast.LinkExprNode)
-                or not isinstance(path.steps[-1].expr, qlast.LinkNode)):
+        if (not isinstance(path, qlast.PathNode) or
+                not isinstance(path.steps[-1], qlast.LinkExprNode) or
+                not isinstance(path.steps[-1].expr, qlast.LinkNode)):
             raise EdgeQLSyntaxError('Unexpected token: {}'.format(kids[2]),
                                     context=kids[2].context)
 
@@ -723,11 +726,11 @@ class Expr(Nonterm):
     def reduce_FuncExpr(self, *kids):
         self.val = kids[0].val
 
-    @parsing.precedence(P_UMINUS)
+    @parsing.precedence(precedence.P_UMINUS)
     def reduce_SelectWithParens(self, *kids):
         self.val = kids[0].val
 
-    @parsing.precedence(P_UMINUS)
+    @parsing.precedence(precedence.P_UMINUS)
     def reduce_EXISTS_Expr(self, *kids):
         self.val = qlast.ExistsPredicateNode(expr=kids[1].val)
 
@@ -740,11 +743,11 @@ class Expr(Nonterm):
     def reduce_Mapping(self, *kids):
         self.val = kids[0].val
 
-    @parsing.precedence(P_UMINUS)
+    @parsing.precedence(precedence.P_UMINUS)
     def reduce_PLUS_Expr(self, *kids):
         self.val = qlast.UnaryOpNode(op=ast.ops.UPLUS, operand=kids[1].val)
 
-    @parsing.precedence(P_UMINUS)
+    @parsing.precedence(precedence.P_UMINUS)
     def reduce_MINUS_Expr(self, *kids):
         self.val = qlast.UnaryOpNode(op=ast.ops.UMINUS, operand=kids[1].val)
 
@@ -784,7 +787,7 @@ class Expr(Nonterm):
         self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.EQ,
                                    right=kids[2].val)
 
-    @parsing.precedence(P_OP)
+    @parsing.precedence(precedence.P_OP)
     def reduce_Expr_OP_Expr(self, *kids):
         op = kids[1].val
         if op == '!=':
@@ -804,7 +807,7 @@ class Expr(Nonterm):
 
         self.val = qlast.BinOpNode(left=kids[0].val, op=op, right=kids[2].val)
 
-    @parsing.precedence(P_OP)
+    @parsing.precedence(precedence.P_OP)
     def reduce_OP_Expr(self, *kids):
         self.val = qlast.UnaryOpNode(op=kids[0].val, operand=kids[1].val)
 
@@ -843,7 +846,7 @@ class Expr(Nonterm):
         self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.IS,
                                    right=kids[2].val)
 
-    @parsing.precedence(P_IS)
+    @parsing.precedence(precedence.P_IS)
     def reduce_Expr_IS_NOT_Expr(self, *kids):
         self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.IS_NOT,
                                    right=kids[3].val)
@@ -853,13 +856,13 @@ class Expr(Nonterm):
         self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.IN,
                                    right=inexpr)
 
-    @parsing.precedence(P_IN)
+    @parsing.precedence(precedence.P_IN)
     def reduce_Expr_NOT_IN_Expr(self, *kids):
         inexpr = kids[3].val
         self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.NOT_IN,
                                    right=inexpr)
 
-    @parsing.precedence(P_TYPECAST)
+    @parsing.precedence(precedence.P_TYPECAST)
     def reduce_LANGBRACKET_ExtTypeExpr_RANGBRACKET_Expr(
             self, *kids):
         self.val = qlast.TypeCastNode(expr=kids[3].val, type=kids[1].val)
@@ -893,7 +896,7 @@ class MappingElement(Nonterm):
 
 
 class MappingElementsList(ListNonterm, element=MappingElement,
-                          separator=T_COMMA):
+                          separator=tokens.T_COMMA):
     pass
 
 
@@ -908,7 +911,7 @@ class OptExprList(Nonterm):
         self.val = []
 
 
-class ExprList(ListNonterm, element=Expr, separator=T_COMMA):
+class ExprList(ListNonterm, element=Expr, separator=tokens.T_COMMA):
     pass
 
 
@@ -987,7 +990,7 @@ class BaseBooleanConstant(Nonterm):
 # this is used inside parentheses or in shapes
 #
 class OpPath(Nonterm):
-    @parsing.precedence(P_PATHSTART)
+    @parsing.precedence(precedence.P_PATHSTART)
     def reduce_OpOnlyNodeName(self, *kids):
         self.val = qlast.PathNode(
             steps=[qlast.PathStepNode(expr=kids[0].val.name,
@@ -995,13 +998,13 @@ class OpPath(Nonterm):
 
 
 class Path(Nonterm):
-    @parsing.precedence(P_PATHSTART)
+    @parsing.precedence(precedence.P_PATHSTART)
     def reduce_NodeName(self, *kids):
         self.val = qlast.PathNode(
             steps=[qlast.PathStepNode(expr=kids[0].val.name,
                                       namespace=kids[0].val.module)])
 
-    @parsing.precedence(P_DOT)
+    @parsing.precedence(precedence.P_DOT)
     def reduce_Expr_PathStep(self, *kids):
         path = kids[0].val
         if not isinstance(path, qlast.PathNode):
@@ -1113,7 +1116,7 @@ class FuncArgExpr(Nonterm):
         self.val = qlast.NamedArgNode(name=kids[0].val, arg=kids[2].val)
 
 
-class FuncArgList(ListNonterm, element=FuncArgExpr, separator=T_COMMA):
+class FuncArgList(ListNonterm, element=FuncArgExpr, separator=tokens.T_COMMA):
     pass
 
 
@@ -1146,7 +1149,7 @@ class ShortName(Nonterm):
         self.val = kids[0].val
 
 
-class ModuleName(ListNonterm, element=AnyIdentifier, separator=T_DOT):
+class ModuleName(ListNonterm, element=AnyIdentifier, separator=tokens.T_DOT):
     pass
 
 
@@ -1223,7 +1226,7 @@ class NodeName(Nonterm):
             name=kids[0].val[-1])
 
 
-class NodeNameList(ListNonterm, element=NodeName, separator=T_COMMA):
+class NodeNameList(ListNonterm, element=NodeName, separator=tokens.T_COMMA):
     pass
 
 

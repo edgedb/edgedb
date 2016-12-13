@@ -6,6 +6,7 @@
 ##
 
 
+from .expressions import Nonterm
 from .precedence import *  # NOQA
 from .tokens import *  # NOQA
 from .statements import *  # NOQA

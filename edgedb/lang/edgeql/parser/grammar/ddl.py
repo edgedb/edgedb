@@ -8,9 +8,16 @@
 
 import collections
 import types
+import sys
 
 from edgedb.lang.edgeql import ast as qlast
+from edgedb.lang.common import parsing, context
 from edgedb.lang.common.parsing import ListNonterm
+
+from ...errors import EdgeQLSyntaxError
+
+from .expressions import Nonterm
+from . import tokens
 
 from .precedence import *  # NOQA
 from .tokens import *  # NOQA
@@ -228,6 +235,7 @@ class SetFieldStmt(Nonterm):
             value=kids[3].val,
             as_expr=not eager
         )
+
 
 commands_block('Create', SetFieldStmt)
 
@@ -1178,8 +1186,10 @@ class DropConceptStmt(Nonterm):
 # CREATE EVENT
 #
 class CreateEventStmt(Nonterm):
-    def reduce_OptAliasBlock_CREATE_EVENT_NodeName_OptInheriting_OptCreateCommandsBlock(
-            self, *kids):
+    def reduce_CreateEvent(self, *kids):
+        r"""%reduce OptAliasBlock CREATE EVENT NodeName \
+                    OptInheriting OptCreateCommandsBlock \
+        """
         self.val = qlast.CreateEventNode(
             aliases=kids[0].val,
             name=kids[3].val,
@@ -1262,7 +1272,8 @@ class FuncDeclArg(Nonterm):
         )
 
 
-class FuncDeclArgList(ListNonterm, element=FuncDeclArg, separator=T_COMMA):
+class FuncDeclArgList(ListNonterm, element=FuncDeclArg,
+                      separator=tokens.T_COMMA):
     pass
 
 

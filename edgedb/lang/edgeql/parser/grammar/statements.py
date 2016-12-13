@@ -8,6 +8,8 @@
 
 from edgedb.lang.edgeql import ast as qlast
 
+from ...errors import EdgeQLSyntaxError
+from .expressions import Nonterm
 from .precedence import *  # NOQA
 from .tokens import *  # NOQA
 from .expressions import *  # NOQA
