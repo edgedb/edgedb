@@ -245,20 +245,8 @@ class EdgeQLOptimizer:
             for step in expr.steps:
                 self._process_expr(context, step)
 
-        elif isinstance(expr, qlast.PathStepNode):
-            if expr.namespace:
-                expr.namespace = self._process_module_ref(
-                                    context, expr.namespace)
-
-        elif isinstance(expr, (qlast.LinkExprNode, qlast.LinkPropExprNode)):
-            self._process_expr(context, expr.expr)
-
-        elif isinstance(expr, qlast.LinkNode):
-            if expr.namespace:
-                expr.namespace = self._process_module_ref(
-                                    context, expr.namespace,
-                                    strip_builtins=(expr.direction != '<'))
-
+        elif isinstance(expr, qlast.PtrNode):
+            self._process_expr(context, expr.ptr)
             if expr.target:
                 self._process_expr(context, expr.target)
 

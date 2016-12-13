@@ -335,8 +335,9 @@ class Shape(Nonterm):
 class TypedShape(Nonterm):
     def reduce_NodeName_Shape(self, *kids):
         self.val = qlast.PathNode(
-            steps=[qlast.PathStepNode(expr=kids[0].val.name,
-                                      namespace=kids[0].val.module)],
+            steps=[qlast.ClassRefNode(name=kids[0].val.name,
+                                      module=kids[0].val.module,
+                                      context=kids[0].context)],
             pathspec=kids[1].val)
 
 
@@ -348,10 +349,7 @@ class OptAnySubShape(Nonterm):
         # typed shape needs to be transformed here into a different
         # expression
         shape = kids[1].val
-        name = shape.steps[0]
-        typenode = qlast.ClassRefNode(name=name.expr,
-                                      module=name.namespace,
-                                      context=name.context)
+        typenode = shape.steps[0]
         self.val = [typenode] + shape.pathspec
 
     def reduce_COLON_TypeName(self, *kids):
@@ -385,10 +383,10 @@ class ShapeElement(Nonterm):
 
         shape = kids[2].val
         if shape and isinstance(shape[0], qlast.ClassRefNode):
-            self.val.expr.steps[-1].expr.target = shape[0]
+            self.val.expr.steps[-1].target = shape[0]
             self.val.pathspec = shape[1:]
         elif shape and isinstance(shape[0], qlast.TypeNameNode):
-            self.val.expr.steps[-1].expr.target = shape[0]
+            self.val.expr.steps[-1].target = shape[0]
         else:
             self.val.pathspec = shape
         self.val.where = kids[3].val
@@ -422,69 +420,105 @@ class ShapePath(Nonterm):
 
     def reduce_ShapePathPtr(self, *kids):
         from edgedb.lang.schema import pointers as s_pointers
-        kids[0].val.direction = s_pointers.PointerDirection.Outbound
+
         self.val = qlast.PathNode(
-            steps=[qlast.LinkExprNode(expr=kids[0].val)]
+            steps=[
+                qlast.PtrNode(
+                    ptr=kids[0].val,
+                    direction=s_pointers.PointerDirection.Outbound
+                )
+            ]
         )
 
     def reduce_LinkDirection_ShapePathPtr(self, *kids):
-        kids[1].val.direction = kids[0].val
         self.val = qlast.PathNode(
-            steps=[qlast.LinkExprNode(expr=kids[1].val)]
+            steps=[
+                qlast.PtrNode(
+                    ptr=kids[1].val,
+                    direction=kids[0].val
+                )
+            ]
         )
 
     def reduce_AT_ShapePathPtr(self, *kids):
-        kids[1].val.type = 'property'
         self.val = qlast.PathNode(
-            steps=[qlast.LinkPropExprNode(expr=kids[1].val)]
+            steps=[
+                qlast.PtrNode(
+                    ptr=kids[1].val,
+                    type='property'
+                )
+            ]
         )
 
     def reduce_ShapePathStart_AT_ShapePathPtr(self, *kids):
-        kids[2].val.type = 'property'
         self.val = qlast.PathNode(
-            steps=[kids[0].val, qlast.LinkPropExprNode(expr=kids[2].val)]
+            steps=[
+                kids[0].val,
+                qlast.PtrNode(
+                    ptr=kids[2].val,
+                    type='property'
+                )
+            ]
         )
 
     def reduce_ShapePathStart_DOT_ShapePathPtr(self, *kids):
         from edgedb.lang.schema import pointers as s_pointers
-        kids[2].val.direction = s_pointers.PointerDirection.Outbound
+
         self.val = qlast.PathNode(
-            steps=[kids[0].val, qlast.LinkExprNode(expr=kids[2].val)]
+            steps=[
+                kids[0].val,
+                qlast.PtrNode(
+                    ptr=kids[2].val,
+                    direction=s_pointers.PointerDirection.Outbound
+                )
+            ]
         )
 
     def reduce_ShapePathStart_DOTFW_ShapePathPtr(self, *kids):
         from edgedb.lang.schema import pointers as s_pointers
-        kids[2].val.direction = s_pointers.PointerDirection.Outbound
+
         self.val = qlast.PathNode(
-            steps=[kids[0].val, qlast.LinkExprNode(expr=kids[2].val)]
+            steps=[
+                kids[0].val,
+                qlast.PtrNode(
+                    ptr=kids[2].val,
+                    direction=s_pointers.PointerDirection.Outbound
+                )
+            ]
         )
 
     def reduce_ShapePathStart_DOTBW_ShapePathPtr(self, *kids):
         from edgedb.lang.schema import pointers as s_pointers
-        kids[2].val.direction = s_pointers.PointerDirection.Inbound
+
         self.val = qlast.PathNode(
-            steps=[kids[0].val, qlast.LinkExprNode(expr=kids[2].val)]
+            steps=[
+                kids[0].val,
+                qlast.PtrNode(
+                    ptr=kids[2].val,
+                    direction=s_pointers.PointerDirection.Inbound
+                )
+            ]
         )
 
 
 class ShapePathStart(Nonterm):
     def reduce_NodeName(self, *kids):
-        self.val = qlast.PathStepNode(
-            expr=kids[0].val.name, namespace=kids[0].val.module)
+        self.val = qlast.ClassRefNode(
+            name=kids[0].val.name, module=kids[0].val.module)
 
     def reduce_NodeNameParens(self, *kids):
-        self.val = qlast.PathStepNode(
-            expr=kids[0].val.name, namespace=kids[0].val.module)
+        self.val = qlast.ClassRefNode(
+            name=kids[0].val.name, module=kids[0].val.module)
 
 
 class ShapePathPtr(Nonterm):
     def reduce_NodeName(self, *kids):
-        self.val = qlast.LinkNode(name=kids[0].val.name,
-                                  namespace=kids[0].val.module)
+        self.val = qlast.ClassRefNode(name=kids[0].val.name,
+                                      module=kids[0].val.module)
 
     def reduce_NodeNameParens(self, *kids):
-        self.val = qlast.LinkNode(name=kids[0].val.name,
-                                  namespace=kids[0].val.module)
+        self.val = qlast.ClassRefNode(name=kids[0].val.name,
+                                      module=kids[0].val.module)
 
 
 class ShapePointer(Nonterm):
@@ -715,12 +749,11 @@ class Expr(Nonterm):
         #
         path = kids[0].val
         if (not isinstance(path, qlast.PathNode) or
-                not isinstance(path.steps[-1], qlast.LinkExprNode) or
-                not isinstance(path.steps[-1].expr, qlast.LinkNode)):
+                not isinstance(path.steps[-1], qlast.PtrNode)):
             raise EdgeQLSyntaxError('Unexpected token: {}'.format(kids[2]),
                                     context=kids[2].context)
 
-        path.steps[-1].expr.target = kids[3].val
+        path.steps[-1].target = kids[3].val
         self.val = path
 
     def reduce_FuncExpr(self, *kids):
@@ -993,16 +1026,16 @@ class OpPath(Nonterm):
     @parsing.precedence(precedence.P_PATHSTART)
     def reduce_OpOnlyNodeName(self, *kids):
         self.val = qlast.PathNode(
-            steps=[qlast.PathStepNode(expr=kids[0].val.name,
-                                      namespace=kids[0].val.module)])
+            steps=[qlast.ClassRefNode(name=kids[0].val.name,
+                                      module=kids[0].val.module)])
 
 
 class Path(Nonterm):
     @parsing.precedence(precedence.P_PATHSTART)
     def reduce_NodeName(self, *kids):
         self.val = qlast.PathNode(
-            steps=[qlast.PathStepNode(expr=kids[0].val.name,
-                                      namespace=kids[0].val.module)])
+            steps=[qlast.ClassRefNode(name=kids[0].val.name,
+                                      module=kids[0].val.module)])
 
     @parsing.precedence(precedence.P_DOT)
     def reduce_Expr_PathStep(self, *kids):
@@ -1017,29 +1050,43 @@ class Path(Nonterm):
 
 class PathStep(Nonterm):
     def reduce_DOT_PathPtr(self, *kids):
-        self.val = qlast.LinkExprNode(expr=kids[1].val)
         from edgedb.lang.schema import pointers as s_pointers
-        kids[1].val.direction = s_pointers.PointerDirection.Outbound
+
+        self.val = qlast.PtrNode(
+            ptr=kids[1].val,
+            direction=s_pointers.PointerDirection.Outbound
+        )
 
     def reduce_DOTFW_PathPtr(self, *kids):
-        self.val = qlast.LinkExprNode(expr=kids[1].val)
         from edgedb.lang.schema import pointers as s_pointers
-        kids[1].val.direction = s_pointers.PointerDirection.Outbound
+
+        self.val = qlast.PtrNode(
+            ptr=kids[1].val,
+            direction=s_pointers.PointerDirection.Outbound
+        )
 
     def reduce_DOTBW_PathPtr(self, *kids):
-        self.val = qlast.LinkExprNode(expr=kids[1].val)
         from edgedb.lang.schema import pointers as s_pointers
-        kids[1].val.direction = s_pointers.PointerDirection.Inbound
+
+        self.val = qlast.PtrNode(
+            ptr=kids[1].val,
+            direction=s_pointers.PointerDirection.Inbound
+        )
 
     def reduce_AT_PathPtr(self, *kids):
-        self.val = qlast.LinkPropExprNode(expr=kids[1].val)
-        kids[1].val.type = 'property'
+        from edgedb.lang.schema import pointers as s_pointers
+
+        self.val = qlast.PtrNode(
+            ptr=kids[1].val,
+            direction=s_pointers.PointerDirection.Outbound,
+            type='property'
+        )
 
 
 class PathPtr(Nonterm):
     def reduce_ShortOpNodeName(self, *kids):
-        self.val = qlast.LinkNode(name=kids[0].val.name,
-                                  namespace=kids[0].val.module)
+        self.val = qlast.ClassRefNode(name=kids[0].val.name,
+                                      module=kids[0].val.module)
 
     def reduce_PathPtrParen(self, *kids):
         self.val = kids[0].val
@@ -1050,8 +1097,8 @@ class PathPtrParen(Nonterm):
         self.val = kids[1].val
 
     def reduce_LPAREN_OpNodeName_RPAREN(self, *kids):
-        self.val = qlast.LinkNode(name=kids[1].val.name,
-                                  namespace=kids[1].val.module)
+        self.val = qlast.ClassRefNode(name=kids[1].val.name,
+                                      module=kids[1].val.module)
 
 
 class LinkDirection(Nonterm):

@@ -980,9 +980,12 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT Foo[TO Bar];
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=29)
     def test_edgeql_syntax_path05(self):
         """
+        SELECT Foo.bar@spam[TO Bar];
+
+% OK %
+
         SELECT Foo.bar@spam[TO Bar];
         """
 

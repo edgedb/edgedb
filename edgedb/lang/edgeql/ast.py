@@ -21,6 +21,11 @@ class RootNode(Base):
     children: list
 
 
+class ClassRefNode(Base):
+    name: str
+    module: str
+
+
 class IndirectionNode(Base):
     arg: Base
     indirection: list
@@ -102,36 +107,16 @@ class PathDisjunctionNode(Base):
     right: Base
 
 
-class PathStepNode(Base):
-    namespace: str
-    expr: object  # str or LinkNode
-    link_expr: object
-
-
-class LinkNode(Base):
-    name: str
-    namespace: str
+class PtrNode(Base):
+    ptr: ClassRefNode
     direction: str
     target: Base
     type: str
 
 
-class LinkExprNode(Base):
-    expr: Base
-
-
-class LinkPropExprNode(Base):
-    expr: Base
-
-
 class StatementNode(Base):
     namespaces: list
     aliases: list
-
-
-class ClassRefNode(Base):
-    name: str
-    module: str
 
 
 class PositionNode(Base):

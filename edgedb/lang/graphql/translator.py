@@ -210,7 +210,7 @@ class GraphQLTranslator(ast.NodeVisitor):
                 context=selection.context)
 
         expr = qlast.PathNode(
-            steps=[qlast.PathStepNode(namespace=base[0], expr=base[1])],
+            steps=[qlast.ClassRefNode(module=base[0], name=base[1])],
             pathspec=self.visit(selection.selection_set)
         )
 
@@ -221,7 +221,7 @@ class GraphQLTranslator(ast.NodeVisitor):
     def _visit_operation_subject(self):
         base = self._context.path[0][0]
         return qlast.PathNode(
-            steps=[qlast.PathStepNode(namespace=base[0], expr=base[1])],
+            steps=[qlast.ClassRefNode(module=base[0], name=base[1])],
         )
 
     def _visit_data(self, arguments):
@@ -265,16 +265,21 @@ class GraphQLTranslator(ast.NodeVisitor):
                 value = qlast.SelectQueryNode(
                     result=qlast.PathNode(
                         steps=[
-                            qlast.PathStepNode(
-                                namespace='std', expr='Object')]
+                            qlast.ClassRefNode(
+                                module='std', name='Object')]
                     ),
                     where=qlast.BinOpNode(
                         left=qlast.PathNode(
                             steps=[
-                                qlast.PathStepNode(
-                                    namespace='std', expr='Object'),
-                                qlast.LinkExprNode(
-                                    expr=qlast.LinkNode(name='id'))
+                                qlast.ClassRefNode(
+                                    module='std',
+                                    name='Object'
+                                ),
+                                qlast.PtrNode(
+                                    ptr=qlast.ClassRefNode(
+                                        name='id'
+                                    )
+                                )
                             ]
                         ),
                         op=op,
@@ -292,9 +297,13 @@ class GraphQLTranslator(ast.NodeVisitor):
 
             result.append(qlast.SelectPathSpecNode(
                 expr=qlast.PathNode(
-                    steps=[qlast.LinkExprNode(
-                        expr=qlast.LinkNode(name=name)
-                    )]
+                    steps=[
+                        qlast.PtrNode(
+                            ptr=qlast.ClassRefNode(
+                                name=name
+                            )
+                        )
+                    ]
                 ),
                 compexpr=value,
                 pathspec=pathspec,
@@ -308,7 +317,7 @@ class GraphQLTranslator(ast.NodeVisitor):
 
         def get_path_prefix():
             base = self._context.path[0][0]
-            return [qlast.PathStepNode(namespace=base[0], expr=base[1])]
+            return [qlast.ClassRefNode(module=base[0], name=base[1])]
 
         return self._join_expressions(self._visit_arguments(
                 arguments, get_path_prefix=get_path_prefix))
@@ -441,11 +450,11 @@ class GraphQLTranslator(ast.NodeVisitor):
         steps = []
 
         if include_base:
-            steps.append(qlast.PathStepNode(
-                namespace=base[0][0], expr=base[0][1]))
+            steps.append(qlast.ClassRefNode(
+                module=base[0][0], name=base[0][1]))
 
-        steps.append(qlast.LinkExprNode(
-            expr=qlast.LinkNode(
+        steps.append(qlast.PtrNode(
+            ptr=qlast.ClassRefNode(
                 name=node.name
             )
         ))
@@ -526,14 +535,17 @@ class GraphQLTranslator(ast.NodeVisitor):
                     for steps in self._context.path
                     for step in steps]
             path = path[0:1] + [step for step in path if type(step) is str]
-            prefix = [qlast.PathStepNode(namespace=path[0][0],
-                                         expr=path[0][1])]
-            prefix.extend([qlast.LinkExprNode(expr=qlast.LinkNode(name=name))
-                           for name in path[1:]])
+            prefix = [
+                qlast.ClassRefNode(module=path[0][0], name=path[0][1])
+            ]
+            prefix.extend(
+                qlast.PtrNode(ptr=qlast.ClassRefNode(name=name))
+                for name in path[1:]
+            )
             return prefix
 
-        return self._join_expressions(self._visit_arguments(
-                arguments, get_path_prefix=get_path_prefix))
+        return self._join_expressions(
+            self._visit_arguments(arguments, get_path_prefix=get_path_prefix))
 
     def _visit_arguments(self, args, *, get_path_prefix):
         result = []
@@ -555,9 +567,10 @@ class GraphQLTranslator(ast.NodeVisitor):
             name_parts = node.name
 
         name = get_path_prefix()
-        name.extend([
-            qlast.LinkExprNode(expr=qlast.LinkNode(name=part))
-            for part in name_parts.split('__')])
+        name.extend(
+            qlast.PtrNode(ptr=qlast.ClassRefNode(name=part))
+            for part in name_parts.split('__')
+        )
         name = qlast.PathNode(steps=name)
 
         value = self.visit(node.value)
@@ -589,13 +602,13 @@ class GraphQLTranslator(ast.NodeVisitor):
             return
 
         target = self._context.schema.get(
-            (path.steps[0].namespace, path.steps[0].expr))
+            (path.steps[0].module, path.steps[0].name))
         for step in path.steps[1:]:
-            target = target.resolve_pointer(self._context.schema,
-                                            step.expr.name).target
+            target = target.resolve_pointer(
+                self._context.schema, step.ptr.name).target
         base_t = target.get_implementation_type()
 
-        self._validate_value(step.expr.name, value, base_t,
+        self._validate_value(step.ptr.name, value, base_t,
                              context=context, as_sequence=as_sequence)
 
     def _validate_value(self, name, value, base_t, *, context,

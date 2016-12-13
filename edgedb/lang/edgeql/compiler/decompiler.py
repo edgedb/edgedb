@@ -54,9 +54,9 @@ class IRDecompiler(ast.visitor.NodeVisitor):
 
     def visit_Shape(self, node):
         result = qlast.PathNode(
-            steps=[qlast.PathStepNode(
-                namespace=node.scls.name.module,
-                expr=node.scls.name.name
+            steps=[qlast.ClassRefNode(
+                module=node.scls.name.module,
+                name=node.scls.name.name
             )],
             pathspec=[]
         )
@@ -69,12 +69,12 @@ class IRDecompiler(ast.visitor.NodeVisitor):
             pn = qlast.SelectPathSpecNode(
                 expr=qlast.PathNode(
                     steps=[
-                        qlast.LinkExprNode(
-                            expr=qlast.LinkNode(
-                                namespace=pn.module,
-                                name=pn.name,
-                                direction=rptr.direction
-                            )
+                        qlast.PtrNode(
+                            ptr=qlast.ClassRefNode(
+                                module=pn.module,
+                                name=pn.name
+                            ),
+                            direction=rptr.direction
                         )
                     ]
                 )
@@ -98,15 +98,17 @@ class IRDecompiler(ast.visitor.NodeVisitor):
 
                 target = rptr.target.scls.name
                 target = qlast.ClassRefNode(
-                    name=target.name, module=target.module)
-                link = qlast.LinkNode(
-                    name=pname.name, namespace=pname.module,
-                    direction=rptr.direction, target=target)
+                    name=target.name,
+                    module=target.module)
+                link = qlast.PtrNode(
+                    ptr=qlast.ClassRefNode(
+                        name=pname.name,
+                        module=pname.module
+                    ),
+                    direction=rptr.direction,
+                    target=target)
                 if isinstance(ptrcls, s_lprops.LinkProperty):
                     link.type = 'property'
-                    link = qlast.LinkPropExprNode(expr=link)
-                else:
-                    link = qlast.LinkExprNode(expr=link)
                 links.append(link)
 
                 node = node.rptr.source
@@ -114,10 +116,10 @@ class IRDecompiler(ast.visitor.NodeVisitor):
             path = qlast.PathNode()
 
             if node.show_as_anchor and not self.context.inline_anchors:
-                step = qlast.PathStepNode(expr=node.show_as_anchor)
+                step = qlast.ClassRefNode(name=node.show_as_anchor)
             else:
-                step = qlast.PathStepNode(expr=node.scls.name.name,
-                                          namespace=node.scls.name.module)
+                step = qlast.ClassRefNode(name=node.scls.name.name,
+                                          module=node.scls.name.module)
 
             path.steps.append(step)
             path.steps.extend(reversed(links))

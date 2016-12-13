@@ -27,7 +27,6 @@ from edgedb.lang.edgeql import parser as qlparser
 
 from edgedb.lang.common import ast
 from edgedb.lang.common import exceptions as edgedb_error
-from edgedb.lang.common import markup  # NOQA
 
 from .context import CompilerContext
 
@@ -299,36 +298,36 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 path_tip.as_type = self._get_schema_object(step.type.maintype)
                 continue
 
-            elif isinstance(step, qlast.PathStepNode):
+            elif isinstance(step, qlast.ClassRefNode):
                 if i > 0:
                     raise RuntimeError(
-                        'unexpected PathStepNode as a non-first path item')
+                        'unexpected ClassRef as a non-first path item')
 
                 refnode = None
 
-                if not step.namespace:
+                if not step.module:
                     # Check if the starting path label is a known anchor
-                    refnode = anchors.get(step.expr)
+                    refnode = anchors.get(step.name)
 
                 if refnode is None:
                     # Check if the starting path label is a known
                     # path variable (defined in a WITH clause).
-                    refnode = pathvars.get(step.expr)
+                    refnode = pathvars.get(step.name)
 
-                if refnode is None and not step.namespace:
+                if refnode is None and not step.module:
                     # Finally, check if the starting path label is
                     # a query defined in a WITH clause.
-                    refnode = ctx.substmts.get(step.expr)
+                    refnode = ctx.substmts.get(step.name)
 
                 if refnode is not None:
                     path_tip = refnode
                     continue
 
-            if isinstance(step, qlast.PathStepNode):
+            if isinstance(step, qlast.ClassRefNode):
                 # Starting path label.  Must be a valid reference to an
                 # existing Concept class, as aliases and path variables
                 # have been checked above.
-                scls = self._get_schema_object(step.expr, step.namespace)
+                scls = self._get_schema_object(step.name, step.module)
                 path_id = irutils.LinearPath([scls])
 
                 try:
@@ -340,11 +339,9 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     path_tip.scls = scls
                     path_tip.path_id = path_id
 
-            elif isinstance(step, (qlast.LinkExprNode,
-                                   qlast.LinkPropExprNode)):
+            elif isinstance(step, qlast.PtrNode):
                 # Pointer traversal step
-                qlptr = step
-                ptr_expr = qlptr.expr
+                ptr_expr = step
                 ptr_target = None
 
                 direction = (ptr_expr.direction or
@@ -354,9 +351,9 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     ptr_target = self._get_schema_object(
                         ptr_expr.target.name, ptr_expr.target.module)
 
-                ptr_name = (ptr_expr.namespace, ptr_expr.name)
+                ptr_name = (ptr_expr.ptr.module, ptr_expr.ptr.name)
 
-                if isinstance(step, qlast.LinkPropExprNode):
+                if ptr_expr.type == 'property':
                     # Link property reference; the source is the
                     # link immediately preceding this step in the path.
                     source = path_tip.rptr.ptrcls
@@ -761,10 +758,10 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 for pn in implicit_ptrs:
                     shape_el = qlast.SelectPathSpecNode(
                         expr=qlast.PathNode(steps=[
-                            qlast.PathStepNode(
-                                expr=qlast.LinkNode(
+                            qlast.PtrNode(
+                                ptr=qlast.ClassRefNode(
                                     name=pn.name,
-                                    namespace=pn.module
+                                    module=pn.module
                                 )
                             )
                         ])
@@ -785,12 +782,12 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 for pn in implicit_ptrs:
                     shape_el = qlast.SelectPathSpecNode(
                         expr=qlast.PathNode(steps=[
-                            qlast.PathStepNode(
-                                expr=qlast.LinkNode(
+                            qlast.PtrNode(
+                                ptr=qlast.ClassRefNode(
                                     name=pn.name,
-                                    namespace=pn.module,
-                                    type='property'
-                                )
+                                    module=pn.module
+                                ),
+                                type='property'
                             )
                         ])
                     )
@@ -807,12 +804,12 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 # Pointers may be qualified by the explicit source
                 # class, which is equivalent to (Expr AS Type).
                 ptrsource = self._get_schema_object(
-                    steps[0].expr, steps[0].namespace)
-                lexpr = steps[1].expr
+                    steps[0].name, steps[0].module)
+                lexpr = steps[1]
             elif len(steps) == 1:
-                lexpr = steps[0].expr
+                lexpr = steps[0]
 
-            ptrname = (lexpr.namespace, lexpr.name)
+            ptrname = (lexpr.ptr.module, lexpr.ptr.name)
 
             if lexpr.type == 'property':
                 if rptrcls is None:
@@ -976,8 +973,11 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
                     mutation_pathspec = []
                     for subel in shape_el.pathspec or []:
-                        if not isinstance(subel.expr.steps[0],
-                                          qlast.LinkPropExprNode):
+                        is_prop = (
+                            isinstance(subel.expr.steps[0], qlast.PtrNode) and
+                            subel.expr.steps[0].type == 'property'
+                        )
+                        if not is_prop:
                             mutation_pathspec.append(subel)
 
                     el = self._process_shape(
@@ -991,8 +991,11 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
                     returning_pathspec = []
                     for subel in shape_el.pathspec or []:
-                        if isinstance(subel.expr.steps[0],
-                                      qlast.LinkPropExprNode):
+                        is_prop = (
+                            isinstance(subel.expr.steps[0], qlast.PtrNode) and
+                            subel.expr.steps[0].type == 'property'
+                        )
+                        if is_prop:
                             returning_pathspec.append(subel)
 
                     substmt = irast.InsertStmt(
