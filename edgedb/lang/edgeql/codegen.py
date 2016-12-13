@@ -65,14 +65,14 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.new_lines = 1
 
     def _visit_returning(self, node):
-        if node.targets:
+        if node.result is not None:
             self.new_lines = 1
             self.write('RETURNING')
             if node.single:
                 self.write(' SINGLETON')
             self.indentation += 1
             self.new_lines = 1
-            self.visit_list(node.targets)
+            self.visit(node.result)
             self.indentation -= 1
 
     def visit_InsertQueryNode(self, node):
@@ -189,11 +189,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.write(' SINGLETON')
             self.new_lines = 1
             self.indentation += 1
-            for i, e in enumerate(node.targets):
-                if i > 0:
-                    self.write(',')
-                    self.new_lines = 1
-                self.visit(e)
+            self.visit(node.result)
             self.new_lines = 1
             self.indentation -= 1
             if node.where:
@@ -255,11 +251,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write('VALUES')
         self.indentation += 1
         self.new_lines = 1
-        for i, e in enumerate(node.targets):
-            if i > 0:
-                self.write(',')
-                self.new_lines = 1
-            self.visit(e)
+        self.visit_list(node.result)
         self.indentation -= 1
         self.new_lines = 1
 
@@ -303,9 +295,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_DetachedPathDeclNode(self, node):
         self.write(ident_to_str(node.alias))
         self.write(' := DETACHED ')
-        self.visit(node.expr)
-
-    def visit_SelectExprNode(self, node):
         self.visit(node.expr)
 
     def visit_SortExprNode(self, node):

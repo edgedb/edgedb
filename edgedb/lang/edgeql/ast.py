@@ -479,7 +479,7 @@ class DropFunctionNode(DropObjectNode):
 class SelectQueryNode(StatementNode):
     single: bool = False
     distinct: bool = False
-    targets: list
+    result: Base
     where: Base
     groupby: list
     having: Base
@@ -495,7 +495,7 @@ class SelectQueryNode(StatementNode):
 class InsertQueryNode(StatementNode):
     subject: Base
     pathspec: list
-    targets: list
+    result: Base
     cges: list
     single: bool = False
     source: StatementNode
@@ -505,7 +505,7 @@ class UpdateQueryNode(StatementNode):
     subject: Base
     pathspec: list
     where: Base
-    targets: list
+    result: Base
     cges: list
     single: bool = False
 
@@ -518,13 +518,13 @@ class UpdateExprNode(Base):
 class DeleteQueryNode(StatementNode):
     subject: Base
     where: Base
-    targets: list
+    result: Base
     cges: list
     single: bool = False
 
 
 class ValuesQueryNode(StatementNode):
-    targets: list
+    result: list
     orderby: list
     offset: Base
     limit: Base
@@ -563,10 +563,6 @@ class PredicateNode(Base):
 
 class ExistsPredicateNode(PredicateNode):
     pass
-
-
-class SelectExprNode(Base):
-    expr: Base
 
 
 class SelectPathSpecNode(Base):

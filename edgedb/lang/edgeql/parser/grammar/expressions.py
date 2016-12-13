@@ -112,10 +112,7 @@ class SimpleSelect(Nonterm):
                   OptWhereClause OptGroupClause OptHavingClause"
         self.val = qlast.SelectQueryNode(
             single=kids[1].val,
-            # XXX: for historical reasons a list is expected here by
-            # the compiler
-            #
-            targets=[kids[2].val],
+            result=kids[2].val,
             where=kids[3].val,
             groupby=kids[4].val,
             having=kids[5].val,
@@ -145,24 +142,24 @@ class SimpleSelect(Nonterm):
 
 class InsertExpr(Nonterm):
     def reduce_OptAliasBlock_INSERT_Path_OptReturningClause(self, *kids):
-        single, targets = kids[3].val
+        single, result = kids[3].val
         self.val = qlast.InsertQueryNode(
             aliases=kids[0].val,
             subject=kids[2].val,
             single=single,
-            targets=targets,
+            result=result,
         )
 
     def reduce_OptAliasBlock_INSERT_TypedShape_OptReturningClause(self, *kids):
         pathspec = kids[2].val.pathspec
         kids[2].val.pathspec = None
-        single, targets = kids[3].val
+        single, result = kids[3].val
         self.val = qlast.InsertQueryNode(
             aliases=kids[0].val,
             subject=kids[2].val,
             pathspec=pathspec,
             single=single,
-            targets=targets,
+            result=result,
         )
 
     def reduce_InsertFrom(self, *kids):
@@ -170,13 +167,13 @@ class InsertExpr(Nonterm):
           OptReturningClause'
         pathspec = kids[2].val.pathspec
         kids[2].val.pathspec = None
-        single, targets = kids[5].val
+        single, result = kids[5].val
         self.val = qlast.InsertQueryNode(
             aliases=kids[0].val,
             subject=kids[2].val,
             pathspec=pathspec,
             single=single,
-            targets=targets,
+            result=result,
             source=kids[4].val,
         )
 
@@ -215,27 +212,27 @@ class UpdateExpr(Nonterm):
                   OptWhereClause OptReturningClause"
         pathspec = kids[2].val.pathspec
         kids[2].val.pathspec = None
-        single, targets = kids[4].val
+        single, result = kids[4].val
         self.val = qlast.UpdateQueryNode(
             aliases=kids[0].val,
             subject=kids[2].val,
             pathspec=pathspec,
             where=kids[3].val,
             single=single,
-            targets=targets,
+            result=result,
         )
 
 
 class DeleteExpr(Nonterm):
     def reduce_DeleteExpr(self, *kids):
         "%reduce OptAliasBlock DELETE Path OptWhereClause OptReturningClause"
-        single, targets = kids[4].val
+        single, result = kids[4].val
         self.val = qlast.DeleteQueryNode(
             aliases=kids[0].val,
             subject=kids[2].val,
             where=kids[3].val,
             single=single,
-            targets=targets,
+            result=result,
         )
 
 
@@ -245,7 +242,7 @@ class ValuesExpr(Nonterm):
                  OptSortClause OptSelectLimit"
         self.val = qlast.ValuesQueryNode(
             aliases=kids[0].val,
-            targets=kids[2].val,
+            result=kids[2].val,
             orderby=kids[3].val,
             offset=kids[4].val[0],
             limit=kids[4].val[1],
@@ -254,7 +251,7 @@ class ValuesExpr(Nonterm):
 
 class ValueTarget(Nonterm):
     def reduce_Expr(self, *kids):
-        self.val = qlast.SelectExprNode(expr=kids[0].val)
+        self.val = kids[0].val
 
 
 class ValueTargetList(ListNonterm, element=ValueTarget, separator=T_COMMA):
@@ -307,7 +304,7 @@ class AliasDeclList(ListNonterm, element=AliasDecl, separator=T_COMMA):
 
 class SelectTargetEl(Nonterm):
     def reduce_Expr(self, *kids):
-        self.val = qlast.SelectExprNode(expr=kids[0].val)
+        self.val = kids[0].val
 
     def reduce_Expr_Shape(self, *kids):
         tshape = kids[0].val
@@ -317,13 +314,12 @@ class SelectTargetEl(Nonterm):
                                     context=kids[1].context)
 
         tshape.pathspec = kids[1].val
-        self.val = qlast.SelectExprNode(expr=tshape)
+        self.val = tshape
 
     def reduce_Shape(self, *kids):
         # anonymous shape
         #
-        self.val = qlast.SelectExprNode(
-            expr=qlast.PathNode(pathspec=kids[0].val))
+        self.val = qlast.PathNode(pathspec=kids[0].val)
 
 
 class Shape(Nonterm):
@@ -1345,9 +1341,7 @@ class ReservedKeyword(Nonterm, metaclass=KeywordMeta,
 
 class ReturningClause(Nonterm):
     def reduce_RETURNING_OptSingle_SelectTargetEl(self, *kids):
-        # XXX: for historical reasons a list is expected here by the compiler
-        #
-        self.val = [kids[1].val, [kids[2].val]]
+        self.val = [kids[1].val, kids[2].val]
 
 
 class OptReturningClause(Nonterm):

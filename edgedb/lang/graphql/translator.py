@@ -110,9 +110,7 @@ class GraphQLTranslator(ast.NodeVisitor):
         for selection in node.selection_set.selections:
             self._context.path = [[[module, None]]]
             selquery = qlast.SelectQueryNode(
-                targets=[
-                    self._visit_query_selset(selection)
-                ],
+                result=self._visit_query_selset(selection),
                 where=self._visit_where(selection.arguments)
             )
 
@@ -145,14 +143,12 @@ class GraphQLTranslator(ast.NodeVisitor):
             # in addition to figuring out the returned structure, this
             # will determine the type of mutation
             #
-            targets = [
-                self._visit_query_selset(selection)
-            ]
+            result = self._visit_query_selset(selection)
             subject = self._visit_operation_subject()
 
             if self._context.optype == 'delete':
                 mutation = qlast.DeleteQueryNode(
-                    targets=targets,
+                    result=result,
                     subject=subject,
                     where=self._visit_where(selection.arguments),
                 )
@@ -163,13 +159,13 @@ class GraphQLTranslator(ast.NodeVisitor):
                         context=selection.context)
 
                 mutation = qlast.InsertQueryNode(
-                    targets=targets,
+                    result=result,
                     subject=subject,
                     pathspec=self._visit_data(selection.arguments),
                 )
             elif self._context.optype == 'update':
                 mutation = qlast.UpdateQueryNode(
-                    targets=targets,
+                    result=result,
                     subject=subject,
                     pathspec=self._visit_data(selection.arguments),
                     where=self._visit_where(selection.arguments),
@@ -213,11 +209,9 @@ class GraphQLTranslator(ast.NodeVisitor):
                 f"{base[1]!r} does not exist in the schema module {base[0]!r}",
                 context=selection.context)
 
-        expr = qlast.SelectExprNode(
-            expr=qlast.PathNode(
-                steps=[qlast.PathStepNode(namespace=base[0], expr=base[1])],
-                pathspec=self.visit(selection.selection_set)
-            )
+        expr = qlast.PathNode(
+            steps=[qlast.PathStepNode(namespace=base[0], expr=base[1])],
+            pathspec=self.visit(selection.selection_set)
         )
 
         self._context.fields.pop()
@@ -269,13 +263,11 @@ class GraphQLTranslator(ast.NodeVisitor):
 
                 name = field.name[:-4]
                 value = qlast.SelectQueryNode(
-                    targets=[qlast.SelectExprNode(
-                        expr=qlast.PathNode(
-                            steps=[
-                                qlast.PathStepNode(
-                                    namespace='std', expr='Object')]
-                        )
-                    )],
+                    result=qlast.PathNode(
+                        steps=[
+                            qlast.PathStepNode(
+                                namespace='std', expr='Object')]
+                    ),
                     where=qlast.BinOpNode(
                         left=qlast.PathNode(
                             steps=[

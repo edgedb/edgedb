@@ -286,7 +286,7 @@ class Constraint(primary.PrimaryClass, derivable.DerivableClass):
 
         arg_types = ir_utils.infer_arg_types(ir, schema)
 
-        return edgeql_tree.targets[0].expr, ir.result, arg_types
+        return edgeql_tree.result, ir.result, arg_types
 
     @classmethod
     def normalize_constraint_expr(cls, schema, module_aliases, expr):

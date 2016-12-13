@@ -126,8 +126,7 @@ class EdgeQLOptimizer:
                 for gb in expr.groupby:
                     self._process_expr(context, gb)
 
-            for tgt in expr.targets:
-                self._process_expr(context, tgt.expr)
+            self._process_expr(context, expr.result)
 
             if expr.orderby:
                 for sort in expr.orderby:
@@ -149,8 +148,8 @@ class EdgeQLOptimizer:
             if expr.pathspec:
                 self._process_pathspec(context, expr.pathspec)
 
-            for tgt in expr.targets:
-                self._process_expr(context, tgt.expr)
+            if expr.result is not None:
+                self._process_expr(context, expr.result)
 
         elif isinstance(expr, qlast.UpdateQueryNode):
             if expr.namespaces:
@@ -165,8 +164,8 @@ class EdgeQLOptimizer:
             if expr.pathspec:
                 self._process_pathspec(context, expr.pathspec)
 
-            for tgt in expr.targets:
-                self._process_expr(context, tgt.expr)
+            if expr.result is not None:
+                self._process_expr(context, expr.result)
 
         elif isinstance(expr, qlast.DeleteQueryNode):
             if expr.namespaces:
@@ -178,8 +177,8 @@ class EdgeQLOptimizer:
             if expr.where:
                 self._process_expr(context, expr.where)
 
-            for tgt in expr.targets:
-                self._process_expr(context, tgt.expr)
+            if expr.result is not None:
+                self._process_expr(context, expr.result)
 
         elif isinstance(expr, qlast.PredicateNode):
             self._process_expr(context, expr.expr)

@@ -158,13 +158,17 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                         # Make sure we don't dip into subqueries
                         raise ast.SkipNode()
 
-                for node in itertools.chain(edgeql_tree.orderby or [],
-                                            edgeql_tree.targets or []):
+                nodes = itertools.chain(
+                    edgeql_tree.orderby or [],
+                    (edgeql_tree.result,) if edgeql_tree.result is not None
+                    else []
+                )
+                for node in nodes:
                     if ast.find_children(node, checker, force_traversal=True):
                         ctx.group_paths = {...}
                         break
 
-            stmt.result = self._process_stmt_result(edgeql_tree.targets[0])
+            stmt.result = self._process_stmt_result(edgeql_tree.result)
 
         stmt.orderby = self._process_orderby(edgeql_tree.orderby)
 
@@ -189,8 +193,8 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             self.context.current.location = 'selector'
             subject = self.visit(edgeql_tree.subject)
 
-            if edgeql_tree.targets:
-                stmt.result = self._process_stmt_result(edgeql_tree.targets[0])
+            if edgeql_tree.result is not None:
+                stmt.result = self._process_stmt_result(edgeql_tree.result)
             else:
                 stmt.result = self._process_shape(subject, None, [])
 
@@ -238,8 +242,8 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             subject = self.visit(edgeql_tree.subject)
 
         stmt.where = self._process_select_where(edgeql_tree.where)
-        if edgeql_tree.targets:
-            stmt.result = self._process_stmt_result(edgeql_tree.targets[0])
+        if edgeql_tree.result is not None:
+            stmt.result = self._process_stmt_result(edgeql_tree.result)
         else:
             stmt.result = self._process_shape(subject, None, [])
 
@@ -264,8 +268,8 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             subject = self.visit(edgeql_tree.subject)
 
         stmt.where = self._process_select_where(edgeql_tree.where)
-        if edgeql_tree.targets:
-            stmt.result = self._process_stmt_result(edgeql_tree.targets[0])
+        if edgeql_tree.result is not None:
+            stmt.result = self._process_stmt_result(edgeql_tree.result)
         else:
             stmt.result = self._process_shape(subject, None, [])
 
@@ -1145,13 +1149,13 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         return ctx.schema.get(name=name, module_aliases=ctx.namespaces)
 
-    def _process_stmt_result(self, target):
+    def _process_stmt_result(self, result):
         toplevel_rptrcls = self.context.current.toplevel_shape_rptrcls
 
         with self.context.new():
             self.context.current.location = 'selector'
 
-            expr = self.visit(target.expr)
+            expr = self.visit(result)
 
             if (isinstance(expr, irast.Set) and
                     isinstance(expr.scls, s_concepts.Concept)):
@@ -1161,7 +1165,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     rptrcls = toplevel_rptrcls
 
                 expr = self._process_shape(
-                    expr, rptrcls, target.expr.pathspec or [])
+                    expr, rptrcls, result.pathspec or [])
 
         return expr
 

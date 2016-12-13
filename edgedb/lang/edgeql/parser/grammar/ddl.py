@@ -1311,5 +1311,4 @@ class FunctionType(Nonterm):
         self.val = kids[0].val
 
     def reduce_Shape(self, *kids):
-        self.val = qlast.SelectExprNode(
-            expr=qlast.PathNode(pathspec=kids[0].val))
+        self.val = qlast.PathNode(pathspec=kids[0].val)

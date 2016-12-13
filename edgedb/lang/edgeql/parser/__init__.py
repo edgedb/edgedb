@@ -19,9 +19,7 @@ def parse(expr, module_aliases=None):
     tree = parse_fragment(expr)
 
     if not isinstance(tree, qlast.StatementNode):
-        selnode = qlast.SelectQueryNode()
-        selnode.targets = [qlast.SelectExprNode(expr=tree)]
-        tree = selnode
+        tree = qlast.SelectQueryNode(result=tree)
 
     if module_aliases:
         nses = []

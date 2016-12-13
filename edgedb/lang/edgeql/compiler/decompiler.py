@@ -48,11 +48,7 @@ class IRDecompiler(ast.visitor.NodeVisitor):
             result.limit = self.visit(node.limit)
 
         if node.result is not None:
-            result.targets = [
-                qlast.SelectExprNode(
-                    expr=self.visit(node.result)
-                )
-            ]
+            result.result = self.visit(node.result)
 
         return result
 
@@ -238,7 +234,5 @@ def decompile_ir(ir_tree, inline_anchors=False, return_statement=False):
     decompiler = IRDecompiler()
     qltree = decompiler.transform(ir_tree, inline_anchors=inline_anchors)
     if return_statement and not isinstance(qltree, qlast.StatementNode):
-        qltree = qlast.SelectQueryNode(targets=[
-            qlast.SelectExprNode(expr=qltree)
-        ])
+        qltree = qlast.SelectQueryNode(result=qltree)
     return qltree

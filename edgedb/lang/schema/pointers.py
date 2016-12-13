@@ -107,7 +107,7 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
                         deflt = []
 
                         for candidate in candidates:
-                            cexpr = candidate.targets[0].expr
+                            cexpr = candidate.result
                             if isinstance(cexpr, qlast.ConstantNode):
                                 deflt.append(cexpr.value)
                             else:
@@ -127,9 +127,7 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
             expr = op.new_value
             if not isinstance(expr, sexpr.ExpressionText):
                 expr_t = qlast.SelectQueryNode(
-                    targets=[qlast.SelectExprNode(
-                        expr=qlast.ConstantNode(value=expr)
-                    )]
+                    result=qlast.ConstantNode(value=expr)
                 )
                 expr = edgeql.generate_source(expr_t, pretty=False)
 
