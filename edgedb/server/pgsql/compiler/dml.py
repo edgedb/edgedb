@@ -197,13 +197,13 @@ class IRCompilerDMLSupport:
         target_ir_set = ir_stmt.shape.set
         ir_qual_expr = ir_stmt.where
 
-        with self.context.new():
+        with self.context.subquery():
             # Note that this is intentionally *not* a subquery
             # context, as we want all CTEs produced by the qual
             # condition to be attached to the top level query.
             ctx = self.context.current
 
-            range_stmt = ctx.rel = pgast.SelectStmt()
+            range_stmt = ctx.query
 
             id_set = self._get_ptr_set(target_ir_set, 'std::id')
             self.visit(id_set)
@@ -287,9 +287,9 @@ class IRCompilerDMLSupport:
             # Process the Insert IR and separate links that go
             # into the main table from links that are inserted into
             # a separate link table.
-            for expr in ir_stmt.shape.elements:
-                ptrcls = expr.rptr.ptrcls
-                insvalue = expr.stmt
+            for shape_el in ir_stmt.shape.elements:
+                ptrcls = shape_el.rptr.ptrcls
+                insvalue = shape_el.expr
 
                 ptr_info = pg_types.get_pointer_storage_info(
                     ptrcls, schema=ctx.schema, resolve_type=True,
@@ -315,7 +315,7 @@ class IRCompilerDMLSupport:
                     ptrcls, resolve_type=False, link_bias=True)
 
                 if ptr_info and ptr_info.table_type == 'link':
-                    external_inserts.append((expr, props_only))
+                    external_inserts.append((shape_el, props_only))
 
             self._connect_subrels(insert_stmt)
 
@@ -347,11 +347,12 @@ class IRCompilerDMLSupport:
             # values of the updated object are resolved correctly.
             ctx = self.context.current
             ctx.rel = ctx.query = update_stmt
+            ctx.output_format = 'flat'
             ctx.ctemap[ir_stmt.shape.set] = range_cte
 
-            for expr in ir_stmt.shape.elements:
-                ptrcls = expr.rptr.ptrcls
-                updvalue = expr.stmt.result
+            for shape_el in ir_stmt.shape.elements:
+                ptrcls = shape_el.rptr.ptrcls
+                updvalue = shape_el.expr
 
                 ptr_info = pg_types.get_pointer_storage_info(
                     ptrcls, schema=ctx.schema, resolve_type=True,
@@ -377,7 +378,7 @@ class IRCompilerDMLSupport:
                     ptrcls, resolve_type=False, link_bias=True)
 
                 if ptr_info and ptr_info.table_type == 'link':
-                    external_updates.append((expr, props_only))
+                    external_updates.append((shape_el, props_only))
 
             self._connect_subrels(update_stmt)
 
@@ -619,28 +620,8 @@ class IRCompilerDMLSupport:
 
         tranches = []
 
-        if isinstance(ir_expr, irast.TypeCast):
-            # Link property updates will have the data casted into
-            # an appropriate selector shape which specifies which properties
-            # are being updated.
-            #
-            data = ir_expr.expr
-            typ = ir_expr.type
-
-            if not isinstance(typ, tuple):
-                raise ValueError(
-                    'unexpected value type in update expr: {!r}'.format(typ))
-
-            if not isinstance(typ[1], irast.CompositeType):
-                raise ValueError(
-                    'unexpected value type in update expr: {!r}'.format(typ))
-
-            props = [p.ptr_class.shortname for p in typ[1].pathspec]
-
-        else:
-            # Target-only update
-            data = ir_expr
-            props = ['std::target']
+        data = ir_expr.expr
+        props = ['std::target']
 
         if (props == ['std::target'] and props_only and not target_is_atom):
             # No property upates and the target value is stored

@@ -177,7 +177,10 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         testref = None
 
         for i, e in enumerate(expr.elements):
-            element = self.visit(e)
+            if isinstance(e, irast.Set) and isinstance(e.expr, irast.Stmt):
+                element = self.visit(e.expr)
+            else:
+                element = self.visit(e)
 
             ptr_name = e.rptr.ptrcls.shortname
 
@@ -281,9 +284,6 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         return result
 
-    def visit_SubstmtRef(self, expr):
-        return self.visit(expr.stmt)
-
     def visit_Set(self, expr):
         ctx = self.context.current
 
@@ -301,11 +301,22 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             #    SELECT v FROM SetCTE
             result = self._wrap_set_rel_as_value(expr, source_cte)
         else:
-            # Otherwise we join the CTE directly into the current rel
+            # Otherwise we join the range directly into the current rel
             # and make its refs available in the path namespace.
             source_rvar = self._include_range(source_cte)
 
-            if expr.expr:
+            if isinstance(source_cte, pgast.Query):
+                targets = [
+                    pgast.ColumnRef(
+                        name=[source_rvar.alias.aliasname, rt.name]
+                    )
+                    for rt in source_rvar.subquery.target_list
+                ]
+                names = [rt.name for rt in source_rvar.subquery.target_list]
+
+                result = ResTargetList(targets=targets, attmap=names)
+
+            elif expr.expr:
                 # For expression sets the result is the result
                 # of the expression.
                 result = pgast.ColumnRef(
@@ -317,30 +328,39 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         return result
 
-    def _include_range(self, cte):
-        """Ensure the *cte* is present in the from_clause of current rel.
+    def _include_range(self, rel):
+        """Ensure the *rel* is present in the from_clause of current rel.
 
-        :param cte:
-            The CTE node to join.
+        :param rel:
+            The relation node to join.
 
         :return:
-            RangeVar representing the *cte* in the context of current rel.
+            RangeVar or RangeSubselect representing the *rel* in the
+            context of current rel.
         """
         ctx = self.context.current
 
-        subrel = ctx.subquery_map[ctx.rel].get(cte)
+        subrel = ctx.subquery_map[ctx.rel].get(rel)
 
-        if subrel is None:
-            # The cte has not been recorded as a sub-relation of this rel,
+        if subrel is None or subrel['rvar'] is None:
+            # The rel has not been recorded as a sub-relation of this rel,
             # so make it so.
-            rvar = pgast.RangeVar(
-                relation=cte,
-                alias=pgast.Alias(
-                    aliasname=ctx.genalias(hint=getattr(cte, 'name'))
+            if isinstance(rel, pgast.Query):
+                rvar = pgast.RangeSubselect(
+                    subquery=rel,
+                    alias=pgast.Alias(
+                        aliasname=ctx.genalias(hint='q')
+                    )
                 )
-            )
+            else:
+                rvar = pgast.RangeVar(
+                    relation=rel,
+                    alias=pgast.Alias(
+                        aliasname=ctx.genalias(hint=getattr(rel, 'name'))
+                    )
+                )
 
-            ctx.subquery_map[ctx.rel][cte] = {
+            ctx.subquery_map[ctx.rel][rel] = {
                 'rvar': rvar,
                 'linked': False
             }
@@ -418,9 +438,18 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         self._pull_path_namespace(target=wrapper, source=rvar)
 
         if self._set_has_expr(ir_set):
-            wrapper.where_clause = pgast.ColumnRef(
+            v = pgast.ColumnRef(
                 name=[rvar.alias.aliasname, 'v']
             )
+
+            if ir_set.scls.name == 'std::bool':
+                wrapper.where_clause = v
+            else:
+                wrapper.where_clause = pgast.NullTest(
+                    arg=v,
+                    negated=True
+                )
+
             not_exists = False
         else:
             exists_target, not_exists = self._is_exists_ir(ir_set.expr)
@@ -432,11 +461,9 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                     )
                 )
             else:
-                wrapper.where_clause = self._new_unop(
-                    op=ast.ops.NOT,
-                    expr=pgast.NullTest(
-                        arg=wrapper.path_namespace[ir_set.path_id]
-                    )
+                wrapper.where_clause = pgast.NullTest(
+                    arg=wrapper.path_namespace[ir_set.path_id],
+                    negated=True
                 )
 
         subrels = ctx.subquery_map[ctx.rel]
@@ -549,12 +576,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         if not ir_sources:
             # If there are no explicit sources, check if this Set
             # is a non-starting part of a path.
-            if ir_set.rptr is not None:
+            if ir_set.rptr is not None and ir_set.expr is None:
                 ir_sources.append(ir_set.rptr.source)
-
-        if not ir_sources and isinstance(ir_set.scls, s_atoms.Atom):
-            # Atomic Sets cannot appear without a source superset
-            raise RuntimeError('unexpected atomic set without sources')
 
         sources = []
         for ir_source in ir_sources:
@@ -615,7 +638,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         return_parent = ir_set.rptr is not None and not ir_set.expr
 
-        if ir_set.rptr is not None:
+        if ir_set.rptr is not None and ir_set.expr is None:
             # This is the nth step in the path, where n > 1.
             # Translate pointer traversal into a join clause.
 
@@ -682,6 +705,19 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             exist_expr, _ = self._is_exists_ir(ir_set.expr)
 
             if exist_expr is None:
+                if isinstance(ir_set.expr, irast.Stmt):
+                    set_expr = self.visit(ir_set.expr)
+                    res = ir_set.expr.result
+
+                    if (isinstance(res, irast.Set) and
+                            res.path_id[0].name.module == '__cexpr__'):
+                        cte = ctx.ctemap[res]
+                        ctx.ctemap[ir_set] = cte
+                    else:
+                        cte = set_expr
+
+                    return cte
+
                 with self.context.new():
                     self.context.current.location = 'set_expr'
                     self.context.current.rel = stmt
@@ -769,10 +805,28 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         if ir_stmt.substmts:
             for substmt in ir_stmt.substmts:
                 with self.context.substmt():
+                    self.context.current.output_format = 'flat'
+                    subquery = self.visit(substmt.expr)
                     cte = pgast.CommonTableExpr(
-                        query=self.visit(substmt),
-                        name=substmt.name
+                        query=subquery,
+                        name=ctx.genalias(hint=substmt.path_id[0].name.name)
                     )
+                    # XXX: hack
+                    subquery.scls_rvar = subquery.from_clause[0]
+                    ctx.ctemap[substmt] = cte
+
+                    ref = subquery.path_namespace[substmt.real_path_id]
+                    if ref is not None:
+                        for rt in subquery.target_list:
+                            if rt.val == ref:
+                                rt.name = 'v'
+                                break
+
+                        subquery.path_vars[substmt.path_id] = 'v'
+
+                    for path_id, ref in subquery.path_namespace.items():
+                        self._expose_path_var(subquery, path_id, ref)
+
                 ctx.query.ctes.append(cte)
 
     def _process_selector(self, result_expr):
@@ -976,36 +1030,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
             if add_to_target_list:
                 if newref:
-                    alias = ctx.genalias(hint=name)
-
-                    if isinstance(target, pgast.DML):
-                        if len(path_id) > 1:
-                            lname = path_id[-2][0].shortname
-                        else:
-                            lname = 'std::id'
-
-                        colname = common.edgedb_name_to_pg_name(lname)
-
-                        ref = pgast.ColumnRef(
-                            name=[target.relation.alias.aliasname, colname]
-                        )
-
-                        target.returning_list.append(
-                            pgast.ResTarget(
-                                name=alias,
-                                val=ref
-                            )
-                        )
-                    else:
-                        target.target_list.append(
-                            pgast.ResTarget(
-                                name=alias,
-                                val=ref
-                            )
-                        )
-
+                    alias = self._expose_path_var(target, path_id, ref)
                     target.path_vars[path_id] = alias
-
                     if path_id in source.path_bonds:
                         target.path_bonds[path_id] = alias
                 else:
@@ -1014,6 +1040,39 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                     if path_id in source.path_bonds:
                         target.path_bonds[path_id] = \
                             target.path_bonds[prev_path_id]
+
+    def _expose_path_var(self, stmt, path_id, ref):
+        ctx = self.context.current
+
+        alias = ctx.genalias(hint=ref.name[-1])
+
+        if isinstance(stmt, pgast.DML):
+            if len(path_id) > 1:
+                lname = path_id[-2][0].shortname
+            else:
+                lname = 'std::id'
+
+            colname = common.edgedb_name_to_pg_name(lname)
+
+            ref = pgast.ColumnRef(
+                name=[stmt.relation.alias.aliasname, colname]
+            )
+
+            stmt.returning_list.append(
+                pgast.ResTarget(
+                    name=alias,
+                    val=ref
+                )
+            )
+        else:
+            stmt.target_list.append(
+                pgast.ResTarget(
+                    name=alias,
+                    val=ref
+                )
+            )
+
+        return alias
 
     def _join_mapping_rel(self, *, stmt, set_rvar, ir_set,
                           map_join_type='inner'):

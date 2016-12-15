@@ -101,9 +101,9 @@ class TransformerContext:
 
     def __init__(self):
         self.stack = []
-        self.push()
+        self.push(None)
 
-    def push(self, mode=None):
+    def push(self, mode):
         level = TransformerContextLevel(self.current, mode)
         self.stack.append(level)
         return level
@@ -112,7 +112,7 @@ class TransformerContext:
         self.stack.pop()
 
     def new(self, mode=None):
-        if not mode:
+        if mode is None:
             mode = TransformerContext.TRANSPARENT
         return TransformerContextWrapper(self, mode)
 

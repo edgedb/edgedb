@@ -1052,9 +1052,10 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT User.__class__.name LIMIT 1;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=20)
     def test_edgeql_syntax_path15(self):
         """
+        SELECT (42).foo;
+% OK %
         SELECT (42).foo;
         """
 

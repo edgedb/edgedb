@@ -1041,8 +1041,7 @@ class Path(Nonterm):
     def reduce_Expr_PathStep(self, *kids):
         path = kids[0].val
         if not isinstance(path, qlast.PathNode):
-            raise EdgeQLSyntaxError('illegal path node',
-                                    context=kids[1].val.context)
+            path = qlast.PathNode(steps=[path])
 
         path.steps.append(kids[1].val)
         self.val = path

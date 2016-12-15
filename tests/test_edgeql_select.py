@@ -178,7 +178,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     name,
                     shortest_own_text := (
                         SELECT SINGLETON
-                            Text {body}
+                            Text {
+                                body
+                            }
                         WHERE
                             (Text AS Issue).owner = User
                         ORDER BY
@@ -205,7 +207,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 # best as a subquery, rather than inline computable
                 sub := (
                     SELECT SINGLETON
-                        Text {body}
+                        Text
                     ORDER BY
                         strlen(Text.body) ASC
                     LIMIT
@@ -214,7 +216,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT
                 User {
                     name,
-                    shortest_text := sub,
+                    shortest_text := sub {
+                        body
+                    }
                 }
             WHERE User.name = 'Elvis';
         ''', [
@@ -233,9 +237,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 # we aren't referencing User in any way, so this works
                 # best as a subquery, than inline computable
                 sub := (
-                    SELECT Text {body}
-                    ORDER BY strlen(Text.body) ASC
-                    LIMIT 1
+                    SELECT SINGLETON
+                        Text
+                    ORDER BY
+                        strlen(Text.body) ASC
+                    LIMIT
+                        1
                 )
             SELECT
                 User {
@@ -250,7 +257,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         LIMIT
                             1
                     ),
-                    shortest_text := sub,
+                    shortest_text := sub {
+                        body
+                    },
                 }
             WHERE User.name = 'Elvis';
         ''', [
@@ -409,6 +418,42 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 'number': '1',
                 'foo': 11,
             }],
+        ])
+
+    async def test_edgeql_select_computable11(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE test,
+                sub := (
+                    SELECT SINGLETON
+                        Text
+                    ORDER BY
+                        strlen(Text.body) ASC
+                    LIMIT
+                        1
+                )
+            SELECT
+                sub.body;
+        ''', [
+            ['Minor lexer tweaks.']
+        ])
+
+    async def test_edgeql_select_computable12(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE test,
+                sub := (
+                    SELECT SINGLETON
+                        Text
+                    ORDER BY
+                        strlen(Text.body) ASC
+                    LIMIT
+                        1
+                )
+            SELECT
+                sub.__class__.name;
+        ''', [
+            ['test::Issue']
         ])
 
     async def test_edgeql_select_match01(self):

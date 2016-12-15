@@ -155,9 +155,6 @@ def infer_type(ir, schema):
     elif isinstance(ir, irast.Stmt):
         result = infer_type(ir.result, schema)
 
-    elif isinstance(ir, irast.SubstmtRef):
-        result = infer_type(ir.stmt, schema)
-
     elif isinstance(ir, irast.ExistPred):
         result = schema.get('std::bool')
 

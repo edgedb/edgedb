@@ -45,6 +45,7 @@ class Pointer(Base):
 class Set(Base):
 
     path_id: list
+    real_path_id: list
     scls: so.NodeClass
     sources: set
     source_conjunction: bool
@@ -163,13 +164,6 @@ class Stmt(Base):
 
     result: Base
     substmts: list
-    name: str
-
-
-class SubstmtRef(Base):
-
-    stmt: Stmt
-    rptr: Pointer
 
 
 class SelectStmt(Stmt):
