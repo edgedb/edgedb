@@ -2117,7 +2117,27 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [],
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_select_subqueries03(self):
+        await self.assert_query_result(r"""
+            WITH
+                MODULE test,
+                sub := (SELECT Issue WHERE Issue.number IN ('1', '6'))
+            SELECT Issue{number}
+            WHERE
+                Issue.number IN ('2', '3', '4')
+                AND
+                EXISTS (
+                    # due to common prefix, the Issue referred to here is
+                    # the same Issue as in the LHS of AND, therefore
+                    # this condition can never be true
+                    sub
+                );
+            """, [
+            [],
+        ])
+
+    async def test_edgeql_select_subqueries04(self):
         await self.assert_query_result(r"""
             WITH
                 MODULE test,
@@ -2139,7 +2159,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '2'}, {'number': '3'}, {'number': '4'}],
         ])
 
-    async def test_edgeql_select_subqueries04(self):
+    async def test_edgeql_select_subqueries05(self):
         await self.assert_query_result(r"""
             # find all issues such that there's at least one more
             # issue with the same priority
@@ -2162,14 +2182,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     @unittest.expectedFailure
-    async def test_edgeql_select_subqueries05(self):
+    async def test_edgeql_select_subqueries06(self):
         # XXX: aliases vs. independent queries need to be fixed
         await self.assert_query_result(r"""
             # find all issues such that there's at least one more
             # issue with the same priority (even if the "same" means NULL)
             WITH
                 MODULE test,
-                Issue2:= Issue
+                Issue2:= DETACHED Issue
             SELECT Issue{number}
             WHERE
                 Issue != Issue2
@@ -2186,7 +2206,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '1'}, {'number': '4'}],
         ])
 
-    async def test_edgeql_select_subqueries06(self):
+    async def test_edgeql_select_subqueries07(self):
         await self.assert_query_result(r"""
             # find all issues such that there's at least one more
             # issue watched by the same user as this one
@@ -2206,7 +2226,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '2'}, {'number': '3'}],
         ])
 
-    async def test_edgeql_select_subqueries07(self):
+    async def test_edgeql_select_subqueries08(self):
         await self.assert_query_result(r"""
             # find all issues such that there's at least one more
             # issue watched by the same user as this one
@@ -2230,7 +2250,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     @unittest.expectedFailure
-    async def test_edgeql_select_subqueries08(self):
+    async def test_edgeql_select_subqueries09(self):
         with self.assertRaisesRegex(
                 exc._base.UnknownEdgeDBError,
                 r'unexpected binop operands'):
@@ -2244,7 +2264,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ])
 
     @unittest.expectedFailure
-    async def test_edgeql_select_subqueries09(self):
+    async def test_edgeql_select_subqueries10(self):
         with self.assertRaisesRegex(
                 exc._base.UnknownEdgeDBError,
                 r'unexpected binop operands'):
@@ -2255,7 +2275,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 SELECT Issue.number + sub;
                 """)
 
-    async def test_edgeql_select_subqueries10(self):
+    async def test_edgeql_select_subqueries11(self):
         await self.assert_query_result(r"""
             WITH MODULE test
             SELECT Text{
@@ -2290,7 +2310,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '1'}, {'number': '3'}],
         ])
 
-    async def test_edgeql_select_subqueries11(self):
+    async def test_edgeql_select_subqueries12(self):
         await self.assert_query_result(r"""
             # same as above, but also include the body_length computable
             WITH MODULE test
@@ -2315,6 +2335,165 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 'number': '3',
                 'body_length': 19,
             }],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_subqueries13(self):
+        await self.assert_query_result(r"""
+            # XXX: same as subqueries07, but refactored
+            #
+            # find all issues such that there's at least one more
+            # issue watched by the same user as this one
+            WITH
+                MODULE test,
+                A :=  (
+                    SELECT User.<watchers
+                    WHERE
+                        User = Issue.watchers
+                        AND
+                        User.<watchers != Issue
+                )
+            SELECT Issue{number}
+            WHERE
+                EXISTS Issue.watchers
+                AND
+                EXISTS A;
+            """, [
+            [{'number': '2'}, {'number': '3'}],
+        ])
+
+    async def test_edgeql_select_subqueries14(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT User{name}
+            WHERE
+                EXISTS (
+                    SELECT Comment
+                    WHERE
+                        Comment.owner = User
+                );
+            """, [
+            [{'name': 'Elvis'}],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_subqueries15(self):
+        await self.assert_query_result(r"""
+            # Find all issues such that there's at least one more
+            # issue watched by the same user as this one, this user
+            # must have at least one Comment.
+            #
+            # Without the Comment filter, the issues would be the ones
+            # owned by Yury, but only Elvis has a Comment. So the
+            # expected result is an empty set.
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                EXISTS Issue.watchers
+                AND
+                EXISTS (
+                    SELECT User.<watchers
+                    WHERE
+                        User = Issue.watchers
+                        AND
+                        User.<watchers != Issue
+                        AND
+                        EXISTS (
+                            SELECT Comment
+                            WHERE
+                                Comment.owner = User
+                        )
+                );
+            """, [
+            [],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_subqueries16(self):
+        await self.assert_query_result(r"""
+            # same as above, but refactored using aliases
+            WITH
+                MODULE test,
+                HAS_COMMNET := (
+                    SELECT Comment
+                    WHERE
+                        Comment.owner = User
+                ),
+                WATCHED_ISSUE :=  (
+                    SELECT User.<watchers
+                    WHERE
+                        User = Issue.watchers
+                        AND
+                        User.<watchers != Issue
+                        AND
+                        EXISTS HAS_COMMENT
+                )
+            SELECT Issue{number}
+            WHERE
+                EXISTS Issue.watchers
+                AND
+                EXISTS WATCHED_ISSUE;
+            """, [
+            [],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_subqueries17(self):
+        await self.assert_query_result(r"""
+            # testing IN and a subquery
+            WITH MODULE test
+            SELECT Comment{body}
+            WHERE
+                Comment.owner IN (
+                    SELECT User
+                    WHERE
+                        User.name = 'Elvis'
+                );
+            """, [
+            [{'body': 'EdgeDB needs to happen soon.'}],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_subqueries18(self):
+        await self.assert_query_result(r"""
+            # get a comment whose owner is part of the users who own Issue "1"
+            WITH MODULE test
+            SELECT Comment{body}
+            WHERE
+                Comment.owner IN (
+                    SELECT User
+                    WHERE
+                        User.<owner IN (
+                            SELECT Issue
+                            WHERE
+                                Issue.number = '1'
+                        )
+                );
+            """, [
+            [{'body': 'EdgeDB needs to happen soon.'}],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_subqueries19(self):
+        await self.assert_query_result(r"""
+            # same as above, but refactored using aliases
+            WITH
+                MODULE test,
+                A := (
+                    SELECT Issue
+                    WHERE
+                        Issue.number = '1'
+                ),
+                B :=  (
+                    SELECT User
+                    WHERE
+                        User.<owner IN A
+                )
+            SELECT Comment{body}
+            WHERE
+                Comment.owner IN B;
+            """, [
+            [{'body': 'EdgeDB needs to happen soon.'}],
         ])
 
     async def test_edgeql_select_slice01(self):
