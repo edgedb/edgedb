@@ -333,6 +333,46 @@ class TestGraphQLMutation(tb.QueryTestCase):
             }],
         ])
 
+    async def test_graphql_mutation_insert04(self):
+        result = await self.con.execute(r'''
+            # nested insert of user and group
+            mutation in1 @edgedb(module: "test") {
+                insert__User(__data: {
+                    name: "Bob",
+                    active: true,
+                    age: 25,
+                    score: 2.34,
+                    groups: {
+                        name: "new"
+                    }
+                }) {
+                    id
+                    name
+                    active
+                    age
+                    score
+                    groups {
+                        id
+                        name
+                    }
+                }
+            }
+        ''', graphql=True)
+
+        self.assert_data_shape(result, [
+            [{
+                'id': uuid.UUID,
+                'name': 'Bob',
+                'active': True,
+                'age': 25,
+                'score': 2.34,
+                'groups': [{
+                    'id': uuid.UUID,
+                    'name': 'new',
+                }],
+            }],
+        ])
+
     async def test_graphql_mutation_update01(self):
         result = await self.con.execute(r'''
             # update all users to have 0 score
