@@ -37,6 +37,7 @@ class TransformerContextLevel:
             self.stmt = stmt
             self.query = stmt
             self.rel = stmt
+            self.scope_cutoff = False
             self.aliascnt = {}
             self.ctemap = {}
             self.argmap = OrderedSet()
@@ -54,6 +55,7 @@ class TransformerContextLevel:
             self.stmt = prevlevel.stmt
             self.query = prevlevel.query
             self.rel = prevlevel.rel
+            self.scope_cutoff = False
             self.argmap = prevlevel.argmap
             self.in_aggregate = prevlevel.in_aggregate
             self.backend = prevlevel.backend

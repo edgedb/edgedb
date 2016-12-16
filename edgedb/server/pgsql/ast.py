@@ -67,6 +67,10 @@ class BaseRangeVar(Base):
         return self.query.path_vars
 
     @property
+    def path_namespace(self):
+        return self.query.path_namespace
+
+    @property
     def path_bonds(self):
         return self.query.path_bonds
 
@@ -81,6 +85,14 @@ class Relation(EdgeQLPathInfo):
     catalogname: str
     schemaname: str
     relname: str
+
+    @property
+    def path_namespace(self):
+        return self.path_vars
+
+    @property
+    def inner_path_bonds(self):
+        return self.path_bonds
 
 
 class RangeVar(BaseRangeVar):
@@ -163,8 +175,6 @@ class CommonTableExpr(Base):
 class Query(EdgeQLPathInfo):
     """Generic superclass representing a query."""
 
-    ctes: typing.List[CommonTableExpr]
-
     path_namespace: dict            # A map of paths onto Vars visible in this
                                     # Query.
 
@@ -174,6 +184,7 @@ class Query(EdgeQLPathInfo):
     ptr_rvar_map: dict              # Map of RangeVars corresponding to pointer
                                     # relations.
 
+    ctes: typing.List[CommonTableExpr]
     scls_rvar: BaseRangeVar
     rptr_rvar: BaseRangeVar
 

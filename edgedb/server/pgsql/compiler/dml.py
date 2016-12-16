@@ -166,8 +166,7 @@ class IRCompilerDMLSupport:
             target_id_set = self._get_ptr_set(target_ir_set, 'std::id')
 
             self._pull_path_var(
-                dml_stmt, target_id_set, path_id=target_ir_set.path_id,
-                add_to_target_list=True)
+                dml_stmt, target_id_set, path_id=target_ir_set.path_id)
 
         # Record the effect of this insertion in the relation overlay
         # context to ensure that the RETURNING clause potentially
@@ -198,9 +197,6 @@ class IRCompilerDMLSupport:
         ir_qual_expr = ir_stmt.where
 
         with self.context.subquery():
-            # Note that this is intentionally *not* a subquery
-            # context, as we want all CTEs produced by the qual
-            # condition to be attached to the top level query.
             ctx = self.context.current
 
             range_stmt = ctx.query
@@ -471,10 +467,18 @@ class IRCompilerDMLSupport:
 
         col_data = {
             'link_type_id': pgast.ColumnRef(
-                name=[lname_to_id.name, 'id']),
+                name=[
+                    lname_to_id.name,
+                    'id'
+                ]
+            ),
             'std::source': pgast.ColumnRef(
-                name=[dml_cte.name,
-                      dml_cte.query.path_vars[ir_stmt.shape.set.path_id]])
+                name=[
+                    dml_cte.name,
+                    self._get_path_var(
+                        dml_cte.query, ir_stmt.shape.set.path_id)
+                ]
+            )
         }
 
         # Drop all previous link records for this source.

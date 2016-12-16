@@ -2135,7 +2135,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_subqueries03(self):
         await self.assert_query_result(r"""
             WITH
@@ -2364,12 +2363,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             # issue watched by the same user as this one
             WITH
                 MODULE test,
-                A :=  (
-                    SELECT User.<watchers
+                A := (
+                    SELECT
+                        User.<watchers[TO Issue]
                     WHERE
                         User = Issue.watchers
                         AND
-                        User.<watchers != Issue
+                        User.<watchers[TO Issue] != Issue
                 )
             SELECT Issue{number}
             WHERE

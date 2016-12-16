@@ -70,12 +70,9 @@ class MetaAST(type):
 
     def __init__(cls, name, bases, dct):
         super().__init__(name, bases, dct)
+        fields = collections.OrderedDict()
 
-        fields = {}
-        if __debug__:
-            fields = collections.OrderedDict()
-
-        for parent in cls.__mro__:
+        for parent in reversed(cls.__mro__):
             lst = getattr(cls, '_' + parent.__name__ + '__fields', [])
             for field in lst:
                 field_name = field

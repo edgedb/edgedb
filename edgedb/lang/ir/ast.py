@@ -162,8 +162,8 @@ class CompositeType(Base):
 
 class Stmt(Base):
 
-    result: Base
     substmts: list
+    result: Base
 
 
 class SelectStmt(Stmt):
