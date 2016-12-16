@@ -708,27 +708,27 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 from edgedb.lang.schema import generate_source as schema_sg
                 self.write(edgeql_quote.dollar_quote_literal(
                     schema_sg(node.target)))
-        self._visit_CreateObjectNode(node, 'DELTA', after_name=after_name)
+        self._visit_CreateObjectNode(node, 'MIGRATION', after_name=after_name)
 
     def visit_CommitDeltaNode(self, node):
         self._visit_aliases(node)
-        self.write('COMMIT DELTA')
+        self.write('COMMIT MIGRATION')
         self.write(' ')
         self.visit(node.name, parenthesise=False)
         self.new_lines = 1
 
     def visit_GetDeltaNode(self, node):
         self._visit_aliases(node)
-        self.write('GET DELTA')
+        self.write('GET MIGRATION')
         self.write(' ')
         self.visit(node.name, parenthesise=False)
         self.new_lines = 1
 
     def visit_AlterDeltaNode(self, node):
-        self._visit_AlterObjectNode(node, 'DELTA')
+        self._visit_AlterObjectNode(node, 'MIGRATION')
 
     def visit_DropDeltaNode(self, node):
-        self._visit_DropObjectNode(node, 'DELTA')
+        self._visit_DropObjectNode(node, 'MIGRATION')
 
     def visit_CreateModuleNode(self, node):
         self._visit_CreateObjectNode(node, 'MODULE')

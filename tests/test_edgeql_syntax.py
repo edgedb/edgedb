@@ -1880,23 +1880,23 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_delta01(self):
         """
-        ALTER DELTA test::d_links01_0 {
+        ALTER MIGRATION test::d_links01_0 {
             RENAME TO test::pretty_name;
         };
 
 % OK %
 
-        ALTER DELTA test::d_links01_0
+        ALTER MIGRATION test::d_links01_0
             RENAME TO test::pretty_name;
         """
 
     def test_edgeql_syntax_ddl_delta02(self):
         """
-        CREATE DELTA test::d_links01_0 TO $$concept Foo$$;
-        ALTER DELTA test::d_links01_0
+        CREATE MIGRATION test::d_links01_0 TO $$concept Foo$$;
+        ALTER MIGRATION test::d_links01_0
             RENAME TO test::pretty_name;
-        COMMIT DELTA test::d_links01_0;
-        DROP DELTA test::d_links01_0;
+        COMMIT MIGRATION test::d_links01_0;
+        DROP MIGRATION test::d_links01_0;
         """
 
     def test_edgeql_syntax_ddl_action01(self):

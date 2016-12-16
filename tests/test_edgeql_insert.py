@@ -15,7 +15,7 @@ from edgedb.server import _testbase as tb
 
 class TestInsert(tb.QueryTestCase):
     SETUP = """
-        CREATE DELTA test::d_insert01 TO $$
+        CREATE MIGRATION test::d_insert01 TO $$
             link l3:
                 linkproperty comment to str:
                     default: "N/A"
@@ -50,7 +50,7 @@ class TestInsert(tb.QueryTestCase):
                 link foo to str
         $$;
 
-        COMMIT DELTA test::d_insert01;
+        COMMIT MIGRATION test::d_insert01;
     """
 
     async def test_edgeql_insert_fail_1(self):

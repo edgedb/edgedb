@@ -50,7 +50,7 @@ class DDLStmt(Nonterm):
         self.val = kids[0].val
 
 
-# DDL statements that are allowed inside CREATE DATABASE and CREATE DELTA
+# DDL statements that are allowed inside CREATE DATABASE and CREATE MIGRATION
 #
 class InnerDDLStmt(Nonterm):
     def reduce_CreateActionStmt(self, *kids):
@@ -337,7 +337,7 @@ class OptDeltaTarget(Nonterm):
 #
 
 #
-# CREATE DELTA
+# CREATE MIGRATION
 #
 class CreateDeltaStmt(Nonterm):
     def _parse_schema_decl(self, expression):
@@ -357,7 +357,7 @@ class CreateDeltaStmt(Nonterm):
             return node
 
     def reduce_CreateDelta_TO(self, *kids):
-        r"""%reduce OptAliasBlock CREATE DELTA NodeName \
+        r"""%reduce OptAliasBlock CREATE MIGRATION NodeName \
                     OptDeltaParents OptDeltaTarget \
         """
         self.val = qlast.CreateDeltaNode(
@@ -369,7 +369,7 @@ class CreateDeltaStmt(Nonterm):
         )
 
     def reduce_CreateDelta_Commands(self, *kids):
-        r"""%reduce OptAliasBlock CREATE DELTA NodeName \
+        r"""%reduce OptAliasBlock CREATE MIGRATION NodeName \
                     OptDeltaParents LBRACE InnerDDLStmtBlock RBRACE \
         """
         self.val = qlast.CreateDeltaNode(
@@ -381,7 +381,7 @@ class CreateDeltaStmt(Nonterm):
 
 
 #
-# ALTER DELTA
+# ALTER MIGRATION
 #
 commands_block(
     'AlterDelta',
@@ -392,7 +392,7 @@ commands_block(
 
 class AlterDeltaStmt(Nonterm):
     def reduce_AlterDelta(self, *kids):
-        r"""%reduce OptAliasBlock ALTER DELTA NodeName \
+        r"""%reduce OptAliasBlock ALTER MIGRATION NodeName \
                     AlterDeltaCommandsBlock \
         """
         self.val = qlast.AlterDeltaNode(
@@ -403,28 +403,28 @@ class AlterDeltaStmt(Nonterm):
 
 
 #
-# DROP DELTA
+# DROP MIGRATION
 #
 class DropDeltaStmt(Nonterm):
-    def reduce_OptAliasBlock_DROP_DELTA_NodeName(self, *kids):
+    def reduce_OptAliasBlock_DROP_MIGRATION_NodeName(self, *kids):
         self.val = qlast.DropDeltaNode(
             aliases=kids[0].val,
             name=kids[3].val,
         )
 
 
-# COMMIT DELTA
+# COMMIT MIGRATION
 class CommitDeltaStmt(Nonterm):
-    def reduce_OptAliasBlock_COMMIT_DELTA_NodeName(self, *kids):
+    def reduce_OptAliasBlock_COMMIT_MIGRATION_NodeName(self, *kids):
         self.val = qlast.CommitDeltaNode(
             aliases=kids[0].val,
             name=kids[3].val,
         )
 
 
-# GET DELTA
+# GET MIGRATION
 class GetDeltaStmt(Nonterm):
-    def reduce_OptAliasBlock_GET_DELTA_NodeName(self, *kids):
+    def reduce_OptAliasBlock_GET_MIGRATION_NodeName(self, *kids):
         self.val = qlast.GetDeltaNode(
             aliases=kids[0].val,
             name=kids[3].val,

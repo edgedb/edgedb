@@ -347,8 +347,8 @@ class TestConstraintsSchema(tb.QueryTestCase):
             new_schema = f.read()
 
         await self.con.execute('''
-            CREATE DELTA test::d1 TO $${schema}$$;
-            COMMIT DELTA test::d1;
+            CREATE MIGRATION test::d1 TO $${schema}$$;
+            COMMIT MIGRATION test::d1;
             '''.format(schema=new_schema))
 
         async with self._run_and_rollback():

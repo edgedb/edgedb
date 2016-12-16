@@ -14,7 +14,7 @@ from edgedb.server import _testbase as tb
 
 class TestGraphQLFunctional(tb.QueryTestCase):
     SETUP = """
-        CREATE DELTA test::d1 TO $$
+        CREATE MIGRATION test::d1 TO $$
             abstract concept NamedObject:
                 required link name to str
 
@@ -38,7 +38,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     mapping: *1
         $$;
 
-        COMMIT DELTA test::d1;
+        COMMIT MIGRATION test::d1;
 
         WITH MODULE test
         INSERT Setting {

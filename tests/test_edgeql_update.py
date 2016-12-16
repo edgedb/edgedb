@@ -13,7 +13,7 @@ from edgedb.server import _testbase as tb
 
 class TestUpdate(tb.QueryTestCase):
     SETUP = """
-        CREATE DELTA test::d_update01 TO $$
+        CREATE MIGRATION test::d_update01 TO $$
             concept Status:
                 link name to str
 
@@ -23,7 +23,7 @@ class TestUpdate(tb.QueryTestCase):
                 link comment to str
         $$;
 
-        COMMIT DELTA test::d_update01;
+        COMMIT MIGRATION test::d_update01;
 
         # populate the test DB
 

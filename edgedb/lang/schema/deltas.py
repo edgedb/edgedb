@@ -6,7 +6,7 @@
 ##
 
 
-"""Implementation of DELTA objects."""
+"""Implementation of MIGRATION objects."""
 
 
 from edgedb.lang.edgeql import ast as qlast
