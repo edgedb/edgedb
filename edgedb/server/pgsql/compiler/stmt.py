@@ -1237,7 +1237,6 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                        add_to_target_list=None, alias=None):
         """Make sure the value of the *ir_set* path is present in namespace."""
         ctx = self.context.current
-        id_field = common.edgedb_name_to_pg_name('std::id')
 
         if isinstance(rel, pgast.CommonTableExpr):
             rel = rel.query
@@ -1292,72 +1291,27 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         if isinstance(rel_rvar, pgast.RangeSubselect):
             source_rel = rel_rvar.subquery
             self._pull_path_var(source_rel, ir_set, path_id)
+            colname = ptr_info.column_name
+            source_rvars = [rel_rvar]
 
         elif isinstance(rel_rvar.relation, pgast.CommonTableExpr):
             source_rel = rel_rvar.relation.query
             self._pull_path_var(source_rel, ir_set, path_id)
             colname = source_rel.path_vars[path_id]
+            source_rvars = [rel_rvar]
 
-        if colname is None:
+        else:
             colname = ptr_info.column_name
 
-        schema = ctx.schema
-
-        ref_map = {
-            n: [rel_rvar]
-            for n, p in source.pointers.items() if p.atomic()
-        }
-        joined_atomref_sources = {source: rel_rvar}
-
-        try:
-            atomref_tables = ref_map[ptrname]
-        except KeyError:
-            sources = source.get_ptr_sources(
-                schema, ptrname, look_in_children=True,
-                strict_ancestry=True)
-
-            if not sources:
-                raise RuntimeError(
-                    f'cannot find column source for '
-                    f'({source.name}).>({ptrname})')
-
-            if getattr(source, 'is_virtual', None):
-                # Atom refs to columns present in direct children of a
-                # virtual concept are guaranteed to be included in the
-                # relation representing the virtual concept.
-                #
-                schema = ctx.schema
-                chain = itertools.chain.from_iterable
-                child_ptrs = set(
-                    chain(
-                        c.pointers
-                        for c in source.children(schema)))
-                if ptrname in child_ptrs:
-                    descendants = set(source.descendants(schema))
-                    sources -= descendants
-                    sources.add(source)
-
-            for s in sources:
-                if s in joined_atomref_sources:
-                    continue
-
-                src_rvar_pid = rel_rvar.query.path_id
-                src_rvar = self._range_for_concept(s, rel)
-                src_rvar.query.path_id = src_rvar_pid
-                src_rvar.path_vars[src_rvar_pid] = id_field
-                src_rvar.path_bonds[src_rvar_pid] = id_field
-
-                self._rel_join(rel, src_rvar, type='left')
-
-                joined_atomref_sources[s] = src_rvar
-
-            ref_map[ptrname] = atomref_tables = [
-                joined_atomref_sources[c] for c in sources
-            ]
+            if ptrname in source.pointers:
+                source_rvars = [rel_rvar]
+            else:
+                source_rvars = self._get_path_source_rvars(
+                    rel, source, rel_rvar, ptrname, path_id)
 
         fieldrefs = [
-            pgast.ColumnRef(name=[atomref_table.alias.aliasname, colname])
-            for atomref_table in atomref_tables
+            pgast.ColumnRef(name=[source_rvar.alias.aliasname, colname])
+            for source_rvar in source_rvars
         ]
 
         if alias is None:
@@ -1396,6 +1350,56 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 rel.path_vars[ir_set.path_id] = alias
 
         return refexpr
+
+    def _get_path_source_rvars(self, rel, source_cls, rel_rvar,
+                               ptrname, path_id):
+        ctx = self.context.current
+        schema = ctx.schema
+        id_field = common.edgedb_name_to_pg_name('std::id')
+
+        sources = source_cls.get_ptr_sources(
+            schema, ptrname, look_in_children=True,
+            strict_ancestry=True)
+
+        if not sources:
+            raise RuntimeError(
+                f'cannot find column source for '
+                f'({source_cls.name}).>({ptrname})')
+
+        if getattr(source_cls, 'is_virtual', None):
+            # Atom refs to columns present in direct children of a
+            # virtual concept are guaranteed to be included in the
+            # relation representing the virtual concept.
+            #
+            schema = ctx.schema
+            child_ptrs = itertools.chain.from_iterable(
+                c.pointers for c in source_cls.children(schema))
+            if ptrname in set(child_ptrs):
+                descendants = set(source_cls.descendants(schema))
+                sources -= descendants
+                sources.add(source_cls)
+
+        rvars = {source_cls: rel_rvar}
+
+        for s in sources:
+            if s in rvars:
+                continue
+
+            src_rvar_pid = rel_rvar.query.path_id
+            src_rvar = self._range_for_concept(s, rel)
+            src_rvar.query.path_id = src_rvar_pid
+            src_rvar.path_vars[src_rvar_pid] = id_field
+            src_rvar.path_bonds[src_rvar_pid] = id_field
+
+            self._rel_join(rel, src_rvar, type='left')
+
+            rvars[s] = src_rvar
+
+        source_rvars = [
+            rvars[c] for c in sources
+        ]
+
+        return source_rvars
 
     def _run_codegen(self, qtree):
         codegen = pgcodegen.SQLSourceGenerator()

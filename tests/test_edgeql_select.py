@@ -456,6 +456,24 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['test::Issue']
         ])
 
+    async def test_edgeql_select_computable13(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE test,
+                sub := (
+                    SELECT SINGLETON
+                        Text
+                    ORDER BY
+                        strlen(Text.body) ASC
+                    LIMIT
+                        1
+                )
+            SELECT
+                (sub AS Issue).number;
+        ''', [
+            ['3']
+        ])
+
     async def test_edgeql_select_match01(self):
         await self.assert_query_result(r"""
             WITH MODULE test
