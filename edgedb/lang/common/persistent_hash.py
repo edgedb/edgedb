@@ -59,8 +59,8 @@ def _int(value):
     return value
 
 
-_floatpack = struct.Struct('>f').pack
-_floatunpack = struct.Struct('>L').unpack
+_floatpack = struct.Struct('>d').pack
+_floatunpack = struct.Struct('>q').unpack
 
 @persistent_hash.register(float)
 def _float(value):
