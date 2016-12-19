@@ -29,7 +29,7 @@ class PersistentHashTests(unittest.TestCase):
                 return 123
 
         val = frozenset(('aaaa', 'bbb', 21, 33.123, b'aaa', True, None, Foo()))
-        exp = 2133544778164784224964840886447826668319307184951404439004
+        exp = 2133544778164784224951520084939573399144598351897512116789
         self.assertEqual(persistent_hash(val), exp)
 
     def test_common_persistent_hash_3(self):
