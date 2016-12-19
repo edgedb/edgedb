@@ -15,6 +15,7 @@ import abc
 import contextlib
 import decimal
 import functools
+import struct
 
 from hashlib import md5
 from uuid import UUID
@@ -58,9 +59,12 @@ def _int(value):
     return value
 
 
+_floatpack = struct.Struct('>f').pack
+_floatunpack = struct.Struct('>L').unpack
+
 @persistent_hash.register(float)
 def _float(value):
-    return int(value * 1_000_000)
+    return _floatunpack(_floatpack(value))[0]
 
 
 @persistent_hash.register(decimal.Decimal)
