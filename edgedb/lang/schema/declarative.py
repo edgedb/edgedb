@@ -472,7 +472,8 @@ class DeclarationLoader:
 
             _, _, index_expr = edgeql.utils.normalize_tree(
                 indexdecl.expression, self._schema,
-                module_aliases=module_aliases, anchors={'self': subject},
+                modaliases=module_aliases,
+                anchors={'self': subject},
                 inline_anchors=True)
 
             index = s_indexes.SourceIndex(

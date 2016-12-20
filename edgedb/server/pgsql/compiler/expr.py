@@ -365,17 +365,12 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
             defresult=self.visit(expr.else_expr))
 
     def visit_Sequence(self, expr):
-        ctx = self.context.current
+        elements = [self.visit(e) for e in expr.elements]
 
-        elements = [
-            self.visit(e) for e in expr.elements
-        ]
         if expr.is_array:
             result = pgast.ArrayExpr(elements=elements)
-        elif getattr(ctx, 'sequence_is_array', False):
-            result = pgast.ImplicitRowExpr(args=elements)
         else:
-            result = pgast.RowExpr(args=elements)
+            result = pgast.ImplicitRowExpr(args=elements)
 
         return result
 

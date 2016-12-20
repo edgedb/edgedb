@@ -23,7 +23,7 @@ class IndexSourceCommandContext:
     pass
 
 
-class IndexSourceCommand(sd.ClassCommand):
+class IndexSourceCommand(named.NamedClassCommand):
     def _create_innards(self, schema, context):
         super()._create_innards(schema, context)
 
@@ -55,7 +55,7 @@ class SourceIndexCommandContext(sd.ClassCommandContext):
 
 class SourceIndexCommand(referencing.ReferencedClassCommand):
     context_class = SourceIndexCommandContext
-    referrer_conext_class = IndexSourceCommandContext
+    referrer_context_class = IndexSourceCommandContext
 
     @classmethod
     def _get_metaclass(cls):
@@ -72,6 +72,10 @@ class SourceIndexCommand(referencing.ReferencedClassCommand):
         )
 
         return sn.Name(name=idx_name, module=subject_name.module)
+
+    def _create_begin(self, schema, context):
+        return derivable.DerivableClassCommand._create_begin(
+            self, schema, context)
 
 
 class CreateSourceIndex(SourceIndexCommand, named.CreateNamedClass):

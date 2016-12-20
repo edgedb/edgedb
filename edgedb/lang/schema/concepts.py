@@ -28,8 +28,8 @@ class ConceptCommandContext(sd.ClassCommandContext,
 
 
 class ConceptCommand(constraints.ConsistencySubjectCommand,
-                     links.LinkSourceCommand,
                      sources.SourceCommand,
+                     links.LinkSourceCommand,
                      nodes.NodeCommand):
     context_class = ConceptCommandContext
 

@@ -166,7 +166,7 @@ class ConstraintMech:
             isinstance(sql_expr, pg_ast.ColumnRef) or (
                 isinstance(sql_expr, pg_ast.ImplicitRowExpr) and all(
                     isinstance(el, pg_ast.ColumnRef)
-                    for el in sql_expr.elements)))
+                    for el in sql_expr.args)))
 
         # Find all field references
         #

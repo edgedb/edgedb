@@ -368,7 +368,16 @@ CREATE ABSTRACT CONCEPT schema::ConsistencySubject INHERITING schema::Class {
 CREATE ABSTRACT CONCEPT schema::Node INHERITING schema::Class;
 
 
-CREATE ABSTRACT CONCEPT schema::Source INHERITING schema::Class;
+CREATE CONCEPT schema::SourceIndex INHERITING schema::Class {
+    CREATE LINK schema::expr TO std::str;
+};
+
+
+CREATE ABSTRACT CONCEPT schema::Source INHERITING schema::Class {
+    CREATE LINK schema::indexes TO schema::SourceIndex {
+        SET mapping := '1*';
+    };
+};
 
 
 CREATE ABSTRACT CONCEPT schema::Pointer INHERITING schema::Class;

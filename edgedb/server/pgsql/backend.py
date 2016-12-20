@@ -44,7 +44,7 @@ from edgedb.lang.schema import policy as s_policy
 from edgedb.lang.schema import types as s_types
 
 from edgedb.lang.edgeql import codegen as ql_codegen
-from edgedb.lang.edgeql.compiler import decompiler as ql_decompiler
+# from edgedb.lang.edgeql.compiler import decompiler as ql_decompiler
 
 from edgedb.server import query as backend_query
 from edgedb.server.pgsql import common
@@ -57,7 +57,6 @@ from .datasources import introspection
 
 from . import astexpr
 from . import compiler
-from .compiler import decompiler
 from . import deltarepo as pgsql_deltarepo
 from . import parser
 from . import schemamech
@@ -413,6 +412,7 @@ class Backend(s_deltarepo.DeltaProvider):
         await self.read_policies(schema)
         await self.read_attribute_values(schema)
         await self.read_constraints(schema)
+        await self.read_indexes(schema)
 
         await self.order_attributes(schema)
         await self.order_actions(schema)
@@ -927,56 +927,53 @@ class Backend(s_deltarepo.DeltaProvider):
 
         return indexes
 
-    def interpret_index(self, index):
-        index_expression = index.expr
-
-        if not index_expression:
-            index_expression = '(%s)' % ', '.join(
-                common.quote_ident(c) for c in index.columns)
-
-        return self.parser.parse(index_expression)
-
     def interpret_indexes(self, table_name, indexes):
         for idx_data in indexes:
-            idx = dbops.Index.from_introspection(table_name, idx_data)
-            yield idx, self.interpret_index(idx)
+            yield dbops.Index.from_introspection(table_name, idx_data)
 
-    async def read_indexes(self):
-        indexes = {}
+    async def read_indexes(self, schema):
         index_ds = datasources.introspection.tables.TableIndexes(
             self.connection)
-        idx_data = await index_ds.fetch(
+        pg_index_data = await index_ds.fetch(
             schema_pattern='edgedb%', index_pattern='%_reg_idx')
 
-        for row in idx_data:
+        pg_indexes = set()
+        for row in pg_index_data:
             table_name = tuple(row['table_name'])
-            indexes[table_name] = set(
-                self.interpret_indexes(table_name, row['indexes']))
+            for pg_index in self.interpret_indexes(table_name, row['indexes']):
+                pg_indexes.add(
+                    (table_name, pg_index.get_metadata('schemaname'))
+                )
 
-        return indexes
+        ds = datasources.schema.indexes.SourceIndexes(self.connection)
 
-    def interpret_sql(self, schema, expr, source=None):
-        try:
-            expr_tree = self.parser.parse(expr)
-        except parser.PgSQLParserError as e:
-            msg = 'could not interpret constant expression "%s"' % expr
-            details = 'Syntax error when parsing expression: %s' % e.args[0]
-            raise s_err.SchemaError(msg, details=details) from e
+        for index_data in await ds.fetch():
+            subj = schema.get(index_data['subject_name'])
+            subj_table_name = common.get_table_name(subj, catenate=False)
+            index_name = sn.Name(index_data['name'])
 
-        if not self.constant_expr:
-            self.constant_expr = astexpr.ConstantExpr()
+            try:
+                pg_indexes.remove((subj_table_name, index_name))
+            except KeyError:
+                raise s_err.SchemaError(
+                    'internal metadata inconsistency',
+                    details=f'Index {index_name} is defined in schema, but'
+                            f'the corresponding PostgreSQL index is missing.'
+                ) from None
 
-        result = self.constant_expr.match(expr_tree)
+            index = s_indexes.SourceIndex(
+                name=index_name,
+                subject=subj,
+                expr=index_data['expr'])
 
-        if result is None:
-            sql_decompiler = decompiler.Decompiler(schema)
-            edgedb_tree = sql_decompiler.transform(expr_tree, source)
-            edgeql_tree = ql_decompiler.decompile_ir(
-                edgedb_tree, return_statement=True)
-            result = ql_codegen.generate_source(edgeql_tree, pretty=False)
-            result = s_expr.ExpressionText(result)
+            subj.add_index(index)
+            schema.add(index)
 
-        return result
+        if pg_indexes:
+            details = f'Extraneous PostgreSQL indexes found: {pg_indexes!r}'
+            raise s_err.SchemaError(
+                'internal metadata inconsistency',
+                details=details)
 
     async def read_pointer_target_column(self, schema, pointer,
                                          constraints_cache):
@@ -1006,15 +1003,7 @@ class Backend(s_deltarepo.DeltaProvider):
             col_type_schema = col['column_type_schema']
             col_type = col['column_type']
 
-        if col['column_default'] is not None:
-            atom_default = self.interpret_sql(
-                schema, col['column_default'], source)
-        else:
-            atom_default = None
-
-        target = self.atom_from_pg_type(
-            col_type, col_type_schema, atom_default, schema)
-
+        target = self.atom_from_pg_type(col_type, col_type_schema, schema)
         return target, col['column_required']
 
     def _get_pointer_attribute_target(
@@ -1027,69 +1016,15 @@ class Backend(s_deltarepo.DeltaProvider):
             col_type = \
                 attr['attribute_type_formatted'] or attr['attribute_type']
 
-        if attr['attribute_default'] is not None:
-            atom_default = self.interpret_sql(
-                schema, attr['attribute_default'], source)
-        else:
-            atom_default = None
-
         if attr['attribute_type_composite_id']:
             # composite record
             source_name = self.source_name_from_relid(
                 attr['attribute_type_composite_id'])
             target = schema.get(source_name)
         else:
-            target = self.atom_from_pg_type(
-                col_type, col_type_schema, atom_default, schema)
+            target = self.atom_from_pg_type(col_type, col_type_schema, schema)
 
         return target, attr['attribute_required']
-
-    def verify_ptr_const_defaults(self, schema, ptr, tab_default):
-        return
-        schema_default = None
-
-        if ptr.default is not None:
-            if isinstance(ptr.default, s_expr.ExpressionText):
-                default_value = schemamech.ptr_default_to_col_default(
-                    schema, ptr, ptr.default)
-                if default_value is not None:
-                    schema_default = ptr.default
-            else:
-                schema_default = ptr.default
-
-        if tab_default is None:
-            if schema_default:
-                msg = 'internal metadata inconsistency'
-                details = (
-                    'Literal default for pointer {!r} is present in ' +
-                    'the schema, but not in the table').format(ptr.name)
-                raise s_err.SchemaError(msg, details=details)
-            else:
-                return
-
-        table_default = self.interpret_sql(schema, tab_default, ptr.source)
-
-        if tab_default is not None and not ptr.default:
-            msg = 'internal metadata inconsistency'
-            details = (
-                'Literal default for pointer {!r} is present in ' +
-                'the table, but not in schema declaration').format(ptr.name)
-            raise s_err.SchemaError(msg, details=details)
-
-        if not isinstance(table_default, s_expr.ExpressionText):
-            typ = ptr.target.get_topmost_base()
-            typ_t = s_types.BaseTypeMeta.get_implementation(typ.name)
-            assert typ_t, 'missing implementation for {}'.format(typ.name)
-            table_default = typ_t(table_default)
-            schema_default = typ_t(schema_default)
-
-        if schema_default != table_default:
-            msg = 'internal metadata inconsistency'
-            details = (
-                'Value mismatch in literal default pointer link ' +
-                '{!r}: {!r} in the table vs. {!r} in the schema').format(
-                    ptr.name, table_default, schema_default)
-            raise s_err.SchemaError(msg, details=details)
 
     async def read_links(self, schema):
         ds = introspection.tables.TableList(self.connection)
@@ -1201,10 +1136,6 @@ class Backend(s_deltarepo.DeltaProvider):
             link.acquire_ancestor_inheritance(schema)
 
     async def order_links(self, schema):
-        indexes = await self.read_indexes()
-
-        sql_decompiler = decompiler.Decompiler(schema)
-
         g = {}
 
         for link in schema.get_objects(type='link'):
@@ -1216,34 +1147,6 @@ class Backend(s_deltarepo.DeltaProvider):
 
         for link in schema.get_objects(type='link'):
             link.finalize(schema)
-
-        for link in schema.get_objects(type='link'):
-            if link.generic():
-                table_name = common.get_table_name(link, catenate=False)
-                tabidx = indexes.get(table_name)
-                if tabidx:
-                    for index, index_sql in tabidx:
-                        if index.get_metadata('ddl:inherited'):
-                            continue
-
-                        edgedb_tree = sql_decompiler.transform(index_sql, link)
-                        edgeql_tree = ql_decompiler.decompile_ir(
-                            edgedb_tree, return_statement=True)
-                        expr = ql_codegen.generate_source(
-                            edgeql_tree, pretty=False)
-                        schema_name = index.get_metadata('schemaname')
-                        index = s_indexes.SourceIndex(
-                            name=sn.Name(schema_name), subject=link, expr=expr)
-                        link.add_index(index)
-                        schema.add(index)
-            elif link.atomic():
-                ptr_stor_info = types.get_pointer_storage_info(
-                    link, schema=schema)
-                cols = await self._type_mech.get_table_columns(
-                    ptr_stor_info.table_name, connection=self.connection)
-                col = cols[ptr_stor_info.column_name]
-                self.verify_ptr_const_defaults(
-                    schema, link, col['column_default'])
 
     async def read_link_properties(self, schema):
         ds = datasources.schema.links.LinkProperties(self.connection)
@@ -1326,16 +1229,6 @@ class Backend(s_deltarepo.DeltaProvider):
 
         for prop in schema.get_objects(type='link_property'):
             prop.finalize(schema)
-
-            if not prop.generic() and prop.source.generic():
-                source_table_name = common.get_table_name(
-                    prop.source, catenate=False)
-                cols = await self._type_mech.get_table_columns(
-                    source_table_name, connection=self.connection)
-                col_name = common.edgedb_name_to_pg_name(prop.shortname)
-                col = cols[col_name]
-                self.verify_ptr_const_defaults(
-                    schema, prop, col['column_default'])
 
     async def read_attributes(self, schema):
         attributes_ds = datasources.schema.attributes.Attributes(
@@ -1524,10 +1417,6 @@ class Backend(s_deltarepo.DeltaProvider):
             raise s_err.SchemaError(msg, details=details)
 
     async def order_concepts(self, schema):
-        indexes = await self.read_indexes()
-
-        sql_decompiler = decompiler.Decompiler(schema)
-
         g = {}
         for concept in schema.get_objects(type='concept'):
             g[concept.name] = {"item": concept, "merge": [], "deps": []}
@@ -1539,25 +1428,6 @@ class Backend(s_deltarepo.DeltaProvider):
 
         for concept in schema.get_objects(type='concept'):
             concept.finalize(schema)
-
-            table_name = common.get_table_name(concept, catenate=False)
-
-            tabidx = indexes.get(table_name)
-            if tabidx:
-                for index, index_sql in tabidx:
-                    if index.get_metadata('ddl:inherited'):
-                        continue
-
-                    ir_tree = sql_decompiler.transform(index_sql, concept)
-                    edgeql_tree = ql_decompiler.decompile_ir(
-                        ir_tree, return_statement=True)
-                    expr = ql_codegen.generate_source(
-                        edgeql_tree, pretty=False)
-                    schema_name = index.get_metadata('schemaname')
-                    index = s_indexes.SourceIndex(
-                        name=sn.Name(schema_name), subject=concept, expr=expr)
-                    concept.add_index(index)
-                    schema.add(index)
 
     async def pg_table_inheritance(self, table_name, schema_name):
         inheritance = introspection.tables.TableInheritance(self.connection)
@@ -1597,7 +1467,7 @@ class Backend(s_deltarepo.DeltaProvider):
             return name, constraints
         return None
 
-    def atom_from_pg_type(self, type_expr, atom_schema, atom_default, schema):
+    def atom_from_pg_type(self, type_expr, atom_schema, schema):
 
         typname, typmods = self.parse_pg_type(type_expr)
         domain_name = typname[-1]

@@ -12,6 +12,7 @@ from . import concepts  # NOQA
 from . import constraints  # NOQA
 from . import features  # NOQA
 from . import functions  # NOQA
+from . import indexes  # NOQA
 from . import links  # NOQA
 from . import modules  # NOQA
 from . import policy  # NOQA

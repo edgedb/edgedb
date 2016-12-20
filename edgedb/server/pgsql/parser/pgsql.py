@@ -1470,7 +1470,7 @@ class row(Nonterm):
     def reduce_expr_list_a_expr(self, *kids):
         "%reduce LPAREN expr_list COMMA a_expr RPAREN"
         self.val = pgast.ImplicitRowExpr(
-            elements=[kids[1].val + [kids[3].val]])
+            args=kids[1].val + [kids[3].val])
 
 
 class all_Op(Nonterm):

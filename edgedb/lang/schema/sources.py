@@ -22,7 +22,7 @@ class SourceCommandContext(indexes.IndexSourceCommandContext):
     pass
 
 
-class SourceCommand(named.NamedClassCommand, indexes.IndexSourceCommand):
+class SourceCommand(indexes.IndexSourceCommand):
     pass
 
 

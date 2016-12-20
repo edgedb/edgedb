@@ -1258,15 +1258,15 @@ class CompositeClassMetaCommand(NamedClassMetaCommand):
                     alter_table_add_parent.add_operation((op, None, [cond]))
 
 
-class SourceIndexCommand(ClassMetaCommand):
-    pass
+class SourceIndexCommand:
+    table = metaschema.get_metaclass_table(s_indexes.SourceIndex)
 
 
-class CreateSourceIndex(
-        SourceIndexCommand, adapts=s_indexes.CreateSourceIndex):
-    def apply(self, schema, context=None):
-        index = s_indexes.CreateSourceIndex.apply(self, schema, context)
-        SourceIndexCommand.apply(self, schema, context)
+class CreateSourceIndex(SourceIndexCommand, CreateNamedClass,
+                        adapts=s_indexes.CreateSourceIndex):
+
+    def apply(self, schema, context):
+        index = CreateNamedClass.apply(self, schema, context)
 
         source = context.get(s_links.LinkCommandContext)
         if not source:
@@ -1276,9 +1276,10 @@ class CreateSourceIndex(
             index.expr, schema, location='selector')
 
         ircompiler = compiler.SingletonExprIRCompiler()
-        sql_tree = ircompiler.transform_to_sql_tree(ir, schema)
+        sql_tree = ircompiler.transform_to_sql_tree(ir, schema=schema)
         sql_expr = codegen.SQLSourceGenerator.to_source(sql_tree)
-        if isinstance(sql_tree, pg_ast.SequenceNode):
+
+        if isinstance(sql_tree, pg_ast.ImplicitRowExpr):
             # Trim the parentheses to avoid PostgreSQL choking on double
             # parentheses. since it expects only a single set around the column
             # list.
@@ -1292,11 +1293,12 @@ class CreateSourceIndex(
         return index
 
 
-class RenameSourceIndex(
-        SourceIndexCommand, adapts=s_indexes.RenameSourceIndex):
+class RenameSourceIndex(SourceIndexCommand, RenameNamedClass,
+                        adapts=s_indexes.RenameSourceIndex):
+
     def apply(self, schema, context):
         index = s_indexes.RenameSourceIndex.apply(self, schema, context)
-        SourceIndexCommand.apply(self, schema, context)
+        RenameNamedClass.apply(self, schema, context)
 
         subject = context.get(s_links.LinkCommandContext)
         if not subject:
@@ -1319,18 +1321,20 @@ class RenameSourceIndex(
         return index
 
 
-class AlterSourceIndex(SourceIndexCommand, adapts=s_indexes.AlterSourceIndex):
+class AlterSourceIndex(SourceIndexCommand, AlterNamedClass,
+                       adapts=s_indexes.AlterSourceIndex):
     def apply(self, schema, context=None):
         result = s_indexes.AlterSourceIndex.apply(self, schema, context)
-        SourceIndexCommand.apply(self, schema, context)
+        AlterNamedClass.apply(self, schema, context)
         return result
 
 
-class DeleteSourceIndex(
-        SourceIndexCommand, adapts=s_indexes.DeleteSourceIndex):
+class DeleteSourceIndex(SourceIndexCommand, DeleteNamedClass,
+                        adapts=s_indexes.DeleteSourceIndex):
+
     def apply(self, schema, context=None):
         index = s_indexes.DeleteSourceIndex.apply(self, schema, context)
-        SourceIndexCommand.apply(self, schema, context)
+        DeleteNamedClass.apply(self, schema, context)
 
         source = context.get(s_links.LinkCommandContext)
         if not source:
