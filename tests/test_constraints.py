@@ -346,10 +346,10 @@ class TestConstraintsSchema(tb.QueryTestCase):
         with open(new_schema_f) as f:
             new_schema = f.read()
 
-        await self.con.execute('''
-            CREATE MIGRATION test::d1 TO $${schema}$$;
+        await self.con.execute(f'''
+            CREATE MIGRATION test::d1 TO eschema $${new_schema}$$;
             COMMIT MIGRATION test::d1;
-            '''.format(schema=new_schema))
+            ''')
 
         async with self._run_and_rollback():
             # This is OK, the name unique constraint is abstract

@@ -328,8 +328,8 @@ class OptDeltaTarget(Nonterm):
     def reduce_empty(self):
         self.val = None
 
-    def reduce_TO_SCONST(self, *kids):
-        self.val = kids[1]
+    def reduce_TO_AnyIdentifier_SCONST(self, *kids):
+        self.val = [kids[1], kids[2]]
 
 
 #
@@ -360,12 +360,25 @@ class CreateDeltaStmt(Nonterm):
         r"""%reduce OptAliasBlock CREATE MIGRATION NodeName \
                     OptDeltaParents OptDeltaTarget \
         """
+        if kids[5].val is None:
+            lang = target = None
+        else:
+            lang, target = kids[5].val
+
+        # currently we only support one valid language for migration target
+        #
+        if lang.val.lower() == 'eschema':
+            target = self._parse_schema_decl(target)
+        else:
+            raise EdgeQLSyntaxError(f'unknown migration language: {lang.val}',
+                                    context=lang.context)
+
         self.val = qlast.CreateDeltaNode(
             aliases=kids[0].val,
             name=kids[3].val,
             parents=kids[4].val,
-            target=(self._parse_schema_decl(kids[5].val)
-                    if kids[5].val is not None else None),
+            language=lang.val.lower(),
+            target=target,
         )
 
     def reduce_CreateDelta_Commands(self, *kids):

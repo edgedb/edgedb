@@ -704,7 +704,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.visit(node.parents)
 
             if node.target:
-                self.write(' TO ')
+                self.write(' TO ', node.language, ' ')
                 from edgedb.lang.schema import generate_source as schema_sg
                 self.write(edgeql_quote.dollar_quote_literal(
                     schema_sg(node.target)))

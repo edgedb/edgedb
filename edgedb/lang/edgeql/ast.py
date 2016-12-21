@@ -224,6 +224,7 @@ class DeltaNode:
 
 class CreateDeltaNode(CreateObjectNode, DeltaNode):
     parents: list
+    language: str
     target: object
 
 

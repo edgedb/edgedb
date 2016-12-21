@@ -15,7 +15,7 @@ from edgedb.server import _testbase as tb
 
 class TestInsert(tb.QueryTestCase):
     SETUP = """
-        CREATE MIGRATION test::d_insert01 TO $$
+        CREATE MIGRATION test::d_insert01 TO eschema $$
             link l3:
                 linkproperty comment to str:
                     default: "N/A"

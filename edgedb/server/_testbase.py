@@ -169,8 +169,7 @@ class DatabaseTestCase(ConnectedTestCase):
             with open(cls.SCHEMA, 'r') as sf:
                 schema = sf.read()
 
-            script += '\nCREATE MIGRATION test::d1 TO $${schema}$$;'.format(
-                schema=schema)
+            script += f'\nCREATE MIGRATION test::d1 TO eschema $${schema}$$;'
             script += '\nCOMMIT MIGRATION test::d1;'
 
         if cls.SETUP:

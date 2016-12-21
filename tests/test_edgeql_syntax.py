@@ -1892,11 +1892,31 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_delta02(self):
         """
-        CREATE MIGRATION test::d_links01_0 TO $$concept Foo$$;
+        CREATE MIGRATION test::d_links01_0 TO eschema $$concept Foo$$;
         ALTER MIGRATION test::d_links01_0
             RENAME TO test::pretty_name;
         COMMIT MIGRATION test::d_links01_0;
         DROP MIGRATION test::d_links01_0;
+        """
+
+    def test_edgeql_syntax_ddl_delta03(self):
+        """
+        CREATE MIGRATION test::d_links01_0 TO eschema $$concept Foo$$;
+        CREATE MIGRATION test::d_links01_0 TO ESCHEMA $$concept Foo$$;
+        CREATE MIGRATION test::d_links01_0 TO ESchema $$concept Foo$$;
+
+% OK %
+
+        CREATE MIGRATION test::d_links01_0 TO eschema $$concept Foo$$;
+        CREATE MIGRATION test::d_links01_0 TO eschema $$concept Foo$$;
+        CREATE MIGRATION test::d_links01_0 TO eschema $$concept Foo$$;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  'unknown migration language: BadLang', line=2, col=47)
+    def test_edgeql_syntax_ddl_delta04(self):
+        """
+        CREATE MIGRATION test::d_links01_0 TO BadLang $$concept Foo$$;
         """
 
     def test_edgeql_syntax_ddl_action01(self):

@@ -20,7 +20,7 @@ class TestDeltas(tb.QueryTestCase):
         result = await self.con.execute("""
             # setup delta
             #
-            CREATE MIGRATION test::d1 TO $$
+            CREATE MIGRATION test::d1 TO eschema $$
                 link name:
                     linkproperty lang to str
 
@@ -69,10 +69,10 @@ class TestDeltas(tb.QueryTestCase):
         with open(schema_f) as f:
             schema = f.read()
 
-        await self.con.execute('''
-            CREATE MIGRATION test::d_links01_0 TO $${schema}$$;
+        await self.con.execute(f'''
+            CREATE MIGRATION test::d_links01_0 TO eschema $${schema}$$;
             COMMIT MIGRATION test::d_links01_0;
-            '''.format(schema=schema))
+            ''')
 
         await self.con.execute('''
             INSERT test::Target1 {
@@ -118,10 +118,10 @@ class TestDeltas(tb.QueryTestCase):
         with open(schema_f) as f:
             schema = f.read()
 
-        await self.con.execute('''
-            CREATE MIGRATION test::d_links01_1 TO $${schema}$$;
+        await self.con.execute(f'''
+            CREATE MIGRATION test::d_links01_1 TO eschema $${schema}$$;
             COMMIT MIGRATION test::d_links01_1;
-            '''.format(schema=schema))
+            ''')
 
 
 class TestDeltaDDLGeneration(tb.QueryTestCase):
@@ -132,7 +132,7 @@ class TestDeltaDDLGeneration(tb.QueryTestCase):
         result = await self.con.execute("""
             # setup delta
             #
-            CREATE MIGRATION test::d1 TO $$
+            CREATE MIGRATION test::d1 TO eschema $$
                 link name:
                     linkproperty lang to str
 

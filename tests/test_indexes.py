@@ -17,7 +17,7 @@ class TestIndexes(tb.QueryTestCase):
         result = await self.con.execute("""
             # setup delta
             #
-            CREATE MIGRATION test::d1 TO $$
+            CREATE MIGRATION test::d1 TO eschema $$
                 concept Person:
                     link first_name to str
                     link last_name to str

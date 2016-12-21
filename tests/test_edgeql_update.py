@@ -13,7 +13,7 @@ from edgedb.server import _testbase as tb
 
 class TestUpdate(tb.QueryTestCase):
     SETUP = """
-        CREATE MIGRATION test::d_update01 TO $$
+        CREATE MIGRATION test::d_update01 TO eschema $$
             concept Status:
                 link name to str
 

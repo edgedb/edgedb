@@ -13,7 +13,7 @@ from edgedb.server import _testbase as tb
 
 class TestGraphQLMutation(tb.QueryTestCase):
     SETUP = """
-        CREATE MIGRATION test::d1 TO $$
+        CREATE MIGRATION test::d1 TO eschema $$
             abstract concept NamedObject:
                 required link name to str
 

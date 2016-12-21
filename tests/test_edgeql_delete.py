@@ -14,7 +14,7 @@ from edgedb.server import _testbase as tb
 
 class TestDelete(tb.QueryTestCase):
     SETUP = """
-        CREATE MIGRATION test::d_delete01 TO $$
+        CREATE MIGRATION test::d_delete01 TO eschema $$
             concept DeleteTest:
                 link name to str
         $$;
