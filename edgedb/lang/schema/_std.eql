@@ -66,6 +66,7 @@ CREATE ATTRIBUTE stdattrs::aggregate std::bool;
 CREATE ATTRIBUTE stdattrs::language std::str;
 CREATE ATTRIBUTE stdattrs::code std::str;
 CREATE ATTRIBUTE stdattrs::from_function std::str;
+CREATE ATTRIBUTE stdattrs::varparam std::int;
 
 CREATE FUNCTION std::lower(std::str) RETURNING std::str
     FROM SQL FUNCTION 'lower';

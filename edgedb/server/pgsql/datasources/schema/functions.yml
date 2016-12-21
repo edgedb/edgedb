@@ -29,6 +29,7 @@ source: |
                     ON o.id = pt.value::uuid
             ) AS paramtypes,
             f.paramnames,
+            f.varparam,
             f.paramdefaults,
             f.aggregate,
             f.language,

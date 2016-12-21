@@ -1368,6 +1368,94 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [5, 1],
         ])
 
+    async def test_edgeql_select_func05(self):
+        await self.con.execute(r'''
+            CREATE FUNCTION test::concat1(*std::any) RETURNING std::str
+                FROM SQL FUNCTION 'concat';
+        ''')
+
+        await self.assert_query_result(r'''
+            SELECT schema::Function {
+                params: {
+                    @paramnum,
+                    @paramvariadic
+                }
+            } WHERE schema::Function.name = 'test::concat1';
+        ''', [
+            [{'params': [
+                {
+                    '@paramnum': 1,
+                    '@paramvariadic': True
+                }
+            ]}]
+        ])
+
+        await self.assert_query_result(r'''
+            SELECT test::concat1('aaa');
+            SELECT test::concat1('aaa', 'bbb');
+            SELECT test::concat1('aaa', 'bbb', 22);
+        ''', [
+            ['aaa'],
+            ['aaabbb'],
+            ['aaabbb22'],
+        ])
+
+    async def test_edgeql_select_func06(self):
+        await self.con.execute(r'''
+            CREATE FUNCTION test::concat2(*std::str) RETURNING std::str
+                FROM SQL FUNCTION 'concat';
+        ''')
+
+        with self.assertRaisesRegex(exc.EdgeQLError,
+                                    'could not find a function'):
+            await self.con.execute(r'SELECT test::concat2(123);')
+
+    async def test_edgeql_select_func07(self):
+        await self.con.execute(r'''
+            CREATE FUNCTION test::concat3(sep: std::str, *std::str)
+                RETURNING std::str
+                FROM SQL FUNCTION 'concat_ws';
+        ''')
+
+        await self.assert_query_result(r'''
+            SELECT schema::Function {
+                params: {
+                    @paramnum,
+                    @paramname,
+                    @paramvariadic
+                } ORDER BY schema::Function.params@paramnum ASC
+            } WHERE schema::Function.name = 'test::concat3';
+        ''', [
+            [{'params': [
+                {
+                    '@paramnum': 1,
+                    '@paramname': 'sep',
+                    '@paramvariadic': False
+                },
+                {
+                    '@paramnum': 2,
+                    '@paramname': None,
+                    '@paramvariadic': True
+                }
+            ]}]
+        ])
+
+        with self.assertRaisesRegex(exc.EdgeQLError,
+                                    'could not find a function'):
+            await self.con.execute(r'SELECT test::concat3(123);')
+
+        with self.assertRaisesRegex(exc.EdgeQLError,
+                                    'could not find a function'):
+            await self.con.execute(r'SELECT test::concat3("a", 123);')
+
+        await self.assert_query_result(r'''
+            SELECT test::concat3('|', '1');
+            SELECT test::concat3('+', '1', '2');
+        ''', [
+            ['1'],
+            ['1+2'],
+        ])
+
     async def test_edgeql_select_exists01(self):
         await self.assert_query_result(r'''
             WITH MODULE test

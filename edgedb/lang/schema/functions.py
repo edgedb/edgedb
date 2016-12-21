@@ -73,7 +73,7 @@ class CreateFunction(named.CreateNamedClass, FunctionCommandMixin):
         paramdefaults = []
         paramnames = []
         paramtypes = []
-        for arg in astnode.args:
+        for argi, arg in enumerate(astnode.args, 1):
             paramnames.append(arg.name)
 
             paramdefaults.append(arg.default)
@@ -82,6 +82,12 @@ class CreateFunction(named.CreateNamedClass, FunctionCommandMixin):
                 so.ClassRef(classname=sn.Name(
                     module=arg.type.maintype.module,
                     name=arg.type.maintype.name)))
+
+            if arg.variadic:
+                cmd.add(sd.AlterClassProperty(
+                    property='varparam',
+                    new_value=argi
+                ))
 
         cmd.add(sd.AlterClassProperty(
             property='paramnames',
@@ -151,6 +157,9 @@ class Function(primary.PrimaryClass):
 
     paramtypes = so.Field(so.TypeList, default=None, coerce=True,
                           compcoef=0.4)
+
+    # Number of the variadic parameter (+1)
+    varparam = so.Field(int, default=None, compcoef=0.4)
 
     paramdefaults = so.Field(expr.ExpressionList, default=None, coerce=True)
     returntype = so.Field(primary.PrimaryClass, compcoef=0.2)

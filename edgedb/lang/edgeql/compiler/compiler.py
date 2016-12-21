@@ -465,6 +465,44 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         elements = self.visit(expr.elements)
         return irast.Sequence(elements=elements, is_array=True)
 
+    def _check_function(self, func, arg_types):
+        if not func.paramtypes:
+            if not arg_types:
+                # Match: `func` is a function without parameters
+                # being called with no arguments.
+                return True
+            else:
+                # No match: `func` is a function without parameters
+                # being called with some arguments.
+                return False
+
+        if not arg_types:
+            # Call without arguments
+            for pi, pd in enumerate(func.paramdefaults, 1):
+                if pd is None and pi != func.varparam:
+                    # There is at least one non-variadic parameter
+                    # without default; hence this function cannot
+                    # be called without arguments.
+                    return False
+            return True
+
+        for pt, at in itertools.zip_longest(func.paramtypes, arg_types):
+            if pt is None:
+                # We have more arguments then parameters.
+                if func.varparam is not None:
+                    # Function has a variadic parameter
+                    # (which must be the last one).
+                    pt = func.paramtypes[func.varparam - 1]  # varparam is +1
+                else:
+                    # No variadic parameter, hence no match.
+                    return False
+
+            if not at.issubclass(pt):
+                return False
+
+        # Match, the `func` passed all checks.
+        return True
+
     def visit_FunctionCallNode(self, expr):
         with self.context.new():
             ctx = self.context.current
@@ -506,19 +544,10 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                         context=a.context)
                 arg_types.append(arg_type)
 
-            funcobj = None
-            for func in funcs:
-                if not func.paramtypes and not arg_types:
-                    funcobj = func
+            for funcobj in funcs:
+                if self._check_function(funcobj, arg_types):
                     break
-                for pt, at in zip(func.paramtypes, arg_types):
-                    if not at.issubclass(pt):
-                        break
-                else:
-                    funcobj = func
-                    break
-
-            if funcobj is None:
+            else:
                 raise errors.EdgeQLError(
                     f'could not find a function variant {funcname}',
                     context=expr.context)

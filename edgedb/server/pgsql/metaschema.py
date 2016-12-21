@@ -695,13 +695,14 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
                     q.collection    AS {dbname('schema::paramcollection')},
                     q.name          AS {dbname('schema::paramname')},
                     q.def           AS {dbname('schema::paramdefault')},
-                    NULL::bool      AS {dbname('schema::paramvariadic')}
+                    q.varparam=q.num AS {dbname('schema::paramvariadic')}
                 FROM
                     (SELECT
                         id,
                         type,
                         collection,
                         subtypes,
+                        varparam,
                         t.num       AS num,
                         tn.name     AS name,
                         td.expr     AS def

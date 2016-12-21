@@ -767,6 +767,7 @@ class Backend(s_deltarepo.DeltaProvider):
                 'is_abstract': row['is_abstract'],
                 'is_final': row['is_final'],
                 'aggregate': row['aggregate'],
+                'varparam': row['varparam'],
                 'from_function': row['from_function'],
                 'paramtypes': paramtypes,
                 'paramdefaults':
