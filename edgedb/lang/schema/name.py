@@ -20,6 +20,9 @@ class SchemaName(str):
         if isinstance(name, SchemaName):
             _name = name.name
             _module = name.module
+        elif module is not None:
+            _name = name
+            _module = module
         else:
             _module, _, _name = name.rpartition('::')
 

@@ -29,17 +29,22 @@ class TransactionStatement:
 
 def plan_statement(stmt, backend, flags={}):
     if isinstance(stmt, qlast.DatabaseNode):
+        # CREATE/ALTER/DROP DATABASE
         return s_ddl.cmd_from_ddl(stmt, schema=backend.schema)
 
     elif isinstance(stmt, qlast.DeltaNode):
+        # CREATE/APPLY MIGRATION
         return s_ddl.cmd_from_ddl(stmt, schema=backend.schema)
 
     elif isinstance(stmt, qlast.DDLNode):
+        # CREATE/DELETE/ALTER (FUNCTION, CONCEPT, etc)
         return s_ddl.delta_from_ddl(stmt, schema=backend.schema)
 
     elif isinstance(stmt, qlast.TransactionNode):
+        # BEGIN/COMMIT
         return TransactionStatement(stmt)
 
     else:
+        # Queries
         ir = ql_compiler.compile_ast_to_ir(stmt, schema=backend.schema)
         return backend.compile(ir, output_format='json')

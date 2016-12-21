@@ -137,6 +137,18 @@ class NamedClassMetaCommand(
         elif isinstance(value, (s_obj.ClassSet, s_obj.ClassList)):
             result = [self._get_name(v) for v in value]
 
+        elif isinstance(value, s_obj.TypeList):
+            result = []
+
+            for el in value:
+                if isinstance(el, s_obj.Collection):
+                    stypes = [self._get_name(st) for st in el.get_subtypes()]
+                    v = (None, el.schema_name, stypes)
+                else:
+                    v = (self._get_name(el), None, None)
+
+                result.append(v)
+
         elif isinstance(value, s_obj.ClassDict):
             result = {}
 
@@ -172,14 +184,39 @@ class NamedClassMetaCommand(
         if result is not value and recvalue is None:
             names = result
             if isinstance(names, list):
-                recvalue = dbops.Query(
-                    '''SELECT
-                            array_agg(id ORDER BY st.i)
-                        FROM
-                            edgedb.NamedClass AS o,
-                            UNNEST($1::text[]) WITH ORDINALITY AS st(t, i)
-                        WHERE
-                            o.name = st.t''', [names], type='uuid[]')
+                if isinstance(value, s_obj.TypeList):
+                    recvalue = dbops.Query(
+                        '''SELECT
+                                array_agg(
+                                    (SELECT ROW(
+                                        (SELECT id FROM edgedb.NamedClass
+                                            WHERE name = t.type),
+                                        t.collection,
+                                        (SELECT
+                                                array_agg(id ORDER BY st.i)
+                                            FROM
+                                                edgedb.NamedClass AS o,
+                                                UNNEST(t.subtypes)
+                                                    WITH ORDINALITY AS st(t, i)
+                                            WHERE
+                                                o.name = st.t)
+                                    )::edgedb.type_t)
+                                    ORDER BY t.i
+                                )
+                            FROM
+                                UNNEST($1::edgedb.typedesc_t[])
+                                    WITH ORDINALITY AS
+                                        t(type, collection, subtypes, i)
+                        ''', [names], type='edgedb.type_t[]')
+                else:
+                    recvalue = dbops.Query(
+                        '''SELECT
+                                array_agg(id ORDER BY st.i)
+                            FROM
+                                edgedb.NamedClass AS o,
+                                UNNEST($1::text[]) WITH ORDINALITY AS st(t, i)
+                            WHERE
+                                o.name = st.t''', [names], type='uuid[]')
 
             elif (
                     isinstance(names, tuple) or col is not None and

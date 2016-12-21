@@ -356,6 +356,12 @@ def _field_to_column(field):
     elif issubclass(ftype, s_obj.Class):
         coltype = 'uuid'
 
+    elif issubclass(ftype, s_obj.TypeList):
+        coltype = 'edgedb.type_t[]'
+
+    elif issubclass(ftype, (s_obj.StringList, s_expr.ExpressionList)):
+        coltype = 'text[]'
+
     elif issubclass(ftype, (s_obj.ClassSet, s_obj.ClassList)):
         coltype = 'uuid[]'
 
@@ -484,7 +490,8 @@ classref_attr_aliases = {
 }
 
 
-dbname = lambda n: common.quote_ident(common.edgedb_name_to_pg_name(n))
+dbname = lambda n: \
+    common.quote_ident(common.edgedb_name_to_pg_name(sn.Name(n)))
 tabname = lambda obj: \
     ('edgedbss', common.get_table_name(obj, catenate=False)[1])
 q = common.quote_ident
@@ -586,7 +593,8 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
                     if issubclass(ftype,
                                   (s_obj.Class, s_obj.ClassCollection,
                                    s_obj.ArgDict, s_expr.ExpressionDict,
-                                   dict)):
+                                   s_expr.ExpressionList, s_obj.StringList,
+                                   list, dict)):
                         continue
 
                     aname = 'stdattrs::{}'.format(fn)
@@ -674,44 +682,44 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
 
         elif pn.name == 'params' and mcls is s_funcs.Function:
             # Function params need special handling as
-            # they are defined as threee separate fields.
-            link_query = '''
+            # they are defined as three separate fields.
+            link_query = f'''
                 SELECT
-                    id          AS {src},
+                    id              AS {dbname('std::source')},
                     (CASE WHEN
-                        (q.{typeattr}).value->>'collection' IS NOT NULL
-                        THEN ((q.{typeattr}).value->'subtypes'->>0)::uuid
-                        ELSE ((q.{typeattr}).value->>'type')::uuid
-                    END)        AS {tgt},
-                    (q.{typeattr}).value->>'collection'
-                                AS {collprop},
-                    (q.{typeattr}).key::text
-                                AS {nameprop},
-                    (q.{defattr})->>((q.{typeattr}).key::text)
-                                AS {defprop},
-                    (q.{kindattr})->>((q.{typeattr}).key::text)
-                                AS {kindprop}
+                        q.collection IS NOT NULL
+                        THEN (q.subtypes[0])::uuid
+                        ELSE q.type
+                    END)            AS {dbname('std::target')},
+                    q.num           AS {dbname('schema::paramnum')},
+                    q.collection    AS {dbname('schema::paramcollection')},
+                    q.name          AS {dbname('schema::paramname')},
+                    q.def           AS {dbname('schema::paramdefault')},
+                    NULL::bool      AS {dbname('schema::paramvariadic')}
                 FROM
                     (SELECT
                         id,
-                        jsonb_each({typeattr}) AS {typeattr},
-                        {defattr},
-                        {kindattr}
+                        type,
+                        collection,
+                        subtypes,
+                        t.num       AS num,
+                        tn.name     AS name,
+                        td.expr     AS def
                      FROM
-                        {schematab}
+                        edgedb.{mcls.__name__} AS f,
+                        LATERAL UNNEST(f.paramtypes)
+                            WITH ORDINALITY AS
+                                t(type, collection, subtypes, num)
+                        INNER JOIN
+                            LATERAL UNNEST(f.paramnames)
+                                WITH ORDINALITY AS tn(name, num)
+                            ON (t.num = tn.num)
+                        INNER JOIN
+                            LATERAL UNNEST(f.paramdefaults)
+                                WITH ORDINALITY AS td(expr, num)
+                            ON (t.num = td.num)
                     ) AS q
-            '''.format(
-                schematab='edgedb.{}'.format(mcls.__name__),
-                typeattr=q('paramtypes'),
-                defattr=q('paramdefaults'),
-                kindattr=q('paramkinds'),
-                src=dbname(sn.Name('std::source')),
-                tgt=dbname(sn.Name('std::target')),
-                collprop=dbname(sn.Name('schema::collection')),
-                nameprop=dbname(sn.Name('std::paramname')),
-                defprop=dbname(sn.Name('std::paramdefault')),
-                kindprop=dbname(sn.Name('std::paramkind')),
-            )
+            '''
 
         elif issubclass(field.type[0], (s_obj.ClassSet, s_obj.ClassList)):
             if ptr.singular():
@@ -906,7 +914,8 @@ async def generate_views(conn, schema):
 
             if ptrstor.table_type == 'concept':
                 if (pn.name == 'name' and
-                        issubclass(mcls, s_derivable.DerivableClass)):
+                        issubclass(mcls, (s_derivable.DerivableClass,
+                                          s_funcs.Function))):
                     col_expr = 'edgedb.get_shortname({})'.format(q(pn.name))
                 else:
                     col_expr = q(pn.name)

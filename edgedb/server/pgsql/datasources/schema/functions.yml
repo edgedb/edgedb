@@ -22,15 +22,18 @@ source: |
             f.description AS description,
             f.is_abstract AS is_abstract,
             f.is_final AS is_final,
-            (SELECT jsonb_object(array_agg(pt.key), array_agg(o.name))
+            (SELECT array_agg(o.name ORDER BY pt.i)
              FROM
-                jsonb_each_text(f.paramtypes) pt
+                UNNEST(f.paramtypes) WITH ORDINALITY pt (value, i)
                 INNER JOIN edgedb.NamedClass o
                     ON o.id = pt.value::uuid
             ) AS paramtypes,
-            f.paramkinds,
+            f.paramnames,
             f.paramdefaults,
             f.aggregate,
+            f.language,
+            f.code,
+            f.from_function,
             (SELECT name FROM edgedb.NamedClass WHERE id = f.returntype)
                 AS returntype
         FROM

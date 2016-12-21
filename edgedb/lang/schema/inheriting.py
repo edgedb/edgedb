@@ -79,7 +79,7 @@ class CreateInheritingClass(named.CreateNamedClass, InheritingClassCommand):
     def _cmd_tree_from_ast(cls, astnode, context, schema):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
-        bases = cls._classbases_from_ast(astnode, context)
+        bases = cls._classbases_from_ast(astnode, context, schema)
         if bases is not None:
             cmd.add(
                 sd.AlterClassProperty(
@@ -103,8 +103,8 @@ class CreateInheritingClass(named.CreateNamedClass, InheritingClassCommand):
         return cmd
 
     @classmethod
-    def _classbases_from_ast(cls, astnode, context):
-        classname = cls._classname_from_ast(astnode, context)
+    def _classbases_from_ast(cls, astnode, context, schema):
+        classname = cls._classname_from_ast(astnode, context, schema)
 
         bases = so.ClassList(
             so.ClassRef(classname=sn.Name(
@@ -289,6 +289,9 @@ class InheritingClass(named.NamedClass):
 
     def issubclass(self, parent):
         if isinstance(parent, so.Class):
+            if parent.name == 'std::any':
+                return True
+
             mro = self.get_mro()
 
             if parent in mro:

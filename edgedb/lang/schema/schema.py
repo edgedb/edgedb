@@ -150,7 +150,7 @@ class Schema:
         if module is not None:
             return self.modules.get(module)
 
-    def get(self, name, default=_void, *, module_aliases=None, type=None):
+    def _get(self, name, *, getter, default, module_aliases):
         name, module, nqname = schema_name.split_name(name)
         implicit_builtins = module is None
 
@@ -158,21 +158,46 @@ class Schema:
             module, module_aliases=module_aliases)
 
         if class_module is not None:
-            result = class_module.get(nqname, default=None, type=type)
+            result = getter(class_module, nqname)
             if result is not None:
                 return result
 
         if implicit_builtins:
             std = self.modules['std']
-            result = std.get(nqname, default=None, type=type)
+            result = getter(std, nqname)
             if result is not None:
                 return result
 
-        if default is _void:
-            raise SchemaError(
-                f'reference to a non-existent schema class: {name}')
-        else:
-            return default
+        return default
+
+    def get_functions(self, name, default=_void, *, module_aliases=None):
+        def getter(module, name):
+            return module.get_functions(name)
+
+        funcs = self._get(name,
+                          getter=getter,
+                          module_aliases=module_aliases,
+                          default=default)
+
+        if funcs is not _void:
+            return funcs
+
+        raise SchemaError(
+            f'reference to a non-existent function: {name}')
+
+    def get(self, name, default=_void, *, module_aliases=None, type=None):
+        def getter(module, name):
+            return module.get(name, default=None, type=type)
+
+        obj = self._get(name,
+                        getter=getter,
+                        module_aliases=module_aliases,
+                        default=default)
+
+        if obj is not _void:
+            return obj
+
+        raise SchemaError(f'reference to a non-existent schema class: {name}')
 
     def has_module(self, module):
         return module in self.modules

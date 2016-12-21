@@ -754,6 +754,12 @@ class Backend(s_deltarepo.DeltaProvider):
         for row in func_list:
             name = sn.Name(row['name'])
 
+            paramtypes = None
+            if row['paramtypes']:
+                paramtypes = []
+                for pt in row['paramtypes']:
+                    paramtypes.append(schema.get(pt))
+
             func_data = {
                 'name': name,
                 'title': self.json_to_word_combination(row['title']),
@@ -761,15 +767,10 @@ class Backend(s_deltarepo.DeltaProvider):
                 'is_abstract': row['is_abstract'],
                 'is_final': row['is_final'],
                 'aggregate': row['aggregate'],
-                'paramtypes': so.ClassDict({
-                    k: schema.get(v)
-                    for k, v in json.loads(row['paramtypes'])
-                }) if row['paramtypes'] else None,
-                'paramkinds':
-                (json.loads(row['paramkinds']) if row['paramkinds'] else None),
-                'paramdefaults': (
-                    json.loads(row['paramdefaults'])
-                    if row['paramdefaults'] else None),
+                'from_function': row['from_function'],
+                'paramtypes': paramtypes,
+                'paramdefaults':
+                    row['paramdefaults'] if row['paramdefaults'] else None,
                 'returntype': schema.get(row['returntype'])
             }
 

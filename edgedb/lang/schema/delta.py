@@ -266,12 +266,6 @@ class Delta(struct.MixedStruct, metaclass=DeltaMeta):
         super().__init__(**kwargs)
 
     def apply(self, schema):
-        ''
-
-        """LINE [delta.progress] APPLYING
-        '{:032x}'.format(self.id)
-        """
-
         if self.snapshot is not None:
             try:
                 self.snapshot.apply(schema)
@@ -366,6 +360,10 @@ class CommandMeta(adapter.Adapter, struct.MixedStructMeta,
 
 
 class Command(struct.MixedStruct, metaclass=CommandMeta):
+    """Abstract base class for all delta commands."""
+
+    source_context = struct.Field(object, default=None)
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.ops = ordered.OrderedSet()
@@ -554,6 +552,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
         cmd = cls._cmd_from_ast(astnode, context, schema)
+        cmd.source_context = astnode.context
 
         if getattr(astnode, 'commands', None):
             context_class = getattr(cls, 'context_class', None)
@@ -680,6 +679,8 @@ class DeltaUpgradeContext(CommandContext):
 
 
 class ClassCommand(Command):
+    """Base class for all Class-related commands."""
+
     metaclass = struct.Field(so.MetaClass, str_formatter=None)
 
 

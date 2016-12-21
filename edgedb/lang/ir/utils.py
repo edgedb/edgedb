@@ -173,6 +173,9 @@ def infer_type(ir, schema):
             else:
                 result = None
 
+    elif isinstance(ir, irast.Sequence):
+        result = s_obj.Tuple(element_type=schema.get('std::any'))
+
     else:
         result = None
 

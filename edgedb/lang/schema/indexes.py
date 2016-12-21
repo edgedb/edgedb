@@ -62,7 +62,7 @@ class SourceIndexCommand(referencing.ReferencedClassCommand):
         return SourceIndex
 
     @classmethod
-    def _classname_from_ast(cls, astnode, context):
+    def _classname_from_ast(cls, astnode, context, schema):
         parent_ctx = context.get(sd.CommandContextToken)
         subject_name = parent_ctx.op.classname
 

@@ -1261,27 +1261,29 @@ class OptDefault(Nonterm):
         self.val = kids[1].val
 
 
-class OptArgMode(Nonterm):
+class OptVariadic(Nonterm):
     def reduce_empty(self):
-        self.val = None
+        self.val = False
 
-    def reduce_IN(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_OUT(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_INOUT(self, *kids):
-        self.val = kids[0].val
+    def reduce_STAR(self, *kids):
+        self.val = True
 
 
 class FuncDeclArg(Nonterm):
-    def reduce_OptArgMode_ShortName_TypeName_OptDefault(self, *kids):
+    def reduce_OptVariadic_TypeName_OptDefault(self, *kids):
         self.val = qlast.FuncArgNode(
-            mode=kids[0].val,
+            variadic=kids[0].val,
+            name=None,
+            type=kids[1].val,
+            default=kids[2].val
+        )
+
+    def reduce_OptVariadic_ShortName_COLON_TypeName_OptDefault(self, *kids):
+        self.val = qlast.FuncArgNode(
+            variadic=kids[0].val,
             name=kids[1].val,
-            type=kids[2].val,
-            default=kids[3].val
+            type=kids[3].val,
+            default=kids[4].val
         )
 
 
@@ -1295,7 +1297,81 @@ class CreateFunctionArgs(Nonterm):
         self.val = []
 
     def reduce_LPAREN_FuncDeclArgList_RPAREN(self, *kids):
-        self.val = kids[1].val
+        args = kids[1].val
+
+        default_arg_seen = False
+        variadic_arg_seen = False
+        for arg in args:
+            if arg.variadic:
+                if variadic_arg_seen:
+                    raise EdgeQLSyntaxError('more than one variadic argument',
+                                            context=arg.context)
+                else:
+                    variadic_arg_seen = True
+            else:
+                if variadic_arg_seen:
+                    raise EdgeQLSyntaxError(
+                        'non-variadic argument follows variadic argument',
+                        context=arg.context)
+
+            if arg.default is None:
+                if default_arg_seen and not arg.variadic:
+                    raise EdgeQLSyntaxError(
+                        'non-default argument follows default argument',
+                        context=arg.context)
+            else:
+                default_arg_seen = True
+
+        self.val = args
+
+
+def _parse_language(node):
+    try:
+        return qlast.Language(node.val.upper())
+    except ValueError as ex:
+        raise EdgeQLSyntaxError(
+            f'{node.val} is not a valid language',
+            context=node.context) from None
+
+
+class FromCode(Nonterm):
+
+    def reduce_FROM_IDENT_SCONST(self, *kids):
+        lang = _parse_language(kids[1])
+        self.val = qlast.FunctionCode(language=lang, code=kids[2].val)
+
+
+class OptFromFunction(Nonterm):
+
+    def reduce_empty(self):
+        self.val = None
+
+    def reduce_FromCode(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_FROM_IDENT_FUNCTION_SCONST(self, *kids):
+        lang = _parse_language(kids[1])
+        if lang != qlast.Language.SQL:
+            raise EdgeQLSyntaxError(
+                f'{lang} language is not supported in FROM FUNCTION clause',
+                context=kids[1].context) from None
+
+        self.val = qlast.FunctionCode(language=lang, from_name=kids[3].val)
+
+
+class OptFromAggregate(Nonterm):
+
+    def reduce_empty(self):
+        self.val = None
+
+    def reduce_FROM_IDENT_AGGREGATE_SCONST(self, *kids):
+        lang = _parse_language(kids[1])
+        if lang != qlast.Language.SQL:
+            raise EdgeQLSyntaxError(
+                f'{lang} language is not supported in FROM AGGREGATE clause',
+                context=kids[1].context) from None
+
+        self.val = qlast.FunctionCode(language=lang, from_name=kids[3].val)
 
 
 #
@@ -1305,6 +1381,7 @@ class CreateFunctionStmt(Nonterm):
     def reduce_CreateFunction(self, *kids):
         r"""%reduce OptAliasBlock CREATE FUNCTION NodeName \
                 CreateFunctionArgs RETURNING OptSingle FunctionType \
+                OptFromFunction \
         """
         self.val = qlast.CreateFunctionNode(
             aliases=kids[0].val,
@@ -1312,6 +1389,7 @@ class CreateFunctionStmt(Nonterm):
             args=kids[4].val,
             returning=kids[7].val,
             single=kids[6].val,
+            code=kids[8].val,
         )
 
 
@@ -1319,6 +1397,7 @@ class CreateAggregateStmt(Nonterm):
     def reduce_CreateFunction(self, *kids):
         r"""%reduce OptAliasBlock CREATE AGGREGATE NodeName \
                 CreateFunctionArgs RETURNING OptSingle FunctionType \
+                OptFromAggregate \
         """
         self.val = qlast.CreateFunctionNode(
             aliases=kids[0].val,
@@ -1327,6 +1406,7 @@ class CreateAggregateStmt(Nonterm):
             returning=kids[7].val,
             single=kids[6].val,
             aggregate=True,
+            code=kids[8].val,
         )
 
 

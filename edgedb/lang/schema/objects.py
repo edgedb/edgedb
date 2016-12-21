@@ -680,6 +680,22 @@ class NodeClass:
 class Collection(Class, NodeClass):
     element_type = Field(Class)
 
+    def issubclass(self, parent):
+        if parent.name == 'std::any':
+            return True
+
+        if parent.__class__ is not self.__class__:
+            return False
+
+        parent_types = parent.get_subtypes()
+        my_types = self.get_subtypes()
+
+        for pt, my in zip(parent_types, my_types):
+            if not my.issubclass(pt):
+                return False
+
+        return True
+
     @classmethod
     def compare_values(cls, ours, theirs, context, compcoef):
         if ours.get_canonical_class() != theirs.get_canonical_class():
@@ -765,6 +781,13 @@ class List(Collection):
         return tuple
 
 
+class Tuple(Collection):
+    schema_name = 'tuple'
+
+    def get_container(self):
+        return tuple
+
+
 class Map(Collection):
     schema_name = 'map'
 
@@ -788,7 +811,7 @@ class ClassCollection:
     pass
 
 
-class ClassDict(typed.TypedDict, ClassCollection,
+class ClassDict(typed.OrderedTypedDict, ClassCollection,
                 keytype=str, valuetype=Class):
 
     def persistent_hash(self):
@@ -871,6 +894,14 @@ class ClassSet(typed.TypedSet, ClassCollection, type=Class):
 
 
 class ClassList(typed.TypedList, ClassCollection, type=Class):
+    pass
+
+
+class TypeList(typed.TypedList, ClassCollection, type=Class):
+    pass
+
+
+class StringList(typed.TypedList, type=str, accept_none=True):
     pass
 
 

@@ -63,12 +63,26 @@ CREATE ATTRIBUTE stdattrs::default std::str;
 CREATE ATTRIBUTE stdattrs::exposed_behaviour std::str;
 CREATE ATTRIBUTE stdattrs::mapping std::str;
 CREATE ATTRIBUTE stdattrs::aggregate std::bool;
+CREATE ATTRIBUTE stdattrs::language std::str;
+CREATE ATTRIBUTE stdattrs::code std::str;
+CREATE ATTRIBUTE stdattrs::from_function std::str;
 
-CREATE FUNCTION std::strlen(string std::str) RETURNING std::int;
-CREATE FUNCTION std::lower(string std::str) RETURNING std::str;
-CREATE AGGREGATE std::sum(v std::int) RETURNING std::int;
-CREATE AGGREGATE std::count(expression std::any) RETURNING std::int;
-CREATE FUNCTION std::is_distinct(v std::any) RETURNING std::bool;
+CREATE FUNCTION std::lower(std::str) RETURNING std::str
+    FROM SQL FUNCTION 'lower';
+
+CREATE AGGREGATE std::sum(std::int) RETURNING std::int
+    FROM SQL AGGREGATE 'sum';
+
+CREATE AGGREGATE std::count(std::any) RETURNING std::int
+    FROM SQL AGGREGATE 'count';
+
+CREATE AGGREGATE std::is_distinct(std::any) RETURNING std::bool;
+
+CREATE FUNCTION std::len(std::str) RETURNING std::int
+    FROM SQL FUNCTION 'char_length';
+
+CREATE FUNCTION std::len(std::bytes) RETURNING std::int
+    FROM SQL FUNCTION 'length';
 
 CREATE CONSTRAINT std::constraint {
     SET errmessage := 'invalid {subject}';
@@ -100,13 +114,13 @@ CREATE CONSTRAINT std::minexclusive INHERITING std::min {
 
 CREATE CONSTRAINT std::length INHERITING std::constraint {
     SET errmessage := 'invalid {subject}';
-    SET subjectexpr := (strlen(<std::str>subject));
+    SET subjectexpr := (len(<std::str>subject));
 };
 
 CREATE CONSTRAINT std::minlength INHERITING (std::min, std::length) {
     SET errmessage := '{subject} must be no shorter than {param} characters.';
     SET expr := ((subject >= $param));
-    SET subjectexpr := (strlen(<std::str>subject));
+    SET subjectexpr := (len(<std::str>subject));
 };
 
 CREATE CONSTRAINT std::regexp INHERITING std::constraint {
@@ -117,7 +131,7 @@ CREATE CONSTRAINT std::regexp INHERITING std::constraint {
 CREATE CONSTRAINT std::maxlength INHERITING (std::max, std::length) {
     SET errmessage := '{subject} must be no longer than {param} characters.';
     SET expr := ((subject <= $param));
-    SET subjectexpr := (strlen(<std::str>subject));
+    SET subjectexpr := (len(<std::str>subject));
 };
 
 CREATE CONSTRAINT std::maxexclusive INHERITING std::max {
@@ -141,9 +155,17 @@ CREATE ATTRIBUTE std::rounding std::decimal_rounding_t;
 
 CREATE ATOM std::decimal;
 
-CREATE FUNCTION std::current_datetime() RETURNING std::datetime;
+CREATE FUNCTION std::current_date() RETURNING std::date
+    FROM SQL 'SELECT current_date';
 
-CREATE FUNCTION std::uuid_generate_v1mc() RETURNING std::uuid;
+CREATE FUNCTION std::current_time() RETURNING std::time
+    FROM SQL 'SELECT current_time';
+
+CREATE FUNCTION std::current_datetime() RETURNING std::datetime
+    FROM SQL FUNCTION 'now';
+
+CREATE FUNCTION std::uuid_generate_v1mc() RETURNING std::uuid
+    FROM SQL FUNCTION 'uuid_generate_v1mc';
 
 CREATE ACTION std::restrict {
     SET title := 'Abort the event if a pointer exists';
@@ -424,9 +446,11 @@ ALTER CONCEPT schema::Concept {
 
 
 CREATE LINK schema::params INHERITING schema::typeref {
+    CREATE LINK PROPERTY schema::paramnum TO std::int;
     CREATE LINK PROPERTY schema::paramname TO std::str;
-    CREATE REQUIRED LINK PROPERTY schema::paramkind TO std::str;
-    CREATE LINK PROPERTY schema::paramdefault TO std::any;
+    CREATE LINK PROPERTY schema::paramdefault TO std::str;
+    CREATE LINK PROPERTY schema::paramcollection TO std::str;
+    CREATE LINK PROPERTY schema::paramvariadic TO std::bool;
 };
 
 

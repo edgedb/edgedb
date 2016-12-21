@@ -135,8 +135,8 @@ class AttributeValueCommand(sd.ClassCommand):
         return AttributeValue
 
     @classmethod
-    def _classname_from_ast(cls, astnode, context):
-        propname = super()._classname_from_ast(astnode, context)
+    def _classname_from_ast(cls, astnode, context, schema):
+        propname = super()._classname_from_ast(astnode, context, schema)
 
         parent_ctx = context.get(sd.CommandContextToken)
         subject_name = parent_ctx.op.classname

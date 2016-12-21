@@ -27,6 +27,8 @@ class IRCompilerDBObjects:
             const_type = ('json',)
         elif isinstance(schema_type, s_obj.MetaClass):
             const_type = ('uuid',)
+        elif isinstance(schema_type, s_obj.Tuple):
+            const_type = ('row',)
         else:
             raise ValueError(f'unexpected constant type: {schema_type!r}')
 

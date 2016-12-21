@@ -925,10 +925,16 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.write('SINGLETON ')
             self.visit(node.returning)
 
-        self._visit_CreateObjectNode(
-            node,
-            'AGGREGATE' if node.aggregate else 'FUNCTION',
-            after_name=after_name)
+            if node.code:
+                if node.code.from_name:
+                    self.write(f' FROM {node.code.language} {typ} ')
+                    self.write(f'{node.code.from_name!r}')
+                else:
+                    self.write(f' FROM {node.code.language} ')
+                    self.write(f'{node.code.code!r}')
+
+        typ = 'AGGREGATE' if node.aggregate else 'FUNCTION'
+        self._visit_CreateObjectNode(node, typ, after_name=after_name)
 
     def visit_AlterFunctionNode(self, node):
         self._visit_AlterObjectNode(node, 'FUNCTION')
@@ -937,9 +943,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_DropObjectNode(node, 'FUNCTION')
 
     def visit_FuncArgNode(self, node):
-        if node.mode:
-            self.write(node.mode, ' ')
-        self.write(ident_to_str(node.name), ' ')
+        if node.variadic:
+            self.write('*')
+        if node.name is not None:
+            self.write(ident_to_str(node.name), ': ')
         self.visit(node.type)
 
         if node.default:

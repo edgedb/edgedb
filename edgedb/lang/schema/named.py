@@ -22,9 +22,13 @@ class NamedClassCommand(sd.ClassCommand):
     classname = so.Field(sn.Name)
 
     @classmethod
-    def _classname_from_ast(cls, astnode, context):
+    def _get_ast_name(cls, astnode, context, schema):
+        return astnode.name.name
+
+    @classmethod
+    def _classname_from_ast(cls, astnode, context, schema):
         classname = sn.Name(module=astnode.name.module or 'std',
-                            name=astnode.name.name)
+                            name=cls._get_ast_name(astnode, context, schema))
         return classname
 
     @classmethod
@@ -34,7 +38,7 @@ class NamedClassCommand(sd.ClassCommand):
             raise NotImplementedError(
                 f'cannot determine metaclass for {cls.__name__}')
 
-        classname = cls._classname_from_ast(astnode, context)
+        classname = cls._classname_from_ast(astnode, context, schema)
         metaclass = gpc()
         return cls(classname=classname, metaclass=metaclass)
 
@@ -95,14 +99,14 @@ class NamedClassCommand(sd.ClassCommand):
             if subnode is not None:
                 node.commands.append(subnode)
 
+    def _add_to_schema(self, schema):
+        if schema.get(self.classname, default=None, type=self.metaclass):
+            raise ValueError(f'{self.classname!r} already exists in schema')
+        schema.add(self.scls)
+
     def _create_begin(self, schema, context):
         super()._create_begin(schema, context)
-
-        if schema.get(self.classname, default=None,
-                      type=self.metaclass):
-            raise ValueError(f'{self.classname!r} already exists in schema')
-
-        schema.add(self.scls)
+        self._add_to_schema(schema)
 
 
 class CreateOrAlterNamedClass(NamedClassCommand):
@@ -129,7 +133,7 @@ class CreateNamedClass(CreateOrAlterNamedClass, sd.CreateClass):
         elif op.property == 'bases':
             node.bases = [
                 qlast.ClassRefNode(name=b.classname.name,
-                                       module=b.classname.module)
+                                   module=b.classname.module)
                 for b in op.new_value
             ]
         elif op.property == 'mro':
@@ -142,10 +146,8 @@ class CreateNamedClass(CreateOrAlterNamedClass, sd.CreateClass):
             super()._apply_field_ast(context, node, op)
 
     def apply(self, schema, context):
-        if schema.get(self.classname, default=None,
-                      type=self.metaclass):
-            raise ValueError('{!r} already exists in schema'
-                                .format(self.classname))
+        if schema.get(self.classname, default=None, type=self.metaclass):
+            raise ValueError(f'{self.classname!r} already exists in schema')
 
         # apply will add to the schema
         return sd.CreateClass.apply(self, schema, context)
@@ -487,7 +489,7 @@ class NamedClass(so.Class, metaclass=NamedClassMeta):
         return (cls.mangle_name(basename) +
                 '@@' +
                 '@'.join(cls.mangle_name(qualifier)
-                            for qualifier in qualifiers if qualifier))
+                         for qualifier in qualifiers if qualifier))
 
     @property
     def shortname(self) -> sn.Name:

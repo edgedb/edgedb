@@ -29,7 +29,9 @@ from . import delta as sd
 
 
 def cmd_from_ddl(stmt, *, context=None, schema):
+    # expand module aliases (implicit and explicit)
     ddl = edgeql.deoptimize(stmt)
+
     cmd = s_delta.Command.from_ast(ddl, schema=schema, context=context)
     return cmd
 

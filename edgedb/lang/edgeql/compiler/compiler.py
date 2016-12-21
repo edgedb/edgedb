@@ -16,6 +16,7 @@ from edgedb.lang.schema import expr as s_expr
 from edgedb.lang.schema import links as s_links
 from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import name as sn
+from edgedb.lang.schema import named as s_named
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import sources as s_sources
@@ -143,39 +144,38 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             stmt.where = self._process_select_where(edgeql_tree.where)
 
             stmt.groupby = self._process_groupby(edgeql_tree.groupby)
-            if stmt.groupby:
+            if stmt.groupby is not None:
                 ctx.group_paths = set(extract_prefixes(stmt.groupby))
-            else:
-                # Check if query() or order() contain any aggregate
-                # expressions and if so, add a sentinel group prefix
-                # instructing the transformer that we are implicitly grouping
-                # the whole set.
-                def checker(n):
-                    if isinstance(n, qlast.FunctionCallNode):
-                        return self._is_func_agg(n.func)
-                    elif isinstance(n, qlast.SelectQueryNode):
-                        # Make sure we don't dip into subqueries
-                        raise ast.SkipNode()
-
-                nodes = itertools.chain(
-                    edgeql_tree.orderby or [],
-                    (edgeql_tree.result,) if edgeql_tree.result is not None
-                    else []
-                )
-                for node in nodes:
-                    if ast.find_children(node, checker, force_traversal=True):
-                        ctx.group_paths = {...}
-                        break
 
             stmt.result = self._process_stmt_result(edgeql_tree.result)
 
         stmt.orderby = self._process_orderby(edgeql_tree.orderby)
-
         if edgeql_tree.offset:
             stmt.offset = self.visit(edgeql_tree.offset)
-
         if edgeql_tree.limit:
             stmt.limit = self.visit(edgeql_tree.limit)
+
+        if stmt.groupby is None:
+            # Check if query() or order() contain any aggregate
+            # expressions and if so, add a sentinel group prefix
+            # instructing the transformer that we are implicitly
+            # grouping the whole set.
+            def checker(n):
+                if isinstance(n, irast.FunctionCall):
+                    return n.aggregate
+                elif isinstance(n, irast.Stmt):
+                    # Make sure we don't dip into subqueries
+                    raise ast.SkipNode()
+
+            for node in itertools.chain(stmt.orderby or [],
+                                        [stmt.offset],
+                                        [stmt.limit],
+                                        [stmt.result]):
+                if node is None:
+                    continue
+                if ast.find_children(node, checker, force_traversal=True):
+                    ctx.group_paths = {...}
+                    break
 
         stmt.result_types = self._get_selector_types(stmt.result)
         stmt.argument_types = self.context.current.arguments
@@ -470,29 +470,61 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             ctx = self.context.current
 
             if isinstance(expr.func, str):
-                funcname = (None, expr.func)
-            else:
                 funcname = expr.func
+            else:
+                funcname = sn.Name(expr.func[1], expr.func[0])
 
-            funcobj = self._get_schema_object(
-                name=funcname[1], module=funcname[0])
+            funcs = ctx.schema.get_functions(
+                funcname, module_aliases=ctx.namespaces)
 
-            if funcobj.aggregate:
+            if funcs is None:
+                raise errors.EdgeQLError(
+                    f'could not resolve function name {funcname}',
+                    context=expr.context)
+
+            ctx.in_func_call = True
+            if funcs[0].aggregate:
                 ctx.in_aggregate = True
 
             args = []
             kwargs = {}
-
-            for a in expr.args:
+            arg_types = []
+            for ai, a in enumerate(expr.args):
                 if isinstance(a, qlast.NamedArgNode):
-                    kwargs[a.name] = self.visit(a.arg)
+                    kwargs[a.name] = arg = self.visit(a.arg)
+                    aname = a.name
                 else:
-                    args.append(self.visit(a))
+                    arg = self.visit(a)
+                    args.append(arg)
+                    aname = ai
+
+                arg_type = irutils.infer_type(arg, ctx.schema)
+                if arg_type is None:
+                    raise errors.EdgeQLError(
+                        f'could not resolve the type of argument '
+                        f'${aname} of function {funcname}',
+                        context=a.context)
+                arg_types.append(arg_type)
+
+            funcobj = None
+            for func in funcs:
+                if not func.paramtypes and not arg_types:
+                    funcobj = func
+                    break
+                for pt, at in zip(func.paramtypes, arg_types):
+                    if not at.issubclass(pt):
+                        break
+                else:
+                    funcobj = func
+                    break
+
+            if funcobj is None:
+                raise errors.EdgeQLError(
+                    f'could not find a function variant {funcname}',
+                    context=expr.context)
 
             node = irast.FunctionCall(
-                func=funcobj,
-                args=args,
-                kwargs=kwargs)
+                func=funcobj, args=args, kwargs=kwargs)
 
             if expr.agg_sort:
                 node.agg_sort = [

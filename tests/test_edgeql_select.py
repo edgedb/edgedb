@@ -184,7 +184,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         WHERE
                             (Text AS Issue).owner = User
                         ORDER BY
-                            strlen(Text.body) ASC
+                            len(Text.body) ASC
                         LIMIT
                             1
                     ),
@@ -209,7 +209,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     SELECT SINGLETON
                         Text
                     ORDER BY
-                        strlen(Text.body) ASC
+                        len(Text.body) ASC
                     LIMIT
                         1
                 )
@@ -240,7 +240,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     SELECT SINGLETON
                         Text
                     ORDER BY
-                        strlen(Text.body) ASC
+                        len(Text.body) ASC
                     LIMIT
                         1
                 )
@@ -253,7 +253,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         WHERE
                             (Text AS Issue).owner = User
                         ORDER BY
-                            strlen(Text.body) ASC
+                            len(Text.body) ASC
                         LIMIT
                             1
                     ),
@@ -287,7 +287,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         WHERE
                             User IS User
                         ORDER
-                            BY strlen(Text.body) ASC
+                            BY len(Text.body) ASC
                         LIMIT
                             1
                     ),
@@ -312,7 +312,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     special_texts := (
                         SELECT Text {body}
                         WHERE (Text AS Issue).owner != User
-                        ORDER BY strlen(Text.body) DESC
+                        ORDER BY len(Text.body) DESC
                     ),
                 }
             WHERE User.name = 'Elvis';
@@ -345,7 +345,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                             name
                         }
                     }
-                    WHERE strlen(Issue.status.name) = strlen(User.name)
+                    WHERE len(Issue.status.name) = len(User.name)
                     ORDER BY Issue.number DESC
                     LIMIT 1
                 )
@@ -428,7 +428,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     SELECT SINGLETON
                         Text
                     ORDER BY
-                        strlen(Text.body) ASC
+                        len(Text.body) ASC
                     LIMIT
                         1
                 )
@@ -446,7 +446,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     SELECT SINGLETON
                         Text
                     ORDER BY
-                        strlen(Text.body) ASC
+                        len(Text.body) ASC
                     LIMIT
                         1
                 )
@@ -464,7 +464,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     SELECT SINGLETON
                         Text
                     ORDER BY
-                        strlen(Text.body) ASC
+                        len(Text.body) ASC
                     LIMIT
                         1
                 )
@@ -903,7 +903,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     <owner: Issue{
                         number
                     } ORDER BY User.<owner[TO Issue].number
-                      LIMIT strlen(User.name) - 3
+                      LIMIT len(User.name) - 3
                 }
             ORDER BY User.name;
         ''', [
@@ -1254,7 +1254,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Text {body}
-            ORDER BY strlen(Text.body) DESC;
+            ORDER BY len(Text.body) DESC;
         ''', [[
             {'body': 'We need to be able to render data in tabular format.'},
             {'body': 'Fix regression introduced by lexer tweak.'},
@@ -1311,7 +1311,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 status: {
                     name
                 }
-            } WHERE strlen(Issue.status.name) = 4
+            } WHERE len(Issue.status.name) = 4
             ORDER BY Issue.number;
             ''', [
             [{
@@ -1330,7 +1330,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_func01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
-            SELECT std::strlen(User.name) ORDER BY User.name;
+            SELECT std::len(User.name) ORDER BY User.name;
 
             WITH MODULE test
             SELECT std::sum(<std::int>Issue.number);
@@ -2297,8 +2297,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT Text{
                 Issue.number,
-                body_length:= strlen(Text.body)
-            } ORDER BY strlen(Text.body);
+                body_length:= len(Text.body)
+            } ORDER BY len(Text.body);
 
             # find all issues such that there's at least one more
             # Text item of similar body length (+/-5 characters)
@@ -2312,7 +2312,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     WHERE
                         Text != Issue
                         AND
-                        (strlen(Text.body) - strlen(Issue.body)) ^ 2 <= 25
+                        (len(Text.body) - len(Issue.body)) ^ 2 <= 25
                 )
             ORDER BY Issue.number;
             """, [
@@ -2333,7 +2333,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT Issue{
                 number,
-                body_length:= strlen(Issue.body)
+                body_length:= len(Issue.body)
             }
             WHERE
                 EXISTS (
@@ -2341,7 +2341,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     WHERE
                         Text != Issue
                         AND
-                        (strlen(Text.body) - strlen(Issue.body)) ^ 2 <= 25
+                        (len(Text.body) - len(Issue.body)) ^ 2 <= 25
                 )
             ORDER BY Issue.number;
             """, [

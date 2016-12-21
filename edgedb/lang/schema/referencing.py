@@ -136,8 +136,8 @@ class ReferencingClassMeta(type(inheriting.InheritingClass)):
 
 class ReferencedClassCommand(derivable.DerivableClassCommand):
     @classmethod
-    def _classname_from_ast(cls, astnode, context):
-        name = super()._classname_from_ast(astnode, context)
+    def _classname_from_ast(cls, astnode, context, schema):
+        name = super()._classname_from_ast(astnode, context, schema)
 
         parent_ctx = context.get(cls.referrer_context_class)
         if parent_ctx is not None:
@@ -291,13 +291,13 @@ class CreateReferencedClass(inheriting.CreateInheritingClass):
         return cmd
 
     @classmethod
-    def _classbases_from_ast(cls, astnode, context):
+    def _classbases_from_ast(cls, astnode, context, schema):
         if isinstance(astnode, cls.referenced_astnode):
             # The bases will be populated by a call to derive()
             # from within _create_begin()
             bases = None
         else:
-            bases = super()._classbases_from_ast(astnode, context)
+            bases = super()._classbases_from_ast(astnode, context, schema)
 
         return bases
 

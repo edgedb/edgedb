@@ -15,6 +15,7 @@ from edgedb.lang.common.ordered import OrderedSet
 from edgedb.lang.edgeql import ast as qlast
 
 from . import delta as sd
+from . import functions as fu
 from .error import SchemaError
 from . import name as sn
 from . import named
@@ -33,7 +34,7 @@ class ModuleCommand(named.NamedClassCommand):
     classname = so.Field(str)
 
     @classmethod
-    def _classname_from_ast(cls, astnode, context):
+    def _classname_from_ast(cls, astnode, context, schema):
         if astnode.name.module:
             classname = sn.Name(module=astnode.name.module,
                                 name=astnode.name.name)
@@ -89,6 +90,7 @@ class Module(named.NamedClass):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
+        self.funcs_by_name = {}
         self.index_by_name = collections.OrderedDict()
         self.index_by_type = {}
         self.index_derived = set()
@@ -103,6 +105,11 @@ class Module(named.NamedClass):
         if obj in self:
             err = '{!r} is already present in the schema'.format(obj.name)
             raise SchemaError(err)
+
+        if isinstance(obj, fu.Function):
+            if obj.shortname.name not in self.funcs_by_name:
+                self.funcs_by_name[obj.shortname.name] = []
+            self.funcs_by_name[obj.shortname.name].append(obj)
 
         self.index_by_name[obj.name] = obj
 
@@ -140,9 +147,11 @@ class Module(named.NamedClass):
     def lookup_qname(self, name):
         return self.index_by_name.get(name)
 
+    def get_functions(self, name):
+        return self.funcs_by_name.get(name)
+
     def get(self, name, default=SchemaError, *,
             module_aliases=None, type=None,
-            include_pyobjects=False, index_only=True,
             implicit_builtins=True):
 
         fail_cause = None
@@ -151,9 +160,7 @@ class Module(named.NamedClass):
             for typ in type:
                 try:
                     scls = self.get(name, module_aliases=module_aliases,
-                                    type=typ,
-                                    include_pyobjects=include_pyobjects,
-                                    index_only=index_only, default=None)
+                                    type=typ, default=None)
                 except SchemaError:
                     pass
                 else:

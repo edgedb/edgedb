@@ -443,8 +443,18 @@ class DropAttributeValueNode(DropObjectNode):
 class FuncArgNode(Base):
     name: str
     type: TypeNameNode
-    mode: Base
+    variadic: bool = False
     default: Base
+
+
+class Language(s_enum.StrEnum):
+    SQL = 'SQL'
+
+
+class FunctionCode(Base):
+    language: Language
+    code: str
+    from_name: str
 
 
 class CreateFunctionNode(CreateObjectNode):
@@ -452,6 +462,7 @@ class CreateFunctionNode(CreateObjectNode):
     returning: Base
     single: bool = False
     aggregate: bool = False
+    code: FunctionCode
 
 
 class AlterFunctionNode(AlterObjectNode):

@@ -7,7 +7,6 @@
 
 
 import re
-import unittest
 
 from edgedb.lang import _testbase as tb
 from edgedb.lang.edgeql import generate_source as edgeql_to_source, errors
@@ -1211,7 +1210,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         UPDATE User{age:= (User.age + 10)}
             WHERE (User.name = 'foo') RETURNING SINGLETON User{name};
         DELETE User WHERE (User.name = 'foo') RETURNING SINGLETON User{name};
-        CREATE FUNCTION spam(foo str) RETURNING SINGLETON str;
+        CREATE FUNCTION spam(foo: str) RETURNING SINGLETON str;
         """
 
     def test_edgeql_syntax_with01(self):
@@ -1935,7 +1934,17 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_aggregate01(self):
         """
-        CREATE AGGREGATE std::sum(v std::int) RETURNING std::int;
+        CREATE AGGREGATE std::sum(v: std::int) RETURNING std::int;
+        """
+
+    def test_edgeql_syntax_ddl_aggregate02(self):
+        """
+        CREATE AGGREGATE std::sum(std::int) RETURNING std::int;
+        """
+
+    def test_edgeql_syntax_ddl_aggregate03(self):
+        """
+        CREATE AGGREGATE std::sum(integer: std::int) RETURNING std::int;
         """
 
     def test_edgeql_syntax_ddl_atom01(self):
@@ -1952,26 +1961,151 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_function01(self):
         """
-        CREATE FUNCTION std::strlen(string std::str) RETURNING std::int;
+        CREATE FUNCTION std::strlen(string: std::str) RETURNING std::int;
         """
 
     def test_edgeql_syntax_ddl_function02(self):
         """
-        CREATE AGGREGATE std::count(expression std::`any`) RETURNING std::int;
+        CREATE FUNCTION std::strlen(std::str) RETURNING std::int;
         """
 
     def test_edgeql_syntax_ddl_function03(self):
         """
-        CREATE FUNCTION foo(string std::str) RETURNING {bar: std::int};
+        CREATE FUNCTION std::strlen(string: std::str) RETURNING std::int;
         """
 
     def test_edgeql_syntax_ddl_function04(self):
         """
-        CREATE AGGREGATE foo(string std::str)
+        CREATE FUNCTION std::strlen(string: std::str, integer: std::int)
+            RETURNING std::int;
+        """
+
+    def test_edgeql_syntax_ddl_function05(self):
+        """
+        CREATE FUNCTION std::strlen(string: std::str, std::int)
+            RETURNING std::int;
+        """
+
+    def test_edgeql_syntax_ddl_function06(self):
+        """
+        CREATE FUNCTION std::strlen(string: std::str = '1')
+            RETURNING std::int;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  'non-default argument follows', line=2, col=61)
+    def test_edgeql_syntax_ddl_function07(self):
+        """
+        CREATE FUNCTION std::strlen(string: std::str = '1', abc: std::str)
+            RETURNING std::int;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  'non-variadic argument follows', line=2, col=62)
+    def test_edgeql_syntax_ddl_function08(self):
+        """
+        CREATE FUNCTION std::strlen(*string: std::str = '1', abc: std::str)
+            RETURNING std::int;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  'more than one variadic argument', line=2, col=62)
+    def test_edgeql_syntax_ddl_function09(self):
+        """
+        CREATE FUNCTION std::strlen(*string: std::str = '1', *abc: std::str)
+            RETURNING std::int;
+        """
+
+    def test_edgeql_syntax_ddl_function10(self):
+        """
+        CREATE FUNCTION std::strlen(std::str = '1', *std::str)
+            RETURNING std::int;
+        """
+
+    def test_edgeql_syntax_ddl_function11(self):
+        """
+        CREATE FUNCTION no_params() RETURNING std::int;
+        """
+
+    def test_edgeql_syntax_ddl_function12(self):
+        """
+        CREATE AGGREGATE std::count(expression: std::`any`) RETURNING std::int;
+        """
+
+    def test_edgeql_syntax_ddl_function13(self):
+        """
+        CREATE FUNCTION foo(string: std::str) RETURNING {bar: std::int};
+        """
+
+    def test_edgeql_syntax_ddl_function14(self):
+        """
+        CREATE AGGREGATE foo(string: std::str)
         RETURNING {
             bar: std::int,
             baz: std::str
         };
+        """
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "AAA is not a valid language", line=3)
+    def test_edgeql_syntax_ddl_function15(self):
+        """
+        CREATE AGGREGATE foo(string: std::str)
+        RETURNING std::int FROM AAA AGGREGATE 'foo';
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "AAA is not a valid language", line=3)
+    def test_edgeql_syntax_ddl_function16(self):
+        """
+        CREATE FUNCTION foo(string: std::str)
+        RETURNING std::int FROM AAA FUNCTION 'foo';
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Unexpected token.*FUNCTION", line=3)
+    def test_edgeql_syntax_ddl_function17(self):
+        """
+        CREATE AGGREGATE foo(string: std::str)
+        RETURNING std::int FROM SQL FUNCTION 'foo';
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Unexpected token.*AGGREGATE", line=3)
+    def test_edgeql_syntax_ddl_function18(self):
+        """
+        CREATE FUNCTION foo(string: std::str)
+        RETURNING std::int FROM SQL AGGREGATE 'foo';
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "AAA is not a valid language", line=3)
+    def test_edgeql_syntax_ddl_function19(self):
+        """
+        CREATE FUNCTION foo(string: std::str)
+        RETURNING std::int FROM AAA 'code';
+        """
+
+    def test_edgeql_syntax_ddl_function20(self):
+        """
+        CREATE FUNCTION foo() RETURNING std::int FROM SQL 'SELECT 1';
+        """
+
+    def test_edgeql_syntax_ddl_function21(self):
+        """
+        CREATE FUNCTION foo() RETURNING std::int FROM SQL FUNCTION 'aaa';
+        """
+
+    def test_edgeql_syntax_ddl_function22(self):
+        """
+        CREATE AGGREGATE foo() RETURNING std::int FROM SQL AGGREGATE 'aaa';
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Unexpected token.*SELECT 1", line=2)
+    def test_edgeql_syntax_ddl_function23(self):
+        # We don't yet support creating aggregates from any kind of code.
+        """
+        CREATE AGGREGATE foo() RETURNING std::int FROM SQL 'SELECT 1';
         """
 
     def test_edgeql_syntax_ddl_linkproperty01(self):

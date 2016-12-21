@@ -72,8 +72,8 @@ class TestEdgeQLUtils(tb.BaseSyntaxTest):
 
     def test_edgeql_utils_normalize_03(self):
         self._assert_normalize_expr(
-            """SELECT strlen('a')""",
-            """SELECT std::strlen('a')""",
+            """SELECT len('a')""",
+            """SELECT std::len('a')""",
         )
 
     def test_edgeql_utils_normalize_04(self):

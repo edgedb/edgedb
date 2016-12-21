@@ -6,6 +6,7 @@
 ##
 
 
+from edgedb.client import exceptions as client_errors
 from edgedb.server import _testbase as tb
 
 
@@ -53,3 +54,26 @@ class TestDeltas(tb.QueryTestCase):
             CREATE CONCEPT test::Object_12
                 INHERITING (test::Object1, test::Object2);
         """)
+
+    async def test_edgeql_ddl05(self):
+        with self.assertRaisesRegex(client_errors.EdgeQLError,
+                                    'Cannot create an aggregate function'):
+
+            await self.con.execute("""
+                CREATE FUNCTION std::my_lower(std::str) RETURNING std::str
+                    FROM SQL FUNCTION 'lower';
+
+                CREATE AGGREGATE std::my_lower(std::any) RETURNING std::str
+                    FROM SQL AGGREGATE 'count';
+            """)
+
+        with self.assertRaisesRegex(client_errors.EdgeQLError,
+                                    'Cannot create a function'):
+
+            await self.con.execute("""
+                CREATE AGGREGATE std::my_lower2(std::any) RETURNING std::str
+                    FROM SQL AGGREGATE 'count';
+
+                CREATE FUNCTION std::my_lower2(std::str) RETURNING std::str
+                    FROM SQL FUNCTION 'lower';
+            """)
