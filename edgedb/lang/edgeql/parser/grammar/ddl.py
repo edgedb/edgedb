@@ -1334,20 +1334,13 @@ def _parse_language(node):
             context=node.context) from None
 
 
-class FromCode(Nonterm):
+class OptFromFunction(Nonterm):
+    def reduce_empty(self):
+        self.val = None
 
     def reduce_FROM_IDENT_SCONST(self, *kids):
         lang = _parse_language(kids[1])
         self.val = qlast.FunctionCode(language=lang, code=kids[2].val)
-
-
-class OptFromFunction(Nonterm):
-
-    def reduce_empty(self):
-        self.val = None
-
-    def reduce_FromCode(self, *kids):
-        self.val = kids[0].val
 
     def reduce_FROM_IDENT_FUNCTION_SCONST(self, *kids):
         lang = _parse_language(kids[1])
@@ -1360,7 +1353,6 @@ class OptFromFunction(Nonterm):
 
 
 class OptFromAggregate(Nonterm):
-
     def reduce_empty(self):
         self.val = None
 
