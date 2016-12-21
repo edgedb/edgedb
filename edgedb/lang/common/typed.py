@@ -13,7 +13,8 @@ __all__ = 'TypedList', 'TypedDict', 'OrderedTypedDict'
 
 
 class TypedCollectionMeta(abc.ABCMeta):
-    def __new__(mcls, name, bases, dct, **kwargs):
+    def __new__(mcls, name, bases, dct, *, accept_none=False, **kwargs):
+        dct['__typed_accept_none__'] = bool(accept_none)
         cls = super().__new__(mcls, name, bases, dct)
 
         for arg in cls._TYPE_ARGS:
@@ -51,6 +52,8 @@ class AbstractTypedCollection(metaclass=TypedCollectionMeta):
             setattr(self, arg, _type)
 
     def _check_type(self, value, _type, name):
+        if value is None and self.__typed_accept_none__:
+            return
         if not isinstance(value, _type):
             raise ValueError(
                 '{!r} accepts only {} of type {!r}, got {!r}'.format(
