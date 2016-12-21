@@ -931,7 +931,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                     self.write(f'{node.code.from_name!r}')
                 else:
                     self.write(f' FROM {node.code.language} ')
-                    self.write(f'{node.code.code!r}')
+                    self.write(edgeql_quote.dollar_quote_literal(
+                        node.code.code))
 
         typ = 'AGGREGATE' if node.aggregate else 'FUNCTION'
         self._visit_CreateObjectNode(node, typ, after_name=after_name)

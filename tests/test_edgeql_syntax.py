@@ -2088,6 +2088,10 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ddl_function20(self):
         """
         CREATE FUNCTION foo() RETURNING std::int FROM SQL 'SELECT 1';
+
+% OK %
+
+        CREATE FUNCTION foo() RETURNING std::int FROM SQL $$SELECT 1$$;
         """
 
     def test_edgeql_syntax_ddl_function21(self):
@@ -2106,6 +2110,11 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         # We don't yet support creating aggregates from any kind of code.
         """
         CREATE AGGREGATE foo() RETURNING std::int FROM SQL 'SELECT 1';
+        """
+
+    def test_edgeql_syntax_ddl_function24(self):
+        """
+        CREATE FUNCTION foo() RETURNING std::str FROM SQL $a$SELECT $$foo$$$a$;
         """
 
     def test_edgeql_syntax_ddl_linkproperty01(self):
