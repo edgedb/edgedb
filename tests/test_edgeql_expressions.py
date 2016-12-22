@@ -195,7 +195,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_cast05(self):
         await self.assert_query_result(r"""
-            SELECT <list<int>>['123', '11'];
+            SELECT <array<int>>['123', '11'];
         """, [
             [[123, 11]],
         ])

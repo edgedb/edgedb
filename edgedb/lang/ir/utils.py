@@ -175,7 +175,7 @@ def infer_type(ir, schema):
 
     elif isinstance(ir, irast.Sequence):
         if ir.is_array:
-            result = s_obj.List(element_type=schema.get('std::any'))
+            result = s_obj.Array(element_type=schema.get('std::any'))
         else:
             result = s_obj.Tuple(element_type=schema.get('std::any'))
 

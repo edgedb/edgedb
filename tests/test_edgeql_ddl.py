@@ -118,7 +118,7 @@ class TestDeltas(tb.QueryTestCase):
                     SELECT $1 || 'c'
                 $$;
 
-            CREATE FUNCTION test::my_sql_func7(list<std::int>)
+            CREATE FUNCTION test::my_sql_func7(array<std::int>)
                 RETURNING std::int
                 FROM SQL $$
                     SELECT sum(s)::bigint FROM UNNEST($1) AS s
@@ -180,7 +180,7 @@ class TestDeltas(tb.QueryTestCase):
                 $$;
 
             CREATE FUNCTION test::my_edgeql_func4(std::int)
-                RETURNING list<std::int>
+                RETURNING array<std::int>
                 FROM EdgeQL $$
                     SELECT [$1, 1, 2, 3]
                 $$;

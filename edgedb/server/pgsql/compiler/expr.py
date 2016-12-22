@@ -120,7 +120,7 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
         target_type = expr.type
 
         if target_type.subtypes:
-            if target_type.maintype == 'list':
+            if target_type.maintype == 'array':
                 elem_type = pg_types.pg_type_from_atom(
                     schema, schema.get(target_type.subtypes[0]), topbase=True)
                 result = pgast.TypeCast(

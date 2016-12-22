@@ -749,8 +749,8 @@ class Collection(Class, NodeClass):
 
     @classmethod
     def get_class(cls, schema_name):
-        if schema_name == 'list':
-            return List
+        if schema_name == 'array':
+            return Array
         elif schema_name == 'set':
             return Set
         elif schema_name == 'map':
@@ -774,8 +774,8 @@ class Set(Collection):
         return frozenset
 
 
-class List(Collection):
-    schema_name = 'list'
+class Array(Collection):
+    schema_name = 'array'
 
     def get_container(self):
         return tuple

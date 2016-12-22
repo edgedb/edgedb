@@ -41,7 +41,7 @@ CREATE ATTRIBUTE std::pattern std::str;
 
 CREATE ABSTRACT ATOM std::sequence;
 
-CREATE ATTRIBUTE stdattrs::precision list<std::int>;
+CREATE ATTRIBUTE stdattrs::precision array<std::int>;
 
 CREATE ATTRIBUTE stdattrs::name std::str;
 CREATE ATTRIBUTE stdattrs::is_abstract std::bool;
@@ -77,7 +77,7 @@ CREATE AGGREGATE std::sum(std::int) RETURNING std::int
 CREATE AGGREGATE std::count(std::any) RETURNING std::int
     FROM SQL AGGREGATE 'count';
 
-CREATE AGGREGATE std::array_agg(std::any) RETURNING list<std::any>
+CREATE AGGREGATE std::array_agg(std::any) RETURNING array<std::any>
     FROM SQL AGGREGATE 'array_agg';
 
 CREATE AGGREGATE std::is_distinct(std::any) RETURNING std::bool;
@@ -88,7 +88,7 @@ CREATE FUNCTION std::len(std::str) RETURNING std::int
 CREATE FUNCTION std::len(std::bytes) RETURNING std::int
     FROM SQL FUNCTION 'length';
 
-CREATE FUNCTION std::len(list<std::any>) RETURNING std::int
+CREATE FUNCTION std::len(array<std::any>) RETURNING std::int
     FROM SQL $$
         SELECT array_length($1, 1)::bigint
     $$;
