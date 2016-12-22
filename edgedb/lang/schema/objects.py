@@ -681,7 +681,7 @@ class Collection(Class, NodeClass):
     element_type = Field(Class)
 
     def issubclass(self, parent):
-        if parent.name == 'std::any':
+        if not isinstance(parent, Collection) and parent.name == 'std::any':
             return True
 
         if parent.__class__ is not self.__class__:
@@ -691,7 +691,7 @@ class Collection(Class, NodeClass):
         my_types = self.get_subtypes()
 
         for pt, my in zip(parent_types, my_types):
-            if not my.issubclass(pt):
+            if not pt.issubclass(my):
                 return False
 
         return True

@@ -6,33 +6,11 @@
 ##
 
 
-from edgedb.lang.schema import atoms as s_atoms
-from edgedb.lang.schema import concepts as s_concepts
-from edgedb.lang.schema import links as s_links
-from edgedb.lang.schema import objects as s_obj
-
 from edgedb.server.pgsql import ast as pgast
 from edgedb.server.pgsql import common
-from edgedb.server.pgsql import types as pg_types
 
 
 class IRCompilerDBObjects:
-    def _schema_type_to_pg_type(self, schema_type):
-        ctx = self.context.current
-
-        if isinstance(schema_type, s_atoms.Atom):
-            const_type = pg_types.pg_type_from_atom(
-                ctx.schema, schema_type, topbase=True)
-        elif isinstance(schema_type, (s_concepts.Concept, s_links.Link)):
-            const_type = ('json',)
-        elif isinstance(schema_type, s_obj.MetaClass):
-            const_type = ('uuid',)
-        elif isinstance(schema_type, s_obj.Tuple):
-            const_type = ('row',)
-        else:
-            raise ValueError(f'unexpected constant type: {schema_type!r}')
-
-        return const_type
 
     def _range_for_concept(self, concept, parent_cte, *,
                            include_overlays=True):

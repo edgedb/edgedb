@@ -16,6 +16,7 @@ from . import name as sn
 from . import named
 from . import objects as so
 from . import primary
+from . import utils
 
 
 class FunctionCommandContext(sd.ClassCommandContext):
@@ -38,8 +39,12 @@ class CreateFunction(named.CreateNamedClass, FunctionCommandMixin):
 
         quals = []
         if props.get('paramtypes'):
-            for param in props['paramtypes']:
-                quals.append(param.name)
+            for pt in props['paramtypes']:
+                if isinstance(pt, so.Collection):
+                    quals.append(pt.schema_name)
+                    quals.append(pt.element_type.name)
+                else:
+                    quals.append(pt.name)
 
         fname = props['name']
         props['name'] = sn.Name(
@@ -82,10 +87,7 @@ class CreateFunction(named.CreateNamedClass, FunctionCommandMixin):
                 default = codegen.generate_source(arg.default)
             paramdefaults.append(default)
 
-            paramtypes.append(
-                so.ClassRef(classname=sn.Name(
-                    module=arg.type.maintype.module,
-                    name=arg.type.maintype.name)))
+            paramtypes.append(utils.ast_to_typeref(arg.type))
 
             if arg.variadic:
                 cmd.add(sd.AlterClassProperty(

@@ -9,6 +9,28 @@
 import collections
 import itertools
 
+from edgedb.lang.edgeql import ast as ql_ast
+
+from . import name as sn
+from . import objects as so
+
+
+def ast_to_typeref(node: ql_ast.TypeNameNode):
+    if node.subtypes:
+        coll = so.Collection.get_class(node.maintype.name)
+
+        subtypes = []
+        for st in node.subtypes:
+            stref = so.ClassRef(
+                classname=sn.Name(module=st.module, name=st.name))
+            subtypes.append(stref)
+
+        return coll.from_subtypes(subtypes)
+
+    mtn = sn.Name(module=node.maintype.module,
+                  name=node.maintype.name)
+    return so.ClassRef(classname=mtn)
+
 
 def is_nontrivial_container(value):
     coll_classes = (collections.abc.Sequence, collections.abc.Set)

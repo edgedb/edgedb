@@ -427,11 +427,14 @@ class CreateFunction(FunctionCommand, CreateNamedClass,
             common.edgedb_name_to_pg_name(func.shortname.name)
         )
 
-    def get_pgtype(self, obj, schema):
-        if isinstance(obj, s_atoms.Atom):
-            return types.pg_type_from_atom(schema, obj, topbase=False)
-        else:
-            return ('uuid',)
+    def get_pgtype(self, func: s_funcs.Function, obj, schema):
+        try:
+            return types.pg_type_from_object(schema, obj)
+        except ValueError:
+            raise ql_errors.EdgeQLError(
+                f'could not compile parameter type {obj!r} '
+                f'of function {func.shortname}',
+                context=self.source_context) from None
 
     def compile_default(self, func: s_funcs.Function, default: str, schema):
         try:
@@ -461,7 +464,7 @@ class CreateFunction(FunctionCommand, CreateNamedClass,
             if ad is not None:
                 pg_ad = self.compile_default(func, ad, schema)
 
-            pg_at = self.get_pgtype(at, schema)
+            pg_at = self.get_pgtype(func, at, schema)
             args.append((an, pg_at, pg_ad))
 
         return args
@@ -471,7 +474,7 @@ class CreateFunction(FunctionCommand, CreateNamedClass,
             name=self.get_pgname(func),
             args=self.compile_args(func, schema),
             variadic_arg=func.varparam,
-            returns=self.get_pgtype(func.returntype, schema),
+            returns=self.get_pgtype(func, func.returntype, schema),
             text=func.code)
 
     def compile_edgeql_function(self, func: s_funcs.Function, schema):
@@ -492,7 +495,7 @@ class CreateFunction(FunctionCommand, CreateNamedClass,
             name=self.get_pgname(func),
             args=self.compile_args(func, schema),
             variadic_arg=func.varparam,
-            returns=self.get_pgtype(func.returntype, schema),
+            returns=self.get_pgtype(func, func.returntype, schema),
             text=''.join(qchunks))
 
     def apply(self, schema, context):

@@ -384,41 +384,33 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
             result.ops.add(type(cls).adapt(op))
         return result
 
-    def _resolve_ref(self, ref, schema):
-        try:
-            classname = ref.classname
-        except AttributeError:
-            # Not a ref
-            return ref, None
+    def _resolve_type_ref(self, ref, schema):
+        if isinstance(ref, so.Collection):
+            if any(isinstance(st, so.ClassRef) for st in ref.get_subtypes()):
+                subtypes = []
+                for st in ref.get_subtypes():
+                    subtypes.append(schema.get(st.classname))
+
+                obj = ref.__class__.from_subtypes(subtypes)
+            else:
+                obj = ref
         else:
-            obj = schema.get(classname)
-            return obj, ref
+            obj = schema.get(ref.classname)
+
+        return obj
 
     def _resolve_attr_value(self, value, fname, field, schema):
         ftype = field.type[0]
 
         if isinstance(ftype, so.MetaClass):
-
-            if isinstance(value, so.ClassRef):
-                value, ref = self._resolve_ref(value, schema)
-
-            elif (isinstance(value, so.Collection)
-                    and any(isinstance(st, so.ClassRef)
-                            for st in value.get_subtypes())):
-                subtypes = []
-                for st in value.get_subtypes():
-                    eltype, ref = self._resolve_ref(st, schema)
-                    subtypes.append(eltype)
-
-                value = value.__class__.from_subtypes(subtypes)
+            value = self._resolve_type_ref(value, schema)
 
         elif issubclass(ftype, typed.AbstractTypedMapping):
             if issubclass(ftype.valuetype, so.Class):
                 vals = {}
 
                 for k, val in value.items():
-                    val, ref = self._resolve_ref(val, schema)
-                    vals[k] = val
+                    vals[k] = self._resolve_type_ref(val, schema)
 
                 value = ftype(vals)
 
@@ -428,8 +420,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
                 vals = []
 
                 for val in value:
-                    val, ref = self._resolve_ref(val, schema)
-                    vals.append(val)
+                    vals.append(self._resolve_type_ref(val, schema))
 
                 value = ftype(vals)
         else:

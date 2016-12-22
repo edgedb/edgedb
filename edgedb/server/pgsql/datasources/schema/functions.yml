@@ -22,12 +22,7 @@ source: |
             f.description AS description,
             f.is_abstract AS is_abstract,
             f.is_final AS is_final,
-            (SELECT array_agg(o.name ORDER BY pt.i)
-             FROM
-                UNNEST(f.paramtypes) WITH ORDINALITY pt (value, i)
-                INNER JOIN edgedb.NamedClass o
-                    ON o.id = pt.value::uuid
-            ) AS paramtypes,
+            edgedb._resolve_types(f.paramtypes) AS paramtypes,
             f.paramnames,
             f.varparam,
             f.paramdefaults,

@@ -110,8 +110,26 @@ def pg_type_from_object(
 
     if isinstance(obj, s_atoms.Atom):
         return pg_type_from_atom(schema, obj, topbase=topbase)
+
+    elif isinstance(obj, s_obj.Tuple):
+        return ('row',)
+
+    elif isinstance(obj, s_obj.List):
+        if obj.element_type.name == 'std::any':
+            return ('anyarray',)
+        else:
+            st = schema.get(obj.element_type.name)
+            tp = pg_type_from_atom(schema, st, topbase=True)
+            if len(tp) == 1:
+                return (tp[0] + '[]',)
+            else:
+                return (tp[0], tp[1] + '[]')
+
+    elif isinstance(obj, s_concepts.Concept):
+        return ('uuid',)
+
     else:
-        return common.get_table_name(obj, catenate=False)
+        raise ValueError(f'could not determine PG type for {obj!r}')
 
 
 class PointerStorageInfo:

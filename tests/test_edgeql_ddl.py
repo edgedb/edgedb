@@ -117,6 +117,12 @@ class TestDeltas(tb.QueryTestCase):
                 FROM SQL $$
                     SELECT $1 || 'c'
                 $$;
+
+            CREATE FUNCTION test::my_sql_func7(list<std::int>)
+                RETURNING std::int
+                FROM SQL $$
+                    SELECT sum(s)::bigint FROM UNNEST($1) AS s
+                $$;
         """)
 
         await self.assert_query_result(fr"""
@@ -127,6 +133,7 @@ class TestDeltas(tb.QueryTestCase):
             SELECT test::{long_func_name}();
             SELECT test::my_sql_func6();
             SELECT test::my_sql_func6('xy');
+            SELECT test::my_sql_func7([1, 2, 3, 10]);
         """, [
             ['spam'],
             ['foo'],
@@ -135,6 +142,7 @@ class TestDeltas(tb.QueryTestCase):
             [long_func_name],
             ['abc'],
             ['xyc'],
+            [16],
         ])
 
     async def test_edgeql_ddl07(self):

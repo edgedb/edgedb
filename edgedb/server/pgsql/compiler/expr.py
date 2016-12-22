@@ -66,7 +66,8 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
         ctx = self.context.current
 
         if expr.type and expr.type.name != 'std::null':
-            const_type = self._schema_type_to_pg_type(expr.type)
+            const_type = pg_types.pg_type_from_object(
+                ctx.schema, expr.type, True)
         else:
             const_type = None
 
@@ -341,8 +342,11 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
             right_type = irutils.infer_type(expr.right, ctx.schema)
 
             if left_type and right_type:
-                left_pg_type = self._schema_type_to_pg_type(left_type)
-                right_pg_type = self._schema_type_to_pg_type(right_type)
+                left_pg_type = pg_types.pg_type_from_object(
+                    ctx.schema, left_type, True)
+
+                right_pg_type = pg_types.pg_type_from_object(
+                    ctx.schema, right_type, True)
 
                 if (left_pg_type in {('text',), ('varchar',)} and
                         right_pg_type in {('text',), ('varchar',)} and

@@ -15,6 +15,7 @@ from . import named
 from . import objects as so
 from . import primary
 from . import referencing
+from . import utils
 
 
 class AttributeCommandContext(sd.ClassCommandContext):
@@ -36,25 +37,10 @@ class CreateAttribute(AttributeCommand, named.CreateNamedClass):
     def _cmd_tree_from_ast(cls, astnode, context, schema):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
-        if astnode.type.subtypes:
-            coll = so.Collection.get_class(astnode.type.maintype.name)
-
-            subtypes = []
-            for st in astnode.type.subtypes:
-                stref = so.ClassRef(
-                    classname=sn.Name(module=st.module, name=st.name))
-                subtypes.append(stref)
-
-            typ = coll.from_subtypes(subtypes)
-        else:
-            mtn = sn.Name(module=astnode.type.maintype.module,
-                          name=astnode.type.maintype.name)
-            typ = so.ClassRef(classname=mtn)
-
         cmd.add(
             sd.AlterClassProperty(
                 property='type',
-                new_value=typ
+                new_value=utils.ast_to_typeref(astnode.type)
             )
         )
 

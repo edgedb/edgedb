@@ -85,6 +85,11 @@ CREATE FUNCTION std::len(std::str) RETURNING std::int
 CREATE FUNCTION std::len(std::bytes) RETURNING std::int
     FROM SQL FUNCTION 'length';
 
+CREATE FUNCTION std::len(list<std::any>) RETURNING std::int
+    FROM SQL $$
+        SELECT array_length($1, 1)::bigint
+    $$;
+
 CREATE CONSTRAINT std::constraint {
     SET errmessage := 'invalid {subject}';
 };

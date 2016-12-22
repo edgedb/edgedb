@@ -1461,9 +1461,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             SELECT len('111');
             SELECT len(<std::bytes>'abcdef');
+            SELECT len([1, 2, 3, 4]);
         ''', [
             [3],
             [6],
+            [4],
         ])
 
         time = (await self.con.execute('SELECT std::current_time();'))[0][0]

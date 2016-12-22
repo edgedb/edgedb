@@ -759,9 +759,10 @@ class Backend(s_deltarepo.DeltaProvider):
 
             paramtypes = None
             if row['paramtypes']:
-                paramtypes = []
-                for pt in row['paramtypes']:
-                    paramtypes.append(schema.get(pt))
+                paramtypes = [
+                    self.unpack_typeref(v, schema)
+                    for v in row['paramtypes']
+                ]
 
             func_data = {
                 'name': name,
