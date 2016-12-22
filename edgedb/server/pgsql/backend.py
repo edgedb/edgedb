@@ -405,12 +405,12 @@ class Backend(s_deltarepo.DeltaProvider):
         await self.read_attributes(schema)
         await self.read_actions(schema)
         await self.read_events(schema)
-        await self.read_functions(schema)
         await self.read_concepts(schema)
         await self.read_links(schema)
         await self.read_link_properties(schema)
         await self.read_policies(schema)
         await self.read_attribute_values(schema)
+        await self.read_functions(schema)
         await self.read_constraints(schema)
         await self.read_indexes(schema)
 

@@ -269,6 +269,11 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
             result = pgast.FuncCall(
                 name=('jsonb_build_object',), args=keyvals)
+
+        elif ctx.output_format == 'identity':
+            result = testref
+            testref = None
+
         else:
             # In non-JSON mode the result is an anonymous record.
             result = pgast.RowExpr(args=my_elements)

@@ -148,3 +148,36 @@ class TestDeltas(tb.QueryTestCase):
                     SELECT 'spam'::text
                 $$;
             """)
+
+    async def test_edgeql_ddl08(self):
+        await self.con.execute(f"""
+            CREATE FUNCTION test::my_edgeql_func1()
+                RETURNING std::str
+                FROM EdgeQL $$
+                    SELECT 'sp' + 'am'
+                $$;
+
+            CREATE FUNCTION test::my_edgeql_func2(std::str)
+                RETURNING schema::Concept
+                FROM EdgeQL $$
+                    SELECT
+                        schema::Concept
+                    WHERE schema::Concept.name = $1
+                $$;
+
+            CREATE FUNCTION test::my_edgeql_func3(std::int)
+                RETURNING std::int
+                FROM EdgeQL $$
+                    SELECT $1 + 10
+                $$;
+        """)
+
+        await self.assert_query_result(r"""
+            SELECT test::my_edgeql_func1();
+            SELECT test::my_edgeql_func2('schema::PrimaryClass').name;
+            SELECT test::my_edgeql_func3(1);
+        """, [
+            ['spam'],
+            ['schema::PrimaryClass'],
+            [11],
+        ])

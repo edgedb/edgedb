@@ -79,7 +79,7 @@ class PathVarNode(VarNode):
 
 class ConstantNode(Base):
     value: object
-    index: object
+    index: object  # index can be a number or an argument name
 
 
 class DefaultValueNode(Base):
@@ -449,6 +449,7 @@ class FuncArgNode(Base):
 
 class Language(s_enum.StrEnum):
     SQL = 'SQL'
+    EdgeQL = 'EDGEQL'
 
 
 class FunctionCode(Base):

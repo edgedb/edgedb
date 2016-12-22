@@ -10,6 +10,7 @@ import itertools
 import pickle
 import re
 
+from edgedb.lang.edgeql import ast as ql_ast
 from edgedb.lang.edgeql import compiler as ql_compiler
 from edgedb.lang.edgeql import errors as ql_errors
 
@@ -420,51 +421,98 @@ class FunctionCommand:
 class CreateFunction(FunctionCommand, CreateNamedClass,
                      adapts=s_funcs.CreateFunction):
 
-    def apply(self, schema, context):
-        obj : s_funcs.Function = super().apply(schema, context)
-
-        if obj.code is None:
-            return obj
-
-        pgname = (
-            common.edgedb_module_name_to_schema_name(obj.shortname.module),
-            common.edgedb_name_to_pg_name(obj.shortname.name)
+    def get_pgname(self, func: s_funcs.Function):
+        return (
+            common.edgedb_module_name_to_schema_name(func.shortname.module),
+            common.edgedb_name_to_pg_name(func.shortname.name)
         )
 
-        args = None
-        if obj.paramtypes:
-            args = []
-            for an, at, ad in itertools.zip_longest(obj.paramnames,
-                                                    obj.paramtypes,
-                                                    obj.paramdefaults):
-                pg_ad = None
-                if ad is not None:
-                    try:
-                        ir = ql_compiler.compile_fragment_to_ir(
-                            ad, schema, location='parameter-default')
+    def get_pgtype(self, obj, schema):
+        if isinstance(obj, s_atoms.Atom):
+            return types.pg_type_from_atom(schema, obj, topbase=False)
+        else:
+            return ('uuid',)
 
-                        ircompiler = compiler.SingletonExprIRCompiler()
-                        sql_tree = ircompiler.transform_to_sql_tree(
-                            ir, schema=schema)
-                        pg_ad = codegen.SQLSourceGenerator.to_source(sql_tree)
-                    except Exception as ex:
-                        raise ql_errors.EdgeQLError(
-                            f'could not compile default expression '
-                            f'of function {obj.shortname}: {ex}',
-                            context=self.source_context) from ex
+    def compile_default(self, func: s_funcs.Function, default: str, schema):
+        try:
+            ir = ql_compiler.compile_fragment_to_ir(
+                default, schema, location='parameter-default')
 
-                pg_at = types.pg_type_from_object(schema, at)
-                args.append((an, pg_at, pg_ad))
+            ircompiler = compiler.SingletonExprIRCompiler()
+            sql_tree = ircompiler.transform_to_sql_tree(
+                ir, schema=schema)
+            return codegen.SQLSourceGenerator.to_source(sql_tree)
 
-        dbf = dbops.Function(
-            name=pgname,
-            args=args,
-            variadic_arg=obj.varparam,
-            returns=types.pg_type_from_object(schema, obj.returntype),
-            text=obj.code)
+        except Exception as ex:
+            raise ql_errors.EdgeQLError(
+                f'could not compile default expression {default!r} '
+                f'of function {func.shortname}: {ex}',
+                context=self.source_context) from ex
+
+    def compile_args(self, func: s_funcs.Function, schema):
+        if not func.paramtypes:
+            return
+
+        args = []
+        for an, at, ad in itertools.zip_longest(func.paramnames,
+                                                func.paramtypes,
+                                                func.paramdefaults):
+            pg_ad = None
+            if ad is not None:
+                pg_ad = self.compile_default(func, ad, schema)
+
+            pg_at = self.get_pgtype(at, schema)
+            args.append((an, pg_at, pg_ad))
+
+        return args
+
+    def compile_sql_function(self, func: s_funcs.Function, schema):
+        return dbops.Function(
+            name=self.get_pgname(func),
+            args=self.compile_args(func, schema),
+            variadic_arg=func.varparam,
+            returns=self.get_pgtype(func.returntype, schema),
+            text=func.code)
+
+    def compile_edgeql_function(self, func: s_funcs.Function, schema):
+        arg_types = None
+        if func.paramtypes:
+            arg_types = dict(enumerate(func.paramtypes, 1))
+
+        body_ir = ql_compiler.compile_to_ir(func.code, schema,
+                                            arg_types=arg_types)
+
+        ir_compiler = compiler.IRCompiler()
+
+        qchunks, argmap, arg_index, query_type, record_info = \
+            ir_compiler.transform(body_ir, schema=schema,
+                                  output_format='identity')
+
+        return dbops.Function(
+            name=self.get_pgname(func),
+            args=self.compile_args(func, schema),
+            variadic_arg=func.varparam,
+            returns=self.get_pgtype(func.returntype, schema),
+            text=''.join(qchunks))
+
+    def apply(self, schema, context):
+        func: s_funcs.Function = super().apply(schema, context)
+
+        if func.code is None:
+            return func
+
+        if func.language is ql_ast.Language.SQL:
+            dbf = self.compile_sql_function(func, schema)
+        elif func.language is ql_ast.Language.EdgeQL:
+            dbf = self.compile_edgeql_function(func, schema)
+        else:
+            raise ql_errors.EdgeQLError(
+                f'cannot compile function {func.shortname}: '
+                f'unsupported language {func.language}',
+                context=self.source_context)
 
         self.pgops.add(dbops.CreateFunction(dbf))
-        return obj
+        return func
 
 
 class RenameFunction(

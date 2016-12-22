@@ -66,7 +66,7 @@ class Expr(Base):
 class Constant(Expr):
 
     value: object
-    index: str
+    index: object  # index can be a number or an argument name (str)
     expr: Base
     type: so.NodeClass
 
