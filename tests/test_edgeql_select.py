@@ -1456,6 +1456,15 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['1+2'],
         ])
 
+    async def test_edgeql_select_func08(self):
+        await self.assert_query_result(r'''
+            SELECT len('111');
+            SELECT len(<std::bytes>'abcdef');
+        ''', [
+            [3],
+            [6],
+        ])
+
     async def test_edgeql_select_exists01(self):
         await self.assert_query_result(r'''
             WITH MODULE test

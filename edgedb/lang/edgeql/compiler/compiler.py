@@ -581,13 +581,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             if expr.agg_filter:
                 node.agg_filter = self.visit(expr.agg_filter)
 
-            if node.args:
-                for arg in node.args:
-                    if not isinstance(arg, irast.Constant):
-                        break
-                else:
-                    node = irast.Constant(expr=node, type=node.args[0].type)
-
         return node
 
     def visit_IfElseNode(self, expr):
