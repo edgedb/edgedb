@@ -730,8 +730,60 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                         stmt.inner_path_bonds.clear()
                         stmt.target_list[:] = []
 
-                restarget = pgast.ResTarget(val=set_expr, name='v')
-                stmt.target_list.append(restarget)
+                expr_result = irutils.infer_type(ir_set.expr, ctx.schema)
+
+                if isinstance(expr_result, s_concepts.Concept):
+                    innerqry = pgast.SelectStmt(
+                        target_list=[
+                            pgast.ResTarget(
+                                val=set_expr,
+                                name='v'
+                            )
+                        ]
+                    )
+
+                    valref = pgast.ColumnRef(
+                        name=['q', 'v']
+                    )
+
+                    qry = pgast.SelectStmt(
+                        target_list=[
+                            pgast.ResTarget(
+                                val=valref,
+                                name='v'
+                            )
+                        ],
+                        from_clause=[
+                            pgast.RangeSubselect(
+                                subquery=innerqry,
+                                alias=pgast.Alias(
+                                    aliasname='q'
+                                )
+                            )
+                        ]
+                    )
+
+                    qry.path_namespace[ir_set.path_id] = valref
+                    qry.path_vars[ir_set.path_id] = 'v'
+                    qry.inner_path_bonds[ir_set.path_id] = valref
+                    qry.path_bonds[ir_set.path_id] = 'v'
+
+                    expr_rvar = pgast.RangeSubselect(
+                        subquery=qry,
+                        alias=pgast.Alias(
+                            aliasname='q'
+                        )
+                    )
+
+                    ctx.subquery_map[stmt][innerqry] = {
+                        'rvar': expr_rvar,
+                        'linked': True
+                    }
+
+                    self._rel_join(stmt, expr_rvar, type='inner')
+                else:
+                    restarget = pgast.ResTarget(val=set_expr, name='v')
+                    stmt.target_list.append(restarget)
             else:
                 return_parent = True
 

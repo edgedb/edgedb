@@ -444,6 +444,9 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         else:
             self.write(common.quote_literal(str(node.val)))
 
+    def visit_ParamRef(self, node):
+        self.write('$', str(node.number))
+
     def visit_RowExpr(self, node):
         self.write('ROW(')
         self.visit_list(node.args, newlines=False)

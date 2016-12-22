@@ -84,6 +84,8 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
                     index = len(ctx.argmap) - 1
 
                 result = pgast.ParamRef(number=index)
+            elif expr.index is not None:
+                result = pgast.ParamRef(number=expr.index)
             else:
                 result = pgast.Constant(val=val)
 
