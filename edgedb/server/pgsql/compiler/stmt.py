@@ -538,14 +538,25 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         """
         ctx = self.context.current
 
-        root_query = ctx.query
-
         cte = ctx.ctemap.get(ir_set)
         if cte is not None:
             # Already have a CTE for this Set.
             return cte
 
-        fromlist = []
+        stmt = pgast.SelectStmt()
+        stmt.path_id = ir_set.path_id
+
+        with self.context.new():
+            self.context.current.rel = stmt
+            return self._set_to_cte_impl(ir_set, stmt)
+
+    def _set_to_cte_impl(self, ir_set, stmt):
+        ctx = self.context.current
+
+        root_query = ctx.query
+
+        fromlist = stmt.from_clause
+
         if ir_set.rptr is not None and ir_set.rptr.source.scls is not None:
             alias_hint = '{}_{}'.format(
                 ir_set.rptr.source.scls.name.name,
@@ -563,9 +574,6 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             alias_hint += '_expr'
         else:
             alias_hint = ir_set.scls.name.name
-
-        stmt = pgast.SelectStmt(from_clause=fromlist)
-        stmt.path_id = ir_set.path_id
 
         cte = pgast.CommonTableExpr(
             query=stmt,

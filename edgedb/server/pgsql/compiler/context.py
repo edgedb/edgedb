@@ -62,7 +62,7 @@ class TransformerContextLevel:
             self.schema = prevlevel.schema
             self.aliascnt = prevlevel.aliascnt
             self.output_format = prevlevel.output_format
-            self.memo = prevlevel.memo.copy()
+            self.memo = {}
             self.location = prevlevel.location
             self.ctemap = prevlevel.ctemap
             self.subquery_map = prevlevel.subquery_map

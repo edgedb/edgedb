@@ -2835,7 +2835,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_agg_01(self):
         await self.assert_query_result(r"""
             SELECT array_agg(
