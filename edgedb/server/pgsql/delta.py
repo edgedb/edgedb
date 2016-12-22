@@ -11,6 +11,7 @@ import pickle
 import re
 
 from edgedb.lang.edgeql import compiler as ql_compiler
+from edgedb.lang.edgeql import errors as ql_errors
 
 from edgedb.lang.schema import attributes as s_attrs
 from edgedb.lang.schema import atoms as s_atoms
@@ -433,10 +434,27 @@ class CreateFunction(FunctionCommand, CreateNamedClass,
         args = None
         if obj.paramtypes:
             args = []
-            for an, at in itertools.zip_longest(obj.paramnames,
-                                                obj.paramtypes):
+            for an, at, ad in itertools.zip_longest(obj.paramnames,
+                                                    obj.paramtypes,
+                                                    obj.paramdefaults):
+                pg_ad = None
+                if ad is not None:
+                    try:
+                        ir = ql_compiler.compile_fragment_to_ir(
+                            ad, schema, location='parameter-default')
+
+                        ircompiler = compiler.SingletonExprIRCompiler()
+                        sql_tree = ircompiler.transform_to_sql_tree(
+                            ir, schema=schema)
+                        pg_ad = codegen.SQLSourceGenerator.to_source(sql_tree)
+                    except Exception as ex:
+                        raise ql_errors.EdgeQLError(
+                            f'could not compile default expression '
+                            f'of function {obj.shortname}: {ex}',
+                            context=self.source_context) from ex
+
                 pg_at = types.pg_type_from_object(schema, at)
-                args.append((an, pg_at))
+                args.append((an, pg_at, pg_ad))
 
         dbf = dbops.Function(
             name=pgname,

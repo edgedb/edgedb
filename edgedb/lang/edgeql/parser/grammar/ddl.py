@@ -1257,7 +1257,7 @@ class OptDefault(Nonterm):
     def reduce_empty(self):
         self.val = None
 
-    def reduce_EQUALS_Constant(self, *kids):
+    def reduce_EQUALS_Expr(self, *kids):
         self.val = kids[1].val
 
 

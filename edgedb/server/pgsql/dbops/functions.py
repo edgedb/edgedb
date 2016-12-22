@@ -73,7 +73,7 @@ class CreateFunction(ddl.DDLOperation):
                         arg_expr += ' ' + common.quote_type(arg[1])
                         if vararg:
                             arg_expr += '[]'
-                    if len(arg) > 2:
+                    if len(arg) > 2 and arg[2] is not None:
                         arg_expr += ' = ' + arg[2]
 
                 else:

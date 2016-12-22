@@ -111,6 +111,12 @@ class TestDeltas(tb.QueryTestCase):
                 FROM SQL $$
                     SELECT '{long_func_name}'::text
                 $$;
+
+            CREATE FUNCTION test::my_sql_func6(std::str='a' + 'b')
+                RETURNING std::str
+                FROM SQL $$
+                    SELECT $1 || 'c'
+                $$;
         """)
 
         await self.assert_query_result(fr"""
@@ -119,10 +125,26 @@ class TestDeltas(tb.QueryTestCase):
             SELECT test::my_sql_func3('bar');
             SELECT test::my_sql_func4('fizz', 'buzz');
             SELECT test::{long_func_name}();
+            SELECT test::my_sql_func6();
+            SELECT test::my_sql_func6('xy');
         """, [
             ['spam'],
             ['foo'],
             ['bar'],
             ['fizz-buzz'],
             [long_func_name],
+            ['abc'],
+            ['xyc'],
         ])
+
+    async def test_edgeql_ddl07(self):
+        with self.assertRaisesRegex(client_errors.EdgeQLError,
+                                    'could not.*broken_sql.*no IR compiler'):
+            await self.con.execute(f"""
+                CREATE FUNCTION test::broken_sql_func1(
+                    std::int=(SELECT schema::Concept))
+                RETURNING std::str
+                FROM SQL $$
+                    SELECT 'spam'::text
+                $$;
+            """)

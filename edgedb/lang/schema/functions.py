@@ -8,6 +8,7 @@
 
 from edgedb.lang.edgeql import ast as qlast
 from edgedb.lang.edgeql import errors as ql_errors
+from edgedb.lang.edgeql import codegen
 
 from . import delta as sd
 from . import expr
@@ -76,7 +77,10 @@ class CreateFunction(named.CreateNamedClass, FunctionCommandMixin):
         for argi, arg in enumerate(astnode.args, 1):
             paramnames.append(arg.name)
 
-            paramdefaults.append(arg.default)
+            default = None
+            if arg.default is not None:
+                default = codegen.generate_source(arg.default)
+            paramdefaults.append(default)
 
             paramtypes.append(
                 so.ClassRef(classname=sn.Name(
