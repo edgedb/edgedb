@@ -2501,7 +2501,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_subqueries17(self):
         await self.assert_query_result(r"""
             # testing IN and a subquery
@@ -2517,7 +2516,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'body': 'EdgeDB needs to happen soon.'}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_subqueries18(self):
         await self.assert_query_result(r"""
             # get a comment whose owner is part of the users who own Issue "1"

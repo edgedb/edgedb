@@ -303,10 +303,11 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
             else:
                 left = self.visit(expr.left)
 
-            if expr.op in (ast.ops.IN, ast.ops.NOT_IN) \
-                    and isinstance(expr.right, irast.Sequence):
+            if expr.op in (ast.ops.IN, ast.ops.NOT_IN):
                 with self.context.new():
-                    self.context.current.sequence_is_array = True
+                    if isinstance(expr.right, irast.Sequence):
+                        self.context.current.sequence_is_array = True
+                    self.context.current.output_format = 'identity'
                     right = self.visit(expr.right)
             else:
                 right = self.visit(expr.right)
