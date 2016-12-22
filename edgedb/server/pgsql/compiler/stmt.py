@@ -861,6 +861,9 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 ctx.ctemap[substmt] = cte
 
                 ref = subquery.path_namespace[substmt.real_path_id]
+
+                self._reset_path_namespace(subquery)
+
                 subquery.target_list.append(
                     pgast.ResTarget(
                         val=ref,
@@ -869,6 +872,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 )
 
                 subquery.path_vars[substmt.path_id] = 'v'
+                subquery.path_bonds[substmt.path_id] = 'v'
 
             ctx.query.ctes.append(cte)
 
@@ -1204,6 +1208,12 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             self._for_each_query_in_set(qry.rarg, cb)
         else:
             cb(qry)
+
+    def _reset_path_namespace(self, query):
+        query.path_namespace.clear()
+        query.path_vars.clear()
+        query.inner_path_bonds.clear()
+        query.path_bonds.clear()
 
     def _pull_path_namespace(self, *, target, source, pull_bonds=True):
         squery = source.query

@@ -6,7 +6,6 @@
 ##
 
 
-import datetime
 import os.path
 import unittest
 
@@ -2251,10 +2250,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue.number IN ('2', '3', '4')
                 AND
                 EXISTS (
-                    # due to common prefix, the Issue referred to here is
-                    # the same Issue as in the LHS of AND, therefore
-                    # this condition can never be true
-                    sub
+                    (SELECT sub WHERE sub == Issue)
                 );
             """, [
             [],
@@ -2264,13 +2260,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             WITH
                 MODULE test,
-                sub:= (
-                    WITH
-                        Issue2 := DETACHED Issue
+                sub := (
                     SELECT
-                        Issue2
+                        Issue
                     WHERE
-                        Issue2.number IN ('1', '6')
+                        Issue.number IN ('1', '6')
                 )
             SELECT
                 Issue{number}
@@ -2460,32 +2454,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         ])
 
-    @unittest.expectedFailure
-    async def test_edgeql_select_subqueries13(self):
-        await self.assert_query_result(r"""
-            # XXX: same as subqueries07, but refactored
-            #
-            # find all issues such that there's at least one more
-            # issue watched by the same user as this one
-            WITH
-                MODULE test,
-                A := (
-                    SELECT
-                        User.<watchers[TO Issue]
-                    WHERE
-                        User = Issue.watchers
-                        AND
-                        User.<watchers[TO Issue] != Issue
-                )
-            SELECT Issue{number}
-            WHERE
-                EXISTS Issue.watchers
-                AND
-                EXISTS A;
-            """, [
-            [{'number': '2'}, {'number': '3'}],
-        ])
-
     async def test_edgeql_select_subqueries14(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -2500,65 +2468,37 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'name': 'Elvis'}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_subqueries15(self):
         await self.assert_query_result(r"""
             # Find all issues such that there's at least one more
             # issue watched by the same user as this one, this user
             # must have at least one Comment.
-            #
-            # Without the Comment filter, the issues would be the ones
-            # owned by Yury, but only Elvis has a Comment. So the
-            # expected result is an empty set.
             WITH MODULE test
-            SELECT Issue{number}
+            SELECT Issue {
+                number
+            }
             WHERE
-                EXISTS Issue.watchers
-                AND
+                EXISTS Issue.watchers AND
                 EXISTS (
-                    SELECT User.<watchers
+                    SELECT
+                        User.<watchers
                     WHERE
-                        User = Issue.watchers
-                        AND
-                        User.<watchers != Issue
-                        AND
+                        # The User is among the watchers of this Issue
+                        User = Issue.watchers AND
+                        # and they also watch some other Issue other than this
+                        User.<watchers[TO Issue] != Issue AND
+                        # and they also have at least one comment
                         EXISTS (
-                            SELECT Comment
-                            WHERE
-                                Comment.owner = User
+                            SELECT Comment WHERE Comment.owner = User
                         )
-                );
-            """, [
-            [],
-        ])
-
-    @unittest.expectedFailure
-    async def test_edgeql_select_subqueries16(self):
-        await self.assert_query_result(r"""
-            # same as above, but refactored using aliases
-            WITH
-                MODULE test,
-                HAS_COMMNET := (
-                    SELECT Comment
-                    WHERE
-                        Comment.owner = User
-                ),
-                WATCHED_ISSUE :=  (
-                    SELECT User.<watchers
-                    WHERE
-                        User = Issue.watchers
-                        AND
-                        User.<watchers != Issue
-                        AND
-                        EXISTS HAS_COMMENT
                 )
-            SELECT Issue{number}
-            WHERE
-                EXISTS Issue.watchers
-                AND
-                EXISTS WATCHED_ISSUE;
+            ORDER BY
+                Issue.number;
             """, [
-            [],
+            [
+                {'number': '2'},
+                {'number': '3'}
+            ],
         ])
 
     @unittest.expectedFailure
@@ -2593,29 +2533,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                                 Issue.number = '1'
                         )
                 );
-            """, [
-            [{'body': 'EdgeDB needs to happen soon.'}],
-        ])
-
-    @unittest.expectedFailure
-    async def test_edgeql_select_subqueries19(self):
-        await self.assert_query_result(r"""
-            # same as above, but refactored using aliases
-            WITH
-                MODULE test,
-                A := (
-                    SELECT Issue
-                    WHERE
-                        Issue.number = '1'
-                ),
-                B :=  (
-                    SELECT User
-                    WHERE
-                        User.<owner IN A
-                )
-            SELECT Comment{body}
-            WHERE
-                Comment.owner IN B;
             """, [
             [{'body': 'EdgeDB needs to happen soon.'}],
         ])

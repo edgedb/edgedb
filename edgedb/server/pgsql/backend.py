@@ -41,10 +41,6 @@ from edgedb.lang.schema import name as sn
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import policy as s_policy
-from edgedb.lang.schema import types as s_types
-
-from edgedb.lang.edgeql import codegen as ql_codegen
-# from edgedb.lang.edgeql.compiler import decompiler as ql_decompiler
 
 from edgedb.server import query as backend_query
 from edgedb.server.pgsql import common
