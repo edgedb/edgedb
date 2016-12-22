@@ -512,12 +512,15 @@ class Backend(s_deltarepo.DeltaProvider):
             debug.header('Delta Plan Input')
             debug.dump(ddl_plan)
 
+        # Do a dry-run on test_schema to canonicalize
+        # the schema delta-commands.
         test_schema = await self.readschema()
         context = sd.CommandContext()
         canonical_ddl_plan = ddl_plan.copy()
         canonical_ddl_plan.apply(test_schema, context=context)
 
-        # Apply and adapt delta, build native delta plan
+        # Apply and adapt delta, build native delta plan, which
+        # will also update the schema.
         plan = self.process_delta(canonical_ddl_plan, schema)
 
         context = delta_cmds.CommandContext(self.connection, None)
@@ -525,16 +528,16 @@ class Backend(s_deltarepo.DeltaProvider):
         try:
             if not isinstance(plan, (s_db.CreateDatabase, s_db.DropDatabase)):
                 async with self.connection.transaction():
+                    # Execute all pgsql/delta commands.
                     await plan.execute(context)
             else:
                 await plan.execute(context)
         except Exception as e:
+            raise RuntimeError('failed to apply delta to data backend') from e
+        finally:
+            # Exception or not, re-read the schema from Postgres.
+            await self.invalidate_schema_cache()
             await self.getschema()
-            msg = 'failed to apply delta to data backend'
-            raise RuntimeError(msg) from e
-
-        await self.invalidate_schema_cache()
-        await self.getschema()
 
     async def invalidate_schema_cache(self):
         self.schema = None
