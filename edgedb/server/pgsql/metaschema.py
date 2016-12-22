@@ -347,7 +347,7 @@ def _field_to_column(field):
     # This is a hack since there is no way
     # to indicate that something is either
     # a Class or a Collection.
-    if field.name == 'type':
+    if field.name in {'type', 'returntype'}:
         coltype = 'edgedb.type_t'
 
     elif issubclass(ftype, s_obj.Collection):

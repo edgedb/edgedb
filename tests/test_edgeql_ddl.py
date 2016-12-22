@@ -178,14 +178,22 @@ class TestDeltas(tb.QueryTestCase):
                 FROM EdgeQL $$
                     SELECT $1 + 10
                 $$;
+
+            CREATE FUNCTION test::my_edgeql_func4(std::int)
+                RETURNING list<std::int>
+                FROM EdgeQL $$
+                    SELECT [$1, 1, 2, 3]
+                $$;
         """)
 
         await self.assert_query_result(r"""
             SELECT test::my_edgeql_func1();
             SELECT test::my_edgeql_func2('schema::PrimaryClass').name;
             SELECT test::my_edgeql_func3(1);
+            SELECT test::my_edgeql_func4(42);
         """, [
             ['spam'],
             ['schema::PrimaryClass'],
             [11],
+            [[42, 1, 2, 3]]
         ])

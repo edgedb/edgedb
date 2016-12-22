@@ -776,7 +776,7 @@ class Backend(s_deltarepo.DeltaProvider):
                 'paramtypes': paramtypes,
                 'paramdefaults':
                     row['paramdefaults'] if row['paramdefaults'] else None,
-                'returntype': schema.get(row['returntype'])
+                'returntype': self.unpack_typeref(row['returntype'], schema)
             }
 
             func = s_funcs.Function(**func_data)

@@ -112,11 +112,7 @@ class CreateFunction(named.CreateNamedClass, FunctionCommandMixin):
 
         cmd.add(sd.AlterClassProperty(
             property='returntype',
-            new_value=so.ClassRef(
-                classname=sn.Name(
-                    module=astnode.returning.maintype.module,
-                    name=astnode.returning.maintype.name)
-            )
+            new_value=utils.ast_to_typeref(astnode.returning)
         ))
 
         cmd.add(sd.AlterClassProperty(
@@ -168,7 +164,7 @@ class Function(primary.PrimaryClass):
     varparam = so.Field(int, default=None, compcoef=0.4)
 
     paramdefaults = so.Field(expr.ExpressionList, default=None, coerce=True)
-    returntype = so.Field(primary.PrimaryClass, compcoef=0.2)
+    returntype = so.Field(so.Class, compcoef=0.2)
     aggregate = so.Field(bool, default=False, compcoef=0.4)
 
     code = so.Field(str, default=None, compcoef=0.4)

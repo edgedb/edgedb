@@ -30,8 +30,7 @@ source: |
             f.language,
             f.code,
             f.from_function,
-            (SELECT name FROM edgedb.NamedClass WHERE id = f.returntype)
-                AS returntype
+            edgedb._resolve_type(f.returntype) AS returntype
         FROM
             edgedb.function f
         ORDER BY
