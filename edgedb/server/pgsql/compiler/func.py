@@ -7,13 +7,13 @@
 
 
 from edgedb.server.pgsql import ast as pgast
+from edgedb.server.pgsql import common
 
 
 class IRCompilerFunctionSupport:
     def visit_FunctionCall(self, expr):
         ctx = self.context.current
 
-        result = None
         agg_filter = None
         agg_sort = []
 
@@ -44,24 +44,25 @@ class IRCompilerFunctionSupport:
                 partition.append(_pexpr)
 
         if funcobj.from_function:
-            funcname = funcobj.from_function
+            name = (funcobj.from_function,)
         else:
-            raise NotImplementedError(
-                f'unsupported function {funcobj.shortname}')
+            name = (
+                common.edgedb_module_name_to_schema_name(
+                    funcobj.shortname.module),
+                common.edgedb_name_to_pg_name(
+                    funcobj.shortname.name)
+            )
 
-        name = (funcname,)
+        if expr.window:
+            window_sort = agg_sort
+            agg_sort = None
 
-        if not result:
-            if expr.window:
-                window_sort = agg_sort
-                agg_sort = None
+        result = pgast.FuncCall(
+            name=name, args=args,
+            agg_order=agg_sort, agg_filter=agg_filter)
 
-            result = pgast.FuncCall(
-                name=name, args=args,
-                agg_order=agg_sort, agg_filter=agg_filter)
-
-            if expr.window:
-                result.over = pgast.WindowDef(
-                    orderby=window_sort, partition=partition)
+        if expr.window:
+            result.over = pgast.WindowDef(
+                orderby=window_sort, partition=partition)
 
         return result

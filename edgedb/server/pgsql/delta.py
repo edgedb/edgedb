@@ -416,9 +416,37 @@ class FunctionCommand:
     table = metaschema.get_metaclass_table(s_funcs.Function)
 
 
-class CreateFunction(
-        FunctionCommand, CreateNamedClass, adapts=s_funcs.CreateFunction):
-    pass
+class CreateFunction(FunctionCommand, CreateNamedClass,
+                     adapts=s_funcs.CreateFunction):
+
+    def apply(self, schema, context):
+        obj : s_funcs.Function = super().apply(schema, context)
+
+        if obj.code is None:
+            return obj
+
+        pgname = (
+            common.edgedb_module_name_to_schema_name(obj.shortname.module),
+            common.edgedb_name_to_pg_name(obj.shortname.name)
+        )
+
+        args = None
+        if obj.paramtypes:
+            args = []
+            for an, at in itertools.zip_longest(obj.paramnames,
+                                                obj.paramtypes):
+                pg_at = types.pg_type_from_object(schema, at)
+                args.append((an, pg_at))
+
+        dbf = dbops.Function(
+            name=pgname,
+            args=args,
+            variadic_arg=obj.varparam,
+            returns=types.pg_type_from_object(schema, obj.returntype),
+            text=obj.code)
+
+        self.pgops.add(dbops.CreateFunction(dbf))
+        return obj
 
 
 class RenameFunction(

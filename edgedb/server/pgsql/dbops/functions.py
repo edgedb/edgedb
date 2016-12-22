@@ -14,13 +14,15 @@ from . import ddl
 
 class Function(base.DBObject):
     def __init__(self, name, *, args=None, returns, text,
-                 volatility='volatile', language='sql'):
+                 volatility='volatile', language='sql',
+                 variadic_arg=None):
         self.name = name
         self.args = args
         self.returns = returns
         self.text = text
         self.volatility = volatility
         self.language = language
+        self.variadic_arg = variadic_arg
 
     def __repr__(self):
         return '<{} {} at 0x{}>'.format(
@@ -60,13 +62,17 @@ class CreateFunction(ddl.DDLOperation):
     async def code(self, context):
         args = []
         if self.function.args:
-            for arg in self.function.args:
-                arg_expr = ''
+            for argi, arg in enumerate(self.function.args, 1):
+                vararg = self.function.variadic_arg == argi
+                arg_expr = 'VARIADIC ' if vararg else ''
 
                 if isinstance(arg, tuple):
-                    arg_expr += common.qname(arg[0])
+                    if arg[0] is not None:
+                        arg_expr += common.qname(arg[0])
                     if len(arg) > 1:
                         arg_expr += ' ' + common.quote_type(arg[1])
+                        if vararg:
+                            arg_expr += '[]'
                     if len(arg) > 2:
                         arg_expr += ' = ' + arg[2]
 
