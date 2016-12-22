@@ -368,20 +368,15 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_computable09(self):
         await self.assert_query_result(r"""
-            # Use specialized ad-hoc computables to give every Text
-            # object some kind of 'name', perhaps for purposes of
-            # displaying a normalized result in some general table.
-            # The 'name' given is different depending on the
-            # particular object we're dealing with.
             WITH MODULE test
             SELECT Text{
                 body,
-                Issue.name,
-                LogEntry.name := 'log',
-                Comment.name := 'comment',
+                name := (Text AS Issue).name IF Text IS Issue      ELSE
+                        'log'                IF Text IS LogEntry   ELSE
+                        'comment'            IF Text IS Comment    ELSE
+                        'unknown'
             }
             ORDER BY Text.body;
             """, [
