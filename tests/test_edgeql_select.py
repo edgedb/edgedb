@@ -2919,3 +2919,30 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 'foo': 'Closed',
             }],
         ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_agg_01(self):
+        await self.assert_query_result(r"""
+            SELECT array_agg(
+                schema::Concept.links.name
+                WHERE
+                    schema::Concept.links.name IN (
+                        'std::id',
+                        'schema::name'
+                    )
+                ORDER BY schema::Concept.links.name ASC)
+            WHERE
+                schema::Concept.name = 'schema::PrimaryClass';
+        """, [
+            [['schema::name', 'std::id']]
+        ])
+
+    async def test_edgeql_agg_02(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT array_agg(
+                [Issue.number, Issue.status.name]
+                ORDER BY Issue.number);
+        """, [
+            [[['1', 'Open'], ['2', 'Open'], ['3', 'Closed'], ['4', 'Closed']]]
+        ])

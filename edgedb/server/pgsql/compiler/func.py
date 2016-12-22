@@ -26,16 +26,17 @@ class IRCompilerFunctionSupport:
                 args = [self.visit(a) for a in expr.args]
                 if expr.agg_filter:
                     agg_filter = self.visit(expr.agg_filter)
+
+                if expr.agg_sort:
+                    for sortexpr in expr.agg_sort:
+                        _sortexpr = self.visit(sortexpr.expr)
+                        agg_sort.append(
+                            pgast.SortBy(
+                                node=_sortexpr, dir=sortexpr.direction,
+                                nulls=sortexpr.nones_order))
+
         else:
             args = [self.visit(a) for a in expr.args]
-
-        if expr.agg_sort:
-            for sortexpr in expr.agg_sort:
-                _sortexpr = self.visit(sortexpr.expr)
-                agg_sort.append(
-                    pgast.SortBy(
-                        node=_sortexpr, dir=sortexpr.direction,
-                        nulls=sortexpr.nones_order))
 
         partition = []
         if expr.partition:

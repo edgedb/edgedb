@@ -77,6 +77,9 @@ CREATE AGGREGATE std::sum(std::int) RETURNING std::int
 CREATE AGGREGATE std::count(std::any) RETURNING std::int
     FROM SQL AGGREGATE 'count';
 
+CREATE AGGREGATE std::array_agg(std::any) RETURNING list<std::any>
+    FROM SQL AGGREGATE 'array_agg';
+
 CREATE AGGREGATE std::is_distinct(std::any) RETURNING std::bool;
 
 CREATE FUNCTION std::len(std::str) RETURNING std::int
