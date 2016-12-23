@@ -254,7 +254,6 @@ class TestExpressions(tb.QueryTestCase):
             [42],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_coalesce01(self):
         await self.assert_query_result(r"""
             SELECT coalesce(NULL, 4, 5);
