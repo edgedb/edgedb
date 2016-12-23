@@ -100,6 +100,7 @@ class PathNode(Base):
     steps: list
     quantifier: Base
     pathspec: list
+    partial: bool = False
 
 
 class PathDisjunctionNode(Base):

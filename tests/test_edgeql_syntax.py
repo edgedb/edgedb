@@ -499,10 +499,12 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT `@event`;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=16)
     def test_edgeql_syntax_name11(self):
+        # illegal semantically, but syntactically valid
         """
         SELECT @event;
+% OK %
+        SELECT @`event`;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=21)
@@ -898,6 +900,36 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
+    def test_edgeql_syntax_shape33(self):
+        """
+        SELECT User {
+            name,
+            groups: {
+                name,
+            } WHERE (.name = 'admin')
+        };
+        """
+
+    def test_edgeql_syntax_shape34(self):
+        """
+        SELECT User{
+            name,
+            <owner: LogEntry {
+                body
+            },
+        } WHERE (.<owner.body = 'foo');
+        """
+
+    def test_edgeql_syntax_shape35(self):
+        """
+        SELECT User {
+            name,
+            groups: {
+                name,
+            } WHERE (@special = True)
+        };
+        """
+
     def test_edgeql_syntax_path01(self):
         """
         SELECT Foo.bar;
@@ -1056,6 +1088,13 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT (42).foo;
 % OK %
         SELECT (42).foo;
+        """
+
+    def test_edgeql_syntax_path16(self):
+        # illegal semantically, but syntactically valid
+        """
+        SELECT .foo;
+        SELECT .<foo;
         """
 
     def test_edgeql_syntax_type_interpretation01(self):

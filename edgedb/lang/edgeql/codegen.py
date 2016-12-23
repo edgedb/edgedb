@@ -365,7 +365,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_PathNode(self, node, *, parenthesise=True):
         for i, e in enumerate(node.steps):
-            if i > 0:
+            if i > 0 or node.partial:
                 if getattr(e, 'type', None) != 'property':
                     self.write('.')
 

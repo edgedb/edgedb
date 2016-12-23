@@ -1046,6 +1046,10 @@ class Path(Nonterm):
         path.steps.append(kids[1].val)
         self.val = path
 
+    @parsing.precedence(precedence.P_DOT)
+    def reduce_PathStep(self, *kids):
+        self.val = qlast.PathNode(steps=[kids[0].val], partial=True)
+
 
 class PathStep(Nonterm):
     def reduce_DOT_PathPtr(self, *kids):
