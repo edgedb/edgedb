@@ -385,9 +385,12 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 pg_expr.type == pgast.SubLinkType.EXISTS):
             result = pg_expr
         else:
-            result = pgast.SubLink(
-                type=pgast.SubLinkType.EXISTS,
-                subselect=pg_expr)
+            if isinstance(pg_expr, pgast.Query):
+                result = pgast.SubLink(
+                    type=pgast.SubLinkType.EXISTS,
+                    subselect=pg_expr)
+            else:
+                result = pgast.NullTest(arg=pg_expr, negated=True)
 
         return result
 

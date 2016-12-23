@@ -100,7 +100,6 @@ class TestExpressions(tb.QueryTestCase):
                 [None],
             ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_op07(self):
         await self.assert_query_result(r"""
             SELECT EXISTS NULL;
