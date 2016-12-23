@@ -197,3 +197,26 @@ class TestDeltas(tb.QueryTestCase):
             [11],
             [[42, 1, 2, 3]]
         ])
+
+    async def test_edgeql_ddl09(self):
+        await self.con.execute("""
+            CREATE FUNCTION test::attr_func_1() RETURNING std::str {
+                SET description := 'hello';
+                FROM EdgeQL "SELECT '1'";
+            };
+        """)
+
+        await self.assert_query_result(r"""
+            SELECT schema::Function {
+                attributes: {
+                    @value
+                } WHERE schema::Function.attributes.name =
+                    'stdattrs::description'
+            } WHERE schema::Function.name = 'test::attr_func_1';
+        """, [
+            [{
+                'attributes': [{
+                    '@value': 'hello'
+                }]
+            }],
+        ])

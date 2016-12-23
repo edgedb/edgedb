@@ -1369,7 +1369,7 @@ class _ProcessFunctionBlockMixin:
     def _process_function_body(self, block):
         props = {}
 
-        attrs = []
+        commands = []
         code = None
         for node in block.val:
             if isinstance(node, qlast.FunctionCode):
@@ -1378,9 +1378,8 @@ class _ProcessFunctionBlockMixin:
                                             context=node.context)
                 else:
                     code = node
-
-            if isinstance(node, qlast.CreateAttributeValueNode):
-                attrs.append(node)
+            else:
+                commands.append(node)
 
         if code is None:
             raise EdgeQLSyntaxError('FROM clause is missing',
@@ -1389,8 +1388,8 @@ class _ProcessFunctionBlockMixin:
         else:
             props['code'] = code
 
-        if attrs:
-            props['attributes'] = attrs
+        if commands:
+            props['commands'] = commands
 
         return props
 

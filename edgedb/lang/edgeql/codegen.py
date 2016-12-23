@@ -609,14 +609,15 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             if len(node.bases) > 1:
                 self.write(')')
 
-    def _visit_CreateObjectNode(self, node, *object_keywords, after_name=None):
+    def _visit_CreateObjectNode(self, node, *object_keywords, after_name=None,
+                                render_commands=True):
         self._visit_aliases(node)
         self.write('CREATE', *object_keywords, delimiter=' ')
         self.write(' ')
         self.visit(node.name, parenthesise=False)
         if after_name:
             after_name()
-        if node.commands:
+        if node.commands and render_commands:
             self.write(' {')
             self.new_lines = 1
             self.indentation += 1
@@ -925,11 +926,11 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.write('SINGLETON ')
             self.visit(node.returning)
 
-            if node.attributes:
+            if node.commands:
                 self.write('{')
                 self.new_lines = 1
                 self.indentation += 1
-                self.visit_list(node.attributes, terminator=';')
+                self.visit_list(node.commands, terminator=';')
                 self.new_lines = 1
 
             if node.code.from_name:
@@ -940,14 +941,15 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.write(edgeql_quote.dollar_quote_literal(
                     node.code.code))
 
-            if node.attributes:
+            if node.commands:
                 self.write(';')
                 self.new_lines = 1
                 self.indentation -= 1
                 self.write('}')
 
         typ = 'AGGREGATE' if node.aggregate else 'FUNCTION'
-        self._visit_CreateObjectNode(node, typ, after_name=after_name)
+        self._visit_CreateObjectNode(node, typ, after_name=after_name,
+                                     render_commands=False)
 
     def visit_AlterFunctionNode(self, node):
         self._visit_AlterObjectNode(node, 'FUNCTION')
