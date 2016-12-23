@@ -6,6 +6,8 @@
 ##
 
 
+import unittest
+
 from edgedb.client import exceptions as client_errors
 from edgedb.server import _testbase as tb
 
@@ -219,4 +221,18 @@ class TestDeltas(tb.QueryTestCase):
                     '@value': 'hello'
                 }]
             }],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_ddl10(self):
+        await self.con.execute("""
+            CREATE FUNCTION test::int_func_1() RETURNING std::int {
+                FROM EdgeQL "SELECT 1";
+            };
+        """)
+
+        await self.assert_query_result(r"""
+            SELECT test::int_func_1();
+        """, [
+            [1],
         ])
