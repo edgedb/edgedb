@@ -90,7 +90,7 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
             else:
                 result = pgast.Constant(val=val)
 
-        if const_type is not None and const_type[-1] != 'bigint':
+        if const_type is not None:
             result = pgast.TypeCast(
                 arg=result,
                 type_name=pgast.TypeName(
@@ -197,6 +197,12 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
             args=[when_expr], defresult=index_plus_one)
 
         if is_string:
+            index = pgast.TypeCast(
+                arg=index,
+                type_name=pgast.TypeName(
+                    name=('int',)
+                )
+            )
             result = pgast.FuncCall(
                 name=('substr',),
                 args=[subj, index, one]
@@ -270,6 +276,13 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
                 args=[when_expr], defresult=upper)
 
         if is_string:
+            lower = pgast.TypeCast(
+                arg=lower,
+                type_name=pgast.TypeName(
+                    name=('int',)
+                )
+            )
+
             args = [subj, lower]
 
             if upper is not upper_bound:
@@ -277,6 +290,13 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
                     lexpr=upper, op=ast.ops.SUB, rexpr=lower)
                 for_length = self._new_binop(
                     lexpr=for_length, op=ast.ops.ADD, rexpr=one)
+
+                for_length = pgast.TypeCast(
+                    arg=for_length,
+                    type_name=pgast.TypeName(
+                        name=('int',)
+                    )
+                )
                 args.append(for_length)
 
             result = pgast.FuncCall(name=('substr',), args=args)
