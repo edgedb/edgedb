@@ -925,14 +925,26 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.write('SINGLETON ')
             self.visit(node.returning)
 
-            if node.code:
-                if node.code.from_name:
-                    self.write(f' FROM {node.code.language} {typ} ')
-                    self.write(f'{node.code.from_name!r}')
-                else:
-                    self.write(f' FROM {node.code.language} ')
-                    self.write(edgeql_quote.dollar_quote_literal(
-                        node.code.code))
+            if node.attributes:
+                self.write('{')
+                self.new_lines = 1
+                self.indentation += 1
+                self.visit_list(node.attributes, terminator=';')
+                self.new_lines = 1
+
+            if node.code.from_name:
+                self.write(f' FROM {node.code.language} {typ} ')
+                self.write(f'{node.code.from_name!r}')
+            else:
+                self.write(f' FROM {node.code.language} ')
+                self.write(edgeql_quote.dollar_quote_literal(
+                    node.code.code))
+
+            if node.attributes:
+                self.write(';')
+                self.new_lines = 1
+                self.indentation -= 1
+                self.write('}')
 
         typ = 'AGGREGATE' if node.aggregate else 'FUNCTION'
         self._visit_CreateObjectNode(node, typ, after_name=after_name)

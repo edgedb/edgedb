@@ -1210,7 +1210,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         UPDATE User{age:= (User.age + 10)}
             WHERE (User.name = 'foo') RETURNING SINGLETON User{name};
         DELETE User WHERE (User.name = 'foo') RETURNING SINGLETON User{name};
-        CREATE FUNCTION spam(foo: str) RETURNING SINGLETON str;
+        CREATE FUNCTION spam(foo: str) RETURNING SINGLETON str
+            FROM EdgeQL $$ SELECT "a" $$;
         """
 
     def test_edgeql_syntax_with01(self):
@@ -1934,17 +1935,26 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_aggregate01(self):
         """
-        CREATE AGGREGATE std::sum(v: std::int) RETURNING std::int;
+        CREATE AGGREGATE std::sum(v: std::int) RETURNING std::int
+            FROM SQL AGGREGATE 'test';
         """
 
     def test_edgeql_syntax_ddl_aggregate02(self):
         """
-        CREATE AGGREGATE std::sum(std::int) RETURNING std::int;
+        CREATE AGGREGATE std::sum(std::int) RETURNING std::int
+            FROM SQL AGGREGATE 'sum';
         """
 
     def test_edgeql_syntax_ddl_aggregate03(self):
         """
-        CREATE AGGREGATE std::sum(integer: std::int) RETURNING std::int;
+        CREATE AGGREGATE std::sum(integer: std::int) RETURNING std::int
+            FROM SQL AGGREGATE 'sum';
+        """
+
+    def test_edgeql_syntax_ddl_aggregate04(self):
+        """
+        CREATE AGGREGATE std::sum(integer: std::int) RETURNING std::int
+            FROM SQL AGGREGATE 'sum';
         """
 
     def test_edgeql_syntax_ddl_atom01(self):
@@ -1961,35 +1971,41 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_function01(self):
         """
-        CREATE FUNCTION std::strlen(string: std::str) RETURNING std::int;
+        CREATE FUNCTION std::strlen(string: std::str) RETURNING std::int
+            FROM SQL FUNCTION 'strlen';
         """
 
     def test_edgeql_syntax_ddl_function02(self):
         """
-        CREATE FUNCTION std::strlen(std::str) RETURNING std::int;
+        CREATE FUNCTION std::strlen(std::str) RETURNING std::int
+            FROM SQL FUNCTION 'strlen';
         """
 
     def test_edgeql_syntax_ddl_function03(self):
         """
-        CREATE FUNCTION std::strlen(string: std::str) RETURNING std::int;
+        CREATE FUNCTION std::strlen(string: std::str) RETURNING std::int
+            FROM SQL FUNCTION 'strlen';
         """
 
     def test_edgeql_syntax_ddl_function04(self):
         """
         CREATE FUNCTION std::strlen(string: std::str, integer: std::int)
-            RETURNING std::int;
+            RETURNING std::int
+            FROM SQL FUNCTION 'strlen';
         """
 
     def test_edgeql_syntax_ddl_function05(self):
         """
         CREATE FUNCTION std::strlen(string: std::str, std::int)
-            RETURNING std::int;
+            RETURNING std::int
+            FROM SQL FUNCTION 'strlen';
         """
 
     def test_edgeql_syntax_ddl_function06(self):
         """
         CREATE FUNCTION std::strlen(string: std::str = '1')
-            RETURNING std::int;
+            RETURNING std::int
+            FROM SQL FUNCTION 'strlen';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -2019,31 +2035,35 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ddl_function10(self):
         """
         CREATE FUNCTION std::strlen(std::str = '1', *std::str)
-            RETURNING std::int;
+            RETURNING std::int
+            FROM SQL FUNCTION 'strlen';
         """
 
     def test_edgeql_syntax_ddl_function11(self):
         """
-        CREATE FUNCTION no_params() RETURNING std::int;
+        CREATE FUNCTION no_params() RETURNING std::int
+        FROM EdgeQL $$ SELECT 1 $$;
         """
 
     def test_edgeql_syntax_ddl_function12(self):
         """
-        CREATE AGGREGATE std::count(expression: std::`any`) RETURNING std::int;
+        CREATE AGGREGATE std::count(expression: std::`any`) RETURNING std::int
+        FROM SQL AGGREGATE 'count';
         """
 
     def test_edgeql_syntax_ddl_function13(self):
         """
-        CREATE FUNCTION foo(string: std::str) RETURNING {bar: std::int};
+        CREATE FUNCTION foo(string: std::str) RETURNING {bar: std::int}
+        FROM EDGEQL $$ SELECT { bar := 123 } $$;
         """
 
     def test_edgeql_syntax_ddl_function14(self):
         """
-        CREATE AGGREGATE foo(string: std::str)
+        CREATE FUNCTION foo(string: std::str)
         RETURNING {
             bar: std::int,
             baz: std::str
-        };
+        } FROM EdgeQL $$ SELECT smth() $$;
         """
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "AAA is not a valid language", line=3)
@@ -2115,6 +2135,43 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ddl_function24(self):
         """
         CREATE FUNCTION foo() RETURNING std::str FROM SQL $a$SELECT $$foo$$$a$;
+        """
+
+    def test_edgeql_syntax_ddl_function25(self):
+        """
+        CREATE FUNCTION foo() RETURNING std::str {
+            SET description := 'aaaa';
+            FROM SQL $a$SELECT $$foo$$$a$;
+        };
+        """
+
+    def test_edgeql_syntax_ddl_function26(self):
+        """
+        CREATE FUNCTION foo() RETURNING std::str {
+            SET volatility := 'volatile';
+            SET description := 'aaaa';
+            FROM SQL $a$SELECT $$foo$$$a$;
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "FROM clause is missing", line=2)
+    def test_edgeql_syntax_ddl_function27(self):
+        """
+        CREATE FUNCTION foo() RETURNING std::str {
+            SET description := 'aaaa';
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "more than one FROM clause", line=5)
+    def test_edgeql_syntax_ddl_function28(self):
+        """
+        CREATE FUNCTION foo() RETURNING std::str {
+            FROM SQL 'SELECT 1';
+            SET description := 'aaaa';
+            FROM SQL 'SELECT 2';
+        };
         """
 
     def test_edgeql_syntax_ddl_linkproperty01(self):

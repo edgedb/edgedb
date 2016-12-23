@@ -1334,10 +1334,7 @@ def _parse_language(node):
             context=node.context) from None
 
 
-class OptFromFunction(Nonterm):
-    def reduce_empty(self):
-        self.val = None
-
+class FromFunction(Nonterm):
     def reduce_FROM_IDENT_SCONST(self, *kids):
         lang = _parse_language(kids[1])
         self.val = qlast.FunctionCode(language=lang, code=kids[2].val)
@@ -1352,10 +1349,7 @@ class OptFromFunction(Nonterm):
         self.val = qlast.FunctionCode(language=lang, from_name=kids[3].val)
 
 
-class OptFromAggregate(Nonterm):
-    def reduce_empty(self):
-        self.val = None
-
+class FromAggregate(Nonterm):
     def reduce_FROM_IDENT_AGGREGATE_SCONST(self, *kids):
         lang = _parse_language(kids[1])
         if lang != qlast.Language.SQL:
@@ -1367,13 +1361,53 @@ class OptFromAggregate(Nonterm):
 
 
 #
-# CREATE FUNCTION
+# CREATE FUNCTION|AGGREGATE
 #
-class CreateFunctionStmt(Nonterm):
+
+
+class _ProcessFunctionBlockMixin:
+    def _process_function_body(self, block):
+        props = {}
+
+        attrs = []
+        code = None
+        for node in block.val:
+            if isinstance(node, qlast.FunctionCode):
+                if code is not None:
+                    raise EdgeQLSyntaxError('more than one FROM clause',
+                                            context=node.context)
+                else:
+                    code = node
+
+            if isinstance(node, qlast.CreateAttributeValueNode):
+                attrs.append(node)
+
+        if code is None:
+            raise EdgeQLSyntaxError('FROM clause is missing',
+                                    context=block.context)
+
+        else:
+            props['code'] = code
+
+        if attrs:
+            props['attributes'] = attrs
+
+        return props
+
+
+commands_block(
+    'CreateFunction',
+    FromFunction,
+    SetFieldStmt,
+    opt=False
+)
+
+
+class CreateFunctionStmt(Nonterm, _ProcessFunctionBlockMixin):
     def reduce_CreateFunction(self, *kids):
         r"""%reduce OptAliasBlock CREATE FUNCTION NodeName \
                 CreateFunctionArgs RETURNING OptSingle FunctionType \
-                OptFromFunction \
+                CreateFunctionCommandsBlock \
         """
         self.val = qlast.CreateFunctionNode(
             aliases=kids[0].val,
@@ -1381,16 +1415,25 @@ class CreateFunctionStmt(Nonterm):
             args=kids[4].val,
             returning=kids[7].val,
             single=kids[6].val,
-            code=kids[8].val,
+            **self._process_function_body(kids[8])
         )
 
 
-class CreateAggregateStmt(Nonterm):
+commands_block(
+    'CreateAggregate',
+    FromAggregate,
+    SetFieldStmt,
+    opt=False
+)
+
+
+class CreateAggregateStmt(Nonterm, _ProcessFunctionBlockMixin):
     def reduce_CreateFunction(self, *kids):
         r"""%reduce OptAliasBlock CREATE AGGREGATE NodeName \
                 CreateFunctionArgs RETURNING OptSingle FunctionType \
-                OptFromAggregate \
+                CreateAggregateCommandsBlock \
         """
+
         self.val = qlast.CreateFunctionNode(
             aliases=kids[0].val,
             name=kids[3].val,
@@ -1398,7 +1441,7 @@ class CreateAggregateStmt(Nonterm):
             returning=kids[7].val,
             single=kids[6].val,
             aggregate=True,
-            code=kids[8].val,
+            **self._process_function_body(kids[8])
         )
 
 

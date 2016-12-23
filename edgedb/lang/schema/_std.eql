@@ -80,7 +80,8 @@ CREATE AGGREGATE std::count(std::any) RETURNING std::int
 CREATE AGGREGATE std::array_agg(std::any) RETURNING array<std::any>
     FROM SQL AGGREGATE 'array_agg';
 
-CREATE AGGREGATE std::is_distinct(std::any) RETURNING std::bool;
+CREATE AGGREGATE std::is_distinct(std::any) RETURNING std::bool
+    FROM SQL AGGREGATE '--system--';
 
 CREATE FUNCTION std::len(std::str) RETURNING std::int
     FROM SQL FUNCTION 'char_length';

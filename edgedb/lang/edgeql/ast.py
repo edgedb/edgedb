@@ -464,6 +464,7 @@ class CreateFunctionNode(CreateObjectNode):
     single: bool = False
     aggregate: bool = False
     code: FunctionCode
+    attributes: typing.List[CreateAttributeValueNode]
 
 
 class AlterFunctionNode(AlterObjectNode):
