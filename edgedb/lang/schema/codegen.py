@@ -12,6 +12,7 @@ from edgedb.lang.common.exceptions import EdgeDBError
 from edgedb.lang.common.ast import codegen
 from edgedb.lang.edgeql import (generate_source as edgeql_source,
                                 ast as eqlast)
+from . import ast as esast
 from . import quote as eschema_quote
 
 
@@ -155,16 +156,53 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
     def visit_LinkPropertyDeclaration(self, node):
         self._visit_Declaration(node)
 
+    def visit_FunctionDeclaration(self, node):
+        if node.aggregate:
+            self.write('aggregate ')
+        else:
+            self.write('function ')
+
+        self.write(node.name)
+        self.write('(')
+        self.visit_list(node.args, newlines=False)
+        self.write(') -> ')
+        self.visit(node.returning)
+        self.write(':')
+        self.new_lines = 1
+        self.indentation += 1
+        self._visit_list(node.attributes)
+        self.visit(node.code)
+        self.indentation -= 1
+        self.new_lines = 2
+
+    def visit_FuncArgNode(self, node):
+        if node.variadic:
+            self.write('*')
+        if node.name is not None:
+            self.write(ident_to_str(node.name), ': ')
+        self.visit(node.type)
+
+        if node.default:
+            self.write(' = ')
+            self.visit(node.default)
+
+    def visit_FunctionCode(self, node):
+        self.write(f'from {node.language}')
+        if node.code:
+            self.write(':>')
+            self.new_lines = 1
+            self.indentation += 1
+            self.write(node.code)
+            self.indentation -= 1
+            self.new_lines = 1
+        else:
+            self.write(f' function: {node.from_name}')
+
     def visit_ObjectName(self, node):
         if node.module:
             self.write(module_to_str(node.module))
             self.write('::')
         self.write(ident_to_str(node.name))
-
-    def visit_NamespaceExpression(self, node):
-        self.visit(node.left)
-        self.write('::')
-        self.visit(node.right)
 
     def visit_Link(self, node):
         self._visit_Specialization(node)
@@ -208,7 +246,10 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         if isinstance(node.value, eqlast.Base):
             self._visit_turnstile(node.value)
         else:
-            self.write(': ')
+            if isinstance(node.value, esast.RawLiteral):
+                self.write(':>')
+            else:
+                self.write(': ')
             self.visit(node.value)
             self.new_lines = 1
 
@@ -242,6 +283,13 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         val = [self._literal_to_str(el) for el in node.value]
         self.write(', '.join(val))
         self.write(']')
+
+    def visit_RawLiteral(self, node):
+        self.new_lines = 1
+        self.indentation += 1
+        self.write(node.value)
+        self.indentation -= 1
+        self.new_lines = 1
 
 
 generate_source = EdgeSchemaSourceGenerator.to_source

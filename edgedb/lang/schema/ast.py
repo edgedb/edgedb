@@ -6,6 +6,7 @@
 ##
 
 
+from edgedb.lang.common import enum as s_enum
 from edgedb.lang.common import ast, parsing
 
 
@@ -123,14 +124,11 @@ class ArrayLiteral(LiteralNode):
 
 
 class ObjectName(Base):
-    __fields = [('name', str), ('module', str, None)]
+    name: str
+    module: str = None
 
     def _extra_repr(self):
         return ' {!r}'.format(self.name)
-
-
-class NamespaceExpression(QualName):
-    __fields = ['left', 'right']
 
 
 # property definitions
@@ -153,7 +151,7 @@ class Constraint(Attribute):
 # Statements
 #
 class Schema(Base):
-    __fields = [('declarations', list, list)]
+    declarations: list
 
 
 class ActionDeclaration(Declaration):
@@ -169,7 +167,7 @@ class AttributeDeclaration(Declaration):
 
 
 class ConceptDeclaration(Declaration):
-    __fields = [('links', list, list)]
+    links: list
 
 
 class ConstraintDeclaration(Declaration):
@@ -180,8 +178,36 @@ class EventDeclaration(Declaration):
     pass
 
 
+class Language(s_enum.StrEnum):
+    SQL = 'SQL'
+    EdgeQL = 'EDGEQL'
+
+
+class FunctionCode(Base):
+    language: Language
+    code: str
+    from_name: str
+
+
+class FuncArgNode(Base):
+    name: str
+    type: ObjectName
+    variadic: bool = False
+    default: LiteralNode
+
+
+class FunctionDeclaration(Base):
+    name: str
+    args: list
+    attributes: list
+    returning: ObjectName
+    single: bool = False
+    aggregate: bool = False
+    code: FunctionCode
+
+
 class LinkDeclaration(Declaration):
-    __fields = [('properties', list, list)]
+    properties: list
 
 
 class LinkPropertyDeclaration(Declaration):
@@ -205,8 +231,9 @@ class Index(Base):
 
 
 class Import(Base):
-    __fields = [('modules', list, list)]
+    modules: list
 
 
 class ImportModule(Base):
-    __fields = [('module', str), ('alias', str, None)]
+    module: str
+    alias: str = None

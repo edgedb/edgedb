@@ -6,7 +6,12 @@
 ##
 
 
-from edgedb.lang.common.exceptions import EdgeDBError
+from edgedb.lang.common.exceptions import EdgeDBError, EdgeDBSyntaxError
+from edgedb.lang.common.parsing import ParserError
+
+
+class SchemaSyntaxError(ParserError, EdgeDBSyntaxError):
+    pass
 
 
 class SchemaError(EdgeDBError):

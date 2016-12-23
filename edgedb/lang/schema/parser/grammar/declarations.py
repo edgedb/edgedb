@@ -12,6 +12,8 @@ from edgedb.lang.common.exceptions import get_context
 from edgedb.lang import edgeql
 from edgedb.lang.schema import ast as esast
 
+from ...error import SchemaSyntaxError
+
 from .tokens import *  # NOQA
 
 
@@ -27,6 +29,15 @@ def parse_edgeql(expression):
     context.rebase_ast_context(ctx, node)
 
     return node
+
+
+def _parse_language(node):
+    try:
+        return esast.Language(node.val.upper())
+    except ValueError as ex:
+        raise SchemaSyntaxError(
+            f'{node.val} is not a valid language',
+            context=node.context) from None
 
 
 class Nonterm(context.Nonterm):
@@ -150,6 +161,12 @@ class Declaration(Nonterm):
     def reduce_DeclarationBase(self, kid):
         self.val = kid.val
 
+    def reduce_FunctionDeclaration(self, kid):
+        self.val = kid.val
+
+    def reduce_AggregateDeclaration(self, kid):
+        self.val = kid.val
+
 
 class DeclarationList(ListNonterm, element=Declaration):
     pass
@@ -193,7 +210,8 @@ class ActionDeclaration(Nonterm):
             if isinstance(spec, esast.Attribute):
                 attributes.append(spec)
             else:
-                raise Exception('parse error')
+                raise SchemaSyntaxError(
+                    'illegal definition', context=spec.context)
 
         self.val = esast.ActionDeclaration(kids[1].val, attributes=attributes)
 
@@ -213,7 +231,8 @@ class AtomDeclaration(Nonterm):
             elif isinstance(spec, esast.Attribute):
                 attributes.append(spec)
             else:
-                raise Exception('parse error')
+                raise SchemaSyntaxError(
+                    'illegal definition', context=spec.context)
 
         self.val = esast.AtomDeclaration(kids[1].val,
                                          attributes=attributes,
@@ -236,7 +255,8 @@ class AttributeDeclaration(Nonterm):
                 else:
                     attributes.append(spec)
             else:
-                raise Exception('parse error')
+                raise SchemaSyntaxError(
+                    'illegal definition', context=spec.context)
 
         self.val = esast.AttributeDeclaration(kids[1].val,
                                               target=attr_target,
@@ -264,7 +284,8 @@ class ConceptDeclaration(Nonterm):
             elif isinstance(spec, esast.Link):
                 links.append(spec)
             else:
-                raise Exception('parse error')
+                raise SchemaSyntaxError(
+                    'illegal definition', context=spec.context)
 
         self.val = esast.ConceptDeclaration(kids[1].val,
                                             attributes=attributes,
@@ -285,7 +306,8 @@ class ConstraintDeclaration(Nonterm):
             if isinstance(spec, esast.Attribute):
                 attributes.append(spec)
             else:
-                raise Exception('parse error')
+                raise SchemaSyntaxError(
+                    'illegal definition', context=spec.context)
 
         self.val = esast.ConstraintDeclaration(kids[1].val,
                                                attributes=attributes)
@@ -312,7 +334,8 @@ class LinkDeclaration(Nonterm):
             elif isinstance(spec, esast.Policy):
                 policies.append(spec)
             else:
-                raise Exception('parse error')
+                raise SchemaSyntaxError(
+                    'illegal definition', context=spec.context)
 
         self.val = esast.LinkDeclaration(kids[1].val,
                                          attributes=attributes,
@@ -333,7 +356,8 @@ class LinkPropertyDeclaration(Nonterm):
             if isinstance(spec, esast.Attribute):
                 attributes.append(spec)
             else:
-                raise Exception('parse error')
+                raise SchemaSyntaxError(
+                    'illegal definition', context=spec.context)
 
         self.val = esast.LinkPropertyDeclaration(kids[1].val,
                                                  attributes=attributes)
@@ -351,9 +375,148 @@ class EventDeclaration(Nonterm):
             if isinstance(spec, esast.Attribute):
                 attributes.append(spec)
             else:
-                raise Exception('parse error')
+                raise SchemaSyntaxError(
+                    'illegal definition', context=spec.context)
 
         self.val = esast.EventDeclaration(kids[1].val, attributes=attributes)
+
+
+class FunctionDeclaration(Nonterm):
+    def reduce_FUNCTION_FunctionDeclCore(self, *kids):
+        self.val = kids[1].val
+
+        if self.val.code is None:
+            raise SchemaSyntaxError("missing 'from' in function definition",
+                context=kids[0].context)
+
+
+
+class AggregateDeclaration(Nonterm):
+    def reduce_AGGREGATE_FunctionDeclCore(self, *kids):
+        self.val = kids[1].val
+        self.val.aggregate = True
+
+        if self.val.code is None:
+            raise SchemaSyntaxError("missing 'from' in aggregate definition",
+                context=kids[0].context)
+
+
+
+class FunctionDeclCore(Nonterm):
+    def reduce_FunctionDeclCore(self, *kids):
+        r"""%reduce IDENT FunctionArgs ARROW ObjectName FunctionSpecsBlob"""
+        attributes = []
+        code = None
+
+        for spec in kids[4].val:
+            if isinstance(spec, esast.Attribute):
+                attributes.append(spec)
+            elif code is None and isinstance(spec, esast.FunctionCode):
+                code = spec
+            else:
+                raise SchemaSyntaxError(
+                    'illegal definition', context=spec.context)
+
+        self.val = esast.FunctionDeclaration(
+            name=kids[0].val,
+            args=kids[1].val,
+            returning=kids[3].val,
+            attributes=attributes,
+            code=code,
+        )
+
+
+class FunctionSpecsBlob(Nonterm):
+    def reduce_COLON_NL_INDENT_FunctionSpecs_DEDENT(self, *kids):
+        self.val = kids[3].val
+
+
+class FunctionSpec(Nonterm):
+    def reduce_FROM_IDENT_ColonValue(self, *kids):
+        self.val = esast.FunctionCode(language=_parse_language(kids[1]),
+                                      code=kids[2].val.value)
+
+    def reduce_FROM_IDENT_FUNCTION_COLON_IDENT_NL(self, *kids):
+        self.val = esast.FunctionCode(language=_parse_language(kids[1]),
+                                      from_name=kids[4].val)
+
+    def reduce_DeclarationSpec(self, *kids):
+        self.val = kids[0].val
+
+
+class FunctionSpecs(ListNonterm, element=FunctionSpec):
+    pass
+
+
+class OptDefault(Nonterm):
+    def reduce_empty(self):
+        self.val = None
+
+    def reduce_EQUALS_Value(self, *kids):
+        self.val = kids[1].val
+
+
+class OptVariadic(Nonterm):
+    def reduce_empty(self):
+        self.val = False
+
+    def reduce_STAR(self, *kids):
+        self.val = True
+
+
+class FuncDeclArg(Nonterm):
+    def reduce_OptVariadic_ObjectName_OptDefault(self, *kids):
+        self.val = esast.FuncArgNode(
+            variadic=kids[0].val,
+            name=None,
+            type=kids[1].val,
+            default=kids[2].val
+        )
+
+    def reduce_OptVariadic_IDENT_COLON_ObjectName_OptDefault(self, *kids):
+        self.val = esast.FuncArgNode(
+            variadic=kids[0].val,
+            name=kids[1].val,
+            type=kids[3].val,
+            default=kids[4].val
+        )
+
+
+class FuncDeclArgList(ListNonterm, element=FuncDeclArg, separator=T_COMMA):
+    pass
+
+
+class FunctionArgs(Nonterm):
+    def reduce_LPAREN_RPAREN(self, *kids):
+        self.val = []
+
+    def reduce_LPAREN_FuncDeclArgList_RPAREN(self, *kids):
+        args = kids[1].val
+
+        default_arg_seen = False
+        variadic_arg_seen = False
+        for arg in args:
+            if arg.variadic:
+                if variadic_arg_seen:
+                    raise SchemaSyntaxError('more than one variadic argument',
+                                            context=arg.context)
+                else:
+                    variadic_arg_seen = True
+            else:
+                if variadic_arg_seen:
+                    raise SchemaSyntaxError(
+                        'non-variadic argument follows variadic argument',
+                        context=arg.context)
+
+            if arg.default is None:
+                if default_arg_seen and not arg.variadic:
+                    raise SchemaSyntaxError(
+                        'non-default argument follows default argument',
+                        context=arg.context)
+            else:
+                default_arg_seen = True
+
+        self.val = args
 
 
 class NameAndExtends(Nonterm):
@@ -469,7 +632,8 @@ class Spec(Nonterm):
             elif isinstance(spec, esast.Policy):
                 policies.append(spec)
             else:
-                raise Exception('parse error')
+                raise SchemaSyntaxError(
+                    'illegal definition', context=spec.context)
 
         if target:
             target = target.val
@@ -508,11 +672,8 @@ class Constraint(Nonterm):
 
 
 class Attribute(Nonterm):
-    def reduce_ObjectName_COLON_Value_NL(self, *kids):
-        self.val = esast.Attribute(name=kids[0].val, value=kids[2].val)
-
-    def reduce_ObjectName_COLON_NL_INDENT_Value_NL_DEDENT(self, *kids):
-        self.val = esast.Attribute(name=kids[0].val, value=kids[4].val)
+    def reduce_ObjectName_ColonValue(self, *kids):
+        self.val = esast.Attribute(name=kids[0].val, value=kids[1].val)
 
     def reduce_ObjectName_TurnstileBlob(self, *kids):
         self.val = esast.Attribute(name=kids[0].val, value=kids[1].val)
@@ -520,3 +681,14 @@ class Attribute(Nonterm):
 
 class Attributes(ListNonterm, element=Attribute):
     pass
+
+
+class ColonValue(parsing.Nonterm):
+    def reduce_COLON_Value_NL(self, *kids):
+        self.val = kids[1].val
+
+    def reduce_COLONGT_NL_INDENT_RawString_NL_DEDENT(self, *kids):
+        self.val = kids[3].val
+
+    def reduce_COLON_NL_INDENT_Value_NL_DEDENT(self, *kids):
+        self.val = kids[3].val

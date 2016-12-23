@@ -100,13 +100,29 @@ class EdgeSchemaLexer(lexer.Lexer):
              next_state=STATE_RAW_STRING,
              regexp=r':='),
 
+        Rule(token='COLONGT',
+             next_state=STATE_RAW_STRING,
+             regexp=r':>'),
+
         Rule(token='COLON',
              next_state=STATE_KEEP,
              regexp=r':'),
 
+        Rule(token='EQUALS',
+             next_state=STATE_KEEP,
+             regexp=r'='),
+
+        Rule(token='ARROW',
+             next_state=STATE_KEEP,
+             regexp=r'->'),
+
         Rule(token='MAPPING',
              next_state=STATE_KEEP,
              regexp=r'[1*][1*]'),
+
+        Rule(token='STAR',
+             next_state=STATE_KEEP,
+             regexp=r'\*'),
 
         Rule(token='FCONST',
              next_state=STATE_KEEP,
@@ -167,11 +183,11 @@ class EdgeSchemaLexer(lexer.Lexer):
         STATE_RAW_STRING: [
             Rule(token='NEWLINE',
                  next_state=STATE_KEEP,
-                 regexp=r'(?<=:=)\s*\n'),
+                 regexp=r'(?<=:[=>])\s*\n'),
 
             Rule(token='RAWSTRING',
                  next_state=STATE_WS_SENSITIVE,
-                 regexp=r'(?<=:=)[^\n]+?$'),
+                 regexp=r'(?<=:[=>])[^\n]+?$'),
 
             Rule(token='RAWSTRING',
                  next_state=STATE_KEEP,
@@ -293,8 +309,10 @@ class EdgeSchemaLexer(lexer.Lexer):
                     yield self.insert_token('DEDENT', token, 'end')
 
                 self._next_state = STATE_WS_SENSITIVE
-                # alter the token type
+                # alter the token type & adjust logical newline
                 token = token._replace(type='WS')
+                tok_type = 'WS'
+                self.logical_line_started = False
 
         # handle logical newline
         #

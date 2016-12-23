@@ -9,7 +9,7 @@
 import re
 
 from edgedb.lang import _testbase as tb
-from edgedb.lang.schema import generate_source as eschema_to_source
+from edgedb.lang.schema import generate_source as eschema_to_source, error
 from edgedb.lang.schema.parser import parser as eschema_parser
 
 
@@ -469,4 +469,68 @@ link time_estimate:
 
         concept Bar extends `action`.`event`.foo::Foo:
             link text to str
+        """
+
+    def test_eschema_syntax_function01(self):
+        """
+        function len() -> std::int:
+            from sql function: length
+        """
+
+    def test_eschema_syntax_function02(self):
+        """
+        function some_func(foo: std::int = 42) -> std::str:
+            from sql: "SELECT 'life';"
+
+% OK %
+
+        function some_func(foo: std::int = 42) -> std::str:
+            from sql:>
+                SELECT 'life';
+        """
+
+    def test_eschema_syntax_function03(self):
+        """
+        function some_func(foo: std::int = 42) -> std::str:
+            from edgeql:>
+                SELECT 'life';
+        """
+
+    def test_eschema_syntax_function04(self):
+        """
+        function myfunc(arg1: str, arg2: str = 'DEFAULT', *arg3) -> int:
+            volatile: true
+            description:>
+                myfunc sample
+            from sql:>
+                SELECT blarg;
+        """
+
+    def test_eschema_syntax_aggregate01(self):
+        """
+        aggregate len() -> std::int:
+            from sql function: length
+        """
+
+    def test_eschema_syntax_aggregate02(self):
+        """
+        aggregate some_func(foo: std::int = 42) -> std::str:
+            from sql:>
+                SELECT 'life';
+        """
+
+    def test_eschema_syntax_aggregate03(self):
+        """
+        aggregate some_func(foo: std::int = 42) -> std::str:
+            from edgeql:>
+                SELECT 'life';
+        """
+
+    def test_eschema_syntax_aggregate04(self):
+        """
+        aggregate myfunc(arg1: str, arg2: str = 'DEFAULT', *arg3) -> int:
+            volatile: true
+            description: 'myfunc sample'
+            from sql:>
+                SELECT blarg;
         """
