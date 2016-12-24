@@ -6,6 +6,8 @@
 ##
 
 
+import textwrap
+
 from edgedb.lang.common import parsing, context
 from edgedb.lang.common.exceptions import get_context
 
@@ -99,11 +101,19 @@ class ValueList(ListNonterm, element=BaseValue, separator=T_COMMA):
 
 
 class RawString(Nonterm):
-    def reduce_RawString_RAWLEADWS_RAWSTRING(self, *kids):
+    def reduce_RawStr(self, *kids):
+        self.val = kids[0].val
+        text = self.val.value
+        text = textwrap.dedent(text).strip().replace('\\\n', '')
+        self.val.value = text
+
+
+class RawStr(Nonterm):
+    def reduce_RawStr_RAWLEADWS_RAWSTRING(self, *kids):
         self.val = kids[0].val
         self.val.value += kids[1].val + kids[2].val
 
-    def reduce_RawString_RAWSTRING(self, *kids):
+    def reduce_RawStr_RAWSTRING(self, *kids):
         self.val = kids[0].val
         self.val.value += kids[1].val
 
