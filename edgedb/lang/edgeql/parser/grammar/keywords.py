@@ -31,7 +31,6 @@ edgeql_keywords = {
     "database": ("DATABASE", UNRESERVED_KEYWORD),
     "delete": ("DELETE", RESERVED_KEYWORD),
     "desc": ("DESC", RESERVED_KEYWORD),
-    "detached": ("DETACHED", UNRESERVED_KEYWORD),
     "drop": ("DROP", RESERVED_KEYWORD),
     "else": ("ELSE", UNRESERVED_KEYWORD),
     "except": ("EXCEPT", RESERVED_KEYWORD),

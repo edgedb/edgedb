@@ -115,17 +115,12 @@ class ContextLevel:
                 self.group_paths = prevlevel.group_paths
                 self.in_aggregate = prevlevel.in_aggregate
 
-                self.result_path_steps = []
-                if mode == CompilerContext.NEWSETS:
-                    self.sets = {}
-                else:
-                    self.sets = prevlevel.sets
-                    if prevlevel.result_path_steps:
-                        self.result_path_steps = prevlevel.result_path_steps[:]
+                self.result_path_steps = prevlevel.result_path_steps[:]
+                self.sets = prevlevel.sets
 
 
 class CompilerContext:
-    NEW, SUBQUERY, NEWSETS = range(0, 3)
+    NEW, SUBQUERY = range(0, 2)
 
     def __init__(self):
         self.stack = []
@@ -144,9 +139,6 @@ class CompilerContext:
         if not mode:
             mode = CompilerContext.NEW
         return CompilerContextWrapper(self, mode)
-
-    def newsets(self):
-        return self.new(CompilerContext.NEWSETS)
 
     def subquery(self):
         return self.new(CompilerContext.SUBQUERY)

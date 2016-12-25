@@ -88,7 +88,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             priority := (SELECT Priority WHERE Priority.name = 'High')
         };
 
-        WITH MODULE test
+        WITH
+            MODULE test,
+            I := (SELECT Issue)
         INSERT Issue {
             number := '3',
             name := 'Repl tweak.',
@@ -97,13 +99,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             watchers := (SELECT User WHERE User.name = 'Elvis'),
             status := (SELECT Status WHERE Status.name = 'Closed'),
             related_to := (
-                WITH I := DETACHED Issue
                 SELECT I WHERE I.number = '2'
             ),
             priority := (SELECT Priority WHERE Priority.name = 'Low')
         };
 
-        WITH MODULE test
+        WITH
+            MODULE test,
+            I := (SELECT Issue)
         INSERT Issue {
             number := '4',
             name := 'Regression.',
@@ -111,7 +114,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             owner := (SELECT User WHERE User.name = 'Elvis'),
             status := (SELECT Status WHERE Status.name = 'Closed'),
             related_to := (
-                WITH I := DETACHED Issue
                 SELECT I WHERE I.number = '3'
             )
         };
@@ -2210,7 +2212,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             WITH
                 MODULE test,
-                Issue2 := DETACHED Issue
+                Issue2 := (SELECT Issue)
             # this is string concatenation, not integer arithmetic
             SELECT Issue.number + Issue2.number
             ORDER BY Issue.number + Issue2.number;
@@ -2277,7 +2279,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             # issue with the same priority
             WITH
                 MODULE test,
-                Issue2 := DETACHED Issue
+                Issue2 := (SELECT Issue)
             SELECT
                 Issue {
                     number
@@ -2301,7 +2303,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             # issue with the same priority (even if the "same" means NULL)
             WITH
                 MODULE test,
-                Issue2:= DETACHED Issue
+                Issue2:= (SELECT Issue)
             SELECT Issue{number}
             WHERE
                 Issue != Issue2

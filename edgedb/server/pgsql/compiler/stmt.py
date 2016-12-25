@@ -882,7 +882,9 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                     )
                 )
 
+                subquery.path_namespace[substmt.path_id] = ref
                 subquery.path_vars[substmt.path_id] = 'v'
+                subquery.inner_path_bonds[substmt.path_id] = ref
                 subquery.path_bonds[substmt.path_id] = 'v'
 
             ctx.query.ctes.append(cte)

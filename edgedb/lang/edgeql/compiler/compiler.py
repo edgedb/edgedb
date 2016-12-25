@@ -40,6 +40,9 @@ class PathExtractor(ast.visitor.NodeVisitor):
         super().__init__()
         self.prefixes = irutils.PathIndex()
 
+    def visit_Stmt(self, expr):
+        pass
+
     def visit_Set(self, expr):
         key = expr.path_id
 
@@ -835,20 +838,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 ctx.sets[substmt_set.path_id] = substmt_set
                 ctx.substmts[with_entry.alias] = substmt_set
                 stmt.substmts.append(substmt_set)
-
-            elif isinstance(with_entry, qlast.DetachedPathDeclNode):
-                with self.context.newsets():
-                    expr = self.visit(with_entry.expr)
-                    expr.real_path_id = expr.path_id
-                    expr.path_id = irutils.LinearPath([
-                        s_concepts.Concept(
-                            name=sn.Name(
-                                module='__detached__',
-                                name=with_entry.alias
-                            )
-                        )
-                    ])
-                ctx.pathvars[with_entry.alias] = expr
 
             else:
                 expr = self.visit(with_entry.expr)

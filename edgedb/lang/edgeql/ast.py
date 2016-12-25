@@ -545,11 +545,6 @@ class ExpressionAliasDeclNode(Base):
     alias: object
 
 
-class DetachedPathDeclNode(Base):
-    expr: Base
-    alias: str
-
-
 class SortExprNode(Base):
     path: Base
     direction: str
