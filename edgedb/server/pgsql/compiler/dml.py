@@ -177,7 +177,7 @@ class IRCompilerDMLSupport:
         # Finaly set the DML CTE as the source for paths originating
         # in its relation.
         toplevel.ctes.append(dml_cte)
-        ctx.ctemap[ir_stmt.shape.set] = dml_cte
+        self._put_set_cte(ir_stmt.shape.set, dml_cte)
 
         return wrapper, dml_cte, range_cte
 
@@ -204,7 +204,7 @@ class IRCompilerDMLSupport:
             id_set = self._get_ptr_set(target_ir_set, 'std::id')
             self.visit(id_set)
 
-            target_cte = ctx.ctemap[target_ir_set]
+            target_cte = self._get_set_cte(target_ir_set)
 
             range_stmt.scls_rvar = \
                 ctx.subquery_map[range_stmt][target_cte]['rvar']
@@ -344,7 +344,7 @@ class IRCompilerDMLSupport:
             ctx = self.context.current
             ctx.rel = ctx.query = update_stmt
             ctx.output_format = 'flat'
-            ctx.ctemap[ir_stmt.shape.set] = range_cte
+            self._put_set_cte(ir_stmt.shape.set, range_cte)
 
             for shape_el in ir_stmt.shape.elements:
                 ptrcls = shape_el.rptr.ptrcls

@@ -36,9 +36,10 @@ class EdgeQLCompilerError(edgedb_error.EdgeDBError):
 
 
 class PathExtractor(ast.visitor.NodeVisitor):
-    def __init__(self):
+    def __init__(self, roots_only=False):
         super().__init__()
-        self.prefixes = irutils.PathIndex()
+        self.paths = irutils.PathIndex()
+        self.roots_only = roots_only
 
     def visit_Stmt(self, expr):
         pass
@@ -46,23 +47,27 @@ class PathExtractor(ast.visitor.NodeVisitor):
     def visit_Set(self, expr):
         key = expr.path_id
 
-        if key:
-            if key not in self.prefixes:
-                self.prefixes[key] = {expr}
-            else:
-                self.prefixes[key].add(expr)
-
         if expr.expr is not None:
             self.visit(expr.expr)
 
         if expr.rptr is not None:
             self.visit(expr.rptr.source)
 
+        if key and (not self.roots_only or expr.rptr is None):
+            if key not in self.paths:
+                self.paths[key] = {expr}
+            else:
+                self.paths[key].add(expr)
 
-def extract_prefixes(expr):
-    extractor = PathExtractor()
+    def visit_ExistPred(self, expr):
+        paths = extract_prefixes(expr.expr, roots_only=True)
+        self.paths.update(paths)
+
+
+def extract_prefixes(expr, roots_only=False):
+    extractor = PathExtractor(roots_only=roots_only)
     extractor.visit(expr)
-    return extractor.prefixes
+    return extractor.paths
 
 
 def get_prefix_trie(prefixes):
@@ -77,9 +82,18 @@ def get_prefix_trie(prefixes):
 
 
 def get_common_prefixes(exprs):
+    """Get a set of longest common path prefixes for given expressions."""
+
+    prefix_counts = {}
     prefixes = {}
+
     for expr in exprs:
-        prefixes.update(extract_prefixes(expr))
+        for prefix, ir_set in extract_prefixes(expr).items():
+            try:
+                prefix_counts[tuple(prefix)] += 1
+            except KeyError:
+                prefix_counts[tuple(prefix)] = 1
+                prefixes[prefix] = ir_set
 
     trie = get_prefix_trie(prefixes)
 
@@ -88,9 +102,17 @@ def get_common_prefixes(exprs):
     for root, subtrie in trie.items():
         path_id = root
         current = subtrie
+
+        root_count = prefix_counts[path_id]
+
         while current:
             if len(current) == 1:
-                path_id, current = next(iter(current.items()))
+                next_path_id, current = next(iter(current.items()))
+
+                if prefix_counts[next_path_id] >= root_count:
+                    path_id = next_path_id
+                else:
+                    break
             else:
                 break
 

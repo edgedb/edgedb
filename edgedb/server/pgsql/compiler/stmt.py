@@ -298,8 +298,13 @@ class IRCompiler(expr_compiler.IRCompilerBase,
     def visit_Set(self, expr):
         ctx = self.context.current
 
-        # Get the CTE for this Set
-        source_cte = self._set_to_cte(expr)
+        exists_target, not_exists = self._is_exists_ir(expr.expr)
+        if exists_target is not None and not_exists:
+            with self.context.new():
+                self.context.current.path_fork = 'left'
+                source_cte = self._set_to_cte(expr)
+        else:
+            source_cte = self._set_to_cte(expr)
 
         if ctx.location in {'where', 'exists'}:
             # When referred to in WHERE or as an argument to EXISTS(),
@@ -534,14 +539,35 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         return wrapper
 
+    def _put_set_cte(self, ir_set, cte, *, ctx=None):
+        if ctx is None:
+            ctx = self.context.current
+
+        if ir_set.rptr is not None and ir_set.expr is None:
+            key = (ir_set, ctx.path_fork)
+        else:
+            key = (ir_set, None)
+
+        ctx.ctemap[key] = cte
+
+        return cte
+
+    def _get_set_cte(self, ir_set):
+        ctx = self.context.current
+
+        if ir_set.rptr is not None and ir_set.expr is None:
+            key = (ir_set, ctx.path_fork)
+        else:
+            key = (ir_set, None)
+
+        return ctx.ctemap.get(key)
+
     def _set_to_cte(self, ir_set):
         """Generate a Common Table Expression for a given IR Set.
 
         @param ir_set: IR Set node.
         """
-        ctx = self.context.current
-
-        cte = ctx.ctemap.get(ir_set)
+        cte = self._get_set_cte(ir_set)
         if cte is not None:
             # Already have a CTE for this Set.
             return cte
@@ -583,7 +609,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             name=ctx.genalias(hint=str(alias_hint)),
         )
 
-        ctx.ctemap[ir_set] = cte
+        self._put_set_cte(ir_set, cte)
 
         ir_sources = list(ir_set.sources)
         if not ir_sources:
@@ -723,8 +749,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
                     if (isinstance(res, irast.Set) and
                             res.path_id[0].name.module == '__cexpr__'):
-                        cte = ctx.ctemap[res]
-                        ctx.ctemap[ir_set] = cte
+                        cte = self._get_set_cte(res)
+                        self._put_set_cte(ir_set, cte)
                     else:
                         cte = set_expr
 
@@ -826,7 +852,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         if return_parent:
             source_rel = fromlist[0].relation
-            ctx.ctemap[ir_set] = source_rel
+            self._put_set_cte(ir_set, source_rel)
             return source_rel
         else:
             root_query.ctes.append(cte)
@@ -890,7 +916,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 )
                 # XXX: hack
                 subquery.scls_rvar = subquery.from_clause[0]
-                ctx.ctemap[substmt] = cte
+
+                self._put_set_cte(substmt, cte, ctx=ctx)
 
                 ref = subquery.path_namespace[substmt.real_path_id]
 
@@ -1133,7 +1160,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             else:
                 pre_map_join = map_join.copy()
                 new_map_join = pgast.JoinExpr(
-                    type='inner',
+                    type=map_join_type,
                     larg=pre_map_join,
                     rarg=set_rvar,
                     quals=cond_expr)

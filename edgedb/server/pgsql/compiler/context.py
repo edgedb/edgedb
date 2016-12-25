@@ -49,6 +49,7 @@ class TransformerContextLevel:
             self.output_format = None
             self.memo = {}
             self.rel_overlays = collections.defaultdict(list)
+            self.path_fork = 'main'
 
         else:
             self.toplevel_stmt = prevlevel.toplevel_stmt
@@ -67,6 +68,7 @@ class TransformerContextLevel:
             self.ctemap = prevlevel.ctemap
             self.subquery_map = prevlevel.subquery_map
             self.rel_overlays = prevlevel.rel_overlays
+            self.path_fork = prevlevel.path_fork
 
             if mode in {TransformerContext.SUBQUERY,
                         TransformerContext.SUBSTMT}:
@@ -76,6 +78,7 @@ class TransformerContextLevel:
                 self.ctemap = prevlevel.ctemap.copy()
                 self.in_aggregate = False
                 self.subquery_map = collections.defaultdict(dict)
+                self.path_fork = 'main'
 
             if mode == TransformerContext.SUBSTMT:
                 self.stmt = self.query

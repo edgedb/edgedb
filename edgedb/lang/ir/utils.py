@@ -6,6 +6,8 @@
 ##
 
 
+import collections
+
 from edgedb.lang.common import ast
 
 from edgedb.lang.schema import lproperties as s_lprops
@@ -16,7 +18,7 @@ from edgedb.lang.schema import types as s_types
 from . import ast as irast
 
 
-class PathIndex(dict):
+class PathIndex(collections.OrderedDict):
     """Graph path mapping path identifiers to AST nodes."""
 
     def update(self, other):

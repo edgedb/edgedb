@@ -1906,7 +1906,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             issues_h + issues_l,
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_or02(self):
         res = await self.con.execute(r'''
             WITH MODULE test
@@ -1947,7 +1946,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             issues_h + issues_n,
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_or03(self):
         res = await self.con.execute(r'''
             WITH MODULE test
@@ -2298,7 +2296,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_subqueries06(self):
         # XXX: aliases vs. independent queries need to be fixed
         await self.assert_query_result(r"""
