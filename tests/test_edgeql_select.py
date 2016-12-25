@@ -184,7 +184,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                                 body
                             }
                         WHERE
-                            (Text AS Issue).owner = User
+                            (Text AS Owned).owner = User
                         ORDER BY
                             len(Text.body) ASC
                         LIMIT
@@ -253,7 +253,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         SELECT SINGLETON
                             Text {body}
                         WHERE
-                            (Text AS Issue).owner = User
+                            (Text AS Owned).owner = User
                         ORDER BY
                             len(Text.body) ASC
                         LIMIT
@@ -313,7 +313,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     # ad-hoc computable with many results
                     special_texts := (
                         SELECT Text {body}
-                        WHERE (Text AS Issue).owner != User
+                        WHERE (Text AS Owned).owner != User
                         ORDER BY len(Text.body) DESC
                     ),
                 }
@@ -1724,7 +1724,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '4'}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_exists18(self):
         # NOTE: for the expected ordering of Text see instance04 test
         await self.assert_query_result(r'''
@@ -1735,7 +1734,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [False, True, True, True, False, True],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_exists19(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -1745,7 +1743,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True, False, False, False, True, False],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_exists20(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -1755,7 +1752,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [False, True, True, True, False, True],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_exists21(self):
         await self.assert_query_result(r'''
             WITH MODULE test

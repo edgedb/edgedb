@@ -358,6 +358,9 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.alias)
 
     def visit_RangeSubselect(self, node):
+        if node.lateral:
+            self.write('LATERAL ')
+
         self.visit(node.subquery)
 
         if node.alias:

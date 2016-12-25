@@ -23,7 +23,6 @@ class Base(ast.AST):
 
     __ast_hidden__ = {'context'}
 
-    as_type: so.Class
     context: parsing.ParserContext
 
     def __repr__(self):
@@ -149,7 +148,16 @@ class TypeRef(Expr):
 
 
 class TypeCast(Expr):
+    """<Type>Expr"""
 
+    expr: Base
+    type: TypeRef
+
+
+class TypeFilter(Expr):
+    """(Expr AS Type)"""
+
+    path_id: list
     expr: Base
     type: TypeRef
 

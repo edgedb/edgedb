@@ -329,14 +329,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                                          context=expr.context)
 
         for i, step in enumerate(expr.steps):
-            if isinstance(step, qlast.TypeInterpretationNode):
-                # First of all, handle the (Expr AS Type) expressions,
-                # as that alters path resolution.
-                path_tip = self.visit(step.expr)
-                path_tip.as_type = self._get_schema_object(step.type.maintype)
-                continue
-
-            elif isinstance(step, qlast.ClassRefNode):
+            if isinstance(step, qlast.ClassRefNode):
                 if i > 0:
                     raise RuntimeError(
                         'unexpected ClassRef as a non-first path item')
@@ -396,10 +389,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     # link immediately preceding this step in the path.
                     source = path_tip.rptr.ptrcls
                 else:
-                    if path_tip.as_type is not None:
-                        source = path_tip.as_type
-                    else:
-                        source = path_tip.scls
+                    source = path_tip.scls
 
                 ptrcls = self._resolve_ptr(
                     source, ptr_name, direction, target=ptr_target)
@@ -620,30 +610,10 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             else_expr=self.visit(expr.else_expr))
 
     def visit_UnaryOpNode(self, expr):
-        ctx = self.context.current
-
-        operand = self.visit(expr.operand)
-        result = irast.UnaryOp(expr=operand, op=expr.op)
-        set_expr = self._is_set_expr(operand)
-        if set_expr is not None:
-            result_type = irutils.infer_type(result, ctx.schema)
-            if result_type is None:
-                raise RuntimeError(
-                    'could not resolve the unaryop '
-                    'result type: {} {}'.format(expr.op, operand))
-
-            result = irast.Set(
-                path_id=irutils.LinearPath([]),
-                scls=result_type,
-                expr=result,
-                sources=set((set_expr,))
-            )
-
-        return result
+        return irast.UnaryOp(expr=self.visit(expr.operand), op=expr.op)
 
     def visit_ExistsPredicateNode(self, expr):
-        subexpr = self.visit(expr.expr)
-        return irast.ExistPred(expr=subexpr)
+        return irast.ExistPred(expr=self.visit(expr.expr))
 
     def visit_TypeCastNode(self, expr):
         maintype = expr.type.maintype
@@ -683,6 +653,22 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             )
 
         return irast.TypeCast(expr=self.visit(expr.expr), type=typ)
+
+    def visit_TypeFilterNode(self, expr):
+        # (Expr AS Type) expressions,
+        arg = self.visit(expr.expr)
+        path_id = getattr(arg, 'path_id', None)
+        if path_id is None:
+            t = irutils.infer_type(arg, self.context.current.schema)
+            path_id = irutils.LinearPath([t])
+
+        return irast.TypeFilter(
+            path_id=path_id,
+            expr=arg,
+            type=irast.TypeRef(
+                maintype=self._get_schema_object(expr.type.maintype).name
+            )
+        )
 
     def visit_IndirectionNode(self, expr):
         node = self.visit(expr.arg)
@@ -1423,10 +1409,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             return expr.expr
         else:
             return None
-
-    def _is_type_check(self, left, right, op):
-        return (not reversed and op in (ast.ops.IS, ast.ops.IS_NOT) and
-                isinstance(left, irast.Path))
 
     def _is_constant(self, expr):
         flt = lambda node: isinstance(node, irast.Path)

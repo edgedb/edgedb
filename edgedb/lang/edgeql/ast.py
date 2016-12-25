@@ -139,7 +139,7 @@ class TypeCastNode(Base):
     type: TypeNameNode
 
 
-class TypeInterpretationNode(Base):
+class TypeFilterNode(Base):
     expr: Base
     type: TypeNameNode
 

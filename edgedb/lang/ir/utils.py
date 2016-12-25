@@ -145,7 +145,7 @@ def infer_type(ir, schema):
         else:
             result = None
 
-    elif isinstance(ir, irast.TypeCast):
+    elif isinstance(ir, (irast.TypeCast, irast.TypeFilter)):
         if ir.type.subtypes:
             coll = s_obj.Collection.get_class(ir.type.maintype)
             result = coll.from_subtypes(

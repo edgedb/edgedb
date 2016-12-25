@@ -622,6 +622,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         if isinstance(ir_set.scls, s_concepts.Concept):
             id_field = common.edgedb_name_to_pg_name('std::id')
+            id_set = self._get_ptr_set(ir_set, 'std::id')
 
             set_rvar = self._range_for_set(ir_set, stmt)
             stmt.scls_rvar = set_rvar
@@ -640,10 +641,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             rvar_rel.path_vars[path_id] = id_field
             rvar_rel.path_bonds[path_id] = id_field
 
-            id_set = self._get_ptr_set(ir_set, 'std::id')
             self._pull_path_var(stmt, id_set, path_id=path_id)
-
-            stmt.path_bonds[path_id] = self._get_path_var(stmt, path_id)
             stmt.inner_path_bonds[path_id] = stmt.path_namespace[path_id]
 
         else:
@@ -732,74 +730,97 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
                     return cte
 
-                with self.context.new():
-                    self.context.current.location = 'set_expr'
-                    self.context.current.rel = stmt
-                    set_expr = self.visit(ir_set.expr)
-
-                    self._connect_subrels(stmt)
-
-                    if irutils.is_aggregated_expr(ir_set.expr):
-                        # The expression includes calls to aggregates.
-                        # Clear the namespace as it is no longer valid.
-                        stmt.path_namespace.clear()
-                        stmt.inner_path_bonds.clear()
-                        stmt.target_list[:] = []
-
-                expr_result = irutils.infer_type(ir_set.expr, ctx.schema)
-
-                if isinstance(expr_result, s_concepts.Concept):
-                    innerqry = pgast.SelectStmt(
-                        target_list=[
-                            pgast.ResTarget(
-                                val=set_expr,
-                                name='v'
-                            )
-                        ]
-                    )
+                if isinstance(ir_set.expr, irast.TypeFilter):
+                    self._rel_join(stmt, stmt.scls_rvar, type='left')
 
                     valref = pgast.ColumnRef(
-                        name=['q', 'v']
-                    )
-
-                    qry = pgast.SelectStmt(
-                        target_list=[
-                            pgast.ResTarget(
-                                val=valref,
-                                name='v'
-                            )
-                        ],
-                        from_clause=[
-                            pgast.RangeSubselect(
-                                subquery=innerqry,
-                                alias=pgast.Alias(
-                                    aliasname='q'
-                                )
-                            )
+                        name=[
+                            stmt.scls_rvar.alias.aliasname,
+                            stmt.scls_rvar.path_vars[ir_set.path_id]
                         ]
                     )
 
-                    qry.path_namespace[ir_set.path_id] = valref
-                    qry.path_vars[ir_set.path_id] = 'v'
-                    qry.inner_path_bonds[ir_set.path_id] = valref
-                    qry.path_bonds[ir_set.path_id] = 'v'
-
-                    expr_rvar = pgast.RangeSubselect(
-                        subquery=qry,
-                        alias=pgast.Alias(
-                            aliasname='q'
-                        )
-                    )
-
-                    ctx.subquery_map[stmt][innerqry] = {
-                        'rvar': expr_rvar,
-                        'linked': True
-                    }
-
-                    self._rel_join(stmt, expr_rvar, type='inner')
-                else:
-                    restarget = pgast.ResTarget(val=set_expr, name='v')
+                    restarget = pgast.ResTarget(val=valref, name='v')
                     stmt.target_list.append(restarget)
+
+                    stmt.path_namespace[ir_set.path_id] = valref
+                    stmt.path_vars[ir_set.path_id] = 'v'
+                    stmt.path_namespace[id_set.path_id] = valref
+                    stmt.path_vars[id_set.path_id] = 'v'
+
+                else:
+                    with self.context.new():
+                        self.context.current.location = 'set_expr'
+                        self.context.current.rel = stmt
+                        set_expr = self.visit(ir_set.expr)
+
+                        self._connect_subrels(stmt)
+
+                        if irutils.is_aggregated_expr(ir_set.expr):
+                            # The expression includes calls to aggregates.
+                            # Clear the namespace as it is no longer valid.
+                            stmt.path_namespace.clear()
+                            stmt.inner_path_bonds.clear()
+                            stmt.target_list[:] = []
+
+                    expr_result = irutils.infer_type(ir_set.expr, ctx.schema)
+
+                    if isinstance(expr_result, s_concepts.Concept):
+                        innerqry = pgast.SelectStmt(
+                            target_list=[
+                                pgast.ResTarget(
+                                    val=set_expr,
+                                    name='v'
+                                )
+                            ]
+                        )
+
+                        valref = pgast.ColumnRef(
+                            name=['q', 'v']
+                        )
+
+                        qry = pgast.SelectStmt(
+                            target_list=[
+                                pgast.ResTarget(
+                                    val=valref,
+                                    name='v'
+                                )
+                            ],
+                            from_clause=[
+                                pgast.RangeSubselect(
+                                    subquery=innerqry,
+                                    alias=pgast.Alias(
+                                        aliasname='q'
+                                    )
+                                )
+                            ]
+                        )
+
+                        qry.path_namespace[ir_set.path_id] = valref
+                        qry.path_vars[ir_set.path_id] = 'v'
+                        qry.inner_path_bonds[ir_set.path_id] = valref
+                        qry.path_bonds[ir_set.path_id] = 'v'
+
+                        expr_rvar = pgast.RangeSubselect(
+                            lateral=True,
+                            subquery=qry,
+                            alias=pgast.Alias(
+                                aliasname='q'
+                            )
+                        )
+
+                        ctx.subquery_map[stmt][innerqry] = {
+                            'rvar': expr_rvar,
+                            'linked': True
+                        }
+
+                        self._rel_join(stmt, expr_rvar, type='inner')
+
+                        restarget = pgast.ResTarget(val=valref, name='v')
+                        stmt.target_list.append(restarget)
+                    else:
+                        restarget = pgast.ResTarget(val=set_expr, name='v')
+                        stmt.target_list.append(restarget)
             else:
                 return_parent = True
 
@@ -987,33 +1008,6 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         return ref
 
-    def _join_condition(self, left_refs, right_refs, op='='):
-        if not isinstance(left_refs, tuple):
-            left_refs = (left_refs, )
-        if not isinstance(right_refs, tuple):
-            right_refs = (right_refs, )
-
-        condition = None
-        for left_ref, right_ref in itertools.product(left_refs, right_refs):
-            op = self._new_binop(left_ref, right_ref, op=op)
-            condition = self._extend_binop(condition)
-
-        return condition
-
-    def _simple_join(self, left, right, key, type='inner', condition=None):
-        if condition is None:
-            left_refs = left.bonds(key)[-1]
-            right_refs = right.bonds(key)[-1]
-            condition = self._join_condition(left_refs, right_refs)
-
-        join = pgast.Join(
-            type=type, left=left, right=right, condition=condition)
-
-        join.updatebonds(left)
-        join.updatebonds(right)
-
-        return join
-
     def _full_inner_bond_condition(self, left, right):
         condition = None
 
@@ -1032,10 +1026,10 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         condition = None
 
         for path_id in right_rvar.inner_path_bonds:
-            rname = self._get_path_var(right_rvar.query, path_id)
+            rname = self._get_path_bond(right_rvar.query, path_id)
 
             try:
-                lref = query.path_namespace[path_id]
+                lref = query.inner_path_bonds[path_id]
             except KeyError:
                 continue
 
@@ -1116,7 +1110,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             target_range_bond = pgast.ColumnRef(
                 name=[
                     set_rvar.alias.aliasname,
-                    self._get_path_var(set_rvar.query, ir_set.path_id)
+                    self._get_path_bond(set_rvar.query, ir_set.path_id)
                 ]
             )
 
@@ -1234,17 +1228,37 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             name = self._get_path_var(squery, path_id)
             ref = pgast.ColumnRef(name=[source.alias.aliasname, name])
             target.path_namespace[path_id] = ref
-            if path_id in squery.inner_path_bonds and pull_bonds:
+
+        if pull_bonds:
+            for path_id in (set(squery.inner_path_bonds) -
+                            set(target.inner_path_bonds)):
+                name = self._get_path_bond(squery, path_id)
+                ref = pgast.ColumnRef(name=[source.alias.aliasname, name])
                 target.inner_path_bonds[path_id] = ref
+
+    def _get_path_bond(self, stmt, path_id):
+        alias = stmt.path_bonds.get(path_id)
+        if alias is None:
+            alias = self._get_outer_path_ref(
+                stmt, path_id, stmt.inner_path_bonds)
+
+            stmt.path_bonds[path_id] = alias
+
+        return alias
 
     def _get_path_var(self, stmt, path_id):
         alias = stmt.path_vars.get(path_id)
-        if alias is not None:
-            return alias
+        if alias is None:
+            alias = self._get_outer_path_ref(
+                stmt, path_id, stmt.path_namespace)
+            stmt.path_vars[path_id] = alias
 
+        return alias
+
+    def _get_outer_path_ref(self, stmt, path_id, inner_ref_coll):
         ctx = self.context.current
 
-        ref = stmt.path_namespace[path_id]
+        ref = inner_ref_coll[path_id]
 
         if isinstance(stmt, pgast.DML):
             rlist = stmt.returning_list
@@ -1272,10 +1286,6 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         else:
             alias = ctx.genalias(hint=ref.name[-1])
             rlist.append(pgast.ResTarget(name=alias, val=ref))
-
-        stmt.path_vars[path_id] = alias
-        if path_id in stmt.inner_path_bonds:
-            stmt.path_bonds[path_id] = alias
 
         return alias
 

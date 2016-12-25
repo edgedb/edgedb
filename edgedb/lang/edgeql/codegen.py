@@ -368,7 +368,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 if isinstance(e, edgeql_ast.ClassRefNode):
                     self.visit(e, parenthesise=parenthesise)
                 elif not isinstance(e, (edgeql_ast.PtrNode,
-                                        edgeql_ast.TypeInterpretationNode)):
+                                        edgeql_ast.TypeFilterNode)):
                     self.write('(')
                     self.visit(e)
                     self.write(')')
@@ -525,7 +525,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write('>')
         self.visit(node.expr)
 
-    def visit_TypeInterpretationNode(self, node):
+    def visit_TypeFilterNode(self, node):
         self.write('(')
         self.visit(node.expr)
         self.write(' AS ')

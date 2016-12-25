@@ -690,7 +690,7 @@ class ParenExpr(Nonterm):
         # also a Path.
         #
         self.val = qlast.PathNode(
-            steps=[qlast.TypeInterpretationNode(expr=kids[1].val,
+            steps=[qlast.TypeFilterNode(expr=kids[1].val,
                                                 type=kids[3].val)])
 
 
