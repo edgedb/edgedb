@@ -86,7 +86,7 @@ class ContextLevel:
         else:
             self.schema = prevlevel.schema
             self.arguments = prevlevel.arguments
-            self.toplevel_shape_rptrcls = None
+            self.toplevel_shape_rptrcls = prevlevel.toplevel_shape_rptrcls
 
             if mode == CompilerContext.SUBQUERY:
                 self.anchors = prevlevel.anchors.copy()
@@ -94,6 +94,7 @@ class ContextLevel:
                 self.namespaces = prevlevel.namespaces.copy()
                 self.substmts = prevlevel.substmts.copy()
 
+                self.toplevel_shape_rptrcls = None
                 self.location = None
                 self.stmt = None
                 self.sets = {}

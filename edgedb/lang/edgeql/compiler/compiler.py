@@ -16,7 +16,6 @@ from edgedb.lang.schema import expr as s_expr
 from edgedb.lang.schema import links as s_links
 from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import name as sn
-from edgedb.lang.schema import named as s_named
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import sources as s_sources
@@ -131,174 +130,185 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             'no EdgeQL compiler handler for {}'.format(node.__class__))
 
     def visit_SelectQueryNode(self, edgeql_tree):
-        ctx = self.context.current
+        toplevel_shape_rptrcls = self.context.current.toplevel_shape_rptrcls
 
-        # TODO: Add new compiler context mode?
-        # Reset result_path_steps so that subqueries in shapes
-        # don't try to resolve partial paths.
-        ctx.result_path_steps = []
+        with self.context.subquery():
+            ctx = self.context.current
 
-        stmt = ctx.stmt = irast.SelectStmt()
-        self._visit_with_block(edgeql_tree)
+            stmt = ctx.stmt = irast.SelectStmt()
+            self._visit_with_block(edgeql_tree)
 
-        if edgeql_tree.op:  # UNION/INTERSECT/EXCEPT
-            stmt.set_op = qlast.SetOperator(edgeql_tree.op)
-            stmt.set_op_larg = self.visit(edgeql_tree.op_larg)
-            stmt.set_op_rarg = self.visit(edgeql_tree.op_rarg)
-        else:
-            if (isinstance(edgeql_tree.result, qlast.PathNode) and
-                    edgeql_tree.result.steps and
-                    edgeql_tree.result.pathspec):
-                ctx.result_path_steps = edgeql_tree.result.steps
+            if edgeql_tree.op:  # UNION/INTERSECT/EXCEPT
+                stmt.set_op = qlast.SetOperator(edgeql_tree.op)
+                stmt.set_op_larg = self.visit(edgeql_tree.op_larg)
+                stmt.set_op_rarg = self.visit(edgeql_tree.op_rarg)
+            else:
+                if (isinstance(edgeql_tree.result, qlast.PathNode) and
+                        edgeql_tree.result.steps and
+                        edgeql_tree.result.pathspec):
+                    ctx.result_path_steps = edgeql_tree.result.steps
 
-            stmt.where = self._process_select_where(edgeql_tree.where)
+                stmt.where = self._process_select_where(edgeql_tree.where)
 
-            stmt.groupby = self._process_groupby(edgeql_tree.groupby)
-            if stmt.groupby is not None:
-                ctx.group_paths = set(extract_prefixes(stmt.groupby))
+                stmt.groupby = self._process_groupby(edgeql_tree.groupby)
+                if stmt.groupby is not None:
+                    ctx.group_paths = set(extract_prefixes(stmt.groupby))
 
-            stmt.result = self._process_stmt_result(edgeql_tree.result)
+                stmt.result = self._process_stmt_result(
+                    edgeql_tree.result, toplevel_shape_rptrcls)
 
-        stmt.orderby = self._process_orderby(edgeql_tree.orderby)
-        if edgeql_tree.offset:
-            stmt.offset = self.visit(edgeql_tree.offset)
-        if edgeql_tree.limit:
-            stmt.limit = self.visit(edgeql_tree.limit)
+            stmt.orderby = self._process_orderby(edgeql_tree.orderby)
+            if edgeql_tree.offset:
+                stmt.offset = self.visit(edgeql_tree.offset)
+            if edgeql_tree.limit:
+                stmt.limit = self.visit(edgeql_tree.limit)
 
-        if stmt.groupby is None:
-            # Check if query() or order() contain any aggregate
-            # expressions and if so, add a sentinel group prefix
-            # instructing the transformer that we are implicitly
-            # grouping the whole set.
-            def checker(n):
-                if isinstance(n, irast.FunctionCall):
-                    return n.aggregate
-                elif isinstance(n, irast.Stmt):
-                    # Make sure we don't dip into subqueries
-                    raise ast.SkipNode()
+            if stmt.groupby is None:
+                # Check if query() or order() contain any aggregate
+                # expressions and if so, add a sentinel group prefix
+                # instructing the transformer that we are implicitly
+                # grouping the whole set.
+                def checker(n):
+                    if isinstance(n, irast.FunctionCall):
+                        return n.aggregate
+                    elif isinstance(n, irast.Stmt):
+                        # Make sure we don't dip into subqueries
+                        raise ast.SkipNode()
 
-            for node in itertools.chain(stmt.orderby or [],
-                                        [stmt.offset],
-                                        [stmt.limit],
-                                        [stmt.result]):
-                if node is None:
-                    continue
-                if ast.find_children(node, checker, force_traversal=True):
-                    ctx.group_paths = {...}
-                    break
+                for node in itertools.chain(stmt.orderby or [],
+                                            [stmt.offset],
+                                            [stmt.limit],
+                                            [stmt.result]):
+                    if node is None:
+                        continue
+                    if ast.find_children(node, checker, force_traversal=True):
+                        ctx.group_paths = {...}
+                        break
 
-        stmt.result_types = self._get_selector_types(stmt.result)
-        stmt.argument_types = self.context.current.arguments
+            stmt.result_types = self._get_selector_types(stmt.result)
+            stmt.argument_types = self.context.current.arguments
 
-        return stmt
+            return stmt
 
     def visit_InsertQueryNode(self, edgeql_tree):
-        ctx = self.context.current
+        toplevel_shape_rptrcls = self.context.current.toplevel_shape_rptrcls
 
-        stmt = ctx.stmt = irast.InsertStmt()
-        self._visit_with_block(edgeql_tree)
+        with self.context.subquery():
+            ctx = self.context.current
 
-        with self.context.new():
-            self.context.current.location = 'selector'
-            subject = self.visit(edgeql_tree.subject)
+            stmt = ctx.stmt = irast.InsertStmt()
+            self._visit_with_block(edgeql_tree)
 
+            with self.context.new():
+                self.context.current.location = 'selector'
+                subject = self.visit(edgeql_tree.subject)
+
+                if edgeql_tree.result is not None:
+                    stmt.result = self._process_stmt_result(
+                        edgeql_tree.result, toplevel_shape_rptrcls)
+                else:
+                    stmt.result = self._process_shape(subject, None, [])
+
+            stmt.shape = self._process_shape(
+                subject, None, edgeql_tree.pathspec,
+                require_expressions=True,
+                include_implicit=False)
+
+            explicit_ptrs = {
+                el.rptr.ptrcls.shortname for el in stmt.shape.elements
+            }
+
+            for pn, ptrcls in subject.scls.pointers.items():
+                if (not ptrcls.default or
+                        pn in explicit_ptrs or
+                        ptrcls.is_special_pointer()):
+                    continue
+
+                targetstep = self._extend_path(subject, ptrcls)
+
+                if isinstance(ptrcls.default, s_expr.ExpressionText):
+                    default_expr = qlparser.parse(ptrcls.default)
+                else:
+                    default_expr = qlast.ConstantNode(value=ptrcls.default)
+
+                substmt = self.visit(default_expr)
+                if not isinstance(substmt, irast.Stmt):
+                    substmt = irast.SelectStmt(result=substmt)
+
+                rt = irutils.infer_type(substmt, ctx.schema)
+                el = irast.Set(
+                    path_id=irutils.LinearPath([rt]),
+                    scls=rt,
+                    expr=substmt,
+                    rptr=targetstep.rptr
+                )
+
+                stmt.shape.elements.append(el)
+
+            stmt.result_types = self._get_selector_types(stmt.result)
+            stmt.argument_types = self.context.current.arguments
+
+            return stmt
+
+    def visit_UpdateQueryNode(self, edgeql_tree):
+        toplevel_shape_rptrcls = self.context.current.toplevel_shape_rptrcls
+
+        with self.context.subquery():
+            ctx = self.context.current
+
+            stmt = ctx.stmt = irast.UpdateStmt()
+            self._visit_with_block(edgeql_tree)
+
+            with self.context.new():
+                self.context.current.location = 'selector'
+                subject = self.visit(edgeql_tree.subject)
+
+            stmt.where = self._process_select_where(edgeql_tree.where)
             if edgeql_tree.result is not None:
-                stmt.result = self._process_stmt_result(edgeql_tree.result)
+                stmt.result = self._process_stmt_result(
+                    edgeql_tree.result, toplevel_shape_rptrcls)
             else:
                 stmt.result = self._process_shape(subject, None, [])
 
-        stmt.shape = self._process_shape(
-            subject, None, edgeql_tree.pathspec,
-            require_expressions=True,
-            include_implicit=False)
+            stmt.shape = self._process_shape(
+                subject, None, edgeql_tree.pathspec,
+                require_expressions=True,
+                include_implicit=False)
 
-        explicit_ptrs = {
-            el.rptr.ptrcls.shortname for el in stmt.shape.elements
-        }
+            stmt.result_types = self._get_selector_types(stmt.result)
+            stmt.argument_types = self.context.current.arguments
 
-        for pn, ptrcls in subject.scls.pointers.items():
-            if (not ptrcls.default or
-                    pn in explicit_ptrs or
-                    ptrcls.is_special_pointer()):
-                continue
-
-            targetstep = self._extend_path(subject, ptrcls)
-
-            if isinstance(ptrcls.default, s_expr.ExpressionText):
-                default_expr = qlparser.parse(ptrcls.default)
-            else:
-                default_expr = qlast.ConstantNode(value=ptrcls.default)
-
-            substmt = self.visit(default_expr)
-            if not isinstance(substmt, irast.Stmt):
-                substmt = irast.SelectStmt(result=substmt)
-
-            rt = irutils.infer_type(substmt, ctx.schema)
-            el = irast.Set(
-                path_id=irutils.LinearPath([rt]),
-                scls=rt,
-                expr=substmt,
-                rptr=targetstep.rptr
-            )
-
-            stmt.shape.elements.append(el)
-
-        stmt.result_types = self._get_selector_types(stmt.result)
-        stmt.argument_types = self.context.current.arguments
-
-        return stmt
-
-    def visit_UpdateQueryNode(self, edgeql_tree):
-        ctx = self.context.current
-
-        stmt = ctx.stmt = irast.UpdateStmt()
-        self._visit_with_block(edgeql_tree)
-
-        with self.context.new():
-            self.context.current.location = 'selector'
-            subject = self.visit(edgeql_tree.subject)
-
-        stmt.where = self._process_select_where(edgeql_tree.where)
-        if edgeql_tree.result is not None:
-            stmt.result = self._process_stmt_result(edgeql_tree.result)
-        else:
-            stmt.result = self._process_shape(subject, None, [])
-
-        stmt.shape = self._process_shape(
-            subject, None, edgeql_tree.pathspec,
-            require_expressions=True,
-            include_implicit=False)
-
-        stmt.result_types = self._get_selector_types(stmt.result)
-        stmt.argument_types = self.context.current.arguments
-
-        return stmt
+            return stmt
 
     def visit_DeleteQueryNode(self, edgeql_tree):
-        ctx = self.context.current
+        toplevel_shape_rptrcls = self.context.current.toplevel_shape_rptrcls
 
-        stmt = ctx.stmt = irast.DeleteStmt()
-        self._visit_with_block(edgeql_tree)
+        with self.context.subquery():
+            ctx = self.context.current
 
-        with self.context.new():
-            self.context.current.location = 'selector'
-            subject = self.visit(edgeql_tree.subject)
+            stmt = ctx.stmt = irast.DeleteStmt()
+            self._visit_with_block(edgeql_tree)
 
-        stmt.where = self._process_select_where(edgeql_tree.where)
-        if edgeql_tree.result is not None:
-            stmt.result = self._process_stmt_result(edgeql_tree.result)
-        else:
-            stmt.result = self._process_shape(subject, None, [])
+            with self.context.new():
+                self.context.current.location = 'selector'
+                subject = self.visit(edgeql_tree.subject)
 
-        stmt.shape = self._process_shape(
-            subject, None, [],
-            require_expressions=True,
-            include_implicit=False)
+            stmt.where = self._process_select_where(edgeql_tree.where)
+            if edgeql_tree.result is not None:
+                stmt.result = self._process_stmt_result(
+                    edgeql_tree.result, toplevel_shape_rptrcls)
+            else:
+                stmt.result = self._process_shape(subject, None, [])
 
-        stmt.result_types = self._get_selector_types(stmt.result)
-        stmt.argument_types = self.context.current.arguments
+            stmt.shape = self._process_shape(
+                subject, None, [],
+                require_expressions=True,
+                include_implicit=False)
 
-        return stmt
+            stmt.result_types = self._get_selector_types(stmt.result)
+            stmt.argument_types = self.context.current.arguments
+
+            return stmt
 
     def visit_PathNode(self, expr):
         ctx = self.context.current
@@ -795,33 +805,32 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 ctx.namespaces[with_entry.alias] = with_entry.namespace
 
             elif isinstance(with_entry, qlast.CGENode):
-                with self.context.subquery():
-                    substmt = self.visit(with_entry.expr)
+                substmt = self.visit(with_entry.expr)
 
-                    path_id = irutils.LinearPath([
-                        s_concepts.Concept(
-                            name=sn.Name(
-                                module='__cexpr__',
-                                name=with_entry.alias
-                            )
+                path_id = irutils.LinearPath([
+                    s_concepts.Concept(
+                        name=sn.Name(
+                            module='__cexpr__',
+                            name=with_entry.alias
                         )
-                    ])
-
-                    result_type = irutils.infer_type(substmt, ctx.schema)
-
-                    if isinstance(substmt.result, irast.Set):
-                        real_path_id = substmt.result.path_id
-                    elif isinstance(substmt.result, irast.Shape):
-                        real_path_id = substmt.result.set.path_id
-                    else:
-                        real_path_id = irutils.LinearPath([result_type])
-
-                    substmt_set = irast.Set(
-                        path_id=path_id,
-                        real_path_id=real_path_id,
-                        scls=result_type,
-                        expr=substmt
                     )
+                ])
+
+                result_type = irutils.infer_type(substmt, ctx.schema)
+
+                if isinstance(substmt.result, irast.Set):
+                    real_path_id = substmt.result.path_id
+                elif isinstance(substmt.result, irast.Shape):
+                    real_path_id = substmt.result.set.path_id
+                else:
+                    real_path_id = irutils.LinearPath([result_type])
+
+                substmt_set = irast.Set(
+                    path_id=path_id,
+                    real_path_id=real_path_id,
+                    scls=result_type,
+                    expr=substmt
+                )
 
                 ctx.sets[substmt_set.path_id] = substmt_set
                 ctx.substmts[with_entry.alias] = substmt_set
@@ -1322,9 +1331,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         return ctx.schema.get(name=name, module_aliases=ctx.namespaces)
 
-    def _process_stmt_result(self, result):
-        toplevel_rptrcls = self.context.current.toplevel_shape_rptrcls
-
+    def _process_stmt_result(self, result, toplevel_rptrcls):
         with self.context.new():
             self.context.current.location = 'selector'
 
