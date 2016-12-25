@@ -451,7 +451,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             err = 'operator does not exist: {} {} {}'.format(
                 left_type.name, expr.op, right_type.name)
 
-            raise errors.EdgeQLError(err, context=expr.context)
+            raise errors.EdgeQLError(err, context=expr.left.context)
 
         prefixes = get_common_prefixes([left, right])
 

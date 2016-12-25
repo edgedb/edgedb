@@ -115,7 +115,8 @@ def infer_type(ir, schema):
     elif isinstance(ir, irast.BinOp):
         if isinstance(ir.op, (ast.ops.ComparisonOperator,
                               ast.ops.TypeCheckOperator,
-                              ast.ops.MembershipOperator)):
+                              ast.ops.MembershipOperator,
+                              irast.TextSearchOperator)):
             result = schema.get('std::bool')
         else:
             left_type = infer_type(ir.left, schema)

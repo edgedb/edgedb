@@ -585,8 +585,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [],
         ])
 
-    # FTS is not implemented yet
-    @unittest.expectedFailure
     async def test_edgeql_select_match05(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -607,7 +605,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '2'}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_match06(self):
         await self.assert_query_result(r"""
             # XXX: @@ used with a query operand, as opposed to a literal
@@ -625,8 +622,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue.name @@ to_tsquery('edgedb | repl')
             ORDER BY Issue.number;
         """, [
-            [{'number': '1'}, {'number': '2'}, {'number': '3'}],
             [{'number': '2'}],
+            [{'number': '1'}, {'number': '2'}, {'number': '3'}],
         ])
 
     async def test_edgeql_select_match07(self):

@@ -30,6 +30,8 @@ base_type_name_map = {
     sn.Name('std::time'): 'timetz',
     sn.Name('std::timedelta'): 'interval',
     sn.Name('std::bytes'): 'bytea',
+    sn.Name('std::tsquery'): 'tsquery',
+    sn.Name('std::tsvector'): 'tsvector',
 }
 
 base_type_name_map_r = {
@@ -53,6 +55,8 @@ base_type_name_map_r = {
     'time': sn.Name('std::time'),
     'interval': sn.Name('std::timedelta'),
     'bytea': sn.Name('std::bytes'),
+    'tsquery': sn.Name('std::tsquery'),
+    'tsvector': sn.Name('std::tsvector'),
 }
 
 

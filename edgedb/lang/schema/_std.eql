@@ -41,6 +41,9 @@ CREATE ATTRIBUTE std::pattern std::str;
 
 CREATE ABSTRACT ATOM std::sequence;
 
+CREATE ATOM std::tsvector;
+CREATE ATOM std::tsquery;
+
 CREATE ATTRIBUTE stdattrs::precision array<std::int>;
 
 CREATE ATTRIBUTE stdattrs::name std::str;
@@ -96,6 +99,12 @@ CREATE FUNCTION std::len(array<std::any>) RETURNING std::int
     FROM SQL $$
         SELECT array_length($1, 1)::bigint
     $$;
+
+CREATE FUNCTION std::to_tsquery(std::str) RETURNING std::tsquery
+    FROM SQL FUNCTION 'to_tsquery';
+
+CREATE FUNCTION std::to_tsvector(std::str) RETURNING std::tsvector
+    FROM SQL FUNCTION 'to_tsvector';
 
 CREATE CONSTRAINT std::constraint {
     SET errmessage := 'invalid {subject}';
