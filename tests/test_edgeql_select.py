@@ -2855,3 +2855,85 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         """, [
             [[['1', 'Open'], ['2', 'Open'], ['3', 'Closed'], ['4', 'Closed']]]
         ])
+
+    async def test_edgeql_partial_01(self):
+        await self.assert_query_result('''
+            WITH MODULE test
+            SELECT
+                Issue {
+                    number
+                }
+            WHERE
+                .number = '1';
+        ''', [
+            [{
+                'number': '1'
+            }]
+        ])
+
+    async def test_edgeql_partial_02(self):
+        await self.assert_query_result('''
+            WITH MODULE test
+            SELECT
+                Issue.watchers {
+                    name
+                }
+            WHERE
+                .name = 'Yury';
+        ''', [
+            [{
+                'name': 'Yury'
+            }]
+        ])
+
+    async def test_edgeql_partial_03(self):
+        await self.assert_query_result('''
+            WITH MODULE test
+            SELECT Issue {
+                number,
+                watchers: {
+                    name
+                } WHERE .name = 'Yury'
+            } WHERE .status.name = 'Open' AND .owner.name = 'Elvis';
+        ''', [
+            [{
+                'number': '1',
+                'watchers': [{
+                    'name': 'Yury'
+                }]
+            }]
+        ])
+
+    async def test_edgeql_partial_04(self):
+        await self.assert_query_result('''
+            WITH MODULE test
+            SELECT Issue {
+                number,
+            } WHERE .number > '1'
+              ORDER BY .number DESC;
+        ''', [[
+            {'number': '4'},
+            {'number': '3'},
+            {'number': '2'},
+        ]])
+
+    async def test_edgeql_partial_05(self):
+        with self.assertRaisesRegex(exc.EdgeQLError,
+                                    'could not resolve partial path'):
+            await self.con.execute('''
+                WITH MODULE test
+                SELECT Issue.number WHERE .number > '1';
+            ''')
+
+    async def test_edgeql_partial_06(self):
+        with self.assertRaisesRegex(exc.EdgeQLError,
+                                    'could not resolve partial path'):
+            await self.con.execute('''
+                WITH
+                    MODULE test
+                SELECT
+                    Issue{
+                        sub := (SELECT .name)
+                    }
+                WHERE .number = '1';
+            ''')

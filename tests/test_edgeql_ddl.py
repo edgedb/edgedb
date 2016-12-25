@@ -210,9 +210,8 @@ class TestDeltas(tb.QueryTestCase):
             SELECT schema::Function {
                 attributes: {
                     @value
-                } WHERE schema::Function.attributes.name =
-                    'stdattrs::description'
-            } WHERE schema::Function.name = 'test::attr_func_1';
+                } WHERE .name = 'stdattrs::description'
+            } WHERE .name = 'test::attr_func_1';
         """, [
             [{
                 'attributes': [{

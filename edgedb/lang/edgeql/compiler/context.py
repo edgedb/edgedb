@@ -61,6 +61,9 @@ class ContextLevel:
     toplevel_shape_rptrcls: s_pointers.Pointer
     """Pointer class for the top-level shape of the substatement."""
 
+    result_path_steps: list
+    """Root path steps of select's result shape."""
+
     def __init__(self, prevlevel=None, mode=None):
         if prevlevel is None:
             self.schema = None
@@ -75,6 +78,8 @@ class ContextLevel:
             self.sets = {}
             self.group_paths = set()
             self.in_aggregate = False
+
+            self.result_path_steps = []
 
             self.toplevel_shape_rptrcls = None
 
@@ -95,6 +100,8 @@ class ContextLevel:
                 self.group_paths = set()
                 self.in_aggregate = False
 
+                self.result_path_steps = []
+
             else:
                 self.anchors = prevlevel.anchors
                 self.pathvars = prevlevel.pathvars
@@ -103,10 +110,17 @@ class ContextLevel:
 
                 self.location = prevlevel.location
                 self.stmt = prevlevel.stmt
-                self.sets = \
-                    {} if mode == CompilerContext.NEWSETS else prevlevel.sets
+
                 self.group_paths = prevlevel.group_paths
                 self.in_aggregate = prevlevel.in_aggregate
+
+                self.result_path_steps = []
+                if mode == CompilerContext.NEWSETS:
+                    self.sets = {}
+                else:
+                    self.sets = prevlevel.sets
+                    if prevlevel.result_path_steps:
+                        self.result_path_steps = prevlevel.result_path_steps[:]
 
 
 class CompilerContext:

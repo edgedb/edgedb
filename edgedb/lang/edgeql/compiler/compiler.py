@@ -133,6 +133,11 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
     def visit_SelectQueryNode(self, edgeql_tree):
         ctx = self.context.current
 
+        # TODO: Add new compiler context mode?
+        # Reset result_path_steps so that subqueries in shapes
+        # don't try to resolve partial paths.
+        ctx.result_path_steps = []
+
         stmt = ctx.stmt = irast.SelectStmt()
         self._visit_with_block(edgeql_tree)
 
@@ -141,6 +146,11 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             stmt.set_op_larg = self.visit(edgeql_tree.op_larg)
             stmt.set_op_rarg = self.visit(edgeql_tree.op_rarg)
         else:
+            if (isinstance(edgeql_tree.result, qlast.PathNode) and
+                    edgeql_tree.result.steps and
+                    edgeql_tree.result.pathspec):
+                ctx.result_path_steps = edgeql_tree.result.steps
+
             stmt.where = self._process_select_where(edgeql_tree.where)
 
             stmt.groupby = self._process_groupby(edgeql_tree.groupby)
@@ -297,6 +307,13 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         anchors = ctx.anchors
 
         path_tip = None
+
+        if expr.partial:
+            if ctx.result_path_steps:
+                expr.steps = ctx.result_path_steps + expr.steps
+            else:
+                raise errors.EdgeQLError('could not resolve partial path ',
+                                         context=expr.context)
 
         for i, step in enumerate(expr.steps):
             if isinstance(step, qlast.TypeInterpretationNode):
@@ -836,10 +853,10 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                        require_expressions=False, include_implicit=True,
                        _visited=None, _recurse=True):
         """Build a Shape node given shape spec."""
-        ctx = self.context.current
-
         if _visited is None:
             _visited = {}
+        else:
+            _visited = _visited.copy()
 
         scls = source_expr.scls
 
@@ -848,10 +865,8 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         shape = irast.Shape(elements=elements, scls=scls,
                             set=source_expr, rptr=source_expr.rptr)
 
-        _new_visited = _visited.copy()
-
         if isinstance(scls, s_concepts.Concept):
-            _new_visited[scls] = shape
+            _visited[scls] = shape
 
             if include_implicit:
                 implicit_ptrs = (sn.Name('std::id'),)
@@ -875,7 +890,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 shapespec = implicit_shape_els + list(shapespec)
 
         else:
-            _new_visited[scls] = shape
+            _visited[scls] = shape
 
             if include_implicit:
                 implicit_ptrs = (sn.Name('std::target'),)
@@ -900,6 +915,29 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 shapespec = implicit_shape_els + list(shapespec)
 
         for shape_el in shapespec:
+            el = self._process_shape_el(
+                source_expr, rptrcls, shape_el, scls,
+                require_expressions=require_expressions,
+                include_implicit=include_implicit,
+                _visited=_visited,
+                _recurse=_recurse)
+
+            # Record element may be none if ptrcls target is non-atomic
+            # and recursion has been prohibited on this level to prevent
+            # infinite looping.
+            if el is not None:
+                elements.append(el)
+
+        return shape
+
+    def _process_shape_el(self, source_expr, rptrcls, shape_el, scls, *,
+                          require_expressions=False, include_implicit=True,
+                          _visited=None, _recurse=True):
+
+        with self.context.new():
+            ctx = self.context.current
+            ctx.result_path_steps += shape_el.expr.steps
+
             steps = shape_el.expr.steps
             ptrsource = scls
 
@@ -1071,8 +1109,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             ptr_node = targetstep.rptr
 
             if _recurse and shape_el.pathspec:
-                _memo = _new_visited
-
                 if (isinstance(ctx.stmt, irast.MutatingStmt) and
                         ctx.location != 'selector'):
 
@@ -1089,7 +1125,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                         targetstep,
                         ptrcls,
                         mutation_pathspec,
-                        _visited=_memo,
+                        _visited=_visited,
                         _recurse=True,
                         require_expressions=require_expressions,
                         include_implicit=include_implicit)
@@ -1115,22 +1151,20 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
                     result = irutils.infer_type(substmt, ctx.schema)
 
-                    el = irast.Set(
+                    # return early
+                    return irast.Set(
                         path_id=irutils.LinearPath([result]),
                         scls=result,
                         expr=substmt,
                         rptr=ptr_node
                     )
 
-                    elements.append(el)
-                    continue
-
                 else:
                     el = self._process_shape(
                         targetstep,
                         ptrcls,
                         shape_el.pathspec or [],
-                        _visited=_memo,
+                        _visited=_visited,
                         _recurse=True,
                         require_expressions=require_expressions,
                         include_implicit=include_implicit)
@@ -1159,13 +1193,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     rptr=ptr_node
                 )
 
-            # Record element may be none if ptrcls target is non-atomic
-            # and recursion has been prohibited on this level to prevent
-            # infinite looping.
-            if el is not None:
-                elements.append(el)
-
-        return shape
+        return el
 
     def _extend_path(self, source_set, ptrcls,
                      direction=s_pointers.PointerDirection.Outbound,

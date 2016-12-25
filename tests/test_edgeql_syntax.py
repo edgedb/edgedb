@@ -1097,6 +1097,12 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT .<foo;
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError, 'Unexpected token.*"."', line=2)
+    def test_edgeql_syntax_path17(self):
+        """
+        SELECT ..foo;
+        """
+
     def test_edgeql_syntax_type_interpretation01(self):
         """
         SELECT (Foo AS Bar);
