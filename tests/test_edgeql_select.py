@@ -1734,7 +1734,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [False, True, True, True, False, True],
         ])
 
-    async def test_edgeql_select_exists19(self):
+    async def test_edgeql_select_as01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT NOT EXISTS (Text AS Issue)
@@ -1743,7 +1743,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True, False, False, False, True, False],
         ])
 
-    async def test_edgeql_select_exists20(self):
+    async def test_edgeql_select_as02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT EXISTS (Text AS Issue).id
@@ -1752,13 +1752,23 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [False, True, True, True, False, True],
         ])
 
-    async def test_edgeql_select_exists21(self):
+    async def test_edgeql_select_as03(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT NOT EXISTS (Text AS Issue).id
             ORDER BY Text.body;
         ''', [
             [True, False, False, False, True, False],
+        ])
+
+    async def test_edgeql_select_as04(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT (Text AS Issue).name
+            WHERE Text.body @@ 'EdgeDB'
+            ORDER BY (Text AS Issue).name;
+        ''', [
+            [None, 'Release EdgeDB']
         ])
 
     async def test_edgeql_select_and01(self):
