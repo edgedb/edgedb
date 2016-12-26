@@ -43,6 +43,7 @@ class TransformerContextLevel:
             self.argmap = OrderedSet()
             self.location = 'query'
             self.in_aggregate = False
+            self.expr_exposed = False
             self.backend = None
             self.schema = None
             self.subquery_map = collections.defaultdict(dict)
@@ -59,6 +60,7 @@ class TransformerContextLevel:
             self.scope_cutoff = False
             self.argmap = prevlevel.argmap
             self.in_aggregate = prevlevel.in_aggregate
+            self.expr_exposed = prevlevel.expr_exposed
             self.backend = prevlevel.backend
             self.schema = prevlevel.schema
             self.aliascnt = prevlevel.aliascnt

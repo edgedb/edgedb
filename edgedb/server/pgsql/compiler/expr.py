@@ -313,6 +313,7 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
         ctx = self.context.current
 
         with self.context.new():
+            self.context.current.expr_exposed = False
             op = expr.op
             if ctx.location == 'set_expr' and op in {ast.ops.AND, ast.ops.OR}:
                 self.context.current.location = 'exists'
@@ -379,7 +380,9 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
         return result
 
     def visit_UnaryOp(self, expr):
-        operand = self.visit(expr.expr)
+        with self.context.new():
+            self.context.current.expr_exposed = False
+            operand = self.visit(expr.expr)
         return pgast.Expr(name=expr.op, rexpr=operand, kind=pgast.ExprKind.OP)
 
     def visit_IfElseExpr(self, expr):
@@ -392,10 +395,18 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
             defresult=self.visit(expr.else_expr))
 
     def visit_Sequence(self, expr):
+        ctx = self.context.current
+
         elements = [self.visit(e) for e in expr.elements]
 
         if expr.is_array:
             result = pgast.ArrayExpr(elements=elements)
+        elif (ctx.location == 'selector' and ctx.output_format == 'json' and
+                ctx.expr_exposed):
+            result = pgast.FuncCall(
+                name=('jsonb_build_array',),
+                args=elements
+            )
         else:
             result = pgast.ImplicitRowExpr(args=elements)
 

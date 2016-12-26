@@ -12,17 +12,18 @@ from edgedb.server.pgsql import common
 
 class IRCompilerFunctionSupport:
     def visit_FunctionCall(self, expr):
-        ctx = self.context.current
-
         agg_filter = None
         agg_sort = []
 
         funcobj = expr.func
 
-        if funcobj.aggregate:
-            with self.context.new():
-                ctx.in_aggregate = True
-                ctx.query.aggregates = True
+        with self.context.new():
+            ctx1 = self.context.current
+            ctx1.expr_exposed = False
+
+            if funcobj.aggregate:
+                ctx1.in_aggregate = True
+                ctx1.query.aggregates = True
                 args = [self.visit(a) for a in expr.args]
                 if expr.agg_filter:
                     agg_filter = self.visit(expr.agg_filter)
@@ -35,8 +36,8 @@ class IRCompilerFunctionSupport:
                                 node=_sortexpr, dir=sortexpr.direction,
                                 nulls=sortexpr.nones_order))
 
-        else:
-            args = [self.visit(a) for a in expr.args]
+            else:
+                args = [self.visit(a) for a in expr.args]
 
         partition = []
         if expr.partition:

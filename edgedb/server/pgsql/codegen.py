@@ -140,6 +140,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.new_lines = 1
             self.indentation += 1
             self.visit_list(node.group_clause)
+            self.indentation -= 2
 
         if node.having:
             self.indentation += 1

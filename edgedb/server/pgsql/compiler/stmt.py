@@ -943,6 +943,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         with self.context.new():
             self.context.current.location = 'selector'
+            self.context.current.expr_exposed = True
             pgexpr = self.visit(result_expr)
 
             if isinstance(pgexpr, ResTargetList):
@@ -1016,20 +1017,14 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 f'could not resolve {ir_set.path_id} as a column '
                 f'reference in context of {ctx.rel!r}')
 
-        if ctx.in_aggregate:
-            rptr = ir_set.rptr
-            ptr_name = rptr.ptrcls.shortname
-
+        if ctx.in_aggregate and isinstance(ir_set.scls, s_atoms.Atom):
             # Cast atom refs to the base type in aggregate expressions, since
             # PostgreSQL does not create array types for custom domains and
             # will fail to process a query with custom domains appearing as
             # array elements.
             #
-            schema = ctx.schema
-            link = ir_set.scls.resolve_pointer(
-                schema, ptr_name, look_in_children=True)
             pgtype = pg_types.pg_type_from_atom(
-                schema, link.target, topbase=True)
+                ctx.schema, ir_set.scls, topbase=True)
             pgtype = pgast.TypeName(name=pgtype)
             ref = pgast.TypeCast(arg=ref, type_name=pgtype)
 

@@ -294,12 +294,11 @@ class TestExpressions(tb.QueryTestCase):
             ['qwer'],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_tuple01(self):
         await self.assert_query_result(r"""
             SELECT (1, 'foo');
         """, [
-            [(1, 'foo')],
+            [[1, 'foo']],
         ])
 
     async def test_edgeql_expr_tuple02(self):

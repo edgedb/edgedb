@@ -2640,7 +2640,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_tuple01(self):
         await self.assert_query_result(r"""
             # get tuples (status, number of issues)
@@ -2649,10 +2648,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             GROUP BY Status.name
             ORDER BY Status.name;
             """, [
-            ('Closed', 2), ('Open', 2)
+            [['Closed', 2], ['Open', 2]]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_tuple02(self):
         await self.assert_query_result(r"""
             # nested tuples
@@ -2666,12 +2664,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 )
             GROUP BY User.name, User.<owner[TO Issue].status.name
             ORDER BY User.name THEN User.<owner[TO Issue].status.name;
-            """, [
-            ('Elvis', ('Closed', 1)),
-            ('Elvis', ('Open', 1)),
-            ('Yury', ('Closed', 1)),
-            ('Yury', ('Open', 1)),
-        ])
+            """, [[
+            ['Elvis', ['Closed', 1]],
+            ['Elvis', ['Open', 1]],
+            ['Yury', ['Closed', 1]],
+            ['Yury', ['Open', 1]],
+        ]])
 
     @unittest.expectedFailure
     async def test_edgeql_select_anon01(self):
