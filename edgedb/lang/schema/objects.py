@@ -715,6 +715,9 @@ class Collection(Class, NodeClass):
     def get_container(self):
         raise NotImplementedError
 
+    def get_element_type(self):
+        return self.element_type
+
     def get_subtypes(self):
         return (self.element_type,)
 

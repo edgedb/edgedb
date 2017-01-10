@@ -260,11 +260,13 @@ class TestExpressions(tb.QueryTestCase):
             SELECT coalesce(NULL, 'foo', 'bar');
             SELECT coalesce(4, NULL, 5);
             SELECT coalesce('foo', NULL, 'bar');
+            SELECT coalesce(NULL, 'bar') = 'bar';
         """, [
             [4],
             ['foo'],
             [4],
             ['foo'],
+            [True]
         ])
 
     async def test_edgeql_expr_string01(self):

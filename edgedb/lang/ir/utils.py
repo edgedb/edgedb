@@ -108,6 +108,20 @@ def infer_type(ir, schema):
     elif isinstance(ir, irast.FunctionCall):
         result = ir.func.returntype
 
+        def is_polymorphic(t):
+            if isinstance(t, s_obj.Collection):
+                t = t.get_element_type()
+
+            return t.name == 'std::any'
+
+        if is_polymorphic(result):
+            # Polymorhic function, determine the result type from
+            # the argument type.
+            for i, arg in enumerate(ir.args):
+                if is_polymorphic(ir.func.paramtypes[i]):
+                    result = infer_type(arg, schema)
+                    break
+
     elif isinstance(ir, irast.Constant):
         if ir.expr:
             result = infer_type(ir.expr, schema)
