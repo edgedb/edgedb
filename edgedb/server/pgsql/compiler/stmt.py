@@ -42,13 +42,6 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         self.context = None
         super().__init__(**kwargs)
 
-    @property
-    def memo(self):
-        if self.context is not None:
-            return self.context.current.memo
-        else:
-            return self._memo
-
     def transform_to_sql_tree(self, ir_expr, *, schema, backend=None,
                               output_format=None):
         try:
@@ -61,11 +54,11 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             ctx.output_format = output_format
             qtree = self.visit(ir_expr)
 
-            if debug.flags.edgeql_compile:
+            if debug.flags.edgeql_compile:  # pragma: no cover
                 debug.header('SQL Tree')
                 debug.dump(qtree)
 
-        except Exception as e:
+        except Exception as e:  # pragma: no cover
             try:
                 args = [e.args[0]]
             except (AttributeError, IndexError):
@@ -89,7 +82,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         qchunks = codegen.result
         arg_index = codegen.param_index
 
-        if debug.flags.edgeql_compile:
+        if debug.flags.edgeql_compile:  # pragma: no cover
             debug.header('SQL')
             debug.dump_code(''.join(qchunks), lexer='sql')
 
@@ -275,8 +268,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             testref = None
 
         else:
-            # In non-JSON mode the result is an anonymous record.
-            result = pgast.RowExpr(args=my_elements)
+            raise NotImplementedError(
+                f'unsupported output_format: {ctx.output_format}')
 
         if testref is not None:
             # In case the object reference is NULL we want the
@@ -298,13 +291,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
     def visit_Set(self, expr):
         ctx = self.context.current
 
-        exists_target, not_exists = self._is_exists_ir(expr.expr)
-        if exists_target is not None and not_exists:
-            with self.context.new():
-                self.context.current.path_fork = 'left'
-                source_cte = self._set_to_cte(expr)
-        else:
-            source_cte = self._set_to_cte(expr)
+        source_cte = self._set_to_cte(expr)
 
         if ctx.location in {'where', 'exists'}:
             # When referred to in WHERE or as an argument to EXISTS(),
@@ -352,20 +339,12 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         if subrel is None or subrel['rvar'] is None:
             # The rel has not been recorded as a sub-relation of this rel,
             # so make it so.
-            if isinstance(rel, pgast.Query):
-                rvar = pgast.RangeSubselect(
-                    subquery=rel,
-                    alias=pgast.Alias(
-                        aliasname=ctx.genalias(hint='q')
-                    )
+            rvar = pgast.RangeVar(
+                relation=rel,
+                alias=pgast.Alias(
+                    aliasname=ctx.genalias(hint=getattr(rel, 'name'))
                 )
-            else:
-                rvar = pgast.RangeVar(
-                    relation=rel,
-                    alias=pgast.Alias(
-                        aliasname=ctx.genalias(hint=getattr(rel, 'name'))
-                    )
-                )
+            )
 
             ctx.subquery_map[ctx.rel][rel] = {
                 'rvar': rvar,
@@ -399,31 +378,6 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         return result
 
-    def _set_has_expr(self, ir_set):
-        # Returns True if *ir_set* is produced by any expression.
-        # Literally this means that ``Set.expr`` is any expression
-        # except [NOT] EXISTS.
-        return (
-            ir_set.expr is not None and
-            self._is_exists_ir(ir_set.expr)[0] is None
-        )
-
-    def _is_exists_ir(self, ir_expr):
-        # Returns True if *ir_expr* is a ([NOT] EXISTS Expr) expression.
-        if isinstance(ir_expr, irast.Set):
-            ir_expr = ir_expr.expr
-
-        if isinstance(ir_expr, irast.ExistPred):
-            return ir_expr.expr, False
-        elif isinstance(ir_expr, irast.UnaryOp):
-            ex_set, inverted = self._is_exists_ir(ir_expr.expr)
-            if ex_set is not None:
-                return ex_set, not inverted
-            else:
-                return None, None
-        else:
-            return None, None
-
     def _wrap_set_rel_as_filter(self, ir_set, set_rel):
         # For the *set_rel* relation representing the *ir_set*
         # return the following:
@@ -448,7 +402,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         self._pull_path_namespace(target=wrapper, source=rvar)
 
-        if self._set_has_expr(ir_set):
+        if ir_set.expr is not None:
             v = pgast.ColumnRef(
                 name=[rvar.alias.aliasname, 'v']
             )
@@ -460,22 +414,11 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                     arg=v,
                     negated=True
                 )
-
-            not_exists = False
         else:
-            exists_target, not_exists = self._is_exists_ir(ir_set.expr)
-            if exists_target is not None:
-                wrapper.where_clause = self._new_unop(
-                    op=ast.ops.NOT,
-                    expr=pgast.NullTest(
-                        arg=wrapper.path_namespace[exists_target.path_id]
-                    )
-                )
-            else:
-                wrapper.where_clause = pgast.NullTest(
-                    arg=wrapper.path_namespace[ir_set.path_id],
-                    negated=True
-                )
+            wrapper.where_clause = pgast.NullTest(
+                arg=wrapper.path_namespace[ir_set.path_id],
+                negated=True
+            )
 
         subrels = ctx.subquery_map[ctx.rel]
         subrels[wrapper] = {
@@ -487,13 +430,6 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             type=pgast.SubLinkType.EXISTS,
             subselect=wrapper
         )
-
-        if not_exists:
-            wrapper = pgast.Expr(
-                rexpr=wrapper,
-                name=ast.ops.NOT,
-                kind=pgast.ExprKind.OP
-            )
 
         return wrapper
 
@@ -520,7 +456,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         self._pull_path_namespace(target=wrapper, source=rvar)
 
-        if self._set_has_expr(ir_set):
+        if ir_set.expr is not None:
             target = pgast.ColumnRef(name=[rvar.alias.aliasname, 'v'])
         else:
             target = wrapper.path_namespace[ir_set.path_id]
@@ -740,115 +676,106 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                     self._pull_path_var(source_rel, ir_set)
 
         if ir_set.expr:
-            exist_expr, _ = self._is_exists_ir(ir_set.expr)
 
-            if exist_expr is None:
-                if isinstance(ir_set.expr, irast.Stmt):
+            if isinstance(ir_set.expr, irast.Stmt):
+                set_expr = self.visit(ir_set.expr)
+                res = ir_set.expr.result
+                cte = self._get_set_cte(res)
+                self._put_set_cte(ir_set, cte)
+
+                return cte
+
+            if isinstance(ir_set.expr, irast.TypeFilter):
+                self._rel_join(stmt, stmt.scls_rvar, type='left')
+
+                valref = pgast.ColumnRef(
+                    name=[
+                        stmt.scls_rvar.alias.aliasname,
+                        stmt.scls_rvar.path_vars[ir_set.path_id]
+                    ]
+                )
+
+                restarget = pgast.ResTarget(val=valref, name='v')
+                stmt.target_list.append(restarget)
+
+                stmt.path_namespace[ir_set.path_id] = valref
+                stmt.path_vars[ir_set.path_id] = 'v'
+                stmt.path_namespace[id_set.path_id] = valref
+                stmt.path_vars[id_set.path_id] = 'v'
+
+            else:
+                with self.context.new():
+                    self.context.current.location = 'set_expr'
+                    self.context.current.rel = stmt
                     set_expr = self.visit(ir_set.expr)
-                    res = ir_set.expr.result
 
-                    if (isinstance(res, irast.Set) and
-                            res.path_id[0].name.module == '__cexpr__'):
-                        cte = self._get_set_cte(res)
-                        self._put_set_cte(ir_set, cte)
-                    else:
-                        cte = set_expr
+                    self._connect_subrels(stmt)
 
-                    return cte
+                    if irutils.is_aggregated_expr(ir_set.expr):
+                        # The expression includes calls to aggregates.
+                        # Clear the namespace as it is no longer valid.
+                        stmt.path_namespace.clear()
+                        stmt.inner_path_bonds.clear()
+                        stmt.target_list[:] = []
 
-                if isinstance(ir_set.expr, irast.TypeFilter):
-                    self._rel_join(stmt, stmt.scls_rvar, type='left')
+                expr_result = irutils.infer_type(ir_set.expr, ctx.schema)
 
-                    valref = pgast.ColumnRef(
-                        name=[
-                            stmt.scls_rvar.alias.aliasname,
-                            stmt.scls_rvar.path_vars[ir_set.path_id]
+                if isinstance(expr_result, s_concepts.Concept):
+                    innerqry = pgast.SelectStmt(
+                        target_list=[
+                            pgast.ResTarget(
+                                val=set_expr,
+                                name='v'
+                            )
                         ]
                     )
 
+                    valref = pgast.ColumnRef(
+                        name=['q', 'v']
+                    )
+
+                    qry = pgast.SelectStmt(
+                        target_list=[
+                            pgast.ResTarget(
+                                val=valref,
+                                name='v'
+                            )
+                        ],
+                        from_clause=[
+                            pgast.RangeSubselect(
+                                subquery=innerqry,
+                                alias=pgast.Alias(
+                                    aliasname='q'
+                                )
+                            )
+                        ]
+                    )
+
+                    qry.path_namespace[ir_set.path_id] = valref
+                    qry.path_vars[ir_set.path_id] = 'v'
+                    qry.inner_path_bonds[ir_set.path_id] = valref
+                    qry.path_bonds[ir_set.path_id] = 'v'
+
+                    expr_rvar = pgast.RangeSubselect(
+                        lateral=True,
+                        subquery=qry,
+                        alias=pgast.Alias(
+                            aliasname='q'
+                        )
+                    )
+
+                    ctx.subquery_map[stmt][innerqry] = {
+                        'rvar': expr_rvar,
+                        'linked': True
+                    }
+
+                    self._rel_join(stmt, expr_rvar, type='inner')
+
                     restarget = pgast.ResTarget(val=valref, name='v')
                     stmt.target_list.append(restarget)
-
-                    stmt.path_namespace[ir_set.path_id] = valref
-                    stmt.path_vars[ir_set.path_id] = 'v'
-                    stmt.path_namespace[id_set.path_id] = valref
-                    stmt.path_vars[id_set.path_id] = 'v'
-
                 else:
-                    with self.context.new():
-                        self.context.current.location = 'set_expr'
-                        self.context.current.rel = stmt
-                        set_expr = self.visit(ir_set.expr)
-
-                        self._connect_subrels(stmt)
-
-                        if irutils.is_aggregated_expr(ir_set.expr):
-                            # The expression includes calls to aggregates.
-                            # Clear the namespace as it is no longer valid.
-                            stmt.path_namespace.clear()
-                            stmt.inner_path_bonds.clear()
-                            stmt.target_list[:] = []
-
-                    expr_result = irutils.infer_type(ir_set.expr, ctx.schema)
-
-                    if isinstance(expr_result, s_concepts.Concept):
-                        innerqry = pgast.SelectStmt(
-                            target_list=[
-                                pgast.ResTarget(
-                                    val=set_expr,
-                                    name='v'
-                                )
-                            ]
-                        )
-
-                        valref = pgast.ColumnRef(
-                            name=['q', 'v']
-                        )
-
-                        qry = pgast.SelectStmt(
-                            target_list=[
-                                pgast.ResTarget(
-                                    val=valref,
-                                    name='v'
-                                )
-                            ],
-                            from_clause=[
-                                pgast.RangeSubselect(
-                                    subquery=innerqry,
-                                    alias=pgast.Alias(
-                                        aliasname='q'
-                                    )
-                                )
-                            ]
-                        )
-
-                        qry.path_namespace[ir_set.path_id] = valref
-                        qry.path_vars[ir_set.path_id] = 'v'
-                        qry.inner_path_bonds[ir_set.path_id] = valref
-                        qry.path_bonds[ir_set.path_id] = 'v'
-
-                        expr_rvar = pgast.RangeSubselect(
-                            lateral=True,
-                            subquery=qry,
-                            alias=pgast.Alias(
-                                aliasname='q'
-                            )
-                        )
-
-                        ctx.subquery_map[stmt][innerqry] = {
-                            'rvar': expr_rvar,
-                            'linked': True
-                        }
-
-                        self._rel_join(stmt, expr_rvar, type='inner')
-
-                        restarget = pgast.ResTarget(val=valref, name='v')
-                        stmt.target_list.append(restarget)
-                    else:
-                        restarget = pgast.ResTarget(val=set_expr, name='v')
-                        stmt.target_list.append(restarget)
-            else:
-                return_parent = True
+                    restarget = pgast.ResTarget(val=set_expr, name='v')
+                    stmt.target_list.append(restarget)
 
         if return_parent:
             source_rel = fromlist[0].relation
@@ -1012,8 +939,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         try:
             ref = ctx.rel.path_namespace[ir_set.path_id]
-        except KeyError:
-            raise LookupError(
+        except KeyError:  # pragma: no cover
+            raise expr_compiler.IRCompilerInternalError(
                 f'could not resolve {ir_set.path_id} as a column '
                 f'reference in context of {ctx.rel!r}')
 
@@ -1214,9 +1141,6 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         assert nq >= 2, 'set operation requires at least two arguments'
 
-        if parent_qry is None:
-            parent_qry = pgast.SelectStmt()
-
         parent_qry.op = op
         parent_qry.all = True
 
@@ -1357,7 +1281,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             rel_rvar = rel.scls_rvar
 
         if rel_rvar is None:
-            raise RuntimeError(
+            raise expr_compiler.IRCompilerInternalError(
                 f'{rel} is missing the relation context for {ir_set.path_id}')
 
         colname = None
@@ -1429,7 +1353,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             strict_ancestry=True)
 
         if not sources:
-            raise RuntimeError(
+            raise RuntimeError(  # internal error
                 f'cannot find column source for '
                 f'({source_cls.name}).>({ptrname})')
 
@@ -1472,12 +1396,12 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         codegen = pgcodegen.SQLSourceGenerator()
         try:
             codegen.visit(qtree)
-        except pgcodegen.SQLSourceGeneratorError as e:
+        except pgcodegen.SQLSourceGeneratorError as e:  # pragma: no cover
             ctx = pgcodegen.SQLSourceGeneratorContext(
                 qtree, codegen.result)
             edgedb_error.add_context(e, ctx)
             raise
-        except Exception as e:
+        except Exception as e:  # pragma: no cover
             ctx = pgcodegen.SQLSourceGeneratorContext(
                 qtree, codegen.result)
             err = pgcodegen.SQLSourceGeneratorError(
@@ -1486,10 +1410,3 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             raise err from e
 
         return codegen
-
-    def _is_composite_cast(self, expr):
-        return (
-            isinstance(expr, irast.TypeCast) and (
-                isinstance(expr.type, irast.CompositeType) or (
-                    isinstance(expr.type, tuple) and
-                    isinstance(expr.type[1], irast.CompositeType))))

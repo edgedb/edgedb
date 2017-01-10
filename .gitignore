@@ -21,3 +21,4 @@ docs/_build
 /AUTHORS
 /ChangeLog
 /.coverage*
+!/.coveragerc

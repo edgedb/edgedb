@@ -23,9 +23,6 @@ class Alias(str):
     def __add__(self, other):
         return Alias(super().__add__(other))
 
-    def __radd__(self, other):
-        return Alias(str(other) + str(self))
-
     __iadd__ = __add__
 
 
@@ -85,10 +82,7 @@ class TransformerContextLevel:
             if mode == TransformerContext.SUBSTMT:
                 self.stmt = self.query
 
-    def genalias(self, hint=None):
-        if hint is None:
-            hint = 'a'
-
+    def genalias(self, hint):
         m = re.search(r'~\d+$', hint)
         if m:
             hint = hint[:m.start()]
@@ -134,12 +128,6 @@ class TransformerContext:
             return self.stack[-1]
         else:
             return None
-
-    def __getitem__(self, idx):
-        return self.stack[idx]
-
-    def __len__(self):
-        return len(self.stack)
 
     current = property(_current)
 

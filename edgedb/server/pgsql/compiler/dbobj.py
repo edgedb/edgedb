@@ -109,84 +109,70 @@ class IRCompilerDBObjects:
         linkname = ptrcls.shortname
         endpoint = ptrcls.source
 
-        if ptrcls.generic():
-            # Generic links would capture the necessary set via inheritance.
-            #
-            rvar = self._table_from_ptrcls(ptrcls)
+        cols = [
+            'std::source',
+            'std::target'
+        ]
 
-        else:
-            cols = [
-                'std::source',
-                'std::target'
-            ]
+        schema = ctx.schema
 
-            schema = ctx.schema
+        set_ops = []
 
-            set_ops = []
+        ptrclses = set()
 
-            ptrclses = set()
-
-            for source in {endpoint} | set(endpoint.descendants(schema)):
-                # Sift through the descendants to see who has this link
-                try:
-                    src_ptrcls = source.pointers[linkname]
-                except KeyError:
-                    # This source has no such link, skip it
-                    continue
-                else:
-                    if src_ptrcls in ptrclses:
-                        # Seen this link already
-                        continue
-                    ptrclses.add(src_ptrcls)
-
-                table = self._table_from_ptrcls(src_ptrcls)
-
-                qry = pgast.SelectStmt()
-                qry.from_clause.append(table)
-                qry.rptr_rvar = table
-
-                # Make sure all property references are pulled up properly
-                for colname in cols:
-                    selexpr = pgast.ColumnRef(
-                        name=[table.alias.aliasname, colname])
-                    qry.target_list.append(
-                        pgast.ResTarget(val=selexpr, name=colname))
-
-                set_ops.append(('union', qry))
-
-                overlays = ctx.rel_overlays.get(src_ptrcls)
-                if overlays and include_overlays:
-                    for op, cte in overlays:
-                        rvar = pgast.RangeVar(
-                            relation=cte,
-                            alias=pgast.Alias(
-                                aliasname=ctx.genalias(hint=cte.name)
-                            )
-                        )
-
-                        qry = pgast.SelectStmt(
-                            target_list=[
-                                pgast.ResTarget(
-                                    val=pgast.ColumnRef(
-                                        name=[col]
-                                    )
-                                )
-                                for col in cols
-                            ],
-                            from_clause=[rvar],
-                            rptr_rvar=rvar
-                        )
-                        set_ops.append((op, qry))
-
-            if len(set_ops) == 0:
-                # We've been given a generic link that none of the potential
-                # sources contain directly, so fall back to general parent
-                # table.
-                rvar = self._table_from_ptrcls(ptrcls.bases[0])
-
+        for source in {endpoint} | set(endpoint.descendants(schema)):
+            # Sift through the descendants to see who has this link
+            try:
+                src_ptrcls = source.pointers[linkname]
+            except KeyError:
+                # This source has no such link, skip it
+                continue
             else:
-                rvar = self._range_from_queryset(set_ops, ptrcls)
+                if src_ptrcls in ptrclses:
+                    # Seen this link already
+                    continue
+                ptrclses.add(src_ptrcls)
 
+            table = self._table_from_ptrcls(src_ptrcls)
+
+            qry = pgast.SelectStmt()
+            qry.from_clause.append(table)
+            qry.rptr_rvar = table
+
+            # Make sure all property references are pulled up properly
+            for colname in cols:
+                selexpr = pgast.ColumnRef(
+                    name=[table.alias.aliasname, colname])
+                qry.target_list.append(
+                    pgast.ResTarget(val=selexpr, name=colname))
+
+            set_ops.append(('union', qry))
+
+            overlays = ctx.rel_overlays.get(src_ptrcls)
+            if overlays and include_overlays:
+                for op, cte in overlays:
+                    rvar = pgast.RangeVar(
+                        relation=cte,
+                        alias=pgast.Alias(
+                            aliasname=ctx.genalias(hint=cte.name)
+                        )
+                    )
+
+                    qry = pgast.SelectStmt(
+                        target_list=[
+                            pgast.ResTarget(
+                                val=pgast.ColumnRef(
+                                    name=[col]
+                                )
+                            )
+                            for col in cols
+                        ],
+                        from_clause=[rvar],
+                        rptr_rvar=rvar
+                    )
+                    set_ops.append((op, qry))
+
+        rvar = self._range_from_queryset(set_ops, ptrcls)
         return rvar
 
     def _range_for_pointer(self, pointer):

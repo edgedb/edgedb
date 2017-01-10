@@ -53,10 +53,7 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
 
     @property
     def memo(self):
-        if self.context is not None:
-            return self.context.current.memo
-        else:
-            return self._memo
+        return self.context.current.memo
 
     def generic_visit(self, node, *, combine_results=None):
         raise NotImplementedError(
@@ -71,24 +68,21 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
         else:
             const_type = None
 
-        if expr.expr:
-            result = self.visit(expr.expr)
-        else:
-            val = expr.value
-            index = None
+        val = expr.value
+        index = None
 
-            if expr.index is not None and not isinstance(expr.index, int):
-                if expr.index in ctx.argmap:
-                    index = list(ctx.argmap).index(expr.index)
-                else:
-                    ctx.argmap.add(expr.index)
-                    index = len(ctx.argmap) - 1
-
-                result = pgast.ParamRef(number=index)
-            elif expr.index is not None:
-                result = pgast.ParamRef(number=expr.index)
+        if expr.index is not None and not isinstance(expr.index, int):
+            if expr.index in ctx.argmap:
+                index = list(ctx.argmap).index(expr.index)
             else:
-                result = pgast.Constant(val=val)
+                ctx.argmap.add(expr.index)
+                index = len(ctx.argmap) - 1
+
+            result = pgast.ParamRef(number=index)
+        elif expr.index is not None:
+            result = pgast.ParamRef(number=expr.index)
+        else:
+            result = pgast.Constant(val=val)
 
         if const_type is not None:
             result = pgast.TypeCast(
@@ -446,7 +440,7 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
 
         for expr in exprs:
             if expr is not binop:
-                if reversed:
+                if reversed:  # XXX: dead
                     binop = self._new_binop(rexpr=binop, op=op, lexpr=expr)
                 else:
                     binop = self._new_binop(lexpr=binop, op=op, rexpr=expr)
