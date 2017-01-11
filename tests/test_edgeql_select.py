@@ -2140,6 +2140,101 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '2'}, {'number': '3'}, {'number': '4'}],
         ])
 
+    async def test_edgeql_select_or14(self):
+        await self.assert_query_result(r'''
+            # Find Issues that have status 'Closed' or number 2 or 3
+            #
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                Issue.status.name = 'Closed'
+                OR
+                Issue.number = '2'
+                OR
+                Issue.number = '3'
+            ORDER BY Issue.number;
+        ''', [
+            [{'number': '2'}, {'number': '3'}, {'number': '4'}],
+        ])
+
+    async def test_edgeql_select_or15(self):
+        await self.assert_query_result(r'''
+            # Find Issues that have status 'Closed' or number 2 or 3
+            #
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                (
+                    # Issues 2, 3, 4 satisfy this subclause
+                    Issue.status.name = 'Closed'
+                    OR
+                    Issue.number = '2'
+                    OR
+                    Issue.number = '3'
+                ) AND (
+                    # Issues 1, 2, 3 satisfy this subclause
+                    Issue.name ILIKE '%edgedb%'
+                    OR
+                    Issue.priority.name = 'Low'
+                )
+            ORDER BY Issue.number;
+        ''', [
+            [{'number': '2'}, {'number': '3'}],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_not01(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE NOT Issue.priority.name = 'High'
+            ORDER BY Issue.number;
+
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE Issue.priority.name != 'High'
+            ORDER BY Issue.number;
+       ''', [
+            [{'number': '3'}],
+            [{'number': '3'}],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_not02(self):
+        # testing double negation
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE NOT NOT NOT Issue.priority.name = 'High'
+            ORDER BY Issue.number;
+
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE NOT NOT Issue.priority.name != 'High'
+            ORDER BY Issue.number;
+       ''', [
+            [{'number': '3'}],
+            [{'number': '3'}],
+        ])
+
+    async def test_edgeql_select_not03(self):
+        # test that: a OR b = NOT( NOT a AND NOT b)
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            WHERE
+                NOT (
+                    NOT Issue.priority.name = 'High'
+                    AND
+                    NOT Issue.status.name = 'Closed'
+                )
+            ORDER BY Issue.number;
+       ''', [
+            # this is the result from or04
+            #
+            [{'number': '2'}, {'number': '3'}, {'number': '4'}],
+        ])
+
     async def test_edgeql_select_null01(self):
         await self.assert_query_result(r"""
             SELECT test::Issue.number = NULL;
@@ -2451,7 +2546,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         ])
 
-    async def test_edgeql_select_subqueries14(self):
+    async def test_edgeql_select_subqueries13(self):
         await self.assert_query_result(r"""
             WITH MODULE test
             SELECT User{name}
@@ -2465,7 +2560,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'name': 'Elvis'}],
         ])
 
-    async def test_edgeql_select_subqueries15(self):
+    async def test_edgeql_select_subqueries14(self):
         await self.assert_query_result(r"""
             # Find all issues such that there's at least one more
             # issue watched by the same user as this one, this user
@@ -2498,7 +2593,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_select_subqueries17(self):
+    async def test_edgeql_select_subqueries15(self):
         await self.assert_query_result(r"""
             # testing IN and a subquery
             WITH MODULE test
@@ -2513,7 +2608,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'body': 'EdgeDB needs to happen soon.'}],
         ])
 
-    async def test_edgeql_select_subqueries18(self):
+    async def test_edgeql_select_subqueries16(self):
         await self.assert_query_result(r"""
             # get a comment whose owner is part of the users who own Issue "1"
             WITH MODULE test
