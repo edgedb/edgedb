@@ -60,7 +60,6 @@ concept Comment extends Text, Owned:
 
 
 concept Issue extends Named, Owned, Text:
-
     required link number to issue_num_t:
         readonly: true
         # The number values are automatically generated,
@@ -93,3 +92,18 @@ concept Issue extends Named, Owned, Text:
 
     link related_to to Issue:
         mapping: **
+
+    # this is used to test virtual concepts
+    link references to File, URL, Publication:
+        mapping: **
+
+
+concept File extends Named
+
+
+concept URL:
+    required link address to str
+
+
+concept Publication:
+    required link title to str

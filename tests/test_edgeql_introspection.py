@@ -33,13 +33,16 @@ class TestIntrospection(tb.QueryTestCase):
             [
                 {'name': 'test::Comment'},
                 {'name': 'test::Dictionary'},
+                {'name': 'test::File'},
                 {'name': 'test::Issue'},
                 {'name': 'test::LogEntry'},
                 {'name': 'test::Named'},
                 {'name': 'test::Owned'},
                 {'name': 'test::Priority'},
+                {'name': 'test::Publication'},
                 {'name': 'test::Status'},
                 {'name': 'test::Text'},
+                {'name': 'test::URL'},
                 {'name': 'test::User'}
             ]
         ])
@@ -367,14 +370,18 @@ class TestIntrospection(tb.QueryTestCase):
             [
                 {'name': 'test::Comment'},
                 {'name': 'test::Dictionary'},
+                {'name': 'test::File'},
                 {'name': 'test::Issue'},
                 {'name': 'test::LogEntry'},
                 {'name': 'test::Named'},
                 {'name': 'test::Owned'},
                 {'name': 'test::Priority'},
+                {'name': 'test::Publication'},
                 {'name': 'test::Status'},
                 {'name': 'test::Text'},
+                {'name': 'test::URL'},
                 {'name': 'test::User'},
+                {'name': 'test::address'},
                 {'name': 'test::body'},
                 {'name': 'test::due_date'},
                 {'name': 'test::issue'},
@@ -385,12 +392,14 @@ class TestIntrospection(tb.QueryTestCase):
                 {'name': 'test::parent'},
                 {'name': 'test::priority'},
                 {'name': 'test::rank'},
+                {'name': 'test::references'},
                 {'name': 'test::related_to'},
                 {'name': 'test::spent_time'},
                 {'name': 'test::start_date'},
                 {'name': 'test::status'},
                 {'name': 'test::time_estimate'},
                 {'name': 'test::time_spent_log'},
+                {'name': 'test::title'},
                 {'name': 'test::todo'},
                 {'name': 'test::watchers'},
             ]
@@ -452,13 +461,16 @@ class TestIntrospection(tb.QueryTestCase):
             [
                 {'name': 'test::Comment', 'count': 0},
                 {'name': 'test::Dictionary', 'count': 0},
+                {'name': 'test::File', 'count': 0},
                 {'name': 'test::Issue', 'count': 0},
                 {'name': 'test::LogEntry', 'count': 0},
                 {'name': 'test::Named', 'count': 0},
                 {'name': 'test::Owned', 'count': 0},
                 {'name': 'test::Priority', 'count': 2},
+                {'name': 'test::Publication', 'count': 0},
                 {'name': 'test::Status', 'count': 3},
                 {'name': 'test::Text', 'count': 0},
+                {'name': 'test::URL', 'count': 0},
                 {'name': 'test::User', 'count': 2},
             ]
         ])
