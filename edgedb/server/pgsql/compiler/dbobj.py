@@ -11,9 +11,7 @@ from edgedb.server.pgsql import common
 
 
 class IRCompilerDBObjects:
-
-    def _range_for_concept(self, concept, parent_cte, *,
-                           include_overlays=True):
+    def _range_for_material_concept(self, concept, include_overlays=True):
         ctx = self.context.current
 
         table_schema_name, table_name = common.concept_name_to_table_name(
@@ -59,6 +57,36 @@ class IRCompilerDBObjects:
                 )
 
                 set_ops.append((op, qry))
+
+            rvar = self._range_from_queryset(set_ops, concept)
+
+        return rvar
+
+    def _range_for_concept(self, concept, parent_cte, *,
+                           include_overlays=True):
+        if not concept.is_virtual:
+            rvar = self._range_for_material_concept(
+                concept, include_overlays=include_overlays)
+        else:
+            schema = self.context.current.schema
+
+            # Virtual concepts are represented as a UNION of selects
+            # from their children, which is, for most purposes, equivalent
+            # to SELECTing from a parent table.
+            children = frozenset(concept.children(schema))
+
+            set_ops = []
+
+            for child in children:
+                c_rvar = self._range_for_concept(
+                    child, parent_cte, include_overlays=include_overlays)
+
+                qry = pgast.SelectStmt(
+                    from_clause=[c_rvar],
+                    scls_rvar=c_rvar
+                )
+
+                set_ops.append(('union', qry))
 
             rvar = self._range_from_queryset(set_ops, concept)
 

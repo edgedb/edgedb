@@ -524,7 +524,7 @@ class DeclarationLoader:
 
                 if len(_tnames) == 1:
                     # Usual case, just one target
-                    spectargets = None
+                    spectargets = []
                     target = self._schema.get(_tnames[0],
                                               module_aliases=self._mod_aliases)
                 else:
@@ -534,12 +534,15 @@ class DeclarationLoader:
                         self._schema.get(t, module_aliases=self._mod_aliases)
                         for t in _tnames)
 
-                    target = link_base.create_common_target(
+                    target = link_base.get_common_target(
                         self._schema, spectargets)
-                    target.is_derived = True
+                    if not self._schema.get(target.name, default=None):
+                        self._schema.add(target)
 
                 link = link_base.derive(
                     self._schema, concept, target, add_to_schema=True)
+
+                link.spectargets = spectargets
 
                 link.required = bool(linkdecl.required)
 

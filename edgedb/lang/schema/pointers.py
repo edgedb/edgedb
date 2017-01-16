@@ -234,8 +234,10 @@ class BasePointer(primary.PrimaryClass, derivable.DerivableClass):
                 raise schema_error.SchemaError(
                     'cannot set multiple atom targets for a link')
         else:
+            base = schema.get(concepts.Concept.get_default_base_name())
             target = concepts.Concept(name=name, is_abstract=True,
-                                      is_virtual=True)
+                                      is_virtual=True, bases=[base])
+            target.acquire_ancestor_inheritance(schema)
             schema.update_virtual_inheritance(target, targets)
 
         return target

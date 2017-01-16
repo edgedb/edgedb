@@ -279,7 +279,8 @@ class Schema:
         objects = list(sorted(self, key=lambda e: e.name))
         return [(str(o.name), persistent_hash(o)) for o in objects]
 
-    def get_objects(self, *, type=None):
+    def get_objects(self, *, type=None, include_derived=False):
         for mod in self.modules.values():
-            for scls in mod.get_objects(type=type):
+            for scls in mod.get_objects(type=type,
+                                        include_derived=include_derived):
                 yield scls

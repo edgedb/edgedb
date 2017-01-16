@@ -60,10 +60,9 @@ source: |
             l.id,
             sc.name AS source,
             tc.name AS target,
-            l.spectargets AS spectargets,
+            _resolve_types(l.spectargets) AS spectargets,
             l.name AS name,
-            (SELECT array_agg(name) FROM edgedb.NamedClass
-             WHERE id = any(l.bases)) AS bases,
+            _resolve_types(l.bases) AS bases,
             l.mapping,
             l.exposed_behaviour,
             l.required,

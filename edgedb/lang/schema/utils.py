@@ -92,8 +92,7 @@ def minimize_class_set_by_least_generic(classes):
 
 def get_inheritance_map(classes):
     """Return a dict where values are strict subclasses of the key."""
-    return {scls: [p for p in classes
-                   if p != scls and p.issubclass(scls)]
+    return {scls: [p for p in classes if p != scls and p.issubclass(scls)]
             for scls in classes}
 
 

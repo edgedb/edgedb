@@ -98,6 +98,21 @@ class ResolveTypeFunction(dbops.Function):
             text=self.text)
 
 
+class ResolveSimpleTypeFunction(dbops.Function):
+    text = '''
+        SELECT name FROM edgedb.NamedClass
+        WHERE id = type::uuid
+    '''
+
+    def __init__(self):
+        super().__init__(
+            name=('edgedb', '_resolve_type'),
+            args=[('type', ('uuid',))],
+            returns=('text',),
+            volatility='stable',
+            text=self.text)
+
+
 class ResolveTypeDictFunction(dbops.Function):
     text = '''
         SELECT
@@ -152,6 +167,23 @@ class ResolveTypeListFunction(dbops.Function):
             name=('edgedb', '_resolve_types'),
             args=[('type_data', ('edgedb', 'type_t[]'))],
             returns=('edgedb', 'typedesc_t[]'),
+            volatility='stable',
+            text=self.text)
+
+
+class ResolveSimpleTypeListFunction(dbops.Function):
+    text = '''
+        SELECT
+            array_agg(_resolve_type(t.id) ORDER BY t.ordinality)
+        FROM
+            UNNEST(type_data) WITH ORDINALITY AS t(id)
+    '''
+
+    def __init__(self):
+        super().__init__(
+            name=('edgedb', '_resolve_types'),
+            args=[('type_data', ('uuid[]',))],
+            returns=('text[]',),
             volatility='stable',
             text=self.text)
 
@@ -469,8 +501,10 @@ async def bootstrap(conn):
 
     commands.add_commands([
         dbops.CreateFunction(ResolveTypeFunction()),
+        dbops.CreateFunction(ResolveSimpleTypeFunction()),
         dbops.CreateFunction(ResolveTypeDictFunction()),
         dbops.CreateFunction(ResolveTypeListFunction()),
+        dbops.CreateFunction(ResolveSimpleTypeListFunction()),
         dbops.CreateFunction(EdgeDBNameToPGNameFunction()),
         dbops.CreateFunction(ConvertNameFunction()),
         dbops.CreateFunction(ConceptNameToTableNameFunction()),
