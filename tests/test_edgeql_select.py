@@ -1103,16 +1103,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_select_instance04(self):
-        await self.assert_query_result(r'''
-            WITH MODULE test
-            SELECT
-                (Text AS Issue).number
-            ORDER BY Text.body;
-        ''', [
-            [None, '4', '1', '3', None, '2'],
-        ])
-
     async def test_edgeql_select_combined01(self):
         res = await self.con.execute(r'''
             WITH MODULE test
@@ -1739,51 +1729,24 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '4'}],
         ])
 
-    async def test_edgeql_select_exists18(self):
+    async def test_edgeql_select_as01(self):
         # NOTE: for the expected ordering of Text see instance04 test
         await self.assert_query_result(r'''
             WITH MODULE test
-            SELECT EXISTS (Text AS Issue)
+            SELECT (Text AS Issue).number
             ORDER BY Text.body;
         ''', [
-            [False, True, True, True, False, True],
-        ])
-
-    async def test_edgeql_select_as01(self):
-        await self.assert_query_result(r'''
-            WITH MODULE test
-            SELECT NOT EXISTS (Text AS Issue)
-            ORDER BY Text.body;
-        ''', [
-            [True, False, False, False, True, False],
+            ['4', '1', '3', '2'],
         ])
 
     async def test_edgeql_select_as02(self):
-        await self.assert_query_result(r'''
-            WITH MODULE test
-            SELECT EXISTS (Text AS Issue).id
-            ORDER BY Text.body;
-        ''', [
-            [False, True, True, True, False, True],
-        ])
-
-    async def test_edgeql_select_as03(self):
-        await self.assert_query_result(r'''
-            WITH MODULE test
-            SELECT NOT EXISTS (Text AS Issue).id
-            ORDER BY Text.body;
-        ''', [
-            [True, False, False, False, True, False],
-        ])
-
-    async def test_edgeql_select_as04(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT (Text AS Issue).name
             WHERE Text.body @@ 'EdgeDB'
             ORDER BY (Text AS Issue).name;
         ''', [
-            [None, 'Release EdgeDB']
+            ['Release EdgeDB']
         ])
 
     async def test_edgeql_select_and01(self):
@@ -2020,10 +1983,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue.status.name = 'Closed'
             ORDER BY Issue.number;
         ''', [
-            [{'number': '2'}, {'number': '3'}, {'number': '4'}],
+            [{'number': '2'}, {'number': '3'}],
             # it so happens that all low priority issues are also closed
-            [{'number': '2'}, {'number': '3'}, {'number': '4'}],
-            [{'number': '2'}, {'number': '3'}, {'number': '4'}],
+            [{'number': '2'}, {'number': '3'}],
+            [{'number': '2'}, {'number': '3'}],
         ])
 
     async def test_edgeql_select_or05(self):
@@ -2197,7 +2160,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '2'}, {'number': '3'}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_not01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -2214,7 +2176,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '3'}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_not02(self):
         # testing double negation
         await self.assert_query_result(r'''
@@ -2247,7 +2208,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
        ''', [
             # this is the result from or04
             #
-            [{'number': '2'}, {'number': '3'}, {'number': '4'}],
+            [{'number': '2'}, {'number': '3'}],
         ])
 
     async def test_edgeql_select_null01(self):
@@ -2406,8 +2367,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [],
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_select_subqueries06(self):
-        # XXX: aliases vs. independent queries need to be fixed
         await self.assert_query_result(r"""
             # find all issues such that there's at least one more
             # issue with the same priority (even if the "same" means NULL)

@@ -46,6 +46,7 @@ class IRCompilerDMLSupport:
 
             # Process INSERT RETURNING
             self._process_selector(stmt.result)
+            self._apply_path_scope()
             self._connect_subrels(wrapper)
 
             return wrapper
@@ -61,6 +62,7 @@ class IRCompilerDMLSupport:
 
             # Process UPDATE RETURNING
             self._process_selector(stmt.result)
+            self._apply_path_scope()
             self._connect_subrels(wrapper)
 
             return wrapper
@@ -73,6 +75,7 @@ class IRCompilerDMLSupport:
 
             # Process DELETE RETURNING
             self._process_selector(stmt.result)
+            self._apply_path_scope()
             self._connect_subrels(wrapper)
 
             return wrapper
@@ -213,8 +216,8 @@ class IRCompilerDMLSupport:
                 range_stmt, id_set, path_id=target_ir_set.path_id)
 
             if ir_qual_expr is not None:
-                with self.context.new():
-                    self.context.current.location = 'where'
+                with self.context.new() as newctx:
+                    newctx.clause = 'where'
                     range_stmt.where_clause = self.visit(ir_qual_expr)
 
             self._connect_subrels(range_stmt)
@@ -271,12 +274,11 @@ class IRCompilerDMLSupport:
 
         external_inserts = []
 
-        with self.context.subquery():
+        with self.context.subquery() as ctx:
             # It is necessary to process the expressions in
             # the UpdateStmt shape body in the context of the
             # UPDATE statement so that references to the current
             # values of the updated object are resolved correctly.
-            ctx = self.context.current
             ctx.rel = ctx.query = select
             ctx.output_format = 'flat'
 

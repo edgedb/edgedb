@@ -59,10 +59,6 @@ class PathExtractor(ast.visitor.NodeVisitor):
             else:
                 self.paths[key].add(expr)
 
-    def visit_ExistPred(self, expr):
-        paths = extract_prefixes(expr.expr, roots_only=True)
-        self.paths.update(paths)
-
 
 def extract_prefixes(expr, roots_only=False):
     extractor = PathExtractor(roots_only=roots_only)
@@ -474,8 +470,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 path_id=irutils.LinearPath([]),
                 scls=result_type,
                 expr=binop,
-                sources=sources,
-                source_conjunction=expr.op == ast.ops.AND
+                sources=sources
             )
         else:
             node = binop
@@ -631,7 +626,39 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             else_expr=self.visit(expr.else_expr))
 
     def visit_UnaryOpNode(self, expr):
-        return irast.UnaryOp(expr=self.visit(expr.operand), op=expr.op)
+        ctx = self.context.current
+
+        operand = self.visit(expr.operand)
+
+        if isinstance(operand, irast.ExistPred) and expr.op == ast.ops.NOT:
+            operand.negated = not operand.negated
+            return operand
+
+        unop = irast.UnaryOp(expr=operand, op=expr.op)
+        result_type = irutils.infer_type(unop, ctx.schema)
+
+        if result_type is None:
+            operand_type = irutils.infer_type(unnop.expr, ctx.schema)
+            err = 'operator does not exist: {} {}'.format(
+                expr.op, operand_type.name)
+
+            raise errors.EdgeQLError(err, context=expr.left.context)
+
+        prefixes = get_common_prefixes([operand])
+
+        sources = set(itertools.chain.from_iterable(prefixes.values()))
+
+        if sources:
+            node = irast.Set(
+                path_id=irutils.LinearPath([]),
+                scls=result_type,
+                expr=unop,
+                sources=sources
+            )
+        else:
+            node = unop
+
+        return node
 
     def visit_ExistsPredicateNode(self, expr):
         return irast.ExistPred(expr=self.visit(expr.expr))
@@ -1236,8 +1263,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             path_id=parent_set.path_id
         )
 
-    def _generated_set(self, expr, result_type, *,
-                       source_conjunction=False, force=False):
+    def _generated_set(self, expr, result_type, *, force=False):
         prefixes = get_common_prefixes([expr])
         sources = set(itertools.chain.from_iterable(prefixes.values()))
 
@@ -1251,8 +1277,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 path_id=path_id,
                 scls=result_type,
                 expr=expr,
-                sources=sources,
-                source_conjunction=source_conjunction
+                sources=sources
             )
         else:
             node = expr

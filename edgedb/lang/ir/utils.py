@@ -13,6 +13,7 @@ from edgedb.lang.common import ast
 from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
+from edgedb.lang.schema import sources as s_src
 from edgedb.lang.schema import types as s_types
 
 from . import ast as irast
@@ -291,16 +292,32 @@ class LinearPath(list):
 
     def rptr(self):
         if len(self) > 1:
-            return self[-2][0]
+            genptr = self[-2][0]
+            direction = self[-2][1]
+            if direction == s_pointers.PointerDirection.Outbound:
+                src = self[-3]
+            else:
+                src = self[-1]
+
+            if isinstance(src, s_src.Source):
+                return src.pointers.get(genptr.name)
+            else:
+                return None
+        else:
+            return None
+
+    def rptr_dir(self):
+        if len(self) > 1:
+            return self[-2][1]
         else:
             return None
 
     def iter_prefixes(self):
-        yield self[:1]
+        yield self.__class__(self[:1])
 
         for i in range(1, len(self) - 1, 2):
             if self[i + 1]:
-                yield self[:i + 2]
+                yield self.__class__(self[:i + 2])
             else:
                 break
 

@@ -7,10 +7,8 @@
 
 
 import os.path
-import unittest
 
 from edgedb.server import _testbase as tb
-from edgedb.client import exceptions as exc
 
 
 class TestEdgeQLSelect(tb.QueryTestCase):
@@ -116,7 +114,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'name': 'Yury'}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_where_two_atomic_conditions02(self):
         await self.assert_query_result(r'''
             # NOTE: semantically same as and01, but using OR
@@ -127,9 +124,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT User{name}
             WHERE
                 NOT (
-                    NOT User.<owner[TO Issue].time_estimate > 9000
-                    OR
-                    NOT User.<owner[TO Issue].due_date = <datetime>'2020/01/15'
+                    NOT EXISTS (
+                        User.<owner[TO Issue].time_estimate > 9000
+                    ) OR NOT EXISTS (
+                        User.<owner[TO Issue].due_date = <datetime>'2020/01/15'
+                    )
                 )
             ORDER BY User.name;
         ''', [
@@ -137,7 +136,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'name': 'Yury'}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_where_two_atomic_conditions03(self):
         await self.assert_query_result(r'''
             # NOTE: same as above, but more human-like
@@ -148,9 +146,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT User{name}
             WHERE
                 NOT (
-                    User.<owner[TO Issue].time_estimate <= 9000
+                    EXISTS (User.<owner[TO Issue].time_estimate <= 9000)
                     OR
-                    User.<owner[TO Issue].due_date != <datetime>'2020/01/15'
+                    EXISTS (User.<owner[TO Issue].due_date !=
+                        <datetime>'2020/01/15')
                 )
             ORDER BY User.name;
         ''', [
@@ -172,9 +171,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT User{name}
             WHERE
                 NOT (
-                    NOT User.<owner[TO Issue].time_estimate > 9000
+                    NOT EXISTS (User.<owner[TO Issue].time_estimate > 9000)
                     OR
-                    NOT U2.<owner[TO Issue].due_date = <datetime>'2020/01/15'
+                    NOT EXISTS (U2.<owner[TO Issue].due_date =
+                        <datetime>'2020/01/15')
                 )
                 AND
                 # making sure it's the same Issue in both sub-clauses
@@ -213,7 +213,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'name': 'Elvis'}, {'name': 'Yury'}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_where_not_exists03(self):
         await self.assert_query_result(r'''
             # NOTE: same as above, but starting with User
@@ -232,7 +231,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'name': 'Elvis'}, {'name': 'Yury'}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_where_not_exists04(self):
         await self.assert_query_result(r'''
             # NOTE: same as above, but with separate roots and
@@ -256,7 +254,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'name': 'Elvis'}, {'name': 'Yury'}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_where_two_atomic_exists01(self):
         await self.assert_query_result(r'''
             # NOTE: very similar to two_atomic_conditions, same
@@ -277,7 +274,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'name': 'Yury'}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_where_two_atomic_exists02(self):
         await self.assert_query_result(r'''
             # NOTE: same as above, but using OR
@@ -299,7 +295,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'name': 'Yury'}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_where_two_atomic_exists03(self):
         await self.assert_query_result(r'''
             # NOTE: same as above, but using OR,
@@ -327,7 +322,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'name': 'Yury'}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_where_two_atomic_exists04(self):
         await self.assert_query_result(r'''
             # NOTE: same as above, but using OR,

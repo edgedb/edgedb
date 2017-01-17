@@ -47,7 +47,6 @@ class Set(Base):
     real_path_id: list
     scls: so.NodeClass
     sources: set
-    source_conjunction: bool
     expr: Base
     rptr: Pointer
     anchor: str
@@ -104,6 +103,7 @@ class UnaryOp(Expr):
 class ExistPred(Expr):
 
     expr: Base
+    negated: bool = False
 
 
 class IfElseExpr(Expr):

@@ -28,59 +28,89 @@ class Alias(str):
 
 class TransformerContextLevel:
     def __init__(self, prevlevel=None, mode=None):
+        self._mode = mode
+
         if prevlevel is None:
+            self.backend = None
+            self.schema = None
+
+            self.memo = {}
+
             stmt = pgast.SelectStmt()
             self.toplevel_stmt = None
             self.stmt = stmt
             self.query = stmt
             self.rel = stmt
+
+            self.clause = None
             self.scope_cutoff = False
-            self.aliascnt = {}
-            self.ctemap = {}
-            self.argmap = OrderedSet()
-            self.location = 'query'
+            self.in_exists = False
             self.in_aggregate = False
+            self.in_set_expr = False
+            self.in_shape = False
             self.expr_exposed = False
-            self.backend = None
-            self.schema = None
+            self.lax_paths = False
+
+            self.aliascnt = {}
+            self.argmap = OrderedSet()
+            self.ctemap = {}
+            self.setscope = {}
+
             self.subquery_map = collections.defaultdict(dict)
             self.output_format = None
-            self.memo = {}
             self.rel_overlays = collections.defaultdict(list)
-            self.path_fork = 'main'
 
         else:
+            self.backend = prevlevel.backend
+            self.schema = prevlevel.schema
+
+            self.memo = {}
+
             self.toplevel_stmt = prevlevel.toplevel_stmt
             self.stmt = prevlevel.stmt
             self.query = prevlevel.query
             self.rel = prevlevel.rel
+
+            self.clause = prevlevel.clause
             self.scope_cutoff = False
-            self.argmap = prevlevel.argmap
+            self.in_exists = prevlevel.in_exists
             self.in_aggregate = prevlevel.in_aggregate
+            self.in_set_expr = prevlevel.in_set_expr
+            self.in_shape = prevlevel.in_shape
             self.expr_exposed = prevlevel.expr_exposed
-            self.backend = prevlevel.backend
-            self.schema = prevlevel.schema
+            self.lax_paths = prevlevel.lax_paths
+
             self.aliascnt = prevlevel.aliascnt
-            self.output_format = prevlevel.output_format
-            self.memo = {}
-            self.location = prevlevel.location
+            self.argmap = prevlevel.argmap
             self.ctemap = prevlevel.ctemap
+            self.setscope = prevlevel.setscope
+
             self.subquery_map = prevlevel.subquery_map
+            self.output_format = prevlevel.output_format
             self.rel_overlays = prevlevel.rel_overlays
-            self.path_fork = prevlevel.path_fork
 
             if mode in {TransformerContext.SUBQUERY,
                         TransformerContext.SUBSTMT}:
                 self.query = pgast.SelectStmt()
                 self.rel = self.query
-                self.location = 'query'
-                self.ctemap = prevlevel.ctemap.copy()
+
+                self.clause = None
                 self.in_aggregate = False
+                self.in_set_expr = False
+                self.in_shape = False
+                self.in_exists = False
+                self.lax_paths = False
+
+                self.ctemap = prevlevel.ctemap.copy()
+                self.setscope = {}
+
                 self.subquery_map = collections.defaultdict(dict)
-                self.path_fork = 'main'
 
             if mode == TransformerContext.SUBSTMT:
                 self.stmt = self.query
+
+            if mode == TransformerContext.SETSCOPE:
+                self.setscope = {}
 
     def genalias(self, hint):
         m = re.search(r'~\d+$', hint)
@@ -96,9 +126,15 @@ class TransformerContextLevel:
 
         return Alias(alias)
 
+    def on_pop(self, prevlevel):
+        if self._mode == TransformerContext.SETSCOPE and prevlevel:
+            for ir_set, lax in self.setscope.items():
+                if lax or ir_set not in prevlevel.setscope:
+                    prevlevel.setscope[ir_set] = lax
+
 
 class TransformerContext:
-    TRANSPARENT, SUBQUERY, SUBSTMT = range(0, 3)
+    TRANSPARENT, SETSCOPE, SUBQUERY, SUBSTMT = range(0, 4)
 
     def __init__(self):
         self.stack = []
@@ -110,12 +146,16 @@ class TransformerContext:
         return level
 
     def pop(self):
-        self.stack.pop()
+        level = self.stack.pop()
+        level.on_pop(self.stack[-1] if self.stack else None)
 
     def new(self, mode=None):
         if mode is None:
             mode = TransformerContext.TRANSPARENT
         return TransformerContextWrapper(self, mode)
+
+    def newsetscope(self):
+        return self.new(TransformerContext.SETSCOPE)
 
     def subquery(self):
         return self.new(TransformerContext.SUBQUERY)
@@ -139,7 +179,7 @@ class TransformerContextWrapper:
 
     def __enter__(self):
         self.context.push(self.mode)
-        return self.context
+        return self.context.current
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.context.pop()

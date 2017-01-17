@@ -101,7 +101,9 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             if ctx.toplevel_stmt is None:
                 ctx.toplevel_stmt = ctx.stmt
 
-            parent_ctx.subquery_map[parent_rel][ctx.query] = {
+            query = ctx.query
+
+            parent_ctx.subquery_map[parent_rel][query] = {
                 'linked': False,
                 'rvar': None
             }
@@ -118,18 +120,18 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                     rarg = self.visit(stmt.set_op_rarg)
 
                 set_op = pgast.PgSQLSetOperator(stmt.set_op)
-                self._setop_from_list(ctx.query, [larg, rarg], set_op)
+                self._setop_from_list(query, [larg, rarg], set_op)
             else:
                 # Process the result expression;
                 self._process_selector(stmt.result)
 
                 # The WHERE clause
                 if stmt.where:
-                    with self.context.new():
-                        self.context.current.location = 'where'
-                        where = self.visit(stmt.where)
+                    with self.context.new() as ctx1:
+                        ctx1.clause = 'where'
+                        query.where_clause = self.visit(stmt.where)
 
-                    ctx.query.where_clause = where
+                self._apply_path_scope()
 
                 # The GROUP BY clause
                 self._process_groupby(stmt.groupby)
@@ -139,30 +141,30 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
             # The OFFSET clause
             if stmt.offset:
-                with self.context.new():
-                    self.context.current.location = 'offsetlimit'
-                    self.context.current.output_format = None
-                    ctx.query.limit_offset = self.visit(stmt.offset)
+                with self.context.new() as ctx1:
+                    ctx1.clause = 'offsetlimit'
+                    ctx1.output_format = None
+                    query.limit_offset = self.visit(stmt.offset)
 
             # The LIMIT clause
             if stmt.limit:
-                with self.context.new():
-                    self.context.current.location = 'offsetlimit'
-                    self.context.current.output_format = None
-                    ctx.query.limit_count = self.visit(stmt.limit)
+                with self.context.new() as ctx1:
+                    ctx1.clause = 'offsetlimit'
+                    ctx1.output_format = None
+                    query.limit_count = self.visit(stmt.limit)
 
             # Make sure all sub-selects are linked according
             # to path matching logic...
-            self._connect_subrels(ctx.query)
+            self._connect_subrels(query)
 
             # ..and give the parent query the opportunity to do the same.
-            for cte in ctx.query.ctes:
+            for cte in query.ctes:
                 parent_ctx.subquery_map[parent_rel][cte.query] = {
                     'linked': False,
                     'rvar': None
                 }
 
-            return ctx.query
+            return query
 
     def visit_Shape(self, expr):
         ctx = self.context.current
@@ -174,8 +176,9 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         self.visit(expr.set)
 
         for i, e in enumerate(expr.elements):
-            with self.context.new():
-                self.context.current.scope_cutoff = True
+            with self.context.new() as newctx:
+                newctx.scope_cutoff = True
+                newctx.in_shape = True
                 if isinstance(e, irast.Set) and isinstance(e.expr, irast.Stmt):
                     element = self.visit(e.expr)
                 else:
@@ -293,13 +296,19 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         source_cte = self._set_to_cte(expr)
 
-        if ctx.location in {'where', 'exists'}:
-            # When referred to in WHERE or as an argument to EXISTS(),
+        if ctx.in_exists and not ctx.in_set_expr:
+            # When referred to as an argument to EXISTS(),
+            # we want to wrap the set CTE into
+            #    EXISTS(SELECT FROM SetCTE)
+            result = self._wrap_set_rel(expr, source_cte)
+
+        elif ctx.clause == 'where' and not ctx.in_set_expr:
+            # When referred to in WHERE
             # we want to wrap the set CTE into
             #    EXISTS(SELECT * FROM SetCTE WHERE SetCTE.expr)
-            result = self._wrap_set_rel_as_filter(expr, source_cte)
+            result = self._wrap_set_rel_as_bool_disjunction(expr, source_cte)
 
-        elif ctx.location in {'offsetlimit'}:
+        elif ctx.clause == 'offsetlimit' and not ctx.in_set_expr:
             # When referred to in OFFSET/LIMIT we want to wrap the
             # set CTE into
             #    SELECT v FROM SetCTE
@@ -321,6 +330,31 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 result = self._get_fieldref_for_set(expr)
 
         return result
+
+    def _apply_path_scope(self):
+        ctx = self.context.current
+        query = ctx.query
+
+        scoped_prefixes = set()
+        strict = []
+        lax_prefixes = {s.path_id for s, lax in ctx.setscope.items() if lax}
+
+        for ir_set, lax in ctx.setscope.items():
+            if not lax:
+                prefixes = set(ir_set.path_id.iter_prefixes())
+                if not (prefixes & lax_prefixes):
+                    strict.append(ir_set)
+
+        strict.sort(key=lambda s: len(s.path_id), reverse=True)
+
+        for ir_set in strict:
+            if ir_set.path_id not in scoped_prefixes:
+                cte = ctx.ctemap[ir_set, False]
+                scope_expr = self._set_as_exists_op(
+                    self._wrap_set_rel(ir_set, cte))
+                query.where_clause = self._extend_binop(
+                    query.where_clause, scope_expr)
+                scoped_prefixes.update(ir_set.path_id.iter_prefixes())
 
     def _include_range(self, rel):
         """Ensure the *rel* is present in the from_clause of current rel.
@@ -360,28 +394,42 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         return rvar
 
-    def _set_as_exists_op(self, ir_expr, pg_expr):
+    def _set_as_exists_op(self, pg_expr, negated=False):
         # Make sure *pg_expr* is an EXISTS() expression
         # Set references inside WHERE are transformed into
         # EXISTS expressions in visit_Set.  For other
         # occurrences we do it here.
-        if (isinstance(pg_expr, pgast.SubLink) and
-                pg_expr.type == pgast.SubLinkType.EXISTS):
-            result = pg_expr
+        if isinstance(pg_expr, pgast.Query):
+            result = pgast.SubLink(
+                type=pgast.SubLinkType.EXISTS, subselect=pg_expr)
+
+        elif isinstance(pg_expr, pgast.CommonTableExpr):
+            subselect = pgast.SelectStmt(
+                from_clause=[
+                    pgast.RangeVar(
+                        relation=pg_expr
+                    )
+                ]
+            )
+            result = pgast.SubLink(
+                type=pgast.SubLinkType.EXISTS, subselect=subselect)
+
+        elif isinstance(pg_expr, (pgast.Constant, pgast.ParamRef)):
+            result = pgast.NullTest(arg=pg_expr, negated=True)
+
         else:
-            if isinstance(pg_expr, pgast.Query):
-                result = pgast.SubLink(
-                    type=pgast.SubLinkType.EXISTS,
-                    subselect=pg_expr)
-            else:
-                result = pgast.NullTest(arg=pg_expr, negated=True)
+            raise ValueError(
+                f'unexpected argument to _set_as_exists_op: {pg_expr!r}')
+
+        if negated:
+            result = self._new_unop(ast.ops.NOT, result)
 
         return result
 
-    def _wrap_set_rel_as_filter(self, ir_set, set_rel):
+    def _wrap_set_rel_as_bool_disjunction(self, ir_set, set_rel):
         # For the *set_rel* relation representing the *ir_set*
         # return the following:
-        #     [NOT] EXISTS (
+        #     EXISTS (
         #         SELECT
         #         FROM <set_rel>
         #         [WHERE <set_rel>.v]
@@ -433,6 +481,48 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         return wrapper
 
+    def _wrap_set_rel(self, ir_set, set_rel):
+        # For the *set_rel* relation representing the *ir_set*
+        # return the following:
+        #     (
+        #         SELECT
+        #         FROM <set_rel>
+        #         WHERE <set_rel>.v IS NOT NULL
+        #     )
+        #
+        ctx = self.context.current
+
+        rvar = pgast.RangeVar(
+            relation=set_rel,
+            alias=pgast.Alias(
+                aliasname=ctx.genalias(hint=set_rel.name + '_w')
+            )
+        )
+
+        wrapper = pgast.SelectStmt(
+            from_clause=[rvar]
+        )
+
+        self._pull_path_namespace(target=wrapper, source=rvar)
+
+        if ir_set.expr is not None:
+            target = pgast.ColumnRef(name=[rvar.alias.aliasname, 'v'])
+        else:
+            target = wrapper.path_namespace[ir_set.path_id]
+
+        wrapper.where_clause = pgast.NullTest(
+            arg=target,
+            negated=True
+        )
+
+        subrels = ctx.subquery_map[ctx.rel]
+        subrels[wrapper] = {
+            'rvar': rvar,
+            'linked': False
+        }
+
+        return wrapper
+
     def _wrap_set_rel_as_value(self, ir_set, set_rel):
         # For the *set_rel* relation representing the *ir_set*
         # return the following:
@@ -480,26 +570,37 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             ctx = self.context.current
 
         if ir_set.rptr is not None and ir_set.expr is None:
-            key = (ir_set, ctx.path_fork)
+            key = (ir_set, ctx.lax_paths)
         else:
-            key = (ir_set, None)
+            key = (ir_set, False)
 
         ctx.ctemap[key] = cte
 
+        if (ir_set.expr is None and ctx.clause in {'where', 'result'} and
+                not ctx.in_shape):
+            # References to paths in SELECT/RETURNING and WHERE clauses
+            # form a strict set existence condition for each path, unless
+            # the existence predicate was used explicitly (either directly,
+            # with [NOT] EXISTS, or through the coalescing operator.)
+            if ctx.lax_paths or not ctx.setscope.get(ir_set):
+                ctx.setscope[ir_set] = ctx.lax_paths
+
         return cte
 
-    def _get_set_cte(self, ir_set):
+    def _get_set_cte(self, ir_set, *, lax=None):
         ctx = self.context.current
 
-        if ir_set.rptr is not None and ir_set.expr is None:
-            key = (ir_set, ctx.path_fork)
+        if lax is not None:
+            key = (ir_set, lax)
+        elif ir_set.rptr is not None and ir_set.expr is None:
+            key = (ir_set, ctx.lax_paths)
         else:
-            key = (ir_set, None)
+            key = (ir_set, False)
 
         return ctx.ctemap.get(key)
 
     def _set_to_cte(self, ir_set):
-        """Generate a Common Table Expression for a given IR Set.
+        """Return a Common Table Expression for a given IR Set.
 
         @param ir_set: IR Set node.
         """
@@ -511,17 +612,28 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         stmt = pgast.SelectStmt()
         stmt.path_id = ir_set.path_id
 
-        with self.context.new():
-            self.context.current.rel = stmt
-            return self._set_to_cte_impl(ir_set, stmt)
+        with self.context.new() as ctx:
+            ctx.rel = stmt
 
-    def _set_to_cte_impl(self, ir_set, stmt):
-        ctx = self.context.current
+            cte = pgast.CommonTableExpr(
+                query=stmt,
+                name=ctx.genalias(hint=self._get_set_cte_alias(ir_set))
+            )
 
-        root_query = ctx.query
+            self._put_set_cte(ir_set, cte)
 
-        fromlist = stmt.from_clause
+            if ir_set.expr is not None:
+                self._process_set_as_expr(ir_set, stmt)
 
+            elif ir_set.rptr is not None:
+                self._process_set_as_path_step(ir_set, stmt)
+
+            else:
+                self._process_set_as_root(ir_set, stmt)
+
+            return self._get_set_cte(ir_set)
+
+    def _get_set_cte_alias(self, ir_set):
         if ir_set.rptr is not None and ir_set.rptr.source.scls is not None:
             alias_hint = '{}_{}'.format(
                 ir_set.rptr.source.scls.name.name,
@@ -540,257 +652,281 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         else:
             alias_hint = ir_set.scls.name.name
 
-        cte = pgast.CommonTableExpr(
-            query=stmt,
-            name=ctx.genalias(hint=str(alias_hint)),
-        )
+        return alias_hint
 
-        self._put_set_cte(ir_set, cte)
+    def _connect_set_sources(self, ir_set, stmt, sources):
+        # Generate a flat JOIN list from the gathered sources
+        # using path bonds for conditions.
 
-        ir_sources = list(ir_set.sources)
-        if not ir_sources:
-            # If there are no explicit sources, check if this Set
-            # is a non-starting part of a path.
-            if ir_set.rptr is not None and ir_set.expr is None:
-                ir_sources.append(ir_set.rptr.source)
+        ctx = self.context.current
 
-        sources = []
-        for ir_source in ir_sources:
-            source_rel = self._set_to_cte(ir_source)
-            sources.append(source_rel)
+        subrels = ctx.subquery_map[stmt]
 
-        if sources:
-            # Generate a flat JOIN list from the gathered sources
-            # using path bonds for conditions.
-            subrels = ctx.subquery_map[stmt]
-            jtype = 'inner' if ir_set.source_conjunction else 'left'
+        for source in sources:
+            source_rel = self._set_to_cte(source)
+            if source_rel in subrels:
+                continue
 
-            for source in sources:
-                src_rvar = pgast.RangeVar(
-                    relation=source,
-                    alias=pgast.Alias(
-                        aliasname=ctx.genalias(hint=source.name)
-                    )
+            lax_path = ctx.setscope.get(source)
+            if lax_path:
+                source_rel = self._get_set_cte(source, lax=True)
+
+            src_rvar = pgast.RangeVar(
+                relation=source_rel,
+                alias=pgast.Alias(
+                    aliasname=ctx.genalias(hint=source_rel.name)
                 )
+            )
 
-                subrels[source] = {
-                    'rvar': src_rvar,
-                    'linked': True
-                }
+            subrels[source_rel] = {
+                'rvar': src_rvar,
+                'linked': True
+            }
 
-                self._pull_path_namespace(target=stmt, source=src_rvar)
+            self._pull_path_namespace(target=stmt, source=src_rvar)
+            self._rel_join(stmt, src_rvar, type='inner')
 
-                self._rel_join(stmt, src_rvar, type=jtype)
+    def _get_set_rvar(self, ir_set, stmt):
+        if not isinstance(ir_set.scls, s_concepts.Concept):
+            return None
 
-        if isinstance(ir_set.scls, s_concepts.Concept):
-            id_field = common.edgedb_name_to_pg_name('std::id')
-            id_set = self._get_ptr_set(ir_set, 'std::id')
+        id_field = common.edgedb_name_to_pg_name('std::id')
+        id_set = self._get_ptr_set(ir_set, 'std::id')
 
-            set_rvar = self._range_for_set(ir_set, stmt)
-            stmt.scls_rvar = set_rvar
+        set_rvar = self._range_for_set(ir_set, stmt)
+        stmt.scls_rvar = set_rvar
 
-            if not fromlist:
-                # This is the root set, select directly from class table.
-                fromlist.append(set_rvar)
+        path_id = ir_set.path_id
 
-            path_id = ir_set.path_id
+        if isinstance(set_rvar, pgast.RangeSubselect):
+            rvar_rel = set_rvar.subquery
+        else:
+            rvar_rel = set_rvar.query
 
-            if isinstance(set_rvar, pgast.RangeSubselect):
-                rvar_rel = set_rvar.subquery
-            else:
-                rvar_rel = set_rvar.query
+        rvar_rel.path_vars[path_id] = id_field
+        rvar_rel.path_bonds[path_id] = id_field
 
-            rvar_rel.path_vars[path_id] = id_field
-            rvar_rel.path_bonds[path_id] = id_field
+        self._pull_path_var(stmt, id_set, path_id=path_id)
+        stmt.inner_path_bonds[path_id] = stmt.path_namespace[path_id]
 
-            self._pull_path_var(stmt, id_set, path_id=path_id)
-            stmt.inner_path_bonds[path_id] = stmt.path_namespace[path_id]
+        return set_rvar
+
+    def _process_set_as_root(self, ir_set, stmt):
+        """Populate the CTE for a Set defined by a path root."""
+
+        ctx = self.context.current
+        set_rvar = self._get_set_rvar(ir_set, stmt)
+        if set_rvar is not None:
+            stmt.from_clause.append(set_rvar)
+        ctx.query.ctes.append(self._get_set_cte(ir_set))
+
+    def _process_set_as_path_step(self, ir_set, stmt):
+        """Populate the CTE for Set defined by a single path step."""
+
+        ctx = self.context.current
+
+        return_parent = True
+
+        rptr = ir_set.rptr
+        ptrcls = rptr.ptrcls
+        fromlist = stmt.from_clause
+
+        self._connect_set_sources(ir_set, stmt, [ir_set.rptr.source])
+        set_rvar = self._get_set_rvar(ir_set, stmt)
+
+        if (isinstance(rptr.source.scls, s_atoms.Atom) and
+                ptrcls.shortname == 'std::__class__'):
+            # Special case to support Path.atom.__class__ paths
+            self._join_class_rel(
+                stmt=stmt, set_rvar=set_rvar, ir_set=ir_set)
+
+            return_parent = False
 
         else:
-            set_rvar = None
+            path_rvar = fromlist[0]
+            source_rel = path_rvar.relation
+            source_stmt = source_rel.query
 
-        return_parent = ir_set.rptr is not None and not ir_set.expr
+            ptr_info = pg_types.get_pointer_storage_info(
+                ptrcls, resolve_type=False, link_bias=False)
 
-        if ir_set.rptr is not None and ir_set.expr is None:
-            # This is the nth step in the path, where n > 1.
-            # Translate pointer traversal into a join clause.
+            if isinstance(ptrcls, s_lprops.LinkProperty):
+                # Reference to a link property.
+                map_rvar = self._join_mapping_rel(
+                    stmt=source_stmt, set_rvar=set_rvar, ir_set=ir_set,
+                    map_join_type='left')
 
-            rptr = ir_set.rptr
-            ptrcls = rptr.ptrcls
+                source_stmt.rptr_rvar = map_rvar
 
-            if (isinstance(rptr.source.scls, s_atoms.Atom) and
-                    ptrcls.shortname == 'std::__class__'):
-                # Special case to support Path.atom.__class__ paths
-                self._join_class_rel(
-                    stmt=stmt, set_rvar=set_rvar, ir_set=ir_set)
+                self._pull_path_var(source_stmt, ir_set)
+
+            elif ptr_info.table_type != 'concept':
+                map_join_type = 'left' if ctx.lax_paths else 'inner'
+
+                map_rvar = self._join_mapping_rel(
+                    stmt=stmt, set_rvar=set_rvar, ir_set=ir_set,
+                    map_join_type=map_join_type)
+
+                stmt.rptr_rvar = map_rvar
 
                 return_parent = False
 
-            else:
-                path_rvar = fromlist[0]
-                source_rel = path_rvar.relation
-                source_stmt = source_rel.query
-
-                ptr_info = pg_types.get_pointer_storage_info(
-                    ptrcls, resolve_type=False, link_bias=False)
-
-                if isinstance(ptrcls, s_lprops.LinkProperty):
-                    # Reference to a link property.
-                    map_rvar = self._join_mapping_rel(
-                        stmt=source_stmt, set_rvar=set_rvar, ir_set=ir_set,
-                        map_join_type='left')
-
-                    source_stmt.rptr_rvar = map_rvar
-
-                    self._pull_path_var(source_stmt, ir_set)
-
-                elif ptr_info.table_type != 'concept':
-                    map_rvar = self._join_mapping_rel(
-                        stmt=stmt, set_rvar=set_rvar, ir_set=ir_set)
-
-                    stmt.rptr_rvar = map_rvar
-
-                    return_parent = False
-
-                elif isinstance(ir_set.scls, s_concepts.Concept):
-                    # Direct reference to another object.
-                    self._pull_path_var(source_rel, ir_set)
-                    stmt.path_namespace[ir_set.path_id] = pgast.ColumnRef(
-                        name=[
-                            path_rvar.alias.aliasname,
-                            self._get_path_var(
-                                source_rel.query, ir_set.path_id)
-                        ]
-                    )
-
-                    self._join_inline_rel(
-                        stmt=stmt, set_rvar=set_rvar, ir_set=ir_set,
-                        back_id_col=ptr_info.column_name)
-
-                    return_parent = False
-
-                elif ir_set.expr is None:
-                    # The path step target is stored in the source's table,
-                    # so we need to make sure that rel is returning the column
-                    # ref we need.
-                    self._pull_path_var(source_rel, ir_set)
-
-        if ir_set.expr:
-
-            if isinstance(ir_set.expr, irast.Stmt):
-                set_expr = self.visit(ir_set.expr)
-                res = ir_set.expr.result
-                cte = self._get_set_cte(res)
-                self._put_set_cte(ir_set, cte)
-
-                return cte
-
-            if isinstance(ir_set.expr, irast.TypeFilter):
-                self._rel_join(stmt, stmt.scls_rvar, type='left')
-
-                valref = pgast.ColumnRef(
+            elif isinstance(ir_set.scls, s_concepts.Concept):
+                # Direct reference to another object.
+                self._pull_path_var(source_rel, ir_set)
+                stmt.path_namespace[ir_set.path_id] = pgast.ColumnRef(
                     name=[
-                        stmt.scls_rvar.alias.aliasname,
-                        stmt.scls_rvar.path_vars[ir_set.path_id]
+                        path_rvar.alias.aliasname,
+                        self._get_path_var(
+                            source_rel.query, ir_set.path_id)
                     ]
                 )
 
-                restarget = pgast.ResTarget(val=valref, name='v')
-                stmt.target_list.append(restarget)
+                self._join_inline_rel(
+                    stmt=stmt, set_rvar=set_rvar, ir_set=ir_set,
+                    back_id_col=ptr_info.column_name)
 
-                stmt.path_namespace[ir_set.path_id] = valref
-                stmt.path_vars[ir_set.path_id] = 'v'
-                stmt.path_namespace[id_set.path_id] = valref
-                stmt.path_vars[id_set.path_id] = 'v'
+                return_parent = False
 
-            else:
-                with self.context.new():
-                    self.context.current.location = 'set_expr'
-                    self.context.current.rel = stmt
-                    set_expr = self.visit(ir_set.expr)
-
-                    self._connect_subrels(stmt)
-
-                    if irutils.is_aggregated_expr(ir_set.expr):
-                        # The expression includes calls to aggregates.
-                        # Clear the namespace as it is no longer valid.
-                        stmt.path_namespace.clear()
-                        stmt.inner_path_bonds.clear()
-                        stmt.target_list[:] = []
-
-                expr_result = irutils.infer_type(ir_set.expr, ctx.schema)
-
-                if isinstance(expr_result, s_concepts.Concept):
-                    innerqry = pgast.SelectStmt(
-                        target_list=[
-                            pgast.ResTarget(
-                                val=set_expr,
-                                name='v'
-                            )
-                        ]
-                    )
-
-                    valref = pgast.ColumnRef(
-                        name=['q', 'v']
-                    )
-
-                    qry = pgast.SelectStmt(
-                        target_list=[
-                            pgast.ResTarget(
-                                val=valref,
-                                name='v'
-                            )
-                        ],
-                        from_clause=[
-                            pgast.RangeSubselect(
-                                subquery=innerqry,
-                                alias=pgast.Alias(
-                                    aliasname='q'
-                                )
-                            )
-                        ]
-                    )
-
-                    qry.path_namespace[ir_set.path_id] = valref
-                    qry.path_vars[ir_set.path_id] = 'v'
-                    qry.inner_path_bonds[ir_set.path_id] = valref
-                    qry.path_bonds[ir_set.path_id] = 'v'
-
-                    expr_rvar = pgast.RangeSubselect(
-                        lateral=True,
-                        subquery=qry,
-                        alias=pgast.Alias(
-                            aliasname='q'
-                        )
-                    )
-
-                    ctx.subquery_map[stmt][innerqry] = {
-                        'rvar': expr_rvar,
-                        'linked': True
-                    }
-
-                    self._rel_join(stmt, expr_rvar, type='inner')
-
-                    restarget = pgast.ResTarget(val=valref, name='v')
-                    stmt.target_list.append(restarget)
-                else:
-                    restarget = pgast.ResTarget(val=set_expr, name='v')
-                    stmt.target_list.append(restarget)
+            elif ir_set.expr is None:
+                # The path step target is stored in the source's table,
+                # so we need to make sure that rel is returning the column
+                # ref we need.
+                self._pull_path_var(source_rel, ir_set)
 
         if return_parent:
-            source_rel = fromlist[0].relation
+            source_rel = stmt.from_clause[0].relation
             self._put_set_cte(ir_set, source_rel)
-            return source_rel
         else:
-            root_query.ctes.append(cte)
-            return cte
+            ctx.query.ctes.append(self._get_set_cte(ir_set))
+
+    def _process_set_as_expr(self, ir_set, stmt):
+        """Populate the CTE for Set defined by an expression."""
+
+        ctx = self.context.current
+
+        if isinstance(ir_set.expr, irast.Stmt):
+            set_expr = self.visit(ir_set.expr)
+            res = ir_set.expr.result
+            cte = self._get_set_cte(res)
+            self._put_set_cte(ir_set, cte)
+
+            return
+
+        set_rvar = self._get_set_rvar(ir_set, stmt)
+
+        if not ir_set.sources and set_rvar is not None:
+            stmt.from_clause.append(set_rvar)
+
+        if isinstance(ir_set.expr, irast.TypeFilter):
+            self._rel_join(stmt, stmt.scls_rvar, type='left')
+
+            valref = pgast.ColumnRef(
+                name=[
+                    stmt.scls_rvar.alias.aliasname,
+                    stmt.scls_rvar.path_vars[ir_set.path_id]
+                ]
+            )
+
+            restarget = pgast.ResTarget(val=valref, name='v')
+            stmt.target_list.append(restarget)
+
+            id_set = self._get_ptr_set(ir_set, 'std::id')
+
+            stmt.path_namespace[ir_set.path_id] = valref
+            stmt.path_vars[ir_set.path_id] = 'v'
+            stmt.path_namespace[id_set.path_id] = valref
+            stmt.path_vars[id_set.path_id] = 'v'
+
+        else:
+            with self.context.new() as newctx:
+                newctx.in_set_expr = True
+                newctx.rel = stmt
+                set_expr = self.visit(ir_set.expr)
+
+                if irutils.is_aggregated_expr(ir_set.expr):
+                    # The expression includes calls to aggregates.
+                    # Clear the namespace as it is no longer valid.
+                    stmt.path_namespace.clear()
+                    stmt.inner_path_bonds.clear()
+                    stmt.target_list[:] = []
+
+            expr_result = irutils.infer_type(ir_set.expr, ctx.schema)
+
+            if isinstance(expr_result, s_concepts.Concept):
+                innerqry = pgast.SelectStmt(
+                    target_list=[
+                        pgast.ResTarget(
+                            val=set_expr,
+                            name='v'
+                        )
+                    ]
+                )
+
+                valref = pgast.ColumnRef(
+                    name=['q', 'v']
+                )
+
+                qry = pgast.SelectStmt(
+                    target_list=[
+                        pgast.ResTarget(
+                            val=valref,
+                            name='v'
+                        )
+                    ],
+                    from_clause=[
+                        pgast.RangeSubselect(
+                            subquery=innerqry,
+                            alias=pgast.Alias(
+                                aliasname='q'
+                            )
+                        )
+                    ]
+                )
+
+                qry.path_namespace[ir_set.path_id] = valref
+                qry.path_vars[ir_set.path_id] = 'v'
+                qry.inner_path_bonds[ir_set.path_id] = valref
+                qry.path_bonds[ir_set.path_id] = 'v'
+
+                expr_rvar = pgast.RangeSubselect(
+                    lateral=True,
+                    subquery=qry,
+                    alias=pgast.Alias(
+                        aliasname='q'
+                    )
+                )
+
+                ctx.subquery_map[stmt][innerqry] = {
+                    'rvar': expr_rvar,
+                    'linked': True
+                }
+
+                self._rel_join(stmt, expr_rvar, type='inner')
+
+                restarget = pgast.ResTarget(val=valref, name='v')
+                stmt.target_list.append(restarget)
+            else:
+                restarget = pgast.ResTarget(val=set_expr, name='v')
+                stmt.target_list.append(restarget)
+
+        self._connect_subrels(stmt, connect_subqueries=False)
+
+        if ir_set.sources:
+            self._connect_set_sources(ir_set, stmt, ir_set.sources)
+
+        self._connect_subrels(stmt)
+
+        ctx.query.ctes.append(self._get_set_cte(ir_set))
 
     def visit_ExistPred(self, expr):
-        with self.context.new():
-            self.context.current.location = 'exists'
-            return self._set_as_exists_op(expr.expr, self.visit(expr.expr))
+        with self.context.new() as ctx:
+            ctx.in_exists = True
+            ctx.lax_paths = True
+            pg_expr = self.visit(expr.expr)
+            return self._set_as_exists_op(pg_expr, expr.negated)
 
-    def _connect_subrels(self, query):
+    def _connect_subrels(self, query, connect_subqueries=True):
         # For any subquery or CTE referred to by the *query*
         # generate the appropriate JOIN condition.  This also
         # populates the FROM list in *query*.
@@ -804,22 +940,19 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         if not rels:
             return
 
-        # Mark all rels as "connected" so that subsequent calls
-        # of this function on the same *query* work.
-        for _, info in rels:
-            info['linked'] = True
-
         # Go through all CTE references and LEFT JOIN them
         # in *query* FROM.
-        ctes = [info['rvar'] for rel, info in rels
-                if isinstance(rel, pgast.CommonTableExpr)]
-        for rvar in ctes:
-            self._rel_join(query, rvar, type='left')
+        for rel, info in rels:
+            if isinstance(rel, pgast.CommonTableExpr):
+                self._rel_join(query, info['rvar'], type='left')
+                info['linked'] = True
 
         # Go through the remaining subqueries and inject join conditions.
-        for rel, _ in rels:
-            if not isinstance(rel, pgast.CommonTableExpr):
-                self._connect_subquery(rel, query)
+        if connect_subqueries:
+            for rel, info in rels:
+                if not isinstance(rel, pgast.CommonTableExpr):
+                    self._connect_subquery(rel, query)
+                    info['linked'] = True
 
     def _connect_subquery(self, subquery, parentquery):
         # Inject a WHERE condition corresponding to the full inner bond join
@@ -868,9 +1001,9 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         ctx = self.context.current
         query = ctx.query
 
-        with self.context.new():
-            self.context.current.location = 'selector'
-            self.context.current.expr_exposed = True
+        with self.context.new() as newctx:
+            newctx.clause = 'result'
+            newctx.expr_exposed = True
             pgexpr = self.visit(result_expr)
 
             if isinstance(pgexpr, ResTargetList):
@@ -903,27 +1036,25 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 query.target_list.append(target)
 
     def _process_orderby(self, sorter):
-        ctx = self.context.current
+        with self.context.new() as ctx:
+            ctx.clause = 'orderby'
+            query = ctx.query
 
-        query = ctx.query
-        ctx.location = 'orderby'
-
-        for expr in sorter:
-            sortexpr = pgast.SortBy(
-                node=self.visit(expr.expr),
-                dir=expr.direction,
-                nulls=expr.nones_order)
-            query.sort_clause.append(sortexpr)
+            for expr in sorter:
+                sortexpr = pgast.SortBy(
+                    node=self.visit(expr.expr),
+                    dir=expr.direction,
+                    nulls=expr.nones_order)
+                query.sort_clause.append(sortexpr)
 
     def _process_groupby(self, grouper):
-        ctx = self.context.current
+        with self.context.new() as ctx:
+            ctx.clause = 'groupby'
+            query = ctx.query
 
-        query = ctx.query
-        ctx.location = 'groupby'
-
-        for expr in grouper:
-            sortexpr = self.visit(expr)
-            query.group_clause.append(sortexpr)
+            for expr in grouper:
+                sortexpr = self.visit(expr)
+                query.group_clause.append(sortexpr)
 
     def _get_fieldref_for_set(self, ir_set):
         """Return an expression node corresponding to the specified atomic Set.
@@ -961,6 +1092,10 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         condition = None
 
         for path_id, lref in left.inner_path_bonds.items():
+            rptr = path_id.rptr()
+            if rptr and rptr.singular(path_id.rptr_dir()):
+                continue
+
             try:
                 rref = right.inner_path_bonds[path_id]
             except KeyError:
@@ -975,6 +1110,10 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         condition = None
 
         for path_id in right_rvar.inner_path_bonds:
+            rptr = path_id.rptr()
+            if rptr and rptr.singular(path_id.rptr_dir()):
+                continue
+
             rname = self._get_path_bond(right_rvar.query, path_id)
 
             try:

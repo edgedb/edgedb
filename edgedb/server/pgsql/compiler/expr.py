@@ -309,15 +309,20 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
     def visit_BinOp(self, expr):
         ctx = self.context.current
 
-        with self.context.new():
-            self.context.current.expr_exposed = False
+        with self.context.new() as newctx:
+            newctx.expr_exposed = False
             op = expr.op
-            if ctx.location == 'set_expr' and op in {ast.ops.AND, ast.ops.OR}:
-                self.context.current.location = 'exists'
+            is_bool_op = op in {ast.ops.AND, ast.ops.OR}
+
+            if ctx.in_set_expr and is_bool_op:
+                newctx.in_set_expr = False
 
             if isinstance(expr.op, ast.ops.TypeCheckOperator):
                 cl = self._get_ptr_set(expr.left, 'std::__class__')
                 left = self.visit(self._get_ptr_set(cl, 'std::id'))
+            elif is_bool_op:
+                with self.context.newsetscope():
+                    left = self.visit(expr.left)
             else:
                 left = self.visit(expr.left)
 
@@ -326,6 +331,9 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
                     if isinstance(expr.right, irast.Sequence):
                         self.context.current.sequence_is_array = True
                     self.context.current.output_format = 'identity'
+                    right = self.visit(expr.right)
+            elif is_bool_op:
+                with self.context.newsetscope():
                     right = self.visit(expr.right)
             else:
                 right = self.visit(expr.right)
@@ -377,19 +385,21 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
         return result
 
     def visit_UnaryOp(self, expr):
-        with self.context.new():
-            self.context.current.expr_exposed = False
+        with self.context.new() as ctx:
+            ctx.expr_exposed = False
             operand = self.visit(expr.expr)
         return pgast.Expr(name=expr.op, rexpr=operand, kind=pgast.ExprKind.OP)
 
     def visit_IfElseExpr(self, expr):
-        return pgast.CaseExpr(
-            args=[
-                pgast.CaseWhen(
-                    expr=self.visit(expr.condition),
-                    result=self.visit(expr.if_expr))
-            ],
-            defresult=self.visit(expr.else_expr))
+        with self.context.new() as ctx:
+            ctx.lax_paths = True
+            return pgast.CaseExpr(
+                args=[
+                    pgast.CaseWhen(
+                        expr=self.visit(expr.condition),
+                        result=self.visit(expr.if_expr))
+                ],
+                defresult=self.visit(expr.else_expr))
 
     def visit_Sequence(self, expr):
         ctx = self.context.current
@@ -398,7 +408,7 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
 
         if expr.is_array:
             result = pgast.ArrayExpr(elements=elements)
-        elif (ctx.location == 'selector' and ctx.output_format == 'json' and
+        elif (ctx.clause == 'result' and ctx.output_format == 'json' and
                 ctx.expr_exposed):
             result = pgast.FuncCall(
                 name=('jsonb_build_array',),
