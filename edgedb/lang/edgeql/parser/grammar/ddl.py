@@ -1278,12 +1278,13 @@ class FuncDeclArg(Nonterm):
             default=kids[2].val
         )
 
-    def reduce_OptVariadic_ShortName_COLON_TypeName_OptDefault(self, *kids):
+    def reduce_OptVariadic_DOLLAR_ShortName_COLON_TypeName_OptDefault(
+            self, *kids):
         self.val = qlast.FuncArgNode(
             variadic=kids[0].val,
-            name=kids[1].val,
-            type=kids[3].val,
-            default=kids[4].val
+            name=kids[2].val,
+            type=kids[4].val,
+            default=kids[5].val
         )
 
 

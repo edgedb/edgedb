@@ -88,7 +88,7 @@ class TestDeltas(tb.QueryTestCase):
                     SELECT 'spam'::text
                 $$;
 
-            CREATE FUNCTION test::my_sql_func2(foo: std::str)
+            CREATE FUNCTION test::my_sql_func2($foo: std::str)
                 RETURNING std::str
                 FROM SQL $$
                     SELECT $1::text

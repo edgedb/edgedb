@@ -1406,7 +1406,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_func07(self):
         await self.con.execute(r'''
-            CREATE FUNCTION test::concat3(sep: std::str, *std::str)
+            CREATE FUNCTION test::concat3($sep: std::str, *std::str)
                 RETURNING std::str
                 FROM SQL FUNCTION 'concat_ws';
         ''')

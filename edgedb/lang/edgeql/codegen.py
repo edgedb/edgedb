@@ -951,7 +951,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if node.variadic:
             self.write('*')
         if node.name is not None:
-            self.write(ident_to_str(node.name), ': ')
+            self.write('$', ident_to_str(node.name), ': ')
         self.visit(node.type)
 
         if node.default:
