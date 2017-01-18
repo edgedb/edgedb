@@ -980,10 +980,10 @@ class NoneConstant(Nonterm):
 
 class ArgConstant(Nonterm):
     def reduce_DOLLAR_ICONST(self, *kids):
-        self.val = qlast.ConstantNode(value=None, index=int(kids[1].val))
+        self.val = qlast.ParameterNode(name=str(kids[1].val))
 
     def reduce_DOLLAR_ShortName(self, *kids):
-        self.val = qlast.ConstantNode(value=None, index=str(kids[1].val))
+        self.val = qlast.ParameterNode(name=kids[1].val)
 
 
 class BaseNumberConstant(Nonterm):

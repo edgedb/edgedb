@@ -380,8 +380,8 @@ class Constraint(primary.PrimaryClass, derivable.DerivableClass):
 
                     exprparams[pn] = arg
 
-            edgeql_utils.inline_constants(edgeql_tree, exprparams,
-                                          all_arg_types)
+            edgeql_utils.inline_parameters(edgeql_tree, exprparams,
+                                           all_arg_types)
 
             constraint.errmessage = constraint.errmessage.format(
                 subject='{subject}', **fmtparams)

@@ -139,15 +139,11 @@ class IRDecompiler(ast.visitor.NodeVisitor):
         result.op = node.op
         return result
 
-    def visit_Constant(self, node):
-        if node.expr is not None:
-            return self.visit(node.expr)
-        else:
-            result = qlast.ConstantNode(
-                index=node.index, value=node.value
-            )
+    def visit_Parameter(self, node):
+        return qlast.ParameterNode(name=node.name)
 
-            return result
+    def visit_Constant(self, node):
+        return qlast.ConstantNode(value=node.value)
 
     def visit_Sequence(self, node):
         result = qlast.SequenceNode(elements=[
@@ -227,7 +223,7 @@ class IRDecompiler(ast.visitor.NodeVisitor):
         return (
             expr is None or (
                 isinstance(expr, (irast.Constant, qlast.ConstantNode)) and
-                expr.value is None and expr.index is None
+                expr.value is None
             )
         )
 

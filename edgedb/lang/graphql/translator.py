@@ -574,7 +574,7 @@ class GraphQLTranslator(ast.NodeVisitor):
         name = qlast.PathNode(steps=name)
 
         value = self.visit(node.value)
-        if getattr(value, 'index', None):
+        if isinstance(value, qlast.ParameterNode):
             # check the variable value
             #
             check_value = self._context.vars[node.value.value][0]
@@ -637,7 +637,7 @@ class GraphQLTranslator(ast.NodeVisitor):
             context=node.context)
 
     def visit_Variable(self, node):
-        return qlast.ConstantNode(index=node.value[1:])
+        return qlast.ParameterNode(name=node.value[1:])
 
     def visit_LiteralNode(self, node):
         return qlast.ConstantNode(value=node.value)

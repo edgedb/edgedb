@@ -480,10 +480,20 @@ class CreateFunction(FunctionCommand, CreateNamedClass,
     def compile_edgeql_function(self, func: s_funcs.Function, schema):
         arg_types = None
         if func.paramtypes:
-            arg_types = dict(enumerate(func.paramtypes, 1))
+            arg_types = {}
 
-        body_ir = ql_compiler.compile_to_ir(func.code, schema,
-                                            arg_types=arg_types)
+            arg_iter = enumerate(
+                itertools.zip_longest(func.paramnames, func.paramtypes),
+                1)
+
+            for ai, (an, at) in arg_iter:
+                if an is None:
+                    arg_types[str(ai)] = at
+                else:
+                    arg_types[an] = at
+
+        body_ir = ql_compiler.compile_to_ir(
+            func.code, schema, arg_types=arg_types)
 
         ir_compiler = compiler.IRCompiler()
 

@@ -445,6 +445,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             if node.pathspec:
                 self._visit_pathspec(node.pathspec)
 
+    def visit_ParameterNode(self, node):
+        self.write('$')
+        self.write(node.name)
+
     def visit_ConstantNode(self, node):
         if node.value is not None:
             try:
@@ -458,15 +462,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                     self.write(str(node.value))
             else:
                 self.write(edgeql_repr())
-
-        elif node.index is not None:
-            self.write('$')
-            index = str(node.index)
-            if '.' in index:
-                self.write('{')
-            self.write(index)
-            if '.' in index:
-                self.write('}')
         else:
             self.write('NULL')
 

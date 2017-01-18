@@ -79,7 +79,10 @@ class PathVarNode(VarNode):
 
 class ConstantNode(Base):
     value: object
-    index: object  # index can be a number or an argument name
+
+
+class ParameterNode(Base):
+    name: str
 
 
 class DefaultValueNode(Base):
@@ -568,7 +571,7 @@ class SelectPathSpecNode(Base):
     limit: Base
     compexpr: Base
     recurse: bool = False
-    recurse_limit: ConstantNode
+    recurse_limit: typing.Union[ConstantNode, ParameterNode]
 
 
 class PointerGlobNode(Base):

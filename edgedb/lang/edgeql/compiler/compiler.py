@@ -482,22 +482,21 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         return node
 
+    def visit_ParameterNode(self, expr):
+        ctx = self.context.current
+
+        pt = ctx.arguments.get(expr.name)
+        if pt is not None:
+            pt = s_types.normalize_type(pt, ctx.schema)
+
+        return irast.Parameter(type=pt, name=expr.name)
+
     def visit_ConstantNode(self, expr):
         ctx = self.context.current
 
-        if expr.index is not None:
-            type = ctx.arguments.get(expr.index)
-            if type is not None:
-                type = s_types.normalize_type(type, ctx.schema)
-            node = irast.Constant(
-                value=expr.value, index=expr.index, type=type)
-            ctx.arguments[expr.index] = type
-        else:
-            type = s_types.normalize_type(expr.value.__class__, ctx.schema)
-            node = irast.Constant(
-                value=expr.value, index=expr.index, type=type)
-
-        return node
+        ct = s_types.normalize_type(expr.value.__class__, ctx.schema)
+        # TODO: visit expr.value?
+        return irast.Constant(value=expr.value, type=ct)
 
     def visit_SequenceNode(self, expr):
         elements = self.visit(expr.elements)

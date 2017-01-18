@@ -59,40 +59,43 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
         raise NotImplementedError(
             'no IR compiler handler for {}'.format(node.__class__))
 
-    def visit_Constant(self, expr):
+    def _maybe_cast(self, node, typ):
         ctx = self.context.current
 
-        if expr.type and expr.type.name != 'std::null':
+        if typ and typ.name != 'std::null':
             const_type = pg_types.pg_type_from_object(
-                ctx.schema, expr.type, True)
+                ctx.schema, typ, True)
         else:
             const_type = None
 
-        val = expr.value
-        index = None
-
-        if expr.index is not None and not isinstance(expr.index, int):
-            if expr.index in ctx.argmap:
-                index = list(ctx.argmap).index(expr.index)
-            else:
-                ctx.argmap.add(expr.index)
-                index = len(ctx.argmap) - 1
-
-            result = pgast.ParamRef(number=index)
-        elif expr.index is not None:
-            result = pgast.ParamRef(number=expr.index)
-        else:
-            result = pgast.Constant(val=val)
-
         if const_type is not None:
-            result = pgast.TypeCast(
-                arg=result,
+            node = pgast.TypeCast(
+                arg=node,
                 type_name=pgast.TypeName(
                     name=const_type
                 )
             )
 
-        return result
+        return node
+
+    def visit_Parameter(self, expr):
+        ctx = self.context.current
+
+        if expr.name.isnumeric():
+            index = int(expr.name)
+        else:
+            if expr.name in ctx.argmap:
+                index = list(ctx.argmap).index(expr.name)
+            else:
+                ctx.argmap.add(expr.name)
+                index = len(ctx.argmap)
+
+        result = pgast.ParamRef(number=index)
+        return self._maybe_cast(result, expr.type)
+
+    def visit_Constant(self, expr):
+        result = pgast.Constant(val=expr.value)
+        return self._maybe_cast(result, expr.type)
 
     def visit_TypeCast(self, expr):
         ctx = self.context.current

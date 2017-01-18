@@ -1467,6 +1467,21 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         date = (await self.con.execute('SELECT std::current_date();'))[0][0]
         self.assertRegex(date, r'\d+-\d+-\d+')
 
+    async def test_edgeql_select_func09(self):
+        await self.con.execute('''
+            CREATE FUNCTION test::my_edgeql_func1(std::str)
+                RETURNING std::str
+                FROM EdgeQL $$
+                    SELECT 'str=' + $1
+                $$;
+        ''')
+
+        await self.assert_query_result(r'''
+            SELECT test::my_edgeql_func1('111');
+        ''', [
+            ['str=111'],
+        ])
+
     async def test_edgeql_select_exists01(self):
         await self.assert_query_result(r'''
             WITH MODULE test

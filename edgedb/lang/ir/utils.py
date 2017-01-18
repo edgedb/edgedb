@@ -41,8 +41,8 @@ class PathIndex(collections.OrderedDict):
 def infer_arg_types(ir, schema):
     def flt(n):
         if isinstance(n, irast.BinOp):
-            return (isinstance(n.left, irast.Constant) or
-                    isinstance(n.right, irast.Constant))
+            return (isinstance(n.left, irast.Parameter) or
+                    isinstance(n.right, irast.Parameter))
 
     ops = ast.find_children(ir, flt)
 
@@ -51,7 +51,7 @@ def infer_arg_types(ir, schema):
     for binop in ops:
         typ = None
 
-        if isinstance(binop.right, irast.Constant):
+        if isinstance(binop.right, irast.Parameter):
             expr = binop.left
             arg = binop.right
             reversed = False
@@ -59,9 +59,6 @@ def infer_arg_types(ir, schema):
             expr = binop.right
             arg = binop.left
             reversed = True
-
-        if arg.index is None:
-            continue
 
         if isinstance(binop.op, irast.EdgeDBMatchOperator):
             typ = schema.get('std::str')
@@ -89,9 +86,9 @@ def infer_arg_types(ir, schema):
             raise ValueError(msg)
 
         try:
-            existing = arg_types[arg.index]
+            existing = arg_types[arg.name]
         except KeyError:
-            arg_types[arg.index] = typ
+            arg_types[arg.name] = typ
         else:
             if existing != typ:
                 msg = 'cannot infer expr type: ambiguous resolution: ' + \
@@ -122,11 +119,8 @@ def infer_type(ir, schema):
                     result = infer_type(arg, schema)
                     break
 
-    elif isinstance(ir, irast.Constant):
-        if ir.expr:
-            result = infer_type(ir.expr, schema)
-        else:
-            result = ir.type
+    elif isinstance(ir, (irast.Constant, irast.Parameter)):
+        result = ir.type
 
     elif isinstance(ir, irast.BinOp):
         if isinstance(ir.op, (ast.ops.ComparisonOperator,
@@ -237,10 +231,8 @@ def get_terminal_references(ir):
 
 def get_variables(ir):
     result = set()
-
-    flt = lambda n: isinstance(n, irast.Constant) and n.index is not None
+    flt = lambda n: isinstance(n, irast.Parameter)
     result.update(ast.find_children(ir, flt))
-
     return result
 
 

@@ -16,19 +16,28 @@ from . import compiler
 from . import parser
 
 
-def inline_constants(edgeql_tree, values, types):
-    flt = lambda n: isinstance(n, qlast.ConstantNode) and n.index in values
-    constants = ast.find_children(edgeql_tree, flt)
+class ParameterInliner(ast.NodeTransformer):
 
-    for constant in constants:
-        value = values[constant.index]
+    def __init__(self, values):
+        super().__init__()
+        self.values = values
+
+    def visit_ParameterNode(self, node):
+        value = self.values[node.name]
 
         if (isinstance(value, collections.Container) and
                 not isinstance(value, (str, bytes))):
             elements = [qlast.ConstantNode(value=i) for i in value]
-            value = qlast.SequenceNode(elements=elements)
+            new_node = qlast.SequenceNode(elements=elements)
+        else:
+            new_node = qlast.ConstantNode(value=value)
 
-        constant.value = value
+        return new_node
+
+
+def inline_parameters(edgeql_tree, values, types):
+    inliner = ParameterInliner(values)
+    return inliner.visit(edgeql_tree)
 
 
 def normalize_tree(expr, schema, *, modaliases=None, anchors=None,
