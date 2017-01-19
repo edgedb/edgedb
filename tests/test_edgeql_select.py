@@ -1125,6 +1125,17 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             EXCEPT
             SELECT
                 Comment {body};
+
+            WITH MODULE test
+            SELECT
+                Text {body}
+            EXCEPT
+            SELECT
+                Comment {body}
+            EXCEPT
+            SELECT
+                Issue {body};
+
         ''')
         # sorting manually to test basic functionality first
         for r in res:
@@ -1154,6 +1165,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 {'body': 'We need to be able to render '
                          'data in tabular format.'}
             ],
+            [
+                {'body': 'Rewriting everything.'},
+            ]
         ])
 
     @unittest.expectedFailure
