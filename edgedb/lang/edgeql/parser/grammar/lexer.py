@@ -94,27 +94,11 @@ class EdgeQLLexer(lexer.Lexer):
              next_state=STATE_KEEP,
              regexp=r'\.>'),
 
-        # multichar ops (so 2+ chars)
         Rule(token='OP',
              next_state=STATE_KEEP,
              regexp=rf'''
-                # no multichar operator can be composed exclusively of
-                # ">" or "<", to avoid ambiguity of parsing nested "< ... >"
-                (?![<>]+(?:{re_not_opchars} | $)) (?:
-                    # EdgeQL-specific multi-char ops
-                    {re_opchars_edgeql} {re_opchars}+
-                    |
-                    {re_opchars}+ {re_opchars_edgeql} {re_opchars}*
-                    |
-                    # SQL-only multi-char ops cannot end in + or -
-                    {re_opchars_sql}+[*/^<>=]
-                )
+                (?: >= | <= | != | ~\* | ~)
              '''),
-
-        # EdgeQL/PgSQL single char ops
-        Rule(token='OP',
-             next_state=STATE_KEEP,
-             regexp=re_opchars_edgeql),
 
         # SQL ops
         Rule(token='self',

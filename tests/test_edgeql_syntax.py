@@ -199,13 +199,10 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT (40 != 2);
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=20)
     def test_edgeql_syntax_ops07(self):
         """
         SELECT 40 == 2;
-
-% OK %
-
-        SELECT (40 = 2);
         """
 
     def test_edgeql_syntax_ops08(self):
@@ -1245,6 +1242,11 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
                 'name': 'Alice',
                 'description': 'sample'
             };
+        """
+
+    def test_edgeql_syntax_cast04(self):
+        """
+        SELECT -<int>NULL;
         """
 
     def test_edgeql_syntax_cardinality01(self):

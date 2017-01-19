@@ -2319,7 +2319,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue.number IN ('2', '3', '4')
                 AND
                 EXISTS (
-                    (SELECT sub WHERE sub == Issue)
+                    (SELECT sub WHERE sub = Issue)
                 );
             """, [
             [],
