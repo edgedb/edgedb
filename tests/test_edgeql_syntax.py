@@ -12,8 +12,6 @@ from edgedb.lang import _testbase as tb
 from edgedb.lang.edgeql import generate_source as edgeql_to_source, errors
 from edgedb.lang.edgeql.parser import parser as edgeql_parser
 
-import edgedb.lang.edgeql.pygments
-
 
 class EdgeQLSyntaxTest(tb.BaseSyntaxTest):
     re_filter = re.compile(r'[\s]+|(#.*?(\n|$))|(,(?=\s*[})]))')
