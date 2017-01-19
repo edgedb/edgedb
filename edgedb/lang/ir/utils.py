@@ -12,6 +12,7 @@ import typing
 
 from edgedb.lang.common import ast
 
+from edgedb.lang.schema import inheriting as s_inh
 from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
@@ -19,6 +20,7 @@ from edgedb.lang.schema import sources as s_src
 from edgedb.lang.schema import types as s_types
 from edgedb.lang.schema import utils as s_utils
 
+from edgedb.lang.edgeql import ast as qlast
 from edgedb.lang.edgeql import errors as ql_errors
 
 from . import ast as irast
@@ -251,7 +253,25 @@ def __infer_typecast(ir, schema):
 
 @_infer_type.register(irast.Stmt)
 def __infer_stmt(ir, schema):
-    return infer_type(ir.result, schema)
+    if ir.set_op is not None:
+        if ir.set_op == qlast.UNION:
+            ltype = infer_type(ir.set_op_larg, schema)
+            rtype = infer_type(ir.set_op_rarg, schema)
+
+            if ltype.issubclass(rtype):
+                result = ltype
+            elif rtype.issubclass(ltype):
+                result = rtype
+            else:
+                result = s_inh.create_virtual_parent(
+                    schema, [ltype, rtype])
+
+        else:
+            result = infer_type(ir.set_op_larg, schema)
+    else:
+        result = infer_type(ir.result, schema)
+
+    return result
 
 
 @_infer_type.register(irast.ExistPred)
