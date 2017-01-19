@@ -7,6 +7,8 @@
 
 
 import collections
+import functools
+import typing
 
 from edgedb.lang.common import ast
 
@@ -102,142 +104,212 @@ def infer_arg_types(ir, schema):
     return arg_types
 
 
-def infer_type(ir, schema):
-    if isinstance(ir, (irast.Set, irast.Shape)):
-        result = ir.scls
+def _infer_common_type(irs: typing.List[irast.Base], schema):
+    arg_types = []
+    for arg in irs:
+        if isinstance(arg, irast.Constant) and arg.value is None:
+            continue
 
-    elif isinstance(ir, irast.FunctionCall):
-        result = ir.func.returntype
+        arg_type = infer_type(arg, schema)
+        if arg_type.name == 'std::null':
+            continue
 
-        def is_polymorphic(t):
-            if isinstance(t, s_obj.Collection):
-                t = t.get_element_type()
+        arg_types.append(arg_type)
 
-            return t.name == 'std::any'
-
-        if is_polymorphic(result):
-            # Polymorhic function, determine the result type from
-            # the argument type.
-            for i, arg in enumerate(ir.args):
-                if is_polymorphic(ir.func.paramtypes[i]):
-                    result = infer_type(arg, schema)
-                    break
-
-    elif isinstance(ir, (irast.Constant, irast.Parameter)):
-        result = ir.type
-
-    elif isinstance(ir, irast.Coalesce):
-        arg_types = []
-        for arg in ir.args:
-            if isinstance(arg, irast.Constant) and arg.value is None:
-                continue
-
-            arg_type = infer_type(arg, schema)
-            if arg_type.name == 'std::null':
-                continue
-
-            if arg_type is None:
-                raise ql_errors.EdgeQLError('cannot determine expression type',
-                                            context=arg.context)
-
-            arg_types.append(arg_type)
-
-        if not arg_types:
-            # all std::null
-            result = schema.get('std::null')
-        else:
-            result = s_utils.get_class_nearest_common_ancestor(arg_types)
-            if result is None:
-                raise ql_errors.EdgeQLError(
-                    'coalescing operator must have operands of related types',
-                    context=ir.context)
-
-    elif isinstance(ir, irast.BinOp):
-        if isinstance(ir.op, (ast.ops.ComparisonOperator,
-                              ast.ops.TypeCheckOperator,
-                              ast.ops.MembershipOperator,
-                              irast.TextSearchOperator)):
-            result = schema.get('std::bool')
-        else:
-            left_type = infer_type(ir.left, schema)
-            right_type = infer_type(ir.right, schema)
-
-            if left_type.name == 'std::null':
-                result = right_type
-            elif right_type.name == 'std::null':
-                result = left_type
-            else:
-                result = s_types.TypeRules.get_result(
-                    ir.op, (left_type, right_type), schema)
-                if result is None:
-                    result = s_types.TypeRules.get_result(
-                        (ir.op, 'reversed'), (right_type, left_type), schema)
-
-    elif isinstance(ir, irast.UnaryOp):
-        if ir.op == ast.ops.NOT:
-            result = schema.get('std::bool')
-        else:
-            operand_type = infer_type(ir.expr, schema)
-            if operand_type.name == 'std::null':
-                result = operand_type
-            else:
-                result = s_types.TypeRules.get_result(
-                    ir.op, (operand_type,), schema)
-
-    elif isinstance(ir, irast.IfElseExpr):
-        if_expr = infer_type(ir.if_expr, schema)
-        else_expr = infer_type(ir.else_expr, schema)
-
-        if if_expr == else_expr:
-            result = if_expr
-        else:
-            result = None
-
-    elif isinstance(ir, (irast.TypeCast, irast.TypeFilter)):
-        if ir.type.subtypes:
-            coll = s_obj.Collection.get_class(ir.type.maintype)
-            result = coll.from_subtypes(
-                [schema.get(t) for t in ir.type.subtypes])
-        else:
-            result = schema.get(ir.type.maintype)
-
-    elif isinstance(ir, irast.Stmt):
-        result = infer_type(ir.result, schema)
-
-    elif isinstance(ir, irast.ExistPred):
-        result = schema.get('std::bool')
-
-    elif isinstance(ir, irast.SliceIndirection):
-        result = infer_type(ir.expr, schema)
-
-    elif isinstance(ir, irast.IndexIndirection):
-        arg = infer_type(ir.expr, schema)
-
-        if arg is None:
-            result = None
-        else:
-            str_t = schema.get('std::str')
-            if arg.issubclass(str_t):
-                result = arg
-            else:
-                result = None
-
-    elif isinstance(ir, irast.Sequence):
-        if ir.is_array:
-            result = s_obj.Array(element_type=schema.get('std::any'))
-        else:
-            result = s_obj.Tuple(element_type=schema.get('std::any'))
-
+    if not arg_types:
+        # all std::null
+        result = schema.get('std::null')
     else:
-        result = None
+        result = s_utils.get_class_nearest_common_ancestor(arg_types)
 
-    if result is not None:
-        allowed = (s_obj.Class, s_obj.MetaClass)
-        if not (isinstance(result, allowed) or
-                (isinstance(result, (tuple, list)) and
-                 isinstance(result[1], allowed))):
-            raise RuntimeError(
-                f'infer_type({ir!r}) retured {result!r} instead of a Class')
+    return result
+
+
+@functools.singledispatch
+def _infer_type(ir, schema):
+    return
+
+
+@_infer_type.register(irast.Set)
+@_infer_type.register(irast.Shape)
+def __infer_set_or_shape(ir, schema):
+    return ir.scls
+
+
+@_infer_type.register(irast.FunctionCall)
+def __infer_func(ir, schema):
+    result = ir.func.returntype
+
+    def is_polymorphic(t):
+        if isinstance(t, s_obj.Collection):
+            t = t.get_element_type()
+
+        return t.name == 'std::any'
+
+    if is_polymorphic(result):
+        # Polymorhic function, determine the result type from
+        # the argument type.
+        for i, arg in enumerate(ir.args):
+            if is_polymorphic(ir.func.paramtypes[i]):
+                result = infer_type(arg, schema)
+                break
+
+    return result
+
+
+@_infer_type.register(irast.Constant)
+@_infer_type.register(irast.Parameter)
+def __infer_const_or_param(ir, schema):
+    return ir.type
+
+
+@_infer_type.register(irast.Coalesce)
+def __infer_coalesce(ir, schema):
+    result = _infer_common_type(ir.args, schema)
+    if result is None:
+        raise ql_errors.EdgeQLError(
+            'coalescing operator must have operands of related types',
+            context=ir.context)
+
+    return result
+
+
+@_infer_type.register(irast.BinOp)
+def __infer_binop(ir, schema):
+    if isinstance(ir.op, (ast.ops.ComparisonOperator,
+                          ast.ops.TypeCheckOperator,
+                          ast.ops.MembershipOperator,
+                          irast.TextSearchOperator)):
+        return schema.get('std::bool')
+
+    left_type = infer_type(ir.left, schema)
+    right_type = infer_type(ir.right, schema)
+
+    if left_type.name == 'std::null':
+        result = right_type
+    elif right_type.name == 'std::null':
+        result = left_type
+    else:
+        result = s_types.TypeRules.get_result(
+            ir.op, (left_type, right_type), schema)
+        if result is None:
+            result = s_types.TypeRules.get_result(
+                (ir.op, 'reversed'), (right_type, left_type), schema)
+
+    if result is None:
+        raise ql_errors.EdgeQLError(
+            'operator does not exist: {} {} {}'.format(
+                left_type.name, ir.op, right_type.name),
+            context=ir.left.context)
+
+    return result
+
+
+@_infer_type.register(irast.UnaryOp)
+def __infer_unaryop(ir, schema):
+    if ir.op == ast.ops.NOT:
+        result = schema.get('std::bool')
+    else:
+        operand_type = infer_type(ir.expr, schema)
+        if operand_type.name == 'std::null':
+            result = operand_type
+        else:
+            result = s_types.TypeRules.get_result(
+                ir.op, (operand_type,), schema)
+
+    return result
+
+
+@_infer_type.register(irast.IfElseExpr)
+def __infer_ifelse(ir, schema):
+    if_expr_type = infer_type(ir.if_expr, schema)
+    else_expr_type = infer_type(ir.else_expr, schema)
+
+    result = s_utils.get_class_nearest_common_ancestor(
+        [if_expr_type, else_expr_type])
+
+    if result is None:
+        raise ql_errors.EdgeQLError(
+            'if/else clauses must be of related types, got: {}/{}'.format(
+                if_expr_type.name, else_expr_type.name),
+            context=ir.if_expr.context)
+
+    return result
+
+
+@_infer_type.register(irast.TypeCast)
+@_infer_type.register(irast.TypeFilter)
+def __infer_typecast(ir, schema):
+    if ir.type.subtypes:
+        coll = s_obj.Collection.get_class(ir.type.maintype)
+        result = coll.from_subtypes(
+            [schema.get(t) for t in ir.type.subtypes])
+    else:
+        result = schema.get(ir.type.maintype)
+    return result
+
+
+@_infer_type.register(irast.Stmt)
+def __infer_stmt(ir, schema):
+    return infer_type(ir.result, schema)
+
+
+@_infer_type.register(irast.ExistPred)
+def __infer_exist(ir, schema):
+    return schema.get('std::bool')
+
+
+@_infer_type.register(irast.SliceIndirection)
+def __infer_slice(ir, schema):
+    return infer_type(ir.expr, schema)
+
+
+@_infer_type.register(irast.IndexIndirection)
+def __infer_index(ir, schema):
+    arg = infer_type(ir.expr, schema)
+
+    result = None
+    if arg is not None:
+        str_t = schema.get('std::str')
+        if arg.issubclass(str_t):
+            result = arg
+        elif isinstance(arg, s_obj.Array):
+            result = arg.element_type
+
+    return result
+
+
+@_infer_type.register(irast.Sequence)
+def __infer_seq(ir, schema):
+    if ir.is_array:
+        if ir.elements:
+            element_type = _infer_common_type(ir.elements, schema)
+            if element_type is None:
+                raise ql_errors.EdgeQLError('could not determine array type',
+                                            context=ir.context)
+        else:
+            element_type = schema.get('std::any')
+
+        result = s_obj.Array(element_type=element_type)
+    else:
+        result = s_obj.Tuple(element_type=schema.get('std::any'))
+
+    return result
+
+
+def infer_type(ir, schema):
+    result = _infer_type(ir, schema)
+
+    if (result is not None and
+            not isinstance(result, (s_obj.Class, s_obj.MetaClass))):
+
+        raise ql_errors.EdgeQLError(
+            f'infer_type({ir!r}) retured {result!r} instead of a Class',
+            context=ir.context)
+
+    if result is None or getattr(result, 'name', None) == 'std::any':
+        raise ql_errors.EdgeQLError('could not determine expression type',
+                                    context=ir.context)
 
     return result
 

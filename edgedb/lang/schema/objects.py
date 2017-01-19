@@ -691,7 +691,7 @@ class Collection(Class, NodeClass):
         my_types = self.get_subtypes()
 
         for pt, my in zip(parent_types, my_types):
-            if not pt.issubclass(my):
+            if pt.name != 'std::any' and not pt.issubclass(my):
                 return False
 
         return True

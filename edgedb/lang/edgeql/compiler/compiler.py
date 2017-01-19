@@ -163,6 +163,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 stmt.set_op = qlast.SetOperator(edgeql_tree.op)
                 stmt.set_op_larg = self.visit(edgeql_tree.op_larg)
                 stmt.set_op_rarg = self.visit(edgeql_tree.op_rarg)
+                stmt.result_types = None
             else:
                 if (isinstance(edgeql_tree.result, qlast.PathNode) and
                         edgeql_tree.result.steps and
@@ -177,6 +178,8 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
                 stmt.result = self._process_stmt_result(
                     edgeql_tree.result, toplevel_shape_rptrcls)
+
+                stmt.result_types = self._get_selector_types(stmt.result)
 
             stmt.orderby = self._process_orderby(edgeql_tree.orderby)
             if edgeql_tree.offset:
@@ -206,7 +209,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                         ctx.group_paths = {...}
                         break
 
-            stmt.result_types = self._get_selector_types(stmt.result)
             stmt.argument_types = self.context.current.arguments
 
             return stmt
@@ -452,14 +454,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         binop = irast.BinOp(left=left, right=right, op=expr.op)
         result_type = irutils.infer_type(binop, ctx.schema)
-
-        if result_type is None:
-            left_type = irutils.infer_type(binop.left, ctx.schema)
-            right_type = irutils.infer_type(binop.right, ctx.schema)
-            err = 'operator does not exist: {} {} {}'.format(
-                left_type.name, expr.op, right_type.name)
-
-            raise errors.EdgeQLError(err, context=expr.left.context)
 
         prefixes = get_common_prefixes([left, right])
 

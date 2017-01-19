@@ -242,6 +242,14 @@ class TestExpressions(tb.QueryTestCase):
             [[1, 2, 3]],
         ])
 
+    async def test_edgeql_expr_list02(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError, r'could not determine array type'):
+
+            await self.con.execute("""
+                SELECT [1, '1'];
+            """)
+
     @unittest.expectedFailure
     async def test_edgeql_expr_map01(self):
         await self.assert_query_result(r"""

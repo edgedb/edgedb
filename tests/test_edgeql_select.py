@@ -2924,6 +2924,17 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         ])
 
+    async def test_edgeql_select_if_else03(self):
+        with self.assertRaisesRegex(exc.EdgeQLError,
+                                    r'if/else clauses .* related types'):
+
+            await self.con.execute(r"""
+                WITH MODULE test
+                SELECT Issue {
+                    foo := 'bar' IF Issue.number = '1' ELSE 123
+                };
+                """)
+
     async def test_edgeql_agg_01(self):
         await self.assert_query_result(r"""
             SELECT array_agg(
@@ -2944,7 +2955,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             WITH MODULE test
             SELECT array_agg(
-                [Issue.number, Issue.status.name]
+                [<str>Issue.number, Issue.status.name]
                 ORDER BY Issue.number);
         """, [
             [[['1', 'Open'], ['2', 'Open'], ['3', 'Closed'], ['4', 'Closed']]]
