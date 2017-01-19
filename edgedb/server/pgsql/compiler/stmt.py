@@ -7,7 +7,6 @@
 
 
 import collections
-import itertools
 import functools
 
 from edgedb.lang.common import exceptions as edgedb_error
@@ -120,7 +119,11 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                     rarg = self.visit(stmt.set_op_rarg)
 
                 set_op = pgast.PgSQLSetOperator(stmt.set_op)
-                self._setop_from_list(query, [larg, rarg], set_op)
+
+                query.op = set_op
+                query.all = True
+                query.larg = larg
+                query.rarg = rarg
             else:
                 # Process the result expression;
                 self._process_selector(stmt.result)
@@ -199,8 +202,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                     # Aggregate subquery results to keep correct
                     # cardinality.
                     rt = element.target_list[0]
-                    if not rt.name:
-                        rt.name = ctx.genalias(hint='r')
+                    rt.name = ctx.genalias(hint='r')
 
                     subrvar = pgast.RangeSubselect(
                         subquery=element,
@@ -250,11 +252,10 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             keyvals = []
             for i, pgexpr in enumerate(my_elements):
                 key = attribute_map[i]
-                if isinstance(key, s_pointers.PointerVector):
-                    if key.is_linkprop:
-                        key = '@' + key.name
-                    else:
-                        key = key.name
+                if key.is_linkprop:
+                    key = '@' + key.name
+                else:
+                    key = key.name
                 keyvals.append(pgast.Constant(val=key))
                 keyvals.append(pgexpr)
 
@@ -396,22 +397,11 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             result = pgast.SubLink(
                 type=pgast.SubLinkType.EXISTS, subselect=pg_expr)
 
-        elif isinstance(pg_expr, pgast.CommonTableExpr):
-            subselect = pgast.SelectStmt(
-                from_clause=[
-                    pgast.RangeVar(
-                        relation=pg_expr
-                    )
-                ]
-            )
-            result = pgast.SubLink(
-                type=pgast.SubLinkType.EXISTS, subselect=subselect)
-
         elif isinstance(pg_expr, (pgast.Constant, pgast.ParamRef)):
             result = pgast.NullTest(arg=pg_expr, negated=True)
 
         else:
-            raise ValueError(
+            raise RuntimeError(  # pragma: no cover
                 f'unexpected argument to _set_as_exists_op: {pg_expr!r}')
 
         if negated:
@@ -443,21 +433,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         self._pull_path_namespace(target=wrapper, source=rvar)
 
-        if ir_set.expr is not None:
-            v = self._get_var_for_set_expr(ir_set, rvar)
-
-            if ir_set.scls.name == 'std::bool':
-                wrapper.where_clause = v
-            else:
-                wrapper.where_clause = pgast.NullTest(
-                    arg=v,
-                    negated=True
-                )
-        else:
-            wrapper.where_clause = pgast.NullTest(
-                arg=wrapper.path_namespace[ir_set.path_id],
-                negated=True
-            )
+        wrapper.where_clause = self._get_var_for_set_expr(ir_set, rvar)
 
         subrels = ctx.subquery_map[ctx.rel]
         subrels[wrapper] = {
@@ -537,10 +513,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         self._pull_path_namespace(target=wrapper, source=rvar)
 
-        if ir_set.expr is not None:
-            target = self._get_var_for_set_expr(ir_set, rvar)
-        else:
-            target = wrapper.path_namespace[ir_set.path_id]
+        target = self._get_var_for_set_expr(ir_set, rvar)
 
         wrapper.target_list.append(
             pgast.ResTarget(
@@ -708,8 +681,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         ctx = self.context.current
         set_rvar = self._get_set_rvar(ir_set, stmt)
-        if set_rvar is not None:
-            stmt.from_clause.append(set_rvar)
+        stmt.from_clause.append(set_rvar)
         ctx.query.ctes.append(self._get_set_cte(ir_set))
 
     def _process_set_as_path_step(self, ir_set, stmt):
@@ -777,7 +749,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
                 return_parent = False
 
-            elif ir_set.expr is None:
+            else:
                 # The path step target is stored in the source's table,
                 # so we need to make sure that rel is returning the column
                 # ref we need.
@@ -1008,14 +980,12 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 selexprs = [(pgexpr, None)]
 
         if ctx.output_format == 'json':
-            # Target list may be empty if selector is a set op product
-            if selexprs:
-                target = pgast.ResTarget(
-                    name=None,
-                    val=pgast.FuncCall(name=('to_jsonb',), args=[pgexpr]),
-                )
+            target = pgast.ResTarget(
+                name=None,
+                val=pgast.FuncCall(name=('to_jsonb',), args=[pgexpr]),
+            )
 
-                query.target_list.append(target)
+            query.target_list.append(target)
 
         else:
             for pgexpr, alias in selexprs:
@@ -1113,9 +1083,6 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             try:
                 rref = right.inner_path_bonds[path_id]
             except KeyError:
-                continue
-
-            if lref.name == rref.name:
                 continue
 
             if lref.nullable or rref.nullable:
@@ -1297,25 +1264,6 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             larg=fromexpr,
             rarg=set_rvar,
             quals=cond_expr)
-
-    def _setop_from_list(self, parent_qry, oplist, op):
-        nq = len(oplist)
-
-        assert nq >= 2, 'set operation requires at least two arguments'
-
-        parent_qry.op = op
-        parent_qry.all = True
-
-        for i in range(nq):
-            parent_qry.larg = oplist[i]
-            if i == nq - 2:
-                parent_qry.rarg = oplist[i + 1]
-                break
-            else:
-                parent_qry.rarg = pgast.SelectQuery(op=op, all=True)
-                parent_qry = parent_qry.rarg
-
-        return parent_qry
 
     def _for_each_query_in_set(self, qry, cb):
         if qry.op:
@@ -1518,29 +1466,13 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             strict_ancestry=True)
 
         if not sources:
-            raise RuntimeError(  # internal error
+            raise RuntimeError(  # pragma: no cover
                 f'cannot find column source for '
                 f'({source_cls.name}).>({ptrname})')
-
-        if getattr(source_cls, 'is_virtual', None):
-            # Atom refs to columns present in direct children of a
-            # virtual concept are guaranteed to be included in the
-            # relation representing the virtual concept.
-            #
-            schema = ctx.schema
-            child_ptrs = itertools.chain.from_iterable(
-                c.pointers for c in source_cls.children(schema))
-            if ptrname in set(child_ptrs):
-                descendants = set(source_cls.descendants(schema))
-                sources -= descendants
-                sources.add(source_cls)
 
         rvars = {source_cls: rel_rvar}
 
         for s in sources:
-            if s in rvars:
-                continue
-
             src_rvar_pid = rel_rvar.query.path_id
             src_rvar = self._range_for_concept(s, rel)
             src_rvar.nullable = True
