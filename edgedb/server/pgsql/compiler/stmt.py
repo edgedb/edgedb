@@ -926,6 +926,12 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             pg_expr = self.visit(expr.expr)
             return self._set_as_exists_op(pg_expr, expr.negated)
 
+    def visit_Coalesce(self, expr):
+        with self.context.new() as ctx:
+            ctx.lax_paths = True
+            pg_args = self.visit(expr.args)
+        return pgast.FuncCall(name=('coalesce',), args=pg_args)
+
     def _connect_subrels(self, query, connect_subqueries=True):
         # For any subquery or CTE referred to by the *query*
         # generate the appropriate JOIN condition.  This also

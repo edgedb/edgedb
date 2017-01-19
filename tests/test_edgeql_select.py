@@ -1729,6 +1729,29 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '4'}],
         ])
 
+    async def test_edgeql_select_coalesce01(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{
+                kind := Issue.priority.name ?? Issue.status.name
+            }
+            ORDER BY Issue.number;
+        ''', [
+            [{'kind': 'Open'}, {'kind': 'High'},
+             {'kind': 'Low'}, {'kind': 'Closed'}],
+        ])
+
+    async def test_edgeql_select_coalesce02(self):
+        with self.assertRaisesRegex(exc.EdgeQLError,
+                                    'coalescing .* operands of related types'):
+
+            await self.con.execute(r'''
+                WITH MODULE test
+                SELECT Issue{
+                    kind := Issue.priority.name ?? Issue.number
+                };
+            ''')
+
     async def test_edgeql_select_as01(self):
         # NOTE: for the expected ordering of Text see instance04 test
         await self.assert_query_result(r'''

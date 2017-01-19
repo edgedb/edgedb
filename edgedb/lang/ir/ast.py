@@ -113,6 +113,10 @@ class IfElseExpr(Expr):
     else_expr: Base
 
 
+class Coalesce(Base):
+    args: typing.List[Base]
+
+
 class SortExpr(Base):
 
     expr: Base

@@ -64,6 +64,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.indentation -= 1
         self.new_lines = 1
 
+    def visit_CoalesceNode(self, node):
+        self.visit_list(node.args, separator=' ?? ', newlines=False)
+
     def _visit_returning(self, node):
         if node.result is not None:
             self.new_lines = 1

@@ -64,6 +64,10 @@ class T_DOUBLECOLON(Token, lextoken='::'):
     pass
 
 
+class T_DOUBLEQMARK(Token, lextoken='??'):
+    pass
+
+
 class T_COLON(Token, lextoken=':'):
     pass
 

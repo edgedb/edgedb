@@ -256,17 +256,27 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_coalesce01(self):
         await self.assert_query_result(r"""
-            SELECT coalesce(NULL, 4, 5);
-            SELECT coalesce(NULL, 'foo', 'bar');
-            SELECT coalesce(4, NULL, 5);
-            SELECT coalesce('foo', NULL, 'bar');
-            SELECT coalesce(NULL, 'bar') = 'bar';
+            SELECT NULL ?? 4 ?? 5;
+            SELECT NULL ?? 'foo' ?? 'bar';
+            SELECT 4 ?? NULL ?? 5;
+            SELECT 'foo' ?? NULL ?? 'bar';
+            SELECT NULL ?? 'bar' = 'bar';
+            SELECT 4^NULL ?? 2;
+            SELECT 4+NULL ?? 2;
+            SELECT 4*NULL ?? 2;
+            SELECT -<int>NULL ?? 2;
+            SELECT -<int>NULL ?? -2 + 1;
         """, [
             [4],
             ['foo'],
             [4],
             ['foo'],
-            [True]
+            [True],
+            [2],  # ^ binds more tightly
+            [6],
+            [8],
+            [2],
+            [-1],
         ])
 
     async def test_edgeql_expr_string01(self):

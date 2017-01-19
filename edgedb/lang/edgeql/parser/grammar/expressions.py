@@ -811,6 +811,19 @@ class Expr(Nonterm):
         self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.GT,
                                    right=kids[2].val)
 
+    @parsing.precedence(precedence.P_DOUBLEQMARK_OP)
+    def reduce_Expr_DOUBLEQMARK_Expr(self, *kids):
+        left = kids[0].val
+        right = kids[2].val
+
+        args = [left]
+        if isinstance(right, qlast.CoalesceNode):
+            args += right.args
+        else:
+            args.append(right)
+
+        self.val = qlast.CoalesceNode(args=args)
+
     def reduce_Expr_EQUALS_Expr(self, *kids):
         self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.EQ,
                                    right=kids[2].val)

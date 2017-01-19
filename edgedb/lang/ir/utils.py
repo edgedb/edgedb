@@ -15,6 +15,9 @@ from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import sources as s_src
 from edgedb.lang.schema import types as s_types
+from edgedb.lang.schema import utils as s_utils
+
+from edgedb.lang.edgeql import errors as ql_errors
 
 from . import ast as irast
 
@@ -123,6 +126,32 @@ def infer_type(ir, schema):
     elif isinstance(ir, (irast.Constant, irast.Parameter)):
         result = ir.type
 
+    elif isinstance(ir, irast.Coalesce):
+        arg_types = []
+        for arg in ir.args:
+            if isinstance(arg, irast.Constant) and arg.value is None:
+                continue
+
+            arg_type = infer_type(arg, schema)
+            if arg_type.name == 'std::null':
+                continue
+
+            if arg_type is None:
+                raise ql_errors.EdgeQLError('cannot determine expression type',
+                                            context=arg.context)
+
+            arg_types.append(arg_type)
+
+        if not arg_types:
+            # all std::null
+            result = schema.get('std::null')
+        else:
+            result = s_utils.get_class_nearest_common_ancestor(arg_types)
+            if result is None:
+                raise ql_errors.EdgeQLError(
+                    'coalescing operator must have operands of related types',
+                    context=ir.context)
+
     elif isinstance(ir, irast.BinOp):
         if isinstance(ir.op, (ast.ops.ComparisonOperator,
                               ast.ops.TypeCheckOperator,
@@ -133,19 +162,27 @@ def infer_type(ir, schema):
             left_type = infer_type(ir.left, schema)
             right_type = infer_type(ir.right, schema)
 
-            result = s_types.TypeRules.get_result(
-                ir.op, (left_type, right_type), schema)
-            if result is None:
+            if left_type.name == 'std::null':
+                result = right_type
+            elif right_type.name == 'std::null':
+                result = left_type
+            else:
                 result = s_types.TypeRules.get_result(
-                    (ir.op, 'reversed'), (right_type, left_type), schema)
+                    ir.op, (left_type, right_type), schema)
+                if result is None:
+                    result = s_types.TypeRules.get_result(
+                        (ir.op, 'reversed'), (right_type, left_type), schema)
 
     elif isinstance(ir, irast.UnaryOp):
         if ir.op == ast.ops.NOT:
             result = schema.get('std::bool')
         else:
             operand_type = infer_type(ir.expr, schema)
-            result = s_types.TypeRules.get_result(
-                ir.op, (operand_type,), schema)
+            if operand_type.name == 'std::null':
+                result = operand_type
+            else:
+                result = s_types.TypeRules.get_result(
+                    ir.op, (operand_type,), schema)
 
     elif isinstance(ir, irast.IfElseExpr):
         if_expr = infer_type(ir.if_expr, schema)

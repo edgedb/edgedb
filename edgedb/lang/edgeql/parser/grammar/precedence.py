@@ -82,6 +82,10 @@ class P_MUL_OP(Precedence, assoc='left', tokens=('STAR', 'SLASH', 'PERCENT')):
     pass
 
 
+class P_DOUBLEQMARK_OP(Precedence, assoc='right', tokens=('DOUBLEQMARK',)):
+    pass
+
+
 class P_POW_OP(Precedence, assoc='left', tokens=('CIRCUMFLEX',)):
     pass
 

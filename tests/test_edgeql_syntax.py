@@ -12,11 +12,13 @@ from edgedb.lang import _testbase as tb
 from edgedb.lang.edgeql import generate_source as edgeql_to_source, errors
 from edgedb.lang.edgeql.parser import parser as edgeql_parser
 
+import edgedb.lang.edgeql.pygments
+
 
 class EdgeQLSyntaxTest(tb.BaseSyntaxTest):
     re_filter = re.compile(r'[\s]+|(#.*?(\n|$))|(,(?=\s*[})]))')
     parser_debug_flag = 'DEBUG_EDGEQL'
-    markup_dump_lexer = 'edgeql'
+    markup_dump_lexer = 'sql'
     ast_to_source = edgeql_to_source
 
     def get_parser(self, *, spec):
@@ -1818,6 +1820,14 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         INSERT Foo{name} FROM (
             UPDATE Bar{name:= (name + 'bar')} RETURNING Bar{name}
         );
+        """
+
+    def test_edgeql_syntax_coalesce01(self):
+        """
+        SELECT a ?? x;
+        SELECT a ?? x.a;
+        SELECT a ?? x.a[TO ABC];
+        SELECT (a ?? x.a[TO ABC]@aaa + 1);
         """
 
     def test_edgeql_syntax_function01(self):

@@ -153,6 +153,10 @@ class IfElseNode(Base):
     else_expr: Base
 
 
+class CoalesceNode(Base):
+    args: typing.List[Base]
+
+
 class TransactionNode(Base):
     pass
 

@@ -638,11 +638,11 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         result_type = irutils.infer_type(unop, ctx.schema)
 
         if result_type is None:
-            operand_type = irutils.infer_type(unnop.expr, ctx.schema)
+            operand_type = irutils.infer_type(unop.expr, ctx.schema)
             err = 'operator does not exist: {} {}'.format(
                 expr.op, operand_type.name)
 
-            raise errors.EdgeQLError(err, context=expr.left.context)
+            raise errors.EdgeQLError(err, context=operand.context)
 
         prefixes = get_common_prefixes([operand])
 
@@ -662,6 +662,9 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
     def visit_ExistsPredicateNode(self, expr):
         return irast.ExistPred(expr=self.visit(expr.expr))
+
+    def visit_CoalesceNode(self, expr):
+        return irast.Coalesce(args=self.visit(expr.args))
 
     def visit_TypeCastNode(self, expr):
         maintype = expr.type.maintype
