@@ -13,6 +13,7 @@ from . import error as schema_error
 from . import objects as so
 from . import name as sn
 from . import named
+from . import utils
 
 
 class InheritingClassCommand(named.NamedClassCommand):
@@ -227,6 +228,72 @@ def compute_mro(obj):
         mros.append(base.get_mro())
 
     return _merge_mro(obj, mros)
+
+
+def create_virtual_parent(schema, children, *,
+                          module_name=None, minimize_by=None):
+    from . import atoms, concepts, sources
+
+    if len(children) == 1:
+        return next(iter(children))
+
+    if minimize_by == 'most_generic':
+        children = utils.minimize_class_set_by_most_generic(children)
+    elif minimize_by == 'least_generic':
+        children = utils.minimize_class_set_by_least_generic(children)
+
+    if len(children) == 1:
+        return next(iter(children))
+
+    _children = set()
+    for t in children:
+        if getattr(t, 'is_virtual', False):
+            _children.update(t.children(schema))
+        else:
+            _children.add(t)
+
+    children = list(_children)
+
+    if module_name is None:
+        module_name = children[0].name.module
+
+    name = sources.Source.gen_virt_parent_name((t.name for t in children),
+                                               module=module_name)
+
+    target = schema.get(name, default=None)
+
+    if target:
+        schema.update_virtual_inheritance(target, children)
+        return target
+
+    seen_atoms = False
+    seen_concepts = False
+
+    for target in children:
+        if isinstance(target, atoms.Atom):
+            if seen_concepts:
+                raise schema_error.SchemaError(
+                    'cannot mix atoms and concepts in link target list')
+            seen_atoms = True
+        else:
+            if seen_atoms:
+                raise schema_error.SchemaError(
+                    'cannot mix atoms and concepts in link target list')
+            seen_concepts = True
+
+    if seen_atoms and len(children) > 1:
+        target = utils.get_class_nearest_common_ancestor(children)
+        if target is None:
+            raise schema_error.SchemaError(
+                'cannot set multiple atom children for a link')
+    else:
+        base = schema.get(concepts.Concept.get_default_base_name())
+        target = concepts.Concept(name=name, is_abstract=True,
+                                  is_virtual=True, bases=[base])
+        target.acquire_ancestor_inheritance(schema)
+        schema.update_virtual_inheritance(target, children)
+
+    return target
 
 
 class InheritingClass(named.NamedClass):

@@ -15,13 +15,12 @@ from . import delta as sd
 from . import derivable
 from . import error as schema_error
 from . import expr as sexpr
+from . import inheriting
 from . import name as sn
 from . import objects as so
 from . import policy
 from . import primary
 from . import referencing
-from . import sources
-from . import utils
 
 
 class PointerDirection(enum.StrEnum):
@@ -182,65 +181,9 @@ class BasePointer(primary.PrimaryClass, derivable.DerivableClass):
                 else self.source)
 
     def get_common_target(self, schema, targets, minimize_by=None):
-        from . import atoms, concepts
-
-        if len(targets) == 1:
-            return next(iter(targets))
-
-        if minimize_by == 'most_generic':
-            targets = utils.minimize_class_set_by_most_generic(targets)
-        elif minimize_by == 'least_generic':
-            targets = utils.minimize_class_set_by_least_generic(targets)
-
-        if len(targets) == 1:
-            return next(iter(targets))
-
-        _targets = set()
-        for t in targets:
-            if getattr(t, 'is_virtual', False):
-                _targets.update(t.children(schema))
-            else:
-                _targets.add(t)
-
-        targets = _targets
-
-        name = sources.Source.gen_virt_parent_name((t.name for t in targets),
-                                                   module=self.name.module)
-
-        target = schema.get(name, default=None)
-
-        if target:
-            schema.update_virtual_inheritance(target, targets)
-            return target
-
-        seen_atoms = False
-        seen_concepts = False
-
-        for target in targets:
-            if isinstance(target, atoms.Atom):
-                if seen_concepts:
-                    raise schema_error.SchemaError(
-                        'cannot mix atoms and concepts in link target list')
-                seen_atoms = True
-            else:
-                if seen_atoms:
-                    raise schema_error.SchemaError(
-                        'cannot mix atoms and concepts in link target list')
-                seen_concepts = True
-
-        if seen_atoms and len(targets) > 1:
-            target = utils.get_class_nearest_common_ancestor(targets)
-            if target is None:
-                raise schema_error.SchemaError(
-                    'cannot set multiple atom targets for a link')
-        else:
-            base = schema.get(concepts.Concept.get_default_base_name())
-            target = concepts.Concept(name=name, is_abstract=True,
-                                      is_virtual=True, bases=[base])
-            target.acquire_ancestor_inheritance(schema)
-            schema.update_virtual_inheritance(target, targets)
-
-        return target
+        return inheriting.create_virtual_parent(
+            schema, targets, module_name=self.name.module,
+            minimize_by=minimize_by)
 
     def create_common_target(self, schema, targets, minimize_by=False):
         target = self.get_common_target(schema, targets,
@@ -275,17 +218,13 @@ class BasePointer(primary.PrimaryClass, derivable.DerivableClass):
 
         elif isinstance(t1, atoms.Atom):
             # Targets are both atoms
-
             if t1 != t2:
-                print('111', t1, t2)
-
                 pn = ptr.shortname
-                msg = 'could not merge "{}" pointer: targets conflict' \
-                                                            .format(pn)
-                detail = ('[{}].[{}] targets atom "{}" while it also '
-                          'targets incompatible atom "{}" in other parent.') \
-                          .format(ptr.source.name, pn, t1.name, t2.name)
-                raise schema_error.SchemaError(msg, details=detail)
+                raise schema_error.SchemaError(
+                    f'could not merge {pn!r} pointer: targets conflict',
+                    details=f'({ptr.source.name}).({pn}) targets atom'
+                            f'{t1.name!r} while it also targets incompatible'
+                            f'atom {t2.name!r} in other parent.')
 
             return t1
 
@@ -317,13 +256,12 @@ class BasePointer(primary.PrimaryClass, derivable.DerivableClass):
                     # of the previously seen targets, which creates an
                     # unresolvable target requirement conflict.
                     pn = ptr.shortname
-                    msg = 'could not merge "{}" pointer: targets conflict' \
-                                                            .format(pn)
-                    detail = ('[{}].[{}] targets concept "{}" which '
-                              ' is not related to any of targets found in'
-                              ' other sources being merged: {}') \
-                              .format(ptr.source.name, pn, t2.name, t1.name)
-                    raise schema_error.SchemaError(msg, details=detail)
+                    raise schema_error.SchemaError(
+                        f'could not merge {pn!r} pointer: targets conflict',
+                        details=f'({ptr.source.name}).({pn}) targets concept'
+                                f' {t2.name!r} which is not related to any of'
+                                f' targets found in other sources being'
+                                f' merged: {t1.name!r}.')
 
             for tgt1 in tt1:
                 if not any(tgt2.issubclass(tgt1) for tgt2 in tt2):
@@ -404,7 +342,7 @@ class BasePointer(primary.PrimaryClass, derivable.DerivableClass):
     def is_pure_computable(self):
         return (self.readonly and bool(self.default) and
                 not self.is_id_pointer() and
-                not self.shortname in {'std::ctime', 'std::mtime'})
+                self.shortname not in {'std::ctime', 'std::mtime'})
 
     def is_id_pointer(self):
         return self.shortname in {'std::linkid', 'std::id'}
