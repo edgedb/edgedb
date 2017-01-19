@@ -329,6 +329,11 @@ def __infer_seq(ir, schema):
 
 
 def infer_type(ir, schema):
+    try:
+        return ir._inferred_type_
+    except AttributeError:
+        pass
+
     result = _infer_type(ir, schema)
 
     if (result is not None and
@@ -342,6 +347,7 @@ def infer_type(ir, schema):
         raise ql_errors.EdgeQLError('could not determine expression type',
                                     context=ir.context)
 
+    ir._inferred_type_ = result
     return result
 
 
