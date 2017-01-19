@@ -132,6 +132,12 @@ def _infer_type(ir, schema):
     return
 
 
+@_infer_type.register(type(None))
+def __infer_none(ir, schema):
+    # Here for debugging purposes.
+    raise ValueError('invalid infer_type(None, schema) call')
+
+
 @_infer_type.register(irast.Set)
 @_infer_type.register(irast.Shape)
 def __infer_set_or_shape(ir, schema):
@@ -253,6 +259,11 @@ def __infer_typecast(ir, schema):
 
 @_infer_type.register(irast.Stmt)
 def __infer_stmt(ir, schema):
+    return infer_type(ir.result, schema)
+
+
+@_infer_type.register(irast.SelectStmt)
+def __infer_select_stmt(ir, schema):
     if ir.set_op is not None:
         if ir.set_op == qlast.UNION:
             ltype = infer_type(ir.set_op_larg, schema)
