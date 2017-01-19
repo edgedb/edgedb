@@ -20,17 +20,7 @@ STATE_KEEP = 0
 STATE_BASE = 1
 
 
-re_exppart = r"(?:[eE](?:[+\-])?[0-9]+)"
-re_self = r'[,()\[\].@;:+\-*/%^<>=]'
-re_opchars = r'[~!\#&|?+\-*/^<>=]'
-re_not_opchars = r'[^~!\#&|?+\-*/^<>=]'
-re_opchars_edgeql = r'[~!\#&|?]'
-re_opchars_sql = r'[+\-*/^<>=]'
-re_ident_start = r"[A-Za-z\200-\377_%]"
-re_ident_cont = r"[A-Za-z\200-\377_0-9\$%]"
-re_edgeql_special = r'[\{\}$]'
 re_dquote = r'\$([A-Za-z\200-\377_][0-9]*)*\$'
-
 
 clean_string = re.compile(r"'(?:\s|\n)+'")
 string_quote = re.compile(re_dquote)
@@ -69,17 +59,9 @@ class EdgeQLLexer(lexer.Lexer):
              next_state=STATE_KEEP,
              regexp=r':='),
 
-        Rule(token='<>',
-             next_state=STATE_KEEP,
-             regexp=r'<>'),
-
         Rule(token='OP',
              next_state=STATE_KEEP,
              regexp=r'@@'),
-
-        Rule(token='**',
-             next_state=STATE_KEEP,
-             regexp=r'\*\*'),
 
         Rule(token='::',
              next_state=STATE_KEEP,
@@ -96,22 +78,22 @@ class EdgeQLLexer(lexer.Lexer):
 
         Rule(token='OP',
              next_state=STATE_KEEP,
-             regexp=rf'''
+             regexp=r'''
                 (?: >= | <= | != | ~\* | ~)
              '''),
 
         # SQL ops
         Rule(token='self',
              next_state=STATE_KEEP,
-             regexp=re_self),
+             regexp=r'[,()\[\].@;:+\-*/%^<>=]'),
 
         Rule(token='FCONST',
              next_state=STATE_KEEP,
-             regexp=rf"""
+             regexp=r"""
                     (?: \d+ (?:\.\d*)?
                         |
                         \. \d+
-                    ) {re_exppart}
+                    ) (?:[eE](?:[+\-])?[0-9]+)
                 """),
 
         Rule(token='FCONST',
@@ -144,8 +126,8 @@ class EdgeQLLexer(lexer.Lexer):
 
         Rule(token='IDENT',
              next_state=STATE_KEEP,
-             regexp=rf'''
-                    {re_ident_start}{re_ident_cont}*
+             regexp=r'''
+                    [A-Za-z\200-\377_%] [A-Za-z\200-\377_0-9\$%]*
                 '''),
 
         Rule(token='QIDENT',
@@ -154,7 +136,7 @@ class EdgeQLLexer(lexer.Lexer):
 
         Rule(token='self',
              next_state=STATE_KEEP,
-             regexp=re_edgeql_special),
+             regexp=r'[\{\}$]'),
     ]
 
     states = {

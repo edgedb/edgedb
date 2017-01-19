@@ -108,10 +108,6 @@ class T_DOLLAR(Token, lextoken='$'):
     pass
 
 
-class T_STARSTAR(Token, lextoken='**'):
-    pass
-
-
 class T_TURNSTILE(Token):
     pass
 
