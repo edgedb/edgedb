@@ -20,6 +20,7 @@ from edgedb.lang.common import markup, nlang
 from edgedb.lang.common import exceptions as edgedb_error
 
 from edgedb.lang import schema as so
+from edgedb.lang.ir import utils as ir_utils
 from edgedb.lang.schema import delta as sd
 
 from edgedb.lang.schema import attributes as s_attrs
@@ -115,14 +116,13 @@ class Cursor:
 
 class Query(backend_query.Query):
     def __init__(
-            self, chunks, arg_index, argmap, result_types, argument_types,
+            self, chunks, arg_index, argmap, argument_types,
             scrolling_cursor=False, offset=None, limit=None,
             query_type=None, record_info=None, output_format=None):
         self.chunks = chunks
         self.text = ''.join(chunks)
         self.argmap = argmap
         self.arg_index = arg_index
-        self.result_types = result_types
         self.argument_types = collections.OrderedDict((k, argument_types[k])
                                                       for k in argmap
                                                       if k in argument_types)
@@ -607,15 +607,16 @@ class Backend(s_deltarepo.DeltaProvider):
             query_ir.offset = offset
             query_ir.limit = limit
 
-        restypes = {'_': query_ir.result_types}
-        argtypes = {}
+        # Try to infer types to check that everything is correct.
+        ir_utils.infer_type(query_ir, self.schema)
 
+        argtypes = {}
         for k, v in query_ir.argument_types.items():
             argtypes[k] = v
 
         return Query(
             chunks=qchunks, arg_index=arg_index, argmap=argmap,
-            result_types=restypes, argument_types=argtypes,
+            argument_types=argtypes,
             scrolling_cursor=scrolling_cursor, offset=offset, limit=limit,
             query_type=query_type, record_info=record_info,
             output_format=output_format)

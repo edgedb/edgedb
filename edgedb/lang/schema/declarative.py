@@ -14,6 +14,7 @@ from edgedb.lang.common import ordered
 from edgedb.lang.common import topological
 
 from edgedb.lang import edgeql
+from edgedb.lang.ir import utils as ir_utils
 
 from . import ast as s_ast
 from . import parser as s_parser
@@ -616,14 +617,14 @@ class DeclarationLoader:
             modaliases=module_aliases,
             anchors={'self': source})
 
-        if not ir.result_types:
+        try:
+            expr_type = ir_utils.infer_type(ir.result, self._schema)
+        except Exception:
             raise s_err.SchemaError(
                 'could not determine the result type of the default '
                 'expression on {!s}.{!s}'.format(
                     source.name, ptr.shortname),
                 context=expr.context)
-
-        expr_type = ir.result_types[0]
 
         ptr.default = expr_text
         ptr.normalize_defaults()

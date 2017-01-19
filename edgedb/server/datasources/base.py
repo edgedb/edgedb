@@ -59,9 +59,6 @@ class Datasource(metaclass=DatasourceMeta):
     def __init__(self):
         self.params = self.descriptor.get('params', None)
 
-    def describe_output(self):
-        raise NotImplementedError
-
     def check_type(self, name, value, type):
         if check_type(value, type):
             return value

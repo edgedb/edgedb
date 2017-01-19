@@ -163,7 +163,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 stmt.set_op = qlast.SetOperator(edgeql_tree.op)
                 stmt.set_op_larg = self.visit(edgeql_tree.op_larg)
                 stmt.set_op_rarg = self.visit(edgeql_tree.op_rarg)
-                stmt.result_types = None
             else:
                 if (isinstance(edgeql_tree.result, qlast.PathNode) and
                         edgeql_tree.result.steps and
@@ -178,8 +177,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
                 stmt.result = self._process_stmt_result(
                     edgeql_tree.result, toplevel_shape_rptrcls)
-
-                stmt.result_types = self._get_selector_types(stmt.result)
 
             stmt.orderby = self._process_orderby(edgeql_tree.orderby)
             if edgeql_tree.offset:
@@ -210,7 +207,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                         break
 
             stmt.argument_types = self.context.current.arguments
-
             return stmt
 
     def visit_InsertQueryNode(self, edgeql_tree):
@@ -268,9 +264,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
                 stmt.shape.elements.append(el)
 
-            stmt.result_types = self._get_selector_types(stmt.result)
             stmt.argument_types = self.context.current.arguments
-
             return stmt
 
     def visit_UpdateQueryNode(self, edgeql_tree):
@@ -298,9 +292,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 require_expressions=True,
                 include_implicit=False)
 
-            stmt.result_types = self._get_selector_types(stmt.result)
             stmt.argument_types = self.context.current.arguments
-
             return stmt
 
     def visit_DeleteQueryNode(self, edgeql_tree):
@@ -328,9 +320,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 require_expressions=True,
                 include_implicit=False)
 
-            stmt.result_types = self._get_selector_types(stmt.result)
             stmt.argument_types = self.context.current.arguments
-
             return stmt
 
     def visit_PathNode(self, expr):
@@ -1464,16 +1454,3 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         return self._get_schema_object(
             name=name[1], module=name[0]).aggregate
-
-    def _get_selector_types(self, selexpr):
-        schema = self.context.current.schema
-
-        expr_type = irutils.infer_type(selexpr, schema)
-
-        if isinstance(selexpr, irast.Constant):
-            expr_kind = 'constant'
-        elif isinstance(selexpr, (irast.Set, irast.Shape)):
-            expr_kind = 'path'
-        else:
-            expr_kind = 'expression'
-        return (expr_type, expr_kind)
