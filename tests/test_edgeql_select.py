@@ -49,6 +49,16 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             name := 'Yury'
         };
 
+        WITH MODULE test
+        INSERT URL {
+            name := 'edgedb.com',
+            address := 'https://edgedb.com'
+        };
+
+        WITH MODULE test
+        INSERT File {
+            name := 'screenshot.png'
+        };
 
         WITH MODULE test
         INSERT LogEntry {
@@ -85,7 +95,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             owner := (SELECT User WHERE User.name = 'Yury'),
             watchers := (SELECT User WHERE User.name = 'Elvis'),
             status := (SELECT Status WHERE Status.name = 'Open'),
-            priority := (SELECT Priority WHERE Priority.name = 'High')
+            priority := (SELECT Priority WHERE Priority.name = 'High'),
+            references := (
+                SELECT URL WHERE URL.address = 'https://edgedb.com'
+                UNION SELECT File WHERE File.name = 'screenshot.png'
+            )
         };
 
         WITH
@@ -3058,3 +3072,64 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     }
                 WHERE .number = '1';
             ''')
+
+    async def test_edgeql_virtual_target_01(self):
+        await self.assert_query_result('''
+            WITH MODULE test
+            SELECT Issue {
+                number,
+            } WHERE EXISTS (.references)
+              ORDER BY .number DESC;
+
+            WITH MODULE test
+            SELECT Issue {
+                number,
+            } WHERE .references[IS URL].address = 'https://edgedb.com'
+              ORDER BY .number DESC;
+
+            WITH MODULE test
+            SELECT Issue {
+                number,
+            } WHERE .references[IS Named].name = 'screenshot.png'
+              ORDER BY .number DESC;
+
+            WITH MODULE test
+            SELECT Issue {
+                number,
+                references: Named {
+                    __class__: {
+                        name
+                    },
+
+                    name
+                } ORDER BY .name
+            } WHERE EXISTS (.references)
+              ORDER BY .number DESC;
+        ''', [
+            [{
+                'number': '2'
+            }],
+            [{
+                'number': '2'
+            }],
+            [{
+                'number': '2'
+            }],
+            [{
+                'number': '2',
+                'references': [
+                    {
+                        'name': 'edgedb.com',
+                        '__class__': {
+                            'name': 'test::URL'
+                        }
+                    },
+                    {
+                        'name': 'screenshot.png',
+                        '__class__': {
+                            'name': 'test::File'
+                        }
+                    }
+                ]
+            }]
+        ])

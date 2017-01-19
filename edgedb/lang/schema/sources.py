@@ -264,7 +264,7 @@ class Source(primary.PrimaryClass, indexes.IndexableSubject):
 
     def resolve_pointer(self, schema, pointer_name, *,
                         direction='>',
-                        far_endpoints=None,
+                        far_endpoint=None,
                         look_in_children=False,
                         include_inherited=False,
                         target_most_generic=True):
@@ -285,56 +285,71 @@ class Source(primary.PrimaryClass, indexes.IndexableSubject):
             if not ptrs and look_in_children:
                 ptrs = self.getrptr_descending(schema, pointer_name)
 
-        # Narrow down the set of pointers by the specified list of
-        # endpoints.
-        #
-        if ptrs and far_endpoints:
-            req_endpoints = tuple(far_endpoints)
-            targeted_ptrs = []
+        if not ptrs:
+            # No pointer candidates found at all, bail out.
+            return
 
-            req_endpoints = set(far_endpoints)
+        targets = set()
 
-            for req_endpoint in far_endpoints:
-                if getattr(req_endpoint, 'is_virtual', None):
-                    req_endpoints.update(req_endpoint.children(schema))
+        if not far_endpoint:
+            targets.update(p.get_far_endpoint(direction) for p in ptrs)
+        else:
+            # Narrow down the set of pointers by the specified list of
+            # endpoints.
+            #
+            targeted_ptrs = set()
 
-            req_endpoints = tuple(req_endpoints)
+            if far_endpoint.is_virtual:
+                req_endpoints = tuple(far_endpoint.children(schema))
+            else:
+                req_endpoints = (far_endpoint,)
 
             for ptr in ptrs:
                 endpoint = ptr.get_far_endpoint(direction)
 
-                if endpoint.issubclass(req_endpoints):
-                    targeted_ptrs.append(ptr)
+                if endpoint.is_virtual:
+                    endpoints = endpoint.children(schema)
                 else:
-                    for req_endpoint in req_endpoints:
-                        if req_endpoint.issubclass(endpoint):
-                            if direction == '>':
-                                source = ptr.source
-                                target = req_endpoint
-                            else:
-                                target = ptr.source
-                                source = req_endpoint
+                    endpoints = [endpoint]
 
-                            dptr = ptr.get_derived(
-                                schema, source, target,
-                                mark_derived=True, add_to_schema=True)
+                for endpoint in endpoints:
+                    if endpoint.issubclass(req_endpoints):
+                        targeted_ptrs.add(ptr)
+                        targets.add(endpoint)
+                    else:
+                        for req_endpoint in req_endpoints:
+                            if req_endpoint.issubclass(endpoint):
+                                if direction == '>':
+                                    source = ptr.source
+                                    target = req_endpoint
+                                else:
+                                    target = ptr.source
+                                    source = req_endpoint
 
-                            targeted_ptrs.append(dptr)
+                                dptr = ptr.get_derived(
+                                    schema, source, target,
+                                    mark_derived=True, add_to_schema=True)
+
+                                targeted_ptrs.add(dptr)
+                                targets.add(req_endpoint)
+
+            if not targeted_ptrs:
+                # All candidates have been eliminated by the endpoint
+                # filter.
+                return None
 
             ptrs = targeted_ptrs
 
-        len_ptrs = len(ptrs)
+        ptr_targets = frozenset(p.get_far_endpoint(direction) for p in ptrs)
 
-        if len_ptrs == 1:
+        if len(ptrs) == 1 and targets == ptr_targets:
             # Found exactly one specialized pointer, just return it
             ptr = next(iter(ptrs))
 
-        elif len_ptrs > 1:
-            # More than one specialized pointer, create a
-            # virtual subclass of the set.
+        else:
+            # More than one specialized pointer or an endpoint subset,
+            # create a virtual subclass of endpoints.
             #
-            targets = frozenset(p.get_far_endpoint(direction) for p in ptrs)
-
             if target_most_generic:
                 minimize_by = 'most_generic'
             else:
@@ -353,7 +368,7 @@ class Source(primary.PrimaryClass, indexes.IndexableSubject):
                 ptr_source = target
                 ptr_target = self
 
-            fqname = common_parent.derive_name(ptr_source, ptr_target)
+            fqname = common_parent.derive_name(ptr_source, ptr_target.name)
             ptr = schema.get(fqname, default=None)
             if ptr is None:
                 common_parent_spec = common_parent.get_derived(
@@ -361,23 +376,23 @@ class Source(primary.PrimaryClass, indexes.IndexableSubject):
                     source=ptr_source, target=ptr_target,
                     mark_derived=True)
 
-                ptr = common_parent_spec.derive_copy(
-                    schema, merge_bases=list(ptrs), add_to_schema=True,
-                    source=ptr_source, target=ptr_target, mark_derived=True
-                )
+                if len(ptrs) == 1:
+                    ptr = common_parent_spec
+                else:
+                    ptr = common_parent_spec.derive_copy(
+                        schema, merge_bases=list(ptrs), add_to_schema=True,
+                        source=ptr_source, target=ptr_target,
+                        mark_derived=True
+                    )
 
-                mapping = None
-                for base in ptrs:
-                    if mapping is None:
-                        mapping = base.mapping
-                    else:
-                        mapping |= base.mapping
+                    mapping = None
+                    for base in ptrs:
+                        if mapping is None:
+                            mapping = base.mapping
+                        else:
+                            mapping |= base.mapping
 
-                ptr.mapping = mapping
-
-        else:
-            # No matching pointers found, caller must deal with this.
-            ptr = None
+                    ptr.mapping = mapping
 
         return ptr
 

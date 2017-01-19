@@ -247,7 +247,7 @@ def create_virtual_parent(schema, children, *,
 
     _children = set()
     for t in children:
-        if getattr(t, 'is_virtual', False):
+        if t.is_virtual:
             _children.update(t.children(schema))
         else:
             _children.add(t)
@@ -306,6 +306,7 @@ class InheritingClass(named.NamedClass):
 
     is_abstract = so.Field(bool, default=False, private=True, compcoef=0.909)
     is_final = so.Field(bool, default=False, compcoef=0.909)
+    is_virtual = so.Field(bool, default=False, compcoef=0.5)
 
     def merge(self, obj, *, schema, dctx=None):
         super().merge(obj, schema=schema, dctx=dctx)
@@ -354,11 +355,10 @@ class InheritingClass(named.NamedClass):
     def get_mro(self):
         return compute_mro(self)
 
-    def issubclass(self, parent):
-        if isinstance(parent, so.Class):
-            if parent.name == 'std::any':
-                return True
+    def _issubclass(self, parent):
+        my_vchildren = getattr(self, '_virtual_children', None)
 
+        if my_vchildren is None:
             mro = self.get_mro()
 
             if parent in mro:
@@ -370,22 +370,16 @@ class InheritingClass(named.NamedClass):
                 else:
                     return False
         else:
-            mro = self.get_mro()
+            return all(c._issubclass(parent) for c in my_vchildren)
 
-            if not isinstance(parent, tuple):
-                parents = (parent,)
+    def issubclass(self, parent):
+        if isinstance(parent, tuple):
+            return any(self.issubclass(p) for p in parent)
+        else:
+            if parent.name == 'std::any':
+                return True
             else:
-                parents = parent
-
-            expanded_parents = set()
-
-            for parent in parents:
-                virt_children = getattr(parent, '_virtual_children', None)
-                if virt_children:
-                    expanded_parents.update(virt_children)
-                expanded_parents.add(parent)
-
-            return bool(set(expanded_parents) & set(mro))
+                return self._issubclass(parent)
 
     def get_nearest_common_descendant(self, descendants):
         descendants = list(descendants)

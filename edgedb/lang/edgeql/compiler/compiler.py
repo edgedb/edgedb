@@ -401,13 +401,8 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 else:
                     source = path_tip.scls
 
-                ptrcls = self._resolve_ptr(
-                    source, ptr_name, direction, target=ptr_target)
-
-                target = ptrcls.get_far_endpoint(direction)
-
-                path_tip = self._extend_path(
-                    path_tip, ptrcls, direction, target)
+                path_tip, _ = self._path_step(
+                    path_tip, source, ptr_name, direction, ptr_target)
 
             else:
                 # Arbitrary expression
@@ -988,11 +983,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             else:
                 ptr_metacls = s_links.Link
 
-            if lexpr.target is not None:
-                target_name = (lexpr.target.module, lexpr.target.name)
-            else:
-                target_name = None
-
             ptr_direction = \
                 lexpr.direction or s_pointers.PointerDirection.Outbound
 
@@ -1092,14 +1082,14 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                         )
 
             else:
-                ptrcls = self._resolve_ptr(
-                    ptrsource,
-                    ptrname,
-                    direction=ptr_direction,
-                    target=target_name)
-                target_class = ptrcls.get_far_endpoint(ptr_direction)
-                targetstep = self._extend_path(
-                    source_expr, ptrcls, ptr_direction, target_class)
+                if lexpr.target is not None:
+                    ptr_target = self._get_schema_object(
+                        module=lexpr.target.module, name=lexpr.target.name)
+                else:
+                    ptr_target = None
+
+                targetstep, ptrcls = self._path_step(
+                    source_expr, ptrsource, ptrname, ptr_direction, ptr_target)
 
             if shape_el.recurse:
                 if shape_el.recurse_limit is not None:
@@ -1220,6 +1210,28 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         return el
 
+    def _path_step(self, path_tip, source, ptr_name, direction, ptr_target):
+        ptrcls = self._resolve_ptr(
+            source, ptr_name, direction, target=ptr_target)
+
+        target = ptrcls.get_far_endpoint(direction)
+
+        path_tip = self._extend_path(
+            path_tip, ptrcls, direction, target)
+
+        if target.is_virtual and ptr_target is not None:
+            pf = irast.TypeFilter(
+                path_id=path_tip.path_id,
+                expr=path_tip,
+                type=irast.TypeRef(maintype=ptr_target.name)
+            )
+
+            new_path_tip = self._generated_set(pf, ptr_target)
+            new_path_tip.rptr = path_tip.rptr
+            path_tip = new_path_tip
+
+        return path_tip, ptrcls
+
     def _extend_path(self, source_set, ptrcls,
                      direction=s_pointers.PointerDirection.Outbound,
                      target=None):
@@ -1292,16 +1304,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         else:
             pointer_name = ptr_fqname = ptr_nqname
 
-        if target is not None and not isinstance(target, s_obj.NodeClass):
-            target_name = '::'.join(filter(None, target))
-            modaliases = self.context.current.namespaces
-            target = self.schema.get(target_name, module_aliases=modaliases)
-
-        if target is not None:
-            far_endpoints = (target, )
-        else:
-            far_endpoints = None
-
         ptr = None
 
         if isinstance(near_endpoint, s_sources.Source):
@@ -1311,7 +1313,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 direction=direction,
                 look_in_children=False,
                 include_inherited=True,
-                far_endpoints=far_endpoints)
+                far_endpoint=target)
         else:
             if direction == s_pointers.PointerDirection.Outbound:
                 modaliases = self.context.current.namespaces

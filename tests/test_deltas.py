@@ -149,13 +149,16 @@ class TestDeltaDDLGeneration(tb.QueryTestCase):
             result[1],
             '''\
             CREATE LINK PROPERTY test::lang {
+                SET is_virtual := False;
                 SET readonly := False;
                 SET title := 'Base link property';
             };
             CREATE LINK test::name INHERITING std::`link` {
+                SET is_virtual := False;
                 SET readonly := False;
             };
             ALTER LINK test::name CREATE LINK PROPERTY test::lang TO (std::str) {
+                SET is_virtual := False;
                 SET readonly := False;
                 SET title := 'Base link property';
             };
@@ -164,19 +167,23 @@ class TestDeltaDDLGeneration(tb.QueryTestCase):
             };
             ALTER CONCEPT test::NamedObject {
                 CREATE REQUIRED LINK test::name TO (std::str) {
+                    SET is_virtual := False;
                     SET mapping := '*1';
                     SET readonly := False;
                 }
                 ALTER LINK test::name {
                     CREATE LINK PROPERTY std::source TO (test::NamedObject) {
+                        SET is_virtual := False;
                         SET readonly := False;
                         SET title := 'Link source';
                     }
                     CREATE LINK PROPERTY std::`target` TO (std::str) {
+                        SET is_virtual := False;
                         SET readonly := False;
                         SET title := 'Link target';
                     }
                     CREATE LINK PROPERTY test::lang TO (std::str) {
+                        SET is_virtual := False;
                         SET readonly := False;
                         SET title := 'Base link property';
                     }

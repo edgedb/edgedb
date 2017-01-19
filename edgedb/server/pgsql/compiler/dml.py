@@ -680,6 +680,11 @@ class IRCompilerDMLSupport:
         row = pgast.ImplicitRowExpr()
 
         source_data = {}
+
+        if input_stmt.op is not None:
+            # UNION
+            input_stmt = input_stmt.rarg
+
         for rt in input_stmt.target_list:
             source_data[rt.name] = expr = pgast.ColumnRef(
                 name=[unnested_alias, rt.name])

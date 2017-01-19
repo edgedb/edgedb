@@ -62,8 +62,6 @@ class Concept(sources.Source, nodes.Node,
               constraints.ConsistencySubject, so.NodeClass):
     _type = 'concept'
 
-    is_virtual = so.Field(bool, default=bool, compcoef=0.5)
-
     delta_driver = sd.DeltaDriver(
         create=CreateConcept,
         alter=AlterConcept,

@@ -101,7 +101,7 @@ concept Issue extends Named, Owned, Text:
 concept File extends Named
 
 
-concept URL:
+concept URL extends Named:
     required link address to str
 
 

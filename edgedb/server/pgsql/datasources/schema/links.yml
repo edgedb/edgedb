@@ -83,7 +83,7 @@ source: |
             AND (%(name)s::text IS NULL OR %(name)s::text = l.name)
             AND (%(include_specialized)s::bool OR l.source IS NULL)
         ORDER BY
-            l.id, l.target NULLS FIRST
+            l.name LIKE 'std::%' DESC, l.id, l.target NULLS FIRST
 ...
 
 %SCHEMA edgedb.server.datasources.schemas.Sql
