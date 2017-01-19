@@ -124,9 +124,15 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT User{name}
             WHERE
                 NOT (
-                    NOT EXISTS (
+                    NOT (
+                        EXISTS User.<owner[TO Issue].time_estimate
+                        AND
                         User.<owner[TO Issue].time_estimate > 9000
-                    ) OR NOT EXISTS (
+                    )
+                    OR
+                    NOT (
+                        EXISTS User.<owner[TO Issue].due_date
+                        AND
                         User.<owner[TO Issue].due_date = <datetime>'2020/01/15'
                     )
                 )
@@ -146,10 +152,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT User{name}
             WHERE
                 NOT (
-                    EXISTS (User.<owner[TO Issue].time_estimate <= 9000)
+                    NOT EXISTS User.<owner[TO Issue].time_estimate
                     OR
-                    EXISTS (User.<owner[TO Issue].due_date !=
-                        <datetime>'2020/01/15')
+                    NOT EXISTS User.<owner[TO Issue].due_date
+                    OR
+                    User.<owner[TO Issue].time_estimate <= 9000
+                    OR
+                    User.<owner[TO Issue].due_date != <datetime>'2020/01/15'
                 )
             ORDER BY User.name;
         ''', [

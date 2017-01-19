@@ -2390,15 +2390,17 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_subqueries06(self):
         await self.assert_query_result(r"""
             # find all issues such that there's at least one more
             # issue with the same priority (even if the "same" means NULL)
             WITH
                 MODULE test,
-                Issue2:= (SELECT Issue)
-            SELECT Issue{number}
+                Issue2 := (SELECT Issue)
+            SELECT
+                Issue {
+                    number
+                }
             WHERE
                 Issue != Issue2
                 AND
@@ -2406,9 +2408,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     Issue.priority = Issue2.priority
                     OR
 
-                    NOT EXISTS Issue.priority.id
+                    NOT EXISTS Issue.priority
                     AND
-                    NOT EXISTS Issue2.priority.id
+                    NOT EXISTS Issue2.priority
                 );
             """, [
             [{'number': '1'}, {'number': '4'}],

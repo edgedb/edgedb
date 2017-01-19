@@ -478,7 +478,7 @@ class IRCompilerDMLSupport:
                 name=[
                     dml_cte.name,
                     self._get_path_var(
-                        dml_cte.query, ir_stmt.shape.set.path_id)
+                        dml_cte.query, ir_stmt.shape.set.path_id).name[0]
                 ]
             )
         }

@@ -215,12 +215,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                                 val=pgast.FuncCall(
                                     name=('array_agg',),
                                     args=[
-                                        pgast.ColumnRef(
-                                            name=[
-                                                subrvar.alias.aliasname,
-                                                rt.name
-                                            ]
-                                        )
+                                        self._get_column(subrvar, rt.name)
                                     ]
                                 )
                             )
@@ -322,12 +317,10 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             if expr.expr:
                 # For expression sets the result is the result
                 # of the expression.
-                result = pgast.ColumnRef(
-                    name=[source_rvar.alias.aliasname, 'v']
-                )
+                result = self._get_var_for_set_expr(expr, source_rvar)
             else:
                 # Otherwise it is a regular link reference.
-                result = self._get_fieldref_for_set(expr)
+                result = self._get_var_for_atomic_set(expr)
 
         return result
 
@@ -451,9 +444,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         self._pull_path_namespace(target=wrapper, source=rvar)
 
         if ir_set.expr is not None:
-            v = pgast.ColumnRef(
-                name=[rvar.alias.aliasname, 'v']
-            )
+            v = self._get_var_for_set_expr(ir_set, rvar)
 
             if ir_set.scls.name == 'std::bool':
                 wrapper.where_clause = v
@@ -506,7 +497,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         self._pull_path_namespace(target=wrapper, source=rvar)
 
         if ir_set.expr is not None:
-            target = pgast.ColumnRef(name=[rvar.alias.aliasname, 'v'])
+            target = self._get_var_for_set_expr(ir_set, rvar)
         else:
             target = wrapper.path_namespace[ir_set.path_id]
 
@@ -547,7 +538,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         self._pull_path_namespace(target=wrapper, source=rvar)
 
         if ir_set.expr is not None:
-            target = pgast.ColumnRef(name=[rvar.alias.aliasname, 'v'])
+            target = self._get_var_for_set_expr(ir_set, rvar)
         else:
             target = wrapper.path_namespace[ir_set.path_id]
 
@@ -686,7 +677,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             self._pull_path_namespace(target=stmt, source=src_rvar)
             self._rel_join(stmt, src_rvar, type='inner')
 
-    def _get_set_rvar(self, ir_set, stmt):
+    def _get_set_rvar(self, ir_set, stmt, nullable=False):
         if not isinstance(ir_set.scls, s_concepts.Concept):
             return None
 
@@ -694,6 +685,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         id_set = self._get_ptr_set(ir_set, 'std::id')
 
         set_rvar = self._range_for_set(ir_set, stmt)
+        set_rvar.nullable = nullable
         stmt.scls_rvar = set_rvar
 
         path_id = ir_set.path_id
@@ -703,8 +695,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         else:
             rvar_rel = set_rvar.query
 
-        rvar_rel.path_vars[path_id] = id_field
-        rvar_rel.path_bonds[path_id] = id_field
+        id_ref = self._get_column(set_rvar, id_field, naked=True)
+        rvar_rel.path_bonds[path_id] = rvar_rel.path_vars[path_id] = id_ref
 
         self._pull_path_var(stmt, id_set, path_id=path_id)
         stmt.inner_path_bonds[path_id] = stmt.path_namespace[path_id]
@@ -732,7 +724,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         fromlist = stmt.from_clause
 
         self._connect_set_sources(ir_set, stmt, [ir_set.rptr.source])
-        set_rvar = self._get_set_rvar(ir_set, stmt)
+        set_rvar = self._get_set_rvar(ir_set, stmt, nullable=ctx.lax_paths)
 
         if (isinstance(rptr.source.scls, s_atoms.Atom) and
                 ptrcls.shortname == 'std::__class__'):
@@ -774,12 +766,9 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             elif isinstance(ir_set.scls, s_concepts.Concept):
                 # Direct reference to another object.
                 self._pull_path_var(source_rel, ir_set)
-                stmt.path_namespace[ir_set.path_id] = pgast.ColumnRef(
-                    name=[
-                        path_rvar.alias.aliasname,
-                        self._get_path_var(
-                            source_rel.query, ir_set.path_id)
-                    ]
+                stmt.path_namespace[ir_set.path_id] = self._get_column(
+                    path_rvar,
+                    self._get_path_var(source_rel.query, ir_set.path_id)
                 )
 
                 self._join_inline_rel(
@@ -821,22 +810,21 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         if isinstance(ir_set.expr, irast.TypeFilter):
             self._rel_join(stmt, stmt.scls_rvar, type='left')
 
-            valref = pgast.ColumnRef(
-                name=[
-                    stmt.scls_rvar.alias.aliasname,
-                    stmt.scls_rvar.path_vars[ir_set.path_id]
-                ]
-            )
+            valref = self._get_column(
+                stmt.scls_rvar, stmt.scls_rvar.path_vars[ir_set.path_id])
 
             restarget = pgast.ResTarget(val=valref, name='v')
             stmt.target_list.append(restarget)
 
             id_set = self._get_ptr_set(ir_set, 'std::id')
 
+            ext_valref = self._get_column(stmt.scls_rvar, valref,
+                                          naked=True, name='v')
+
             stmt.path_namespace[ir_set.path_id] = valref
-            stmt.path_vars[ir_set.path_id] = 'v'
+            stmt.path_vars[ir_set.path_id] = ext_valref
             stmt.path_namespace[id_set.path_id] = valref
-            stmt.path_vars[id_set.path_id] = 'v'
+            stmt.path_vars[id_set.path_id] = ext_valref
 
         else:
             with self.context.new() as newctx:
@@ -884,10 +872,12 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                     ]
                 )
 
+                ext_valref = pgast.ColumnRef(name=['v'], nullable=True)
+
                 qry.path_namespace[ir_set.path_id] = valref
-                qry.path_vars[ir_set.path_id] = 'v'
+                qry.path_vars[ir_set.path_id] = ext_valref
                 qry.inner_path_bonds[ir_set.path_id] = valref
-                qry.path_bonds[ir_set.path_id] = 'v'
+                qry.path_bonds[ir_set.path_id] = ext_valref
 
                 expr_rvar = pgast.RangeSubselect(
                     lateral=True,
@@ -989,17 +979,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
                 self._reset_path_namespace(subquery)
 
-                subquery.target_list.append(
-                    pgast.ResTarget(
-                        val=ref,
-                        name='v'
-                    )
-                )
-
                 subquery.path_namespace[substmt.path_id] = ref
-                subquery.path_vars[substmt.path_id] = 'v'
                 subquery.inner_path_bonds[substmt.path_id] = ref
-                subquery.path_bonds[substmt.path_id] = 'v'
 
             ctx.query.ctes.append(cte)
 
@@ -1062,7 +1043,34 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 sortexpr = self.visit(expr)
                 query.group_clause.append(sortexpr)
 
-    def _get_fieldref_for_set(self, ir_set):
+    def _get_column(self, rvar, colspec, *, naked=False, name=None):
+        if isinstance(colspec, pgast.ColumnRef):
+            colname = colspec.name[-1]
+            nullable = colspec.nullable
+        else:
+            colname = colspec
+            nullable = rvar.nullable
+
+        if name is not None:
+            colname = name
+
+        if naked:
+            name = [colname]
+        else:
+            name = [rvar.alias.aliasname, colname]
+
+        return pgast.ColumnRef(name=name, nullable=nullable)
+
+    def _get_var_for_set_expr(self, ir_set, source_rvar):
+        if isinstance(ir_set.expr, irast.Stmt):
+            stmt_qry = source_rvar.relation.query
+            var_ref = stmt_qry.path_vars[ir_set.path_id]
+        else:
+            var_ref = pgast.ColumnRef(name=['v'])
+
+        return self._get_column(source_rvar, var_ref)
+
+    def _get_var_for_atomic_set(self, ir_set):
         """Return an expression node corresponding to the specified atomic Set.
 
         Arguments:
@@ -1107,7 +1115,15 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             except KeyError:
                 continue
 
-            path_cond = self._new_binop(lref, rref, op='=')
+            if lref.name == rref.name:
+                continue
+
+            if lref.nullable or rref.nullable:
+                op = 'IS NOT DISTINCT FROM'
+            else:
+                op = '='
+
+            path_cond = self._new_binop(lref, rref, op=op)
             condition = self._extend_binop(condition, path_cond)
 
         return condition
@@ -1127,11 +1143,17 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             except KeyError:
                 continue
 
-            rref = pgast.ColumnRef(
-                name=[right_rvar.alias.aliasname, rname]
-            )
+            rref = self._get_column(right_rvar, rname)
 
-            path_cond = self._new_binop(lref, rref, op='=')
+            if lref.name == rref.name:
+                continue
+
+            if lref.nullable or rref.nullable:
+                op = 'IS NOT DISTINCT FROM'
+            else:
+                op = '='
+
+            path_cond = self._new_binop(lref, rref, op=op)
             condition = self._extend_binop(condition, path_cond)
 
         return condition
@@ -1146,6 +1168,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             query.from_clause[0] = pgast.JoinExpr(
                 type=type, larg=query.from_clause[0],
                 rarg=right_rvar, quals=condition)
+            if type == 'left':
+                right_rvar.nullable = True
         else:
             query.from_clause.append(right_rvar)
 
@@ -1167,16 +1191,16 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         except KeyError:
             map_rvar = self._range_for_pointer(link)
             map_join = None
+            if map_join_type == 'left':
+                map_rvar.nullable = True
 
         # Set up references according to link direction
         #
         src_col = common.edgedb_name_to_pg_name('std::source')
-        source_ref = pgast.ColumnRef(
-            name=[map_rvar.alias.aliasname, src_col])
+        source_ref = self._get_column(map_rvar, src_col)
 
         tgt_col = common.edgedb_name_to_pg_name('std::target')
-        target_ref = pgast.ColumnRef(
-            name=[map_rvar.alias.aliasname, tgt_col])
+        target_ref = self._get_column(map_rvar, tgt_col)
 
         valent_bond = stmt.path_namespace[link.source.path_id]
         forward_bond = self._new_binop(valent_bond, source_ref, op='=')
@@ -1200,13 +1224,12 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             stmt.ptr_rvar_map[linkmap_key] = map_rvar, map_join
 
         if isinstance(ir_set.scls, s_concepts.Concept):
+            if map_join_type == 'left':
+                set_rvar.nullable = True
+
             # Join the target relation, if we have it
-            target_range_bond = pgast.ColumnRef(
-                name=[
-                    set_rvar.alias.aliasname,
-                    self._get_path_bond(set_rvar.query, ir_set.path_id)
-                ]
-            )
+            target_range_bond = self._get_column(
+                set_rvar, self._get_path_bond(set_rvar.query, ir_set.path_id))
 
             if link.direction == s_pointers.PointerDirection.Inbound:
                 map_tgt_ref = source_ref
@@ -1240,12 +1263,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
     def _join_class_rel(self, *, stmt, set_rvar, ir_set):
         fromexpr = stmt.from_clause[0]
 
-        nref = pgast.ColumnRef(
-            name=[
-                set_rvar.alias.aliasname,
-                common.edgedb_name_to_pg_name('schema::name')
-            ]
-        )
+        nref = self._get_column(
+            set_rvar, common.edgedb_name_to_pg_name('schema::name'))
 
         val = pgast.Constant(
             val=ir_set.rptr.source.scls.name
@@ -1267,9 +1286,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             id_col = common.edgedb_name_to_pg_name('std::id')
             src_ref = stmt.path_namespace[ir_set.path_id]
 
-        tgt_ref = pgast.ColumnRef(
-            name=[set_rvar.alias.aliasname, id_col]
-        )
+        tgt_ref = self._get_column(set_rvar, id_col)
 
         fromexpr = stmt.from_clause[0]
 
@@ -1317,34 +1334,33 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         squery = source.query
         for path_id in set(squery.path_namespace) - set(target.path_namespace):
             name = self._get_path_var(squery, path_id)
-            ref = pgast.ColumnRef(name=[source.alias.aliasname, name])
+            ref = self._get_column(source, name)
             target.path_namespace[path_id] = ref
 
         if pull_bonds:
             for path_id in (set(squery.inner_path_bonds) -
                             set(target.inner_path_bonds)):
                 name = self._get_path_bond(squery, path_id)
-                ref = pgast.ColumnRef(name=[source.alias.aliasname, name])
+                ref = self._get_column(source, name)
                 target.inner_path_bonds[path_id] = ref
 
     def _get_path_bond(self, stmt, path_id):
-        alias = stmt.path_bonds.get(path_id)
-        if alias is None:
-            alias = self._get_outer_path_ref(
+        var = stmt.path_bonds.get(path_id)
+        if var is None:
+            var = self._get_outer_path_ref(
                 stmt, path_id, stmt.inner_path_bonds)
 
-            stmt.path_bonds[path_id] = alias
+            stmt.path_bonds[path_id] = var
 
-        return alias
+        return var
 
     def _get_path_var(self, stmt, path_id):
-        alias = stmt.path_vars.get(path_id)
-        if alias is None:
-            alias = self._get_outer_path_ref(
-                stmt, path_id, stmt.path_namespace)
-            stmt.path_vars[path_id] = alias
+        var = stmt.path_vars.get(path_id)
+        if var is None:
+            var = self._get_outer_path_ref(stmt, path_id, stmt.path_namespace)
+            stmt.path_vars[path_id] = var
 
-        return alias
+        return var
 
     def _get_outer_path_ref(self, stmt, path_id, inner_ref_coll):
         ctx = self.context.current
@@ -1378,7 +1394,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             alias = ctx.genalias(hint=ref.name[-1])
             rlist.append(pgast.ResTarget(name=alias, val=ref))
 
-        return alias
+        return pgast.ColumnRef(name=[alias], nullable=ref.nullable)
 
     def _pull_path_var(self, rel, ir_set, path_id=None, *, alias=None):
         """Make sure the value of the *ir_set* path is present in namespace."""
@@ -1455,7 +1471,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                     rel, source, rel_rvar, ptrname, path_id)
 
         fieldrefs = [
-            pgast.ColumnRef(name=[source_rvar.alias.aliasname, colname])
+            self._get_column(source_rvar, colname)
             for source_rvar in source_rvars
         ]
 
@@ -1469,11 +1485,15 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         #
         if len(fieldrefs) > 1:
             refexpr = pgast.CoalesceExpr(args=fieldrefs)
+            nullable = True
         else:
             refexpr = fieldrefs[0]
+            nullable = refexpr.nullable
+
+        var_ref = pgast.ColumnRef(name=[alias], nullable=nullable)
 
         rel.path_namespace[path_id] = refexpr
-        rel.path_vars[path_id] = alias
+        rel.path_vars[path_id] = var_ref
 
         restarget = pgast.ResTarget(name=alias, val=refexpr)
         if hasattr(rel, 'returning_list'):
@@ -1483,7 +1503,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         if ir_set.path_id != path_id:
             rel.path_namespace[ir_set.path_id] = refexpr
-            rel.path_vars[ir_set.path_id] = alias
+            rel.path_vars[ir_set.path_id] = var_ref
 
         return refexpr
 
@@ -1523,9 +1543,11 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
             src_rvar_pid = rel_rvar.query.path_id
             src_rvar = self._range_for_concept(s, rel)
+            src_rvar.nullable = True
             src_rvar.query.path_id = src_rvar_pid
-            src_rvar.path_vars[src_rvar_pid] = id_field
-            src_rvar.path_bonds[src_rvar_pid] = id_field
+            id_ref = self._get_column(src_rvar, id_field, naked=True)
+            src_rvar.path_vars[src_rvar_pid] = id_ref
+            src_rvar.path_bonds[src_rvar_pid] = id_ref
 
             self._rel_join(rel, src_rvar, type='left')
 

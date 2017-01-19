@@ -57,6 +57,7 @@ class BaseRangeVar(Base):
     """Range variable, used in FROM clauses."""
 
     alias: Alias
+    nullable: bool
 
     @property
     def path_id(self):
@@ -126,6 +127,7 @@ class ColumnRef(Base):
     """Specifies a reference to a column."""
 
     name: typing.List[typing.Union[str, Star]]  # Column name list
+    nullable: bool                              # Whether NULL is possible
 
 
 class ParamRef(Base):
