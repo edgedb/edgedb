@@ -404,7 +404,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if (not isinstance(node.parent.parent,
                            edgeql_ast.SelectPathSpecNode) and
                 node.target is not None):
-            self.write('[TO ')
+            self.write('[IS ')
             self.visit(node.target, parenthesise=False)
             self.write(']')
 
@@ -524,11 +524,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.expr)
 
     def visit_TypeFilterNode(self, node):
-        self.write('(')
         self.visit(node.expr)
-        self.write(' AS ')
+        self.write('[IS ')
         self.visit(node.type)
-        self.write(')')
+        self.write(']')
 
     def visit_IndirectionNode(self, node):
         self.write('(')

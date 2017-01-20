@@ -311,10 +311,10 @@ class TestIntrospection(tb.QueryTestCase):
             WHERE
                 `Concept`.name LIKE 'test::%'
                 AND
-                `Concept`.<target[TO `Link`].attributes.name =
+                `Concept`.<target[IS `Link`].attributes.name =
                     'stdattrs::mapping'
                 AND
-                `Concept`.<target[TO `Link`].attributes@value = '1*'
+                `Concept`.<target[IS `Link`].attributes@value = '1*'
             ORDER BY `Concept`.name;
         """, [
             [{

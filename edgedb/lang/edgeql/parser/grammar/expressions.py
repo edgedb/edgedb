@@ -685,14 +685,6 @@ class ParenExpr(Nonterm):
     def reduce_LPAREN_ValuesExpr_RPAREN(self, *kids):
         self.val = kids[1].val
 
-    def reduce_LPAREN_Expr_AS_TypeName_RPAREN(self, *kids):
-        # LHS has to be a Path, also the result of this operation is
-        # also a Path.
-        #
-        self.val = qlast.PathNode(
-            steps=[qlast.TypeFilterNode(expr=kids[1].val,
-                                                type=kids[3].val)])
-
 
 class Expr(Nonterm):
     # Path | Constant | '(' Expr ')' | FuncExpr | Sequence | Mapping
@@ -710,9 +702,8 @@ class Expr(Nonterm):
     # | Expr '[' Expr ':' Expr ']'
     # | Expr '[' ':' Expr ']'
     # | Expr '[' Expr ':' ']'
-    # | Expr '[' TO NodeName ']'
+    # | Expr '[' IS NodeName ']'
     # | '<' ExtTypeExpr '>' '(' Expr ')'
-    # | '(' Expr AS Expr ')'
     # | Expr IF Expr ELSE Expr
 
     def reduce_Path(self, *kids):
@@ -733,23 +724,37 @@ class Expr(Nonterm):
             self.val = qlast.IndirectionNode(arg=expr,
                                              indirection=[kids[1].val])
 
-    def reduce_Expr_LBRACKET_TO_OpNodeName_RBRACKET(self, *kids):
+    def reduce_Expr_LBRACKET_IS_OpNodeName_RBRACKET(self, *kids):
         # The path filter rule is here to resolve ambiguity with
-        # indexes and slices, so Expr needs to be enforced as a path
-        # with one or more steps.
+        # indexes and slices, so Expr needs to be enforced as a path.
         #
-        # NOTE: We specifically disallow "Foo.(bar[TO Baz])"" because
+        # NOTE: We specifically disallow "Foo.(bar[IS Baz])"" because
         # it is incorrect logical grouping. The example where the
-        # incorrect grouping is more obvious is: "Foo.<(bar[TO Baz])"
+        # incorrect grouping is more obvious is: "Foo.<(bar[IS Baz])"
         #
         path = kids[0].val
-        if (not isinstance(path, qlast.PathNode) or
-                not isinstance(path.steps[-1], qlast.PtrNode)):
-            raise EdgeQLSyntaxError('Unexpected token: {}'.format(kids[2]),
-                                    context=kids[2].context)
 
-        path.steps[-1].target = kids[3].val
-        self.val = path
+        if isinstance(path, qlast.PathNode):
+            if len(path.steps) == 1:
+                # filtering the root is different from the rest of the path
+                #
+                self.val = qlast.PathNode(
+                    steps=[qlast.TypeFilterNode(
+                        expr=path,
+                        type=qlast.TypeNameNode(maintype=kids[3].val))
+                    ])
+                return
+
+            elif isinstance(path.steps[-1], qlast.PtrNode):
+                # filtering a longer path
+                #
+                path.steps[-1].target = kids[3].val
+                self.val = path
+                return
+
+        raise EdgeQLSyntaxError('Unexpected token: {}'.format(kids[2]),
+                                context=kids[2].context)
+
 
     def reduce_FuncExpr(self, *kids):
         self.val = kids[0].val

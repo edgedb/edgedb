@@ -173,7 +173,7 @@ class TypeCast(Expr):
 
 
 class TypeFilter(Expr):
-    """(Expr AS Type)"""
+    """Expr[IS Type]"""
 
     path_id: list
     expr: Base

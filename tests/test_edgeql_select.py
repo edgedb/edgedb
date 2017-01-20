@@ -184,7 +184,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                                 body
                             }
                         WHERE
-                            (Text AS Owned).owner = User
+                            Text[IS Owned].owner = User
                         ORDER BY
                             len(Text.body) ASC
                         LIMIT
@@ -253,7 +253,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         SELECT SINGLETON
                             Text {body}
                         WHERE
-                            (Text AS Owned).owner = User
+                            Text[IS Owned].owner = User
                         ORDER BY
                             len(Text.body) ASC
                         LIMIT
@@ -313,7 +313,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     # ad-hoc computable with many results
                     special_texts := (
                         SELECT Text {body}
-                        WHERE (Text AS Owned).owner != User
+                        WHERE Text[IS Owned].owner != User
                         ORDER BY len(Text.body) DESC
                     ),
                 }
@@ -375,7 +375,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT Text{
                 body,
-                name := (Text AS Issue).name IF Text IS Issue      ELSE
+                name := Text[IS Issue].name IF Text IS Issue      ELSE
                         'log'                IF Text IS LogEntry   ELSE
                         'comment'            IF Text IS Comment    ELSE
                         'unknown'
@@ -466,7 +466,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         1
                 )
             SELECT
-                (sub AS Issue).number;
+                sub[IS Issue].number;
         ''', [
             ['3']
         ])
@@ -874,7 +874,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     name,
                     <owner: Issue{
                         number
-                    } ORDER BY User.<owner[TO Issue].number
+                    } ORDER BY User.<owner[IS Issue].number
                       LIMIT 1
                 }
             ORDER BY User.name;
@@ -896,7 +896,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     name,
                     <owner: Issue{
                         number
-                    } ORDER BY User.<owner[TO Issue].number
+                    } ORDER BY User.<owner[IS Issue].number
                       LIMIT len(User.name) - 3
                 }
             ORDER BY User.name;
@@ -976,7 +976,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 name,
                 <owner: Issue {
                     number
-                } WHERE <int>(User.<owner[TO Issue].number) < 3,
+                } WHERE <int>(User.<owner[IS Issue].number) < 3,
             } WHERE User.name = 'Elvis';
         ''', [
             [{
@@ -1021,7 +1021,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 name,
                 <owner: Issue {
                     number
-                } WHERE EXISTS User.<owner[TO Issue].related_to,
+                } WHERE EXISTS User.<owner[IS Issue].related_to,
             } ORDER BY User.name;
         ''', [
             [{
@@ -1044,7 +1044,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 name,
                 <owner: Issue {
                     number
-                } ORDER BY User.<owner[TO Issue].number DESC,
+                } ORDER BY User.<owner[IS Issue].number DESC,
             } ORDER BY User.name;
         ''', [
             [{
@@ -1095,7 +1095,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT
                 Text {body}
-            WHERE Text IS Issue AND (Text AS Issue).number = '1'
+            WHERE Text IS Issue AND Text[IS Issue].number = '1'
             ORDER BY Text.body;
         ''', [
             [
@@ -1179,7 +1179,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             UNION
             SELECT
                 Comment {body}
-            ORDER BY (Object AS Text).body;
+            ORDER BY Object[IS Text].body;
 
             WITH MODULE test
             SELECT
@@ -1187,7 +1187,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             INTERSECT
             SELECT
                 Comment {body}
-            ORDER BY (Object AS Text).body;
+            ORDER BY Object[IS Text].body;
 
             WITH MODULE test
             SELECT
@@ -1195,7 +1195,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             EXCEPT
             SELECT
                 Comment {body}
-            ORDER BY (Object AS Text).body;
+            ORDER BY Object[IS Text].body;
         ''')
 
         self.assert_data_shape(res, [
@@ -1281,7 +1281,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT Issue{number}
             # issue where the owner also has a comment with non-empty body
-            WHERE Issue.owner.<owner[TO Comment].body != ''
+            WHERE Issue.owner.<owner[IS Comment].body != ''
             ORDER BY Issue.number;
         ''', [
             [{'number': '1'}, {'number': '4'}],
@@ -1292,7 +1292,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT Issue{number}
             # issue where the owner also has a comment to it
-            WHERE Issue.owner.<owner[TO Comment].issue = Issue;
+            WHERE Issue.owner.<owner[IS Comment].issue = Issue;
         ''', [
             [{'number': '1'}],
         ])
@@ -1520,7 +1520,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     number
                 }
             WHERE
-                NOT EXISTS (Issue.<issue[TO Comment])
+                NOT EXISTS (Issue.<issue[IS Comment])
             ORDER BY
                 Issue.number;
         ''', [
@@ -1535,7 +1535,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     number
                 }
             WHERE
-                NOT EXISTS (SELECT Issue.<issue[TO Comment])
+                NOT EXISTS (SELECT Issue.<issue[IS Comment])
             ORDER BY
                 Issue.number;
         ''', [
@@ -1550,7 +1550,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     number
                 }
             WHERE
-                EXISTS (Issue.<issue[TO Comment])
+                EXISTS (Issue.<issue[IS Comment])
             ORDER BY
                 Issue.number;
         ''', [
@@ -1658,7 +1658,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT Issue{number}
             # issue where the owner also has a comment
-            WHERE EXISTS Issue.owner.<owner[TO Comment]
+            WHERE EXISTS Issue.owner.<owner[IS Comment]
             ORDER BY Issue.number;
         ''', [
             [{'number': '1'}, {'number': '4'}],
@@ -1770,7 +1770,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         # NOTE: for the expected ordering of Text see instance04 test
         await self.assert_query_result(r'''
             WITH MODULE test
-            SELECT (Text AS Issue).number
+            SELECT Text[IS Issue].number
             ORDER BY Text.body;
         ''', [
             ['4', '1', '3', '2'],
@@ -1779,9 +1779,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_as02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
-            SELECT (Text AS Issue).name
+            SELECT Text[IS Issue].name
             WHERE Text.body @@ 'EdgeDB'
-            ORDER BY (Text AS Issue).name;
+            ORDER BY Text[IS Issue].name;
         ''', [
             ['Release EdgeDB']
         ])
@@ -2311,8 +2311,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             # concatenate the user name with every issue number that user has
             WITH MODULE test
-            SELECT User.name + User.<owner[TO Issue].number
-            ORDER BY User.name THEN User.<owner[TO Issue].number;
+            SELECT User.name + User.<owner[IS Issue].number
+            ORDER BY User.name THEN User.<owner[IS Issue].number;
             """, [
             ['Elvis1', 'Elvis4', 'Yury2', 'Yury3'],
         ])
@@ -2465,7 +2465,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     WHERE
                         Text IS Issue
                         AND
-                        (Text AS Issue).watchers = Issue.watchers
+                        Text[IS Issue].watchers = Issue.watchers
                         AND
                         Text != Issue
                 );
@@ -2593,7 +2593,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         # The User is among the watchers of this Issue
                         User = Issue.watchers AND
                         # and they also watch some other Issue other than this
-                        User.<watchers[TO Issue] != Issue AND
+                        User.<watchers[IS Issue] != Issue AND
                         # and they also have at least one comment
                         EXISTS (
                             SELECT Comment WHERE Comment.owner = User
@@ -2768,12 +2768,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT
                 (
                     User.name, (
-                        User.<owner[TO Issue].status.name,
-                        count(User.<owner[TO Issue])
+                        User.<owner[IS Issue].status.name,
+                        count(User.<owner[IS Issue])
                     )
                 )
-            GROUP BY User.name, User.<owner[TO Issue].status.name
-            ORDER BY User.name THEN User.<owner[TO Issue].status.name;
+            GROUP BY User.name, User.<owner[IS Issue].status.name
+            ORDER BY User.name THEN User.<owner[IS Issue].status.name;
             """, [[
             ['Elvis', ['Closed', 1]],
             ['Elvis', ['Open', 1]],
@@ -2806,12 +2806,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 {
                     name := User.name,
                     issue := (SELECT {
-                        status := User.<owner[TO Issue].status.name,
-                        count := count(User.<owner[TO Issue]),
-                    } GROUP BY User.<owner[TO Issue].status.name)
+                        status := User.<owner[IS Issue].status.name,
+                        count := count(User.<owner[IS Issue]),
+                    } GROUP BY User.<owner[IS Issue].status.name)
                 }
             GROUP BY User.name
-            ORDER BY User.name THEN User.<owner[TO Issue].status.name;
+            ORDER BY User.name THEN User.<owner[IS Issue].status.name;
             """, [
             {
                 'name': 'Elvis',

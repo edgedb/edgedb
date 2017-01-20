@@ -935,9 +935,9 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT Foo.bar@spam;
         SELECT Foo.>bar@spam;
         SELECT Foo.<bar@spam;
-        SELECT Foo.bar[TO Baz];
-        SELECT Foo.>bar[TO Baz];
-        SELECT Foo.<bar[TO Baz];
+        SELECT Foo.bar[IS Baz];
+        SELECT Foo.>bar[IS Baz];
+        SELECT Foo.<bar[IS Baz];
 
 % OK %
 
@@ -947,9 +947,9 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT Foo.bar@spam;
         SELECT Foo.bar@spam;
         SELECT Foo.<bar@spam;
-        SELECT Foo.bar[TO Baz];
-        SELECT Foo.bar[TO Baz];
-        SELECT Foo.<bar[TO Baz];
+        SELECT Foo.bar[IS Baz];
+        SELECT Foo.bar[IS Baz];
+        SELECT Foo.<bar[IS Baz];
         """
 
     def test_edgeql_syntax_path02(self):
@@ -960,9 +960,9 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT Foo.event@action;
         SELECT Foo.>event@action;
         SELECT Foo.<event@action;
-        SELECT Foo.event[TO Action];
-        SELECT Foo.>event[TO Action];
-        SELECT Foo.<event[TO Action];
+        SELECT Foo.event[IS Action];
+        SELECT Foo.>event[IS Action];
+        SELECT Foo.<event[IS Action];
 
 % OK %
 
@@ -972,9 +972,9 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT Foo.`event`@`action`;
         SELECT Foo.`event`@`action`;
         SELECT Foo.<`event`@`action`;
-        SELECT Foo.`event`[TO `Action`];
-        SELECT Foo.`event`[TO `Action`];
-        SELECT Foo.<`event`[TO `Action`];
+        SELECT Foo.`event`[IS `Action`];
+        SELECT Foo.`event`[IS `Action`];
+        SELECT Foo.<`event`[IS `Action`];
         """
 
     def test_edgeql_syntax_path03(self):
@@ -985,9 +985,9 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT Foo.(lib::bar)@(lib::spam);
         SELECT Foo.>(lib::bar)@(lib::spam);
         SELECT Foo.<(lib::bar)@(lib::spam);
-        SELECT Foo.(lib::bar)[TO lib::Baz];
-        SELECT Foo.>(lib::bar)[TO lib::Baz];
-        SELECT Foo.<(lib::bar)[TO lib::Baz];
+        SELECT Foo.(lib::bar)[IS lib::Baz];
+        SELECT Foo.>(lib::bar)[IS lib::Baz];
+        SELECT Foo.<(lib::bar)[IS lib::Baz];
 
 % OK %
 
@@ -997,82 +997,81 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT Foo.(lib::bar)@(lib::spam);
         SELECT Foo.(lib::bar)@(lib::spam);
         SELECT Foo.<(lib::bar)@(lib::spam);
-        SELECT Foo.(lib::bar)[TO lib::Baz];
-        SELECT Foo.(lib::bar)[TO lib::Baz];
-        SELECT Foo.<(lib::bar)[TO lib::Baz];
+        SELECT Foo.(lib::bar)[IS lib::Baz];
+        SELECT Foo.(lib::bar)[IS lib::Baz];
+        SELECT Foo.<(lib::bar)[IS lib::Baz];
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=20)
     def test_edgeql_syntax_path04(self):
         """
-        SELECT Foo[TO Bar];
+        SELECT Foo[IS Bar];
         """
 
     def test_edgeql_syntax_path05(self):
         """
-        SELECT Foo.bar@spam[TO Bar];
+        SELECT Foo.bar@spam[IS Bar];
 
 % OK %
 
-        SELECT Foo.bar@spam[TO Bar];
+        SELECT Foo.bar@spam[IS Bar];
         """
 
     def test_edgeql_syntax_path06(self):
         """
-        SELECT Foo.bar[TO To];  # unreserved keyword as concept name
+        SELECT Foo.bar[IS To];  # unreserved keyword as concept name
 
 % OK %
 
-        SELECT Foo.bar[TO `To`];
+        SELECT Foo.bar[IS `To`];
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=30)
     def test_edgeql_syntax_path07(self):
         """
-        SELECT Foo.bar[TO To To];
+        SELECT Foo.bar[IS To To];
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=27)
     def test_edgeql_syntax_path08(self):
         """
-        SELECT Foo.bar[TO All];
+        SELECT Foo.bar[IS All];
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=27)
     def test_edgeql_syntax_path09(self):
         """
-        SELECT Foo.bar[2][TO Baz];
+        SELECT Foo.bar[2][IS Baz];
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=29)
     def test_edgeql_syntax_path10(self):
         """
-        SELECT Foo.bar[2:4][TO Baz];
+        SELECT Foo.bar[2:4][IS Baz];
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=28)
     def test_edgeql_syntax_path11(self):
         """
-        SELECT Foo.bar[2:][TO Baz];
+        SELECT Foo.bar[2:][IS Baz];
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=28)
     def test_edgeql_syntax_path12(self):
         """
-        SELECT Foo.bar[:2][TO Baz];
+        SELECT Foo.bar[:2][IS Baz];
         """
 
     def test_edgeql_syntax_path13(self):
         """
-        SELECT (Foo.bar)[TO Baz];
-        SELECT Foo.(bar)[TO Baz];
-        SELECT Foo.<(bar)[TO Baz];
+        SELECT (Foo.bar)[IS Baz];
+        SELECT Foo.(bar)[IS Baz];
+        SELECT Foo.<(bar)[IS Baz];
 
 % OK %
 
-        SELECT Foo.bar[TO Baz];
-        SELECT Foo.bar[TO Baz];
-        SELECT Foo.<bar[TO Baz];
+        SELECT Foo.bar[IS Baz];
+        SELECT Foo.bar[IS Baz];
+        SELECT Foo.<bar[IS Baz];
         """
 
     def test_edgeql_syntax_path14(self):
@@ -1102,10 +1101,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_type_interpretation01(self):
         """
-        SELECT (Foo AS Bar);
-        SELECT (Foo.bar AS Bar);
-        SELECT (Foo.bar AS Bar).spam;
-        SELECT (Foo.bar AS Bar).<ham;
+        SELECT Foo[IS Bar].spam;
+        SELECT Foo[IS Bar].<ham;
         """
 
     def test_edgeql_syntax_map01(self):
@@ -1824,8 +1821,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         SELECT a ?? x;
         SELECT a ?? x.a;
-        SELECT a ?? x.a[TO ABC];
-        SELECT (a ?? x.a[TO ABC]@aaa + 1);
+        SELECT a ?? x.a[IS ABC];
+        SELECT (a ?? x.a[IS ABC]@aaa + 1);
         """
 
     def test_edgeql_syntax_function01(self):

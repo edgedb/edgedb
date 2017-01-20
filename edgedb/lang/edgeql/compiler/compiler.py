@@ -388,7 +388,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 direction = (ptr_expr.direction or
                              s_pointers.PointerDirection.Outbound)
                 if ptr_expr.target:
-                    # ... link [TO Target]
+                    # ... link [IS Target]
                     ptr_target = self._get_schema_object(
                         ptr_expr.target.name, ptr_expr.target.module)
 
@@ -694,7 +694,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         return irast.TypeCast(expr=self.visit(expr.expr), type=typ)
 
     def visit_TypeFilterNode(self, expr):
-        # (Expr AS Type) expressions,
+        # Expr[IS Type] expressions,
         arg = self.visit(expr.expr)
         path_id = getattr(arg, 'path_id', None)
         if path_id is None:
@@ -967,7 +967,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
             if len(steps) == 2:
                 # Pointers may be qualified by the explicit source
-                # class, which is equivalent to (Expr AS Type).
+                # class, which is equivalent to Expr[IS Type].
                 ptrsource = self._get_schema_object(
                     steps[0].name, steps[0].module)
                 lexpr = steps[1]

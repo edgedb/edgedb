@@ -105,9 +105,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT User{name}
             WHERE
-                User.<owner[TO Issue].time_estimate > 9000
+                User.<owner[IS Issue].time_estimate > 9000
                 AND
-                User.<owner[TO Issue].due_date = <datetime>'2020/01/15'
+                User.<owner[IS Issue].due_date = <datetime>'2020/01/15'
             ORDER BY User.name;
         ''', [
             # Only one Issue satisfies this and its owner is Yury.
@@ -125,15 +125,15 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WHERE
                 NOT (
                     NOT (
-                        EXISTS User.<owner[TO Issue].time_estimate
+                        EXISTS User.<owner[IS Issue].time_estimate
                         AND
-                        User.<owner[TO Issue].time_estimate > 9000
+                        User.<owner[IS Issue].time_estimate > 9000
                     )
                     OR
                     NOT (
-                        EXISTS User.<owner[TO Issue].due_date
+                        EXISTS User.<owner[IS Issue].due_date
                         AND
-                        User.<owner[TO Issue].due_date = <datetime>'2020/01/15'
+                        User.<owner[IS Issue].due_date = <datetime>'2020/01/15'
                     )
                 )
             ORDER BY User.name;
@@ -152,13 +152,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT User{name}
             WHERE
                 NOT (
-                    NOT EXISTS User.<owner[TO Issue].time_estimate
+                    NOT EXISTS User.<owner[IS Issue].time_estimate
                     OR
-                    NOT EXISTS User.<owner[TO Issue].due_date
+                    NOT EXISTS User.<owner[IS Issue].due_date
                     OR
-                    User.<owner[TO Issue].time_estimate <= 9000
+                    User.<owner[IS Issue].time_estimate <= 9000
                     OR
-                    User.<owner[TO Issue].due_date != <datetime>'2020/01/15'
+                    User.<owner[IS Issue].due_date != <datetime>'2020/01/15'
                 )
             ORDER BY User.name;
         ''', [
@@ -180,14 +180,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT User{name}
             WHERE
                 NOT (
-                    NOT EXISTS (User.<owner[TO Issue].time_estimate > 9000)
+                    NOT EXISTS (User.<owner[IS Issue].time_estimate > 9000)
                     OR
-                    NOT EXISTS (U2.<owner[TO Issue].due_date =
+                    NOT EXISTS (U2.<owner[IS Issue].due_date =
                         <datetime>'2020/01/15')
                 )
                 AND
                 # making sure it's the same Issue in both sub-clauses
-                User.<owner[TO Issue] = U2.<owner[TO Issue]
+                User.<owner[IS Issue] = U2.<owner[IS Issue]
             ORDER BY User.name;
         ''', [
             # Only one Issue satisfies this and its owner is Yury.
@@ -201,7 +201,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT User{name}
             WHERE
-                NOT EXISTS User.<owner[TO Issue].time_estimate
+                NOT EXISTS User.<owner[IS Issue].time_estimate
             ORDER BY User.name;
         ''', [
             # Only such user is Victor, who has no Issues at all.
@@ -231,9 +231,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT User{name}
             WHERE
-                NOT EXISTS User.<owner[TO Issue].time_estimate
+                NOT EXISTS User.<owner[IS Issue].time_estimate
                 AND
-                EXISTS User.<owner[TO Issue]
+                EXISTS User.<owner[IS Issue]
             ORDER BY User.name;
         ''', [
             # Elvis and Yury have Issues without time_estimate.
@@ -252,11 +252,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 U2 := User
             SELECT User{name}
             WHERE
-                EXISTS User.<owner[TO Issue]
+                EXISTS User.<owner[IS Issue]
                 AND
-                NOT EXISTS U2.<owner[TO Issue].time_estimate
+                NOT EXISTS U2.<owner[IS Issue].time_estimate
                 AND
-                User.<owner[TO Issue] = U2.<owner[TO Issue]
+                User.<owner[IS Issue] = U2.<owner[IS Issue]
             ORDER BY User.name;
         ''', [
             # Elvis and Yury have Issues without time_estimate.
@@ -274,9 +274,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT User{name}
             WHERE
-                EXISTS User.<owner[TO Issue].time_estimate
+                EXISTS User.<owner[IS Issue].time_estimate
                 AND
-                EXISTS User.<owner[TO Issue].due_date
+                EXISTS User.<owner[IS Issue].due_date
             ORDER BY User.name;
         ''', [
             # Only one Issue satisfies this and its owner is Yury.
@@ -294,9 +294,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT User{name}
             WHERE
                 NOT (
-                    NOT EXISTS User.<owner[TO Issue].time_estimate
+                    NOT EXISTS User.<owner[IS Issue].time_estimate
                     OR
-                    NOT EXISTS User.<owner[TO Issue].due_date
+                    NOT EXISTS User.<owner[IS Issue].due_date
                 )
             ORDER BY User.name;
         ''', [
@@ -318,13 +318,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT User{name}
             WHERE
                 NOT (
-                    NOT EXISTS User.<owner[TO Issue].time_estimate
+                    NOT EXISTS User.<owner[IS Issue].time_estimate
                     OR
-                    NOT EXISTS U2.<owner[TO Issue].due_date
+                    NOT EXISTS U2.<owner[IS Issue].due_date
                 )
                 AND
                 # making sure it's the same Issue in both sub-clauses
-                User.<owner[TO Issue] = U2.<owner[TO Issue]
+                User.<owner[IS Issue] = U2.<owner[IS Issue]
             ORDER BY User.name;
         ''', [
             # Only one Issue satisfies this and its owner is Yury.
@@ -345,11 +345,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT User{name}
             WHERE
                 NOT (
-                    NOT EXISTS User.<owner[TO Issue].time_estimate
+                    NOT EXISTS User.<owner[IS Issue].time_estimate
                     OR
                     NOT EXISTS (
-                        SELECT U2.<owner[TO Issue].due_date
-                        WHERE User.<owner[TO Issue] = U2.<owner[TO Issue]
+                        SELECT U2.<owner[IS Issue].due_date
+                        WHERE User.<owner[IS Issue] = U2.<owner[IS Issue]
                     )
                 )
             ORDER BY User.name;

@@ -492,7 +492,7 @@ class LinearPath(list):
             tgt = self[i + 1]
 
             if tgt:
-                lexpr = f'({ptr.name} [TO {tgt.name}])'
+                lexpr = f'({ptr.name} [IS {tgt.name}])'
             else:
                 lexpr = f'({ptr.name})'
 

@@ -57,8 +57,8 @@ class TestIndexes(tb.QueryTestCase):
             [{
                 'indexes': [{
                     'expr': 'SELECT ((test::Person).(test::first_name)'
-                            '[TO std::str], (test::Person).(test::last_name)'
-                            '[TO std::str])'
+                            '[IS std::str], (test::Person).(test::last_name)'
+                            '[IS std::str])'
                 }]
             }],
 
