@@ -82,7 +82,7 @@ def _start_cluster(cleanup_atexit=True):
         print('Starting temporary database cluster...')
         _default_cluster = edgedb_cluster.TempCluster(env=_env)
         _default_cluster.init()
-        _default_cluster.start(port='dynamic')
+        _default_cluster.start(port='dynamic', timezone='UTC')
         if cleanup_atexit:
             atexit.register(_shutdown_cluster, _default_cluster)
 

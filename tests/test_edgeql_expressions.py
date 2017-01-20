@@ -266,7 +266,7 @@ class TestExpressions(tb.QueryTestCase):
             ['42'],
             ['+/-42'],
             [43],
-            ['2017-10-11T00:00:00-04:00'],
+            ['2017-10-11T00:00:00+00:00'],
         ])
 
     async def test_edgeql_expr_map02(self):

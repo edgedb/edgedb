@@ -91,6 +91,9 @@ def run_server(args):
             'log_min_messages': 'INFO',
         }
 
+        if args.timezone:
+            server_settings['TimeZone'] = args.timezone
+
         cluster = pg_cluster.Cluster(data_dir=args.data_dir)
         cluster_status = cluster.get_status()
 
@@ -168,6 +171,9 @@ def main(argv=sys.argv[1:]):
     parser.add_argument(
         '--pidfile', type=str, default='/run/edgedb/',
         help='path to PID file directory')
+    parser.add_argument(
+        '--timezone', type=str,
+        help='timezone for displaying and interpreting timestamps')
     parser.add_argument('--daemon-user', type=int)
     parser.add_argument('--daemon-group', type=int)
 
