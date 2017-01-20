@@ -258,6 +258,7 @@ class TestExpressions(tb.QueryTestCase):
             SELECT {'foo': '42', 'bar': 'something'}[lower('FO') + 'o'];
             SELECT '+/-' + {'foo': '42', 'bar': 'something'}['foo'];
             SELECT {'foo': 42}['foo'] + 1;
+            SELECT {'a': <datetime>'2017-10-10'}['a'] + <timedelta>'1 day';
         """, [
             [{'foo': 42}],
             [{'foo': '42', 'bar': 'something'}],
@@ -265,6 +266,7 @@ class TestExpressions(tb.QueryTestCase):
             ['42'],
             ['+/-42'],
             [43],
+            ['2017-10-11T00:00:00-04:00'],
         ])
 
     async def test_edgeql_expr_map02(self):

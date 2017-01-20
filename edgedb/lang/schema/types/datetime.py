@@ -191,7 +191,17 @@ _add_map(TimeDelta, 'std::timedelta')
 _add_impl('std::timedelta', TimeDelta)
 
 s_types.TypeRules.add_rule(ast.ops.ADD, (DateTime, DateTime), 'std::datetime')
+
 s_types.TypeRules.add_rule(ast.ops.ADD, (DateTime, Time), 'std::datetime')
 s_types.TypeRules.add_rule(ast.ops.ADD, (Time, DateTime), 'std::datetime')
 
+s_types.TypeRules.add_rule(ast.ops.ADD, (TimeDelta, DateTime), 'std::datetime')
+s_types.TypeRules.add_rule(ast.ops.ADD, (DateTime, TimeDelta), 'std::datetime')
+
+s_types.TypeRules.add_rule(ast.ops.ADD, (TimeDelta, TimeDelta), 'std::timedelta')
+
 s_types.TypeRules.add_rule(ast.ops.SUB, (DateTime, DateTime), 'std::timedelta')
+
+s_types.TypeRules.add_rule(ast.ops.SUB, (DateTime, TimeDelta), 'std::datetime')
+
+s_types.TypeRules.add_rule(ast.ops.SUB, (TimeDelta, TimeDelta), 'std::timedelta')
