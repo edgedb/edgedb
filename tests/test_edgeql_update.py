@@ -6,27 +6,17 @@
 ##
 
 
+import os.path
 import unittest
 
 from edgedb.server import _testbase as tb
 
 
 class TestUpdate(tb.QueryTestCase):
+    SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
+                          'updates.eschema')
+
     SETUP = """
-        CREATE MIGRATION test::d_update01 TO eschema $$
-            concept Status:
-                link name to str
-
-            concept UpdateTest:
-                link name to str
-                link status to Status
-                link comment to str
-        $$;
-
-        COMMIT MIGRATION test::d_update01;
-
-        # populate the test DB
-
         INSERT test::Status {
             name := 'Open'
         };

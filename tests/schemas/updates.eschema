@@ -1,0 +1,7 @@
+concept Status:
+    link name to str
+
+concept UpdateTest:
+    link name to str
+    link status to Status
+    link comment to str
