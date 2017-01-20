@@ -250,17 +250,37 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT [1, '1'];
             """)
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_map01(self):
         await self.assert_query_result(r"""
             SELECT {'foo': 42};
-            SELECT {'foo': 42, 'bar': 'something'};
-            SELECT {'foo': 42, 'bar': 'something'}['foo'];
+            SELECT {'foo': '42', 'bar': 'something'};
+            SELECT {'foo': '42', 'bar': 'something'}['foo'];
+            SELECT {'foo': '42', 'bar': 'something'}[lower('FO') + 'o'];
+            SELECT '+/-' + {'foo': '42', 'bar': 'something'}['foo'];
+            SELECT {'foo': 42}['foo'] + 1;
         """, [
             [{'foo': 42}],
-            [{'foo': 42, 'bar': 'something'}],
-            [42],
+            [{'foo': '42', 'bar': 'something'}],
+            ['42'],
+            ['42'],
+            ['+/-42'],
+            [43],
         ])
+
+    async def test_edgeql_expr_map02(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError, r'could not determine map values type'):
+
+            await self.con.execute(r'''
+                SELECT {'a': 'b', '1': 1};
+            ''')
+
+        with self.assertRaisesRegex(
+                exc.EdgeQLError, r'operator does not exist: .*str.*int'):
+
+            await self.con.execute(r'''
+                SELECT {'a': '1'}['a'] + 1;
+            ''')
 
     async def test_edgeql_expr_coalesce01(self):
         await self.assert_query_result(r"""

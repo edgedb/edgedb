@@ -10,6 +10,7 @@ from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import atoms as s_atoms
+from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
 
 from edgedb.server.pgsql import ast as pgast
@@ -163,6 +164,14 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
 
         subj = self.visit(expr.expr)
         index = self.visit(expr.index)
+
+        if isinstance(arg_type, s_obj.Map):
+            return self._maybe_cast(
+                self._new_binop(
+                    lexpr=subj,
+                    op='->>',
+                    rexpr=index),
+                arg_type.element_type)
 
         if isinstance(arg_type, s_atoms.Atom):
             b = arg_type.get_topmost_base()
@@ -418,6 +427,18 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
             result = pgast.ImplicitRowExpr(args=elements)
 
         return result
+
+    def visit_Mapping(self, expr):
+        elements = []
+
+        for k, v in expr.items.items():
+            elements.append(pgast.Constant(val=k))
+            elements.append(self.visit(v))
+
+        return pgast.FuncCall(
+            name=('jsonb_build_object',),
+            args=elements
+        )
 
     def visit_TypeRef(self, expr):
         ctx = self.context.current

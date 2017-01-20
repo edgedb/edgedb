@@ -304,10 +304,20 @@ def __infer_index(ir, schema):
         str_t = schema.get('std::str')
         if arg.issubclass(str_t):
             result = arg
-        elif isinstance(arg, s_obj.Array):
+        elif isinstance(arg, (s_obj.Array, s_obj.Map)):
             result = arg.element_type
 
     return result
+
+
+@_infer_type.register(irast.Mapping)
+def __infer_map(ir, schema):
+    element_type = _infer_common_type(ir.items.values(), schema)
+    if element_type is None:
+        raise ql_errors.EdgeQLError('could not determine map values type',
+                                    context=ir.context)
+    return s_obj.Map(key_type=schema.get('std::str'),
+                     element_type=element_type)
 
 
 @_infer_type.register(irast.Sequence)

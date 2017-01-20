@@ -481,6 +481,10 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         elements = self.visit(expr.elements)
         return irast.Sequence(elements=elements)
 
+    def visit_MappingNode(self, expr):
+        items = {k.value: self.visit(v) for k, v in expr.items}
+        return irast.Mapping(items=items)
+
     def visit_ArrayNode(self, expr):
         elements = self.visit(expr.elements)
         return irast.Sequence(elements=elements, is_array=True)

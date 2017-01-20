@@ -87,6 +87,11 @@ class Sequence(Expr):
     is_array: bool
 
 
+class Mapping(Expr):
+
+    items: dict
+
+
 class BinOp(Expr):
 
     left: Base
