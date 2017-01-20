@@ -33,3 +33,12 @@ class TestEdgeQLDT(tb.QueryTestCase):
             await self.con.execute("""
                 SELECT <timedelta>'1 day' - <datetime>'2017-10-10';
             """)
+
+    async def test_edgeql_dt_datetime_02(self):
+        await self.assert_query_result('''
+            SELECT <str><datetime>'2017-10-10';
+            SELECT <str>(<datetime>'2017-10-10' - <timedelta>'1 day');
+        ''', [
+            ['2017-10-10T00:00:00.000000+00'],
+            ['2017-10-09T00:00:00.000000+00'],
+        ])

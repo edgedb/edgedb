@@ -60,23 +60,6 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
         raise NotImplementedError(
             'no IR compiler handler for {}'.format(node.__class__))
 
-    def _maybe_cast(self, node, typ):
-        if typ.name == 'std::null':
-            return node
-
-        ctx = self.context.current
-        const_type = pg_types.pg_type_from_object(
-            ctx.schema, typ, topbase=True)
-
-        node = pgast.TypeCast(
-            arg=node,
-            type_name=pgast.TypeName(
-                name=const_type
-            )
-        )
-
-        return node
-
     def visit_Parameter(self, expr):
         ctx = self.context.current
 
@@ -90,11 +73,13 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
                 index = len(ctx.argmap)
 
         result = pgast.ParamRef(number=index)
-        return self._maybe_cast(result, expr.type)
+        return self._cast(result, source_type=expr.type,
+                          target_type=expr.type)
 
     def visit_Constant(self, expr):
         result = pgast.Constant(val=expr.value)
-        result = self._maybe_cast(result, expr.type)
+        result = self._cast(result, source_type=expr.type,
+                            target_type=expr.type)
         return result
 
     def visit_TypeCast(self, expr):
@@ -122,8 +107,10 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
                     f'is not supported yet')
 
         else:
-            typ = schema.get(target_type.maintype)
-            result = self._maybe_cast(pg_expr, typ)
+            source_type = irutils.infer_type(expr.expr, schema)
+            target_type = schema.get(target_type.maintype)
+            result = self._cast(pg_expr, source_type=source_type,
+                                target_type=target_type)
 
         return result
 
@@ -140,12 +127,13 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
         index = self.visit(expr.index)
 
         if isinstance(arg_type, s_obj.Map):
-            return self._maybe_cast(
+            return self._cast(
                 self._new_binop(
                     lexpr=subj,
                     op='->>',
                     rexpr=index),
-                arg_type.element_type)
+                source_type=ctx.schema.get('std::str'),
+                target_type=arg_type.element_type)
 
         if isinstance(arg_type, s_atoms.Atom):
             b = arg_type.get_topmost_base()
@@ -433,6 +421,36 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
             )
 
         return result
+
+    def _cast(self, node, *, source_type, target_type):
+        if target_type.name == 'std::null':
+            return node
+
+        if (source_type.name == 'std::datetime' and
+                target_type.name == 'std::str'):
+            # Normalize datetime to text conversion to have the same
+            # format as one would get by serializing to JSON.
+            #
+            # EdgeQL: SELECT <text><datetime>'2010-10-10';
+            # To SQL: SELECT to_char('2010-01-01'::timestamptz,
+            #                        'YYYY-MM-DD"T"HH24:MI:SS.USOF');
+            return pgast.FuncCall(
+                name=('to_char',),
+                args=[
+                    node,
+                    pgast.Constant(val='YYYY-MM-DD"T"HH24:MI:SS.USOF')
+                ])
+
+        ctx = self.context.current
+        const_type = pg_types.pg_type_from_object(
+            ctx.schema, target_type, topbase=True)
+
+        return pgast.TypeCast(
+            arg=node,
+            type_name=pgast.TypeName(
+                name=const_type
+            )
+        )
 
     def _new_binop(self, lexpr, rexpr, op):
         return pgast.Expr(
