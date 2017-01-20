@@ -680,6 +680,17 @@ class NodeClass:
 class Collection(Class, NodeClass):
     element_type = Field(Class)
 
+    @property
+    def name(self):
+        try:
+            return self._name_cached
+        except AttributeError:
+            pass
+
+        subtypes = ",".join(st.name for st in self.get_subtypes())
+        self._name_cached = f'{self.schema_name}<{subtypes}>'
+        return self._name_cached
+
     def issubclass(self, parent):
         if not isinstance(parent, Collection) and parent.name == 'std::any':
             return True

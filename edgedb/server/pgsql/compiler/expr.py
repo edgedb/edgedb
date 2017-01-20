@@ -61,21 +61,19 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
             'no IR compiler handler for {}'.format(node.__class__))
 
     def _maybe_cast(self, node, typ):
+        if typ.name == 'std::null':
+            return node
+
         ctx = self.context.current
+        const_type = pg_types.pg_type_from_object(
+            ctx.schema, typ, topbase=True)
 
-        if typ and getattr(typ, 'name', None) != 'std::null':
-            const_type = pg_types.pg_type_from_object(
-                ctx.schema, typ, True)
-        else:
-            const_type = None
-
-        if const_type is not None:
-            node = pgast.TypeCast(
-                arg=node,
-                type_name=pgast.TypeName(
-                    name=const_type
-                )
+        node = pgast.TypeCast(
+            arg=node,
+            type_name=pgast.TypeName(
+                name=const_type
             )
+        )
 
         return node
 
@@ -96,29 +94,21 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
 
     def visit_Constant(self, expr):
         result = pgast.Constant(val=expr.value)
-        return self._maybe_cast(result, expr.type)
+        result = self._maybe_cast(result, expr.type)
+        return result
 
     def visit_TypeCast(self, expr):
         ctx = self.context.current
-
-        if (isinstance(expr.expr, irast.BinOp) and
-                isinstance(expr.expr.op,
-                           (ast.ops.ComparisonOperator,
-                            ast.ops.TypeCheckOperator))):
-            expr_type = bool
-        elif isinstance(expr.expr, irast.Constant):
-            expr_type = expr.expr.type
-        else:
-            expr_type = None
-
         schema = ctx.schema
 
         pg_expr = self.visit(expr.expr)
-
         target_type = expr.type
 
         if target_type.subtypes:
             if target_type.maintype == 'array':
+                # EdgeQL: SELECT <array<int>>['1', '2']
+                # to SQL: SELECT ARRAY['1', '2']::int[]
+
                 elem_type = pg_types.pg_type_from_atom(
                     schema, schema.get(target_type.subtypes[0]), topbase=True)
                 result = pgast.TypeCast(
@@ -128,28 +118,12 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
                         array_bounds=[-1]))
             else:
                 raise NotImplementedError(
-                    '{} composite type is not supported '
-                    'yet'.format(target_type.maintype))
+                    f'{target_type.maintype} composite type '
+                    f'is not supported yet')
 
         else:
-            int_class = schema.get('std::int')
-            target_type = schema.get(target_type.maintype)
-
-            if (expr_type and expr_type is bool and
-                    target_type.issubclass(int_class)):
-                when_expr = pgast.CaseWhen(
-                    expr=pg_expr, result=pgast.Constant(val=1))
-                default = pgast.Constant(val=0)
-                result = pgast.CaseExpr(
-                    args=[when_expr], defresult=default)
-            else:
-                result = pgast.TypeCast(
-                    arg=pg_expr,
-                    type_name=pgast.TypeName(
-                        name=pg_types.pg_type_from_atom(
-                            schema, target_type, topbase=True)
-                    )
-                )
+            typ = schema.get(target_type.maintype)
+            result = self._maybe_cast(pg_expr, typ)
 
         return result
 
@@ -247,7 +221,7 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
             upper_bound = pgast.FuncCall(
                 name=('array_upper',), args=[subj, one])
 
-        if isinstance(start, pgast.Constant) and start.val is None:
+        if self._is_null_const(start):
             lower = one
         else:
             lower = start
@@ -265,7 +239,7 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
             lower = pgast.CaseExpr(
                 args=[when_expr], defresult=lower_plus_one)
 
-        if isinstance(stop, pgast.Constant) and stop.val is None:
+        if self._is_null_const(stop):
             upper = upper_bound
         else:
             upper = stop
@@ -513,3 +487,8 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
         target_set.rptr = ptr
 
         return target_set
+
+    def _is_null_const(self, expr):
+        if isinstance(expr, pgast.TypeCast):
+            expr = expr.arg
+        return isinstance(expr, pgast.Constant) and expr.val is None

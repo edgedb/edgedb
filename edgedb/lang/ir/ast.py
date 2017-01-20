@@ -66,6 +66,11 @@ class Constant(Expr):
     value: object
     type: so.NodeClass
 
+    def __init__(self, *args, type, **kwargs):
+        if type is None:
+            raise ValueError('type argument must not be None')
+        super().__init__(*args, type=type, **kwargs)
+
 
 class Parameter(Base):
 

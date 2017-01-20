@@ -711,6 +711,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
     def visit_IndirectionNode(self, expr):
         node = self.visit(expr.arg)
+        int_type = self._get_schema_object('std::int')
         for indirection_el in expr.indirection:
             if isinstance(indirection_el, qlast.IndexNode):
                 idx = self.visit(indirection_el.index)
@@ -720,12 +721,12 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 if indirection_el.start:
                     start = self.visit(indirection_el.start)
                 else:
-                    start = irast.Constant(value=None)
+                    start = irast.Constant(value=None, type=int_type)
 
                 if indirection_el.stop:
                     stop = self.visit(indirection_el.stop)
                 else:
-                    stop = irast.Constant(value=None)
+                    stop = irast.Constant(value=None, type=int_type)
 
                 node = irast.SliceIndirection(
                     expr=node, start=start, stop=stop)

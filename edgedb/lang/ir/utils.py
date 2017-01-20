@@ -353,7 +353,7 @@ def infer_type(ir, schema):
             f'infer_type({ir!r}) retured {result!r} instead of a Class',
             context=ir.context)
 
-    if result is None or getattr(result, 'name', None) == 'std::any':
+    if result is None or result.name == 'std::any':
         raise ql_errors.EdgeQLError('could not determine expression type',
                                     context=ir.context)
 
