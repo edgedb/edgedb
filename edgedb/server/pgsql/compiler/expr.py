@@ -63,7 +63,7 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
     def _maybe_cast(self, node, typ):
         ctx = self.context.current
 
-        if typ and typ.name != 'std::null':
+        if typ and getattr(typ, 'name', None) != 'std::null':
             const_type = pg_types.pg_type_from_object(
                 ctx.schema, typ, True)
         else:

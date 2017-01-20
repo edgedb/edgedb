@@ -118,6 +118,9 @@ def pg_type_from_object(
     elif isinstance(obj, s_obj.Tuple):
         return ('row',)
 
+    elif isinstance(obj, s_obj.Map):
+        return ('jsonb',)
+
     elif isinstance(obj, s_obj.Array):
         if obj.element_type.name == 'std::any':
             return ('anyarray',)

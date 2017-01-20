@@ -465,7 +465,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         ctx = self.context.current
 
         pt = ctx.arguments.get(expr.name)
-        if pt is not None:
+        if pt is not None and not isinstance(pt, s_obj.NodeClass):
             pt = s_types.normalize_type(pt, ctx.schema)
 
         return irast.Parameter(type=pt, name=expr.name)

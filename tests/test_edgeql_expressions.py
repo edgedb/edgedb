@@ -282,6 +282,29 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT {'a': '1'}['a'] + 1;
             ''')
 
+    async def test_edgeql_expr_map03(self):
+        await self.con.execute('''
+            CREATE FUNCTION test::take(std::map<std::str, std::int>, std::str)
+                RETURNING std::int
+                FROM EdgeQL $$
+                    SELECT $1[$2] + 100
+                $$;
+
+            CREATE FUNCTION test::make(std::int)
+                RETURNING std::map<std::str, std::int>
+                FROM EdgeQL $$
+                    SELECT {'aaa': $1}
+                $$;
+        ''')
+
+        await self.assert_query_result(r"""
+            SELECT test::take({'foo': 42}, 'foo') + 1;
+            SELECT test::make(1000)['aaa'] + 8000;
+        """, [
+            [143],
+            [9000],
+        ])
+
     async def test_edgeql_expr_coalesce01(self):
         await self.assert_query_result(r"""
             SELECT NULL ?? 4 ?? 5;
