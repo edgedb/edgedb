@@ -163,8 +163,8 @@ CREATE CONSTRAINT std::unique INHERITING std::constraint {
 
 CREATE ATOM std::decimal_rounding_t INHERITING std::str {
     CREATE CONSTRAINT std::enum {
-        SET args := {'param': ('ceiling', '05up', 'up', 'half-even', 'half-up',
-                               'floor', 'down', 'half-down')};
+        SET args := ['param' -> ('ceiling', '05up', 'up', 'half-even',
+                                 'half-up', 'floor', 'down', 'half-down')];
     };
 };
 

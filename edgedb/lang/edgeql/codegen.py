@@ -345,21 +345,24 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         self.write(')')
 
+    def visit_EmptyCollectionNode(self, node):
+        self.write('[]')
+
     def visit_ArrayNode(self, node):
         self.write('[')
         self.visit_list(node.elements, newlines=False)
         self.write(']')
 
     def visit_MappingNode(self, node):
-        self.write('{')
+        self.write('[')
         for i, (key, value) in enumerate(zip(node.keys, node.values)):
             if i > 0:
                 self.write(', ')
             self.visit(key)
-            self.write(': ')
+            self.write(' -> ')
             self.visit(value)
 
-        self.write('}')
+        self.write(']')
 
     def visit_PathNode(self, node, *, parenthesise=True):
         for i, e in enumerate(node.steps):

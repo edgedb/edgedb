@@ -687,8 +687,8 @@ class ParenExpr(Nonterm):
 
 
 class Expr(Nonterm):
-    # Path | Constant | '(' Expr ')' | FuncExpr | Sequence | Mapping
-    # | Array
+    # Path | Constant | '(' Expr ')' | FuncExpr | Sequence
+    # | Collection
     # | '+' Expr | '-' Expr | Expr '+' Expr | Expr '-' Expr
     # | Expr '*' Expr | Expr '/' Expr | Expr '%' Expr
     # | Expr '**' Expr | Expr '<' Expr | Expr '>' Expr
@@ -769,10 +769,7 @@ class Expr(Nonterm):
     def reduce_Sequence(self, *kids):
         self.val = kids[0].val
 
-    def reduce_Array(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_Mapping(self, *kids):
+    def reduce_Collection(self, *kids):
         self.val = kids[0].val
 
     @parsing.precedence(precedence.P_UMINUS)
@@ -922,38 +919,60 @@ class Sequence(Nonterm):
         self.val = qlast.SequenceNode(elements=[kids[1].val] + kids[3].val)
 
 
-class Array(Nonterm):
-    def reduce_LBRACKET_OptExprList_RBRACKET(self, *kids):
-        self.val = qlast.ArrayNode(elements=kids[1].val)
+class Collection(Nonterm):
+    def reduce_LBRACKET_OptCollectionItemList_RBRACKET(self, *kids):
+        items = kids[1].val
+        if not items:
+            self.val = qlast.EmptyCollectionNode()
+            return
+
+        typ = items[0][0]
+
+        if typ == 'array':
+            elements = []
+            for item in items:
+                if item[0] != typ:
+                    raise EdgeQLSyntaxError("unexpected map item in array",
+                                            context=item[1].context)
+                elements.append(item[1].val)
+
+            self.val = qlast.ArrayNode(elements=elements)
+        else:
+            keys = []
+            values = []
+            for item in items:
+                if item[0] != typ:
+                    raise EdgeQLSyntaxError("unexpected array item in map",
+                                            context=item[2].context)
+                keys.append(item[1].val)
+                values.append(item[2].val)
+
+            self.val = qlast.MappingNode(keys=keys, values=values)
 
 
-class Mapping(Nonterm):
-    def _get_node(self, items):
-        keys = [i[0] for i in items]
-        values = [i[1] for i in items]
-        return qlast.MappingNode(keys=keys, values=values)
+class CollectionItem(Nonterm):
+    def reduce_Expr(self, *kids):
+        self.val = ('array', kids[0])
 
-    def reduce_LBRACE_MappingElementsList_RBRACE(self, *kids):
-        self.val = self._get_node(kids[1].val)
-
-    def reduce_LBRACE_MappingElementsList_COMMA_RBRACE(self, *kids):
-        self.val = self._get_node(kids[1].val)
+    def reduce_Expr_ARROW_Expr(self, *kids):
+        self.val = ('map', kids[0], kids[2])
 
 
-class MappingKey(Nonterm):
-    def reduce_Constant(self, *kids):
+class CollectionItemList(ListNonterm,
+                         element=CollectionItem,
+                         separator=tokens.T_COMMA):
+    pass
+
+
+class OptCollectionItemList(Nonterm):
+    def reduce_CollectionItemList_COMMA(self, *kids):
         self.val = kids[0].val
 
+    def reduce_CollectionItemList(self, *kids):
+        self.val = kids[0].val
 
-class MappingElement(Nonterm):
-    def reduce_MappingKey_COLON_Expr(self, *kids):
-        self.val = (kids[0].val, kids[2].val)
-
-
-class MappingElementsList(ListNonterm,
-                          element=MappingElement,
-                          separator=tokens.T_COMMA):
-    pass
+    def reduce_empty(self, *kids):
+        self.val = []
 
 
 class OptExprList(Nonterm):

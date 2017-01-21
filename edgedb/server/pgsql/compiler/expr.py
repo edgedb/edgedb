@@ -95,8 +95,17 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
 
         target_type = irutils.infer_type(expr, ctx.schema)
 
-        if isinstance(expr.expr, irast.EmptySet):
-            return self._simple_cast(pg_expr, target_type=target_type)
+        if (isinstance(expr.expr, irast.EmptySet) or
+                (isinstance(expr.expr, irast.Sequence) and
+                    expr.expr.is_array and
+                    not expr.expr.elements) or
+                (isinstance(expr.expr, irast.Mapping) and
+                    not expr.expr.keys)):
+
+            return self._cast(pg_expr,
+                              source_type=target_type,
+                              target_type=target_type,
+                              force=True)
 
         else:
             source_type = irutils.infer_type(expr.expr, ctx.schema)
@@ -393,8 +402,17 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
     def visit_Mapping(self, expr):
         elements = []
 
+        schema = self.context.current.schema
+        str_t = schema.get('std::str')
+
         for k, v in zip(expr.keys, expr.values):
-            elements.append(self.visit(k))
+            elements.append(
+                self._cast(
+                    self.visit(k),
+                    source_type=irutils.infer_type(k, schema),
+                    target_type=str_t)
+            )
+
             elements.append(self.visit(v))
 
         return pgast.FuncCall(
@@ -445,49 +463,45 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
 
             elif target_type.schema_name == 'map':
                 # EdgeQL: <map<Tkey,Tval>>MAP<Vkey,Vval>
-                # to SQL: SELECT jsonb_object(
-                #                    array_agg(key::Vkey::Tkey::text),
-                #                    array_agg(value::Vval::Tval::text))
+                # to SQL: SELECT jsonb_object_agg(
+                #                    key::Vkey::Tkey::text,
+                #                    value::Vval::Tval)
                 #         FROM jsonb_each_text(MAP)
+
+                str_t = schema.get('std::str')
 
                 key_cast = self._cast(
                     self._cast(
                         self._cast(
                             pgast.ColumnRef(name=['key']),
-                            source_type=schema.get('std::str'),
+                            source_type=str_t,
                             target_type=source_type.key_type),
                         source_type=source_type.key_type,
                         target_type=target_type.key_type,
                     ),
                     source_type=target_type.key_type,
-                    target_type=schema.get('std::str')
+                    target_type=str_t
                 )
+
+                target_v_type = target_type.element_type
 
                 val_cast = self._cast(
                     self._cast(
-                        self._cast(
-                            pgast.ColumnRef(name=['value']),
-                            source_type=schema.get('std::str'),
-                            target_type=source_type.element_type),
-                        source_type=source_type.element_type,
-                        target_type=target_type.element_type,
-                    ),
-                    source_type=target_type.element_type,
-                    target_type=schema.get('std::str')
+                        pgast.ColumnRef(name=['value']),
+                        source_type=str_t,
+                        target_type=source_type.element_type),
+                    source_type=source_type.element_type,
+                    target_type=target_v_type,
                 )
 
-                return pgast.SelectStmt(
+                cast = pgast.SelectStmt(
                     target_list=[
                         pgast.ResTarget(
                             val=pgast.FuncCall(
-                                name=('jsonb_object',),
+                                name=('jsonb_object_agg',),
                                 args=[
-                                    pgast.FuncCall(
-                                        name=('array_agg',),
-                                        args=[key_cast]),
-                                    pgast.FuncCall(
-                                        name=('array_agg',),
-                                        args=[val_cast]),
+                                    key_cast,
+                                    val_cast
                                 ])
                         )
                     ],
@@ -498,6 +512,18 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
                                 args=[
                                     node
                                 ]
+                            )
+                        )
+                    ])
+
+                return pgast.FuncCall(
+                    name=('coalesce',),
+                    args=[
+                        cast,
+                        pgast.TypeCast(
+                            arg=pgast.Constant(val='{}'),
+                            type_name=pgast.TypeName(
+                                name=('jsonb',)
                             )
                         )
                     ])
@@ -556,21 +582,15 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
                     op=ast.ops.NE)
 
             else:
-                return self._simple_cast(node, target_type=target_type)
+                const_type = pg_types.pg_type_from_object(
+                    schema, target_type, topbase=True)
 
-    def _simple_cast(self, node, *, target_type):
-        ctx = self.context.current
-        schema = ctx.schema
-
-        const_type = pg_types.pg_type_from_object(
-            schema, target_type, topbase=True)
-
-        return pgast.TypeCast(
-            arg=node,
-            type_name=pgast.TypeName(
-                name=const_type
-            )
-        )
+                return pgast.TypeCast(
+                    arg=node,
+                    type_name=pgast.TypeName(
+                        name=const_type
+                    )
+                )
 
     def _new_binop(self, lexpr, rexpr, op):
         return pgast.Expr(

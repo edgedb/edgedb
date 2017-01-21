@@ -598,6 +598,10 @@ class FromExprNode(Base):
     alias: Base
 
 
+class EmptyCollectionNode(Base):
+    pass
+
+
 class SequenceNode(Base):
     elements: list
 

@@ -757,9 +757,9 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_shape18(self):
         """
         SELECT {
-            foo := {
-                'bar': 42
-            }
+            foo := [
+                'bar' -> 42
+            ]
         };
         """
 
@@ -1107,54 +1107,53 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_map01(self):
         """
-        SELECT {
-            'name': 'foo',
-            'description': 'bar'
-        };
-        SELECT {
-            'name': 'baz',
-        };
-        SELECT {
-            'first': {
-                'name': 'foo'
-            },
-            'second': {
-                'description': 'bar'
-            }
-        };
+        SELECT [
+            'name' -> 'foo',
+            'description' -> 'bar'
+        ];
+        SELECT [
+            'name' -> 'baz'
+        ];
+        SELECT [
+            'first' -> [
+                'name' -> 'foo'
+            ],
+            'second' -> [
+                'description' -> 'bar'
+            ]
+        ];
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=4, col=17)
     def test_edgeql_syntax_map02(self):
         """
-        SELECT {
-            'foo': {
-                bar: 42
-            }
-        };
+        SELECT [
+            'foo' -> [
+                bar -> 42
+            ]
+        ];
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=18)
     def test_edgeql_syntax_map03(self):
         """
-        SELECT {
+        SELECT [
             'foo':= {
                 bar:= 42
             }
-        };
+        ];
         """
 
     def test_edgeql_syntax_map04(self):
         """
-        SELECT {'foo': 42, 'bar': 'something'};
-        SELECT {'foo': 42, 'bar': 'something'}['foo'];
-        SELECT ({'foo': 42, 'bar': 'something'})['foo'];
+        SELECT ['foo'-> 42, 'bar'-> 'something'];
+        SELECT ['foo'-> 42, 'bar'-> 'something']['foo'];
+        SELECT (['foo'-> 42, 'bar'-> 'something'])['foo'];
 
 % OK %
 
-        SELECT {'foo': 42, 'bar': 'something'};
-        SELECT ({'foo': 42, 'bar': 'something'})['foo'];
-        SELECT ({'foo': 42, 'bar': 'something'})['foo'];
+        SELECT ['foo'-> 42, 'bar'-> 'something'];
+        SELECT (['foo'-> 42, 'bar'-> 'something'])['foo'];
+        SELECT (['foo'-> 42, 'bar'-> 'something'])['foo'];
         """
 
     def test_edgeql_syntax_sequence01(self):
@@ -1235,10 +1234,10 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_cast03(self):
         """
         SELECT
-            <User {name, description}> {
-                'name': 'Alice',
-                'description': 'sample'
-            };
+            <User {name, description}> [
+                'name' -> 'Alice',
+                'description' -> 'sample'
+            ];
         """
 
     def test_edgeql_syntax_cast04(self):

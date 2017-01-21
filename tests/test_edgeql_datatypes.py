@@ -45,8 +45,8 @@ class TestEdgeQLDT(tb.QueryTestCase):
 
     async def test_edgeql_dt_datetime_03(self):
         await self.assert_query_result('''
-            SELECT <map<str,datetime>>{'foo': '2020-10-10'};
-            SELECT (<map<str,datetime>>{'foo': '2020-10-10'})['foo'] +
+            SELECT <map<str,datetime>>['foo' -> '2020-10-10'];
+            SELECT (<map<str,datetime>>['foo' -> '2020-10-10'])['foo'] +
                    <timedelta>'1 month';
         ''', [
             [{'foo': '2020-10-10T00:00:00+00:00'}],

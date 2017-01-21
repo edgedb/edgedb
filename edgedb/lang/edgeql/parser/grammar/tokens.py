@@ -116,6 +116,10 @@ class T_TURNSTILE(Token):
     pass
 
 
+class T_ARROW(Token):
+    pass
+
+
 class T_LANGBRACKET(Token, lextoken='<'):
     pass
 

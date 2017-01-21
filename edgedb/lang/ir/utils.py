@@ -112,6 +112,7 @@ def _infer_common_type(irs: typing.List[irast.Base], schema):
             'cannot determine common type of an empty set',
             context=irs[0].context)
 
+    col_type = None
     arg_types = []
     for arg in irs:
         if isinstance(arg, irast.EmptySet):
@@ -120,13 +121,22 @@ def _infer_common_type(irs: typing.List[irast.Base], schema):
         arg_type = infer_type(arg, schema)
         arg_types.append(arg_type)
 
+        if isinstance(arg_type, s_obj.Collection):
+            col_type = arg_type
+
     if not arg_types:
         raise ql_errors.EdgeQLError(
             'cannot determine common type of an empty set',
             context=irs[0].context)
 
-    result = s_utils.get_class_nearest_common_ancestor(arg_types)
-    return result
+    if col_type is not None:
+        if not all(col_type.issubclass(t) for t in arg_types):
+            raise ql_errors.EdgeQLError(
+                'cannot determine common type',
+                context=irs[0].context)
+        return col_type
+    else:
+        return s_utils.get_class_nearest_common_ancestor(arg_types)
 
 
 @functools.singledispatch

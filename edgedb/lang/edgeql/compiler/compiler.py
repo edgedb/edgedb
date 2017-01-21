@@ -485,6 +485,11 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         # TODO: visit expr.value?
         return irast.Constant(value=expr.value, type=ct)
 
+    def visit_EmptyCollectionNode(self, expr):
+        raise errors.EdgeQLError(
+            f'could not determine type of empty collection',
+            context=expr.context)
+
     def visit_SequenceNode(self, expr):
         elements = self.visit(expr.elements)
         return irast.Sequence(elements=elements)
@@ -706,7 +711,17 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 subtypes=[]
             )
 
-        return irast.TypeCast(expr=self.visit(expr.expr), type=typ)
+        if isinstance(expr.expr, qlast.EmptyCollectionNode):
+            if maintype.name == 'array':
+                wrapped = irast.Sequence(is_array=True)
+            elif maintype.name == 'map':
+                wrapped = irast.Mapping()
+            else:
+                wrapped = self.visit(expr.expr)
+        else:
+            wrapped = self.visit(expr.expr)
+
+        return irast.TypeCast(expr=wrapped, type=typ)
 
     def visit_TypeFilterNode(self, expr):
         # Expr[IS Type] expressions,

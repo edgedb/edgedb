@@ -7,6 +7,7 @@
 
 
 import os.path
+import unittest
 
 from edgedb.client import exceptions as exc
 from edgedb.server import _testbase as tb
@@ -285,6 +286,8 @@ class TestExpressions(tb.QueryTestCase):
             SELECT [1, 2, 3, 4, 5][:-2];
 
             SELECT [1, 2][10] ?? 42;
+
+            SELECT <array<int>>[];
         """, [
             [[1]],
             [[1, 2, 3, 4, 5]],
@@ -300,6 +303,8 @@ class TestExpressions(tb.QueryTestCase):
             [[1, 2, 3]],
 
             [42],
+
+            [[]],
         ])
 
     async def test_edgeql_expr_array02(self):
@@ -320,7 +325,8 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_array04(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'could not determine type of empty array'):
+                exc.EdgeQLError,
+                r'could not determine type of empty collection'):
 
             await self.con.execute("""
                 SELECT [];
@@ -328,19 +334,44 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_map01(self):
         await self.assert_query_result(r"""
-            SELECT {'foo': 42};
-            SELECT {'foo': '42', 'bar': 'something'};
-            SELECT {'foo': '42', 'bar': 'something'}['foo'];
+            SELECT ['fo' + 'o' -> 42];
+            SELECT <map<str,int>>['foo' -> '42'];
+            SELECT <map<int,int>>['+1' -> '42'];
 
-            SELECT {'foo': '42', 'bar': 'something'}[lower('FO') + 'o'];
-            SELECT '+/-' + {'foo': '42', 'bar': 'something'}['foo'];
-            SELECT {'foo': 42}['foo'] + 1;
+            SELECT <map<str,float>>['foo' -> '1.1'];
+            SELECT <map<str,float>>['foo' -> '1.0'];
+            SELECT <map<float,int>>['+1.5' -> '42'];
 
-            SELECT {'a': <datetime>'2017-10-10'}['a'] + <timedelta>'1 day';
-            SELECT {100: 42}[100];
-            SELECT {'1': '2'}['spam'] ?? 'ham';
+            SELECT <map<float,bool>>['+1.5' -> 42];
+
+            SELECT ['foo' -> '42', 'bar' -> 'something'];
+            SELECT [lower('FOO') -> '42', 'bar' -> 'something']['foo'];
+
+            SELECT ['foo' -> '42', 'bar' -> 'something'][lower('FO') + 'o'];
+            SELECT '+/-' + ['foo' -> '42', 'bar' -> 'something']['foo'];
+            SELECT ['foo' -> 42]['foo'] + 1;
+
+            SELECT ['a' -> <datetime>'2017-10-10']['a'] + <timedelta>'1 day';
+            SELECT [100 -> 42][100];
+            SELECT ['1' -> '2']['spam'] ?? 'ham';
+
+            SELECT [ [[1],[2],[3]] -> 42] [[[1],[2],[3]]];
+            SELECT [ [[1] -> 1] -> 42 ] [[[1] -> 1]];
+            SELECT [[10+1 ->1] -> 100, [2 ->2] -> 200]
+                    [<map<int,int>>['1'+'1' ->'1']];
+
+            SELECT <map<int, int>>[];
         """, [
             [{'foo': 42}],
+            [{'foo': 42}],
+            [{'1': 42}],
+
+            [{'foo': 1.1}],
+            [{'foo': 1.0}],
+            [{'1.5': 42}],
+
+            [{'1.5': True}],
+
             [{'foo': '42', 'bar': 'something'}],
             ['42'],
 
@@ -351,6 +382,12 @@ class TestExpressions(tb.QueryTestCase):
             ['2017-10-11T00:00:00+00:00'],
             [42],
             ['ham'],
+
+            [42],
+            [42],
+            [100],
+
+            [{}]
         ])
 
     async def test_edgeql_expr_map02(self):
@@ -358,14 +395,14 @@ class TestExpressions(tb.QueryTestCase):
                 exc.EdgeQLError, r'could not determine map values type'):
 
             await self.con.execute(r'''
-                SELECT {'a': 'b', '1': 1};
+                SELECT ['a' -> 'b', '1' -> 1];
             ''')
 
         with self.assertRaisesRegex(
                 exc.EdgeQLError, r'operator does not exist: .*str.*int'):
 
             await self.con.execute(r'''
-                SELECT {'a': '1'}['a'] + 1;
+                SELECT ['a' -> '1']['a'] + 1;
             ''')
 
     async def test_edgeql_expr_map03(self):
@@ -379,12 +416,12 @@ class TestExpressions(tb.QueryTestCase):
             CREATE FUNCTION test::make(std::int)
                 RETURNING std::map<std::str, std::int>
                 FROM EdgeQL $$
-                    SELECT {'aaa': $1}
+                    SELECT ['aaa' -> $1]
                 $$;
         ''')
 
         await self.assert_query_result(r"""
-            SELECT test::take({'foo': 42}, 'foo') + 1;
+            SELECT test::take(['foo' -> 42], 'foo') + 1;
             SELECT test::make(1000)['aaa'] + 8000;
         """, [
             [143],
@@ -393,12 +430,12 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_map04(self):
         await self.assert_query_result(r"""
-            SELECT <map<str, datetime>>{'foo': '2020-10-10'};
-            SELECT (<map<int,int>>{'+1':'+42'})[1];  # '+1'::bigint = 1
-            SELECT (<map<datetime, datetime>>{'2020-10-10': '2010-01-01'})
+            SELECT <map<str, datetime>>['foo' -> '2020-10-10'];
+            SELECT (<map<int,int>>['+1' -> '+42'])[1];  # '+1'::bigint = 1
+            SELECT (<map<datetime, datetime>>['2020-10-10' -> '2010-01-01'])
                    [<datetime>'2020-10-10'];
-            SELECT (<map<int,int>>{true:'+42'})[1];
-            SELECT (<map<bool,int>>(<map<int,str>>{true:142}))[true];
+            SELECT (<map<int,int>>[true -> '+42'])[1];
+            SELECT (<map<bool,int>>(<map<int,str>>[true -> 142]))[true];
         """, [
             [{'foo': '2020-10-10T00:00:00+00:00'}],
             [42],
@@ -411,8 +448,19 @@ class TestExpressions(tb.QueryTestCase):
                 exc.EdgeQLError, r'cannot index map.*by.*str.*int.*expected'):
 
             await self.con.execute(r'''
-                SELECT {1:1}['1'];
+                SELECT [1 -> 1]['1'];
             ''')
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_map05(self):
+        await self.assert_query_result(r"""
+            SELECT [1 -> [1,2,3]][1][2];
+            SELECT [[10+1] -> ['ab'], [2:2] -> ['xy']][
+                        <map<int,int>>['1'+'1' -> '1']][0][1];
+        """, [
+            [3],
+            ['b'],
+        ])
 
     async def test_edgeql_expr_coalesce01(self):
         await self.assert_query_result(r"""
