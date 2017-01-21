@@ -31,22 +31,22 @@ class TestExpressions(tb.QueryTestCase):
             SELECT 40 * 2;
             SELECT 40 / 2;
             SELECT 40 % 2;
-            """, [
-                [42],
-                [38],
-                [80],
-                [20],
-                [0],
-            ])
+        """, [
+            [42],
+            [38],
+            [80],
+            [20],
+            [0],
+        ])
 
     async def test_edgeql_expr_op02(self):
         await self.assert_query_result(r"""
             SELECT 40 ^ 2;
             SELECT 121 ^ 0.5;
-            """, [
-                [1600],
-                [11],
-            ])
+        """, [
+            [1600],
+            [11],
+        ])
 
     async def test_edgeql_expr_op03(self):
         await self.assert_query_result(r"""
@@ -56,14 +56,14 @@ class TestExpressions(tb.QueryTestCase):
             SELECT 40 >= 2;
             SELECT 40 = 2;
             SELECT 40 != 2;
-            """, [
-                [False],
-                [True],
-                [False],
-                [True],
-                [False],
-                [True],
-            ])
+        """, [
+            [False],
+            [True],
+            [False],
+            [True],
+            [False],
+            [True],
+        ])
 
     async def test_edgeql_expr_op04(self):
         await self.assert_query_result(r"""
@@ -75,12 +75,12 @@ class TestExpressions(tb.QueryTestCase):
             SELECT
                 ((-1 + 2) * 3 - (5 - 6.0) / 2 > 0 OR 25 % 4 = 3)
                 AND 42 IN (12, 42, 14);
-            """, [
-                [-3],
-                [False],
-                [3.5],
-                [True],
-            ])
+        """, [
+            [-3],
+            [False],
+            [3.5],
+            [True],
+        ])
 
     async def test_edgeql_expr_op05(self):
         await self.assert_query_result(r"""
@@ -94,20 +94,20 @@ class TestExpressions(tb.QueryTestCase):
             SELECT NULL = NULL;
             SELECT NULL = 42;
             SELECT NULL = 'NULL';
-            """, [
-                [None],
-                [None],
-                [None],
-            ])
+        """, [
+            [None],
+            [None],
+            [None],
+        ])
 
     async def test_edgeql_expr_op07(self):
         await self.assert_query_result(r"""
             SELECT EXISTS NULL;
             SELECT NOT EXISTS NULL;
-            """, [
-                [False],
-                [True],
-            ])
+        """, [
+            [False],
+            [True],
+        ])
 
     async def test_edgeql_expr_paths_01(self):
         cases = [
@@ -159,14 +159,14 @@ class TestExpressions(tb.QueryTestCase):
             SELECT <std::int>"123" + 9000;
             SELECT <std::int>"123" * 100;
             SELECT <std::str>(123 * 2);
-            """, [
-                ['123'],
-                [123],
-                ['123qw'],
-                [9123],
-                [12300],
-                ['246'],
-            ])
+        """, [
+            ['123'],
+            [123],
+            ['123qw'],
+            [9123],
+            [12300],
+            ['246'],
+        ])
 
     async def test_edgeql_expr_cast02(self):
         # testing precedence of casting vs. multiplication
@@ -197,6 +197,40 @@ class TestExpressions(tb.QueryTestCase):
             SELECT <array<int>>['123', '11'];
         """, [
             [[123, 11]],
+        ])
+
+    async def test_edgeql_expr_cast06(self):
+        await self.assert_query_result(r"""
+            SELECT <array<bool>>['t', 'tr', 'tru', 'true'];
+            SELECT <array<bool>>['T', 'TR', 'TRU', 'TRUE'];
+            SELECT <array<bool>>['True', 'TrUe', '1'];
+            SELECT <array<bool>>['y', 'ye', 'yes'];
+            SELECT <array<bool>>['Y', 'YE', 'YES'];
+            SELECT <array<bool>>['Yes', 'yEs', 'YeS'];
+        """, [
+            [[True, True, True, True]],
+            [[True, True, True, True]],
+            [[True, True, True]],
+            [[True, True, True]],
+            [[True, True, True]],
+            [[True, True, True]],
+        ])
+
+    async def test_edgeql_expr_cast07(self):
+        await self.assert_query_result(r"""
+            SELECT <array<bool>>['f', 'fa', 'fal', 'fals', 'false'];
+            SELECT <array<bool>>['F', 'FA', 'FAL', 'FALS', 'FALSE'];
+            SELECT <array<bool>>['False', 'FaLSe', '0'];
+            SELECT <array<bool>>['n', 'no'];
+            SELECT <array<bool>>['N', 'NO'];
+            SELECT <array<bool>>['No', 'nO'];
+        """, [
+            [[False, False, False, False, False]],
+            [[False, False, False, False, False]],
+            [[False, False, False]],
+            [[False, False]],
+            [[False, False]],
+            [[False, False]],
         ])
 
     async def test_edgeql_expr_type01(self):
@@ -414,8 +448,8 @@ class TestExpressions(tb.QueryTestCase):
             SELECT 'yes' IF 1=1 ELSE 'no';
             SELECT 'yes' IF 1=0 ELSE 'no';
             SELECT 's1' IF 1=0 ELSE 's2' IF 2=2 ELSE 's3';
-            """, [
-                ['yes'],
-                ['no'],
-                ['s2'],
-            ])
+        """, [
+            ['yes'],
+            ['no'],
+            ['s2'],
+        ])
