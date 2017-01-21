@@ -307,6 +307,13 @@ class TestExpressions(tb.QueryTestCase):
             [9000],
         ])
 
+    async def test_edgeql_expr_map04(self):
+        await self.assert_query_result(r"""
+            SELECT <map<str, datetime>>{'foo': '2020-10-10'};
+        """, [
+            [{'foo': '2020-10-10T00:00:00+00:00'}],
+        ])
+
     async def test_edgeql_expr_coalesce01(self):
         await self.assert_query_result(r"""
             SELECT NULL ?? 4 ?? 5;

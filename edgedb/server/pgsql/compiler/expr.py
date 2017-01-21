@@ -84,35 +84,13 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
 
     def visit_TypeCast(self, expr):
         ctx = self.context.current
-        schema = ctx.schema
-
         pg_expr = self.visit(expr.expr)
-        target_type = expr.type
 
-        if target_type.subtypes:
-            if target_type.maintype == 'array':
-                # EdgeQL: SELECT <array<int>>['1', '2']
-                # to SQL: SELECT ARRAY['1', '2']::int[]
+        target_type = irutils.infer_type(expr, ctx.schema)
+        source_type = irutils.infer_type(expr.expr, ctx.schema)
 
-                elem_type = pg_types.pg_type_from_atom(
-                    schema, schema.get(target_type.subtypes[0]), topbase=True)
-                result = pgast.TypeCast(
-                    arg=pg_expr,
-                    type_name=pgast.TypeName(
-                        name=elem_type,
-                        array_bounds=[-1]))
-            else:
-                raise NotImplementedError(
-                    f'{target_type.maintype} composite type '
-                    f'is not supported yet')
-
-        else:
-            source_type = irutils.infer_type(expr.expr, schema)
-            target_type = schema.get(target_type.maintype)
-            result = self._cast(pg_expr, source_type=source_type,
-                                target_type=target_type)
-
-        return result
+        return self._cast(pg_expr, source_type=source_type,
+                          target_type=target_type)
 
     def visit_IndexIndirection(self, expr):
         # Handle Expr[Index], where Expr may be std::str or array<T>.
@@ -426,31 +404,106 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
         if target_type.name == 'std::null':
             return node
 
-        if (source_type.name == 'std::datetime' and
-                target_type.name == 'std::str'):
-            # Normalize datetime to text conversion to have the same
-            # format as one would get by serializing to JSON.
-            #
-            # EdgeQL: SELECT <text><datetime>'2010-10-10';
-            # To SQL: SELECT to_char('2010-01-01'::timestamptz,
-            #                        'YYYY-MM-DD"T"HH24:MI:SS.USOF');
-            return pgast.FuncCall(
-                name=('to_char',),
-                args=[
-                    node,
-                    pgast.Constant(val='YYYY-MM-DD"T"HH24:MI:SS.USOF')
-                ])
-
         ctx = self.context.current
-        const_type = pg_types.pg_type_from_object(
-            ctx.schema, target_type, topbase=True)
+        schema = ctx.schema
 
-        return pgast.TypeCast(
-            arg=node,
-            type_name=pgast.TypeName(
-                name=const_type
-            )
-        )
+        if isinstance(target_type, s_obj.Collection):
+            if target_type.schema_name == 'array':
+                # EdgeQL: <array<int>>['1', '2']
+                # to SQL: ARRAY['1', '2']::int[]
+
+                elem_pgtype = pg_types.pg_type_from_atom(
+                    schema, target_type.element_type, topbase=True)
+
+                return pgast.TypeCast(
+                    arg=node,
+                    type_name=pgast.TypeName(
+                        name=elem_pgtype,
+                        array_bounds=[-1]))
+
+            elif target_type.schema_name == 'map':
+                # EdgeQL: <map<str,TYPE>>MAP
+                # to SQL: SELECT jsonb_object(
+                #                    array_agg(key),
+                #                    array_agg(value::TYPE::text))
+                #         FROM jsonb_each_text(MAP)
+
+                elem_pgtype = pg_types.pg_type_from_atom(
+                    schema, target_type.element_type, topbase=True)
+
+                val_cast = self._cast(
+                    pgast.TypeCast(
+                        arg=pgast.ColumnRef(name=['value']),
+                        type_name=pgast.TypeName(name=elem_pgtype)),
+
+                    source_type=target_type.element_type,
+                    target_type=schema.get('std::str')
+                )
+
+                return pgast.SelectStmt(
+                    target_list=[
+                        pgast.ResTarget(
+                            val=pgast.FuncCall(
+                                name=('jsonb_object',),
+                                args=[
+                                    pgast.FuncCall(
+                                        name=('array_agg',),
+                                        args=[pgast.ColumnRef(name=['key'])]),
+                                    pgast.FuncCall(
+                                        name=('array_agg',),
+                                        args=[val_cast]),
+                                ])
+                        )
+                    ],
+                    from_clause=[
+                        pgast.RangeSubselect(
+                            subquery=pgast.FuncCall(
+                                name=('jsonb_each_text',),
+                                args=[
+                                    node
+                                ]
+                            )
+                        )
+                    ])
+
+            else:
+                raise NotImplementedError(
+                    f'{target_type.schema_name} composite type '
+                    f'is not supported yet')
+
+        else:
+            # `target_type` is not a collection.
+
+            if (source_type.name == 'std::datetime' and
+                    target_type.name == 'std::str'):
+                # Normalize datetime to text conversion to have the same
+                # format as one would get by serializing to JSON.
+                #
+                # EdgeQL: <text><datetime>'2010-10-10';
+                # To SQL: trim(to_json('2010-01-01'::timestamptz)::text, '"')
+                return pgast.FuncCall(
+                    name=('trim',),
+                    args=[
+                        pgast.TypeCast(
+                            arg=pgast.FuncCall(
+                                name=('to_json',),
+                                args=[
+                                    node
+                                ]),
+                            type_name=pgast.TypeName(name=('text',))),
+                        pgast.Constant(val='"')
+                    ])
+
+            else:
+                const_type = pg_types.pg_type_from_object(
+                    schema, target_type, topbase=True)
+
+                return pgast.TypeCast(
+                    arg=node,
+                    type_name=pgast.TypeName(
+                        name=const_type
+                    )
+                )
 
     def _new_binop(self, lexpr, rexpr, op):
         return pgast.Expr(
