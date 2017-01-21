@@ -7,9 +7,7 @@
 
 
 import os.path
-import unittest
 
-from edgedb.lang.common import datetime
 from edgedb.client import exceptions as exc
 from edgedb.server import _testbase as tb
 
@@ -105,9 +103,9 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_op05(self):
         await self.assert_query_result(r"""
             SELECT 'foo' + 'bar';
-            """, [
-                ['foobar'],
-            ])
+        """, [
+            ['foobar'],
+        ])
 
     async def test_edgeql_expr_op06(self):
         await self.assert_query_result(r"""
@@ -540,4 +538,22 @@ class TestExpressions(tb.QueryTestCase):
             ['yes'],
             ['no'],
             ['s2'],
+        ])
+
+    async def test_edgeql_expr_select(self):
+        await self.assert_query_result(r"""
+            SELECT 2 * (SELECT 1 UNION SELECT 2);
+
+            SELECT (SELECT 2) * (SELECT 1 UNION SELECT 2);
+
+            SELECT (SELECT 2) * (SELECT 1 UNION SELECT 2 EXCEPT SELECT 1);
+
+            WITH
+                a := (SELECT 1 UNION SELECT 2 EXCEPT SELECT 1)
+            SELECT (SELECT 2) * a;
+        """, [
+            [2, 4],
+            [2, 4],
+            [4],
+            [4],
         ])

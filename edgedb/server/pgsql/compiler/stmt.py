@@ -788,6 +788,27 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         else:
             ctx.query.ctes.append(self._get_set_cte(ir_set))
 
+    def _ensure_query_restarget_name(self, query, hint):
+        ctx = self.context.current
+
+        rt_name = ctx.genalias(hint=hint)
+
+        def _get_restarget(q):
+            nonlocal rt_name
+
+            rt = q.target_list[0]
+            if not rt.name:
+                rt.name = rt_name
+            else:
+                rt_name = rt.name
+
+        if query.op is not None:
+            self._for_each_query_in_set(query, _get_restarget)
+        else:
+            _get_restarget(query)
+
+        return rt_name
+
     def _process_set_as_subquery(self, ir_set):
         """Populate the CTE for Set defined by a subquery."""
 
@@ -813,22 +834,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                         self._get_path_var(subquery, path_id)
                         subquery.group_clause.append(path_var)
 
-        rt_name = ctx.genalias(hint=cte.name)
-        if subquery.op is not None:
-            for q in [subquery.larg, subquery.rarg]:
-                rt = q.target_list[0]
-                if not rt.name:
-                    rt.name = rt_name
-                else:
-                    rt_name = rt.name
-                    break
-        else:
-            rt = subquery.target_list[0]
-            if not rt.name:
-                rt.name = rt_name
-            else:
-                rt_name = rt.name
-
+        rt_name = self._ensure_query_restarget_name(subquery, cte.name)
         subquery.path_vars[ir_set.path_id] = pgast.ColumnRef(name=[rt_name])
 
         cte.query = subquery
@@ -1013,14 +1019,41 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                     query=subquery,
                     name=ctx.genalias(hint=substmt.path_id[0].name.name)
                 )
-                # XXX: hack
-                subquery.scls_rvar = subquery.from_clause[0]
-
                 self._put_set_cte(substmt, cte, ctx=ctx)
 
-                ref = subquery.path_namespace[substmt.real_path_id]
+                if subquery.from_clause:
+                    # XXX: hack
+                    subquery.scls_rvar = subquery.from_clause[0]
 
+                ref = subquery.path_namespace.get(substmt.real_path_id)
                 self._reset_path_namespace(subquery)
+
+                if ref is None:
+                    # Result path might be None for pure-expression
+                    # queries.
+                    rvar = pgast.RangeSubselect(
+                        subquery=subquery,
+                        alias=pgast.Alias(
+                            aliasname=ctx.genalias(hint='q')
+                        )
+                    )
+
+                    rt_name = self._ensure_query_restarget_name(subquery, 'v')
+                    ref = self._get_column(rvar, rt_name)
+
+                    wrapper = pgast.SelectStmt(
+                        target_list=[
+                            pgast.ResTarget(
+                                val=ref
+                            )
+                        ],
+
+                        from_clause=[
+                            rvar
+                        ]
+                    )
+
+                    subquery = cte.query = wrapper
 
                 subquery.path_namespace[substmt.path_id] = ref
                 subquery.inner_path_bonds[substmt.path_id] = ref
