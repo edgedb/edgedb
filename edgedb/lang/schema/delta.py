@@ -769,7 +769,7 @@ class AlterClassProperty(Command):
                 new_value = tuple(el.value for el in astnode.value.elements)
             elif isinstance(astnode.value, qlast.MappingNode):
                 m = {}
-                for k, v in astnode.value.items:
+                for k, v in zip(astnode.value.keys, astnode.value.values):
                     k = k.value
                     if isinstance(v, qlast.ConstantNode):
                         v = v.value

@@ -371,8 +371,8 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
     def visit_Mapping(self, expr):
         elements = []
 
-        for k, v in expr.items.items():
-            elements.append(pgast.Constant(val=k))
+        for k, v in zip(expr.keys, expr.values):
+            elements.append(self.visit(k))
             elements.append(self.visit(v))
 
         return pgast.FuncCall(

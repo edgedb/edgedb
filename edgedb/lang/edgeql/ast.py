@@ -603,7 +603,8 @@ class ArrayNode(Base):
 
 
 class MappingNode(Base):
-    items: list
+    keys: typing.List[Base]
+    values: typing.List[Base]
 
 
 class NoneTestNode(Base):

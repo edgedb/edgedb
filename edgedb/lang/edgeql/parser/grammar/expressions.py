@@ -929,11 +929,16 @@ class Array(Nonterm):
 
 
 class Mapping(Nonterm):
+    def _get_node(self, items):
+        keys = [i[0] for i in items]
+        values = [i[1] for i in items]
+        return qlast.MappingNode(keys=keys, values=values)
+
     def reduce_LBRACE_MappingElementsList_RBRACE(self, *kids):
-        self.val = qlast.MappingNode(items=kids[1].val)
+        self.val = self._get_node(kids[1].val)
 
     def reduce_LBRACE_MappingElementsList_COMMA_RBRACE(self, *kids):
-        self.val = qlast.MappingNode(items=kids[1].val)
+        self.val = self._get_node(kids[1].val)
 
 
 class MappingElement(Nonterm):

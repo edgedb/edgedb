@@ -94,7 +94,8 @@ class Sequence(Expr):
 
 class Mapping(Expr):
 
-    items: dict
+    keys: typing.List[Base]
+    values: typing.List[Base]
 
 
 class BinOp(Expr):

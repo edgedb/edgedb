@@ -352,7 +352,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_MappingNode(self, node):
         self.write('{')
-        for i, (key, value) in enumerate(node.items):
+        for i, (key, value) in enumerate(zip(node.keys, node.values)):
             if i > 0:
                 self.write(', ')
             self.visit(key)

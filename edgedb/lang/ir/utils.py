@@ -312,12 +312,17 @@ def __infer_index(ir, schema):
 
 @_infer_type.register(irast.Mapping)
 def __infer_map(ir, schema):
-    element_type = _infer_common_type(ir.items.values(), schema)
+    key_type = _infer_common_type(ir.keys, schema)
+    if key_type is None:
+        raise ql_errors.EdgeQLError('could not determine map keys type',
+                                    context=ir.context)
+
+    element_type = _infer_common_type(ir.values, schema)
     if element_type is None:
         raise ql_errors.EdgeQLError('could not determine map values type',
                                     context=ir.context)
-    return s_obj.Map(key_type=schema.get('std::str'),
-                     element_type=element_type)
+
+    return s_obj.Map(key_type=key_type, element_type=element_type)
 
 
 @_infer_type.register(irast.Sequence)
