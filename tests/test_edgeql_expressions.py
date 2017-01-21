@@ -251,7 +251,7 @@ class TestExpressions(tb.QueryTestCase):
             ['std::float'],
         ])
 
-    async def test_edgeql_expr_list01(self):
+    async def test_edgeql_expr_array01(self):
         await self.assert_query_result("""
             SELECT [1];
             SELECT [1, 2, 3, 4, 5];
@@ -265,6 +265,8 @@ class TestExpressions(tb.QueryTestCase):
             SELECT [1, 2, 3, 4, 5][2:-1];
             SELECT [1, 2, 3, 4, 5][-2:];
             SELECT [1, 2, 3, 4, 5][:-2];
+
+            SELECT [1, 2][10] ?? 42;
         """, [
             [[1]],
             [[1, 2, 3, 4, 5]],
@@ -278,9 +280,11 @@ class TestExpressions(tb.QueryTestCase):
             [[3, 4]],
             [[4, 5]],
             [[1, 2, 3]],
+
+            [42],
         ])
 
-    async def test_edgeql_expr_list02(self):
+    async def test_edgeql_expr_array02(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError, r'could not determine array type'):
 
@@ -288,7 +292,7 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT [1, '1'];
             """)
 
-    async def test_edgeql_expr_list03(self):
+    async def test_edgeql_expr_array03(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError, r'cannot index array by.*str'):
 
@@ -301,20 +305,26 @@ class TestExpressions(tb.QueryTestCase):
             SELECT {'foo': 42};
             SELECT {'foo': '42', 'bar': 'something'};
             SELECT {'foo': '42', 'bar': 'something'}['foo'];
+
             SELECT {'foo': '42', 'bar': 'something'}[lower('FO') + 'o'];
             SELECT '+/-' + {'foo': '42', 'bar': 'something'}['foo'];
             SELECT {'foo': 42}['foo'] + 1;
+
             SELECT {'a': <datetime>'2017-10-10'}['a'] + <timedelta>'1 day';
             SELECT {100: 42}[100];
+            SELECT {'1': '2'}['spam'] ?? 'ham';
         """, [
             [{'foo': 42}],
             [{'foo': '42', 'bar': 'something'}],
             ['42'],
+
             ['42'],
             ['+/-42'],
             [43],
+
             ['2017-10-11T00:00:00+00:00'],
             [42],
+            ['ham'],
         ])
 
     async def test_edgeql_expr_map02(self):
