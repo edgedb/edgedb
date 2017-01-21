@@ -105,6 +105,11 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
         index = self.visit(expr.index)
 
         if isinstance(arg_type, s_obj.Map):
+            index = self._cast(
+                index,
+                source_type=irutils.infer_type(expr.index, ctx.schema),
+                target_type=ctx.schema.get('std::str'))
+
             return self._cast(
                 self._new_binop(
                     lexpr=subj,
@@ -422,19 +427,31 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
                         array_bounds=[-1]))
 
             elif target_type.schema_name == 'map':
-                # EdgeQL: <map<str,TYPE>>MAP
+                # EdgeQL: <map<T1,T2>>MAP
                 # to SQL: SELECT jsonb_object(
-                #                    array_agg(key),
-                #                    array_agg(value::TYPE::text))
+                #                    array_agg(key::T1::text),
+                #                    array_agg(value::T2::text))
                 #         FROM jsonb_each_text(MAP)
 
-                elem_pgtype = pg_types.pg_type_from_atom(
+                key_pgtype = pg_types.pg_type_from_atom(
+                    schema, target_type.key_type, topbase=True)
+
+                val_pgtype = pg_types.pg_type_from_atom(
                     schema, target_type.element_type, topbase=True)
+
+                key_cast = self._cast(
+                    pgast.TypeCast(
+                        arg=pgast.ColumnRef(name=['key']),
+                        type_name=pgast.TypeName(name=key_pgtype)),
+
+                    source_type=target_type.key_type,
+                    target_type=schema.get('std::str')
+                )
 
                 val_cast = self._cast(
                     pgast.TypeCast(
                         arg=pgast.ColumnRef(name=['value']),
-                        type_name=pgast.TypeName(name=elem_pgtype)),
+                        type_name=pgast.TypeName(name=val_pgtype)),
 
                     source_type=target_type.element_type,
                     target_type=schema.get('std::str')
@@ -448,7 +465,7 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
                                 args=[
                                     pgast.FuncCall(
                                         name=('array_agg',),
-                                        args=[pgast.ColumnRef(name=['key'])]),
+                                        args=[key_cast]),
                                     pgast.FuncCall(
                                         name=('array_agg',),
                                         args=[val_cast]),

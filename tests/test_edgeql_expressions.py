@@ -344,8 +344,13 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_map04(self):
         await self.assert_query_result(r"""
             SELECT <map<str, datetime>>{'foo': '2020-10-10'};
+            SELECT (<map<int,int>>{'+1':'+42'})[1];  # '+1'::bigint = 1
+            SELECT (<map<datetime, datetime>>{'2020-10-10': '2010-01-01'})
+                   [<datetime>'2020-10-10'];
         """, [
             [{'foo': '2020-10-10T00:00:00+00:00'}],
+            [42],
+            ['2010-01-01T00:00:00+00:00'],
         ])
 
     async def test_edgeql_expr_coalesce01(self):
