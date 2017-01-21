@@ -313,7 +313,7 @@ def __infer_index(ir, schema):
                 f'{int_t.name} was expected',
                 context=ir.index.context)
 
-        result = node_type
+        result = str_t
 
     elif isinstance(node_type, s_obj.Map):
 
