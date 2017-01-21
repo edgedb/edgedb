@@ -46,6 +46,7 @@ class TransformerContextLevel:
             self.scope_cutoff = False
             self.in_exists = False
             self.in_aggregate = False
+            self.in_member_test = False
             self.in_set_expr = False
             self.in_shape = False
             self.expr_exposed = False
@@ -75,6 +76,7 @@ class TransformerContextLevel:
             self.scope_cutoff = False
             self.in_exists = prevlevel.in_exists
             self.in_aggregate = prevlevel.in_aggregate
+            self.in_member_test = prevlevel.in_member_test
             self.in_set_expr = prevlevel.in_set_expr
             self.in_shape = prevlevel.in_shape
             self.expr_exposed = prevlevel.expr_exposed
@@ -96,6 +98,7 @@ class TransformerContextLevel:
 
                 self.clause = None
                 self.in_aggregate = False
+                self.in_member_test = False
                 self.in_set_expr = False
                 self.in_shape = False
                 self.in_exists = False

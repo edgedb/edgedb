@@ -686,8 +686,20 @@ class IRCompilerDMLSupport:
             input_stmt = input_stmt.rarg
 
         for rt in input_stmt.target_list:
-            source_data[rt.name] = expr = pgast.ColumnRef(
-                name=[unnested_alias, rt.name])
+            if rt.name is None:
+                if isinstance(rt.val, pgast.ColumnRef):
+                    rt_name = rt.val.name[-1]
+                else:
+                    continue
+            else:
+                rt_name = rt.name
+
+            source_data[rt_name] = expr = pgast.ColumnRef(
+                name=[unnested_alias, rt_name])
+
+        if target_id_col not in source_data:
+            raise RuntimeError(  # pragma: no cover
+                'cannot determine target identity column')
 
         for col in tab_cols:
             if col in {'std::target@atom', 'std::target'}:

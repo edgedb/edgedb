@@ -304,11 +304,14 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             #    EXISTS(SELECT * FROM SetCTE WHERE SetCTE.expr)
             result = self._wrap_set_rel_as_bool_disjunction(expr, source_cte)
 
-        elif ctx.clause == 'offsetlimit' and not ctx.in_set_expr:
+        elif ((ctx.clause == 'offsetlimit' and not ctx.in_set_expr) or
+                ctx.in_member_test):
             # When referred to in OFFSET/LIMIT we want to wrap the
             # set CTE into
             #    SELECT v FROM SetCTE
             result = self._wrap_set_rel_as_value(expr, source_cte)
+            # Make sure _connect_set_sources does not JOIN this CTE in.
+            self._mark_as_included(source_cte)
 
         else:
             # Otherwise we join the range directly into the current rel
@@ -349,6 +352,23 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 query.where_clause = self._extend_binop(
                     query.where_clause, scope_expr)
                 scoped_prefixes.update(ir_set.path_id.iter_prefixes())
+
+    def _mark_as_included(self, rel):
+        """Mark *rel* as linked in to the context of the current rel.
+
+        This is called whenever rel needs to be excluded from the blanket
+        inclusion by the _connect_set_sources.
+        """
+        ctx = self.context.current
+
+        subrel = ctx.subquery_map[ctx.rel].get(rel)
+        if subrel is None:
+            ctx.subquery_map[ctx.rel][rel] = {
+                'rvar': None,
+                'linked': True
+            }
+        else:
+            subrel['linked'] = True
 
     def _include_range(self, rel):
         """Ensure the *rel* is present in the from_clause of current rel.
@@ -573,20 +593,27 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             # Already have a CTE for this Set.
             return cte
 
+        ctx = self.context.current
+
         stmt = pgast.SelectStmt()
         stmt.path_id = ir_set.path_id
+
+        cte_name = ctx.genalias(hint=self._get_set_cte_alias(ir_set))
+        cte = pgast.CommonTableExpr(query=stmt, name=cte_name)
+
+        self._put_set_cte(ir_set, cte)
 
         with self.context.new() as ctx:
             ctx.rel = stmt
 
-            cte = pgast.CommonTableExpr(
-                query=stmt,
-                name=ctx.genalias(hint=self._get_set_cte_alias(ir_set))
-            )
+            if isinstance(ir_set.expr, irast.Stmt):
+                # When the Set is defined by a subquery, we do not
+                # want to push the rel context, as we want the direct
+                # connection to exist between the parent query and the
+                # subquery.
+                self._process_set_as_subquery(ir_set)
 
-            self._put_set_cte(ir_set, cte)
-
-            if ir_set.expr is not None:
+            elif ir_set.expr is not None:
                 self._process_set_as_expr(ir_set, stmt)
 
             elif ir_set.rptr is not None:
@@ -595,7 +622,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             else:
                 self._process_set_as_root(ir_set, stmt)
 
-            return self._get_set_cte(ir_set)
+        return self._get_set_cte(ir_set)
 
     def _get_set_cte_alias(self, ir_set):
         if ir_set.rptr is not None and ir_set.rptr.source.scls is not None:
@@ -761,18 +788,62 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         else:
             ctx.query.ctes.append(self._get_set_cte(ir_set))
 
+    def _process_set_as_subquery(self, ir_set):
+        """Populate the CTE for Set defined by a subquery."""
+
+        ctx = self.context.current
+
+        cte = self._get_set_cte(ir_set)
+        with self.context.new() as newctx:
+            newctx.output_format = 'flat'
+            subquery = self.visit(ir_set.expr)
+
+            if irutils.is_aggregated_expr(ir_set.expr):
+                # The expression includes calls to aggregates.
+
+                # Remove aggregated vars from the namespace.
+                # Add an explicit GROUP BY for each other var
+                for path_id, path_var in list(subquery.path_namespace.items()):
+                    for agg_prefix in subquery.aggregated_prefixes:
+                        if path_id.startswith(agg_prefix):
+                            self._remove_path_from_namespace(subquery, path_id)
+                            break
+                    else:
+                        # Pull the path var into the target_list
+                        self._get_path_var(subquery, path_id)
+                        subquery.group_clause.append(path_var)
+
+        rt_name = ctx.genalias(hint=cte.name)
+        if subquery.op is not None:
+            for q in [subquery.larg, subquery.rarg]:
+                rt = q.target_list[0]
+                if not rt.name:
+                    rt.name = rt_name
+                else:
+                    rt_name = rt.name
+                    break
+        else:
+            rt = subquery.target_list[0]
+            if not rt.name:
+                rt.name = rt_name
+            else:
+                rt_name = rt.name
+
+        subquery.path_vars[ir_set.path_id] = pgast.ColumnRef(name=[rt_name])
+
+        cte.query = subquery
+        ctx.query.ctes.append(cte)
+
+        for rel, info in ctx.subquery_map[ctx.rel].items():
+            ctx.subquery_map[ctx.query][rel] = {
+                'rvar': info['rvar'],
+                'linked': True
+            }
+
     def _process_set_as_expr(self, ir_set, stmt):
         """Populate the CTE for Set defined by an expression."""
 
         ctx = self.context.current
-
-        if isinstance(ir_set.expr, irast.Stmt):
-            set_expr = self.visit(ir_set.expr)
-            res = ir_set.expr.result
-            cte = self._get_set_cte(res)
-            self._put_set_cte(ir_set, cte)
-
-            return
 
         set_rvar = self._get_set_rvar(ir_set, stmt)
 
@@ -1059,18 +1130,27 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 f'could not resolve {ir_set.path_id} as a column '
                 f'reference in context of {ctx.rel!r}')
 
-        if ctx.in_aggregate and isinstance(ir_set.scls, s_atoms.Atom):
-            # Cast atom refs to the base type in aggregate expressions, since
-            # PostgreSQL does not create array types for custom domains and
-            # will fail to process a query with custom domains appearing as
-            # array elements.
-            #
-            pgtype = pg_types.pg_type_from_atom(
-                ctx.schema, ir_set.scls, topbase=True)
-            pgtype = pgast.TypeName(name=pgtype)
-            ref = pgast.TypeCast(arg=ref, type_name=pgtype)
+        if ctx.in_aggregate:
+            scope_path_id = self._get_scope_path_id(ir_set)
+            ctx.rel.aggregated_prefixes.add(scope_path_id)
+
+            if isinstance(ir_set.scls, s_atoms.Atom):
+                # Cast atom refs to the base type in aggregate expressions,
+                # since PostgreSQL does not create array types for custom
+                # domains and will fail to process a query with custom domains
+                # appearing as array elements.
+                pgtype = pg_types.pg_type_from_atom(
+                    ctx.schema, ir_set.scls, topbase=True)
+                pgtype = pgast.TypeName(name=pgtype)
+                ref = pgast.TypeCast(arg=ref, type_name=pgtype)
 
         return ref
+
+    def _get_scope_path_id(self, ir_set):
+        if ir_set.rptr is not None:
+            return ir_set.rptr.source.path_id
+        else:
+            return ir_set.path_id
 
     def _full_inner_bond_condition(self, left, right):
         condition = None
@@ -1278,6 +1358,12 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         query.inner_path_bonds.clear()
         query.path_bonds.clear()
 
+    def _remove_path_from_namespace(self, query, path_id):
+        query.path_namespace.pop(path_id, None)
+        query.path_vars.pop(path_id, None)
+        query.inner_path_bonds.pop(path_id, None)
+        query.path_bonds.pop(path_id, None)
+
     def _pull_path_namespace(self, *, target, source, pull_bonds=True):
         squery = source.query
         for path_id in set(squery.path_namespace) - set(target.path_namespace):
@@ -1317,17 +1403,6 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         if isinstance(stmt, pgast.DML):
             rlist = stmt.returning_list
-
-            if len(path_id) > 1:
-                lname = path_id[-2][0].shortname
-            else:
-                lname = 'std::id'
-
-            colname = common.edgedb_name_to_pg_name(lname)
-
-            ref = pgast.ColumnRef(
-                name=[stmt.relation.alias.aliasname, colname]
-            )
         else:
             rlist = stmt.target_list
 
@@ -1336,7 +1411,10 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         for rt in rlist:
             val = rt.val
             if isinstance(val, pgast.ColumnRef) and val.name == ref.name:
-                alias = rt.name
+                if rt.name is None:
+                    alias = ref.name[-1]
+                else:
+                    alias = rt.name
                 break
         else:
             alias = ctx.genalias(hint=ref.name[-1])
@@ -1344,7 +1422,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         return pgast.ColumnRef(name=[alias], nullable=ref.nullable)
 
-    def _pull_path_var(self, rel, ir_set, path_id=None, *, alias=None):
+    def _pull_path_var(self, rel, ir_set, path_id=None, *,
+                       alias=None, add_to_target_list=False):
         """Make sure the value of the *ir_set* path is present in namespace."""
         ctx = self.context.current
 
@@ -1360,7 +1439,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 self._pull_path_var,
                 ir_set=ir_set,
                 path_id=path_id,
-                alias=common.edgedb_name_to_pg_name(ptrname))
+                alias=common.edgedb_name_to_pg_name(ptrname),
+                add_to_target_list=True)
 
             self._for_each_query_in_set(rel, cb)
             return
@@ -1399,7 +1479,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         # is there too.
         if isinstance(rel_rvar, pgast.RangeSubselect):
             source_rel = rel_rvar.subquery
-            self._pull_path_var(source_rel, ir_set, path_id)
+            self._pull_path_var(source_rel, ir_set, path_id,
+                                add_to_target_list=True)
             colname = ptr_info.column_name
             source_rvars = [rel_rvar]
 
@@ -1438,20 +1519,21 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             refexpr = fieldrefs[0]
             nullable = refexpr.nullable
 
-        var_ref = pgast.ColumnRef(name=[alias], nullable=nullable)
-
         rel.path_namespace[path_id] = refexpr
-        rel.path_vars[path_id] = var_ref
 
-        restarget = pgast.ResTarget(name=alias, val=refexpr)
-        if hasattr(rel, 'returning_list'):
-            rel.returning_list.append(restarget)
-        else:
-            rel.target_list.append(restarget)
+        if add_to_target_list:
+            var_ref = pgast.ColumnRef(name=[alias], nullable=nullable)
+            rel.path_vars[path_id] = var_ref
+            restarget = pgast.ResTarget(name=alias, val=refexpr)
+            if hasattr(rel, 'returning_list'):
+                rel.returning_list.append(restarget)
+            else:
+                rel.target_list.append(restarget)
 
         if ir_set.path_id != path_id:
             rel.path_namespace[ir_set.path_id] = refexpr
-            rel.path_vars[ir_set.path_id] = var_ref
+            if add_to_target_list:
+                rel.path_vars[ir_set.path_id] = var_ref
 
         return refexpr
 

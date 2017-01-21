@@ -287,10 +287,11 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
                 left = self.visit(expr.left)
 
             if expr.op in (ast.ops.IN, ast.ops.NOT_IN):
-                with self.context.new():
+                with self.context.new() as subctx:
                     if isinstance(expr.right, irast.Sequence):
-                        self.context.current.sequence_is_array = True
-                    self.context.current.output_format = 'identity'
+                        subctx.sequence_is_array = True
+                    subctx.output_format = 'identity'
+                    subctx.in_member_test = True
                     right = self.visit(expr.right)
             elif is_bool_op:
                 with self.context.newsetscope():

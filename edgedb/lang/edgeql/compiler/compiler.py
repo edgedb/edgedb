@@ -99,7 +99,7 @@ def get_common_prefixes(exprs):
         path_id = root
         current = subtrie
 
-        root_count = prefix_counts[path_id]
+        root_count = prefix_counts.get(path_id, 0)
 
         while current:
             if len(current) == 1:
@@ -152,6 +152,8 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
     def visit_SelectQueryNode(self, edgeql_tree):
         toplevel_shape_rptrcls = self.context.current.toplevel_shape_rptrcls
+        is_toplevel = self.context.current.stmt is None
+        schema = self.context.current.schema
 
         with self.context.subquery():
             ctx = self.context.current
@@ -161,8 +163,8 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
             if edgeql_tree.op:  # UNION/INTERSECT/EXCEPT
                 stmt.set_op = qlast.SetOperator(edgeql_tree.op)
-                stmt.set_op_larg = self.visit(edgeql_tree.op_larg)
-                stmt.set_op_rarg = self.visit(edgeql_tree.op_rarg)
+                stmt.set_op_larg = self.visit(edgeql_tree.op_larg).expr
+                stmt.set_op_rarg = self.visit(edgeql_tree.op_rarg).expr
             else:
                 if (isinstance(edgeql_tree.result, qlast.PathNode) and
                         edgeql_tree.result.steps and
@@ -206,8 +208,16 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                         ctx.group_paths = {...}
                         break
 
-            stmt.argument_types = self.context.current.arguments
-            return stmt
+            if is_toplevel:
+                stmt.argument_types = self.context.current.arguments
+                result = stmt
+            else:
+                restype = irutils.infer_type(stmt, schema)
+                result = self._generated_set(stmt, restype, force=True)
+                if isinstance(stmt.result, irast.Set):
+                    result.path_id = stmt.result.path_id
+
+        return result
 
     def visit_InsertQueryNode(self, edgeql_tree):
         toplevel_shape_rptrcls = self.context.current.toplevel_shape_rptrcls
@@ -645,7 +655,10 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         return node
 
     def visit_ExistsPredicateNode(self, expr):
-        return irast.ExistPred(expr=self.visit(expr.expr))
+        operand = self.visit(expr.expr)
+        if self._is_subquery_set(operand):
+            operand = operand.expr
+        return irast.ExistPred(expr=operand)
 
     def visit_CoalesceNode(self, expr):
         return irast.Coalesce(args=self.visit(expr.args))
@@ -830,7 +843,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 ctx.namespaces[with_entry.alias] = with_entry.namespace
 
             elif isinstance(with_entry, qlast.CGENode):
-                substmt = self.visit(with_entry.expr)
+                substmt = self.visit(with_entry.expr).expr
 
                 path_id = irutils.LinearPath([
                     s_concepts.Concept(
@@ -1012,7 +1025,10 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     # most importantly, in INSERT/UPDATE context.
                     self.context.current.toplevel_shape_rptrcls = ptrcls
                     compexpr = self.visit(shape_el.compexpr)
-                    if not isinstance(compexpr, irast.Stmt):
+                    if (isinstance(compexpr, irast.Set) and
+                            isinstance(compexpr.expr, irast.Stmt)):
+                        compexpr = compexpr.expr
+                    elif not isinstance(compexpr, irast.Stmt):
                         compexpr = irast.SelectStmt(result=compexpr)
 
                 target_class = irutils.infer_type(compexpr, schema)
@@ -1462,3 +1478,10 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         return self._get_schema_object(
             name=name[1], module=name[0]).aggregate
+
+    def _is_subquery_set(self, ir_expr):
+        return (
+            isinstance(ir_expr, irast.Set) and
+            isinstance(ir_expr.expr, irast.Stmt) and
+            ir_expr.path_id[0].name.module != '__cexpr__'
+        )

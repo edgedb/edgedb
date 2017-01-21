@@ -2487,31 +2487,35 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '2'}, {'number': '3'}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_subqueries09(self):
-        with self.assertRaisesRegex(
-                exc._base.UnknownEdgeDBError,
-                r'unexpected binop operands'):
-            # XXX: I'm not actually sure that this should work, much less
-            # what the result should be
-            await self.assert_query_result(r"""
-                WITH MODULE test
-                SELECT Issue.number + (SELECT Issue.number);
-                """, [
-                ['1"1"', '2"2"', '3"3"', '4"4"'],
-            ])
+        res = await self.con.execute(r"""
+            WITH MODULE test
+            SELECT Issue.number + (SELECT Issue.number);
+        """)
 
-    @unittest.expectedFailure
+        for r in res:
+            r.sort()
+
+        self.assert_data_shape(res, [
+            ['11', '22', '33', '44'],
+        ])
+
     async def test_edgeql_select_subqueries10(self):
-        with self.assertRaisesRegex(
-                exc._base.UnknownEdgeDBError,
-                r'unexpected binop operands'):
-            await self.con.execute(r"""
-                WITH
-                    MODULE test,
-                    sub:= (SELECT Issue.number)
-                SELECT Issue.number + sub;
-                """)
+        res = await self.con.execute(r"""
+            WITH
+                MODULE test,
+                sub := (SELECT Issue.number)
+            SELECT
+                Issue.number + sub;
+        """)
+
+        for r in res:
+            r.sort()
+
+        self.assert_data_shape(res, [
+            ['11', '12', '13', '14', '21', '22', '23', '24',
+             '31', '32', '33', '34', '41', '42', '43', '44']
+        ])
 
     async def test_edgeql_select_subqueries11(self):
         await self.assert_query_result(r"""

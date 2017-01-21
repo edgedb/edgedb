@@ -186,6 +186,9 @@ class Query(EdgeQLPathInfo):
     ptr_rvar_map: dict              # Map of RangeVars corresponding to pointer
                                     # relations.
 
+    aggregated_prefixes: set        # A set of path prefixes that are used
+                                    # in calls to aggregates in this Query.
+
     ctes: typing.List[CommonTableExpr]
     scls_rvar: BaseRangeVar
     rptr_rvar: BaseRangeVar

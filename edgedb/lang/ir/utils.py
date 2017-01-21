@@ -510,6 +510,9 @@ class LinearPath(list):
             else:
                 break
 
+    def startswith(self, path_id):
+        return self[:len(path_id)] == path_id
+
     def __hash__(self):
         return hash(tuple(self))
 
