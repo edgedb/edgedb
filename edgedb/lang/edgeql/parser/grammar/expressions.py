@@ -755,7 +755,6 @@ class Expr(Nonterm):
         raise EdgeQLSyntaxError('Unexpected token: {}'.format(kids[2]),
                                 context=kids[2].context)
 
-
     def reduce_FuncExpr(self, *kids):
         self.val = kids[0].val
 
@@ -941,12 +940,18 @@ class Mapping(Nonterm):
         self.val = self._get_node(kids[1].val)
 
 
+class MappingKey(Nonterm):
+    def reduce_Constant(self, *kids):
+        self.val = kids[0].val
+
+
 class MappingElement(Nonterm):
-    def reduce_SCONST_COLON_Expr(self, *kids):
-        self.val = (qlast.ConstantNode(value=kids[0].val), kids[2].val)
+    def reduce_MappingKey_COLON_Expr(self, *kids):
+        self.val = (kids[0].val, kids[2].val)
 
 
-class MappingElementsList(ListNonterm, element=MappingElement,
+class MappingElementsList(ListNonterm,
+                          element=MappingElement,
                           separator=tokens.T_COMMA):
     pass
 
