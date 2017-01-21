@@ -452,21 +452,21 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write('$')
         self.write(node.name)
 
+    def visit_EmptySetNode(self, node):
+        self.write('NULL')
+
     def visit_ConstantNode(self, node):
-        if node.value is not None:
-            try:
-                edgeql_repr = node.value.__mm_edgeql__
-            except AttributeError:
-                if isinstance(node.value, str):
-                    self.write(edgeql_quote.quote_literal(node.value))
-                elif isinstance(node.value, AST):
-                    self.visit(node.value)
-                else:
-                    self.write(str(node.value))
+        try:
+            edgeql_repr = node.value.__mm_edgeql__
+        except AttributeError:
+            if isinstance(node.value, str):
+                self.write(edgeql_quote.quote_literal(node.value))
+            elif isinstance(node.value, AST):
+                self.visit(node.value)
             else:
-                self.write(edgeql_repr())
+                self.write(str(node.value))
         else:
-            self.write('NULL')
+            self.write(edgeql_repr())
 
     def visit_DefaultValueNode(self, node):
         self.write('DEFAULT')

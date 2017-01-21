@@ -475,6 +475,9 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         return irast.Parameter(type=pt, name=expr.name)
 
+    def visit_EmptySetNode(self, expr):
+        return irast.EmptySet()
+
     def visit_ConstantNode(self, expr):
         ctx = self.context.current
 
@@ -661,6 +664,9 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         return irast.ExistPred(expr=operand)
 
     def visit_CoalesceNode(self, expr):
+        if all(isinstance(a, qlast.EmptySetNode) for a in expr.args):
+            return irast.EmptySet()
+
         return irast.Coalesce(args=self.visit(expr.args))
 
     def visit_TypeCastNode(self, expr):

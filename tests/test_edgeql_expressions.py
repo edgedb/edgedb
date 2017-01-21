@@ -24,6 +24,26 @@ class TestExpressions(tb.QueryTestCase):
     TEARDOWN = """
     """
 
+    async def test_edgeql_expr_emptyset_01(self):
+        await self.assert_query_result(r"""
+            SELECT <int>NULL;
+            SELECT <str>NULL;
+            SELECT NULL + 1;
+            SELECT 1 + NULL;
+        """, [
+            [None],
+            [None],
+            [None],
+            [None],
+        ])
+
+        with self.assertRaisesRegex(exc.EdgeQLError,
+                                    r'could not determine expression type'):
+
+            await self.con.execute("""
+                SELECT NULL;
+            """)
+
     async def test_edgeql_expr_op01(self):
         await self.assert_query_result(r"""
             SELECT 40 + 2;
@@ -300,6 +320,14 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT [1, 2]['1'];
             """)
 
+    async def test_edgeql_expr_array04(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError, r'could not determine type of empty array'):
+
+            await self.con.execute("""
+                SELECT [];
+            """)
+
     async def test_edgeql_expr_map01(self):
         await self.assert_query_result(r"""
             SELECT {'foo': 42};
@@ -393,24 +421,36 @@ class TestExpressions(tb.QueryTestCase):
             SELECT NULL ?? 4 ?? 5;
             SELECT NULL ?? 'foo' ?? 'bar';
             SELECT 4 ?? NULL ?? 5;
+
             SELECT 'foo' ?? NULL ?? 'bar';
             SELECT NULL ?? 'bar' = 'bar';
+
             SELECT 4^NULL ?? 2;
             SELECT 4+NULL ?? 2;
             SELECT 4*NULL ?? 2;
+
             SELECT -<int>NULL ?? 2;
             SELECT -<int>NULL ?? -2 + 1;
+
+            SELECT <int>(NULL ?? NULL);
+            SELECT <int>(NULL ?? NULL ?? NULL);
         """, [
             [4],
             ['foo'],
             [4],
+
             ['foo'],
             [True],
+
             [2],  # ^ binds more tightly
             [6],
             [8],
+
             [2],
             [-1],
+
+            [None],
+            [None],
         ])
 
     async def test_edgeql_expr_string01(self):

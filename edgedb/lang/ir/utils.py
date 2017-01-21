@@ -107,23 +107,25 @@ def infer_arg_types(ir, schema):
 
 
 def _infer_common_type(irs: typing.List[irast.Base], schema):
+    if not irs:
+        raise ql_errors.EdgeQLError(
+            'cannot determine common type of an empty set',
+            context=irs[0].context)
+
     arg_types = []
     for arg in irs:
-        if isinstance(arg, irast.Constant) and arg.value is None:
+        if isinstance(arg, irast.EmptySet):
             continue
 
         arg_type = infer_type(arg, schema)
-        if arg_type.name == 'std::null':
-            continue
-
         arg_types.append(arg_type)
 
     if not arg_types:
-        # all std::null
-        result = schema.get('std::null')
-    else:
-        result = s_utils.get_class_nearest_common_ancestor(arg_types)
+        raise ql_errors.EdgeQLError(
+            'cannot determine common type of an empty set',
+            context=irs[0].context)
 
+    result = s_utils.get_class_nearest_common_ancestor(arg_types)
     return result
 
 
@@ -190,19 +192,19 @@ def __infer_binop(ir, schema):
                           irast.TextSearchOperator)):
         return schema.get('std::bool')
 
+    if isinstance(ir.left, irast.EmptySet):
+        return infer_type(ir.right, schema)
+    elif isinstance(ir.right, irast.EmptySet):
+        return infer_type(ir.left, schema)
+
     left_type = infer_type(ir.left, schema)
     right_type = infer_type(ir.right, schema)
 
-    if left_type.name == 'std::null':
-        result = right_type
-    elif right_type.name == 'std::null':
-        result = left_type
-    else:
+    result = s_types.TypeRules.get_result(
+        ir.op, (left_type, right_type), schema)
+    if result is None:
         result = s_types.TypeRules.get_result(
-            ir.op, (left_type, right_type), schema)
-        if result is None:
-            result = s_types.TypeRules.get_result(
-                (ir.op, 'reversed'), (right_type, left_type), schema)
+            (ir.op, 'reversed'), (right_type, left_type), schema)
 
     if result is None:
         raise ql_errors.EdgeQLError(
@@ -218,10 +220,10 @@ def __infer_unaryop(ir, schema):
     if ir.op == ast.ops.NOT:
         result = schema.get('std::bool')
     else:
-        operand_type = infer_type(ir.expr, schema)
-        if operand_type.name == 'std::null':
-            result = operand_type
+        if isinstance(ir.expr, irast.EmptySet):
+            result = schema.get('std::int')
         else:
+            operand_type = infer_type(ir.expr, schema)
             result = s_types.TypeRules.get_result(
                 ir.op, (operand_type,), schema)
 
@@ -340,6 +342,10 @@ def __infer_index(ir, schema):
 
 @_infer_type.register(irast.Mapping)
 def __infer_map(ir, schema):
+    if not ir.keys:
+        raise ql_errors.EdgeQLError('could not determine type of empty map',
+                                    context=ir.context)
+
     key_type = _infer_common_type(ir.keys, schema)
     if key_type is None:
         raise ql_errors.EdgeQLError('could not determine map keys type',
@@ -362,7 +368,9 @@ def __infer_seq(ir, schema):
                 raise ql_errors.EdgeQLError('could not determine array type',
                                             context=ir.context)
         else:
-            element_type = schema.get('std::any')
+            raise ql_errors.EdgeQLError(
+                'could not determine type of empty array',
+                context=ir.context)
 
         result = s_obj.Array(element_type=element_type)
     else:

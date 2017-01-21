@@ -1003,7 +1003,7 @@ class BaseConstant(Nonterm):
 
 class NoneConstant(Nonterm):
     def reduce_NULL(self, *kids):
-        self.val = qlast.ConstantNode(value=None)
+        self.val = qlast.EmptySetNode()
 
 
 class ArgConstant(Nonterm):

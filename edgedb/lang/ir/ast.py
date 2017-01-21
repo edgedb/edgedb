@@ -61,6 +61,10 @@ class Expr(Base):
     pass
 
 
+class EmptySet(Base):
+    pass
+
+
 class Constant(Expr):
 
     value: object

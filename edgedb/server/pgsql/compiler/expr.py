@@ -78,6 +78,9 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
                           target_type=expr.type,
                           force=True)
 
+    def visit_EmptySet(self, expr):
+        return pgast.Constant(val=None)
+
     def visit_Constant(self, expr):
         result = pgast.Constant(val=expr.value)
         result = self._cast(result,
@@ -91,11 +94,15 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
         pg_expr = self.visit(expr.expr)
 
         target_type = irutils.infer_type(expr, ctx.schema)
-        source_type = irutils.infer_type(expr.expr, ctx.schema)
 
-        return self._cast(pg_expr,
-                          source_type=source_type,
-                          target_type=target_type)
+        if isinstance(expr.expr, irast.EmptySet):
+            return self._simple_cast(pg_expr, target_type=target_type)
+
+        else:
+            source_type = irutils.infer_type(expr.expr, ctx.schema)
+            return self._cast(pg_expr,
+                              source_type=source_type,
+                              target_type=target_type)
 
     def visit_IndexIndirection(self, expr):
         # Handle Expr[Index], where Expr may be std::str or array<T>.
@@ -326,20 +333,23 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
             else:
                 op = expr.op
 
-            left_type = irutils.infer_type(expr.left, ctx.schema)
-            right_type = irutils.infer_type(expr.right, ctx.schema)
+            if (not isinstance(expr.left, irast.EmptySet) and
+                    not isinstance(expr.right, irast.EmptySet)):
 
-            if left_type and right_type:
-                left_pg_type = pg_types.pg_type_from_object(
-                    ctx.schema, left_type, True)
+                left_type = irutils.infer_type(expr.left, ctx.schema)
+                right_type = irutils.infer_type(expr.right, ctx.schema)
 
-                right_pg_type = pg_types.pg_type_from_object(
-                    ctx.schema, right_type, True)
+                if left_type and right_type:
+                    left_pg_type = pg_types.pg_type_from_object(
+                        ctx.schema, left_type, True)
 
-                if (left_pg_type in {('text',), ('varchar',)} and
-                        right_pg_type in {('text',), ('varchar',)} and
-                        op == ast.ops.ADD):
-                    op = '||'
+                    right_pg_type = pg_types.pg_type_from_object(
+                        ctx.schema, right_type, True)
+
+                    if (left_pg_type in {('text',), ('varchar',)} and
+                            right_pg_type in {('text',), ('varchar',)} and
+                            op == ast.ops.ADD):
+                        op = '||'
 
             result = self._new_binop(left, right, op=op)
 
@@ -413,9 +423,6 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
         return result
 
     def _cast(self, node, *, source_type, target_type, force=False):
-        if target_type.name == 'std::null':
-            return node
-
         if source_type.name == target_type.name and not force:
             return node
 
@@ -549,15 +556,21 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
                     op=ast.ops.NE)
 
             else:
-                const_type = pg_types.pg_type_from_object(
-                    schema, target_type, topbase=True)
+                return self._simple_cast(node, target_type=target_type)
 
-                return pgast.TypeCast(
-                    arg=node,
-                    type_name=pgast.TypeName(
-                        name=const_type
-                    )
-                )
+    def _simple_cast(self, node, *, target_type):
+        ctx = self.context.current
+        schema = ctx.schema
+
+        const_type = pg_types.pg_type_from_object(
+            schema, target_type, topbase=True)
+
+        return pgast.TypeCast(
+            arg=node,
+            type_name=pgast.TypeName(
+                name=const_type
+            )
+        )
 
     def _new_binop(self, lexpr, rexpr, op):
         return pgast.Expr(

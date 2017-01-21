@@ -81,6 +81,10 @@ class ConstantNode(Base):
     value: object
 
 
+class EmptySetNode(Base):
+    pass
+
+
 class ParameterNode(Base):
     name: str
 

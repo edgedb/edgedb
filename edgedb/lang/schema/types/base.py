@@ -246,12 +246,8 @@ def classname_from_type(typ):
         item_type = typ
 
     classname = None
-    NoneType = type(None)
 
-    if item_type is None or item_type is NoneType:
-        classname = 'std::null'
-
-    elif isinstance(item_type, s_obj.NodeClass):
+    if isinstance(item_type, s_obj.NodeClass):
         classname = item_type.name
 
     elif isinstance(item_type, s_pointers.Pointer):

@@ -13,7 +13,6 @@ from . import boolean  # NOQA
 from . import bytes  # NOQA
 from . import datetime  # NOQA
 from . import int  # NOQA
-from . import none  # NOQA
 from . import numeric  # NOQA
 from . import sequence  # NOQA
 from . import string  # NOQA

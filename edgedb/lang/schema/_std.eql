@@ -31,8 +31,6 @@ CREATE ATOM std::time;
 
 CREATE ATOM std::int;
 
-CREATE FINAL ATOM std::null;
-
 CREATE ATOM std::float;
 
 CREATE ATOM std::bool;

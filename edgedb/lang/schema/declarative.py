@@ -516,7 +516,7 @@ class DeclarationLoader:
                     # This is a computable, but we cannot interpret
                     # the expression yet, so set the target to none
                     # temporarily.
-                    _tnames = ['std::null']
+                    _tnames = ['std::any']
 
                 elif isinstance(linkdecl.target, list):
                     _tnames = [self._get_ref_name(t) for t in linkdecl.target]
