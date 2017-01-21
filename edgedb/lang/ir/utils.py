@@ -297,15 +297,43 @@ def __infer_slice(ir, schema):
 
 @_infer_type.register(irast.IndexIndirection)
 def __infer_index(ir, schema):
-    arg = infer_type(ir.expr, schema)
+    node_type = infer_type(ir.expr, schema)
+    index_type = infer_type(ir.index, schema)
+
+    str_t = schema.get('std::str')
+    int_t = schema.get('std::int')
 
     result = None
-    if arg is not None:
-        str_t = schema.get('std::str')
-        if arg.issubclass(str_t):
-            result = arg
-        elif isinstance(arg, (s_obj.Array, s_obj.Map)):
-            result = arg.element_type
+
+    if node_type.issubclass(str_t):
+
+        if not index_type.issubclass(int_t):
+            raise ql_errors.EdgeQLError(
+                f'cannot index string by {index_type.name}, '
+                f'{int_t.name} was expected',
+                context=ir.index.context)
+
+        result = node_type
+
+    elif isinstance(node_type, s_obj.Map):
+
+        if not index_type.issubclass(node_type.key_type):
+            raise ql_errors.EdgeQLError(
+                f'cannot index {node_type.name} by {index_type.name}, '
+                f'{node_type.key_type.name} was expected',
+                context=ir.index.context)
+
+        result = node_type.element_type
+
+    elif isinstance(node_type, s_obj.Array):
+
+        if not index_type.issubclass(int_t):
+            raise ql_errors.EdgeQLError(
+                f'cannot index array by {index_type.name}, '
+                f'{int_t.name} was expected',
+                context=ir.index.context)
+
+        result = node_type.element_type
 
     return result
 

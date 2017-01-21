@@ -159,6 +159,8 @@ class TestExpressions(tb.QueryTestCase):
             SELECT <std::int>"123" + 9000;
             SELECT <std::int>"123" * 100;
             SELECT <std::str>(123 * 2);
+            SELECT <int>true;
+            SELECT <int>false;
         """, [
             ['123'],
             [123],
@@ -166,6 +168,8 @@ class TestExpressions(tb.QueryTestCase):
             [9123],
             [12300],
             ['246'],
+            [1],
+            [0],
         ])
 
     async def test_edgeql_expr_cast02(self):
@@ -284,6 +288,14 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT [1, '1'];
             """)
 
+    async def test_edgeql_expr_list03(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError, r'cannot index array by.*str'):
+
+            await self.con.execute("""
+                SELECT [1, 2]['1'];
+            """)
+
     async def test_edgeql_expr_map01(self):
         await self.assert_query_result(r"""
             SELECT {'foo': 42};
@@ -349,11 +361,22 @@ class TestExpressions(tb.QueryTestCase):
             SELECT (<map<int,int>>{'+1':'+42'})[1];  # '+1'::bigint = 1
             SELECT (<map<datetime, datetime>>{'2020-10-10': '2010-01-01'})
                    [<datetime>'2020-10-10'];
+            SELECT (<map<int,int>>{true:'+42'})[1];
+            SELECT (<map<bool,int>>(<map<int,str>>{true:142}))[true];
         """, [
             [{'foo': '2020-10-10T00:00:00+00:00'}],
             [42],
             ['2010-01-01T00:00:00+00:00'],
+            [42],
+            [142],
         ])
+
+        with self.assertRaisesRegex(
+                exc.EdgeQLError, r'cannot index map.*by.*str.*int.*expected'):
+
+            await self.con.execute(r'''
+                SELECT {1:1}['1'];
+            ''')
 
     async def test_edgeql_expr_coalesce01(self):
         await self.assert_query_result(r"""
@@ -406,6 +429,14 @@ class TestExpressions(tb.QueryTestCase):
             ['ty'],
             ['qwer'],
         ])
+
+    async def test_edgeql_expr_string02(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError, r'cannot index string by.*str'):
+
+            await self.con.execute("""
+                SELECT '123'['1'];
+            """)
 
     async def test_edgeql_expr_tuple01(self):
         await self.assert_query_result(r"""

@@ -73,13 +73,17 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
                 index = len(ctx.argmap)
 
         result = pgast.ParamRef(number=index)
-        return self._cast(result, source_type=expr.type,
-                          target_type=expr.type)
+        return self._cast(result,
+                          source_type=expr.type,
+                          target_type=expr.type,
+                          force=True)
 
     def visit_Constant(self, expr):
         result = pgast.Constant(val=expr.value)
-        result = self._cast(result, source_type=expr.type,
-                            target_type=expr.type)
+        result = self._cast(result,
+                            source_type=expr.type,
+                            target_type=expr.type,
+                            force=True)
         return result
 
     def visit_TypeCast(self, expr):
@@ -89,7 +93,8 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
         target_type = irutils.infer_type(expr, ctx.schema)
         source_type = irutils.infer_type(expr.expr, ctx.schema)
 
-        return self._cast(pg_expr, source_type=source_type,
+        return self._cast(pg_expr,
+                          source_type=source_type,
                           target_type=target_type)
 
     def visit_IndexIndirection(self, expr):
@@ -105,9 +110,10 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
         index = self.visit(expr.index)
 
         if isinstance(arg_type, s_obj.Map):
+            index_type = irutils.infer_type(expr.index, ctx.schema)
             index = self._cast(
                 index,
-                source_type=irutils.infer_type(expr.index, ctx.schema),
+                source_type=index_type,
                 target_type=ctx.schema.get('std::str'))
 
             return self._cast(
@@ -405,8 +411,11 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
 
         return result
 
-    def _cast(self, node, *, source_type, target_type):
+    def _cast(self, node, *, source_type, target_type, force=False):
         if target_type.name == 'std::null':
+            return node
+
+        if source_type.name == target_type.name and not force:
             return node
 
         ctx = self.context.current
@@ -427,32 +436,34 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
                         array_bounds=[-1]))
 
             elif target_type.schema_name == 'map':
-                # EdgeQL: <map<T1,T2>>MAP
+                # EdgeQL: <map<Tkey,Tval>>MAP<Vkey,Vval>
                 # to SQL: SELECT jsonb_object(
-                #                    array_agg(key::T1::text),
-                #                    array_agg(value::T2::text))
+                #                    array_agg(key::Vkey::Tkey::text),
+                #                    array_agg(value::Vval::Tval::text))
                 #         FROM jsonb_each_text(MAP)
 
-                key_pgtype = pg_types.pg_type_from_atom(
-                    schema, target_type.key_type, topbase=True)
-
-                val_pgtype = pg_types.pg_type_from_atom(
-                    schema, target_type.element_type, topbase=True)
-
                 key_cast = self._cast(
-                    pgast.TypeCast(
-                        arg=pgast.ColumnRef(name=['key']),
-                        type_name=pgast.TypeName(name=key_pgtype)),
-
+                    self._cast(
+                        self._cast(
+                            pgast.ColumnRef(name=['key']),
+                            source_type=schema.get('std::str'),
+                            target_type=source_type.key_type),
+                        source_type=source_type.key_type,
+                        target_type=target_type.key_type,
+                    ),
                     source_type=target_type.key_type,
                     target_type=schema.get('std::str')
                 )
 
                 val_cast = self._cast(
-                    pgast.TypeCast(
-                        arg=pgast.ColumnRef(name=['value']),
-                        type_name=pgast.TypeName(name=val_pgtype)),
-
+                    self._cast(
+                        self._cast(
+                            pgast.ColumnRef(name=['value']),
+                            source_type=schema.get('std::str'),
+                            target_type=source_type.element_type),
+                        source_type=source_type.element_type,
+                        target_type=target_type.element_type,
+                    ),
                     source_type=target_type.element_type,
                     target_type=schema.get('std::str')
                 )
@@ -490,7 +501,6 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
 
         else:
             # `target_type` is not a collection.
-
             if (source_type.name == 'std::datetime' and
                     target_type.name == 'std::str'):
                 # Normalize datetime to text conversion to have the same
@@ -510,6 +520,32 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
                             type_name=pgast.TypeName(name=('text',))),
                         pgast.Constant(val='"')
                     ])
+
+            elif (source_type.name == 'std::bool' and
+                    target_type.name == 'std::int'):
+                # PostgreSQL 9.6 doesn't allow to cast 'boolean' to 'bigint':
+                #      SELECT 'true'::boolean::bigint;
+                #      ERROR:  cannot cast type boolean to bigint
+                # So we transform EdgeQL: <int>BOOL
+                # to SQL: BOOL::int::bigint
+                return pgast.TypeCast(
+                    arg=pgast.TypeCast(
+                        arg=node,
+                        type_name=pgast.TypeName(name=('int',))),
+                    type_name=pgast.TypeName(name=('bigint',))
+                )
+
+            elif (source_type.name == 'std::int' and
+                    target_type.name == 'std::bool'):
+                # PostgreSQL 9.6 doesn't allow to cast 'bigint' to 'boolean':
+                #      SELECT 1::bigint::boolean;
+                #      ERROR:  cannot cast type bigint to boolea
+                # So we transform EdgeQL: <boolean>INT
+                # to SQL: (INT != 0)
+                return self._new_binop(
+                    node,
+                    pgast.Constant(val=0),
+                    op=ast.ops.NE)
 
             else:
                 const_type = pg_types.pg_type_from_object(
