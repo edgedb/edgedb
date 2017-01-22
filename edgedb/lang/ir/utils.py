@@ -369,24 +369,24 @@ def __infer_map(ir, schema):
     return s_obj.Map(key_type=key_type, element_type=element_type)
 
 
+@_infer_type.register(irast.Array)
+def __infer_seq(ir, schema):
+    if ir.elements:
+        element_type = _infer_common_type(ir.elements, schema)
+        if element_type is None:
+            raise ql_errors.EdgeQLError('could not determine array type',
+                                        context=ir.context)
+    else:
+        raise ql_errors.EdgeQLError(
+            'could not determine type of empty array',
+            context=ir.context)
+
+    return s_obj.Array(element_type=element_type)
+
+
 @_infer_type.register(irast.Sequence)
 def __infer_seq(ir, schema):
-    if ir.is_array:
-        if ir.elements:
-            element_type = _infer_common_type(ir.elements, schema)
-            if element_type is None:
-                raise ql_errors.EdgeQLError('could not determine array type',
-                                            context=ir.context)
-        else:
-            raise ql_errors.EdgeQLError(
-                'could not determine type of empty array',
-                context=ir.context)
-
-        result = s_obj.Array(element_type=element_type)
-    else:
-        result = s_obj.Tuple(element_type=schema.get('std::any'))
-
-    return result
+    return s_obj.Tuple(element_type=schema.get('std::any'))
 
 
 def infer_type(ir, schema):

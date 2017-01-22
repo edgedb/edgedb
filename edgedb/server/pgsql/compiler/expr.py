@@ -96,8 +96,7 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
         target_type = irutils.infer_type(expr, ctx.schema)
 
         if (isinstance(expr.expr, irast.EmptySet) or
-                (isinstance(expr.expr, irast.Sequence) and
-                    expr.expr.is_array and
+                (isinstance(expr.expr, irast.Array) and
                     not expr.expr.elements) or
                 (isinstance(expr.expr, irast.Mapping) and
                     not expr.expr.keys)):
@@ -304,8 +303,6 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
 
             if expr.op in (ast.ops.IN, ast.ops.NOT_IN):
                 with self.context.new() as subctx:
-                    if isinstance(expr.right, irast.Sequence):
-                        subctx.sequence_is_array = True
                     subctx.output_format = 'identity'
                     subctx.in_member_test = True
                     right = self.visit(expr.right)
@@ -381,14 +378,15 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
                 ],
                 defresult=self.visit(expr.else_expr))
 
+    def visit_Array(self, expr):
+        elements = [self.visit(e) for e in expr.elements]
+        return pgast.ArrayExpr(elements=elements)
+
     def visit_Sequence(self, expr):
         ctx = self.context.current
-
         elements = [self.visit(e) for e in expr.elements]
 
-        if expr.is_array:
-            result = pgast.ArrayExpr(elements=elements)
-        elif (ctx.clause == 'result' and ctx.output_format == 'json' and
+        if (ctx.clause == 'result' and ctx.output_format == 'json' and
                 ctx.expr_exposed):
             result = pgast.FuncCall(
                 name=('jsonb_build_array',),

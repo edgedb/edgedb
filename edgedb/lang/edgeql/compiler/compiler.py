@@ -501,7 +501,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
     def visit_ArrayNode(self, expr):
         elements = self.visit(expr.elements)
-        return irast.Sequence(elements=elements, is_array=True)
+        return irast.Array(elements=elements)
 
     def _check_function(self, func, arg_types):
         if not func.paramtypes:
@@ -713,7 +713,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         if isinstance(expr.expr, qlast.EmptyCollectionNode):
             if maintype.name == 'array':
-                wrapped = irast.Sequence(is_array=True)
+                wrapped = irast.Array()
             elif maintype.name == 'map':
                 wrapped = irast.Mapping()
             else:
@@ -1471,8 +1471,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
                 elems.append(ref_elem)
 
-            expr.elements = elems
-            expr.is_array = True
+            expr = irast.Array(elements=elems)
 
         else:
             expr = self._process_type_ref_elem(expr, expr.context)

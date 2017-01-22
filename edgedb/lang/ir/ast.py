@@ -93,7 +93,11 @@ class Shape(Expr):
 class Sequence(Expr):
 
     elements: typing.List[Base]
-    is_array: bool
+
+
+class Array(Expr):
+
+    elements: typing.List[Base]
 
 
 class Mapping(Expr):
