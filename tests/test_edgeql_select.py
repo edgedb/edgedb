@@ -1242,11 +1242,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue {name}
-            ORDER BY Issue.priority.name ASC NULLS LAST THEN Issue.name;
+            ORDER BY Issue.priority.name ASC EMPTY LAST THEN Issue.name;
 
             WITH MODULE test
             SELECT Issue {name}
-            ORDER BY Issue.priority.name ASC NULLS FIRST THEN Issue.name;
+            ORDER BY Issue.priority.name ASC EMPTY FIRST THEN Issue.name;
         ''', [
             [
                 {'name': 'Improve EdgeDB repl output rendering.'},
@@ -1959,7 +1959,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue.priority.name = 'High'
                 OR
                 NOT EXISTS Issue.priority.name
-            ORDER BY Issue.priority.name NULLS LAST THEN Issue.number;
+            ORDER BY Issue.priority.name EMPTY LAST THEN Issue.number;
 
             WITH MODULE test
             SELECT Issue{number}
@@ -1967,7 +1967,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue.priority.name = 'High'
                 OR
                 NOT EXISTS Issue.priority.id
-            ORDER BY Issue.priority.name NULLS LAST THEN Issue.number;
+            ORDER BY Issue.priority.name EMPTY LAST THEN Issue.number;
         ''')
 
         self.assert_data_shape(res, [
@@ -1999,7 +1999,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue.priority.name = 'High'
                 OR
                 NOT EXISTS Issue.priority
-            ORDER BY Issue.priority.name NULLS LAST THEN Issue.number;
+            ORDER BY Issue.priority.name EMPTY LAST THEN Issue.number;
         ''')
 
         self.assert_data_shape(res, [
@@ -2264,25 +2264,25 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_null01(self):
         await self.assert_query_result(r"""
-            SELECT test::Issue.number = NULL;
+            SELECT test::Issue.number = EMPTY;
             """, [
             [None, None, None, None],
         ])
 
     async def test_edgeql_select_null02(self):
         await self.assert_query_result(r"""
-            # the WHERE clause is always NULL, so it can never be true
+            # the WHERE clause is always EMPTY, so it can never be true
             WITH MODULE test
             SELECT Issue{number}
-            WHERE Issue.number = NULL;
+            WHERE Issue.number = EMPTY;
 
             WITH MODULE test
             SELECT Issue{number}
-            WHERE Issue.priority = NULL;
+            WHERE Issue.priority = EMPTY;
 
             WITH MODULE test
             SELECT Issue{number}
-            WHERE Issue.priority.name = NULL;
+            WHERE Issue.priority.name = EMPTY;
             """, [
             [],
             [],
@@ -2410,7 +2410,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WHERE
                 Issue != Issue2
                 AND
-                # NOTE: this condition is false when one of the sides is NULL
+                # NOTE: this condition is false when one of the sides is EMPTY
                 Issue.priority = Issue2.priority
             ORDER BY
                 Issue.number;
@@ -2421,7 +2421,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_subqueries06(self):
         await self.assert_query_result(r"""
             # find all issues such that there's at least one more
-            # issue with the same priority (even if the "same" means NULL)
+            # issue with the same priority (even if the "same" means EMPTY)
             WITH
                 MODULE test,
                 Issue2 := (SELECT Issue)

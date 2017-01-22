@@ -129,7 +129,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         SELECT TRUE;
         SELECT FALSE;
-        SELECT NULL;
+        SELECT EMPTY;
         """
 
     def test_edgeql_syntax_contants06(self):
@@ -1258,7 +1258,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_cast04(self):
         """
-        SELECT -<int>NULL;
+        SELECT -<int>EMPTY;
         """
 
     def test_edgeql_syntax_cardinality01(self):
@@ -1496,8 +1496,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_select10(self):
         """
-        SELECT Issue {name} ORDER BY Issue.priority.name ASC NULLS FIRST;
-        SELECT Issue {name} ORDER BY Issue.priority.name DESC NULLS LAST;
+        SELECT Issue {name} ORDER BY Issue.priority.name ASC EMPTY FIRST;
+        SELECT Issue {name} ORDER BY Issue.priority.name DESC EMPTY LAST;
         """
 
     def test_edgeql_syntax_select11(self):

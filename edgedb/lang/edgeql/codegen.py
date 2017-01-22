@@ -301,7 +301,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(' ')
             self.write(node.direction)
         if node.nones_order:
-            self.write(' NULLS ')
+            self.write(' EMPTY ')
             self.write(node.nones_order.upper())
 
     def visit_ExistsPredicateNode(self, node):
@@ -456,7 +456,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(node.name)
 
     def visit_EmptySetNode(self, node):
-        self.write('NULL')
+        self.write('EMPTY')
 
     def visit_ConstantNode(self, node):
         try:

@@ -634,10 +634,10 @@ class OptDirection(Nonterm):
 
 
 class OptNonesOrder(Nonterm):
-    def reduce_NULLS_FIRST(self, *kids):
+    def reduce_EMPTY_FIRST(self, *kids):
         self.val = qlast.NonesFirst
 
-    def reduce_NULLS_LAST(self, *kids):
+    def reduce_EMPTY_LAST(self, *kids):
         self.val = qlast.NonesLast
 
     def reduce_empty(self, *kids):
@@ -1021,7 +1021,7 @@ class BaseConstant(Nonterm):
 
 
 class NoneConstant(Nonterm):
-    def reduce_NULL(self, *kids):
+    def reduce_EMPTY(self, *kids):
         self.val = qlast.EmptySetNode()
 
 

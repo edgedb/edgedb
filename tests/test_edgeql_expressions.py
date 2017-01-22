@@ -25,10 +25,10 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_emptyset_01(self):
         await self.assert_query_result(r"""
-            SELECT <int>NULL;
-            SELECT <str>NULL;
-            SELECT NULL + 1;
-            SELECT 1 + NULL;
+            SELECT <int>EMPTY;
+            SELECT <str>EMPTY;
+            SELECT EMPTY + 1;
+            SELECT 1 + EMPTY;
         """, [
             [None],
             [None],
@@ -40,7 +40,7 @@ class TestExpressions(tb.QueryTestCase):
                                     r'could not determine expression type'):
 
             await self.con.execute("""
-                SELECT NULL;
+                SELECT EMPTY;
             """)
 
     async def test_edgeql_expr_op01(self):
@@ -110,9 +110,9 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_op06(self):
         await self.assert_query_result(r"""
-            SELECT NULL = NULL;
-            SELECT NULL = 42;
-            SELECT NULL = 'NULL';
+            SELECT EMPTY = EMPTY;
+            SELECT EMPTY = 42;
+            SELECT EMPTY = 'EMPTY';
         """, [
             [None],
             [None],
@@ -121,8 +121,8 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_op07(self):
         await self.assert_query_result(r"""
-            SELECT EXISTS NULL;
-            SELECT NOT EXISTS NULL;
+            SELECT EXISTS EMPTY;
+            SELECT NOT EXISTS EMPTY;
         """, [
             [False],
             [True],
@@ -490,22 +490,22 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_coalesce01(self):
         await self.assert_query_result(r"""
-            SELECT NULL ?? 4 ?? 5;
-            SELECT NULL ?? 'foo' ?? 'bar';
-            SELECT 4 ?? NULL ?? 5;
+            SELECT EMPTY ?? 4 ?? 5;
+            SELECT EMPTY ?? 'foo' ?? 'bar';
+            SELECT 4 ?? EMPTY ?? 5;
 
-            SELECT 'foo' ?? NULL ?? 'bar';
-            SELECT NULL ?? 'bar' = 'bar';
+            SELECT 'foo' ?? EMPTY ?? 'bar';
+            SELECT EMPTY ?? 'bar' = 'bar';
 
-            SELECT 4^NULL ?? 2;
-            SELECT 4+NULL ?? 2;
-            SELECT 4*NULL ?? 2;
+            SELECT 4^EMPTY ?? 2;
+            SELECT 4+EMPTY ?? 2;
+            SELECT 4*EMPTY ?? 2;
 
-            SELECT -<int>NULL ?? 2;
-            SELECT -<int>NULL ?? -2 + 1;
+            SELECT -<int>EMPTY ?? 2;
+            SELECT -<int>EMPTY ?? -2 + 1;
 
-            SELECT <int>(NULL ?? NULL);
-            SELECT <int>(NULL ?? NULL ?? NULL);
+            SELECT <int>(EMPTY ?? EMPTY);
+            SELECT <int>(EMPTY ?? EMPTY ?? EMPTY);
         """, [
             [4],
             ['foo'],
