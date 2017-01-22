@@ -943,7 +943,7 @@ class Collection(Nonterm):
             for item in items:
                 if item[0] != typ:
                     raise EdgeQLSyntaxError("unexpected array item in map",
-                                            context=item[2].context)
+                                            context=item[1].context)
                 keys.append(item[1].val)
                 values.append(item[2].val)
 

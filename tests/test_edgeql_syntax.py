@@ -1156,6 +1156,22 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT (['foo'-> 42, 'bar'-> 'something'])['foo'];
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  'unexpected map item in array',
+                  line=2, col=23)
+    def test_edgeql_syntax_map05(self):
+        """
+        SELECT [1, 2, 1->2, 3];
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  'unexpected array item in map',
+                  line=2, col=29)
+    def test_edgeql_syntax_map06(self):
+        """
+        SELECT [1->1, 2->2, 1, 3];
+        """
+
     def test_edgeql_syntax_sequence01(self):
         """
         SELECT (User.name);  # not a sequence
