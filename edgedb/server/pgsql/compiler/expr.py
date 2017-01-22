@@ -125,19 +125,37 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
         index = self.visit(expr.index)
 
         if isinstance(arg_type, s_obj.Map):
+            # When we compile maps we always cast keys to text,
+            # hence we need to cast the index to text here.
             index_type = irutils.infer_type(expr.index, ctx.schema)
             index = self._cast(
                 index,
                 source_type=index_type,
                 target_type=ctx.schema.get('std::str'))
 
-            return self._cast(
-                self._new_binop(
+            if isinstance(arg_type.element_type, s_obj.Array):
+                return self._cast(
+                    self._new_binop(
+                        lexpr=subj,
+                        op='->',
+                        rexpr=index),
+                    source_type=ctx.schema.get('std::json'),
+                    target_type=arg_type.element_type)
+
+            elif isinstance(arg_type.element_type, s_obj.Map):
+                return self._new_binop(
                     lexpr=subj,
-                    op='->>',
-                    rexpr=index),
-                source_type=ctx.schema.get('std::str'),
-                target_type=arg_type.element_type)
+                    op='->',
+                    rexpr=index)
+
+            else:
+                return self._cast(
+                    self._new_binop(
+                        lexpr=subj,
+                        op='->>',
+                        rexpr=index),
+                    source_type=ctx.schema.get('std::str'),
+                    target_type=arg_type.element_type)
 
         if isinstance(arg_type, s_atoms.Atom):
             b = arg_type.get_topmost_base()
@@ -404,6 +422,7 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
         str_t = schema.get('std::str')
 
         for k, v in zip(expr.keys, expr.values):
+            # Cast keys to 'text' explicitly.
             elements.append(
                 self._cast(
                     self.visit(k),
@@ -411,6 +430,8 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
                     target_type=str_t)
             )
 
+            # Don't cast values as we want to preserve ints, floats, bools,
+            # and arrays as JSON arrays (not text-encoded PostgreSQL types.)
             elements.append(self.visit(v))
 
         return pgast.FuncCall(
@@ -447,19 +468,63 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
 
         if isinstance(target_type, s_obj.Collection):
             if target_type.schema_name == 'array':
-                # EdgeQL: <array<int>>['1', '2']
-                # to SQL: ARRAY['1', '2']::int[]
 
-                elem_pgtype = pg_types.pg_type_from_atom(
-                    schema, target_type.element_type, topbase=True)
+                if source_type.name == 'std::json':
+                    # If we are casting a jsonb array to array, we do the
+                    # following transformation:
+                    # EdgeQL: <array<T>>MAP_VALUE
+                    # SQL:
+                    #      SELECT array_agg(j::T)
+                    #      FROM jsonb_array_elements(MAP_VALUE) AS j
 
-                return pgast.TypeCast(
-                    arg=node,
-                    type_name=pgast.TypeName(
-                        name=elem_pgtype,
-                        array_bounds=[-1]))
+                    inner_cast = self._cast(
+                        pgast.ColumnRef(name=['j']),
+                        source_type=source_type,
+                        target_type=target_type.element_type
+                    )
+
+                    return pgast.SelectStmt(
+                        target_list=[
+                            pgast.ResTarget(
+                                val=pgast.FuncCall(
+                                    name=('array_agg',),
+                                    args=[
+                                        inner_cast
+                                    ])
+                            )
+                        ],
+                        from_clause=[
+                            pgast.RangeSubselect(
+                                subquery=pgast.FuncCall(
+                                    name=('jsonb_array_elements',),
+                                    args=[
+                                        node
+                                    ]
+                                ),
+                                alias=pgast.Alias(
+                                    aliasname='j'
+                                )
+                            )
+                        ])
+                else:
+                    # EdgeQL: <array<int>>['1', '2']
+                    # to SQL: ARRAY['1', '2']::int[]
+
+                    elem_pgtype = pg_types.pg_type_from_atom(
+                        schema, target_type.element_type, topbase=True)
+
+                    return pgast.TypeCast(
+                        arg=node,
+                        type_name=pgast.TypeName(
+                            name=elem_pgtype,
+                            array_bounds=[-1]))
 
             elif target_type.schema_name == 'map':
+                if source_type.name == 'std::json':
+                    # If the source type is json do nothing, since
+                    # maps are already encoded in json.
+                    return node
+
                 # EdgeQL: <map<Tkey,Tval>>MAP<Vkey,Vval>
                 # to SQL: SELECT jsonb_object_agg(
                 #                    key::Vkey::Tkey::text,
@@ -526,11 +591,6 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
                         )
                     ])
 
-            else:
-                raise NotImplementedError(
-                    f'{target_type.schema_name} composite type '
-                    f'is not supported yet')
-
         else:
             # `target_type` is not a collection.
             if (source_type.name == 'std::datetime' and
@@ -579,6 +639,34 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
                     pgast.Constant(val=0),
                     op=ast.ops.NE)
 
+            elif source_type.name == 'std::json':
+                str_t = schema.get('std::str')
+
+                if target_type.name in ('std::int', 'std::bool',
+                                        'std::float'):
+                    # Simply cast to text and the to the target type.
+                    return self._cast(
+                        self._cast(
+                            node,
+                            source_type=source_type,
+                            target_type=str_t),
+                        source_type=str_t,
+                        target_type=target_type)
+
+                elif target_type.name == 'std::str':
+                    # It's not possible to cast jsonb string to text directly,
+                    # so we do a trick:
+                    # EdgeQL: <str>JSONB_VAL
+                    # SQL: array_to_json(ARRAY[JSONB_VAL])->>0
+
+                    return self._new_binop(
+                        pgast.FuncCall(
+                            name=('array_to_json',),
+                            args=[pgast.ArrayExpr(elements=[node])]),
+                        pgast.Constant(val=0),
+                        op='->>'
+                    )
+
             else:
                 const_type = pg_types.pg_type_from_object(
                     schema, target_type, topbase=True)
@@ -589,6 +677,9 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
                         name=const_type
                     )
                 )
+
+        raise IRCompilerInternalError(
+            f'could not cast {source_type.name} to {target_type.name}')
 
     def _new_binop(self, lexpr, rexpr, op):
         return pgast.Expr(

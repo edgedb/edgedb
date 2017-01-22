@@ -23,6 +23,8 @@ CREATE ATOM std::uuid;
 
 CREATE ATOM std::str;
 
+CREATE ATOM std::json;
+
 CREATE ATOM std::timedelta;
 
 CREATE ATOM std::date;

@@ -360,6 +360,8 @@ class TestExpressions(tb.QueryTestCase):
             SELECT [[10+1 ->1] -> 100, [2 ->2] -> 200]
                     [<map<int,int>>['1'+'1' ->'1']];
 
+            SELECT ['aaa' -> [ [['a'->1]], [['b'->2]], [['c'->3]] ] ];
+
             SELECT <map<int, int>>[];
         """, [
             [{'foo': 42}],
@@ -386,6 +388,8 @@ class TestExpressions(tb.QueryTestCase):
             [42],
             [42],
             [100],
+
+            [ {'aaa': [[{'a': 1}], [{'b': 2}], [{'c': 3}]]} ],
 
             [{}]
         ])
@@ -451,15 +455,37 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT [1 -> 1]['1'];
             ''')
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_map05(self):
         await self.assert_query_result(r"""
-            SELECT [1 -> [1,2,3]][1][2];
-            SELECT [[10+1] -> ['ab'], [2:2] -> ['xy']][
-                        <map<int,int>>['1'+'1' -> '1']][0][1];
+            SELECT [1 -> [ [[1]], [[-2]], [[3]] ] ]   [1];
+            SELECT [1 -> [ [[true]], [[false]], [[true]] ] ]   [1];
+            SELECT [1 -> [ [[1.1]], [[-2.2]], [[3.3]] ] ]   [1];
+            SELECT [1 -> [ [['aa']], [['bb']], [['cc']] ] ]   [1];
+            SELECT [1 -> [ [['aa'->1]], [['bb'->2]], [['cc'->3]] ] ]   [1];
+            SELECT [1 -> ['a'->[1,2], 'b'->[1,3]]] [1];
+            SELECT [1 -> ['a'->[['x'->10]], 'b'->[['y'->20]]]] [1];
+            SELECT [1 -> ['a'->[['x'->10]],'b'->[['y'->20]]]] [1]['a'][0]['x'];
         """, [
-            [3],
-            ['b'],
+            [[[[1]], [[-2]], [[3]]]],
+            [[[[True]], [[False]], [[True]]]],
+            [[[[1.1]], [[-2.2]], [[3.3]]]],
+            [[[['aa']], [['bb']], [['cc']]]],
+            [[[{'aa': 1}], [{'bb': 2}], [{'cc': 3}]]],
+            [{'a': [1, 2], 'b': [1, 3]}],
+            [{'a': [{'x': 10}], 'b': [{'y': 20}]}],
+            [10],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_map06(self):
+        await self.assert_query_result(r"""
+            SELECT [1 -> [ [[1]], [[-2]], [[3]] ] ]   [1][0];
+            SELECT [1 -> [ [[1]], [[-2]], [[3]] ] ]   [1][0][0];
+            SELECT [1 -> [ [[1]], [[-2]], [[3]] ] ]   [1][0][0][0];
+        """, [
+            [[[1]]],
+            [[1]],
+            [1],
         ])
 
     async def test_edgeql_expr_coalesce01(self):
