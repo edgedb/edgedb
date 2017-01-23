@@ -6,6 +6,8 @@
 ##
 
 
+import collections
+
 from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
 
@@ -20,6 +22,10 @@ from edgedb.lang.common import ast, markup
 
 from . import dbobj
 from . import func
+
+
+ResTargetList = collections.namedtuple('ResTargetList', ['targets', 'attmap'])
+VarList = collections.namedtuple('VarList', ['vars'])
 
 
 class IRCompilerError(pg_errors.BackendError):
@@ -374,7 +380,26 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
                             op == ast.ops.ADD):
                         op = '||'
 
-            result = self._new_binop(left, right, op=op)
+            if isinstance(left, ResTargetList):
+                left_count = len(left.targets)
+                left = pgast.RowExpr(args=left.targets)
+            else:
+                left_count = 0
+
+            if isinstance(right, ResTargetList):
+                right_count = len(right.targets)
+                right = pgast.RowExpr(args=right.targets)
+            else:
+                right_count = 0
+
+            if left_count != right_count:
+                # Postgres does not allow comparing rows with
+                # unequal number of entries, but we want to allow
+                # this.  Fortunately, we know that such comparison is
+                # always False.
+                result = pgast.Constant(val=False)
+            else:
+                result = self._new_binop(left, right, op=op)
 
         return result
 

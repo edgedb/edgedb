@@ -2801,7 +2801,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_struct01(self):
         await self.assert_query_result(r"""
-            # get shapes {'status': ..., 'count': ...}
             WITH MODULE test
             SELECT {
                 statuses := count(Status),
@@ -2811,8 +2810,106 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'statuses': 2, 'issues': 4}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_struct02(self):
+        # Struct in a common set expr.
+        await self.assert_query_result(r"""
+            WITH
+                MODULE test,
+                counts := (SELECT {
+                    statuses := count(Status),
+                    issues := count(Issue),
+                })
+            SELECT
+                counts.statuses + counts.issues;
+            """, [
+            [6],
+        ])
+
+    async def test_edgeql_select_struct03(self):
+        # Object in a struct.
+        await self.assert_query_result(r"""
+            WITH
+                MODULE test,
+                criteria := (SELECT {
+                    user := (SELECT User WHERE User.name = 'Yury'),
+                    status := (SELECT Status WHERE Status.name = 'Open'),
+                })
+            SELECT
+                Issue.number
+            WHERE
+                Issue.owner = criteria.user
+                AND Issue.status = criteria.status;
+            """, [
+            ['2'],
+        ])
+
+    async def test_edgeql_select_struct04(self):
+        # Object in a struct returned directly.
+        await self.assert_query_result(r"""
+            WITH
+                MODULE test
+            SELECT
+                {
+                    user := (SELECT User{name} WHERE User.name = 'Yury')
+                };
+            """, [
+            [{
+                'user': {
+                    'name': 'Yury'
+                }
+            }],
+        ])
+
+    async def test_edgeql_select_struct05(self):
+        # Object in a struct referred to directly.
+        await self.assert_query_result(r"""
+            WITH
+                MODULE test
+            SELECT
+                {
+                    user := (SELECT User{name} WHERE User.name = 'Yury')
+                }.user.name;
+            """, [
+            ['Yury'],
+        ])
+
+    async def test_edgeql_select_struct06(self):
+        # Struct comparison
+        await self.assert_query_result(r"""
+            WITH
+                MODULE test
+            SELECT
+                {user := (SELECT User{name} WHERE User.name = 'Yury')}
+                    =
+                {user := (SELECT User{name} WHERE User.name = 'Yury')};
+
+            WITH
+                MODULE test
+            SELECT
+                {user := (SELECT User{name} WHERE User.name = 'Yury')}
+                    =
+                {user := (SELECT User{name} WHERE User.name = 'Elvis')};
+
+            WITH
+                MODULE test
+            SELECT
+                {
+                    user := (SELECT User{name} WHERE User.name = 'Yury'),
+                    spam := 'ham',
+                }
+                    =
+                {
+                    user := (SELECT User{name} WHERE User.name = 'Yury'),
+                };
+
+            """, [
+            [True],
+            [False],
+            [False],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_struct99(self):
         await self.assert_query_result(r"""
             # nested structs
             # XXX: the below doesn't work yet due to the unhandled

@@ -242,6 +242,12 @@ class FunctionCall(Expr):
     window: bool
 
 
+class StructIndirection(Expr):
+
+    expr: Base
+    name: str
+
+
 class IndexIndirection(Expr):
 
     expr: Base

@@ -367,7 +367,21 @@ def __infer_tuple(ir, schema):
 
 @_infer_type.register(irast.Struct)
 def __infer_struct(ir, schema):
-    return s_obj.Struct(element_type=schema.get('std::any'))
+    element_types = {el.name: infer_type(el.val, schema) for el in ir.elements}
+    return s_obj.Struct(
+        element_type=schema.get('std::any'),
+        element_types=element_types)
+
+
+@_infer_type.register(irast.StructIndirection)
+def __infer_struct_indirection(ir, schema):
+    struct_type = infer_type(ir.expr, schema)
+    result = struct_type.element_types.get(ir.name)
+    if result is None:
+        raise ql_errors.EdgeQLError('could not determine struct element type',
+                                    context=ir.context)
+
+    return result
 
 
 def infer_type(ir, schema):

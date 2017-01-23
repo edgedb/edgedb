@@ -821,13 +821,6 @@ class Tuple(Collection):
         return tuple
 
 
-class Struct(Collection):
-    schema_name = 'struct'
-
-    def get_container(self):
-        return dict
-
-
 class ClassCollection:
     pass
 
@@ -949,3 +942,18 @@ class ArgDict(typed.TypedDict, keytype=str, valuetype=object):
             basecoef = sum(similarity) / len(similarity)
 
         return basecoef + (1 - basecoef) * compcoef
+
+
+class Struct(Collection):
+    schema_name = 'struct'
+
+    element_types = Field(ClassDict, coerce=True)
+
+    def get_container(self):
+        return dict
+
+    def get_subtypes(self):
+        if self.element_types:
+            return list(self.element_types.values())
+        else:
+            return super().get_subtypes()

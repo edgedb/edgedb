@@ -6,7 +6,6 @@
 ##
 
 
-import collections
 import functools
 
 from edgedb.lang.common import exceptions as edgedb_error
@@ -17,6 +16,7 @@ from edgedb.lang.ir import utils as irutils
 from edgedb.lang.schema import atoms as s_atoms
 from edgedb.lang.schema import concepts as s_concepts
 from edgedb.lang.schema import lproperties as s_lprops
+from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
 
 from edgedb.server.pgsql import ast as pgast
@@ -31,8 +31,7 @@ from .context import TransformerContext
 from . import expr as expr_compiler
 from . import dml
 
-
-ResTargetList = collections.namedtuple('ResTargetList', ['targets', 'attmap'])
+from .expr import ResTargetList, VarList
 
 
 class IRCompiler(expr_compiler.IRCompilerBase,
@@ -240,35 +239,26 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             attribute_map.append(attr_name)
             my_elements.append(element)
 
-        if ctx.output_format == 'flat':
-            # DML statements want ``SELECT Object`` to return the object
-            # identity and properties in addressable column format.
-            result = ResTargetList(my_elements, attribute_map)
-            testref = None
-
-        elif ctx.output_format == 'json':
-            # In JSON mode we simply produce a JSONB object of
-            # the shape record...
-            keyvals = []
-            for i, pgexpr in enumerate(my_elements):
-                key = attribute_map[i]
-                if key.is_linkprop:
-                    key = '@' + key.name
-                else:
-                    key = key.name
-                keyvals.append(pgast.Constant(val=key))
-                keyvals.append(pgexpr)
-
-            result = pgast.FuncCall(
-                name=('jsonb_build_object',), args=keyvals)
-
-        elif ctx.output_format == 'identity':
+        if ctx.output_format == 'identity':
             result = testref
             testref = None
-
         else:
-            raise NotImplementedError(
-                f'unsupported output_format: {ctx.output_format}')
+            rtlist = ResTargetList(my_elements, attribute_map)
+
+            if ctx.output_format == 'flat':
+                # DML statements want ``SELECT Object`` to return the object
+                # identity and properties in addressable column format.
+                testref = None
+                result = rtlist
+
+            elif ctx.output_format == 'json':
+                # In JSON mode we simply produce a JSONB object of
+                # the shape record...
+                result = self._rtlist_as_json_object(rtlist)
+
+            else:
+                raise NotImplementedError(
+                    f'unsupported output_format: {ctx.output_format}')
 
         if testref is not None:
             # In case the object reference is NULL we want the
@@ -288,8 +278,6 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         return result
 
     def visit_Struct(self, expr):
-        ctx = self.context.current
-
         my_elements = []
         attribute_map = []
 
@@ -297,6 +285,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             with self.context.new() as newctx:
                 newctx.scope_cutoff = True
                 newctx.in_shape = True
+                if not newctx.expr_exposed:
+                    newctx.output_format = 'identity'
                 val = e.val
                 if (isinstance(val, irast.Set) and
                         isinstance(val.expr, irast.Stmt)):
@@ -307,30 +297,24 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             attribute_map.append(e.name)
             my_elements.append(element)
 
-        if ctx.output_format == 'flat':
-            # DML statements want ``SELECT Object`` to return the object
-            # identity and properties in addressable column format.
-            result = ResTargetList(my_elements, attribute_map)
+        return ResTargetList(my_elements, attribute_map)
 
-        elif ctx.output_format == 'json':
-            # In JSON mode we simply produce a JSONB object of
-            # the shape record...
-            keyvals = []
-            for i, pgexpr in enumerate(my_elements):
-                keyvals.append(pgast.Constant(val=attribute_map[i]))
-                keyvals.append(pgexpr)
+    def visit_StructIndirection(self, expr):
+        with self.context.new() as ctx:
+            # Make sure the struct doesn't get collapsed into a value.
+            ctx.expr_exposed = False
+            struct_vars = self.visit(expr.expr)
 
-            result = pgast.FuncCall(
-                name=('jsonb_build_object',), args=keyvals)
+        if not isinstance(struct_vars, VarList):
+            raise RuntimeError(  # pragma: no cover
+                'expecting struct VarList')
 
-        elif ctx.output_format == 'identity':
-            result = pgast.RowExpr(args=my_elements)
-
+        for colref in struct_vars.vars:
+            if colref.name[-1] == expr.name:
+                return colref
         else:
-            raise NotImplementedError(
-                f'unsupported output_format: {ctx.output_format}')
-
-        return result
+            raise RuntimeError(  # pragma: no cover
+                f'could not find {expr.name} in struct VarList')
 
     def visit_Set(self, expr):
         ctx = self.context.current
@@ -683,10 +667,16 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                     src.rptr.ptrcls.shortname.name
                 )
             else:
-                alias_hint = src.scls.name.name
+                if isinstance(src.scls, s_obj.Collection):
+                    alias_hint = src.scls.schema_name
+                else:
+                    alias_hint = src.scls.name.name
             alias_hint += '_expr'
         else:
-            alias_hint = ir_set.scls.name.name
+            if isinstance(ir_set.scls, s_obj.Collection):
+                alias_hint = ir_set.scls.schema_name
+            else:
+                alias_hint = ir_set.scls.name.name
 
         return alias_hint
 
@@ -722,7 +712,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             self._pull_path_namespace(target=stmt, source=src_rvar)
             self._rel_join(stmt, src_rvar, type='inner')
 
-    def _get_set_rvar(self, ir_set, stmt, nullable=False):
+    def _get_root_rvar(self, ir_set, stmt, nullable=False):
         if not isinstance(ir_set.scls, s_concepts.Concept):
             return None
 
@@ -752,7 +742,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         """Populate the CTE for a Set defined by a path root."""
 
         ctx = self.context.current
-        set_rvar = self._get_set_rvar(ir_set, stmt)
+        set_rvar = self._get_root_rvar(ir_set, stmt)
         stmt.from_clause.append(set_rvar)
         ctx.query.ctes.append(self._get_set_cte(ir_set))
 
@@ -768,7 +758,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         fromlist = stmt.from_clause
 
         self._connect_set_sources(ir_set, stmt, [ir_set.rptr.source])
-        set_rvar = self._get_set_rvar(ir_set, stmt, nullable=ctx.lax_paths)
+        set_rvar = self._get_root_rvar(ir_set, stmt, nullable=ctx.lax_paths)
 
         if (isinstance(rptr.source.scls, s_atoms.Atom) and
                 ptrcls.shortname == 'std::__class__'):
@@ -896,13 +886,16 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         ctx = self.context.current
 
-        set_rvar = self._get_set_rvar(ir_set, stmt)
+        root_rvar = self._get_root_rvar(ir_set, stmt)
 
-        if not ir_set.sources and set_rvar is not None:
-            stmt.from_clause.append(set_rvar)
+        # Determine if we need to join the root range for this class.
+        need_root_rvar = not ir_set.sources and root_rvar is not None
+
+        outstanding_joins = []
+        sources_connected = False
 
         if isinstance(ir_set.expr, irast.TypeFilter):
-            self._rel_join(stmt, stmt.scls_rvar, type='left')
+            self._rel_join(stmt, stmt.scls_rvar, type='inner')
 
             valref = self._get_column(
                 stmt.scls_rvar, stmt.scls_rvar.path_vars[ir_set.path_id])
@@ -921,9 +914,16 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             stmt.path_vars[id_set.path_id] = ext_valref
 
         else:
+            expr_result = irutils.infer_type(ir_set.expr, ctx.schema)
+
             with self.context.new() as newctx:
                 newctx.in_set_expr = True
-                newctx.rel = stmt
+
+                if isinstance(expr_result, s_concepts.Concept):
+                    newctx.rel = innerqry = pgast.SelectStmt()
+                else:
+                    newctx.rel = stmt
+
                 set_expr = self.visit(ir_set.expr)
 
                 if irutils.is_aggregated_expr(ir_set.expr):
@@ -933,16 +933,16 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                     stmt.inner_path_bonds.clear()
                     stmt.target_list[:] = []
 
-            expr_result = irutils.infer_type(ir_set.expr, ctx.schema)
-
             if isinstance(expr_result, s_concepts.Concept):
-                innerqry = pgast.SelectStmt(
-                    target_list=[
-                        pgast.ResTarget(
-                            val=set_expr,
-                            name='v'
-                        )
-                    ]
+                self._connect_subrels(innerqry, connect_subqueries=False)
+                sources_connected = True
+                need_root_rvar = True
+
+                innerqry.target_list.append(
+                    pgast.ResTarget(
+                        val=set_expr,
+                        name='v'
+                    )
                 )
 
                 valref = pgast.ColumnRef(
@@ -986,18 +986,30 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                     'linked': True
                 }
 
-                self._rel_join(stmt, expr_rvar, type='inner')
-
+                outstanding_joins.append(expr_rvar)
                 restarget = pgast.ResTarget(val=valref, name='v')
                 stmt.target_list.append(restarget)
             else:
-                restarget = pgast.ResTarget(val=set_expr, name='v')
-                stmt.target_list.append(restarget)
+                if isinstance(set_expr, ResTargetList):
+                    for i, rt in enumerate(set_expr.targets):
+                        stmt.target_list.append(
+                            pgast.ResTarget(val=rt, name=set_expr.attmap[i])
+                        )
+                else:
+                    restarget = pgast.ResTarget(val=set_expr, name='v')
+                    stmt.target_list.append(restarget)
+
+        if need_root_rvar:
+            stmt.from_clause.append(root_rvar)
 
         self._connect_subrels(stmt, connect_subqueries=False)
 
-        if ir_set.sources:
+        if ir_set.sources and not sources_connected:
             self._connect_set_sources(ir_set, stmt, ir_set.sources)
+
+        if outstanding_joins:
+            for rvar in outstanding_joins:
+                self._rel_join(stmt, rvar, type='inner')
 
         self._connect_subrels(stmt)
 
@@ -1060,6 +1072,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             with self.context.substmt():
                 self.context.current.output_format = 'flat'
                 subquery = self.visit(substmt.expr)
+                expr_type = irutils.infer_type(substmt.expr, ctx.schema)
+
                 cte = pgast.CommonTableExpr(
                     query=subquery,
                     name=ctx.genalias(hint=substmt.path_id[0].name.name)
@@ -1070,38 +1084,40 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                     # XXX: hack
                     subquery.scls_rvar = subquery.from_clause[0]
 
-                ref = subquery.path_namespace.get(substmt.real_path_id)
-                self._reset_path_namespace(subquery)
+                if not isinstance(expr_type, s_obj.Struct):
+                    ref = subquery.path_namespace.get(substmt.real_path_id)
+                    self._reset_path_namespace(subquery)
 
-                if ref is None:
-                    # Result path might be None for pure-expression
-                    # queries.
-                    rvar = pgast.RangeSubselect(
-                        subquery=subquery,
-                        alias=pgast.Alias(
-                            aliasname=ctx.genalias(hint='q')
-                        )
-                    )
-
-                    rt_name = self._ensure_query_restarget_name(subquery, 'v')
-                    ref = self._get_column(rvar, rt_name)
-
-                    wrapper = pgast.SelectStmt(
-                        target_list=[
-                            pgast.ResTarget(
-                                val=ref
+                    if ref is None:
+                        # Result path might be None for pure-expression
+                        # queries.
+                        rvar = pgast.RangeSubselect(
+                            subquery=subquery,
+                            alias=pgast.Alias(
+                                aliasname=ctx.genalias(hint='q')
                             )
-                        ],
+                        )
 
-                        from_clause=[
-                            rvar
-                        ]
-                    )
+                        rt_name = self._ensure_query_restarget_name(
+                            subquery, 'v')
+                        ref = self._get_column(rvar, rt_name)
 
-                    subquery = cte.query = wrapper
+                        wrapper = pgast.SelectStmt(
+                            target_list=[
+                                pgast.ResTarget(
+                                    val=ref
+                                )
+                            ],
 
-                subquery.path_namespace[substmt.path_id] = ref
-                subquery.inner_path_bonds[substmt.path_id] = ref
+                            from_clause=[
+                                rvar
+                            ]
+                        )
+
+                        subquery = cte.query = wrapper
+
+                    subquery.path_namespace[substmt.path_id] = ref
+                    subquery.inner_path_bonds[substmt.path_id] = ref
 
             ctx.query.ctes.append(cte)
 
@@ -1129,13 +1145,13 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 selexprs = [(pgexpr, None)]
 
         if ctx.output_format == 'json':
-            target = pgast.ResTarget(
-                name=None,
-                val=pgast.FuncCall(name=('to_jsonb',), args=[pgexpr]),
-            )
+            if isinstance(pgexpr, ResTargetList):
+                val = self._rtlist_as_json_object(pgexpr)
+            else:
+                val = pgast.FuncCall(name=('to_jsonb',), args=[pgexpr])
 
+            target = pgast.ResTarget(name=None, val=val)
             query.target_list.append(target)
-
         else:
             for pgexpr, alias in selexprs:
                 target = pgast.ResTarget(name=alias, val=pgexpr)
@@ -1180,8 +1196,57 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         return pgast.ColumnRef(name=name, nullable=nullable)
 
+    def _rtlist_as_json_object(self, rtlist):
+        keyvals = []
+
+        if hasattr(rtlist.attmap[0], 'is_linkprop'):
+            # This is a shape attribute map, use a specialized version.
+            for i, pgexpr in enumerate(rtlist.targets):
+                key = rtlist.attmap[i]
+                if key.is_linkprop:
+                    key = '@' + key.name
+                else:
+                    key = key.name
+                keyvals.append(pgast.Constant(val=key))
+                keyvals.append(pgexpr)
+        else:
+            # Simple rtlist
+            for i, pgexpr in enumerate(rtlist.targets):
+                keyvals.append(pgast.Constant(val=rtlist.attmap[i]))
+                keyvals.append(pgexpr)
+
+        return pgast.FuncCall(
+            name=('jsonb_build_object',), args=keyvals)
+
+    def _varlist_as_json_object(self, varlist):
+        keyvals = []
+        for var in varlist.vars:
+            keyvals.append(pgast.Constant(val=var.name[-1]))
+            keyvals.append(var)
+
+        return pgast.FuncCall(
+            name=('jsonb_build_object',), args=keyvals)
+
     def _get_var_for_set_expr(self, ir_set, source_rvar):
         if isinstance(ir_set.expr, irast.Stmt):
+            expr = ir_set.expr.result
+        else:
+            expr = ir_set.expr
+
+        if isinstance(expr, irast.Struct):
+            ctx = self.context.current
+
+            varlist = VarList(vars=[
+                self._get_column(source_rvar, rt.name)
+                for rt in source_rvar.relation.query.target_list
+            ])
+
+            if ctx.expr_exposed and ctx.output_format == 'json':
+                return self._varlist_as_json_object(varlist)
+            else:
+                return varlist
+
+        elif isinstance(ir_set.expr, irast.Stmt):
             stmt_qry = source_rvar.relation.query
             var_ref = stmt_qry.path_vars[ir_set.path_id]
         else:

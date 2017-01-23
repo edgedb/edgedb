@@ -490,7 +490,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_struct01(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'struct<std::any> \+ std::int'):
+                exc.EdgeQLError, r'struct<.*> \+ std::int'):
 
             await self.con.execute(r'''
                 SELECT {spam := 1, ham := 2} + 1;

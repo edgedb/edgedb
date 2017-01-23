@@ -1272,26 +1272,47 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         return el
 
     def _path_step(self, path_tip, source, ptr_name, direction, ptr_target):
-        ptrcls = self._resolve_ptr(
-            source, ptr_name, direction, target=ptr_target)
+        ctx = self.context.current
 
-        target = ptrcls.get_far_endpoint(direction)
+        if isinstance(source, s_obj.Struct):
+            if ptr_name[0] is not None:
+                el_name = '::'.join(ptr_name)
+            else:
+                el_name = ptr_name[1]
 
-        path_tip = self._extend_path(
-            path_tip, ptrcls, direction, target)
+            if el_name in source.element_types:
+                expr = irast.StructIndirection(
+                    expr=path_tip, name=el_name)
+            else:
+                raise errors.EdgeQLReferenceError(
+                    f'{el_name} is not a member of a struct')
 
-        if target.is_virtual and ptr_target is not None:
-            pf = irast.TypeFilter(
-                path_id=path_tip.path_id,
-                expr=path_tip,
-                type=irast.TypeRef(maintype=ptr_target.name)
-            )
+            field_type = irutils.infer_type(expr, ctx.schema)
+            path_tip = self._generated_set(expr, field_type)
 
-            new_path_tip = self._generated_set(pf, ptr_target)
-            new_path_tip.rptr = path_tip.rptr
-            path_tip = new_path_tip
+            return path_tip, None
 
-        return path_tip, ptrcls
+        else:
+            ptrcls = self._resolve_ptr(
+                source, ptr_name, direction, target=ptr_target)
+
+            target = ptrcls.get_far_endpoint(direction)
+
+            path_tip = self._extend_path(
+                path_tip, ptrcls, direction, target)
+
+            if target.is_virtual and ptr_target is not None:
+                pf = irast.TypeFilter(
+                    path_id=path_tip.path_id,
+                    expr=path_tip,
+                    type=irast.TypeRef(maintype=ptr_target.name)
+                )
+
+                new_path_tip = self._generated_set(pf, ptr_target)
+                new_path_tip.rptr = path_tip.rptr
+                path_tip = new_path_tip
+
+            return path_tip, ptrcls
 
     def _extend_path(self, source_set, ptrcls,
                      direction=s_pointers.PointerDirection.Outbound,
