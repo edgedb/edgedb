@@ -370,7 +370,7 @@ def __infer_map(ir, schema):
 
 
 @_infer_type.register(irast.Array)
-def __infer_seq(ir, schema):
+def __infer_array(ir, schema):
     if ir.elements:
         element_type = _infer_common_type(ir.elements, schema)
         if element_type is None:
@@ -385,8 +385,13 @@ def __infer_seq(ir, schema):
 
 
 @_infer_type.register(irast.Sequence)
-def __infer_seq(ir, schema):
+def __infer_tuple(ir, schema):
     return s_obj.Tuple(element_type=schema.get('std::any'))
+
+
+@_infer_type.register(irast.Struct)
+def __infer_struct(ir, schema):
+    return s_obj.Struct(element_type=schema.get('std::any'))
 
 
 def infer_type(ir, schema):

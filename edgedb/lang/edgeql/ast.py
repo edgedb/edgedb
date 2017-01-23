@@ -598,6 +598,15 @@ class FromExprNode(Base):
     alias: Base
 
 
+class StructElementNode(Base):
+    name: ClassRefNode
+    val: Base
+
+
+class StructNode(Base):
+    elements: typing.List[StructElementNode]
+
+
 class EmptyCollectionNode(Base):
     pass
 

@@ -2799,63 +2799,61 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['Yury', ['Open', 1]],
         ]])
 
-    @unittest.expectedFailure
-    async def test_edgeql_select_anon01(self):
+    async def test_edgeql_select_struct01(self):
         await self.assert_query_result(r"""
             # get shapes {'status': ..., 'count': ...}
             WITH MODULE test
             SELECT {
-                status := Status.name,
-                count := count(Status.<status),
-            }
-            GROUP BY Status.name
-            ORDER BY Status.name;
+                statuses := count(Status),
+                issues := count(Issue),
+            };
             """, [
-            {'status': 'Closed', 'count': 2},
-            {'status': 'Open', 'count': 2}
+            [{'statuses': 2, 'issues': 4}],
         ])
 
     @unittest.expectedFailure
-    async def test_edgeql_select_anon02(self):
+    async def test_edgeql_select_struct02(self):
         await self.assert_query_result(r"""
-            # nested shapes
+            # nested structs
+            # XXX: the below doesn't work yet due to the unhandled
+            # conflict between the GROUP BY and path matching.
             WITH MODULE test
             SELECT
                 {
                     name := User.name,
-                    issue := (SELECT {
-                        status := User.<owner[IS Issue].status.name,
-                        count := count(User.<owner[IS Issue]),
-                    } GROUP BY User.<owner[IS Issue].status.name)
+                    issues := (
+                        SELECT {
+                            status := User.<owner[IS Issue].status.name,
+                            count := count(User.<owner[IS Issue]),
+                        }
+                        GROUP BY
+                            User.<owner[IS Issue].status.name
+                        ORDER BY
+                            User.<owner[IS Issue].status.name
+                    )
                 }
-            GROUP BY User.name
-            ORDER BY User.name THEN User.<owner[IS Issue].status.name;
+            ORDER BY User.name;
             """, [
             {
                 'name': 'Elvis',
-                'issues': {
+                'issues': [{
                     'status': 'Closed',
                     'count': 1,
-                }
-            }, {
-                'name': 'Elvis',
-                'issues': {
+                }, {
                     'status': 'Open',
                     'count': 1,
-                }
-            }, {
+                }]
+            },
+            {
                 'name': 'Yury',
-                'issues': {
+                'issues': [{
                     'status': 'Closed',
                     'count': 1,
-                }
-            }, {
-                'name': 'Yury',
-                'issues': {
+                }, {
                     'status': 'Open',
                     'count': 1,
-                }
-            }
+                }]
+            },
         ])
 
     async def test_edgeql_select_linkproperty01(self):

@@ -490,6 +490,29 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             f'could not determine type of empty collection',
             context=expr.context)
 
+    def visit_StructElementNode(self, expr):
+        name = expr.name.name
+        if expr.name.module:
+            name = f'{expr.name.module}::{name}'
+
+        val = self.visit(expr.val)
+
+        if isinstance(val, irast.Set) and isinstance(val.expr, irast.Stmt):
+            val = val.expr
+        elif not isinstance(val, irast.Stmt):
+            val = irast.SelectStmt(result=val)
+
+        element = irast.StructElement(
+            name=name,
+            val=val
+        )
+
+        return element
+
+    def visit_StructNode(self, expr):
+        elements = self.visit(expr.elements)
+        return irast.Struct(elements=elements)
+
     def visit_SequenceNode(self, expr):
         elements = self.visit(expr.elements)
         return irast.Sequence(elements=elements)

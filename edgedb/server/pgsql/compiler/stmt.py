@@ -287,6 +287,51 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         return result
 
+    def visit_Struct(self, expr):
+        ctx = self.context.current
+
+        my_elements = []
+        attribute_map = []
+
+        for i, e in enumerate(expr.elements):
+            with self.context.new() as newctx:
+                newctx.scope_cutoff = True
+                newctx.in_shape = True
+                val = e.val
+                if (isinstance(val, irast.Set) and
+                        isinstance(val.expr, irast.Stmt)):
+                    element = self.visit(val.expr)
+                else:
+                    element = self.visit(val)
+
+            attribute_map.append(e.name)
+            my_elements.append(element)
+
+        if ctx.output_format == 'flat':
+            # DML statements want ``SELECT Object`` to return the object
+            # identity and properties in addressable column format.
+            result = ResTargetList(my_elements, attribute_map)
+
+        elif ctx.output_format == 'json':
+            # In JSON mode we simply produce a JSONB object of
+            # the shape record...
+            keyvals = []
+            for i, pgexpr in enumerate(my_elements):
+                keyvals.append(pgast.Constant(val=attribute_map[i]))
+                keyvals.append(pgexpr)
+
+            result = pgast.FuncCall(
+                name=('jsonb_build_object',), args=keyvals)
+
+        elif ctx.output_format == 'identity':
+            result = pgast.RowExpr(args=my_elements)
+
+        else:
+            raise NotImplementedError(
+                f'unsupported output_format: {ctx.output_format}')
+
+        return result
+
     def visit_Set(self, expr):
         ctx = self.context.current
 

@@ -723,46 +723,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    # NOTE: this is syntactically allowed, but the compiler should
-    # throw an error
-    def test_edgeql_syntax_shape15(self):
-        """
-        SELECT {
-            foo: {
-                bar:= 42
-            }
-        };
-        """
-
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=4, col=22)
-    def test_edgeql_syntax_shape16(self):
-        """
-        SELECT {
-            foo: {
-                bar: 42
-            }
-        };
-        """
-
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=4, col=17)
-    def test_edgeql_syntax_shape17(self):
-        """
-        SELECT {
-            foo: {
-                'bar': 42
-            }
-        };
-        """
-
-    def test_edgeql_syntax_shape18(self):
-        """
-        SELECT {
-            foo := [
-                'bar' -> 42
-            ]
-        };
-        """
-
     def test_edgeql_syntax_shape19(self):
         """
             SELECT
@@ -924,6 +884,69 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             groups: {
                 name,
             } WHERE (@special = True)
+        };
+        """
+
+    def test_edgeql_syntax_struct01(self):
+        """
+        SELECT {
+            foo := 1,
+            bar := 2
+        };
+        """
+
+    def test_edgeql_syntax_struct02(self):
+        """
+        SELECT {
+            foo := {
+                foobaz := 1,
+                foobiz := 2,
+            },
+            bar := 3
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  'Unexpected token: <Token COLON ":">',
+                  line=3, col=16)
+    def test_edgeql_syntax_struct03(self):
+        """
+        SELECT {
+            foo: 1,
+            bar := 3
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  'Unexpected token: <Token COLON ":">',
+                  line=3, col=16)
+    def test_edgeql_syntax_struct04(self):
+        """
+        SELECT {
+            foo: {
+                bar: 42
+            }
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  'Unexpected token: <Token COLON ":">',
+                  line=3, col=16)
+    def test_edgeql_syntax_struct05(self):
+        """
+        SELECT {
+            foo: {
+                'bar': 42
+            }
+        };
+        """
+
+    def test_edgeql_syntax_struct06(self):
+        """
+        SELECT {
+            foo := [
+                'bar' -> 42
+            ]
         };
         """
 

@@ -389,7 +389,7 @@ class TestExpressions(tb.QueryTestCase):
             [42],
             [100],
 
-            [ {'aaa': [[{'a': 1}], [{'b': 2}], [{'c': 3}]]} ],
+            [{'aaa': [[{'a': 1}], [{'b': 2}], [{'c': 3}]]}],
 
             [{}]
         ])
@@ -487,6 +487,14 @@ class TestExpressions(tb.QueryTestCase):
             [[1]],
             [1],
         ])
+
+    async def test_edgeql_expr_struct01(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError, r'struct<std::any> \+ std::int'):
+
+            await self.con.execute(r'''
+                SELECT {spam := 1, ham := 2} + 1;
+            ''')
 
     async def test_edgeql_expr_coalesce01(self):
         await self.assert_query_result(r"""

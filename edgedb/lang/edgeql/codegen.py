@@ -364,6 +364,20 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         self.write(']')
 
+    def visit_StructNode(self, node):
+        self.write('{')
+        self.indentation += 1
+        self.new_lines = 1
+        self.visit_list(node.elements, newlines=True, separator=',')
+        self.indentation -= 1
+        self.new_lines = 1
+        self.write('}')
+
+    def visit_StructElementNode(self, node):
+        self.visit(node.name)
+        self.write(' := ')
+        self.visit(node.val)
+
     def visit_PathNode(self, node, *, parenthesise=True):
         for i, e in enumerate(node.steps):
             if i > 0 or node.partial:

@@ -313,11 +313,6 @@ class SelectTargetEl(Nonterm):
         tshape.pathspec = kids[1].val
         self.val = tshape
 
-    def reduce_Shape(self, *kids):
-        # anonymous shape
-        #
-        self.val = qlast.PathNode(pathspec=kids[0].val)
-
 
 class Shape(Nonterm):
     def reduce_LBRACE_ShapeElementList_RBRACE(self, *kids):
@@ -397,6 +392,27 @@ class ShapeElement(Nonterm):
 
 class ShapeElementList(ListNonterm, element=ShapeElement,
                        separator=tokens.T_COMMA):
+    pass
+
+
+class Struct(Nonterm):
+    def reduce_LBRACE_StructElementList_RBRACE(self, *kids):
+        self.val = qlast.StructNode(elements=kids[1].val)
+
+    def reduce_LBRACE_StructElementList_COMMA_RBRACE(self, *kids):
+        self.val = qlast.StructNode(elements=kids[1].val)
+
+
+class StructElement(Nonterm):
+    def reduce_ShapePathPtr_TURNSTILE_Expr(self, *kids):
+        self.val = qlast.StructElementNode(
+            name=kids[0].val,
+            val=kids[2].val
+        )
+
+
+class StructElementList(ListNonterm, element=StructElement,
+                        separator=tokens.T_COMMA):
     pass
 
 
@@ -770,6 +786,9 @@ class Expr(Nonterm):
         self.val = kids[0].val
 
     def reduce_Collection(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_Struct(self, *kids):
         self.val = kids[0].val
 
     @parsing.precedence(precedence.P_UMINUS)

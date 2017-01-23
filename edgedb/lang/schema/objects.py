@@ -795,13 +795,6 @@ class Array(Collection):
         return tuple
 
 
-class Tuple(Collection):
-    schema_name = 'tuple'
-
-    def get_container(self):
-        return tuple
-
-
 class Map(Collection):
     schema_name = 'map'
 
@@ -819,6 +812,20 @@ class Map(Collection):
             raise ValueError(
                 f'unexpected number of subtypes, expecting 2: {subtypes!r}')
         return cls(key_type=subtypes[0], element_type=subtypes[1])
+
+
+class Tuple(Collection):
+    schema_name = 'tuple'
+
+    def get_container(self):
+        return tuple
+
+
+class Struct(Collection):
+    schema_name = 'struct'
+
+    def get_container(self):
+        return dict
 
 
 class ClassCollection:

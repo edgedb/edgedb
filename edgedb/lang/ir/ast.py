@@ -82,12 +82,21 @@ class Parameter(Base):
     type: so.NodeClass
 
 
-class Shape(Expr):
+class Shape(Base):
 
     elements: typing.List[Base]
     scls: so.NodeClass
     set: Set
     rptr: Pointer
+
+
+class StructElement(Base):
+    name: str
+    val: Base
+
+
+class Struct(Expr):
+    elements: typing.List[StructElement]
 
 
 class Sequence(Expr):
