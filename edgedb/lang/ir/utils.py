@@ -64,7 +64,7 @@ def is_aggregated_expr(ir):
     return bool(set(ast.find_children(ir, flt)))
 
 
-def extend_path(self, schema, source_set, ptr):
+def extend_path(schema, source_set, ptr):
     scls = source_set.scls
 
     if isinstance(ptr, str):

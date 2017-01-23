@@ -11,7 +11,6 @@ from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import atoms as s_atoms
 from edgedb.lang.schema import objects as s_obj
-from edgedb.lang.schema import pointers as s_pointers
 
 from edgedb.server.pgsql import ast as pgast
 from edgedb.server.pgsql import types as pg_types
@@ -711,28 +710,7 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
 
     def _get_ptr_set(self, source_set, ptr_name):
         ctx = self.context.current
-
-        schema = ctx.schema
-        scls = source_set.scls
-        ptrcls = scls.resolve_pointer(schema, ptr_name)
-
-        path_id = source_set.path_id.extend(
-            ptrcls, s_pointers.PointerDirection.Outbound, ptrcls.target)
-
-        target_set = irast.Set()
-        target_set.scls = ptrcls.target
-        target_set.path_id = path_id
-
-        ptr = irast.Pointer(
-            source=source_set,
-            target=target_set,
-            ptrcls=ptrcls,
-            direction=s_pointers.PointerDirection.Outbound
-        )
-
-        target_set.rptr = ptr
-
-        return target_set
+        return irutils.extend_path(ctx.schema, source_set, ptr_name)
 
     def _is_null_const(self, expr):
         if isinstance(expr, pgast.TypeCast):
