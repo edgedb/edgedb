@@ -43,8 +43,8 @@ class Pointer(Base):
 
 class Set(Base):
 
-    path_id: list
-    real_path_id: list
+    path_id: tuple
+    real_path_id: tuple
     scls: so.NodeClass
     sources: set
     expr: Base
@@ -193,7 +193,7 @@ class TypeCast(Expr):
 class TypeFilter(Expr):
     """Expr[IS Type]"""
 
-    path_id: list
+    path_id: tuple
     expr: Base
     type: TypeRef
 

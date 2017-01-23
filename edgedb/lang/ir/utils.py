@@ -29,7 +29,7 @@ class PathIndex(collections.OrderedDict):
                 self[k] = v
 
     def __setitem__(self, key, value):
-        if not isinstance(key, (LinearPath, str)):
+        if not isinstance(key, (PathId, str)):
             raise TypeError('Invalid key type for PathIndex: %s' % key)
 
         if not isinstance(value, set):
@@ -88,40 +88,8 @@ def is_aggregated_expr(ir):
     return bool(set(ast.find_children(ir, flt)))
 
 
-class LinearPath(list):
-    """Denotes a linear path in the graph.
-
-    The path is considered linear if it
-    does not have branches and is in the form
-    <concept> <link> <concept> <link> ... <concept>
-    """
-
-    def __eq__(self, other):
-        if not isinstance(other, LinearPath):
-            return NotImplemented
-
-        if len(other) != len(self):
-            return False
-        elif len(self) == 0:
-            return True
-
-        if self[0] != other[0]:
-            return False
-
-        for i in range(1, len(self) - 1, 2):
-            if self[i] != other[i]:
-                break
-            if self[i + 1] != other[i + 1]:
-                break
-        else:
-            return True
-        return False
-
-    def add(self, link, direction, target):
-        if not link.generic():
-            link = link.bases[0]
-        self.append((link, direction))
-        self.append(target)
+class PathId(tuple):
+    """Unique identifier of a path in an expression."""
 
     def rptr(self):
         if len(self) > 1:
@@ -157,8 +125,14 @@ class LinearPath(list):
     def startswith(self, path_id):
         return self[:len(path_id)] == path_id
 
-    def __hash__(self):
-        return hash(tuple(self))
+    def extend(self, link, direction, target):
+        if not link.generic():
+            link = link.bases[0]
+
+        return self + ((link, direction), target)
+
+    def __add__(self, other):
+        return self.__class__(super().__add__(other))
 
     def __str__(self):
         if not self:
@@ -196,8 +170,8 @@ def extend_path(self, schema, source_set, ptr):
     else:
         ptrcls = ptr
 
-    path_id = LinearPath(source_set.path_id)
-    path_id.add(ptrcls, s_pointers.PointerDirection.Outbound, ptrcls.target)
+    path_id = source_set.path_id.extend(
+        ptrcls, s_pointers.PointerDirection.Outbound, ptrcls.target)
 
     target_set = irast.Set()
     target_set.scls = ptrcls.target

@@ -716,9 +716,8 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
         scls = source_set.scls
         ptrcls = scls.resolve_pointer(schema, ptr_name)
 
-        path_id = irutils.LinearPath(source_set.path_id)
-        path_id.add(ptrcls, s_pointers.PointerDirection.Outbound,
-                    ptrcls.target)
+        path_id = source_set.path_id.extend(
+            ptrcls, s_pointers.PointerDirection.Outbound, ptrcls.target)
 
         target_set = irast.Set()
         target_set.scls = ptrcls.target

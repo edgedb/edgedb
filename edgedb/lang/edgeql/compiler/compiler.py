@@ -112,7 +112,7 @@ def get_common_prefixes(exprs):
             else:
                 break
 
-        trails.append(irutils.LinearPath(path_id))
+        trails.append(irutils.PathId(path_id))
 
     return {trail: prefixes[trail] for trail in trails}
 
@@ -266,7 +266,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
                 rt = irutils.infer_type(substmt, ctx.schema)
                 el = irast.Set(
-                    path_id=irutils.LinearPath([rt]),
+                    path_id=irutils.PathId([rt]),
                     scls=rt,
                     expr=substmt,
                     rptr=targetstep.rptr
@@ -379,7 +379,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 # existing Concept class, as aliases and path variables
                 # have been checked above.
                 scls = self._get_schema_object(step.name, step.module)
-                path_id = irutils.LinearPath([scls])
+                path_id = irutils.PathId([scls])
 
                 try:
                     # We maintain a registry of Set nodes for each unique
@@ -456,7 +456,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         if sources:
             node = irast.Set(
-                path_id=irutils.LinearPath([]),
+                path_id=irutils.PathId([]),
                 scls=result_type,
                 expr=binop,
                 sources=sources
@@ -675,7 +675,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         if sources:
             node = irast.Set(
-                path_id=irutils.LinearPath([]),
+                path_id=irutils.PathId([]),
                 scls=result_type,
                 expr=unop,
                 sources=sources
@@ -752,7 +752,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         path_id = getattr(arg, 'path_id', None)
         if path_id is None:
             t = irutils.infer_type(arg, self.context.current.schema)
-            path_id = irutils.LinearPath([t])
+            path_id = irutils.PathId([t])
 
         return irast.TypeFilter(
             path_id=path_id,
@@ -813,7 +813,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             if isinstance(scls, s_obj.NodeClass):
                 step = irast.Set()
                 step.scls = scls
-                step.path_id = irutils.LinearPath([step.scls])
+                step.path_id = irutils.PathId([step.scls])
                 step.anchor = anchor
                 step.show_as_anchor = anchor
 
@@ -821,7 +821,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 if scls.source:
                     path = irast.Set()
                     path.scls = scls.source
-                    path.path_id = irutils.LinearPath([path.scls])
+                    path.path_id = irutils.PathId([path.scls])
                     path = self._extend_path(
                         path, scls,
                         s_pointers.PointerDirection.Outbound,
@@ -829,7 +829,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 else:
                     path = irast.Set()
                     path.scls = ctx.schema.get('std::Object')
-                    path.path_id = irutils.LinearPath([path.scls])
+                    path.path_id = irutils.PathId([path.scls])
                     ptrcls = scls.get_derived(
                         ctx.schema, path.scls, ctx.schema.get('std::Object'),
                         mark_derived=True, add_to_schema=False)
@@ -846,7 +846,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 if scls.source.source:
                     path = irast.Set()
                     path.scls = scls.source.source
-                    path.path_id = irutils.LinearPath([path.scls])
+                    path.path_id = irutils.PathId([path.scls])
                     path = self._extend_path(
                         path, scls.source,
                         s_pointers.PointerDirection.Outbound,
@@ -854,7 +854,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 else:
                     path = irast.Set()
                     path.scls = ctx.schema.get('std::Object')
-                    path.path_id = irutils.LinearPath([path.scls])
+                    path.path_id = irutils.PathId([path.scls])
                     ptrcls = scls.source.get_derived(
                         ctx.schema, path.scls, ctx.schema.get('std::Object'),
                         mark_derived=True, add_to_schema=False)
@@ -889,7 +889,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             elif isinstance(with_entry, qlast.CGE):
                 substmt = self.visit(with_entry.expr).expr
 
-                path_id = irutils.LinearPath([
+                path_id = irutils.PathId([
                     s_concepts.Concept(
                         name=sn.Name(
                             module='__cexpr__',
@@ -905,7 +905,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 elif isinstance(substmt.result, irast.Shape):
                     real_path_id = substmt.result.set.path_id
                 else:
-                    real_path_id = irutils.LinearPath([result_type])
+                    real_path_id = irutils.PathId([result_type])
 
                 substmt_set = irast.Set(
                     path_id=path_id,
@@ -1083,7 +1083,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 if isinstance(compexpr.result, irast.Set):
                     path_id = compexpr.result.path_id
                 else:
-                    path_id = irutils.LinearPath([target_class])
+                    path_id = irutils.PathId([target_class])
 
                 targetstep = irast.Set(
                     path_id=path_id,
@@ -1228,7 +1228,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
                     # return early
                     return irast.Set(
-                        path_id=irutils.LinearPath([result]),
+                        path_id=irutils.PathId([result]),
                         scls=result,
                         expr=substmt,
                         rptr=ptr_node
@@ -1262,7 +1262,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
                 result = irutils.infer_type(substmt, ctx.schema)
                 el = irast.Set(
-                    path_id=irutils.LinearPath([result]),
+                    path_id=irutils.PathId([result]),
                     scls=result,
                     expr=substmt,
                     rptr=ptr_node
@@ -1301,8 +1301,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         if target is None:
             target = ptrcls.get_far_endpoint(direction)
 
-        path_id = irutils.LinearPath(source_set.path_id)
-        path_id.add(ptrcls, direction, target)
+        path_id = source_set.path_id.extend(ptrcls, direction, target)
 
         try:
             target_set = ctx.sets[path_id]
@@ -1336,7 +1335,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             if getattr(expr, 'path_id', None):
                 path_id = expr.path_id
             else:
-                path_id = irutils.LinearPath([result_type])
+                path_id = irutils.PathId([result_type])
 
             node = irast.Set(
                 path_id=path_id,

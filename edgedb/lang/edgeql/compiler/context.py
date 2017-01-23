@@ -48,11 +48,11 @@ class ContextLevel:
     stmt: irast.Stmt
     """Statement node currently being built."""
 
-    sets: typing.Dict[irutils.LinearPath, irast.Set]
+    sets: typing.Dict[irutils.PathId, irast.Set]
     """A dictionary of Set nodes representing the paths the compiler
     has seen so far."""
 
-    group_paths: typing.Set[irutils.LinearPath]
+    group_paths: typing.Set[irutils.PathId]
     """A set of path ids in the GROUP BY clause of the current statement."""
 
     in_aggregate: bool

@@ -45,7 +45,7 @@ class Keyword(Base):
 class EdgeQLPathInfo(Base):
     """A general mixin providing EdgeQL-specific metadata on certain nodes."""
 
-    path_id: irutils.LinearPath # The ID of EdgeQL path expression
+    path_id: irutils.PathId # The ID of EdgeQL path expression
                                 # that this RangeVar represents
     path_vars: dict             # A mapping between value path-ids and
                                 # columns reachable via this RangeVar.
