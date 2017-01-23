@@ -11,7 +11,7 @@ import typing
 
 from edgedb.lang.common import ast
 from edgedb.lang.edgeql import ast as qlast
-from edgedb.lang.ir import utils as irutils
+from edgedb.lang.ir import ast as irast
 
 
 # The structure of the nodes mostly follows that of Postgres'
@@ -45,8 +45,8 @@ class Keyword(Base):
 class EdgeQLPathInfo(Base):
     """A general mixin providing EdgeQL-specific metadata on certain nodes."""
 
-    path_id: irutils.PathId # The ID of EdgeQL path expression
-                                # that this RangeVar represents
+    path_id: irast.PathId       # The ID of EdgeQL path expression
+                                # that this RangeVar represents.
     path_vars: dict             # A mapping between value path-ids and
                                 # columns reachable via this RangeVar.
     path_bonds: dict            # A subset of path_cols with paths

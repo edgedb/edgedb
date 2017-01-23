@@ -9,7 +9,7 @@
 import typing
 
 from edgedb.lang.ir import ast as irast
-from edgedb.lang.ir import utils as irutils
+
 from edgedb.lang.schema import objects as so
 from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import schema as s_schema
@@ -48,11 +48,11 @@ class ContextLevel:
     stmt: irast.Stmt
     """Statement node currently being built."""
 
-    sets: typing.Dict[irutils.PathId, irast.Set]
+    sets: typing.Dict[irast.PathId, irast.Set]
     """A dictionary of Set nodes representing the paths the compiler
     has seen so far."""
 
-    group_paths: typing.Set[irutils.PathId]
+    group_paths: typing.Set[irast.PathId]
     """A set of path ids in the GROUP BY clause of the current statement."""
 
     in_aggregate: bool

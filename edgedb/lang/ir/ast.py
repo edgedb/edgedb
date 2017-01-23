@@ -10,13 +10,92 @@ import typing
 
 from edgedb.lang.common.exceptions import EdgeDBError
 from edgedb.lang.common import ast, parsing
+
+from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import name as sn
 from edgedb.lang.schema import objects as so
+from edgedb.lang.schema import pointers as s_pointers
+from edgedb.lang.schema import sources as s_src
+
 from edgedb.lang.edgeql import ast as qlast
 
 
 class ASTError(EdgeDBError):
     pass
+
+
+class PathId(tuple):
+    """Unique identifier of a path in an expression."""
+
+    def rptr(self):
+        if len(self) > 1:
+            genptr = self[-2][0]
+            direction = self[-2][1]
+            if direction == s_pointers.PointerDirection.Outbound:
+                src = self[-3]
+            else:
+                src = self[-1]
+
+            if isinstance(src, s_src.Source):
+                return src.pointers.get(genptr.name)
+            else:
+                return None
+        else:
+            return None
+
+    def rptr_dir(self):
+        if len(self) > 1:
+            return self[-2][1]
+        else:
+            return None
+
+    def iter_prefixes(self):
+        yield self.__class__(self[:1])
+
+        for i in range(1, len(self) - 1, 2):
+            if self[i + 1]:
+                yield self.__class__(self[:i + 2])
+            else:
+                break
+
+    def startswith(self, path_id):
+        return self[:len(path_id)] == path_id
+
+    def extend(self, link, direction, target):
+        if not link.generic():
+            link = link.bases[0]
+
+        return self + ((link, direction), target)
+
+    def __add__(self, other):
+        return self.__class__(super().__add__(other))
+
+    def __str__(self):
+        if not self:
+            return ''
+
+        result = f'({self[0].name})'
+
+        for i in range(1, len(self) - 1, 2):
+            ptr = self[i][0]
+            ptrdir = self[i][1]
+            tgt = self[i + 1]
+
+            if tgt:
+                lexpr = f'({ptr.name} [IS {tgt.name}])'
+            else:
+                lexpr = f'({ptr.name})'
+
+            if isinstance(ptr, s_lprops.LinkProperty):
+                step = '@'
+            else:
+                step = f'.{ptrdir}'
+
+            result += f'{step}{lexpr}'
+
+        return result
+
+    __repr__ = __str__
 
 
 class Base(ast.AST):
@@ -43,8 +122,8 @@ class Pointer(Base):
 
 class Set(Base):
 
-    path_id: tuple
-    real_path_id: tuple
+    path_id: PathId
+    real_path_id: PathId
     scls: so.NodeClass
     sources: set
     expr: Base
@@ -193,7 +272,7 @@ class TypeCast(Expr):
 class TypeFilter(Expr):
     """Expr[IS Type]"""
 
-    path_id: tuple
+    path_id: PathId
     expr: Base
     type: TypeRef
 
