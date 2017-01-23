@@ -6,34 +6,12 @@
 ##
 
 
-import collections
-
 from edgedb.lang.common import ast
 
 from edgedb.lang.schema import pointers as s_pointers
 
 from . import ast as irast
 from .typing import infer_arg_types, infer_type  # NOQA
-
-
-class PathIndex(collections.OrderedDict):
-    """Graph path mapping path identifiers to AST nodes."""
-
-    def update(self, other):
-        for k, v in other.items():
-            if k in self:
-                super().__getitem__(k).update(v)
-            else:
-                self[k] = v
-
-    def __setitem__(self, key, value):
-        if not isinstance(key, (irast.PathId, str)):
-            raise TypeError('Invalid key type for PathIndex: %s' % key)
-
-        if not isinstance(value, set):
-            value = {value}
-
-        super().__setitem__(key, value)
 
 
 def get_source_references(ir):

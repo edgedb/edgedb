@@ -6,6 +6,7 @@
 ##
 """EdgeQL to IR compiler implementation."""
 
+import collections
 import itertools
 
 from edgedb.lang.ir import ast as irast
@@ -38,7 +39,7 @@ class EdgeQLCompilerError(edgedb_error.EdgeDBError):
 class PathExtractor(ast.visitor.NodeVisitor):
     def __init__(self, roots_only=False):
         super().__init__()
-        self.paths = irutils.PathIndex()
+        self.paths = collections.OrderedDict()
         self.roots_only = roots_only
 
     def visit_Stmt(self, expr):
