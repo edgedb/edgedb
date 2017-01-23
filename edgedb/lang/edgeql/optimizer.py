@@ -213,7 +213,7 @@ class EdgeQLOptimizer:
         elif isinstance(expr, qlast.PostfixOp):
             self._process_expr(context, expr.operand)
 
-        elif isinstance(expr, qlast.Sequence):
+        elif isinstance(expr, qlast.Tuple):
             for el in expr.elements:
                 self._process_expr(context, el)
 

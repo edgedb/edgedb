@@ -108,7 +108,7 @@ class OptSingle(Nonterm):
 
 class SimpleSelect(Nonterm):
     def reduce_Select(self, *kids):
-        r"%reduce SELECT OptSingle SelectTargetEl \
+        r"%reduce SELECT OptSingle OutputExpr \
                   OptWhereClause OptGroupClause OptHavingClause"
         self.val = qlast.SelectQuery(
             single=kids[1].val,
@@ -299,7 +299,9 @@ class AliasDeclList(ListNonterm, element=AliasDecl,
     pass
 
 
-class SelectTargetEl(Nonterm):
+class OutputExpr(Nonterm):
+    # Expression used in SELECT and RETURNING clauses.
+
     def reduce_Expr(self, *kids):
         self.val = kids[0].val
 
@@ -703,8 +705,8 @@ class ParenExpr(Nonterm):
 
 
 class Expr(Nonterm):
-    # Path | Constant | '(' Expr ')' | FuncExpr | Sequence
-    # | Collection
+    # Path | Constant | '(' Expr ')' | FuncExpr
+    # | Tuple | Struct | Collection
     # | '+' Expr | '-' Expr | Expr '+' Expr | Expr '-' Expr
     # | Expr '*' Expr | Expr '/' Expr | Expr '%' Expr
     # | Expr '**' Expr | Expr '<' Expr | Expr '>' Expr
@@ -782,7 +784,7 @@ class Expr(Nonterm):
     def reduce_EXISTS_Expr(self, *kids):
         self.val = qlast.ExistsPredicate(expr=kids[1].val)
 
-    def reduce_Sequence(self, *kids):
+    def reduce_Tuple(self, *kids):
         self.val = kids[0].val
 
     def reduce_Collection(self, *kids):
@@ -933,9 +935,9 @@ class Expr(Nonterm):
             if_expr=kids[0].val, condition=kids[2].val, else_expr=kids[4].val)
 
 
-class Sequence(Nonterm):
+class Tuple(Nonterm):
     def reduce_LPAREN_Expr_COMMA_OptExprList_RPAREN(self, *kids):
-        self.val = qlast.Sequence(elements=[kids[1].val] + kids[3].val)
+        self.val = qlast.Tuple(elements=[kids[1].val] + kids[3].val)
 
 
 class Collection(Nonterm):
@@ -1029,17 +1031,17 @@ class Constant(Nonterm):
 
 
 class BaseConstant(Nonterm):
-    # NoneConstant
+    # EmptyConstant
     # | ArgConstant
 
-    def reduce_NoneConstant(self, *kids):
+    def reduce_EmptyConstant(self, *kids):
         self.val = kids[0].val
 
     def reduce_ArgConstant(self, *kids):
         self.val = kids[0].val
 
 
-class NoneConstant(Nonterm):
+class EmptyConstant(Nonterm):
     def reduce_EMPTY(self, *kids):
         self.val = qlast.EmptySet()
 
@@ -1454,7 +1456,7 @@ class ReservedKeyword(Nonterm, metaclass=KeywordMeta,
 
 
 class ReturningClause(Nonterm):
-    def reduce_RETURNING_OptSingle_SelectTargetEl(self, *kids):
+    def reduce_RETURNING_OptSingle_OutputExpr(self, *kids):
         self.val = [kids[1].val, kids[2].val]
 
 

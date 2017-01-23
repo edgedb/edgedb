@@ -765,7 +765,7 @@ class AlterClassProperty(Command):
         else:
             if isinstance(astnode.value, qlast.Constant):
                 new_value = astnode.value.value
-            elif isinstance(astnode.value, qlast.Sequence):
+            elif isinstance(astnode.value, qlast.Tuple):
                 new_value = tuple(el.value for el in astnode.value.elements)
             elif isinstance(astnode.value, qlast.Mapping):
                 m = {}
@@ -773,7 +773,7 @@ class AlterClassProperty(Command):
                     k = k.value
                     if isinstance(v, qlast.Constant):
                         v = v.value
-                    elif isinstance(v, qlast.Sequence):
+                    elif isinstance(v, qlast.Tuple):
                         v = tuple(el.value for el in v.elements)
                     elif (isinstance(v, qlast.FunctionCall) and
                             v.func == 'typeref'):
@@ -833,7 +833,7 @@ class AlterClassProperty(Command):
         if isinstance(value, s_expr.ExpressionText):
             value = qlast.ExpressionText(expr=str(value))
         elif utils.is_nontrivial_container(value):
-            value = qlast.Sequence(elements=[
+            value = qlast.Tuple(elements=[
                 qlast.Constant(value=el) for el in value
             ])
         elif isinstance(value, nlang.WordCombination):

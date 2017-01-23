@@ -513,7 +513,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         elements = self.visit(expr.elements)
         return irast.Struct(elements=elements)
 
-    def visit_Sequence(self, expr):
+    def visit_Tuple(self, expr):
         elements = self.visit(expr.elements)
         return irast.Sequence(elements=elements)
 

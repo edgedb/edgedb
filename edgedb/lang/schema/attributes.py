@@ -173,7 +173,7 @@ class CreateAttributeValue(AttributeValueCommand, named.CreateNamedClass):
         val = astnode.value
         if isinstance(val, qlast.Constant):
             value = val.value
-        elif isinstance(val, qlast.Sequence):
+        elif isinstance(val, qlast.Tuple):
             value = tuple(v.value for v in val.elements)
         else:
             msg = 'unexpected value type in AttributeValue: {!r}'

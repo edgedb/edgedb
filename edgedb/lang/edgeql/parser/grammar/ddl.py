@@ -228,7 +228,7 @@ class SetFieldStmt(Nonterm):
         # should be treated as an eager expression
         #
         eager = isinstance(kids[3].val,
-                           (qlast.Constant, qlast.Sequence,
+                           (qlast.Constant, qlast.Tuple,
                             qlast.Mapping))
         self.val = qlast.CreateAttributeValue(
             name=kids[1].val,

@@ -28,7 +28,7 @@ class ParameterInliner(ast.NodeTransformer):
         if (isinstance(value, collections.Container) and
                 not isinstance(value, (str, bytes))):
             elements = [qlast.Constant(value=i) for i in value]
-            new_node = qlast.Sequence(elements=elements)
+            new_node = qlast.Tuple(elements=elements)
         else:
             new_node = qlast.Constant(value=value)
 

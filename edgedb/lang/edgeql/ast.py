@@ -611,7 +611,7 @@ class EmptyCollection(Base):
     pass
 
 
-class Sequence(Base):
+class Tuple(Base):
     elements: list
 
 

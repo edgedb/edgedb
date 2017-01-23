@@ -332,7 +332,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.else_expr)
         self.write(')')
 
-    def visit_Sequence(self, node):
+    def visit_Tuple(self, node):
         self.write('(')
         count = len(node.elements)
         for i, e in enumerate(node.elements):

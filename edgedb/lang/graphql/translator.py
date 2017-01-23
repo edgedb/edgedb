@@ -251,9 +251,9 @@ class GraphQLTranslator(ast.NodeVisitor):
                 #
                 ids = self.visit(field.value)
 
-                if isinstance(ids, qlast.Sequence):
+                if isinstance(ids, qlast.Tuple):
                     op = ast.ops.IN
-                    ids = qlast.Sequence(
+                    ids = qlast.Tuple(
                         elements=[self._cast_value(el, 'uuid')
                                   for el in ids.elements]
                     )
@@ -578,7 +578,7 @@ class GraphQLTranslator(ast.NodeVisitor):
             # check the variable value
             #
             check_value = self._context.vars[node.value.value][0]
-        elif isinstance(value, qlast.Sequence):
+        elif isinstance(value, qlast.Tuple):
             check_value = [el.value for el in value.elements]
         else:
             check_value = value.value
@@ -629,7 +629,7 @@ class GraphQLTranslator(ast.NodeVisitor):
                     context=context)
 
     def visit_ListLiteral(self, node):
-        return qlast.Sequence(elements=self.visit(node.value))
+        return qlast.Tuple(elements=self.visit(node.value))
 
     def visit_ObjectLiteral(self, node):
         raise GraphQLValidationError(

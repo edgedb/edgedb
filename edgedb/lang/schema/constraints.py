@@ -91,7 +91,7 @@ class ConstraintCommand(referencing.ReferencedClassCommand):
                 v = qlast.FunctionCall(func='typeref', args=args)
 
             elif utils.is_nontrivial_container(value):
-                v = qlast.Sequence(elements=[
+                v = qlast.Tuple(elements=[
                     qlast.Constant(value=el) for el in value
                 ])
 
