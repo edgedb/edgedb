@@ -1311,9 +1311,6 @@ class ExtTypeExpr(Nonterm):
     def reduce_TypeName(self, *kids):
         self.val = kids[0].val
 
-    def reduce_TypedShape(self, *kids):
-        self.val = qlast.TypeName(maintype=kids[0].val)
-
 
 class ParamName(Nonterm):
     def reduce_IDENT(self, *kids):

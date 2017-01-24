@@ -1270,6 +1270,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT <float> (SELECT User.age);
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Unexpected token.*LBRACE", line=3, col=19)
     def test_edgeql_syntax_cast03(self):
         """
         SELECT
