@@ -472,6 +472,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_EmptySet(self, node):
         self.write('EMPTY')
 
+    def visit_UnionSet(self, node):
+        self.write('UNION')
+
     def visit_Constant(self, node):
         try:
             edgeql_repr = node.value.__mm_edgeql__

@@ -735,26 +735,21 @@ class Expr(Nonterm):
         #
         path = kids[0].val
 
-        if isinstance(path, qlast.Path):
-            if len(path.steps) == 1:
-                # filtering the root is different from the rest of the path
-                #
-                self.val = qlast.Path(
-                    steps=[qlast.TypeFilter(
-                        expr=path,
-                        type=qlast.TypeName(maintype=kids[3].val))
-                    ])
-                return
+        if (isinstance(path, qlast.Path) and
+                isinstance(path.steps[-1], qlast.Ptr)):
+            # filtering a longer path
+            #
+            path.steps[-1].target = kids[3].val
+            self.val = path
 
-            elif isinstance(path.steps[-1], qlast.Ptr):
-                # filtering a longer path
-                #
-                path.steps[-1].target = kids[3].val
-                self.val = path
-                return
-
-        raise EdgeQLSyntaxError('Unexpected token: {}'.format(kids[2]),
-                                context=kids[2].context)
+        else:
+            # any other expression is a path with a filter
+            #
+            self.val = qlast.Path(
+                steps=[qlast.TypeFilter(
+                    expr=path,
+                    type=qlast.TypeName(maintype=kids[3].val))
+                ])
 
     def reduce_FuncExpr(self, *kids):
         self.val = kids[0].val
@@ -1016,6 +1011,7 @@ class Constant(Nonterm):
 class BaseConstant(Nonterm):
     # EmptyConstant
     # | ArgConstant
+    # | UnionSet
 
     def reduce_EmptyConstant(self, *kids):
         self.val = kids[0].val
@@ -1023,10 +1019,18 @@ class BaseConstant(Nonterm):
     def reduce_ArgConstant(self, *kids):
         self.val = kids[0].val
 
+    def reduce_UnionSet(self, *kids):
+        self.val = kids[0].val
+
 
 class EmptyConstant(Nonterm):
     def reduce_EMPTY(self, *kids):
         self.val = qlast.EmptySet()
+
+
+class UnionSet(Nonterm):
+    def reduce_UNION(self, *kids):
+        self.val = qlast.UnionSet()
 
 
 class ArgConstant(Nonterm):

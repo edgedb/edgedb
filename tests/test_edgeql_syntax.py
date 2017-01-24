@@ -7,6 +7,7 @@
 
 
 import re
+import unittest
 
 from edgedb.lang import _testbase as tb
 from edgedb.lang.edgeql import generate_source as edgeql_to_source, errors
@@ -1067,24 +1068,40 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT Foo.bar[IS All];
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=27)
+    # This is actually odd, but legal, simply filtering by type a
+    # particular array element.
+    #
     def test_edgeql_syntax_path09(self):
         """
         SELECT Foo.bar[2][IS Baz];
+
+% OK %
+
+        SELECT (Foo.bar)[2][IS Baz];
         """
 
+    # These 3 tests fail because type filter may now be applied to an
+    # arbitrary expression, such as (A + B)[IS C], so the burden of
+    # validating, which expressions this makes sense for is no longer
+    # on the parser, but rather the compiler. Whether this is even
+    # still an error of simply should result in EMPTY is a separate
+    # question.
+    #
+    @unittest.expectedFailure
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=29)
     def test_edgeql_syntax_path10(self):
         """
         SELECT Foo.bar[2:4][IS Baz];
         """
 
+    @unittest.expectedFailure
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=28)
     def test_edgeql_syntax_path11(self):
         """
         SELECT Foo.bar[2:][IS Baz];
         """
 
+    @unittest.expectedFailure
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=28)
     def test_edgeql_syntax_path12(self):
         """
@@ -1133,6 +1150,11 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         SELECT Foo[IS Bar].spam;
         SELECT Foo[IS Bar].<ham;
+        """
+
+    def test_edgeql_syntax_type_interpretation02(self):
+        """
+        SELECT (Foo + Bar)[IS Spam].ham;
         """
 
     def test_edgeql_syntax_map01(self):
@@ -1544,6 +1566,17 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT User.name OFFSET Foo.bar;
         SELECT User.name LIMIT (Foo.bar * 10);
         SELECT User.name OFFSET Foo.bar LIMIT (Foo.bar * 10);
+        """
+
+    def test_edgeql_syntax_union01(self):
+        """
+        WITH MODULE test
+        (SELECT
+            Issue {name, body})
+        UNION
+        (SELECT
+            Comment {body})
+        ORDER BY UNION[IS Text].body ASC;
         """
 
     def test_edgeql_syntax_insert01(self):

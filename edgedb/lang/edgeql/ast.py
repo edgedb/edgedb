@@ -85,6 +85,10 @@ class EmptySet(Base):
     pass
 
 
+class UnionSet(Base):
+    pass
+
+
 class Parameter(Base):
     name: str
 
