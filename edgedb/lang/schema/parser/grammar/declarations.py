@@ -476,7 +476,7 @@ class OptVariadic(Nonterm):
 
 class FuncDeclArg(Nonterm):
     def reduce_OptVariadic_ObjectName_OptDefault(self, *kids):
-        self.val = esast.FuncArgNode(
+        self.val = esast.FuncArg(
             variadic=kids[0].val,
             name=None,
             type=kids[1].val,
@@ -484,7 +484,7 @@ class FuncDeclArg(Nonterm):
         )
 
     def reduce_OptVariadic_IDENT_COLON_ObjectName_OptDefault(self, *kids):
-        self.val = esast.FuncArgNode(
+        self.val = esast.FuncArg(
             variadic=kids[0].val,
             name=kids[1].val,
             type=kids[3].val,

@@ -95,7 +95,7 @@ class EdgeQLOptimizer:
 
         nses = []
         for alias, fq_name in context.current.namespaces.items():
-            decl = qlast.NamespaceAliasDeclNode(namespace=fq_name,
+            decl = qlast.NamespaceAliasDecl(namespace=fq_name,
                                                 alias=alias)
             nses.append(decl)
 
@@ -107,7 +107,7 @@ class EdgeQLOptimizer:
         return edgeql_tree
 
     def _process_expr(self, context, expr):
-        if isinstance(expr, qlast.SelectQueryNode):
+        if isinstance(expr, qlast.SelectQuery):
             pathvars = {}
 
             if expr.namespaces:
@@ -138,7 +138,7 @@ class EdgeQLOptimizer:
             if expr.limit:
                 self._process_expr(context, expr.limit)
 
-        elif isinstance(expr, qlast.InsertQueryNode):
+        elif isinstance(expr, qlast.InsertQuery):
             if expr.namespaces:
                 context.current.namespaces.update(
                     (ns.alias, ns.namespace) for ns in expr.namespaces)
@@ -151,7 +151,7 @@ class EdgeQLOptimizer:
             if expr.result is not None:
                 self._process_expr(context, expr.result)
 
-        elif isinstance(expr, qlast.UpdateQueryNode):
+        elif isinstance(expr, qlast.UpdateQuery):
             if expr.namespaces:
                 context.current.namespaces.update(
                     (ns.alias, ns.namespace) for ns in expr.namespaces)
@@ -167,7 +167,7 @@ class EdgeQLOptimizer:
             if expr.result is not None:
                 self._process_expr(context, expr.result)
 
-        elif isinstance(expr, qlast.DeleteQueryNode):
+        elif isinstance(expr, qlast.DeleteQuery):
             if expr.namespaces:
                 context.current.namespaces.update(
                     (ns.alias, ns.namespace) for ns in expr.namespaces)
@@ -180,14 +180,14 @@ class EdgeQLOptimizer:
             if expr.result is not None:
                 self._process_expr(context, expr.result)
 
-        elif isinstance(expr, qlast.PredicateNode):
+        elif isinstance(expr, qlast.Predicate):
             self._process_expr(context, expr.expr)
 
-        elif isinstance(expr, qlast.BinOpNode):
+        elif isinstance(expr, qlast.BinOp):
             self._process_expr(context, expr.left)
             self._process_expr(context, expr.right)
 
-        elif isinstance(expr, qlast.FunctionCallNode):
+        elif isinstance(expr, qlast.FunctionCall):
             for arg in expr.args:
                 self._process_expr(context, arg)
 
@@ -198,7 +198,7 @@ class EdgeQLOptimizer:
             if expr.window:
                 self._process_expr(context, expr.window)
 
-        elif isinstance(expr, qlast.WindowSpecNode):
+        elif isinstance(expr, qlast.WindowSpec):
             if expr.orderby:
                 for orderby in expr.orderby:
                     self._process_expr(context, orderby.path)
@@ -207,21 +207,21 @@ class EdgeQLOptimizer:
                 for partition in expr.partition:
                     self._process_expr(context, partition)
 
-        elif isinstance(expr, qlast.UnaryOpNode):
+        elif isinstance(expr, qlast.UnaryOp):
             self._process_expr(context, expr.operand)
 
-        elif isinstance(expr, qlast.PostfixOpNode):
+        elif isinstance(expr, qlast.PostfixOp):
             self._process_expr(context, expr.operand)
 
-        elif isinstance(expr, qlast.SequenceNode):
+        elif isinstance(expr, qlast.Sequence):
             for el in expr.elements:
                 self._process_expr(context, el)
 
-        elif isinstance(expr, qlast.TypeCastNode):
+        elif isinstance(expr, qlast.TypeCast):
             self._process_expr(context, expr.expr)
             self._process_expr(context, expr.type)
 
-        elif isinstance(expr, qlast.TypeNameNode):
+        elif isinstance(expr, qlast.TypeName):
             if expr.maintype.module:
                 expr.maintype.module = self._process_module_ref(
                     context, expr.maintype.module)
@@ -230,30 +230,30 @@ class EdgeQLOptimizer:
                 for subtype in expr.subtypes:
                     self._process_expr(context, subtype)
 
-        elif isinstance(expr, qlast.NoneTestNode):
+        elif isinstance(expr, qlast.NoneTest):
             self._process_expr(context, expr.expr)
 
-        elif isinstance(expr, qlast.ClassRefNode):
+        elif isinstance(expr, qlast.ClassRef):
             if expr.module:
                 expr.module = self._process_module_ref(
                                 context, expr.module)
 
-        elif isinstance(expr, qlast.PathNode):
+        elif isinstance(expr, qlast.Path):
             if expr.pathspec:
                 self._process_pathspec(context, expr.pathspec)
 
             for step in expr.steps:
                 self._process_expr(context, step)
 
-        elif isinstance(expr, qlast.PtrNode):
+        elif isinstance(expr, qlast.Ptr):
             self._process_expr(context, expr.ptr)
             if expr.target:
                 self._process_expr(context, expr.target)
 
-        elif isinstance(expr, qlast.CreateModuleNode):
+        elif isinstance(expr, qlast.CreateModule):
             pass
 
-        elif isinstance(expr, qlast.ObjectDDLNode):
+        elif isinstance(expr, qlast.ObjectDDL):
             if expr.namespaces:
                 context.current.namespaces.update(
                     (ns.alias, ns.namespace) for ns in expr.namespaces)
@@ -274,19 +274,19 @@ class EdgeQLOptimizer:
                                     context, base.module,
                                     strip_builtins=False)
 
-            if isinstance(expr, qlast.CreateConcreteLinkNode):
+            if isinstance(expr, qlast.CreateConcreteLink):
                 for t in expr.targets:
                     t.module = self._process_module_ref(
                                     context, t.module,
                                     strip_builtins=False)
 
-            elif isinstance(expr, qlast.CreateConcreteLinkPropertyNode):
+            elif isinstance(expr, qlast.CreateConcreteLinkProperty):
                 expr.target.module = self._process_module_ref(
                                         context, expr.target.module,
                                         strip_builtins=False)
 
-        elif isinstance(expr, (qlast.CreateLocalPolicyNode,
-                               qlast.AlterLocalPolicyNode)):
+        elif isinstance(expr, (qlast.CreateLocalPolicy,
+                               qlast.AlterLocalPolicy)):
             expr.event.module = self._process_module_ref(
                                         context, expr.event.module,
                                         strip_builtins=False)
@@ -295,19 +295,19 @@ class EdgeQLOptimizer:
                                         context, action.module,
                                         strip_builtins=False)
 
-        elif isinstance(expr, qlast.AlterTargetNode):
+        elif isinstance(expr, qlast.AlterTarget):
             for target in expr.targets:
                 target.module = self._process_module_ref(
                                         context, target.module,
                                         strip_builtins=False)
 
-        elif isinstance(expr, qlast.RenameNode):
+        elif isinstance(expr, qlast.Rename):
             expr.new_name.module = self._process_module_ref(
                                         context, expr.new_name.module,
                                         strip_builtins=False)
 
-        elif isinstance(expr, (qlast.AlterAddInheritNode,
-                               qlast.AlterDropInheritNode)):
+        elif isinstance(expr, (qlast.AlterAddInherit,
+                               qlast.AlterDropInherit)):
             for base in expr.bases:
                 base.module = self._process_module_ref(
                                         context, base.module,
@@ -315,7 +315,7 @@ class EdgeQLOptimizer:
 
     def _process_pathspec(self, context, pathspec):
         for spec in pathspec:
-            if isinstance(spec, qlast.SelectPathSpecNode):
+            if isinstance(spec, qlast.SelectPathSpec):
                 if spec.where:
                     self._process_expr(context, spec.where)
 

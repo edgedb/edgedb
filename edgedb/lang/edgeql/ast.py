@@ -17,51 +17,51 @@ class Base(ast.AST):
     context: parsing.ParserContext
 
 
-class RootNode(Base):
+class Root(Base):
     children: list
 
 
-class ClassRefNode(Base):
+class ClassRef(Base):
     name: str
     module: str
 
 
-class IndirectionNode(Base):
+class Indirection(Base):
     arg: Base
     indirection: list
 
 
-class IndexNode(Base):
+class Index(Base):
     index: Base
 
 
-class SliceNode(Base):
+class Slice(Base):
     start: Base
     stop: Base
 
 
-class ArgListNode(Base):
+class ArgList(Base):
     name: str
     args: list
 
 
-class BinOpNode(Base):
+class BinOp(Base):
     left: object
     op: str
     right: object
 
 
-class WindowSpecNode(Base):
+class WindowSpec(Base):
     orderby: list
     partition: list
 
 
-class NamedArgNode(Base):
+class NamedArg(Base):
     name: str
     arg: object
 
 
-class FunctionCallNode(Base):
+class FunctionCall(Base):
     func: object  # tuple or str
     args: typing.List[Base]
     agg_sort: list
@@ -69,392 +69,392 @@ class FunctionCallNode(Base):
     window: object
 
 
-class VarNode(Base):
+class Var(Base):
     name: str
 
 
-class PathVarNode(VarNode):
+class PathVar(Var):
     pass
 
 
-class ConstantNode(Base):
+class Constant(Base):
     value: object
 
 
-class EmptySetNode(Base):
+class EmptySet(Base):
     pass
 
 
-class ParameterNode(Base):
+class Parameter(Base):
     name: str
 
 
-class DefaultValueNode(Base):
+class DefaultValue(Base):
     pass
 
 
-class UnaryOpNode(Base):
+class UnaryOp(Base):
     op: str
     operand: Base
 
 
-class PostfixOpNode(Base):
+class PostfixOp(Base):
     op: str
     operand: Base
 
 
-class PathNode(Base):
+class Path(Base):
     steps: list
     quantifier: Base
     pathspec: list
     partial: bool = False
 
 
-class PathDisjunctionNode(Base):
+class PathDisjunction(Base):
     left: Base
     right: Base
 
 
-class PtrNode(Base):
-    ptr: ClassRefNode
+class Ptr(Base):
+    ptr: ClassRef
     direction: str
     target: Base
     type: str
 
 
-class StatementNode(Base):
+class Statement(Base):
     namespaces: list
     aliases: list
 
 
-class PositionNode(Base):
+class Position(Base):
     ref: str
     position: str
 
 
-class ExpressionTextNode(Base):
+class ExpressionText(Base):
     expr: Base
 
 
-class TypeNameNode(Base):
+class TypeName(Base):
     maintype: Base
     subtypes: list
 
 
-class TypeCastNode(Base):
+class TypeCast(Base):
     expr: Base
-    type: TypeNameNode
+    type: TypeName
 
 
-class TypeFilterNode(Base):
+class TypeFilter(Base):
     expr: Base
-    type: TypeNameNode
+    type: TypeName
 
 
-class IfElseNode(Base):
+class IfElse(Base):
     condition: Base
     if_expr: Base
     else_expr: Base
 
 
-class CoalesceNode(Base):
+class Coalesce(Base):
     args: typing.List[Base]
 
 
-class TransactionNode(Base):
+class Transaction(Base):
     pass
 
 
-class StartTransactionNode(TransactionNode):
+class StartTransaction(Transaction):
     pass
 
 
-class CommitTransactionNode(TransactionNode):
+class CommitTransaction(Transaction):
     pass
 
 
-class RollbackTransactionNode(TransactionNode):
+class RollbackTransaction(Transaction):
     pass
 
 
-class DDLNode(Base):
+class DDL(Base):
     pass
 
 
-class CompositeDDLNode(StatementNode, DDLNode):
+class CompositeDDL(Statement, DDL):
     pass
 
 
-class AlterSchemaNode(Base):
+class AlterSchema(Base):
     commands: list
 
 
-class AlterAddInheritNode(DDLNode):
+class AlterAddInherit(DDL):
     bases: list
     position: object
 
 
-class AlterDropInheritNode(DDLNode):
+class AlterDropInherit(DDL):
     bases: list
 
 
-class AlterTargetNode(DDLNode):
+class AlterTarget(DDL):
     targets: list
 
 
-class ObjectDDLNode(CompositeDDLNode):
+class ObjectDDL(CompositeDDL):
     namespaces: list
-    name: ClassRefNode
+    name: ClassRef
     commands: list
 
 
-class CreateObjectNode(ObjectDDLNode):
+class CreateObject(ObjectDDL):
     pass
 
 
-class AlterObjectNode(ObjectDDLNode):
+class AlterObject(ObjectDDL):
     pass
 
 
-class DropObjectNode(ObjectDDLNode):
+class DropObject(ObjectDDL):
     pass
 
 
-class CreateInheritingObjectNode(CreateObjectNode):
+class CreateInheritingObject(CreateObject):
     bases: list
     is_abstract: bool = False
     is_final: bool = False
 
 
-class RenameNode(DDLNode):
-    new_name: ClassRefNode
+class Rename(DDL):
+    new_name: ClassRef
 
 
-class DeltaNode:
+class Delta:
     pass
 
 
-class CreateDeltaNode(CreateObjectNode, DeltaNode):
+class CreateDelta(CreateObject, Delta):
     parents: list
     language: str
     target: object
 
 
-class GetDeltaNode(ObjectDDLNode, DeltaNode):
+class GetDelta(ObjectDDL, Delta):
     pass
 
 
-class AlterDeltaNode(AlterObjectNode, DeltaNode):
+class AlterDelta(AlterObject, Delta):
     pass
 
 
-class DropDeltaNode(DropObjectNode, DeltaNode):
+class DropDelta(DropObject, Delta):
     pass
 
 
-class CommitDeltaNode(ObjectDDLNode, DeltaNode):
+class CommitDelta(ObjectDDL, Delta):
     pass
 
 
-class DatabaseNode:
+class Database:
     pass
 
 
-class CreateDatabaseNode(CreateObjectNode, DatabaseNode):
+class CreateDatabase(CreateObject, Database):
     pass
 
 
-class DropDatabaseNode(DropObjectNode, DatabaseNode):
+class DropDatabase(DropObject, Database):
     pass
 
 
-class CreateModuleNode(CreateObjectNode):
+class CreateModule(CreateObject):
     pass
 
 
-class AlterModuleNode(AlterObjectNode):
+class AlterModule(AlterObject):
     pass
 
 
-class DropModuleNode(DropObjectNode):
+class DropModule(DropObject):
     pass
 
 
-class CreateActionNode(CreateObjectNode):
+class CreateAction(CreateObject):
     pass
 
 
-class AlterActionNode(AlterObjectNode):
+class AlterAction(AlterObject):
     pass
 
 
-class DropActionNode(DropObjectNode):
+class DropAction(DropObject):
     pass
 
 
-class CreateEventNode(CreateInheritingObjectNode):
+class CreateEvent(CreateInheritingObject):
     pass
 
 
-class AlterEventNode(AlterObjectNode):
+class AlterEvent(AlterObject):
     pass
 
 
-class DropEventNode(DropObjectNode):
+class DropEvent(DropObject):
     pass
 
 
-class CreateAttributeNode(CreateObjectNode):
-    type: TypeNameNode
+class CreateAttribute(CreateObject):
+    type: TypeName
 
 
-class DropAttributeNode(DropObjectNode):
+class DropAttribute(DropObject):
     pass
 
 
-class CreateAtomNode(CreateInheritingObjectNode):
+class CreateAtom(CreateInheritingObject):
     pass
 
 
-class AlterAtomNode(AlterObjectNode):
+class AlterAtom(AlterObject):
     pass
 
 
-class DropAtomNode(DropObjectNode):
+class DropAtom(DropObject):
     pass
 
 
-class CreateLinkPropertyNode(CreateInheritingObjectNode):
+class CreateLinkProperty(CreateInheritingObject):
     pass
 
 
-class AlterLinkPropertyNode(AlterObjectNode):
+class AlterLinkProperty(AlterObject):
     pass
 
 
-class DropLinkPropertyNode(DropObjectNode):
+class DropLinkProperty(DropObject):
     pass
 
 
-class CreateConcreteLinkPropertyNode(CreateObjectNode):
+class CreateConcreteLinkProperty(CreateObject):
     is_required: bool = False
     target: Base
 
 
-class AlterConcreteLinkPropertyNode(AlterObjectNode):
+class AlterConcreteLinkProperty(AlterObject):
     pass
 
 
-class DropConcreteLinkPropertyNode(AlterObjectNode):
+class DropConcreteLinkProperty(AlterObject):
     pass
 
 
-class SetSpecialFieldNode(Base):
+class SetSpecialField(Base):
     name: str
     value: object
     as_expr: bool = False
 
 
-class CreateConceptNode(CreateInheritingObjectNode):
+class CreateConcept(CreateInheritingObject):
     pass
 
 
-class AlterConceptNode(AlterObjectNode):
+class AlterConcept(AlterObject):
     pass
 
 
-class DropConceptNode(DropObjectNode):
+class DropConcept(DropObject):
     pass
 
 
-class CreateLinkNode(CreateInheritingObjectNode):
+class CreateLink(CreateInheritingObject):
     pass
 
 
-class AlterLinkNode(AlterObjectNode):
+class AlterLink(AlterObject):
     pass
 
 
-class DropLinkNode(DropObjectNode):
+class DropLink(DropObject):
     pass
 
 
-class CreateConcreteLinkNode(CreateInheritingObjectNode):
+class CreateConcreteLink(CreateInheritingObject):
     is_required: bool = False
     targets: list
 
 
-class AlterConcreteLinkNode(AlterObjectNode):
+class AlterConcreteLink(AlterObject):
     pass
 
 
-class DropConcreteLinkNode(DropObjectNode):
+class DropConcreteLink(DropObject):
     pass
 
 
-class CreateConstraintNode(CreateInheritingObjectNode):
+class CreateConstraint(CreateInheritingObject):
     pass
 
 
-class AlterConstraintNode(AlterObjectNode):
+class AlterConstraint(AlterObject):
     pass
 
 
-class DropConstraintNode(DropObjectNode):
+class DropConstraint(DropObject):
     pass
 
 
-class CreateConcreteConstraintNode(CreateObjectNode):
+class CreateConcreteConstraint(CreateObject):
     args: list
     is_abstract: bool = False
 
 
-class AlterConcreteConstraintNode(AlterObjectNode):
+class AlterConcreteConstraint(AlterObject):
     pass
 
 
-class DropConcreteConstraintNode(DropObjectNode):
+class DropConcreteConstraint(DropObject):
     pass
 
 
-class CreateLocalPolicyNode(CompositeDDLNode):
-    event: ClassRefNode
+class CreateLocalPolicy(CompositeDDL):
+    event: ClassRef
     actions: list
 
 
-class AlterLocalPolicyNode(CompositeDDLNode):
-    event: ClassRefNode
+class AlterLocalPolicy(CompositeDDL):
+    event: ClassRef
     actions: list
 
 
-class DropLocalPolicyNode(CompositeDDLNode):
-    event: ClassRefNode
+class DropLocalPolicy(CompositeDDL):
+    event: ClassRef
 
 
-class CreateIndexNode(CreateObjectNode):
+class CreateIndex(CreateObject):
     expr: Base
 
 
-class DropIndexNode(DropObjectNode):
+class DropIndex(DropObject):
     pass
 
 
-class CreateAttributeValueNode(CreateObjectNode):
+class CreateAttributeValue(CreateObject):
     value: Base
     as_expr: bool = False
 
 
-class AlterAttributeValueNode(AlterObjectNode):
+class AlterAttributeValue(AlterObject):
     value: Base
 
 
-class DropAttributeValueNode(DropObjectNode):
+class DropAttributeValue(DropObject):
     pass
 
 
-class FuncArgNode(Base):
+class FuncArg(Base):
     name: str
-    type: TypeNameNode
+    type: TypeName
     variadic: bool = False
     default: Base
 
@@ -470,7 +470,7 @@ class FunctionCode(Base):
     from_name: str
 
 
-class CreateFunctionNode(CreateObjectNode):
+class CreateFunction(CreateObject):
     args: list
     returning: Base
     single: bool = False
@@ -478,15 +478,15 @@ class CreateFunctionNode(CreateObjectNode):
     code: FunctionCode
 
 
-class AlterFunctionNode(AlterObjectNode):
+class AlterFunction(AlterObject):
     value: Base
 
 
-class DropFunctionNode(DropObjectNode):
+class DropFunction(DropObject):
     pass
 
 
-class SelectQueryNode(StatementNode):
+class SelectQuery(Statement):
     single: bool = False
     distinct: bool = False
     result: Base
@@ -502,16 +502,16 @@ class SelectQueryNode(StatementNode):
     op_rarg: Base
 
 
-class InsertQueryNode(StatementNode):
+class InsertQuery(Statement):
     subject: Base
     pathspec: list
     result: Base
     cges: list
     single: bool = False
-    source: StatementNode
+    source: Statement
 
 
-class UpdateQueryNode(StatementNode):
+class UpdateQuery(Statement):
     subject: Base
     pathspec: list
     where: Base
@@ -520,12 +520,12 @@ class UpdateQueryNode(StatementNode):
     single: bool = False
 
 
-class UpdateExprNode(Base):
+class UpdateExpr(Base):
     expr: Base
     value: Base
 
 
-class DeleteQueryNode(StatementNode):
+class DeleteQuery(Statement):
     subject: Base
     where: Base
     result: Base
@@ -533,7 +533,7 @@ class DeleteQueryNode(StatementNode):
     single: bool = False
 
 
-class ValuesQueryNode(StatementNode):
+class ValuesQuery(Statement):
     result: list
     orderby: list
     offset: Base
@@ -541,36 +541,36 @@ class ValuesQueryNode(StatementNode):
     cges: list
 
 
-class CGENode(Base):
+class CGE(Base):
     expr: Base
     alias: str
 
 
-class NamespaceAliasDeclNode(Base):
+class NamespaceAliasDecl(Base):
     namespace: str
     alias: object
 
 
-class ExpressionAliasDeclNode(Base):
+class ExpressionAliasDecl(Base):
     expr: Base
     alias: object
 
 
-class SortExprNode(Base):
+class SortExpr(Base):
     path: Base
     direction: str
     nones_order: object
 
 
-class PredicateNode(Base):
+class Predicate(Base):
     expr: Base
 
 
-class ExistsPredicateNode(PredicateNode):
+class ExistsPredicate(Predicate):
     pass
 
 
-class SelectPathSpecNode(Base):
+class SelectPathSpec(Base):
     expr: Base
     pathspec: list
     where: Base
@@ -579,12 +579,12 @@ class SelectPathSpecNode(Base):
     limit: Base
     compexpr: Base
     recurse: bool = False
-    recurse_limit: typing.Union[ConstantNode, ParameterNode]
+    recurse_limit: typing.Union[Constant, Parameter]
 
 
-class PointerGlobNode(Base):
+class PointerGlob(Base):
     filters: list
-    type: ClassRefNode
+    type: ClassRef
 
 
 class PointerGlobFilter(Base):
@@ -593,38 +593,38 @@ class PointerGlobFilter(Base):
     any: bool = False
 
 
-class FromExprNode(Base):
+class FromExpr(Base):
     expr: Base
     alias: Base
 
 
-class StructElementNode(Base):
-    name: ClassRefNode
+class StructElement(Base):
+    name: ClassRef
     val: Base
 
 
-class StructNode(Base):
-    elements: typing.List[StructElementNode]
+class Struct(Base):
+    elements: typing.List[StructElement]
 
 
-class EmptyCollectionNode(Base):
+class EmptyCollection(Base):
     pass
 
 
-class SequenceNode(Base):
+class Sequence(Base):
     elements: list
 
 
-class ArrayNode(Base):
+class Array(Base):
     elements: list
 
 
-class MappingNode(Base):
+class Mapping(Base):
     keys: typing.List[Base]
     values: typing.List[Base]
 
 
-class NoneTestNode(Base):
+class NoneTest(Base):
     expr: Base
 
 

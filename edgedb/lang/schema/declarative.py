@@ -203,8 +203,8 @@ class DeclarationLoader:
                             '(got type {!r})'.format(type(ref).__name__))
 
     def _get_literal_value(self, node):
-        if not isinstance(node, s_ast.LiteralNode):
-            raise TypeError('LiteralNode expected '
+        if not isinstance(node, s_ast.Literal):
+            raise TypeError('Literal expected '
                             '(got type {!r})'.format(type(node).__name__))
 
         return node.value
@@ -366,7 +366,7 @@ class DeclarationLoader:
 
     def _parse_ptr_default(self, expr, source, ptr):
         """Set the default value for a pointer."""
-        if not isinstance(expr, edgeql.ast.SelectQueryNode):
+        if not isinstance(expr, edgeql.ast.SelectQuery):
             expr = self._get_literal_value(expr)
 
         ptr.default = expr
@@ -512,7 +512,7 @@ class DeclarationLoader:
                 else:
                     link_qname = link_base.name
 
-                if isinstance(linkdecl.target, edgeql.ast.SelectQueryNode):
+                if isinstance(linkdecl.target, edgeql.ast.SelectQuery):
                     # This is a computable, but we cannot interpret
                     # the expression yet, so set the target to none
                     # temporarily.
@@ -552,7 +552,7 @@ class DeclarationLoader:
                     if name == 'mapping':
                         link.mapping = self._get_literal_value(attr.value)
 
-                if isinstance(linkdecl.target, edgeql.ast.SelectQueryNode):
+                if isinstance(linkdecl.target, edgeql.ast.SelectQuery):
                     # Computables are always readonly.
                     link.readonly = True
 
@@ -569,7 +569,7 @@ class DeclarationLoader:
     def _normalize_link_expressions(self, link, linkdecl):
         """Interpret and validate EdgeQL expressions in link declaration."""
         for propdecl in linkdecl.properties:
-            if isinstance(propdecl.target, edgeql.ast.SelectQueryNode):
+            if isinstance(propdecl.target, edgeql.ast.SelectQuery):
                 # Computable
                 prop_name = self._get_ref_name(propdecl.name)
                 generic_prop = self._schema.get(
@@ -589,7 +589,7 @@ class DeclarationLoader:
                 link_name, module_aliases=self._mod_aliases)
             spec_link = concept.pointers[generic_link.name]
 
-            if isinstance(linkdecl.target, edgeql.ast.SelectQueryNode):
+            if isinstance(linkdecl.target, edgeql.ast.SelectQuery):
                 # Computable
                 self._normalize_ptr_default(
                     linkdecl.target, concept, spec_link)
@@ -597,11 +597,11 @@ class DeclarationLoader:
             for attr in linkdecl.attributes:
                 name = attr.name.name
                 if name == 'default':
-                    if isinstance(attr.value, edgeql.ast.SelectQueryNode):
+                    if isinstance(attr.value, edgeql.ast.SelectQuery):
                         self._normalize_ptr_default(
                             attr.value, concept, spec_link)
                     else:
-                        expr = edgeql.ast.ConstantNode(
+                        expr = edgeql.ast.Constant(
                             value=self._get_literal_value(attr.value))
                         _, _, spec_link.default = edgeql.utils.normalize_tree(
                             expr, self._schema)

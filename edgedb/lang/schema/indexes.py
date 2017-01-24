@@ -79,7 +79,7 @@ class SourceIndexCommand(referencing.ReferencedClassCommand):
 
 
 class CreateSourceIndex(SourceIndexCommand, named.CreateNamedClass):
-    astnode = qlast.CreateIndexNode
+    astnode = qlast.CreateIndex
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
@@ -126,7 +126,7 @@ class AlterSourceIndex(SourceIndexCommand, named.AlterNamedClass):
 
 
 class DeleteSourceIndex(SourceIndexCommand, named.DeleteNamedClass):
-    astnode = qlast.DropIndexNode
+    astnode = qlast.DropIndex
 
 
 class SourceIndex(derivable.DerivableClass):

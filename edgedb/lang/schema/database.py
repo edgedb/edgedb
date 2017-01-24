@@ -26,7 +26,7 @@ class DatabaseCommand(sd.Command):
 
 class CreateDatabase(DatabaseCommand):
     name = so.Field(str, None)
-    astnode = qlast.CreateDatabaseNode
+    astnode = qlast.CreateDatabase
 
     @classmethod
     def _cmd_from_ast(cls, astnode, context, schema):
@@ -85,7 +85,7 @@ class AlterDatabase(DatabaseCommand):
 
 class DropDatabase(DatabaseCommand):
     name = so.Field(str, None)
-    astnode = qlast.DropDatabaseNode
+    astnode = qlast.DropDatabase
 
     @classmethod
     def _cmd_from_ast(cls, astnode, context, schema):

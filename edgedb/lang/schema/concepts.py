@@ -39,7 +39,7 @@ class ConceptCommand(constraints.ConsistencySubjectCommand,
 
 
 class CreateConcept(ConceptCommand, inheriting.CreateInheritingClass):
-    astnode = qlast.CreateConceptNode
+    astnode = qlast.CreateConcept
 
 
 class RenameConcept(ConceptCommand, named.RenameNamedClass):
@@ -51,11 +51,11 @@ class RebaseConcept(ConceptCommand, referencing.RebaseReferencingClass):
 
 
 class AlterConcept(ConceptCommand, inheriting.AlterInheritingClass):
-    astnode = qlast.AlterConceptNode
+    astnode = qlast.AlterConcept
 
 
 class DeleteConcept(ConceptCommand, inheriting.DeleteInheritingClass):
-    astnode = qlast.DropConceptNode
+    astnode = qlast.DropConcept
 
 
 class Concept(sources.Source, nodes.Node,

@@ -109,7 +109,7 @@ class GraphQLTranslator(ast.NodeVisitor):
         #
         for selection in node.selection_set.selections:
             self._context.path = [[[module, None]]]
-            selquery = qlast.SelectQueryNode(
+            selquery = qlast.SelectQuery(
                 result=self._visit_query_selset(selection),
                 where=self._visit_where(selection.arguments)
             )
@@ -117,7 +117,7 @@ class GraphQLTranslator(ast.NodeVisitor):
             if query is None:
                 query = selquery
             else:
-                query = qlast.SelectQueryNode(
+                query = qlast.SelectQuery(
                     op=qlast.UNION,
                     op_larg=query,
                     op_rarg=selquery
@@ -147,7 +147,7 @@ class GraphQLTranslator(ast.NodeVisitor):
             subject = self._visit_operation_subject()
 
             if self._context.optype == 'delete':
-                mutation = qlast.DeleteQueryNode(
+                mutation = qlast.DeleteQuery(
                     result=result,
                     subject=subject,
                     where=self._visit_where(selection.arguments),
@@ -158,13 +158,13 @@ class GraphQLTranslator(ast.NodeVisitor):
                         f"too many arguments for {selection.name!r}",
                         context=selection.context)
 
-                mutation = qlast.InsertQueryNode(
+                mutation = qlast.InsertQuery(
                     result=result,
                     subject=subject,
                     pathspec=self._visit_data(selection.arguments),
                 )
             elif self._context.optype == 'update':
-                mutation = qlast.UpdateQueryNode(
+                mutation = qlast.UpdateQuery(
                     result=result,
                     subject=subject,
                     pathspec=self._visit_data(selection.arguments),
@@ -209,8 +209,8 @@ class GraphQLTranslator(ast.NodeVisitor):
                 f"{base[1]!r} does not exist in the schema module {base[0]!r}",
                 context=selection.context)
 
-        expr = qlast.PathNode(
-            steps=[qlast.ClassRefNode(module=base[0], name=base[1])],
+        expr = qlast.Path(
+            steps=[qlast.ClassRef(module=base[0], name=base[1])],
             pathspec=self.visit(selection.selection_set)
         )
 
@@ -220,8 +220,8 @@ class GraphQLTranslator(ast.NodeVisitor):
 
     def _visit_operation_subject(self):
         base = self._context.path[0][0]
-        return qlast.PathNode(
-            steps=[qlast.ClassRefNode(module=base[0], name=base[1])],
+        return qlast.Path(
+            steps=[qlast.ClassRef(module=base[0], name=base[1])],
         )
 
     def _visit_data(self, arguments):
@@ -233,10 +233,10 @@ class GraphQLTranslator(ast.NodeVisitor):
                 return self._visit_mutation_data(arg.value)
 
     def _cast_value(self, value, typename):
-        return qlast.TypeCastNode(
+        return qlast.TypeCast(
             expr=value,
-            type=qlast.TypeNameNode(
-                maintype=qlast.ClassRefNode(module='std', name=typename)
+            type=qlast.TypeName(
+                maintype=qlast.ClassRef(module='std', name=typename)
             )
         )
 
@@ -251,9 +251,9 @@ class GraphQLTranslator(ast.NodeVisitor):
                 #
                 ids = self.visit(field.value)
 
-                if isinstance(ids, qlast.SequenceNode):
+                if isinstance(ids, qlast.Sequence):
                     op = ast.ops.IN
-                    ids = qlast.SequenceNode(
+                    ids = qlast.Sequence(
                         elements=[self._cast_value(el, 'uuid')
                                   for el in ids.elements]
                     )
@@ -262,21 +262,21 @@ class GraphQLTranslator(ast.NodeVisitor):
                     ids = self._cast_value(ids, 'uuid')
 
                 name = field.name[:-4]
-                value = qlast.SelectQueryNode(
-                    result=qlast.PathNode(
+                value = qlast.SelectQuery(
+                    result=qlast.Path(
                         steps=[
-                            qlast.ClassRefNode(
+                            qlast.ClassRef(
                                 module='std', name='Object')]
                     ),
-                    where=qlast.BinOpNode(
-                        left=qlast.PathNode(
+                    where=qlast.BinOp(
+                        left=qlast.Path(
                             steps=[
-                                qlast.ClassRefNode(
+                                qlast.ClassRef(
                                     module='std',
                                     name='Object'
                                 ),
-                                qlast.PtrNode(
-                                    ptr=qlast.ClassRefNode(
+                                qlast.Ptr(
+                                    ptr=qlast.ClassRef(
                                         name='id'
                                     )
                                 )
@@ -295,11 +295,11 @@ class GraphQLTranslator(ast.NodeVisitor):
                 else:
                     value = self.visit(field.value)
 
-            result.append(qlast.SelectPathSpecNode(
-                expr=qlast.PathNode(
+            result.append(qlast.SelectPathSpec(
+                expr=qlast.Path(
                     steps=[
-                        qlast.PtrNode(
-                            ptr=qlast.ClassRefNode(
+                        qlast.Ptr(
+                            ptr=qlast.ClassRef(
                                 name=name
                             )
                         )
@@ -317,7 +317,7 @@ class GraphQLTranslator(ast.NodeVisitor):
 
         def get_path_prefix():
             base = self._context.path[0][0]
-            return [qlast.ClassRefNode(module=base[0], name=base[1])]
+            return [qlast.ClassRef(module=base[0], name=base[1])]
 
         return self._join_expressions(self._visit_arguments(
                 arguments, get_path_prefix=get_path_prefix))
@@ -450,17 +450,17 @@ class GraphQLTranslator(ast.NodeVisitor):
         steps = []
 
         if include_base:
-            steps.append(qlast.ClassRefNode(
+            steps.append(qlast.ClassRef(
                 module=base[0][0], name=base[0][1]))
 
-        steps.append(qlast.PtrNode(
-            ptr=qlast.ClassRefNode(
+        steps.append(qlast.Ptr(
+            ptr=qlast.ClassRef(
                 name=node.name
             )
         ))
 
-        spec = qlast.SelectPathSpecNode(
-            expr=qlast.PathNode(steps=steps),
+        spec = qlast.SelectPathSpec(
+            expr=qlast.Path(steps=steps),
             where=self._visit_path_where(node.arguments)
         )
 
@@ -536,10 +536,10 @@ class GraphQLTranslator(ast.NodeVisitor):
                     for step in steps]
             path = path[0:1] + [step for step in path if type(step) is str]
             prefix = [
-                qlast.ClassRefNode(module=path[0][0], name=path[0][1])
+                qlast.ClassRef(module=path[0][0], name=path[0][1])
             ]
             prefix.extend(
-                qlast.PtrNode(ptr=qlast.ClassRefNode(name=name))
+                qlast.Ptr(ptr=qlast.ClassRef(name=name))
                 for name in path[1:]
             )
             return prefix
@@ -568,17 +568,17 @@ class GraphQLTranslator(ast.NodeVisitor):
 
         name = get_path_prefix()
         name.extend(
-            qlast.PtrNode(ptr=qlast.ClassRefNode(name=part))
+            qlast.Ptr(ptr=qlast.ClassRef(name=part))
             for part in name_parts.split('__')
         )
-        name = qlast.PathNode(steps=name)
+        name = qlast.Path(steps=name)
 
         value = self.visit(node.value)
-        if isinstance(value, qlast.ParameterNode):
+        if isinstance(value, qlast.Parameter):
             # check the variable value
             #
             check_value = self._context.vars[node.value.value][0]
-        elif isinstance(value, qlast.SequenceNode):
+        elif isinstance(value, qlast.Sequence):
             check_value = [el.value for el in value.elements]
         else:
             check_value = value.value
@@ -592,7 +592,7 @@ class GraphQLTranslator(ast.NodeVisitor):
         else:
             self._validate_arg(name, check_value, context=node.context)
 
-        return qlast.BinOpNode(left=name, op=op, right=value)
+        return qlast.BinOp(left=name, op=op, right=value)
 
     def _validate_arg(self, path, value, *, context, as_sequence=False):
         # None is always valid argument for our case, simply means
@@ -629,7 +629,7 @@ class GraphQLTranslator(ast.NodeVisitor):
                     context=context)
 
     def visit_ListLiteral(self, node):
-        return qlast.SequenceNode(elements=self.visit(node.value))
+        return qlast.Sequence(elements=self.visit(node.value))
 
     def visit_ObjectLiteral(self, node):
         raise GraphQLValidationError(
@@ -637,10 +637,10 @@ class GraphQLTranslator(ast.NodeVisitor):
             context=node.context)
 
     def visit_Variable(self, node):
-        return qlast.ParameterNode(name=node.value[1:])
+        return qlast.Parameter(name=node.value[1:])
 
-    def visit_LiteralNode(self, node):
-        return qlast.ConstantNode(value=node.value)
+    def visit_Literal(self, node):
+        return qlast.Constant(value=node.value)
 
     def _join_expressions(self, exprs, op=ast.ops.AND):
         if not exprs:
@@ -648,13 +648,13 @@ class GraphQLTranslator(ast.NodeVisitor):
         elif len(exprs) == 1:
             return exprs[0]
 
-        result = qlast.BinOpNode(
+        result = qlast.BinOp(
             left=exprs[0],
             op=op,
             right=exprs[1]
         )
         for expr in exprs[2:]:
-            result = qlast.BinOpNode(
+            result = qlast.BinOp(
                 left=result,
                 op=op,
                 right=expr

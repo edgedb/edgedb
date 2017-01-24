@@ -78,30 +78,30 @@ class ConstraintCommand(referencing.ReferencedClassCommand):
 
         for key, value in op.new_value.items():
             if isinstance(value, so.ClassRef):
-                v = qlast.ConstantNode(value=value.classname)
-                v = qlast.FunctionCallNode(func='typeref', args=[v])
+                v = qlast.Constant(value=value.classname)
+                v = qlast.FunctionCall(func='typeref', args=[v])
 
             elif isinstance(value, so.Collection):
-                args = [qlast.ConstantNode(value=value.schema_name)]
+                args = [qlast.Constant(value=value.schema_name)]
 
                 for subtype in value.get_subtypes():
-                    args.append(qlast.ConstantNode(
+                    args.append(qlast.Constant(
                         value=subtype.classname))
 
-                v = qlast.FunctionCallNode(func='typeref', args=args)
+                v = qlast.FunctionCall(func='typeref', args=args)
 
             elif utils.is_nontrivial_container(value):
-                v = qlast.SequenceNode(elements=[
-                    qlast.ConstantNode(value=el) for el in value
+                v = qlast.Sequence(elements=[
+                    qlast.Constant(value=el) for el in value
                 ])
 
             else:
-                v = qlast.ConstantNode(value=value)
+                v = qlast.Constant(value=value)
 
-            items.append((qlast.ConstantNode(value=key), v))
+            items.append((qlast.Constant(value=key), v))
 
         self._set_attribute_ast(context, node, op.property,
-                                qlast.MappingNode(items=items))
+                                qlast.Mapping(items=items))
 
     def _create_begin(self, schema, context):
         super()._create_begin(schema, context)
@@ -117,8 +117,8 @@ class ConstraintCommand(referencing.ReferencedClassCommand):
 
 class CreateConstraint(ConstraintCommand,
                        referencing.CreateReferencedClass):
-    astnode = [qlast.CreateConcreteConstraintNode, qlast.CreateConstraintNode]
-    referenced_astnode = qlast.CreateConcreteConstraintNode
+    astnode = [qlast.CreateConcreteConstraint, qlast.CreateConstraint]
+    referenced_astnode = qlast.CreateConcreteConstraint
 
     def _apply_field_ast(self, context, node, op):
         if op.property == 'is_derived':
@@ -138,14 +138,14 @@ class RenameConstraint(ConstraintCommand, named.RenameNamedClass):
 
 
 class AlterConstraint(ConstraintCommand, named.AlterNamedClass):
-    astnode = [qlast.AlterConcreteConstraintNode, qlast.AlterConstraintNode]
-    referenced_astnode = qlast.AlterConcreteConstraintNode
+    astnode = [qlast.AlterConcreteConstraint, qlast.AlterConstraint]
+    referenced_astnode = qlast.AlterConcreteConstraint
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
-        if isinstance(astnode, qlast.AlterConcreteConstraintNode):
+        if isinstance(astnode, qlast.AlterConcreteConstraint):
             subject_ctx = context.get(ConsistencySubjectCommandContext)
             new_subject_name = None
             for op in subject_ctx.op(named.RenameNamedClass):
@@ -185,8 +185,8 @@ class AlterConstraint(ConstraintCommand, named.AlterNamedClass):
 
 
 class DeleteConstraint(ConstraintCommand, named.DeleteNamedClass):
-    astnode = [qlast.DropConcreteConstraintNode, qlast.DropConstraintNode]
-    referenced_astnode = qlast.DropConcreteConstraintNode
+    astnode = [qlast.DropConcreteConstraint, qlast.DropConstraint]
+    referenced_astnode = qlast.DropConcreteConstraint
 
 
 class CumulativeBoolExpr(s_expr.ExpressionText):

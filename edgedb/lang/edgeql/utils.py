@@ -22,15 +22,15 @@ class ParameterInliner(ast.NodeTransformer):
         super().__init__()
         self.values = values
 
-    def visit_ParameterNode(self, node):
+    def visit_Parameter(self, node):
         value = self.values[node.name]
 
         if (isinstance(value, collections.Container) and
                 not isinstance(value, (str, bytes))):
-            elements = [qlast.ConstantNode(value=i) for i in value]
-            new_node = qlast.SequenceNode(elements=elements)
+            elements = [qlast.Constant(value=i) for i in value]
+            new_node = qlast.Sequence(elements=elements)
         else:
-            new_node = qlast.ConstantNode(value=value)
+            new_node = qlast.Constant(value=value)
 
         return new_node
 

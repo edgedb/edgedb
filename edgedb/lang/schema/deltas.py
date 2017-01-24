@@ -57,7 +57,7 @@ class DeltaCommand(named.NamedClassCommand):
 
 
 class CreateDelta(named.CreateNamedClass, DeltaCommand):
-    astnode = qlast.CreateDeltaNode
+    astnode = qlast.CreateDelta
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
@@ -84,7 +84,7 @@ class CreateDelta(named.CreateNamedClass, DeltaCommand):
 
 
 class AlterDelta(named.CreateOrAlterNamedClass, DeltaCommand):
-    astnode = qlast.AlterDeltaNode
+    astnode = qlast.AlterDelta
 
     def apply(self, schema, context):
         delta = schema.get_delta(self.classname)
@@ -97,7 +97,7 @@ class AlterDelta(named.CreateOrAlterNamedClass, DeltaCommand):
 
 
 class DeleteDelta(DeltaCommand):
-    astnode = qlast.DropDeltaNode
+    astnode = qlast.DropDelta
 
     def apply(self, schema, context):
         delta = schema.get_delta(self.classname)
@@ -106,7 +106,7 @@ class DeleteDelta(DeltaCommand):
 
 
 class CommitDelta(DeltaCommand):
-    astnode = qlast.CommitDeltaNode
+    astnode = qlast.CommitDelta
 
     def apply(self, schema, context):
         delta = schema.get_delta(self.classname)
@@ -114,7 +114,7 @@ class CommitDelta(DeltaCommand):
 
 
 class GetDelta(DeltaCommand):
-    astnode = qlast.GetDeltaNode
+    astnode = qlast.GetDelta
 
     def apply(self, schema, context):
         delta = schema.get_delta(self.classname)

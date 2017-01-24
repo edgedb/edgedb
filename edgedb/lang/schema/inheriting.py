@@ -67,7 +67,7 @@ def delta_bases(old_bases, new_bases):
 
 
 class AlterInherit(sd.Command):
-    astnode = qlast.AlterAddInheritNode, qlast.AlterDropInheritNode
+    astnode = qlast.AlterAddInherit, qlast.AlterDropInherit
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):

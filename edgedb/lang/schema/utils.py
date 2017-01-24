@@ -15,7 +15,7 @@ from . import name as sn
 from . import objects as so
 
 
-def ast_to_typeref(node: ql_ast.TypeNameNode):
+def ast_to_typeref(node: ql_ast.TypeName):
     if node.subtypes:
         coll = so.Collection.get_class(node.maintype.name)
 

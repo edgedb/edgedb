@@ -31,7 +31,7 @@ class Stmt(Nonterm):
 
 class StartTransactionStmt(Nonterm):
     def reduce_START_TRANSACTION(self, *kids):
-        self.val = qlast.StartTransactionNode()
+        self.val = qlast.StartTransaction()
 
 
 class CommitTransactionStmt(Nonterm):
@@ -40,9 +40,9 @@ class CommitTransactionStmt(Nonterm):
         if kids[0].val:
             raise EdgeQLSyntaxError('Unexpected token: {}'.format(kids[1]),
                                     context=kids[1].context)
-        self.val = qlast.CommitTransactionNode()
+        self.val = qlast.CommitTransaction()
 
 
 class RollbackTransactionStmt(Nonterm):
     def reduce_ROLLBACK(self, *kids):
-        self.val = qlast.RollbackTransactionNode()
+        self.val = qlast.RollbackTransaction()

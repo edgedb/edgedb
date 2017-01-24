@@ -175,7 +175,7 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         self.indentation -= 1
         self.new_lines = 2
 
-    def visit_FuncArgNode(self, node):
+    def visit_FuncArg(self, node):
         if node.variadic:
             self.write('*')
         if node.name is not None:

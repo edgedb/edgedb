@@ -91,35 +91,35 @@ class Specialization(Base):
 
 # expressions
 #
-class LiteralNode(Base):
+class Literal(Base):
     __fields = ['value']
 
 
-class StringLiteral(LiteralNode):
+class StringLiteral(Literal):
     pass
 
 
-class RawLiteral(LiteralNode):
+class RawLiteral(Literal):
     pass
 
 
-class MappingLiteral(LiteralNode):
+class MappingLiteral(Literal):
     pass
 
 
-class IntegerLiteral(LiteralNode):
+class IntegerLiteral(Literal):
     pass
 
 
-class FloatLiteral(LiteralNode):
+class FloatLiteral(Literal):
     pass
 
 
-class BooleanLiteral(LiteralNode):
+class BooleanLiteral(Literal):
     pass
 
 
-class ArrayLiteral(LiteralNode):
+class ArrayLiteral(Literal):
     pass
 
 
@@ -189,11 +189,11 @@ class FunctionCode(Base):
     from_name: str
 
 
-class FuncArgNode(Base):
+class FuncArg(Base):
     name: str
     type: ObjectName
     variadic: bool = False
-    default: LiteralNode
+    default: Literal
 
 
 class FunctionDeclaration(Base):

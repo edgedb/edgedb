@@ -131,8 +131,8 @@ class LinkCommand(lproperties.LinkPropertySourceCommand,
 
 
 class CreateLink(LinkCommand, referencing.CreateReferencedClass):
-    astnode = [qlast.CreateConcreteLinkNode, qlast.CreateLinkNode]
-    referenced_astnode = qlast.CreateConcreteLinkNode
+    astnode = [qlast.CreateConcreteLink, qlast.CreateLink]
+    referenced_astnode = qlast.CreateConcreteLink
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
@@ -140,7 +140,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedClass):
 
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
-        if isinstance(astnode, qlast.CreateConcreteLinkNode):
+        if isinstance(astnode, qlast.CreateConcreteLink):
             cmd.add(
                 sd.AlterClassProperty(
                     property='required',
@@ -336,9 +336,9 @@ class CreateLink(LinkCommand, referencing.CreateReferencedClass):
         concept = context.get(LinkSourceCommandContext)
 
         if concept:
-            return qlast.CreateConcreteLinkNode
+            return qlast.CreateConcreteLink
         else:
-            return qlast.CreateLinkNode
+            return qlast.CreateLink
 
     def _apply_field_ast(self, context, node, op):
         concept = context.get(LinkSourceCommandContext)
@@ -348,7 +348,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedClass):
         elif op.property == 'spectargets':
             if op.new_value:
                 node.targets = [
-                    qlast.ClassRefNode(name=t.classname.name,
+                    qlast.ClassRef(name=t.classname.name,
                                        module=t.classname.module)
                     for t in op.new_value
                 ]
@@ -360,13 +360,13 @@ class CreateLink(LinkCommand, referencing.CreateReferencedClass):
             pass
         elif op.property == 'search':
             if op.new_value:
-                v = qlast.ConstantNode(value=str(op.new_value.weight))
+                v = qlast.Constant(value=str(op.new_value.weight))
                 self._set_attribute_ast(context, node, 'search_weight', v)
         elif op.property == 'target' and concept:
             if not node.targets:
                 t = op.new_value.classname
                 node.targets = [
-                    qlast.ClassRefNode(name=t.name, module=t.module)
+                    qlast.ClassRef(name=t.name, module=t.module)
                 ]
         else:
             super()._apply_field_ast(context, node, op)
@@ -396,7 +396,7 @@ class RebaseLink(LinkCommand, inheriting.RebaseNamedClass):
 
 
 class AlterTarget(sd.Command):
-    astnode = qlast.AlterTargetNode
+    astnode = qlast.AlterTarget
 
     @classmethod
     def _cmd_from_ast(cls, astnode, context, schema):
@@ -478,14 +478,14 @@ class AlterTarget(sd.Command):
 
 
 class AlterLink(LinkCommand, named.AlterNamedClass):
-    astnode = [qlast.AlterLinkNode, qlast.AlterConcreteLinkNode]
-    referenced_astnode = qlast.AlterConcreteLinkNode
+    astnode = [qlast.AlterLink, qlast.AlterConcreteLink]
+    referenced_astnode = qlast.AlterConcreteLink
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
-        if isinstance(astnode, qlast.AlterConcreteLinkNode):
+        if isinstance(astnode, qlast.AlterConcreteLink):
             for ap in cmd(sd.AlterClassProperty):
                 if ap.property == 'search_weight':
                     ap.property = 'search'
@@ -503,9 +503,9 @@ class AlterLink(LinkCommand, named.AlterNamedClass):
         concept = context.get(LinkSourceCommandContext)
 
         if concept:
-            return qlast.AlterConcreteLinkNode
+            return qlast.AlterConcreteLink
         else:
-            return qlast.AlterLinkNode
+            return qlast.AlterLink
 
     def _apply_fields_ast(self, context, node):
         super()._apply_fields_ast(context, node)
@@ -525,18 +525,18 @@ class AlterLink(LinkCommand, named.AlterNamedClass):
     def _apply_field_ast(self, context, node, op):
         if op.property == 'spectargets':
             if op.new_value:
-                node.commands.append(qlast.AlterTargetNode(
+                node.commands.append(qlast.AlterTarget(
                     targets=[
-                        qlast.ClassRefNode(name=t.classname.name,
+                        qlast.ClassRef(name=t.classname.name,
                                            module=t.classname.module)
                         for t in op.new_value
                     ]
                 ))
         elif op.property == 'target':
             if op.new_value:
-                node.commands.append(qlast.AlterTargetNode(
+                node.commands.append(qlast.AlterTarget(
                     targets=[
-                        qlast.ClassRefNode(
+                        qlast.ClassRef(
                             name=op.new_value.classname.name,
                             module=op.new_value.classname.module)
                     ]
@@ -545,7 +545,7 @@ class AlterLink(LinkCommand, named.AlterNamedClass):
             pass
         elif op.property == 'search':
             if op.new_value:
-                v = qlast.ConstantNode(value=str(op.new_value.weight))
+                v = qlast.Constant(value=str(op.new_value.weight))
                 self._set_attribute_ast(context, node, 'search_weight', v)
             else:
                 self._drop_attribute_ast(context, node, 'search_weight')
@@ -554,16 +554,16 @@ class AlterLink(LinkCommand, named.AlterNamedClass):
 
 
 class DeleteLink(LinkCommand, named.DeleteNamedClass):
-    astnode = [qlast.DropLinkNode, qlast.DropConcreteLinkNode]
-    referenced_astnode = qlast.DropConcreteLinkNode
+    astnode = [qlast.DropLink, qlast.DropConcreteLink]
+    referenced_astnode = qlast.DropConcreteLink
 
     def _get_ast_node(self, context):
         concept = context.get(LinkSourceCommandContext)
 
         if concept:
-            return qlast.DropConcreteLinkNode
+            return qlast.DropConcreteLink
         else:
-            return qlast.DropLinkNode
+            return qlast.DropLink
 
     def _apply_fields_ast(self, context, node):
         super()._apply_fields_ast(context, node)

@@ -12,11 +12,11 @@ from edgedb.lang.schema import ddl as s_ddl
 
 class TransactionStatement:
     def __init__(self, qlnode):
-        if isinstance(qlnode, qlast.StartTransactionNode):
+        if isinstance(qlnode, qlast.StartTransaction):
             self.op = 'start'
-        elif isinstance(qlnode, qlast.CommitTransactionNode):
+        elif isinstance(qlnode, qlast.CommitTransaction):
             self.op = 'commit'
-        elif isinstance(qlnode, qlast.RollbackTransactionNode):
+        elif isinstance(qlnode, qlast.RollbackTransaction):
             self.op = 'rollback'
         else:
             raise ValueError(
@@ -28,19 +28,19 @@ class TransactionStatement:
 
 
 def plan_statement(stmt, backend, flags={}):
-    if isinstance(stmt, qlast.DatabaseNode):
+    if isinstance(stmt, qlast.Database):
         # CREATE/ALTER/DROP DATABASE
         return s_ddl.cmd_from_ddl(stmt, schema=backend.schema)
 
-    elif isinstance(stmt, qlast.DeltaNode):
+    elif isinstance(stmt, qlast.Delta):
         # CREATE/APPLY MIGRATION
         return s_ddl.cmd_from_ddl(stmt, schema=backend.schema)
 
-    elif isinstance(stmt, qlast.DDLNode):
+    elif isinstance(stmt, qlast.DDL):
         # CREATE/DELETE/ALTER (FUNCTION, CONCEPT, etc)
         return s_ddl.delta_from_ddl(stmt, schema=backend.schema)
 
-    elif isinstance(stmt, qlast.TransactionNode):
+    elif isinstance(stmt, qlast.Transaction):
         # BEGIN/COMMIT
         return TransactionStatement(stmt)
 

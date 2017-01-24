@@ -31,7 +31,7 @@ class AttributeCommand(sd.ClassCommand):
 
 
 class CreateAttribute(AttributeCommand, named.CreateNamedClass):
-    astnode = qlast.CreateAttributeNode
+    astnode = qlast.CreateAttribute
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
@@ -54,12 +54,12 @@ class CreateAttribute(AttributeCommand, named.CreateNamedClass):
                 stt = tp.get_subtypes()
 
                 for st in stt:
-                    eltype = qlast.ClassRefNode(module=st.module, name=st.name)
-                tnn = qlast.TypeNameNode(
+                    eltype = qlast.ClassRef(module=st.module, name=st.name)
+                tnn = qlast.TypeName(
                     maintype=maintype,
                     subtypes=[eltype])
             else:
-                tnn = qlast.TypeNameNode(maintype=tp)
+                tnn = qlast.TypeName(maintype=tp)
 
             node.type = tnn
 
@@ -76,7 +76,7 @@ class AlterAttribute(AttributeCommand, named.AlterNamedClass):
 
 
 class DeleteAttribute(AttributeCommand, named.DeleteNamedClass):
-    astnode = qlast.DropAttributeNode
+    astnode = qlast.DropAttribute
 
 
 class AttributeSubjectCommandContext:
@@ -155,7 +155,7 @@ class AttributeValueCommand(sd.ClassCommand):
 
 
 class CreateAttributeValue(AttributeValueCommand, named.CreateNamedClass):
-    astnode = qlast.CreateAttributeValueNode
+    astnode = qlast.CreateAttributeValue
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
@@ -171,9 +171,9 @@ class CreateAttributeValue(AttributeValueCommand, named.CreateNamedClass):
         propname = AttributeValue.get_shortname(cmd.classname)
 
         val = astnode.value
-        if isinstance(val, qlast.ConstantNode):
+        if isinstance(val, qlast.Constant):
             value = val.value
-        elif isinstance(val, qlast.SequenceNode):
+        elif isinstance(val, qlast.Sequence):
             value = tuple(v.value for v in val.elements)
         else:
             msg = 'unexpected value type in AttributeValue: {!r}'
@@ -201,7 +201,7 @@ class CreateAttributeValue(AttributeValueCommand, named.CreateNamedClass):
 
     def _apply_field_ast(self, context, node, op):
         if op.property == 'value':
-            node.value = qlast.ConstantNode(value=op.new_value)
+            node.value = qlast.Constant(value=op.new_value)
         elif op.property == 'is_derived':
             pass
         elif op.property == 'attribute':
@@ -254,13 +254,13 @@ class RenameAttributeValue(AttributeValueCommand, named.RenameNamedClass):
 
 
 class AlterAttributeValue(AttributeValueCommand, named.AlterNamedClass):
-    astnode = qlast.AlterAttributeValueNode
+    astnode = qlast.AlterAttributeValue
 
     def _apply_fields_ast(self, context, node):
         super()._apply_fields_ast(context, node)
         for op in self(sd.AlterClassProperty):
             if op.property == 'value':
-                node.value = qlast.ConstantNode(value=op.new_value)
+                node.value = qlast.Constant(value=op.new_value)
 
     def _apply_field_ast(self, context, node, op):
         if op.property == 'is_derived':
@@ -282,7 +282,7 @@ class AlterAttributeValue(AttributeValueCommand, named.AlterNamedClass):
 
 
 class DeleteAttributeValue(AttributeValueCommand, named.DeleteNamedClass):
-    astnode = qlast.DropAttributeValueNode
+    astnode = qlast.DropAttributeValue
 
     def apply(self, schema, context):
         attrsubj = context.get(AttributeSubjectCommandContext)

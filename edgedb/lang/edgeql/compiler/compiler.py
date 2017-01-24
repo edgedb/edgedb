@@ -150,7 +150,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         raise NotImplementedError(
             'no EdgeQL compiler handler for {}'.format(node.__class__))
 
-    def visit_SelectQueryNode(self, edgeql_tree):
+    def visit_SelectQuery(self, edgeql_tree):
         toplevel_shape_rptrcls = self.context.current.toplevel_shape_rptrcls
         is_toplevel = self.context.current.stmt is None
         schema = self.context.current.schema
@@ -166,7 +166,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 stmt.set_op_larg = self.visit(edgeql_tree.op_larg).expr
                 stmt.set_op_rarg = self.visit(edgeql_tree.op_rarg).expr
             else:
-                if (isinstance(edgeql_tree.result, qlast.PathNode) and
+                if (isinstance(edgeql_tree.result, qlast.Path) and
                         edgeql_tree.result.steps and
                         edgeql_tree.result.pathspec):
                     ctx.result_path_steps = edgeql_tree.result.steps
@@ -196,7 +196,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                         return n.aggregate
                     elif isinstance(n, irast.Stmt):
                         # Make sure we don't dip into subqueries
-                        raise ast.SkipNode()
+                        raise ast.Skip()
 
                 for node in itertools.chain(stmt.orderby or [],
                                             [stmt.offset],
@@ -219,7 +219,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         return result
 
-    def visit_InsertQueryNode(self, edgeql_tree):
+    def visit_InsertQuery(self, edgeql_tree):
         toplevel_shape_rptrcls = self.context.current.toplevel_shape_rptrcls
 
         with self.context.subquery():
@@ -258,7 +258,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 if isinstance(ptrcls.default, s_expr.ExpressionText):
                     default_expr = qlparser.parse(ptrcls.default)
                 else:
-                    default_expr = qlast.ConstantNode(value=ptrcls.default)
+                    default_expr = qlast.Constant(value=ptrcls.default)
 
                 substmt = self.visit(default_expr)
                 if not isinstance(substmt, irast.Stmt):
@@ -277,7 +277,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             stmt.argument_types = self.context.current.arguments
             return stmt
 
-    def visit_UpdateQueryNode(self, edgeql_tree):
+    def visit_UpdateQuery(self, edgeql_tree):
         toplevel_shape_rptrcls = self.context.current.toplevel_shape_rptrcls
 
         with self.context.subquery():
@@ -305,7 +305,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             stmt.argument_types = self.context.current.arguments
             return stmt
 
-    def visit_DeleteQueryNode(self, edgeql_tree):
+    def visit_DeleteQuery(self, edgeql_tree):
         toplevel_shape_rptrcls = self.context.current.toplevel_shape_rptrcls
 
         with self.context.subquery():
@@ -333,7 +333,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             stmt.argument_types = self.context.current.arguments
             return stmt
 
-    def visit_PathNode(self, expr):
+    def visit_Path(self, expr):
         ctx = self.context.current
 
         pathvars = ctx.pathvars
@@ -349,7 +349,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                                          context=expr.context)
 
         for i, step in enumerate(expr.steps):
-            if isinstance(step, qlast.ClassRefNode):
+            if isinstance(step, qlast.ClassRef):
                 if i > 0:
                     raise RuntimeError(
                         'unexpected ClassRef as a non-first path item')
@@ -374,7 +374,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     path_tip = refnode
                     continue
 
-            if isinstance(step, qlast.ClassRefNode):
+            if isinstance(step, qlast.ClassRef):
                 # Starting path label.  Must be a valid reference to an
                 # existing Concept class, as aliases and path variables
                 # have been checked above.
@@ -390,7 +390,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     path_tip.scls = scls
                     path_tip.path_id = path_id
 
-            elif isinstance(step, qlast.PtrNode):
+            elif isinstance(step, qlast.Ptr):
                 # Pointer traversal step
                 ptr_expr = step
                 ptr_target = None
@@ -439,7 +439,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         return path_tip
 
-    def visit_BinOpNode(self, expr):
+    def visit_BinOp(self, expr):
         ctx = self.context.current
 
         left, right = self.visit((expr.left, expr.right))
@@ -466,7 +466,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         return node
 
-    def visit_ParameterNode(self, expr):
+    def visit_Parameter(self, expr):
         ctx = self.context.current
 
         pt = ctx.arguments.get(expr.name)
@@ -475,22 +475,22 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         return irast.Parameter(type=pt, name=expr.name)
 
-    def visit_EmptySetNode(self, expr):
+    def visit_EmptySet(self, expr):
         return irast.EmptySet()
 
-    def visit_ConstantNode(self, expr):
+    def visit_Constant(self, expr):
         ctx = self.context.current
 
         ct = s_types.normalize_type(expr.value.__class__, ctx.schema)
         # TODO: visit expr.value?
         return irast.Constant(value=expr.value, type=ct)
 
-    def visit_EmptyCollectionNode(self, expr):
+    def visit_EmptyCollection(self, expr):
         raise errors.EdgeQLError(
             f'could not determine type of empty collection',
             context=expr.context)
 
-    def visit_StructElementNode(self, expr):
+    def visit_StructElement(self, expr):
         name = expr.name.name
         if expr.name.module:
             name = f'{expr.name.module}::{name}'
@@ -509,20 +509,20 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         return element
 
-    def visit_StructNode(self, expr):
+    def visit_Struct(self, expr):
         elements = self.visit(expr.elements)
         return irast.Struct(elements=elements)
 
-    def visit_SequenceNode(self, expr):
+    def visit_Sequence(self, expr):
         elements = self.visit(expr.elements)
         return irast.Sequence(elements=elements)
 
-    def visit_MappingNode(self, expr):
+    def visit_Mapping(self, expr):
         keys = [self.visit(k) for k in expr.keys]
         values = [self.visit(v) for v in expr.values]
         return irast.Mapping(keys=keys, values=values)
 
-    def visit_ArrayNode(self, expr):
+    def visit_Array(self, expr):
         elements = self.visit(expr.elements)
         return irast.Array(elements=elements)
 
@@ -564,7 +564,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         # Match, the `func` passed all checks.
         return True
 
-    def visit_FunctionCallNode(self, expr):
+    def visit_FunctionCall(self, expr):
         with self.context.new():
             ctx = self.context.current
 
@@ -589,7 +589,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             kwargs = {}
             arg_types = []
             for ai, a in enumerate(expr.args):
-                if isinstance(a, qlast.NamedArgNode):
+                if isinstance(a, qlast.NamedArg):
                     kwargs[a.name] = arg = self.visit(a.arg)
                     aname = a.name
                 else:
@@ -644,13 +644,13 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         return node
 
-    def visit_IfElseNode(self, expr):
+    def visit_IfElse(self, expr):
         return irast.IfElseExpr(
             condition=self.visit(expr.condition),
             if_expr=self.visit(expr.if_expr),
             else_expr=self.visit(expr.else_expr))
 
-    def visit_UnaryOpNode(self, expr):
+    def visit_UnaryOp(self, expr):
         ctx = self.context.current
 
         operand = self.visit(expr.operand)
@@ -685,19 +685,19 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         return node
 
-    def visit_ExistsPredicateNode(self, expr):
+    def visit_ExistsPredicate(self, expr):
         operand = self.visit(expr.expr)
         if self._is_subquery_set(operand):
             operand = operand.expr
         return irast.ExistPred(expr=operand)
 
-    def visit_CoalesceNode(self, expr):
-        if all(isinstance(a, qlast.EmptySetNode) for a in expr.args):
+    def visit_Coalesce(self, expr):
+        if all(isinstance(a, qlast.EmptySet) for a in expr.args):
             return irast.EmptySet()
 
         return irast.Coalesce(args=self.visit(expr.args))
 
-    def visit_TypeCastNode(self, expr):
+    def visit_TypeCast(self, expr):
         maintype = expr.type.maintype
         subtypes = expr.type.subtypes
 
@@ -708,7 +708,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             )
 
             for subtype in subtypes:
-                if isinstance(subtype, qlast.PathNode):
+                if isinstance(subtype, qlast.Path):
                     stype = self.visit(subtype)
                     if isinstance(stype, irast.LinkPropRefSimple):
                         stype = stype.ref
@@ -734,7 +734,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 subtypes=[]
             )
 
-        if isinstance(expr.expr, qlast.EmptyCollectionNode):
+        if isinstance(expr.expr, qlast.EmptyCollection):
             if maintype.name == 'array':
                 wrapped = irast.Array()
             elif maintype.name == 'map':
@@ -746,7 +746,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         return irast.TypeCast(expr=wrapped, type=typ)
 
-    def visit_TypeFilterNode(self, expr):
+    def visit_TypeFilter(self, expr):
         # Expr[IS Type] expressions,
         arg = self.visit(expr.expr)
         path_id = getattr(arg, 'path_id', None)
@@ -762,15 +762,15 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             )
         )
 
-    def visit_IndirectionNode(self, expr):
+    def visit_Indirection(self, expr):
         node = self.visit(expr.arg)
         int_type = self._get_schema_object('std::int')
         for indirection_el in expr.indirection:
-            if isinstance(indirection_el, qlast.IndexNode):
+            if isinstance(indirection_el, qlast.Index):
                 idx = self.visit(indirection_el.index)
                 node = irast.IndexIndirection(expr=node, index=idx)
 
-            elif isinstance(indirection_el, qlast.SliceNode):
+            elif isinstance(indirection_el, qlast.Slice):
                 if indirection_el.start:
                     start = self.visit(indirection_el.start)
                 else:
@@ -883,10 +883,10 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         stmt.substmts = []
 
         for with_entry in edgeql_tree.aliases:
-            if isinstance(with_entry, qlast.NamespaceAliasDeclNode):
+            if isinstance(with_entry, qlast.NamespaceAliasDecl):
                 ctx.namespaces[with_entry.alias] = with_entry.namespace
 
-            elif isinstance(with_entry, qlast.CGENode):
+            elif isinstance(with_entry, qlast.CGE):
                 substmt = self.visit(with_entry.expr).expr
 
                 path_id = irutils.LinearPath([
@@ -951,10 +951,10 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 implicit_shape_els = []
 
                 for pn in implicit_ptrs:
-                    shape_el = qlast.SelectPathSpecNode(
-                        expr=qlast.PathNode(steps=[
-                            qlast.PtrNode(
-                                ptr=qlast.ClassRefNode(
+                    shape_el = qlast.SelectPathSpec(
+                        expr=qlast.Path(steps=[
+                            qlast.Ptr(
+                                ptr=qlast.ClassRef(
                                     name=pn.name,
                                     module=pn.module
                                 )
@@ -975,10 +975,10 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 implicit_shape_els = []
 
                 for pn in implicit_ptrs:
-                    shape_el = qlast.SelectPathSpecNode(
-                        expr=qlast.PathNode(steps=[
-                            qlast.PtrNode(
-                                ptr=qlast.ClassRefNode(
+                    shape_el = qlast.SelectPathSpec(
+                        expr=qlast.Path(steps=[
+                            qlast.Ptr(
+                                ptr=qlast.ClassRef(
                                     name=pn.name,
                                     module=pn.module
                                 ),
@@ -1104,7 +1104,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                             name=ptrname[1]),
                     ).derive(schema, ptrsource, target_class)
 
-                    if isinstance(shape_el.compexpr, qlast.StatementNode):
+                    if isinstance(shape_el.compexpr, qlast.Statement):
                         if shape_el.compexpr.single:
                             ptrcls.mapping = s_links.LinkMapping.ManyToOne
                         else:
@@ -1190,7 +1190,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     mutation_pathspec = []
                     for subel in shape_el.pathspec or []:
                         is_prop = (
-                            isinstance(subel.expr.steps[0], qlast.PtrNode) and
+                            isinstance(subel.expr.steps[0], qlast.Ptr) and
                             subel.expr.steps[0].type == 'property'
                         )
                         if not is_prop:
@@ -1208,7 +1208,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     returning_pathspec = []
                     for subel in shape_el.pathspec or []:
                         is_prop = (
-                            isinstance(subel.expr.steps[0], qlast.PtrNode) and
+                            isinstance(subel.expr.steps[0], qlast.Ptr) and
                             subel.expr.steps[0].type == 'property'
                         )
                         if is_prop:
@@ -1398,7 +1398,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
     def _get_schema_object(self, name, module=None):
         ctx = self.context.current
 
-        if isinstance(name, qlast.ClassRefNode):
+        if isinstance(name, qlast.ClassRef):
             module = name.module
             name = name.name
 

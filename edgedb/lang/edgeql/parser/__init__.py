@@ -18,13 +18,13 @@ def parse_fragment(expr):
 def parse(expr, module_aliases=None):
     tree = parse_fragment(expr)
 
-    if not isinstance(tree, qlast.StatementNode):
-        tree = qlast.SelectQueryNode(result=tree)
+    if not isinstance(tree, qlast.Statement):
+        tree = qlast.SelectQuery(result=tree)
 
     if module_aliases:
         nses = []
         for alias, module in module_aliases.items():
-            decl = qlast.NamespaceAliasDeclNode(namespace=module, alias=alias)
+            decl = qlast.NamespaceAliasDecl(namespace=module, alias=alias)
             nses.append(decl)
 
         if tree.namespaces is None:

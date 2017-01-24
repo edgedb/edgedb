@@ -49,7 +49,7 @@ class ModuleCommand(named.NamedClassCommand):
 
 
 class CreateModule(named.CreateNamedClass, ModuleCommand):
-    astnode = qlast.CreateModuleNode
+    astnode = qlast.CreateModule
 
     def apply(self, schema, context):
         props = self.get_struct_properties(schema)
@@ -59,7 +59,7 @@ class CreateModule(named.CreateNamedClass, ModuleCommand):
 
 
 class AlterModule(named.CreateOrAlterNamedClass, ModuleCommand):
-    astnode = qlast.AlterModuleNode
+    astnode = qlast.AlterModule
 
     def apply(self, schema, context):
         self.module = schema.get_module(self.classname)
@@ -72,7 +72,7 @@ class AlterModule(named.CreateOrAlterNamedClass, ModuleCommand):
 
 
 class DeleteModule(ModuleCommand):
-    astnode = qlast.DropModuleNode
+    astnode = qlast.DropModule
 
     def apply(self, schema, context):
         self.module = schema.get_module(self.classname)

@@ -30,7 +30,7 @@ class IRDecompiler(ast.visitor.NodeVisitor):
             'no EdgeQL decompiler handler for {}'.format(node.__class__))
 
     def visit_SelectStmt(self, node):
-        result = qlast.SelectQueryNode()
+        result = qlast.SelectQuery()
 
         if node.where is not None:
             result.where = self.visit(node.where)
@@ -53,8 +53,8 @@ class IRDecompiler(ast.visitor.NodeVisitor):
         return result
 
     def visit_Shape(self, node):
-        result = qlast.PathNode(
-            steps=[qlast.ClassRefNode(
+        result = qlast.Path(
+            steps=[qlast.ClassRef(
                 module=node.scls.name.module,
                 name=node.scls.name.name
             )],
@@ -66,11 +66,11 @@ class IRDecompiler(ast.visitor.NodeVisitor):
             ptrcls = rptr.ptrcls
             pn = ptrcls.shortname
 
-            pn = qlast.SelectPathSpecNode(
-                expr=qlast.PathNode(
+            pn = qlast.SelectPathSpec(
+                expr=qlast.Path(
                     steps=[
-                        qlast.PtrNode(
-                            ptr=qlast.ClassRefNode(
+                        qlast.Ptr(
+                            ptr=qlast.ClassRef(
                                 module=pn.module,
                                 name=pn.name
                             ),
@@ -97,11 +97,11 @@ class IRDecompiler(ast.visitor.NodeVisitor):
                 pname = ptrcls.shortname
 
                 target = rptr.target.scls.name
-                target = qlast.ClassRefNode(
+                target = qlast.ClassRef(
                     name=target.name,
                     module=target.module)
-                link = qlast.PtrNode(
-                    ptr=qlast.ClassRefNode(
+                link = qlast.Ptr(
+                    ptr=qlast.ClassRef(
                         name=pname.name,
                         module=pname.module
                     ),
@@ -113,12 +113,12 @@ class IRDecompiler(ast.visitor.NodeVisitor):
 
                 node = node.rptr.source
 
-            path = qlast.PathNode()
+            path = qlast.Path()
 
             if node.show_as_anchor and not self.context.inline_anchors:
-                step = qlast.ClassRefNode(name=node.show_as_anchor)
+                step = qlast.ClassRef(name=node.show_as_anchor)
             else:
-                step = qlast.ClassRefNode(name=node.scls.name.name,
+                step = qlast.ClassRef(name=node.scls.name.name,
                                           module=node.scls.name.module)
 
             path.steps.append(step)
@@ -127,32 +127,32 @@ class IRDecompiler(ast.visitor.NodeVisitor):
             return path
 
     def visit_BinOp(self, node):
-        result = qlast.BinOpNode()
+        result = qlast.BinOp()
         result.left = self.visit(node.left)
         result.right = self.visit(node.right)
         result.op = node.op
         return result
 
     def visit_UnaryOp(self, node):
-        result = qlast.UnaryOpNode()
+        result = qlast.UnaryOp()
         result.operand = self.visit(node.expr)
         result.op = node.op
         return result
 
     def visit_Parameter(self, node):
-        return qlast.ParameterNode(name=node.name)
+        return qlast.Parameter(name=node.name)
 
     def visit_Constant(self, node):
-        return qlast.ConstantNode(value=node.value)
+        return qlast.Constant(value=node.value)
 
     def visit_Sequence(self, node):
-        result = qlast.SequenceNode(elements=[
+        result = qlast.Sequence(elements=[
             self.visit(e) for e in node.elements
         ])
         return result
 
     def visit_FunctionCall(self, node):
-        result = qlast.FunctionCallNode(
+        result = qlast.FunctionCall(
             func=(node.func.shortname.module, node.func.shortname.name),
             args=self.visit(node.args)
         )
@@ -161,25 +161,25 @@ class IRDecompiler(ast.visitor.NodeVisitor):
 
     def visit_TypeCast(self, node):
         if node.type.subtypes:
-            typ = qlast.TypeNameNode(
-                maintype=qlast.ClassRefNode(name=node.type.maintype),
+            typ = qlast.TypeName(
+                maintype=qlast.ClassRef(name=node.type.maintype),
                 subtypes=[
-                    qlast.ClassRefNode(
+                    qlast.ClassRef(
                         module=stn.module, name=stn.name)
                     for stn in node.type.subtypes
                 ]
             )
         else:
             mtn = node.type.maintype
-            mt = qlast.ClassRefNode(module=mtn.module, name=mtn.name)
-            typ = qlast.TypeNameNode(maintype=mt)
+            mt = qlast.ClassRef(module=mtn.module, name=mtn.name)
+            typ = qlast.TypeName(maintype=mt)
 
-        result = qlast.TypeCastNode(expr=self.visit(node.expr), type=typ)
+        result = qlast.TypeCast(expr=self.visit(node.expr), type=typ)
 
         return result
 
     def visit_SortExpr(self, node):
-        result = qlast.SortExprNode(
+        result = qlast.SortExpr(
             path=self.visit(node.expr),
             direction=node.direction,
             nones_order=node.nones_order
@@ -191,10 +191,10 @@ class IRDecompiler(ast.visitor.NodeVisitor):
         start = self.visit(node.start) if node.start is not None else None
         stop = self.visit(node.stop) if node.stop is not None else None
 
-        result = qlast.IndirectionNode(
+        result = qlast.Indirection(
             arg=self.visit(node.expr),
             indirection=[
-                qlast.SliceNode(
+                qlast.Slice(
                     start=(None if self._is_none(start) else start),
                     stop=(None if self._is_none(stop) else stop),
                 )
@@ -204,10 +204,10 @@ class IRDecompiler(ast.visitor.NodeVisitor):
         return result
 
     def visit_IndexIndirection(self, node):
-        result = qlast.IndirectionNode(
+        result = qlast.Indirection(
             arg=self.visit(node.expr),
             indirection=[
-                qlast.IndexNode(
+                qlast.Index(
                     index=self.visit(node.index)
                 )
             ]
@@ -216,13 +216,13 @@ class IRDecompiler(ast.visitor.NodeVisitor):
         return result
 
     def visit_ExistPred(self, node):
-        result = qlast.ExistsPredicateNode(expr=self.visit(node.expr))
+        result = qlast.ExistsPredicate(expr=self.visit(node.expr))
         return result
 
     def _is_none(self, expr):
         return (
             expr is None or (
-                isinstance(expr, (irast.Constant, qlast.ConstantNode)) and
+                isinstance(expr, (irast.Constant, qlast.Constant)) and
                 expr.value is None
             )
         )
@@ -231,6 +231,6 @@ class IRDecompiler(ast.visitor.NodeVisitor):
 def decompile_ir(ir_tree, inline_anchors=False, return_statement=False):
     decompiler = IRDecompiler()
     qltree = decompiler.transform(ir_tree, inline_anchors=inline_anchors)
-    if return_statement and not isinstance(qltree, qlast.StatementNode):
-        qltree = qlast.SelectQueryNode(result=qltree)
+    if return_statement and not isinstance(qltree, qlast.Statement):
+        qltree = qlast.SelectQuery(result=qltree)
     return qltree

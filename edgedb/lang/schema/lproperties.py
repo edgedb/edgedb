@@ -67,16 +67,16 @@ class LinkPropertyCommand(pointers.PointerCommand):
 
 class CreateLinkProperty(LinkPropertyCommand,
                          referencing.CreateReferencedClass):
-    astnode = [qlast.CreateConcreteLinkPropertyNode,
-               qlast.CreateLinkPropertyNode]
+    astnode = [qlast.CreateConcreteLinkProperty,
+               qlast.CreateLinkProperty]
 
-    referenced_astnode = qlast.CreateConcreteLinkPropertyNode
+    referenced_astnode = qlast.CreateConcreteLinkProperty
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
-        if isinstance(astnode, qlast.CreateConcreteLinkPropertyNode):
+        if isinstance(astnode, qlast.CreateConcreteLinkProperty):
             target = getattr(astnode, 'target', None)
 
             cmd.add(
@@ -117,9 +117,9 @@ class CreateLinkProperty(LinkPropertyCommand,
     def _get_ast_node(self, context):
         link = context.get(LinkPropertySourceContext)
         if link:
-            return qlast.CreateConcreteLinkPropertyNode
+            return qlast.CreateConcreteLinkProperty
         else:
-            return qlast.CreateLinkPropertyNode
+            return qlast.CreateLinkProperty
 
     def _apply_fields_ast(self, context, node):
         super()._apply_fields_ast(context, node)
@@ -143,7 +143,7 @@ class CreateLinkProperty(LinkPropertyCommand,
             pass
         elif op.property == 'target' and link:
             t = op.new_value.classname
-            node.target = qlast.ClassRefNode(name=t.name, module=t.module)
+            node.target = qlast.ClassRef(name=t.name, module=t.module)
         else:
             super()._apply_field_ast(context, node, op)
 
@@ -159,16 +159,16 @@ class RebaseLinkProperty(LinkPropertyCommand,
 
 class AlterLinkProperty(LinkPropertyCommand,
                         inheriting.AlterInheritingClass):
-    astnode = [qlast.AlterConcreteLinkPropertyNode,
-               qlast.AlterLinkPropertyNode]
+    astnode = [qlast.AlterConcreteLinkProperty,
+               qlast.AlterLinkProperty]
 
     def _get_ast_node(self, context):
         concept = context.get(LinkPropertySourceContext)
 
         if concept:
-            return qlast.AlterConcreteLinkPropertyNode
+            return qlast.AlterConcreteLinkProperty
         else:
-            return qlast.AlterLinkPropertyNode
+            return qlast.AlterLinkProperty
 
     def _apply_fields_ast(self, context, node):
         super()._apply_fields_ast(context, node)
@@ -182,9 +182,9 @@ class AlterLinkProperty(LinkPropertyCommand,
     def _apply_field_ast(self, context, node, op):
         if op.property == 'target':
             if op.new_value:
-                node.commands.append(qlast.AlterTargetNode(
+                node.commands.append(qlast.AlterTarget(
                     targets=[
-                        qlast.ClassRefNode(
+                        qlast.ClassRef(
                             name=op.new_value.classname.name,
                             module=op.new_value.classname.module)
                     ]
@@ -197,16 +197,16 @@ class AlterLinkProperty(LinkPropertyCommand,
 
 class DeleteLinkProperty(LinkPropertyCommand,
                          inheriting.DeleteInheritingClass):
-    astnode = [qlast.DropConcreteLinkPropertyNode,
-               qlast.DropLinkPropertyNode]
+    astnode = [qlast.DropConcreteLinkProperty,
+               qlast.DropLinkProperty]
 
     def _get_ast_node(self, context):
         concept = context.get(LinkPropertySourceContext)
 
         if concept:
-            return qlast.DropConcreteLinkPropertyNode
+            return qlast.DropConcreteLinkProperty
         else:
-            return qlast.DropLinkPropertyNode
+            return qlast.DropLinkProperty
 
     def _apply_fields_ast(self, context, node):
         super()._apply_fields_ast(context, node)

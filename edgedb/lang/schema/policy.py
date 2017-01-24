@@ -52,7 +52,7 @@ class InternalPolicySubjectCommandContext:
 
 
 class CreateAction(named.CreateNamedClass, ActionCommand):
-    astnode = qlast.CreateActionNode
+    astnode = qlast.CreateAction
 
 
 class RenameAction(named.RenameNamedClass, ActionCommand):
@@ -60,15 +60,15 @@ class RenameAction(named.RenameNamedClass, ActionCommand):
 
 
 class AlterAction(named.AlterNamedClass, ActionCommand):
-    astnode = qlast.AlterActionNode
+    astnode = qlast.AlterAction
 
 
 class DeleteAction(named.DeleteNamedClass, ActionCommand):
-    astnode = qlast.DropActionNode
+    astnode = qlast.DropAction
 
 
 class CreateEvent(inheriting.CreateInheritingClass, EventCommand):
-    astnode = qlast.CreateEventNode
+    astnode = qlast.CreateEvent
 
 
 class RenameEvent(named.RenameNamedClass, EventCommand):
@@ -80,11 +80,11 @@ class RebaseEvent(inheriting.RebaseNamedClass, EventCommand):
 
 
 class AlterEvent(inheriting.AlterInheritingClass, EventCommand):
-    astnode = qlast.AlterEventNode
+    astnode = qlast.AlterEvent
 
 
 class DeleteEvent(inheriting.DeleteInheritingClass, EventCommand):
-    astnode = qlast.DropEventNode
+    astnode = qlast.DropEvent
 
 
 class PolicyCommand(referencing.ReferencedClassCommand):
@@ -114,7 +114,7 @@ class PolicyCommand(referencing.ReferencedClassCommand):
         super()._apply_fields_ast(context, node)
         if node.event is None:
             event_name = Policy.get_shortname(self.classname)
-            node.event = qlast.ClassRefNode(
+            node.event = qlast.ClassRef(
                 name=event_name.name,
                 module=event_name.module
             )
@@ -123,12 +123,12 @@ class PolicyCommand(referencing.ReferencedClassCommand):
         if op.property == 'name':
             pass
         elif op.property == 'event':
-            node.event = qlast.ClassRefNode(
+            node.event = qlast.ClassRef(
                 name=op.new_value.classname.name,
                 module=op.new_value.classname.module
             )
         elif op.property == 'actions':
-            node.actions = [qlast.ClassRefNode(
+            node.actions = [qlast.ClassRef(
                 name=a.classname.name,
                 module=a.classname.module
             ) for a in op.new_value]
@@ -137,7 +137,7 @@ class PolicyCommand(referencing.ReferencedClassCommand):
 
 
 class CreatePolicy(PolicyCommand, named.CreateNamedClass):
-    astnode = qlast.CreateLocalPolicyNode
+    astnode = qlast.CreateLocalPolicy
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
@@ -182,7 +182,7 @@ class RenamePolicy(PolicyCommand, named.RenameNamedClass):
 
 
 class AlterPolicy(PolicyCommand, named.AlterNamedClass):
-    astnode = qlast.AlterLocalPolicyNode
+    astnode = qlast.AlterLocalPolicy
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):

@@ -26,14 +26,14 @@ class Base(ast.AST):
                f'{id(self):#x}{ar}>'
 
 
-class LiteralNode(Base):
+class Literal(Base):
     value: object
 
     def topython(self):
         return self.value
 
 
-class StringLiteral(LiteralNode):
+class StringLiteral(Literal):
     def tosource(self):
         value = self.value
         # generic substitutions for '\b' and '\f'
@@ -55,28 +55,28 @@ class StringLiteral(LiteralNode):
         return value
 
 
-class IntegerLiteral(LiteralNode):
+class IntegerLiteral(Literal):
     pass
 
 
-class FloatLiteral(LiteralNode):
+class FloatLiteral(Literal):
     pass
 
 
-class BooleanLiteral(LiteralNode):
+class BooleanLiteral(Literal):
     pass
 
 
-class EnumLiteral(LiteralNode):
+class EnumLiteral(Literal):
     pass
 
 
-class ListLiteral(LiteralNode):
+class ListLiteral(Literal):
     def topython(self):
         return [val.topython() for val in self.value]
 
 
-class ObjectLiteral(LiteralNode):
+class ObjectLiteral(Literal):
     def topython(self):
         return {field.name: field.value.topython() for field in self.value}
 

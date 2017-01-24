@@ -570,7 +570,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
 
     @classmethod
     def as_markup(cls, self, *, ctx):
-        node = markup.elements.lang.TreeNode(name=str(self))
+        node = markup.elements.lang.Tree(name=str(self))
 
         for dd in self:
             if isinstance(dd, AlterClassProperty):
@@ -722,7 +722,7 @@ class CreateClass(ClassCommand):
 
 
 class AlterSpecialClassProperty(Command):
-    astnode = qlast.SetSpecialFieldNode
+    astnode = qlast.SetSpecialField
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
@@ -746,7 +746,7 @@ class AlterClassProperty(Command):
 
         assert '::' not in propname
 
-        if isinstance(astnode, qlast.DropAttributeValueNode):
+        if isinstance(astnode, qlast.DropAttributeValue):
             parent_ctx = context.get(CommandContextToken)
             parent_cls = parent_ctx.op.metaclass
 
@@ -763,19 +763,19 @@ class AlterClassProperty(Command):
             new_value = s_expr.ExpressionText(
                 edgeql.generate_source(astnode.value, pretty=False))
         else:
-            if isinstance(astnode.value, qlast.ConstantNode):
+            if isinstance(astnode.value, qlast.Constant):
                 new_value = astnode.value.value
-            elif isinstance(astnode.value, qlast.SequenceNode):
+            elif isinstance(astnode.value, qlast.Sequence):
                 new_value = tuple(el.value for el in astnode.value.elements)
-            elif isinstance(astnode.value, qlast.MappingNode):
+            elif isinstance(astnode.value, qlast.Mapping):
                 m = {}
                 for k, v in zip(astnode.value.keys, astnode.value.values):
                     k = k.value
-                    if isinstance(v, qlast.ConstantNode):
+                    if isinstance(v, qlast.Constant):
                         v = v.value
-                    elif isinstance(v, qlast.SequenceNode):
+                    elif isinstance(v, qlast.Sequence):
                         v = tuple(el.value for el in v.elements)
-                    elif (isinstance(v, qlast.FunctionCallNode) and
+                    elif (isinstance(v, qlast.FunctionCall) and
                             v.func == 'typeref'):
                         if len(v.args) > 1:
                             # collection
@@ -790,9 +790,9 @@ class AlterClassProperty(Command):
                         else:
                             v = so.ClassRef(
                                 classname=s_name.Name(v.args[0].value))
-                    elif isinstance(v, qlast.TypeCastNode):
+                    elif isinstance(v, qlast.TypeCast):
                         v = v.expr.value
-                    elif isinstance(v, qlast.UnaryOpNode):
+                    elif isinstance(v, qlast.UnaryOp):
                         v = edgeql.generate_source(v)
                         # Remove the space between the operator and the operand
                         v = ''.join(v.split(' ', maxsplit=1))
@@ -823,18 +823,18 @@ class AlterClassProperty(Command):
                     not self.old_value))
 
         if new_value_empty and not old_value_empty:
-            op = qlast.DropAttributeValueNode(
-                name=qlast.ClassRefNode(module='', name=self.property))
+            op = qlast.DropAttributeValue(
+                name=qlast.ClassRef(module='', name=self.property))
             return op
 
         if new_value_empty and old_value_empty:
             return
 
         if isinstance(value, s_expr.ExpressionText):
-            value = qlast.ExpressionTextNode(expr=str(value))
+            value = qlast.ExpressionText(expr=str(value))
         elif utils.is_nontrivial_container(value):
-            value = qlast.SequenceNode(elements=[
-                qlast.ConstantNode(value=el) for el in value
+            value = qlast.Sequence(elements=[
+                qlast.Constant(value=el) for el in value
             ])
         elif isinstance(value, nlang.WordCombination):
             forms = value.as_dict()
@@ -842,18 +842,18 @@ class AlterClassProperty(Command):
                 items = []
                 for k, v in forms.items():
                     items.append((
-                        qlast.ConstantNode(value=k),
-                        qlast.ConstantNode(value=v)
+                        qlast.Constant(value=k),
+                        qlast.Constant(value=v)
                     ))
-                value = qlast.MappingNode(items=items)
+                value = qlast.Mapping(items=items)
             else:
-                value = qlast.ConstantNode(value=str(value))
+                value = qlast.Constant(value=str(value))
         else:
-            value = qlast.ConstantNode(value=value)
+            value = qlast.Constant(value=value)
 
-        as_expr = isinstance(value, qlast.ExpressionTextNode)
-        op = qlast.CreateAttributeValueNode(
-                name=qlast.ClassRefNode(module='', name=self.property),
+        as_expr = isinstance(value, qlast.ExpressionText)
+        op = qlast.CreateAttributeValue(
+                name=qlast.ClassRef(module='', name=self.property),
                 value=value, as_expr=as_expr)
         return op
 

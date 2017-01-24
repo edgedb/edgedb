@@ -42,7 +42,7 @@ class AtomCommand(constraints.ConsistencySubjectCommand,
 
 
 class CreateAtom(AtomCommand, inheriting.CreateInheritingClass):
-    astnode = qlast.CreateAtomNode
+    astnode = qlast.CreateAtom
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
@@ -72,11 +72,11 @@ class RebaseAtom(AtomCommand, inheriting.RebaseNamedClass):
 
 
 class AlterAtom(AtomCommand, inheriting.AlterInheritingClass):
-    astnode = qlast.AlterAtomNode
+    astnode = qlast.AlterAtom
 
 
 class DeleteAtom(AtomCommand, inheriting.DeleteInheritingClass):
-    astnode = qlast.DropAtomNode
+    astnode = qlast.DropAtom
 
 
 class Atom(nodes.Node, constraints.ConsistencySubject,

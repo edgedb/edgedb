@@ -57,9 +57,9 @@ class NamedClassCommand(sd.ClassCommand):
                 nname = self.metaclass.get_shortname(self.classname)
             else:
                 nname = self.classname
-            name = qlast.ClassRefNode(module=nname.module, name=nname.name)
+            name = qlast.ClassRef(module=nname.module, name=nname.name)
         else:
-            name = qlast.ClassRefNode(module='', name=self.classname)
+            name = qlast.ClassRef(module='', name=self.classname)
 
         if astnode.get_field('name'):
             op = astnode(name=name)
@@ -72,17 +72,17 @@ class NamedClassCommand(sd.ClassCommand):
 
     def _set_attribute_ast(self, context, node, name, value):
         if isinstance(value, expr.ExpressionText):
-            value = qlast.ExpressionTextNode(expr=str(value))
+            value = qlast.ExpressionText(expr=str(value))
 
-        as_expr = isinstance(value, qlast.ExpressionTextNode)
-        name_ref = qlast.ClassRefNode(
+        as_expr = isinstance(value, qlast.ExpressionText)
+        name_ref = qlast.ClassRef(
             name=name, module='')
-        node.commands.append(qlast.CreateAttributeValueNode(
+        node.commands.append(qlast.CreateAttributeValue(
             name=name_ref, value=value, as_expr=as_expr))
 
     def _drop_attribute_ast(self, context, node, name):
-        name_ref = qlast.ClassRefNode(name=name, module='')
-        node.commands.append(qlast.DropAttributeValueNode(name=name_ref))
+        name_ref = qlast.ClassRef(name=name, module='')
+        node.commands.append(qlast.DropAttributeValue(name=name_ref))
 
     def _apply_fields_ast(self, context, node):
         for op in self.get_subcommands(type=RenameNamedClass):
@@ -132,7 +132,7 @@ class CreateNamedClass(CreateOrAlterNamedClass, sd.CreateClass):
             pass
         elif op.property == 'bases':
             node.bases = [
-                qlast.ClassRefNode(name=b.classname.name,
+                qlast.ClassRef(name=b.classname.name,
                                    module=b.classname.module)
                 for b in op.new_value
             ]
@@ -159,7 +159,7 @@ class CreateNamedClass(CreateOrAlterNamedClass, sd.CreateClass):
 
 
 class RenameNamedClass(NamedClassCommand):
-    astnode = qlast.RenameNode
+    astnode = qlast.Rename
 
     new_name = so.Field(sn.Name)
 
@@ -217,7 +217,7 @@ class RenameNamedClass(NamedClassCommand):
         else:
             new_name = self.new_name
 
-        ref = qlast.ClassRefNode(
+        ref = qlast.ClassRef(
             name=new_name.name, module=new_name.module)
         return astnode(new_name=ref)
 
@@ -260,7 +260,7 @@ class AlterNamedClass(CreateOrAlterNamedClass):
 
         if getattr(astnode, 'commands', None):
             for astcmd in astnode.commands:
-                if isinstance(astcmd, qlast.AlterDropInheritNode):
+                if isinstance(astcmd, qlast.AlterDropInherit):
                     dropped_bases.extend(
                         so.ClassRef(
                             classname=sn.Name(
@@ -271,7 +271,7 @@ class AlterNamedClass(CreateOrAlterNamedClass):
                         for b in astcmd.bases
                     )
 
-                elif isinstance(astcmd, qlast.AlterAddInheritNode):
+                elif isinstance(astcmd, qlast.AlterAddInherit):
                     bases = [
                         so.ClassRef(
                             classname=sn.Name(
@@ -316,9 +316,9 @@ class AlterNamedClass(CreateOrAlterNamedClass):
 
         if dropped:
             node.commands.append(
-                qlast.AlterDropInheritNode(
+                qlast.AlterDropInherit(
                     bases=[
-                        qlast.ClassRefNode(
+                        qlast.ClassRef(
                             module=b.classname.module,
                             name=b.classname.name
                         )
@@ -329,18 +329,18 @@ class AlterNamedClass(CreateOrAlterNamedClass):
 
         for bases, pos in added:
             if isinstance(pos, tuple):
-                pos_node = qlast.PositionNode(
+                pos_node = qlast.Position(
                     position=pos[0],
-                    ref=qlast.ClassRefNode(
+                    ref=qlast.ClassRef(
                         module=pos[1].classname.module,
                         name=pos[1].classname.name))
             else:
-                pos_node = qlast.PositionNode(position=pos)
+                pos_node = qlast.Position(position=pos)
 
             node.commands.append(
-                qlast.AlterAddInheritNode(
+                qlast.AlterAddInherit(
                     bases=[
-                        qlast.ClassRefNode(
+                        qlast.ClassRef(
                             module=b.classname.module,
                             name=b.classname.name
                         )
@@ -353,7 +353,7 @@ class AlterNamedClass(CreateOrAlterNamedClass):
     def _apply_field_ast(self, context, node, op):
         if op.property in {'is_abstract', 'is_final'}:
             node.commands.append(
-                qlast.SetSpecialFieldNode(
+                qlast.SetSpecialField(
                     name=op.property,
                     value=op.new_value
                 )

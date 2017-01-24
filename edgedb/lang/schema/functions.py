@@ -32,7 +32,7 @@ class FunctionCommandMixin:
 
 
 class CreateFunction(named.CreateNamedClass, FunctionCommandMixin):
-    astnode = qlast.CreateFunctionNode
+    astnode = qlast.CreateFunction
 
     def get_struct_properties(self, schema):
         props = super().get_struct_properties(schema)
@@ -144,11 +144,11 @@ class RenameFunction(named.RenameNamedClass, FunctionCommandMixin):
 
 
 class AlterFunction(named.AlterNamedClass, FunctionCommandMixin):
-    astnode = qlast.AlterFunctionNode
+    astnode = qlast.AlterFunction
 
 
 class DeleteFunction(named.DeleteNamedClass, FunctionCommandMixin):
-    astnode = qlast.DropFunctionNode
+    astnode = qlast.DropFunction
 
 
 class Function(primary.PrimaryClass):
