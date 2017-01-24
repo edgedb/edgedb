@@ -362,18 +362,12 @@ class OptShape(Nonterm):
 
 class ShapeElement(Nonterm):
     def reduce_ShapeElementWithSubShape(self, *kids):
-        r"""%reduce ShapePointer OptPointerRecursionSpec \
+        r"""%reduce ShapePointer \
              OptAnySubShape OptWhereClause OptSortClause OptSelectLimit \
         """
         self.val = kids[0].val
-        if kids[1].val is True:
-            self.val.recurse = True
-            self.val.recurse_limit = None
-        elif kids[1].val is not None:
-            self.val.recurse = True
-            self.val.recurse_limit = kids[1].val
 
-        shape = kids[2].val
+        shape = kids[1].val
         if shape and isinstance(shape[0], qlast.ClassRef):
             self.val.expr.steps[-1].target = shape[0]
             self.val.pathspec = shape[1:]
@@ -381,10 +375,10 @@ class ShapeElement(Nonterm):
             self.val.expr.steps[-1].target = shape[0]
         else:
             self.val.pathspec = shape
-        self.val.where = kids[3].val
-        self.val.orderby = kids[4].val
-        self.val.offset = kids[5].val[0]
-        self.val.limit = kids[5].val[1]
+        self.val.where = kids[2].val
+        self.val.orderby = kids[3].val
+        self.val.offset = kids[4].val[0]
+        self.val.limit = kids[4].val[1]
 
     def reduce_ShapePointer_TURNSTILE_Expr_OptShape(self, *kids):
         self.val = kids[0].val
@@ -539,17 +533,6 @@ class ShapePointer(Nonterm):
         self.val = qlast.SelectPathSpec(
             expr=kids[0].val
         )
-
-
-class OptPointerRecursionSpec(Nonterm):
-    def reduce_STAR(self, *kids):
-        self.val = True
-
-    def reduce_STAR_NumberConstant(self, *kids):
-        self.val = kids[1].val
-
-    def reduce_empty(self, *kids):
-        self.val = None
 
 
 class WhereClause(Nonterm):

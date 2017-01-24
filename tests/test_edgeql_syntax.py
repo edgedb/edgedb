@@ -814,6 +814,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT Foo.bar AS bar;
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Unexpected token.*STAR", line=4, col=24)
     def test_edgeql_syntax_shape26(self):
         """
         SELECT Issue{
@@ -822,6 +824,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Unexpected token.*STAR", line=4, col=24)
     def test_edgeql_syntax_shape27(self):
         """
         SELECT Issue{
@@ -830,7 +834,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=4, col=25)
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Unexpected token.*STAR", line=4, col=24)
     def test_edgeql_syntax_shape28(self):
         """
         SELECT Issue{
@@ -839,6 +844,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Unexpected token.*STAR", line=4, col=24)
     def test_edgeql_syntax_shape29(self):
         """
         SELECT Issue{
