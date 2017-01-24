@@ -133,7 +133,7 @@ class CreateNamedClass(CreateOrAlterNamedClass, sd.CreateClass):
         elif op.property == 'bases':
             node.bases = [
                 qlast.ClassRef(name=b.classname.name,
-                                   module=b.classname.module)
+                               module=b.classname.module)
                 for b in op.new_value
             ]
         elif op.property == 'mro':

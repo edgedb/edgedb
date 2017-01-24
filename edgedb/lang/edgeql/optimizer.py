@@ -96,7 +96,7 @@ class EdgeQLOptimizer:
         nses = []
         for alias, fq_name in context.current.namespaces.items():
             decl = qlast.NamespaceAliasDecl(namespace=fq_name,
-                                                alias=alias)
+                                            alias=alias)
             nses.append(decl)
 
         if edgeql_tree.namespaces is not None:

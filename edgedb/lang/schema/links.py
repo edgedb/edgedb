@@ -349,7 +349,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedClass):
             if op.new_value:
                 node.targets = [
                     qlast.ClassRef(name=t.classname.name,
-                                       module=t.classname.module)
+                                   module=t.classname.module)
                     for t in op.new_value
                 ]
         elif op.property == 'default':
@@ -528,7 +528,7 @@ class AlterLink(LinkCommand, named.AlterNamedClass):
                 node.commands.append(qlast.AlterTarget(
                     targets=[
                         qlast.ClassRef(name=t.classname.name,
-                                           module=t.classname.module)
+                                       module=t.classname.module)
                         for t in op.new_value
                     ]
                 ))

@@ -119,7 +119,7 @@ class IRDecompiler(ast.visitor.NodeVisitor):
                 step = qlast.ClassRef(name=node.show_as_anchor)
             else:
                 step = qlast.ClassRef(name=node.scls.name.name,
-                                          module=node.scls.name.module)
+                                      module=node.scls.name.module)
 
             path.steps.append(step)
             path.steps.extend(reversed(links))

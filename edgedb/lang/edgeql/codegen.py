@@ -619,7 +619,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.write(')')
 
     def _visit_CreateObject(self, node, *object_keywords, after_name=None,
-                                render_commands=True):
+                            render_commands=True):
         self._visit_aliases(node)
         self.write('CREATE', *object_keywords, delimiter=' ')
         self.write(' ')
@@ -958,7 +958,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         typ = 'AGGREGATE' if node.aggregate else 'FUNCTION'
         self._visit_CreateObject(node, typ, after_name=after_name,
-                                     render_commands=False)
+                                 render_commands=False)
 
     def visit_AlterFunction(self, node):
         self._visit_AlterObject(node, 'FUNCTION')
