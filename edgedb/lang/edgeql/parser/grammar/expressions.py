@@ -848,14 +848,6 @@ class Expr(Nonterm):
 
         self.val = qlast.BinOp(left=kids[0].val, op=op, right=kids[2].val)
 
-    @parsing.precedence(precedence.P_OP)
-    def reduce_OP_Expr(self, *kids):
-        self.val = qlast.UnaryOp(op=kids[0].val, operand=kids[1].val)
-
-    # @parsing.precedence(P_POSTFIXOP)
-    # def reduce_Expr_OP(self, *kids):
-    #     self.val = qlast.PostfixOp(op=kids[1].val, operand=kids[0].val)
-
     def reduce_Expr_AND_Expr(self, *kids):
         self.val = qlast.BinOp(left=kids[0].val, op=ast.ops.AND,
                                right=kids[2].val)

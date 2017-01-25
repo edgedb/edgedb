@@ -353,6 +353,34 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         );
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  'Unexpected token.*>=', line=2, col=16)
+    def test_edgeql_syntax_ops19(self):
+        """
+        SELECT >=1;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  'Unexpected token.*\*', line=2, col=16)
+    def test_edgeql_syntax_ops20(self):
+        """
+        SELECT *1;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  'Unexpected token.*~', line=2, col=16)
+    def test_edgeql_syntax_ops21(self):
+        """
+        SELECT ~1;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  'Unexpected token.*>', line=2, col=16)
+    def test_edgeql_syntax_ops22(self):
+        """
+        SELECT >1;
+        """
+
     def test_edgeql_syntax_list01(self):
         """
         SELECT (some_list_fn())[2];
