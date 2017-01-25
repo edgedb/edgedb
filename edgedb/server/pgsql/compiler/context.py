@@ -4,11 +4,13 @@
 #
 # See LICENSE for details.
 ##
-
+"""IR compiler context."""
 
 import collections
+import enum
 import re
 
+from edgedb.lang.common import compiler
 from edgedb.lang.common.ordered import OrderedSet
 
 from edgedb.server.pgsql import ast as pgast
@@ -26,7 +28,14 @@ class Alias(str):
     __iadd__ = __add__
 
 
-class TransformerContextLevel:
+class ContextSwitchMode(enum.Enum):
+    TRANSPARENT = enum.auto()
+    SETSCOPE = enum.auto()
+    SUBQUERY = enum.auto()
+    SUBSTMT = enum.auto()
+
+
+class CompilerContextLevel(compiler.ContextLevel):
     def __init__(self, prevlevel=None, mode=None):
         self._mode = mode
 
@@ -91,8 +100,8 @@ class TransformerContextLevel:
             self.output_format = prevlevel.output_format
             self.rel_overlays = prevlevel.rel_overlays
 
-            if mode in {TransformerContext.SUBQUERY,
-                        TransformerContext.SUBSTMT}:
+            if mode in {ContextSwitchMode.SUBQUERY,
+                        ContextSwitchMode.SUBSTMT}:
                 self.query = pgast.SelectStmt()
                 self.rel = self.query
 
@@ -109,10 +118,10 @@ class TransformerContextLevel:
 
                 self.subquery_map = collections.defaultdict(dict)
 
-            if mode == TransformerContext.SUBSTMT:
+            if mode == ContextSwitchMode.SUBSTMT:
                 self.stmt = self.query
 
-            if mode == TransformerContext.SETSCOPE:
+            if mode == ContextSwitchMode.SETSCOPE:
                 self.setscope = {}
 
     def genalias(self, hint):
@@ -130,59 +139,21 @@ class TransformerContextLevel:
         return Alias(alias)
 
     def on_pop(self, prevlevel):
-        if self._mode == TransformerContext.SETSCOPE and prevlevel:
+        if self._mode == ContextSwitchMode.SETSCOPE and prevlevel:
             for ir_set, lax in self.setscope.items():
                 if lax or ir_set not in prevlevel.setscope:
                     prevlevel.setscope[ir_set] = lax
 
 
-class TransformerContext:
-    TRANSPARENT, SETSCOPE, SUBQUERY, SUBSTMT = range(0, 4)
-
-    def __init__(self):
-        self.stack = []
-        self.push(None)
-
-    def push(self, mode):
-        level = TransformerContextLevel(self.current, mode)
-        self.stack.append(level)
-        return level
-
-    def pop(self):
-        level = self.stack.pop()
-        level.on_pop(self.stack[-1] if self.stack else None)
-
-    def new(self, mode=None):
-        if mode is None:
-            mode = TransformerContext.TRANSPARENT
-        return TransformerContextWrapper(self, mode)
+class CompilerContext(compiler.CompilerContext):
+    ContextLevelClass = CompilerContextLevel
+    default_mode = ContextSwitchMode.TRANSPARENT
 
     def newsetscope(self):
-        return self.new(TransformerContext.SETSCOPE)
+        return self.new(ContextSwitchMode.SETSCOPE)
 
     def subquery(self):
-        return self.new(TransformerContext.SUBQUERY)
+        return self.new(ContextSwitchMode.SUBQUERY)
 
     def substmt(self):
-        return self.new(TransformerContext.SUBSTMT)
-
-    def _current(self):
-        if len(self.stack) > 0:
-            return self.stack[-1]
-        else:
-            return None
-
-    current = property(_current)
-
-
-class TransformerContextWrapper:
-    def __init__(self, context, mode):
-        self.context = context
-        self.mode = mode
-
-    def __enter__(self):
-        self.context.push(self.mode)
-        return self.context.current
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.context.pop()
+        return self.new(ContextSwitchMode.SUBSTMT)

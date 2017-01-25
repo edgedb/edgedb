@@ -6,16 +6,24 @@
 ##
 """EdgeQL to IR compiler context."""
 
+import enum
 import typing
 
 from edgedb.lang.ir import ast as irast
+
+from edgedb.lang.common import compiler
 
 from edgedb.lang.schema import objects as so
 from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import schema as s_schema
 
 
-class ContextLevel:
+class ContextSwitchMode(enum.Enum):
+    NEW = enum.auto()
+    SUBQUERY = enum.auto()
+
+
+class ContextLevel(compiler.ContextLevel):
 
     schema: s_schema.Schema
     """A Schema instance to use for class resolution."""
@@ -88,7 +96,7 @@ class ContextLevel:
             self.arguments = prevlevel.arguments
             self.toplevel_shape_rptrcls = prevlevel.toplevel_shape_rptrcls
 
-            if mode == CompilerContext.SUBQUERY:
+            if mode == ContextSwitchMode.SUBQUERY:
                 self.anchors = prevlevel.anchors.copy()
                 self.pathvars = prevlevel.pathvars.copy()
                 self.namespaces = prevlevel.namespaces.copy()
@@ -119,47 +127,9 @@ class ContextLevel:
                 self.sets = prevlevel.sets
 
 
-class CompilerContext:
-    NEW, SUBQUERY = range(0, 2)
-
-    def __init__(self):
-        self.stack = []
-        self.push()
-
-    def push(self, mode=None):
-        level = ContextLevel(self.current, mode)
-        self.stack.append(level)
-
-        return level
-
-    def pop(self):
-        self.stack.pop()
-
-    def new(self, mode=None):
-        if not mode:
-            mode = CompilerContext.NEW
-        return CompilerContextWrapper(self, mode)
+class CompilerContext(compiler.CompilerContext):
+    ContextLevelClass = ContextLevel
+    default_mode = ContextSwitchMode.NEW
 
     def subquery(self):
-        return self.new(CompilerContext.SUBQUERY)
-
-    def _current(self):
-        if len(self.stack) > 0:
-            return self.stack[-1]
-        else:
-            return None
-
-    current = property(_current)
-
-
-class CompilerContextWrapper:
-    def __init__(self, context, mode):
-        self.context = context
-        self.mode = mode
-
-    def __enter__(self):
-        self.context.push(self.mode)
-        return self.context
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.context.pop()
+        return self.new(ContextSwitchMode.SUBQUERY)

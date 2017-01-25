@@ -13,7 +13,7 @@ from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.server.pgsql import ast as pgast
 from edgedb.server.pgsql import common
 
-from .context import TransformerContext
+from .context import CompilerContext
 from . import expr as expr_compiler
 
 
@@ -21,7 +21,7 @@ class SingletonExprIRCompiler(expr_compiler.IRCompilerBase):
 
     def transform_to_sql_tree(self, ir_expr, *, schema):
         # Transform to sql tree
-        self.context = TransformerContext()
+        self.context = CompilerContext()
         ctx = self.context.current
         ctx.memo = self._memo
         ctx.schema = schema

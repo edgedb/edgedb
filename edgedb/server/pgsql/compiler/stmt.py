@@ -27,7 +27,7 @@ from edgedb.server.pgsql import types as pg_types
 from edgedb.lang.common import ast
 from edgedb.lang.common import debug
 
-from .context import TransformerContext
+from .context import CompilerContext
 from . import expr as expr_compiler
 from . import dml
 
@@ -44,7 +44,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                               output_format=None):
         try:
             # Transform to sql tree
-            self.context = TransformerContext()
+            self.context = CompilerContext()
             ctx = self.context.current
             ctx.memo = self._memo
             ctx.backend = backend
