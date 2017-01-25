@@ -434,6 +434,90 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         return path_tip
 
+    def _try_fold_arithmetic_binop(self, op, left: irast.BinOp,
+                                   right: irast.BinOp):
+        ctx = self.context.current
+
+        left_type = irutils.infer_type(left, ctx.schema)
+        right_type = irutils.infer_type(right, ctx.schema)
+
+        if (left_type.name not in {'std::int', 'std::float'} or
+                right_type.name not in {'std::int', 'std::float'}):
+            return
+
+        result_type = left_type
+        if right_type.name == 'std::float':
+            result_type = right_type
+
+        if op == ast.ops.ADD:
+            value = left.value + right.value
+        elif op == ast.ops.SUB:
+            value = left.value - right.value
+        elif op == ast.ops.MUL:
+            value = left.value * right.value
+        elif op == ast.ops.DIV:
+            if left_type.name == right_type.name == 'std::int':
+                value = left.value // right.value
+            else:
+                value = left.value / right.value
+        elif op == ast.ops.POW:
+            value = left.value ** right.value
+        elif op == ast.ops.MOD:
+            value = left.value % right.value
+        else:
+            value = None
+
+        if value is not None:
+            return irast.Constant(value=value, type=result_type)
+
+    def _try_fold_binop(self, binop: irast.BinOp):
+        ctx = self.context.current
+
+        result_type = irutils.infer_type(binop, ctx.schema)
+        folded = None
+
+        left = binop.left
+        right = binop.right
+        op = binop.op
+
+        if (isinstance(left, irast.Constant) and
+                isinstance(right, irast.Constant) and
+                result_type.name in {'std::int', 'std::float'}):
+
+            # Left and right nodes are constants.
+            folded = self._try_fold_arithmetic_binop(op, left, right)
+
+        elif op in {ast.ops.ADD, ast.ops.MUL}:
+            # Let's check if we have (CONST + (OTHER_CONST + X))
+            # tree, which can be optimized to ((CONST + OTHER_CONST) + X)
+
+            my_const = left
+            other_binop = right
+            if isinstance(right, irast.Constant):
+                my_const, other_binop = other_binop, my_const
+
+            if (isinstance(my_const, irast.Constant) and
+                    isinstance(other_binop, irast.BinOp) and
+                    other_binop.op == op):
+
+                other_const = other_binop.left
+                other_binop_node = other_binop.right
+                if isinstance(other_binop_node, irast.Constant):
+                    other_binop_node, other_const = \
+                        other_const, other_binop_node
+
+                if isinstance(other_const, irast.Constant):
+                    new_const = self._try_fold_arithmetic_binop(
+                        op, other_const, my_const)
+
+                    if new_const is not None:
+                        folded = irast.BinOp(
+                            left=new_const,
+                            right=other_binop_node,
+                            op=op)
+
+        return folded
+
     def visit_BinOp(self, expr):
         ctx = self.context.current
 
@@ -443,10 +527,12 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             right = self._process_type_ref_expr(right)
 
         binop = irast.BinOp(left=left, right=right, op=expr.op)
+        folded = self._try_fold_binop(binop)
+        if folded is not None:
+            return folded
+
         result_type = irutils.infer_type(binop, ctx.schema)
-
         prefixes = get_common_prefixes([left, right])
-
         sources = set(itertools.chain.from_iterable(prefixes.values()))
 
         if sources:
@@ -656,6 +742,14 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         unop = irast.UnaryOp(expr=operand, op=expr.op)
         result_type = irutils.infer_type(unop, ctx.schema)
+
+        if (isinstance(operand, irast.Constant) and
+                result_type.name in {'std::int', 'std::float'}):
+            # Fold the operation to constant if possible
+            if expr.op == ast.ops.UMINUS:
+                return irast.Constant(value=-operand.value, type=result_type)
+            elif expr.op == ast.ops.UPLUS:
+                return operand
 
         prefixes = get_common_prefixes([operand])
         sources = set(itertools.chain.from_iterable(prefixes.values()))

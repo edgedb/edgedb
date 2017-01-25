@@ -71,7 +71,7 @@ class BinaryArithmeticOperator(ArithmeticOperator):
 ADD = BinaryArithmeticOperator(
     '+', funcname='__add__', rfuncname='__radd__', commutative=True)
 SUB = BinaryArithmeticOperator(
-    '-', funcname='__sub__', rfuncname='__rsub__', commutative=True)
+    '-', funcname='__sub__', rfuncname='__rsub__')
 MUL = BinaryArithmeticOperator(
     '*', funcname='__mul__', rfuncname='__rmul__', commutative=True)
 DIV = BinaryArithmeticOperator(

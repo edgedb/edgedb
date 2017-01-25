@@ -61,7 +61,7 @@ class TestEdgeQLUtils(tb.BaseSyntaxTest):
     def test_edgeql_utils_normalize_01(self):
         self._assert_normalize_expr(
             """SELECT 40 + 2""",
-            """SELECT (40 + 2)""",
+            """SELECT 42""",
         )
 
     def test_edgeql_utils_normalize_02(self):
@@ -98,4 +98,31 @@ class TestEdgeQLUtils(tb.BaseSyntaxTest):
         self._assert_normalize_expr(
             """SELECT ('aaa')[2]""",
             """SELECT ('aaa')[2]"""
+        )
+
+    def test_edgeql_utils_normalize_08(self):
+        self._assert_normalize_expr(
+            """SELECT 40 + 2 - 20 * +2 + (-10 / 2)""",
+            """SELECT -3""",
+        )
+
+    def test_edgeql_utils_normalize_09(self):
+        self._assert_normalize_expr(
+            """SELECT 2 + (len('a')+1)""",
+            """SELECT (3 + std::len('a'))""",
+        )
+
+        self._assert_normalize_expr(
+            """SELECT (1 + len('a')) + 2""",
+            """SELECT (3 + std::len('a'))""",
+        )
+
+        self._assert_normalize_expr(
+            """SELECT 2 * (len('a')*1)""",
+            """SELECT (2 * std::len('a'))""",
+        )
+
+        self._assert_normalize_expr(
+            """SELECT (1 * len('a')) * 2""",
+            """SELECT (2 * std::len('a'))""",
         )

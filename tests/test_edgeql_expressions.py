@@ -96,11 +96,29 @@ class TestExpressions(tb.QueryTestCase):
             SELECT
                 ((-1 + 2) * 3 - (5 - 6.0) / 2 > 0 OR 25 % 4 = 3)
                 AND 42 IN (12, 42, 14);
+            SELECT 1 * 0.2;
+            SELECT 0.2 * 1;
+            SELECT -0.2 * 1;
+            SELECT 0.2 + 1;
+            SELECT 1 + 0.2;
+            SELECT -0.2 - 1;
+            SELECT -1 - 0.2;
+            SELECT -1 / 0.2;
+            SELECT 0.2 / -1;
         """, [
             [-3],
             [False],
             [3.5],
             [True],
+            [0.2],
+            [0.2],
+            [-0.2],
+            [1.2],
+            [1.2],
+            [-1.2],
+            [-1.2],
+            [-5],
+            [-0.2],
         ])
 
     async def test_edgeql_expr_op05(self):
@@ -155,6 +173,16 @@ class TestExpressions(tb.QueryTestCase):
                     r'unary operator `.+` is not defined for empty set'):
 
                 await self.con.execute(query)
+
+    async def test_edgeql_expr_op11(self):
+        # Test non-trivial folding
+        await self.assert_query_result(r"""
+            SELECT 1 + (1 + len([1, 2])) + 1;
+            SELECT 2 * (2 * len([1, 2])) * 2;
+        """, [
+            [5],
+            [16],
+        ])
 
     async def test_edgeql_expr_paths_01(self):
         cases = [
