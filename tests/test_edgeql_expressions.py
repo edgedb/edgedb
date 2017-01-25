@@ -62,9 +62,11 @@ class TestExpressions(tb.QueryTestCase):
         await self.assert_query_result(r"""
             SELECT 40 ^ 2;
             SELECT 121 ^ 0.5;
+            SELECT 2 ^ 3 ^ 2;
         """, [
             [1600],
             [11],
+            [2 ** 3 ** 2],
         ])
 
     async def test_edgeql_expr_op03(self):

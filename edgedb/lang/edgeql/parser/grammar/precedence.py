@@ -86,7 +86,7 @@ class P_DOUBLEQMARK_OP(Precedence, assoc='right', tokens=('DOUBLEQMARK',)):
     pass
 
 
-class P_POW_OP(Precedence, assoc='left', tokens=('CIRCUMFLEX',)):
+class P_POW_OP(Precedence, assoc='right', tokens=('CIRCUMFLEX',)):
     pass
 
 
