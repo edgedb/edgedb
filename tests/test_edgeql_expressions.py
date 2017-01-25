@@ -130,6 +130,32 @@ class TestExpressions(tb.QueryTestCase):
             [True],
         ])
 
+    async def test_edgeql_expr_op08(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r'unary operator `-` is not defined .* std::str'):
+
+            await self.con.execute("""
+                SELECT -'aaa';
+            """)
+
+    async def test_edgeql_expr_op09(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r'unary operator `NOT` is not defined .* std::str'):
+
+            await self.con.execute("""
+                SELECT NOT 'aaa';
+            """)
+
+    async def test_edgeql_expr_op10(self):
+        for query in ['SELECT -EMPTY;', 'SELECT +EMPTY;', 'SELECT NOT EMPTY;']:
+            with self.assertRaisesRegex(
+                    exc.EdgeQLError,
+                    r'unary operator `.+` is not defined for empty set'):
+
+                await self.con.execute(query)
+
     async def test_edgeql_expr_paths_01(self):
         cases = [
             "Issue.owner.name",
@@ -198,7 +224,8 @@ class TestExpressions(tb.QueryTestCase):
         #
         with self.assertRaisesRegex(
                 exc.EdgeQLError,
-                r'operator does not exist: std::str \* std::int'):
+                r'operator `\*` is not defined .* std::str and std::int'):
+
             await self.con.execute("""
                 SELECT <std::str>123 * 2;
             """)
@@ -405,7 +432,8 @@ class TestExpressions(tb.QueryTestCase):
             ''')
 
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'operator does not exist: .*str.*int'):
+                exc.EdgeQLError,
+                r'binary operator `\+` is not defined.*str.*int'):
 
             await self.con.execute(r'''
                 SELECT ['a' -> '1']['a'] + 1;
@@ -492,7 +520,8 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_struct01(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'struct<.*> \+ std::int'):
+                exc.EdgeQLError,
+                r'operator `\+` is not defined .* struct<.*> and std::int'):
 
             await self.con.execute(r'''
                 SELECT {spam := 1, ham := 2} + 1;

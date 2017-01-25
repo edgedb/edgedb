@@ -663,15 +663,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         unop = irast.UnaryOp(expr=operand, op=expr.op)
         result_type = irutils.infer_type(unop, ctx.schema)
 
-        if result_type is None:
-            operand_type = irutils.infer_type(unop.expr, ctx.schema)
-            err = 'operator does not exist: {} {}'.format(
-                expr.op, operand_type.name)
-
-            raise errors.EdgeQLError(err, context=operand.context)
-
         prefixes = get_common_prefixes([operand])
-
         sources = set(itertools.chain.from_iterable(prefixes.values()))
 
         if sources:

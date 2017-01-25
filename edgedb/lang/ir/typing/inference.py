@@ -133,7 +133,7 @@ def __infer_set_or_shape(ir, schema):
 
 
 @_infer_type.register(irast.FunctionCall)
-def __infer_func(ir, schema):
+def __infer_func_call(ir, schema):
     result = ir.func.returntype
 
     def is_polymorphic(t):
@@ -194,8 +194,8 @@ def __infer_binop(ir, schema):
 
     if result is None:
         raise ql_errors.EdgeQLError(
-            'operator does not exist: {} {} {}'.format(
-                left_type.name, ir.op, right_type.name),
+            f'binary operator `{ir.op.upper()}` is not defined for types '
+            f'{left_type.name} and {right_type.name}',
             context=ir.left.context)
 
     return result
@@ -203,15 +203,33 @@ def __infer_binop(ir, schema):
 
 @_infer_type.register(irast.UnaryOp)
 def __infer_unaryop(ir, schema):
+    result = None
+
+    if isinstance(ir.expr, irast.EmptySet):
+        raise ql_errors.EdgeQLError(
+            f'unary operator `{ir.op.upper()}` is not defined for empty set',
+            context=ir.context)
+
+    operand_type = infer_type(ir.expr, schema)
+
     if ir.op == ast.ops.NOT:
-        result = schema.get('std::bool')
+        if operand_type.name == 'std::bool':
+            result = operand_type
+
     else:
-        if isinstance(ir.expr, irast.EmptySet):
-            result = schema.get('std::int')
-        else:
-            operand_type = infer_type(ir.expr, schema)
-            result = s_types.TypeRules.get_result(
-                ir.op, (operand_type,), schema)
+        if ir.op not in {ast.ops.UPLUS, ast.ops.UMINUS}:
+            raise ql_errors.EdgeQLError(
+                f'unknown unary operator: {ir.op}',
+                context=ir.context)
+
+        result = s_types.TypeRules.get_result(
+            ir.op, (operand_type,), schema)
+
+    if result is None:
+        raise ql_errors.EdgeQLError(
+            f'unary operator `{ir.op.upper()}` is not defined '
+            f'for type {operand_type.name}',
+            context=ir.context)
 
     return result
 

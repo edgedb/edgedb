@@ -27,8 +27,9 @@ class TestEdgeQLDT(tb.QueryTestCase):
             ['3 days'],
         ])
 
-        with self.assertRaisesRegex(exc.EdgeQLError,
-                                    'operator does not exist.*timedelta'):
+        with self.assertRaisesRegex(
+            exc.EdgeQLError,
+                'operator `-` is not defined for types.*timedelta.*datetime'):
 
             await self.con.execute("""
                 SELECT <timedelta>'1 day' - <datetime>'2017-10-10';
