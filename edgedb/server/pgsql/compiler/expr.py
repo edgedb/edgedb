@@ -326,7 +326,6 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
 
             if expr.op in (ast.ops.IN, ast.ops.NOT_IN):
                 with self.context.new() as subctx:
-                    subctx.output_format = 'identity'
                     subctx.in_member_test = True
                     right = self.visit(expr.right)
             elif is_bool_op:

@@ -93,11 +93,22 @@ class IRCompilerDBObjects:
         return rvar
 
     def _range_for_set(self, ir_set, parent_cte):
-        rvar = self._range_for_concept(ir_set.scls, parent_cte)
-        if isinstance(rvar, pgast.RangeSubselect):
-            rvar.subquery.path_id = ir_set.path_id
+        computed_rel = self._get_computed_node_rel(ir_set)
+        if computed_rel is not None:
+            ctx = self.context.current
+
+            rvar = pgast.RangeVar(
+                relation=computed_rel,
+                alias=pgast.Alias(
+                    aliasname=ctx.genalias(computed_rel.name)
+                )
+            )
         else:
-            rvar.relation.path_id = ir_set.path_id
+            rvar = self._range_for_concept(ir_set.scls, parent_cte)
+            if isinstance(rvar, pgast.RangeSubselect):
+                rvar.subquery.path_id = ir_set.path_id
+            else:
+                rvar.relation.path_id = ir_set.path_id
 
         return rvar
 

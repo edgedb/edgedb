@@ -7,7 +7,6 @@
 
 
 from .error import SchemaNameError
-from edgedb.lang.common.persistent_hash import persistent_hash
 
 
 class SchemaName(str):
@@ -42,6 +41,9 @@ class SchemaName(str):
 
     def __repr__(self):
         return '<SchemaName %s>' % self
+
+    def as_tuple(self):
+        return (self.module, self.name)
 
     @staticmethod
     def is_qualified(name):

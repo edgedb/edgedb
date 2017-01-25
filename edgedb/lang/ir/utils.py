@@ -89,3 +89,23 @@ def extend_path(schema, source_set, ptr):
     target_set.rptr = ptr
 
     return target_set
+
+
+def get_subquery_shape(ir_expr):
+    if (isinstance(ir_expr, irast.Set) and
+            isinstance(ir_expr.expr, irast.Stmt) and
+            isinstance(ir_expr.expr.result, irast.Shape)):
+        return ir_expr.expr.result
+    elif (isinstance(ir_expr, irast.Set) and
+            isinstance(ir_expr.expr, irast.Stmt) and
+            isinstance(ir_expr.expr.result, irast.Set)):
+        return get_subquery_shape(ir_expr.expr.result)
+    else:
+        return None
+
+
+def is_view_set(ir_expr):
+    return (
+        isinstance(ir_expr, irast.Set) and
+        ir_expr.path_id and ir_expr.path_id[0].name.module == '__view__'
+    )

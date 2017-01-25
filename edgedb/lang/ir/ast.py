@@ -62,6 +62,9 @@ class PathId(tuple):
         return self[:len(path_id)] == path_id
 
     def extend(self, link, direction, target):
+        if not self:
+            raise ValueError('cannot extend empty PathId')
+
         if not link.generic():
             link = link.bases[0]
 
@@ -118,6 +121,7 @@ class Pointer(Base):
     direction: str
     anchor: str
     show_as_anchor: str
+    source_is_computed: bool
 
 
 class Set(Base):
@@ -130,6 +134,7 @@ class Set(Base):
     rptr: Pointer
     anchor: str
     show_as_anchor: str
+    shape: Base
 
     def __repr__(self):
         return \
@@ -163,10 +168,10 @@ class Parameter(Base):
 
 class Shape(Base):
 
-    elements: typing.List[Base]
-    scls: so.NodeClass
     set: Set
+    scls: so.NodeClass
     rptr: Pointer
+    elements: typing.List[Base]
 
 
 class StructElement(Base):

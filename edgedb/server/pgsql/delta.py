@@ -498,8 +498,7 @@ class CreateFunction(FunctionCommand, CreateNamedClass,
         ir_compiler = compiler.IRCompiler()
 
         qchunks, argmap, arg_index, query_type, record_info = \
-            ir_compiler.transform(body_ir, schema=schema,
-                                  output_format='identity')
+            ir_compiler.transform(body_ir, schema=schema, ignore_shapes=True)
 
         return dbops.Function(
             name=self.get_pgname(func),

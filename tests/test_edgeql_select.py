@@ -2660,6 +2660,274 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'body': 'EdgeDB needs to happen soon.'}],
         ])
 
+    async def test_edgeql_select_view_indirection01(self):
+        await self.assert_query_result(r"""
+            # Direct reference to a computable element in a subquery
+            WITH MODULE test
+            SELECT
+                (
+                    SELECT User {
+                        num_issues := count(User.<owner[IS Issue])
+                    } WHERE .name = 'Elvis'
+                ).num_issues;
+            """, [
+            [2],
+        ])
+
+    async def test_edgeql_select_view_indirection02(self):
+        await self.assert_query_result(r"""
+            # Reference to a computable element in a subquery
+            # defined as an inline view.
+            WITH MODULE test,
+                U := (
+                    SELECT User {
+                        num_issues := count(User.<owner[IS Issue])
+                    } WHERE .name = 'Elvis'
+                )
+            SELECT
+                U.num_issues;
+            """, [
+            [2],
+        ])
+
+    async def test_edgeql_select_view_indirection03(self):
+        await self.assert_query_result(r"""
+            # Reference a computed object set in a view.
+            WITH MODULE test,
+                U := (
+                    WITH U2 := (SELECT User)
+                    SELECT User {
+                        friend := (
+                            SELECT SINGLETON U2 WHERE U2.name = 'Yury'
+                        )
+                    } WHERE .name = 'Elvis'
+                )
+            SELECT
+                U.friend.name;
+            """, [
+            ['Yury'],
+        ])
+
+    async def test_edgeql_select_view_indirection04(self):
+        await self.assert_query_result(r"""
+            # Reference a constant expression in a view.
+            WITH MODULE test,
+                U := (
+                    SELECT User {
+                        issues := (
+                            SELECT Issue {
+                                foo := 10
+                            } WHERE Issue.owner = User
+                        )
+                    } WHERE .name = 'Elvis'
+                )
+            SELECT
+                U.issues.foo;
+            """, [
+            [10, 10],
+        ])
+
+    async def test_edgeql_select_view_indirection05(self):
+        await self.assert_query_result(r"""
+            # Reference multiple views.
+            WITH MODULE test,
+                U := (
+                    SELECT User WHERE User.name = 'Elvis'
+                ),
+                I := (
+                    SELECT Issue WHERE Issue.number = '1'
+                )
+            SELECT
+                I.owner = U;
+            """, [
+            [True],
+        ])
+
+    async def test_edgeql_select_view_indirection06(self):
+        await self.assert_query_result(r"""
+            # Reference another view from a view.
+            WITH MODULE test,
+                U := (
+                    SELECT User WHERE User.name = 'Elvis'
+                ),
+                I := (
+                    SELECT Issue WHERE Issue.owner = U
+                )
+            SELECT
+                I.number
+            ORDER BY
+                I.number;
+            """, [
+            ['1', '4'],
+        ])
+
+    async def test_edgeql_select_view_indirection07(self):
+        await self.assert_query_result(r"""
+            # A combination of the above two.
+            WITH MODULE test,
+                U := (
+                    SELECT User WHERE User.name = 'Elvis'
+                ),
+                I := (
+                    SELECT Issue WHERE Issue.owner = U
+                )
+            SELECT
+                I
+            WHERE
+                I.owner != U
+            ORDER BY
+                I.number;
+            """, [
+            [],
+        ])
+
+    async def test_edgeql_select_view_indirection08(self):
+        await self.assert_query_result(r"""
+            # A slightly more complex view.
+             WITH MODULE test,
+                 U := (
+                     WITH U2 := (SELECT User)
+                     SELECT User {
+                         friends := (
+                             SELECT U2 { foo := U2.name + '!' }
+                             WHERE U2.name = 'Yury'
+                         )
+                     } WHERE .name = 'Elvis'
+                 )
+             SELECT
+                 U {
+                     my_issues := (
+                        SELECT U.<owner[IS Issue].number
+                        ORDER BY U.<owner[IS Issue].number),
+                     friends_issues := (
+                        SELECT U.friends.<owner[IS Issue].number
+                        ORDER BY U.friends.<owner[IS Issue].number),
+                     friends_foos := (
+                        SELECT U.friends.foo
+                        ORDER BY U.friends.foo)
+                 };
+            """, [
+
+            [{
+                'my_issues': ['1', '4'],
+                'friends_foos': ['Yury!'],
+                'friends_issues': ['2', '3']
+            }]
+        ])
+
+    async def test_edgeql_select_view_indirection09(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE test,
+                sub := (
+                    SELECT SINGLETON
+                        Text {
+                            foo := Text.body + '!'
+                        }
+                    ORDER BY
+                        len(Text.body) ASC
+                    LIMIT
+                        1
+                )
+            SELECT
+                User {
+                    name,
+                    shortest_text_shape := sub {
+                        body,
+                        foo
+                    }
+                }
+            WHERE User.name = 'Elvis';
+        ''', [
+            [{
+                'name': 'Elvis',
+                'shortest_text_shape': {
+                    'body': 'Minor lexer tweaks.',
+                    'foo': 'Minor lexer tweaks.!',
+                },
+            }]
+        ])
+
+    async def test_edgeql_select_view_indirection10(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE test,
+                sub := (
+                    SELECT SINGLETON
+                        Text {
+                            foo := Text.body + '!'
+                        }
+                    ORDER BY
+                        len(Text.body) ASC
+                    LIMIT
+                        1
+                )
+            SELECT
+                User {
+                    name,
+                    shortest_text_foo := sub.foo
+                }
+            WHERE User.name = 'Elvis';
+        ''', [
+            [{
+                'name': 'Elvis',
+                'shortest_text_foo': 'Minor lexer tweaks.!'
+            }]
+        ])
+
+    async def test_edgeql_select_view_indirection11(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE test,
+                Developers := (
+                    SELECT
+                        User {
+                            open_issues := (
+                                SELECT
+                                    Issue {
+                                        spent_time := (
+                                            SELECT SINGLETON
+                                                sum(Issue.time_spent_log
+                                                         .spent_time)
+                                        )
+                                    }
+                                WHERE
+                                    Issue.owner = User
+                            )
+                        }
+                    WHERE
+                        User.name IN ('Elvis', 'Yury')
+                )
+            SELECT
+                Developers {
+                    name,
+                    open_issues: {
+                        number,
+                        spent_time
+                    } ORDER BY .number
+                }
+            ORDER BY
+                Developers.name;
+
+        ''', [
+            [
+                {
+                    'name': 'Elvis',
+                    'open_issues': [
+                        {'number': '1', 'spent_time': 100000},
+                        {'number': '4', 'spent_time': None},
+                    ]
+                },
+                {
+                    'name': 'Yury',
+                    'open_issues': [
+                        {'number': '2', 'spent_time': None},
+                        {'number': '3', 'spent_time': None}
+                    ]
+                }
+            ]
+        ])
+
     async def test_edgeql_select_slice01(self):
         await self.assert_query_result(r"""
             # full name of the Issue is 'Release EdgeDB'

@@ -35,6 +35,11 @@ class ContextSwitchMode(enum.Enum):
     SUBSTMT = enum.auto()
 
 
+class ShapeFormat(enum.Enum):
+    SERIALIZED = enum.auto()
+    FLAT = enum.auto()
+
+
 class CompilerContextLevel(compiler.ContextLevel):
     def __init__(self, prevlevel=None, mode=None):
         self._mode = mode
@@ -58,7 +63,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.in_member_test = False
             self.in_set_expr = False
             self.in_shape = False
-            self.expr_exposed = False
+            self.expr_exposed = None
             self.lax_paths = False
 
             self.aliascnt = {}
@@ -66,9 +71,13 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.ctemap = {}
             self.setscope = {}
 
-            self.subquery_map = collections.defaultdict(dict)
             self.output_format = None
+            self.shape_format = ShapeFormat.SERIALIZED
+
+            self.subquery_map = collections.defaultdict(dict)
             self.rel_overlays = collections.defaultdict(list)
+            self.computed_node_rels = {}
+            self.path_id_aliases = {}
 
         else:
             self.backend = prevlevel.backend
@@ -96,9 +105,13 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.ctemap = prevlevel.ctemap
             self.setscope = prevlevel.setscope
 
-            self.subquery_map = prevlevel.subquery_map
             self.output_format = prevlevel.output_format
+            self.shape_format = prevlevel.shape_format
+
+            self.subquery_map = prevlevel.subquery_map
             self.rel_overlays = prevlevel.rel_overlays
+            self.computed_node_rels = prevlevel.computed_node_rels
+            self.path_id_aliases = prevlevel.path_id_aliases
 
             if mode in {ContextSwitchMode.SUBQUERY,
                         ContextSwitchMode.SUBSTMT}:

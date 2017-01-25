@@ -266,8 +266,10 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     substmt = irast.SelectStmt(result=substmt)
 
                 rt = irutils.infer_type(substmt, ctx.schema)
+                path_id = irast.PathId([rt])
+
                 el = irast.Set(
-                    path_id=irast.PathId([rt]),
+                    path_id=path_id,
                     scls=rt,
                     expr=substmt,
                     rptr=targetstep.rptr
@@ -380,6 +382,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 # existing Concept class, as aliases and path variables
                 # have been checked above.
                 scls = self._get_schema_object(step.name, step.module)
+
                 path_id = irast.PathId([scls])
 
                 try:
@@ -413,7 +416,8 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     source = path_tip.scls
 
                 path_tip, _ = self._path_step(
-                    path_tip, source, ptr_name, direction, ptr_target)
+                    path_tip, source, ptr_name, direction, ptr_target,
+                    source_context=step.context)
 
             else:
                 # Arbitrary expression
@@ -422,8 +426,12 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                         'unexpected expression as a non-first path item')
 
                 expr = self.visit(step)
-                result_type = irutils.infer_type(expr, ctx.schema)
-                path_tip = self._generated_set(expr, result_type, force=True)
+                if isinstance(expr, irast.Set):
+                    path_tip = expr
+                else:
+                    result_type = irutils.infer_type(expr, ctx.schema)
+                    path_tip = self._generated_set(
+                        expr, result_type, force=True)
 
         if (ctx.group_paths and ctx.location in ('orderby', 'selector') and
                 not ctx.in_aggregate and
@@ -768,7 +776,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
     def visit_ExistsPredicate(self, expr):
         operand = self.visit(expr.expr)
-        if self._is_subquery_set(operand):
+        if self._is_strict_subquery_set(operand):
             operand = operand.expr
         return irast.ExistPred(expr=operand)
 
@@ -968,16 +976,17 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 ctx.namespaces[with_entry.alias] = with_entry.namespace
 
             elif isinstance(with_entry, qlast.CGE):
-                substmt = self.visit(with_entry.expr).expr
-
                 path_id = irast.PathId([
                     s_concepts.Concept(
                         name=sn.Name(
-                            module='__cexpr__',
+                            module='__view__',
                             name=with_entry.alias
                         )
                     )
                 ])
+
+                with self.context.new():
+                    substmt = self.visit(with_entry.expr).expr
 
                 result_type = irutils.infer_type(substmt, ctx.schema)
 
@@ -1142,35 +1151,36 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     look_in_children=False,
                     include_inherited=True)
 
-                with self.context.new():
+                with self.context.new() as shape_expr_ctx:
                     # Put current pointer class in context, so
                     # that references to link properties in sub-SELECT
                     # can be resolved.  This is necessary for proper
                     # evaluation of link properties on computable links,
                     # most importantly, in INSERT/UPDATE context.
-                    self.context.current.toplevel_shape_rptrcls = ptrcls
+                    shape_expr_ctx.toplevel_shape_rptrcls = ptrcls
                     compexpr = self.visit(shape_el.compexpr)
-                    if (isinstance(compexpr, irast.Set) and
-                            isinstance(compexpr.expr, irast.Stmt)):
-                        compexpr = compexpr.expr
-                    elif not isinstance(compexpr, irast.Stmt):
-                        compexpr = irast.SelectStmt(result=compexpr)
 
                 target_class = irutils.infer_type(compexpr, schema)
                 if target_class is None:
                     msg = 'cannot determine expression result type'
                     raise errors.EdgeQLError(msg, context=lexpr.context)
 
-                if isinstance(compexpr.result, irast.Set):
-                    path_id = compexpr.result.path_id
+                if self._is_strict_subquery_set(compexpr):
+                    targetstep = compexpr
                 else:
-                    path_id = irast.PathId([target_class])
+                    if not isinstance(compexpr, irast.Stmt):
+                        compexpr = irast.SelectStmt(result=compexpr)
 
-                targetstep = irast.Set(
-                    path_id=path_id,
-                    scls=target_class,
-                    expr=compexpr
-                )
+                    if isinstance(compexpr.result, irast.Set):
+                        path_id = compexpr.result.path_id
+                    else:
+                        path_id = irast.PathId([target_class])
+
+                    targetstep = irast.Set(
+                        path_id=path_id,
+                        scls=target_class,
+                        expr=compexpr
+                    )
 
                 if ptrcls is None:
                     if (isinstance(ctx.stmt, irast.MutatingStmt) and
@@ -1230,7 +1240,8 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     ptr_target = None
 
                 targetstep, ptrcls = self._path_step(
-                    source_expr, ptrsource, ptrname, ptr_direction, ptr_target)
+                    source_expr, ptrsource, ptrname, ptr_direction, ptr_target,
+                    source_context=shape_el.context)
 
             if shape_el.recurse:
                 if shape_el.recurse_limit is not None:
@@ -1351,7 +1362,8 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         return el
 
-    def _path_step(self, path_tip, source, ptr_name, direction, ptr_target):
+    def _path_step(self, path_tip, source, ptr_name, direction, ptr_target,
+                   source_context):
         ctx = self.context.current
 
         if isinstance(source, s_obj.Struct):
@@ -1362,7 +1374,8 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
             if el_name in source.element_types:
                 expr = irast.StructIndirection(
-                    expr=path_tip, name=el_name)
+                    expr=path_tip, name=el_name,
+                    context=source_context)
             else:
                 raise errors.EdgeQLReferenceError(
                     f'{el_name} is not a member of a struct')
@@ -1373,13 +1386,54 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             return path_tip, None
 
         else:
-            ptrcls = self._resolve_ptr(
-                source, ptr_name, direction, target=ptr_target)
+            # Check if the tip of the path has an associated shape.
+            # This would be the case for paths on views.
+            tip_shape = path_tip.shape
+            if tip_shape is None:
+                tip_shape = irutils.get_subquery_shape(path_tip)
+
+            ptrcls = None
+            view_shape = None
+            target_expr = None
+            source_is_computed = False
+
+            if tip_shape is not None:
+                # Search for the pointer in the shape associated with
+                # the tip of the path, i.e. a view.
+                for shape_el in tip_shape.elements:
+                    shape_ptrcls = shape_el.rptr.ptrcls
+                    shape_pn = shape_ptrcls.shortname
+
+                    if ((ptr_name[0] and ptr_name == shape_pn.as_tuple()) or
+                            ptr_name[1] == shape_pn.name):
+                        # Found a match!
+                        ptrcls = shape_ptrcls
+                        source_is_computed = True
+                        if isinstance(shape_el, irast.Shape):
+                            view_shape = shape_el
+                        else:
+                            target_expr = shape_el.expr
+                            view_shape = irutils.get_subquery_shape(shape_el)
+                        break
+
+            if ptrcls is None:
+                # Try to resolve a pointer using the schema.
+                ptrcls = self._resolve_ptr(
+                    source, ptr_name, direction, target=ptr_target)
 
             target = ptrcls.get_far_endpoint(direction)
 
             path_tip = self._extend_path(
                 path_tip, ptrcls, direction, target)
+
+            # Mark the source Set as computed as it is produced
+            # by a view.
+            path_tip.rptr.source_is_computed = source_is_computed
+            path_tip.expr = target_expr
+
+            # Cache the associated shape if the resolved path is
+            # within a view.
+            path_tip.shape = view_shape
 
             if target.is_virtual and ptr_target is not None:
                 pf = irast.TypeFilter(
@@ -1422,12 +1476,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             target_set.rptr = ptr
 
         return target_set
-
-    def _get_subset(self, parent_set):
-        return irast.Set(
-            scls=parent_set.scls,
-            path_id=parent_set.path_id
-        )
 
     def _generated_set(self, expr, result_type, *, force=False):
         prefixes = get_common_prefixes([expr])
@@ -1509,8 +1557,8 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         return ctx.schema.get(name=name, module_aliases=ctx.namespaces)
 
     def _process_stmt_result(self, result, toplevel_rptrcls):
-        with self.context.new():
-            self.context.current.location = 'selector'
+        with self.context.new() as ctx:
+            ctx.location = 'selector'
 
             expr = self.visit(result)
 
@@ -1626,6 +1674,12 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
     def _is_subquery_set(self, ir_expr):
         return (
             isinstance(ir_expr, irast.Set) and
+            isinstance(ir_expr.expr, irast.Stmt)
+        )
+
+    def _is_strict_subquery_set(self, ir_expr):
+        return (
+            isinstance(ir_expr, irast.Set) and
             isinstance(ir_expr.expr, irast.Stmt) and
-            ir_expr.path_id[0].name.module != '__cexpr__'
+            ir_expr.path_id and ir_expr.path_id[0].name.module != '__view__'
         )

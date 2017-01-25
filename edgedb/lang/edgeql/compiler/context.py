@@ -105,7 +105,7 @@ class ContextLevel(compiler.ContextLevel):
                 self.toplevel_shape_rptrcls = None
                 self.location = None
                 self.stmt = None
-                self.sets = {}
+                self.sets = prevlevel.sets.copy()
                 self.group_paths = set()
                 self.in_aggregate = False
 

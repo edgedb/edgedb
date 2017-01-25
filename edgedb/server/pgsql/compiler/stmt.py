@@ -27,6 +27,7 @@ from edgedb.server.pgsql import types as pg_types
 from edgedb.lang.common import ast
 from edgedb.lang.common import debug
 
+from . import context
 from .context import CompilerContext
 from . import expr as expr_compiler
 from . import dml
@@ -41,7 +42,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         super().__init__(**kwargs)
 
     def transform_to_sql_tree(self, ir_expr, *, schema, backend=None,
-                              output_format=None):
+                              output_format=None, ignore_shapes=False):
         try:
             # Transform to sql tree
             self.context = CompilerContext()
@@ -50,6 +51,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             ctx.backend = backend
             ctx.schema = schema
             ctx.output_format = output_format
+            if ignore_shapes:
+                ctx.expr_exposed = False
             qtree = self.visit(ir_expr)
 
             if debug.flags.edgeql_compile:  # pragma: no cover
@@ -68,10 +71,11 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         return qtree
 
-    def transform(self, ir_expr, *, schema, backend=None, output_format=None):
+    def transform(self, ir_expr, *, schema, backend=None, output_format=None,
+                  ignore_shapes=False):
         qtree = self.transform_to_sql_tree(
             ir_expr, schema=schema, backend=backend,
-            output_format=output_format)
+            output_format=output_format, ignore_shapes=ignore_shapes)
 
         argmap = self.context.current.argmap
 
@@ -94,8 +98,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         parent_ctx = self.context.current
         parent_rel = parent_ctx.rel
 
-        with self.context.substmt():
-            ctx = self.context.current
+        with self.context.substmt() as ctx:
             if ctx.toplevel_stmt is None:
                 ctx.toplevel_stmt = ctx.stmt
 
@@ -159,121 +162,157 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             # to path matching logic...
             self._connect_subrels(query)
 
-            # ..and give the parent query the opportunity to do the same.
-            for cte in query.ctes:
-                parent_ctx.subquery_map[parent_rel][cte.query] = {
-                    'linked': False,
-                    'rvar': None
-                }
+        # ..and give the parent query the opportunity to do the same.
+        self._update_subrel_map(parent_rel, query.ctes)
 
-            return query
+        return query
 
     def visit_Shape(self, expr):
         ctx = self.context.current
 
         my_elements = []
         attribute_map = []
-        testref = None
+        idref = None
 
         self.visit(expr.set)
 
+        source_is_view = irutils.is_view_set(expr.set)
+        if source_is_view:
+            source_shape = irutils.get_subquery_shape(expr.set)
+            path_id_aliases = {source_shape.set.path_id: expr.set.path_id}
+        else:
+            path_id_aliases = {}
+
+        # The shape is ignored if the expression is not slated for output.
+        ignore_shape = (
+            not ctx.expr_exposed and
+            ctx.shape_format != context.ShapeFormat.FLAT
+        )
+
         for i, e in enumerate(expr.elements):
+            rptr = e.rptr
+            ptrcls = rptr.ptrcls
+            ptrdir = rptr.direction or s_pointers.PointerDirection.Outbound
+            is_singleton = ptrcls.singular(ptrdir)
+            ptrname = ptrcls.shortname
+
+            # This shape is not slated for output, ignore it algogether.
+            if ignore_shape and ptrname != 'std::id':
+                continue
+
             with self.context.new() as newctx:
                 newctx.scope_cutoff = True
                 newctx.in_shape = True
-                if isinstance(e, irast.Set) and isinstance(e.expr, irast.Stmt):
+                newctx.path_id_aliases.update(path_id_aliases)
+
+                if (isinstance(e, irast.Set) and
+                        isinstance(e.expr, irast.Stmt) and
+                        not rptr.source_is_computed):
                     element = self.visit(e.expr)
                 else:
-                    element = self.visit(e)
+                    if rptr.source_is_computed:
+                        element = self.visit(irast.SelectStmt(result=e))
+                    else:
+                        element = self.visit(e)
 
-            ptr_name = e.rptr.ptrcls.shortname
+                    if rptr.source_is_computed and element.ctes:
+                        if len(element.ctes) != 1:
+                            raise RuntimeError(
+                                'unexpected CTE structure in a sub-statement')
+                        compute_query = element.ctes[0].query
 
-            ptr_direction = e.rptr.direction or \
-                s_pointers.PointerDirection.Outbound
+                        if not is_singleton:
+                            if len(compute_query.ctes) != 1:
+                                raise RuntimeError(
+                                    'unexpected CTE structure in a '
+                                    'sub-statement')
 
-            if ptr_direction == s_pointers.PointerDirection.Outbound:
-                ptr_target = e.rptr.ptrcls.target
-            else:
-                ptr_target = e.rptr.ptrcls.source
+                            compute_query = compute_query.ctes[0].query
 
-            if isinstance(element, pgast.SelectStmt):
-                if not e.rptr.ptrcls.singular(ptr_direction):
-                    # Aggregate subquery results to keep correct
-                    # cardinality.
-                    rt = element.target_list[0]
-                    rt.name = ctx.genalias(hint='r')
+                        self._update_subrel_map(ctx.rel, compute_query.ctes)
 
-                    subrvar = pgast.RangeSubselect(
-                        subquery=element,
-                        alias=pgast.Alias(
-                            aliasname=ctx.genalias(hint='q')
-                        )
-                    )
-
-                    result = pgast.SelectStmt(
+            if not is_singleton:
+                # Aggregate subquery results to keep correct
+                # cardinality.
+                if not isinstance(element, pgast.SelectStmt):
+                    element = pgast.SelectStmt(
                         target_list=[
-                            pgast.ResTarget(
-                                val=pgast.FuncCall(
-                                    name=('array_agg',),
-                                    args=[
-                                        self._get_column(subrvar, rt.name)
-                                    ]
-                                )
-                            )
-                        ],
-                        from_clause=[
-                            subrvar
+                            pgast.ResTarget(val=element)
                         ]
                     )
 
-                    element = result
+                rt = element.target_list[0]
+                rt.name = ctx.genalias(hint='r')
 
-            if ptr_name == 'std::id':
-                testref = element
+                subrvar = pgast.RangeSubselect(
+                    subquery=element,
+                    alias=pgast.Alias(
+                        aliasname=ctx.genalias(hint='q')
+                    )
+                )
+
+                result = pgast.SelectStmt(
+                    target_list=[
+                        pgast.ResTarget(
+                            val=pgast.FuncCall(
+                                name=('array_agg',),
+                                args=[
+                                    self._get_column(subrvar, rt.name)
+                                ]
+                            )
+                        )
+                    ],
+                    from_clause=[
+                        subrvar
+                    ]
+                )
+
+                element = result
+
+            if ptrname == 'std::id':
+                idref = element
 
             attr_name = s_pointers.PointerVector(
-                name=ptr_name.name, module=ptr_name.module,
-                direction=ptr_direction, target=ptr_target.name,
-                is_linkprop=isinstance(e.rptr.ptrcls, s_lprops.LinkProperty))
+                name=ptrname.name, module=ptrname.module,
+                direction=ptrdir, target=ptrcls.get_far_endpoint(ptrdir),
+                is_linkprop=isinstance(ptrcls, s_lprops.LinkProperty))
 
-            attribute_map.append(attr_name)
-            my_elements.append(element)
-
-        if ctx.output_format == 'identity':
-            result = testref
-            testref = None
-        else:
-            rtlist = ResTargetList(my_elements, attribute_map)
-
-            if ctx.output_format == 'flat':
-                # DML statements want ``SELECT Object`` to return the object
-                # identity and properties in addressable column format.
-                testref = None
-                result = rtlist
-
-            elif ctx.output_format == 'json':
-                # In JSON mode we simply produce a JSONB object of
-                # the shape record...
-                result = self._rtlist_as_json_object(rtlist)
-
+            if isinstance(element, ResTargetList):
+                attribute_map.extend(element.attmap)
+                my_elements.extend(element.targets)
             else:
-                raise NotImplementedError(
-                    f'unsupported output_format: {ctx.output_format}')
+                attribute_map.append(attr_name)
+                my_elements.append(element)
 
-        if testref is not None:
-            # In case the object reference is NULL we want the
-            # entire result to be NULL rather than a record containing
-            # a series of NULLs.
-            when_cond = pgast.NullTest(arg=testref)
+        if ignore_shape:
+            result = idref
+        else:
+            result = ResTargetList(my_elements, attribute_map)
 
-            when_expr = pgast.CaseWhen(
-                expr=when_cond,
-                result=pgast.Constant(val=None)
-            )
+            if ctx.shape_format == context.ShapeFormat.SERIALIZED:
+                if ctx.output_format == 'json':
+                    # In JSON mode we simply produce a JSONB object of
+                    # the shape record...
+                    result = self._rtlist_as_json_object(result)
 
-            result = pgast.CaseExpr(
-                args=[when_expr],
-                defresult=result)
+                    if idref is not None:
+                        # In case the object reference is NULL we want the
+                        # entire result to be NULL rather than a record
+                        # containing a series of NULLs.
+                        when_cond = pgast.NullTest(arg=idref)
+
+                        when_expr = pgast.CaseWhen(
+                            expr=when_cond,
+                            result=pgast.Constant(val=None)
+                        )
+
+                        result = pgast.CaseExpr(
+                            args=[when_expr],
+                            defresult=result)
+
+                else:
+                    raise NotImplementedError(
+                        f'unsupported output_format: {ctx.output_format}')
 
         return result
 
@@ -285,8 +324,6 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             with self.context.new() as newctx:
                 newctx.scope_cutoff = True
                 newctx.in_shape = True
-                if not newctx.expr_exposed:
-                    newctx.output_format = 'identity'
                 val = e.val
                 if (isinstance(val, irast.Set) and
                         isinstance(val.expr, irast.Stmt)):
@@ -578,6 +615,14 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         return wrapper
 
+    def _put_computed_node_rel(self, ir_set, cte):
+        ctx = self.context.current
+        ctx.computed_node_rels[ir_set] = cte
+
+    def _get_computed_node_rel(self, ir_set):
+        ctx = self.context.current
+        return ctx.computed_node_rels.get(ir_set)
+
     def _put_set_cte(self, ir_set, cte, *, ctx=None):
         if ctx is None:
             ctx = self.context.current
@@ -636,11 +681,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             ctx.rel = stmt
 
             if isinstance(ir_set.expr, irast.Stmt):
-                # When the Set is defined by a subquery, we do not
-                # want to push the rel context, as we want the direct
-                # connection to exist between the parent query and the
-                # subquery.
-                self._process_set_as_subquery(ir_set)
+                self._process_set_as_subquery(ir_set, stmt)
 
             elif ir_set.expr is not None:
                 self._process_set_as_expr(ir_set, stmt)
@@ -684,39 +725,39 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         # Generate a flat JOIN list from the gathered sources
         # using path bonds for conditions.
 
-        ctx = self.context.current
+        with self.context.new() as ctx:
+            ctx.expr_exposed = False
 
-        subrels = ctx.subquery_map[stmt]
+            subrels = ctx.subquery_map[stmt]
 
-        for source in sources:
-            source_rel = self._set_to_cte(source)
-            if source_rel in subrels:
-                continue
+            for source in sources:
+                source_rel = self._set_to_cte(source)
+                if source_rel in subrels:
+                    continue
 
-            lax_path = ctx.setscope.get(source)
-            if lax_path:
-                source_rel = self._get_set_cte(source, lax=True)
+                lax_path = ctx.setscope.get(source)
+                if lax_path:
+                    source_rel = self._get_set_cte(source, lax=True)
 
-            src_rvar = pgast.RangeVar(
-                relation=source_rel,
-                alias=pgast.Alias(
-                    aliasname=ctx.genalias(hint=source_rel.name)
+                src_rvar = pgast.RangeVar(
+                    relation=source_rel,
+                    alias=pgast.Alias(
+                        aliasname=ctx.genalias(hint=source_rel.name)
+                    )
                 )
-            )
 
-            subrels[source_rel] = {
-                'rvar': src_rvar,
-                'linked': True
-            }
+                subrels[source_rel] = {
+                    'rvar': src_rvar,
+                    'linked': True
+                }
 
-            self._pull_path_namespace(target=stmt, source=src_rvar)
-            self._rel_join(stmt, src_rvar, type='inner')
+                self._pull_path_namespace(target=stmt, source=src_rvar)
+                self._rel_join(stmt, src_rvar, type='inner')
 
     def _get_root_rvar(self, ir_set, stmt, nullable=False):
         if not isinstance(ir_set.scls, s_concepts.Concept):
             return None
 
-        id_field = common.edgedb_name_to_pg_name('std::id')
         id_set = self._get_ptr_set(ir_set, 'std::id')
 
         set_rvar = self._range_for_set(ir_set, stmt)
@@ -730,10 +771,13 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         else:
             rvar_rel = set_rvar.query
 
-        id_ref = self._get_column(set_rvar, id_field, naked=True)
-        rvar_rel.path_bonds[path_id] = rvar_rel.path_vars[path_id] = id_ref
-
         self._pull_path_var(stmt, id_set, path_id=path_id)
+
+        if path_id not in rvar_rel.path_namespace:
+            id_field = common.edgedb_name_to_pg_name('std::id')
+            id_ref = self._get_column(set_rvar, id_field, naked=True)
+            rvar_rel.path_bonds[path_id] = rvar_rel.path_vars[path_id] = id_ref
+
         stmt.inner_path_bonds[path_id] = stmt.path_namespace[path_id]
 
         return set_rvar
@@ -844,15 +888,34 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         return rt_name
 
-    def _process_set_as_subquery(self, ir_set):
+    def _process_set_as_subquery(self, ir_set, stmt):
         """Populate the CTE for Set defined by a subquery."""
 
         ctx = self.context.current
 
         cte = self._get_set_cte(ir_set)
         with self.context.new() as newctx:
-            newctx.output_format = 'flat'
+            # newctx.expr_exposed = False
+
+            if ir_set.rptr is not None and ir_set.rptr.source_is_computed:
+                # This is a computable ptr produced by referencing
+                # data in a View.
+                self._connect_set_sources(ir_set, stmt, [ir_set.rptr.source])
+
+                source_cte = self._get_set_cte(ir_set.rptr.source)
+                source_shape = irutils.get_subquery_shape(ir_set.rptr.source)
+                target_ir_set = source_shape.set
+                self._put_computed_node_rel(target_ir_set, source_cte)
+
             subquery = self.visit(ir_set.expr)
+
+            if ir_set.rptr is not None and ir_set.rptr.source_is_computed:
+                newctx.rel = subquery
+                source_rvar = self._include_range(source_cte)
+                # Use a "where" join here to avoid mangling the
+                # canonical set rvar in from_clause[0], as
+                # _pull_path_rvar will choke on a JOIN there.
+                self._rel_join(subquery, source_rvar, type='where')
 
             if irutils.is_aggregated_expr(ir_set.expr):
                 # The expression includes calls to aggregates.
@@ -872,14 +935,11 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         rt_name = self._ensure_query_restarget_name(subquery, cte.name)
         subquery.path_vars[ir_set.path_id] = pgast.ColumnRef(name=[rt_name])
 
+        if subquery.from_clause:
+            subquery.scls_rvar = subquery.from_clause[0]
+
         cte.query = subquery
         ctx.query.ctes.append(cte)
-
-        for rel, info in ctx.subquery_map[ctx.rel].items():
-            ctx.subquery_map[ctx.query][rel] = {
-                'rvar': info['rvar'],
-                'linked': True
-            }
 
     def _process_set_as_expr(self, ir_set, stmt):
         """Populate the CTE for Set defined by an expression."""
@@ -1028,6 +1088,18 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             pg_args = self.visit(expr.args)
         return pgast.FuncCall(name=('coalesce',), args=pg_args)
 
+    def _update_subrel_map(self, target_rel, subrel_map):
+        ctx = self.context.current
+
+        for rel in subrel_map:
+            if isinstance(rel, pgast.CommonTableExpr):
+                rel = rel.query
+
+            ctx.subquery_map[target_rel][rel] = {
+                'linked': False,
+                'rvar': None
+            }
+
     def _connect_subrels(self, query, connect_subqueries=True):
         # For any subquery or CTE referred to by the *query*
         # generate the appropriate JOIN condition.  This also
@@ -1069,8 +1141,14 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         ctx = self.context.current
 
         for substmt in ir_stmt.substmts:
-            with self.context.substmt():
-                self.context.current.output_format = 'flat'
+            with self.context.substmt() as subctx:
+                # We want to share the CTE map with the parent query to
+                # be able to resolve any subquery indirections.  This is
+                # safe to do since the queries in the WITH block and
+                # the main query are scope siblings.
+                subctx.ctemap = ctx.ctemap
+                subctx.expr_exposed = False
+
                 subquery = self.visit(substmt.expr)
                 expr_type = irutils.infer_type(substmt.expr, ctx.schema)
 
@@ -1119,6 +1197,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                     subquery.path_namespace[substmt.path_id] = ref
                     subquery.inner_path_bonds[substmt.path_id] = ref
 
+            ctx.query.ctes.extend(cte.query.ctes)
+            cte.query.ctes = []
             ctx.query.ctes.append(cte)
 
     def _process_selector(self, result_expr):
@@ -1127,7 +1207,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         with self.context.new() as newctx:
             newctx.clause = 'result'
-            newctx.expr_exposed = True
+            if newctx.expr_exposed is None:
+                newctx.expr_exposed = True
             pgexpr = self.visit(result_expr)
 
             if isinstance(pgexpr, ResTargetList):
@@ -1144,7 +1225,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             else:
                 selexprs = [(pgexpr, None)]
 
-        if ctx.output_format == 'json':
+        if ((ctx.expr_exposed is None or ctx.expr_exposed) and
+                ctx.output_format == 'json'):
             if isinstance(pgexpr, ResTargetList):
                 val = self._rtlist_as_json_object(pgexpr)
             else:
@@ -1274,8 +1356,12 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 f'reference in context of {ctx.rel!r}')
 
         if ctx.in_aggregate:
-            scope_path_id = self._get_scope_path_id(ir_set)
-            ctx.rel.aggregated_prefixes.add(scope_path_id)
+            if ir_set.rptr is not None:
+                aggregated_scope_path_id = ir_set.rptr.source.path_id
+            else:
+                aggregated_scope_path_id = ir_set.path_id
+
+            ctx.rel.aggregated_prefixes.add(aggregated_scope_path_id)
 
             if isinstance(ir_set.scls, s_atoms.Atom):
                 # Cast atom refs to the base type in aggregate expressions,
@@ -1289,13 +1375,9 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         return ref
 
-    def _get_scope_path_id(self, ir_set):
-        if ir_set.rptr is not None:
-            return ir_set.rptr.source.path_id
-        else:
-            return ir_set.path_id
-
     def _full_inner_bond_condition(self, left, right):
+        ctx = self.context.current
+
         condition = None
 
         for path_id, lref in left.inner_path_bonds.items():
@@ -1303,9 +1385,13 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             if rptr and rptr.singular(path_id.rptr_dir()):
                 continue
 
-            try:
-                rref = right.inner_path_bonds[path_id]
-            except KeyError:
+            rref = right.inner_path_bonds.get(path_id)
+            if rref is None:
+                aliased = ctx.path_id_aliases.get(path_id)
+                if aliased is not None:
+                    rref = right.inner_path_bonds.get(aliased)
+
+            if rref is None:
                 continue
 
             if lref.nullable or rref.nullable:
@@ -1351,17 +1437,25 @@ class IRCompiler(expr_compiler.IRCompilerBase,
     def _rel_join(self, query, right_rvar, type='inner'):
         condition = self._full_outer_bond_condition(query, right_rvar)
 
-        if condition is None:
-            type = 'cross'
-
-        if query.from_clause:
-            query.from_clause[0] = pgast.JoinExpr(
-                type=type, larg=query.from_clause[0],
-                rarg=right_rvar, quals=condition)
-            if type == 'left':
-                right_rvar.nullable = True
-        else:
+        if type == 'where':
+            # A "where" JOIN is equivalent to an INNER join with
+            # its condition moved to a WHERE clause.
+            if condition is not None:
+                query.where_clause = self._extend_binop(
+                    query.where_clause, condition)
             query.from_clause.append(right_rvar)
+        else:
+            if condition is None:
+                type = 'cross'
+
+            if query.from_clause:
+                query.from_clause[0] = pgast.JoinExpr(
+                    type=type, larg=query.from_clause[0],
+                    rarg=right_rvar, quals=condition)
+                if type == 'left':
+                    right_rvar.nullable = True
+            else:
+                query.from_clause.append(right_rvar)
 
     def _join_mapping_rel(self, *, stmt, set_rvar, ir_set,
                           map_join_type='inner'):
@@ -1510,6 +1604,14 @@ class IRCompiler(expr_compiler.IRCompilerBase,
     def _pull_path_namespace(self, *, target, source, pull_bonds=True):
         squery = source.query
         for path_id in set(squery.path_namespace) - set(target.path_namespace):
+            name = self._get_path_var(squery, path_id)
+            ref = self._get_column(source, name)
+            target.path_namespace[path_id] = ref
+
+        # We also need to explicitly pull path_vars for cases where
+        # they are not derived directly from the source's path namespace,
+        # such as when evaluating a View subquery.
+        for path_id in set(squery.path_vars) - set(target.path_namespace):
             name = self._get_path_var(squery, path_id)
             ref = self._get_column(source, name)
             target.path_namespace[path_id] = ref

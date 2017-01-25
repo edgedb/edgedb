@@ -33,6 +33,8 @@ from edgedb.server.pgsql import ast as pgast
 from edgedb.server.pgsql import common
 from edgedb.server.pgsql import types as pg_types
 
+from . import context
+
 
 class IRCompilerDMLSupport:
     def visit_InsertStmt(self, stmt):
@@ -280,7 +282,8 @@ class IRCompilerDMLSupport:
             # UPDATE statement so that references to the current
             # values of the updated object are resolved correctly.
             ctx.rel = ctx.query = select
-            ctx.output_format = 'flat'
+            ctx.expr_exposed = False
+            ctx.shape_format = context.ShapeFormat.FLAT
 
             # Process the Insert IR and separate links that go
             # into the main table from links that are inserted into
@@ -345,7 +348,8 @@ class IRCompilerDMLSupport:
             # values of the updated object are resolved correctly.
             ctx = self.context.current
             ctx.rel = ctx.query = update_stmt
-            ctx.output_format = 'flat'
+            ctx.expr_exposed = False
+            ctx.shape_format = context.ShapeFormat.FLAT
             self._put_set_cte(ir_stmt.shape.set, range_cte)
 
             for shape_el in ir_stmt.shape.elements:
@@ -636,8 +640,9 @@ class IRCompilerDMLSupport:
             #
             return tranches
 
-        with self.context.new():
-            self.context.current.output_format = 'flat'
+        with self.context.new() as input_rel_ctx:
+            input_rel_ctx.expr_exposed = False
+            input_rel_ctx.shape_format = context.ShapeFormat.FLAT
             input_rel = self.visit(data)
 
         input_stmt = input_rel
