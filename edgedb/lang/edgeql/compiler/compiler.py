@@ -423,12 +423,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
                 expr = self.visit(step)
                 result_type = irutils.infer_type(expr, ctx.schema)
-
-                if result_type is None:
-                    raise errors.EdgeQLError(
-                        f'could not determine expression result '
-                        f'type: {expr!r}', context=expr.context)
-
                 path_tip = self._generated_set(expr, result_type, force=True)
 
         if (ctx.group_paths and ctx.location in ('orderby', 'selector') and
