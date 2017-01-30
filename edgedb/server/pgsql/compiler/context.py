@@ -70,6 +70,8 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.argmap = OrderedSet()
             self.ctemap = {}
             self.setscope = {}
+            self.auto_setscope = set()
+            self.forced_setscope = set()
 
             self.output_format = None
             self.shape_format = ShapeFormat.SERIALIZED
@@ -104,6 +106,8 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.argmap = prevlevel.argmap
             self.ctemap = prevlevel.ctemap
             self.setscope = prevlevel.setscope
+            self.auto_setscope = prevlevel.auto_setscope
+            self.forced_setscope = prevlevel.forced_setscope
 
             self.output_format = prevlevel.output_format
             self.shape_format = prevlevel.shape_format
@@ -128,6 +132,8 @@ class CompilerContextLevel(compiler.ContextLevel):
 
                 self.ctemap = prevlevel.ctemap.copy()
                 self.setscope = {}
+                self.auto_setscope = set()
+                self.forced_setscope = set()
 
                 self.subquery_map = collections.defaultdict(dict)
 
@@ -136,6 +142,7 @@ class CompilerContextLevel(compiler.ContextLevel):
 
             if mode == ContextSwitchMode.SETSCOPE:
                 self.setscope = {}
+                self.auto_setscope = set()
 
     def genalias(self, hint):
         m = re.search(r'~\d+$', hint)

@@ -395,22 +395,34 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         return result
 
     def _apply_path_scope(self):
+        """Insert conditions to satisfy implicit set existence."""
         ctx = self.context.current
         query = ctx.query
 
-        scoped_prefixes = set()
-        strict = []
+        # EdgeQL semantics dictates that all sets produced by path
+        # expresions must exist unless the non-existence is
+        # either explicitly allowed or implicitly allowed by the
+        # operation (if, ??).
+        #
+        # On the other hand, the semantics of most generated CTEs implies
+        # set existence, so we only need to inject explicit EXISTS()
+        # conditions when we know that the given SQL statement does not
+        # imply set existence.
+        #
+        explicit_exists = []
         lax_prefixes = {s.path_id for s, lax in ctx.setscope.items() if lax}
-
-        for ir_set, lax in ctx.setscope.items():
+        candidates = (ctx.forced_setscope - ctx.auto_setscope)
+        for ir_set in candidates:
+            lax = ctx.setscope.get(ir_set)
             if not lax:
                 prefixes = set(ir_set.path_id.iter_prefixes())
                 if not (prefixes & lax_prefixes):
-                    strict.append(ir_set)
+                    explicit_exists.append(ir_set)
 
-        strict.sort(key=lambda s: len(s.path_id), reverse=True)
+        explicit_exists.sort(key=lambda s: len(s.path_id), reverse=True)
 
-        for ir_set in strict:
+        scoped_prefixes = set()
+        for ir_set in explicit_exists:
             if ir_set.path_id not in scoped_prefixes:
                 cte = ctx.ctemap[ir_set, False]
                 scope_expr = self._set_as_exists_op(
@@ -642,6 +654,11 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             # with [NOT] EXISTS, or through the coalescing operator.)
             if ctx.lax_paths or not ctx.setscope.get(ir_set):
                 ctx.setscope[ir_set] = ctx.lax_paths
+
+            if ctx.clause != 'result':
+                ctx.auto_setscope.add(ir_set)
+            elif len(ir_set.path_id) > 1:
+                ctx.forced_setscope.add(ir_set)
 
         return cte
 
