@@ -795,32 +795,58 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         ctx = self.context.current
 
-        return_parent = True
-
         rptr = ir_set.rptr
         ptrcls = rptr.ptrcls
         fromlist = stmt.from_clause
 
-        self._connect_set_sources(ir_set, stmt, [ir_set.rptr.source])
+        # Path is a reference to Atom.__class__.
+        is_atom_class_ref = (
+            isinstance(rptr.source.scls, s_atoms.Atom) and
+            ptrcls.shortname == 'std::__class__'
+        )
+
+        # Path is a reference to a link property.
+        is_link_prop_ref = isinstance(ptrcls, s_lprops.LinkProperty)
+
+        if not is_atom_class_ref and not is_link_prop_ref:
+            ptr_info = pg_types.get_pointer_storage_info(
+                ptrcls, resolve_type=False, link_bias=False)
+
+            # Path is a reference to a relationship represented
+            # in a mapping table.
+            is_mapped_target_ref = ptr_info.table_type != 'concept'
+
+            # Path target is a Concept class.
+            is_concept_ref = isinstance(ir_set.scls, s_concepts.Concept)
+        else:
+            is_mapped_target_ref = False
+            is_concept_ref = is_atom_class_ref
+
+        # Check if the source CTE has all the data to resolve this path.
+        return_parent = not (
+            is_atom_class_ref or
+            is_mapped_target_ref or
+            is_concept_ref
+        )
+
+        if return_parent:
+            source_cte = self._set_to_cte(ir_set.rptr.source)
+        else:
+            self._connect_set_sources(ir_set, stmt, [ir_set.rptr.source])
+            path_rvar = fromlist[0]
+            source_cte = path_rvar.relation
+
         set_rvar = self._get_root_rvar(ir_set, stmt, nullable=ctx.lax_paths)
 
-        if (isinstance(rptr.source.scls, s_atoms.Atom) and
-                ptrcls.shortname == 'std::__class__'):
+        if is_atom_class_ref:
             # Special case to support Path.atom.__class__ paths
             self._join_class_rel(
                 stmt=stmt, set_rvar=set_rvar, ir_set=ir_set)
 
-            return_parent = False
-
         else:
-            path_rvar = fromlist[0]
-            source_rel = path_rvar.relation
-            source_stmt = source_rel.query
+            source_stmt = source_cte.query
 
-            ptr_info = pg_types.get_pointer_storage_info(
-                ptrcls, resolve_type=False, link_bias=False)
-
-            if isinstance(ptrcls, s_lprops.LinkProperty):
+            if is_link_prop_ref:
                 # Reference to a link property.
                 map_rvar = self._join_mapping_rel(
                     stmt=source_stmt, set_rvar=set_rvar, ir_set=ir_set,
@@ -830,7 +856,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
                 self._pull_path_var(source_stmt, ir_set)
 
-            elif ptr_info.table_type != 'concept':
+            elif is_mapped_target_ref:
                 map_join_type = 'left' if ctx.lax_paths else 'inner'
 
                 map_rvar = self._join_mapping_rel(
@@ -839,31 +865,26 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
                 stmt.rptr_rvar = map_rvar
 
-                return_parent = False
-
-            elif isinstance(ir_set.scls, s_concepts.Concept):
+            elif is_concept_ref:
                 # Direct reference to another object.
-                self._pull_path_var(source_rel, ir_set)
+                self._pull_path_var(source_cte, ir_set)
                 stmt.path_namespace[ir_set.path_id] = self._get_column(
                     path_rvar,
-                    self._get_path_var(source_rel.query, ir_set.path_id)
+                    self._get_path_var(source_stmt, ir_set.path_id)
                 )
 
                 self._join_inline_rel(
                     stmt=stmt, set_rvar=set_rvar, ir_set=ir_set,
                     back_id_col=ptr_info.column_name)
 
-                return_parent = False
-
             else:
                 # The path step target is stored in the source's table,
                 # so we need to make sure that rel is returning the column
                 # ref we need.
-                self._pull_path_var(source_rel, ir_set)
+                self._pull_path_var(source_cte, ir_set)
 
         if return_parent:
-            source_rel = stmt.from_clause[0].relation
-            self._put_set_cte(ir_set, source_rel)
+            self._put_set_cte(ir_set, source_cte)
         else:
             ctx.query.ctes.append(self._get_set_cte(ir_set))
 
