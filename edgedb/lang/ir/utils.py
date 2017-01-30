@@ -11,7 +11,7 @@ from edgedb.lang.common import ast
 from edgedb.lang.schema import pointers as s_pointers
 
 from . import ast as irast
-from .typing import infer_arg_types, infer_type  # NOQA
+from .inference import infer_arg_types, infer_type  # NOQA
 
 
 def get_source_references(ir):

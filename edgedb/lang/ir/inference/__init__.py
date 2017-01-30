@@ -6,4 +6,4 @@
 ##
 
 
-from .inference import infer_arg_types, infer_type  # NOQA
+from .types import infer_arg_types, infer_type  # NOQA
