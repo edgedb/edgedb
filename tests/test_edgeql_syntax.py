@@ -1359,7 +1359,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         WITH
             MODULE test,
-            extra:= MODULE lib.extra,
+            extra AS MODULE lib.extra,
             foo:= Bar.foo,
             baz:= (SELECT (extra::Foo).baz)
         SELECT Bar {

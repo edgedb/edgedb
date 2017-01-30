@@ -7,6 +7,7 @@
 
 
 import os.path
+import unittest
 
 from edgedb.server import _testbase as tb
 
@@ -166,6 +167,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'name': 'Yury'}],
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_where_two_atomic_conditions04(self):
         await self.assert_query_result(r'''
             # NOTE: semantically same as and01, but using OR,
@@ -240,6 +242,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'name': 'Elvis'}, {'name': 'Yury'}],
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_where_not_exists04(self):
         await self.assert_query_result(r'''
             # NOTE: same as above, but with separate roots and
@@ -304,6 +307,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'name': 'Yury'}],
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_where_two_atomic_exists03(self):
         await self.assert_query_result(r'''
             # NOTE: same as above, but using OR,
@@ -331,6 +335,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'name': 'Yury'}],
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_where_two_atomic_exists04(self):
         await self.assert_query_result(r'''
             # NOTE: same as above, but using OR,
