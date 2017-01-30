@@ -985,8 +985,13 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     )
                 ])
 
+                with_expr = with_entry.expr
+
+                if not isinstance(with_expr, qlast.Statement):
+                    with_expr = qlast.SelectQuery(result=with_expr)
+
                 with self.context.new():
-                    substmt = self.visit(with_entry.expr).expr
+                    substmt = self.visit(with_expr).expr
 
                 result_type = irutils.infer_type(substmt, ctx.schema)
 
