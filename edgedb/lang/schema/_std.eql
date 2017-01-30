@@ -97,6 +97,9 @@ CREATE FUNCTION std::len(array<std::any>) RETURNING std::int
         SELECT array_length($1, 1)::bigint
     $$;
 
+CREATE FUNCTION std::random() RETURNING std::float
+    FROM SQL FUNCTION 'random';
+
 CREATE FUNCTION std::to_tsquery(std::str) RETURNING std::tsquery
     FROM SQL FUNCTION 'to_tsquery';
 

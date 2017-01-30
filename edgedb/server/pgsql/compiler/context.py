@@ -80,6 +80,8 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.rel_overlays = collections.defaultdict(list)
             self.computed_node_rels = {}
             self.path_id_aliases = {}
+            self.path_bonds = {}
+            self.parent_path_bonds = {}
 
         else:
             self.backend = prevlevel.backend
@@ -116,6 +118,8 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.rel_overlays = prevlevel.rel_overlays
             self.computed_node_rels = prevlevel.computed_node_rels
             self.path_id_aliases = prevlevel.path_id_aliases
+            self.path_bonds = prevlevel.path_bonds
+            self.parent_path_bonds = prevlevel.parent_path_bonds
 
             if mode in {ContextSwitchMode.SUBQUERY,
                         ContextSwitchMode.SUBSTMT}:
@@ -136,9 +140,12 @@ class CompilerContextLevel(compiler.ContextLevel):
                 self.forced_setscope = set()
 
                 self.subquery_map = collections.defaultdict(dict)
+                self.path_bonds = prevlevel.path_bonds.copy()
 
             if mode == ContextSwitchMode.SUBSTMT:
                 self.stmt = self.query
+                self.parent_path_bonds = prevlevel.path_bonds
+                self.computed_node_rels = prevlevel.computed_node_rels.copy()
 
             if mode == ContextSwitchMode.SETSCOPE:
                 self.setscope = {}

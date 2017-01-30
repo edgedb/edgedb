@@ -38,7 +38,7 @@ from . import context
 
 class IRCompilerDMLSupport:
     def visit_InsertStmt(self, stmt):
-        with self.context.substmt():
+        with self.context.substmt() as ctx:
             # Common DML bootstrap
             wrapper, insert_cte, _ = \
                 self._init_dml_stmt(stmt, pgast.InsertStmt())
@@ -49,12 +49,12 @@ class IRCompilerDMLSupport:
             # Process INSERT RETURNING
             self._process_selector(stmt.result)
             self._apply_path_scope()
-            self._connect_subrels(wrapper)
+            self._enforce_path_scope(wrapper, ctx.parent_path_bonds)
 
             return wrapper
 
     def visit_UpdateStmt(self, stmt):
-        with self.context.substmt():
+        with self.context.substmt() as ctx:
             # Common DML bootstrap
             wrapper, update_cte, range_cte = \
                 self._init_dml_stmt(stmt, pgast.UpdateStmt())
@@ -65,12 +65,12 @@ class IRCompilerDMLSupport:
             # Process UPDATE RETURNING
             self._process_selector(stmt.result)
             self._apply_path_scope()
-            self._connect_subrels(wrapper)
+            self._enforce_path_scope(wrapper, ctx.parent_path_bonds)
 
             return wrapper
 
     def visit_DeleteStmt(self, stmt):
-        with self.context.subquery():
+        with self.context.subquery() as ctx:
             # Common DML bootstrap
             wrapper, delete_cte, _ = \
                 self._init_dml_stmt(stmt, pgast.DeleteStmt())
@@ -78,7 +78,7 @@ class IRCompilerDMLSupport:
             # Process DELETE RETURNING
             self._process_selector(stmt.result)
             self._apply_path_scope()
-            self._connect_subrels(wrapper)
+            self._enforce_path_scope(wrapper, ctx.parent_path_bonds)
 
             return wrapper
 
@@ -136,10 +136,7 @@ class IRCompilerDMLSupport:
                 )
             )
 
-            ctx.subquery_map[dml_stmt][range_cte] = {
-                'linked': True,
-                'rvar': range_rvar
-            }
+            ctx.subquery_map[dml_stmt][range_cte] = range_rvar
 
             self._pull_path_namespace(target=dml_stmt, source=range_rvar)
 
@@ -201,6 +198,8 @@ class IRCompilerDMLSupport:
         target_ir_set = ir_stmt.shape.set
         ir_qual_expr = ir_stmt.where
 
+        parent_ctx = self.context.current
+
         with self.context.subquery():
             ctx = self.context.current
 
@@ -211,8 +210,7 @@ class IRCompilerDMLSupport:
 
             target_cte = self._get_set_cte(target_ir_set)
 
-            range_stmt.scls_rvar = \
-                ctx.subquery_map[range_stmt][target_cte]['rvar']
+            range_stmt.scls_rvar = ctx.subquery_map[range_stmt][target_cte]
 
             self._pull_path_var(
                 range_stmt, id_set, path_id=target_ir_set.path_id)
@@ -222,7 +220,7 @@ class IRCompilerDMLSupport:
                     newctx.clause = 'where'
                     range_stmt.where_clause = self.visit(ir_qual_expr)
 
-            self._connect_subrels(range_stmt)
+            self._enforce_path_scope(range_stmt, parent_ctx.path_bonds)
 
             range_cte = pgast.CommonTableExpr(
                 query=range_stmt,
@@ -241,7 +239,7 @@ class IRCompilerDMLSupport:
         :param insert_cte:
             CTE representing the SQL INSERT to the main relation of the Class.
         """
-        ctx = self.context.current
+        parent_ctx = self.context.current
 
         cols = [pgast.ColumnRef(name=['std::__class__'])]
         select = pgast.SelectStmt()
@@ -318,7 +316,7 @@ class IRCompilerDMLSupport:
                 if ptr_info and ptr_info.table_type == 'link':
                     external_inserts.append((shape_el, props_only))
 
-            self._connect_subrels(insert_stmt)
+            self._enforce_path_scope(insert_stmt, parent_ctx.path_bonds)
 
         # Process necessary updates to the link tables.
         for expr, props_only in external_inserts:
@@ -337,16 +335,17 @@ class IRCompilerDMLSupport:
         :param range_cte:
             CTE representing the range affected by the statement.
         """
+        parent_ctx = self.context.current
+
         update_stmt = update_cte.query
 
         external_updates = []
 
-        with self.context.subquery():
+        with self.context.subquery() as ctx:
             # It is necessary to process the expressions in
             # the UpdateStmt shape body in the context of the
             # UPDATE statement so that references to the current
             # values of the updated object are resolved correctly.
-            ctx = self.context.current
             ctx.rel = ctx.query = update_stmt
             ctx.expr_exposed = False
             ctx.shape_format = context.ShapeFormat.FLAT
@@ -382,7 +381,7 @@ class IRCompilerDMLSupport:
                 if ptr_info and ptr_info.table_type == 'link':
                     external_updates.append((shape_el, props_only))
 
-            self._connect_subrels(update_stmt)
+            self._enforce_path_scope(update_stmt, parent_ctx.path_bonds)
 
         if not update_stmt.targets:
             # No updates directly to the set target table,

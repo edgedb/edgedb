@@ -106,7 +106,7 @@ def get_common_prefixes(exprs):
             if len(current) == 1:
                 next_path_id, current = next(iter(current.items()))
 
-                if prefix_counts[next_path_id] >= root_count:
+                if prefix_counts.get(next_path_id, -1) >= root_count:
                     path_id = next_path_id
                 else:
                     break
@@ -115,7 +115,7 @@ def get_common_prefixes(exprs):
 
         trails.append(irast.PathId(path_id))
 
-    return {trail: prefixes[trail] for trail in trails}
+    return {trail: prefixes[trail] for trail in trails if trail in prefixes}
 
 
 class EdgeQLCompiler(ast.visitor.NodeVisitor):

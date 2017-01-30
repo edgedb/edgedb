@@ -2708,24 +2708,25 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['Yury'],
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_select_view_indirection04(self):
-        await self.assert_query_result(r"""
+        result = await self.con.execute(r"""
             # Reference a constant expression in a view.
             WITH MODULE test,
                 U := (
                     SELECT User {
                         issues := (
                             SELECT Issue {
-                                foo := 10
+                                foo := random()
                             } WHERE Issue.owner = User
                         )
                     } WHERE .name = 'Elvis'
                 )
             SELECT
                 U.issues.foo;
-            """, [
-            [10, 10],
-        ])
+            """)
+
+        self.assertEqual(len(result[0]), 2)
 
     async def test_edgeql_select_view_indirection05(self):
         await self.assert_query_result(r"""
@@ -2914,7 +2915,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 {
                     'name': 'Elvis',
                     'open_issues': [
-                        {'number': '1', 'spent_time': 100000},
+                        {'number': '1', 'spent_time': 50000},
                         {'number': '4', 'spent_time': None},
                     ]
                 },
