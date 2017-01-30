@@ -705,3 +705,39 @@ class TestExpressions(tb.QueryTestCase):
             [4],
             [4],
         ])
+
+    async def test_edgeql_expr_cardinality01(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r'possibly more than one element returned by an expression '
+                r'where only singletons are allowed',
+                position=44):
+
+            await self.query('''\
+                WITH MODULE test
+                SELECT Issue.name ORDER BY Issue.watchers.name;
+            ''')
+
+    async def test_edgeql_expr_cardinality02(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r'possibly more than one element returned by an expression '
+                r'where only singletons are allowed',
+                position=30):
+
+            await self.query('''\
+                WITH MODULE test
+                SELECT Issue LIMIT User.name;
+            ''')
+
+    async def test_edgeql_expr_cardinality03(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r'possibly more than one element returned by an expression '
+                r'where only singletons are allowed',
+                position=30):
+
+            await self.query('''\
+                WITH MODULE test
+                SELECT Issue OFFSET User.name;
+            ''')

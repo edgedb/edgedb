@@ -1,5 +1,14 @@
+##
+# Copyright (c) 2016-present MagicStack Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
 import asyncio
 import atexit
+import contextlib
 import functools
 import inspect
 import os
@@ -274,10 +283,31 @@ class QueryTestCaseMeta(TestCaseMeta):
 
 
 class QueryTestCase(DatabaseTestCase, metaclass=QueryTestCaseMeta):
+    async def query(self, query):
+        query = textwrap.dedent(query)
+        return await self.con.execute(query)
+
     async def assert_query_result(self, query, result):
         res = await self.con.execute(query)
         self.assert_data_shape(res, result)
         return res
+
+    @contextlib.contextmanager
+    def assertRaisesRegex(self, exception, regex, msg=None,
+                          **kwargs):
+        with super().assertRaisesRegex(exception, regex, msg=msg):
+            try:
+                yield
+            except BaseException as e:
+                if isinstance(e, exception):
+                    for attr_name, expected_val in kwargs.items():
+                        val = getattr(e, attr_name)
+                        if val != expected_val:
+                            raise self.failureException(
+                                f'{exception.__name__} context attribute '
+                                f'{attr_name!r} is {val} (expected '
+                                f'{expected_val!r})') from e
+                raise
 
     def assert_data_shape(self, data, shape, message=None):
         _void = object()

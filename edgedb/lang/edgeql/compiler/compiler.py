@@ -10,6 +10,7 @@ import collections
 import itertools
 
 from edgedb.lang.ir import ast as irast
+from edgedb.lang.ir import inference as irinference
 from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import concepts as s_concepts
@@ -183,9 +184,15 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
             stmt.orderby = self._process_orderby(edgeql_tree.orderby)
             if edgeql_tree.offset:
-                stmt.offset = self.visit(edgeql_tree.offset)
+                offset_ir = self.visit(edgeql_tree.offset)
+                offset_ir.context = edgeql_tree.offset.context
+                self._enforce_singleton(offset_ir)
+                stmt.offset = offset_ir
             if edgeql_tree.limit:
-                stmt.limit = self.visit(edgeql_tree.limit)
+                limit_ir = self.visit(edgeql_tree.limit)
+                limit_ir.context = edgeql_tree.limit.context
+                self._enforce_singleton(limit_ir)
+                stmt.limit = limit_ir
 
             if stmt.groupby is None:
                 # Check if query() or order() contain any aggregate
@@ -1187,6 +1194,8 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                         expr=compexpr
                     )
 
+                    ctx.singletons.add(targetstep)
+
                 if ptrcls is None:
                     if (isinstance(ctx.stmt, irast.MutatingStmt) and
                             ctx.location != 'selector'):
@@ -1247,6 +1256,8 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 targetstep, ptrcls = self._path_step(
                     source_expr, ptrsource, ptrname, ptr_direction, ptr_target,
                     source_context=shape_el.context)
+
+                ctx.singletons.add(targetstep)
 
             if shape_el.recurse:
                 if shape_el.recurse_limit is not None:
@@ -1441,15 +1452,19 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             path_tip.shape = view_shape
 
             if target.is_virtual and ptr_target is not None:
-                pf = irast.TypeFilter(
-                    path_id=path_tip.path_id,
-                    expr=path_tip,
-                    type=irast.TypeRef(maintype=ptr_target.name)
-                )
+                try:
+                    path_tip = ctx.sets[path_tip.path_id, ptr_target.name]
+                except KeyError:
+                    pf = irast.TypeFilter(
+                        path_id=path_tip.path_id,
+                        expr=path_tip,
+                        type=irast.TypeRef(maintype=ptr_target.name)
+                    )
 
-                new_path_tip = self._generated_set(pf, ptr_target)
-                new_path_tip.rptr = path_tip.rptr
-                path_tip = new_path_tip
+                    new_path_tip = self._generated_set(pf, ptr_target)
+                    new_path_tip.rptr = path_tip.rptr
+                    path_tip = new_path_tip
+                    ctx.sets[path_tip.path_id, ptr_target.name] = path_tip
 
             return path_tip, ptrcls
 
@@ -1567,6 +1582,9 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
             expr = self.visit(result)
 
+            for prefix, ir_sets in extract_prefixes(expr).items():
+                ctx.singletons.update(ir_sets)
+
             if (isinstance(expr, irast.Set) and
                     isinstance(expr.scls, s_concepts.Concept)):
                 if expr.rptr is not None:
@@ -1589,37 +1607,44 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 return None
 
     def _process_orderby(self, sortexprs):
-
         result = []
-
         if not sortexprs:
             return result
 
-        with self.context.new():
-            self.context.current.location = 'orderby'
-            exprs = self.visit([s.path for s in sortexprs])
+        with self.context.new() as ctx:
+            ctx.location = 'orderby'
 
-            for i, sortexpr in enumerate(sortexprs):
+            for sortexpr in sortexprs:
+                ir_sortexpr = self.visit(sortexpr.path)
+                ir_sortexpr.context = sortexpr.context
+                self._enforce_singleton(ir_sortexpr)
                 result.append(
                     irast.SortExpr(
-                        expr=exprs[i],
+                        expr=ir_sortexpr,
                         direction=sortexpr.direction,
                         nones_order=sortexpr.nones_order))
 
         return result
 
-    def _process_groupby(self, groupers):
-
+    def _process_groupby(self, groupexprs):
         result = []
+        if not groupexprs:
+            return result
 
-        if groupers:
-            with self.context.new():
-                self.context.current.location = 'grouper'
-                for grouper in groupers:
-                    expr = self.visit(grouper)
-                    result.append(expr)
+        with self.context.new() as ctx:
+            ctx.location = 'grouper'
 
-        return result
+            ir_groupexprs = []
+            for groupexpr in groupexprs:
+                ir_groupexpr = self.visit(groupexpr)
+                ir_groupexpr.context = groupexpr.context
+                ir_groupexprs.append(ir_groupexpr)
+
+            prefixes = extract_prefixes(ir_groupexprs)
+            for path_id, ir_sets in prefixes.items():
+                ctx.singletons.update(ir_sets)
+
+        return ir_groupexprs
 
     def _process_type_ref_elem(self, expr, qlcontext):
         if isinstance(expr, irast.Set):
@@ -1654,6 +1679,16 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             expr = self._process_type_ref_elem(expr, expr.context)
 
         return expr
+
+    def _enforce_singleton(self, expr):
+        ctx = self.context.current
+        cardinality = irinference.infer_cardinality(
+            expr, ctx.singletons, ctx.schema)
+        if cardinality != 1:
+            raise errors.EdgeQLError(
+                'possibly more than one element returned by an expression '
+                'where only singletons are allowed',
+                context=expr.context)
 
     def _is_set_expr(self, expr):
         if isinstance(expr, irast.Set):

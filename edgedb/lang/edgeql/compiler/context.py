@@ -60,6 +60,9 @@ class ContextLevel(compiler.ContextLevel):
     """A dictionary of Set nodes representing the paths the compiler
     has seen so far."""
 
+    singletons: typing.Set[irast.Set]
+    """A set of Set nodes for which the cardinality is ONE in this context."""
+
     group_paths: typing.Set[irast.PathId]
     """A set of path ids in the GROUP BY clause of the current statement."""
 
@@ -84,6 +87,7 @@ class ContextLevel(compiler.ContextLevel):
             self.location = None
             self.stmt = None
             self.sets = {}
+            self.singletons = set()
             self.group_paths = set()
             self.in_aggregate = False
 
@@ -106,6 +110,7 @@ class ContextLevel(compiler.ContextLevel):
                 self.location = None
                 self.stmt = None
                 self.sets = prevlevel.sets.copy()
+                self.singletons = prevlevel.singletons.copy()
                 self.group_paths = set()
                 self.in_aggregate = False
 
@@ -125,6 +130,7 @@ class ContextLevel(compiler.ContextLevel):
 
                 self.result_path_steps = prevlevel.result_path_steps[:]
                 self.sets = prevlevel.sets
+                self.singletons = prevlevel.singletons
 
 
 class CompilerContext(compiler.CompilerContext):

@@ -20,6 +20,7 @@ class EdgeDBMessageMeta(type):
         'D': 'detail',
         'H': 'hint',
         'P': 'position',
+        'p': 'position_end',
         'Q': 'context',
         'T': 'traceback',
         'c': 'concept_name',

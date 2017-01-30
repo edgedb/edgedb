@@ -132,6 +132,10 @@ class Protocol(asyncio.Protocol):
                 'C': getattr(err, 'code', 0),
                 'M': str(err),
                 'D': getattr(err, 'details', None),
+                'P': (ctx.start.pointer
+                      if ctx is not None and ctx.start is not None else None),
+                'p': (ctx.end.pointer
+                      if ctx is not None and ctx.end is not None else None),
                 'Q': markup.dumps(ctx) if ctx is not None else None,
                 'T': traceback.format_tb(err.__traceback__),
             }

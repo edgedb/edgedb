@@ -6,4 +6,5 @@
 ##
 
 
+from .cardinality import infer_cardinality  # NOQA
 from .types import infer_arg_types, infer_type  # NOQA
