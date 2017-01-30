@@ -646,19 +646,13 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         ctx.ctemap[key] = cte
 
-        if (ir_set.expr is None and ctx.clause in {'where', 'result'} and
+        if (ir_set.expr is None and
+                ctx.clause in {'where', 'result'} and
                 not ctx.in_shape):
-            # References to paths in SELECT/RETURNING and WHERE clauses
-            # form a strict set existence condition for each path, unless
-            # the existence predicate was used explicitly (either directly,
-            # with [NOT] EXISTS, or through the coalescing operator.)
             if ctx.lax_paths or not ctx.setscope.get(ir_set):
                 ctx.setscope[ir_set] = ctx.lax_paths
 
-            if ctx.clause != 'result':
-                ctx.auto_setscope.add(ir_set)
-            elif len(ir_set.path_id) > 1:
-                ctx.forced_setscope.add(ir_set)
+        self._note_set_ref(ir_set)
 
         return cte
 
@@ -672,7 +666,27 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         else:
             key = (ir_set, False)
 
-        return ctx.ctemap.get(key)
+        cte = ctx.ctemap.get(key)
+
+        if cte is not None:
+            self._note_set_ref(ir_set)
+
+        return cte
+
+    def _note_set_ref(self, ir_set):
+        ctx = self.context.current
+
+        if (ir_set.expr is None and
+                ctx.clause in {'where', 'result'} and
+                not ctx.in_shape):
+            # References to paths in SELECT/RETURNING and WHERE clauses
+            # form a strict set existence condition for each path, unless
+            # the existence predicate was used explicitly (either directly,
+            # with [NOT] EXISTS, or through the coalescing operator.)
+            if ctx.clause != 'result':
+                ctx.auto_setscope.add(ir_set)
+            elif len(ir_set.path_id) > 1:
+                ctx.forced_setscope.add(ir_set)
 
     def _set_to_cte(self, ir_set):
         """Return a Common Table Expression for a given IR Set.
