@@ -712,10 +712,21 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             ctx.rel = stmt
 
             if isinstance(ir_set.expr, irast.Stmt):
+                # Subqueries.
                 self._process_set_as_subquery(ir_set, stmt)
 
+            elif isinstance(ir_set.expr, irast.TypeFilter):
+                # Expr[IS Type] expressions.
+                self._process_set_as_typefilter(ir_set, stmt)
+
             elif ir_set.expr is not None:
-                self._process_set_as_expr(ir_set, stmt)
+                expr_result = irutils.infer_type(ir_set.expr, ctx.schema)
+                if isinstance(expr_result, s_concepts.Concept):
+                    # Expressions returning objects.
+                    self._process_set_as_concept_expr(ir_set, stmt)
+                else:
+                    # Other expressions.
+                    self._process_set_as_expr(ir_set, stmt)
 
             elif ir_set.rptr is not None:
                 self._process_set_as_path_step(ir_set, stmt)
@@ -993,135 +1004,136 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         cte.query = subquery
         ctx.query.ctes.append(cte)
 
-    def _process_set_as_expr(self, ir_set, stmt):
-        """Populate the CTE for Set defined by an expression."""
+    def _process_set_as_typefilter(self, ir_set, stmt):
+        """Populate the CTE for Set defined by a Expr[IS Type] expression."""
+        ctx = self.context.current
+
+        self._get_root_rvar(ir_set, stmt)
+        self._rel_join(stmt, stmt.scls_rvar, type='inner')
+
+        valref = self._get_column(
+            stmt.scls_rvar, stmt.scls_rvar.path_vars[ir_set.path_id])
+
+        restarget = pgast.ResTarget(val=valref, name='v')
+        stmt.target_list.append(restarget)
+
+        id_set = self._get_ptr_set(ir_set, 'std::id')
+
+        ext_valref = self._get_column(stmt.scls_rvar, valref,
+                                      naked=True, name='v')
+
+        stmt.path_namespace[ir_set.path_id] = valref
+        stmt.path_vars[ir_set.path_id] = ext_valref
+        stmt.path_namespace[id_set.path_id] = valref
+        stmt.path_vars[id_set.path_id] = ext_valref
+
+        if ir_set.sources:
+            self._connect_set_sources(ir_set, stmt, ir_set.sources)
+
+        ctx.query.ctes.append(self._get_set_cte(ir_set))
+
+    def _process_set_as_concept_expr(self, ir_set, stmt):
+        """Populate the CTE for Set defined by an object expression."""
 
         ctx = self.context.current
 
         root_rvar = self._get_root_rvar(ir_set, stmt)
 
-        # Determine if we need to join the root range for this class.
-        need_root_rvar = not ir_set.sources and root_rvar is not None
+        with self.context.new() as newctx:
+            newctx.in_set_expr = True
+            newctx.rel = innerqry = pgast.SelectStmt()
+            set_expr = self.visit(ir_set.expr)
 
-        outstanding_joins = []
-        sources_connected = False
+        self._connect_subrels(innerqry, connect_subqueries=False)
 
-        if isinstance(ir_set.expr, irast.TypeFilter):
-            self._rel_join(stmt, stmt.scls_rvar, type='inner')
+        innerqry.target_list.append(
+            pgast.ResTarget(
+                val=set_expr,
+                name='v'
+            )
+        )
 
-            valref = self._get_column(
-                stmt.scls_rvar, stmt.scls_rvar.path_vars[ir_set.path_id])
+        valref = pgast.ColumnRef(
+            name=['q', 'v']
+        )
 
-            restarget = pgast.ResTarget(val=valref, name='v')
-            stmt.target_list.append(restarget)
-
-            id_set = self._get_ptr_set(ir_set, 'std::id')
-
-            ext_valref = self._get_column(stmt.scls_rvar, valref,
-                                          naked=True, name='v')
-
-            stmt.path_namespace[ir_set.path_id] = valref
-            stmt.path_vars[ir_set.path_id] = ext_valref
-            stmt.path_namespace[id_set.path_id] = valref
-            stmt.path_vars[id_set.path_id] = ext_valref
-
-        else:
-            expr_result = irutils.infer_type(ir_set.expr, ctx.schema)
-
-            with self.context.new() as newctx:
-                newctx.in_set_expr = True
-
-                if isinstance(expr_result, s_concepts.Concept):
-                    newctx.rel = innerqry = pgast.SelectStmt()
-                else:
-                    newctx.rel = stmt
-
-                set_expr = self.visit(ir_set.expr)
-
-                if irutils.is_aggregated_expr(ir_set.expr):
-                    # The expression includes calls to aggregates.
-                    # Clear the namespace as it is no longer valid.
-                    stmt.path_namespace.clear()
-                    stmt.inner_path_bonds.clear()
-                    stmt.target_list[:] = []
-
-            if isinstance(expr_result, s_concepts.Concept):
-                self._connect_subrels(innerqry, connect_subqueries=False)
-                sources_connected = True
-                need_root_rvar = True
-
-                innerqry.target_list.append(
-                    pgast.ResTarget(
-                        val=set_expr,
-                        name='v'
-                    )
+        qry = pgast.SelectStmt(
+            target_list=[
+                pgast.ResTarget(
+                    val=valref,
+                    name='v'
                 )
-
-                valref = pgast.ColumnRef(
-                    name=['q', 'v']
-                )
-
-                qry = pgast.SelectStmt(
-                    target_list=[
-                        pgast.ResTarget(
-                            val=valref,
-                            name='v'
-                        )
-                    ],
-                    from_clause=[
-                        pgast.RangeSubselect(
-                            subquery=innerqry,
-                            alias=pgast.Alias(
-                                aliasname='q'
-                            )
-                        )
-                    ]
-                )
-
-                ext_valref = pgast.ColumnRef(name=['v'], nullable=True)
-
-                qry.path_namespace[ir_set.path_id] = valref
-                qry.path_vars[ir_set.path_id] = ext_valref
-                qry.inner_path_bonds[ir_set.path_id] = valref
-                qry.path_bonds[ir_set.path_id] = ext_valref
-
-                expr_rvar = pgast.RangeSubselect(
-                    lateral=True,
-                    subquery=qry,
+            ],
+            from_clause=[
+                pgast.RangeSubselect(
+                    subquery=innerqry,
                     alias=pgast.Alias(
                         aliasname='q'
                     )
                 )
+            ]
+        )
 
-                ctx.subquery_map[stmt][innerqry] = {
-                    'rvar': expr_rvar,
-                    'linked': True
-                }
+        ext_valref = pgast.ColumnRef(name=['v'], nullable=True)
 
-                outstanding_joins.append(expr_rvar)
-                restarget = pgast.ResTarget(val=valref, name='v')
-                stmt.target_list.append(restarget)
-            else:
-                if isinstance(set_expr, ResTargetList):
-                    for i, rt in enumerate(set_expr.targets):
-                        stmt.target_list.append(
-                            pgast.ResTarget(val=rt, name=set_expr.attmap[i])
-                        )
-                else:
-                    restarget = pgast.ResTarget(val=set_expr, name='v')
-                    stmt.target_list.append(restarget)
+        qry.path_namespace[ir_set.path_id] = valref
+        qry.path_vars[ir_set.path_id] = ext_valref
+        qry.inner_path_bonds[ir_set.path_id] = valref
+        qry.path_bonds[ir_set.path_id] = ext_valref
 
-        if need_root_rvar:
-            stmt.from_clause.append(root_rvar)
+        expr_rvar = pgast.RangeSubselect(
+            lateral=True,
+            subquery=qry,
+            alias=pgast.Alias(
+                aliasname='q'
+            )
+        )
+
+        ctx.subquery_map[stmt][innerqry] = {
+            'rvar': expr_rvar,
+            'linked': True
+        }
+
+        restarget = pgast.ResTarget(val=valref, name='v')
+        stmt.target_list.append(restarget)
+
+        stmt.from_clause.append(root_rvar)
+        self._rel_join(stmt, expr_rvar, type='inner')
+        self._connect_subrels(stmt)
+
+        ctx.query.ctes.append(self._get_set_cte(ir_set))
+
+    def _process_set_as_expr(self, ir_set, stmt):
+        """Populate the CTE for Set defined by an expression."""
+
+        ctx = self.context.current
+
+        with self.context.new() as newctx:
+            newctx.in_set_expr = True
+            newctx.rel = stmt
+
+            set_expr = self.visit(ir_set.expr)
+
+            if irutils.is_aggregated_expr(ir_set.expr):
+                # The expression includes calls to aggregates.
+                # Clear the namespace as it is no longer valid.
+                stmt.path_namespace.clear()
+                stmt.inner_path_bonds.clear()
+                stmt.target_list[:] = []
+
+        if isinstance(set_expr, ResTargetList):
+            for i, rt in enumerate(set_expr.targets):
+                stmt.target_list.append(
+                    pgast.ResTarget(val=rt, name=set_expr.attmap[i])
+                )
+        else:
+            restarget = pgast.ResTarget(val=set_expr, name='v')
+            stmt.target_list.append(restarget)
 
         self._connect_subrels(stmt, connect_subqueries=False)
 
-        if ir_set.sources and not sources_connected:
+        if ir_set.sources:
             self._connect_set_sources(ir_set, stmt, ir_set.sources)
-
-        if outstanding_joins:
-            for rvar in outstanding_joins:
-                self._rel_join(stmt, rvar, type='inner')
 
         self._connect_subrels(stmt)
 
