@@ -98,9 +98,7 @@ def serialize(obj, *, ctx):
             #
             obj_id = id(obj)
             if obj_id in ctx.memo:
-                refname = '{}.{}'.format(
-                    type(obj).__module__, type(obj).__name__)
-                return elements.lang.Ref(ref=obj_id, refname=refname)
+                return elements.lang.Ref(ref=obj_id, refname=repr(obj))
             else:
                 ctx.memo.add(obj_id)
                 ctx.keep_alive.append(obj)

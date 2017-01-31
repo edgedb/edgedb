@@ -331,7 +331,7 @@ class LangRenderer(BaseRenderer):
 
     def _render_lang_Ref(self, element):
         self.buffer.write(
-            '<Ref {!r} 0x{:x}>'.format(element.refname, element.ref),
+            '<Ref {}>'.format(element.refname),
             style=self.styles.ref)
 
     def _render_lang_List(self, element):
