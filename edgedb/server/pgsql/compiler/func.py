@@ -17,27 +17,38 @@ class IRCompilerFunctionSupport:
 
         funcobj = expr.func
 
-        with self.context.new():
-            ctx1 = self.context.current
-            ctx1.expr_exposed = False
+        with self.context.new() as funcctx:
+            with self.context.new() as argctx:
+                argctx.in_aggregate = True
 
-            if funcobj.aggregate:
-                ctx1.in_aggregate = True
-                ctx1.query.aggregates = True
+                # We want array_agg() (and similar) to do the right
+                # thing with respect to output format, so, barring
+                # the (unacceptable) hardcoding of function names,
+                # check if the aggregate accepts a single argument
+                # of std::any to determine serialized input safety.
+                serialization_safe = (
+                    funcobj.aggregate and
+                    len(funcobj.paramtypes) == 1 and
+                    funcobj.paramtypes[0].name == 'std::any'
+                )
+
+                if not serialization_safe:
+                    argctx.expr_exposed = False
+
                 args = [self.visit(a) for a in expr.args]
-                if expr.agg_filter:
-                    agg_filter = self.visit(expr.agg_filter)
 
-                if expr.agg_sort:
-                    for sortexpr in expr.agg_sort:
-                        _sortexpr = self.visit(sortexpr.expr)
-                        agg_sort.append(
-                            pgast.SortBy(
-                                node=_sortexpr, dir=sortexpr.direction,
-                                nulls=sortexpr.nones_order))
+            funcctx.expr_exposed = False
 
-            else:
-                args = [self.visit(a) for a in expr.args]
+            if expr.agg_filter:
+                agg_filter = self.visit(expr.agg_filter)
+
+            if expr.agg_sort:
+                for sortexpr in expr.agg_sort:
+                    _sortexpr = self.visit(sortexpr.expr)
+                    agg_sort.append(
+                        pgast.SortBy(
+                            node=_sortexpr, dir=sortexpr.direction,
+                            nulls=sortexpr.nones_order))
 
         partition = []
         if expr.partition:
