@@ -222,6 +222,9 @@ class Cluster:
                     tr.close()
                     loop.run_until_complete(asyncio.sleep(0, loop=loop))
                     break
+            else:
+                raise ClusterError(
+                    f'could not connect to edgedb-server within {timeout}s')
         finally:
             loop.close()
 
