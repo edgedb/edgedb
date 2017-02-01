@@ -45,14 +45,21 @@ def init_import_system():
     from importkit import yaml  # NOQA
 
 
+def _init_cluster(cluster, args):
+    loop = asyncio.get_event_loop()
+
+    from edgedb.server import pgsql as backend
+
+    loop.run_until_complete(backend.bootstrap(cluster, loop=loop))
+
+
 def _run_server(cluster, args):
     loop = asyncio.get_event_loop()
     srv = None
 
-    from edgedb.server import pgsql as backend
-    from edgedb.server import protocol as edgedb_protocol
+    _init_cluster(cluster, args)
 
-    loop.run_until_complete(backend.bootstrap(cluster, loop=loop))
+    from edgedb.server import protocol as edgedb_protocol
 
     def protocol_factory():
         return edgedb_protocol.Protocol(cluster, loop=loop)
@@ -131,7 +138,10 @@ def run_server(args):
     else:
         cluster = pg_cluster.RunningCluster(dsn=args.postgres)
 
-    _run_server(cluster, args)
+    if args.bootstrap:
+        _init_cluster(cluster, args)
+    else:
+        _run_server(cluster, args)
 
     if pg_cluster_started_by_us:
         cluster.stop()
@@ -163,6 +173,9 @@ def main(argv=sys.argv[1:]):
     parser.add_argument(
         '--bootstrap-database', type=str, default='template1',
         help='name of PostgreSQL database to connect to for bootstrap')
+    parser.add_argument(
+        '--bootstrap', action='store_true',
+        help='bootstrap the database cluster and exit')
     parser.add_argument(
         '-p', '--port', type=int, default=edgedb_defines.EDGEDB_PORT,
         help='port to listen on')

@@ -191,8 +191,21 @@ class Cluster:
         self._pg_cluster.destroy()
 
     def _init(self, pg_connector):
-        self.start(port='dynamic')
-        self.stop()
+        if self._env:
+            env = os.environ.copy()
+            env.update(self._env)
+        else:
+            env = None
+
+        init = subprocess.run(
+            ['edgedb-server', '-D', self._data_dir, '--bootstrap'],
+            stdout=sys.stdout, stderr=sys.stderr,
+            preexec_fn=ensure_dead_with_parent,
+            env=env)
+
+        if init.returncode != 0:
+            raise ClusterError(
+                f'edgedb-ctl init failed with exit code {init.returncode}')
 
     async def _edgedb_template_exists(self, conn):
         st = await conn.prepare(
