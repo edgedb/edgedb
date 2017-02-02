@@ -415,6 +415,11 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     # ... link [IS Target]
                     ptr_target = self._get_schema_object(
                         ptr_expr.target.name, ptr_expr.target.module)
+                    if not isinstance(ptr_target, s_concepts.Concept):
+                        raise errors.EdgeQLError(
+                            f'invalid type filter operand: {ptr_target.name} '
+                            f'is not a concept',
+                            context=ptr_expr.target.context)
 
                 ptr_name = (ptr_expr.ptr.module, ptr_expr.ptr.name)
 
@@ -857,16 +862,28 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
     def visit_TypeFilter(self, expr):
         # Expr[IS Type] expressions,
         arg = self.visit(expr.expr)
+        arg_type = irutils.infer_type(arg, self.context.current.schema)
+        if not isinstance(arg_type, s_concepts.Concept):
+            raise errors.EdgeQLError(
+                f'invalid type filter operand: {arg_type.name} '
+                f'is not a concept',
+                context=expr.expr.context)
+
         path_id = getattr(arg, 'path_id', None)
         if path_id is None:
-            t = irutils.infer_type(arg, self.context.current.schema)
-            path_id = irast.PathId([t])
+            path_id = irast.PathId([arg_type])
+
+        typ = self._get_schema_object(expr.type.maintype)
+        if not isinstance(typ, s_concepts.Concept):
+            raise errors.EdgeQLError(
+                f'invalid type filter operand: {typ.name} is not a concept',
+                context=expr.type.context)
 
         return irast.TypeFilter(
             path_id=path_id,
             expr=arg,
             type=irast.TypeRef(
-                maintype=self._get_schema_object(expr.type.maintype).name
+                maintype=typ.name
             )
         )
 

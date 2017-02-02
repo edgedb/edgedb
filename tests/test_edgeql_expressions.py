@@ -741,3 +741,33 @@ class TestExpressions(tb.QueryTestCase):
                 WITH MODULE test
                 SELECT Issue OFFSET User.name;
             ''')
+
+    async def test_edgeql_expr_type_filter_01(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r'invalid type filter operand: std::int is not a concept',
+                position=7):
+
+            await self.query('''\
+                SELECT 10[IS std::Object];
+            ''')
+
+    async def test_edgeql_expr_type_filter_02(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r'invalid type filter operand: std::str is not a concept',
+                position=17):
+
+            await self.query('''\
+                SELECT Object[IS str];
+            ''')
+
+    async def test_edgeql_expr_type_filter_03(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r'invalid type filter operand: std::uuid is not a concept',
+                position=20):
+
+            await self.query('''\
+                SELECT Object.id[IS uuid];
+            ''')

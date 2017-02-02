@@ -7,7 +7,6 @@
 
 
 import re
-import unittest
 
 from edgedb.lang import _testbase as tb
 from edgedb.lang.edgeql import generate_source as edgeql_to_source, errors
@@ -1106,32 +1105,19 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT (Foo.bar)[2][IS Baz];
         """
 
-    # These 3 tests fail because type filter may now be applied to an
-    # arbitrary expression, such as (A + B)[IS C], so the burden of
-    # validating, which expressions this makes sense for is no longer
-    # on the parser, but rather the compiler. Whether this is even
-    # still an error of simply should result in EMPTY is a separate
-    # question.
-    #
-    @unittest.expectedFailure
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=29)
     def test_edgeql_syntax_path10(self):
         """
-        SELECT Foo.bar[2:4][IS Baz];
+        SELECT (Foo.bar)[2:4][IS Baz];
         """
 
-    @unittest.expectedFailure
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=28)
     def test_edgeql_syntax_path11(self):
         """
-        SELECT Foo.bar[2:][IS Baz];
+        SELECT (Foo.bar)[2:][IS Baz];
         """
 
-    @unittest.expectedFailure
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=28)
     def test_edgeql_syntax_path12(self):
         """
-        SELECT Foo.bar[:2][IS Baz];
+        SELECT (Foo.bar)[:2][IS Baz];
         """
 
     def test_edgeql_syntax_path13(self):

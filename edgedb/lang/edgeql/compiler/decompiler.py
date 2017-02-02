@@ -7,6 +7,8 @@
 
 
 from edgedb.lang.common import ast
+
+from edgedb.lang.schema import concepts as s_concepts
 from edgedb.lang.schema import lproperties as s_lprops
 
 from edgedb.lang.ir import ast as irast
@@ -98,10 +100,14 @@ class IRDecompiler(ast.visitor.NodeVisitor):
                 ptrcls = rptr.ptrcls
                 pname = ptrcls.shortname
 
-                target = rptr.target.scls.name
-                target = qlast.ClassRef(
-                    name=target.name,
-                    module=target.module)
+                if isinstance(rptr.target.scls, s_concepts.Concept):
+                    target = rptr.target.scls.name
+                    target = qlast.ClassRef(
+                        name=target.name,
+                        module=target.module)
+                else:
+                    target = None
+
                 link = qlast.Ptr(
                     ptr=qlast.ClassRef(
                         name=pname.name,
