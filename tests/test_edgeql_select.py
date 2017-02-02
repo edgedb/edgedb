@@ -2708,7 +2708,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['Yury'],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_view_indirection04(self):
         result = await self.con.execute(r"""
             # Reference a constant expression in a view.

@@ -13,7 +13,8 @@ class SkipNode(Exception):
     pass
 
 
-def find_children(node, test_func, *args, force_traversal=False, **kwargs):
+def find_children(node, test_func, *args, force_traversal=False,
+                  terminate_early=False, **kwargs):
     visited = set()
 
     def _find_children(node, test_func):

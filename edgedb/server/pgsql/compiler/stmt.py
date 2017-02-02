@@ -2,7 +2,7 @@
 # Copyright (c) 2008-present MagicStack Inc.
 # All rights reserved.
 #
-# See LICENSE for details.
+# See LICENSE for details asyncpg.
 ##
 
 
@@ -196,7 +196,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             is_singleton = ptrcls.singular(ptrdir)
             ptrname = ptrcls.shortname
 
-            # This shape is not slated for output, ignore it algogether.
+            # This shape is not slated for output, ignore it altogether.
             if ignore_shape and ptrname != 'std::id':
                 continue
 
@@ -974,11 +974,21 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             subquery = self.visit(ir_set.expr)
 
             if ir_set.rptr is not None and ir_set.rptr.source_is_computed:
-                # Use a "where" join here to avoid mangling the
-                # canonical set rvar in from_clause[0], as
-                # _pull_path_rvar will choke on a JOIN there.
-                restype = irutils.infer_type(ir_set.expr, ctx.schema)
-                if isinstance(restype, s_atoms.Atom) and False:
+                # We need to make sure that the target expression
+                # is computed at least N times, where N is the
+                # cardinality of the ``rptr.source`` set.  However,
+                # we cannot simply JOIN ``source_rvar`` here, as
+                # it might have already been injected via the
+                # parent_range_scope.  To determine whether the
+                # source_rvar JOIN is necessary, do a deep search
+                # for the ``target_ir_set``.
+                flt = lambda n: n is target_ir_set
+                expr_refers_to_target = ast.find_children(
+                    ir_set.expr, flt, terminate_early=True)
+                if not expr_refers_to_target:
+                    # Use a "where" join here to avoid mangling the
+                    # canonical set rvar in from_clause[0], as
+                    # _pull_path_rvar will choke on a JOIN there.
                     self._rel_join(subquery, source_rvar, type='where')
 
             if irutils.is_aggregated_expr(ir_set.expr):
