@@ -4,6 +4,19 @@
 #
 # See LICENSE for details.
 ##
+"""This module contains tools for maintaining parser context.
+
+Maintaining parser context explicitly is significant overhead and can
+be difficult in the face of changing AST structures. Certain parser
+productions require various nesting or unnesting of previously parsed
+nodes. Both of these operations can result in the parser context not
+being correctly updated.
+
+The tools in this module attempt to automatically maintain parser
+context based on the context information found in lexer tokens. The
+general approach is to infer context information by propagating known
+contexts through the AST structure.
+"""
 
 import types
 from edgedb.lang.common import ast, parsing
@@ -173,10 +186,6 @@ class ContextPropagator(ContextVisitor):
 class ContextValidator(ContextVisitor):
     def generic_visit(self, node):
         if getattr(node, 'context', None) is None:
-
-            # from edgedb.lang.common import markup
-            # markup.dump(node)
-
             raise parsing.ParserError('node {} has no context'.format(node))
         super().generic_visit(node)
 
@@ -189,8 +198,7 @@ class ContextNontermMeta(parsing.NontermMeta):
             return result
 
         for name, attr in result.__dict__.items():
-            if (
-                    name.startswith('reduce_') and
+            if (name.startswith('reduce_') and
                     isinstance(attr, types.FunctionType)):
                 a = has_context(attr)
                 a.__doc__ = attr.__doc__
