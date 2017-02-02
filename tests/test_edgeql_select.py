@@ -1179,40 +1179,41 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_combined02(self):
         res = await self.con.execute(r'''
             WITH
                 MODULE test,
                 Obj := (SELECT Issue {name, body} UNION Comment {body})
-            SELECT Obj
+            SELECT Obj;
+
+            WITH
+                MODULE test,
+                Obj := (SELECT Issue {name, body} UNION Comment {body})
+            SELECT Obj[IS Text] { body }
             ORDER BY Obj[IS Text].body;
 
             WITH
                 MODULE test,
                 Obj := (SELECT Text {body} INTERSECT Comment {body})
-            SELECT Obj
+            SELECT Obj[IS Text] { body }
             ORDER BY Obj[IS Text].body;
 
             WITH
                 MODULE test,
                 Obj := (SELECT Text {body} EXCEPT Comment {body})
-            SELECT Obj
+            SELECT Obj[IS Text] { body }
             ORDER BY Obj[IS Text].body;
         ''')
 
         self.assert_data_shape(res, [
+            res[0],
             [
                 {'body': 'EdgeDB needs to happen soon.'},
-                {'body': 'Fix regression introduced by lexer tweak.',
-                 'name': 'Regression.'},
-                {'body': 'Initial public release of EdgeDB.',
-                 'name': 'Release EdgeDB'},
-                {'body': 'Minor lexer tweaks.',
-                 'name': 'Repl tweak.'},
+                {'body': 'Fix regression introduced by lexer tweak.'},
+                {'body': 'Initial public release of EdgeDB.'},
+                {'body': 'Minor lexer tweaks.'},
                 {'body': 'We need to be able to render '
-                         'data in tabular format.',
-                 'name': 'Improve EdgeDB repl output rendering.'}
+                         'data in tabular format.'}
             ],
             [
                 {'body': 'EdgeDB needs to happen soon.'},
@@ -1222,7 +1223,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 {'body': 'Initial public release of EdgeDB.'},
                 {'body': 'Minor lexer tweaks.'},
                 {'body': 'Rewriting everything.'},
-                {'body': 'We need to be able to render'
+                {'body': 'We need to be able to render '
                          'data in tabular format.'}
             ],
         ])

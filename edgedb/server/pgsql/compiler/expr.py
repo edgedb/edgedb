@@ -12,6 +12,7 @@ from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import atoms as s_atoms
+from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import objects as s_obj
 
 from edgedb.server.pgsql import ast as pgast
@@ -759,6 +760,13 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
     def _get_ptr_set(self, source_set, ptr_name):
         ctx = self.context.current
         return irutils.extend_path(ctx.schema, source_set, ptr_name)
+
+    def _get_id_path_id(self, path_id):
+        ctx = self.context.current
+        return path_id.extend(
+            ctx.schema.get('std::id'),
+            s_pointers.PointerDirection.Outbound,
+            ctx.schema.get('std::uuid'))
 
     def _is_null_const(self, expr):
         if isinstance(expr, pgast.TypeCast):

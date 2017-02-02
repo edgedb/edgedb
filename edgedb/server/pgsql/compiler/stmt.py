@@ -144,6 +144,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         my_elements = []
         attribute_map = []
+        path_id_aliases = {}
         idref = None
 
         self.visit(expr.set)
@@ -154,19 +155,25 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
             if source_shape is None:
                 set_expr = expr.set.expr
-                if (isinstance(set_expr, irast.Stmt) and
-                        isinstance(set_expr.result, irast.Set) and
-                        isinstance(set_expr.result.scls, s_concepts.Concept)):
-                    target_ir_set = set_expr.result
+
+                if isinstance(set_expr, irast.Stmt):
+                    set_expr = set_expr.result
+
+                if isinstance(set_expr, irast.TypeFilter):
+                    set_expr = set_expr.expr
+
+                if set_expr is not None:
+                    target_ir_set = set_expr
+                else:
+                    target_ir_set = expr.set
             else:
                 target_ir_set = source_shape.set
 
-            path_id_aliases = {target_ir_set.path_id: expr.set.path_id}
-            shape_source_cte = self._get_set_cte(expr.set)
-            source_rvar = ctx.subquery_map[ctx.rel][shape_source_cte]
-            self._put_parent_range_scope(target_ir_set, source_rvar)
-        else:
-            path_id_aliases = {}
+            if target_ir_set.path_id:
+                path_id_aliases = {target_ir_set.path_id: expr.set.path_id}
+                shape_source_cte = self._get_set_cte(expr.set)
+                source_rvar = ctx.subquery_map[ctx.rel][shape_source_cte]
+                self._put_parent_range_scope(target_ir_set, source_rvar)
 
         # The shape is ignored if the expression is not slated for output.
         ignore_shape = (
@@ -1108,6 +1115,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         qry.path_vars[ir_set.path_id] = ext_valref
         qry.inner_path_bonds[ir_set.path_id] = valref
         qry.path_bonds[ir_set.path_id] = ext_valref
+        qry.scls_rvar = qry.from_clause[0]
 
         expr_rvar = pgast.RangeSubselect(
             lateral=True,
@@ -1213,7 +1221,11 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                     subquery.scls_rvar = subquery.from_clause[0]
 
                 if not isinstance(expr_type, s_obj.Struct):
-                    ref = subquery.path_namespace.get(substmt.real_path_id)
+                    path_id = substmt.real_path_id
+                    if not path_id:
+                        path_id = irast.PathId([substmt.scls])
+
+                    ref = subquery.path_namespace.get(path_id)
                     self._reset_path_namespace(subquery)
 
                     if ref is None:
@@ -1245,6 +1257,11 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
                     subquery.path_namespace[substmt.path_id] = ref
                     subquery.inner_path_bonds[substmt.path_id] = ref
+
+                    if isinstance(expr_type, s_concepts.Concept):
+                        id_path_id = self._get_id_path_id(substmt.path_id)
+                        subquery.path_namespace[id_path_id] = ref
+                        subquery.inner_path_bonds[id_path_id] = ref
 
             ctx.query.ctes.extend(cte.query.ctes)
             cte.query.ctes = []
