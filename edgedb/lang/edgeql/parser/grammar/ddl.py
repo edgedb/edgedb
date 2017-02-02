@@ -1450,4 +1450,4 @@ class FunctionType(Nonterm):
         self.val = kids[0].val
 
     def reduce_Shape(self, *kids):
-        self.val = qlast.Path(pathspec=kids[0].val)
+        self.val = qlast.Shape(elements=kids[0].val)

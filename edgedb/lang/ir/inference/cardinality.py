@@ -67,6 +67,17 @@ def __infer_coalesce(ir, singletons, schema):
     return _common_cardinality(ir.args, singletons, schema)
 
 
+@_infer_cardinality.register(irast.SetOp)
+def __infer_setop(ir, singletons, schema):
+    if ir.set_op == qlast.UNION:
+        result = _common_cardinality(
+            [ir.set_op_larg, ir.set_op_rarg], singletons, schema)
+    else:
+        result = infer_cardinality(ir.set_op_larg, singletons, schema)
+
+    return result
+
+
 @_infer_cardinality.register(irast.BinOp)
 def __infer_binop(ir, singletons, schema):
     return _common_cardinality([ir.left, ir.right], singletons, schema)
@@ -100,15 +111,7 @@ def __infer_stmt(ir, singletons, schema):
 
 @_infer_cardinality.register(irast.SelectStmt)
 def __infer_select_stmt(ir, singletons, schema):
-    if ir.set_op == qlast.UNION:
-        result = _common_cardinality(
-            [ir.set_op_larg, ir.set_op_rarg], singletons, schema)
-    elif ir.set_op is not None:
-        result = infer_cardinality(ir.set_op_larg, singletons, schema)
-    else:
-        result = infer_cardinality(ir.result, singletons, schema)
-
-    return result
+    return infer_cardinality(ir.result, singletons, schema)
 
 
 @_infer_cardinality.register(irast.ExistPred)

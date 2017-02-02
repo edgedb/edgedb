@@ -58,43 +58,12 @@ class SelectWithParens(Nonterm):
 
 
 class SelectNoParens(Nonterm):
-    def reduce_AliasBlock_SelectClause_OptSortClause_OptSelectLimit(
-            self, *kids):
+    def reduce_AliasBlock_SimpleSelect(self, *kids):
         qry = kids[1].val
         qry.aliases = kids[0].val
-        qry.orderby = kids[2].val
-        qry.offset = kids[3].val[0]
-        qry.limit = kids[3].val[1]
         self.val = qry
 
-    def reduce_SimpleSelect_OptSortClause_OptSelectLimit(self, *kids):
-        qry = kids[0].val
-        qry.orderby = kids[1].val
-        qry.offset = kids[2].val[0]
-        qry.limit = kids[2].val[1]
-        self.val = qry
-
-    # SelectWithParens MUST have a non optional clause here to avoid loops
-    #
-    def reduce_SelectWithParens_SelectLimit(self, *kids):
-        qry = kids[0].val
-        qry.offset = kids[1].val[0]
-        qry.limit = kids[1].val[1]
-        self.val = qry
-
-    def reduce_SelectWithParens_SortClause_OptSelectLimit(self, *kids):
-        qry = kids[0].val
-        qry.orderby = kids[1].val
-        qry.offset = kids[2].val[0]
-        qry.limit = kids[2].val[1]
-        self.val = qry
-
-
-class SelectClause(Nonterm):
     def reduce_SimpleSelect(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_SelectWithParens(self, *kids):
         self.val = kids[0].val
 
 
@@ -108,35 +77,18 @@ class OptSingle(Nonterm):
 
 class SimpleSelect(Nonterm):
     def reduce_Select(self, *kids):
-        r"%reduce SELECT OptSingle OutputExpr \
-                  OptWhereClause OptGroupClause OptHavingClause"
+        r"%reduce SELECT OptSingle Expr \
+                  OptWhereClause OptGroupClause OptHavingClause \
+                  OptSortClause OptSelectLimit"
         self.val = qlast.SelectQuery(
             single=kids[1].val,
             result=kids[2].val,
             where=kids[3].val,
             groupby=kids[4].val,
             having=kids[5].val,
-        )
-
-    def reduce_SelectClause_UNION_OptAll_SelectClause(self, *kids):
-        self.val = qlast.SelectQuery(
-            op=qlast.UNION,
-            op_larg=kids[0].val,
-            op_rarg=kids[3].val
-        )
-
-    def reduce_SelectClause_INTERSECT_OptAll_SelectClause(self, *kids):
-        self.val = qlast.SelectQuery(
-            op=qlast.INTERSECT,
-            op_larg=kids[0].val,
-            op_rarg=kids[3].val
-        )
-
-    def reduce_SelectClause_EXCEPT_OptAll_SelectClause(self, *kids):
-        self.val = qlast.SelectQuery(
-            op=qlast.EXCEPT,
-            op_larg=kids[0].val,
-            op_rarg=kids[3].val
+            orderby=kids[6].val,
+            offset=kids[7].val[0],
+            limit=kids[7].val[1],
         )
 
 
@@ -151,13 +103,11 @@ class InsertExpr(Nonterm):
         )
 
     def reduce_OptAliasBlock_INSERT_TypedShape_OptReturningClause(self, *kids):
-        pathspec = kids[2].val.pathspec
-        kids[2].val.pathspec = None
         single, result = kids[3].val
         self.val = qlast.InsertQuery(
             aliases=kids[0].val,
-            subject=kids[2].val,
-            pathspec=pathspec,
+            subject=kids[2].val.expr,
+            shape=kids[2].val.elements,
             single=single,
             result=result,
         )
@@ -165,13 +115,11 @@ class InsertExpr(Nonterm):
     def reduce_InsertFrom(self, *kids):
         r'%reduce OptAliasBlock INSERT TypedShape FROM FromClause \
           OptReturningClause'
-        pathspec = kids[2].val.pathspec
-        kids[2].val.pathspec = None
         single, result = kids[5].val
         self.val = qlast.InsertQuery(
             aliases=kids[0].val,
-            subject=kids[2].val,
-            pathspec=pathspec,
+            subject=kids[2].val.expr,
+            shape=kids[2].val.elements,
             single=single,
             result=result,
             source=kids[4].val,
@@ -210,13 +158,11 @@ class UpdateExpr(Nonterm):
     def reduce_UpdateExpr(self, *kids):
         r"%reduce OptAliasBlock UPDATE TypedShape \
                   OptWhereClause OptReturningClause"
-        pathspec = kids[2].val.pathspec
-        kids[2].val.pathspec = None
         single, result = kids[4].val
         self.val = qlast.UpdateQuery(
             aliases=kids[0].val,
-            subject=kids[2].val,
-            pathspec=pathspec,
+            subject=kids[2].val.expr,
+            shape=kids[2].val.elements,
             where=kids[3].val,
             single=single,
             result=result,
@@ -294,23 +240,6 @@ class AliasDeclList(ListNonterm, element=AliasDecl,
     pass
 
 
-class OutputExpr(Nonterm):
-    # Expression used in SELECT and RETURNING clauses.
-
-    def reduce_Expr(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_Expr_Shape(self, *kids):
-        tshape = kids[0].val
-        if (not isinstance(tshape, qlast.Path) or
-                tshape.pathspec):
-            raise EdgeQLSyntaxError('unexpected shape',
-                                    context=kids[1].context)
-
-        tshape.pathspec = kids[1].val
-        self.val = tshape
-
-
 class Shape(Nonterm):
     def reduce_LBRACE_ShapeElementList_RBRACE(self, *kids):
         self.val = kids[1].val
@@ -321,11 +250,16 @@ class Shape(Nonterm):
 
 class TypedShape(Nonterm):
     def reduce_NodeName_Shape(self, *kids):
-        self.val = qlast.Path(
-            steps=[qlast.ClassRef(name=kids[0].val.name,
-                                  module=kids[0].val.module,
-                                  context=kids[0].context)],
-            pathspec=kids[1].val)
+        self.val = qlast.Shape(
+            expr=qlast.Path(
+                steps=[qlast.ClassRef(
+                    name=kids[0].val.name,
+                    module=kids[0].val.module,
+                    context=kids[0].context)
+                ]
+            ),
+            elements=kids[1].val
+        )
 
 
 class OptAnySubShape(Nonterm):
@@ -336,22 +270,13 @@ class OptAnySubShape(Nonterm):
         # typed shape needs to be transformed here into a different
         # expression
         shape = kids[1].val
-        typenode = shape.steps[0]
-        self.val = [typenode] + shape.pathspec
+        self.val = [shape.expr.steps[0]] + shape.elements
 
     def reduce_COLON_TypeName(self, *kids):
         # this kind of shape definition appears in function signatures
         self.val = [kids[1].val]
 
     def reduce_empty(self, *kids):
-        self.val = None
-
-
-class OptShape(Nonterm):
-    def reduce_Shape(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_empty(self):
         self.val = None
 
 
@@ -363,22 +288,31 @@ class ShapeElement(Nonterm):
         self.val = kids[0].val
 
         shape = kids[1].val
+
         if shape and isinstance(shape[0], qlast.ClassRef):
             self.val.expr.steps[-1].target = shape[0]
-            self.val.pathspec = shape[1:]
+            self.val.elements = shape[1:]
         elif shape and isinstance(shape[0], qlast.TypeName):
             self.val.expr.steps[-1].target = shape[0]
         else:
-            self.val.pathspec = shape
+            self.val.elements = shape or []
+
         self.val.where = kids[2].val
         self.val.orderby = kids[3].val
         self.val.offset = kids[4].val[0]
         self.val.limit = kids[4].val[1]
 
-    def reduce_ShapePointer_TURNSTILE_Expr_OptShape(self, *kids):
+    def reduce_ShapePointer_TURNSTILE_Expr(self, *kids):
         self.val = kids[0].val
-        self.val.compexpr = kids[2].val
-        self.val.pathspec = kids[3].val
+        expr = kids[2].val
+        if isinstance(expr, qlast.Shape):
+            compexpr = expr.expr
+            subshape = expr.elements
+        else:
+            compexpr = expr
+            subshape = []
+        self.val.compexpr = compexpr
+        self.val.elements = subshape
 
 
 class ShapeElementList(ListNonterm, element=ShapeElement,
@@ -525,7 +459,7 @@ class ShapePathPtr(Nonterm):
 
 class ShapePointer(Nonterm):
     def reduce_ShapePath(self, *kids):
-        self.val = qlast.SelectPathSpec(
+        self.val = qlast.ShapeElement(
             expr=kids[0].val
         )
 
@@ -683,7 +617,7 @@ class ParenExpr(Nonterm):
 
 
 class Expr(Nonterm):
-    # Path | Constant | '(' Expr ')' | FuncExpr
+    # Path | Expr { ... } | Constant | '(' Expr ')' | FuncExpr
     # | Tuple | Struct | Collection
     # | '+' Expr | '-' Expr | Expr '+' Expr | Expr '-' Expr
     # | Expr '*' Expr | Expr '/' Expr | Expr '%' Expr
@@ -701,9 +635,14 @@ class Expr(Nonterm):
     # | Expr '[' IS NodeName ']'
     # | '<' ExtTypeExpr '>' '(' Expr ')'
     # | Expr IF Expr ELSE Expr
+    # | Expr ?? Expr
+    # | Expr UNION Expr | Expr EXCEPT Expr | Expr INTERSECT Expr
 
     def reduce_Path(self, *kids):
         self.val = kids[0].val
+
+    def reduce_Expr_Shape(self, *kids):
+        self.val = qlast.Shape(expr=kids[0].val, elements=kids[1].val)
 
     def reduce_Constant(self, *kids):
         self.val = kids[0].val
@@ -899,6 +838,18 @@ class Expr(Nonterm):
         self.val = qlast.IfElse(
             if_expr=kids[0].val, condition=kids[2].val, else_expr=kids[4].val)
 
+    def reduce_Expr_UNION_Expr(self, *kids):
+        self.val = qlast.BinOp(left=kids[0].val, op=qlast.UNION,
+                               right=kids[2].val)
+
+    def reduce_Expr_EXCEPT_Expr(self, *kids):
+        self.val = qlast.BinOp(left=kids[0].val, op=qlast.EXCEPT,
+                               right=kids[2].val)
+
+    def reduce_Expr_INTERSECT_Expr(self, *kids):
+        self.val = qlast.BinOp(left=kids[0].val, op=qlast.INTERSECT,
+                               right=kids[2].val)
+
 
 class Tuple(Nonterm):
     def reduce_LPAREN_Expr_COMMA_OptExprList_RPAREN(self, *kids):
@@ -998,7 +949,6 @@ class Constant(Nonterm):
 class BaseConstant(Nonterm):
     # EmptyConstant
     # | ArgConstant
-    # | UnionSet
 
     def reduce_EmptyConstant(self, *kids):
         self.val = kids[0].val
@@ -1006,18 +956,10 @@ class BaseConstant(Nonterm):
     def reduce_ArgConstant(self, *kids):
         self.val = kids[0].val
 
-    def reduce_UnionSet(self, *kids):
-        self.val = kids[0].val
-
 
 class EmptyConstant(Nonterm):
     def reduce_EMPTY(self, *kids):
         self.val = qlast.EmptySet()
-
-
-class UnionSet(Nonterm):
-    def reduce_UNION(self, *kids):
-        self.val = qlast.UnionSet()
 
 
 class ArgConstant(Nonterm):
@@ -1427,7 +1369,7 @@ class ReservedKeyword(Nonterm, metaclass=KeywordMeta,
 
 
 class ReturningClause(Nonterm):
-    def reduce_RETURNING_OptSingle_OutputExpr(self, *kids):
+    def reduce_RETURNING_OptSingle_Expr(self, *kids):
         self.val = [kids[1].val, kids[2].val]
 
 

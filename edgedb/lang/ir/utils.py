@@ -109,3 +109,9 @@ def is_view_set(ir_expr):
         isinstance(ir_expr, irast.Set) and
         ir_expr.path_id and ir_expr.path_id[0].name.module == '__view__'
     )
+
+
+def ensure_stmt(ir_expr):
+    if not isinstance(ir_expr, irast.Stmt):
+        ir_expr = irast.SelectStmt(result=ir_expr)
+    return ir_expr

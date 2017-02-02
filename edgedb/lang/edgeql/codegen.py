@@ -42,7 +42,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             visitor = getattr(self, method, self.generic_visit)
             return visitor(node, **kwargs)
 
-    def generic_visit(self, node):
+    def generic_visit(self, node, *args, **kwargs):
         raise EdgeQLSourceGeneratorError(
             'No method to generate code for %s' % node.__class__.__name__)
 
@@ -94,9 +94,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.indentation -= 1
         self.new_lines = 1
 
-        if node.pathspec:
+        if node.shape:
             self.indentation += 1
-            self._visit_pathspec(node.pathspec)
+            self._visit_shape(node.shape)
             self.indentation -= 1
 
         if node.source:
@@ -127,9 +127,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.indentation -= 1
         self.new_lines = 1
 
-        if node.pathspec:
+        if node.shape:
             self.indentation += 1
-            self._visit_pathspec(node.pathspec)
+            self._visit_shape(node.shape)
             self.indentation -= 1
 
         if node.where:
@@ -179,44 +179,35 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         self._visit_aliases(node)
 
-        if node.op:
-            # Upper level set operation node (UNION/INTERSECT)
-            self.visit(node.op_larg)
-            self.new_lines = 1
-            self.write(' ', node.op, ' ')
-            self.new_lines = 1
-            self.visit(node.op_rarg)
-        else:
-            self.write('SELECT')
-            if node.single:
-                self.write(' SINGLETON')
+        self.write('SELECT')
+        if node.single:
+            self.write(' SINGLETON')
+        self.new_lines = 1
+        self.indentation += 1
+        self.visit(node.result)
+        self.new_lines = 1
+        self.indentation -= 1
+        if node.where:
+            self.write('WHERE')
             self.new_lines = 1
             self.indentation += 1
-            self.visit(node.result)
+            self.visit(node.where)
             self.new_lines = 1
             self.indentation -= 1
-            if node.where:
-                self.write('WHERE')
-                self.new_lines = 1
-                self.indentation += 1
-                self.visit(node.where)
-                self.new_lines = 1
-                self.indentation -= 1
-            if node.groupby:
-                self.write('GROUP BY')
-                self.new_lines = 1
-                self.indentation += 1
-                self.visit_list(node.groupby, separator=' THEN')
-                self.new_lines = 1
-                self.indentation -= 1
-            if node.having:
-                self.write('HAVING')
-                self.new_lines = 1
-                self.indentation += 1
-                self.visit(node.having)
-                self.new_lines = 1
-                self.indentation -= 1
-
+        if node.groupby:
+            self.write('GROUP BY')
+            self.new_lines = 1
+            self.indentation += 1
+            self.visit_list(node.groupby, separator=' THEN')
+            self.new_lines = 1
+            self.indentation -= 1
+        if node.having:
+            self.write('HAVING')
+            self.new_lines = 1
+            self.indentation += 1
+            self.visit(node.having)
+            self.new_lines = 1
+            self.indentation -= 1
         if node.orderby:
             self.write('ORDER BY')
             self.new_lines = 1
@@ -397,16 +388,20 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             else:
                 self.visit(e)
 
-        if node.pathspec:
-            self.write(' ')
-            self._visit_pathspec(node.pathspec)
+    def visit_Shape(self, node, *, parenthesise=True):
+        if node.expr is not None:
+            # shape.expr may be None in Function RETURNING declaration,
+            # when the shape is used to described a returned struct.
+            self.visit(node.expr)
+        self.write(' ')
+        self._visit_shape(node.elements)
 
-    def _visit_pathspec(self, pathspec):
-        if pathspec:
+    def _visit_shape(self, shape):
+        if shape:
             self.write('{')
             self.indentation += 1
             self.new_lines = 1
-            self.visit_list(pathspec)
+            self.visit_list(shape)
             self.indentation -= 1
             self.new_lines = 1
             self.write('}')
@@ -418,14 +413,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(node.direction)
 
         self.visit(node.ptr, parenthesise=True)
-        if (not isinstance(node.parent.parent,
-                           edgeql_ast.SelectPathSpec) and
+        if (not isinstance(node.parent.parent, edgeql_ast.ShapeElement) and
                 node.target is not None):
             self.write('[IS ')
             self.visit(node.target, parenthesise=False)
             self.write(']')
 
-    def visit_SelectPathSpec(self, node):
+    def visit_ShapeElement(self, node):
         # PathSpec can only contain LinkExpr or LinkPropExpr,
         # and must not be quoted.
 
@@ -435,12 +429,12 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             if node.recurse_limit:
                 self.visit(node.recurse_limit)
 
-        if not node.compexpr and (node.pathspec or node.expr.steps[-1].target):
+        if not node.compexpr and (node.elements or node.expr.steps[-1].target):
             self.write(': ')
             if node.expr.steps[-1].target:
                 self.visit(node.expr.steps[-1].target)
-            if node.pathspec:
-                self._visit_pathspec(node.pathspec)
+            if node.elements:
+                self._visit_shape(node.elements)
 
         if node.where:
             self.write(' WHERE ')
@@ -462,8 +456,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(' := ')
             self.visit(node.compexpr)
 
-            if node.pathspec:
-                self._visit_pathspec(node.pathspec)
+            if node.elements:
+                self._visit_shape(node.elements)
 
     def visit_Parameter(self, node):
         self.write('$')
@@ -471,9 +465,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_EmptySet(self, node):
         self.write('EMPTY')
-
-    def visit_UnionSet(self, node):
-        self.write('UNION')
 
     def visit_Constant(self, node):
         try:

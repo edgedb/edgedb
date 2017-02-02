@@ -96,10 +96,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             watchers := (SELECT User WHERE User.name = 'Elvis'),
             status := (SELECT Status WHERE Status.name = 'Open'),
             priority := (SELECT Priority WHERE Priority.name = 'High'),
-            references := (
-                SELECT URL WHERE URL.address = 'https://edgedb.com'
-                UNION SELECT File WHERE File.name = 'screenshot.png'
-            )
+            references :=
+                (SELECT URL WHERE URL.address = 'https://edgedb.com')
+                UNION
+                (SELECT File WHERE File.name = 'screenshot.png')
         };
 
         WITH
@@ -1122,32 +1122,27 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT
                 Issue {name, body}
-            UNION
-            SELECT
+                UNION
                 Comment {body};
 
             WITH MODULE test
             SELECT
                 Text {body}
-            INTERSECT
-            SELECT
+                INTERSECT
                 Comment {body};
 
             WITH MODULE test
             SELECT
                 Text {body}
-            EXCEPT
-            SELECT
+                EXCEPT
                 Comment {body};
 
             WITH MODULE test
             SELECT
                 Text {body}
-            EXCEPT
-            SELECT
+                EXCEPT
                 Comment {body}
-            EXCEPT
-            SELECT
+                EXCEPT
                 Issue {body};
 
         ''')
@@ -1187,29 +1182,23 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     @unittest.expectedFailure
     async def test_edgeql_select_combined02(self):
         res = await self.con.execute(r'''
-            WITH MODULE test
-            SELECT
-                Issue {name, body}
-            UNION
-            SELECT
-                Comment {body}
-            ORDER BY Object[IS Text].body;
+            WITH
+                MODULE test,
+                Obj := (SELECT Issue {name, body} UNION Comment {body})
+            SELECT Obj
+            ORDER BY Obj[IS Text].body;
 
-            WITH MODULE test
-            SELECT
-                Text {body}
-            INTERSECT
-            SELECT
-                Comment {body}
-            ORDER BY Object[IS Text].body;
+            WITH
+                MODULE test,
+                Obj := (SELECT Text {body} INTERSECT Comment {body})
+            SELECT Obj
+            ORDER BY Obj[IS Text].body;
 
-            WITH MODULE test
-            SELECT
-                Text {body}
-            EXCEPT
-            SELECT
-                Comment {body}
-            ORDER BY Object[IS Text].body;
+            WITH
+                MODULE test,
+                Obj := (SELECT Text {body} EXCEPT Comment {body})
+            SELECT Obj
+            ORDER BY Obj[IS Text].body;
         ''')
 
         self.assert_data_shape(res, [

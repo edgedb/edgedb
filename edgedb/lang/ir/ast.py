@@ -199,6 +199,12 @@ class Mapping(Expr):
     values: typing.List[Base]
 
 
+class SetOp(Expr):
+    left: Base
+    right: Base
+    op: ast.ops.Operator
+
+
 class BinOp(Expr):
 
     left: Base
@@ -291,7 +297,7 @@ class TypeFilter(Expr):
 class CompositeType(Base):
 
     node: so.Class
-    pathspec: list
+    shape: list
 
 
 class Stmt(Base):
@@ -307,9 +313,6 @@ class SelectStmt(Stmt):
     orderby: typing.List[SortExpr]
     offset: Base
     limit: Base
-    set_op: ast.ops.Operator
-    set_op_larg: Stmt
-    set_op_rarg: Stmt
 
 
 class MutatingStmt(Stmt):
@@ -333,3 +336,4 @@ class DeleteStmt(MutatingStmt):
 
 TextSearchOperator = qlast.TextSearchOperator
 EdgeDBMatchOperator = qlast.EdgeQLMatchOperator
+SetOperator = qlast.SetOperator

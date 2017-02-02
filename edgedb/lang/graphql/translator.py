@@ -161,13 +161,13 @@ class GraphQLTranslator(ast.NodeVisitor):
                 mutation = qlast.InsertQuery(
                     result=result,
                     subject=subject,
-                    pathspec=self._visit_data(selection.arguments),
+                    shape=self._visit_data(selection.arguments),
                 )
             elif self._context.optype == 'update':
                 mutation = qlast.UpdateQuery(
                     result=result,
                     subject=subject,
-                    pathspec=self._visit_data(selection.arguments),
+                    shape=self._visit_data(selection.arguments),
                     where=self._visit_where(selection.arguments),
                 )
 
@@ -209,9 +209,11 @@ class GraphQLTranslator(ast.NodeVisitor):
                 f"{base[1]!r} does not exist in the schema module {base[0]!r}",
                 context=selection.context)
 
-        expr = qlast.Path(
-            steps=[qlast.ClassRef(module=base[0], name=base[1])],
-            pathspec=self.visit(selection.selection_set)
+        expr = qlast.Shape(
+            expr=qlast.Path(
+                steps=[qlast.ClassRef(module=base[0], name=base[1])]
+            ),
+            elements=self.visit(selection.selection_set)
         )
 
         self._context.fields.pop()
@@ -244,7 +246,7 @@ class GraphQLTranslator(ast.NodeVisitor):
         result = []
 
         for field in node.value:
-            pathspec = value = None
+            shape = value = None
 
             if field.name.endswith('__id'):
                 # existing data referenced by ID
@@ -291,11 +293,11 @@ class GraphQLTranslator(ast.NodeVisitor):
                 name = field.name
 
                 if isinstance(field.value, gqlast.ObjectLiteral):
-                    pathspec = self._visit_mutation_data(field.value)
+                    shape = self._visit_mutation_data(field.value)
                 else:
                     value = self.visit(field.value)
 
-            result.append(qlast.SelectPathSpec(
+            result.append(qlast.ShapeElement(
                 expr=qlast.Path(
                     steps=[
                         qlast.Ptr(
@@ -306,7 +308,7 @@ class GraphQLTranslator(ast.NodeVisitor):
                     ]
                 ),
                 compexpr=value,
-                pathspec=pathspec,
+                elements=shape or [],
             ))
 
         return result
@@ -400,7 +402,7 @@ class GraphQLTranslator(ast.NodeVisitor):
                     as_sequence=False)
 
     def visit_SelectionSet(self, node):
-        pathspec = []
+        elements = []
 
         for sel in node.selections:
             if not self._should_include(sel.directives):
@@ -408,10 +410,10 @@ class GraphQLTranslator(ast.NodeVisitor):
 
             spec = self.visit(sel)
             if spec is not None:
-                pathspec.append(spec)
-            pathspec = self.combine_field_results(pathspec)
+                elements.append(spec)
+            elements = self.combine_field_results(elements)
 
-        return pathspec
+        return elements
 
     def visit_Field(self, node):
         base = self._context.path[-1]
@@ -459,14 +461,14 @@ class GraphQLTranslator(ast.NodeVisitor):
             )
         ))
 
-        spec = qlast.SelectPathSpec(
+        spec = qlast.ShapeElement(
             expr=qlast.Path(steps=steps),
             where=self._visit_path_where(node.arguments)
         )
 
         if node.selection_set is not None:
             self._context.fields.append({})
-            spec.pathspec = self.visit(node.selection_set)
+            spec.elements = self.visit(node.selection_set)
             self._context.fields.pop()
         base.pop()
 

@@ -170,6 +170,28 @@ def __infer_coalesce(ir, schema):
     return result
 
 
+@_infer_type.register(irast.SetOp)
+def __infer_setop(ir, schema):
+    left_type = infer_type(ir.left, schema)
+    right_type = infer_type(ir.right, schema)
+
+    if ir.op == qlast.UNION:
+        if left_type.issubclass(right_type):
+            result = left_type
+        elif right_type.issubclass(left_type):
+            result = right_type
+        else:
+            result = s_inh.create_virtual_parent(
+                schema, [left_type, right_type])
+
+    else:
+        result = infer_type(ir.left, schema)
+        # create_virtual_parent will raise if types are incompatible.
+        s_inh.create_virtual_parent(schema, [left_type, right_type])
+
+    return result
+
+
 @_infer_type.register(irast.BinOp)
 def __infer_binop(ir, schema):
     if isinstance(ir.op, (ast.ops.ComparisonOperator,
@@ -270,25 +292,7 @@ def __infer_stmt(ir, schema):
 
 @_infer_type.register(irast.SelectStmt)
 def __infer_select_stmt(ir, schema):
-    if ir.set_op is not None:
-        if ir.set_op == qlast.UNION:
-            ltype = infer_type(ir.set_op_larg, schema)
-            rtype = infer_type(ir.set_op_rarg, schema)
-
-            if ltype.issubclass(rtype):
-                result = ltype
-            elif rtype.issubclass(ltype):
-                result = rtype
-            else:
-                result = s_inh.create_virtual_parent(
-                    schema, [ltype, rtype])
-
-        else:
-            result = infer_type(ir.set_op_larg, schema)
-    else:
-        result = infer_type(ir.result, schema)
-
-    return result
+    return infer_type(ir.result, schema)
 
 
 @_infer_type.register(irast.ExistPred)

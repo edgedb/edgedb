@@ -690,14 +690,14 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_select(self):
         await self.assert_query_result(r"""
-            SELECT 2 * (SELECT 1 UNION SELECT 2);
+            SELECT 2 * ((SELECT 1) UNION (SELECT 2));
 
-            SELECT (SELECT 2) * (SELECT 1 UNION SELECT 2);
+            SELECT (SELECT 2) * (1 UNION 2);
 
-            SELECT (SELECT 2) * (SELECT 1 UNION SELECT 2 EXCEPT SELECT 1);
+            SELECT 2 * (1 UNION 2 EXCEPT 1);
 
             WITH
-                a := (SELECT 1 UNION SELECT 2 EXCEPT SELECT 1)
+                a := (SELECT 1 UNION 2 EXCEPT 1)
             SELECT (SELECT 2) * a;
         """, [
             [2, 4],

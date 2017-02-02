@@ -145,8 +145,8 @@ class EdgeQLOptimizer:
 
             self._process_expr(context, expr.subject)
 
-            if expr.pathspec:
-                self._process_pathspec(context, expr.pathspec)
+            if expr.shape:
+                self._process_shape(context, expr.shape)
 
             if expr.result is not None:
                 self._process_expr(context, expr.result)
@@ -161,8 +161,8 @@ class EdgeQLOptimizer:
             if expr.where:
                 self._process_expr(context, expr.where)
 
-            if expr.pathspec:
-                self._process_pathspec(context, expr.pathspec)
+            if expr.shape:
+                self._process_shape(context, expr.shape)
 
             if expr.result is not None:
                 self._process_expr(context, expr.result)
@@ -239,8 +239,8 @@ class EdgeQLOptimizer:
                                 context, expr.module)
 
         elif isinstance(expr, qlast.Path):
-            if expr.pathspec:
-                self._process_pathspec(context, expr.pathspec)
+            if expr.shape:
+                self._process_shape(context, expr.shape)
 
             for step in expr.steps:
                 self._process_expr(context, step)
@@ -313,9 +313,9 @@ class EdgeQLOptimizer:
                                         context, base.module,
                                         strip_builtins=False)
 
-    def _process_pathspec(self, context, pathspec):
-        for spec in pathspec:
-            if isinstance(spec, qlast.SelectPathSpec):
+    def _process_shape(self, context, shape):
+        for spec in shape:
+            if isinstance(spec, qlast.ShapeElement):
                 if spec.where:
                     self._process_expr(context, spec.where)
 
@@ -328,8 +328,8 @@ class EdgeQLOptimizer:
                 if spec.compexpr:
                     self._process_expr(context, spec.compexpr)
 
-                if spec.pathspec:
-                    self._process_pathspec(context, spec.pathspec)
+                if spec.shape:
+                    self._process_shape(context, spec.shape)
 
     def _process_module_ref(self, context, module, strip_builtins=True):
         if context.current.deoptimize:

@@ -85,10 +85,6 @@ class EmptySet(Base):
     pass
 
 
-class UnionSet(Base):
-    pass
-
-
 class Parameter(Base):
     name: str
 
@@ -110,8 +106,12 @@ class PostfixOp(Base):
 class Path(Base):
     steps: list
     quantifier: Base
-    pathspec: list
     partial: bool = False
+
+
+class Shape(Base):
+    expr: Base
+    elements: typing.List[Base]
 
 
 class PathDisjunction(Base):
@@ -501,14 +501,11 @@ class SelectQuery(Statement):
     offset: Base
     limit: Base
     cges: list
-    op: str
-    op_larg: Base
-    op_rarg: Base
 
 
 class InsertQuery(Statement):
     subject: Base
-    pathspec: list
+    shape: typing.List[Base]
     result: Base
     cges: list
     single: bool = False
@@ -517,7 +514,7 @@ class InsertQuery(Statement):
 
 class UpdateQuery(Statement):
     subject: Base
-    pathspec: list
+    shape: typing.List[Base]
     where: Base
     result: Base
     cges: list
@@ -574,9 +571,9 @@ class ExistsPredicate(Predicate):
     pass
 
 
-class SelectPathSpec(Base):
+class ShapeElement(Base):
     expr: Base
-    pathspec: list
+    elements: typing.List[Base]
     where: Base
     orderby: list
     offset: Base

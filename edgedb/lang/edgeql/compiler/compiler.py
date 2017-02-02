@@ -163,31 +163,30 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             stmt = ctx.stmt = irast.SelectStmt()
             self._visit_with_block(edgeql_tree)
 
-            if edgeql_tree.op:  # UNION/INTERSECT/EXCEPT
-                stmt.set_op = qlast.SetOperator(edgeql_tree.op)
-                stmt.set_op_larg = self.visit(edgeql_tree.op_larg).expr
-                stmt.set_op_rarg = self.visit(edgeql_tree.op_rarg).expr
-            else:
-                if (isinstance(edgeql_tree.result, qlast.Path) and
-                        edgeql_tree.result.steps and
-                        edgeql_tree.result.pathspec):
-                    ctx.result_path_steps = edgeql_tree.result.steps
+            output = edgeql_tree.result
 
-                stmt.where = self._process_select_where(edgeql_tree.where)
+            if (isinstance(output, qlast.Shape) and
+                    isinstance(output.expr, qlast.Path) and
+                    output.expr.steps):
+                ctx.result_path_steps = output.expr.steps
 
-                stmt.groupby = self._process_groupby(edgeql_tree.groupby)
-                if stmt.groupby is not None:
-                    ctx.group_paths = set(extract_prefixes(stmt.groupby))
+            stmt.where = self._process_select_where(edgeql_tree.where)
 
-                stmt.result = self._process_stmt_result(
-                    edgeql_tree.result, toplevel_shape_rptrcls)
+            stmt.groupby = self._process_groupby(edgeql_tree.groupby)
+            if stmt.groupby is not None:
+                ctx.group_paths = set(extract_prefixes(stmt.groupby))
+
+            stmt.result = self._process_stmt_result(
+                edgeql_tree.result, toplevel_shape_rptrcls)
 
             stmt.orderby = self._process_orderby(edgeql_tree.orderby)
+
             if edgeql_tree.offset:
                 offset_ir = self.visit(edgeql_tree.offset)
                 offset_ir.context = edgeql_tree.offset.context
                 self._enforce_singleton(offset_ir)
                 stmt.offset = offset_ir
+
             if edgeql_tree.limit:
                 limit_ir = self.visit(edgeql_tree.limit)
                 limit_ir.context = edgeql_tree.limit.context
@@ -247,7 +246,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     stmt.result = self._process_shape(subject, None, [])
 
             stmt.shape = self._process_shape(
-                subject, None, edgeql_tree.pathspec,
+                subject, None, edgeql_tree.shape,
                 require_expressions=True,
                 include_implicit=False)
 
@@ -308,7 +307,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 stmt.result = self._process_shape(subject, None, [])
 
             stmt.shape = self._process_shape(
-                subject, None, edgeql_tree.pathspec,
+                subject, None, edgeql_tree.shape,
                 require_expressions=True,
                 include_implicit=False)
 
@@ -342,6 +341,10 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
             stmt.argument_types = self.context.current.arguments
             return stmt
+
+    def visit_Shape(self, expr):
+        subj = self.visit(expr.expr)
+        return self._process_shape(subj, None, expr.elements)
 
     def visit_Path(self, expr):
         ctx = self.context.current
@@ -538,27 +541,36 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         left, right = self.visit((expr.left, expr.right))
 
-        if isinstance(expr.op, ast.ops.TypeCheckOperator):
-            right = self._process_type_ref_expr(right)
-
-        binop = irast.BinOp(left=left, right=right, op=expr.op)
-        folded = self._try_fold_binop(binop)
-        if folded is not None:
-            return folded
-
-        result_type = irutils.infer_type(binop, ctx.schema)
-        prefixes = get_common_prefixes([left, right])
-        sources = set(itertools.chain.from_iterable(prefixes.values()))
-
-        if sources:
+        if isinstance(expr.op, qlast.SetOperator):
+            setop = irast.SetOp(left=left, right=right, op=expr.op)
+            result_type = irutils.infer_type(setop, ctx.schema)
             node = irast.Set(
                 path_id=irast.PathId([]),
                 scls=result_type,
-                expr=binop,
-                sources=sources
+                expr=setop,
             )
         else:
-            node = binop
+            if isinstance(expr.op, ast.ops.TypeCheckOperator):
+                right = self._process_type_ref_expr(right)
+
+            binop = irast.BinOp(left=left, right=right, op=expr.op)
+            folded = self._try_fold_binop(binop)
+            if folded is not None:
+                return folded
+
+            result_type = irutils.infer_type(binop, ctx.schema)
+            prefixes = get_common_prefixes([left, right])
+            sources = set(itertools.chain.from_iterable(prefixes.values()))
+
+            if sources:
+                node = irast.Set(
+                    path_id=irast.PathId([]),
+                    scls=result_type,
+                    expr=binop,
+                    sources=sources
+                )
+            else:
+                node = binop
 
         return node
 
@@ -811,9 +823,9 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     elif not isinstance(stype, irast.EntityLink):
                         stype = stype.rptr
 
-                    if subtype.pathspec:
+                    if subtype.shape:
                         shape = self._process_shape(
-                            stype.ptrcls, None, subtype.pathspec)
+                            stype.ptrcls, None, subtype.shape)
                     else:
                         shape = None
 
@@ -1053,7 +1065,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 implicit_shape_els = []
 
                 for pn in implicit_ptrs:
-                    shape_el = qlast.SelectPathSpec(
+                    shape_el = qlast.ShapeElement(
                         expr=qlast.Path(steps=[
                             qlast.Ptr(
                                 ptr=qlast.ClassRef(
@@ -1077,7 +1089,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 implicit_shape_els = []
 
                 for pn in implicit_ptrs:
-                    shape_el = qlast.SelectPathSpec(
+                    shape_el = qlast.ShapeElement(
                         expr=qlast.Path(steps=[
                             qlast.Ptr(
                                 ptr=qlast.ClassRef(
@@ -1291,43 +1303,43 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             ptr_singular = ptrcls.singular(ptr_direction)
             ptr_node = targetstep.rptr
 
-            if _recurse and shape_el.pathspec:
+            if _recurse and shape_el.elements:
                 if (isinstance(ctx.stmt, irast.MutatingStmt) and
                         ctx.location != 'selector'):
 
-                    mutation_pathspec = []
-                    for subel in shape_el.pathspec or []:
+                    mutation_shape = []
+                    for subel in shape_el.elements or []:
                         is_prop = (
                             isinstance(subel.expr.steps[0], qlast.Ptr) and
                             subel.expr.steps[0].type == 'property'
                         )
                         if not is_prop:
-                            mutation_pathspec.append(subel)
+                            mutation_shape.append(subel)
 
                     el = self._process_shape(
                         targetstep,
                         ptrcls,
-                        mutation_pathspec,
+                        mutation_shape,
                         _visited=_visited,
                         _recurse=True,
                         require_expressions=require_expressions,
                         include_implicit=include_implicit)
 
-                    returning_pathspec = []
-                    for subel in shape_el.pathspec or []:
+                    returning_shape = []
+                    for subel in shape_el.elements or []:
                         is_prop = (
                             isinstance(subel.expr.steps[0], qlast.Ptr) and
                             subel.expr.steps[0].type == 'property'
                         )
                         if is_prop:
-                            returning_pathspec.append(subel)
+                            returning_shape.append(subel)
 
                     substmt = irast.InsertStmt(
                         shape=el,
                         result=self._process_shape(
                             targetstep,
                             ptrcls,
-                            returning_pathspec,
+                            returning_shape,
                             include_implicit=True
                         )
                     )
@@ -1346,7 +1358,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     el = self._process_shape(
                         targetstep,
                         ptrcls,
-                        shape_el.pathspec or [],
+                        shape_el.elements or [],
                         _visited=_visited,
                         _recurse=True,
                         require_expressions=require_expressions,
@@ -1580,20 +1592,28 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         with self.context.new() as ctx:
             ctx.location = 'selector'
 
-            expr = self.visit(result)
+            if isinstance(result, qlast.Shape):
+                expr = self.visit(result.expr)
+                shape = result.elements
+            else:
+                expr = self.visit(result)
+                if (isinstance(expr, irast.Set) and
+                        isinstance(expr.scls, s_concepts.Concept) and
+                        expr.path_id):
+                    shape = []
+                else:
+                    shape = None
 
             for prefix, ir_sets in extract_prefixes(expr).items():
                 ctx.singletons.update(ir_sets)
 
-            if (isinstance(expr, irast.Set) and
-                    isinstance(expr.scls, s_concepts.Concept)):
+            if shape is not None:
                 if expr.rptr is not None:
                     rptrcls = expr.rptr.ptrcls
                 else:
                     rptrcls = toplevel_rptrcls
 
-                expr = self._process_shape(
-                    expr, rptrcls, result.pathspec or [])
+                expr = self._process_shape(expr, rptrcls, shape)
 
         return expr
 

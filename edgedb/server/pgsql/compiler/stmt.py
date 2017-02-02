@@ -104,36 +104,21 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             # Process any substatments in the WITH block.
             self._process_explicit_substmts(stmt)
 
-            if stmt.set_op:
-                # Process the UNION/EXCEPT/INTERSECT operation
-                with self.context.substmt():
-                    larg = self.visit(stmt.set_op_larg)
+            # Process the result expression;
+            self._process_selector(stmt.result)
 
-                with self.context.substmt():
-                    rarg = self.visit(stmt.set_op_rarg)
+            # The WHERE clause
+            if stmt.where:
+                with self.context.new() as ctx1:
+                    ctx1.clause = 'where'
+                    query.where_clause = self.visit(stmt.where)
 
-                set_op = pgast.PgSQLSetOperator(stmt.set_op)
+            self._apply_path_scope()
 
-                query.op = set_op
-                query.all = True
-                query.larg = larg
-                query.rarg = rarg
-            else:
-                # Process the result expression;
-                self._process_selector(stmt.result)
+            # The GROUP BY clause
+            self._process_groupby(stmt.groupby)
 
-                # The WHERE clause
-                if stmt.where:
-                    with self.context.new() as ctx1:
-                        ctx1.clause = 'where'
-                        query.where_clause = self.visit(stmt.where)
-
-                self._apply_path_scope()
-
-                # The GROUP BY clause
-                self._process_groupby(stmt.groupby)
-
-                self._enforce_path_scope(query, ctx.parent_path_bonds)
+            self._enforce_path_scope(query, ctx.parent_path_bonds)
 
             # The ORDER BY clause
             self._process_orderby(stmt.orderby)
@@ -683,6 +668,10 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 # Subqueries.
                 self._process_set_as_subquery(ir_set, stmt)
 
+            elif isinstance(ir_set.expr, irast.SetOp):
+                # Set operation: UNION/INTERSECT/EXCEPT
+                self._process_set_as_setop(ir_set, stmt)
+
             elif isinstance(ir_set.expr, irast.TypeFilter):
                 # Expr[IS Type] expressions.
                 self._process_set_as_typefilter(ir_set, stmt)
@@ -927,19 +916,25 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         else:
             ctx.query.ctes.append(self._get_set_cte(ir_set))
 
-    def _ensure_query_restarget_name(self, query, hint):
+    def _ensure_query_restarget_name(self, query, *, hint=None):
         ctx = self.context.current
 
-        rt_name = ctx.genalias(hint=hint)
+        suggested_rt_name = ctx.genalias(hint=hint or 'v')
+        rt_name = None
 
         def _get_restarget(q):
             nonlocal rt_name
 
             rt = q.target_list[0]
-            if not rt.name:
+            if rt_name is not None:
                 rt.name = rt_name
-            else:
+            elif rt.name is not None:
                 rt_name = rt.name
+            else:
+                if isinstance(rt.val, pgast.ColumnRef):
+                    rt.name = rt_name = rt.val.name[-1]
+                else:
+                    rt.name = rt_name = suggested_rt_name
 
         if query.op is not None:
             self._for_each_query_in_set(query, _get_restarget)
@@ -1006,14 +1001,38 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                         self._get_path_var(subquery, path_id)
                         subquery.group_clause.append(path_var)
 
-        rt_name = self._ensure_query_restarget_name(subquery, cte.name)
-        subquery.path_vars[ir_set.path_id] = pgast.ColumnRef(name=[rt_name])
+        rt_name = self._ensure_query_restarget_name(subquery, hint=cte.name)
+        path_id = ir_set.path_id
+        if not path_id:
+            path_id = irast.PathId([ir_set.scls])
+        subquery.path_vars[path_id] = pgast.ColumnRef(name=[rt_name])
 
         if subquery.from_clause:
             subquery.scls_rvar = subquery.from_clause[0]
 
         cte.query = subquery
         ctx.query.ctes.append(cte)
+
+    def _process_set_as_setop(self, ir_set, stmt):
+        """Populate the CTE for Set defined by set operation."""
+        ctx = self.context.current
+        expr = ir_set.expr
+
+        larg = self.visit(irutils.ensure_stmt(expr.left))
+        rarg = self.visit(irutils.ensure_stmt(expr.right))
+
+        stmt.op = pgast.PgSQLSetOperator(expr.op)
+        stmt.all = True
+        stmt.larg = larg
+        stmt.rarg = rarg
+
+        rt_name = self._ensure_query_restarget_name(stmt)
+        path_id = ir_set.path_id
+        if not path_id:
+            path_id = irast.PathId([ir_set.scls])
+        stmt.path_vars[path_id] = pgast.ColumnRef(name=[rt_name])
+
+        ctx.query.ctes.append(self._get_set_cte(ir_set))
 
     def _process_set_as_typefilter(self, ir_set, stmt):
         """Populate the CTE for Set defined by a Expr[IS Type] expression."""
@@ -1148,6 +1167,10 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         else:
             restarget = pgast.ResTarget(val=set_expr, name='v')
             stmt.target_list.append(restarget)
+            path_id = ir_set.path_id
+            if not path_id:
+                path_id = irast.PathId([ir_set.scls])
+            stmt.path_vars[path_id] = pgast.ColumnRef(name=[restarget.name])
 
         ctx.query.ctes.append(self._get_set_cte(ir_set))
 
@@ -1203,8 +1226,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                             )
                         )
 
-                        rt_name = self._ensure_query_restarget_name(
-                            subquery, 'v')
+                        rt_name = self._ensure_query_restarget_name(subquery)
                         ref = self._get_column(rvar, rt_name)
 
                         wrapper = pgast.SelectStmt(
@@ -1355,11 +1377,15 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             else:
                 return varlist
 
-        elif isinstance(ir_set.expr, irast.Stmt):
-            stmt_qry = source_rvar.relation.query
-            var_ref = stmt_qry.path_vars[ir_set.path_id]
         else:
-            var_ref = pgast.ColumnRef(name=['v'])
+            stmt_qry = source_rvar.relation.query
+            try:
+                path_id = ir_set.path_id
+                if not path_id:
+                    path_id = irast.PathId([ir_set.scls])
+                var_ref = stmt_qry.path_vars[path_id]
+            except KeyError:
+                var_ref = pgast.ColumnRef(name=['v'])
 
         return self._get_column(source_rvar, var_ref)
 

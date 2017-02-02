@@ -53,12 +53,14 @@ class IRDecompiler(ast.visitor.NodeVisitor):
         return result
 
     def visit_Shape(self, node):
-        result = qlast.Path(
-            steps=[qlast.ClassRef(
-                module=node.scls.name.module,
-                name=node.scls.name.name
-            )],
-            pathspec=[]
+        result = qlast.Shape(
+            expr=qlast.Path(
+                steps=[qlast.ClassRef(
+                    module=node.scls.name.module,
+                    name=node.scls.name.name
+                )]
+            ),
+            elements=[]
         )
 
         for el in node.elements:
@@ -66,7 +68,7 @@ class IRDecompiler(ast.visitor.NodeVisitor):
             ptrcls = rptr.ptrcls
             pn = ptrcls.shortname
 
-            pn = qlast.SelectPathSpec(
+            pn = qlast.ShapeElement(
                 expr=qlast.Path(
                     steps=[
                         qlast.Ptr(
@@ -80,7 +82,7 @@ class IRDecompiler(ast.visitor.NodeVisitor):
                 )
             )
 
-            result.pathspec.append(pn)
+            result.elements.append(pn)
 
         return result
 

@@ -819,7 +819,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=22)
     def test_edgeql_syntax_shape23(self):
         """
         SELECT 'Foo' {
@@ -827,7 +826,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=4, col=11)
     def test_edgeql_syntax_shape24(self):
         """
         SELECT Foo {
@@ -1531,80 +1529,69 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         OFFSET 2 LIMIT 5;
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=9)
     def test_edgeql_syntax_select07(self):
         """
         (SELECT User.name) OFFSET 2;
-        (SELECT User.name) LIMIT 2;
-        (SELECT User.name) OFFSET 2 LIMIT 5;
-
-% OK %
-
-        SELECT User.name OFFSET 2;
-        SELECT User.name LIMIT 2;
-        SELECT User.name OFFSET 2 LIMIT 5;
         """
 
     def test_edgeql_syntax_select08(self):
         """
         WITH MODULE test
         SELECT User{name} ORDER BY User.name ASC;
-        WITH MODULE test
-        (SELECT User{name}) ORDER BY User.name ASC;
         SELECT User{name} ORDER BY User.name ASC;
-        (SELECT User{name}) ORDER BY User.name ASC;
-
-% OK %
-
-        WITH MODULE test
-        SELECT User{name} ORDER BY User.name ASC;
-        WITH MODULE test
-        SELECT User{name} ORDER BY User.name ASC;
-        SELECT User{name} ORDER BY User.name ASC;
-        SELECT User{name} ORDER BY User.name ASC;
+        SELECT User{name} OFFSET 2;
+        SELECT User{name} LIMIT 2;
+        SELECT User{name} OFFSET 2 LIMIT 5;
         """
 
     def test_edgeql_syntax_select09(self):
-        """
-        SELECT Foo UNION SELECT Bar;
-        SELECT Foo INTERSECT SELECT Bar;
-        SELECT Foo EXCEPT SELECT Bar;
-
-% OK %
-
-        (SELECT Foo) UNION (SELECT Bar);
-        (SELECT Foo) INTERSECT (SELECT Bar);
-        (SELECT Foo) EXCEPT (SELECT Bar);
-        """
-
-    def test_edgeql_syntax_select10(self):
         """
         SELECT Issue {name} ORDER BY Issue.priority.name ASC EMPTY FIRST;
         SELECT Issue {name} ORDER BY Issue.priority.name DESC EMPTY LAST;
         """
 
-    def test_edgeql_syntax_select11(self):
+    def test_edgeql_syntax_select10(self):
         """
         SELECT User.name OFFSET $1;
         SELECT User.name LIMIT $2;
         SELECT User.name OFFSET $1 LIMIT $2;
         """
 
-    def test_edgeql_syntax_select12(self):
+    def test_edgeql_syntax_select11(self):
         """
         SELECT User.name OFFSET Foo.bar;
         SELECT User.name LIMIT (Foo.bar * 10);
         SELECT User.name OFFSET Foo.bar LIMIT (Foo.bar * 10);
         """
 
-    def test_edgeql_syntax_union01(self):
+    def test_edgeql_syntax_set01(self):
         """
-        WITH MODULE test
-        (SELECT
-            Issue {name, body})
-        UNION
-        (SELECT
-            Comment {body})
-        ORDER BY UNION[IS Text].body ASC;
+        SELECT (1 UNION 2);
+        SELECT (1 INTERSECT 2);
+        SELECT (1 EXCEPT 2);
+        """
+
+    def test_edgeql_syntax_set02(self):
+        """
+        SELECT ((SELECT Foo) UNION (SELECT Bar));
+        SELECT ((SELECT Foo) INTERSECT (SELECT Bar));
+        SELECT ((SELECT Foo) EXCEPT (SELECT Bar));
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=9)
+    def test_edgeql_syntax_set03(self):
+        """
+        (SELECT Foo) UNION (SELECT Bar);
+        """
+
+    def test_edgeql_syntax_set04(self):
+        """
+        SELECT 2 * (1 UNION 2 EXCEPT 1);
+
+% OK %
+
+        SELECT (2 * ((1 UNION 2) EXCEPT 1));
         """
 
     def test_edgeql_syntax_insert01(self):
@@ -1804,7 +1791,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         DELETE 42;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=19)
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=24)
     def test_edgeql_syntax_delete04(self):
         """
         DELETE Foo{bar};
