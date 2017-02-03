@@ -17,155 +17,228 @@ class Base(ast.AST):
     context: parsing.ParserContext
 
 
-class Root(Base):
-    children: list
+class Expr(Base):
+    '''Abstract parent for all query expressions.'''
+    pass
 
 
-class ClassRef(Base):
+class Clause(Base):
+    '''Abstract parent for all query clauses.'''
+    pass
+
+
+class SortExpr(Clause):
+    path: Expr
+    direction: str
+    nones_order: str
+
+
+class CGE(Clause):
+    expr: Expr
+    alias: str
+
+
+class NamespaceAliasDecl(Clause):
+    namespace: str
+    alias: str
+
+
+class ClassRef(Expr):
     name: str
     module: str
 
 
-class Indirection(Base):
-    arg: Base
-    indirection: list
-
-
 class Index(Base):
-    index: Base
+    index: Expr
 
 
 class Slice(Base):
-    start: Base
-    stop: Base
+    start: Expr
+    stop: Expr
 
 
-class ArgList(Base):
-    name: str
-    args: list
+class Indirection(Expr):
+    arg: Expr
+    indirection: typing.List[typing.Union[Index, Slice]]
 
 
-class BinOp(Base):
-    left: object
+class BinOp(Expr):
+    left: Expr
     op: str
-    right: object
+    right: Expr
 
 
-class WindowSpec(Base):
-    orderby: list
-    partition: list
+class WindowSpec(Clause):
+    orderby: typing.List[SortExpr]
+    partition: typing.List[Expr]
 
 
 class NamedArg(Base):
     name: str
-    arg: object
+    arg: Expr
 
 
-class FunctionCall(Base):
-    func: object  # tuple or str
+class FunctionCall(Expr):
+    func: typing.Union[tuple, str]
     args: typing.List[Base]
-    agg_sort: list
-    agg_filter: object
-    window: object
+    agg_sort: typing.List[SortExpr]
+    agg_filter: Expr
+    window: WindowSpec
 
 
-class Var(Base):
+class Constant(Expr):
+    value: typing.Union[int, str, float, bool]
+
+
+class EmptySet(Expr):
+    pass
+
+
+class Parameter(Expr):
     name: str
 
 
-class PathVar(Var):
-    pass
-
-
-class Constant(Base):
-    value: object
-
-
-class EmptySet(Base):
-    pass
-
-
-class Parameter(Base):
-    name: str
-
-
-class DefaultValue(Base):
-    pass
-
-
-class UnaryOp(Base):
+class UnaryOp(Expr):
     op: str
-    operand: Base
-
-
-class PostfixOp(Base):
-    op: str
-    operand: Base
-
-
-class Path(Base):
-    steps: list
-    quantifier: Base
-    partial: bool = False
-
-
-class Shape(Base):
-    expr: Base
-    elements: typing.List[Base]
-
-
-class PathDisjunction(Base):
-    left: Base
-    right: Base
+    operand: Expr
 
 
 class Ptr(Base):
     ptr: ClassRef
     direction: str
-    target: Base
+    target: Expr
     type: str
 
 
-class Statement(Base):
-    namespaces: list
-    aliases: list
-
-
-class Position(Base):
-    ref: str
-    position: str
-
-
-class ExpressionText(Base):
-    expr: Base
-
-
-class TypeName(Base):
-    maintype: Base
+class TypeName(Expr):
+    maintype: Expr
     subtypes: list
 
 
-class TypeCast(Base):
-    expr: Base
+class TypeFilter(Expr):
+    expr: Expr
     type: TypeName
 
 
-class TypeFilter(Base):
-    expr: Base
+class Path(Expr):
+    steps: typing.List[typing.Union[Expr, Ptr]]
+    quantifier: Expr
+    partial: bool = False
+
+
+class TypeCast(Expr):
+    expr: Expr
     type: TypeName
 
 
-class IfElse(Base):
-    condition: Base
-    if_expr: Base
-    else_expr: Base
+class IfElse(Expr):
+    condition: Expr
+    if_expr: Expr
+    else_expr: Expr
 
 
-class Coalesce(Base):
-    args: typing.List[Base]
+class Coalesce(Expr):
+    args: typing.List[Expr]
 
+
+class ExistsPredicate(Expr):
+    expr: Expr
+
+
+class StructElement(Base):
+    name: ClassRef
+    val: Expr
+
+
+class Struct(Expr):
+    elements: typing.List[StructElement]
+
+
+class EmptyCollection(Expr):
+    pass
+
+
+class Tuple(Expr):
+    elements: typing.List[Expr]
+
+
+class Array(Expr):
+    elements: typing.List[Expr]
+
+
+class Mapping(Expr):
+    keys: typing.List[Expr]
+    values: typing.List[Expr]
+
+
+# Statements
+#
+
+class Statement(Expr):
+    aliases: typing.List[typing.Union[CGE, NamespaceAliasDecl]]
+
+
+class SelectQuery(Statement):
+    single: bool = False
+    distinct: bool = False
+    result: Expr
+    where: Expr
+    groupby: typing.List[Expr]
+    having: Expr
+    orderby: typing.List[SortExpr]
+    offset: Expr
+    limit: Expr
+    cges: typing.List[CGE]
+
+
+class InsertQuery(Statement):
+    subject: Expr
+    shape: typing.List[Expr]
+    result: Expr
+    cges: typing.List[CGE]
+    single: bool = False
+    source: Expr
+
+
+class UpdateQuery(Statement):
+    subject: Expr
+    shape: typing.List[Expr]
+    where: Expr
+    result: Expr
+    cges: typing.List[CGE]
+    single: bool = False
+
+
+class DeleteQuery(Statement):
+    subject: Expr
+    where: Expr
+    result: Expr
+    cges: typing.List[CGE]
+    single: bool = False
+
+
+class ShapeElement(Expr):
+    expr: Expr
+    elements: typing.List[Expr]
+    where: Expr
+    orderby: typing.List[SortExpr]
+    offset: Expr
+    limit: Expr
+    compexpr: Expr
+    recurse: bool = False
+    recurse_limit: typing.Union[Constant, Parameter]
+
+
+class Shape(Expr):
+    expr: Expr
+    elements: typing.List[ShapeElement]
+
+
+# Transactions
+#
 
 class Transaction(Base):
+    '''Abstract parent for all transaction operations.'''
     pass
 
 
@@ -181,7 +254,11 @@ class RollbackTransaction(Transaction):
     pass
 
 
+# DDL
+#
+
 class DDL(Base):
+    '''Abstract parent for all DDL statements.'''
     pass
 
 
@@ -189,27 +266,32 @@ class CompositeDDL(Statement, DDL):
     pass
 
 
-class AlterSchema(Base):
-    commands: list
+class Position(DDL):
+    ref: str
+    position: str
+
+
+class ExpressionText(DDL):
+    expr: Expr
 
 
 class AlterAddInherit(DDL):
-    bases: list
-    position: object
+    bases: typing.List[ClassRef]
+    position: Position
 
 
 class AlterDropInherit(DDL):
-    bases: list
+    bases: typing.List[ClassRef]
 
 
 class AlterTarget(DDL):
-    targets: list
+    targets: typing.List[ClassRef]
 
 
 class ObjectDDL(CompositeDDL):
-    namespaces: list
+    namespaces: list  # XXX: is it even used?
     name: ClassRef
-    commands: list
+    commands: typing.List[DDL]
 
 
 class CreateObject(ObjectDDL):
@@ -225,7 +307,7 @@ class DropObject(ObjectDDL):
 
 
 class CreateInheritingObject(CreateObject):
-    bases: list
+    bases: typing.List[ClassRef]
     is_abstract: bool = False
     is_final: bool = False
 
@@ -239,7 +321,7 @@ class Delta:
 
 
 class CreateDelta(CreateObject, Delta):
-    parents: list
+    parents: typing.List[ClassRef]
     language: str
     target: object
 
@@ -342,7 +424,7 @@ class DropLinkProperty(DropObject):
 
 class CreateConcreteLinkProperty(CreateObject):
     is_required: bool = False
-    target: Base
+    target: Expr
 
 
 class AlterConcreteLinkProperty(AlterObject):
@@ -355,7 +437,7 @@ class DropConcreteLinkProperty(AlterObject):
 
 class SetSpecialField(Base):
     name: str
-    value: object
+    value: bool
     as_expr: bool = False
 
 
@@ -385,7 +467,7 @@ class DropLink(DropObject):
 
 class CreateConcreteLink(CreateInheritingObject):
     is_required: bool = False
-    targets: list
+    targets: typing.List[Expr]
 
 
 class AlterConcreteLink(AlterObject):
@@ -409,7 +491,7 @@ class DropConstraint(DropObject):
 
 
 class CreateConcreteConstraint(CreateObject):
-    args: list
+    # args: list
     is_abstract: bool = False
 
 
@@ -423,12 +505,12 @@ class DropConcreteConstraint(DropObject):
 
 class CreateLocalPolicy(CompositeDDL):
     event: ClassRef
-    actions: list
+    actions: typing.List[ClassRef]
 
 
 class AlterLocalPolicy(CompositeDDL):
     event: ClassRef
-    actions: list
+    actions: typing.List[ClassRef]
 
 
 class DropLocalPolicy(CompositeDDL):
@@ -436,7 +518,7 @@ class DropLocalPolicy(CompositeDDL):
 
 
 class CreateIndex(CreateObject):
-    expr: Base
+    expr: Expr
 
 
 class DropIndex(DropObject):
@@ -444,12 +526,12 @@ class DropIndex(DropObject):
 
 
 class CreateAttributeValue(CreateObject):
-    value: Base
+    value: Expr
     as_expr: bool = False
 
 
 class AlterAttributeValue(AlterObject):
-    value: Base
+    value: Expr
 
 
 class DropAttributeValue(DropObject):
@@ -460,7 +542,7 @@ class FuncArg(Base):
     name: str
     type: TypeName
     variadic: bool = False
-    default: Base
+    default: Expr
 
 
 class Language(s_enum.StrEnum):
@@ -468,166 +550,30 @@ class Language(s_enum.StrEnum):
     EdgeQL = 'EDGEQL'
 
 
-class FunctionCode(Base):
+class FunctionCode(Clause):
     language: Language
     code: str
     from_name: str
 
 
 class CreateFunction(CreateObject):
-    args: list
-    returning: Base
+    args: typing.List[FuncArg]
+    returning: typing.Union[TypeName, Shape]
     single: bool = False
     aggregate: bool = False
     code: FunctionCode
 
 
-class AlterFunction(AlterObject):
+class AlterFunction(AlterObject):  # XXX: is this needed in the future?
     value: Base
 
 
-class DropFunction(DropObject):
+class DropFunction(DropObject):  # XXX: is this needed in the future?
     pass
 
 
-class SelectQuery(Statement):
-    single: bool = False
-    distinct: bool = False
-    result: Base
-    where: Base
-    groupby: list
-    having: Base
-    orderby: list
-    offset: Base
-    limit: Base
-    cges: list
-
-
-class InsertQuery(Statement):
-    subject: Base
-    shape: typing.List[Base]
-    result: Base
-    cges: list
-    single: bool = False
-    source: Base
-
-
-class UpdateQuery(Statement):
-    subject: Base
-    shape: typing.List[Base]
-    where: Base
-    result: Base
-    cges: list
-    single: bool = False
-
-
-class UpdateExpr(Base):
-    expr: Base
-    value: Base
-
-
-class DeleteQuery(Statement):
-    subject: Base
-    where: Base
-    result: Base
-    cges: list
-    single: bool = False
-
-
-class ValuesQuery(Statement):
-    result: list
-    orderby: list
-    offset: Base
-    limit: Base
-    cges: list
-
-
-class CGE(Base):
-    expr: Base
-    alias: str
-
-
-class NamespaceAliasDecl(Base):
-    namespace: str
-    alias: object
-
-
-class ExpressionAliasDecl(Base):
-    expr: Base
-    alias: object
-
-
-class SortExpr(Base):
-    path: Base
-    direction: str
-    nones_order: object
-
-
-class Predicate(Base):
-    expr: Base
-
-
-class ExistsPredicate(Predicate):
-    pass
-
-
-class ShapeElement(Base):
-    expr: Base
-    elements: typing.List[Base]
-    where: Base
-    orderby: list
-    offset: Base
-    limit: Base
-    compexpr: Base
-    recurse: bool = False
-    recurse_limit: typing.Union[Constant, Parameter]
-
-
-class PointerGlob(Base):
-    filters: list
-    type: ClassRef
-
-
-class PointerGlobFilter(Base):
-    property: Base
-    value: object
-    any: bool = False
-
-
-class FromExpr(Base):
-    expr: Base
-    alias: Base
-
-
-class StructElement(Base):
-    name: ClassRef
-    val: Base
-
-
-class Struct(Base):
-    elements: typing.List[StructElement]
-
-
-class EmptyCollection(Base):
-    pass
-
-
-class Tuple(Base):
-    elements: list
-
-
-class Array(Base):
-    elements: list
-
-
-class Mapping(Base):
-    keys: typing.List[Base]
-    values: typing.List[Base]
-
-
-class NoneTest(Base):
-    expr: Base
-
+# Operators
+#
 
 class EdgeQLOperator(ast.ops.Operator):
     pass
@@ -635,6 +581,7 @@ class EdgeQLOperator(ast.ops.Operator):
 
 class TextSearchOperator(EdgeQLOperator):
     pass
+
 
 SEARCH = TextSearchOperator('@@')
 
@@ -661,10 +608,10 @@ class EdgeQLMatchOperator(EdgeQLComparisonOperator):
 class SetOperator(EdgeQLOperator):
     pass
 
+
 UNION = SetOperator('UNION')
 INTERSECT = SetOperator('INTERSECT')
 EXCEPT = SetOperator('EXCEPT')
-
 
 AND = ast.ops.AND
 OR = ast.ops.OR
@@ -690,6 +637,7 @@ class SortOrder(s_enum.StrEnum):
     Asc = 'ASC'
     Desc = 'DESC'
 
+
 SortAsc = SortOrder.Asc
 SortDesc = SortOrder.Desc
 SortDefault = SortAsc
@@ -698,6 +646,7 @@ SortDefault = SortAsc
 class NonesOrder(s_enum.StrEnum):
     First = 'first'
     Last = 'last'
+
 
 NonesFirst = NonesOrder.First
 NonesLast = NonesOrder.Last
@@ -710,16 +659,3 @@ class SetOperator(EdgeQLOperator):
 UNION = SetOperator('UNION')
 INTERSECT = SetOperator('INTERSECT')
 EXCEPT = SetOperator('EXCEPT')
-
-
-class Position(s_enum.StrEnum):
-    AFTER = 'AFTER'
-    BEFORE = 'BEFORE'
-    FIRST = 'FIRST'
-    LAST = 'LAST'
-
-
-AFTER = Position.AFTER
-BEFORE = Position.BEFORE
-FIRST = Position.FIRST
-LAST = Position.LAST

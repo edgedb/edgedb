@@ -168,7 +168,7 @@ class ProductionHelper:
         self.val = [cmd.val]
 
     def _empty(self):
-        self.val = None
+        self.val = []
 
     def _block(self, lbrace, cmdlist, sc2, rbrace):
         self.val = cmdlist.val
@@ -318,7 +318,7 @@ class AlterInheriting(Nonterm):
 
 class OptDeltaParents(Nonterm):
     def reduce_empty(self):
-        self.val = None
+        self.val = []
 
     def reduce_FROM_NodeNameList(self, *kids):
         self.val = kids[1].val

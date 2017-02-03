@@ -450,7 +450,7 @@ class OptGroupClause(Nonterm):
         self.val = kids[2].val
 
     def reduce_empty(self, *kids):
-        self.val = None
+        self.val = []
 
 
 class HavingClause(Nonterm):
@@ -476,7 +476,7 @@ class OptSortClause(Nonterm):
         self.val = kids[0].val
 
     def reduce_empty(self, *kids):
-        self.val = None
+        self.val = []
 
 
 class OrderbyExpr(Nonterm):
@@ -1099,7 +1099,7 @@ class OptPartitionClause(Nonterm):
         self.val = kids[2].val
 
     def reduce_empty(self, *kids):
-        self.val = None
+        self.val = []
 
 
 class FuncArgExpr(Nonterm):

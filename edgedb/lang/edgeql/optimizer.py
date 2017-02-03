@@ -180,7 +180,7 @@ class EdgeQLOptimizer:
             if expr.result is not None:
                 self._process_expr(context, expr.result)
 
-        elif isinstance(expr, qlast.Predicate):
+        elif isinstance(expr, qlast.ExistsPredicate):
             self._process_expr(context, expr.expr)
 
         elif isinstance(expr, qlast.BinOp):
@@ -210,9 +210,6 @@ class EdgeQLOptimizer:
         elif isinstance(expr, qlast.UnaryOp):
             self._process_expr(context, expr.operand)
 
-        elif isinstance(expr, qlast.PostfixOp):
-            self._process_expr(context, expr.operand)
-
         elif isinstance(expr, qlast.Tuple):
             for el in expr.elements:
                 self._process_expr(context, el)
@@ -229,9 +226,6 @@ class EdgeQLOptimizer:
             if expr.subtypes:
                 for subtype in expr.subtypes:
                     self._process_expr(context, subtype)
-
-        elif isinstance(expr, qlast.NoneTest):
-            self._process_expr(context, expr.expr)
 
         elif isinstance(expr, qlast.ClassRef):
             if expr.module:

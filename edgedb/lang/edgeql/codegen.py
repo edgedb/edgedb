@@ -239,11 +239,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write('MODULE ')
         self.write(any_ident_to_str(node.namespace))
 
-    def visit_ExpressionAliasDecl(self, node):
-        self.write(ident_to_str(node.alias))
-        self.write(' := ')
-        self.visit(node.expr)
-
     def visit_SortExpr(self, node):
         self.visit(node.path)
         if node.direction:
@@ -436,9 +431,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.write(str(node.value))
         else:
             self.write(edgeql_repr())
-
-    def visit_DefaultValue(self, node):
-        self.write('DEFAULT')
 
     def visit_FunctionCall(self, node):
         if isinstance(node.func, tuple):
