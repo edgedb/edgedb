@@ -1846,34 +1846,13 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT (UPDATE Foo{bar:= 42} RETURNING Foo);
         """
 
-    def test_edgeql_syntax_values01(self):
-        """
-        VALUES 42;
-        VALUES 1, 2, 3;
-        VALUES 1, '2', 3;
-        VALUES 1, User.name, 3;
-        VALUES 1, 2, 3
-            OFFSET 2;
-        VALUES 1, 2, 3
-            LIMIT 2;
-        VALUES 1, 2, 3
-            OFFSET 2 LIMIT 2;
-        """
-
-    def test_edgeql_syntax_values02(self):
-        """
-        VALUES 1, 2, 3 OFFSET $1;
-        VALUES 1, 2, 3 LIMIT $2;
-        VALUES 1, 2, 3 OFFSET $1 LIMIT $2;
-        """
-
     def test_edgeql_syntax_insertfrom01(self):
         """
-        INSERT User{name} FROM VALUES 'a', 'b', 'c';
+        INSERT User{name} FROM 'a' UNION 'b' UNION 'c';
 
 % OK %
 
-        INSERT User{name} FROM (VALUES 'a', 'b', 'c');
+        INSERT User{name} FROM (('a' UNION 'b') UNION 'c');
         """
 
     def test_edgeql_syntax_insertfrom02(self):

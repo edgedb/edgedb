@@ -45,9 +45,6 @@ class SetStmt(Nonterm):
     def reduce_DeleteExpr(self, *kids):
         self.val = kids[0].val
 
-    def reduce_ValuesExpr(self, *kids):
-        self.val = kids[0].val
-
 
 class SelectWithParens(Nonterm):
     def reduce_LPAREN_SelectNoParens_RPAREN(self, *kids):
@@ -127,13 +124,7 @@ class InsertExpr(Nonterm):
 
 
 class FromClause(Nonterm):
-    def reduce_SelectWithParens(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_ParenthesisedStmt(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_ValuesExpr(self, *kids):
+    def reduce_Expr(self, *kids):
         self.val = kids[0].val
 
     def reduce_SelectNoParens(self, *kids):
@@ -180,29 +171,6 @@ class DeleteExpr(Nonterm):
             single=single,
             result=result,
         )
-
-
-class ValuesExpr(Nonterm):
-    def reduce_ValuesExpr(self, *kids):
-        "%reduce OptAliasBlock VALUES ValueTargetList \
-                 OptSortClause OptSelectLimit"
-        self.val = qlast.ValuesQuery(
-            aliases=kids[0].val,
-            result=kids[2].val,
-            orderby=kids[3].val,
-            offset=kids[4].val[0],
-            limit=kids[4].val[1],
-        )
-
-
-class ValueTarget(Nonterm):
-    def reduce_Expr(self, *kids):
-        self.val = kids[0].val
-
-
-class ValueTargetList(ListNonterm, element=ValueTarget,
-                      separator=tokens.T_COMMA):
-    pass
 
 
 class OptAliasBlock(Nonterm):
@@ -610,9 +578,6 @@ class ParenExpr(Nonterm):
         self.val = kids[1].val
 
     def reduce_LPAREN_DeleteExpr_RPAREN(self, *kids):
-        self.val = kids[1].val
-
-    def reduce_LPAREN_ValuesExpr_RPAREN(self, *kids):
         self.val = kids[1].val
 
 

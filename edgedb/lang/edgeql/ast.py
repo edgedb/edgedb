@@ -509,7 +509,7 @@ class InsertQuery(Statement):
     result: Base
     cges: list
     single: bool = False
-    source: Statement
+    source: Base
 
 
 class UpdateQuery(Statement):

@@ -84,7 +84,6 @@ edgeql_keywords = {
     "true": ("TRUE", RESERVED_KEYWORD),
     "update": ("UPDATE", RESERVED_KEYWORD),
     "union": ("UNION", UNRESERVED_KEYWORD),
-    "values": ("VALUES", RESERVED_KEYWORD),
     "where": ("WHERE", RESERVED_KEYWORD),
     "with": ("WITH", RESERVED_KEYWORD)
 }

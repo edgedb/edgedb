@@ -232,48 +232,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if parenthesise:
             self.write(')')
 
-    def visit_ValuesQuery(self, node):
-        # need to parenthesise when VALUES appears as an expression
-        #
-        parenthesise = (isinstance(node.parent, edgeql_ast.Base) and
-                        not isinstance(node.parent, edgeql_ast.DDL))
-
-        if parenthesise:
-            self.write('(')
-
-        self._visit_aliases(node)
-        self.write('VALUES')
-        self.indentation += 1
-        self.new_lines = 1
-        self.visit_list(node.result)
-        self.indentation -= 1
-        self.new_lines = 1
-
-        if node.orderby:
-            self.write('ORDER BY')
-            self.new_lines = 1
-            self.indentation += 1
-            self.visit_list(node.orderby, separator=' THEN')
-            self.new_lines = 1
-            self.indentation -= 1
-        if node.offset is not None:
-            self.write('OFFSET')
-            self.new_lines = 1
-            self.indentation += 1
-            self.visit(node.offset)
-            self.indentation -= 1
-            self.new_lines = 1
-        if node.limit is not None:
-            self.write('LIMIT')
-            self.new_lines = 1
-            self.indentation += 1
-            self.visit(node.limit)
-            self.indentation -= 1
-            self.new_lines = 1
-
-        if parenthesise:
-            self.write(')')
-
     def visit_NamespaceAliasDecl(self, node):
         if node.alias:
             self.write(ident_to_str(node.alias))
