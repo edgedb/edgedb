@@ -191,7 +191,7 @@ class AliasDecl(Nonterm):
         self.val = qlast.NamespaceAliasDecl(
             namespace='.'.join(kids[1].val))
 
-    def reduce_ShortName_AS_MODULE_ModuleName(self, *kids):
+    def reduce_ShortName_TURNSTILE_MODULE_ModuleName(self, *kids):
         self.val = qlast.NamespaceAliasDecl(
             alias=kids[0].val,
             namespace='.'.join(kids[3].val))

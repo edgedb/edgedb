@@ -235,7 +235,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_NamespaceAliasDecl(self, node):
         if node.alias:
             self.write(ident_to_str(node.alias))
-            self.write(' AS ')
+            self.write(' := ')
         self.write('MODULE ')
         self.write(any_ident_to_str(node.namespace))
 
