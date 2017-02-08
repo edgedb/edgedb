@@ -863,6 +863,8 @@ class Backend(s_deltarepo.DeltaProvider):
         pass
 
     def unpack_typeref(self, typeref, schema):
+        type = None
+
         if typeref['type'] is not None:
             type = schema.get(typeref['type'])
 
@@ -1057,7 +1059,7 @@ class Backend(s_deltarepo.DeltaProvider):
             description = r['description']
 
             source = schema.get(r['source']) if r['source'] else None
-            target = schema.get(r['target']) if r['target'] else None
+            target = self.unpack_typeref(r['target'], schema)
             if r['spectargets']:
                 spectargets = [schema.get(t) for t in r['spectargets']]
             else:
@@ -1242,17 +1244,9 @@ class Backend(s_deltarepo.DeltaProvider):
             name = sn.Name(r['name'])
             title = self.json_to_word_combination(r['title'])
             description = r['description']
-
-            coll = r['type']['collection']
-            if coll:
-                stypes = [schema.get(st) for st in r['type']['subtypes']]
-                ct = s_obj.Collection.get_class(coll)
-                type = ct.from_subtypes(stypes)
-            else:
-                type = schema.get(r['type']['type'])
-
             attribute = s_attrs.Attribute(
-                name=name, title=title, description=description, type=type)
+                name=name, title=title, description=description,
+                type=self.unpack_typeref(r['type'], schema))
             schema.add(attribute)
 
     async def order_attributes(self, schema):

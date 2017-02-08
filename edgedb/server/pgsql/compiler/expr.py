@@ -772,3 +772,17 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
         if isinstance(expr, pgast.TypeCast):
             expr = expr.arg
         return isinstance(expr, pgast.Constant) and expr.val is None
+
+    def _type_node(self, typename):
+        typename = list(typename)
+        if typename[-1].endswith('[]'):
+            # array
+            typename[-1] = typename[-1][:-2]
+            array_bounds = [-1]
+        else:
+            array_bounds = []
+
+        return pgast.TypeName(
+            name=tuple(typename),
+            array_bounds=array_bounds
+        )

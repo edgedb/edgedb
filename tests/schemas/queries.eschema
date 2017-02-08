@@ -97,6 +97,8 @@ concept Issue extends Named, Owned, Text:
     link references to File, URL, Publication:
         mapping: **
 
+    link tags to array<str>
+
 
 concept File extends Named
 

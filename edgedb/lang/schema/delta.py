@@ -570,7 +570,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
 
     @classmethod
     def as_markup(cls, self, *, ctx):
-        node = markup.elements.lang.Tree(name=str(self))
+        node = markup.elements.lang.TreeNode(name=str(self))
 
         for dd in self:
             if isinstance(dd, AlterClassProperty):

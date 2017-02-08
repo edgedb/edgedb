@@ -58,8 +58,8 @@ filters:
 source: |
     SELECT
             l.id,
-            sc.name AS source,
-            tc.name AS target,
+            _resolve_type(l.source) AS source,
+            _resolve_type(l.target) AS target,
             _resolve_types(l.spectargets) AS spectargets,
             l.name AS name,
             _resolve_types(l.bases) AS bases,
@@ -75,12 +75,8 @@ source: |
             l.default
         FROM
             edgedb.link l
-            LEFT JOIN edgedb.NamedClass sc ON l.source = sc.id
-            LEFT JOIN edgedb.NamedClass tc ON l.target = tc.id
         WHERE
-            (%(source_concept)s::text IS NULL OR %(source_concept)s::text = sc.name)
-            AND (%(target_concept)s::text IS NULL OR %(target_concept)s::text = tc.name)
-            AND (%(name)s::text IS NULL OR %(name)s::text = l.name)
+            (%(name)s::text IS NULL OR %(name)s::text = l.name)
             AND (%(include_specialized)s::bool OR l.source IS NULL)
         ORDER BY
             l.name LIKE 'std::%' DESC, l.id, l.target NULLS FIRST
@@ -111,63 +107,24 @@ filters:
 
 source: |
     SELECT
-            p.id            AS id,
-            p.name          AS name,
-            (SELECT array_agg(name) FROM edgedb.NamedClass
-             WHERE id = any(p.bases)) AS bases,
-            p.title         AS title,
-            p.description   AS description,
-            p.required      AS required,
-            p.readonly      AS readonly,
-            p.loading       AS loading,
-            p.default       AS default,
-            l.name          AS source,
-            a.name          AS target
+            p.id                    AS id,
+            p.name                  AS name,
+            _resolve_types(p.bases) AS bases,
+            p.title                 AS title,
+            p.description           AS description,
+            p.required              AS required,
+            p.readonly              AS readonly,
+            p.loading               AS loading,
+            p.default               AS default,
+            l.name                  AS source,
+            _resolve_type(p.target) AS target
         FROM
             edgedb.LinkProperty p
             LEFT JOIN edgedb.link l ON l.id = p.source
-            LEFT JOIN edgedb.NamedClass a ON a.id = p.target
         WHERE
-            (%(source)s::text IS NULL OR %(source)s::text = l.name)
-            AND (%(target)s::text IS NULL OR %(target)s::text = a.name)
-            AND (%(name)s::text IS NULL OR %(name)s::text = p.name)
+            (%(name)s::text IS NULL OR %(name)s::text = p.name)
             AND (%(include_specialized)s::bool OR p.source IS NULL)
         ORDER BY
             p.id, p.target NULLS FIRST
 
 ...
-
-%SCHEMA edgedb.server.datasources.schemas.Sql
-%NAME Computables
----
-params:
-    source:
-        type: str
-        default: null
-
-    name:
-        type: str
-        default: null
-
-filters:
-    - format: dict
-
-source: |
-    SELECT
-            p.id            AS id,
-            p.name          AS name,
-            p.title         AS title,
-            p.description   AS description,
-            s.name          AS source,
-            t.name          AS target,
-            p.expression    AS expression,
-            p.is_local      AS is_local
-        FROM
-            edgedb.computable p
-            LEFT JOIN edgedb.NamedClass s ON s.id = p.source
-            LEFT JOIN edgedb.NamedClass t ON t.id = p.target
-        WHERE
-            (%(source)s::text IS NULL OR %(source)s::text = s.name)
-            AND (%(name)s::text IS NULL OR %(name)s::text = p.name)
-        ORDER BY
-            p.id, p.target NULLS FIRST

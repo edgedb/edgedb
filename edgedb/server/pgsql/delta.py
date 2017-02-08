@@ -1899,10 +1899,18 @@ class PointerMetaCommand(MetaCommand):
 
     def get_columns(self, pointer, schema, default=None):
         ptr_stor_info = types.get_pointer_storage_info(pointer, schema=schema)
+        col_type = list(ptr_stor_info.column_type)
+        if col_type[-1].endswith('[]'):
+            # Array
+            col_type[-1] = col_type[-1][:-2]
+            col_type = common.qname(*col_type) + '[]'
+        else:
+            col_type = common.qname(*col_type)
+
         return [
             dbops.Column(
                 name=ptr_stor_info.column_name,
-                type=common.qname(*ptr_stor_info.column_type),
+                type=col_type,
                 required=pointer.required, default=default,
                 comment=pointer.shortname)
         ]

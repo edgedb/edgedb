@@ -447,6 +447,9 @@ CREATE CONCEPT schema::LinkProperty INHERITING
         (schema::PrimaryClass, schema::ConsistencySubject, schema::Pointer);
 
 
+CREATE LINK schema::target INHERITING schema::typeref;
+
+
 ALTER CONCEPT schema::Pointer {
     CREATE LINK schema::source TO schema::Source;
     CREATE LINK schema::target TO schema::Node;

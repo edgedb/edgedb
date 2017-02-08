@@ -400,6 +400,7 @@ class TestIntrospection(tb.QueryTestCase):
                 {'name': 'test::spent_time'},
                 {'name': 'test::start_date'},
                 {'name': 'test::status'},
+                {'name': 'test::tags'},
                 {'name': 'test::time_estimate'},
                 {'name': 'test::time_spent_log'},
                 {'name': 'test::title'},

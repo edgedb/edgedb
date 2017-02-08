@@ -382,7 +382,7 @@ def _field_to_column(field):
     if field.name in {'type', 'returntype'}:
         coltype = 'edgedb.type_t'
 
-    elif issubclass(ftype, s_obj.Collection):
+    elif issubclass(ftype, (s_obj.Collection, s_obj.NodeClass)):
         coltype = 'edgedb.type_t'
 
     elif issubclass(ftype, s_obj.Class):
@@ -625,7 +625,8 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
 
                     ftype = field.type[0]
                     if issubclass(ftype,
-                                  (s_obj.Class, s_obj.ClassCollection,
+                                  (s_obj.Class, s_obj.NodeClass,
+                                   s_obj.ClassCollection,
                                    s_obj.ArgDict, s_expr.ExpressionDict,
                                    s_expr.ExpressionList, s_obj.StringList,
                                    list, dict)):
@@ -696,7 +697,7 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
         # This is a hack since there is no way
         # to indicate that something is either
         # a Class or a Collection.
-        if pn.name == 'type':
+        if pn.name in {'type', 'target'}:
             link_query = '''
                 SELECT
                     id          AS {src},
@@ -704,12 +705,14 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
                         (t.{refattr}).collection IS NOT NULL
                         THEN (t.{refattr}).subtypes[0]
                         ELSE (t.{refattr}).type
-                    END)        AS {tgt}
+                    END)        AS {tgt},
+                    (t.{refattr}).collection AS {collprop}
                 FROM
                     {schematab} AS t
             '''.format(
                 schematab='edgedb.{}'.format(mcls.__name__),
                 refattr=q(pn.name),
+                collprop=dbname(sn.Name('schema::collection')),
                 src=dbname(sn.Name('std::source')),
                 tgt=dbname(sn.Name('std::target')),
             )

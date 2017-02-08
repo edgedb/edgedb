@@ -665,19 +665,19 @@ class ClassRef(Class):
     __str__ = __repr__
 
 
-class NodeClass:
+class NodeClass(Class):
     @classmethod
     def compare_values(cls, ours, theirs, context, compcoef):
-        if isinstance(ours, Collection) or isinstance(theirs, Collection):
+        if (ours is None) != (theirs is None):
+            return compcoef
+        elif ours is None:
+            return 1.0
+        else:
             return ours.__class__.compare_values(
                 ours, theirs, context, compcoef)
-        elif ours != theirs:
-            return compcoef
-        else:
-            return 1.0
 
 
-class Collection(Class, NodeClass):
+class Collection(NodeClass):
     element_type = Field(Class)
 
     @property

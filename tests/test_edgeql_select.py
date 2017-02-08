@@ -129,7 +129,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             status := (SELECT Status WHERE Status.name = 'Closed'),
             related_to := (
                 SELECT I WHERE I.number = '3'
-            )
+            ),
+            tags := ['regression', 'lexer']
         };
 
         # NOTE: UPDATE Users for testing the link properties

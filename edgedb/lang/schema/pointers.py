@@ -163,14 +163,17 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
         if referrer_ctx is not None:
             for ap in self.get_subcommands(type=sd.AlterClassProperty):
                 if ap.property == 'target':
-                    self.scls.target = \
-                        schema.get(ap.new_value.classname)
+                    if isinstance(ap.new_value, so.ClassRef):
+                        self.scls.target = \
+                            schema.get(ap.new_value.classname)
+                    else:
+                        self.scls.target = ap.new_value
                     break
 
 
 class BasePointer(primary.PrimaryClass, derivable.DerivableClass):
     source = so.Field(primary.PrimaryClass, None, compcoef=0.933)
-    target = so.Field(primary.PrimaryClass, None, compcoef=0.833)
+    target = so.Field(so.NodeClass, None, compcoef=0.833)
 
     def get_near_endpoint(self, direction):
         return (self.source if direction == PointerDirection.Outbound

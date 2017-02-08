@@ -305,8 +305,7 @@ class IRCompilerDMLSupport:
                     with self.context.new():
                         insvalue = pgast.TypeCast(
                             arg=self.visit(insvalue),
-                            type_name=pgast.TypeName(
-                                name=ptr_info.column_type))
+                            type_name=self._type_node(ptr_info.column_type))
 
                         values.args.append(insvalue)
 
@@ -367,8 +366,7 @@ class IRCompilerDMLSupport:
 
                     updvalue = pgast.TypeCast(
                         arg=self.visit(updvalue),
-                        type_name=pgast.TypeName(
-                            name=ptr_info.column_type))
+                        type_name=self._type_node(ptr_info.column_type))
 
                     update_stmt.targets.append(
                         pgast.UpdateTarget(

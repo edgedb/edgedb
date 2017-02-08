@@ -671,7 +671,10 @@ class Link(pointers.Pointer, sources.Source):
     def atomic(self):
         assert not self.generic(), \
             "atomicity is not determined for generic links"
-        return isinstance(self.target, atoms.Atom)
+        return (
+            isinstance(self.target, atoms.Atom) or
+            isinstance(self.target, so.Collection)
+        )
 
     def has_user_defined_properties(self):
         return bool([p for p in self.pointers.values()

@@ -202,6 +202,17 @@ class DeclarationLoader:
             raise TypeError('ObjectName expected '
                             '(got type {!r})'.format(type(ref).__name__))
 
+    def _get_ref_type(self, ref):
+        clsname = self._get_ref_name(ref)
+        if ref.subtypes:
+            subtypes = [self._get_ref_type(s) for s in ref.subtypes]
+            ccls = s_obj.Collection.get_class(clsname)
+            typ = ccls.from_subtypes(subtypes)
+        else:
+            typ = self._schema.get(clsname, module_aliases=self._mod_aliases)
+
+        return typ
+
     def _get_literal_value(self, node):
         if not isinstance(node, s_ast.Literal):
             raise TypeError('Literal expected '
@@ -333,9 +344,7 @@ class DeclarationLoader:
                 prop_qname = prop_base.name
 
             if propdecl.target is not None:
-                target_name = self._get_ref_name(propdecl.target[0])
-                prop_target = self._schema.get(
-                    target_name, module_aliases=self._mod_aliases)
+                prop_target = self._get_ref_type(propdecl.target[0])
 
             elif not link.generic():
                 link_base = link.bases[0]
@@ -514,27 +523,23 @@ class DeclarationLoader:
 
                 if isinstance(linkdecl.target, edgeql.ast.SelectQuery):
                     # This is a computable, but we cannot interpret
-                    # the expression yet, so set the target to none
+                    # the expression yet, so set the target to `any`
                     # temporarily.
-                    _tnames = ['std::any']
+                    _targets = [self._schema.get('std::any')]
 
                 elif isinstance(linkdecl.target, list):
-                    _tnames = [self._get_ref_name(t) for t in linkdecl.target]
+                    _targets = [self._get_ref_type(t) for t in linkdecl.target]
                 else:
-                    _tnames = [self._get_ref_name(linkdecl.target)]
+                    _targets = [self._get_ref_type(linkdecl.target)]
 
-                if len(_tnames) == 1:
+                if len(_targets) == 1:
                     # Usual case, just one target
                     spectargets = []
-                    target = self._schema.get(_tnames[0],
-                                              module_aliases=self._mod_aliases)
+                    target = _targets[0]
                 else:
                     # Multiple explicit targets, create common virtual
                     # parent and use it as target.
-                    spectargets = s_obj.ClassSet(
-                        self._schema.get(t, module_aliases=self._mod_aliases)
-                        for t in _tnames)
-
+                    spectargets = s_obj.ClassSet(_targets)
                     target = link_base.get_common_target(
                         self._schema, spectargets)
                     if not self._schema.get(target.name, default=None):

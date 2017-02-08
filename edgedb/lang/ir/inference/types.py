@@ -134,7 +134,8 @@ def __infer_set_or_shape(ir, schema):
 
 @_infer_type.register(irast.FunctionCall)
 def __infer_func_call(ir, schema):
-    result = ir.func.returntype
+    rtype = ir.func.returntype
+    result = rtype
 
     def is_polymorphic(t):
         if isinstance(t, s_obj.Collection):
@@ -148,6 +149,10 @@ def __infer_func_call(ir, schema):
         for i, arg in enumerate(ir.args):
             if is_polymorphic(ir.func.paramtypes[i]):
                 result = infer_type(arg, schema)
+                if isinstance(rtype, s_obj.Collection):
+                    stypes = list(rtype.get_subtypes())
+                    stypes[-1] = result
+                    result = rtype.from_subtypes(stypes)
                 break
 
     return result
