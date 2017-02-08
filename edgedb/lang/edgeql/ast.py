@@ -113,7 +113,7 @@ class Ptr(Base):
 
 class TypeName(Expr):
     maintype: Expr
-    subtypes: list
+    subtypes: typing.List[ClassRef]
 
 
 class TypeFilter(Expr):
