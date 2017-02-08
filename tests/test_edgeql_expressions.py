@@ -202,7 +202,7 @@ class TestExpressions(tb.QueryTestCase):
                     Issue {
                         test::number
                     }
-                WHERE
+                FILTER
                     %s = 'Elvis';
             ''' % (case,))
 

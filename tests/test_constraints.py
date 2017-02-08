@@ -163,12 +163,13 @@ class TestConstraintsSchema(tb.QueryTestCase):
                                         'name violates unique constraint'):
                 await self.con.execute("""
                     UPDATE
-                        test::UniqueNameInherited {
-                            name := 'unique_name_ok'
-                        }
-                    WHERE
+                        test::UniqueNameInherited
+                    FILTER
                         test::UniqueNameInherited.name =
-                            'unique_name_inherited_ok';
+                            'unique_name_inherited_ok'
+                    SET {
+                        name := 'unique_name_ok'
+                    };
                 """)
 
     async def test_constraints_unique_case_insensitive(self):

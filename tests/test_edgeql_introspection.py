@@ -28,7 +28,7 @@ class TestIntrospection(tb.QueryTestCase):
             SELECT `Concept` {
                 name
             }
-            WHERE `Concept`.name LIKE 'test::%'
+            FILTER `Concept`.name LIKE 'test::%'
             ORDER BY `Concept`.name;
         """, [
             [
@@ -58,7 +58,7 @@ class TestIntrospection(tb.QueryTestCase):
                     name,
                 } ORDER BY `Concept`.links.name
             }
-            WHERE `Concept`.name = 'test::User';
+            FILTER `Concept`.name = 'test::User';
         """, [
             [{
                 'name': 'test::User',
@@ -85,7 +85,7 @@ class TestIntrospection(tb.QueryTestCase):
                     name,
                 } ORDER BY `Concept`.links.name
             }
-            WHERE `Concept`.name = 'test::Owned';
+            FILTER `Concept`.name = 'test::Owned';
         """, [
             [{
                 'name': 'test::Owned',
@@ -111,11 +111,11 @@ class TestIntrospection(tb.QueryTestCase):
                     attributes: {
                         name,
                         @value
-                    } WHERE `Concept`.links.attributes.name = 'stdattrs::name'
+                    } FILTER `Concept`.links.attributes.name = 'stdattrs::name'
                       ORDER BY `Concept`.links.attributes.name
                 } ORDER BY `Concept`.links.name
             }
-            WHERE `Concept`.name = 'test::User';
+            FILTER `Concept`.name = 'test::User';
         """, [
             [{
                 'name': 'test::User',
@@ -158,12 +158,12 @@ class TestIntrospection(tb.QueryTestCase):
                     attributes: {
                         name,
                         @value
-                    } WHERE EXISTS `Concept`.links.attributes@value
+                    } FILTER EXISTS `Concept`.links.attributes@value
                       ORDER BY `Concept`.links.attributes.name
-                } WHERE `Concept`.links.name LIKE 'test::%'
+                } FILTER `Concept`.links.name LIKE 'test::%'
                   ORDER BY `Concept`.links.name
             }
-            WHERE `Concept`.name = 'test::User';
+            FILTER `Concept`.name = 'test::User';
         """, [
             [{
                 'name': 'test::User',
@@ -208,11 +208,11 @@ class TestIntrospection(tb.QueryTestCase):
                     attributes: {
                         name,
                         @value
-                    } WHERE
+                    } FILTER
                         `Concept`.links.attributes.name LIKE '%mapping'
                 } ORDER BY `Concept`.links.name
             }
-            WHERE `Concept`.name LIKE '%Comment';
+            FILTER `Concept`.name LIKE '%Comment';
         """, [
             [{
                 'name': 'test::Comment',
@@ -269,7 +269,7 @@ class TestIntrospection(tb.QueryTestCase):
             SELECT `Concept` {
                 name,
             }
-            WHERE
+            FILTER
                 `Concept`.name LIKE 'test::%'
                 AND
                 `Concept`.links.attributes.name = 'stdattrs::mapping'
@@ -291,7 +291,7 @@ class TestIntrospection(tb.QueryTestCase):
             SELECT `Concept` {
                 name,
             }
-            WHERE
+            FILTER
                 `Concept`.name LIKE 'test::%'
                 AND
                 `Concept`.links.attributes.name = 'stdattrs::mapping'
@@ -311,7 +311,7 @@ class TestIntrospection(tb.QueryTestCase):
             SELECT `Concept` {
                 name,
             }
-            WHERE
+            FILTER
                 `Concept`.name LIKE 'test::%'
                 AND
                 `Concept`.<target[IS `Link`].attributes.name =
@@ -334,7 +334,7 @@ class TestIntrospection(tb.QueryTestCase):
                     name,
                 } ORDER BY `Link`.link_properties.name
             }
-            WHERE
+            FILTER
                 `Link`.name = 'test::todo'
                 AND EXISTS `Link`.source;
         """, [
@@ -367,7 +367,7 @@ class TestIntrospection(tb.QueryTestCase):
             SELECT Class {
                 name
             }
-            WHERE Class.name ~ '^test::\w+$'
+            FILTER Class.name ~ '^test::\w+$'
             ORDER BY Class.name;
         """, [
             [
@@ -461,7 +461,7 @@ class TestIntrospection(tb.QueryTestCase):
                     SELECT SINGLETON std::count(`Concept`.<__class__)
                 )
             }
-            WHERE `Concept`.name LIKE 'test::%'
+            FILTER `Concept`.name LIKE 'test::%'
             ORDER BY `Concept`.name;
         """, [
             [

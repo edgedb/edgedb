@@ -33,7 +33,7 @@ class TestIndexes(tb.QueryTestCase):
                         expr
                     }
                 }
-            WHERE schema::Concept.name = 'test::Person';
+            FILTER schema::Concept.name = 'test::Person';
 
             INSERT test::Person {
                 first_name := 'Elon',
@@ -45,7 +45,7 @@ class TestIndexes(tb.QueryTestCase):
                 Person {
                     first_name
                 }
-            WHERE
+            FILTER
                 Person.first_name = 'Elon' AND Person.last_name = 'Musk';
             """)
 

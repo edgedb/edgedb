@@ -90,7 +90,7 @@ class TestInsert(tb.QueryTestCase):
                 test::InsertTest {
                     l2, l3
                 }
-            WHERE
+            FILTER
                 test::InsertTest.name = 'insert simple 01'
             ORDER BY
                 test::InsertTest.l2;
@@ -142,7 +142,7 @@ class TestInsert(tb.QueryTestCase):
             INSERT test::DefaultTest1 { foo := '02' };
 
             WITH MODULE test
-            SELECT DefaultTest1 { num } WHERE DefaultTest1.foo = '02';
+            SELECT DefaultTest1 { num } FILTER DefaultTest1.foo = '02';
         ''')
 
         self.assert_data_shape(
@@ -190,7 +190,7 @@ class TestInsert(tb.QueryTestCase):
                 l2 := 0,
                 subordinates := (
                     SELECT test::Subordinate
-                    WHERE test::Subordinate.name LIKE 'subtest%'
+                    FILTER test::Subordinate.name LIKE 'subtest%'
                 )
             };
 
@@ -200,7 +200,7 @@ class TestInsert(tb.QueryTestCase):
                     @comment,
                 } ORDER BY test::InsertTest.subordinates.name
             }
-            WHERE
+            FILTER
                 test::InsertTest.name = 'insert nested';
         ''')
 
@@ -240,7 +240,7 @@ class TestInsert(tb.QueryTestCase):
                     SELECT Subordinate {
                         @comment := (SELECT 'comment ' + Subordinate.name)
                     }
-                    WHERE Subordinate.name IN ('subtest 3', 'subtest 4')
+                    FILTER Subordinate.name IN ('subtest 3', 'subtest 4')
                 )
             };
 
@@ -251,7 +251,7 @@ class TestInsert(tb.QueryTestCase):
                     @comment,
                 } ORDER BY InsertTest.subordinates.name
             }
-            WHERE
+            FILTER
                 InsertTest.name = 'insert nested 2';
         ''')
 
@@ -288,7 +288,7 @@ class TestInsert(tb.QueryTestCase):
                     name
                 } ORDER BY InsertTest.subordinates.name
             }
-            WHERE
+            FILTER
                 InsertTest.name = 'insert nested 3';
         ''')
 
@@ -322,7 +322,7 @@ class TestInsert(tb.QueryTestCase):
                     @comment,
                 } ORDER BY InsertTest.subordinates.name
             }
-            WHERE
+            FILTER
                 InsertTest.name = 'insert nested 4';
         ''')
 
@@ -354,7 +354,7 @@ class TestInsert(tb.QueryTestCase):
                 l2 := 0,
                 subordinates := (
                     SELECT Subordinate
-                    WHERE Subordinate.name = 'only subordinate'
+                    FILTER Subordinate.name = 'only subordinate'
                 )
             };
 
@@ -365,7 +365,7 @@ class TestInsert(tb.QueryTestCase):
                 subordinates: {
                     name
                 }
-            } WHERE InsertTest.name = 'insert nested 5';
+            } FILTER InsertTest.name = 'insert nested 5';
         ''')
 
         self.assert_data_shape(
@@ -459,7 +459,7 @@ class TestInsert(tb.QueryTestCase):
                 l2 := 0,
                 subordinates := (
                     SELECT Subordinate
-                    WHERE Subordinate.name = 'sub returning 1'
+                    FILTER Subordinate.name = 'sub returning 1'
                 )
             } RETURNING InsertTest {
                 name,

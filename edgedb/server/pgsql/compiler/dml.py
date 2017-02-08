@@ -174,7 +174,10 @@ class IRCompilerDMLSupport:
         # context to ensure that the RETURNING clause potentially
         # referencing this class yields the expected results.
         overlays = ctx.rel_overlays[ir_stmt.shape.scls]
-        overlays.append(('union', dml_cte))
+        if isinstance(ir_stmt, irast.InsertStmt):
+            overlays.append(('union', dml_cte))
+        else:
+            overlays.append(('replace', dml_cte))
 
         # Finaly set the DML CTE as the source for paths originating
         # in its relation.

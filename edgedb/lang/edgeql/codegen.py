@@ -102,7 +102,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.indentation -= 1
 
         if node.source:
-            self.write(' FROM')
+            self.write(' FOR ', node.source_el, ' IN ')
             self.indentation += 1
             self.new_lines = 1
             self.visit(node.source)
@@ -129,18 +129,17 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.indentation -= 1
         self.new_lines = 1
 
-        if node.shape:
-            self.indentation += 1
-            self._visit_shape(node.shape)
-            self.indentation -= 1
-
         if node.where:
             self.new_lines = 1
-            self.write('WHERE')
+            self.write('FILTER')
             self.indentation += 1
             self.new_lines = 1
             self.visit(node.where)
             self.indentation -= 1
+
+        self.new_lines = 1
+        self.write('SET ')
+        self._visit_shape(node.shape)
 
         self._visit_returning(node)
         if parenthesise:
@@ -163,15 +162,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write('DELETE ')
         self.visit(node.subject, parenthesise=False)
 
-        if node.where:
-            self.write(' WHERE ')
-            self.visit(node.where)
         self._visit_returning(node)
         if parenthesise:
             self.write(')')
 
-    def visit_SelectQuery(self, node):
-        # need to parenthesise when SELECT appears as an expression
+    def visit_SelectQuery(self, node, *, parenthesise=False):
+        # XXX: need to parenthesise when SELECT appears as an expression,
+        # the actual passed value is ignored.
         #
         parenthesise = (isinstance(node.parent, edgeql_ast.Base) and
                         not isinstance(node.parent, edgeql_ast.DDL))
@@ -192,7 +189,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.new_lines = 1
         self.indentation -= 1
         if node.where:
-            self.write('WHERE')
+            self.write('FILTER')
             self.new_lines = 1
             self.indentation += 1
             self.visit(node.where)
@@ -250,7 +247,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_returning(node)
 
         if node.where:
-            self.write('WHERE')
+            self.write('FILTER')
             self.new_lines = 1
             self.indentation += 1
             self.visit(node.where)
@@ -438,7 +435,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self._visit_shape(node.elements)
 
         if node.where:
-            self.write(' WHERE ')
+            self.write(' FILTER ')
             self.visit(node.where)
 
         if node.orderby:
@@ -467,7 +464,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_EmptySet(self, node):
         self.write('EMPTY')
 
-    def visit_Constant(self, node):
+    def visit_Constant(self, node, *, parenthesise=False):
+        # XXX: parenthesise is ignored completely, but exists as a
+        # parameter for compatibility
+        #
         try:
             edgeql_repr = node.value.__mm_edgeql__
         except AttributeError:
@@ -497,7 +497,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.visit(arg)
 
         if node.agg_filter:
-            self.write(' WHERE ')
+            self.write(' FILTER ')
             self.visit(node.agg_filter)
 
         if node.agg_sort:

@@ -62,7 +62,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
         WITH MODULE test
         INSERT LogEntry {
-            owner := (SELECT User WHERE User.name = 'Elvis'),
+            owner := (SELECT User FILTER User.name = 'Elvis'),
             spent_time := 50000,
             body := 'Rewriting everything.'
         };
@@ -72,9 +72,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             number := '1',
             name := 'Release EdgeDB',
             body := 'Initial public release of EdgeDB.',
-            owner := (SELECT User WHERE User.name = 'Elvis'),
-            watchers := (SELECT User WHERE User.name = 'Yury'),
-            status := (SELECT Status WHERE Status.name = 'Open'),
+            owner := (SELECT User FILTER User.name = 'Elvis'),
+            watchers := (SELECT User FILTER User.name = 'Yury'),
+            status := (SELECT Status FILTER Status.name = 'Open'),
             time_spent_log := (SELECT LogEntry),
             time_estimate := 3000
         };
@@ -82,8 +82,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         WITH MODULE test
         INSERT Comment {
             body := 'EdgeDB needs to happen soon.',
-            owner := (SELECT User WHERE User.name = 'Elvis'),
-            issue := (SELECT Issue WHERE Issue.number = '1')
+            owner := (SELECT User FILTER User.name = 'Elvis'),
+            issue := (SELECT Issue FILTER Issue.number = '1')
         };
 
 
@@ -92,14 +92,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             number := '2',
             name := 'Improve EdgeDB repl output rendering.',
             body := 'We need to be able to render data in tabular format.',
-            owner := (SELECT User WHERE User.name = 'Yury'),
-            watchers := (SELECT User WHERE User.name = 'Elvis'),
-            status := (SELECT Status WHERE Status.name = 'Open'),
-            priority := (SELECT Priority WHERE Priority.name = 'High'),
+            owner := (SELECT User FILTER User.name = 'Yury'),
+            watchers := (SELECT User FILTER User.name = 'Elvis'),
+            status := (SELECT Status FILTER Status.name = 'Open'),
+            priority := (SELECT Priority FILTER Priority.name = 'High'),
             references :=
-                (SELECT URL WHERE URL.address = 'https://edgedb.com')
+                (SELECT URL FILTER URL.address = 'https://edgedb.com')
                 UNION
-                (SELECT File WHERE File.name = 'screenshot.png')
+                (SELECT File FILTER File.name = 'screenshot.png')
         };
 
         WITH
@@ -109,13 +109,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             number := '3',
             name := 'Repl tweak.',
             body := 'Minor lexer tweaks.',
-            owner := (SELECT User WHERE User.name = 'Yury'),
-            watchers := (SELECT User WHERE User.name = 'Elvis'),
-            status := (SELECT Status WHERE Status.name = 'Closed'),
+            owner := (SELECT User FILTER User.name = 'Yury'),
+            watchers := (SELECT User FILTER User.name = 'Elvis'),
+            status := (SELECT Status FILTER Status.name = 'Closed'),
             related_to := (
-                SELECT I WHERE I.number = '2'
+                SELECT I FILTER I.number = '2'
             ),
-            priority := (SELECT Priority WHERE Priority.name = 'Low')
+            priority := (SELECT Priority FILTER Priority.name = 'Low')
         };
 
         WITH
@@ -125,10 +125,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             number := '4',
             name := 'Regression.',
             body := 'Fix regression introduced by lexer tweak.',
-            owner := (SELECT User WHERE User.name = 'Elvis'),
-            status := (SELECT Status WHERE Status.name = 'Closed'),
+            owner := (SELECT User FILTER User.name = 'Elvis'),
+            status := (SELECT Status FILTER Status.name = 'Closed'),
             related_to := (
-                SELECT I WHERE I.number = '3'
+                SELECT I FILTER I.number = '3'
             ),
             tags := ['regression', 'lexer']
         };
@@ -136,13 +136,18 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         # NOTE: UPDATE Users for testing the link properties
         #
         WITH MODULE test
-        UPDATE User {
-            todo := (SELECT Issue WHERE Issue.number in ('1', '2'))
-        } WHERE User.name = 'Elvis';
+        UPDATE User
+        FILTER User.name = 'Elvis'
+        SET {
+            todo := (SELECT Issue FILTER Issue.number in ('1', '2'))
+        };
+
         WITH MODULE test
-        UPDATE User {
-            todo := (SELECT Issue WHERE Issue.number in ('3', '4'))
-        } WHERE User.name = 'Yury';
+        UPDATE User
+        FILTER User.name = 'Yury'
+        SET {
+            todo := (SELECT Issue FILTER Issue.number in ('3', '4'))
+        };
     """
 
     async def test_edgeql_select_computable01(self):
@@ -157,7 +162,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                             sum(Issue.time_spent_log.spent_time)
                     )
                 }
-            WHERE
+            FILTER
                 Issue.number = '1';
         ''', [
             [{
@@ -178,7 +183,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                             sum(Issue.time_spent_log.spent_time)
                     )
                 }
-            WHERE
+            FILTER
                 Issue.number = '1';
         ''', [
             [{
@@ -198,7 +203,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                             Text {
                                 body
                             }
-                        WHERE
+                        FILTER
                             Text[IS Owned].owner = User
                         ORDER BY
                             len(Text.body) ASC
@@ -206,7 +211,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                             1
                     ),
                 }
-            WHERE User.name = 'Elvis';
+            FILTER User.name = 'Elvis';
         ''', [
             [{
                 'name': 'Elvis',
@@ -237,7 +242,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         body
                     }
                 }
-            WHERE User.name = 'Elvis';
+            FILTER User.name = 'Elvis';
         ''', [
             [{
                 'name': 'Elvis',
@@ -267,7 +272,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     shortest_own_text := (
                         SELECT SINGLETON
                             Text {body}
-                        WHERE
+                        FILTER
                             Text[IS Owned].owner = User
                         ORDER BY
                             len(Text.body) ASC
@@ -278,7 +283,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         body
                     },
                 }
-            WHERE User.name = 'Elvis';
+            FILTER User.name = 'Elvis';
         ''', [
             [{
                 'name': 'Elvis',
@@ -301,7 +306,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         SELECT SINGLETON
                             Text {body}
                         # a clause that references User and is always true
-                        WHERE
+                        FILTER
                             User IS User
                         ORDER
                             BY len(Text.body) ASC
@@ -309,7 +314,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                             1
                     ),
                 }
-            WHERE User.name = 'Elvis';
+            FILTER User.name = 'Elvis';
         ''', [
             [{
                 'name': 'Elvis',
@@ -328,11 +333,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     # ad-hoc computable with many results
                     special_texts := (
                         SELECT Text {body}
-                        WHERE Text[IS Owned].owner != User
+                        FILTER Text[IS Owned].owner != User
                         ORDER BY len(Text.body) DESC
                     ),
                 }
-            WHERE User.name = 'Elvis';
+            FILTER User.name = 'Elvis';
         ''', [
             [{
                 'name': 'Elvis',
@@ -362,7 +367,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                             name
                         }
                     }
-                    WHERE len(Issue.status.name) = len(User.name)
+                    FILTER len(Issue.status.name) = len(User.name)
                     ORDER BY Issue.number DESC
                     LIMIT 1
                 )
@@ -423,7 +428,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 # use shorthand with some simple operations
                 foo := <int>Issue.number + 10,
             }
-            WHERE Issue.number = '1';
+            FILTER Issue.number = '1';
             """, [
             [{
                 'name': 'Release EdgeDB',
@@ -491,21 +496,21 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT
                 Issue {number}
-            WHERE
+            FILTER
                 Issue.name LIKE '%edgedb'
             ORDER BY Issue.number;
 
             WITH MODULE test
             SELECT
                 Issue {number}
-            WHERE
+            FILTER
                 Issue.name LIKE '%EdgeDB'
             ORDER BY Issue.number;
 
             WITH MODULE test
             SELECT
                 Issue {number}
-            WHERE
+            FILTER
                 Issue.name LIKE '%Edge%'
             ORDER BY Issue.number;
         """, [
@@ -519,21 +524,21 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT
                 Issue {number}
-            WHERE
+            FILTER
                 Issue.name NOT LIKE '%edgedb'
             ORDER BY Issue.number;
 
             WITH MODULE test
             SELECT
                 Issue {number}
-            WHERE
+            FILTER
                 Issue.name NOT LIKE '%EdgeDB'
             ORDER BY Issue.number;
 
             WITH MODULE test
             SELECT
                 Issue {number}
-            WHERE
+            FILTER
                 Issue.name NOT LIKE '%Edge%'
             ORDER BY Issue.number;
         """, [
@@ -548,21 +553,21 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT
                 Issue {number}
-            WHERE
+            FILTER
                 Issue.name ILIKE '%edgedb'
             ORDER BY Issue.number;
 
             WITH MODULE test
             SELECT
                 Issue {number}
-            WHERE
+            FILTER
                 Issue.name ILIKE '%EdgeDB'
             ORDER BY Issue.number;
 
             WITH MODULE test
             SELECT
                 Issue {number}
-            WHERE
+            FILTER
                 Issue.name ILIKE '%re%'
             ORDER BY Issue.number;
         """, [
@@ -577,21 +582,21 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT
                 Issue {number}
-            WHERE
+            FILTER
                 Issue.name NOT ILIKE '%edgedb'
             ORDER BY Issue.number;
 
             WITH MODULE test
             SELECT
                 Issue {number}
-            WHERE
+            FILTER
                 Issue.name NOT ILIKE '%EdgeDB'
             ORDER BY Issue.number;
 
             WITH MODULE test
             SELECT
                 Issue {number}
-            WHERE
+            FILTER
                 Issue.name NOT ILIKE '%re%'
             ORDER BY Issue.number;
         """, [
@@ -605,14 +610,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT
                 Issue {number}
-            WHERE
+            FILTER
                 Issue.name @@ 'edgedb'
             ORDER BY Issue.number;
 
             WITH MODULE test
             SELECT
                 Issue {number}
-            WHERE
+            FILTER
                 Issue.body @@ 'need'
             ORDER BY Issue.number;
         """, [
@@ -626,14 +631,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT
                 Issue {number}
-            WHERE
+            FILTER
                 Issue.name @@ to_tsquery('edgedb & repl')
             ORDER BY Issue.number;
 
             WITH MODULE test
             SELECT
                 Issue {number}
-            WHERE
+            FILTER
                 Issue.name @@ to_tsquery('edgedb | repl')
             ORDER BY Issue.number;
         """, [
@@ -646,21 +651,21 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT
                 Text {body}
-            WHERE
+            FILTER
                 Text.body ~ 'ed'
             ORDER BY Text.body;
 
             WITH MODULE test
             SELECT
                 Text {body}
-            WHERE
+            FILTER
                 Text.body ~ 'eD'
             ORDER BY Text.body;
 
             WITH MODULE test
             SELECT
                 Text {body}
-            WHERE
+            FILTER
                 Text.body ~ 'ed([S\s]|$)'
             ORDER BY Text.body;
         """, [
@@ -678,21 +683,21 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT
                 Text {body}
-            WHERE
+            FILTER
                 Text.body ~* 'ed'
             ORDER BY Text.body;
 
             WITH MODULE test
             SELECT
                 Text {body}
-            WHERE
+            FILTER
                 Text.body ~* 'eD'
             ORDER BY Text.body;
 
             WITH MODULE test
             SELECT
                 Text {body}
-            WHERE
+            FILTER
                 Text.body ~* 'ed([S\s]|$)'
             ORDER BY Text.body;
         """, [
@@ -719,7 +724,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         name
                     }
                 }
-            WHERE
+            FILTER
                 Issue.number = '1';
         ''', [
             [{
@@ -763,7 +768,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT `Concept` {
                 name,
                 id,
-            } WHERE `Concept`.name = 'test::User';
+            } FILTER `Concept`.name = 'test::User';
         ''')
 
         self.assert_data_shape(res1[0][0]['__class__'], res2[0][0])
@@ -780,7 +785,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         number,
                     },
                 }
-            WHERE
+            FILTER
                 Issue.number = '2';
 
             WITH MODULE test
@@ -789,7 +794,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     number,
                     <related_to *1
                 }
-            WHERE
+            FILTER
                 Issue.number = '2';
         ''', [
             [{
@@ -974,7 +979,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 <owner: LogEntry {
                     body
                 },
-            } WHERE User.name = 'Elvis';
+            } FILTER User.name = 'Elvis';
         ''', [
             [{
                 'name': 'Elvis',
@@ -991,8 +996,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 name,
                 <owner: Issue {
                     number
-                } WHERE <int>(User.<owner[IS Issue].number) < 3,
-            } WHERE User.name = 'Elvis';
+                } FILTER <int>(User.<owner[IS Issue].number) < 3,
+            } FILTER User.name = 'Elvis';
         ''', [
             [{
                 'name': 'Elvis',
@@ -1009,7 +1014,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 number,
                 related_to: {
                     number
-                } WHERE Issue.related_to.owner = Issue.owner,
+                } FILTER Issue.related_to.owner = Issue.owner,
             } ORDER BY Issue.number;
         ''', [
             [{
@@ -1036,7 +1041,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 name,
                 <owner: Issue {
                     number
-                } WHERE EXISTS User.<owner[IS Issue].related_to,
+                } FILTER EXISTS User.<owner[IS Issue].related_to,
             } ORDER BY User.name;
         ''', [
             [{
@@ -1084,7 +1089,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT
                 Text {body}
-            WHERE Text IS Comment
+            FILTER Text IS Comment
             ORDER BY Text.body;
         ''', [
             [
@@ -1097,7 +1102,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT
                 Text {body}
-            WHERE Text IS NOT (Comment, Issue)
+            FILTER Text IS NOT (Comment, Issue)
             ORDER BY Text.body;
         ''', [
             [
@@ -1110,7 +1115,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT
                 Text {body}
-            WHERE Text IS Issue AND Text[IS Issue].number = '1'
+            FILTER Text IS Issue AND Text[IS Issue].number = '1'
             ORDER BY Text.body;
         ''', [
             [
@@ -1286,7 +1291,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT Issue{number}
             # issue where the owner also has a comment with non-empty body
-            WHERE Issue.owner.<owner[IS Comment].body != ''
+            FILTER Issue.owner.<owner[IS Comment].body != ''
             ORDER BY Issue.number;
         ''', [
             [{'number': '1'}, {'number': '4'}],
@@ -1297,7 +1302,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT Issue{number}
             # issue where the owner also has a comment to it
-            WHERE Issue.owner.<owner[IS Comment].issue = Issue;
+            FILTER Issue.owner.<owner[IS Comment].issue = Issue;
         ''', [
             [{'number': '1'}],
         ])
@@ -1314,7 +1319,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 status: {
                     name
                 }
-            } WHERE len(Issue.status.name) = 4
+            } FILTER len(Issue.status.name) = 4
             ORDER BY Issue.number;
             ''', [
             [{
@@ -1363,7 +1368,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     @paramnum,
                     @paramvariadic
                 }
-            } WHERE schema::Function.name = 'test::concat1';
+            } FILTER schema::Function.name = 'test::concat1';
         ''', [
             [{'params': [
                 {
@@ -1407,7 +1412,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     @paramname,
                     @paramvariadic
                 } ORDER BY schema::Function.params@paramnum ASC
-            } WHERE schema::Function.name = 'test::concat3';
+            } FILTER schema::Function.name = 'test::concat3';
         ''', [
             [{'params': [
                 {
@@ -1478,7 +1483,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue {
                     number
                 }
-            WHERE
+            FILTER
                 NOT EXISTS Issue.time_estimate
             ORDER BY
                 Issue.number;
@@ -1488,7 +1493,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue {
                     number
                 }
-            WHERE
+            FILTER
                 EXISTS Issue.time_estimate
             ORDER BY
                 Issue.number;
@@ -1504,7 +1509,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue {
                     number
                 }
-            WHERE
+            FILTER
                 NOT EXISTS (Issue.<issue[IS Comment])
             ORDER BY
                 Issue.number;
@@ -1519,7 +1524,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue {
                     number
                 }
-            WHERE
+            FILTER
                 NOT EXISTS (SELECT Issue.<issue[IS Comment])
             ORDER BY
                 Issue.number;
@@ -1534,7 +1539,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue {
                     number
                 }
-            WHERE
+            FILTER
                 EXISTS (Issue.<issue[IS Comment])
             ORDER BY
                 Issue.number;
@@ -1546,7 +1551,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 EXISTS Issue.priority           # has Priority [2, 3]
             ORDER BY Issue.number;
         ''', [
@@ -1559,7 +1564,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 EXISTS Issue.priority.id        # has Priority [2, 3]
             ORDER BY Issue.number;
         ''', [
@@ -1570,7 +1575,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 EXISTS Issue.<issue             # has Comment [1]
             ORDER BY Issue.number;
         ''', [
@@ -1583,7 +1588,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 EXISTS Issue.<issue.id          # has Comment [1]
             ORDER BY Issue.number;
         ''', [
@@ -1594,7 +1599,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 NOT EXISTS Issue.priority       # has no Priority [1, 4]
             ORDER BY Issue.number;
         ''', [
@@ -1607,7 +1612,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 NOT EXISTS Issue.priority.id    # has no Priority [1, 4]
             ORDER BY Issue.number;
         ''', [
@@ -1618,7 +1623,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 NOT EXISTS Issue.<issue         # has no Comment [2, 3, 4]
             ORDER BY Issue.number;
         ''', [
@@ -1631,7 +1636,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 NOT EXISTS Issue.<issue.id      # has no Comment [2, 3, 4]
             ORDER BY Issue.number;
         ''', [
@@ -1643,7 +1648,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT Issue{number}
             # issue where the owner also has a comment
-            WHERE EXISTS Issue.owner.<owner[IS Comment]
+            FILTER EXISTS Issue.owner.<owner[IS Comment]
             ORDER BY Issue.number;
         ''', [
             [{'number': '1'}, {'number': '4'}],
@@ -1654,10 +1659,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT Issue{number}
             # issue where the owner also has a comment to it
-            WHERE
+            FILTER
                 EXISTS (
                     SELECT Comment
-                    WHERE
+                    FILTER
                         Comment.owner = Issue.owner
                         AND
                         Comment.issue = Issue
@@ -1674,10 +1679,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT Issue{number}
             # issue where the owner also has a comment, but not to the
             # issue itself
-            WHERE
+            FILTER
                 EXISTS (
                     SELECT Comment
-                    WHERE
+                    FILTER
                         Comment.owner = Issue.owner
                         AND
                         Comment.issue != Issue
@@ -1694,10 +1699,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT Issue{number}
             # issue where the owner also has a comment, but not to the
             # issue itself
-            WHERE
+            FILTER
                 EXISTS (
                     SELECT Comment
-                    WHERE
+                    FILTER
                         Comment.owner = Issue.owner
                         AND
                         Comment.issue.id != Issue.id
@@ -1714,10 +1719,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT Issue{number}
             # issue where the owner also has a comment, but not to the
             # issue itself
-            WHERE
+            FILTER
                 EXISTS (
                     SELECT Comment
-                    WHERE
+                    FILTER
                         Comment.owner = Issue.owner
                         AND
                         NOT Comment.issue = Issue
@@ -1765,7 +1770,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Text[IS Issue].name
-            WHERE Text.body @@ 'EdgeDB'
+            FILTER Text.body @@ 'EdgeDB'
             ORDER BY Text[IS Issue].name;
         ''', [
             ['Release EdgeDB']
@@ -1775,7 +1780,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 EXISTS Issue.priority           # has Priority [2, 3]
                 AND
                 EXISTS Issue.<issue             # has Comment [1]
@@ -1788,7 +1793,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 EXISTS Issue.priority.id        # has Priority [2, 3]
                 AND
                 EXISTS Issue.<issue             # has Comment [1]
@@ -1801,7 +1806,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 NOT EXISTS Issue.priority       # has no Priority [1, 4]
                 AND
                 NOT EXISTS Issue.<issue         # has no Comment [2, 3, 4]
@@ -1814,7 +1819,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 NOT EXISTS Issue.priority.id    # has no Priority [1, 4]
                 AND
                 NOT EXISTS Issue.<issue         # has no Comment [2, 3, 4]
@@ -1827,7 +1832,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 NOT EXISTS Issue.priority       # has no Priority [1, 4]
                 AND
                 EXISTS Issue.<issue             # has Comment [1]
@@ -1840,7 +1845,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 NOT EXISTS Issue.priority       # has no Priority [1, 4]
                 AND
                 EXISTS Issue.<issue.id          # has Comment [1]
@@ -1853,7 +1858,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 EXISTS Issue.priority           # has Priority [2, 3]
                 AND
                 NOT EXISTS Issue.<issue         # has no Comment [2, 3, 4]
@@ -1866,7 +1871,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 EXISTS Issue.priority           # has Priority [2, 3]
                 AND
                 NOT EXISTS Issue.<issue.id      # has no Comment [2, 3, 4]
@@ -1879,13 +1884,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         res = await self.con.execute(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 Issue.priority.name = 'High'
             ORDER BY Issue.number;
 
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 Issue.priority.name = 'Low'
             ORDER BY Issue.number;
         ''')
@@ -1895,7 +1900,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         res = await self.con.execute(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 Issue.priority.name = 'High'
                 OR
                 Issue.priority.name = 'Low'
@@ -1910,13 +1915,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         res = await self.con.execute(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 Issue.priority.name = 'High'
             ORDER BY Issue.number;
 
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 NOT EXISTS Issue.priority
             ORDER BY Issue.number;
         ''')
@@ -1926,7 +1931,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         res = await self.con.execute(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 Issue.priority.name = 'High'
                 OR
                 NOT EXISTS Issue.priority.name
@@ -1934,7 +1939,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 Issue.priority.name = 'High'
                 OR
                 NOT EXISTS Issue.priority.id
@@ -1950,13 +1955,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         res = await self.con.execute(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 Issue.priority.name = 'High'
             ORDER BY Issue.number;
 
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 NOT EXISTS Issue.priority
             ORDER BY Issue.number;
         ''')
@@ -1966,7 +1971,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         res = await self.con.execute(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 Issue.priority.name = 'High'
                 OR
                 NOT EXISTS Issue.priority
@@ -1981,7 +1986,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 Issue.priority.name = 'High'
                 OR
                 Issue.status.name = 'Closed'
@@ -1989,7 +1994,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 Issue.priority.name = 'High'
                 OR
                 Issue.priority.name = 'Low'
@@ -1999,7 +2004,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 Issue.priority.name IN ('High', 'Low')
                 OR
                 Issue.status.name = 'Closed'
@@ -2015,7 +2020,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 NOT EXISTS Issue.priority.id
                 OR
                 Issue.status.name = 'Closed'
@@ -2024,7 +2029,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             # should be identical
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 NOT EXISTS Issue.priority
                 OR
                 Issue.status.name = 'Closed'
@@ -2038,7 +2043,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 EXISTS Issue.priority           # has Priority [2, 3]
                 OR
                 EXISTS Issue.<issue             # has Comment [1]
@@ -2051,7 +2056,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 EXISTS Issue.priority.id        # has Priority [2, 3]
                 OR
                 EXISTS Issue.<issue             # has Comment [1]
@@ -2064,7 +2069,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 NOT EXISTS Issue.priority       # has no Priority [1, 4]
                 OR
                 NOT EXISTS Issue.<issue         # has no Comment [2, 3, 4]
@@ -2078,7 +2083,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 NOT EXISTS Issue.priority.id    # has no Priority [1, 4]
                 OR
                 NOT EXISTS Issue.<issue         # has no Comment [2, 3, 4]
@@ -2092,7 +2097,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 NOT EXISTS Issue.priority       # has no Priority [1, 4]
                 OR
                 EXISTS Issue.<issue             # has Comment [1]
@@ -2105,7 +2110,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 NOT EXISTS Issue.priority       # has no Priority [1, 4]
                 OR
                 EXISTS Issue.<issue.id          # has Comment [1]
@@ -2118,7 +2123,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 EXISTS Issue.priority           # has Priority [2, 3]
                 OR
                 NOT EXISTS Issue.<issue         # has no Comment [2, 3, 4]
@@ -2131,7 +2136,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 EXISTS Issue.priority           # has Priority [2, 3]
                 OR
                 NOT EXISTS Issue.<issue.id      # has no Comment [2, 3, 4]
@@ -2146,7 +2151,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             #
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 Issue.status.name = 'Closed'
                 OR
                 Issue.number = '2'
@@ -2163,7 +2168,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             #
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 (
                     # Issues 2, 3, 4 satisfy this subclause
                     Issue.status.name = 'Closed'
@@ -2186,12 +2191,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE NOT Issue.priority.name = 'High'
+            FILTER NOT Issue.priority.name = 'High'
             ORDER BY Issue.number;
 
             WITH MODULE test
             SELECT Issue{number}
-            WHERE Issue.priority.name != 'High'
+            FILTER Issue.priority.name != 'High'
             ORDER BY Issue.number;
        ''', [
             [{'number': '3'}],
@@ -2203,12 +2208,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE NOT NOT NOT Issue.priority.name = 'High'
+            FILTER NOT NOT NOT Issue.priority.name = 'High'
             ORDER BY Issue.number;
 
             WITH MODULE test
             SELECT Issue{number}
-            WHERE NOT NOT Issue.priority.name != 'High'
+            FILTER NOT NOT Issue.priority.name != 'High'
             ORDER BY Issue.number;
        ''', [
             [{'number': '3'}],
@@ -2220,7 +2225,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 NOT (
                     NOT Issue.priority.name = 'High'
                     AND
@@ -2242,18 +2247,18 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_null02(self):
         await self.assert_query_result(r"""
-            # the WHERE clause is always EMPTY, so it can never be true
+            # the FILTER clause is always EMPTY, so it can never be true
             WITH MODULE test
             SELECT Issue{number}
-            WHERE Issue.number = EMPTY;
+            FILTER Issue.number = EMPTY;
 
             WITH MODULE test
             SELECT Issue{number}
-            WHERE Issue.priority = EMPTY;
+            FILTER Issue.priority = EMPTY;
 
             WITH MODULE test
             SELECT Issue{number}
-            WHERE Issue.priority.name = EMPTY;
+            FILTER Issue.priority.name = EMPTY;
             """, [
             [],
             [],
@@ -2318,14 +2323,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 Issue.number IN ('2', '3', '4')
                 AND
                 EXISTS (
                     # due to common prefix, the Issue referred to here is
                     # the same Issue as in the LHS of AND, therefore
                     # this condition can never be true
-                    SELECT Issue WHERE Issue.number IN ('1', '6')
+                    SELECT Issue FILTER Issue.number IN ('1', '6')
                 );
             """, [
             [],
@@ -2335,13 +2340,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             WITH
                 MODULE test,
-                sub := (SELECT Issue WHERE Issue.number IN ('1', '6'))
+                sub := (SELECT Issue FILTER Issue.number IN ('1', '6'))
             SELECT Issue{number}
-            WHERE
+            FILTER
                 Issue.number IN ('2', '3', '4')
                 AND
                 EXISTS (
-                    (SELECT sub WHERE sub = Issue)
+                    (SELECT sub FILTER sub = Issue)
                 );
             """, [
             [],
@@ -2354,12 +2359,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 sub := (
                     SELECT
                         Issue
-                    WHERE
+                    FILTER
                         Issue.number IN ('1', '6')
                 )
             SELECT
                 Issue{number}
-            WHERE
+            FILTER
                 Issue.number IN ('2', '3', '4')
                 AND
                 EXISTS sub;
@@ -2378,7 +2383,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue {
                     number
                 }
-            WHERE
+            FILTER
                 Issue != Issue2
                 AND
                 # NOTE: this condition is false when one of the sides is EMPTY
@@ -2400,7 +2405,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue {
                     number
                 }
-            WHERE
+            FILTER
                 Issue != Issue2
                 AND
                 (
@@ -2421,12 +2426,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             # issue watched by the same user as this one
             WITH MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 EXISTS Issue.watchers
                 AND
                 EXISTS (
                     SELECT User.<watchers
-                    WHERE
+                    FILTER
                         User = Issue.watchers
                         AND
                         User.<watchers != Issue
@@ -2442,12 +2447,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH
                 MODULE test
             SELECT Issue{number}
-            WHERE
+            FILTER
                 EXISTS Issue.watchers
                 AND
                 EXISTS (
                     SELECT Text
-                    WHERE
+                    FILTER
                         Text IS Issue
                         AND
                         Text[IS Issue].watchers = Issue.watchers
@@ -2502,10 +2507,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT Issue{
                 number,
             }
-            WHERE
+            FILTER
                 EXISTS (
                     SELECT Text
-                    WHERE
+                    FILTER
                         Text != Issue
                         AND
                         (len(Text.body) - len(Issue.body)) ^ 2 <= 25
@@ -2531,10 +2536,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 number,
                 body_length:= len(Issue.body)
             }
-            WHERE
+            FILTER
                 EXISTS (
                     SELECT Text
-                    WHERE
+                    FILTER
                         Text != Issue
                         AND
                         (len(Text.body) - len(Issue.body)) ^ 2 <= 25
@@ -2554,10 +2559,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             WITH MODULE test
             SELECT User{name}
-            WHERE
+            FILTER
                 EXISTS (
                     SELECT Comment
-                    WHERE
+                    FILTER
                         Comment.owner = User
                 );
             """, [
@@ -2573,19 +2578,19 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT Issue {
                 number
             }
-            WHERE
+            FILTER
                 EXISTS Issue.watchers AND
                 EXISTS (
                     SELECT
                         User.<watchers
-                    WHERE
+                    FILTER
                         # The User is among the watchers of this Issue
                         User = Issue.watchers AND
                         # and they also watch some other Issue other than this
                         User.<watchers[IS Issue] != Issue AND
                         # and they also have at least one comment
                         EXISTS (
-                            SELECT Comment WHERE Comment.owner = User
+                            SELECT Comment FILTER Comment.owner = User
                         )
                 )
             ORDER BY
@@ -2602,10 +2607,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             # testing IN and a subquery
             WITH MODULE test
             SELECT Comment{body}
-            WHERE
+            FILTER
                 Comment.owner IN (
                     SELECT User
-                    WHERE
+                    FILTER
                         User.name = 'Elvis'
                 );
             """, [
@@ -2617,13 +2622,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             # get a comment whose owner is part of the users who own Issue "1"
             WITH MODULE test
             SELECT Comment{body}
-            WHERE
+            FILTER
                 Comment.owner IN (
                     SELECT User
-                    WHERE
+                    FILTER
                         User.<owner IN (
                             SELECT Issue
-                            WHERE
+                            FILTER
                                 Issue.number = '1'
                         )
                 );
@@ -2639,7 +2644,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 (
                     SELECT User {
                         num_issues := count(User.<owner[IS Issue])
-                    } WHERE .name = 'Elvis'
+                    } FILTER .name = 'Elvis'
                 ).num_issues;
             """, [
             [2],
@@ -2653,7 +2658,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 U := (
                     SELECT User {
                         num_issues := count(User.<owner[IS Issue])
-                    } WHERE .name = 'Elvis'
+                    } FILTER .name = 'Elvis'
                 )
             SELECT
                 U.num_issues;
@@ -2669,9 +2674,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     WITH U2 := (SELECT User)
                     SELECT User {
                         friend := (
-                            SELECT SINGLETON U2 WHERE U2.name = 'Yury'
+                            SELECT SINGLETON U2 FILTER U2.name = 'Yury'
                         )
-                    } WHERE .name = 'Elvis'
+                    } FILTER .name = 'Elvis'
                 )
             SELECT
                 U.friend.name;
@@ -2688,9 +2693,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         issues := (
                             SELECT Issue {
                                 foo := random()
-                            } WHERE Issue.owner = User
+                            } FILTER Issue.owner = User
                         )
-                    } WHERE .name = 'Elvis'
+                    } FILTER .name = 'Elvis'
                 )
             SELECT
                 U.issues.foo;
@@ -2703,10 +2708,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             # Reference multiple views.
             WITH MODULE test,
                 U := (
-                    SELECT User WHERE User.name = 'Elvis'
+                    SELECT User FILTER User.name = 'Elvis'
                 ),
                 I := (
-                    SELECT Issue WHERE Issue.number = '1'
+                    SELECT Issue FILTER Issue.number = '1'
                 )
             SELECT
                 I.owner = U;
@@ -2719,10 +2724,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             # Reference another view from a view.
             WITH MODULE test,
                 U := (
-                    SELECT User WHERE User.name = 'Elvis'
+                    SELECT User FILTER User.name = 'Elvis'
                 ),
                 I := (
-                    SELECT Issue WHERE Issue.owner = U
+                    SELECT Issue FILTER Issue.owner = U
                 )
             SELECT
                 I.number
@@ -2737,14 +2742,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             # A combination of the above two.
             WITH MODULE test,
                 U := (
-                    SELECT User WHERE User.name = 'Elvis'
+                    SELECT User FILTER User.name = 'Elvis'
                 ),
                 I := (
-                    SELECT Issue WHERE Issue.owner = U
+                    SELECT Issue FILTER Issue.owner = U
                 )
             SELECT
                 I
-            WHERE
+            FILTER
                 I.owner != U
             ORDER BY
                 I.number;
@@ -2761,9 +2766,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                      SELECT User {
                          friends := (
                              SELECT U2 { foo := U2.name + '!' }
-                             WHERE U2.name = 'Yury'
+                             FILTER U2.name = 'Yury'
                          )
-                     } WHERE .name = 'Elvis'
+                     } FILTER .name = 'Elvis'
                  )
              SELECT
                  U {
@@ -2808,7 +2813,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         foo
                     }
                 }
-            WHERE User.name = 'Elvis';
+            FILTER User.name = 'Elvis';
         ''', [
             [{
                 'name': 'Elvis',
@@ -2838,7 +2843,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     name,
                     shortest_text_foo := sub.foo
                 }
-            WHERE User.name = 'Elvis';
+            FILTER User.name = 'Elvis';
         ''', [
             [{
                 'name': 'Elvis',
@@ -2862,11 +2867,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                                                          .spent_time)
                                         )
                                     }
-                                WHERE
+                                FILTER
                                     Issue.owner = User
                             )
                         }
-                    WHERE
+                    FILTER
                         User.name IN ('Elvis', 'Yury')
                 )
             SELECT
@@ -2904,30 +2909,30 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             # full name of the Issue is 'Release EdgeDB'
             WITH MODULE test
             SELECT Issue.name[2]
-            WHERE Issue.number = '1';
+            FILTER Issue.number = '1';
             WITH MODULE test
             SELECT Issue.name[-2]
-            WHERE Issue.number = '1';
+            FILTER Issue.number = '1';
 
             WITH MODULE test
             SELECT Issue.name[2:4]
-            WHERE Issue.number = '1';
+            FILTER Issue.number = '1';
             WITH MODULE test
             SELECT Issue.name[2:]
-            WHERE Issue.number = '1';
+            FILTER Issue.number = '1';
             WITH MODULE test
             SELECT Issue.name[:2]
-            WHERE Issue.number = '1';
+            FILTER Issue.number = '1';
 
             WITH MODULE test
             SELECT Issue.name[2:-1]
-            WHERE Issue.number = '1';
+            FILTER Issue.number = '1';
             WITH MODULE test
             SELECT Issue.name[-2:]
-            WHERE Issue.number = '1';
+            FILTER Issue.number = '1';
             WITH MODULE test
             SELECT Issue.name[:-2]
-            WHERE Issue.number = '1';
+            FILTER Issue.number = '1';
             """, [
             ['l'],
             ['D'],
@@ -2945,33 +2950,33 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             WITH MODULE test
             SELECT Issue.__class__.name
-            WHERE Issue.number = '1';
+            FILTER Issue.number = '1';
             WITH MODULE test
             SELECT Issue.__class__.name[2]
-            WHERE Issue.number = '1';
+            FILTER Issue.number = '1';
             WITH MODULE test
             SELECT Issue.__class__.name[-2]
-            WHERE Issue.number = '1';
+            FILTER Issue.number = '1';
 
             WITH MODULE test
             SELECT Issue.__class__.name[2:4]
-            WHERE Issue.number = '1';
+            FILTER Issue.number = '1';
             WITH MODULE test
             SELECT Issue.__class__.name[2:]
-            WHERE Issue.number = '1';
+            FILTER Issue.number = '1';
             WITH MODULE test
             SELECT Issue.__class__.name[:2]
-            WHERE Issue.number = '1';
+            FILTER Issue.number = '1';
 
             WITH MODULE test
             SELECT Issue.__class__.name[2:-1]
-            WHERE Issue.number = '1';
+            FILTER Issue.number = '1';
             WITH MODULE test
             SELECT Issue.__class__.name[-2:]
-            WHERE Issue.number = '1';
+            FILTER Issue.number = '1';
             WITH MODULE test
             SELECT Issue.__class__.name[:-2]
-            WHERE Issue.number = '1';
+            FILTER Issue.number = '1';
         """, [
             ['test::Issue'],
             ['s'],
@@ -2996,7 +3001,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 b := Issue.name[2:-1],
                 c := Issue.__class__.name[2:-1],
             }
-            WHERE Issue.number = '1';
+            FILTER Issue.number = '1';
         """, [
             [{
                 'name': 'Release EdgeDB',
@@ -3073,12 +3078,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH
                 MODULE test,
                 criteria := (SELECT {
-                    user := (SELECT User WHERE User.name = 'Yury'),
-                    status := (SELECT Status WHERE Status.name = 'Open'),
+                    user := (SELECT User FILTER User.name = 'Yury'),
+                    status := (SELECT Status FILTER Status.name = 'Open'),
                 })
             SELECT
                 Issue.number
-            WHERE
+            FILTER
                 Issue.owner = criteria.user
                 AND Issue.status = criteria.status;
             """, [
@@ -3092,7 +3097,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 MODULE test
             SELECT
                 {
-                    user := (SELECT User{name} WHERE User.name = 'Yury')
+                    user := (SELECT User{name} FILTER User.name = 'Yury')
                 };
             """, [
             [{
@@ -3109,7 +3114,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 MODULE test
             SELECT
                 {
-                    user := (SELECT User{name} WHERE User.name = 'Yury')
+                    user := (SELECT User{name} FILTER User.name = 'Yury')
                 }.user.name;
             """, [
             ['Yury'],
@@ -3121,27 +3126,27 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH
                 MODULE test
             SELECT
-                {user := (SELECT User{name} WHERE User.name = 'Yury')}
+                {user := (SELECT User{name} FILTER User.name = 'Yury')}
                     =
-                {user := (SELECT User{name} WHERE User.name = 'Yury')};
+                {user := (SELECT User{name} FILTER User.name = 'Yury')};
 
             WITH
                 MODULE test
             SELECT
-                {user := (SELECT User{name} WHERE User.name = 'Yury')}
+                {user := (SELECT User{name} FILTER User.name = 'Yury')}
                     =
-                {user := (SELECT User{name} WHERE User.name = 'Elvis')};
+                {user := (SELECT User{name} FILTER User.name = 'Elvis')};
 
             WITH
                 MODULE test
             SELECT
                 {
-                    user := (SELECT User{name} WHERE User.name = 'Yury'),
+                    user := (SELECT User{name} FILTER User.name = 'Yury'),
                     spam := 'ham',
                 }
                     =
                 {
-                    user := (SELECT User{name} WHERE User.name = 'Yury'),
+                    user := (SELECT User{name} FILTER User.name = 'Yury'),
                 };
 
             """, [
@@ -3268,7 +3273,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue {
                     number
                 }
-            WHERE
+            FILTER
                 .number = '1';
         ''', [
             [{
@@ -3283,7 +3288,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue.watchers {
                     name
                 }
-            WHERE
+            FILTER
                 .name = 'Yury';
         ''', [
             [{
@@ -3298,8 +3303,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 number,
                 watchers: {
                     name
-                } WHERE .name = 'Yury'
-            } WHERE .status.name = 'Open' AND .owner.name = 'Elvis';
+                } FILTER .name = 'Yury'
+            } FILTER .status.name = 'Open' AND .owner.name = 'Elvis';
         ''', [
             [{
                 'number': '1',
@@ -3314,7 +3319,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT Issue {
                 number,
-            } WHERE .number > '1'
+            } FILTER .number > '1'
               ORDER BY .number DESC;
         ''', [[
             {'number': '4'},
@@ -3327,7 +3332,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                                     'could not resolve partial path'):
             await self.con.execute('''
                 WITH MODULE test
-                SELECT Issue.number WHERE .number > '1';
+                SELECT Issue.number FILTER .number > '1';
             ''')
 
     async def test_edgeql_partial_06(self):
@@ -3340,7 +3345,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     Issue{
                         sub := (SELECT .name)
                     }
-                WHERE .number = '1';
+                FILTER .number = '1';
             ''')
 
     async def test_edgeql_virtual_target_01(self):
@@ -3348,19 +3353,19 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT Issue {
                 number,
-            } WHERE EXISTS (.references)
+            } FILTER EXISTS (.references)
               ORDER BY .number DESC;
 
             WITH MODULE test
             SELECT Issue {
                 number,
-            } WHERE .references[IS URL].address = 'https://edgedb.com'
+            } FILTER .references[IS URL].address = 'https://edgedb.com'
               ORDER BY .number DESC;
 
             WITH MODULE test
             SELECT Issue {
                 number,
-            } WHERE .references[IS Named].name = 'screenshot.png'
+            } FILTER .references[IS Named].name = 'screenshot.png'
               ORDER BY .number DESC;
 
             WITH MODULE test
@@ -3373,7 +3378,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
                     name
                 } ORDER BY .name
-            } WHERE EXISTS (.references)
+            } FILTER EXISTS (.references)
               ORDER BY .number DESC;
         ''', [
             [{

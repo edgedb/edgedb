@@ -52,7 +52,7 @@ class TestTransactions(tb.QueryTestCase):
         result = await self.con.execute('''
             SELECT
                 test::TransactionTest
-            WHERE
+            FILTER
                 test::TransactionTest.name = 'Test Transaction';
         ''')
 
@@ -97,7 +97,7 @@ class TestTransactions(tb.QueryTestCase):
                         test::TransactionTest {
                             name
                         }
-                    WHERE
+                    FILTER
                         test::TransactionTest.name LIKE 'TXTEST%';
                 ''')
 
@@ -116,7 +116,7 @@ class TestTransactions(tb.QueryTestCase):
                 test::TransactionTest {
                     name
                 }
-            WHERE
+            FILTER
                 test::TransactionTest.name LIKE 'TXTEST%';
         ''')
 

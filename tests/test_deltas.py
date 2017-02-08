@@ -42,7 +42,7 @@ class TestDeltas(tb.QueryTestCase):
                         @lang
                     }
                 }
-            WHERE
+            FILTER
                 test::NamedObject.name = 'Test';
 
             """)
@@ -81,7 +81,7 @@ class TestDeltas(tb.QueryTestCase):
 
             INSERT test::Concept01 {
                 `target` := (SELECT test::Target1
-                             WHERE test::Target1.name = 'Target1_linkinh_2')
+                             FILTER test::Target1.name = 'Target1_linkinh_2')
             };
 
             INSERT test::Target0 {
@@ -90,7 +90,7 @@ class TestDeltas(tb.QueryTestCase):
 
             INSERT test::Concept23 {
                 `target` := (SELECT test::Target0
-                             WHERE test::Target0.name = 'Target0_linkinh_2')
+                             FILTER test::Target0.name = 'Target0_linkinh_2')
             };
         ''')
 
@@ -106,7 +106,7 @@ class TestDeltas(tb.QueryTestCase):
                     `target` := (
                         SELECT
                             test::Target0
-                        WHERE
+                        FILTER
                             test::Target0.name = 'Target0_linkinh_2'
                     )
                 };

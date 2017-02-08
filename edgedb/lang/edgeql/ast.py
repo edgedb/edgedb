@@ -182,6 +182,11 @@ class Statement(Expr):
     single: bool = False
 
 
+class SubjStatement(Statement):
+    subject: Expr
+    subject_alias: str
+
+
 class SelectQuery(Statement):
     where: Expr
     orderby: typing.List[SortExpr]
@@ -189,9 +194,7 @@ class SelectQuery(Statement):
     limit: Expr
 
 
-class GroupQuery(Statement):
-    subject: Expr
-    subject_alias: str
+class GroupQuery(SubjStatement):
     where: Expr
     groupby: typing.List[Expr]
     orderby: typing.List[SortExpr]
@@ -199,20 +202,18 @@ class GroupQuery(Statement):
     limit: Expr
 
 
-class InsertQuery(Statement):
-    subject: Expr
+class InsertQuery(SubjStatement):
     shape: typing.List[Expr]
+    source_el: str
     source: Expr
 
 
-class UpdateQuery(Statement):
-    subject: Expr
+class UpdateQuery(SubjStatement):
     shape: typing.List[Expr]
     where: Expr
 
 
-class DeleteQuery(Statement):
-    subject: Expr
+class DeleteQuery(SubjStatement):
     where: Expr
 
 

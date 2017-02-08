@@ -61,7 +61,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
         WITH MODULE test
         INSERT LogEntry {
-            owner := (SELECT User WHERE User.name = 'Elvis'),
+            owner := (SELECT User FILTER User.name = 'Elvis'),
             spent_time := 50000,
             body := 'Rewriting everything.'
         };
@@ -71,9 +71,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             number := '1',
             name := 'Release EdgeDB',
             body := 'Initial public release of EdgeDB.',
-            owner := (SELECT User WHERE User.name = 'Elvis'),
-            watchers := (SELECT User WHERE User.name = 'Yury'),
-            status := (SELECT Status WHERE Status.name = 'Open'),
+            owner := (SELECT User FILTER User.name = 'Elvis'),
+            watchers := (SELECT User FILTER User.name = 'Yury'),
+            status := (SELECT Status FILTER Status.name = 'Open'),
             time_spent_log := (SELECT LogEntry),
             time_estimate := 3000
         };
@@ -81,8 +81,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         WITH MODULE test
         INSERT Comment {
             body := 'EdgeDB needs to happen soon.',
-            owner := (SELECT User WHERE User.name = 'Elvis'),
-            issue := (SELECT Issue WHERE Issue.number = '1')
+            owner := (SELECT User FILTER User.name = 'Elvis'),
+            issue := (SELECT Issue FILTER Issue.number = '1')
         };
 
 
@@ -91,14 +91,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             number := '2',
             name := 'Improve EdgeDB repl output rendering.',
             body := 'We need to be able to render data in tabular format.',
-            owner := (SELECT User WHERE User.name = 'Yury'),
-            watchers := (SELECT User WHERE User.name = 'Elvis'),
-            status := (SELECT Status WHERE Status.name = 'Open'),
-            priority := (SELECT Priority WHERE Priority.name = 'High'),
+            owner := (SELECT User FILTER User.name = 'Yury'),
+            watchers := (SELECT User FILTER User.name = 'Elvis'),
+            status := (SELECT Status FILTER Status.name = 'Open'),
+            priority := (SELECT Priority FILTER Priority.name = 'High'),
             references :=
-                (SELECT URL WHERE URL.address = 'https://edgedb.com')
+                (SELECT URL FILTER URL.address = 'https://edgedb.com')
                 UNION
-                (SELECT File WHERE File.name = 'screenshot.png')
+                (SELECT File FILTER File.name = 'screenshot.png')
         };
 
         WITH
@@ -108,13 +108,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             number := '3',
             name := 'Repl tweak.',
             body := 'Minor lexer tweaks.',
-            owner := (SELECT User WHERE User.name = 'Yury'),
-            watchers := (SELECT User WHERE User.name = 'Elvis'),
-            status := (SELECT Status WHERE Status.name = 'Closed'),
+            owner := (SELECT User FILTER User.name = 'Yury'),
+            watchers := (SELECT User FILTER User.name = 'Elvis'),
+            status := (SELECT Status FILTER Status.name = 'Closed'),
             related_to := (
-                SELECT I WHERE I.number = '2'
+                SELECT I FILTER I.number = '2'
             ),
-            priority := (SELECT Priority WHERE Priority.name = 'Low')
+            priority := (SELECT Priority FILTER Priority.name = 'Low')
         };
 
         WITH
@@ -124,26 +124,31 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             number := '4',
             name := 'Regression.',
             body := 'Fix regression introduced by lexer tweak.',
-            owner := (SELECT User WHERE User.name = 'Elvis'),
-            status := (SELECT Status WHERE Status.name = 'Closed'),
+            owner := (SELECT User FILTER User.name = 'Elvis'),
+            status := (SELECT Status FILTER Status.name = 'Closed'),
             related_to := (
-                SELECT I WHERE I.number = '3'
+                SELECT I FILTER I.number = '3'
             )
         };
 
         # NOTE: UPDATE Users for testing the link properties
         #
         WITH MODULE test
-        UPDATE User {
-            todo := (SELECT Issue WHERE Issue.number in ('1', '2'))
-        } WHERE User.name = 'Elvis';
+        UPDATE User
+        FILTER User.name = 'Elvis'
+        SET {
+            todo := (SELECT Issue FILTER Issue.number in ('1', '2'))
+        };
+
         WITH MODULE test
-        UPDATE User {
-            todo := (SELECT Issue WHERE Issue.number in ('3', '4'))
-        } WHERE User.name = 'Yury';
+        UPDATE User
+        FILTER User.name = 'Yury'
+        SET {
+            todo := (SELECT Issue FILTER Issue.number in ('3', '4'))
+        };
     """
 
-    async def test_edgeql_select_group_01(self):
+    async def test_edgeql_group01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             GROUP
@@ -159,7 +164,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     @unittest.expectedFailure
-    async def test_edgeql_select_struct99(self):
+    async def test_edgeql_group02(self):
         await self.assert_query_result(r"""
             # nested structs
             # XXX: the below doesn't work yet due to the unhandled
@@ -203,13 +208,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             },
         ])
 
-    async def test_edgeql_agg_01(self):
+    async def test_edgeql_group_agg01(self):
         await self.assert_query_result(r"""
             SELECT
                 schema::Concept {
                     l := array_agg(
                         schema::Concept.links.name
-                        WHERE
+                        FILTER
                             schema::Concept.links.name IN (
                                 'std::id',
                                 'schema::name'
@@ -217,7 +222,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         ORDER BY schema::Concept.links.name ASC
                     )
                 }
-            WHERE
+            FILTER
                 schema::Concept.name = 'schema::PrimaryClass';
         """, [
             [{
@@ -225,7 +230,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         ])
 
-    async def test_edgeql_agg_02(self):
+    async def test_edgeql_group_agg02(self):
         await self.assert_query_result(r"""
             WITH MODULE test
             SELECT array_agg(

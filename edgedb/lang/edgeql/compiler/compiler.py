@@ -357,21 +357,37 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             stmt = ctx.stmt = irast.DeleteStmt()
             self._visit_with_block(edgeql_tree)
 
-            with self.context.new():
-                self.context.current.clause = 'result'
-                subject = self.visit(edgeql_tree.subject)
+            subject = self._declare_view(
+                edgeql_tree.subject, edgeql_tree.subject_alias)
 
-            stmt.where = self._process_select_where(edgeql_tree.where)
+            subj_type = irutils.infer_type(subject, ctx.schema)
+            if not isinstance(subj_type, s_concepts.Concept):
+                raise errors.EdgeQLError(
+                    f'cannot delete non-Concept objects',
+                    context=edgeql_tree.subject.context
+                )
+
             if edgeql_tree.result is not None:
                 stmt.result = self._process_stmt_result(
                     edgeql_tree.result, toplevel_shape_rptrcls)
             else:
                 stmt.result = self._process_shape(subject, None, [])
 
+            target_set = irast.Set(
+                path_id=irast.PathId([subj_type]),
+                scls=subj_type
+            )
             stmt.shape = self._process_shape(
-                subject, None, [],
+                target_set, None, [],
                 require_expressions=True,
                 include_implicit=False)
+
+            where = irast.BinOp(
+                left=target_set,
+                op=ast.ops.IN,
+                right=subject
+            )
+            stmt.where = self._generated_set(where)
 
             stmt.argument_types = self.context.current.arguments
             return stmt
@@ -1066,10 +1082,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         result_type = irutils.infer_type(substmt, ctx.schema)
 
         if alias is None:
-            if isinstance(substmt.result, irast.Shape):
-                view_name = result_type.name
-            else:
-                view_name = sn.Name(module='__view__', name=ctx.genalias('v'))
+            view_name = result_type.name
         else:
             view_name = sn.Name(module='__view__', name=alias)
 
@@ -1584,9 +1597,14 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         return target_set
 
-    def _generated_set(self, expr, result_type, *, force=False):
+    def _generated_set(self, expr, result_type=None, *, force=False):
+        ctx = self.context.current
+
         prefixes = get_common_prefixes([expr])
         sources = set(itertools.chain.from_iterable(prefixes.values()))
+
+        if result_type is None:
+            result_type = irutils.infer_type(expr, ctx.schema)
 
         if sources or force:
             if getattr(expr, 'path_id', None):

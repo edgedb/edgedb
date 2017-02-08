@@ -688,7 +688,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     name
                 }
             }
-        WHERE
+        FILTER
             ((test::User).name = 'John');
         """
 
@@ -714,7 +714,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     name
                 }
             }
-        WHERE
+        FILTER
             (
                 ((test::User).name = 'John') AND
                 ((test::User).active = True)
@@ -741,7 +741,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 groups: {
                     id,
                     name
-                } WHERE ((test::User).groups.name = 'admin')
+                } FILTER ((test::User).groups.name = 'admin')
             };
         """
 
@@ -767,7 +767,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     name
                 }
             }
-        WHERE
+        FILTER
             ((test::User).groups.name = 'admin');
         """
 
@@ -793,7 +793,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     name
                 }
             }
-        WHERE
+        FILTER
             ((test::User).groups.name IN ('admin', 'support'));
         """
 
@@ -819,7 +819,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     name
                 }
             }
-        WHERE
+        FILTER
             ((test::User).groups.name NOT IN ('admin', 'support'));
         """
 
@@ -845,7 +845,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     name
                 }
             }
-        WHERE
+        FILTER
             ((test::User).groups.name != 'admin');
         """
 
@@ -871,7 +871,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     name
                 }
             }
-        WHERE
+        FILTER
             ((test::User).groups.name = 'admin');
         """
 
@@ -902,7 +902,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     settings: {
                         name,
                         value
-                    } WHERE
+                    } FILTER
                         ((test::User).groups.settings.name IN
                             ('level', 'description'))
                 }
@@ -931,7 +931,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     name
                 }
             }
-        WHERE
+        FILTER
             ((test::User).name = $name);
         """
 
@@ -966,11 +966,11 @@ class TestGraphQLTranslation(TranslatorTest):
                     settings: {
                         name,
                         value
-                    } WHERE
+                    } FILTER
                         ((test::User).groups.settings.name = $setting)
                 }
             }
-        WHERE
+        FILTER
             (
                 ((test::User).name IN $names) AND
                 ((test::User).groups.name IN $groups)
@@ -991,7 +991,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (test::User) {
                 id,
             }
-        WHERE
+        FILTER
             ((test::User).score = $val);
         """
 
@@ -1053,7 +1053,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (test::User) {
                 id,
             }
-        WHERE
+        FILTER
             ((test::User).name = $val);
         """
 
@@ -1071,7 +1071,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (test::User) {
                 id,
             }
-        WHERE
+        FILTER
             ((test::User).age = $val);
         """
 
@@ -1089,7 +1089,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (test::User) {
                 id,
             }
-        WHERE
+        FILTER
             ((test::User).score = $val);
         """
 
@@ -1107,7 +1107,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (test::User) {
                 id,
             }
-        WHERE
+        FILTER
             ((test::User).score = $val);
         """
 
@@ -1125,7 +1125,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (test::User) {
                 id,
             }
-        WHERE
+        FILTER
             ((test::User).score = $val);
         """
 
@@ -1256,7 +1256,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (test::User){
                 name,
             }
-        WHERE
+        FILTER
             ((test::User).id = $val);
         """
 
@@ -1274,7 +1274,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (test::User){
                 name,
             }
-        WHERE
+        FILTER
             ((test::User).id = $val);
         """
 
@@ -1374,7 +1374,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (test::User){
                 id,
             }
-        WHERE
+        FILTER
             ((test::User).name IN $val);
 
         """
@@ -1396,7 +1396,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
                 name,
             }
-        WHERE
+        FILTER
             ((test::`Group`).name = 'admin');
         """
 
@@ -1414,7 +1414,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (test::User){
                 id,
             }
-        WHERE
+        FILTER
             ((test::User).name = 'John');
         """
 
@@ -1432,7 +1432,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (test::User){
                 id,
             }
-        WHERE
+        FILTER
             ((test::User).age = 20);
         """
 
@@ -1450,7 +1450,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (test::User){
                 id,
             }
-        WHERE
+        FILTER
             ((test::User).score = 3.5);
         """
 
@@ -1468,7 +1468,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (test::User){
                 id,
             }
-        WHERE
+        FILTER
             ((test::User).score = 3);
         """
 
@@ -1487,7 +1487,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (test::User){
                 id,
             }
-        WHERE
+        FILTER
             ((test::User).name = $val);
         """
 
@@ -1506,7 +1506,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (test::User){
                 id,
             }
-        WHERE
+        FILTER
             ((test::User).age = $val);
         """
 
@@ -1525,7 +1525,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (test::User){
                 id,
             }
-        WHERE
+        FILTER
             ((test::User).score = $val);
         """
 
@@ -1544,7 +1544,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (test::User){
                 id,
             }
-        WHERE
+        FILTER
             ((test::User).score = $val);
         """
 
@@ -1562,7 +1562,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (test::User){
                 id,
             }
-        WHERE
+        FILTER
             ((test::User).name IN ('John', 'Jane'));
         """
 
@@ -1580,7 +1580,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (test::User){
                 id,
             }
-        WHERE
+        FILTER
             ((test::User).age IN (10, 20, 30, 40));
         """
 
@@ -1598,7 +1598,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (test::User){
                 id,
             }
-        WHERE
+        FILTER
             ((test::User).score IN (3.5, 3.6, 3.7));
         """
 
@@ -1616,7 +1616,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (test::User){
                 id,
             }
-        WHERE
+        FILTER
             ((test::User).score IN (1, 2, 3));
         """
 
@@ -1635,7 +1635,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (test::User){
                 id,
             }
-        WHERE
+        FILTER
             ((test::User).name IN $val);
         """
 
@@ -1654,7 +1654,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (test::User){
                 id,
             }
-        WHERE
+        FILTER
             ((test::User).age IN $val);
         """
 
@@ -1673,7 +1673,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (test::User){
                 id,
             }
-        WHERE
+        FILTER
             ((test::User).score IN $val);
         """
 
@@ -1692,7 +1692,7 @@ class TestGraphQLTranslation(TranslatorTest):
             (test::User){
                 id,
             }
-        WHERE
+        FILTER
             ((test::User).score IN $val);
         """
 
@@ -2252,7 +2252,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 `select`,
                 `after`
             }
-        WHERE
+        FILTER
             ((`123lib`::Foo).`select` = 'bar');
         """
 
@@ -2271,7 +2271,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         DELETE
-            test::User
+            (SELECT (test::User))
         RETURNING
             (test::User) {
                 name,
@@ -2297,9 +2297,9 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         DELETE
-            test::User
-        WHERE
-            ((test::User).name = 'John')
+            (SELECT (test::User)
+             FILTER
+                ((test::User).name = 'John'))
         RETURNING
             (test::User) {
                 name,
@@ -2322,11 +2322,12 @@ class TestGraphQLTranslation(TranslatorTest):
 
         # mutation delete
         DELETE
-            test::User
-        WHERE
-            (
-                ((test::User).name = 'John') AND
-                ((test::User).active = True)
+            (SELECT (test::User)
+             FILTER
+                (
+                    ((test::User).name = 'John') AND
+                    ((test::User).active = True)
+                )
             )
         RETURNING
             (test::User) {
@@ -2415,7 +2416,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 score := 3.14,
                 groups := (
                     SELECT (std::Object)
-                    WHERE (
+                    FILTER (
                         (std::Object).id =
                             <std::uuid>'21e16e2e-e445-494c-acfc-cc9378620501'
                     )
@@ -2461,7 +2462,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 score := 3.14,
                 groups := (
                     SELECT (std::Object)
-                    WHERE (
+                    FILTER (
                         (std::Object).id IN
                             (<std::uuid>'21e16e2e-e445-494c-acfc-cc9378620501',
                              <std::uuid>'fd5f4ad8-2e8c-4224-9243-361d61dee856')
@@ -2542,12 +2543,12 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         UPDATE
-            test::User {
-                name := 'Jonathan'
-            }
-        WHERE
+            test::User
+        FILTER
             ((test::User).name = 'John')
-        RETURNING
+        SET {
+            name := 'Jonathan'
+        } RETURNING
             (test::User) {
                 name,
                 id
@@ -2575,19 +2576,19 @@ class TestGraphQLTranslation(TranslatorTest):
 
         # mutation special_update
         UPDATE
-            test::User {
-                name := 'Jonathan',
-                groups := (
-                    SELECT (std::Object)
-                    WHERE (
-                        (std::Object).id =
-                            <std::uuid>'21e16e2e-e445-494c-acfc-cc9378620501'
-                    )
-                )
-            }
-        WHERE
+            test::User
+        FILTER
             ((test::User).name = 'John')
-        RETURNING
+        SET {
+            name := 'Jonathan',
+            groups := (
+                SELECT (std::Object)
+                FILTER (
+                    (std::Object).id =
+                        <std::uuid>'21e16e2e-e445-494c-acfc-cc9378620501'
+                )
+            )
+        } RETURNING
             (test::User) {
                 name,
                 id,
@@ -2621,20 +2622,20 @@ class TestGraphQLTranslation(TranslatorTest):
 
         # mutation special_update
         UPDATE
-            test::User {
-                name := 'Jonathan',
-                groups := (
-                    SELECT (std::Object)
-                    WHERE (
-                        (std::Object).id IN
-                            (<std::uuid>'21e16e2e-e445-494c-acfc-cc9378620501',
-                             <std::uuid>'fd5f4ad8-2e8c-4224-9243-361d61dee856')
-                    )
-                )
-            }
-        WHERE
+            test::User
+        FILTER
             ((test::User).name = 'John')
-        RETURNING
+        SET {
+            name := 'Jonathan',
+            groups := (
+                SELECT (std::Object)
+                FILTER (
+                    (std::Object).id IN
+                        (<std::uuid>'21e16e2e-e445-494c-acfc-cc9378620501',
+                         <std::uuid>'fd5f4ad8-2e8c-4224-9243-361d61dee856')
+                )
+            )
+        } RETURNING
             (test::User) {
                 name,
                 id,

@@ -56,6 +56,10 @@ class IRCompilerDBObjects:
                     scls_rvar=rvar
                 )
 
+                if op == 'replace':
+                    op = 'union'
+                    set_ops = []
+
                 set_ops.append((op, qry))
 
             rvar = self._range_from_queryset(set_ops, concept)

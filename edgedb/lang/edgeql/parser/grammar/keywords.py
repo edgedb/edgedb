@@ -39,6 +39,7 @@ edgeql_keywords = {
     "exists": ("EXISTS", RESERVED_KEYWORD),
     "event": ("EVENT", UNRESERVED_KEYWORD),
     "false": ("FALSE", RESERVED_KEYWORD),
+    "filter": ("FILTER", RESERVED_KEYWORD),
     "final": ("FINAL", UNRESERVED_KEYWORD),
     "first": ("FIRST", UNRESERVED_KEYWORD),
     "for": ("FOR", UNRESERVED_KEYWORD),
@@ -84,7 +85,6 @@ edgeql_keywords = {
     "true": ("TRUE", RESERVED_KEYWORD),
     "update": ("UPDATE", RESERVED_KEYWORD),
     "union": ("UNION", UNRESERVED_KEYWORD),
-    "where": ("WHERE", RESERVED_KEYWORD),
     "with": ("WITH", RESERVED_KEYWORD)
 }
 

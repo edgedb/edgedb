@@ -149,8 +149,10 @@ class GraphQLTranslator(ast.NodeVisitor):
             if self._context.optype == 'delete':
                 mutation = qlast.DeleteQuery(
                     result=result,
-                    subject=subject,
-                    where=self._visit_where(selection.arguments),
+                    subject=qlast.SelectQuery(
+                        result=subject,
+                        where=self._visit_where(selection.arguments)
+                    ),
                 )
             elif self._context.optype == 'insert':
                 if len(selection.arguments) > 1:

@@ -71,7 +71,7 @@ class TestGraphQLMutation(tb.QueryTestCase):
                 age := 25,
                 active := True,
                 score := 3.14,
-                groups := (SELECT `Group` WHERE `Group`.name = 'basic')
+                groups := (SELECT `Group` FILTER `Group`.name = 'basic')
             };
 
             WITH MODULE test
@@ -80,7 +80,7 @@ class TestGraphQLMutation(tb.QueryTestCase):
                 age := 26,
                 active := True,
                 score := 1.23,
-                groups := (SELECT `Group` WHERE `Group`.name = 'upgraded')
+                groups := (SELECT `Group` FILTER `Group`.name = 'upgraded')
             };
 
             WITH MODULE test

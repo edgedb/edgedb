@@ -170,7 +170,7 @@ class TestDeltas(tb.QueryTestCase):
                 FROM EdgeQL $$
                     SELECT
                         schema::Concept
-                    WHERE schema::Concept.name = $1
+                    FILTER schema::Concept.name = $1
                 $$;
 
             CREATE FUNCTION test::my_edgeql_func3(std::int)
@@ -210,8 +210,8 @@ class TestDeltas(tb.QueryTestCase):
             SELECT schema::Function {
                 attributes: {
                     @value
-                } WHERE .name = 'stdattrs::description'
-            } WHERE .name = 'test::attr_func_1';
+                } FILTER .name = 'stdattrs::description'
+            } FILTER .name = 'test::attr_func_1';
         """, [
             [{
                 'attributes': [{

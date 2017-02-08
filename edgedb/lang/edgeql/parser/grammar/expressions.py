@@ -56,16 +56,20 @@ class OptSingle(Nonterm):
 
 class OptionallyAliasedExpr(Nonterm):
     def reduce_ShortName_TURNSTILE_Expr(self, *kids):
-        self.val = qlast.AliasedExpr(alias=kids[0].val, expr=kids[2].val)
+        self.val = AliasedExprSpec(alias=kids[0].val, expr=kids[2].val)
 
     def reduce_Expr(self, *kids):
-        self.val = qlast.AliasedExpr(alias=None, expr=kids[0].val)
+        self.val = AliasedExprSpec(alias=None, expr=kids[0].val)
 
 
 # NOTE: This is intentionally not an AST node, since this structure never
 # makes it to the actual AST and exists solely for parser convenience.
 OutputExprSpec = collections.namedtuple(
     'OutputExprSpec', ['single', 'result', 'alias'], module=__name__)
+
+
+AliasedExprSpec = collections.namedtuple(
+    'AliasedExprSpec', ['alias', 'expr'], module=__name__)
 
 
 class OutputExpr(Nonterm):
@@ -107,7 +111,7 @@ class SelectExpr(Nonterm):
 class SimpleSelect(Nonterm):
     def reduce_Select(self, *kids):
         r"%reduce SELECT OutputExpr \
-                  OptWhereClause OptSortClause OptSelectLimit"
+                  OptFilterClause OptSortClause OptSelectLimit"
         self.val = qlast.SelectQuery(
             single=kids[1].val.single,
             result=kids[1].val.result,
@@ -132,7 +136,7 @@ class GroupExpr(Nonterm):
 class SimpleGroup(Nonterm):
     def reduce_Group(self, *kids):
         r"%reduce GROUP OptionallyAliasedExpr ByClause ReturningClause \
-                  OptWhereClause OptSortClause OptSelectLimit"
+                  OptFilterClause OptSortClause OptSelectLimit"
 
         self.val = qlast.GroupQuery(
             subject=kids[1].val.expr,
@@ -149,72 +153,74 @@ class SimpleGroup(Nonterm):
 
 
 class InsertExpr(Nonterm):
-    def reduce_OptAliasBlock_INSERT_Path_OptReturningClause(self, *kids):
-        self.val = qlast.InsertQuery(
-            aliases=kids[0].val,
-            subject=kids[2].val,
-            single=kids[3].val.single,
-            result=kids[3].val.result,
-            result_alias=kids[3].val.alias,
-        )
-
-    def reduce_OptAliasBlock_INSERT_TypedShape_OptReturningClause(self, *kids):
-        self.val = qlast.InsertQuery(
-            aliases=kids[0].val,
-            subject=kids[2].val.expr,
-            shape=kids[2].val.elements,
-            single=kids[3].val.single,
-            result=kids[3].val.result,
-            result_alias=kids[3].val.alias,
-        )
-
     def reduce_InsertFrom(self, *kids):
-        r'%reduce OptAliasBlock INSERT TypedShape FROM FromClause \
-          OptReturningClause'
+        r'%reduce OptAliasBlock INSERT OptionallyAliasedExpr \
+                  OptForClause OptReturningClause'
+
+        subj = kids[2].val.expr
+        subj_alias = kids[2].val.alias
+
+        # check that the insert subject is either a path or a shape
+        #
+        if isinstance(subj, qlast.Shape):
+            concept = subj.expr
+            shape = subj.elements
+        else:
+            concept = subj
+            shape = []
+
+        if not isinstance(concept, qlast.Path):
+            raise EdgeQLSyntaxError(
+                "insert expression must be a concept or a view",
+                context=subj.context)
+
         self.val = qlast.InsertQuery(
             aliases=kids[0].val,
-            subject=kids[2].val.expr,
-            shape=kids[2].val.elements,
-            single=kids[5].val.single,
-            result=kids[5].val.result,
-            result_alias=kids[5].val.alias,
-            source=kids[4].val,
+            subject=concept,
+            subject_alias=subj_alias,
+            shape=shape,
+            source_el=kids[3].val.alias,
+            source=kids[3].val.expr,
+            single=kids[4].val.single,
+            result=kids[4].val.result,
+            result_alias=kids[4].val.alias,
         )
 
 
-class FromClause(Nonterm):
-    def reduce_Expr(self, *kids):
-        self.val = kids[0].val
+class OptForClause(Nonterm):
+    def reduce_FOR_ShortName_IN_Expr(self, *kids):
+        self.val = AliasedExprSpec(alias=kids[1].val, expr=kids[3].val)
 
-    def reduce_SelectExpr(self, *kids):
-        self.val = kids[0].val
+    def reduce_empty(self, *kids):
+        self.val = AliasedExprSpec(None, None)
 
 
 class UpdateExpr(Nonterm):
     def reduce_UpdateExpr(self, *kids):
-        r"%reduce OptAliasBlock UPDATE TypedShape \
-                  OptWhereClause OptReturningClause"
+        "%reduce OptAliasBlock UPDATE OptionallyAliasedExpr \
+                 OptFilterClause SET Shape OptReturningClause"
         self.val = qlast.UpdateQuery(
             aliases=kids[0].val,
             subject=kids[2].val.expr,
-            shape=kids[2].val.elements,
+            subject_alias=kids[2].val.alias,
             where=kids[3].val,
-            single=kids[4].val.single,
-            result=kids[4].val.result,
-            result_alias=kids[4].val.alias,
+            shape=kids[5].val,
+            single=kids[6].val.single,
+            result=kids[6].val.result,
+            result_alias=kids[6].val.alias,
         )
 
 
 class DeleteExpr(Nonterm):
     def reduce_DeleteExpr(self, *kids):
-        "%reduce OptAliasBlock DELETE Path OptWhereClause OptReturningClause"
+        "%reduce OptAliasBlock DELETE OptionallyAliasedExpr OptReturningClause"
         self.val = qlast.DeleteQuery(
             aliases=kids[0].val,
-            subject=kids[2].val,
-            where=kids[3].val,
-            single=kids[4].val.single,
-            result=kids[4].val.result,
-            result_alias=kids[4].val.alias,
+            subject=kids[2].val.expr,
+            subject_alias=kids[2].val.alias,
+            single=kids[3].val.single,
+            result=kids[3].val.result,
+            result_alias=kids[3].val.alias,
         )
 
 
@@ -295,7 +301,7 @@ class OptAnySubShape(Nonterm):
 class ShapeElement(Nonterm):
     def reduce_ShapeElementWithSubShape(self, *kids):
         r"""%reduce ShapePointer \
-             OptAnySubShape OptWhereClause OptSortClause OptSelectLimit \
+             OptAnySubShape OptFilterClause OptSortClause OptSelectLimit \
         """
         self.val = kids[0].val
 
@@ -476,13 +482,13 @@ class ShapePointer(Nonterm):
         )
 
 
-class WhereClause(Nonterm):
-    def reduce_WHERE_Expr(self, *kids):
+class FilterClause(Nonterm):
+    def reduce_FILTER_Expr(self, *kids):
         self.val = kids[1].val
 
 
-class OptWhereClause(Nonterm):
-    def reduce_WhereClause(self, *kids):
+class OptFilterClause(Nonterm):
+    def reduce_FilterClause(self, *kids):
         self.val = kids[0].val
 
     def reduce_empty(self, *kids):
@@ -623,7 +629,7 @@ class Expr(Nonterm):
     # | Expr '[' ':' Expr ']'
     # | Expr '[' Expr ':' ']'
     # | Expr '[' IS NodeName ']'
-    # | '<' ExtTypeExpr '>' '(' Expr ')'
+    # | '<' TypeName '>' '(' Expr ')'
     # | Expr IF Expr ELSE Expr
     # | Expr ?? Expr
     # | Expr UNION Expr | Expr EXCEPT Expr | Expr INTERSECT Expr
@@ -817,7 +823,7 @@ class Expr(Nonterm):
                                right=inexpr)
 
     @parsing.precedence(precedence.P_TYPECAST)
-    def reduce_LANGBRACKET_ExtTypeExpr_RANGBRACKET_Expr(
+    def reduce_LANGBRACKET_TypeName_RANGBRACKET_Expr(
             self, *kids):
         self.val = qlast.TypeCast(expr=kids[3].val, type=kids[1].val)
 
@@ -1083,7 +1089,7 @@ class LinkDirection(Nonterm):
 class FuncApplication(Nonterm):
     def reduce_FuncApplication(self, *kids):
         r"""%reduce NodeName LPAREN OptSetModifier OptFuncArgList \
-                    OptWhereClause OptSortClause RPAREN \
+                    OptFilterClause OptSortClause RPAREN \
         """
         module = kids[0].val.module
         func_name = kids[0].val.name
@@ -1220,11 +1226,6 @@ class TypeName(Nonterm):
     def reduce_NodeName_LANGBRACKET_NodeNameList_RANGBRACKET(self, *kids):
         self.val = qlast.TypeName(maintype=kids[0].val,
                                   subtypes=kids[2].val)
-
-
-class ExtTypeExpr(Nonterm):
-    def reduce_TypeName(self, *kids):
-        self.val = kids[0].val
 
 
 class ParamName(Nonterm):

@@ -6,9 +6,9 @@
 ##
 
 
-import unittest
 import uuid
 
+from edgedb.client import exceptions as exc
 from edgedb.server import _testbase as tb
 
 
@@ -21,6 +21,17 @@ class TestDelete(tb.QueryTestCase):
 
         COMMIT MIGRATION test::d_delete01;
     """
+
+    async def test_edgeql_delete_bad01(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r'cannot delete non-Concept object',
+                position=7):
+
+            await self.query('''\
+                DELETE 42;
+            ''')
+        pass
 
     async def test_edgeql_delete_simple01(self):
         result = await self.con.execute(r"""
@@ -65,22 +76,22 @@ class TestDelete(tb.QueryTestCase):
 
         await self.assert_query_result(r"""
             WITH MODULE test
-            DELETE DeleteTest
-            WHERE DeleteTest.name = 'bad name';
+            DELETE (SELECT DeleteTest
+                    FILTER DeleteTest.name = 'bad name');
 
             WITH MODULE test
             SELECT DeleteTest ORDER BY DeleteTest.name;
 
             WITH MODULE test
-            DELETE DeleteTest
-            WHERE DeleteTest.name = 'delete-test1';
+            DELETE (SELECT DeleteTest
+                    FILTER DeleteTest.name = 'delete-test1');
 
             WITH MODULE test
             SELECT DeleteTest ORDER BY DeleteTest.name;
 
             WITH MODULE test
-            DELETE DeleteTest
-            WHERE DeleteTest.name = 'delete-test2';
+            DELETE (SELECT DeleteTest
+                    FILTER DeleteTest.name = 'delete-test2');
 
             WITH MODULE test
             SELECT DeleteTest ORDER BY DeleteTest.name;
@@ -115,23 +126,21 @@ class TestDelete(tb.QueryTestCase):
         ])
 
         id1 = result[0][0]['id']
-        id2 = result[1][0]['id']
-        id3 = result[2][0]['id']
 
         del_result = await self.con.execute(r"""
             WITH MODULE test
-            DELETE DeleteTest
-            WHERE DeleteTest.name = 'delete-test1'
+            DELETE (SELECT DeleteTest
+                    FILTER DeleteTest.name = 'delete-test1')
             RETURNING DeleteTest;
 
             WITH MODULE test
-            DELETE DeleteTest
-            WHERE DeleteTest.name = 'delete-test2'
+            DELETE (SELECT DeleteTest
+                    FILTER DeleteTest.name = 'delete-test2')
             RETURNING DeleteTest{name};
 
             WITH MODULE test
-            DELETE DeleteTest
-            WHERE DeleteTest.name = 'delete-test3'
+            DELETE (SELECT DeleteTest
+                    FILTER DeleteTest.name = 'delete-test3')
             RETURNING DeleteTest.name + '--DELETED';
         """)
 

@@ -41,21 +41,21 @@ class TestUpdate(tb.QueryTestCase):
             WITH MODULE test
             INSERT UpdateTest {
                 name := 'update-test1',
-                status := (SELECT Status WHERE Status.name = 'Open')
+                status := (SELECT Status FILTER Status.name = 'Open')
             };
 
             WITH MODULE test
             INSERT UpdateTest {
                 name := 'update-test2',
                 comment := 'second',
-                status := (SELECT Status WHERE Status.name = 'Open')
+                status := (SELECT Status FILTER Status.name = 'Open')
             };
 
             WITH MODULE test
             INSERT UpdateTest {
                 name := 'update-test3',
                 comment := 'third',
-                status := (SELECT Status WHERE Status.name = 'Closed')
+                status := (SELECT Status FILTER Status.name = 'Closed')
             };
 
             WITH MODULE test
@@ -75,9 +75,11 @@ class TestUpdate(tb.QueryTestCase):
 
         res = await self.con.execute(r"""
             WITH MODULE test
-            UPDATE UpdateTest {
-                status := (SELECT Status WHERE Status.name = 'Closed')
-            } WHERE UpdateTest.name = 'bad name';
+            UPDATE UpdateTest
+            FILTER UpdateTest.name = 'bad name'
+            SET {
+                status := (SELECT Status FILTER Status.name = 'Closed')
+            };
 
             WITH MODULE test
             SELECT UpdateTest {
@@ -86,7 +88,7 @@ class TestUpdate(tb.QueryTestCase):
                 status: {
                     name
                 }
-            } WHERE UpdateTest.name = 'update-test1';
+            } FILTER UpdateTest.name = 'update-test1';
         """)
 
         self.assert_data_shape(res, [
@@ -99,9 +101,11 @@ class TestUpdate(tb.QueryTestCase):
 
         res = await self.con.execute(r"""
             WITH MODULE test
-            UPDATE UpdateTest {
-                status := (SELECT Status WHERE Status.name = 'Closed')
-            } WHERE UpdateTest.name = 'update-test1';
+            UPDATE UpdateTest
+            FILTER UpdateTest.name = 'update-test1'
+            SET {
+                status := (SELECT Status FILTER Status.name = 'Closed')
+            };
 
             WITH MODULE test
             SELECT UpdateTest {
@@ -130,9 +134,11 @@ class TestUpdate(tb.QueryTestCase):
 
         res = await self.con.execute(r"""
             WITH MODULE test
-            UPDATE UpdateTest {
+            UPDATE UpdateTest
+            FILTER UpdateTest.name = 'update-test2'
+            SET {
                 comment := 'updated ' + UpdateTest.comment
-            } WHERE UpdateTest.name = 'update-test2';
+            };
 
             WITH MODULE test
             SELECT UpdateTest {
@@ -162,9 +168,10 @@ class TestUpdate(tb.QueryTestCase):
 
         res = await self.con.execute(r"""
             WITH MODULE test
-            UPDATE UpdateTest {
+            UPDATE UpdateTest
+            SET {
                 comment := UpdateTest.comment + "!",
-                status := (SELECT Status WHERE Status.name = 'Closed')
+                status := (SELECT Status FILTER Status.name = 'Closed')
             };
 
             WITH MODULE test
@@ -207,10 +214,11 @@ class TestUpdate(tb.QueryTestCase):
 
         res = await self.con.execute(r"""
             WITH MODULE test
-            UPDATE UpdateTest {
+            UPDATE UpdateTest
+            FILTER UpdateTest.name = 'update-test2'
+            SET {
                 comment := 'updated ' + UpdateTest.comment
-            } WHERE UpdateTest.name = 'update-test2'
-            RETURNING UpdateTest {
+            } RETURNING UpdateTest {
                 name,
                 comment,
             };
@@ -229,9 +237,10 @@ class TestUpdate(tb.QueryTestCase):
 
         res = await self.con.execute(r"""
             WITH MODULE test
-            UPDATE UpdateTest {
+            UPDATE UpdateTest
+            SET {
                 comment := UpdateTest.comment + "!",
-                status := (SELECT Status WHERE Status.name = 'Closed')
+                status := (SELECT Status FILTER Status.name = 'Closed')
             } RETURNING UpdateTest {
                 name,
                 comment,
@@ -272,10 +281,11 @@ class TestUpdate(tb.QueryTestCase):
 
         res = await self.con.execute(r"""
             WITH MODULE test
-            UPDATE UpdateTest {
+            UPDATE UpdateTest
+            FILTER UpdateTest.name = 'update-test2'
+            SET {
                 comment := 'updated ' + UpdateTest.comment
-            } WHERE UpdateTest.name = 'update-test2'
-            RETURNING SINGLETON UpdateTest {
+            } RETURNING SINGLETON UpdateTest {
                 name,
                 comment,
             };
@@ -298,7 +308,8 @@ class TestUpdate(tb.QueryTestCase):
         with self.assertRaises(ValueError):
             await self.con.execute(r"""
                 WITH MODULE test
-                UPDATE UpdateTest {
+                UPDATE UpdateTest
+                SET {
                     comment := 'updated ' + UpdateTest.comment
                 } RETURNING SINGLETON UpdateTest {
                     name,
@@ -310,17 +321,19 @@ class TestUpdate(tb.QueryTestCase):
         status = await self.con.execute(r"""
             WITH MODULE test
             SELECT Status.id
-            WHERE Status.name = 'Open';
+            FILTER Status.name = 'Open';
         """)
 
         res = await self.con.execute(r"""
             WITH MODULE test
-            UPDATE UpdateTest {
+            UPDATE UpdateTest
+            FILTER UpdateTest.name = 'update-test3'
+            SET {
                 status := (
                     SELECT Object
-                    WHERE Object.id = <uuid>'""" + status[0][0] + r"""'
+                    FILTER Object.id = <uuid>'""" + status[0][0] + r"""'
                 )
-            } WHERE UpdateTest.name = 'update-test3';
+            };
 
             WITH MODULE test
             SELECT UpdateTest {
@@ -328,7 +341,7 @@ class TestUpdate(tb.QueryTestCase):
                 status: {
                     name
                 }
-            } WHERE UpdateTest.name = 'update-test3';
+            } FILTER UpdateTest.name = 'update-test3';
         """)
 
         self.assert_data_shape(res[-1], [

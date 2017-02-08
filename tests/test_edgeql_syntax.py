@@ -7,6 +7,7 @@
 
 
 import re
+import unittest
 
 from edgedb.lang import _testbase as tb
 from edgedb.lang.edgeql import generate_source as edgeql_to_source, errors
@@ -691,14 +692,14 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=6, col=21)
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=6, col=22)
     def test_edgeql_syntax_shape09(self):
         """
         SELECT Foo {
             bar: {
                 baz,
                 boo
-            } WHERE `@spam` = 'bad',
+            } FILTER `@spam` = 'bad',
             `@foo`:= 42
         };
         """
@@ -710,7 +711,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             bar: {
                 baz,
                 boo
-            } WHERE spam = 'bad',
+            } FILTER spam = 'bad',
             `@foo`:= 42
         };
         """
@@ -757,21 +758,21 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
                 test::Issue {
                     number
                 }
-            WHERE
+            FILTER
                 (((test::Issue)).number) = '1';
 
             SELECT
                 (test::Issue) {
                     number
                 }
-            WHERE
+            FILTER
                 (((test::Issue)).(number)) = '1';
 
             SELECT
                 test::Issue {
                     test::number
                 }
-            WHERE
+            FILTER
                 (((test::Issue)).(test::number)) = '1';
 
 % OK %
@@ -780,21 +781,21 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
                 (test::Issue) {
                     number
                 }
-            WHERE
+            FILTER
                 ((test::Issue).number = '1');
 
             SELECT
                 (test::Issue) {
                     number
                 }
-            WHERE
+            FILTER
                 ((test::Issue).number = '1');
 
             SELECT
                 (test::Issue) {
                     (test::number)
                 }
-            WHERE
+            FILTER
                 ((test::Issue).(test::number) = '1');
 
         """
@@ -896,7 +897,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             name,
             groups: {
                 name,
-            } WHERE (.name = 'admin')
+            } FILTER (.name = 'admin')
         };
         """
 
@@ -907,7 +908,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             <owner: LogEntry {
                 body
             },
-        } WHERE (.<owner.body = 'foo');
+        } FILTER (.<owner.body = 'foo');
         """
 
     def test_edgeql_syntax_shape35(self):
@@ -916,7 +917,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             name,
             groups: {
                 name,
-            } WHERE (@special = True)
+            } FILTER (@special = True)
         };
         """
 
@@ -1329,12 +1330,17 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_cardinality01(self):
         """
-        SELECT SINGLETON User.name WHERE (User.name = 'special');
+        SELECT SINGLETON User.name FILTER (User.name = 'special');
         INSERT User RETURNING SINGLETON User{name};
         INSERT User{name:= 'foo'} RETURNING SINGLETON User{name};
-        UPDATE User{age:= (User.age + 10)}
-            WHERE (User.name = 'foo') RETURNING SINGLETON User{name};
-        DELETE User WHERE (User.name = 'foo') RETURNING SINGLETON User{name};
+        UPDATE User
+            FILTER (User.name = 'foo')
+            SET {
+                age:= (User.age + 10)
+            }
+            RETURNING SINGLETON User{name};
+        DELETE (SELECT User FILTER (User.name = 'foo'))
+            RETURNING SINGLETON User{name};
         CREATE FUNCTION spam($foo: str) RETURNING SINGLETON str
             FROM EdgeQL $$ SELECT "a" $$;
         """
@@ -1349,7 +1355,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT Bar {
             spam,
             ham:= baz
-        } WHERE (foo = 'special');
+        } FILTER (foo = 'special');
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=6, col=9)
@@ -1410,7 +1416,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT 42;
         SELECT User{name};
         SELECT User{name}
-            WHERE (User.age > 42);
+            FILTER (User.age > 42);
         SELECT User{name}
             ORDER BY User.name ASC;
         SELECT User{name}
@@ -1453,7 +1459,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         SELECT
             User.name
-        WHERE
+        FILTER
             (User.age > 42)
         ORDER BY
             User.name ASC
@@ -1468,7 +1474,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT User{name};
         WITH MODULE test
         SELECT User{name}
-            WHERE (User.age > 42);
+            FILTER (User.age > 42);
         WITH MODULE test
         SELECT User{name}
             ORDER BY User.name ASC;
@@ -1488,7 +1494,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         WITH MODULE test
         SELECT
             User.name
-        WHERE
+        FILTER
             (User.age > 42)
         ORDER BY
             User.name ASC
@@ -1627,7 +1633,9 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         INSERT Foo{bar:= 42} RETURNING SINGLETON Foo{bar};
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=18)
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  'insert expression must be a concept or a view',
+                  line=2, col=16)
     def test_edgeql_syntax_insert05(self):
         """
         INSERT 42;
@@ -1636,7 +1644,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=20)
     def test_edgeql_syntax_insert06(self):
         """
-        INSERT Foo WHERE Foo.bar = 42;
+        INSERT Foo FILTER Foo.bar = 42;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=20)
@@ -1683,7 +1691,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         INSERT Foo{
             bar:= 42,
-            baz:= (SELECT Baz WHERE (Baz.spam = 'ham'))
+            baz:= (SELECT Baz FILTER (Baz.spam = 'ham'))
         };
         """
 
@@ -1733,7 +1741,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             baz:= (
                 SELECT Baz{
                     @weight:= 2
-                } WHERE (Baz.spam = 'ham')
+                } FILTER (Baz.spam = 'ham')
             )
         };
         """
@@ -1750,8 +1758,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         DELETE Foo RETURNING Foo{bar};
         DELETE Foo RETURNING SINGLETON Foo;
         DELETE Foo RETURNING SINGLETON Foo{bar};
-        DELETE Foo WHERE (Foo.bar = 42);
-        DELETE Foo WHERE (Foo.bar = 42) RETURNING Foo;
         """
 
     def test_edgeql_syntax_delete02(self):
@@ -1766,20 +1772,16 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         DELETE Foo RETURNING SINGLETON Foo;
         WITH MODULE test
         DELETE Foo RETURNING SINGLETON Foo{bar};
-        WITH MODULE test
-        DELETE Foo WHERE (Foo.bar = 42);
-        WITH MODULE test
-        DELETE Foo WHERE (Foo.bar = 42) RETURNING Foo;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=18)
     def test_edgeql_syntax_delete03(self):
+        # NOTE: this must be rejected by the compiler
         """
         DELETE 42;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=24)
     def test_edgeql_syntax_delete04(self):
+        # this is legal and equivalent to DELETE Foo;
         """
         DELETE Foo{bar};
         """
@@ -1797,34 +1799,35 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_update01(self):
         """
-        UPDATE Foo{bar:= 42};
-        UPDATE Foo{bar:= 42} RETURNING Foo;
-        UPDATE Foo{bar:= 42} RETURNING Foo{bar};
-        UPDATE Foo{bar:= 42} RETURNING SINGLETON Foo;
-        UPDATE Foo{bar:= 42} RETURNING SINGLETON Foo{bar};
-        UPDATE Foo{bar:= 42} WHERE (Foo.bar = 24);
-        UPDATE Foo{bar:= 42} WHERE (Foo.bar = 24) RETURNING Foo;
+        UPDATE Foo SET {bar := 42};
+        UPDATE Foo SET {bar := 42} RETURNING Foo;
+        UPDATE Foo SET {bar := 42} RETURNING Foo{bar};
+        UPDATE Foo SET {bar := 42} RETURNING SINGLETON Foo;
+        UPDATE Foo SET {bar := 42} RETURNING SINGLETON Foo{bar};
+        UPDATE Foo FILTER (Foo.bar = 24) SET {bar := 42};
+        UPDATE Foo FILTER (Foo.bar = 24) SET {bar := 42} RETURNING Foo;
         """
 
     def test_edgeql_syntax_update02(self):
         """
         WITH MODULE test
-        UPDATE Foo{bar:= 42};
+        UPDATE Foo SET {bar := 42};
         WITH MODULE test
-        UPDATE Foo{bar:= 42} RETURNING Foo;
+        UPDATE Foo SET {bar := 42} RETURNING Foo;
         WITH MODULE test
-        UPDATE Foo{bar:= 42} RETURNING Foo{bar};
+        UPDATE Foo SET {bar := 42} RETURNING Foo{bar};
         WITH MODULE test
-        UPDATE Foo{bar:= 42} RETURNING SINGLETON Foo;
+        UPDATE Foo SET {bar := 42} RETURNING SINGLETON Foo;
         WITH MODULE test
-        UPDATE Foo{bar:= 42} RETURNING SINGLETON Foo{bar};
+        UPDATE Foo SET {bar := 42} RETURNING SINGLETON Foo{bar};
         WITH MODULE test
-        UPDATE Foo{bar:= 42} WHERE (Foo.bar = 24);
+        UPDATE Foo FILTER (Foo.bar = 24) SET {bar := 42};
         WITH MODULE test
-        UPDATE Foo{bar:= 42} WHERE (Foo.bar = 24) RETURNING Foo;
+        UPDATE Foo FILTER (Foo.bar = 24) SET {bar := 42} RETURNING Foo;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=16)
+    # XXX: this must be rejected by the compiler because 42 is not a Concept
+    @unittest.expectedFailure
     def test_edgeql_syntax_update03(self):
         """
         UPDATE 42;
@@ -1836,45 +1839,61 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         UPDATE Foo;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=43)
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=49)
     def test_edgeql_syntax_update05(self):
         """
-        UPDATE Foo{bar:= 42} RETURNING Foo, Foo.bar;
+        UPDATE Foo SET {bar := 42} RETURNING Foo, Foo.bar;
         """
 
     def test_edgeql_syntax_update06(self):
         """
-        SELECT (UPDATE Foo{bar:= 42} RETURNING Foo);
+        SELECT (UPDATE Foo SET {bar := 42} RETURNING Foo);
+        """
+
+    def test_edgeql_syntax_update07(self):
+        """
+        UPDATE Foo
+        FILTER (Foo.bar = 24)
+        SET {
+            bar := 42,
+            baz := 'spam',
+            ham: {
+                taste := 'yummy'
+            }
+        } RETURNING Foo;
         """
 
     def test_edgeql_syntax_insertfrom01(self):
         """
-        INSERT User{name} FROM 'a' UNION 'b' UNION 'c';
+        INSERT User{name := name} FOR name in 'a' UNION 'b' UNION 'c';
 
 % OK %
 
-        INSERT User{name} FROM (('a' UNION 'b') UNION 'c');
+        INSERT User{name := name} FOR name in (('a' UNION 'b') UNION 'c');
         """
 
     def test_edgeql_syntax_insertfrom02(self):
         """
-        INSERT User{name} FROM (SELECT Foo.bar WHERE (Foo.baz = TRUE));
+        INSERT Foo{name:= name}
+        FOR name IN (SELECT Foo.bar FILTER (Foo.baz = TRUE));
         """
 
     def test_edgeql_syntax_insertfrom03(self):
         """
-        INSERT Foo{name} FROM (INSERT Bar{name := 'bar'} RETURNING Bar{name});
+        INSERT Foo{name:= bar.name}
+        FOR bar IN (INSERT Bar{name := 'bar'} RETURNING Bar{name});
         """
 
     def test_edgeql_syntax_insertfrom04(self):
         """
-        INSERT Foo{name} FROM (DELETE Bar RETURNING Bar{name});
+        INSERT Foo{name:= bar.name}
+        FOR bar IN (DELETE Bar RETURNING Bar{name});
         """
 
     def test_edgeql_syntax_insertfrom05(self):
         """
-        INSERT Foo{name} FROM (
-            UPDATE Bar{name:= (name + 'bar')} RETURNING Bar{name}
+        INSERT Foo{name:= bar.name} FOR bar IN (
+            UPDATE Bar SET {name := (name + 'bar')} RETURNING Bar{name}
         );
         """
 
@@ -1904,10 +1923,10 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         SELECT some_agg(User.name ORDER BY User.age ASC);
         SELECT some_agg(User.name
-                        WHERE (strlen(User.name) > 2)
+                        FILTER (strlen(User.name) > 2)
                         ORDER BY User.age DESC);
         SELECT some_agg(User.name
-                        WHERE (strlen(User.name) > 2)
+                        FILTER (strlen(User.name) > 2)
                         ORDER BY User.age DESC THEN User.email ASC);
         """
 
