@@ -33,7 +33,7 @@ class SortExpr(Clause):
     nones_order: str
 
 
-class CGE(Clause):
+class AliasedExpr(Clause):
     expr: Expr
     alias: str
 
@@ -84,6 +84,7 @@ class FunctionCall(Expr):
     agg_sort: typing.List[SortExpr]
     agg_filter: Expr
     window: WindowSpec
+    agg_set_modifier: str = ''
 
 
 class Constant(Expr):
@@ -175,28 +176,32 @@ class Mapping(Expr):
 #
 
 class Statement(Expr):
-    aliases: typing.List[typing.Union[CGE, NamespaceAliasDecl]]
+    aliases: typing.List[typing.Union[AliasedExpr, NamespaceAliasDecl]]
+    result: Expr
+    result_alias: str
+    single: bool = False
 
 
 class SelectQuery(Statement):
-    single: bool = False
-    distinct: bool = False
-    result: Expr
     where: Expr
-    groupby: typing.List[Expr]
-    having: Expr
     orderby: typing.List[SortExpr]
     offset: Expr
     limit: Expr
-    cges: typing.List[CGE]
+
+
+class GroupQuery(Statement):
+    subject: Expr
+    subject_alias: str
+    where: Expr
+    groupby: typing.List[Expr]
+    orderby: typing.List[SortExpr]
+    offset: Expr
+    limit: Expr
 
 
 class InsertQuery(Statement):
     subject: Expr
     shape: typing.List[Expr]
-    result: Expr
-    cges: typing.List[CGE]
-    single: bool = False
     source: Expr
 
 
@@ -204,17 +209,11 @@ class UpdateQuery(Statement):
     subject: Expr
     shape: typing.List[Expr]
     where: Expr
-    result: Expr
-    cges: typing.List[CGE]
-    single: bool = False
 
 
 class DeleteQuery(Statement):
     subject: Expr
     where: Expr
-    result: Expr
-    cges: typing.List[CGE]
-    single: bool = False
 
 
 class ShapeElement(Expr):
@@ -659,3 +658,14 @@ class SetOperator(EdgeQLOperator):
 UNION = SetOperator('UNION')
 INTERSECT = SetOperator('INTERSECT')
 EXCEPT = SetOperator('EXCEPT')
+
+
+class SetModifier(s_enum.StrEnum):
+    ALL = 'ALL'
+    DISTINCT = 'DISTINCT'
+    NONE = ''
+
+
+AggALL = SetModifier.ALL
+AggDISTINCT = SetModifier.DISTINCT
+AggNONE = SetModifier.NONE

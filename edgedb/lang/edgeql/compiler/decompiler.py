@@ -37,9 +37,6 @@ class IRDecompiler(ast.visitor.NodeVisitor):
         if node.where is not None:
             result.where = self.visit(node.where)
 
-        if node.groupby:
-            result.groupby = self.visit(node.groupby)
-
         if node.orderby:
             result.orderby = self.visit(node.orderby)
 

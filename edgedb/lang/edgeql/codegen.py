@@ -55,7 +55,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.new_lines = 1
             self.indentation -= 1
 
-    def visit_CGE(self, node):
+    def visit_AliasedExpr(self, node):
         self.write(ident_to_str(node.alias))
         self.write(' := ')
         self.new_lines = 1
@@ -73,6 +73,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write('RETURNING')
             if node.single:
                 self.write(' SINGLETON')
+            if node.result_alias:
+                self.write(node.result_alias, ' := ')
             self.indentation += 1
             self.new_lines = 1
             self.visit(node.result)
@@ -184,6 +186,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(' SINGLETON')
         self.new_lines = 1
         self.indentation += 1
+        if node.result_alias:
+            self.write(node.result_alias, ' := ')
         self.visit(node.result)
         self.new_lines = 1
         self.indentation -= 1
@@ -194,18 +198,62 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.where)
             self.new_lines = 1
             self.indentation -= 1
-        if node.groupby:
-            self.write('GROUP BY')
+        if node.orderby:
+            self.write('ORDER BY')
             self.new_lines = 1
             self.indentation += 1
-            self.visit_list(node.groupby, separator=' THEN')
+            self.visit_list(node.orderby, separator=' THEN')
             self.new_lines = 1
             self.indentation -= 1
-        if node.having:
-            self.write('HAVING')
+        if node.offset is not None:
+            self.write('OFFSET')
             self.new_lines = 1
             self.indentation += 1
-            self.visit(node.having)
+            self.visit(node.offset)
+            self.indentation -= 1
+            self.new_lines = 1
+        if node.limit is not None:
+            self.write('LIMIT')
+            self.new_lines = 1
+            self.indentation += 1
+            self.visit(node.limit)
+            self.indentation -= 1
+            self.new_lines = 1
+        if parenthesise:
+            self.write(')')
+
+    def visit_GroupQuery(self, node):
+        # need to parenthesise when GROUP appears as an expression
+        #
+        parenthesise = (isinstance(node.parent, edgeql_ast.Base) and
+                        not isinstance(node.parent, edgeql_ast.DDL))
+
+        if parenthesise:
+            self.write('(')
+
+        self._visit_aliases(node)
+
+        self.write('GROUP')
+        self.new_lines = 1
+        self.indentation += 1
+        if node.subject_alias:
+            self.write(node.subject_alias, ' := ')
+        self.visit(node.subject)
+        self.new_lines = 1
+        self.indentation -= 1
+        self.write('BY')
+        self.new_lines = 1
+        self.indentation += 1
+        self.visit_list(node.groupby, separator=' THEN')
+        self.new_lines = 1
+        self.indentation -= 1
+        self._visit_returning(node)
+
+        if node.where:
+            self.write('WHERE')
+            self.new_lines = 1
+            self.indentation += 1
+            self.visit(node.where)
             self.new_lines = 1
             self.indentation -= 1
         if node.orderby:
@@ -439,6 +487,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(node.func)
 
         self.write('(')
+
+        if node.agg_set_modifier:
+            self.write(node.agg_set_modifier, ' ')
 
         for i, arg in enumerate(node.args):
             if i > 0:

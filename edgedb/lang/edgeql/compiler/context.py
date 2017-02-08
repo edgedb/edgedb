@@ -50,8 +50,8 @@ class ContextLevel(compiler.ContextLevel):
     """A mapping of statement parameter types passed to the compiler
     programmatically."""
 
-    location: str
-    """Statement location the compiler is currently in."""
+    clause: str
+    """Statement clause the compiler is currently in."""
 
     stmt: irast.Stmt
     """Statement node currently being built."""
@@ -84,7 +84,7 @@ class ContextLevel(compiler.ContextLevel):
             self.substmts = {}
             self.arguments = {}
 
-            self.location = None
+            self.clause = None
             self.stmt = None
             self.sets = {}
             self.singletons = set()
@@ -107,7 +107,7 @@ class ContextLevel(compiler.ContextLevel):
                 self.substmts = prevlevel.substmts.copy()
 
                 self.toplevel_shape_rptrcls = None
-                self.location = None
+                self.clause = None
                 self.stmt = None
                 self.sets = prevlevel.sets.copy()
                 self.singletons = prevlevel.singletons.copy()
@@ -122,7 +122,7 @@ class ContextLevel(compiler.ContextLevel):
                 self.namespaces = prevlevel.namespaces
                 self.substmts = prevlevel.substmts
 
-                self.location = prevlevel.location
+                self.clause = prevlevel.clause
                 self.stmt = prevlevel.stmt
 
                 self.group_paths = prevlevel.group_paths

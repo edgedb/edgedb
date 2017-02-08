@@ -19,9 +19,17 @@ class DistinctConjunctionExpr:
     def get_pattern(self):
         if self.pattern is None:
             # Basic std::is_distinct(blah) expression
-            distinct_expr = irastmatch.FunctionCall(
+            pure_distinct_expr = irastmatch.FunctionCall(
                 func=astmatch.Object(shortname='std::is_distinct'),
                 args=[astmatch.group('expr', irastmatch.Base())]
+            )
+
+            possibly_wrapped_distinct_expr = irastmatch.SelectStmt(
+                result=pure_distinct_expr
+            )
+
+            distinct_expr = astmatch.Or(
+                pure_distinct_expr, possibly_wrapped_distinct_expr
             )
 
             # A logical conjunction of unique constraint expressions

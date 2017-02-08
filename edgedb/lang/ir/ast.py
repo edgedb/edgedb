@@ -309,7 +309,15 @@ class Stmt(Base):
 class SelectStmt(Stmt):
 
     where: Base
+    orderby: typing.List[SortExpr]
+    offset: Base
+    limit: Base
+
+
+class GroupStmt(Stmt):
+    subject: Base
     groupby: typing.List[Base]
+    where: Base
     orderby: typing.List[SortExpr]
     offset: Base
     limit: Base

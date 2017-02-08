@@ -115,8 +115,67 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
             self._apply_path_scope()
 
-            # The GROUP BY clause
+            self._enforce_path_scope(query, ctx.parent_path_bonds)
+
+            # The ORDER BY clause
+            self._process_orderby(stmt.orderby)
+
+            # The OFFSET clause
+            if stmt.offset:
+                with self.context.new() as ctx1:
+                    ctx1.clause = 'offsetlimit'
+                    ctx1.output_format = None
+                    query.limit_offset = self.visit(stmt.offset)
+
+            # The LIMIT clause
+            if stmt.limit:
+                with self.context.new() as ctx1:
+                    ctx1.clause = 'offsetlimit'
+                    ctx1.output_format = None
+                    query.limit_count = self.visit(stmt.limit)
+
+        return query
+
+    def visit_GroupStmt(self, stmt):
+        with self.context.substmt() as ctx:
+            if ctx.toplevel_stmt is None:
+                ctx.toplevel_stmt = ctx.stmt
+
+            query = ctx.query
+
+            # Process any substatments in the WITH block.
+            self._process_explicit_substmts(stmt)
+
+            self.visit(stmt.subject)
+            subjcte = self._get_set_cte(stmt.subject)
+            subjrvar = self._include_range(subjcte)
             self._process_groupby(stmt.groupby)
+
+            self._put_parent_range_scope(stmt.subject, subjrvar, grouped=True)
+
+            # Process the result expression;
+            with self.context.subquery() as selctx:
+                for path_id, ref in selctx.path_bonds.items():
+                    if path_id.startswith(stmt.subject.path_id):
+                        ref.grouped = True
+                self._pop_set_cte(stmt.subject)
+                self._process_selector(stmt.result)
+                self._enforce_path_scope(
+                    selctx.query, selctx.parent_path_bonds)
+
+                query.target_list = [
+                    pgast.ResTarget(
+                        val=selctx.query
+                    )
+                ]
+
+            # The WHERE clause
+            if stmt.where:
+                with self.context.new() as ctx1:
+                    ctx1.clause = 'where'
+                    query.where_clause = self.visit(stmt.where)
+
+            self._apply_path_scope()
 
             self._enforce_path_scope(query, ctx.parent_path_bonds)
 
@@ -426,7 +485,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         rvar = ctx.subquery_map[ctx.rel].get(rel)
         if rvar is None:
             # The rel has not been recorded as a sub-relation of this rel,
-            # so make it so.
+            # make it so.
             rvar = pgast.RangeVar(
                 relation=rel,
                 alias=pgast.Alias(
@@ -452,7 +511,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         # occurrences we do it here.
         if isinstance(pg_expr, pgast.Query):
             result = pgast.SubLink(
-                type=pgast.SubLinkType.EXISTS, subselect=pg_expr)
+                type=pgast.SubLinkType.EXISTS, expr=pg_expr)
 
         elif isinstance(pg_expr, (pgast.Constant, pgast.ParamRef)):
             result = pgast.NullTest(arg=pg_expr, negated=True)
@@ -495,7 +554,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         return pgast.SubLink(
             type=pgast.SubLinkType.EXISTS,
-            subselect=wrapper
+            expr=wrapper
         )
 
     def _wrap_set_rel(self, ir_set, set_rel):
@@ -580,10 +639,10 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         return wrapper
 
-    def _put_parent_range_scope(self, ir_set, rvar):
+    def _put_parent_range_scope(self, ir_set, rvar, grouped=False):
         ctx = self.context.current
         if ir_set not in ctx.computed_node_rels:
-            ctx.computed_node_rels[ir_set] = rvar
+            ctx.computed_node_rels[ir_set] = rvar, grouped
 
     def _get_parent_range_scope(self, ir_set):
         ctx = self.context.current
@@ -609,6 +668,19 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         self._note_set_ref(ir_set)
 
         return cte
+
+    def _pop_set_cte(self, ir_set, *, lax=None):
+
+        ctx = self.context.current
+
+        if lax is not None:
+            key = (ir_set, lax)
+        elif ir_set.rptr is not None and ir_set.expr is None:
+            key = (ir_set, ctx.lax_paths)
+        else:
+            key = (ir_set, False)
+
+        return ctx.ctemap.pop(key)
 
     def _get_set_cte(self, ir_set, *, lax=None):
         ctx = self.context.current
@@ -637,7 +709,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             # form a strict set existence condition for each path, unless
             # the existence predicate was used explicitly (either directly,
             # with [NOT] EXISTS, or through the coalescing operator.)
-            if ctx.clause != 'result':
+            if ctx.clause != 'result' or ctx.in_aggregate:
                 ctx.auto_setscope.add(ir_set)
             elif len(ir_set.path_id) > 1:
                 ctx.forced_setscope.add(ir_set)
@@ -688,6 +760,10 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 if isinstance(expr_result, s_concepts.Concept):
                     # Expressions returning objects.
                     self._process_set_as_concept_expr(ir_set, stmt)
+                elif (isinstance(ir_set.expr, irast.FunctionCall) and
+                        ir_set.expr.func.aggregate):
+                    # Call to an aggregate function.
+                    self._process_set_as_agg_expr(ir_set, stmt)
                 else:
                     # Other expressions.
                     self._process_set_as_expr(ir_set, stmt)
@@ -801,7 +877,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         """Populate the CTE for a Set defined by parent range."""
         ctx = self.context.current
 
-        parent_rvar = self._get_parent_range_scope(ir_set)
+        parent_rvar, grouped = self._get_parent_range_scope(ir_set)
         if isinstance(parent_rvar, pgast.RangeVar):
             parent_scope_rel = parent_rvar.relation
         else:
@@ -823,6 +899,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             parent_scope = {}
             for path_id, ref in parent_rvar.path_bonds.items():
                 parent_scope[path_id] = self._get_column(parent_rvar, ref)
+                parent_scope[path_id].grouped = grouped
 
             self._enforce_path_scope(stmt, parent_scope)
 
@@ -993,7 +1070,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                     # _pull_path_rvar will choke on a JOIN there.
                     self._rel_join(subquery, source_rvar, type='where')
 
-            if irutils.is_aggregated_expr(ir_set.expr):
+            if irutils.is_aggregated_expr(ir_set.expr) and False:
                 # The expression includes calls to aggregates.
 
                 # Remove aggregated vars from the namespace.
@@ -1160,13 +1237,6 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
             set_expr = self.visit(ir_set.expr)
 
-            if irutils.is_aggregated_expr(ir_set.expr):
-                # The expression includes calls to aggregates.
-                # Clear the namespace as it is no longer valid.
-                stmt.path_namespace.clear()
-                stmt.inner_path_bonds.clear()
-                stmt.target_list[:] = []
-
         if isinstance(set_expr, ResTargetList):
             for i, rt in enumerate(set_expr.targets):
                 stmt.target_list.append(
@@ -1179,6 +1249,41 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             if not path_id:
                 path_id = irast.PathId([ir_set.scls])
             stmt.path_vars[path_id] = pgast.ColumnRef(name=[restarget.name])
+
+        ctx.query.ctes.append(self._get_set_cte(ir_set))
+
+    def _process_set_as_agg_expr(self, ir_set, stmt):
+        """Populate the CTE for Set defined by an aggregate."""
+
+        ctx = self.context.current
+
+        with self.context.new() as newctx:
+            newctx.in_set_expr = True
+            newctx.rel = stmt
+
+            set_expr = self.visit(ir_set.expr)
+
+            # Remove aggregated vars from the namespace.
+            # Add an explicit GROUP BY for each other var
+            for path_id, path_var in list(stmt.path_namespace.items()):
+                for agg_prefix in stmt.aggregated_prefixes:
+                    if path_id.startswith(agg_prefix):
+                        self._remove_path_from_namespace(stmt, path_id)
+                        break
+                else:
+                    # Pull the path var into the target_list
+                    if path_id in stmt.inner_path_bonds:
+                        self._get_path_bond(stmt, path_id)
+                        stmt.group_clause.append(path_var)
+                    else:
+                        self._remove_path_from_namespace(stmt, path_id)
+
+        restarget = pgast.ResTarget(val=set_expr, name='v')
+        stmt.target_list.append(restarget)
+        path_id = ir_set.path_id
+        if not path_id:
+            path_id = irast.PathId([ir_set.scls])
+        stmt.path_vars[path_id] = pgast.ColumnRef(name=[restarget.name])
 
         ctx.query.ctes.append(self._get_set_cte(ir_set))
 
@@ -1216,9 +1321,12 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 )
                 self._put_set_cte(substmt, cte, ctx=ctx)
 
-                if subquery.from_clause:
-                    # XXX: hack
-                    subquery.scls_rvar = subquery.from_clause[0]
+                if (isinstance(expr_type, s_concepts.Concept) and
+                        subquery.from_clause):
+                    scls_rvar = subquery.from_clause[0]
+                    while isinstance(scls_rvar, pgast.JoinExpr):
+                        scls_rvar = scls_rvar.larg
+                    subquery.scls_rvar = scls_rvar
 
                 if not isinstance(expr_type, s_obj.Struct):
                     path_id = substmt.real_path_id
@@ -1330,9 +1438,11 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         if isinstance(colspec, pgast.ColumnRef):
             colname = colspec.name[-1]
             nullable = colspec.nullable
+            grouped = colspec.grouped
         else:
             colname = colspec
             nullable = rvar.nullable
+            grouped = False
 
         if name is not None:
             colname = name
@@ -1342,7 +1452,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         else:
             name = [rvar.alias.aliasname, colname]
 
-        return pgast.ColumnRef(name=name, nullable=nullable)
+        return pgast.ColumnRef(name=name, nullable=nullable, grouped=grouped)
 
     def _rtlist_as_json_object(self, rtlist):
         keyvals = []
@@ -1426,7 +1536,9 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 f'reference in context of {ctx.rel!r}')
 
         if ctx.in_aggregate:
-            if ir_set.rptr is not None:
+            if (isinstance(ir_set.scls, s_atoms.Atom) and
+                    ir_set.rptr is not None and
+                    ir_set.rptr.ptrcls.singular(ir_set.rptr.direction)):
                 aggregated_scope_path_id = ir_set.rptr.source.path_id
             else:
                 aggregated_scope_path_id = ir_set.path_id
@@ -1464,10 +1576,20 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             if rref is None:
                 continue
 
-            if lref.nullable or rref.nullable:
-                op = 'IS NOT DISTINCT FROM'
-            else:
+            if rref.grouped:
                 op = '='
+                rref = pgast.SubLink(
+                    type=pgast.SubLinkType.ANY,
+                    expr=pgast.FuncCall(
+                        name=('array_agg',),
+                        args=[rref]
+                    )
+                )
+            else:
+                if lref.nullable or rref.nullable:
+                    op = 'IS NOT DISTINCT FROM'
+                else:
+                    op = '='
 
             path_cond = self._new_binop(lref, rref, op=op)
             condition = self._extend_binop(condition, path_cond)

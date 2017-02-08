@@ -1350,26 +1350,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['elvis', 'yury'],
         ])
 
-    async def test_edgeql_select_func03(self):
-        await self.assert_query_result(r'''
-            WITH MODULE test
-            SELECT std::count(User.<owner.id)
-            GROUP BY User.name ORDER BY User.name;
-        ''', [
-            [4, 2],
-        ])
-
-    async def test_edgeql_select_func04(self):
-        await self.assert_query_result(r'''
-            WITH MODULE test
-            SELECT sum(<int>Issue.number)
-            WHERE EXISTS Issue.watchers.name
-            GROUP BY Issue.watchers.name
-            ORDER BY Issue.watchers.name;
-        ''', [
-            [5, 1],
-        ])
-
     async def test_edgeql_select_func05(self):
         await self.con.execute(r'''
             CREATE FUNCTION test::concat1(*std::any) RETURNING std::str
@@ -3031,25 +3011,28 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             # get tuples (status, number of issues)
             WITH MODULE test
             SELECT (Status.name, count(Status.<status))
-            GROUP BY Status.name
             ORDER BY Status.name;
             """, [
             [['Closed', 2], ['Open', 2]]
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_select_tuple02(self):
         await self.assert_query_result(r"""
             # nested tuples
             WITH MODULE test
             SELECT
-                (
+                _ := (
                     User.name, (
                         User.<owner[IS Issue].status.name,
                         count(User.<owner[IS Issue])
                     )
                 )
-            GROUP BY User.name, User.<owner[IS Issue].status.name
-            ORDER BY User.name THEN User.<owner[IS Issue].status.name;
+                # A tuple is essentially an identity function within our
+                # set operation semantics, so here we're selecting a cross
+                # product of all user names with user owned issue statuses.
+                #
+            ORDER BY _._0 THEN _._1;
             """, [[
             ['Elvis', ['Closed', 1]],
             ['Elvis', ['Open', 1]],
@@ -3166,51 +3149,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [False],
         ])
 
-    @unittest.expectedFailure
-    async def test_edgeql_select_struct99(self):
-        await self.assert_query_result(r"""
-            # nested structs
-            # XXX: the below doesn't work yet due to the unhandled
-            # conflict between the GROUP BY and path matching.
-            WITH MODULE test
-            SELECT
-                {
-                    name := User.name,
-                    issues := (
-                        SELECT {
-                            status := User.<owner[IS Issue].status.name,
-                            count := count(User.<owner[IS Issue]),
-                        }
-                        GROUP BY
-                            User.<owner[IS Issue].status.name
-                        ORDER BY
-                            User.<owner[IS Issue].status.name
-                    )
-                }
-            ORDER BY User.name;
-            """, [
-            {
-                'name': 'Elvis',
-                'issues': [{
-                    'status': 'Closed',
-                    'count': 1,
-                }, {
-                    'status': 'Open',
-                    'count': 1,
-                }]
-            },
-            {
-                'name': 'Yury',
-                'issues': [{
-                    'status': 'Closed',
-                    'count': 1,
-                }, {
-                    'status': 'Open',
-                    'count': 1,
-                }]
-            },
-        ])
-
     async def test_edgeql_select_linkproperty01(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -3321,32 +3259,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     foo := 'bar' IF Issue.number = '1' ELSE 123
                 };
                 """)
-
-    async def test_edgeql_agg_01(self):
-        await self.assert_query_result(r"""
-            SELECT array_agg(
-                schema::Concept.links.name
-                WHERE
-                    schema::Concept.links.name IN (
-                        'std::id',
-                        'schema::name'
-                    )
-                ORDER BY schema::Concept.links.name ASC)
-            WHERE
-                schema::Concept.name = 'schema::PrimaryClass';
-        """, [
-            [['schema::name', 'std::id']]
-        ])
-
-    async def test_edgeql_agg_02(self):
-        await self.assert_query_result(r"""
-            WITH MODULE test
-            SELECT array_agg(
-                [<str>Issue.number, Issue.status.name]
-                ORDER BY Issue.number);
-        """, [
-            [[['1', 'Open'], ['2', 'Open'], ['3', 'Closed'], ['4', 'Closed']]]
-        ])
 
     async def test_edgeql_partial_01(self):
         await self.assert_query_result('''

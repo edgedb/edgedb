@@ -61,6 +61,12 @@ class PathExtractor(ast.visitor.NodeVisitor):
             else:
                 self.paths[key].add(expr)
 
+    def visit_FunctionCall(self, expr):
+        if expr.func.aggregate:
+            pass
+        else:
+            self.generic_visit(expr)
+
 
 def extract_prefixes(expr, roots_only=False):
     extractor = PathExtractor(roots_only=roots_only)
@@ -145,7 +151,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                            location=None):
 
         context = self._init_context(arg_types, modaliases, anchors)
-        context.current.location = location or 'generator'
+        context.current.clause = location or 'where'
         return self.visit(edgeql_tree)
 
     def generic_visit(self, node, *, combine_results=None):
@@ -172,10 +178,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
             stmt.where = self._process_select_where(edgeql_tree.where)
 
-            stmt.groupby = self._process_groupby(edgeql_tree.groupby)
-            if stmt.groupby is not None:
-                ctx.group_paths = set(extract_prefixes(stmt.groupby))
-
             stmt.result = self._process_stmt_result(
                 edgeql_tree.result, toplevel_shape_rptrcls)
 
@@ -193,27 +195,59 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 self._enforce_singleton(limit_ir)
                 stmt.limit = limit_ir
 
-            if stmt.groupby is None:
-                # Check if query() or order() contain any aggregate
-                # expressions and if so, add a sentinel group prefix
-                # instructing the transformer that we are implicitly
-                # grouping the whole set.
-                def checker(n):
-                    if isinstance(n, irast.FunctionCall):
-                        return n.aggregate
-                    elif isinstance(n, irast.Stmt):
-                        # Make sure we don't dip into subqueries
-                        raise ast.Skip()
+            if is_toplevel:
+                stmt.argument_types = self.context.current.arguments
+                result = stmt
+            else:
+                restype = irutils.infer_type(stmt, schema)
+                result = self._generated_set(stmt, restype, force=True)
+                if isinstance(stmt.result, irast.Set):
+                    result.path_id = stmt.result.path_id
 
-                for node in itertools.chain(stmt.orderby or [],
-                                            [stmt.offset],
-                                            [stmt.limit],
-                                            [stmt.result]):
-                    if node is None:
-                        continue
-                    if ast.find_children(node, checker, force_traversal=True):
-                        ctx.group_paths = {...}
-                        break
+        return result
+
+    def visit_GroupQuery(self, edgeql_tree):
+        toplevel_shape_rptrcls = self.context.current.toplevel_shape_rptrcls
+        is_toplevel = self.context.current.stmt is None
+        schema = self.context.current.schema
+
+        with self.context.subquery():
+            ctx = self.context.current
+
+            stmt = ctx.stmt = irast.GroupStmt()
+            self._visit_with_block(edgeql_tree)
+
+            stmt.subject = self._declare_view(
+                edgeql_tree.subject, edgeql_tree.subject_alias)
+
+            stmt.groupby = self._process_groupby(edgeql_tree.groupby)
+            ctx.group_paths = set(extract_prefixes(stmt.groupby))
+
+            output = edgeql_tree.result
+
+            if (isinstance(output, qlast.Shape) and
+                    isinstance(output.expr, qlast.Path) and
+                    output.expr.steps):
+                ctx.result_path_steps = output.expr.steps
+
+            stmt.where = self._process_select_where(edgeql_tree.where)
+
+            stmt.result = self._process_stmt_result(
+                edgeql_tree.result, toplevel_shape_rptrcls)
+
+            stmt.orderby = self._process_orderby(edgeql_tree.orderby)
+
+            if edgeql_tree.offset:
+                offset_ir = self.visit(edgeql_tree.offset)
+                offset_ir.context = edgeql_tree.offset.context
+                self._enforce_singleton(offset_ir)
+                stmt.offset = offset_ir
+
+            if edgeql_tree.limit:
+                limit_ir = self.visit(edgeql_tree.limit)
+                limit_ir.context = edgeql_tree.limit.context
+                self._enforce_singleton(limit_ir)
+                stmt.limit = limit_ir
 
             if is_toplevel:
                 stmt.argument_types = self.context.current.arguments
@@ -236,7 +270,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             self._visit_with_block(edgeql_tree)
 
             with self.context.new():
-                self.context.current.location = 'selector'
+                self.context.current.clause = 'result'
                 subject = self.visit(edgeql_tree.subject)
 
                 if edgeql_tree.result is not None:
@@ -296,7 +330,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             self._visit_with_block(edgeql_tree)
 
             with self.context.new():
-                self.context.current.location = 'selector'
+                self.context.current.clause = 'result'
                 subject = self.visit(edgeql_tree.subject)
 
             stmt.where = self._process_select_where(edgeql_tree.where)
@@ -324,7 +358,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             self._visit_with_block(edgeql_tree)
 
             with self.context.new():
-                self.context.current.location = 'selector'
+                self.context.current.clause = 'result'
                 subject = self.visit(edgeql_tree.subject)
 
             stmt.where = self._process_select_where(edgeql_tree.where)
@@ -378,10 +412,17 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     # path variable (defined in a WITH clause).
                     refnode = pathvars.get(step.name)
 
-                if refnode is None and not step.module:
+                if refnode is None:
                     # Finally, check if the starting path label is
-                    # a query defined in a WITH clause.
-                    refnode = ctx.substmts.get(step.name)
+                    # a query defined as a view.
+                    if not step.module:
+                        refnode = ctx.substmts.get(sn.Name(
+                            module='__view__',
+                            name=step.name))
+                    if refnode is None:
+                        schema_name = self._resolve_schema_name(
+                            step.name, step.module)
+                        refnode = ctx.substmts.get(schema_name)
 
                 if refnode is not None:
                     path_tip = refnode
@@ -448,12 +489,12 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     path_tip = self._generated_set(
                         expr, result_type, force=True)
 
-        if (ctx.group_paths and ctx.location in ('orderby', 'selector') and
-                not ctx.in_aggregate and
+        if (ctx.group_paths and isinstance(ctx.stmt, irast.GroupStmt) and
+                ctx.clause == 'result' and not ctx.in_aggregate and
                 path_tip.path_id not in ctx.group_paths):
             raise errors.EdgeQLError(
                 f'{path_tip.path_id!r} must appear in the '
-                'GROUP BY expression or used in an aggregate function.')
+                'GROUP ... BY expression or used in an aggregate function.')
 
         return path_tip
 
@@ -755,6 +796,18 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             if expr.agg_filter:
                 node.agg_filter = self.visit(expr.agg_filter)
 
+        result_type = irutils.infer_type(node, ctx.schema)
+        prefixes = get_common_prefixes(node.args)
+        sources = set(itertools.chain.from_iterable(prefixes.values()))
+
+        if sources:
+            node = irast.Set(
+                path_id=irast.PathId([]),
+                scls=result_type,
+                expr=node,
+                sources=sources
+            )
+
         return node
 
     def visit_IfElse(self, expr):
@@ -1001,6 +1054,46 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
             ctx.anchors[anchor] = step
 
+    def _declare_view(self, expr, alias=None):
+        ctx = self.context.current
+
+        if not isinstance(expr, qlast.Statement):
+            expr = qlast.SelectQuery(result=expr)
+
+        with self.context.new():
+            substmt = self.visit(expr).expr
+
+        result_type = irutils.infer_type(substmt, ctx.schema)
+
+        if alias is None:
+            if isinstance(substmt.result, irast.Shape):
+                view_name = result_type.name
+            else:
+                view_name = sn.Name(module='__view__', name=ctx.genalias('v'))
+        else:
+            view_name = sn.Name(module='__view__', name=alias)
+
+        path_id = irast.PathId([s_concepts.Concept(name=view_name)])
+
+        if isinstance(substmt.result, irast.Set):
+            real_path_id = substmt.result.path_id
+        elif isinstance(substmt.result, irast.Shape):
+            real_path_id = substmt.result.set.path_id
+        else:
+            real_path_id = irast.PathId([result_type])
+
+        substmt_set = irast.Set(
+            path_id=path_id,
+            real_path_id=real_path_id,
+            scls=result_type,
+            expr=substmt
+        )
+
+        ctx.sets[substmt_set.path_id] = substmt_set
+        ctx.substmts[view_name] = substmt_set
+        ctx.stmt.substmts.append(substmt_set)
+        return substmt_set
+
     def _visit_with_block(self, edgeql_tree):
         ctx = self.context.current
 
@@ -1011,43 +1104,8 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             if isinstance(with_entry, qlast.NamespaceAliasDecl):
                 ctx.namespaces[with_entry.alias] = with_entry.namespace
 
-            elif isinstance(with_entry, qlast.CGE):
-                path_id = irast.PathId([
-                    s_concepts.Concept(
-                        name=sn.Name(
-                            module='__view__',
-                            name=with_entry.alias
-                        )
-                    )
-                ])
-
-                with_expr = with_entry.expr
-
-                if not isinstance(with_expr, qlast.Statement):
-                    with_expr = qlast.SelectQuery(result=with_expr)
-
-                with self.context.new():
-                    substmt = self.visit(with_expr).expr
-
-                result_type = irutils.infer_type(substmt, ctx.schema)
-
-                if isinstance(substmt.result, irast.Set):
-                    real_path_id = substmt.result.path_id
-                elif isinstance(substmt.result, irast.Shape):
-                    real_path_id = substmt.result.set.path_id
-                else:
-                    real_path_id = irast.PathId([result_type])
-
-                substmt_set = irast.Set(
-                    path_id=path_id,
-                    real_path_id=real_path_id,
-                    scls=result_type,
-                    expr=substmt
-                )
-
-                ctx.sets[substmt_set.path_id] = substmt_set
-                ctx.substmts[with_entry.alias] = substmt_set
-                stmt.substmts.append(substmt_set)
+            elif isinstance(with_entry, qlast.AliasedExpr):
+                self._declare_view(with_entry.expr, with_entry.alias)
 
             else:
                 expr = self.visit(with_entry.expr)
@@ -1227,7 +1285,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
                 if ptrcls is None:
                     if (isinstance(ctx.stmt, irast.MutatingStmt) and
-                            ctx.location != 'selector'):
+                            ctx.clause != 'result'):
                         raise errors.EdgeQLError(
                             'reference to unknown pointer',
                             context=lexpr.context)
@@ -1256,7 +1314,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     raise errors.EdgeQLError(msg, context=lexpr.context)
 
                 if (isinstance(ctx.stmt, irast.MutatingStmt) and
-                        ctx.location != 'selector'):
+                        ctx.clause != 'result'):
                     if (isinstance(ptrcls.target, s_concepts.Concept) and
                             not target_class.issubclass(ptrcls.target) and
                             target_class.name != 'std::Object'):
@@ -1322,7 +1380,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
             if _recurse and shape_el.elements:
                 if (isinstance(ctx.stmt, irast.MutatingStmt) and
-                        ctx.location != 'selector'):
+                        ctx.clause != 'result'):
 
                     mutation_shape = []
                     for subel in shape_el.elements or []:
@@ -1593,6 +1651,14 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         return ptr
 
+    def _resolve_schema_name(self, name, module):
+        ctx = self.context.current
+        schema_module = ctx.namespaces.get(module)
+        if schema_module is None:
+            return None
+        else:
+            return sn.Name(name=name, module=schema_module)
+
     def _get_schema_object(self, name, module=None):
         ctx = self.context.current
 
@@ -1607,7 +1673,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
     def _process_stmt_result(self, result, toplevel_rptrcls):
         with self.context.new() as ctx:
-            ctx.location = 'selector'
+            ctx.clause = 'result'
 
             if isinstance(result, qlast.Shape):
                 expr = self.visit(result.expr)
@@ -1636,7 +1702,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
     def _process_select_where(self, where):
         with self.context.new():
-            self.context.current.location = 'generator'
+            self.context.current.clause = 'where'
 
             if where is not None:
                 return self.visit(where)
@@ -1649,7 +1715,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             return result
 
         with self.context.new() as ctx:
-            ctx.location = 'orderby'
+            ctx.clause = 'orderby'
 
             for sortexpr in sortexprs:
                 ir_sortexpr = self.visit(sortexpr.path)
@@ -1669,7 +1735,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             return result
 
         with self.context.new() as ctx:
-            ctx.location = 'grouper'
+            ctx.clause = 'groupby'
 
             ir_groupexprs = []
             for groupexpr in groupexprs:

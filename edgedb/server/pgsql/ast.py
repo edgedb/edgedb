@@ -128,6 +128,7 @@ class ColumnRef(Base):
 
     name: typing.List[typing.Union[str, Star]]  # Column name list
     nullable: bool                              # Whether NULL is possible
+    grouped: bool                               # Whether the col is grouped
 
 
 class ParamRef(Base):
@@ -405,8 +406,7 @@ class SubLink(Base):
     """Subselect appearing in an expression."""
 
     type: SubLinkType               # Type of sublink
-    testexpr: Base                  # outer-query test ofr ALL/ANY/ROWCOMPARE
-    subselect: Query                # subselect
+    expr: Base                      # Sublink expression
 
 
 class RowExpr(Base):

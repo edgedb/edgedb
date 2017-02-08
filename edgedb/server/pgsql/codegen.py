@@ -500,14 +500,18 @@ class SQLSourceGenerator(codegen.SourceGenerator):
     def visit_SubLink(self, node):
         if node.type == pgast.SubLinkType.EXISTS:
             self.write('EXISTS')
+        elif node.type == pgast.SubLinkType.ALL:
+            self.write('ALL')
+        elif node.type == pgast.SubLinkType.ANY:
+            self.write('ANY')
         else:
             raise SQLSourceGeneratorError(
-                'unexpected SubLinkType order: {!r}'.format(node.type))
+                'unexpected SubLinkType: {!r}'.format(node.type))
 
         self.write(' (')
         self.new_lines = 1
         self.indentation += 1
-        self.visit(node.subselect)
+        self.visit(node.expr)
         self.indentation -= 1
         self.new_lines = 1
         self.write(')')

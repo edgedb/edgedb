@@ -126,7 +126,7 @@ class CompilerContextLevel(compiler.ContextLevel):
                 self.query = pgast.SelectStmt()
                 self.rel = self.query
 
-                self.clause = None
+                self.clause = 'result'
                 self.in_aggregate = False
                 self.in_member_test = False
                 self.in_set_expr = False

@@ -19,7 +19,7 @@ class IRCompilerFunctionSupport:
 
         with self.context.new() as funcctx:
             with self.context.new() as argctx:
-                argctx.in_aggregate = True
+                argctx.in_aggregate = funcobj.aggregate
 
                 # We want array_agg() (and similar) to do the right
                 # thing with respect to output format, so, barring

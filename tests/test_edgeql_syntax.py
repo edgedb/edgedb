@@ -1411,11 +1411,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT User{name};
         SELECT User{name}
             WHERE (User.age > 42);
-        SELECT User.name
-            GROUP BY User.name;
-        SELECT User.name
-            GROUP BY User.name
-            HAVING (User.name LIKE 'F%');
         SELECT User{name}
             ORDER BY User.name ASC;
         SELECT User{name}
@@ -1460,10 +1455,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             User.name
         WHERE
             (User.age > 42)
-        GROUP BY
-            User.name
-        HAVING
-            (User.name LIKE 'F%')
         ORDER BY
             User.name ASC
         OFFSET 2 LIMIT 5;
@@ -1478,13 +1469,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         WITH MODULE test
         SELECT User{name}
             WHERE (User.age > 42);
-        WITH MODULE test
-        SELECT User.name
-            GROUP BY User.name;
-        WITH MODULE test
-        SELECT User{name}
-            GROUP BY User.name
-            HAVING (User.name LIKE 'F%');
         WITH MODULE test
         SELECT User{name}
             ORDER BY User.name ASC;
@@ -1506,10 +1490,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             User.name
         WHERE
             (User.age > 42)
-        GROUP BY
-            User.name
-        HAVING
-            (User.name LIKE 'F%')
         ORDER BY
             User.name ASC
         OFFSET 2 LIMIT 5;
@@ -1549,6 +1529,27 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT User.name OFFSET Foo.bar;
         SELECT User.name LIMIT (Foo.bar * 10);
         SELECT User.name OFFSET Foo.bar LIMIT (Foo.bar * 10);
+        """
+
+    def test_edgeql_syntax_group01(self):
+        """
+        GROUP User
+            BY User.name
+            RETURNING {
+                name := User.name,
+                num_tasks := count(ALL User.tasks)
+            };
+        """
+
+    def test_edgeql_syntax_group02(self):
+        """
+        GROUP _1 := User
+            BY _1.name
+            RETURNING _2 := {
+                name := _1.name,
+                num_tasks := count(DISTINCT _1.tasks)
+            }
+            ORDER BY _2.num_tasks ASC;
         """
 
     def test_edgeql_syntax_set01(self):
