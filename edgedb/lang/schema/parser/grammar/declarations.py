@@ -59,13 +59,22 @@ class DotName(Nonterm):
         self.val.module += '.' + kids[2].val
 
 
-class ObjectName(Nonterm):
+class SimpleName(Nonterm):
     def reduce_IDENT(self, kid):
         self.val = esast.ObjectName(name=kid.val)
 
     def reduce_DotName_DOUBLECOLON_IDENT(self, *kids):
         self.val = kids[0].val
         self.val.name = kids[2].val
+
+
+class ObjectName(Nonterm):
+    def reduce_SimpleName(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_SimpleName_LANGBRACKET_NameList_RANGBRACKET(self, *kids):
+        self.val = kids[0].val
+        self.val.subtypes = kids[2].val
 
 
 class BaseValue(Nonterm):

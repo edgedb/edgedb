@@ -6,6 +6,8 @@
 ##
 
 
+import typing
+
 from edgedb.lang.common import enum as s_enum
 from edgedb.lang.common import ast, parsing
 
@@ -126,6 +128,8 @@ class ArrayLiteral(Literal):
 class ObjectName(Base):
     name: str
     module: str = None
+    # HACK: this should actually be a list of ObjectName
+    subtypes: typing.List[Base]
 
     def _extra_repr(self):
         return ' {!r}'.format(self.name)

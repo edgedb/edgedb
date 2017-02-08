@@ -75,6 +75,14 @@ class T_RBRACE(Token):
     pass
 
 
+class T_LANGBRACKET(Token):
+    pass
+
+
+class T_RANGBRACKET(Token):
+    pass
+
+
 class T_DOUBLECOLON(Token):
     pass
 

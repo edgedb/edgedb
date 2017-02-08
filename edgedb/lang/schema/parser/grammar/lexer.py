@@ -88,6 +88,14 @@ class EdgeSchemaLexer(lexer.Lexer):
              next_state=STATE_WS_SENSITIVE,
              regexp=r'\}'),
 
+        Rule(token='LANGBRACKET',
+             next_state=STATE_WS_INSENSITIVE,
+             regexp=r'\<'),
+
+        Rule(token='RANGBRACKET',
+             next_state=STATE_WS_SENSITIVE,
+             regexp=r'\>'),
+
         Rule(token='COMMA',
              next_state=STATE_KEEP,
              regexp=r'\,'),

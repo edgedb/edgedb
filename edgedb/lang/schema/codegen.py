@@ -203,6 +203,10 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
             self.write(module_to_str(node.module))
             self.write('::')
         self.write(ident_to_str(node.name))
+        if node.subtypes:
+            self.write('<')
+            self._visit_list(node.subtypes, separator=', ')
+            self.write('>')
 
     def visit_Link(self, node):
         self._visit_Specialization(node)
