@@ -59,7 +59,7 @@ class DotName(Nonterm):
         self.val.module += '.' + kids[2].val
 
 
-class SimpleName(Nonterm):
+class ObjectName(Nonterm):
     def reduce_IDENT(self, kid):
         self.val = esast.ObjectName(name=kid.val)
 
@@ -68,11 +68,11 @@ class SimpleName(Nonterm):
         self.val.name = kids[2].val
 
 
-class ObjectName(Nonterm):
-    def reduce_SimpleName(self, *kids):
+class TypeName(Nonterm):
+    def reduce_ObjectName(self, *kids):
         self.val = kids[0].val
 
-    def reduce_SimpleName_LANGBRACKET_NameList_RANGBRACKET(self, *kids):
+    def reduce_ObjectName_LANGBRACKET_TypeList_RANGBRACKET(self, *kids):
         self.val = kids[0].val
         self.val.subtypes = kids[2].val
 
@@ -423,7 +423,7 @@ class AggregateDeclaration(Nonterm):
 
 class FunctionDeclCore(Nonterm):
     def reduce_FunctionDeclCore(self, *kids):
-        r"""%reduce IDENT FunctionArgs ARROW ObjectName FunctionSpecsBlob"""
+        r"""%reduce IDENT FunctionArgs ARROW TypeName FunctionSpecsBlob"""
         attributes = []
         code = None
 
@@ -484,7 +484,7 @@ class OptVariadic(Nonterm):
 
 
 class FuncDeclArg(Nonterm):
-    def reduce_OptVariadic_ObjectName_OptDefault(self, *kids):
+    def reduce_OptVariadic_TypeName_OptDefault(self, *kids):
         self.val = esast.FuncArg(
             variadic=kids[0].val,
             name=None,
@@ -492,7 +492,7 @@ class FuncDeclArg(Nonterm):
             default=kids[2].val
         )
 
-    def reduce_OptVariadic_IDENT_COLON_ObjectName_OptDefault(self, *kids):
+    def reduce_OptVariadic_IDENT_COLON_TypeName_OptDefault(self, *kids):
         self.val = esast.FuncArg(
             variadic=kids[0].val,
             name=kids[1].val,
@@ -550,6 +550,10 @@ class NameAndExtends(Nonterm):
 
 
 class NameList(ListNonterm, element=ObjectName, separator=T_COMMA):
+    pass
+
+
+class TypeList(ListNonterm, element=TypeName, separator=T_COMMA):
     pass
 
 
@@ -625,10 +629,10 @@ class Spec(Nonterm):
     def reduce_ObjectName_DeclarationSpecsBlob(self, *kids):
         self._processdecl_specs(kids[0], None, kids[1])
 
-    def reduce_ObjectName_TO_NameList_NL(self, *kids):
+    def reduce_ObjectName_TO_TypeList_NL(self, *kids):
         self.val = esast.Specialization(name=kids[0].val, target=kids[2].val)
 
-    def reduce_ObjectName_TO_NameList_DeclarationSpecsBlob(
+    def reduce_ObjectName_TO_TypeList_DeclarationSpecsBlob(
             self, *kids):
         self._processdecl_specs(kids[0], kids[2], kids[3])
 
