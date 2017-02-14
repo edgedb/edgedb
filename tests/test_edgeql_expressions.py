@@ -43,6 +43,28 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT EMPTY;
             """)
 
+    async def test_edgeql_expr_idempotent01(self):
+        await self.assert_query_result(r"""
+            SELECT (SELECT (SELECT (SELECT 42)));
+        """, [
+            [42],
+        ])
+
+    async def test_edgeql_expr_idempotent02(self):
+        await self.assert_query_result(r"""
+            SELECT 'f';
+            SELECT 'f'[0];
+            SELECT 'foo'[0];
+            SELECT 'f'[0][0][0][0][0];
+            SELECT 'foo'[0][0][0][0][0];
+        """, [
+            ['f'],
+            ['f'],
+            ['f'],
+            ['f'],
+            ['f'],
+        ])
+
     async def test_edgeql_expr_op01(self):
         await self.assert_query_result(r"""
             SELECT 40 + 2;
