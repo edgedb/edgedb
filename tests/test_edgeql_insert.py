@@ -450,16 +450,16 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_returning03(self):
         res = await self.con.execute('''
             INSERT test::Subordinate {
-                name := 'sub returning 1'
+                name := 'sub returning 3'
             };
 
             WITH MODULE test
             INSERT InsertTest {
-                name := 'insert nested returning 1',
+                name := 'insert nested returning 3',
                 l2 := 0,
                 subordinates := (
                     SELECT Subordinate
-                    FILTER Subordinate.name = 'sub returning 1'
+                    FILTER Subordinate.name = 'sub returning 3'
                 )
             } RETURNING InsertTest {
                 name,
@@ -473,10 +473,128 @@ class TestInsert(tb.QueryTestCase):
         self.assert_data_shape(
             res[-1],
             [{
-                'name': 'insert nested returning 1',
+                'name': 'insert nested returning 3',
                 'l2': 0,
                 'subordinates': [{
-                    'name': 'sub returning 1'
+                    'name': 'sub returning 3'
                 }]
+            }],
+        )
+
+    async def test_edgeql_insert_returning04(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            INSERT InsertTest {
+                name := 'insert returning 4',
+                l2 := 9999,
+            } RETURNING 42;  # completely arbitrary returning expression
+        ''', [
+            [42],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_insert_returning05(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            INSERT DefaultTest1 {
+                foo := 'DT returning 5',
+                num := 33,
+            } RETURNING DefaultTest1 {foo, num};
+
+            WITH MODULE test
+            INSERT _ := InsertTest {
+                name := 'IT returning 5',
+                l2 := 9999,
+            } RETURNING (  # result object based on inserted obj
+                SELECT DefaultTest1{foo, num}
+                FILTER DefaultTest1.num > _.l2
+            );
+
+            WITH MODULE test
+            INSERT _ := InsertTest {
+                name := 'IT returning 5',
+                l2 := 9,
+            } RETURNING (  # result object based on inserted obj
+                SELECT DefaultTest1{foo, num}
+                FILTER DefaultTest1.num > _.l2
+            );
+        ''', [
+            [{
+                'foo': 'DT returning 5',
+                'num': 33,
+            }],
+            [],
+            [{
+                'foo': 'DT returning 5',
+                'num': 33,
+            }],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_insert_for01(self):
+        res = await self.con.execute('''
+            WITH MODULE test
+            INSERT InsertTest {
+                name := 'insert for 1',
+                l2 := x,
+            } FOR x IN 3 UNION 5 UNION 7 UNION 2;
+
+            WITH MODULE test
+            INSERT InsertTest {
+                name := 'insert for 1',
+                l2 := 35 % Q.l2,
+                l3 := Q.foo,
+            } FOR Q IN (SELECT InsertTest{foo := 'foo' + <str> InsertTest.l2}
+                        FILTER .name = 'insert for 1');
+
+            WITH MODULE test
+            SELECT InsertTest{name, l2, l3}
+            FILTER .name = 'insert for 1'
+            ORDER BY .l2 THEN .l3;
+        ''')
+
+        self.assert_data_shape(
+            res[-1],
+            # insertion based on existing data
+            [{
+                'name': 'insert for 1',
+                'l2': 0,
+                'l3': 'foo5',
+            }],
+            [{
+                'name': 'insert for 1',
+                'l2': 0,
+                'l3': 'foo7',
+            }],
+            [{
+                'name': 'insert for 1',
+                'l2': 1,
+                'l3': 'foo2',
+            }],
+            [{
+                'name': 'insert for 1',
+                'l2': 2,
+                'l3': 'foo3',
+            }],
+            # inserted based on static data
+            [{
+                'name': 'insert for 1',
+                'l2': 2,
+                'l3': 'test',
+            }],
+            [{
+                'name': 'insert for 1',
+                'l2': 3,
+                'l3': 'test',
+            }],
+            [{
+                'name': 'insert for 1',
+                'l2': 5,
+                'l3': 'test',
+            }],
+            [{
+                'name': 'insert for 1',
+                'l2': 7,
+                'l3': 'test',
             }],
         )

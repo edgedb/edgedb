@@ -359,3 +359,24 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             # Only one Issue satisfies this and its owner is Yury.
             [{'name': 'Yury'}],
         ])
+
+    async def test_edgeql_filter_short_form01(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Status{name}
+            FILTER .name = 'Open';
+        ''', [
+            [{'name': 'Open'}],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_filter_short_form02(self):
+        await self.assert_query_result(r'''
+            # test that shape spec is not necessary to use short form
+            # in the filter
+            WITH MODULE test
+            SELECT Status
+            FILTER .name = 'Open';
+        ''', [
+            [{'name': 'Open'}],
+        ])

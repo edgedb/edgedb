@@ -148,7 +148,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         };
     """
 
-    async def test_edgeql_group01(self):
+    async def test_edgeql_group_simple01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             GROUP
@@ -156,15 +156,83 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             BY
                 User.name
             RETURNING
-                std::count(User.<owner.id)
+                count(ALL User.<owner)
             ORDER BY
                 User.name;
         ''', [
             [4, 2],
         ])
 
+    async def test_edgeql_group_simple02(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            GROUP
+                Issue
+            BY
+                Issue.time_estimate
+            RETURNING
+                # count using link 'id'
+                count(ALL Issue.id)
+            ORDER BY
+                Issue.time_estimate EMPTY FIRST;
+        ''', [
+            [3, 1],
+        ])
+
     @unittest.expectedFailure
-    async def test_edgeql_group02(self):
+    async def test_edgeql_group_simple03(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            GROUP
+                Issue
+            BY
+                Issue.time_estimate
+            RETURNING
+                # count Issue directly
+                count(ALL Issue)
+            ORDER BY
+                Issue.time_estimate EMPTY FIRST;
+        ''', [
+            [3, 1],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_group_simple04(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            GROUP
+                Issue
+            BY
+                Issue.time_estimate
+            RETURNING
+                # count Issue statuses, which should be same as counting
+                # Issues, since the status link is *1
+                count(ALL Issue.status.id)
+            ORDER BY
+                Issue.time_estimate EMPTY FIRST;
+        ''', [
+            [3, 1],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_group_simple05(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            GROUP
+                Issue
+            BY
+                Issue.time_estimate
+            RETURNING
+                # unusual qualifier for 'count'
+                count(DISTINCT Issue.status.id)
+            ORDER BY
+                Issue.time_estimate EMPTY FIRST;
+        ''', [
+            [2, 1],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_group_nested01(self):
         await self.assert_query_result(r"""
             # nested structs
             # XXX: the below doesn't work yet due to the unhandled
@@ -174,12 +242,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 {
                     name := User.name,
                     issues := (
-                        SELECT {
-                            status := User.<owner[IS Issue].status.name,
-                            count := count(User.<owner[IS Issue]),
-                        }
-                        GROUP BY
+                        GROUP
+                            User.<owner[IS Issue]
+                        BY
                             User.<owner[IS Issue].status.name
+                        RETURNING {
+                            status := User.<owner[IS Issue].status.name,
+                            count := count(ALL User.<owner[IS Issue]),
+                        }
                         ORDER BY
                             User.<owner[IS Issue].status.name
                     )
@@ -213,6 +283,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT
                 schema::Concept {
                     l := array_agg(
+                        ALL
                         schema::Concept.links.name
                         FILTER
                             schema::Concept.links.name IN (
@@ -234,8 +305,48 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             WITH MODULE test
             SELECT array_agg(
+                ALL
                 [<str>Issue.number, Issue.status.name]
                 ORDER BY Issue.number);
         """, [
             [[['1', 'Open'], ['2', 'Open'], ['3', 'Closed'], ['4', 'Closed']]]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_group_agg03(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            GROUP
+                Issue
+            BY
+                Issue.status.name
+            RETURNING {
+                sum := sum(ALL <int>Issue.number),
+                status := Issue.status.name,
+            } ORDER BY Issue.status.name;
+        """, [
+            [{
+                'status': 'Closed',
+                'sum': 7,
+            }, {
+                'status': 'Open',
+                'sum': 3,
+            }],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_group_returning01(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            GROUP
+                Issue
+            BY
+                Issue.time_estimate
+            RETURNING
+                # since we're returning the same element for all of
+                # the groups the expected resulting SET should only
+                # have one element
+                42;
+        ''', [
+            [42],
         ])

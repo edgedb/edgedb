@@ -65,7 +65,7 @@ class TestUpdate(tb.QueryTestCase):
                 status: {
                     name
                 }
-            } ORDER BY UpdateTest.name;
+            } ORDER BY .name;
         """)
 
         self.original = res[-1]
@@ -212,7 +212,7 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_returning01(self):
         orig1, orig2, orig3 = self.original
 
-        res = await self.con.execute(r"""
+        await self.assert_query_result(r"""
             WITH MODULE test
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test2'
@@ -222,14 +222,12 @@ class TestUpdate(tb.QueryTestCase):
                 name,
                 comment,
             };
-        """)
-
-        self.assert_data_shape(res[-1], [
-            {
+        """, [
+            [{
                 'id': orig2['id'],
                 'name': 'update-test2',
                 'comment': 'updated second',
-            },
+            }]
         ])
 
     async def test_edgeql_update_returning02(self):
@@ -250,7 +248,7 @@ class TestUpdate(tb.QueryTestCase):
             };
         """)
 
-        # XXX: this relies on the "natural" DB order of items
+        res[-1].sort(key=lambda x: x['name'])
         self.assert_data_shape(res[-1], [
             {
                 'id': orig1['id'],
@@ -279,7 +277,7 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_returning03(self):
         orig1, orig2, orig3 = self.original
 
-        res = await self.con.execute(r"""
+        await self.assert_query_result(r"""
             WITH MODULE test
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test2'
@@ -289,14 +287,12 @@ class TestUpdate(tb.QueryTestCase):
                 name,
                 comment,
             };
-        """)
-
-        self.assert_data_shape(res[-1], [
-            {
+        """, [
+            [{
                 'id': orig2['id'],
                 'name': 'update-test2',
                 'comment': 'updated second',
-            },
+            }]
         ])
 
     @unittest.expectedFailure
@@ -316,6 +312,85 @@ class TestUpdate(tb.QueryTestCase):
                     comment,
                 };
             """)
+
+    async def test_edgeql_update_returning05(self):
+        orig1, orig2, orig3 = self.original
+
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            UPDATE UpdateTest
+            FILTER UpdateTest.name = 'update-test2'
+            SET {
+                comment := 'updated ' + UpdateTest.comment
+            } RETURNING 42;
+        """, [
+            [42],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_update_returning06(self):
+        orig1, orig2, orig3 = self.original
+
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            UPDATE _ := UpdateTest
+            FILTER UpdateTest.name = 'update-test2'
+            SET {
+                comment := 'updated ' + UpdateTest.comment
+            } RETURNING (
+                SELECT Status{name}
+                FILTER Status = _.status
+                ORDER BY Status.name
+            );
+        """, [
+            [{'name': 'Open'}],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_update_returning07(self):
+        orig1, orig2, orig3 = self.original
+
+        await self.assert_query_result(r"""
+            WITH
+                MODULE test,
+                Q := (
+                    UPDATE UpdateTest
+                    SET {
+                        comment := UpdateTest.comment + "!",
+                        status := (SELECT Status FILTER Status.name = 'Closed')
+                    } RETURNING UpdateTest {
+                        name,
+                        comment,
+                        status: {
+                            name
+                        }
+                    }
+                )
+            SELECT Q ORDER BY Q.name;
+        """, [
+            [{
+                'id': orig1['id'],
+                'name': 'update-test1',
+                'comment': None,
+                'status': {
+                    'name': 'Closed'
+                }
+            }, {
+                'id': orig2['id'],
+                'name': 'update-test2',
+                'comment': 'second!',
+                'status': {
+                    'name': 'Closed'
+                }
+            }, {
+                'id': orig3['id'],
+                'name': 'update-test3',
+                'comment': 'third!',
+                'status': {
+                    'name': 'Closed'
+                }
+            }],
+        ])
 
     async def test_edgeql_update_generic01(self):
         status = await self.con.execute(r"""
