@@ -18,7 +18,7 @@ class EdgeQLLexer(RegexLexer):
             (r'\$\w+', Name.Variable),
             include('numbers'),
             include('strings'),
-            (r'(?i)\b(true|false|null)\b', Keyword.Constant),
+            (r'(?i)\b(true|false|empty)\b', Keyword.Constant),
             (r'\s+', Text),
             (r'.', Text),
         ],
@@ -31,17 +31,17 @@ class EdgeQLLexer(RegexLexer):
                     abstract | action | after | aggregate | all |
                     alter | and | any | as | asc | atom | attribute |
                     before | by | commit | concept | constraint |
-                    create | database | delete | delta | desc |
-                    distinct | drop | except | exists | event | filter |
-                    final | first | for | from | function | group |
-                    ilike | in | index | inherit | inheriting | inout |
-                    insert | intersect | is | last | like | limit | link |
-                    mod | module | no | not | nulls | of | offset |
-                    operator | or | order | out | over | partition |
+                    create | database | delete | desc | distinct |
+                    drop | else | except | exists | event |
+                    filter | final | first | for | from |
+                    function | get | group | if | ilike | in | index |
+                    inherit | inheriting | insert | intersect | is |
+                    last | like | limit | link | migration | module |
+                    not | offset | or | order | over | partition |
                     policy | property | required | rename | returning |
-                    rollback | select | set | single | some | start | target |
-                    then | to | transaction | union | update | using | where |
-                    with
+                    rollback | select | set | singleton | start |
+                    target | then | to | transaction | update |
+                    union | with
                 )\b
             ''', Keyword.Reserved),
         ],
