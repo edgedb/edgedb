@@ -24,13 +24,13 @@ from prompt_toolkit import shortcuts as pt_shortcuts
 from prompt_toolkit import styles as pt_styles
 from prompt_toolkit import token as pt_token
 from prompt_toolkit import enums as pt_enums
+from prompt_toolkit.layout import lexers as pt_lexers
 
 from edgedb import client
 from edgedb.lang.common import lexer as core_lexer
 from edgedb.lang.common import markup
 from edgedb.lang.edgeql.parser.grammar import lexer as edgeql_lexer
-
-from . import lex
+from edgedb.lang.edgeql import pygments as eql_pygments
 
 
 class InputBuffer(pt_buffer.Buffer):
@@ -79,9 +79,17 @@ class Cli:
 
         # Syntax
         pt_token.Token.Keyword: '#e8364f',
+        pt_token.Token.Keyword.Reserved: '#e8364f',
+
         pt_token.Token.Operator: '#e8364f',
+
         pt_token.Token.String: '#d3c970',
-        pt_token.Token.Number: '#9a79d7'
+        pt_token.Token.String.Other: '#d3c970',
+        pt_token.Token.String.Backtick: '#d3c970',
+
+        pt_token.Token.Number: '#9a79d7',
+        pt_token.Token.Number.Integer: '#9a79d7',
+        pt_token.Token.Number.Float: '#9a79d7',
     })
 
     exit_commands = {'exit', 'quit', '\q', ':q'}
@@ -137,7 +145,7 @@ class Cli:
                 b.insert_text('    ')
 
         layout = pt_shortcuts.create_prompt_layout(
-            lexer=lex.EdgeQLLexer(),
+            lexer=pt_lexers.PygmentsLexer(eql_pygments.EdgeQLLexer),
             reserve_space_for_menu=4,
             get_prompt_tokens=self.get_prompt_tokens,
             get_continuation_tokens=self.get_continuation_tokens,
