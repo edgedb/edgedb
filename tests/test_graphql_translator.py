@@ -2270,16 +2270,16 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        DELETE
-            (SELECT (test::User))
-        RETURNING
-            (test::User) {
-                name,
-                groups: {
-                    id,
-                    name
-                }
-            };
+        SELECT (
+            DELETE
+                (SELECT (test::User))
+        ) {
+            name,
+            groups: {
+                id,
+                name
+            }
+        };
         """
 
     def test_graphql_translation_delete02(self):
@@ -2296,18 +2296,18 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        DELETE
-            (SELECT (test::User)
-             FILTER
-                ((test::User).name = 'John'))
-        RETURNING
-            (test::User) {
-                name,
-                groups: {
-                    id,
-                    name
-                }
-            };
+        SELECT (
+            DELETE
+                (SELECT (test::User)
+                 FILTER
+                    ((test::User).name = 'John'))
+        ) {
+            name,
+            groups: {
+                id,
+                name
+            }
+        };
         """
 
     def test_graphql_translation_delete03(self):
@@ -2321,18 +2321,18 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         # mutation delete
-        DELETE
-            (SELECT (test::User)
-             FILTER
-                (
-                    ((test::User).name = 'John') AND
-                    ((test::User).active = True)
+        SELECT (
+            DELETE
+                (SELECT (test::User)
+                 FILTER
+                    (
+                        ((test::User).name = 'John') AND
+                        ((test::User).active = True)
+                    )
                 )
-            )
-        RETURNING
-            (test::User) {
-                id,
-            }
+        ) {
+            id,
+        };
         """
 
     def test_graphql_translation_insert01(self):
@@ -2348,15 +2348,15 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        INSERT
-            test::`Group` {
-                name := 'new'
-            }
-        RETURNING
-            (test::`Group`) {
-                id,
-                name
-            };
+        SELECT (
+            INSERT
+                test::`Group` {
+                    name := 'new'
+                }
+        ) {
+            id,
+            name
+        };
         """
 
     def test_graphql_translation_insert02(self):
@@ -2375,17 +2375,17 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         # mutation insert
-        INSERT
-            test::User {
-                name := 'John',
-                active := True,
-                age := 25,
-                score := 3.14
-            }
-        RETURNING
-            (test::User) {
-                id,
-            }
+        SELECT (
+            INSERT
+                test::User {
+                    name := 'John',
+                    active := True,
+                    age := 25,
+                    score := 3.14
+                }
+        ) {
+            id,
+        };
         """
 
     def test_graphql_translation_insert03(self):
@@ -2408,27 +2408,27 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         # mutation insert
-        INSERT
-            test::User {
-                name := 'John',
-                active := True,
-                age := 25,
-                score := 3.14,
-                groups := (
-                    SELECT (std::Object)
-                    FILTER (
-                        (std::Object).id =
-                            <std::uuid>'21e16e2e-e445-494c-acfc-cc9378620501'
+        SELECT (
+            INSERT
+                test::User {
+                    name := 'John',
+                    active := True,
+                    age := 25,
+                    score := 3.14,
+                    groups := (
+                        SELECT (std::Object)
+                        FILTER (
+                            (std::Object).id =
+                                <std::uuid>'21e16e2e-e445-494c-acfc-cc9378620501'
+                        )
                     )
-                )
-            }
-        RETURNING
-            (test::User) {
-                id,
-                groups: {
-                    name
                 }
+        ) {
+            id,
+            groups: {
+                name
             }
+        };
         """
 
     def test_graphql_translation_insert04(self):
@@ -2454,29 +2454,29 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        INSERT
-            test::User {
-                name := 'John',
-                active := True,
-                age := 25,
-                score := 3.14,
-                groups := (
-                    SELECT (std::Object)
-                    FILTER (
-                        (std::Object).id IN
-                            (<std::uuid>'21e16e2e-e445-494c-acfc-cc9378620501',
-                             <std::uuid>'fd5f4ad8-2e8c-4224-9243-361d61dee856')
+        SELECT (
+            INSERT
+                test::User {
+                    name := 'John',
+                    active := True,
+                    age := 25,
+                    score := 3.14,
+                    groups := (
+                        SELECT (std::Object)
+                        FILTER (
+                            (std::Object).id IN
+                                (<std::uuid>'21e16e2e-e445-494c-acfc-cc9378620501',
+                                 <std::uuid>'fd5f4ad8-2e8c-4224-9243-361d61dee856')
+                        )
                     )
-                )
-            }
-        RETURNING
-            (test::User) {
-                name,
-                id,
-                groups: {
-                    name
                 }
-            };
+        ) {
+            name,
+            id,
+            groups: {
+                name
+            }
+        };
         """
 
     def test_graphql_translation_insert05(self):
@@ -2505,26 +2505,26 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        INSERT
-            test::User {
-                name := 'John',
-                active := True,
-                age := 25,
-                score := 3.14,
-                profile: {
-                    name := 'New Profile',
-                    value := 'default'
+        SELECT (
+            INSERT
+                test::User {
+                    name := 'John',
+                    active := True,
+                    age := 25,
+                    score := 3.14,
+                    profile: {
+                        name := 'New Profile',
+                        value := 'default'
+                    }
                 }
-            }
-        RETURNING
-            (test::User) {
+        ) {
+            name,
+            id,
+            profile: {
                 name,
-                id,
-                profile: {
-                    name,
-                    value
-                }
-            };
+                value
+            }
+        };
         """
 
     def test_graphql_translation_update01(self):
@@ -2542,17 +2542,18 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        UPDATE
-            test::User
-        FILTER
-            ((test::User).name = 'John')
-        SET {
-            name := 'Jonathan'
-        } RETURNING
-            (test::User) {
-                name,
-                id
-            };
+        SELECT (
+            UPDATE
+                test::User
+            FILTER
+                ((test::User).name = 'John')
+            SET {
+                name := 'Jonathan'
+            }
+        ) {
+            name,
+            id
+        };
         """
 
     def test_graphql_translation_update02(self):
@@ -2575,27 +2576,28 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         # mutation special_update
-        UPDATE
-            test::User
-        FILTER
-            ((test::User).name = 'John')
-        SET {
-            name := 'Jonathan',
-            groups := (
-                SELECT (std::Object)
-                FILTER (
-                    (std::Object).id =
-                        <std::uuid>'21e16e2e-e445-494c-acfc-cc9378620501'
+        SELECT (
+            UPDATE
+                test::User
+            FILTER
+                ((test::User).name = 'John')
+            SET {
+                name := 'Jonathan',
+                groups := (
+                    SELECT (std::Object)
+                    FILTER (
+                        (std::Object).id =
+                            <std::uuid>'21e16e2e-e445-494c-acfc-cc9378620501'
+                    )
                 )
-            )
-        } RETURNING
-            (test::User) {
-                name,
-                id,
-                groups: {
-                    name
-                }
-            };
+            }
+        ) {
+            name,
+            id,
+            groups: {
+                name
+            }
+        };
         """
 
     def test_graphql_translation_update03(self):
@@ -2621,26 +2623,27 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         # mutation special_update
-        UPDATE
-            test::User
-        FILTER
-            ((test::User).name = 'John')
-        SET {
-            name := 'Jonathan',
-            groups := (
-                SELECT (std::Object)
-                FILTER (
-                    (std::Object).id IN
-                        (<std::uuid>'21e16e2e-e445-494c-acfc-cc9378620501',
-                         <std::uuid>'fd5f4ad8-2e8c-4224-9243-361d61dee856')
+        SELECT (
+            UPDATE
+                test::User
+            FILTER
+                ((test::User).name = 'John')
+            SET {
+                name := 'Jonathan',
+                groups := (
+                    SELECT (std::Object)
+                    FILTER (
+                        (std::Object).id IN
+                            (<std::uuid>'21e16e2e-e445-494c-acfc-cc9378620501',
+                             <std::uuid>'fd5f4ad8-2e8c-4224-9243-361d61dee856')
+                    )
                 )
-            )
-        } RETURNING
-            (test::User) {
-                name,
-                id,
-                groups: {
-                    name
-                }
-            };
+            }
+        ) {
+            name,
+            id,
+            groups: {
+                name
+            }
+        };
         """

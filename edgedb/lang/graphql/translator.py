@@ -147,8 +147,7 @@ class GraphQLTranslator(ast.NodeVisitor):
             subject = self._visit_operation_subject()
 
             if self._context.optype == 'delete':
-                mutation = qlast.DeleteQuery(
-                    result=result,
+                result.expr = qlast.DeleteQuery(
                     subject=qlast.SelectQuery(
                         result=subject,
                         where=self._visit_where(selection.arguments)
@@ -160,21 +159,20 @@ class GraphQLTranslator(ast.NodeVisitor):
                         f"too many arguments for {selection.name!r}",
                         context=selection.context)
 
-                mutation = qlast.InsertQuery(
-                    result=result,
+                result.expr = qlast.InsertQuery(
                     subject=subject,
                     shape=self._visit_data(selection.arguments),
                 )
             elif self._context.optype == 'update':
-                mutation = qlast.UpdateQuery(
-                    result=result,
+                result.expr = qlast.UpdateQuery(
                     subject=subject,
                     shape=self._visit_data(selection.arguments),
                     where=self._visit_where(selection.arguments),
                 )
 
             if query is None:
-                query = mutation
+                query = qlast.SelectQuery(result=result)
+
             else:
                 raise GraphQLValidationError(
                     f"unexpected field {selection.name!r}",
