@@ -206,6 +206,14 @@ class TestExpressions(tb.QueryTestCase):
             [16],
         ])
 
+    async def test_edgeql_expr_op12(self):
+        # Test power precedence
+        await self.assert_query_result(r"""
+            SELECT -2^2;
+        """, [
+            [-4],
+        ])
+
     async def test_edgeql_expr_paths_01(self):
         cases = [
             "Issue.owner.name",

@@ -86,11 +86,11 @@ class P_DOUBLEQMARK_OP(Precedence, assoc='right', tokens=('DOUBLEQMARK',)):
     pass
 
 
-class P_POW_OP(Precedence, assoc='right', tokens=('CIRCUMFLEX',)):
+class P_UMINUS(Precedence, assoc='right'):
     pass
 
 
-class P_UMINUS(Precedence, assoc='right'):
+class P_POW_OP(Precedence, assoc='right', tokens=('CIRCUMFLEX',)):
     pass
 
 
