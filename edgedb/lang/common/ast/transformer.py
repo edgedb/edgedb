@@ -45,7 +45,7 @@ class NodeTransformer(NodeVisitor):
     """
 
     def generic_visit(self, node):
-        for field, old_value in iter_fields(node):
+        for field, old_value in iter_fields(node, include_meta=False):
             old_value = getattr(node, field, None)
 
             if is_container(old_value):
@@ -69,7 +69,7 @@ class NodeTransformer(NodeVisitor):
         new_child.parent = node
         child.parent = None
 
-        for field, value in iter_fields(node):
+        for field, value in iter_fields(node, include_meta=False):
             if isinstance(value, list):
                 for i in range(0, len(value)):
                     if value[i] == child:

@@ -25,7 +25,7 @@ def find_children(node, test_func, *args, force_traversal=False,
         else:
             visited.add(node)
 
-        for field, value in iter_fields(node):
+        for field, value in iter_fields(node, include_meta=False):
             field_spec = node._fields[field]
 
             if isinstance(value, (list, set, frozenset)):
@@ -145,7 +145,7 @@ class NodeVisitor:
     def generic_visit(self, node, *, combine_results=None):
         field_results = []
 
-        for field, value in iter_fields(node):
+        for field, value in iter_fields(node, include_meta=False):
             if is_container(value):
                 for item in value:
                     if isinstance(item, AST):
@@ -170,7 +170,7 @@ def nodes_equal(n1, n2):
     if type(n1) is not type(n2):
         return False
 
-    for field, value in iter_fields(n1):
+    for field, value in iter_fields(n1, include_meta=False):
         if not n1._fields[field].hidden:
             n1v = getattr(n1, field)
             n2v = getattr(n2, field)
@@ -207,3 +207,16 @@ def nodes_equal(n1, n2):
                     return False
 
     return True
+
+
+def strip_meta_fields(node):
+    class Visitor(NodeVisitor):
+        def generic_visit(self, node):
+            for field_name, field in node._fields.items():
+                if field.meta:
+                    if hasattr(node, field_name):
+                        setattr(node, field_name, None)
+            super().generic_visit(node)
+
+    vis = Visitor()
+    vis.generic_visit(node)

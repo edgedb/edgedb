@@ -45,6 +45,9 @@ class Keyword(Base):
 class EdgeQLPathInfo(Base):
     """A general mixin providing EdgeQL-specific metadata on certain nodes."""
 
+    # Ignore the below fields in AST visitor/transformer.
+    __ast_meta__ = {'path_id', 'path_vars', 'path_bonds'}
+
     path_id: irast.PathId       # The ID of EdgeQL path expression
                                 # that this RangeVar represents.
     path_vars: dict             # A mapping between value path-ids and
@@ -174,9 +177,20 @@ class CommonTableExpr(Base):
     query: Base                     # The CTE query
     recursive: bool                 # True if this CTE is recursive
 
+    def __repr__(self):
+        return (
+            f'<pg.{self.__class__.__name__} '
+            f'name={self.name!r} at 0x{id(self):x}>'
+        )
+
 
 class Query(EdgeQLPathInfo):
     """Generic superclass representing a query."""
+
+    # Ignore the below fields in AST visitor/transformer.
+    __ast_meta__ = {'path_namespace', 'inner_path_bonds',
+                    'ptr_rvar_map', 'aggregated_prefixes',
+                    'scls_rvar', 'rptr_rvar'}
 
     path_namespace: dict            # A map of paths onto Vars visible in this
                                     # Query.

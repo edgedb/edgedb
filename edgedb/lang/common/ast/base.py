@@ -19,7 +19,7 @@ class ASTError(Exception):
 class Field:
     def __init__(
             self, name, type_, default, traverse, child_traverse=None,
-            field_hidden=False):
+            field_hidden=False, field_meta=False):
         self.name = name
         self.type = type_
         self.default = default
@@ -27,6 +27,7 @@ class Field:
         self.child_traverse = \
             child_traverse if child_traverse is not None else traverse
         self.hidden = field_hidden
+        self.meta = field_meta
 
 
 class MetaAST(type):
@@ -45,6 +46,10 @@ class MetaAST(type):
             if '__ast_hidden__' in dct:
                 hidden = set(dct['__ast_hidden__'])
 
+            meta = ()
+            if '__ast_meta__' in dct:
+                meta = set(dct['__ast_meta__'])
+
             fields = []
             for f_name, f_type in dct['__annotations__'].items():
                 f_fullname = f'{module_name}.{dct["__qualname__"]}.{f_name}'
@@ -60,9 +65,10 @@ class MetaAST(type):
                 f_default = _check_annotation(f_type, f_fullname, f_default)
 
                 f_hidden = f_name in hidden
+                f_meta = f_name in meta
 
                 fields.append((f_name, f_type, f_default,
-                               True, None, f_hidden))
+                               True, None, f_hidden, f_meta))
 
             dct[fields_attrname] = fields
 
@@ -81,6 +87,7 @@ class MetaAST(type):
                 field_traverse = True
                 field_child_traverse = None
                 field_hidden = False
+                field_meta = False
 
                 if isinstance(field, tuple):
                     field_name = field[0]
@@ -101,10 +108,13 @@ class MetaAST(type):
                     if len(field) > 5:
                         field_hidden = field[5]
 
+                    if len(field) > 6:
+                        field_meta = field[6]
+
                 if field_name not in fields:
                     fields[field_name] = Field(
                         field_name, field_type, field_default, field_traverse,
-                        field_child_traverse, field_hidden)
+                        field_child_traverse, field_hidden, field_meta)
 
         cls._fields = fields
 
@@ -160,13 +170,13 @@ class AST(object, metaclass=MetaAST):
 
     def __copy__(self):
         copied = self.__class__()
-        for field, value in iter_fields(self):
+        for field, value in iter_fields(self, include_meta=False):
             setattr(copied, field, value)
         return copied
 
     def __deepcopy__(self, memo):
         copied = self.__class__()
-        for field, value in iter_fields(self):
+        for field, value in iter_fields(self, include_meta=False):
             setattr(copied, field, copy.deepcopy(value, memo))
         return copied
 
@@ -198,6 +208,9 @@ def _serialize_to_markup(ast, *, ctx):
     for fieldname, field in iter_fields(ast):
         if ast._fields[fieldname].hidden:
             continue
+        if field is None:
+            if ast._fields[fieldname].meta:
+                continue
         node.add_child(label=fieldname, node=markup.serialize(field, ctx=ctx))
 
     return node
@@ -239,12 +252,21 @@ def fix_parent_links(node):
     return node
 
 
-def iter_fields(node):
-    for f in node._fields:
-        try:
-            yield f, getattr(node, f)
-        except AttributeError:
-            pass
+def iter_fields(node, *, include_meta=True):
+    if include_meta:
+        for field_name in node._fields:
+            try:
+                yield field_name, getattr(node, field_name)
+            except AttributeError:
+                pass
+    else:
+        for field_name, field in node._fields.items():
+            if field.meta:
+                continue
+            try:
+                yield field_name, getattr(node, field_name)
+            except AttributeError:
+                pass
 
 
 def _is_union(type_):
