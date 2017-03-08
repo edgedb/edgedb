@@ -133,6 +133,12 @@ class ColumnRef(Base):
     nullable: bool                              # Whether NULL is possible
     grouped: bool                               # Whether the col is grouped
 
+    def __repr__(self):
+        return (
+            f'<pg.{self.__class__.__name__} '
+            f'name={".".join(self.name)!r} at 0x{id(self):x}>'
+        )
+
 
 class ParamRef(Base):
     """Query parameter ($1..$n)."""

@@ -103,6 +103,7 @@ class Cli:
         self.conn_args = conn_args
         self.cur_db = None
         self.graphql = False
+        self.optimize = False
 
     def get_prompt(self):
         return '{}>'.format(self.cur_db)
@@ -122,6 +123,10 @@ class Cli:
             (pt_token.Token.Toolbar, '[F3] GraphQL: '),
             (pt_token.Token.Toolbar.On, 'On') if self.graphql else
             (pt_token.Token.Toolbar, 'Off'),
+            (pt_token.Token.Toolbar, '  '),
+            (pt_token.Token.Toolbar, '[F4] Optimize: '),
+            (pt_token.Token.Toolbar.On, 'On') if self.optimize else
+            (pt_token.Token.Toolbar, 'Off'),
         ]
 
     def build_cli(self):
@@ -136,6 +141,10 @@ class Cli:
         @key_binding_manager.registry.add_binding(pt_keys.Keys.F3)
         def _(event):
             self.graphql = not self.graphql
+
+        @key_binding_manager.registry.add_binding(pt_keys.Keys.F4)
+        def _(event):
+            self.optimize = not self.optimize
 
         @key_binding_manager.registry.add_binding(pt_keys.Keys.Tab)
         def _(event):
@@ -249,7 +258,8 @@ class Cli:
                         command = command.rstrip(';')
                     result = self.run_coroutine(
                         self.connection.execute(
-                            command, graphql=self.graphql))
+                            command, graphql=self.graphql,
+                            optimize=self.optimize))
                 except KeyboardInterrupt:
                     continue
                 except Exception as ex:

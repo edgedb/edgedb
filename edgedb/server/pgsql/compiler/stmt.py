@@ -23,6 +23,7 @@ from edgedb.server.pgsql import ast as pgast
 from edgedb.server.pgsql import codegen as pgcodegen
 from edgedb.server.pgsql import common
 from edgedb.server.pgsql import types as pg_types
+from edgedb.server.pgsql import optimizer as pg_opt
 
 from edgedb.lang.common import ast
 from edgedb.lang.common import debug
@@ -72,10 +73,14 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         return qtree
 
     def transform(self, ir_expr, *, schema, backend=None, output_format=None,
-                  ignore_shapes=False):
+                  ignore_shapes=False, optimize=False):
         qtree = self.transform_to_sql_tree(
             ir_expr, schema=schema, backend=backend,
             output_format=output_format, ignore_shapes=ignore_shapes)
+
+        if optimize:
+            opt = pg_opt.Optimizer()
+            qtree = opt.optimize(qtree)
 
         argmap = self.context.current.argmap
 
@@ -84,7 +89,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         qchunks = codegen.result
         arg_index = codegen.param_index
 
-        if debug.flags.edgeql_compile:  # pragma: no cover
+        if (debug.flags.edgeql_compile or
+                debug.flags.edgeql_optimize):  # pragma: no cover
             debug.header('SQL')
             debug.dump_code(''.join(qchunks), lexer='sql')
 

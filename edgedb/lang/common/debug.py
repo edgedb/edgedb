@@ -34,6 +34,7 @@ class flags:
     pgsql_parser: 'Debug SQL parser' = False
     edgeql_parser: 'Debug EdgeQL parser (rebuild grammar verbosly)' = False
     edgeql_compile: 'Dump EdgeQL/IR/SQL ASTs' = False
+    edgeql_optimize: 'Dump SQL AST/Query before/after optimization' = False
     delta_plan: 'Print expanded delta command tree prior to processing' = False
     delta_pgsql_plan: 'Print delta command tree annortated with DB ops' = False
     delta_plan_input: 'Print delta command tree produced from DDL' = False

@@ -59,10 +59,12 @@ class Protocol(asyncio.Protocol):
 
         return self._waiter
 
-    def execute_script(self, script, *, graphql=False, flags={}):
+    def execute_script(self, script, *, graphql=False, optimize=False,
+                       flags={}):
         msg = {
             '__type__': 'script',
             '__graphql__': graphql,
+            '__optimize__': optimize,
             '__flags__': list(flags),
             'script': script
         }

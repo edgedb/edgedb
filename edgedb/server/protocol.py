@@ -110,6 +110,7 @@ class Protocol(asyncio.Protocol):
 
             fut = self._loop.create_task(
                 self._run_script(script, graphql=message.get('__graphql__'),
+                                 optimize=message.get('__optimize__'),
                                  flags=message.get('__flags__')))
             fut.add_done_callback(self._on_script_done)
 
@@ -141,7 +142,8 @@ class Protocol(asyncio.Protocol):
             }
         })
 
-    async def _run_script(self, script, *, graphql=False, flags={}):
+    async def _run_script(self, script, *,
+                          graphql=False, optimize=False, flags={}):
         if graphql:
             script = graphql_compiler.translate(
                 self.backend.schema, script, {}) + ';'
@@ -151,7 +153,8 @@ class Protocol(asyncio.Protocol):
         results = []
 
         for statement in statements:
-            plan = planner.plan_statement(statement, self.backend, flags)
+            plan = planner.plan_statement(statement, self.backend, flags,
+                                          optimize=optimize)
             result = await executor.execute_plan(plan, self)
             if result is not None and isinstance(result, list):
                 loaded = []

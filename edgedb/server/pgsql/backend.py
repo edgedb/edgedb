@@ -586,7 +586,7 @@ class Backend(s_deltarepo.DeltaProvider):
         return self.classname_to_table_id_cache.get(source_name)
 
     def compile(self, query_ir, scrolling_cursor=False, context=None, *,
-                output_format=None):
+                output_format=None, optimize=False):
         if scrolling_cursor:
             offset = query_ir.offset
             limit = query_ir.limit
@@ -601,7 +601,8 @@ class Backend(s_deltarepo.DeltaProvider):
 
         qchunks, argmap, arg_index, query_type, record_info = \
             ir_compiler.transform(query_ir, backend=self, schema=self.schema,
-                                  output_format=output_format)
+                                  output_format=output_format,
+                                  optimize=optimize)
 
         if scrolling_cursor:
             query_ir.offset = offset
