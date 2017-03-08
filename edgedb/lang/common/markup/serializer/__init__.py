@@ -15,4 +15,4 @@ from .base import serialize, serializer, serialize_traceback_point  # NOQA
 from .base import Context  # NOQA
 from .base import no_ref_detect  # NOQA
 from .code import serialize_code  # NOQA
-from . import logging, ast, yaml  # NOQA
+from . import logging, yaml  # NOQA
