@@ -204,8 +204,9 @@ class AST(object, metaclass=MetaAST):
 @markup.serializer.serializer.register(AST)
 def _serialize_to_markup(ast, *, ctx):
     node = markup.elements.lang.TreeNode(id=id(ast), name=type(ast).__name__)
+    include_meta = ctx.kwargs.get('_ast_include_meta', True)
 
-    for fieldname, field in iter_fields(ast):
+    for fieldname, field in iter_fields(ast, include_meta=include_meta):
         if ast._fields[fieldname].hidden:
             continue
         if field is None:

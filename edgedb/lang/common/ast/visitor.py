@@ -207,16 +207,3 @@ def nodes_equal(n1, n2):
                     return False
 
     return True
-
-
-def strip_meta_fields(node):
-    class Visitor(NodeVisitor):
-        def generic_visit(self, node):
-            for field_name, field in node._fields.items():
-                if field.meta:
-                    if hasattr(node, field_name):
-                        setattr(node, field_name, None)
-            super().generic_visit(node)
-
-    vis = Visitor()
-    vis.generic_visit(node)
