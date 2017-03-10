@@ -35,8 +35,8 @@ class MarkupExceptionContext(exceptions.ExceptionContext,
         pass
 
 
-def _serialize(obj, trim=True):
-    ctx = _base_serializer.Context(trim=trim)
+def _serialize(obj, trim=True, kwargs=None):
+    ctx = _base_serializer.Context(trim=trim, kwargs=kwargs)
     try:
         return serialize(obj, ctx=ctx)
     finally:
@@ -61,11 +61,15 @@ def dump_header(header, file=None):
     renderers.terminal.render(markup, file=file)
 
 
-def dump(*objs, header=None, file=None, trim=True):
+def dump(*objs, header=None, file=None, trim=True, **kwargs):
+    for kw in kwargs:
+        if kw[0] != '_':
+            raise TypeError(f'unknown keyword argument {kw!r}')
+
     if header:
         dump_header(header, file)
     for obj in objs:
-        markup = _serialize(obj, trim=trim)
+        markup = _serialize(obj, trim=trim, kwargs=kwargs)
         _dump(markup, None, file)
 
 

@@ -53,9 +53,10 @@ class Context:
     is used to avoid serializing objects that already have been serialized,
     and ``depth`` - recursion depth"""
 
-    def __init__(self, trim=True):
+    def __init__(self, trim=True, kwargs=None):
         self.reset()
         self.trim = trim
+        self.kwargs = kwargs or {}
         if settings.censor_sensitive_vars:
             self.censor_set = set(settings.censor_list)
         else:

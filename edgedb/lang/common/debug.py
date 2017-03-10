@@ -49,8 +49,8 @@ def header(*args):
     print('=' * 80)
 
 
-def dump(*args):
-    _markup.dump(*args)
+def dump(*args, **kwargs):
+    _markup.dump(*args, **kwargs)
 
 
 def dump_code(*args, **kwargs):
