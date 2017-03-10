@@ -295,6 +295,10 @@ def _check_annotation(f_type, f_fullname, f_default):
                 f_default = list
             elif issubclass(f_type, typing.Tuple):
                 f_default = tuple
+            elif issubclass(f_type, typing.Set):
+                f_default = set
+            elif issubclass(f_type, typing.Dict):
+                f_default = dict
             else:
                 raise RuntimeError(
                     f'invalid type annotation on {f_fullname}: '
@@ -326,6 +330,19 @@ def _check_container_type(type_, value, raise_error, instance_type):
         _check_type(eltype, el, raise_error)
 
 
+def _check_mapping_type(type_, value, raise_error, instance_type):
+    if not isinstance(value, instance_type):
+        raise_error(str(type_), value)
+
+    ktype = type_.__args__[0]
+    vtype = type_.__args__[1]
+    for k, v in value.items():
+        _check_type(ktype, k, raise_error)
+        if not k:
+            raise RuntimeError('empty key in map')
+        _check_type(vtype, v, raise_error)
+
+
 def _check_type(type_, value, raise_error):
     if type_ is None:
         return
@@ -351,6 +368,12 @@ def _check_type(type_, value, raise_error):
 
         elif issubclass(type_, typing.Tuple):
             _check_container_type(type_, value, raise_error, tuple)
+
+        elif issubclass(type_, typing.Set):
+            _check_container_type(type_, value, raise_error, set)
+
+        elif issubclass(type_, typing.Dict):
+            _check_mapping_type(type_, value, raise_error, dict)
 
         elif issubclass(type_, typing.Meta):
             raise TypeError(f'unsupported typing type: {type_!r}')

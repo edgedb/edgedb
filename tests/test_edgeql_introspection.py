@@ -359,7 +359,7 @@ class TestIntrospection(tb.QueryTestCase):
             SELECT `Class` IS std::Object;
         """)
 
-        self.assert_data_shape(res[0], [True] * len(res[0]))
+        self.assert_data_shape(res[0], [True])
 
     async def test_edgeql_introspection_meta02(self):
         await self.assert_query_result(r"""
@@ -458,7 +458,7 @@ class TestIntrospection(tb.QueryTestCase):
             SELECT `Concept` {
                 name,
                 count := (
-                    SELECT SINGLETON std::count(`Concept`.<__class__)
+                    SELECT SINGLETON std::count(ALL `Concept`.<__class__)
                 )
             }
             FILTER `Concept`.name LIKE 'test::%'

@@ -127,7 +127,6 @@ def __infer_none(ir, schema):
 
 
 @_infer_type.register(irast.Set)
-@_infer_type.register(irast.Shape)
 def __infer_set_or_shape(ir, schema):
     return ir.scls
 

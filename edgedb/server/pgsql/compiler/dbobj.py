@@ -11,7 +11,8 @@ from edgedb.server.pgsql import common
 
 
 class IRCompilerDBObjects:
-    def _range_for_material_concept(self, concept, include_overlays=True):
+    def _range_for_material_concept(self, concept, path_id,
+                                    include_overlays=True):
         ctx = self.context.current
 
         table_schema_name, table_name = common.concept_name_to_table_name(
@@ -39,7 +40,8 @@ class IRCompilerDBObjects:
 
             qry = pgast.SelectStmt()
             qry.from_clause.append(rvar)
-            qry.scls_rvar = rvar
+            self._put_path_rvar(qry, path_id, rvar)
+            qry.path_bonds.add(path_id)
 
             set_ops.append(('union', qry))
 
@@ -53,8 +55,10 @@ class IRCompilerDBObjects:
 
                 qry = pgast.SelectStmt(
                     from_clause=[rvar],
-                    scls_rvar=rvar
                 )
+
+                self._put_path_rvar(qry, path_id, rvar)
+                qry.path_bonds.add(path_id)
 
                 if op == 'replace':
                     op = 'union'
@@ -66,11 +70,10 @@ class IRCompilerDBObjects:
 
         return rvar
 
-    def _range_for_concept(self, concept, parent_cte, *,
-                           include_overlays=True):
+    def _range_for_concept(self, concept, path_id, *, include_overlays=True):
         if not concept.is_virtual:
             rvar = self._range_for_material_concept(
-                concept, include_overlays=include_overlays)
+                concept, path_id, include_overlays=include_overlays)
         else:
             schema = self.context.current.schema
 
@@ -83,12 +86,14 @@ class IRCompilerDBObjects:
 
             for child in children:
                 c_rvar = self._range_for_concept(
-                    child, parent_cte, include_overlays=include_overlays)
+                    child, path_id=path_id, include_overlays=include_overlays)
 
                 qry = pgast.SelectStmt(
                     from_clause=[c_rvar],
-                    scls_rvar=c_rvar
                 )
+
+                self._put_path_rvar(qry, path_id, c_rvar)
+                qry.path_bonds.add(path_id)
 
                 set_ops.append(('union', qry))
 
@@ -96,8 +101,9 @@ class IRCompilerDBObjects:
 
         return rvar
 
-    def _range_for_set(self, ir_set, parent_cte):
-        rvar = self._range_for_concept(ir_set.scls, parent_cte)
+    def _range_for_set(self, ir_set, *, include_overlays=True):
+        rvar = self._range_for_concept(
+            ir_set.scls, ir_set.path_id, include_overlays=include_overlays)
         if isinstance(rvar, pgast.RangeSubselect):
             rvar.subquery.path_id = ir_set.path_id
         else:
@@ -200,7 +206,6 @@ class IRCompilerDBObjects:
                             for col in cols
                         ],
                         from_clause=[rvar],
-                        rptr_rvar=rvar
                     )
                     set_ops.append((op, qry))
 

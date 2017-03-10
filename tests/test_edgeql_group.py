@@ -179,7 +179,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [3, 1],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_simple03(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -196,7 +195,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [3, 1],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_simple04(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -214,7 +212,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [3, 1],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_simple05(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -234,12 +231,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     @unittest.expectedFailure
     async def test_edgeql_group_nested01(self):
         await self.assert_query_result(r"""
-            # nested structs
-            # XXX: the below doesn't work yet due to the unhandled
-            # conflict between the GROUP BY and path matching.
             WITH MODULE test
             SELECT
-                {
+                R := {
                     name := User.name,
                     issues := (
                         GROUP
@@ -254,7 +248,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                             User.<owner[IS Issue].status.name
                     )
                 }
-            ORDER BY User.name;
+            ORDER BY R.name;
             """, [
             {
                 'name': 'Elvis',
@@ -312,7 +306,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [[['1', 'Open'], ['2', 'Open'], ['3', 'Closed'], ['4', 'Closed']]]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_agg03(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -334,7 +327,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_returning01(self):
         await self.assert_query_result(r'''
             WITH MODULE test

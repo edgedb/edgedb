@@ -51,43 +51,9 @@ class IRDecompiler(ast.visitor.NodeVisitor):
 
         return result
 
-    def visit_Shape(self, node):
-        result = qlast.Shape(
-            expr=qlast.Path(
-                steps=[qlast.ClassRef(
-                    module=node.scls.name.module,
-                    name=node.scls.name.name
-                )]
-            ),
-            elements=[]
-        )
-
-        for el in node.elements:
-            rptr = el.rptr
-            ptrcls = rptr.ptrcls
-            pn = ptrcls.shortname
-
-            pn = qlast.ShapeElement(
-                expr=qlast.Path(
-                    steps=[
-                        qlast.Ptr(
-                            ptr=qlast.ClassRef(
-                                module=pn.module,
-                                name=pn.name
-                            ),
-                            direction=rptr.direction
-                        )
-                    ]
-                )
-            )
-
-            result.elements.append(pn)
-
-        return result
-
     def visit_Set(self, node):
         if node.expr is not None:
-            return self.visit(node.expr)
+            result = self.visit(node.expr)
         else:
             links = []
 
@@ -118,7 +84,7 @@ class IRDecompiler(ast.visitor.NodeVisitor):
 
                 node = node.rptr.source
 
-            path = qlast.Path()
+            result = qlast.Path()
 
             if node.show_as_anchor and not self.context.inline_anchors:
                 step = qlast.ClassRef(name=node.show_as_anchor)
@@ -126,10 +92,37 @@ class IRDecompiler(ast.visitor.NodeVisitor):
                 step = qlast.ClassRef(name=node.scls.name.name,
                                       module=node.scls.name.module)
 
-            path.steps.append(step)
-            path.steps.extend(reversed(links))
+            result.steps.append(step)
+            result.steps.extend(reversed(links))
 
-            return path
+        if node.shape:
+            result = qlast.Shape(
+                expr=result,
+                elements=[]
+            )
+
+            for el in node.shape:
+                rptr = el.rptr
+                ptrcls = rptr.ptrcls
+                pn = ptrcls.shortname
+
+                pn = qlast.ShapeElement(
+                    expr=qlast.Path(
+                        steps=[
+                            qlast.Ptr(
+                                ptr=qlast.ClassRef(
+                                    module=pn.module,
+                                    name=pn.name
+                                ),
+                                direction=rptr.direction
+                            )
+                        ]
+                    )
+                )
+
+                result.elements.append(pn)
+
+        return result
 
     def visit_BinOp(self, node):
         result = qlast.BinOp()

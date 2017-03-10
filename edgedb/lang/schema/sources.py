@@ -267,7 +267,8 @@ class Source(primary.PrimaryClass, indexes.IndexableSubject):
                         far_endpoint=None,
                         look_in_children=False,
                         include_inherited=False,
-                        target_most_generic=True):
+                        target_most_generic=True,
+                        update_schema=True):
 
         # First, lookup the inheritance hierarchy up, and, if requested,
         # down, to select all pointers with the requested name.
@@ -358,8 +359,12 @@ class Source(primary.PrimaryClass, indexes.IndexableSubject):
             common_parent = \
                 utils.get_class_nearest_common_ancestor(ptrs)
 
-            target = common_parent.create_common_target(
-                        schema, targets, minimize_by)
+            if update_schema:
+                target = common_parent.create_common_target(
+                    schema, targets, minimize_by)
+            else:
+                target = common_parent.get_common_target(
+                    schema, targets, minimize_by)
 
             if direction == '>':
                 ptr_source = self

@@ -55,23 +55,31 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.stmt = stmt
             self.query = stmt
             self.rel = stmt
+            self.stmt_hierarchy = {}
 
             self.clause = None
             self.scope_cutoff = False
             self.in_exists = False
             self.in_aggregate = False
+            self.aggregated_scope = set()
             self.in_member_test = False
             self.in_set_expr = False
             self.in_shape = False
             self.expr_exposed = None
-            self.lax_paths = False
+            self.lax_paths = 0
+            self.correct_set_assumed = False
+            self.expr_injected_path_bond = None
+            self.view_path_id_map = {}
 
             self.aliascnt = {}
             self.argmap = OrderedSet()
             self.ctemap = {}
+            self.ctemap_by_stmt = collections.defaultdict(dict)
+            self.stmtmap = {}
             self.setscope = {}
             self.auto_setscope = set()
             self.forced_setscope = set()
+            self.root_rels = set()
 
             self.output_format = None
             self.shape_format = ShapeFormat.SERIALIZED
@@ -81,7 +89,9 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.computed_node_rels = {}
             self.path_id_aliases = {}
             self.path_bonds = {}
+            self.path_bonds_by_stmt = collections.defaultdict(dict)
             self.parent_path_bonds = {}
+            self.path_scope = set()
 
         else:
             self.backend = prevlevel.backend
@@ -93,23 +103,31 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.stmt = prevlevel.stmt
             self.query = prevlevel.query
             self.rel = prevlevel.rel
+            self.stmt_hierarchy = prevlevel.stmt_hierarchy
 
             self.clause = prevlevel.clause
             self.scope_cutoff = False
             self.in_exists = prevlevel.in_exists
             self.in_aggregate = prevlevel.in_aggregate
+            self.aggregated_scope = prevlevel.aggregated_scope
             self.in_member_test = prevlevel.in_member_test
             self.in_set_expr = prevlevel.in_set_expr
             self.in_shape = prevlevel.in_shape
             self.expr_exposed = prevlevel.expr_exposed
             self.lax_paths = prevlevel.lax_paths
+            self.correct_set_assumed = prevlevel.correct_set_assumed
+            self.expr_injected_path_bond = prevlevel.expr_injected_path_bond
+            self.view_path_id_map = prevlevel.view_path_id_map
 
             self.aliascnt = prevlevel.aliascnt
             self.argmap = prevlevel.argmap
             self.ctemap = prevlevel.ctemap
+            self.ctemap_by_stmt = prevlevel.ctemap_by_stmt
+            self.stmtmap = prevlevel.stmtmap
             self.setscope = prevlevel.setscope
             self.auto_setscope = prevlevel.auto_setscope
             self.forced_setscope = prevlevel.forced_setscope
+            self.root_rels = prevlevel.root_rels
 
             self.output_format = prevlevel.output_format
             self.shape_format = prevlevel.shape_format
@@ -119,7 +137,9 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.computed_node_rels = prevlevel.computed_node_rels
             self.path_id_aliases = prevlevel.path_id_aliases
             self.path_bonds = prevlevel.path_bonds
+            self.path_bonds_by_stmt = prevlevel.path_bonds_by_stmt
             self.parent_path_bonds = prevlevel.parent_path_bonds
+            self.path_scope = prevlevel.path_scope
 
             if mode in {ContextSwitchMode.SUBQUERY,
                         ContextSwitchMode.SUBSTMT}:
@@ -132,7 +152,10 @@ class CompilerContextLevel(compiler.ContextLevel):
                 self.in_set_expr = False
                 self.in_shape = False
                 self.in_exists = False
-                self.lax_paths = False
+                self.lax_paths = (
+                    prevlevel.lax_paths - 1 if prevlevel.lax_paths else 0)
+                self.correct_set_assumed = False
+                self.view_path_id_map = {}
 
                 self.ctemap = prevlevel.ctemap.copy()
                 self.setscope = {}

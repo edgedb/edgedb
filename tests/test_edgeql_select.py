@@ -867,19 +867,20 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT
                 Issue {number}
             ORDER BY Issue.number
-            OFFSET (SELECT count(Status));
+            OFFSET (SELECT count(ALL Status));
 
             WITH MODULE test
             SELECT
                 Issue {number}
             ORDER BY Issue.number
-            LIMIT (SELECT count(Status) + 1);
+            LIMIT (SELECT count(ALL Status) + 1);
 
             WITH MODULE test
             SELECT
                 Issue {number}
             ORDER BY Issue.number
-            OFFSET (SELECT count(Status)) LIMIT (SELECT count(Priority) + 1);
+            OFFSET (SELECT count(ALL Status))
+            LIMIT (SELECT count(ALL Priority) + 1);
         ''', [
             [{'number': '3'}, {'number': '4'}],
             [{'number': '1'}, {'number': '2'}, {'number': '3'}],
@@ -1756,6 +1757,36 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 };
             ''')
 
+    async def test_edgeql_select_coalesce03(self):
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            FILTER
+                Issue.priority.name = 'High'
+            ORDER BY Issue.number;
+
+            WITH MODULE test
+            SELECT Issue{number}
+            FILTER
+                NOT EXISTS Issue.priority
+            ORDER BY Issue.number;
+        ''')
+
+        issues_h, issues_n = res
+
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT Issue{number}
+            FILTER
+                Issue.priority.name ?? 'High' = 'High'
+            ORDER BY
+                Issue.priority.name EMPTY LAST THEN Issue.number;
+        ''')
+
+        self.assert_data_shape(res, [
+            issues_h + issues_n
+        ])
+
     async def test_edgeql_select_as01(self):
         # NOTE: for the expected ordering of Text see instance04 test
         await self.assert_query_result(r'''
@@ -1909,77 +1940,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
         self.assert_data_shape(res, [
             issues_h + issues_l,
-        ])
-
-    async def test_edgeql_select_or02(self):
-        res = await self.con.execute(r'''
-            WITH MODULE test
-            SELECT Issue{number}
-            FILTER
-                Issue.priority.name = 'High'
-            ORDER BY Issue.number;
-
-            WITH MODULE test
-            SELECT Issue{number}
-            FILTER
-                NOT EXISTS Issue.priority
-            ORDER BY Issue.number;
-        ''')
-
-        issues_h, issues_n = res
-
-        res = await self.con.execute(r'''
-            WITH MODULE test
-            SELECT Issue{number}
-            FILTER
-                Issue.priority.name = 'High'
-                OR
-                NOT EXISTS Issue.priority.name
-            ORDER BY Issue.priority.name EMPTY LAST THEN Issue.number;
-
-            WITH MODULE test
-            SELECT Issue{number}
-            FILTER
-                Issue.priority.name = 'High'
-                OR
-                NOT EXISTS Issue.priority.id
-            ORDER BY Issue.priority.name EMPTY LAST THEN Issue.number;
-        ''')
-
-        self.assert_data_shape(res, [
-            issues_h + issues_n,
-            issues_h + issues_n,
-        ])
-
-    async def test_edgeql_select_or03(self):
-        res = await self.con.execute(r'''
-            WITH MODULE test
-            SELECT Issue{number}
-            FILTER
-                Issue.priority.name = 'High'
-            ORDER BY Issue.number;
-
-            WITH MODULE test
-            SELECT Issue{number}
-            FILTER
-                NOT EXISTS Issue.priority
-            ORDER BY Issue.number;
-        ''')
-
-        issues_h, issues_n = res
-
-        res = await self.con.execute(r'''
-            WITH MODULE test
-            SELECT Issue{number}
-            FILTER
-                Issue.priority.name = 'High'
-                OR
-                NOT EXISTS Issue.priority
-            ORDER BY Issue.priority.name EMPTY LAST THEN Issue.number;
-        ''')
-
-        self.assert_data_shape(res, [
-            issues_h + issues_n,
         ])
 
     async def test_edgeql_select_or04(self):
@@ -2238,63 +2198,77 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '2'}, {'number': '3'}],
         ])
 
-    async def test_edgeql_select_null01(self):
+    async def test_edgeql_select_empty01(self):
         await self.assert_query_result(r"""
+            # This is not the same as checking that number does not EXIST.
+            # Any binary operator with one operand as EMPTY results in an
+            # EMPTY result, because the cross product of anything with an
+            # empty set is EMPTY.
+            #
             SELECT test::Issue.number = EMPTY;
             """, [
-            [None, None, None, None],
+            [],
         ])
 
-    async def test_edgeql_select_null02(self):
+    async def test_edgeql_select_empty02(self):
         await self.assert_query_result(r"""
-            # the FILTER clause is always EMPTY, so it can never be true
-            WITH MODULE test
-            SELECT Issue{number}
-            FILTER Issue.number = EMPTY;
-
-            WITH MODULE test
-            SELECT Issue{number}
-            FILTER Issue.priority = EMPTY;
-
-            WITH MODULE test
-            SELECT Issue{number}
-            FILTER Issue.priority.name = EMPTY;
+            # Test short-circuiting operations with EMPTY
+            #
+            SELECT test::Issue.number = '1' OR EMPTY;
+            SELECT test::Issue.number = 'X' OR EMPTY;
+            SELECT test::Issue.number = '1' AND EMPTY;
+            SELECT test::Issue.number = 'X' AND EMPTY;
             """, [
             [],
             [],
             [],
+            [],
         ])
 
-    async def _test_edgeql_select_cross01(self):
+    async def test_edgeql_select_empty03(self):
+        await self.assert_query_result(r"""
+            # Test short-circuiting operations with EMPTY
+            #
+            SELECT count(ALL test::Issue.number = '1' OR EMPTY);
+            SELECT count(ALL test::Issue.number = 'X' OR EMPTY);
+            SELECT count(ALL test::Issue.number = '1' AND EMPTY);
+            SELECT count(ALL test::Issue.number = 'X' AND EMPTY);
+            """, [
+            [0],
+            [0],
+            [0],
+            [0],
+        ])
+
+    async def test_edgeql_select_cross01(self):
         await self.assert_query_result(r"""
             # the cross product of status and priority names
             WITH MODULE test
             SELECT Status.name + Priority.name
             ORDER BY Status.name THEN Priority.name;
             """, [
-            ['{}{}'.format(a, b) for a in ('Closed', 'Open')
-             for b in ('High', 'Low')],
+            ['ClosedHigh', 'ClosedLow', 'OpenHigh', 'OpenLow'],
         ])
 
-    async def _test_edgeql_select_cross02(self):
+    async def test_edgeql_select_cross02(self):
         await self.assert_query_result(r"""
             # status and priority name for each issue
             WITH MODULE test
             SELECT Issue.status.name + Issue.priority.name
             ORDER BY Issue.number;
             """, [
-            [None, 'OpenHigh', 'ClosedLow', None],
+            ['OpenHigh', 'ClosedLow'],
         ])
 
-    async def _test_edgeql_select_cross03(self):
+    async def test_edgeql_select_cross03(self):
         await self.assert_query_result(r"""
             # cross-product of all user names and issue numbers
             WITH MODULE test
             SELECT User.name + Issue.number
             ORDER BY User.name THEN Issue.number;
             """, [
-            ['{}{}'.format(a, b) for a in ('Elvis', 'Yury')
-             for b in range(1, 5)],
+            ['Elvis1', 'Elvis2', 'Elvis3', 'Elvis4',
+             'Yury1', 'Yury2', 'Yury3', 'Yury4'],
         ])
 
     async def test_edgeql_select_cross04(self):
@@ -2410,11 +2384,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 AND
                 (
                     Issue.priority = Issue2.priority
-                    OR
-
-                    NOT EXISTS Issue.priority
-                    AND
-                    NOT EXISTS Issue2.priority
+                        IF EXISTS Issue.priority AND EXISTS Issue2.priority
+                    ELSE
+                        EXISTS Issue.priority = EXISTS Issue2.priority
                 );
             """, [
             [{'number': '1'}, {'number': '4'}],
@@ -2643,7 +2615,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT
                 (
                     SELECT User {
-                        num_issues := count(User.<owner[IS Issue])
+                        num_issues := count(ALL User.<owner[IS Issue])
                     } FILTER .name = 'Elvis'
                 ).num_issues;
             """, [
@@ -2657,7 +2629,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test,
                 U := (
                     SELECT User {
-                        num_issues := count(User.<owner[IS Issue])
+                        num_issues := count(ALL User.<owner[IS Issue])
                     } FILTER .name = 'Elvis'
                 )
             SELECT
@@ -2692,7 +2664,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     SELECT User {
                         issues := (
                             SELECT Issue {
-                                foo := random()
+                                foo := 1 + random()
                             } FILTER Issue.owner = User
                         )
                     } FILTER .name = 'Elvis'
@@ -3016,7 +2988,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             # get tuples (status, number of issues)
             WITH MODULE test
-            SELECT (Status.name, count(Status.<status))
+            SELECT (Status.name, count(ALL Status.<status))
             ORDER BY Status.name;
             """, [
             [['Closed', 2], ['Open', 2]]
@@ -3031,7 +3003,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 _ := (
                     User.name, (
                         User.<owner[IS Issue].status.name,
-                        count(User.<owner[IS Issue])
+                        count(ALL User.<owner[IS Issue])
                     )
                 )
                 # A tuple is essentially an identity function within our
@@ -3050,8 +3022,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             WITH MODULE test
             SELECT {
-                statuses := count(Status),
-                issues := count(Issue),
+                statuses := count(ALL Status),
+                issues := count(ALL Issue),
             };
             """, [
             [{'statuses': 2, 'issues': 4}],
@@ -3063,8 +3035,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH
                 MODULE test,
                 counts := (SELECT {
-                    statuses := count(Status),
-                    issues := count(Issue),
+                    statuses := count(ALL Status),
+                    issues := count(ALL Issue),
                 })
             SELECT
                 counts.statuses + counts.issues;

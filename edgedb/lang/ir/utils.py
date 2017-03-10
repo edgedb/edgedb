@@ -94,12 +94,14 @@ def extend_path(schema, source_set, ptr):
 def get_subquery_shape(ir_expr):
     if (isinstance(ir_expr, irast.Set) and
             isinstance(ir_expr.expr, irast.Stmt) and
-            isinstance(ir_expr.expr.result, irast.Shape)):
-        return ir_expr.expr.result
-    elif (isinstance(ir_expr, irast.Set) and
-            isinstance(ir_expr.expr, irast.Stmt) and
             isinstance(ir_expr.expr.result, irast.Set)):
-        return get_subquery_shape(ir_expr.expr.result)
+        result = ir_expr.expr.result
+        if result.shape:
+            return result
+        elif is_view_set(result):
+            return get_subquery_shape(result)
+    elif ir_expr.view_source is not None:
+        return get_subquery_shape(ir_expr.view_source)
     else:
         return None
 
@@ -107,11 +109,60 @@ def get_subquery_shape(ir_expr):
 def is_view_set(ir_expr):
     return (
         isinstance(ir_expr, irast.Set) and
-        ir_expr.path_id and ir_expr.path_id[0].name.module == '__view__'
+        (isinstance(ir_expr.expr, irast.Stmt) and
+            isinstance(ir_expr.expr.result, irast.Set)) or
+        ir_expr.view_source is not None
     )
+
+
+def is_strictly_view_set(ir_expr):
+    return (
+        isinstance(ir_expr, irast.Set) and
+        ir_expr.real_path_id and ir_expr.real_path_id != ir_expr.path_id
+    )
+
+
+def is_subquery_set(ir_expr):
+    return (
+        isinstance(ir_expr, irast.Set) and
+        isinstance(ir_expr.expr, irast.Stmt)
+    )
+
+
+def is_inner_view_reference(ir_expr):
+    return (
+        isinstance(ir_expr, irast.Set) and
+        ir_expr.view_source is not None
+    )
+
+
+def is_simple_path(ir_expr):
+    return (
+        isinstance(ir_expr, irast.Set) and
+        ir_expr.expr is None and
+        (ir_expr.rptr is None or is_simple_path(ir_expr.rptr.source))
+    )
+
+
+def get_canonical_set(ir_expr):
+    if (isinstance(ir_expr, irast.Set) and ir_expr.source is not None and
+            ir_expr.expr is None):
+        return ir_expr.source
+    else:
+        return ir_expr
 
 
 def ensure_stmt(ir_expr):
     if not isinstance(ir_expr, irast.Stmt):
         ir_expr = irast.SelectStmt(result=ir_expr)
     return ir_expr
+
+
+def is_simple_wrapper(ir_expr):
+    if not isinstance(ir_expr, irast.SelectStmt):
+        return False
+
+    return (
+        isinstance(ir_expr.result, irast.Stmt) or
+        is_subquery_set(ir_expr.result)
+    )

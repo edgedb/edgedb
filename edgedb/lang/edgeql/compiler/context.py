@@ -21,6 +21,7 @@ from edgedb.lang.schema import schema as s_schema
 class ContextSwitchMode(enum.Enum):
     NEW = enum.auto()
     SUBQUERY = enum.auto()
+    NEWSCOPE = enum.auto()
 
 
 class ContextLevel(compiler.ContextLevel):
@@ -89,6 +90,8 @@ class ContextLevel(compiler.ContextLevel):
             self.sets = {}
             self.singletons = set()
             self.group_paths = set()
+            self.aggregated_scope = {}
+            self.unaggregated_scope = {}
             self.in_aggregate = False
 
             self.result_path_steps = []
@@ -99,6 +102,8 @@ class ContextLevel(compiler.ContextLevel):
             self.schema = prevlevel.schema
             self.arguments = prevlevel.arguments
             self.toplevel_shape_rptrcls = prevlevel.toplevel_shape_rptrcls
+            self.aggregated_scope = prevlevel.aggregated_scope
+            self.unaggregated_scope = prevlevel.unaggregated_scope
 
             if mode == ContextSwitchMode.SUBQUERY:
                 self.anchors = prevlevel.anchors.copy()
@@ -109,7 +114,7 @@ class ContextLevel(compiler.ContextLevel):
                 self.toplevel_shape_rptrcls = None
                 self.clause = None
                 self.stmt = None
-                self.sets = prevlevel.sets.copy()
+                self.sets = prevlevel.sets
                 self.singletons = prevlevel.singletons.copy()
                 self.group_paths = set()
                 self.in_aggregate = False
@@ -132,6 +137,10 @@ class ContextLevel(compiler.ContextLevel):
                 self.sets = prevlevel.sets
                 self.singletons = prevlevel.singletons
 
+            if mode == ContextSwitchMode.NEWSCOPE:
+                self.aggregated_scope = prevlevel.aggregated_scope.copy()
+                self.unaggregated_scope = prevlevel.unaggregated_scope.copy()
+
 
 class CompilerContext(compiler.CompilerContext):
     ContextLevelClass = ContextLevel
@@ -139,3 +148,6 @@ class CompilerContext(compiler.CompilerContext):
 
     def subquery(self):
         return self.new(ContextSwitchMode.SUBQUERY)
+
+    def newscope(self):
+        return self.new(ContextSwitchMode.NEWSCOPE)

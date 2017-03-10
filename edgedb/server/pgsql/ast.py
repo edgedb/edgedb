@@ -46,14 +46,12 @@ class EdgeQLPathInfo(Base):
     """A general mixin providing EdgeQL-specific metadata on certain nodes."""
 
     # Ignore the below fields in AST visitor/transformer.
-    __ast_meta__ = {'path_id', 'path_vars', 'path_bonds'}
+    __ast_meta__ = {'path_id', 'path_bonds'}
 
     path_id: irast.PathId       # The ID of EdgeQL path expression
                                 # that this RangeVar represents.
-    path_vars: dict             # A mapping between value path-ids and
-                                # columns reachable via this RangeVar.
-    path_bonds: dict            # A subset of path_cols with paths
-                                # necessary to perform joining.
+    path_bonds: typing.Set[irast.PathId]  # A subset of paths
+                                          # necessary to perform joining.
 
 
 class BaseRangeVar(Base):
@@ -67,8 +65,8 @@ class BaseRangeVar(Base):
         return self.query.path_id
 
     @property
-    def path_vars(self):
-        return self.query.path_vars
+    def path_outputs(self):
+        return self.query.path_outputs
 
     @property
     def path_namespace(self):
@@ -89,14 +87,6 @@ class Relation(EdgeQLPathInfo):
     catalogname: str
     schemaname: str
     relname: str
-
-    @property
-    def path_namespace(self):
-        return self.path_vars
-
-    @property
-    def inner_path_bonds(self):
-        return self.path_bonds
 
 
 class RangeVar(BaseRangeVar):
@@ -194,25 +184,24 @@ class Query(EdgeQLPathInfo):
     """Generic superclass representing a query."""
 
     # Ignore the below fields in AST visitor/transformer.
-    __ast_meta__ = {'path_namespace', 'inner_path_bonds',
-                    'ptr_rvar_map', 'aggregated_prefixes',
-                    'scls_rvar', 'rptr_rvar'}
+    __ast_meta__ = {'ptr_join_map', 'path_rvar_map', 'path_namespace',
+                    'path_outputs', 'view_path_id_map'}
 
-    path_namespace: dict            # A map of paths onto Vars visible in this
-                                    # Query.
-
-    inner_path_bonds: dict          # A subset of path_namespace used for
-                                    # path joining.
-
-    ptr_rvar_map: dict              # Map of RangeVars corresponding to pointer
+    ptr_join_map: dict              # Map of RangeVars corresponding to pointer
                                     # relations.
 
-    aggregated_prefixes: set        # A set of path prefixes that are used
-                                    # in calls to aggregates in this Query.
+    path_rvar_map: typing.Dict[irast.PathId, BaseRangeVar]
+                                    # Map of RanveVars corresponding to paths.
+    path_namespace: typing.Dict[irast.PathId, ColumnRef]
+                                    # Map of col refs corresponding to paths.
+    path_outputs: dict              # Map of res target names corresponding
+                                    # to paths.
+
+    as_type: irast.PathId
+
+    view_path_id_map: typing.Dict[irast.PathId, irast.PathId]
 
     ctes: typing.List[CommonTableExpr]
-    scls_rvar: BaseRangeVar
-    rptr_rvar: BaseRangeVar
 
 
 class DML(Base):

@@ -6,6 +6,7 @@
 ##
 
 
+from edgedb.lang.ir import ast as irast
 from edgedb.server.pgsql import ast as pgast
 from edgedb.server.pgsql import common
 
@@ -72,7 +73,8 @@ class IRCompilerFunctionSupport:
 
         result = pgast.FuncCall(
             name=name, args=args,
-            agg_order=agg_sort, agg_filter=agg_filter)
+            agg_order=agg_sort, agg_filter=agg_filter,
+            agg_distinct=expr.agg_set_modifier == irast.SetModifier.DISTINCT)
 
         if expr.window:
             result.over = pgast.WindowDef(

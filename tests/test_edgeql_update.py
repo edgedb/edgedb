@@ -327,26 +327,26 @@ class TestUpdate(tb.QueryTestCase):
             [42],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_update_returning06(self):
         orig1, orig2, orig3 = self.original
 
         await self.assert_query_result(r"""
-            WITH MODULE test
-            UPDATE _ := UpdateTest
-            FILTER UpdateTest.name = 'update-test2'
-            SET {
-                comment := 'updated ' + UpdateTest.comment
-            } RETURNING (
-                SELECT Status{name}
-                FILTER Status = _.status
-                ORDER BY Status.name
-            );
+            WITH
+                MODULE test,
+                U := (
+                    UPDATE UpdateTest
+                    FILTER UpdateTest.name = 'update-test2'
+                    SET {
+                        comment := 'updated ' + UpdateTest.comment
+                    }
+                )
+            SELECT Status{name}
+            FILTER Status = U.status
+            ORDER BY Status.name;
         """, [
             [{'name': 'Open'}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_update_returning07(self):
         orig1, orig2, orig3 = self.original
 
@@ -358,15 +358,19 @@ class TestUpdate(tb.QueryTestCase):
                     SET {
                         comment := UpdateTest.comment + "!",
                         status := (SELECT Status FILTER Status.name = 'Closed')
-                    } RETURNING UpdateTest {
-                        name,
-                        comment,
-                        status: {
-                            name
-                        }
                     }
                 )
-            SELECT Q ORDER BY Q.name;
+
+            SELECT
+                Q {
+                    name,
+                    comment,
+                    status: {
+                        name
+                    }
+                }
+            ORDER BY
+                Q.name;
         """, [
             [{
                 'id': orig1['id'],

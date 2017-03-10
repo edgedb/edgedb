@@ -11,11 +11,12 @@ import typing
 from edgedb.lang.common.exceptions import EdgeDBError
 from edgedb.lang.common import ast, parsing
 
+from edgedb.lang.schema import concepts as s_concepts
 from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import name as sn
 from edgedb.lang.schema import objects as so
 from edgedb.lang.schema import pointers as s_pointers
-from edgedb.lang.schema import sources as s_src
+from edgedb.lang.schema import sources as s_sources
 
 from edgedb.lang.edgeql import ast as qlast
 
@@ -27,17 +28,73 @@ class ASTError(EdgeDBError):
 class PathId(tuple):
     """Unique identifier of a path in an expression."""
 
-    def rptr(self):
-        if len(self) > 1:
-            genptr = self[-2][0]
-            direction = self[-2][1]
-            if direction == s_pointers.PointerDirection.Outbound:
-                src = self[-3]
-            else:
-                src = self[-1]
+    def __new__(cls, t=()):
+        self = super().__new__(cls, t)
+        if not self:
+            return self
 
-            if isinstance(src, s_src.Source):
-                return src.pointers.get(genptr.name)
+        if not isinstance(self[0], so.NodeClass):
+            raise ValueError(f'invalid PathId: bad source: {self[0]!r}')
+
+        for i in range(1, len(self) - 1, 2):
+            if not isinstance(self[i], tuple):
+                raise ValueError('invalid PathId: bad ptr spec')
+            ptr = self[i][0]
+            if not isinstance(ptr, s_pointers.Pointer):
+                raise ValueError('invalid PathId: bad ptr')
+            ptrdir = self[i][1]
+            if not isinstance(ptrdir, s_pointers.PointerDirection):
+                raise ValueError('invalid PathId: bad dir')
+
+            try:
+                tgt = self[i + 1]
+            except IndexError:
+                # There may be no target for link PathIds
+                pass
+            else:
+                if not isinstance(tgt, so.NodeClass):
+                    raise ValueError(f'invalid PathId: bad target: {tgt!r}')
+
+        return self
+
+    def rptr(self, schema, near_endpoint=None):
+        if len(self) > 1:
+            if isinstance(self[-1], so.NodeClass):
+                ptroffset = -2
+            else:
+                ptroffset = -1
+
+            genptr = self[ptroffset][0]
+            direction = self[ptroffset][1]
+            if isinstance(genptr, s_lprops.LinkProperty):
+                src = PathId(self[:ptroffset]).rptr(schema)
+                tgt = None
+            else:
+                if near_endpoint is None:
+                    near_endpoint = self[ptroffset - 1]
+
+                if direction == s_pointers.PointerDirection.Outbound:
+                    src = near_endpoint
+                    if isinstance(self[-1], so.NodeClass):
+                        tgt = self[-1]
+                    else:
+                        tgt = None
+                else:
+                    if isinstance(self[-1], so.NodeClass):
+                        src = self[-1]
+                    else:
+                        src = None
+                    tgt = near_endpoint
+
+            if isinstance(src, s_sources.Source):
+                if src.bases and src.bases[0].is_virtual:
+                    # View sets may involve dynamic concepts inherited
+                    # from a virtual parent (e.g. a view on UNION).
+                    src = src.bases[0]
+                return src.resolve_pointer(
+                    schema, genptr.name,
+                    far_endpoint=tgt, look_in_children=True,
+                    update_schema=False)
             else:
                 return None
         else:
@@ -45,7 +102,21 @@ class PathId(tuple):
 
     def rptr_dir(self):
         if len(self) > 1:
-            return self[-2][1]
+            if isinstance(self[-1], so.NodeClass):
+                ptroffset = -2
+            else:
+                ptroffset = -1
+            return self[ptroffset][1]
+        else:
+            return None
+
+    def src_path(self):
+        if len(self) > 1:
+            if isinstance(self[-1], so.NodeClass):
+                ptroffset = -2
+            else:
+                ptroffset = -1
+            return self[:ptroffset]
         else:
             return None
 
@@ -58,8 +129,38 @@ class PathId(tuple):
             else:
                 break
 
+    def is_in_scope(self, scope):
+        for path_id in scope:
+            if path_id.startswith(self):
+                return True
+        else:
+            return False
+
+    def is_concept_path(self):
+        return isinstance(self[-1], s_concepts.Concept)
+
     def startswith(self, path_id):
         return self[:len(path_id)] == path_id
+
+    def common_suffix_len(self, other):
+        suffix_len = 0
+
+        for i in range(min(len(self), len(other)), 0, -1):
+            if self[i - 1] != other[i - 1]:
+                break
+            else:
+                suffix_len += 1
+
+        return suffix_len
+
+    def replace_prefix(self, prefix, replacement):
+        if self.startswith(prefix):
+            if len(prefix) < len(self):
+                return replacement + tuple(self)[len(prefix):]
+            else:
+                return replacement
+        else:
+            return self
 
     def extend(self, link, direction, target):
         if not self:
@@ -68,10 +169,17 @@ class PathId(tuple):
         if not link.generic():
             link = link.bases[0]
 
-        return self + ((link, direction), target)
+        if not isinstance(self[-1], so.NodeClass):
+            raise ValueError('cannot extend link PathId')
+
+        return self + (self[-1], (link, direction), target)
 
     def __add__(self, other):
-        return self.__class__(super().__add__(other))
+        if (self and isinstance(self[-1], so.NodeClass) and
+                other and isinstance(other[0], so.NodeClass)):
+            return self[:-1] + other
+        else:
+            return self.__class__(super().__add__(other))
 
     def __str__(self):
         if not self:
@@ -98,6 +206,12 @@ class PathId(tuple):
 
         return result
 
+    def __getitem__(self, n):
+        res = super().__getitem__(n)
+        if isinstance(n, slice):
+            res = self.__class__(res)
+        return res
+
     __repr__ = __str__
 
 
@@ -121,7 +235,6 @@ class Pointer(Base):
     direction: str
     anchor: str
     show_as_anchor: str
-    source_is_computed: bool
 
 
 class Set(Base):
@@ -129,16 +242,18 @@ class Set(Base):
     path_id: PathId
     real_path_id: PathId
     scls: so.NodeClass
-    sources: set
+    source: Base
+    view_source: Base
+    path_scope: typing.Set[PathId]
     expr: Base
     rptr: Pointer
     anchor: str
     show_as_anchor: str
-    shape: Base
+    shape: typing.List[Base]
 
     def __repr__(self):
         return \
-            f'<ir.Set \'{self.path_id or self.scls.name}\' at 0x{id(self):x}'
+            f'<ir.Set \'{self.path_id or self.scls.name}\' at 0x{id(self):x}>'
 
 
 class Expr(Base):
@@ -166,17 +281,10 @@ class Parameter(Base):
     type: so.NodeClass
 
 
-class Shape(Base):
-
-    set: Set
-    scls: so.NodeClass
-    rptr: Pointer
-    elements: typing.List[Base]
-
-
 class StructElement(Base):
     name: str
     val: Base
+    singleton: bool
 
 
 class Struct(Expr):
@@ -229,6 +337,7 @@ class IfElseExpr(Expr):
     condition: Base
     if_expr: Base
     else_expr: Base
+    singleton: bool = False
 
 
 class Coalesce(Base):
@@ -249,6 +358,7 @@ class FunctionCall(Expr):
     kwargs: dict
     agg_sort: typing.List[SortExpr]
     agg_filter: Base
+    agg_set_modifier: qlast.SetModifier
     partition: typing.List[Base]
     window: bool
 
@@ -302,8 +412,11 @@ class CompositeType(Base):
 
 class Stmt(Base):
 
-    substmts: list
     result: Base
+    aggregated_scope: typing.Set[PathId]
+    main_stmt: Base
+    parent_stmt: Base
+    substmts: list
 
 
 class SelectStmt(Stmt):
@@ -324,8 +437,7 @@ class GroupStmt(Stmt):
 
 
 class MutatingStmt(Stmt):
-
-    shape: Shape
+    subject: Set
 
 
 class InsertStmt(MutatingStmt):
@@ -345,3 +457,4 @@ class DeleteStmt(MutatingStmt):
 TextSearchOperator = qlast.TextSearchOperator
 EdgeDBMatchOperator = qlast.EdgeQLMatchOperator
 SetOperator = qlast.SetOperator
+SetModifier = qlast.SetModifier

@@ -38,10 +38,12 @@ from . import context
 
 class IRCompilerDMLSupport:
     def visit_InsertStmt(self, stmt):
+        parent_ctx = self.context.current
+
         with self.context.substmt() as ctx:
             # Common DML bootstrap
             wrapper, insert_cte, _ = \
-                self._init_dml_stmt(stmt, pgast.InsertStmt())
+                self._init_dml_stmt(stmt, pgast.InsertStmt(), parent_ctx)
 
             # Process INSERT body
             self._process_insert_body(stmt, wrapper, insert_cte)
@@ -51,13 +53,18 @@ class IRCompilerDMLSupport:
             self._apply_path_scope()
             self._enforce_path_scope(wrapper, ctx.parent_path_bonds)
 
-            return wrapper
+            if not parent_ctx.correct_set_assumed:
+                self._ensure_correct_set(stmt, wrapper)
+
+        return wrapper
 
     def visit_UpdateStmt(self, stmt):
+        parent_ctx = self.context.current
+
         with self.context.substmt() as ctx:
             # Common DML bootstrap
             wrapper, update_cte, range_cte = \
-                self._init_dml_stmt(stmt, pgast.UpdateStmt())
+                self._init_dml_stmt(stmt, pgast.UpdateStmt(), parent_ctx)
 
             # Process UPDATE body
             self._process_update_body(stmt, wrapper, update_cte, range_cte)
@@ -67,22 +74,31 @@ class IRCompilerDMLSupport:
             self._apply_path_scope()
             self._enforce_path_scope(wrapper, ctx.parent_path_bonds)
 
-            return wrapper
+            if not parent_ctx.correct_set_assumed:
+                self._ensure_correct_set(stmt, wrapper)
+
+        return wrapper
 
     def visit_DeleteStmt(self, stmt):
+        parent_ctx = self.context.current
+
         with self.context.subquery() as ctx:
             # Common DML bootstrap
             wrapper, delete_cte, _ = \
-                self._init_dml_stmt(stmt, pgast.DeleteStmt())
+                self._init_dml_stmt(stmt, pgast.DeleteStmt(), parent_ctx)
 
             # Process DELETE RETURNING
             self._process_selector(stmt.result)
+
             self._apply_path_scope()
             self._enforce_path_scope(wrapper, ctx.parent_path_bonds)
 
-            return wrapper
+            if not parent_ctx.correct_set_assumed:
+                self._ensure_correct_set(stmt, wrapper)
 
-    def _init_dml_stmt(self, ir_stmt, dml_stmt):
+        return wrapper
+
+    def _init_dml_stmt(self, ir_stmt, dml_stmt, parent_ctx):
         """Prepare the common structure of the query representing a DML stmt.
 
         :param ir_stmt:
@@ -106,21 +122,26 @@ class IRCompilerDMLSupport:
         if ctx.toplevel_stmt is None:
             ctx.toplevel_stmt = ctx.stmt
 
+        ctx.stmtmap[ir_stmt] = ctx.stmt
+        ctx.stmt_hierarchy[ctx.stmt] = parent_ctx.stmt
+
         toplevel = ctx.toplevel_stmt
+        target_ir_set = ir_stmt.subject
 
-        # Process any substatments in the WITH block.
-        self._process_explicit_substmts(ir_stmt)
-
-        target_ir_set = ir_stmt.shape.set
-
-        dml_stmt.relation = self._range_for_concept(
-            ir_stmt.shape.scls, None, include_overlays=False)
-        dml_stmt.scls_rvar = dml_stmt.relation
+        dml_stmt.relation = self._range_for_set(
+            ir_stmt.subject, include_overlays=False)
+        self._put_path_rvar(dml_stmt, target_ir_set.path_id, dml_stmt.relation)
+        dml_stmt.path_bonds.add(target_ir_set.path_id)
 
         dml_cte = pgast.CommonTableExpr(
             query=dml_stmt,
             name=ctx.genalias(hint='m')
         )
+
+        # Mark the DML statemetn as a "root" relation so that the
+        # compiler knows how to recurse into it while resolving
+        # path vars.
+        ctx.root_rels.add(dml_stmt)
 
         if isinstance(ir_stmt, (irast.UpdateStmt, irast.DeleteStmt)):
             # UPDATE and DELETE operate over a range, so generate
@@ -149,7 +170,8 @@ class IRCompilerDMLSupport:
                     id_col
                 ]),
                 op=ast.ops.EQ,
-                rexpr=dml_stmt.path_namespace[target_ir_set.path_id]
+                rexpr=self._get_rvar_path_var(
+                    range_rvar, target_ir_set.path_id)
             )
 
             # UPDATE has "FROM", while DELETE has "USING".
@@ -165,15 +187,14 @@ class IRCompilerDMLSupport:
             # a result of INSERT body processing.
             range_cte = None
 
-            target_id_set = self._get_ptr_set(target_ir_set, 'std::id')
+            target_id = self._get_id_path_id(target_ir_set.path_id)
 
-            self._pull_path_var(
-                dml_stmt, target_id_set, path_id=target_ir_set.path_id)
+            self._get_path_output(dml_stmt, path_id=target_id)
 
         # Record the effect of this insertion in the relation overlay
         # context to ensure that the RETURNING clause potentially
         # referencing this class yields the expected results.
-        overlays = ctx.rel_overlays[ir_stmt.shape.scls]
+        overlays = ctx.rel_overlays[ir_stmt.subject.scls]
         if isinstance(ir_stmt, irast.InsertStmt):
             overlays.append(('union', dml_cte))
         else:
@@ -182,7 +203,7 @@ class IRCompilerDMLSupport:
         # Finaly set the DML CTE as the source for paths originating
         # in its relation.
         toplevel.ctes.append(dml_cte)
-        self._put_set_cte(ir_stmt.shape.set, dml_cte)
+        self._put_set_cte(ir_stmt.subject, dml_cte)
 
         return wrapper, dml_cte, range_cte
 
@@ -198,13 +219,14 @@ class IRCompilerDMLSupport:
             A CommonTableExpr node representing the range affected
             by the DML statement.
         """
-        target_ir_set = ir_stmt.shape.set
+        target_ir_set = ir_stmt.subject
         ir_qual_expr = ir_stmt.where
 
         parent_ctx = self.context.current
 
         with self.context.subquery():
             ctx = self.context.current
+            ctx.expr_exposed = False
 
             range_stmt = ctx.query
 
@@ -213,10 +235,10 @@ class IRCompilerDMLSupport:
 
             target_cte = self._get_set_cte(target_ir_set)
 
-            range_stmt.scls_rvar = ctx.subquery_map[range_stmt][target_cte]
+            self._put_path_rvar(range_stmt, target_ir_set.path_id,
+                                ctx.subquery_map[range_stmt][target_cte])
 
-            self._pull_path_var(
-                range_stmt, id_set, path_id=target_ir_set.path_id)
+            self._get_path_output(range_stmt, id_set.path_id)
 
             if ir_qual_expr is not None:
                 with self.context.new() as newctx:
@@ -270,7 +292,7 @@ class IRCompilerDMLSupport:
                 where_clause=self._new_binop(
                     op=ast.ops.EQ,
                     lexpr=pgast.ColumnRef(name=['name']),
-                    rexpr=pgast.Constant(val=ir_stmt.shape.scls.name)
+                    rexpr=pgast.Constant(val=ir_stmt.subject.scls.name)
                 )
             )
         )
@@ -289,7 +311,7 @@ class IRCompilerDMLSupport:
             # Process the Insert IR and separate links that go
             # into the main table from links that are inserted into
             # a separate link table.
-            for shape_el in ir_stmt.shape.elements:
+            for shape_el in ir_stmt.subject.shape:
                 ptrcls = shape_el.rptr.ptrcls
                 insvalue = shape_el.expr
 
@@ -351,9 +373,9 @@ class IRCompilerDMLSupport:
             ctx.rel = ctx.query = update_stmt
             ctx.expr_exposed = False
             ctx.shape_format = context.ShapeFormat.FLAT
-            self._put_set_cte(ir_stmt.shape.set, range_cte)
+            self._put_set_cte(ir_stmt.subject, range_cte)
 
-            for shape_el in ir_stmt.shape.elements:
+            for shape_el in ir_stmt.subject.shape:
                 ptrcls = shape_el.rptr.ptrcls
                 updvalue = shape_el.expr
 
@@ -393,9 +415,11 @@ class IRCompilerDMLSupport:
                 from_clause=[update_stmt.relation] + update_stmt.from_clause,
                 where_clause=update_stmt.where_clause,
                 path_namespace=update_stmt.path_namespace,
-                path_vars=update_stmt.path_vars,
+                path_outputs=update_stmt.path_outputs,
                 path_bonds=update_stmt.path_bonds,
-                scls_rvar=update_stmt.scls_rvar
+                path_rvar_map=update_stmt.path_rvar_map.copy(),
+                view_path_id_map=update_stmt.view_path_id_map.copy(),
+                ptr_join_map=update_stmt.ptr_join_map.copy(),
             )
 
         # Process necessary updates to the link tables.
@@ -434,6 +458,9 @@ class IRCompilerDMLSupport:
         ptrcls = rptr.ptrcls
         target_is_atom = isinstance(rptr.target, s_atoms.Atom)
 
+        path_id = rptr.source.path_id.extend(
+            ptrcls, rptr.direction, rptr.target.scls)
+
         # Lookup link class id by link name.
         lname_to_id = pgast.CommonTableExpr(
             query=pgast.SelectStmt(
@@ -471,6 +498,13 @@ class IRCompilerDMLSupport:
 
         assert tab_cols, "could not get cols for {!r}".format(target_tab_name)
 
+        dml_cte_rvar = pgast.RangeVar(
+            relation=dml_cte,
+            alias=pgast.Alias(
+                aliasname=ctx.genalias('m')
+            )
+        )
+
         col_data = {
             'link_type_id': pgast.ColumnRef(
                 name=[
@@ -478,13 +512,8 @@ class IRCompilerDMLSupport:
                     'id'
                 ]
             ),
-            'std::source': pgast.ColumnRef(
-                name=[
-                    dml_cte.name,
-                    self._get_path_var(
-                        dml_cte.query, ir_stmt.shape.set.path_id).name[0]
-                ]
-            )
+            'std::source': self._get_rvar_path_var(
+                dml_cte_rvar, ir_stmt.subject.path_id)
         }
 
         # Drop all previous link records for this source.
@@ -497,16 +526,17 @@ class IRCompilerDMLSupport:
                     rexpr=pgast.ColumnRef(
                         name=[target_alias, 'std::source'])
                 ),
-                using_clause=[pgast.RangeVar(relation=dml_cte)],
+                using_clause=[dml_cte_rvar],
                 returning_list=[
                     pgast.ResTarget(
                         val=pgast.ColumnRef(
                             name=[target_alias, pgast.Star()]))
-                ],
-                rptr_rvar=target_tab
+                ]
             ),
             name=ctx.genalias(hint='d')
         )
+
+        self._put_path_rvar(delcte.query, path_id[:-1], target_tab)
 
         # Record the effect of this removal in the relation overlay
         # context to ensure that the RETURNING clause potentially
@@ -519,7 +549,7 @@ class IRCompilerDMLSupport:
         # into one or more sub-selects.
         tranches = self._process_link_values(
             ir_expr, target_tab_name, tab_cols, col_data,
-            [pgast.RangeVar(relation=dml_cte), lname_to_id_rvar],
+            [dml_cte_rvar, lname_to_id_rvar],
             props_only, target_is_atom)
 
         for cols, data_cte in tranches:
@@ -573,7 +603,6 @@ class IRCompilerDMLSupport:
                 name=ctx.genalias(hint='i'),
                 query=pgast.InsertStmt(
                     relation=target_tab,
-                    rptr_rvar=target_tab,
                     select_stmt=data_select,
                     cols=cols,
                     on_conflict=pgast.OnConflictClause(
@@ -595,6 +624,8 @@ class IRCompilerDMLSupport:
                     ]
                 )
             )
+
+            self._put_path_rvar(updcte.query, path_id[:-1], target_tab)
 
             # Record the effect of this insertion in the relation overlay
             # context to ensure that the RETURNING clause potentially
@@ -654,34 +685,6 @@ class IRCompilerDMLSupport:
             )
         )
 
-        ptrcls = ir_expr.rptr.ptrcls
-        if isinstance(ptrcls, s_atoms.Atom):
-            target_id_col = common.edgedb_name_to_pg_name('std::target')
-        else:
-            target_id_col = common.edgedb_name_to_pg_name('std::id')
-
-        input_rel_alias = input_rvar.alias.aliasname
-
-        unnested = pgast.SelectStmt(
-            target_list=[
-                pgast.ResTarget(
-                    val=pgast.ColumnRef(
-                        name=[input_rel_alias, pgast.Star()]))
-            ],
-            from_clause=[input_rvar],
-            where_clause=pgast.NullTest(
-                arg=pgast.ColumnRef(name=[input_rel_alias, target_id_col]),
-                negated=True
-            )
-        )
-
-        unnested_rvar = pgast.RangeSubselect(
-            subquery=unnested,
-            alias=pgast.Alias(aliasname=ctx.genalias('j'))
-        )
-
-        unnested_alias = unnested_rvar.alias.aliasname
-
         row = pgast.ImplicitRowExpr()
 
         source_data = {}
@@ -690,32 +693,22 @@ class IRCompilerDMLSupport:
             # UNION
             input_stmt = input_stmt.rarg
 
+        path_id = next(iter(input_stmt.path_bonds))
+        target_ref = self._get_rvar_path_var(input_rvar, path_id)
+        source_data['std::target'] = target_ref
+
         for rt in input_stmt.target_list:
-            if rt.name is None:
-                if isinstance(rt.val, pgast.ColumnRef):
-                    rt_name = rt.val.name[-1]
-                else:
-                    continue
-            else:
-                rt_name = rt.name
-
-            source_data[rt_name] = expr = pgast.ColumnRef(
-                name=[unnested_alias, rt_name])
-
-        if target_id_col not in source_data:
-            raise RuntimeError(  # pragma: no cover
-                'cannot determine target identity column')
+            source_data[rt.name] = pgast.ColumnRef(
+                name=[input_rvar.alias.aliasname, rt.name]
+            )
 
         for col in tab_cols:
-            if col in {'std::target@atom', 'std::target'}:
+            if col in {'std::target@atom'}:
                 col = 'std::target'
-                source_col = target_id_col
-            else:
-                source_col = col
 
             expr = col_data.get(col)
             if expr is None:
-                expr = source_data.get(source_col)
+                expr = source_data.get(col)
 
             if expr is None:
                 if tab_cols[col]['column_default'] is not None:
@@ -741,7 +734,7 @@ class IRCompilerDMLSupport:
                         )
                     )
                 ],
-                from_clause=[unnested_rvar],
+                from_clause=[input_rvar],
             ),
             name=ctx.genalias(hint='r')
         )

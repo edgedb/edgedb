@@ -8,7 +8,6 @@
 
 import os.path
 import textwrap
-import unittest
 import uuid
 
 from edgedb.client import exceptions
@@ -62,6 +61,8 @@ class TestDeltas(tb.QueryTestCase):
             }]
         ])
 
+
+class TestDeltaLinkInheritance(tb.QueryTestCase):
     async def test_delta_link_inheritance(self):
         schema_f = os.path.join(os.path.dirname(__file__), 'schemas',
                                 'links_1.eschema')

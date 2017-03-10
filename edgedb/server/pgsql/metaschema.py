@@ -372,6 +372,36 @@ class NormalizeNameFunction(dbops.Function):
             text=self.__class__.text)
 
 
+class OrFilterFunction(dbops.Function):
+    """Special version of boolean OR that returns NULL on NULL input.
+
+    Unlike SQL, EdgeQL does not have the three-valued boolean logic,
+    and boolean operators must obey the same rules as all other
+    operators: they must yield an empty set if any of the operands
+    is an empty set.  To achieve this, we convert the boolean op
+    into an equivalent bitwise OR/AND expression (the shortest and
+    fastest equivalent):
+
+        a OR b --> (a::int | b::int)::bool
+
+    This transformation may break bitmap index scan optimization
+    when inside a WHERE clause, so we must use the original
+    boolean expression in conjunction, which makes the operands appear
+    twice in an expression, which may lead to unexpected side-effects,
+    like repeated evaluation of calls to volatile functions.  To avoid
+    this, we replace the boolean OR in WHERE clauses with a call to this
+    function.
+    """
+    def __init__(self):
+        super().__init__(
+            name=('edgedb', '_or'),
+            args=[('a', 'bool'), ('b', 'bool')],
+            returns='bool',
+            volatility='immutable',
+            language='sql',
+            text='SELECT (a OR b) AND (a::int | b::int)::bool')
+
+
 def _field_to_column(field):
     ftype = field.type[0]
     coltype = None
@@ -513,6 +543,7 @@ async def bootstrap(conn):
         dbops.CreateFunction(IssubclassFunction2()),
         dbops.CreateFunction(IsinstanceFunction()),
         dbops.CreateFunction(NormalizeNameFunction()),
+        dbops.CreateFunction(OrFilterFunction()),
     ])
 
     await commands.execute(Context(conn))

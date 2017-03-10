@@ -10,6 +10,7 @@ import os.path
 import unittest
 
 from edgedb.server import _testbase as tb
+from edgedb.client import exceptions as exc
 
 
 class TestEdgeQLSelect(tb.QueryTestCase):
@@ -333,6 +334,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     @unittest.expectedFailure
+    # XXX: fails due to incorrect path scope inference.
     async def test_edgeql_filter_two_atomic_exists04(self):
         await self.assert_query_result(r'''
             # NOTE: same as above, but using OR,
@@ -379,4 +381,175 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             FILTER .name = 'Open';
         ''', [
             [{'name': 'Open'}],
+        ])
+
+    async def test_edgeql_filter_flow01(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue.number
+            FILTER TRUE
+            ORDER BY Issue.number;
+
+            WITH MODULE test
+            SELECT Issue.number
+            # obviously irrelevant filter, simply equivalent to TRUE
+            FILTER Status.name = 'Closed'
+            ORDER BY Issue.number;
+        ''', [
+            ['1', '2', '3', '4'],
+            ['1', '2', '3', '4'],
+        ])
+
+    async def test_edgeql_filter_flow02(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue.number
+            FILTER FALSE
+            ORDER BY Issue.number;
+
+            WITH MODULE test
+            SELECT Issue.number
+            # obviously irrelevant filter, simply equivalent to FALSE
+            FILTER Status.name = 'XXX'
+            ORDER BY Issue.number;
+        ''', [
+            [],
+            [],
+        ])
+
+    async def test_edgeql_filter_flow03(self):
+        await self.assert_query_result(r'''
+            # base line for a cross product
+            WITH MODULE test
+            SELECT Issue.number + Status.name
+            ORDER BY Issue.number THEN Status.name;
+
+            # interaction of filter and cross product
+            WITH MODULE test
+            SELECT Issue.number + Status.name
+            FILTER
+                Issue.owner.name = 'Elvis'
+            ORDER BY Issue.number THEN Status.name;
+
+            # interaction of filter and cross product
+            WITH MODULE test
+            SELECT Issue.number + Status.name
+            FILTER
+                Issue.owner.name = 'Elvis'
+                AND
+                Status.name = 'Open'
+            ORDER BY Issue.number THEN Status.name;
+        ''', [
+            ['1Closed', '1Open', '2Closed', '2Open',
+             '3Closed', '3Open', '4Closed', '4Open'],
+
+            ['1Closed', '1Open', '2Closed', '2Open'],
+
+            ['1Open', '2Open']
+        ])
+
+    async def test_edgeql_filter_empty01(self):
+        await self.assert_query_result(r"""
+            # the FILTER clause is always EMPTY, so it can never be true
+            WITH MODULE test
+            SELECT Issue{number}
+            FILTER EMPTY;
+            """, [
+            [],
+        ])
+
+    async def test_edgeql_filter_empty02(self):
+        await self.assert_query_result(r"""
+            # the FILTER clause evaluates to EMPTY, so it can never be true
+            WITH MODULE test
+            SELECT Issue{number}
+            FILTER Issue.number = EMPTY;
+
+            WITH MODULE test
+            SELECT Issue{number}
+            FILTER Issue.priority = EMPTY;
+
+            WITH MODULE test
+            SELECT Issue{number}
+            FILTER Issue.priority.name = EMPTY;
+            """, [
+            [],
+            [],
+            [],
+        ])
+
+    async def test_edgeql_filter_aggregate01(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT count(ALL Issue);
+        ''', [
+            [4],
+        ])
+
+    async def test_edgeql_filter_aggregate02(self):
+        # FIXME: illegal usage of same expression inside and outside
+        # of aggregate
+        #
+        with self.assertRaisesRegex(exc.EdgeQLError, ''):
+            await self.con.execute(r'''
+                WITH MODULE test
+                SELECT count(ALL Issue) + <int>Issue.number;
+            ''')
+
+    async def test_edgeql_filter_aggregate03(self):
+        # FIXME: fix error
+        #
+        with self.assertRaisesRegex(exc.EdgeQLError, ''):
+            await self.con.execute(r'''
+                WITH MODULE test
+                SELECT count(ALL Issue)
+                # illegal usage of same expression inside and outside
+                # of aggregate
+                #
+                FILTER Issue.status.name = 'Open';
+            ''')
+
+    async def test_edgeql_filter_aggregate04(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT count(ALL Issue)
+            # this filter is not related to the aggregate and is allowed
+            #
+            FILTER Status.name = 'Open';
+
+            WITH MODULE test
+            SELECT count(ALL Issue)
+            # this filter is conceptually equivalent to the above
+            #
+            FILTER TRUE;
+        ''', [
+            [4],
+            [4],
+        ])
+
+    async def test_edgeql_filter_aggregate05(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE test,
+                I := (SELECT Issue FILTER Issue.status.name = 'Open')
+            SELECT count(ALL I);
+        ''', [
+            [3],
+        ])
+
+    async def test_edgeql_filter_aggregate06(self):
+        await self.assert_query_result(r'''
+            # regardless of what count evaluates to, FILTER clause is
+            # impossible to fulfill, so the result is EMPTY
+            #
+            WITH MODULE test
+            SELECT count(ALL Issue)
+            FILTER FALSE;
+
+            WITH MODULE test
+            SELECT count(ALL Issue)
+            FILTER EMPTY;
+        ''', [
+            [],
+            [],
         ])

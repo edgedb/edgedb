@@ -6,7 +6,6 @@
 ##
 
 
-import unittest
 import uuid
 
 from edgedb.client import exceptions as exc
@@ -175,7 +174,6 @@ class TestDelete(tb.QueryTestCase):
             [42],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_delete_returning03(self):
         await self.assert_query_result(r"""
             INSERT test::DeleteTest {
@@ -196,14 +194,13 @@ class TestDelete(tb.QueryTestCase):
                 name := 'delete test2.2'
             };
 
-            WITH MODULE test
-            DELETE _ := DeleteTest
-            RETURNING (
-                SELECT DeleteTest2 {
-                    name,
-                    foo := 'bar'
-                } FILTER DeleteTest2.name LIKE _.name[:2] + '%'
-            );
+            WITH
+                MODULE test,
+                D := (DELETE DeleteTest)
+            SELECT DeleteTest2 {
+                name,
+                foo := 'bar'
+            } FILTER DeleteTest2.name LIKE D.name[:2] + '%';
 
             WITH MODULE test
             DELETE DeleteTest2
@@ -220,12 +217,9 @@ class TestDelete(tb.QueryTestCase):
                 'name': 'dt2.1',
                 'foo': 'bar',
             }],
-            [{
-                'name': 'delete test2.2',
-            }],
+            [{}, {}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_delete_returning04(self):
         await self.assert_query_result(r"""
             INSERT test::DeleteTest {
@@ -246,7 +240,7 @@ class TestDelete(tb.QueryTestCase):
                 MODULE test,
                 # make sure that aliased deletion works as an expression
                 #
-                Q := (DELETE DeleteTest RETURNING DeleteTest.id)
+                Q := (DELETE DeleteTest)
             SELECT DeleteTest2 {
                 name,
                 count := count(ALL Q),
@@ -269,7 +263,6 @@ class TestDelete(tb.QueryTestCase):
             }],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_delete_returning05(self):
         await self.assert_query_result(r"""
             INSERT test::DeleteTest {
@@ -286,17 +279,16 @@ class TestDelete(tb.QueryTestCase):
                 name := 'dt2.1'
             };
 
-            WITH MODULE test
-            DELETE _ := DeleteTest
+            WITH
+                MODULE test,
+                D := (DELETE DeleteTest)
             # the returning clause is actually trying to simulate
             # returning "stats" of deleted objects
             #
-            RETURNING (
-                SELECT DeleteTest2 {
-                    name,
-                    count := count(ALL _),
-                } FILTER DeleteTest2.name = 'dt2.1'
-            );
+            SELECT DeleteTest2 {
+                name,
+                count := count(ALL D),
+            } FILTER DeleteTest2.name = 'dt2.1';
 
             WITH MODULE test
             DELETE DeleteTest2

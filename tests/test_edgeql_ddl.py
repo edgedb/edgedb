@@ -147,7 +147,7 @@ class TestDeltas(tb.QueryTestCase):
 
     async def test_edgeql_ddl07(self):
         with self.assertRaisesRegex(client_errors.EdgeQLError,
-                                    'could not.*broken_sql.*no IR compiler'):
+                                    'could not.*broken_sql.*not constant'):
             await self.con.execute(f"""
                 CREATE FUNCTION test::broken_sql_func1(
                     std::int=(SELECT schema::Concept))

@@ -23,17 +23,17 @@ class TestExpressions(tb.QueryTestCase):
     TEARDOWN = """
     """
 
-    async def test_edgeql_expr_emptyset_01(self):
+    async def test_edgeql_expr_emptyset01(self):
         await self.assert_query_result(r"""
             SELECT <int>EMPTY;
             SELECT <str>EMPTY;
             SELECT EMPTY + 1;
             SELECT 1 + EMPTY;
         """, [
-            [None],
-            [None],
-            [None],
-            [None],
+            [],
+            [],
+            [],
+            [],
         ])
 
         with self.assertRaisesRegex(exc.EdgeQLError,
@@ -41,6 +41,22 @@ class TestExpressions(tb.QueryTestCase):
 
             await self.con.execute("""
                 SELECT EMPTY;
+            """)
+
+    async def test_edgeql_expr_emptyset02(self):
+        await self.assert_query_result(r"""
+            SELECT count(ALL <int>EMPTY);
+            SELECT count(DISTINCT <int>EMPTY);
+        """, [
+            [0],
+            [0],
+        ])
+
+        with self.assertRaisesRegex(exc.EdgeQLError,
+                                    r'could not determine expression type'):
+
+            await self.con.execute("""
+                SELECT count(ALL EMPTY);
             """)
 
     async def test_edgeql_expr_idempotent01(self):
@@ -156,18 +172,19 @@ class TestExpressions(tb.QueryTestCase):
             SELECT EMPTY = 42;
             SELECT EMPTY = 'EMPTY';
         """, [
-            [None],
-            [None],
-            [None],
+            [],
+            [],
+            [],
         ])
 
     async def test_edgeql_expr_op07(self):
+        # Test boolean interaction with EMPTY
         await self.assert_query_result(r"""
-            SELECT EXISTS EMPTY;
-            SELECT NOT EXISTS EMPTY;
+            SELECT TRUE OR EMPTY;
+            SELECT FALSE AND EMPTY;
         """, [
-            [False],
-            [True],
+            [],
+            [],
         ])
 
     async def test_edgeql_expr_op08(self):
@@ -618,8 +635,8 @@ class TestExpressions(tb.QueryTestCase):
             [2],
             [-1],
 
-            [None],
-            [None],
+            [],
+            [],
         ])
 
     async def test_edgeql_expr_string01(self):
@@ -718,7 +735,16 @@ class TestExpressions(tb.QueryTestCase):
             ['s2'],
         ])
 
-    async def test_edgeql_expr_select(self):
+    async def test_edgeql_expr_setop01(self):
+        await self.assert_query_result(r"""
+            SELECT EXISTS EMPTY;
+            SELECT NOT EXISTS EMPTY;
+        """, [
+            [False],
+            [True],
+        ])
+
+    async def test_edgeql_expr_setop02(self):
         await self.assert_query_result(r"""
             SELECT 2 * ((SELECT 1) UNION (SELECT 2));
 

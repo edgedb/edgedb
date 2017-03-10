@@ -38,6 +38,8 @@ from edgedb.lang.common import ordered
 from edgedb.lang.common import debug
 from edgedb.lang.common import markup, nlang
 
+from edgedb.lang.ir import utils as irutils
+
 from edgedb.server.pgsql import common
 from edgedb.server.pgsql import dbops, deltadbops, metaschema
 
@@ -440,6 +442,9 @@ class CreateFunction(FunctionCommand, CreateNamedClass,
         try:
             ir = ql_compiler.compile_fragment_to_ir(
                 default, schema, location='parameter-default')
+
+            if not irutils.is_const(ir):
+                raise ValueError('expression not constant')
 
             ircompiler = compiler.SingletonExprIRCompiler()
             sql_tree = ircompiler.transform_to_sql_tree(

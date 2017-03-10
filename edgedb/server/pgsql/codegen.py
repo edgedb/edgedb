@@ -106,6 +106,13 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.rarg)
         else:
             self.write('SELECT')
+            if node.distinct_clause:
+                self.write(' DISTINCT')
+                if (len(node.distinct_clause) > 1 or
+                        not isinstance(node.distinct_clause[0], pgast.Star)):
+                    self.write(' ON (')
+                    self.visit_list(node.distinct_clause, newlines=False)
+                    self.write(')')
             self.new_lines = 1
             self.indentation += 2
 
@@ -470,6 +477,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.write(common.qname(*node.name))
 
         self.write('(')
+        if node.agg_distinct:
+            self.write('DISTINCT ')
         self.visit_list(node.args, newlines=False)
 
         if node.agg_order:
