@@ -46,10 +46,8 @@ class EdgeQLPathInfo(Base):
     """A general mixin providing EdgeQL-specific metadata on certain nodes."""
 
     # Ignore the below fields in AST visitor/transformer.
-    __ast_meta__ = {'path_id', 'path_bonds'}
+    __ast_meta__ = {'path_bonds'}
 
-    path_id: irast.PathId       # The ID of EdgeQL path expression
-                                # that this RangeVar represents.
     path_bonds: typing.Set[irast.PathId]  # A subset of paths
                                           # necessary to perform joining.
 

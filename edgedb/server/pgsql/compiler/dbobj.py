@@ -104,10 +104,6 @@ class IRCompilerDBObjects:
     def _range_for_set(self, ir_set, *, include_overlays=True):
         rvar = self._range_for_concept(
             ir_set.scls, ir_set.path_id, include_overlays=include_overlays)
-        if isinstance(rvar, pgast.RangeSubselect):
-            rvar.subquery.path_id = ir_set.path_id
-        else:
-            rvar.relation.path_id = ir_set.path_id
 
         return rvar
 

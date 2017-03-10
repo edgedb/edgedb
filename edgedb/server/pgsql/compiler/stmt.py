@@ -770,7 +770,6 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         ir_set = irutils.get_canonical_set(ir_set)
 
         stmt = pgast.SelectStmt()
-        stmt.path_id = ir_set.path_id
 
         cte_name = ctx.genalias(hint=self._get_set_cte_alias(ir_set))
         cte = pgast.CommonTableExpr(query=stmt, name=cte_name)
