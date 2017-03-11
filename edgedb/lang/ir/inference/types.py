@@ -294,11 +294,6 @@ def __infer_stmt(ir, schema):
     return infer_type(ir.result, schema)
 
 
-@_infer_type.register(irast.SelectStmt)
-def __infer_select_stmt(ir, schema):
-    return infer_type(ir.result, schema)
-
-
 @_infer_type.register(irast.ExistPred)
 def __infer_exist(ir, schema):
     return schema.get('std::bool')

@@ -285,7 +285,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
     def visit_InsertQuery(self, edgeql_tree):
         parent_ctx = self.context.current
-        toplevel_shape_rptrcls = parent_ctx.toplevel_shape_rptrcls
+        is_toplevel = parent_ctx.stmt is None
 
         with self.context.subquery() as ctx:
             stmt = ctx.stmt = irast.InsertStmt()
@@ -299,14 +299,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 require_expressions=True,
                 include_implicit=False)
 
-            with self.context.new():
-                self.context.current.clause = 'result'
-
-                if edgeql_tree.result is not None:
-                    stmt.result = self._process_stmt_result(
-                        edgeql_tree.result, toplevel_shape_rptrcls)
-                else:
-                    stmt.result = self._process_shape(subject, None, [])
+            stmt.result = subject
 
             explicit_ptrs = {
                 el.rptr.ptrcls.shortname for el in stmt.subject.shape
@@ -333,14 +326,21 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 el.rptr = targetstep.rptr
                 stmt.subject.shape.append(el)
 
-            stmt.argument_types = self.context.current.arguments
-            stmt.aggregated_scope = set(ctx.aggregated_scope)
+            if is_toplevel:
+                stmt.argument_types = self.context.current.arguments
+                result = stmt
+            else:
+                result = self._generated_set(stmt)
+                if isinstance(stmt.result, irast.Set):
+                    result.path_id = stmt.result.path_id
 
-            return stmt
+            result.aggregated_scope = set(ctx.aggregated_scope)
+
+            return result
 
     def visit_UpdateQuery(self, edgeql_tree):
         parent_ctx = self.context.current
-        toplevel_shape_rptrcls = parent_ctx.toplevel_shape_rptrcls
+        is_toplevel = parent_ctx.stmt is None
 
         with self.context.subquery() as ctx:
             stmt = ctx.stmt = irast.UpdateStmt()
@@ -358,25 +358,29 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 )
 
             stmt.where = self._process_select_where(edgeql_tree.where)
-            if edgeql_tree.result is not None:
-                stmt.result = self._process_stmt_result(
-                    edgeql_tree.result, toplevel_shape_rptrcls)
-            else:
-                stmt.result = self._process_shape(subject, None, [])
 
             stmt.subject = self._process_shape(
                 subject, None, edgeql_tree.shape,
                 require_expressions=True,
                 include_implicit=False)
 
-            stmt.argument_types = self.context.current.arguments
-            stmt.aggregated_scope = set(ctx.aggregated_scope)
+            stmt.result = subject
 
-            return stmt
+            if is_toplevel:
+                stmt.argument_types = self.context.current.arguments
+                result = stmt
+            else:
+                result = self._generated_set(stmt)
+                if isinstance(stmt.result, irast.Set):
+                    result.path_id = stmt.result.path_id
+
+            result.aggregated_scope = set(ctx.aggregated_scope)
+
+            return result
 
     def visit_DeleteQuery(self, edgeql_tree):
         parent_ctx = self.context.current
-        toplevel_shape_rptrcls = parent_ctx.toplevel_shape_rptrcls
+        is_toplevel = parent_ctx.stmt is None
 
         with self.context.subquery() as ctx:
             stmt = ctx.stmt = irast.DeleteStmt()
@@ -393,17 +397,19 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     context=edgeql_tree.subject.context
                 )
 
-            if edgeql_tree.result is not None:
-                stmt.result = self._process_stmt_result(
-                    edgeql_tree.result, toplevel_shape_rptrcls)
+            stmt.subject = stmt.result = subject
+
+            if is_toplevel:
+                stmt.argument_types = self.context.current.arguments
+                result = stmt
             else:
-                stmt.result = self._process_shape(subject, None, [])
+                result = self._generated_set(stmt)
+                if isinstance(stmt.result, irast.Set):
+                    result.path_id = stmt.result.path_id
 
-            stmt.subject = subject
-            stmt.argument_types = self.context.current.arguments
-            stmt.aggregated_scope = set(ctx.aggregated_scope)
+            result.aggregated_scope = set(ctx.aggregated_scope)
 
-            return stmt
+            return result
 
     def visit_Shape(self, expr):
         subj = self.visit(expr.expr)
@@ -1719,7 +1725,8 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 expr = self.visit(result)
                 if (isinstance(expr, irast.Set) and
                         isinstance(expr.scls, s_concepts.Concept) and
-                        expr.path_id and not self._is_subquery_set(expr) and
+                        (not self._is_subquery_set(expr) or
+                            isinstance(expr.expr, irast.MutatingStmt)) and
                         not self._is_set_op_set(expr)):
                     shape = []
                 else:

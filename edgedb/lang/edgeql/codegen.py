@@ -67,19 +67,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_Coalesce(self, node):
         self.visit_list(node.args, separator=' ?? ', newlines=False)
 
-    def _visit_returning(self, node):
-        if node.result is not None:
-            self.new_lines = 1
-            self.write('RETURNING')
-            if node.single:
-                self.write(' SINGLETON')
-            if node.result_alias:
-                self.write(node.result_alias, ' := ')
-            self.indentation += 1
-            self.new_lines = 1
-            self.visit(node.result)
-            self.indentation -= 1
-
     def visit_InsertQuery(self, node):
         # need to parenthesise when INSERT appears as an expression
         #
@@ -109,7 +96,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.indentation -= 1
             self.new_lines = 1
 
-        self._visit_returning(node)
         if parenthesise:
             self.write(')')
 
@@ -141,7 +127,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write('SET ')
         self._visit_shape(node.shape)
 
-        self._visit_returning(node)
         if parenthesise:
             self.write(')')
 
@@ -162,7 +147,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write('DELETE ')
         self.visit(node.subject, parenthesise=False)
 
-        self._visit_returning(node)
         if parenthesise:
             self.write(')')
 
@@ -244,7 +228,18 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit_list(node.groupby, separator=' THEN')
         self.new_lines = 1
         self.indentation -= 1
-        self._visit_returning(node)
+
+        if node.result is not None:
+            self.new_lines = 1
+            self.write('RETURNING')
+            if node.single:
+                self.write(' SINGLETON')
+            if node.result_alias:
+                self.write(node.result_alias, ' := ')
+            self.indentation += 1
+            self.new_lines = 1
+            self.visit(node.result)
+            self.indentation -= 1
 
         if node.where:
             self.write('FILTER')

@@ -51,22 +51,18 @@ class TestDelete(tb.QueryTestCase):
         """)
 
         self.assert_data_shape(result, [
-            [{
-                'id': uuid.UUID,
-            }],
-            [{
-                'id': result[0][0]['id'],
-            }],
+            [1],
+            [1]
         ])
 
     async def test_edgeql_delete_simple02(self):
         result = await self.con.execute(r"""
-            INSERT test::DeleteTest {
+            SELECT(INSERT test::DeleteTest {
                 name := 'delete-test1'
-            };
-            INSERT test::DeleteTest {
+            });
+            SELECT(INSERT test::DeleteTest {
                 name := 'delete-test2'
-            };
+            });
         """)
 
         self.assert_data_shape(result, [
@@ -86,20 +82,20 @@ class TestDelete(tb.QueryTestCase):
             SELECT DeleteTest ORDER BY DeleteTest.name;
 
             WITH MODULE test
-            DELETE (SELECT DeleteTest
-                    FILTER DeleteTest.name = 'delete-test1');
+            SELECT (DELETE (SELECT DeleteTest
+                    FILTER DeleteTest.name = 'delete-test1'));
 
             WITH MODULE test
             SELECT DeleteTest ORDER BY DeleteTest.name;
 
             WITH MODULE test
-            DELETE (SELECT DeleteTest
-                    FILTER DeleteTest.name = 'delete-test2');
+            SELECT (DELETE (SELECT DeleteTest
+                    FILTER DeleteTest.name = 'delete-test2'));
 
             WITH MODULE test
             SELECT DeleteTest ORDER BY DeleteTest.name;
         """, [
-            [],
+            [0],
             [{'id': id1}, {'id': id2}],
 
             [{'id': id1}],
@@ -111,15 +107,15 @@ class TestDelete(tb.QueryTestCase):
 
     async def test_edgeql_delete_returning01(self):
         result = await self.con.execute(r"""
-            INSERT test::DeleteTest {
+            SELECT(INSERT test::DeleteTest {
                 name := 'delete-test1'
-            };
-            INSERT test::DeleteTest {
+            });
+            SELECT(INSERT test::DeleteTest {
                 name := 'delete-test2'
-            };
-            INSERT test::DeleteTest {
+            });
+            SELECT(INSERT test::DeleteTest {
                 name := 'delete-test3'
-            };
+            });
         """)
 
         self.assert_data_shape(result, [
@@ -132,19 +128,21 @@ class TestDelete(tb.QueryTestCase):
 
         del_result = await self.con.execute(r"""
             WITH MODULE test
-            DELETE (SELECT DeleteTest
-                    FILTER DeleteTest.name = 'delete-test1')
-            RETURNING DeleteTest;
+            SELECT (DELETE (SELECT DeleteTest
+                    FILTER DeleteTest.name = 'delete-test1'));
+
+            WITH
+                MODULE test,
+                D := (DELETE (SELECT DeleteTest
+                    FILTER DeleteTest.name = 'delete-test2'))
+            SELECT D {name};
 
             WITH MODULE test
-            DELETE (SELECT DeleteTest
-                    FILTER DeleteTest.name = 'delete-test2')
-            RETURNING DeleteTest{name};
-
-            WITH MODULE test
-            DELETE (SELECT DeleteTest
-                    FILTER DeleteTest.name = 'delete-test3')
-            RETURNING DeleteTest.name + '--DELETED';
+            SELECT
+                (DELETE (
+                    SELECT DeleteTest
+                    FILTER DeleteTest.name = 'delete-test3'
+                )).name + '--DELETED';
         """)
 
         self.assert_data_shape(del_result, [
@@ -165,13 +163,13 @@ class TestDelete(tb.QueryTestCase):
                 name := 'delete-test3'
             };
 
-            DELETE test::DeleteTest
-            RETURNING 42;
+            WITH D := (DELETE test::DeleteTest)
+            SELECT count(D);
         """, [
-            [{'id': uuid.UUID}],
-            [{'id': uuid.UUID}],
-            [{'id': uuid.UUID}],
-            [42],
+            [1],
+            [1],
+            [1],
+            [3],
         ])
 
     async def test_edgeql_delete_returning03(self):
@@ -203,16 +201,13 @@ class TestDelete(tb.QueryTestCase):
             } FILTER DeleteTest2.name LIKE D.name[:2] + '%';
 
             WITH MODULE test
-            DELETE DeleteTest2
-            RETURNING DeleteTest2 {
-                name,
-            };
+            SELECT (DELETE DeleteTest2) { name };
         """, [
-            [{'id': uuid.UUID}],
-            [{'id': uuid.UUID}],
-            [{'id': uuid.UUID}],
-            [{'id': uuid.UUID}],
-            [{'id': uuid.UUID}],
+            [1],
+            [1],
+            [1],
+            [1],
+            [1],
             [{
                 'name': 'dt2.1',
                 'foo': 'bar',
@@ -247,13 +242,12 @@ class TestDelete(tb.QueryTestCase):
             } FILTER DeleteTest2.name = 'dt2.1';
 
             WITH MODULE test
-            DELETE DeleteTest2
-            RETURNING DeleteTest2 {name};
+            SELECT (DELETE DeleteTest2) {name};
         """, [
-            [{'id': uuid.UUID}],
-            [{'id': uuid.UUID}],
-            [{'id': uuid.UUID}],
-            [{'id': uuid.UUID}],
+            [1],
+            [1],
+            [1],
+            [1],
             [{
                 'name': 'dt2.1',
                 'count': 3,
@@ -291,13 +285,12 @@ class TestDelete(tb.QueryTestCase):
             } FILTER DeleteTest2.name = 'dt2.1';
 
             WITH MODULE test
-            DELETE DeleteTest2
-            RETURNING DeleteTest2 {name};
+            SELECT (DELETE DeleteTest2) {name};
         """, [
-            [{'id': uuid.UUID}],
-            [{'id': uuid.UUID}],
-            [{'id': uuid.UUID}],
-            [{'id': uuid.UUID}],
+            [1],
+            [1],
+            [1],
+            [1],
             [{
                 'name': 'dt2.1',
                 'count': 3

@@ -177,9 +177,6 @@ class Mapping(Expr):
 
 class Statement(Expr):
     aliases: typing.List[typing.Union[AliasedExpr, NamespaceAliasDecl]]
-    result: Expr
-    result_alias: str
-    single: bool = False
 
 
 class SubjStatement(Statement):
@@ -187,14 +184,20 @@ class SubjStatement(Statement):
     subject_alias: str
 
 
-class SelectQuery(Statement):
+class ReturningStatement(Statement):
+    result: Expr
+    result_alias: str
+    single: bool = False
+
+
+class SelectQuery(ReturningStatement):
     where: Expr
     orderby: typing.List[SortExpr]
     offset: Expr
     limit: Expr
 
 
-class GroupQuery(SubjStatement):
+class GroupQuery(SubjStatement, ReturningStatement):
     where: Expr
     groupby: typing.List[Expr]
     orderby: typing.List[SortExpr]

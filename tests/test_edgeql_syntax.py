@@ -1331,16 +1331,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_cardinality01(self):
         """
         SELECT SINGLETON User.name FILTER (User.name = 'special');
-        INSERT User RETURNING SINGLETON User{name};
-        INSERT User{name:= 'foo'} RETURNING SINGLETON User{name};
-        UPDATE User
-            FILTER (User.name = 'foo')
-            SET {
-                age:= (User.age + 10)
-            }
-            RETURNING SINGLETON User{name};
-        DELETE (SELECT User FILTER (User.name = 'foo'))
-            RETURNING SINGLETON User{name};
         CREATE FUNCTION spam($foo: str) RETURNING SINGLETON str
             FROM EdgeQL $$ SELECT "a" $$;
         """
@@ -1590,47 +1580,27 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_insert01(self):
         """
         INSERT Foo;
-        INSERT Foo RETURNING Foo;
-        INSERT Foo RETURNING Foo{bar};
-        INSERT Foo RETURNING SINGLETON Foo;
-        INSERT Foo RETURNING SINGLETON Foo{bar};
+        SELECT (INSERT Foo);
+        SELECT (INSERT Foo) {bar};
         """
 
     def test_edgeql_syntax_insert02(self):
         """
         INSERT Foo{bar:= 42};
-        INSERT Foo{bar:= 42} RETURNING Foo;
-        INSERT Foo{bar:= 42} RETURNING Foo{bar};
-        INSERT Foo{bar:= 42} RETURNING SINGLETON Foo;
-        INSERT Foo{bar:= 42} RETURNING SINGLETON Foo{bar};
+        SELECT (INSERT Foo{bar:= 42});
+        SELECT (INSERT Foo{bar:= 42}) {bar};
         """
 
     def test_edgeql_syntax_insert03(self):
         """
         WITH MODULE test
         INSERT Foo;
-        WITH MODULE test
-        INSERT Foo RETURNING Foo;
-        WITH MODULE test
-        INSERT Foo RETURNING Foo{bar};
-        WITH MODULE test
-        INSERT Foo RETURNING SINGLETON Foo;
-        WITH MODULE test
-        INSERT Foo RETURNING SINGLETON Foo{bar};
         """
 
     def test_edgeql_syntax_insert04(self):
         """
         WITH MODULE test
         INSERT Foo{bar:= 42};
-        WITH MODULE test
-        INSERT Foo{bar:= 42} RETURNING Foo;
-        WITH MODULE test
-        INSERT Foo{bar:= 42} RETURNING Foo{bar};
-        WITH MODULE test
-        INSERT Foo{bar:= 42} RETURNING SINGLETON Foo;
-        WITH MODULE test
-        INSERT Foo{bar:= 42} RETURNING SINGLETON Foo{bar};
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -1669,12 +1639,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_insert10(self):
         """
         INSERT Foo LIMIT 5;
-        """
-
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=33)
-    def test_edgeql_syntax_insert11(self):
-        """
-        INSERT Foo RETURNING Foo, Foo.bar;
         """
 
     def test_edgeql_syntax_insert12(self):
@@ -1746,32 +1710,15 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    def test_edgeql_syntax_insert18(self):
-        """
-        SELECT (INSERT Foo{bar:= 42} RETURNING Foo);
-        """
-
     def test_edgeql_syntax_delete01(self):
         """
         DELETE Foo;
-        DELETE Foo RETURNING Foo;
-        DELETE Foo RETURNING Foo{bar};
-        DELETE Foo RETURNING SINGLETON Foo;
-        DELETE Foo RETURNING SINGLETON Foo{bar};
         """
 
     def test_edgeql_syntax_delete02(self):
         """
         WITH MODULE test
         DELETE Foo;
-        WITH MODULE test
-        DELETE Foo RETURNING Foo;
-        WITH MODULE test
-        DELETE Foo RETURNING Foo{bar};
-        WITH MODULE test
-        DELETE Foo RETURNING SINGLETON Foo;
-        WITH MODULE test
-        DELETE Foo RETURNING SINGLETON Foo{bar};
         """
 
     def test_edgeql_syntax_delete03(self):
@@ -1786,26 +1733,10 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         DELETE Foo{bar};
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=33)
-    def test_edgeql_syntax_delete05(self):
-        """
-        DELETE Foo RETURNING Foo, Foo.bar;
-        """
-
-    def test_edgeql_syntax_delete06(self):
-        """
-        SELECT (DELETE Foo RETURNING Foo);
-        """
-
     def test_edgeql_syntax_update01(self):
         """
         UPDATE Foo SET {bar := 42};
-        UPDATE Foo SET {bar := 42} RETURNING Foo;
-        UPDATE Foo SET {bar := 42} RETURNING Foo{bar};
-        UPDATE Foo SET {bar := 42} RETURNING SINGLETON Foo;
-        UPDATE Foo SET {bar := 42} RETURNING SINGLETON Foo{bar};
         UPDATE Foo FILTER (Foo.bar = 24) SET {bar := 42};
-        UPDATE Foo FILTER (Foo.bar = 24) SET {bar := 42} RETURNING Foo;
         """
 
     def test_edgeql_syntax_update02(self):
@@ -1813,21 +1744,12 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         WITH MODULE test
         UPDATE Foo SET {bar := 42};
         WITH MODULE test
-        UPDATE Foo SET {bar := 42} RETURNING Foo;
-        WITH MODULE test
-        UPDATE Foo SET {bar := 42} RETURNING Foo{bar};
-        WITH MODULE test
-        UPDATE Foo SET {bar := 42} RETURNING SINGLETON Foo;
-        WITH MODULE test
-        UPDATE Foo SET {bar := 42} RETURNING SINGLETON Foo{bar};
-        WITH MODULE test
         UPDATE Foo FILTER (Foo.bar = 24) SET {bar := 42};
-        WITH MODULE test
-        UPDATE Foo FILTER (Foo.bar = 24) SET {bar := 42} RETURNING Foo;
         """
 
-    # XXX: this must be rejected by the compiler because 42 is not a Concept
-    @unittest.expectedFailure
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  'Unexpected token: <Token SEMICOLON ";">',
+                  line=2, col=18)
     def test_edgeql_syntax_update03(self):
         """
         UPDATE 42;
@@ -1837,17 +1759,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_update04(self):
         """
         UPDATE Foo;
-        """
-
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=49)
-    def test_edgeql_syntax_update05(self):
-        """
-        UPDATE Foo SET {bar := 42} RETURNING Foo, Foo.bar;
-        """
-
-    def test_edgeql_syntax_update06(self):
-        """
-        SELECT (UPDATE Foo SET {bar := 42} RETURNING Foo);
         """
 
     def test_edgeql_syntax_update07(self):
@@ -1860,7 +1771,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             ham: {
                 taste := 'yummy'
             }
-        } RETURNING Foo;
+        };
         """
 
     def test_edgeql_syntax_insertfrom01(self):
@@ -1881,19 +1792,19 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_insertfrom03(self):
         """
         INSERT Foo{name:= bar.name}
-        FOR bar IN (INSERT Bar{name := 'bar'} RETURNING Bar{name});
+        FOR bar IN (INSERT Bar{name := 'bar'});
         """
 
     def test_edgeql_syntax_insertfrom04(self):
         """
         INSERT Foo{name:= bar.name}
-        FOR bar IN (DELETE Bar RETURNING Bar{name});
+        FOR bar IN (DELETE Bar);
         """
 
     def test_edgeql_syntax_insertfrom05(self):
         """
         INSERT Foo{name:= bar.name} FOR bar IN (
-            UPDATE Bar SET {name := (name + 'bar')} RETURNING Bar{name}
+            UPDATE Bar SET {name := (name + 'bar')}
         );
         """
 

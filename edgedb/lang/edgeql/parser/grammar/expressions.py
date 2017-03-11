@@ -155,7 +155,7 @@ class SimpleGroup(Nonterm):
 class InsertExpr(Nonterm):
     def reduce_InsertFrom(self, *kids):
         r'%reduce OptAliasBlock INSERT OptionallyAliasedExpr \
-                  OptForClause OptReturningClause'
+                  OptForClause'
 
         subj = kids[2].val.expr
         subj_alias = kids[2].val.alias
@@ -181,9 +181,6 @@ class InsertExpr(Nonterm):
             shape=shape,
             source_el=kids[3].val.alias,
             source=kids[3].val.expr,
-            single=kids[4].val.single,
-            result=kids[4].val.result,
-            result_alias=kids[4].val.alias,
         )
 
 
@@ -198,29 +195,23 @@ class OptForClause(Nonterm):
 class UpdateExpr(Nonterm):
     def reduce_UpdateExpr(self, *kids):
         "%reduce OptAliasBlock UPDATE OptionallyAliasedExpr \
-                 OptFilterClause SET Shape OptReturningClause"
+                 OptFilterClause SET Shape"
         self.val = qlast.UpdateQuery(
             aliases=kids[0].val,
             subject=kids[2].val.expr,
             subject_alias=kids[2].val.alias,
             where=kids[3].val,
             shape=kids[5].val,
-            single=kids[6].val.single,
-            result=kids[6].val.result,
-            result_alias=kids[6].val.alias,
         )
 
 
 class DeleteExpr(Nonterm):
     def reduce_DeleteExpr(self, *kids):
-        "%reduce OptAliasBlock DELETE OptionallyAliasedExpr OptReturningClause"
+        "%reduce OptAliasBlock DELETE OptionallyAliasedExpr"
         self.val = qlast.DeleteQuery(
             aliases=kids[0].val,
             subject=kids[2].val.expr,
             subject_alias=kids[2].val.alias,
-            single=kids[3].val.single,
-            result=kids[3].val.result,
-            result_alias=kids[3].val.alias,
         )
 
 

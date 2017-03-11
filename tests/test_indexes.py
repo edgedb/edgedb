@@ -61,9 +61,7 @@ class TestIndexes(tb.QueryTestCase):
                 }]
             }],
 
-            [{
-                'id': uuid.UUID
-            }],
+            [1],
 
             [{
                 'id': uuid.UUID,

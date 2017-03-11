@@ -51,9 +51,7 @@ class TestDeltas(tb.QueryTestCase):
 
             None,
 
-            [{
-                'id': uuid.UUID,
-            }],
+            [1],
 
             [{
                 'id': uuid.UUID,

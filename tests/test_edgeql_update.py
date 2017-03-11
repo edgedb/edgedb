@@ -92,7 +92,7 @@ class TestUpdate(tb.QueryTestCase):
         """)
 
         self.assert_data_shape(res, [
-            [],
+            [0],
             [orig1],
         ])
 
@@ -214,11 +214,13 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(r"""
             WITH MODULE test
-            UPDATE UpdateTest
-            FILTER UpdateTest.name = 'update-test2'
-            SET {
-                comment := 'updated ' + UpdateTest.comment
-            } RETURNING UpdateTest {
+            SELECT (
+                UPDATE UpdateTest
+                FILTER UpdateTest.name = 'update-test2'
+                SET {
+                    comment := 'updated ' + UpdateTest.comment
+                }
+            ) {
                 name,
                 comment,
             };
@@ -235,11 +237,13 @@ class TestUpdate(tb.QueryTestCase):
 
         res = await self.con.execute(r"""
             WITH MODULE test
-            UPDATE UpdateTest
-            SET {
-                comment := UpdateTest.comment + "!",
-                status := (SELECT Status FILTER Status.name = 'Closed')
-            } RETURNING UpdateTest {
+            SELECT (
+                UPDATE UpdateTest
+                SET {
+                    comment := UpdateTest.comment + "!",
+                    status := (SELECT Status FILTER Status.name = 'Closed')
+                }
+            ) {
                 name,
                 comment,
                 status: {
@@ -279,11 +283,13 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(r"""
             WITH MODULE test
-            UPDATE UpdateTest
-            FILTER UpdateTest.name = 'update-test2'
-            SET {
-                comment := 'updated ' + UpdateTest.comment
-            } RETURNING SINGLETON UpdateTest {
+            SELECT SINGLETON (
+                UPDATE UpdateTest
+                FILTER UpdateTest.name = 'update-test2'
+                SET {
+                    comment := 'updated ' + UpdateTest.comment
+                }
+            ) {
                 name,
                 comment,
             };
@@ -304,28 +310,16 @@ class TestUpdate(tb.QueryTestCase):
         with self.assertRaises(ValueError):
             await self.con.execute(r"""
                 WITH MODULE test
-                UPDATE UpdateTest
-                SET {
-                    comment := 'updated ' + UpdateTest.comment
-                } RETURNING SINGLETON UpdateTest {
+                SELECT SINGLETON (
+                    UPDATE UpdateTest
+                    SET {
+                        comment := 'updated ' + UpdateTest.comment
+                    }
+                ) {
                     name,
                     comment,
                 };
             """)
-
-    async def test_edgeql_update_returning05(self):
-        orig1, orig2, orig3 = self.original
-
-        await self.assert_query_result(r"""
-            WITH MODULE test
-            UPDATE UpdateTest
-            FILTER UpdateTest.name = 'update-test2'
-            SET {
-                comment := 'updated ' + UpdateTest.comment
-            } RETURNING 42;
-        """, [
-            [42],
-        ])
 
     async def test_edgeql_update_returning06(self):
         orig1, orig2, orig3 = self.original

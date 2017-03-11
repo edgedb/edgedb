@@ -48,15 +48,10 @@ class IRCompilerDMLSupport:
             # Process INSERT body
             self._process_insert_body(stmt, wrapper, insert_cte)
 
-            # Process INSERT RETURNING
-            self._process_selector(stmt.result)
             self._apply_path_scope()
             self._enforce_path_scope(wrapper, ctx.parent_path_bonds)
 
-            if not parent_ctx.correct_set_assumed:
-                self._ensure_correct_set(stmt, wrapper)
-
-        return wrapper
+        return self._fini_dml_stmt(stmt, wrapper, insert_cte, parent_ctx)
 
     def visit_UpdateStmt(self, stmt):
         parent_ctx = self.context.current
@@ -69,15 +64,10 @@ class IRCompilerDMLSupport:
             # Process UPDATE body
             self._process_update_body(stmt, wrapper, update_cte, range_cte)
 
-            # Process UPDATE RETURNING
-            self._process_selector(stmt.result)
             self._apply_path_scope()
             self._enforce_path_scope(wrapper, ctx.parent_path_bonds)
 
-            if not parent_ctx.correct_set_assumed:
-                self._ensure_correct_set(stmt, wrapper)
-
-        return wrapper
+        return self._fini_dml_stmt(stmt, wrapper, update_cte, parent_ctx)
 
     def visit_DeleteStmt(self, stmt):
         parent_ctx = self.context.current
@@ -87,16 +77,10 @@ class IRCompilerDMLSupport:
             wrapper, delete_cte, _ = \
                 self._init_dml_stmt(stmt, pgast.DeleteStmt(), parent_ctx)
 
-            # Process DELETE RETURNING
-            self._process_selector(stmt.result)
-
             self._apply_path_scope()
             self._enforce_path_scope(wrapper, ctx.parent_path_bonds)
 
-            if not parent_ctx.correct_set_assumed:
-                self._ensure_correct_set(stmt, wrapper)
-
-        return wrapper
+        return self._fini_dml_stmt(stmt, wrapper, delete_cte, parent_ctx)
 
     def _init_dml_stmt(self, ir_stmt, dml_stmt, parent_ctx):
         """Prepare the common structure of the query representing a DML stmt.
@@ -115,8 +99,6 @@ class IRCompilerDMLSupport:
         """
         ctx = self.context.current
 
-        # The wrapping query is always a SELECT to support arbitrary
-        # expressions in the RETURNING clause.
         ctx.stmt = ctx.query = ctx.rel = wrapper = pgast.SelectStmt()
 
         if ctx.toplevel_stmt is None:
@@ -206,6 +188,25 @@ class IRCompilerDMLSupport:
         self._put_set_cte(ir_stmt.subject, dml_cte)
 
         return wrapper, dml_cte, range_cte
+
+    def _fini_dml_stmt(self, ir_stmt, wrapper, dml_cte, parent_ctx):
+        dml_rvar = pgast.RangeVar(
+            relation=dml_cte,
+            alias=pgast.Alias(aliasname=parent_ctx.genalias('d'))
+        )
+
+        if parent_ctx.toplevel_stmt is None:
+            ret_ref = self._get_rvar_path_var(dml_rvar, ir_stmt.subject)
+            count = pgast.FuncCall(name=('count',), args=[ret_ref])
+            wrapper.target_list = [
+                pgast.ResTarget(val=count)
+            ]
+            wrapper.from_clause.append(dml_rvar)
+        else:
+            wrapper.from_clause.append(dml_rvar)
+            self._pull_path_namespace(target=wrapper, source=dml_rvar)
+
+        return wrapper
 
     def _get_dml_range(self, ir_stmt, dml_stmt):
         """Create a range CTE for the given DML statement.

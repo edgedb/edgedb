@@ -1124,12 +1124,14 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
             subquery = self.visit(ir_set.expr)
 
+        if not isinstance(ir_set.expr, irast.MutatingStmt):
             for path_id in list(subquery.path_bonds):
                 if not path_id.startswith(ir_set.path_id):
                     subquery.path_bonds.discard(path_id)
 
-        rt_name = self._ensure_query_restarget_name(subquery, hint=cte.name)
-        self._put_path_output(subquery, ir_set, rt_name)
+            rt_name = self._ensure_query_restarget_name(
+                subquery, hint=cte.name)
+            self._put_path_output(subquery, ir_set, rt_name)
 
         self._put_set_cte(ir_set, subquery)
 

@@ -97,21 +97,13 @@ class TestInsert(tb.QueryTestCase):
         """)
 
         self.assert_data_shape(result, [
-            [{
-                'id': uuid.UUID,
-            }],
+            [1],
 
-            [{
-                'id': uuid.UUID,
-            }],
+            [1],
 
-            [{
-                'id': uuid.UUID,
-            }],
+            [1],
 
-            [{
-                'id': uuid.UUID,
-            }],
+            [1],
 
             [{
                 'id': uuid.UUID,
@@ -303,6 +295,7 @@ class TestInsert(tb.QueryTestCase):
             }]
         )
 
+    @unittest.expectedFailure
     async def test_edgeql_insert_nested04(self):
         res = await self.con.execute('''
             WITH MODULE test
@@ -388,24 +381,22 @@ class TestInsert(tb.QueryTestCase):
             };
 
             WITH MODULE test
-            INSERT DefaultTest1 {
+            SELECT (INSERT DefaultTest1 {
                 foo := 'ret2',
                 num := 2,
-            } RETURNING DefaultTest1 {foo};
+            }) {foo};
 
             WITH MODULE test
-            INSERT DefaultTest1 {
+            SELECT (INSERT DefaultTest1 {
                 foo := 'ret3',
                 num := 3,
-            } RETURNING DefaultTest1.num;
+            }).num;
         ''')
 
         self.assert_data_shape(
             res,
             [
-                [{
-                    'id': uuid.UUID,
-                }],
+                [1],
                 [{
                     'foo': 'ret2',
                 }],
@@ -416,22 +407,22 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_returning02(self):
         res = await self.con.execute('''
             WITH MODULE test
-            INSERT DefaultTest1 {
+            SELECT SINGLETON (INSERT DefaultTest1 {
                 foo := 'ret1',
                 num := 1,
-            } RETURNING SINGLETON DefaultTest1;
+            });
 
             WITH MODULE test
-            INSERT DefaultTest1 {
+            SELECT SINGLETON (INSERT DefaultTest1 {
                 foo := 'ret2',
                 num := 2,
-            } RETURNING SINGLETON DefaultTest1 {foo};
+            }) {foo};
 
             WITH MODULE test
-            INSERT DefaultTest1 {
+            SELECT SINGLETON (INSERT DefaultTest1 {
                 foo := 'ret3',
                 num := 3,
-            } RETURNING SINGLETON DefaultTest1.num;
+            }).num;
         ''')
 
         self.assert_data_shape(
@@ -453,15 +444,17 @@ class TestInsert(tb.QueryTestCase):
                 name := 'sub returning 3'
             };
 
-            WITH MODULE test
-            INSERT InsertTest {
-                name := 'insert nested returning 3',
-                l2 := 0,
-                subordinates := (
-                    SELECT Subordinate
-                    FILTER Subordinate.name = 'sub returning 3'
-                )
-            } RETURNING InsertTest {
+            WITH
+                MODULE test,
+                I := (INSERT InsertTest {
+                    name := 'insert nested returning 3',
+                    l2 := 0,
+                    subordinates := (
+                        SELECT Subordinate
+                        FILTER Subordinate.name = 'sub returning 3'
+                    )
+                })
+            SELECT I {
                 name,
                 l2,
                 subordinates: {
@@ -484,40 +477,30 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_returning04(self):
         await self.assert_query_result(r'''
             WITH MODULE test
-            INSERT InsertTest {
-                name := 'insert returning 4',
-                l2 := 9999,
-            } RETURNING 42;  # completely arbitrary returning expression
-        ''', [
-            [42],
-        ])
-
-    @unittest.expectedFailure
-    async def test_edgeql_insert_returning05(self):
-        await self.assert_query_result(r'''
-            WITH MODULE test
-            INSERT DefaultTest1 {
+            SELECT (INSERT DefaultTest1 {
                 foo := 'DT returning 5',
                 num := 33,
-            } RETURNING DefaultTest1 {foo, num};
+            }) {foo, num};
 
-            WITH MODULE test
-            INSERT _ := InsertTest {
-                name := 'IT returning 5',
-                l2 := 9999,
-            } RETURNING (  # result object based on inserted obj
-                SELECT DefaultTest1{foo, num}
-                FILTER DefaultTest1.num > _.l2
-            );
+            WITH
+                MODULE test,
+                I := (INSERT _ := InsertTest {
+                    name := 'IT returning 5',
+                    l2 := 9999,
+                })
+            SELECT
+                DefaultTest1 {foo, num}
+                FILTER DefaultTest1.num > I.l2;
 
-            WITH MODULE test
-            INSERT _ := InsertTest {
-                name := 'IT returning 5',
-                l2 := 9,
-            } RETURNING (  # result object based on inserted obj
-                SELECT DefaultTest1{foo, num}
-                FILTER DefaultTest1.num > _.l2
-            );
+            WITH
+                MODULE test,
+                I := (INSERT _ := InsertTest {
+                    name := 'IT returning 5',
+                    l2 := 9,
+                })
+            SELECT
+                DefaultTest1 {foo, num}
+                FILTER DefaultTest1.num > I.l2;
         ''', [
             [{
                 'foo': 'DT returning 5',

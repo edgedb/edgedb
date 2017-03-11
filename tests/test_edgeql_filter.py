@@ -334,7 +334,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     @unittest.expectedFailure
-    # XXX: fails due to incorrect path scope inference.
     async def test_edgeql_filter_two_atomic_exists04(self):
         await self.assert_query_result(r'''
             # NOTE: same as above, but using OR,
