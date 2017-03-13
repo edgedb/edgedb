@@ -252,11 +252,11 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     output.expr.steps):
                 ctx.result_path_steps = output.expr.steps
 
-            stmt.where = self._process_select_where(edgeql_tree.where)
-
             stmt.result = self._process_stmt_result(
-                edgeql_tree.result, toplevel_shape_rptrcls)
+                edgeql_tree.result, toplevel_shape_rptrcls,
+                edgeql_tree.result_alias)
 
+            stmt.where = self._process_select_where(edgeql_tree.where)
             stmt.orderby = self._process_orderby(edgeql_tree.orderby)
 
             if edgeql_tree.offset:

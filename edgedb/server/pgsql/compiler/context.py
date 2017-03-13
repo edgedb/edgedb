@@ -22,15 +22,9 @@ class Alias(str):
         return super(Alias, cls).__new__(
             cls, common.edgedb_name_to_pg_name(value))
 
-    def __add__(self, other):
-        return Alias(super().__add__(other))
-
-    __iadd__ = __add__
-
 
 class ContextSwitchMode(enum.Enum):
     TRANSPARENT = enum.auto()
-    SETSCOPE = enum.auto()
     SUBQUERY = enum.auto()
     SUBSTMT = enum.auto()
 
@@ -164,9 +158,6 @@ class CompilerContextLevel(compiler.ContextLevel):
                 self.parent_path_bonds = prevlevel.path_bonds
                 self.computed_node_rels = prevlevel.computed_node_rels.copy()
 
-            if mode == ContextSwitchMode.SETSCOPE:
-                self.setscope = {}
-
     def genalias(self, hint):
         m = re.search(r'~\d+$', hint)
         if m:
@@ -181,19 +172,10 @@ class CompilerContextLevel(compiler.ContextLevel):
 
         return Alias(alias)
 
-    def on_pop(self, prevlevel):
-        if self._mode == ContextSwitchMode.SETSCOPE and prevlevel:
-            for ir_set, lax in self.setscope.items():
-                if lax or ir_set not in prevlevel.setscope:
-                    prevlevel.setscope[ir_set] = lax
-
 
 class CompilerContext(compiler.CompilerContext):
     ContextLevelClass = CompilerContextLevel
     default_mode = ContextSwitchMode.TRANSPARENT
-
-    def newsetscope(self):
-        return self.new(ContextSwitchMode.SETSCOPE)
 
     def subquery(self):
         return self.new(ContextSwitchMode.SUBQUERY)

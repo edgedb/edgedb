@@ -231,11 +231,11 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                     )
                 ]
 
-            # The WHERE clause
-            if stmt.where:
-                with self.context.new() as ctx1:
-                    ctx1.clause = 'where'
-                    query.where_clause = self.visit(stmt.where)
+                # The WHERE clause
+                if stmt.where:
+                    with self.context.new() as ctx1:
+                        selctx.clause = 'where'
+                        selctx.query.where_clause = self.visit(stmt.where)
 
             self._enforce_path_scope(query, ctx.parent_path_bonds)
 
@@ -271,32 +271,6 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         attribute_map = []
         path_id_aliases = {}
         idref = None
-
-        source_is_view = irutils.is_view_set(ir_set)
-        if source_is_view:
-            source_shape = irutils.get_subquery_shape(ir_set)
-
-            if source_shape is None:
-                set_expr = ir_set.expr
-
-                if isinstance(set_expr, irast.Stmt):
-                    set_expr = set_expr.result
-
-                if isinstance(set_expr, irast.TypeFilter):
-                    set_expr = set_expr.expr
-
-                if set_expr is not None:
-                    target_ir_set = set_expr
-                else:
-                    target_ir_set = ir_set
-            else:
-                target_ir_set = source_shape
-
-            if target_ir_set.path_id:
-                path_id_aliases = {target_ir_set.path_id: ir_set.path_id}
-                shape_source_cte = self._get_set_cte(ir_set)
-                source_rvar = ctx.subquery_map[ctx.rel][shape_source_cte]
-                self._put_parent_range_scope(target_ir_set, source_rvar)
 
         # The shape is ignored if the expression is not slated for output.
         ignore_shape = (
@@ -565,38 +539,6 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             expr=wrapper
         )
 
-    def _wrap_set_rel(self, ir_set, set_rel):
-        # For the *set_rel* relation representing the *ir_set*
-        # return the following:
-        #     (
-        #         SELECT
-        #         FROM <set_rel>
-        #         WHERE <set_rel>.v IS NOT NULL
-        #     )
-        #
-        ctx = self.context.current
-
-        with self.context.subquery() as subctx:
-            wrapper = subctx.query
-            rvar = self._rvar_for_rel(set_rel)
-            wrapper.from_clause = [rvar]
-            self._put_path_rvar(wrapper, ir_set.path_id, rvar)
-            self._pull_path_namespace(target=wrapper, source=rvar)
-
-            if ir_set.expr is not None:
-                target = self._get_var_for_set_expr(ir_set, rvar)
-            else:
-                target = self._get_path_var(wrapper, ir_set.path_id)
-
-            wrapper.where_clause = pgast.NullTest(
-                arg=target,
-                negated=True
-            )
-
-            self._enforce_path_scope(wrapper, ctx.path_bonds)
-
-        return wrapper
-
     def _wrap_set_rel_as_value(self, ir_set, set_rel):
         # For the *set_rel* relation representing the *ir_set*
         # return the following:
@@ -774,19 +716,6 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 ir_set.rptr.source.scls.name.name,
                 ir_set.rptr.ptrcls.shortname.name
             )
-        elif ir_set.expr is not None and ir_set.source is not None:
-            src = ir_set.source
-            if src.rptr is not None:
-                alias_hint = '{}_{}'.format(
-                    src.rptr.source.scls.name.name,
-                    src.rptr.ptrcls.shortname.name
-                )
-            else:
-                if isinstance(src.scls, s_obj.Collection):
-                    alias_hint = src.scls.schema_name
-                else:
-                    alias_hint = src.scls.name.name
-            alias_hint += '_expr'
         else:
             if isinstance(ir_set.scls, s_obj.Collection):
                 alias_hint = ir_set.scls.schema_name
@@ -1306,7 +1235,6 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             return self._process_set_as_exists_stmt_expr(ir_set, stmt)
 
         ctx = self.context.current
-        cte = self._get_set_cte(ir_set)
 
         with self.context.new() as newctx:
             newctx.in_set_expr = True
@@ -1321,26 +1249,21 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 if not path_id.is_in_scope(path_scope):
                     stmt.path_bonds.discard(path_id)
 
-            if not stmt.path_bonds and isinstance(set_ref, pgast.ColumnRef):
-                set_expr = self._set_as_exists_op(
-                    stmt, negated=ir_set.expr.negated)
-                newctx.rel = cte.query = stmt = pgast.SelectStmt()
-            else:
-                for path_id in stmt.path_bonds:
-                    var = self._get_path_var(stmt, path_id)
-                    stmt.group_clause.append(var)
+            for path_id in stmt.path_bonds:
+                var = self._get_path_var(stmt, path_id)
+                stmt.group_clause.append(var)
 
-                set_expr = self._new_binop(
-                    pgast.FuncCall(
-                        name=('count',),
-                        args=[set_ref],
-                        agg_filter=pgast.NullTest(arg=set_ref, negated=True)
-                    ),
-                    pgast.Constant(
-                        val=0
-                    ),
-                    op=ast.ops.EQ if ir_set.expr.negated else ast.ops.GT
-                )
+            set_expr = self._new_binop(
+                pgast.FuncCall(
+                    name=('count',),
+                    args=[set_ref],
+                    agg_filter=pgast.NullTest(arg=set_ref, negated=True)
+                ),
+                pgast.Constant(
+                    val=0
+                ),
+                op=ast.ops.EQ if ir_set.expr.negated else ast.ops.GT
+            )
 
             restarget = pgast.ResTarget(val=set_expr, name='v')
             stmt.target_list.append(restarget)
@@ -1456,9 +1379,6 @@ class IRCompiler(expr_compiler.IRCompilerBase,
     def _ensure_correct_set(self, stmt, query):
         ctx = self.context.current
 
-        if stmt.result is None:
-            return
-
         restype = irutils.infer_type(stmt.result, ctx.schema)
         if not isinstance(restype, s_atoms.Atom):
             return
@@ -1497,9 +1417,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         val_alias = ctx.genalias('v')
         target_list[0].name = val_alias
-        ref = pgast.ColumnRef(
-            name=[wrapper_rvar.alias.aliasname, val_alias]
-        )
+        ref = self._get_column(wrapper_rvar, val_alias)
 
         query.target_list = [
             pgast.ResTarget(
@@ -1513,9 +1431,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         for i, orig_sortby in enumerate(orig_sort):
             query.sort_clause.append(
                 pgast.SortBy(
-                    node=pgast.ColumnRef(
-                        name=[wrapper_rvar.alias.aliasname, f's{i}']
-                    ),
+                    node=self._get_column(wrapper_rvar, f's{i}'),
                     dir=orig_sortby.dir,
                     nulls=orig_sortby.nulls
                 )
@@ -1546,20 +1462,17 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 groupexpr = self.visit(expr)
                 query.group_clause.append(groupexpr)
 
-    def _get_column(self, rvar, colspec, *, naked=False, name=None):
+    def _get_column(self, rvar, colspec, *, grouped=False):
         if isinstance(colspec, pgast.ColumnRef):
             colname = colspec.name[-1]
             nullable = colspec.nullable
             grouped = colspec.grouped
         else:
             colname = colspec
-            nullable = rvar.nullable
-            grouped = False
+            nullable = rvar.nullable if rvar is not None else False
+            grouped = grouped
 
-        if name is not None:
-            colname = name
-
-        if naked:
+        if rvar is None:
             name = [colname]
         else:
             name = [rvar.alias.aliasname, colname]
@@ -1972,7 +1885,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
             self._for_each_query_in_set(rel, cb)
             self._put_path_output(rel, path_id, alias)
-            return pgast.ColumnRef(name=[alias])
+            return self._get_column(None, alias)
 
         ptr_info = parent_ptr_info = parent_ptrcls = None
         if ptrcls is not None:
@@ -2151,7 +2064,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         else:
             name = self._get_path_output(rvar.query, path_id, raw=raw)
 
-        return pgast.ColumnRef(name=[rvar.alias.aliasname, name])
+        return self._get_column(rvar, name)
 
     def _put_path_rvar(self, stmt, path_id, rvar):
         assert path_id
