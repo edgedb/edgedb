@@ -237,8 +237,6 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                     ctx1.clause = 'where'
                     query.where_clause = self.visit(stmt.where)
 
-            self._apply_path_scope()
-
             self._enforce_path_scope(query, ctx.parent_path_bonds)
 
             # The ORDER BY clause
@@ -484,43 +482,6 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         if cond is not None:
             query.where_clause = self._extend_binop(query.where_clause, cond)
 
-    def _apply_path_scope(self):
-        """Insert conditions to satisfy implicit set existence."""
-        ctx = self.context.current
-        query = ctx.query
-
-        # EdgeQL semantics dictates that all sets produced by path
-        # expresions must exist unless the non-existence is
-        # either explicitly allowed or implicitly allowed by the
-        # operation (if, ??).
-        #
-        # On the other hand, the semantics of most generated CTEs implies
-        # set existence, so we only need to inject explicit EXISTS()
-        # conditions when we know that the given SQL statement does not
-        # imply set existence.
-        #
-        explicit_exists = []
-        lax_prefixes = {s.path_id for s, lax in ctx.setscope.items() if lax}
-        candidates = (ctx.forced_setscope - ctx.auto_setscope)
-        for ir_set in candidates:
-            lax = ctx.setscope.get(ir_set)
-            if not lax:
-                prefixes = set(ir_set.path_id.iter_prefixes())
-                if not (prefixes & lax_prefixes):
-                    explicit_exists.append(ir_set)
-
-        explicit_exists.sort(key=lambda s: len(s.path_id), reverse=True)
-
-        scoped_prefixes = set()
-        for ir_set in explicit_exists:
-            if ir_set.path_id not in scoped_prefixes:
-                cte = ctx.ctemap[ir_set, False]
-                scope_expr = self._set_as_exists_op(
-                    self._wrap_set_rel(ir_set, cte))
-                query.where_clause = self._extend_binop(
-                    query.where_clause, scope_expr)
-                scoped_prefixes.update(ir_set.path_id.iter_prefixes())
-
     def _include_range(self, stmt, rel, join_type='inner', lateral=False):
         """Ensure the *rel* is present in the from_clause of *stmt*.
 
@@ -702,8 +663,6 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             if ctx.lax_paths or not ctx.setscope.get(ir_set):
                 ctx.setscope[ir_set] = ctx.lax_paths
 
-        self._note_set_ref(ir_set)
-
         return cte
 
     def _pop_set_cte(self, ir_set, *, lax=None):
@@ -733,27 +692,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         else:
             key = (ir_set, False)
 
-        cte = ctx.ctemap.get(key)
-
-        if cte is not None:
-            self._note_set_ref(ir_set)
-
-        return cte
-
-    def _note_set_ref(self, ir_set):
-        ctx = self.context.current
-
-        if (ir_set.expr is None and
-                ctx.clause in {'where', 'result'} and
-                not ctx.in_shape):
-            # References to paths in SELECT/RETURNING and WHERE clauses
-            # form a strict set existence condition for each path, unless
-            # the existence predicate was used explicitly (either directly,
-            # with [NOT] EXISTS, or through the coalescing operator.)
-            if ctx.clause != 'result' or ctx.in_aggregate:
-                ctx.auto_setscope.add(ir_set)
-            elif len(ir_set.path_id) > 1:
-                ctx.forced_setscope.add(ir_set)
+        return ctx.ctemap.get(key)
 
     def _set_to_cte(self, ir_set):
         """Return a Common Table Expression for a given IR Set.

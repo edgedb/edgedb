@@ -77,8 +77,6 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.ctemap_by_stmt = collections.defaultdict(dict)
             self.stmtmap = {}
             self.setscope = {}
-            self.auto_setscope = set()
-            self.forced_setscope = set()
             self.root_rels = set()
 
             self.output_format = None
@@ -125,8 +123,6 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.ctemap_by_stmt = prevlevel.ctemap_by_stmt
             self.stmtmap = prevlevel.stmtmap
             self.setscope = prevlevel.setscope
-            self.auto_setscope = prevlevel.auto_setscope
-            self.forced_setscope = prevlevel.forced_setscope
             self.root_rels = prevlevel.root_rels
 
             self.output_format = prevlevel.output_format
@@ -159,8 +155,6 @@ class CompilerContextLevel(compiler.ContextLevel):
 
                 self.ctemap = prevlevel.ctemap.copy()
                 self.setscope = {}
-                self.auto_setscope = set()
-                self.forced_setscope = set()
 
                 self.subquery_map = collections.defaultdict(dict)
                 self.path_bonds = prevlevel.path_bonds.copy()
@@ -172,7 +166,6 @@ class CompilerContextLevel(compiler.ContextLevel):
 
             if mode == ContextSwitchMode.SETSCOPE:
                 self.setscope = {}
-                self.auto_setscope = set()
 
     def genalias(self, hint):
         m = re.search(r'~\d+$', hint)

@@ -47,8 +47,6 @@ class IRCompilerDMLSupport:
 
             # Process INSERT body
             self._process_insert_body(stmt, wrapper, insert_cte)
-
-            self._apply_path_scope()
             self._enforce_path_scope(wrapper, ctx.parent_path_bonds)
 
         return self._fini_dml_stmt(stmt, wrapper, insert_cte, parent_ctx)
@@ -63,8 +61,6 @@ class IRCompilerDMLSupport:
 
             # Process UPDATE body
             self._process_update_body(stmt, wrapper, update_cte, range_cte)
-
-            self._apply_path_scope()
             self._enforce_path_scope(wrapper, ctx.parent_path_bonds)
 
         return self._fini_dml_stmt(stmt, wrapper, update_cte, parent_ctx)
@@ -76,8 +72,6 @@ class IRCompilerDMLSupport:
             # Common DML bootstrap
             wrapper, delete_cte, _ = \
                 self._init_dml_stmt(stmt, pgast.DeleteStmt(), parent_ctx)
-
-            self._apply_path_scope()
             self._enforce_path_scope(wrapper, ctx.parent_path_bonds)
 
         return self._fini_dml_stmt(stmt, wrapper, delete_cte, parent_ctx)
