@@ -392,6 +392,9 @@ class TestExpressions(tb.QueryTestCase):
             SELECT [1, 2][10] ?? 42;
 
             SELECT <array<int>>[];
+
+            SELECT 1 IN [1, 2, 3];
+            SELECT 1 NOT IN [1, 2, 3];
         """, [
             [[1]],
             [[1, 2, 3, 4, 5]],
@@ -409,6 +412,9 @@ class TestExpressions(tb.QueryTestCase):
             [42],
 
             [[]],
+
+            [True],
+            [False]
         ])
 
     async def test_edgeql_expr_array02(self):

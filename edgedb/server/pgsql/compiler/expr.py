@@ -335,20 +335,24 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
 
         else:
             if (expr.op in (ast.ops.IN, ast.ops.NOT_IN) and
-                    isinstance(expr.right, irast.Constant)):
-                # "expr IN $CONST" translates into
-                # "expr = any($CONST)" and
-                # "expr NOT IN $CONST" translates into
-                # "expr != all($CONST)"
+                    isinstance(irutils.infer_type(expr.right, ctx.schema),
+                               s_obj.Array)):
+
+                # "expr IN <array-expr>" translates into
+                # "expr = any(<array-expr>)" and
+                # "expr NOT IN <array-expr>" translates into
+                # "expr != all(<array-expr>)"
                 if expr.op == ast.ops.IN:
                     op = ast.ops.EQ
-                    qual_func = 'any'
+                    sublink_type = pgast.SubLinkType.ANY
                 else:
                     op = ast.ops.NE
-                    qual_func = 'all'
+                    sublink_type = pgast.SubLinkType.ALL
 
-                right = pgast.FuncCall(
-                    name=(qual_func,), args=[right])
+                right = pgast.SubLink(
+                    type=sublink_type,
+                    expr=right
+                )
             else:
                 op = expr.op
 
