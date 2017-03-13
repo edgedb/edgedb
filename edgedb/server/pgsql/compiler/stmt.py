@@ -2,7 +2,7 @@
 # Copyright (c) 2008-present MagicStack Inc.
 # All rights reserved.
 #
-# See LICENSE for details asyncpg.
+# See LICENSE for details.
 ##
 
 
@@ -1668,7 +1668,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 right_rvar.nullable = True
 
     def _join_mapping_rel(self, *, stmt, set_rvar, ir_set,
-                          map_join_type='inner'):
+                          map_join_type='inner', semi=False):
         fromexpr = stmt.from_clause[0]
 
         link = ir_set.rptr
@@ -1704,8 +1704,10 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         if link.direction == s_pointers.PointerDirection.Inbound:
             map_join_cond = backward_bond
+            far_ref = source_ref
         else:
             map_join_cond = forward_bond
+            far_ref = target_ref
 
         if map_join is None:
             # Join link relation to source relation
@@ -1720,7 +1722,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             self._put_path_rvar(stmt, link_path_id, map_rvar)
             stmt.ptr_join_map[link_path_id] = map_join
 
-        if isinstance(ir_set.scls, s_concepts.Concept):
+        if isinstance(ir_set.scls, s_concepts.Concept) and not semi:
             if map_join_type == 'left':
                 set_rvar.nullable = True
 
@@ -1755,7 +1757,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         stmt.from_clause[0] = map_join
 
-        return map_rvar
+        return map_rvar, far_ref
 
     def _join_class_rel(self, *, stmt, set_rvar, ir_set):
         fromexpr = stmt.from_clause[0]

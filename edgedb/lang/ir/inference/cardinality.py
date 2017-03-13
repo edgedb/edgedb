@@ -69,11 +69,10 @@ def __infer_coalesce(ir, singletons, schema):
 
 @_infer_cardinality.register(irast.SetOp)
 def __infer_setop(ir, singletons, schema):
-    if ir.set_op == qlast.UNION:
-        result = _common_cardinality(
-            [ir.set_op_larg, ir.set_op_rarg], singletons, schema)
+    if ir.op == qlast.UNION:
+        result = MANY
     else:
-        result = infer_cardinality(ir.set_op_larg, singletons, schema)
+        result = infer_cardinality(ir.left, singletons, schema)
 
     return result
 
@@ -106,12 +105,10 @@ def __infer_typefilter(ir, singletons, schema):
 
 @_infer_cardinality.register(irast.Stmt)
 def __infer_stmt(ir, singletons, schema):
-    return infer_cardinality(ir.result, singletons, schema)
-
-
-@_infer_cardinality.register(irast.SelectStmt)
-def __infer_select_stmt(ir, singletons, schema):
-    return infer_cardinality(ir.result, singletons, schema)
+    if ir.singleton:
+        return ONE
+    else:
+        return infer_cardinality(ir.result, singletons, schema)
 
 
 @_infer_cardinality.register(irast.ExistPred)

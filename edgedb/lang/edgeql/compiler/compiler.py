@@ -224,6 +224,14 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
             result.aggregated_scope = set(ctx.aggregated_scope)
 
+        # Query cardinality inference must be ran in parent context.
+        if edgeql_tree.single:
+            stmt.result.context = edgeql_tree.result.context
+            # XXX: correct cardinality inference depends on
+            # query selectivity estimator, which is not done yet.
+            # self._enforce_singleton(stmt.result)
+            stmt.singleton = True
+
         return result
 
     def visit_GroupQuery(self, edgeql_tree):
@@ -687,26 +695,22 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             context=expr.context)
 
     def visit_StructElement(self, expr):
-        ctx = self.context.current
-
         name = expr.name.name
         if expr.name.module:
             name = f'{expr.name.module}::{name}'
 
         val = self.visit(expr.val)
+        val.context = expr.context
+        self._enforce_singleton(val)
 
         if isinstance(val, irast.Set) and isinstance(val.expr, irast.Stmt):
             val = val.expr
         elif not isinstance(val, irast.Stmt):
-            val = irast.SelectStmt(result=val)
-
-        cardinality = irinference.infer_cardinality(
-            val, ctx.singletons, ctx.schema)
+            val = irast.SelectStmt(result=val, singleton=True)
 
         element = irast.StructElement(
             name=name,
             val=val,
-            singleton=cardinality == 1
         )
 
         return element

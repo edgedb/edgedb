@@ -608,6 +608,16 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT {spam := 1, ham := 2} + 1;
             ''')
 
+    async def test_edgeql_expr_struct02(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r'possibly more than one element returned by an expression '
+                r'where only singletons are allowed',
+                position=8):
+            await self.query('''\
+                SELECT {spam := (1 UNION 2)};
+            ''')
+
     async def test_edgeql_expr_coalesce01(self):
         await self.assert_query_result(r"""
             SELECT EMPTY ?? 4 ?? 5;

@@ -3050,8 +3050,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH
                 MODULE test,
                 criteria := (SELECT {
-                    user := (SELECT User FILTER User.name = 'Yury'),
-                    status := (SELECT Status FILTER Status.name = 'Open'),
+                    user := (SELECT SINGLETON
+                             User FILTER User.name = 'Yury'),
+                    status := (SELECT SINGLETON
+                               Status FILTER Status.name = 'Open'),
                 })
             SELECT
                 Issue.number
@@ -3069,7 +3071,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 MODULE test
             SELECT
                 {
-                    user := (SELECT User{name} FILTER User.name = 'Yury')
+                    user := (SELECT SINGLETON User{name}
+                             FILTER User.name = 'Yury')
                 };
             """, [
             [{
@@ -3086,7 +3089,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 MODULE test
             SELECT
                 {
-                    user := (SELECT User{name} FILTER User.name = 'Yury')
+                    user := (SELECT SINGLETON
+                             User{name} FILTER User.name = 'Yury')
                 }.user.name;
             """, [
             ['Yury'],
@@ -3098,27 +3102,33 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH
                 MODULE test
             SELECT
-                {user := (SELECT User{name} FILTER User.name = 'Yury')}
+                {user := (SELECT SINGLETON
+                          User{name} FILTER User.name = 'Yury')}
                     =
-                {user := (SELECT User{name} FILTER User.name = 'Yury')};
+                {user := (SELECT SINGLETON
+                          User{name} FILTER User.name = 'Yury')};
 
             WITH
                 MODULE test
             SELECT
-                {user := (SELECT User{name} FILTER User.name = 'Yury')}
+                {user := (SELECT SINGLETON
+                          User{name} FILTER User.name = 'Yury')}
                     =
-                {user := (SELECT User{name} FILTER User.name = 'Elvis')};
+                {user := (SELECT SINGLETON
+                          User{name} FILTER User.name = 'Elvis')};
 
             WITH
                 MODULE test
             SELECT
                 {
-                    user := (SELECT User{name} FILTER User.name = 'Yury'),
+                    user := (SELECT SINGLETON
+                             User{name} FILTER User.name = 'Yury'),
                     spam := 'ham',
                 }
                     =
                 {
-                    user := (SELECT User{name} FILTER User.name = 'Yury'),
+                    user := (SELECT SINGLETON
+                             User{name} FILTER User.name = 'Yury'),
                 };
 
             """, [
