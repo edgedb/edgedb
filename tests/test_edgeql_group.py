@@ -327,6 +327,30 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         ])
 
+    @unittest.expectedFailure
+    async def test_edgeql_group_agg04(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            GROUP
+                Issue
+            BY
+                Issue.status.name
+            RETURNING
+                _ := {
+                    sum := sum(ALL <int>Issue.number),
+                    status := Issue.status.name,
+                }
+            FILTER
+                _.sum > 5
+            ORDER BY
+                Issue.status.name;
+        """, [
+            [{
+                'status': 'Closed',
+                'sum': 7,
+            }],
+        ])
+
     async def test_edgeql_group_returning01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
