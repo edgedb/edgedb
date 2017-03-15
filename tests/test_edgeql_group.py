@@ -155,7 +155,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 User
             BY
                 User.name
-            RETURNING
+            SELECT
                 count(ALL User.<owner)
             ORDER BY
                 User.name;
@@ -170,7 +170,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue
             BY
                 Issue.time_estimate
-            RETURNING
+            SELECT
                 # count using link 'id'
                 count(ALL Issue.id)
             ORDER BY
@@ -186,7 +186,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue
             BY
                 Issue.time_estimate
-            RETURNING
+            SELECT
                 # count Issue directly
                 count(ALL Issue)
             ORDER BY
@@ -202,7 +202,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue
             BY
                 Issue.time_estimate
-            RETURNING
+            SELECT
                 # count Issue statuses, which should be same as counting
                 # Issues, since the status link is *1
                 count(ALL Issue.status.id)
@@ -219,7 +219,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue
             BY
                 Issue.time_estimate
-            RETURNING
+            SELECT
                 # unusual qualifier for 'count'
                 count(DISTINCT Issue.status.id)
             ORDER BY
@@ -240,7 +240,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                             User.<owner[IS Issue]
                         BY
                             User.<owner[IS Issue].status.name
-                        RETURNING {
+                        SELECT {
                             status := User.<owner[IS Issue].status.name,
                             count := count(ALL User.<owner[IS Issue]),
                         }
@@ -313,7 +313,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue
             BY
                 Issue.status.name
-            RETURNING {
+            SELECT {
                 sum := sum(ALL <int>Issue.number),
                 status := Issue.status.name,
             } ORDER BY Issue.status.name;
@@ -335,7 +335,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue
             BY
                 Issue.status.name
-            RETURNING
+            SELECT
                 _ := {
                     sum := sum(ALL <int>Issue.number),
                     status := Issue.status.name,
@@ -358,7 +358,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue
             BY
                 Issue.time_estimate
-            RETURNING
+            SELECT
                 # since we're returning the same element for all of
                 # the groups the expected resulting SET should only
                 # have one element

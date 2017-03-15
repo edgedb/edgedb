@@ -135,20 +135,21 @@ class GroupExpr(Nonterm):
 
 class SimpleGroup(Nonterm):
     def reduce_Group(self, *kids):
-        r"%reduce GROUP OptionallyAliasedExpr ByClause ReturningClause \
-                  OptFilterClause OptSortClause OptSelectLimit"
+        r"%reduce GROUP OptionallyAliasedExpr ByClause SimpleSelect"
+
+        select = kids[3].val
 
         self.val = qlast.GroupQuery(
             subject=kids[1].val.expr,
             subject_alias=kids[1].val.alias,
             groupby=kids[2].val,
-            single=kids[3].val.single,
-            result=kids[3].val.result,
-            result_alias=kids[3].val.alias,
-            where=kids[4].val,
-            orderby=kids[5].val,
-            offset=kids[6].val[0],
-            limit=kids[6].val[1],
+            single=select.single,
+            result=select.result,
+            result_alias=select.result_alias,
+            where=select.where,
+            orderby=select.orderby,
+            offset=select.offset,
+            limit=select.limit,
         )
 
 

@@ -1537,7 +1537,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         GROUP User
             BY User.name
-            RETURNING {
+            SELECT {
                 name := User.name,
                 num_tasks := count(ALL User.tasks)
             };
@@ -1547,7 +1547,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         GROUP _1 := User
             BY _1.name
-            RETURNING _2 := {
+            SELECT _2 := {
                 name := _1.name,
                 num_tasks := count(DISTINCT _1.tasks)
             }

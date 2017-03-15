@@ -231,7 +231,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         if node.result is not None:
             self.new_lines = 1
-            self.write('RETURNING')
+            self.write('SELECT')
             if node.single:
                 self.write(' SINGLETON')
             if node.result_alias:
