@@ -381,6 +381,12 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT >1;
         """
 
+    def test_edgeql_syntax_ops23(self):
+        """
+        SELECT (Foo.a ?= Foo.b);
+        SELECT (Foo.b ?!= Foo.b);
+        """
+
     def test_edgeql_syntax_list01(self):
         """
         SELECT (some_list_fn())[2];

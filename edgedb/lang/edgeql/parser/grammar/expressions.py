@@ -751,7 +751,7 @@ class Expr(Nonterm):
         op = kids[1].val
         if op == '!=':
             op = ast.ops.NE
-        elif op == '==':
+        elif op == '=':
             op = ast.ops.EQ
         elif op == '>=':
             op = ast.ops.GE
@@ -763,6 +763,10 @@ class Expr(Nonterm):
             op = qlast.REMATCH
         elif op == '~*':
             op = qlast.REIMATCH
+        elif op == '?=':
+            op = qlast.EQUIVALENT
+        elif op == '?!=':
+            op = qlast.NEQIUVALENT
 
         self.val = qlast.BinOp(left=kids[0].val, op=op, right=kids[2].val)
 
