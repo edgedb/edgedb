@@ -231,6 +231,31 @@ class TestExpressions(tb.QueryTestCase):
             [-4],
         ])
 
+    @unittest.expectedFailure
+    async def test_edgeql_expr_op13(self):
+        # test equivalence comparison
+        await self.assert_query_result(r"""
+            SELECT 2 ?= 2;
+            SELECT 2 ?= 3;
+            SELECT 2 ?!= 2;
+            SELECT 2 ?!= 3;
+
+            SELECT 2 ?= EMPTY;
+            SELECT <int>EMPTY ?= <int>EMPTY;
+            SELECT 2 ?!= EMPTY;
+            SELECT <int>EMPTY ?!= <int>EMPTY;
+        """, [
+            [True],
+            [False],
+            [False],
+            [True],
+
+            [False],
+            [True],
+            [True],
+            [False],
+        ])
+
     async def test_edgeql_expr_paths_01(self):
         cases = [
             "Issue.owner.name",

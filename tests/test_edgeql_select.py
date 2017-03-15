@@ -1124,7 +1124,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_select_combined01(self):
+    async def test_edgeql_select_setops01(self):
         res = await self.con.execute(r'''
             WITH MODULE test
             SELECT
@@ -1186,7 +1186,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]
         ])
 
-    async def test_edgeql_select_combined02(self):
+    async def test_edgeql_select_setops02(self):
         res = await self.con.execute(r'''
             WITH
                 MODULE test,
@@ -1233,6 +1233,54 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 {'body': 'We need to be able to render '
                          'data in tabular format.'}
             ],
+        ])
+
+    async def test_edgeql_select_setops03(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT Issue {
+                number,
+                # open := 'yes' IF Issue.status.name = 'Open' ELSE 'no'
+                # equivalent to
+                open :=
+                    (SELECT 'yes' FILTER Issue.status.name = 'Open')
+                    UNION
+                    (SELECT 'no' FILTER NOT Issue.status.name = 'Open')
+            }
+            ORDER BY Issue.number;
+            """, [
+            [{
+                'number': '1',
+                'open': 'yes',
+            }, {
+                'number': '2',
+                'open': 'yes',
+            }, {
+                'number': '3',
+                'open': 'no',
+            }, {
+                'number': '4',
+                'open': 'no',
+            }],
+        ])
+
+    async def test_edgeql_select_setops04(self):
+        await self.assert_query_result(r"""
+            # equivalent to ?=
+            WITH MODULE test
+            SELECT Issue {number}
+            FILTER
+                # Issue.priority.name ?= 'High'
+                # equivalent to this via an if/else translation
+                #
+                (SELECT Issue.priority.name = 'High'
+                 FILTER EXISTS Issue.priority.name)
+                UNION
+                (SELECT EXISTS Issue.priority.name = TRUE
+                 FILTER NOT EXISTS Issue.priority.name)
+            ORDER BY Issue.number;
+        """, [
+            [{'number': '2'}],
         ])
 
     async def test_edgeql_select_order01(self):
@@ -1785,6 +1833,92 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
         self.assert_data_shape(res, [
             issues_h + issues_n
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_equivalence01(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue{
+                h1 := Issue.priority.name = 'High'
+                h2 := Issue.priority.name ?= 'High'
+                l1 := Issue.priority.name != 'High'
+                l2 := Issue.priority.name ?!= 'High'
+            }
+            ORDER BY Issue.number;
+        ''', [
+            [{
+                'number': '1',
+                'h1': None,
+                'h2': False,
+                'l1': None,
+                'l2': True,
+            }, {
+                'number': '2',
+                'h1': True,
+                'h2': True,
+                'l1': False,
+                'l2': False,
+            }, {
+                'number': '3',
+                'h1': False,
+                'h2': False,
+                'l1': True,
+                'l2': True,
+            }, {
+                'number': '4',
+                'h1': None,
+                'h2': False,
+                'l1': None,
+                'l2': True,
+            }],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_equivalence02(self):
+        await self.assert_query_result(r'''
+            # get Issues such that there's another Issue with
+            # equivalent priority
+            #
+            WITH
+                MODULE test,
+                I2 := Issue
+            SELECT Issue {number}
+            FILTER
+                I2 != Issue
+                AND
+                I2.priority.name ?= Issue.priority.name
+            ORDER BY Issue.number;
+        ''', [
+            [{'number': '1'}, {'number': '4'}],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_equivalence03(self):
+        await self.assert_query_result(r'''
+            # get Issues with priority equivalent to EMPTY
+            #
+            WITH MODULE test
+            SELECT Issue {number}
+            FILTER
+                Issue.priority.name ?= EMPTY
+            ORDER BY Issue.number;
+        ''', [
+            [{'number': '1'}, {'number': '4'}],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_equivalence04(self):
+        await self.assert_query_result(r'''
+            # get Issues with priority equivalent to EMPTY
+            #
+            WITH MODULE test
+            SELECT Issue {number}
+            FILTER
+                NOT Issue.priority.name ?!= EMPTY
+            ORDER BY Issue.number;
+        ''', [
+            [{'number': '1'}, {'number': '4'}],
         ])
 
     async def test_edgeql_select_as01(self):
@@ -3247,6 +3381,52 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     foo := 'bar' IF Issue.number = '1' ELSE 123
                 };
                 """)
+
+    async def test_edgeql_select_if_else04(self):
+        await self.assert_query_result(r"""
+            # equivalent to coalesce
+            WITH MODULE test
+            SELECT Issue{
+                # kind := Issue.priority.name ?? Issue.status.name
+                kind := (Issue.priority.name
+                         IF EXISTS Issue.priority.name
+                         ELSE Issue.status.name)
+            }
+            ORDER BY Issue.number;
+        """, [
+            [{'kind': 'Open'}, {'kind': 'High'},
+             {'kind': 'Low'}, {'kind': 'Closed'}],
+        ])
+
+    async def test_edgeql_select_if_else05(self):
+        await self.assert_query_result(r"""
+            # equivalent to ?=
+            WITH MODULE test
+            SELECT Issue {number}
+            FILTER
+                # Issue.priority.name ?= 'High'
+                Issue.priority.name = 'High'
+                    IF EXISTS Issue.priority.name AND EXISTS 'High'
+                    ELSE EXISTS Issue.priority.name = EXISTS 'High'
+            ORDER BY Issue.number;
+        """, [
+            [{'number': '2'}],
+        ])
+
+    async def test_edgeql_select_if_else06(self):
+        await self.assert_query_result(r"""
+            # equivalent to ?!=
+            WITH MODULE test
+            SELECT Issue {number}
+            FILTER
+                # Issue.priority.name ?!= 'High'
+                Issue.priority.name != 'High'
+                    IF EXISTS Issue.priority.name AND EXISTS 'High'
+                    ELSE EXISTS Issue.priority.name != EXISTS 'High'
+            ORDER BY Issue.number;
+        """, [
+            [{'number': '1'}, {'number': '3'}, {'number': '4'}],
+        ])
 
     async def test_edgeql_partial_01(self):
         await self.assert_query_result('''
