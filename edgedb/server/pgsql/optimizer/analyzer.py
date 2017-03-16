@@ -7,6 +7,7 @@
 
 
 import collections
+import enum
 import typing
 
 from edgedb.lang.common import ast
@@ -14,25 +15,50 @@ from edgedb.lang.common import compiler
 from edgedb.server.pgsql import ast as pgast
 
 
+class InlineStrategy(enum.Enum):
+    Skip = 0
+    Merge = 1
+    Subquery = 2
+
+
 class Relation(ast.AST):
 
     name: str
-    targets: set
     has_joins: bool = False
 
     node: pgast.CommonTableExpr
     parent: pgast.SelectStmt
     used_in: collections.OrderedDict
 
+    strategy: InlineStrategy = InlineStrategy.Skip
+
     def get_target(self, name: str):
+        # NOTE: We can't cache the search results because
+        # self.node.query can be mutated at any time.
+
         query: pgast.SelectStmt = self.node.query
 
         for node in query.target_list:
-            if node.name == name:
-                return node.val
+            if node.name is not None:
+                if node.name == name:
+                    return node.val
+                else:
+                    continue
+
+            if isinstance(node.val, pgast.ColumnRef):
+                if node.val.name[-1] == name:
+                    return node.val
+                elif (len(node.val.name) == 2 and
+                        isinstance(node.val.name[1], pgast.Star)):
+                    return pgast.ColumnRef(name=[node.val.name[0], name])
+                else:
+                    continue
 
         raise IndexError(
             f'could not find target {name!r} in cte {self.name}')
+
+    def get_range_aliases(self):
+        return RangeAnalyzer.analyze(self)
 
 
 class ContextLevel(compiler.ContextLevel):
@@ -70,8 +96,6 @@ class Analyzer(ast.NodeVisitor):
                     not t.indirection
                     for t in node.target_list) and
 
-                len(node.from_clause) == 1 and
-
                 not node.window_clause and
                 not node.values and
                 not node.locking_clause and
@@ -84,29 +108,13 @@ class Analyzer(ast.NodeVisitor):
 
         return Relation(name=name, node=cte_node, parent=parent)
 
-    def _process_select(self, node: pgast.SelectStmt):
-        with self.context.new() as ctx:
-            ctx.current_select = node
-            self.generic_visit(node)
-
-    def visit_ResTarget(self, node: pgast.ResTarget):
-        ctx = self.context.current
-
-        if node.name is None:
-            if isinstance(node.val, pgast.ColumnRef):
-                # TODO find a cleaner way
-                node.name = node.val.name[1]
-
-        if ctx.current_cte is not None:
-            if node.name is None:
-                raise RuntimeError('cannot optimize: empty target name')
-
-            ctx.current_cte.targets.add(node.name)
-
-        self.generic_visit(node)
-
     def visit_RangeVar(self, node: pgast.RangeVar):
         ctx = self.context.current
+
+        if ctx.current_select is None:
+            # UPDATE or other statement
+            self.generic_visit(node)
+            return
 
         if isinstance(node.relation, pgast.CommonTableExpr):
             rcte = node.relation
@@ -115,11 +123,16 @@ class Analyzer(ast.NodeVisitor):
                 if ctx.current_select in rel.used_in:
                     return
 
-                rel.used_in[ctx.current_select] = node.alias.aliasname
+                if node.alias is not None:
+                    alias = node.alias.aliasname
+                else:
+                    alias = node.relation.name
+
+                rel.used_in[ctx.current_select] = alias
 
         self.generic_visit(node)
 
-    def visit_SelectStmt(self, node: pgast.SelectStmt):
+    def visit_Query(self, node: pgast.SelectStmt):
         for cte in node.ctes:
             if isinstance(cte.query, pgast.SelectStmt):
                 rel = self._process_cte(node, cte)
@@ -134,10 +147,68 @@ class Analyzer(ast.NodeVisitor):
                         # correct dependency order.
                         self.rels[rel.name] = rel
 
-        self._process_select(node)
+        with self.context.new() as ctx:
+            ctx.current_select = node
+            self.generic_visit(node)
 
     @classmethod
     def analyze(cls, tree: pgast.Base) -> typing.Mapping[str, Relation]:
         analyzer = cls()
         analyzer.visit(tree)
-        return analyzer.rels
+        rels = analyzer.rels
+
+        for rel in rels.values():
+            query = rel.node.query
+
+            if len(query.from_clause) == 0 and len(rel.used_in) == 1:
+                rel.strategy = InlineStrategy.Subquery
+
+            elif len(query.from_clause) == 1:
+                if not query.group_clause:
+                    rel.strategy = InlineStrategy.Merge
+
+                elif (len(query.group_clause) == 1 and
+                        isinstance(query.group_clause[0], pgast.Constant) and
+                        query.group_clause[0].val is True):
+                    # `GROUP BY True` is a special hint to inline
+                    # this CTE as a subquery.
+                    query.group_clause = []
+                    rel.strategy = InlineStrategy.Subquery
+
+                elif len(rel.used_in) == 1:
+                    rel.strategy = InlineStrategy.Subquery
+
+                else:
+                    # TODO: learn how to inline CREs with GROUP BY.
+                    rel.strategy = InlineStrategy.Skip
+            else:
+                # TODO: try to estimate the complexity of this CTE by
+                # analyzing if it has WHERE / JOINS. Also, handle
+                # `GROUP BY True` here.
+                rel.strategy = InlineStrategy.Skip
+
+        return rels
+
+
+class RangeAnalyzer(ast.NodeVisitor):
+
+    def __init__(self):
+        super().__init__()
+        self.aliases = set()
+
+    def visit_RangeVar(self, node):
+        self.aliases.add(node.alias.aliasname)
+
+    def visit_RangeSubselect(self, node):
+        self.aliases.add(node.alias.aliasname)
+
+    def visit_SelectStmt(self, node):
+        # Skip Select nodes
+        pass
+
+    @classmethod
+    def analyze(cls, rel: Relation) -> typing.Set[str]:
+        analyzer = cls()
+        for fc in rel.node.query.from_clause:
+            analyzer.visit(fc)
+        return analyzer.aliases

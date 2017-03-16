@@ -565,7 +565,7 @@ class TestExpressions(tb.QueryTestCase):
             [],
         ])
 
-    @unittest.expectedFailure
+    @tb.expected_optimizer_failure
     async def test_edgeql_expr_array12(self):
         await self.assert_query_result('''
             SELECT array_agg(ALL (SELECT schema::Concept FILTER False));
@@ -577,7 +577,7 @@ class TestExpressions(tb.QueryTestCase):
             [],
         ])
 
-    @unittest.expectedFailure
+    @tb.expected_optimizer_failure
     async def test_edgeql_expr_array13(self):
         await self.assert_query_result('''
             WITH x := <int>EMPTY
@@ -707,7 +707,10 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT ['a' -> '1']['a'] + 1;
             ''')
 
+    @tb.expected_optimizer_failure
     async def test_edgeql_expr_map03(self):
+        # XXX: Add DROP FUNCTION to enable optimizer tests.
+
         await self.con.execute('''
             CREATE FUNCTION test::take(std::map<std::str, std::int>, std::str)
                 RETURNING std::int

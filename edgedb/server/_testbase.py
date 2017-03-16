@@ -20,7 +20,6 @@ import unittest
 import pytest
 
 from edgedb.server import cluster as edgedb_cluster
-from edgedb.client import exceptions as edgeclient_exc
 
 
 class TestCaseMeta(type(unittest.TestCase)):
@@ -54,10 +53,15 @@ class TestCaseMeta(type(unittest.TestCase)):
 
         return wrapper
 
+    @classmethod
+    def add_method(mcls, methname, ns, meth):
+        ns[methname] = mcls.wrap(meth)
+
     def __new__(mcls, name, bases, ns):
-        for methname, meth in mcls._iter_methods(bases, ns):
-            wrapper = mcls.wrap(meth)
-            ns[methname] = wrapper
+        for methname, meth in mcls._iter_methods(bases, ns.copy()):
+            if methname in ns:
+                del ns[methname]
+            mcls.add_method(methname, ns, meth)
 
         return super().__new__(mcls, name, bases, ns)
 
@@ -158,6 +162,24 @@ class DatabaseTestCase(ConnectedTestCase):
     TEARDOWN = None
     SCHEMA = None
 
+    SETUP_METHOD = None
+    TEARDOWN_METHOD = None
+
+    def setUp(self):
+        if self.SETUP_METHOD:
+            self.loop.run_until_complete(
+                self.con.execute(self.SETUP_METHOD))
+
+        super().setUp()
+
+    def tearDown(self):
+        try:
+            if self.TEARDOWN_METHOD:
+                self.loop.run_until_complete(
+                    self.con.execute(self.TEARDOWN_METHOD))
+        finally:
+            super().tearDown()
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -230,57 +252,7 @@ class Error:
         return self._shape
 
 
-class QueryTestCaseMeta(TestCaseMeta):
-    @classmethod
-    def wrap(mcls, meth):
-        sig = inspect.signature(meth)
-
-        if len(sig.parameters) <= 1:
-            # No input parameter, run directly
-            return super().wrap(meth)
-
-        if 'input' not in sig.parameters:
-            raise TypeError(
-                'missing expected "input" param in {!r}'.format(meth))
-
-        queries = sig.parameters['input'].default
-
-        if not queries or not isinstance(queries, str) or not queries.strip():
-            raise TypeError(
-                'missing expected string default in "input" param in '
-                '{!r}'.format(meth))
-
-        queries = textwrap.dedent(queries)
-
-        output = sig.return_annotation
-        if output is inspect.Signature.empty:
-            raise TypeError(
-                'missing expected return annotation in '
-                '{!r}'.format(meth))
-
-        if isinstance(output, Error):
-            expected_shape = output.shape
-        else:
-            expected_shape = output
-
-        @functools.wraps(meth)
-        async def wrapper(self):
-            try:
-                res = await self.con.execute(queries)
-            except edgeclient_exc.EdgeDBError as e:
-                if not isinstance(output, Error):
-                    raise
-                else:
-                    with self.RaisesRegex(output.cls, output.message):
-                        raise
-                    res = vars(e)
-
-            self.assert_data_shape(res, expected_shape)
-
-        return super().wrap(wrapper)
-
-
-class QueryTestCase(DatabaseTestCase, metaclass=QueryTestCaseMeta):
+class BaseQueryTestCase(DatabaseTestCase):
     async def query(self, query):
         query = textwrap.dedent(query)
         return await self.con.execute(query)
@@ -402,3 +374,44 @@ class QueryTestCase(DatabaseTestCase, metaclass=QueryTestCaseMeta):
 
         message = message or 'data shape differs'
         return _assert_data_shape(data, shape)
+
+
+class DDLTestCase(BaseQueryTestCase):
+    pass
+
+
+class QueryTestCaseMeta(TestCaseMeta):
+
+    @classmethod
+    def wrap_opt(mcls, meth):
+        @functools.wraps(meth)
+        def wrapper(self, *args, **kwargs):
+            old_opt = self.con.get_optimize()
+            self.con.set_optimize(True)
+            try:
+                self.loop.run_until_complete(meth(self, *args, **kwargs))
+            finally:
+                self.con.set_optimize(old_opt)
+
+        return wrapper
+
+    @classmethod
+    def add_method(mcls, methname, ns, meth):
+        wrapper = mcls.wrap(meth)
+        wrapper.__name__ = methname + '_no_opt'
+        ns[methname + '_no_opt'] = wrapper
+
+        wrapped = mcls.wrap_opt(meth)
+        if getattr(meth, '_expected_optimizer_failure', False):
+            wrapped = unittest.expectedFailure(wrapped)
+        wrapped.__name__ = methname + '_opt'
+        ns[methname + '_opt'] = wrapped
+
+
+class QueryTestCase(BaseQueryTestCase, metaclass=QueryTestCaseMeta):
+    pass
+
+
+def expected_optimizer_failure(obj):
+    obj._expected_optimizer_failure = True
+    return obj

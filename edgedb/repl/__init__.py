@@ -256,10 +256,10 @@ class Cli:
                 try:
                     if self.graphql:
                         command = command.rstrip(';')
+                    self.connection.set_optimize(self.optimize)
                     result = self.run_coroutine(
                         self.connection.execute(
-                            command, graphql=self.graphql,
-                            optimize=self.optimize))
+                            command, graphql=self.graphql))
                 except KeyboardInterrupt:
                     continue
                 except Exception as ex:

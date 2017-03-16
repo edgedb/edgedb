@@ -532,7 +532,11 @@ class TestConstraintsSchema(tb.QueryTestCase):
 
 
 class TestConstraintsDDL(tb.QueryTestCase):
+
+    @tb.expected_optimizer_failure
     async def test_constraints_ddl_01(self):
+        # TODO: Add DROP LINK to enable optimizer tests.
+
         qry = """
             CREATE LINK test::translated_label {
                 SET mapping := '1*';

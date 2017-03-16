@@ -1444,7 +1444,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['elvis', 'yury'],
         ])
 
+    @tb.expected_optimizer_failure
     async def test_edgeql_select_func05(self):
+        # TODO: Add DROP FUNCTION to enable optimizer
+
         await self.con.execute(r'''
             CREATE FUNCTION test::concat1(*std::any) RETURNING std::str
                 FROM SQL FUNCTION 'concat';
@@ -1486,7 +1489,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                                     'could not find a function'):
             await self.con.execute(r'SELECT test::concat2(123);')
 
+    @tb.expected_optimizer_failure
     async def test_edgeql_select_func07(self):
+        # TODO: Add DROP FUNCTION to enable optimizer
+
         await self.con.execute(r'''
             CREATE FUNCTION test::concat3($sep: std::str, *std::str)
                 RETURNING std::str
@@ -1549,7 +1555,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         date = (await self.con.execute('SELECT std::current_date();'))[0][0]
         self.assertRegex(date, r'\d+-\d+-\d+')
 
+    @tb.expected_optimizer_failure
     async def test_edgeql_select_func09(self):
+        # TODO: Add DROP FUNCTION to enable optimizer
+
         await self.con.execute('''
             CREATE FUNCTION test::my_edgeql_func1(std::str)
                 RETURNING std::str

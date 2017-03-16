@@ -1222,6 +1222,11 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                     path_var = self._get_path_var(stmt, path_id)
                     stmt.group_clause.append(path_var)
 
+        if not stmt.group_clause:
+            # This is a sentinel GROUP BY so that the optimizer
+            # knows how to inline the resulting query correctly.
+            stmt.group_clause.append(pgast.Constant(val=True))
+
         restarget = pgast.ResTarget(val=set_expr, name='v')
         stmt.target_list.append(restarget)
         self._put_path_output(stmt, ir_set, restarget.name)

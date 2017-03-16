@@ -27,14 +27,24 @@ class Connection:
         self._loop = loop
         self._top_xact = None
         self._dbname = dbname
+        self._optimize = False
+
+    def set_optimize(self, flag: bool):
+        self._optimize = bool(flag)
+
+    def get_optimize(self):
+        return self._optimize
 
     async def query(self, query, *args):
         return await self._protocol.execute(query, *args)
 
-    async def execute(self, query, *args, graphql=False, optimize=False,
-                      flags={}):
+    async def execute(self, query, *args, graphql=False, flags={}):
         return await self._protocol.execute_script(
-            query, *args, graphql=graphql, optimize=optimize, flags=flags)
+            query,
+            *args,
+            graphql=graphql,
+            optimize=self._optimize,
+            flags=flags)
 
     def close(self):
         self._transport.close()

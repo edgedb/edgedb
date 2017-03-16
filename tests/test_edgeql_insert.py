@@ -14,6 +14,7 @@ from edgedb.server import _testbase as tb
 
 
 class TestInsert(tb.QueryTestCase):
+
     SETUP = """
         CREATE MIGRATION test::d_insert01 TO eschema $$
             link l3:
@@ -56,6 +57,13 @@ class TestInsert(tb.QueryTestCase):
         $$;
 
         COMMIT MIGRATION test::d_insert01;
+    """
+
+    TEARDOWN_METHOD = """
+        DELETE test::Subordinate;
+        DELETE test::InsertTest;
+        DELETE test::DefaultTest1;
+        DELETE test::DefaultTest2;
     """
 
     async def test_edgeql_insert_fail_1(self):

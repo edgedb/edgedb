@@ -13,7 +13,10 @@ from edgedb.server import _testbase as tb
 
 class TestIndexes(tb.QueryTestCase):
 
+    @tb.expected_optimizer_failure
     async def test_index_01(self):
+        # XXX: Refactor to enable optimizer tests.
+
         result = await self.con.execute("""
             # setup delta
             #

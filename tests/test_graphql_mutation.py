@@ -40,9 +40,7 @@ class TestGraphQLMutation(tb.QueryTestCase):
         COMMIT MIGRATION test::d1;
     """
 
-    def setUp(self):
-        super().setUp()
-        self.loop.run_until_complete(self.con.execute(r"""
+    SETUP_METHOD = r"""
             WITH MODULE test
             INSERT Setting {
                 name := 'template',
@@ -90,15 +88,13 @@ class TestGraphQLMutation(tb.QueryTestCase):
                 active := True,
                 score := 5
             };
-        """))
+    """
 
-    def tearDown(self):
-        super().tearDown()
-        self.loop.run_until_complete(self.con.execute(r"""
+    TEARDOWN_METHOD = """
             DELETE test::Setting;
             DELETE test::Group;
             DELETE test::User;
-        """))
+    """
 
     async def test_graphql_mutation_delete01(self):
         result = await self.con.execute(r"""

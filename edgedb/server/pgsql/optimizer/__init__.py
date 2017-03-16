@@ -24,4 +24,4 @@ class Optimizer:
         rels = analyzer.Analyzer.analyze(pgtree)
         # from edgedb.lang.common import markup
         # markup.dump(rels)
-        return inliner.Inliner.inline(pgtree, rels)
+        return inliner.optimize(pgtree, rels)

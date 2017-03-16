@@ -14,7 +14,7 @@ from edgedb.client import exceptions
 from edgedb.server import _testbase as tb
 
 
-class TestDeltas(tb.QueryTestCase):
+class TestDeltas(tb.DDLTestCase):
     async def test_delta_simple01(self):
         result = await self.con.execute("""
             # setup delta
@@ -60,7 +60,7 @@ class TestDeltas(tb.QueryTestCase):
         ])
 
 
-class TestDeltaLinkInheritance(tb.QueryTestCase):
+class TestDeltaLinkInheritance(tb.DDLTestCase):
     async def test_delta_link_inheritance(self):
         schema_f = os.path.join(os.path.dirname(__file__), 'schemas',
                                 'links_1.eschema')
@@ -123,7 +123,7 @@ class TestDeltaLinkInheritance(tb.QueryTestCase):
             ''')
 
 
-class TestDeltaDDLGeneration(tb.QueryTestCase):
+class TestDeltaDDLGeneration(tb.DDLTestCase):
     def _assert_result(self, result, expected):
         self.assertEqual(result.strip(), textwrap.dedent(expected).strip())
 
