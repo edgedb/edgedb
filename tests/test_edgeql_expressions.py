@@ -385,6 +385,13 @@ class TestExpressions(tb.QueryTestCase):
             [[False, False]],
         ])
 
+    async def test_edgeql_expr_cast08(self):
+        with self.assertRaisesRegex(exc.UnknownEdgeDBError,
+                                    r'cannot cast type'):
+            await self.con.execute(r"""
+                SELECT <array<int>>(123, 11);
+            """)
+
     async def test_edgeql_expr_type01(self):
         await self.assert_query_result(r"""
             SELECT 'foo'.__class__.name;
@@ -466,6 +473,161 @@ class TestExpressions(tb.QueryTestCase):
             await self.con.execute("""
                 SELECT [];
             """)
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_array05(self):
+        await self.assert_query_result('''
+            SELECT [1, 2] + [3, 4];
+        ''', [
+            [[1, 2, 3, 4]],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_array06(self):
+        res = await self.con.execute('''
+            SELECT array_agg(ALL 1 UNION 2 UNION 3);
+            SELECT array_agg(ALL 3 UNION 2 UNION 3);
+            SELECT array_agg(ALL 3 UNION 3 UNION 2);
+        ''')
+        # there's no guarantee about order of the set, so we sort externally
+        #
+        for r in res:
+            r.sort()
+
+        self.assert_data_shape(res, [
+            [[1, 2, 3]],
+            [[2, 3, 3]],
+            [[2, 3, 3]],
+        ])
+
+    async def test_edgeql_expr_array07(self):
+        await self.assert_query_result('''
+            WITH x := (3 UNION 1 UNION 2)
+            SELECT array_agg(ALL x ORDER BY x);
+
+            WITH x := (3 UNION 1 UNION 2)
+            SELECT array_agg(ALL x ORDER BY x) = [1, 2, 3];
+        ''', [
+            [[1, 2, 3]],
+            [True],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_array08(self):
+        await self.assert_query_result('''
+            WITH x := [3, 1, 2]
+            SELECT 2 IN x;
+
+            WITH x := [3, 1, 2]
+            SELECT 5 IN x;
+
+            WITH x := [3, 1, 2]
+            SELECT 5 NOT IN x;
+        ''', [
+            [True],
+            [False],
+            [True],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_array09(self):
+        await self.assert_query_result('''
+            WITH x := (3 UNION 1 UNION 2)
+            SELECT 2 IN array_agg(ALL x ORDER BY x);
+
+            WITH x := (3 UNION 1 UNION 2)
+            SELECT 5 IN array_agg(ALL x ORDER BY x);
+
+            WITH x := (3 UNION 1 UNION 2)
+            SELECT 5 NOT IN array_agg(ALL x ORDER BY x);
+        ''', [
+            [True],
+            [False],
+            [True],
+        ])
+
+    async def test_edgeql_expr_array10(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r'could not determine expression type'):
+
+            await self.con.execute("""
+                SELECT array_agg(ALL EMPTY);
+            """)
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_array11(self):
+        await self.assert_query_result('''
+            SELECT array_agg(ALL <int>EMPTY);
+            SELECT array_agg(DISTINCT <int>EMPTY);
+        ''', [
+            [],
+            [],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_array12(self):
+        await self.assert_query_result('''
+            SELECT array_agg(ALL (SELECT schema::Concept FILTER False));
+            SELECT array_agg(ALL
+                (SELECT schema::Concept FILTER <str>schema::Concept.id = '~')
+            );
+        ''', [
+            [],
+            [],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_array13(self):
+        await self.assert_query_result('''
+            WITH x := <int>EMPTY
+            SELECT array_agg(ALL x);
+
+            WITH x := (SELECT schema::Concept FILTER False)
+            SELECT array_agg(ALL x);
+
+            WITH x := (
+                SELECT schema::Concept FILTER <str>schema::Concept.id = '~'
+            )
+            SELECT array_agg(ALL x);
+        ''', [
+            [],
+            [],
+            [],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_uniqueness01(self):
+        await self.assert_query_result('''
+            WITH
+                MODULE schema,
+                x := `Concept` {foo := 1}
+            SELECT x.foo;
+        ''', [
+            [1],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_uniqueness02(self):
+        await self.assert_query_result('''
+            WITH
+                MODULE schema,
+                x := `Concept` {foo := [1]}
+            SELECT x.foo;
+        ''', [
+            [[1]],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_uniqueness03(self):
+        await self.assert_query_result('''
+            WITH
+                MODULE schema,
+                x := `Concept` {foo := [1 -> 42]}
+            SELECT x.foo;
+        ''', [
+            [{1: 42}],
+        ])
 
     async def test_edgeql_expr_map01(self):
         await self.assert_query_result(r"""
@@ -867,4 +1029,25 @@ class TestExpressions(tb.QueryTestCase):
 
             await self.query('''\
                 SELECT Object.id[IS uuid];
+            ''')
+
+    async def test_edgeql_expr_comparison01(self):
+        with self.assertRaisesRegex(exc.UnknownEdgeDBError,
+                                    r'operator does not exist'):
+            await self.con.execute(r'''
+                SELECT (1, 2) = [1, 2];
+            ''')
+
+    async def test_edgeql_expr_comparison02(self):
+        with self.assertRaisesRegex(exc.UnknownEdgeDBError,
+                                    r'operator does not exist'):
+            await self.con.execute(r'''
+                SELECT (1 UNION 2) = [1, 2];
+            ''')
+
+    async def test_edgeql_expr_comparison03(self):
+        with self.assertRaisesRegex(exc.UnknownEdgeDBError,
+                                    r'operator does not exist'):
+            await self.con.execute(r'''
+                SELECT (1 UNION 2) = (1, 2);
             ''')

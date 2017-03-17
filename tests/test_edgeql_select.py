@@ -931,6 +931,32 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         ])
 
+    async def test_edgeql_select_limit06(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r'possibly more than one element returned by an expression '
+                r'where only singletons are allowed'):
+
+            await self.con.execute("""
+                WITH MODULE test
+                SELECT
+                    User { name }
+                LIMIT User.<owner[IS Issue].number;
+            """)
+
+    async def test_edgeql_select_limit07(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r'possibly more than one element returned by an expression '
+                r'where only singletons are allowed'):
+
+            await self.con.execute("""
+                WITH MODULE test
+                SELECT
+                    User { name }
+                OFFSET User.<owner[IS Issue].number;
+            """)
+
     async def test_edgeql_select_specialized01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -1334,6 +1360,19 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 {'name': 'Elvis'},
             ]
         ])
+
+    async def test_edgeql_select_order04(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r'possibly more than one element returned by an expression '
+                r'where only singletons are allowed'):
+
+            await self.con.execute("""
+                WITH MODULE test
+                SELECT
+                    User { name }
+                ORDER BY User.<owner[IS Issue].number;
+            """)
 
     async def test_edgeql_select_where01(self):
         await self.assert_query_result(r'''
@@ -2413,6 +2452,98 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ORDER BY User.name THEN User.<owner[IS Issue].number;
             """, [
             ['Elvis1', 'Elvis4', 'Yury2', 'Yury3'],
+        ])
+
+    async def test_edgeql_select_cross05(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            # tuples will not exist for the Issue without watchers
+            SELECT _ := (Issue.owner.name, Issue.watchers.name)
+            ORDER BY _;
+            """, [
+            [['Elvis', 'Yury'], ['Yury', 'Elvis'], ['Yury', 'Elvis']],
+        ])
+
+    async def test_edgeql_select_cross06(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            # tuples will not exist for the Issue without watchers
+            SELECT _ := Issue.owner.name + Issue.watchers.name
+            ORDER BY _;
+            """, [
+            ['ElvisYury', 'YuryElvis'],
+        ])
+
+    async def test_edgeql_select_cross07(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT _ := count(ALL Issue.owner.name + Issue.watchers.name);
+
+            WITH MODULE test
+            SELECT _ := count(DISTINCT Issue.owner.name + Issue.watchers.name);
+            """, [
+            [3],
+            [2],
+        ])
+
+    async def test_edgeql_select_cross08(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT _ := Issue.owner.name + <str>count(ALL Issue.watchers.name);
+            """, [
+            ['Elvis1', 'Yury1'],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_cross09(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT _ := count(ALL
+                Issue.owner.name + <str>count(ALL Issue.watchers.name));
+            """, [
+            [4],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_cross10(self):
+        await self.assert_query_result(r"""
+            WITH
+                MODULE test,
+                # this select shows all the relevant data for next tests
+                x := (SELECT Issue {
+                    name := Issue.owner.name,
+                    w := count(ALL Issue.watchers.name),
+                })
+            SELECT count(ALL x.name + <str>x.w);
+            """, [
+            [4],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_cross11(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT count(ALL
+                Issue.owner.name +
+                <str>count(Issue.watchers) +
+                <str>Issue.time_estimate
+            );
+            """, [
+            [4],
+        ])
+
+    async def test_edgeql_select_cross12(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT count(ALL count(ALL Issue.watchers));
+
+            WITH MODULE test
+            SELECT count(ALL
+                (Issue, count(ALL Issue.watchers))
+            );
+            """, [
+            [1],
+            [4],
         ])
 
     async def test_edgeql_select_subqueries01(self):

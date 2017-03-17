@@ -229,6 +229,23 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     @unittest.expectedFailure
+    async def test_edgeql_group_alias01(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            GROUP
+                Issue
+            BY
+                Issue.time_estimate
+            SELECT _ := {
+                count := count(ALL Issue.status.id),
+                te := Issue.time_estimate > 0
+            } ORDER BY
+                _.te EMPTY FIRST;
+        ''', [
+            [{'count': 3, 'te': None}, {'count': 1, 'te': True}],
+        ])
+
+    @unittest.expectedFailure
     async def test_edgeql_group_nested01(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -365,4 +382,257 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 42;
         ''', [
             [42],
+        ])
+
+    async def test_edgeql_group_by_tuple01(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            GROUP
+                Issue
+            BY
+                Issue.status.name,
+                Issue.time_estimate
+            SELECT _ := {
+                sum := sum(ALL <int>Issue.number),
+                status := Issue.status.name,
+                time_estimate := Issue.time_estimate
+            } ORDER BY Issue.status.name
+                THEN Issue.time_estimate;
+        """, [
+            [{
+                'status': 'Closed', 'sum': 7, 'time_estimate': None
+            }, {
+                'status': 'Open', 'sum': 2, 'time_estimate': None
+            }, {
+                'status': 'Open', 'sum': 1, 'time_estimate': 3000
+            }],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_group_by_tuple02(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            GROUP
+                Issue
+            BY
+                Issue.status.name,
+                Issue.time_estimate
+            SELECT {
+                sum := sum(ALL <int>Issue.number),
+                status := Issue.status.name,
+                time_estimate := Issue.time_estimate
+            } ORDER BY Issue.status.name
+                # ordering condition derived from one of the GROUP BY
+                # expressions
+                THEN Issue.time_estimate > 0;
+        """, [
+            [{
+                'status': 'Closed', 'sum': 7, 'time_estimate': None
+            }, {
+                'status': 'Open', 'sum': 2, 'time_estimate': None
+            }, {
+                'status': 'Open', 'sum': 1, 'time_estimate': 3000
+            }],
+        ])
+
+    async def test_edgeql_group_by_tuple03(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            GROUP
+                Issue
+            BY
+                Issue.status.name,
+                Issue.time_estimate
+            SELECT {
+                # array_agg with ordering instead of sum
+                numbers := array_agg(
+                    ALL <int>Issue.number ORDER BY Issue.number),
+                status := Issue.status.name,
+                time_estimate := Issue.time_estimate
+            } ORDER BY Issue.status.name
+                THEN Issue.time_estimate;
+        """, [
+            [{
+                'status': 'Closed',
+                'time_estimate': None,
+                'numbers': [3, 4],
+            }, {
+                'status': 'Open',
+                'time_estimate': None,
+                'numbers': [2],
+            }, {
+                'status': 'Open',
+                'time_estimate': 3000,
+                'numbers': [1],
+            }],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_group_by_tuple04(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            GROUP
+                Issue
+            BY
+                Issue.status.name,
+                Issue.time_estimate
+            SELECT {
+                # array_agg with ordering instead of sum
+                numbers := array_agg(ALL Issue.number ORDER BY Issue.number),
+                status := Issue.status.name,
+                time_estimate := Issue.time_estimate
+            } ORDER BY Issue.status.name
+                THEN Issue.time_estimate;
+        """, [
+            [{
+                'status': 'Closed',
+                'time_estimate': None,
+                'numbers': ['3', '4'],
+            }, {
+                'status': 'Open',
+                'time_estimate': None,
+                'numbers': ['2'],
+            }, {
+                'status': 'Open',
+                'time_estimate': 3000,
+                'numbers': ['1'],
+            }],
+        ])
+
+    async def test_edgeql_group_by_tuple05(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            GROUP
+                Issue
+            BY
+                Issue.status.name,
+                Issue.time_estimate
+            SELECT {
+                # a couple of array_agg
+                numbers := array_agg(
+                    ALL <int>Issue.number ORDER BY Issue.number),
+                watchers := array_agg(
+                    ALL <str>Issue.watchers.name ORDER BY Issue.watchers.name),
+                status := Issue.status.name,
+                time_estimate := Issue.time_estimate
+            } ORDER BY Issue.status.name
+                THEN Issue.time_estimate;
+        """, [
+            [{
+                'status': 'Closed',
+                'time_estimate': None,
+                'numbers': [3, 4],
+                'watchers': ['Elvis'],
+            }, {
+                'status': 'Open',
+                'time_estimate': None,
+                'numbers': [2],
+                'watchers': ['Elvis'],
+            }, {
+                'status': 'Open',
+                'time_estimate': 3000,
+                'numbers': [1],
+                'watchers': ['Yury'],
+            }],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_group_by_tuple06(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            GROUP
+                Issue
+            BY
+                Issue.status.name,
+                # group by non-atomic expression
+                <int>Issue.number < 4
+            SELECT {
+                numbers := array_agg(
+                    ALL Issue.number ORDER BY Issue.number),
+                # watchers will sometimes be EMPTY resulting in []
+                watchers := array_agg(
+                    ALL Issue.watchers.name ORDER BY Issue.watchers.name),
+                status := Issue.status.name,
+            } ORDER BY Issue.status.name
+                THEN <int>Issue.number < 4;
+        """, [
+            [{
+                'status': 'Closed',
+                'numbers': ['4'],
+                'watchers': []
+            }, {
+                'status': 'Closed',
+                'numbers': ['3'],
+                'watchers': ['Elvis']
+            }, {
+                'status': 'Open',
+                'numbers': ['1', '2'],
+                'watchers': ['Elvis', 'Yury']
+            }],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_group_by_tuple07(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            GROUP
+                Issue
+            BY
+                Issue.status.name,
+                # group by non-atomic expression
+                <int>Issue.number < 4
+            SELECT {
+                numbers := array_agg(
+                    ALL <int>Issue.number ORDER BY Issue.number),
+                watchers := count(DISTINCT Issue.watchers),
+                status := Issue.status.name,
+            } ORDER BY Issue.status.name
+                # should work because count evaluates to a SINGLETON
+                THEN count(DISTINCT Issue);
+        """, [
+            [{
+                'status': 'Closed',
+                'numbers': [4],
+                'watchers': 0
+            }, {
+                'status': 'Closed',
+                'numbers': [3],
+                'watchers': 1
+            }, {
+                'status': 'Open',
+                'numbers': [1, 2],
+                'watchers': 2
+            }],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_group_by_tuple08(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            GROUP
+                Issue
+            BY
+                Issue.status.name,
+                Issue.owner.id
+            SELECT {
+                numbers := array_agg(
+                    ALL <int>Issue.number ORDER BY Issue.number),
+                status := Issue.status.name,
+            } ORDER BY Issue.status.name
+                # should work because owner.name and owner.id are 1-1
+                THEN Issue.owner.name;
+        """, [
+            [{
+                'status': 'Closed',
+                'numbers': [4],
+            }, {
+                'status': 'Closed',
+                'numbers': [3],
+            }, {
+                'status': 'Open',
+                'numbers': [1],
+            }, {
+                'status': 'Open',
+                'numbers': [2],
+            }],
         ])
