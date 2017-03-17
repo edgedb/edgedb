@@ -35,6 +35,11 @@ class TestInsert(tb.QueryTestCase):
                 link subordinates to Subordinate:
                     mapping: "1*"
 
+            concept Annotation:
+                required link name to str
+                link note to str
+                link subject to Object
+
             concept DefaultTest1:
                 link num to int:
                     default: 42
@@ -579,5 +584,136 @@ class TestInsert(tb.QueryTestCase):
                 'name': 'insert for 1',
                 'l2': 7,
                 'l3': 'test',
+            }],
+        )
+
+    @unittest.expectedFailure
+    async def test_edgeql_insert_as_expr01(self):
+        res = await self.con.execute(r'''
+            # insert several objects, then annotate one of the inserted batch
+            #
+            WITH MODULE test
+            INSERT Annotation {
+                name := 'insert expr 1',
+                note := 'largest ' + <str>x.l2,
+                subject := x
+            } FOR x IN (
+                SELECT _i := (
+                    INSERT InsertTest {
+                        name := 'insert expr 1',
+                        l2 := x,
+                    } FOR x IN 3 UNION 5 UNION 7 UNION 2
+                ) ORDER BY _i.l2 DESC LIMIT 1
+            );
+
+            WITH MODULE test
+            SELECT
+                InsertTest {
+                    name,
+                    l2,
+                    <subject: {
+                        name,
+                        note,
+                    }
+                }
+            FILTER .name = 'insert expr 1'
+            ORDER BY .l2;
+        ''')
+
+        self.assert_data_shape(
+            res[-1],
+            # inserted based on static data
+            [{
+                'name': 'insert expr 1',
+                'l2': 2,
+                'l3': 'test',
+                'subject': [],
+            }],
+            [{
+                'name': 'insert expr 1',
+                'l2': 3,
+                'l3': 'test',
+                'subject': [],
+            }],
+            [{
+                'name': 'insert expr 1',
+                'l2': 5,
+                'l3': 'test',
+                'subject': [],
+            }],
+            [{
+                'name': 'insert expr 1',
+                'l2': 7,
+                'l3': 'test',
+                'subject': [{
+                    'name': 'insert expr 1',
+                    'note': 'largest 7'
+                }]
+            }],
+        )
+
+    @unittest.expectedFailure
+    async def test_edgeql_insert_as_expr02(self):
+        res = await self.con.execute(r'''
+            # same as above, but refactored differently
+            #
+            WITH
+                MODULE test,
+                _i := (
+                    INSERT InsertTest {
+                        name := 'insert expr 2',
+                        l2 := x,
+                    } FOR x IN 3 UNION 5 UNION 7 UNION 2
+                ),
+                y := (SELECT _i ORDER BY _i.l2 DESC LIMIT 1)
+            INSERT Annotation {
+                name := 'insert expr 2',
+                note := 'largest ' + <str>y.l2,
+                subject := y
+            };
+
+            WITH MODULE test
+            SELECT
+                InsertTest {
+                    name,
+                    l2,
+                    <subject: {
+                        name,
+                        note,
+                    }
+                }
+            FILTER .name = 'insert expr 2'
+            ORDER BY .l2;
+        ''')
+
+        self.assert_data_shape(
+            res[-1],
+            # inserted based on static data
+            [{
+                'name': 'insert expr 2',
+                'l2': 2,
+                'l3': 'test',
+                'subject': [],
+            }],
+            [{
+                'name': 'insert expr 2',
+                'l2': 3,
+                'l3': 'test',
+                'subject': [],
+            }],
+            [{
+                'name': 'insert expr 2',
+                'l2': 5,
+                'l3': 'test',
+                'subject': [],
+            }],
+            [{
+                'name': 'insert expr 2',
+                'l2': 7,
+                'l3': 'test',
+                'subject': [{
+                    'name': 'insert expr 2',
+                    'note': 'largest 7'
+                }]
             }],
         )
