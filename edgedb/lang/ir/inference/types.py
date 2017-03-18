@@ -201,6 +201,7 @@ def __infer_binop(ir, schema):
     if isinstance(ir.op, (ast.ops.ComparisonOperator,
                           ast.ops.TypeCheckOperator,
                           ast.ops.MembershipOperator,
+                          irast.EquivalenceOperator,
                           irast.TextSearchOperator)):
         return schema.get('std::bool')
 

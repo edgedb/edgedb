@@ -6,6 +6,7 @@
 ##
 """EdgeQL to IR compiler context."""
 
+import collections
 import enum
 import typing
 
@@ -67,8 +68,17 @@ class ContextLevel(compiler.ContextLevel):
     group_paths: typing.Set[irast.PathId]
     """A set of path ids in the GROUP BY clause of the current statement."""
 
+    path_scope: typing.Dict[irast.PathId, int]
+    """A map of path ids together with use counts for this context."""
+
+    stmt_path_scope: typing.Dict[irast.PathId, int]
+    """A map of path ids together with use counts for this statement."""
+
     in_aggregate: bool
     """True if the current location is inside an aggregate function call."""
+
+    path_as_type: bool
+    """True if path references should be treated as type references."""
 
     toplevel_shape_rptrcls: s_pointers.Pointer
     """Pointer class for the top-level shape of the substatement."""
@@ -90,9 +100,12 @@ class ContextLevel(compiler.ContextLevel):
             self.sets = {}
             self.singletons = set()
             self.group_paths = set()
+            self.path_scope = collections.defaultdict(int)
+            self.stmt_path_scope = collections.defaultdict(int)
             self.aggregated_scope = {}
             self.unaggregated_scope = {}
             self.in_aggregate = False
+            self.path_as_type = False
 
             self.result_path_steps = []
 
@@ -102,6 +115,7 @@ class ContextLevel(compiler.ContextLevel):
             self.schema = prevlevel.schema
             self.arguments = prevlevel.arguments
             self.toplevel_shape_rptrcls = prevlevel.toplevel_shape_rptrcls
+            self.path_scope = prevlevel.path_scope
             self.aggregated_scope = prevlevel.aggregated_scope
             self.unaggregated_scope = prevlevel.unaggregated_scope
 
@@ -117,7 +131,9 @@ class ContextLevel(compiler.ContextLevel):
                 self.sets = prevlevel.sets
                 self.singletons = prevlevel.singletons.copy()
                 self.group_paths = set()
+                self.stmt_path_scope = collections.defaultdict(int)
                 self.in_aggregate = False
+                self.path_as_type = False
 
                 self.result_path_steps = []
 
@@ -131,13 +147,16 @@ class ContextLevel(compiler.ContextLevel):
                 self.stmt = prevlevel.stmt
 
                 self.group_paths = prevlevel.group_paths
+                self.stmt_path_scope = prevlevel.stmt_path_scope
                 self.in_aggregate = prevlevel.in_aggregate
+                self.path_as_type = prevlevel.path_as_type
 
                 self.result_path_steps = prevlevel.result_path_steps[:]
                 self.sets = prevlevel.sets
                 self.singletons = prevlevel.singletons
 
             if mode == ContextSwitchMode.NEWSCOPE:
+                self.path_scope = prevlevel.path_scope.copy()
                 self.aggregated_scope = prevlevel.aggregated_scope.copy()
                 self.unaggregated_scope = prevlevel.unaggregated_scope.copy()
 

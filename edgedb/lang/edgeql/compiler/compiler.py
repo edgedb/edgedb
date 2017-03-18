@@ -76,70 +76,6 @@ def extract_prefixes(expr, roots_only=False):
     return extractor.paths
 
 
-class ScopeExtractor(ast.visitor.NodeVisitor):
-    def __init__(self, roots_only=False):
-        super().__init__()
-        self.paths = set()
-        self.roots_only = roots_only
-
-    def visit_Set(self, expr):
-        self.paths.update(expr.path_scope)
-
-
-def extract_scopes(expr, roots_only=False):
-    extractor = ScopeExtractor(roots_only=roots_only)
-    extractor.visit(expr)
-    return extractor.paths
-
-
-def get_prefix_trie(prefixes):
-    trie = {}
-
-    for path_id in prefixes:
-        branch = trie
-        for path_prefix in path_id.iter_prefixes():
-            branch = branch.setdefault(tuple(path_prefix), {})
-
-    return trie
-
-
-def get_common_path_scope(expr):
-    """Get a set of longest common path prefixes for given expressions."""
-
-    prefix_counts = collections.defaultdict(int)
-    scopes = set()
-
-    for scope in extract_scopes(expr):
-        for prefix in scope.iter_prefixes():
-            prefix_counts[prefix] += 1
-        scopes.add(scope)
-
-    trie = get_prefix_trie(scopes)
-
-    trails = set()
-
-    for root, subtrie in trie.items():
-        path_id = root
-        current = subtrie
-
-        root_count = prefix_counts.get(path_id, 0)
-
-        while current:
-            if len(current) == 1:
-                next_path_id, current = next(iter(current.items()))
-
-                if prefix_counts.get(next_path_id, -1) >= root_count:
-                    path_id = next_path_id
-                else:
-                    break
-            else:
-                break
-
-        trails.add(irast.PathId(path_id))
-
-    return trails
-
-
 class EdgeQLCompiler(ast.visitor.NodeVisitor):
     def __init__(self, schema, modaliases=None):
         super().__init__()
@@ -222,7 +158,11 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 if isinstance(stmt.result, irast.Set):
                     result.path_id = stmt.result.path_id
 
-            result.aggregated_scope = set(ctx.aggregated_scope)
+            stmt.aggregated_scope = set(ctx.aggregated_scope)
+            stmt.path_scope = ctx.path_scope
+            stmt.specific_path_scope = {
+                ctx.sets[p] for p in ctx.stmt_path_scope if p in ctx.sets
+            }
 
         # Query cardinality inference must be ran in parent context.
         if edgeql_tree.single:
@@ -287,7 +227,11 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 if isinstance(stmt.result, irast.Set):
                     result.path_id = stmt.result.path_id
 
-            result.aggregated_scope = set(ctx.aggregated_scope)
+            stmt.aggregated_scope = set(ctx.aggregated_scope)
+            stmt.path_scope = ctx.path_scope
+            stmt.specific_path_scope = {
+                ctx.sets[p] for p in ctx.stmt_path_scope if p in ctx.sets
+            }
 
         return result
 
@@ -326,10 +270,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 else:
                     default_expr = qlast.Constant(value=ptrcls.default)
 
-                substmt = self.visit(default_expr)
-                if not isinstance(substmt, irast.Stmt):
-                    substmt = irast.SelectStmt(result=substmt)
-
+                substmt = self._ensure_stmt(self.visit(default_expr))
                 el = self._generated_set(substmt)
                 el.rptr = targetstep.rptr
                 stmt.subject.shape.append(el)
@@ -342,7 +283,11 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 if isinstance(stmt.result, irast.Set):
                     result.path_id = stmt.result.path_id
 
-            result.aggregated_scope = set(ctx.aggregated_scope)
+            stmt.aggregated_scope = set(ctx.aggregated_scope)
+            stmt.path_scope = ctx.path_scope
+            stmt.specific_path_scope = {
+                ctx.sets[p] for p in ctx.stmt_path_scope if p in ctx.sets
+            }
 
             return result
 
@@ -382,7 +327,11 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 if isinstance(stmt.result, irast.Set):
                     result.path_id = stmt.result.path_id
 
-            result.aggregated_scope = set(ctx.aggregated_scope)
+            stmt.aggregated_scope = set(ctx.aggregated_scope)
+            stmt.path_scope = ctx.path_scope
+            stmt.specific_path_scope = {
+                ctx.sets[p] for p in ctx.stmt_path_scope if p in ctx.sets
+            }
 
             return result
 
@@ -415,7 +364,11 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 if isinstance(stmt.result, irast.Set):
                     result.path_id = stmt.result.path_id
 
-            result.aggregated_scope = set(ctx.aggregated_scope)
+            stmt.aggregated_scope = set(ctx.aggregated_scope)
+            stmt.path_scope = ctx.path_scope
+            stmt.specific_path_scope = {
+                ctx.sets[p] for p in ctx.stmt_path_scope if p in ctx.sets
+            }
 
             return result
 
@@ -529,6 +482,11 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     path_tip = self._generated_set(expr)
 
         if isinstance(path_tip, irast.Set):
+            if not ctx.path_as_type:
+                for prefix in path_tip.path_id.iter_prefixes():
+                    ctx.path_scope[prefix] += 1
+                    ctx.stmt_path_scope[prefix] += 1
+
             if ctx.in_aggregate or ctx.clause == 'groupby':
                 ctx.aggregated_scope[path_tip.path_id] = expr.context
 
@@ -648,27 +606,80 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         return folded
 
     def visit_BinOp(self, expr):
+        if isinstance(expr.op, ast.ops.TypeCheckOperator):
+            op_node = self._visit_type_check_op(expr)
+        elif isinstance(expr.op, qlast.SetOperator):
+            op_node = self._visit_set_op(expr)
+        elif isinstance(expr.op, qlast.EquivalenceOperator):
+            op_node = self._visit_equivalence_op(expr)
+        else:
+            left = self.visit(expr.left)
+            right = self.visit(expr.right)
+            op_node = irast.BinOp(left=left, right=right, op=expr.op)
+
+        folded = self._try_fold_binop(op_node)
+        if folded is not None:
+            return folded
+        else:
+            return self._generated_set(op_node)
+
+    def _visit_type_check_op(self, expr):
+        # <Expr> IS <Type>
         ctx = self.context.current
 
-        left, right = self.visit((expr.left, expr.right))
+        left = self.visit(expr.left)
+        with self.context.new() as subctx:
+            subctx.path_as_type = True
+            right = self.visit(expr.right)
 
-        if isinstance(expr.op, qlast.SetOperator):
-            op_node = irast.SetOp(left=left, right=right, op=expr.op)
-        else:
-            if isinstance(expr.op, ast.ops.TypeCheckOperator):
-                ltype = irutils.infer_type(left, ctx.schema)
-                left, _ = self._path_step(
-                    left, ltype, ('std', '__class__'),
-                    s_pointers.PointerDirection.Outbound, None,
-                    expr.context)
-                right = self._process_type_ref_expr(right)
+        ltype = irutils.infer_type(left, ctx.schema)
+        left, _ = self._path_step(
+            left, ltype, ('std', '__class__'),
+            s_pointers.PointerDirection.Outbound, None,
+            expr.context)
+        right = self._process_type_ref_expr(right)
 
-            op_node = irast.BinOp(left=left, right=right, op=expr.op)
-            folded = self._try_fold_binop(op_node)
-            if folded is not None:
-                return folded
+        return irast.BinOp(left=left, right=right, op=expr.op)
 
-        return self._generated_set(op_node)
+    def _visit_set_op(self, expr):
+        # UNION/EXCEPT/INTERSECT
+        left = self.visit(self._ensure_qlstmt(expr.left))
+        right = self.visit(self._ensure_qlstmt(expr.right))
+
+        return irast.SetOp(left=left.expr, right=right.expr, op=expr.op)
+
+    def _visit_equivalence_op(self, expr):
+        #
+        # a ?= b is defined as:
+        #   a = b IF EXISTS a AND EXISTS b ELSE EXISTS a = EXISTS b
+        # a ?!= b is defined as:
+        #   a != b IF EXISTS a AND EXISTS b ELSE EXISTS a != EXISTS b
+        #
+        op = ast.ops.EQ if expr.op == qlast.EQUIVALENT else ast.ops.NE
+
+        ex_left = qlast.ExistsPredicate(expr=expr.left)
+        ex_right = qlast.ExistsPredicate(expr=expr.right)
+
+        condition = qlast.BinOp(
+            left=ex_left,
+            right=ex_right,
+            op=ast.ops.AND
+        )
+
+        if_expr = qlast.BinOp(
+            left=expr.left,
+            right=expr.right,
+            op=op
+        )
+
+        else_expr = qlast.BinOp(
+            left=ex_left,
+            right=ex_right,
+            op=op
+        )
+
+        return self._transform_ifelse(
+            condition, if_expr, else_expr, expr.context)
 
     def visit_Parameter(self, expr):
         ctx = self.context.current
@@ -705,8 +716,9 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         if isinstance(val, irast.Set) and isinstance(val.expr, irast.Stmt):
             val = val.expr
-        elif not isinstance(val, irast.Stmt):
-            val = irast.SelectStmt(result=val, singleton=True)
+        else:
+            val = self._ensure_stmt(val)
+            val.singleton = True
 
         element = irast.StructElement(
             name=name,
@@ -852,18 +864,18 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         return self._generated_set(node)
 
-    def visit_IfElse(self, expr):
+    def _transform_ifelse(self, condition, if_expr, else_expr, src_context):
         ctx = self.context.current
 
-        condition = self.visit(expr.condition)
-        not_condition = self.visit(qlast.UnaryOp(
-            operand=expr.condition,
-            op=ast.ops.NOT
-        ))
-        if_expr = irutils.ensure_stmt(self.visit(expr.if_expr))
-        if_expr.where = self._extend_binop(if_expr.where, condition)
-        else_expr = irutils.ensure_stmt(self.visit(expr.else_expr))
-        else_expr.where = self._extend_binop(else_expr.where, not_condition)
+        if_expr = self._ensure_qlstmt(if_expr)
+        if_expr.where = self._extend_qlbinop(if_expr.where, condition)
+
+        not_condition = qlast.UnaryOp(operand=condition, op=ast.ops.NOT)
+        else_expr = self._ensure_qlstmt(else_expr)
+        else_expr.where = self._extend_qlbinop(else_expr.where, not_condition)
+
+        if_expr = self.visit(if_expr)
+        else_expr = self.visit(else_expr)
 
         if_expr_type = irutils.infer_type(if_expr, ctx.schema)
         else_expr_type = irutils.infer_type(else_expr, ctx.schema)
@@ -875,10 +887,15 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             raise errors.EdgeQLError(
                 'if/else clauses must be of related types, got: {}/{}'.format(
                     if_expr_type.name, else_expr_type.name),
-                context=expr.context)
+                context=src_context)
 
-        setop = irast.SetOp(left=if_expr, right=else_expr, op=qlast.UNION)
-        return self._generated_set(setop)
+        return irast.SetOp(left=if_expr.expr, right=else_expr.expr,
+                           op=qlast.UNION)
+
+    def visit_IfElse(self, expr):
+        ifelse_op = self._transform_ifelse(expr.condition, expr.if_expr,
+                                           expr.else_expr, expr.context)
+        return self._generated_set(ifelse_op)
 
     def visit_UnaryOp(self, expr):
         ctx = self.context.current
@@ -1127,7 +1144,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         substmt_set = irast.Set(
             path_id=path_id,
             real_path_id=real_path_id,
-            path_scope={path_id},
             scls=result_type,
             expr=substmt
         )
@@ -1168,7 +1184,8 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 ctx.namespaces[with_entry.alias] = with_entry.namespace
 
             elif isinstance(with_entry, qlast.AliasedExpr):
-                self._declare_view(with_entry.expr, with_entry.alias)
+                with self.context.newscope():
+                    self._declare_view(with_entry.expr, with_entry.alias)
 
             else:
                 expr = self.visit(with_entry.expr)
@@ -1237,12 +1254,13 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 shapespec = implicit_shape_els + list(shapespec)
 
         for shape_el in shapespec:
-            el = self._process_shape_el(
-                source_expr, rptrcls, shape_el, scls,
-                require_expressions=require_expressions,
-                include_implicit=include_implicit,
-                _visited=_visited,
-                _recurse=_recurse)
+            with self.context.newscope():
+                el = self._process_shape_el(
+                    source_expr, rptrcls, shape_el, scls,
+                    require_expressions=require_expressions,
+                    include_implicit=include_implicit,
+                    _visited=_visited,
+                    _recurse=_recurse)
 
             # Record element may be none if ptrcls target is non-atomic
             # and recursion has been prohibited on this level to prevent
@@ -1253,7 +1271,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         result = irast.Set(
             scls=source_expr.scls,
             path_id=source_expr.path_id,
-            path_scope=source_expr.path_scope,
             source=source_expr,
             shape=elements,
             rptr=source_expr.rptr
@@ -1348,8 +1365,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                         else:
                             ptrcls.mapping = s_links.LinkMapping.ManyToMany
 
-                if not isinstance(compexpr, irast.Stmt):
-                    compexpr = irast.SelectStmt(result=compexpr)
+                compexpr = self._ensure_stmt(compexpr)
 
                 path_id = source_expr.path_id.extend(
                     ptrcls, ptr_direction, target_class)
@@ -1357,7 +1373,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 targetstep = irast.Set(
                     path_id=path_id,
                     scls=target_class,
-                    path_scope={path_id},
                     expr=compexpr
                 )
 
@@ -1574,7 +1589,9 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
             path_tip.view_source = view_source
 
-            if target.is_virtual and ptr_target is not None:
+            if (isinstance(target, s_concepts.Concept) and
+                    target.is_virtual and
+                    ptr_target is not None):
                 try:
                     path_tip = ctx.sets[path_tip.path_id, ptr_target.name]
                 except KeyError:
@@ -1611,7 +1628,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             target_set = ctx.sets[path_id] = irast.Set()
             target_set.scls = target
             target_set.path_id = path_id
-            target_set.path_scope = {path_id}
 
             ptr = irast.Pointer(
                 source=source_set,
@@ -1626,7 +1642,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
     def _class_set(self, scls):
         path_id = irast.PathId([scls])
-        return irast.Set(path_id=path_id, scls=scls, path_scope={path_id})
+        return irast.Set(path_id=path_id, scls=scls)
 
     def _generated_set(self, expr):
         ctx = self.context.current
@@ -1646,7 +1662,6 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             path_id=path_id,
             scls=result_type,
             expr=expr,
-            path_scope=set(get_common_path_scope(expr))
         )
 
         return node
@@ -1746,6 +1761,8 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
                 expr = self._process_shape(expr, rptrcls, shape)
 
+        if not isinstance(expr, irast.Set):
+            expr = self._generated_set(expr)
         self._declare_aliased_set(expr, result_alias)
         return expr
 
@@ -1913,3 +1930,36 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 )
 
         return binop
+
+    def _extend_qlbinop(self, binop, *exprs, op=ast.ops.AND):
+        exprs = list(exprs)
+        binop = binop or exprs.pop(0)
+
+        for expr in exprs:
+            if expr is not binop:
+                binop = qlast.BinOp(
+                    left=binop,
+                    right=expr,
+                    op=op
+                )
+
+        return binop
+
+    def _ensure_stmt(self, expr):
+        ctx = self.context.current
+        if not isinstance(expr, irast.Stmt):
+            if not isinstance(expr, irast.Set):
+                expr = self._generated_set(expr)
+
+            expr = irast.SelectStmt(
+                result=expr,
+                path_scope=ctx.path_scope
+            )
+        return expr
+
+    def _ensure_qlstmt(self, expr):
+        if not isinstance(expr, qlast.Statement):
+            expr = qlast.SelectQuery(
+                result=expr,
+            )
+        return expr

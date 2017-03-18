@@ -634,8 +634,14 @@ RENOIMATCH = EdgeQLMatchOperator('!~*')
 
 IS_OF = EdgeQLOperator('IS OF')
 IS_NOT_OF = EdgeQLOperator('IS NOT OF')
-EQUIVALENT = EdgeQLOperator('?=')
-NEQIUVALENT = EdgeQLOperator('?!=')
+
+
+class EquivalenceOperator(EdgeQLOperator):
+    pass
+
+
+EQUIVALENT = EquivalenceOperator('?=')
+NEQIUVALENT = EquivalenceOperator('?!=')
 
 
 class SortOrder(s_enum.StrEnum):

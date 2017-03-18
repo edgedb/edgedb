@@ -244,7 +244,6 @@ class Set(Base):
     scls: so.NodeClass
     source: Base
     view_source: Base
-    path_scope: typing.Set[PathId]
     expr: Base
     rptr: Pointer
     anchor: str
@@ -417,6 +416,8 @@ class Stmt(Base):
     main_stmt: Base
     parent_stmt: Base
     substmts: list
+    path_scope: typing.Dict[PathId, int]
+    specific_path_scope: typing.Set[Set]
 
 
 class SelectStmt(Stmt):
@@ -456,5 +457,6 @@ class DeleteStmt(MutatingStmt):
 
 TextSearchOperator = qlast.TextSearchOperator
 EdgeDBMatchOperator = qlast.EdgeQLMatchOperator
+EquivalenceOperator = qlast.EquivalenceOperator
 SetOperator = qlast.SetOperator
 SetModifier = qlast.SetModifier

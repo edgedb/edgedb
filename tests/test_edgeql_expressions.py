@@ -231,7 +231,6 @@ class TestExpressions(tb.QueryTestCase):
             [-4],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_op13(self):
         # test equivalence comparison
         await self.assert_query_result(r"""
@@ -565,7 +564,6 @@ class TestExpressions(tb.QueryTestCase):
             [],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_expr_array12(self):
         await self.assert_query_result('''
             SELECT array_agg(ALL (SELECT schema::Concept FILTER False));
@@ -577,7 +575,6 @@ class TestExpressions(tb.QueryTestCase):
             [],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_expr_array13(self):
         await self.assert_query_result('''
             WITH x := <int>EMPTY
@@ -596,7 +593,6 @@ class TestExpressions(tb.QueryTestCase):
             [],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_uniqueness01(self):
         await self.assert_query_result('''
             WITH
@@ -607,7 +603,6 @@ class TestExpressions(tb.QueryTestCase):
             [1],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_uniqueness02(self):
         await self.assert_query_result('''
             WITH
@@ -618,15 +613,14 @@ class TestExpressions(tb.QueryTestCase):
             [[1]],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_uniqueness03(self):
         await self.assert_query_result('''
             WITH
                 MODULE schema,
-                x := `Concept` {foo := [1 -> 42]}
+                x := `Concept` {foo := ['bar' -> 42]}
             SELECT x.foo;
         ''', [
-            [{1: 42}],
+            [{'bar': 42}],
         ])
 
     async def test_edgeql_expr_map01(self):

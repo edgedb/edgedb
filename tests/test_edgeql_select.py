@@ -1883,14 +1883,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             issues_h + issues_n
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_equivalence01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
-            SELECT Issue{
-                h1 := Issue.priority.name = 'High'
-                h2 := Issue.priority.name ?= 'High'
-                l1 := Issue.priority.name != 'High'
+            SELECT Issue {
+                number,
+                h1 := Issue.priority.name = 'High',
+                h2 := Issue.priority.name ?= 'High',
+                l1 := Issue.priority.name != 'High',
                 l2 := Issue.priority.name ?!= 'High'
             }
             ORDER BY Issue.number;
@@ -1922,7 +1922,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_equivalence02(self):
         await self.assert_query_result(r'''
             # get Issues such that there's another Issue with
@@ -1941,7 +1940,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '1'}, {'number': '4'}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_equivalence03(self):
         await self.assert_query_result(r'''
             # get Issues with priority equivalent to EMPTY
@@ -1955,7 +1953,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '1'}, {'number': '4'}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_equivalence04(self):
         await self.assert_query_result(r'''
             # get Issues with priority equivalent to EMPTY
@@ -2600,6 +2597,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [],
         ])
 
+    @tb.expected_optimizer_failure
     async def test_edgeql_select_subqueries04(self):
         await self.assert_query_result(r"""
             WITH

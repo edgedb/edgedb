@@ -180,6 +180,7 @@ class IRCompilerDMLSupport:
         # in its relation.
         toplevel.ctes.append(dml_cte)
         self._put_set_cte(ir_stmt.subject, dml_cte)
+        self._put_path_rvar(dml_stmt, ir_stmt.subject, dml_stmt.relation)
 
         return wrapper, dml_cte, range_cte
 

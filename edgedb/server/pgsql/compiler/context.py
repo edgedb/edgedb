@@ -79,11 +79,13 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.subquery_map = collections.defaultdict(dict)
             self.rel_overlays = collections.defaultdict(list)
             self.computed_node_rels = {}
+            self.parent_var_scope = {}
             self.path_id_aliases = {}
             self.path_bonds = {}
             self.path_bonds_by_stmt = collections.defaultdict(dict)
             self.parent_path_bonds = {}
             self.path_scope = set()
+            self.stmt_path_scope = set()
 
         else:
             self.backend = prevlevel.backend
@@ -125,11 +127,13 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.subquery_map = prevlevel.subquery_map
             self.rel_overlays = prevlevel.rel_overlays
             self.computed_node_rels = prevlevel.computed_node_rels
+            self.parent_var_scope = prevlevel.parent_var_scope
             self.path_id_aliases = prevlevel.path_id_aliases
             self.path_bonds = prevlevel.path_bonds
             self.path_bonds_by_stmt = prevlevel.path_bonds_by_stmt
             self.parent_path_bonds = prevlevel.parent_path_bonds
             self.path_scope = prevlevel.path_scope
+            self.stmt_path_scope = prevlevel.stmt_path_scope
 
             if mode in {ContextSwitchMode.SUBQUERY,
                         ContextSwitchMode.SUBSTMT}:
@@ -157,6 +161,7 @@ class CompilerContextLevel(compiler.ContextLevel):
                 self.stmt = self.query
                 self.parent_path_bonds = prevlevel.path_bonds
                 self.computed_node_rels = prevlevel.computed_node_rels.copy()
+                self.parent_var_scope = prevlevel.parent_var_scope.copy()
 
     def genalias(self, hint):
         m = re.search(r'~\d+$', hint)

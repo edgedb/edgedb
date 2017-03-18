@@ -155,6 +155,9 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             if stmt.aggregated_scope:
                 ctx.aggregated_scope = stmt.aggregated_scope
 
+            ctx.stmt_path_scope = \
+                {p for p, uses in stmt.path_scope.items() if uses > 1}
+
             ctx.stmtmap[stmt] = ctx.stmt
             ctx.stmt_hierarchy[ctx.stmt] = parent_ctx.stmt
 
@@ -163,6 +166,25 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
             # Process the result expression;
             self._process_selector(stmt.result)
+
+            if len(query.target_list) == 1:
+                resalias = self._ensure_query_restarget_name(query)
+                self._put_path_output(query, stmt.result.path_id, resalias)
+
+            if query is not ctx.toplevel_stmt:
+                specific_scope = {s for s in stmt.specific_path_scope
+                                  if (s.path_id in ctx.stmt_path_scope and
+                                      s.path_id in ctx.parent_path_bonds)}
+
+                for ir_set in specific_scope:
+                    if (isinstance(ir_set.scls, s_concepts.Concept) and
+                            ir_set.path_id not in query.path_bonds):
+                        # The selector does not include this path explicitly,
+                        # so we must do so here.
+                        cte = self._set_to_cte(ir_set)
+                        self._include_range(
+                            ctx.rel, cte, join_type='left',
+                            replace_bonds=False)
 
             # The WHERE clause
             if stmt.where:
@@ -209,7 +231,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                     query.limit_count = self.visit(stmt.limit)
 
             if not parent_ctx.correct_set_assumed and not simple_wrapper:
-                self._ensure_correct_set(stmt, query)
+                query = self._ensure_correct_set(
+                    stmt, query, query is ctx.toplevel_stmt)
 
         return query
 
@@ -231,7 +254,30 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             self.visit(stmt.subject)
             subjcte = self._get_set_cte(stmt.subject)
             subjrvar = self._include_range(query, subjcte)
-            self._process_groupby(stmt.groupby)
+
+            grouped_rvar_map = {}
+            grouped_atom_map = {}
+
+            with self.context.new() as gctx:
+                gctx.clause = 'groupby'
+                query = gctx.query
+
+                for expr in stmt.groupby:
+                    groupexpr = self.visit(expr)
+                    query.group_clause.append(groupexpr)
+
+                    if expr.expr is None:
+                        if isinstance(expr.scls, s_concepts.Concept):
+                            rvar = self._get_set_rvar(query, expr)
+                            if rvar is None:
+                                raise LookupError(
+                                    f'cannot find rvar for '
+                                    f'grouped set {expr!r}')
+
+                            grouped_rvar_map[expr] = rvar
+                        else:
+                            var = self._get_path_var(query, expr.path_id)
+                            grouped_atom_map[expr] = var
 
             self._put_parent_range_scope(stmt.subject, subjrvar, grouped=True)
 
@@ -241,6 +287,15 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                     if path_id.startswith(stmt.subject.path_id):
                         ref.grouped = True
                 self._pop_set_cte(stmt.subject)
+
+                for grouped_set, rvar in grouped_rvar_map.items():
+                    self._pop_set_cte(grouped_set)
+                    self._put_parent_range_scope(grouped_set, rvar)
+
+                for grouped_atom_set, var in grouped_atom_map.items():
+                    self._pop_set_cte(grouped_atom_set)
+                    self._put_parent_var_scope(grouped_atom_set, var)
+
                 self._process_selector(stmt.result)
                 self._enforce_path_scope(
                     selctx.query, selctx.parent_path_bonds)
@@ -250,6 +305,9 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                         val=selctx.query
                     )
                 ]
+
+                resalias = self._ensure_query_restarget_name(query)
+                self._put_path_output(query, stmt.result.path_id, resalias)
 
                 # The WHERE clause
                 if stmt.where:
@@ -280,7 +338,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 query.path_bonds.discard(path_id)
 
             if not parent_ctx.correct_set_assumed:
-                self._ensure_correct_set(stmt, query)
+                query = self._ensure_correct_set(
+                    stmt, query, query is ctx.toplevel_stmt)
 
         return query
 
@@ -476,7 +535,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         if cond is not None:
             query.where_clause = self._extend_binop(query.where_clause, cond)
 
-    def _include_range(self, stmt, rel, join_type='inner', lateral=False):
+    def _include_range(self, stmt, rel, join_type='inner', lateral=False,
+                       replace_bonds=True):
         """Ensure the *rel* is present in the from_clause of *stmt*.
 
         :param stmt:
@@ -490,6 +550,9 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         :param lateral:
             Whether *rel* should be joined laterally.
+
+        :param replace_bonds:
+            Whether the path bonds in *stmt* should be replaced.
 
         :return:
             RangeVar or RangeSubselect representing the *rel* in the
@@ -509,7 +572,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         # Make sure that the path namespace of *cte* is mapped
         # onto the path namespace of *stmt*.
         self._pull_path_namespace(
-            target=stmt, source=rvar, pull_bonds=not ctx.scope_cutoff)
+            target=stmt, source=rvar, pull_bonds=not ctx.scope_cutoff,
+            replace_bonds=replace_bonds)
 
         return rvar
 
@@ -579,7 +643,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
             wrapper.target_list.append(
                 pgast.ResTarget(
-                    val=target
+                    val=target,
+                    name=ctx.genalias('v')
                 )
             )
 
@@ -604,6 +669,17 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         ctx = self.context.current
         ir_set = irutils.get_canonical_set(ir_set)
         return ctx.computed_node_rels.get(ir_set)
+
+    def _put_parent_var_scope(self, ir_set, var):
+        ctx = self.context.current
+        ir_set = irutils.get_canonical_set(ir_set)
+        if ir_set not in ctx.parent_var_scope:
+            ctx.parent_var_scope[ir_set] = var
+
+    def _get_parent_var_scope(self, ir_set):
+        ctx = self.context.current
+        ir_set = irutils.get_canonical_set(ir_set)
+        return ctx.parent_var_scope.get(ir_set)
 
     def _put_set_cte(self, ir_set, cte, *, ctx=None):
         if ctx is None:
@@ -681,7 +757,10 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             ctx.rel = stmt
             ctx.path_bonds = ctx.path_bonds.copy()
 
-            if self._get_parent_range_scope(ir_set) is not None:
+            if self._get_parent_var_scope(ir_set) is not None:
+                self._process_set_as_parent_var_scope(ir_set, stmt)
+
+            elif self._get_parent_range_scope(ir_set) is not None:
                 # We are ranging over this set in the parent query,
                 # while evaluating a view expression.
                 self._process_set_as_parent_scope(ir_set, stmt)
@@ -792,6 +871,21 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         self._enforce_path_scope(stmt, ctx.parent_path_bonds)
         ctx.query.ctes.append(self._get_set_cte(ir_set))
 
+    def _process_set_as_parent_var_scope(self, ir_set, stmt):
+        ctx = self.context.current
+
+        var = self._get_parent_var_scope(ir_set)
+        alias = ctx.genalias('v')
+        stmt.target_list.append(
+            pgast.ResTarget(
+                val=var,
+                name=alias
+            )
+        )
+
+        self._put_path_output(stmt, ir_set, alias)
+        ctx.query.ctes.append(self._get_set_cte(ir_set))
+
     def _process_set_as_parent_scope(self, ir_set, stmt):
         """Populate the CTE for a Set defined by parent range."""
         ctx = self.context.current
@@ -820,6 +914,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         self._get_root_rvar(ir_set, stmt, set_rvar=set_rvar)
 
         stmt.from_clause.append(set_rvar)
+        self._pull_path_namespace(target=stmt, source=set_rvar)
+
         ctx.query.ctes.append(self._get_set_cte(ir_set))
 
         if isinstance(parent_rvar, pgast.RangeVar):
@@ -987,8 +1083,10 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 if not path_id.startswith(ir_set.path_id):
                     subquery.path_bonds.discard(path_id)
 
-        rt_name = self._ensure_query_restarget_name(subquery, hint=cte.name)
-        self._put_path_output(subquery, ir_set, rt_name)
+        if not isinstance(ir_set.scls, s_obj.Struct):
+            rt_name = self._ensure_query_restarget_name(
+                subquery, hint=cte.name)
+            self._put_path_output(subquery, ir_set, rt_name)
 
         cte.query = subquery
         ctx.toplevel_stmt.ctes.append(cte)
@@ -1000,7 +1098,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         with self.context.new() as newctx:
             newctx.path_bonds = ctx.path_bonds.copy()
-            newctx.path_scope = set(newctx.path_scope) | ir_set.path_scope
+            newctx.path_scope = set(newctx.path_scope) | ctx.stmt_path_scope
 
             if irutils.is_strictly_view_set(ir_set.expr.result):
                 outer_id = ir_set.path_id
@@ -1017,9 +1115,10 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 if not path_id.startswith(ir_set.path_id):
                     subquery.path_bonds.discard(path_id)
 
-            rt_name = self._ensure_query_restarget_name(
-                subquery, hint=cte.name)
-            self._put_path_output(subquery, ir_set, rt_name)
+            if not isinstance(ir_set.scls, s_obj.Struct):
+                rt_name = self._ensure_query_restarget_name(
+                    subquery, hint=cte.name)
+                self._put_path_output(subquery, ir_set, rt_name)
 
         self._put_set_cte(ir_set, subquery)
 
@@ -1064,7 +1163,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             # Prevent _ensure_correct_set from wrapping the subquery as we may
             # need to fiddle with it to ensure correct cardinality first.
             newctx.correct_set_assumed = True
-            newctx.path_scope = set(newctx.path_scope) | ir_set.path_scope
+            newctx.path_scope = set(newctx.path_scope) | ctx.stmt_path_scope
 
             newctx.view_path_id_map = {
                 ir_set.path_id: inner_set.expr.result.path_id
@@ -1103,7 +1202,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         # We inhibited _ensure_correct_set above.  Now that we are done with
         # the query, ensure set correctness explicitly.
-        self._ensure_correct_set(inner_set.expr, subquery)
+        subquery = self._ensure_correct_set(inner_set.expr, subquery)
 
         rt_name = self._ensure_query_restarget_name(subquery, hint=cte.name)
         self._put_path_output(subquery, ir_set, rt_name)
@@ -1118,20 +1217,41 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         expr = ir_set.expr
 
         with self.context.new() as newctx:
-            newctx.path_bonds = ctx.path_bonds.copy()
-            larg = self.visit(irutils.ensure_stmt(expr.left))
-            newctx.path_bonds = ctx.path_bonds.copy()
-            rarg = self.visit(irutils.ensure_stmt(expr.right))
+            newctx.path_bonds = ctx.parent_path_bonds.copy()
+            newctx.view_path_id_map = {
+                ir_set.path_id: expr.left.result.path_id
+            }
+            larg = self.visit(expr.left)
+            newctx.path_bonds = ctx.parent_path_bonds.copy()
+            newctx.view_path_id_map = {
+                ir_set.path_id: expr.right.result.path_id
+            }
+            rarg = self.visit(expr.right)
 
-        stmt.op = pgast.PgSQLSetOperator(expr.op)
-        stmt.all = True
-        stmt.larg = larg
-        stmt.rarg = rarg
-        self._put_path_bond(stmt, ir_set.path_id)
-        rt_name = self._ensure_query_restarget_name(stmt)
-        self._put_path_output(stmt, ir_set, rt_name)
-        self._put_path_rvar(stmt, ir_set, None)
-        self._put_set_cte(ir_set, stmt)
+        with self.context.subquery() as subctx:
+            subqry = subctx.query
+            subqry.op = pgast.PgSQLSetOperator(expr.op)
+            subqry.all = True
+            subqry.larg = larg
+            subqry.rarg = rarg
+
+            rt_name = self._ensure_query_restarget_name(subqry)
+            self._put_path_output(subqry, ir_set, rt_name)
+            self._put_path_rvar(subqry, ir_set, None)
+
+            sub_rvar = pgast.RangeSubselect(
+                subquery=subqry,
+                alias=pgast.Alias(
+                    aliasname=ctx.genalias('u')
+                )
+            )
+
+        self._pull_path_namespace(target=stmt, source=sub_rvar)
+        stmt.from_clause = [sub_rvar]
+
+        cte = self._get_set_cte(ir_set)
+        cte.query = stmt
+        ctx.query.ctes.append(cte)
 
     def _process_set_as_typefilter(self, ir_set, stmt):
         """Populate the CTE for Set defined by a Expr[IS Type] expression."""
@@ -1190,7 +1310,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         with self.context.new() as newctx:
             newctx.in_set_expr = True
             newctx.rel = stmt
-            newctx.path_scope = newctx.path_scope | ir_set.path_scope
+            newctx.path_scope = newctx.path_scope | ctx.stmt_path_scope
             set_expr = self.visit(ir_set.expr)
 
         if isinstance(set_expr, ResTargetList):
@@ -1311,7 +1431,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             set_expr = self.visit(ir_expr)
 
             for path_id in list(set_expr.path_bonds):
-                if path_id.is_in_scope(path_scope):
+                if not path_id.is_in_scope(path_scope):
                     set_expr.path_bonds.discard(path_id)
 
         if not set_expr.path_bonds:
@@ -1401,70 +1521,50 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 target = pgast.ResTarget(name=alias, val=pgexpr)
                 query.target_list.append(target)
 
-    def _ensure_correct_set(self, stmt, query):
+    def _ensure_correct_set(self, stmt, query, enforce_uniqueness=False):
+        # Make sure that the set returned by the *query* does not
+        # contain NULL values.
         ctx = self.context.current
 
         restype = irutils.infer_type(stmt.result, ctx.schema)
-        if not isinstance(restype, s_atoms.Atom):
-            return
+        if not isinstance(restype, (s_atoms.Atom, s_obj.Array, s_obj.Map)):
+            return query
 
-        target_list = query.target_list
+        with self.context.new() as subctx:
+            # This is a simple wrapper, make sure path bond
+            # conditions do not get injected unnecessarily.
+            subctx.path_bonds = {}
+            wrapper = self._wrap_set_rel_as_value(stmt.result, query)
 
-        wrapper = pgast.SelectStmt(
-            target_list=target_list,
-            from_clause=query.from_clause,
-            where_clause=query.where_clause,
-            group_clause=query.group_clause,
-            sort_clause=query.sort_clause,
-            path_outputs=query.path_outputs.copy(),
-            path_bonds=query.path_bonds.copy(),
-            path_namespace=query.path_namespace.copy(),
-            path_rvar_map=query.path_rvar_map.copy(),
-            view_path_id_map=query.view_path_id_map.copy(),
-            ptr_join_map=query.ptr_join_map.copy(),
-            distinct_clause=[pgast.Constant(val=1)]
-        )
+            if enforce_uniqueness:
+                orig_sort = list(query.sort_clause)
+                for i, sortby in enumerate(query.sort_clause):
+                    query.target_list.append(
+                        pgast.ResTarget(val=sortby.node, name=f's{i}')
+                    )
+                query.sort_clause = [pgast.SortBy(node=pgast.Constant(val=1))]
 
-        orig_sort = list(wrapper.sort_clause)
-        for i, sortby in enumerate(wrapper.sort_clause):
-            target_list.append(
-                pgast.ResTarget(val=sortby.node, name=f's{i}')
-            )
+                query.distinct_clause = [pgast.Star()]
 
-        wrapper.sort_clause = [pgast.SortBy(node=pgast.Constant(val=1))]
+                for i, orig_sortby in enumerate(orig_sort):
+                    wrapper.sort_clause.append(
+                        pgast.SortBy(
+                            node=self._get_column(
+                                wrapper.from_clause[0], f's{i}'),
+                            dir=orig_sortby.dir,
+                            nulls=orig_sortby.nulls
+                        )
+                    )
 
-        wrapper_rvar = pgast.RangeSubselect(
-            subquery=wrapper,
-            alias=pgast.Alias(
-                aliasname=ctx.genalias('csw')
-            )
-        )
+        resref = self._get_path_var(wrapper, stmt.result.path_id)
+        wrapper.where_clause = self._extend_binop(
+            wrapper.where_clause, pgast.NullTest(arg=resref, negated=True))
 
-        val_alias = ctx.genalias('v')
-        target_list[0].name = val_alias
-        ref = self._get_column(wrapper_rvar, val_alias)
+        # Pull the CTEs up.
+        wrapper.ctes = query.ctes
+        query.ctes = []
 
-        query.target_list = [
-            pgast.ResTarget(
-                val=ref
-            )
-        ]
-        query.from_clause = [wrapper_rvar]
-        query.where_clause = pgast.NullTest(arg=ref, negated=True)
-        query.group_clause = []
-        query.sort_clause = []
-        for i, orig_sortby in enumerate(orig_sort):
-            query.sort_clause.append(
-                pgast.SortBy(
-                    node=self._get_column(wrapper_rvar, f's{i}'),
-                    dir=orig_sortby.dir,
-                    nulls=orig_sortby.nulls
-                )
-            )
-        self._reset_path_namespace(query)
-        query.path_rvar_map.clear()
-        self._pull_path_namespace(
-            source=wrapper_rvar, target=query, pull_bonds=True)
+        return wrapper
 
     def _process_orderby(self, sorter):
         with self.context.new() as ctx:
@@ -1477,15 +1577,6 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                     dir=expr.direction,
                     nulls=expr.nones_order)
                 query.sort_clause.append(sortexpr)
-
-    def _process_groupby(self, grouper):
-        with self.context.new() as ctx:
-            ctx.clause = 'groupby'
-            query = ctx.query
-
-            for expr in grouper:
-                groupexpr = self.visit(expr)
-                query.group_clause.append(groupexpr)
 
     def _get_column(self, rvar, colspec, *, grouped=False):
         if isinstance(colspec, pgast.ColumnRef):
@@ -1539,7 +1630,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         ctx = self.context.current
 
         if isinstance(ir_set.expr, irast.Stmt):
-            expr = ir_set.expr.result
+            expr = ir_set.expr.result.expr
         else:
             expr = ir_set.expr
 
@@ -1858,24 +1949,37 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         return path_id
 
-    def _pull_path_namespace(self, *, target, source, pull_bonds=True):
+    def _pull_path_namespace(self, *, target, source, pull_bonds=True,
+                             replace_bonds=True):
         ctx = self.context.current
 
         squery = source.query
-        for path_id in squery.path_rvar_map:
-            path_id = self._reverse_map_path_id(
-                path_id, target.view_path_id_map)
-            if path_id not in target.path_rvar_map:
-                self._put_path_rvar(target, path_id, source)
+        if self._is_set_op_query(squery):
+            # Set op query
+            source_qs = [squery, squery.larg, squery.rarg]
+        else:
+            source_qs = [squery]
 
-        if pull_bonds:
-            for path_id in squery.path_bonds:
+        for source_q in source_qs:
+            outputs = {o[0] for o in source_q.path_outputs}
+            s_paths = set(source_q.path_rvar_map) | outputs
+            for path_id in s_paths:
                 path_id = self._reverse_map_path_id(
                     path_id, target.view_path_id_map)
-                self._put_path_bond(target, path_id)
-                bond = LazyPathVarRef(self._get_rvar_path_var, source, path_id)
-                ctx.path_bonds[path_id] = bond
-                ctx.path_bonds_by_stmt[ctx.stmt][path_id] = bond
+                if path_id not in target.path_rvar_map:
+                    self._put_path_rvar(target, path_id, source)
+
+            if pull_bonds:
+                for path_id in source_q.path_bonds:
+                    if path_id in target.path_bonds and not replace_bonds:
+                        continue
+                    path_id = self._reverse_map_path_id(
+                        path_id, target.view_path_id_map)
+                    self._put_path_bond(target, path_id)
+                    bond = LazyPathVarRef(
+                        self._get_rvar_path_var, source, path_id)
+                    ctx.path_bonds[path_id] = bond
+                    ctx.path_bonds_by_stmt[ctx.stmt][path_id] = bond
 
     def _get_path_var(self, rel, path_id):
         """Make sure the value of the *ir_set* path is present in namespace."""
@@ -1904,9 +2008,11 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             ptrname = None
             alias = common.edgedb_name_to_pg_name(path_id[-1].name)
 
-        if getattr(rel, 'op', None) is not None:
+        if self._is_set_op_query(rel):
+            alias = ctx.genalias(alias)
+
             cb = functools.partial(
-                self._get_path_output,
+                self._get_path_output_or_null,
                 path_id=path_id,
                 alias=alias)
 
@@ -1953,10 +2059,13 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                     # This is an atomic set derived from an expression.
                     src_path_id = path_id
 
-        rel_rvar = rel.path_rvar_map.get(src_path_id)
+        rel_rvar = rel.path_rvar_map.get(path_id)
         if rel_rvar is None:
-            raise LookupError(
-                f'cannot find source range for path {src_path_id} in {rel}')
+            rel_rvar = rel.path_rvar_map.get(src_path_id)
+            if rel_rvar is None:
+                raise LookupError(
+                    f'cannot find source range for '
+                    f'path {src_path_id} in {rel}')
 
         colname = None
 
@@ -2074,6 +2183,20 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         return alias
 
+    def _get_path_output_or_null(self, rel, path_id, alias):
+        try:
+            alias = self._get_path_output(rel, path_id, alias=alias)
+        except LookupError:
+            restarget = pgast.ResTarget(
+                name=alias,
+                val=pgast.Constant(val=None))
+            if hasattr(rel, 'returning_list'):
+                rel.returning_list.append(restarget)
+            else:
+                rel.target_list.append(restarget)
+
+        return alias
+
     def _put_path_output(self, stmt, path_id, alias, *, raw=False):
         path_id = self._proper_path_id(path_id)
         canonical_path_id = self._get_canonical_path_id(path_id)
@@ -2097,6 +2220,15 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         assert path_id
         path_id = self._get_canonical_path_id(self._proper_path_id(path_id))
         stmt.path_rvar_map[path_id] = rvar
+
+    def _get_set_rvar(self, stmt, ir_set):
+        ctx = self.context.current
+
+        cte = self._get_set_cte(ir_set)
+        if cte is None:
+            return None
+        else:
+            return ctx.subquery_map[stmt].get(cte)
 
     def _rvar_for_rel(self, rel, lateral=False):
         ctx = self.context.current
@@ -2137,3 +2269,6 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             raise err from e
 
         return codegen
+
+    def _is_set_op_query(self, query):
+        return getattr(query, 'op', None) is not None
