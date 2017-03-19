@@ -35,9 +35,6 @@ class Connection:
     def get_optimize(self):
         return self._optimize
 
-    async def query(self, query, *args):
-        return await self._protocol.execute(query, *args)
-
     async def execute(self, query, *args, graphql=False, flags={}):
         return await self._protocol.execute_script(
             query,
@@ -45,6 +42,9 @@ class Connection:
             graphql=graphql,
             optimize=self._optimize,
             flags=flags)
+
+    def get_last_timings(self):
+        return self._protocol._last_timings
 
     def close(self):
         self._transport.close()

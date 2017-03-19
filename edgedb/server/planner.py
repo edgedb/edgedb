@@ -27,7 +27,7 @@ class TransactionStatement:
         return '<{} {!r} at 0x{:x}>'.format(self.__name__, self.op, id(self))
 
 
-def plan_statement(stmt, backend, flags={}, *, optimize=False):
+def plan_statement(stmt, backend, flags={}, *, optimize=False, timer):
     if isinstance(stmt, qlast.Database):
         # CREATE/ALTER/DROP DATABASE
         return s_ddl.cmd_from_ddl(stmt, schema=backend.schema)
@@ -46,6 +46,7 @@ def plan_statement(stmt, backend, flags={}, *, optimize=False):
 
     else:
         # Queries
-        ir = ql_compiler.compile_ast_to_ir(stmt, schema=backend.schema)
+        with timer.timeit('compile_eql_to_ir'):
+            ir = ql_compiler.compile_ast_to_ir(stmt, schema=backend.schema)
         return backend.compile(ir, output_format='json',
-                               optimize=optimize)
+                               optimize=optimize, timer=timer)

@@ -98,14 +98,25 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         return qtree
 
     def transform(self, ir_expr, *, schema, backend=None, output_format=None,
-                  ignore_shapes=False, optimize=False):
-        qtree = self.transform_to_sql_tree(
-            ir_expr, schema=schema, backend=backend,
-            output_format=output_format, ignore_shapes=ignore_shapes)
+                  ignore_shapes=False, optimize=False, timer=None):
+
+        if timer is None:
+            qtree = self.transform_to_sql_tree(
+                ir_expr, schema=schema, backend=backend,
+                output_format=output_format, ignore_shapes=ignore_shapes)
+        else:
+            with timer.timeit('compile_ir_to_sql'):
+                qtree = self.transform_to_sql_tree(
+                    ir_expr, schema=schema, backend=backend,
+                    output_format=output_format, ignore_shapes=ignore_shapes)
 
         if optimize:
             opt = pg_opt.Optimizer()
-            qtree = opt.optimize(qtree)
+            if timer is None:
+                qtree = opt.optimize(qtree)
+            else:
+                with timer.timeit('optimize'):
+                    qtree = opt.optimize(qtree)
 
         argmap = self.context.current.argmap
 

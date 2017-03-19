@@ -37,6 +37,8 @@ class Protocol(asyncio.Protocol):
         self._waiter = None
         self._state = ConnectionState.NOT_CONNECTED
 
+        self._last_timings = None
+
     def connection_made(self, transport):
         self.transport = transport
         self._init_connection()
@@ -47,17 +49,6 @@ class Protocol(asyncio.Protocol):
     def data_received(self, data):
         msg = json.loads(data.decode('utf-8'))
         self.process_message(msg)
-
-    def execute(self, query):
-        msg = {
-            '__type__': 'query',
-            'query': query
-        }
-
-        self._waiter = create_future(self._loop)
-        self.send_message(msg)
-
-        return self._waiter
 
     def execute_script(self, script, *, graphql=False, optimize=False,
                        flags={}):
@@ -96,6 +87,7 @@ class Protocol(asyncio.Protocol):
         elif message['__type__'] == 'result':
             if self._waiter is not None:
                 self._waiter.set_result(message['result'])
+                self._last_timings = message['timings']
             self._waiter = None
 
     def _init_connection(self):

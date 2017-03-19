@@ -6,8 +6,10 @@
 ##
 
 import asyncio
+import contextlib
 import enum
 import json
+import time
 import traceback
 
 from edgedb.lang import edgeql
@@ -25,6 +27,28 @@ from edgedb.lang.common import debug
 from edgedb.lang.common import markup
 from edgedb.lang.common import exceptions
 from edgedb.lang.common import parsing
+
+
+class Timer:
+    __slots__ = ('parse_eql', 'compile_eql_to_ir', 'compile_ir_to_sql',
+                 'optimize', 'graphql_translation', 'execution')
+
+    def __init__(self):
+        for attr in self.__slots__:
+            setattr(self, attr, 0)
+
+    @contextlib.contextmanager
+    def timeit(self, name):
+        start = time.monotonic()
+        try:
+            yield
+        finally:
+            delta = time.monotonic() - start
+            prev = getattr(self, name)
+            setattr(self, name, prev + delta)
+
+    def as_dict(self):
+        return {k: getattr(self, k) for k in self.__slots__}
 
 
 class ConnectionState(enum.Enum):
@@ -144,18 +168,25 @@ class Protocol(asyncio.Protocol):
 
     async def _run_script(self, script, *,
                           graphql=False, optimize=False, flags={}):
-        if graphql:
-            script = graphql_compiler.translate(
-                self.backend.schema, script, {}) + ';'
+        timer = Timer()
 
-        statements = edgeql.parse_block(script)
+        if graphql:
+            with timer.timeit('graphql_translation'):
+                script = graphql_compiler.translate(
+                    self.backend.schema, script, {}) + ';'
+
+        with timer.timeit('parse_eql'):
+            statements = edgeql.parse_block(script)
 
         results = []
 
         for statement in statements:
-            plan = planner.plan_statement(statement, self.backend, flags,
-                                          optimize=optimize)
-            result = await executor.execute_plan(plan, self)
+            plan = planner.plan_statement(
+                statement, self.backend, flags, timer=timer, optimize=optimize)
+
+            with timer.timeit('execution'):
+                result = await executor.execute_plan(plan, self)
+
             if result is not None and isinstance(result, list):
                 loaded = []
                 for row in result:
@@ -166,7 +197,7 @@ class Protocol(asyncio.Protocol):
                 result = loaded
             results.append(result)
 
-        return results
+        return results, timer.as_dict()
 
     def _on_pg_connect(self, fut):
         try:
@@ -196,7 +227,7 @@ class Protocol(asyncio.Protocol):
 
     def _on_script_done(self, fut):
         try:
-            result = fut.result()
+            result, timings = fut.result()
         except asyncio.CancelledError:
             return
         except Exception as e:
@@ -205,4 +236,5 @@ class Protocol(asyncio.Protocol):
 
         self.state = ConnectionState.READY
 
-        self.send_message({'__type__': 'result', 'result': result})
+        self.send_message({'__type__': 'result', 'result': result,
+                           'timings': timings})

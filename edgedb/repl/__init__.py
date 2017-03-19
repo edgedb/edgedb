@@ -90,6 +90,9 @@ class Cli:
         pt_token.Token.Number: '#9a79d7',
         pt_token.Token.Number.Integer: '#9a79d7',
         pt_token.Token.Number.Float: '#9a79d7',
+
+        pt_token.Token.Timing.Key: '#555',
+        pt_token.Token.Timing.Value: '#888',
     })
 
     exit_commands = {'exit', 'quit', '\q', ':q'}
@@ -267,9 +270,53 @@ class Cli:
                     continue
 
                 markup.dump(result)
+                self.print_timings(self.connection.get_last_timings())
 
         except EOFError:
             return
+
+    def print_timings(self, timings):
+        def render_delta(t):
+            f = 's'
+            if not round(t):
+                t *= 1000.0
+                if round(t):
+                    f = 'ms'
+                else:
+                    t *= 1000.0
+                    if round(t):
+                        f = 'us'
+                    else:
+                        t *= 1000.0
+                        f = 'ns'
+            return f'{t:.2f}{f}'
+
+        timings = self.connection.get_last_timings()
+        if timings is None:
+            return
+
+        buf = {}
+        if timings.get('graphql_translation'):
+            buf['GraphQL->EdgeQL'] = render_delta(timings.get('graphql_translation'))
+        if timings.get('parse_eql'):
+            buf['Parse'] = render_delta(timings.get('parse_eql'))
+        if timings.get('compile_eql_to_ir'):
+            buf['EdgeQL->IR'] = render_delta(timings.get('compile_eql_to_ir'))
+        if timings.get('compile_ir_to_sql'):
+            buf['IR->SQL'] = render_delta(timings.get('compile_ir_to_sql'))
+        if timings.get('optimize'):
+            buf['Opt'] = render_delta(timings.get('optimize'))
+        if timings.get('execution'):
+            buf['Exec'] = render_delta(timings.get('execution'))
+
+        if buf:
+            tokens = []
+            for k, v in buf.items():
+                tokens.append((pt_token.Token.Timing.Key, f'{k}: '))
+                tokens.append((pt_token.Token.Timing.Value, f'{v}  '))
+
+            pt_shortcuts.print_tokens(tokens, style=self.style)
+            print()
 
 
 async def execute(conn_args, data):
