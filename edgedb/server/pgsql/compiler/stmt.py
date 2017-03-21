@@ -81,10 +81,6 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 ctx.expr_exposed = False
             qtree = self.visit(ir_expr)
 
-            if debug.flags.edgeql_compile:  # pragma: no cover
-                debug.header('SQL Tree')
-                debug.dump(qtree)
-
         except Exception as e:  # pragma: no cover
             try:
                 args = [e.args[0]]
@@ -110,6 +106,10 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                     ir_expr, schema=schema, backend=backend,
                     output_format=output_format, ignore_shapes=ignore_shapes)
 
+        if debug.flags.edgeql_compile:  # pragma: no cover
+            debug.header('SQL Tree')
+            debug.dump(qtree)
+
         if optimize:
             opt = pg_opt.Optimizer()
             if timer is None:
@@ -121,7 +121,12 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         argmap = self.context.current.argmap
 
         # Generate query text
-        codegen = self._run_codegen(qtree)
+        if timer is None:
+            codegen = self._run_codegen(qtree)
+        else:
+            with timer.timeit('compile_ir_to_sql'):
+                codegen = self._run_codegen(qtree)
+
         qchunks = codegen.result
         arg_index = codegen.param_index
 
