@@ -7,7 +7,6 @@
 
 
 import os.path
-import unittest
 
 from edgedb.server import _testbase as tb
 
@@ -409,8 +408,6 @@ class TestIntrospection(tb.QueryTestCase):
             ]
         ])
 
-    # XXX: aggregates with empty input currently return EMPTY
-    @unittest.expectedFailure
     async def test_edgeql_introspection_count01(self):
         await self.con.execute(r"""
             WITH MODULE test

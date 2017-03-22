@@ -2495,12 +2495,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_cross08(self):
         await self.assert_query_result(r"""
             WITH MODULE test
-            SELECT _ := Issue.owner.name + <str>count(ALL Issue.watchers.name);
+            SELECT _ := Issue.owner.name + <str>count(ALL Issue.watchers.name)
+            ORDER BY _;
             """, [
-            ['Elvis1', 'Yury1'],
+            ['Elvis0', 'Elvis1', 'Yury1'],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_cross09(self):
         await self.assert_query_result(r"""
             WITH MODULE test

@@ -86,6 +86,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.parent_path_bonds = {}
             self.path_scope = set()
             self.stmt_path_scope = set()
+            self.stmt_specific_path_scope = set()
 
         else:
             self.backend = prevlevel.backend
@@ -134,6 +135,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.parent_path_bonds = prevlevel.parent_path_bonds
             self.path_scope = prevlevel.path_scope
             self.stmt_path_scope = prevlevel.stmt_path_scope
+            self.stmt_specific_path_scope = prevlevel.stmt_specific_path_scope
 
             if mode in {ContextSwitchMode.SUBQUERY,
                         ContextSwitchMode.SUBSTMT}:
@@ -162,6 +164,7 @@ class CompilerContextLevel(compiler.ContextLevel):
                 self.parent_path_bonds = prevlevel.path_bonds
                 self.computed_node_rels = prevlevel.computed_node_rels.copy()
                 self.parent_var_scope = prevlevel.parent_var_scope.copy()
+                self.stmt_specific_path_scope = set()
 
     def genalias(self, hint):
         m = re.search(r'~\d+$', hint)

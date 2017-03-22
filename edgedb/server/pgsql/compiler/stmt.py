@@ -158,6 +158,10 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             ctx.stmt_path_scope = \
                 {p for p, uses in stmt.path_scope.items() if uses > 1}
 
+            ctx.stmt_specific_path_scope = \
+                {s for s in stmt.specific_path_scope
+                 if s.path_id in ctx.stmt_path_scope}
+
             ctx.stmtmap[stmt] = ctx.stmt
             ctx.stmt_hierarchy[ctx.stmt] = parent_ctx.stmt
 
@@ -172,9 +176,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 self._put_path_output(query, stmt.result.path_id, resalias)
 
             if query is not ctx.toplevel_stmt:
-                specific_scope = {s for s in stmt.specific_path_scope
-                                  if (s.path_id in ctx.stmt_path_scope and
-                                      s.path_id in ctx.parent_path_bonds)}
+                specific_scope = {s for s in ctx.stmt_specific_path_scope
+                                  if s.path_id in ctx.parent_path_bonds}
 
                 for ir_set in specific_scope:
                     if (isinstance(ir_set.scls, s_concepts.Concept) and
@@ -1006,9 +1009,12 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
                 elif is_concept_ref:
                     # Direct reference to another object.
+                    map_join_type = 'left' if ctx.lax_paths else 'inner'
+
                     self._join_inline_rel(
                         stmt=stmt, set_rvar=set_rvar, ir_set=ir_set,
-                        back_id_col=ptr_info.column_name)
+                        back_id_col=ptr_info.column_name,
+                        join_type=map_join_type)
 
                 else:
                     # The path step target is stored in the root relation.
@@ -1392,6 +1398,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
             with self.context.new() as argctx:
                 argctx.in_aggregate = True
+                argctx.lax_paths = True
 
                 # We want array_agg() (and similar) to do the right
                 # thing with respect to output format, so, barring
@@ -1999,7 +2006,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             rarg=set_rvar,
             quals=cond_expr)
 
-    def _join_inline_rel(self, *, stmt, set_rvar, ir_set, back_id_col):
+    def _join_inline_rel(self, *, stmt, set_rvar, ir_set, back_id_col,
+                         join_type='inner'):
         if ir_set.rptr.direction == s_pointers.PointerDirection.Inbound:
             id_col = back_id_col
             src_ref = self._get_path_var(stmt, ir_set.rptr.source.path_id)
@@ -2014,7 +2022,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         cond_expr = self._new_binop(src_ref, tgt_ref, op='=')
 
         stmt.from_clause[0] = pgast.JoinExpr(
-            type='inner',
+            type=join_type,
             larg=fromexpr,
             rarg=set_rvar,
             quals=cond_expr)
@@ -2072,7 +2080,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             for path_id in s_paths:
                 path_id = self._reverse_map_path_id(
                     path_id, target.view_path_id_map)
-                if path_id not in target.path_rvar_map:
+                if path_id not in target.path_rvar_map or replace_bonds:
                     self._put_path_rvar(target, path_id, source)
 
             if pull_bonds:
@@ -2126,7 +2134,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             self._put_path_output(rel, path_id, alias)
             return self._get_column(None, alias)
 
-        ptr_info = parent_ptr_info = parent_ptrcls = None
+        ptr_info = parent_ptr_info = parent_ptrcls = parent_dir = None
         if ptrcls is not None:
             ptr_info = pg_types.get_pointer_storage_info(
                 ptrcls, resolve_type=False, link_bias=False)
@@ -2135,6 +2143,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             if parent_ptrcls is not None:
                 parent_ptr_info = pg_types.get_pointer_storage_info(
                     parent_ptrcls, resolve_type=False, link_bias=False)
+
+                parent_dir = path_id[:-2].rptr_dir()
 
         if isinstance(ptrcls, s_lprops.LinkProperty):
             if ptr_info.table_type == 'link':
@@ -2148,7 +2158,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             if ptrcls is not None:
                 if (parent_ptr_info is not None and
                         parent_ptr_info.table_type == 'concept' and
-                        ptrname == 'std::id'):
+                        ptrname == 'std::id' and
+                        parent_dir == s_pointers.PointerDirection.Outbound):
                     # Link to object with target stored directly in
                     # source table.
                     src_path_id = path_id[:-4]
