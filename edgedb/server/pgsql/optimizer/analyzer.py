@@ -45,16 +45,16 @@ class Relation:
 
         query: pgast.SelectStmt = self.node.query
 
-        for node in query.target_list:
-            if node.name is not None:
-                if node.name == name:
-                    return node.val
-                else:
-                    continue
-
+        for node in query.target_list:  # type: pgast.ResTarget
             col_ref = node.val
             if isinstance(col_ref, pgast._Ref):
                 col_ref = col_ref.node
+
+            if node.name is not None:
+                if node.name == name:
+                    return col_ref
+                else:
+                    continue
 
             if isinstance(col_ref, pgast.ColumnRef):
                 if col_ref.name[-1] == name:
@@ -87,6 +87,7 @@ class QueryInfo:
 
 
 class ContextLevel(compiler.ContextLevel):
+
     current_query: pgast.Query
 
     def __init__(self, prevlevel=None, mode=None):
@@ -97,6 +98,7 @@ class ContextLevel(compiler.ContextLevel):
 
 
 class Context(compiler.CompilerContext):
+
     ContextLevelClass = ContextLevel
     default_mode = None
 

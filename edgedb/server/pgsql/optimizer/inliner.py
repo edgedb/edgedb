@@ -172,11 +172,11 @@ def optimize(qi: analyzer.QueryInfo):
         for query, alias in rel.used_in.items():
 
             if rel.strategy is analyzer.InlineStrategy.Merge:
-                inline_count += 1
                 inlined = merge(qi, rel, alias, query, inline_count)
 
-                if not inlined:
-                    inline_count -= 1
+                if inlined:
+                    inline_count += 1
+                else:
                     remove_rel = False
 
             elif rel.strategy is analyzer.InlineStrategy.Subquery:
