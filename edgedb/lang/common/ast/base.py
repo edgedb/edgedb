@@ -253,21 +253,18 @@ def fix_parent_links(node):
     return node
 
 
+_marker = object()
+
+
 def iter_fields(node, *, include_meta=True):
-    if include_meta:
-        for field_name in node._fields:
-            try:
-                yield field_name, getattr(node, field_name)
-            except AttributeError:
-                pass
-    else:
-        for field_name, field in node._fields.items():
-            if field.meta:
-                continue
-            try:
-                yield field_name, getattr(node, field_name)
-            except AttributeError:
-                pass
+    exclude_meta = not include_meta
+    for field_name, field in node._fields.items():
+        if exclude_meta and field.meta:
+            continue
+        field_val = getattr(node, field_name, _marker)
+        if field_val is _marker:
+            continue
+        yield field_name, field_val
 
 
 def _is_union(type_):
