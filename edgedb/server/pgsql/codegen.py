@@ -384,6 +384,16 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.write(' AS ')
             self.visit(node.alias)
 
+    def visit_RangeFunction(self, node):
+        if node.lateral:
+            self.write('LATERAL ')
+
+        self.visit_list(node.functions)
+
+        if node.alias:
+            self.write(' AS ')
+            self.visit(node.alias)
+
     def visit_ColumnRef(self, node):
         names = node.name
         if isinstance(names[-1], pgast.Star):
@@ -503,13 +513,13 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
         if node.over:
             self.write(' OVER (')
-            if node.over.partition:
+            if node.over.partition_clause:
                 self.write('PARTITION BY ')
-                self.visit_list(node.over.partition, newlines=False)
+                self.visit_list(node.over.partition_clause, newlines=False)
 
-            if node.over.orderby:
+            if node.over.order_clause:
                 self.write(' ORDER BY ')
-                self.visit_list(node.over.orderby, newlines=False)
+                self.visit_list(node.over.order_clause, newlines=False)
 
             # XXX: add support for frame definition
 

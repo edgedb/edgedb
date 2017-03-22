@@ -332,11 +332,20 @@ class IRCompilerBase(ast.visitor.NodeVisitor, dbobj.IRCompilerDBObjects):
                 result = self._new_unop(ast.ops.NOT, result)
 
         else:
+            if not isinstance(expr.left, irast.EmptySet):
+                left_type = irutils.infer_type(expr.left, ctx.schema)
+            else:
+                left_type = None
+
+            if not isinstance(expr.right, irast.EmptySet):
+                right_type = irutils.infer_type(expr.right, ctx.schema)
+            else:
+                right_type = None
+
             if (expr.op in (ast.ops.IN, ast.ops.NOT_IN) and
                     isinstance(irutils.infer_type(expr.right, ctx.schema),
                                s_obj.Array)):
 
-                left_type = irutils.infer_type(expr.left, ctx.schema)
                 if isinstance(left_type, s_atoms.Atom) and left_type.bases:
                     # Cast atom refs to the base type in aggregate expressions,
                     # since PostgreSQL does not create array types for custom
@@ -367,31 +376,26 @@ class IRCompilerBase(ast.visitor.NodeVisitor, dbobj.IRCompilerDBObjects):
 
             if (not isinstance(expr.left, irast.EmptySet) and
                     not isinstance(expr.right, irast.EmptySet)):
+                left_pg_type = pg_types.pg_type_from_object(
+                    ctx.schema, left_type, True)
 
-                left_type = irutils.infer_type(expr.left, ctx.schema)
-                right_type = irutils.infer_type(expr.right, ctx.schema)
+                right_pg_type = pg_types.pg_type_from_object(
+                    ctx.schema, right_type, True)
 
-                if left_type and right_type:
-                    left_pg_type = pg_types.pg_type_from_object(
-                        ctx.schema, left_type, True)
+                if (left_pg_type in {('text',), ('varchar',)} and
+                        right_pg_type in {('text',), ('varchar',)} and
+                        op == ast.ops.ADD):
+                    op = '||'
 
-                    right_pg_type = pg_types.pg_type_from_object(
-                        ctx.schema, right_type, True)
-
-                    if (left_pg_type in {('text',), ('varchar',)} and
-                            right_pg_type in {('text',), ('varchar',)} and
-                            op == ast.ops.ADD):
-                        op = '||'
-
-            if isinstance(left, ResTargetList):
-                left_count = len(left.targets)
-                left = pgast.RowExpr(args=left.targets)
+            if isinstance(left_type, s_obj.Struct):
+                left = self._tuple_to_row_expr(expr.left)
+                left_count = len(left.args)
             else:
                 left_count = 0
 
             if isinstance(right, ResTargetList):
-                right_count = len(right.targets)
-                right = pgast.RowExpr(args=right.targets)
+                right = self._tuple_to_row_expr(expr.right)
+                right_count = len(right.args)
             else:
                 right_count = 0
 
@@ -587,13 +591,13 @@ class IRCompilerBase(ast.visitor.NodeVisitor, dbobj.IRCompilerDBObjects):
                             )
                         ],
                         from_clause=[
-                            pgast.RangeSubselect(
-                                subquery=pgast.FuncCall(
+                            pgast.RangeFunction(
+                                functions=[pgast.FuncCall(
                                     name=('jsonb_array_elements',),
                                     args=[
                                         node
                                     ]
-                                ),
+                                )],
                                 alias=pgast.Alias(
                                     aliasname='j'
                                 )
@@ -662,13 +666,13 @@ class IRCompilerBase(ast.visitor.NodeVisitor, dbobj.IRCompilerDBObjects):
                         )
                     ],
                     from_clause=[
-                        pgast.RangeSubselect(
-                            subquery=pgast.FuncCall(
+                        pgast.RangeFunction(
+                            functions=[pgast.FuncCall(
                                 name=('jsonb_each_text',),
                                 args=[
                                     node
                                 ]
-                            )
+                            )]
                         )
                     ])
 
@@ -840,3 +844,18 @@ class IRCompilerBase(ast.visitor.NodeVisitor, dbobj.IRCompilerDBObjects):
             name=tuple(typename),
             array_bounds=array_bounds
         )
+
+    def _tuple_to_row_expr(self, tuple_expr):
+        ctx = self.context.current
+
+        tuple_type = irutils.infer_type(tuple_expr, ctx.schema)
+        subtypes = tuple_type.element_types
+        row = []
+        for n in subtypes:
+            ref = irutils.new_expression_set(
+                irast.StructIndirection(expr=tuple_expr, name=n),
+                ctx.schema
+            )
+            row.append(self.visit(ref))
+
+        return pgast.RowExpr(args=row)

@@ -152,10 +152,20 @@ def get_canonical_set(ir_expr):
         return ir_expr
 
 
-def ensure_stmt(ir_expr):
-    if not isinstance(ir_expr, irast.Stmt):
-        ir_expr = irast.SelectStmt(result=ir_expr)
-    return ir_expr
+def wrap_stmt_set(ir_set):
+    if is_subquery_set(ir_set):
+        src_stmt = ir_set.expr
+    elif is_inner_view_reference(ir_set):
+        src_stmt = ir_set.view_source.expr
+    else:
+        raise ValueError('expecting subquery IR set or a view reference')
+
+    stmt = irast.SelectStmt(
+        result=ir_set,
+        path_scope=src_stmt.path_scope,
+        specific_path_scope=src_stmt.specific_path_scope
+    )
+    return stmt
 
 
 def is_simple_wrapper(ir_expr):
@@ -165,4 +175,24 @@ def is_simple_wrapper(ir_expr):
     return (
         isinstance(ir_expr.result, irast.Stmt) or
         is_subquery_set(ir_expr.result)
+    )
+
+
+def new_expression_set(ir_expr, schema, path_id=None):
+    result_type = infer_type(ir_expr, schema)
+
+    if isinstance(ir_expr, irast.TypeFilter):
+        type_expr = ir_expr.expr
+    else:
+        type_expr = ir_expr
+
+    if path_id is None:
+        path_id = getattr(type_expr, 'path_id', None)
+        if not path_id:
+            path_id = irast.PathId([infer_type(type_expr, schema)])
+
+    return irast.Set(
+        path_id=path_id,
+        scls=result_type,
+        expr=ir_expr,
     )

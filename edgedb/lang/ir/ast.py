@@ -129,9 +129,16 @@ class PathId(tuple):
             else:
                 break
 
-    def is_in_scope(self, scope):
+    def starts_any_of(self, scope):
         for path_id in scope:
             if path_id.startswith(self):
+                return True
+        else:
+            return False
+
+    def is_in_scope(self, scope):
+        for path_id in scope:
+            if self.startswith(path_id):
                 return True
         else:
             return False
@@ -249,6 +256,8 @@ class Set(Base):
     anchor: str
     show_as_anchor: str
     shape: typing.List[Base]
+    path_scope: typing.Dict[PathId, int]
+    specific_path_scope: typing.Set[Base]
 
     def __repr__(self):
         return \
@@ -431,10 +440,7 @@ class SelectStmt(Stmt):
 class GroupStmt(Stmt):
     subject: Base
     groupby: typing.List[Base]
-    where: Base
-    orderby: typing.List[SortExpr]
-    offset: Base
-    limit: Base
+    result: SelectStmt
 
 
 class MutatingStmt(Stmt):

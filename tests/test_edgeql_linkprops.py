@@ -7,10 +7,9 @@
 
 
 import os.path
-import unittest
+import unittest  # NOQA
 
 from edgedb.server import _testbase as tb
-from edgedb.client import exceptions as exc
 
 
 class TestEdgeQLLinkproperties(tb.QueryTestCase):
@@ -374,6 +373,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ]
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_props_basic03(self):
         await self.assert_query_result(r'''
             # get only users who have the same count and cost in the decks

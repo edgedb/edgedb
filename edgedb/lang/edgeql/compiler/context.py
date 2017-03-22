@@ -102,6 +102,7 @@ class ContextLevel(compiler.ContextLevel):
             self.group_paths = set()
             self.path_scope = collections.defaultdict(int)
             self.stmt_path_scope = collections.defaultdict(int)
+            self.pending_path_scope = set()
             self.aggregated_scope = {}
             self.unaggregated_scope = {}
             self.in_aggregate = False
@@ -116,6 +117,7 @@ class ContextLevel(compiler.ContextLevel):
             self.arguments = prevlevel.arguments
             self.toplevel_shape_rptrcls = prevlevel.toplevel_shape_rptrcls
             self.path_scope = prevlevel.path_scope
+            self.pending_path_scope = prevlevel.pending_path_scope
             self.aggregated_scope = prevlevel.aggregated_scope
             self.unaggregated_scope = prevlevel.unaggregated_scope
 
@@ -157,6 +159,8 @@ class ContextLevel(compiler.ContextLevel):
 
             if mode == ContextSwitchMode.NEWSCOPE:
                 self.path_scope = prevlevel.path_scope.copy()
+                self.stmt_path_scope = prevlevel.stmt_path_scope.copy()
+                self.pending_path_scope = set()
                 self.aggregated_scope = prevlevel.aggregated_scope.copy()
                 self.unaggregated_scope = prevlevel.unaggregated_scope.copy()
 

@@ -52,7 +52,6 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.stmt_hierarchy = {}
 
             self.clause = None
-            self.scope_cutoff = False
             self.in_exists = False
             self.in_aggregate = False
             self.aggregated_scope = set()
@@ -61,6 +60,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.in_shape = False
             self.expr_exposed = None
             self.lax_paths = 0
+            self.weak_path_bond_regime = False
             self.correct_set_assumed = False
             self.expr_injected_path_bond = None
             self.view_path_id_map = {}
@@ -80,13 +80,12 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.rel_overlays = collections.defaultdict(list)
             self.computed_node_rels = {}
             self.parent_var_scope = {}
-            self.path_id_aliases = {}
             self.path_bonds = {}
             self.path_bonds_by_stmt = collections.defaultdict(dict)
             self.parent_path_bonds = {}
-            self.path_scope = set()
-            self.stmt_path_scope = set()
+            self.stmt_path_scope = dict()
             self.stmt_specific_path_scope = set()
+            self.parent_stmt_path_scope = dict()
 
         else:
             self.backend = prevlevel.backend
@@ -101,7 +100,6 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.stmt_hierarchy = prevlevel.stmt_hierarchy
 
             self.clause = prevlevel.clause
-            self.scope_cutoff = False
             self.in_exists = prevlevel.in_exists
             self.in_aggregate = prevlevel.in_aggregate
             self.aggregated_scope = prevlevel.aggregated_scope
@@ -110,6 +108,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.in_shape = prevlevel.in_shape
             self.expr_exposed = prevlevel.expr_exposed
             self.lax_paths = prevlevel.lax_paths
+            self.weak_path_bond_regime = prevlevel.weak_path_bond_regime
             self.correct_set_assumed = prevlevel.correct_set_assumed
             self.expr_injected_path_bond = prevlevel.expr_injected_path_bond
             self.view_path_id_map = prevlevel.view_path_id_map
@@ -129,13 +128,12 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.rel_overlays = prevlevel.rel_overlays
             self.computed_node_rels = prevlevel.computed_node_rels
             self.parent_var_scope = prevlevel.parent_var_scope
-            self.path_id_aliases = prevlevel.path_id_aliases
             self.path_bonds = prevlevel.path_bonds
             self.path_bonds_by_stmt = prevlevel.path_bonds_by_stmt
             self.parent_path_bonds = prevlevel.parent_path_bonds
-            self.path_scope = prevlevel.path_scope
             self.stmt_path_scope = prevlevel.stmt_path_scope
             self.stmt_specific_path_scope = prevlevel.stmt_specific_path_scope
+            self.parent_stmt_path_scope = prevlevel.parent_stmt_path_scope
 
             if mode in {ContextSwitchMode.SUBQUERY,
                         ContextSwitchMode.SUBSTMT}:

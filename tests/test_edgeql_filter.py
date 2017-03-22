@@ -10,7 +10,6 @@ import os.path
 import unittest
 
 from edgedb.server import _testbase as tb
-from edgedb.client import exceptions as exc
 
 
 class TestEdgeQLSelect(tb.QueryTestCase):
@@ -483,29 +482,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ''', [
             [4],
         ])
-
-    async def test_edgeql_filter_aggregate02(self):
-        # FIXME: illegal usage of same expression inside and outside
-        # of aggregate
-        #
-        with self.assertRaisesRegex(exc.EdgeQLError, ''):
-            await self.con.execute(r'''
-                WITH MODULE test
-                SELECT count(ALL Issue) + <int>Issue.number;
-            ''')
-
-    async def test_edgeql_filter_aggregate03(self):
-        # FIXME: fix error
-        #
-        with self.assertRaisesRegex(exc.EdgeQLError, ''):
-            await self.con.execute(r'''
-                WITH MODULE test
-                SELECT count(ALL Issue)
-                # illegal usage of same expression inside and outside
-                # of aggregate
-                #
-                FILTER Issue.status.name = 'Open';
-            ''')
 
     async def test_edgeql_filter_aggregate04(self):
         await self.assert_query_result(r'''

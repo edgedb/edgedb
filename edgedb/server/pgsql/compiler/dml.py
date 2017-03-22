@@ -49,7 +49,7 @@ class IRCompilerDMLSupport:
             self._process_insert_body(stmt, wrapper, insert_cte)
             self._enforce_path_scope(wrapper, ctx.parent_path_bonds)
 
-        return self._fini_dml_stmt(stmt, wrapper, insert_cte, parent_ctx)
+            return self._fini_dml_stmt(stmt, wrapper, insert_cte, parent_ctx)
 
     def visit_UpdateStmt(self, stmt):
         parent_ctx = self.context.current
@@ -63,7 +63,7 @@ class IRCompilerDMLSupport:
             self._process_update_body(stmt, wrapper, update_cte, range_cte)
             self._enforce_path_scope(wrapper, ctx.parent_path_bonds)
 
-        return self._fini_dml_stmt(stmt, wrapper, update_cte, parent_ctx)
+            return self._fini_dml_stmt(stmt, wrapper, update_cte, parent_ctx)
 
     def visit_DeleteStmt(self, stmt):
         parent_ctx = self.context.current
@@ -74,7 +74,7 @@ class IRCompilerDMLSupport:
                 self._init_dml_stmt(stmt, pgast.DeleteStmt(), parent_ctx)
             self._enforce_path_scope(wrapper, ctx.parent_path_bonds)
 
-        return self._fini_dml_stmt(stmt, wrapper, delete_cte, parent_ctx)
+            return self._fini_dml_stmt(stmt, wrapper, delete_cte, parent_ctx)
 
     def _init_dml_stmt(self, ir_stmt, dml_stmt, parent_ctx):
         """Prepare the common structure of the query representing a DML stmt.
@@ -95,18 +95,15 @@ class IRCompilerDMLSupport:
 
         ctx.stmt = ctx.query = ctx.rel = wrapper = pgast.SelectStmt()
 
-        if ctx.toplevel_stmt is None:
-            ctx.toplevel_stmt = ctx.stmt
-
-        ctx.stmtmap[ir_stmt] = ctx.stmt
-        ctx.stmt_hierarchy[ctx.stmt] = parent_ctx.stmt
+        self._init_stmt(ir_stmt, ctx, parent_ctx)
 
         toplevel = ctx.toplevel_stmt
         target_ir_set = ir_stmt.subject
 
         dml_stmt.relation = self._range_for_set(
             ir_stmt.subject, include_overlays=False)
-        self._put_path_rvar(dml_stmt, target_ir_set.path_id, dml_stmt.relation)
+        self._put_path_rvar(
+            dml_stmt, target_ir_set.path_id, dml_stmt.relation)
         dml_stmt.path_bonds.add(target_ir_set.path_id)
 
         dml_cte = pgast.CommonTableExpr(

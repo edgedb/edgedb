@@ -1947,7 +1947,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT Issue {number}
             FILTER
-                Issue.priority.name ?= EMPTY
+                Issue.priority.name ?= <str>EMPTY
             ORDER BY Issue.number;
         ''', [
             [{'number': '1'}, {'number': '4'}],
@@ -1960,7 +1960,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT Issue {number}
             FILTER
-                NOT Issue.priority.name ?!= EMPTY
+                NOT Issue.priority.name ?!= <str>EMPTY
             ORDER BY Issue.number;
         ''', [
             [{'number': '1'}, {'number': '4'}],
@@ -2384,7 +2384,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             # EMPTY result, because the cross product of anything with an
             # empty set is EMPTY.
             #
-            SELECT test::Issue.number = EMPTY;
+            SELECT test::Issue.number = <str>EMPTY;
             """, [
             [],
         ])
@@ -2393,10 +2393,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             # Test short-circuiting operations with EMPTY
             #
-            SELECT test::Issue.number = '1' OR EMPTY;
-            SELECT test::Issue.number = 'X' OR EMPTY;
-            SELECT test::Issue.number = '1' AND EMPTY;
-            SELECT test::Issue.number = 'X' AND EMPTY;
+            SELECT test::Issue.number = '1' OR <bool>EMPTY;
+            SELECT test::Issue.number = 'X' OR <bool>EMPTY;
+            SELECT test::Issue.number = '1' AND <bool>EMPTY;
+            SELECT test::Issue.number = 'X' AND <bool>EMPTY;
             """, [
             [],
             [],
@@ -2408,10 +2408,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             # Test short-circuiting operations with EMPTY
             #
-            SELECT count(ALL test::Issue.number = '1' OR EMPTY);
-            SELECT count(ALL test::Issue.number = 'X' OR EMPTY);
-            SELECT count(ALL test::Issue.number = '1' AND EMPTY);
-            SELECT count(ALL test::Issue.number = 'X' AND EMPTY);
+            SELECT count(ALL test::Issue.number = '1' OR <bool>EMPTY);
+            SELECT count(ALL test::Issue.number = 'X' OR <bool>EMPTY);
+            SELECT count(ALL test::Issue.number = '1' AND <bool>EMPTY);
+            SELECT count(ALL test::Issue.number = 'X' AND <bool>EMPTY);
             """, [
             [0],
             [0],
@@ -2597,7 +2597,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_select_subqueries04(self):
         await self.assert_query_result(r"""
             WITH
@@ -3372,35 +3371,41 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         # Struct comparison
         await self.assert_query_result(r"""
             WITH
-                MODULE test
+                MODULE test,
+                U1 := User,
+                U2 := User
             SELECT
                 (user := (SELECT SINGLETON
-                          User{name} FILTER User.name = 'Yury'))
+                          U1{name} FILTER U1.name = 'Yury'))
                     =
                 (user := (SELECT SINGLETON
-                          User{name} FILTER User.name = 'Yury'));
+                          U2{name} FILTER U2.name = 'Yury'));
 
             WITH
-                MODULE test
+                MODULE test,
+                U1 := User,
+                U2 := User
             SELECT
                 (user := (SELECT SINGLETON
-                          User{name} FILTER User.name = 'Yury'))
+                          U1{name} FILTER U1.name = 'Yury'))
                     =
                 (user := (SELECT SINGLETON
-                          User{name} FILTER User.name = 'Elvis'));
+                          U2{name} FILTER U2.name = 'Elvis'));
 
             WITH
-                MODULE test
+                MODULE test,
+                U1 := User,
+                U2 := User
             SELECT
                 (
                     user := (SELECT SINGLETON
-                             User{name} FILTER User.name = 'Yury'),
+                             U1{name} FILTER U1.name = 'Yury'),
                     spam := 'ham',
                 )
                     =
                 (
                     user := (SELECT SINGLETON
-                             User{name} FILTER User.name = 'Yury'),
+                             U2{name} FILTER U2.name = 'Yury'),
                 );
 
             """, [

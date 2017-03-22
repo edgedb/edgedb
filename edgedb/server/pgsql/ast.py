@@ -88,7 +88,11 @@ class BaseRangeVar(Base):
 RangeTypes = typing.Union[BaseRangeVar, _Ref]
 
 
-class Relation(EdgeQLPathInfo):
+class BaseRelation(Base):
+    pass
+
+
+class Relation(BaseRelation, EdgeQLPathInfo):
     """Regular relation."""
 
     catalogname: str
@@ -99,7 +103,7 @@ class Relation(EdgeQLPathInfo):
 class RangeVar(BaseRangeVar):
     """Relation range variable, used in FROM clauses."""
 
-    relation: Base
+    relation: BaseRelation
     inhopt: bool
 
     @property
@@ -129,6 +133,8 @@ class ColumnRef(Base):
     name: typing.List[typing.Union[str, Star]]  # Column name list
     nullable: bool                              # Whether NULL is possible
     grouped: bool                               # Whether the col is grouped
+    weak: bool                                  # Whether the col is a weak
+                                                # path bond.
 
     def __repr__(self):
         return (
@@ -176,7 +182,7 @@ class OnConflictClause(Base):
     where: Base
 
 
-class CommonTableExpr(Base):
+class CommonTableExpr(BaseRelation):
 
     name: str                       # Query name (unqualified)
     aliascolnames: list             # Optional list of column names
@@ -190,7 +196,7 @@ class CommonTableExpr(Base):
         )
 
 
-class Query(EdgeQLPathInfo):
+class Query(BaseRelation, EdgeQLPathInfo):
     """Generic superclass representing a query."""
 
     # Ignore the below fields in AST visitor/transformer.
@@ -366,7 +372,7 @@ class RangeSubselect(BaseRangeVar):
     """Subquery appearing in FROM clauses."""
 
     lateral: bool
-    subquery: Base
+    subquery: BaseRelation
 
     @property
     def query(self):
@@ -389,7 +395,7 @@ class RangeFunction(BaseRangeVar):
     lateral: bool
     ordinality: Base
     is_rowsfrom: bool
-    functions: list
+    functions: typing.List[FuncCall]
     coldeflist: typing.List[ColumnDef]  # list of ColumnDef nodes to describe
                                         # result of the function returning
                                         # RECORD.

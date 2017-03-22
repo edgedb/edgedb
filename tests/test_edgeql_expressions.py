@@ -784,14 +784,15 @@ class TestExpressions(tb.QueryTestCase):
             ''')
 
     async def test_edgeql_expr_struct02(self):
-        with self.assertRaisesRegex(
-                exc.EdgeQLError,
-                r'possibly more than one element returned by an expression '
-                r'where only singletons are allowed',
-                position=8):
-            await self.query('''\
-                SELECT (spam := (1 UNION 2));
-            ''')
+        await self.assert_query_result('''\
+            SELECT _ := (spam := (1 UNION 2), ham := (3 UNION 4))
+            ORDER BY _.spam THEN _.ham;
+        ''', [[
+            {'ham': 3, 'spam': 1},
+            {'ham': 4, 'spam': 1},
+            {'ham': 3, 'spam': 2},
+            {'ham': 4, 'spam': 2}
+        ]])
 
     async def test_edgeql_expr_coalesce01(self):
         await self.assert_query_result(r"""
