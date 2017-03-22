@@ -467,7 +467,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_by_tuple04(self):
         await self.assert_query_result(r"""
             WITH MODULE test

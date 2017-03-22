@@ -206,15 +206,14 @@ class Analyzer(ast.NodeTransformer):
 
             elif len(query.from_clause) == 1:
                 if not query.group_clause:
-                    rel.strategy = InlineStrategy.Merge
-
-                elif (len(query.group_clause) == 1 and
-                        isinstance(query.group_clause[0], pgast.Constant) and
-                        query.group_clause[0].val is True):
-                    # `GROUP BY True` is a special hint to inline
-                    # this CTE as a subquery.
-                    query.group_clause = []
-                    rel.strategy = InlineStrategy.Subquery
+                    if (isinstance(query.having, pgast.Constant) and
+                            query.having.val is True):
+                        # `HAVING True` is a special hint to inline
+                        # this CTE as a subquery.
+                        rel.strategy = InlineStrategy.Subquery
+                        query.having = None
+                    else:
+                        rel.strategy = InlineStrategy.Merge
 
                 elif len(rel.used_in) == 1:
                     rel.strategy = InlineStrategy.Subquery

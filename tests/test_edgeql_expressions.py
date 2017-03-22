@@ -481,22 +481,16 @@ class TestExpressions(tb.QueryTestCase):
             [[1, 2, 3, 4]],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_array06(self):
         res = await self.con.execute('''
             SELECT array_agg(ALL 1 UNION 2 UNION 3);
             SELECT array_agg(ALL 3 UNION 2 UNION 3);
             SELECT array_agg(ALL 3 UNION 3 UNION 2);
         ''')
-        # there's no guarantee about order of the set, so we sort externally
-        #
-        for r in res:
-            r.sort()
-
         self.assert_data_shape(res, [
             [[1, 2, 3]],
-            [[2, 3, 3]],
-            [[2, 3, 3]],
+            [[3, 2, 3]],
+            [[3, 3, 2]],
         ])
 
     async def test_edgeql_expr_array07(self):
@@ -511,7 +505,6 @@ class TestExpressions(tb.QueryTestCase):
             [True],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_array08(self):
         await self.assert_query_result('''
             WITH x := [3, 1, 2]
@@ -528,7 +521,6 @@ class TestExpressions(tb.QueryTestCase):
             [True],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_array09(self):
         await self.assert_query_result('''
             WITH x := (3 UNION 1 UNION 2)
@@ -554,7 +546,6 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT array_agg(ALL EMPTY);
             """)
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_array11(self):
         await self.assert_query_result('''
             SELECT array_agg(ALL <int>EMPTY);

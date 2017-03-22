@@ -808,10 +808,11 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             arg_types = []
             for ai, a in enumerate(expr.args):
                 if isinstance(a, qlast.NamedArg):
-                    kwargs[a.name] = arg = self.visit(a.arg)
+                    arg = self._ensure_set(self.visit(a.arg))
+                    kwargs[a.name] = arg
                     aname = a.name
                 else:
-                    arg = self.visit(a)
+                    arg = self._ensure_set(self.visit(a))
                     args.append(arg)
                     aname = ai
 
@@ -1761,8 +1762,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
                 expr = self._process_shape(expr, rptrcls, shape)
 
-        if not isinstance(expr, irast.Set):
-            expr = self._generated_set(expr)
+        expr = self._ensure_set(expr)
         self._declare_aliased_set(expr, result_alias)
         return expr
 
@@ -1945,14 +1945,16 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         return binop
 
+    def _ensure_set(self, expr):
+        if not isinstance(expr, irast.Set):
+            expr = self._generated_set(expr)
+        return expr
+
     def _ensure_stmt(self, expr):
         ctx = self.context.current
         if not isinstance(expr, irast.Stmt):
-            if not isinstance(expr, irast.Set):
-                expr = self._generated_set(expr)
-
             expr = irast.SelectStmt(
-                result=expr,
+                result=self._ensure_set(expr),
                 path_scope=ctx.path_scope
             )
         return expr

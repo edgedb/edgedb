@@ -7,10 +7,8 @@
 
 
 import os.path
-import unittest
 
 from edgedb.server import _testbase as tb
-from edgedb.client import exceptions as exc
 
 
 class TestEdgeQLContainers(tb.QueryTestCase):
@@ -160,7 +158,6 @@ class TestEdgeQLContainers(tb.QueryTestCase):
         };
     """
 
-    @unittest.expectedFailure
     async def test_edgeql_containers_creation01(self):
         await self.assert_query_result('''
             WITH MODULE test
@@ -169,10 +166,10 @@ class TestEdgeQLContainers(tb.QueryTestCase):
             WITH MODULE test
             SELECT array_agg(ALL Issue.number ORDER BY Issue.number) =
                 ['1', '2', '3', '4'];
-        ''', [[
-            ['1', '2', '3', '4'],
+        ''', [
+            [['1', '2', '3', '4']],
             [True],
-        ]])
+        ])
 
     async def test_edgeql_containers_in01(self):
         await self.assert_query_result('''
@@ -239,23 +236,6 @@ class TestEdgeQLContainers(tb.QueryTestCase):
             {'number': '3'},
         ]])
 
-    @unittest.expectedFailure
-    async def test_edgeql_containers_in06(self):
-        await self.assert_query_result('''
-            WITH
-                MODULE test,
-                x := ('1', '2', '3')
-            SELECT Issue {
-                number,
-            } FILTER .number IN x
-              ORDER BY .number;
-        ''', [[
-            {'number': '1'},
-            {'number': '2'},
-            {'number': '3'},
-        ]])
-
-    @unittest.expectedFailure
     async def test_edgeql_containers_in07(self):
         await self.assert_query_result('''
             WITH
@@ -286,7 +266,6 @@ class TestEdgeQLContainers(tb.QueryTestCase):
             {'number': '3'},
         ]])
 
-    @unittest.expectedFailure
     async def test_edgeql_containers_in09(self):
         await self.assert_query_result('''
             WITH

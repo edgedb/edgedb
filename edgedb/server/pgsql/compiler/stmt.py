@@ -788,10 +788,13 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                     # Expressions returning objects.
                     self._process_set_as_concept_expr(ir_set, stmt)
 
-                elif (isinstance(ir_set.expr, irast.FunctionCall) and
-                        ir_set.expr.func.aggregate):
-                    # Call to an aggregate function.
-                    self._process_set_as_agg_expr(ir_set, stmt)
+                elif isinstance(ir_set.expr, irast.FunctionCall):
+                    if ir_set.expr.func.aggregate:
+                        # Call to an aggregate function.
+                        self._process_set_as_agg_expr(ir_set, stmt)
+                    else:
+                        # Regular function call.
+                        self._process_set_as_func_expr(ir_set, stmt)
 
                 elif isinstance(ir_set.expr, irast.ExistPred):
                     # EXISTS(), which is a special kind of an aggregate.
@@ -1323,19 +1326,48 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             stmt.target_list.append(restarget)
             self._put_path_output(stmt, ir_set, restarget.name)
 
-        if ctx.expr_injected_path_bond is not None:
-            # Inject an explicitly provided path bond.  This is necessary
-            # to ensure the correct output of rels that compute view
-            # expressions that do not contain relevant path bonds themselves.
-            alias = ctx.genalias(hint='b')
-            bond_ref = ctx.expr_injected_path_bond['ref']
-            bond_path_id = ctx.expr_injected_path_bond['path_id']
-            stmt.target_list.append(
-                pgast.ResTarget(val=bond_ref, name=alias)
-            )
-            # Register this bond as output just in case.
-            # BUT, do not add it to path_bonds.
-            self._put_path_output(stmt, bond_path_id, alias)
+        if self._apply_path_bond_injections(stmt):
+            # Due to injection this rel must not be a CTE.
+            self._put_set_cte(ir_set, stmt)
+        else:
+            ctx.query.ctes.append(self._get_set_cte(ir_set))
+
+    def _process_set_as_func_expr(self, ir_set, stmt):
+        """Populate the CTE for Set defined by a function call."""
+        ctx = self.context.current
+
+        with self.context.new() as newctx:
+            newctx.in_set_expr = True
+            newctx.rel = stmt
+            newctx.in_member_test = False
+            newctx.expr_exposed = False
+
+            expr = ir_set.expr
+            funcobj = expr.func
+
+            args = []
+
+            for ir_arg in ir_set.expr.args:
+                arg_ref = self.visit(ir_arg)
+                args.append(arg_ref)
+
+            if funcobj.from_function:
+                name = (funcobj.from_function,)
+            else:
+                name = (
+                    common.edgedb_module_name_to_schema_name(
+                        funcobj.shortname.module),
+                    common.edgedb_name_to_pg_name(
+                        funcobj.shortname.name)
+                )
+
+            set_expr = pgast.FuncCall(name=name, args=args)
+
+        restarget = pgast.ResTarget(val=set_expr, name='v')
+        stmt.target_list.append(restarget)
+        self._put_path_output(stmt, ir_set, restarget.name)
+
+        if self._apply_path_bond_injections(stmt):
             # Due to injection this rel must not be a CTE.
             self._put_set_cte(ir_set, stmt)
         else:
@@ -1349,9 +1381,80 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         with self.context.new() as newctx:
             newctx.in_set_expr = True
             newctx.rel = stmt
+            newctx.in_member_test = False
 
             path_scope = set(ctx.path_bonds) | ctx.path_scope
-            set_expr = self.visit(ir_set.expr)
+
+            expr = ir_set.expr
+            funcobj = expr.func
+            agg_filter = None
+            agg_sort = []
+
+            with self.context.new() as argctx:
+                argctx.in_aggregate = True
+
+                # We want array_agg() (and similar) to do the right
+                # thing with respect to output format, so, barring
+                # the (unacceptable) hardcoding of function names,
+                # check if the aggregate accepts a single argument
+                # of std::any to determine serialized input safety.
+                serialization_safe = (
+                    len(funcobj.paramtypes) == 1 and
+                    funcobj.paramtypes[0].name == 'std::any'
+                )
+
+                if not serialization_safe:
+                    argctx.expr_exposed = False
+
+                args = []
+
+                for ir_arg in ir_set.expr.args:
+                    arg_ref = self.visit(ir_arg)
+
+                    if (isinstance(ir_arg.scls, s_atoms.Atom) and
+                            ir_arg.scls.bases):
+                        # Cast atom refs to the base type in aggregate
+                        # expressions, since PostgreSQL does not create array
+                        # types for custom domains and will fail to process a
+                        # query with custom domains appearing as array
+                        # elements.
+                        pgtype = pg_types.pg_type_from_atom(
+                            ctx.schema, ir_arg.scls, topbase=True)
+                        pgtype = pgast.TypeName(name=pgtype)
+                        arg_ref = pgast.TypeCast(arg=arg_ref, type_name=pgtype)
+
+                    args.append(arg_ref)
+
+            if expr.agg_filter:
+                agg_filter = self.visit(expr.agg_filter)
+
+            for arg in args:
+                agg_filter = self._extend_binop(
+                    agg_filter, pgast.NullTest(arg=arg, negated=True))
+
+            if expr.agg_sort:
+                for sortexpr in expr.agg_sort:
+                    _sortexpr = self.visit(sortexpr.expr)
+                    agg_sort.append(
+                        pgast.SortBy(
+                            node=_sortexpr, dir=sortexpr.direction,
+                            nulls=sortexpr.nones_order))
+
+            if funcobj.from_function:
+                name = (funcobj.from_function,)
+            else:
+                name = (
+                    common.edgedb_module_name_to_schema_name(
+                        funcobj.shortname.module),
+                    common.edgedb_name_to_pg_name(
+                        funcobj.shortname.name)
+                )
+
+            set_expr = pgast.FuncCall(
+                name=name, args=args,
+                agg_order=agg_sort, agg_filter=agg_filter,
+                agg_distinct=(
+                    expr.agg_set_modifier == irast.SetModifier.DISTINCT))
 
             # Add an explicit GROUP BY for each non-aggregated path bond.
             for path_id in list(stmt.path_bonds):
@@ -1362,15 +1465,20 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                     path_var = self._get_path_var(stmt, path_id)
                     stmt.group_clause.append(path_var)
 
-        if not stmt.group_clause:
-            # This is a sentinel GROUP BY so that the optimizer
+        if not stmt.group_clause and not stmt.having:
+            # This is a sentinel HAVING clause so that the optimizer
             # knows how to inline the resulting query correctly.
-            stmt.group_clause.append(pgast.Constant(val=True))
+            stmt.having = pgast.Constant(val=True)
 
         restarget = pgast.ResTarget(val=set_expr, name='v')
         stmt.target_list.append(restarget)
         self._put_path_output(stmt, ir_set, restarget.name)
-        ctx.query.ctes.append(self._get_set_cte(ir_set))
+
+        if self._apply_path_bond_injections(stmt):
+            # Due to injection this rel must not be a CTE.
+            self._put_set_cte(ir_set, stmt)
+        else:
+            ctx.query.ctes.append(self._get_set_cte(ir_set))
 
     def _process_set_as_exists_expr(self, ir_set, stmt):
         """Populate the CTE for Set defined by an EXISTS() expression."""
@@ -1654,32 +1762,30 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
         return self._get_rvar_path_var(source_rvar, ir_set, raw=False)
 
-    def _get_var_for_atomic_set(self, ir_set):
-        """Return an expression node corresponding to the specified atomic Set.
-
-        Arguments:
-            - ir_set: IR Set
-
-        Return:
-            An expression node representing a set of atom/schema
-            values for the specified ir_set.
-        """
+    def _apply_path_bond_injections(self, stmt):
         ctx = self.context.current
 
-        ref = self._get_path_var(ctx.rel, ir_set.path_id)
+        if ctx.expr_injected_path_bond is not None:
+            # Inject an explicitly provided path bond.  This is necessary
+            # to ensure the correct output of rels that compute view
+            # expressions that do not contain relevant path bonds themselves.
+            alias = ctx.genalias(hint='b')
+            bond_ref = ctx.expr_injected_path_bond['ref']
+            bond_path_id = ctx.expr_injected_path_bond['path_id']
 
-        if ctx.in_aggregate:
-            if isinstance(ir_set.scls, s_atoms.Atom):
-                # Cast atom refs to the base type in aggregate expressions,
-                # since PostgreSQL does not create array types for custom
-                # domains and will fail to process a query with custom domains
-                # appearing as array elements.
-                pgtype = pg_types.pg_type_from_atom(
-                    ctx.schema, ir_set.scls, topbase=True)
-                pgtype = pgast.TypeName(name=pgtype)
-                ref = pgast.TypeCast(arg=ref, type_name=pgtype)
+            ex_ref = self._maybe_get_path_var(stmt, bond_path_id)
+            if ex_ref is None:
+                stmt.target_list.append(
+                    pgast.ResTarget(val=bond_ref, name=alias)
+                )
+                # Register this bond as output just in case.
+                # BUT, do not add it to path_bonds.
+                self._put_path_output(stmt, bond_path_id, alias)
+                self._put_path_bond(stmt, bond_path_id)
 
-        return ref
+            return True
+        else:
+            return False
 
     def _full_inner_bond_condition(self, query, parent_path_bonds):
         ctx = self.context.current

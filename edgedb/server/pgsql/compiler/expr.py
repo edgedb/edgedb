@@ -16,13 +16,13 @@ from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import objects as s_obj
 
 from edgedb.server.pgsql import ast as pgast
+from edgedb.server.pgsql import common
 from edgedb.server.pgsql import types as pg_types
 from edgedb.server.pgsql import exceptions as pg_errors
 
 from edgedb.lang.common import ast, markup
 
 from . import dbobj
-from . import func
 
 
 ResTargetList = collections.namedtuple('ResTargetList', ['targets', 'attmap'])
@@ -50,9 +50,7 @@ class IRCompilerErrorContext(markup.MarkupExceptionContext):
             title=self.title, body=[tree])
 
 
-class IRCompilerBase(ast.visitor.NodeVisitor,
-                     dbobj.IRCompilerDBObjects,
-                     func.IRCompilerFunctionSupport):
+class IRCompilerBase(ast.visitor.NodeVisitor, dbobj.IRCompilerDBObjects):
     def __init__(self, **kwargs):
         self.context = None
         super().__init__(**kwargs)
@@ -338,21 +336,32 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
                     isinstance(irutils.infer_type(expr.right, ctx.schema),
                                s_obj.Array)):
 
-                # "expr IN <array-expr>" translates into
-                # "expr = any(<array-expr>)" and
-                # "expr NOT IN <array-expr>" translates into
-                # "expr != all(<array-expr>)"
-                if expr.op == ast.ops.IN:
-                    op = ast.ops.EQ
-                    sublink_type = pgast.SubLinkType.ANY
-                else:
-                    op = ast.ops.NE
-                    sublink_type = pgast.SubLinkType.ALL
+                left_type = irutils.infer_type(expr.left, ctx.schema)
+                if isinstance(left_type, s_atoms.Atom) and left_type.bases:
+                    # Cast atom refs to the base type in aggregate expressions,
+                    # since PostgreSQL does not create array types for custom
+                    # domains and will fail to process a query with custom
+                    # domains appearing as array elements.
+                    pgtype = pg_types.pg_type_from_atom(
+                        ctx.schema, left_type, topbase=True)
+                    pgtype = pgast.TypeName(name=pgtype)
+                    left = pgast.TypeCast(arg=left, type_name=pgtype)
 
-                right = pgast.SubLink(
-                    type=sublink_type,
-                    expr=right
+                # "expr IN <array-expr>" translates into
+                # "array_position(<array-expr>, <expr>) IS NOT NULL" and
+                # "expr NOT IN <array-expr>" translates into
+                # "array_position(<array-expr>, <expr>) IS NULL".
+                arr_pos = pgast.FuncCall(
+                    name=('array_position',),
+                    args=[right, left]
                 )
+
+                result = pgast.NullTest(
+                    arg=arr_pos,
+                    negated=expr.op == ast.ops.IN
+                )
+
+                return result
             else:
                 op = expr.op
 
@@ -517,6 +526,29 @@ class IRCompilerBase(ast.visitor.NodeVisitor,
                     name=('uuid',)
                 )
             )
+
+        return result
+
+    def visit_FunctionCall(self, expr):
+        funcobj = expr.func
+
+        if funcobj.aggregate:
+            raise RuntimeError(
+                'aggregate functions are not supported in simple expressions')
+
+        args = [self.visit(a) for a in expr.args]
+
+        if funcobj.from_function:
+            name = (funcobj.from_function,)
+        else:
+            name = (
+                common.edgedb_module_name_to_schema_name(
+                    funcobj.shortname.module),
+                common.edgedb_name_to_pg_name(
+                    funcobj.shortname.name)
+            )
+
+        result = pgast.FuncCall(name=name, args=args)
 
         return result
 
