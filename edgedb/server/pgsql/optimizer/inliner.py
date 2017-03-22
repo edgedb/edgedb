@@ -17,8 +17,7 @@ from . import analyzer
 
 class NameUpdater(ast.NodeVisitor):
 
-    def __init__(self, rel, range_aliases, prefix: str):
-        self.rel = rel
+    def __init__(self, range_aliases, prefix: str):
         self.prefix = prefix
         self.range_aliases = range_aliases
         super().__init__()
@@ -32,173 +31,140 @@ class NameUpdater(ast.NodeVisitor):
             node.name[0] = self.prefix + node.name[0]
 
     @classmethod
-    def update(cls, rel, range_aliases, prefix: str, node: pgast.Alias):
-        nu = cls(rel, range_aliases, prefix)
+    def update(cls, range_aliases, prefix: str, node: pgast.Alias):
+        nu = cls(range_aliases, prefix)
         nu.visit(node)
 
 
-class MergeStrategy(ast.NodeTransformer):
+def copy_subtree(idx: int,
+                 root: pgast.Base,
+                 range_aliases: typing.Set[str],
+                 deepcopy: bool):
 
-    def __init__(self, rel: analyzer.Relation,
-                 inline_count: int,
-                 current_alias: str,
-                 range_aliases: typing.Set[str]):
-        super().__init__()
-        self.rel = rel
-        self.inline_count = inline_count
-        self.current_alias = current_alias
-        self.range_aliases = range_aliases
-
-    @staticmethod
-    def copy_subtree(rel: analyzer.Relation,
-                     idx: int,
-                     root: pgast.Base,
-                     range_aliases: typing.Set[str]):
-
+    if deepcopy:
         new_root = copy.deepcopy(root)
-        NameUpdater.update(rel, range_aliases, f'i{idx}~', new_root)
-        return new_root
+    else:
+        new_root = root
 
-    def visit_RangeVar(self, node):
-        if isinstance(node.relation, pgast.CommonTableExpr):
-            relation_name = node.relation.name
-        elif isinstance(node.relation, pgast.Relation):
-            relation_name = node.relation.relname
+    NameUpdater.update(range_aliases, f'i{idx}~', new_root)
+    return new_root
 
-        if node.alias is not None:
-            relation_alias = node.alias.aliasname
+
+def merge(qi: analyzer.QueryInfo, rel: analyzer.Relation,
+          alias: str, query: pgast.Query, inline_count: int):
+
+    if (rel.node.query.group_clause and query.group_clause or
+            rel.node.query.limit_offset and query.limit_offset or
+            rel.node.query.limit_count and query.limit_count or
+            rel.node.query.sort_clause and query.sort_clause):
+        # if both the query and the cte we want to
+        # inline have GROUP BY/LIMIT/etc:
+        # skip inlining
+        return False
+
+    # If the CTE is used in more than one place, always deepcopy it.
+    deepcopy = len(rel.used_in) > 1
+
+    range_aliases = rel.get_range_aliases()
+
+    if alias in qi.col_refs:
+        # (if the column is referenced in more than one place - deepcopy)
+        col_deepcopy = deepcopy or len(qi.col_refs[alias]) > 1
+
+        for col_ref in qi.col_refs[alias]:
+            col: pgast.ColumnRef = col_ref.node
+            target = rel.get_target(col.name[1])
+
+            col_ref.node = copy_subtree(
+                inline_count,
+                target,
+                range_aliases,
+                col_deepcopy)
+
+    if alias in qi.range_refs:
+        # (if the range is referenced in more than one place - deepcopy)
+        range_deepcopy = deepcopy or len(qi.range_refs[alias]) > 1
+
+        assert len(rel.node.query.from_clause) == 1
+        for range_ref in qi.range_refs[alias]:
+            range_ref.node = copy_subtree(
+                inline_count,
+                rel.node.query.from_clause[0],
+                range_aliases,
+                range_deepcopy)
+
+    if rel.node.query.group_clause:
+        query.group_clause = copy_subtree(
+            inline_count,
+            rel.node.query.group_clause,
+            range_aliases,
+            deepcopy)
+
+    if rel.node.query.limit_offset:
+        query.limit_offset = copy_subtree(
+            rel,
+            inline_count,
+            rel.node.query.limit_offset,
+            range_aliases,
+            deepcopy)
+
+    if rel.node.query.limit_count:
+        query.limit_count = copy_subtree(
+            inline_count,
+            rel.node.query.limit_count,
+            range_aliases,
+            deepcopy)
+
+    if rel.node.query.sort_clause:
+        query.sort_clause = copy_subtree(
+            inline_count,
+            rel.node.query.sort_clause,
+            range_aliases,
+            deepcopy)
+
+    if rel.node.query.where_clause:
+        new_where = copy_subtree(
+            inline_count,
+            rel.node.query.where_clause,
+            range_aliases,
+            deepcopy)
+
+        if query.where_clause:
+            query.where_clause = pgast.Expr(
+                kind=pgast.ExprKind.OP,
+                name='AND',
+                lexpr=new_where,
+                rexpr=query.where_clause)
         else:
-            relation_alias = relation_name
+            query.where_clause = new_where
 
-        if (relation_alias == self.current_alias and
-                node.relation.name == self.rel.name):
-            return self.copy_subtree(
-                self.rel,
-                self.inline_count,
-                self.rel.node.query.from_clause[0],
-                self.range_aliases)
-        else:
-            return self.generic_visit(node)
+    if rel.node.query.ctes:
+        query.ctes.extend(rel.node.query.ctes)
 
-    def visit_ColumnRef(self, node):
-        if node.name[0] != self.current_alias:
-            return self.generic_visit(node)
-
-        try:
-            target = self.rel.get_target(node.name[1])
-        except IndexError:
-            target = None
-
-        if target is None:
-            return self.generic_visit(node)
-
-        return self.copy_subtree(
-            self.rel,
-            self.inline_count,
-            target,
-            self.range_aliases)
-
-    @classmethod
-    def apply(cls, rel, alias, tree, query, inline_count):
-        if (rel.node.query.group_clause and query.group_clause or
-                rel.node.query.limit_offset and query.limit_offset or
-                rel.node.query.limit_count and query.limit_count or
-                rel.node.query.sort_clause and query.sort_clause):
-            # if both the query and the cte we want to
-            # inline have GROUP BY/LIMIT/etc:
-            # skip inlining
-            return False
-
-        range_aliases = rel.get_range_aliases()
-
-        inliner = cls(rel, inline_count, alias, range_aliases)
-        inliner.visit(tree)
-
-        if rel.node.query.group_clause:
-            query.group_clause = cls.copy_subtree(
-                rel,
-                inline_count,
-                rel.node.query.group_clause,
-                range_aliases)
-
-        if rel.node.query.limit_offset:
-            query.limit_offset = cls.copy_subtree(
-                rel,
-                inline_count,
-                rel.node.query.limit_offset,
-                range_aliases)
-
-        if rel.node.query.limit_count:
-            query.limit_count = cls.copy_subtree(
-                rel,
-                inline_count,
-                rel.node.query.limit_count,
-                range_aliases)
-
-        if rel.node.query.sort_clause:
-            query.sort_clause = cls.copy_subtree(
-                rel,
-                inline_count,
-                rel.node.query.sort_clause,
-                range_aliases)
-
-        if rel.node.query.where_clause:
-            new_where = cls.copy_subtree(
-                rel,
-                inline_count,
-                rel.node.query.where_clause,
-                range_aliases)
-
-            if query.where_clause:
-                query.where_clause = pgast.Expr(
-                    kind=pgast.ExprKind.OP,
-                    name='AND',
-                    lexpr=new_where,
-                    rexpr=query.where_clause)
-            else:
-                query.where_clause = new_where
-
-        if rel.node.query.ctes:
-            query.ctes.extend(rel.node.query.ctes)
-
-        return True
+    return True
 
 
-class SubqueryStrategy(ast.NodeTransformer):
+def inline_subquery(qi: analyzer.QueryInfo, rel: analyzer.Relation,
+                    alias: str, query: pgast.Query):
 
-    def __init__(self, rel: analyzer.Relation,
-                 current_alias: str):
-        super().__init__()
-        self.rel = rel
-        self.current_alias = current_alias
-        self.inlined = False
+    inlined = False
 
-    def visit_RangeVar(self, node):
-        if node.alias.aliasname == self.current_alias and \
-                node.relation.name == self.rel.name:
+    if alias in qi.range_refs:
+        for range_ref in qi.range_refs[alias]:
+            new_query = copy.deepcopy(rel.node.query)
 
-            self.inlined = True
-            new_query = copy.deepcopy(self.rel.node.query)
-
-            return pgast.RangeSubselect(
-                alias=node.alias,
+            range_ref.node = pgast.RangeSubselect(
+                alias=range_ref.node.alias,
                 subquery=new_query)
 
-        else:
-            return self.generic_visit(node)
+            inlined = True
 
-    @classmethod
-    def apply(cls, rel, current_alias, query):
-        st = cls(rel, current_alias)
-        st.visit(query)
-        return st.inlined
+    return inlined
 
 
-def optimize(tree: pgast.Base,
-             relations: typing.Mapping[str, analyzer.Relation]):
-
+def optimize(qi: analyzer.QueryInfo):
     inline_count = 0
-    for rel in relations.values():
+    for rel in qi.rels:
         if rel.strategy is analyzer.InlineStrategy.Skip:
             continue
 
@@ -207,15 +173,14 @@ def optimize(tree: pgast.Base,
 
             if rel.strategy is analyzer.InlineStrategy.Merge:
                 inline_count += 1
-                inlined = MergeStrategy.apply(
-                    rel, alias, tree, query, inline_count)
+                inlined = merge(qi, rel, alias, query, inline_count)
 
                 if not inlined:
                     inline_count -= 1
                     remove_rel = False
 
             elif rel.strategy is analyzer.InlineStrategy.Subquery:
-                inlined = SubqueryStrategy.apply(rel, alias, query)
+                inlined = inline_subquery(qi, rel, alias, query)
                 if not inlined:
                     remove_rel = False
 
@@ -224,5 +189,3 @@ def optimize(tree: pgast.Base,
 
         if remove_rel:
             rel.parent.ctes.remove(rel.node)
-
-    return tree

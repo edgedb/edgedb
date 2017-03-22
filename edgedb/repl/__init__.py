@@ -27,6 +27,7 @@ from prompt_toolkit import enums as pt_enums
 from prompt_toolkit.layout import lexers as pt_lexers
 
 from edgedb import client
+from edgedb.lang.common import datetime
 from edgedb.lang.common import lexer as core_lexer
 from edgedb.lang.common import markup
 from edgedb.lang.edgeql.parser.grammar import lexer as edgeql_lexer
@@ -276,38 +277,24 @@ class Cli:
             return
 
     def print_timings(self, timings):
-        def render_delta(t):
-            f = 's'
-            if not round(t):
-                t *= 1000.0
-                if round(t):
-                    f = 'ms'
-                else:
-                    t *= 1000.0
-                    if round(t):
-                        f = 'us'
-                    else:
-                        t *= 1000.0
-                        f = 'ns'
-            return f'{t:.2f}{f}'
-
         timings = self.connection.get_last_timings()
         if timings is None:
             return
 
+        r = datetime.humanize_time_delta
         buf = {}
         if timings.get('graphql_translation'):
-            buf['GraphQL->EdgeQL'] = render_delta(timings.get('graphql_translation'))
+            buf['GraphQL->EdgeQL'] = r(timings.get('graphql_translation'))
         if timings.get('parse_eql'):
-            buf['Parse'] = render_delta(timings.get('parse_eql'))
+            buf['Parse'] = r(timings.get('parse_eql'))
         if timings.get('compile_eql_to_ir'):
-            buf['EdgeQL->IR'] = render_delta(timings.get('compile_eql_to_ir'))
+            buf['EdgeQL->IR'] = r(timings.get('compile_eql_to_ir'))
         if timings.get('compile_ir_to_sql'):
-            buf['IR->SQL'] = render_delta(timings.get('compile_ir_to_sql'))
+            buf['IR->SQL'] = r(timings.get('compile_ir_to_sql'))
         if timings.get('optimize'):
-            buf['Opt'] = render_delta(timings.get('optimize'))
+            buf['Opt'] = r(timings.get('optimize'))
         if timings.get('execution'):
-            buf['Exec'] = render_delta(timings.get('execution'))
+            buf['Exec'] = r(timings.get('execution'))
 
         if buf:
             tokens = []

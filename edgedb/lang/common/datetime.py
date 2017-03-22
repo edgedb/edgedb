@@ -621,3 +621,19 @@ class IANATimeZone(datetime.tzinfo):
 
     def __repr__(self):
         return '<{} {!r}>'.format(self.__class__.__name__, self.name)
+
+
+def humanize_time_delta(t):
+    f = 's'
+    if t and not round(t):
+        t *= 1000.0
+        if round(t):
+            f = 'ms'
+        else:
+            t *= 1000.0
+            if round(t):
+                f = 'us'
+            else:
+                t *= 1000.0
+                f = 'ns'
+    return f'{t:.2f}{f}'

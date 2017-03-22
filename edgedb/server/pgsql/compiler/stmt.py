@@ -111,6 +111,10 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             debug.dump(qtree)
 
         if optimize:
+            if debug.flags.edgeql_optimize:  # pragma: no cover
+                debug.header('SQL Tree before optimization')
+                debug.dump(qtree, _ast_include_meta=False)
+
             opt = pg_opt.Optimizer()
             if timer is None:
                 qtree = opt.optimize(qtree)

@@ -6,8 +6,6 @@
 ##
 
 
-from edgedb.lang.common import debug
-
 from . import analyzer, inliner
 
 
@@ -17,11 +15,6 @@ class Optimizer:
         pass
 
     def optimize(self, pgtree):
-        if debug.flags.edgeql_optimize:  # pragma: no cover
-            debug.header('SQL Tree before optimization')
-            debug.dump(pgtree, _ast_include_meta=False)
-
-        rels = analyzer.Analyzer.analyze(pgtree)
-        # from edgedb.lang.common import markup
-        # markup.dump(rels)
-        return inliner.optimize(pgtree, rels)
+        qi = analyzer.Analyzer.analyze(pgtree)
+        inliner.optimize(qi)
+        return pgtree

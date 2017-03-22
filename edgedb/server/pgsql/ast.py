@@ -24,9 +24,15 @@ from edgedb.lang.ir import ast as irast
 
 class Base(ast.AST):
     def __repr__(self):
-        return (
-            f'<pg.{self.__class__.__name__} at 0x{id(self):x}>'
-        )
+        return f'<pg.{self.__class__.__name__} at 0x{id(self):x}>'
+
+
+class _Ref(Base):
+
+    node: Base
+
+    def __repr__(self):
+        return f'<pg.{self.__class__.__name__} -> {self.node!r}>'
 
 
 class Alias(Base):
@@ -79,6 +85,9 @@ class BaseRangeVar(Base):
         return self.query.inner_path_bonds
 
 
+RangeTypes = typing.Union[BaseRangeVar, _Ref]
+
+
 class Relation(EdgeQLPathInfo):
     """Regular relation."""
 
@@ -126,6 +135,9 @@ class ColumnRef(Base):
             f'<pg.{self.__class__.__name__} '
             f'name={".".join(self.name)!r} at 0x{id(self):x}>'
         )
+
+
+ColumnRefTypes = typing.Union[ColumnRef, _Ref]
 
 
 class ParamRef(Base):
@@ -205,14 +217,14 @@ class Query(EdgeQLPathInfo):
 class DML(Base):
     """Generic superclass for INSERT/UPDATE/DELETE statements."""
 
-    relation: RangeVar              # Target relation to perform the
-                                    # operation on
+    relation: RangeTypes              # Target relation to perform the
+                                      # operation on
     returning_list: typing.List[ResTarget]  # List of expressions returned
 
 
 class InsertStmt(Query, DML):
 
-    cols: typing.List[ColumnRef]    # (optional) list of target column names
+    cols: typing.List[ColumnRefTypes]  # (optional) list of target column names
     select_stmt: Query              # source SELECT/VALUES or None
     on_conflict: OnConflictClause   # ON CONFLICT clause
 
@@ -221,12 +233,12 @@ class UpdateStmt(Query, DML):
 
     targets: typing.List[UpdateTarget]          # The UPDATE target list
     where_clause: Base                          # WHERE clause
-    from_clause: typing.List[BaseRangeVar]      # optional FROM clause
+    from_clause: typing.List[RangeTypes]        # optional FROM clause
 
 
 class DeleteStmt(Query, DML):
     where_clause: Base                          # WHERE clause
-    using_clause: typing.List[BaseRangeVar]     # optional USING clause
+    using_clause: typing.List[RangeTypes]       # optional USING clause
 
 
 class SelectStmt(Query):
@@ -234,7 +246,7 @@ class SelectStmt(Query):
     distinct_clause: list               # List of DISTINCT ON expressions,
                                         # empty list for DISTINCT ALL
     target_list: typing.List[ResTarget] # The target list
-    from_clause: typing.List[BaseRangeVar]  # The FROM clause
+    from_clause: typing.List[RangeTypes]  # The FROM clause
     where_clause: Base                  # The WHERE clause
     group_clause: typing.List[Base]     # GROUP BY clauses
     having: Base                        # HAVING expression
@@ -326,8 +338,8 @@ class ArrayExpr(Base):
 class MultiAssignRef(Base):
     """UPDATE (a, b, c) = row-valued-expr."""
 
-    source: Base                        # row-valued expression
-    columns: typing.List[ColumnRef]     # list of columns to assign to
+    source: Base                          # row-valued expression
+    columns: typing.List[ColumnRefTypes]  # list of columns to assign to
 
 
 class SortBy(Base):

@@ -16,21 +16,28 @@ from edgedb.server.pgsql import ast as pgast
 
 
 class InlineStrategy(enum.Enum):
+
     Skip = 0
     Merge = 1
     Subquery = 2
 
 
-class Relation(ast.AST):
+class Relation:
 
     name: str
     has_joins: bool = False
 
     node: pgast.CommonTableExpr
-    parent: pgast.SelectStmt
+    parent: pgast.Query
     used_in: collections.OrderedDict
 
     strategy: InlineStrategy = InlineStrategy.Skip
+
+    def __init__(self, name, node, parent):
+        self.name = name
+        self.node = node
+        self.parent = parent
+        self.used_in = collections.OrderedDict()
 
     def get_target(self, name: str):
         # NOTE: We can't cache the search results because
@@ -45,33 +52,48 @@ class Relation(ast.AST):
                 else:
                     continue
 
-            if isinstance(node.val, pgast.ColumnRef):
-                if node.val.name[-1] == name:
-                    return node.val
-                elif (len(node.val.name) == 2 and
-                        isinstance(node.val.name[1], pgast.Star)):
-                    return pgast.ColumnRef(name=[node.val.name[0], name])
+            col_ref = node.val
+            if isinstance(col_ref, pgast._Ref):
+                col_ref = col_ref.node
+
+            if isinstance(col_ref, pgast.ColumnRef):
+                if col_ref.name[-1] == name:
+                    return col_ref
+                elif (len(col_ref.name) == 2 and
+                        isinstance(col_ref.name[1], pgast.Star)):
+                    return pgast.ColumnRef(name=[col_ref.name[0], name])
                 else:
                     continue
 
         raise IndexError(
-            f'could not find target {name!r} in cte {self.name}')
+            f'could not find target {name!r} in CTE {self.name}')
 
     def get_range_aliases(self):
         return RangeAnalyzer.analyze(self)
 
 
+class QueryInfo:
+
+    tree: pgast.Query
+    rels: typing.List[Relation]
+    col_refs: typing.Mapping[str, typing.List[pgast.ColumnRefTypes]]
+    range_refs: typing.Mapping[str, typing.List[pgast.RangeTypes]]
+
+    def __init__(self, tree, rels, col_refs, range_refs):
+        self.tree = tree
+        self.rels = rels
+        self.col_refs = col_refs
+        self.range_refs = range_refs
+
+
 class ContextLevel(compiler.ContextLevel):
-    current_select: pgast.SelectStmt
-    current_cte: Relation
+    current_query: pgast.Query
 
     def __init__(self, prevlevel=None, mode=None):
         if prevlevel is None:
-            self.current_select = None
-            self.current_cte = None
+            self.current_query = None
         else:
-            self.current_select = prevlevel.current_select
-            self.current_cte = prevlevel.current_cte
+            self.current_query = prevlevel.current_query
 
 
 class Context(compiler.CompilerContext):
@@ -79,11 +101,13 @@ class Context(compiler.CompilerContext):
     default_mode = None
 
 
-class Analyzer(ast.NodeVisitor):
+class Analyzer(ast.NodeTransformer):
 
     def __init__(self):
         super().__init__()
         self.rels = collections.OrderedDict()
+        self.range_refs = {}
+        self.col_refs = {}
         self.context = Context()
 
     def _process_cte(self, parent: pgast.SelectStmt,
@@ -109,54 +133,69 @@ class Analyzer(ast.NodeVisitor):
         return Relation(name=name, node=cte_node, parent=parent)
 
     def visit_RangeVar(self, node: pgast.RangeVar):
-        ctx = self.context.current
-
-        if ctx.current_select is None:
-            # UPDATE or other statement
-            self.generic_visit(node)
-            return
-
         if isinstance(node.relation, pgast.CommonTableExpr):
-            rcte = node.relation
-            if rcte.name in self.rels:
-                rel = self.rels[rcte.name]
-                if ctx.current_select in rel.used_in:
-                    return
+            relation_name = node.relation.name
+            # If node.relation is a CTE, replace it with a Relation node
+            # to make sure we don't do unnecessary deep copies.
+            node.relation = pgast.Relation(relname=relation_name)
+        elif isinstance(node.relation, pgast.Relation):
+            relation_name = node.relation.relname
+        else:
+            raise TypeError('unexpected type in RangeVar.relation')
 
-                if node.alias is not None:
-                    alias = node.alias.aliasname
-                else:
-                    alias = node.relation.name
+        if node.alias is not None:
+            alias = node.alias.aliasname
+        else:
+            alias = relation_name
 
-                rel.used_in[ctx.current_select] = alias
+        ref = pgast._Ref(node=node)
 
-        self.generic_visit(node)
+        if alias not in self.range_refs:
+            self.range_refs[alias] = []
+        self.range_refs[alias].append(ref)
 
-    def visit_Query(self, node: pgast.SelectStmt):
+        if relation_name in self.rels:
+            ctx = self.context.current
+            rel = self.rels[relation_name]
+            if ctx.current_query not in rel.used_in:
+                rel.used_in[ctx.current_query] = alias
+
+        return ref
+
+    def visit_ColumnRef(self, node: pgast.ColumnRef):
+        rel_name = node.name[0]
+
+        ref = pgast._Ref(node=node)
+
+        if rel_name not in self.col_refs:
+            self.col_refs[rel_name] = []
+        self.col_refs[rel_name].append(ref)
+
+        return ref
+
+    def visit_Query(self, node: pgast.Query):
         for cte in node.ctes:
             if isinstance(cte.query, pgast.SelectStmt):
                 rel = self._process_cte(node, cte)
-                with self.context.new() as ctx:
-                    if rel is not None:
-                        ctx.current_cte = rel
-
-                    self.visit(cte.query)
-
-                    if rel is not None:
-                        # Register CTE after we visit the query to maintain
-                        # correct dependency order.
-                        self.rels[rel.name] = rel
+                self.visit(cte.query)
+                if rel is not None:
+                    self.rels[rel.name] = rel
 
         with self.context.new() as ctx:
-            ctx.current_select = node
+            ctx.current_query = node
+
+            # Because NodeVisitor keeps an internal memo of visited nodes,
+            # CTE/ColumnRef/RangeVar nodes won't be re-visited.
             self.generic_visit(node)
 
+        return node
+
     @classmethod
-    def analyze(cls, tree: pgast.Base) -> typing.Mapping[str, Relation]:
+    def analyze(cls, tree: pgast.Base) -> QueryInfo:
         analyzer = cls()
         analyzer.visit(tree)
-        rels = analyzer.rels
 
+        rels = analyzer.rels
         for rel in rels.values():
             query = rel.node.query
 
@@ -187,7 +226,11 @@ class Analyzer(ast.NodeVisitor):
                 # `GROUP BY True` here.
                 rel.strategy = InlineStrategy.Skip
 
-        return rels
+        return QueryInfo(
+            tree,
+            list(rels.values()),
+            analyzer.col_refs,
+            analyzer.range_refs)
 
 
 class RangeAnalyzer(ast.NodeVisitor):
@@ -202,8 +245,8 @@ class RangeAnalyzer(ast.NodeVisitor):
     def visit_RangeSubselect(self, node):
         self.aliases.add(node.alias.aliasname)
 
-    def visit_SelectStmt(self, node):
-        # Skip Select nodes
+    def visit_Query(self, node):
+        # Skip Select/Insert/etc nodes
         pass
 
     @classmethod

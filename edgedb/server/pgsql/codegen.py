@@ -89,6 +89,15 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
         self.new_lines = 1
 
+    def visit__Ref(self, node):
+        self.visit(node.node)
+
+    def visit_Relation(self, node):
+        if node.schemaname is None:
+            self.write(common.qname(node.relname))
+        else:
+            self.write(common.qname(node.schemaname, node.relname))
+
     def visit_SelectStmt(self, node):
         self.new_lines = 1
 
@@ -354,7 +363,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         rel = node.relation
 
         if isinstance(rel, pgast.Relation):
-            self.write(common.qname(rel.schemaname, rel.relname))
+            self.visit(rel)
         elif isinstance(rel, pgast.CommonTableExpr):
             self.write(common.quote_ident(rel.name))
         else:
