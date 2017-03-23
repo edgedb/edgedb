@@ -12,7 +12,7 @@ import typing
 from edgedb.lang.common import ast
 from edgedb.server.pgsql import ast as pgast
 
-from . import analyzer
+from . import meta
 
 
 class NameUpdater(ast.NodeVisitor):
@@ -50,8 +50,8 @@ def copy_subtree(idx: int,
     return new_root
 
 
-def merge(qi: analyzer.QueryInfo, rel: analyzer.Relation,
-          alias: str, query: pgast.Query, inline_count: int):
+def merge_query(qi: meta.QueryInfo, rel: meta.Relation,
+                alias: str, query: pgast.Query):
 
     if (rel.query.group_clause and query.group_clause or
             rel.query.limit_offset and query.limit_offset or
@@ -61,6 +61,8 @@ def merge(qi: analyzer.QueryInfo, rel: analyzer.Relation,
         # inline have GROUP BY/LIMIT/etc:
         # skip inlining
         return False
+
+    inline_index = qi.get_new_inline_index()
 
     # If the CTE is used in more than one place, always deepcopy it.
     deepcopy = len(rel.used_in) > 1
@@ -76,7 +78,7 @@ def merge(qi: analyzer.QueryInfo, rel: analyzer.Relation,
             target = rel.get_target(col.name[1])
 
             col_ref.node = copy_subtree(
-                inline_count,
+                inline_index,
                 target,
                 range_aliases,
                 col_deepcopy)
@@ -88,14 +90,14 @@ def merge(qi: analyzer.QueryInfo, rel: analyzer.Relation,
         assert len(rel.query.from_clause) == 1
         for range_ref in qi.range_refs[alias]:
             range_ref.node = copy_subtree(
-                inline_count,
+                inline_index,
                 rel.query.from_clause[0],
                 range_aliases,
                 range_deepcopy)
 
     if rel.query.group_clause:
         query.group_clause = copy_subtree(
-            inline_count,
+            inline_index,
             rel.query.group_clause,
             range_aliases,
             deepcopy)
@@ -103,28 +105,28 @@ def merge(qi: analyzer.QueryInfo, rel: analyzer.Relation,
     if rel.query.limit_offset:
         query.limit_offset = copy_subtree(
             rel,
-            inline_count,
+            inline_index,
             rel.query.limit_offset,
             range_aliases,
             deepcopy)
 
     if rel.query.limit_count:
         query.limit_count = copy_subtree(
-            inline_count,
+            inline_index,
             rel.query.limit_count,
             range_aliases,
             deepcopy)
 
     if rel.query.sort_clause:
         query.sort_clause = copy_subtree(
-            inline_count,
+            inline_index,
             rel.query.sort_clause,
             range_aliases,
             deepcopy)
 
     if rel.query.where_clause:
         new_where = copy_subtree(
-            inline_count,
+            inline_index,
             rel.query.where_clause,
             range_aliases,
             deepcopy)
@@ -144,12 +146,20 @@ def merge(qi: analyzer.QueryInfo, rel: analyzer.Relation,
     return True
 
 
-def inline_subquery(qi: analyzer.QueryInfo, rel: analyzer.Relation,
-                    alias: str, query: pgast.Query):
+def merge_relation(qi: meta.QueryInfo, rel: meta.Relation):
+    for used_in_rel, alias in list(rel.used_in.items()):
+        inlined = merge_query(qi, rel, alias, used_in_rel.query)
+        if inlined:
+            del rel.used_in[used_in_rel]
 
-    inlined = False
+    if not rel.used_in:
+        qi.remove_relation(rel)
 
-    if alias in qi.range_refs:
+
+def inline_relation(qi: meta.QueryInfo, rel: meta.Relation):
+    for used_in_rel, alias in rel.used_in.items():
+        assert alias in qi.range_refs
+
         for range_ref in qi.range_refs[alias]:
             new_query = copy.deepcopy(rel.query)
 
@@ -157,44 +167,29 @@ def inline_subquery(qi: analyzer.QueryInfo, rel: analyzer.Relation,
                 alias=range_ref.node.alias,
                 subquery=new_query)
 
-            inlined = True
-
-    return inlined
+    qi.remove_relation(rel)
 
 
-def remove_cte(query: pgast.Query, cte_name: str):
-    new_ctes = []
-    for cte in query.ctes:
-        if cte.name != cte_name:
-            new_ctes.append(cte)
-    query.ctes = new_ctes
-
-
-def optimize(qi: analyzer.QueryInfo):
-    inline_count = 0
-    for rel in qi.rels:
-        if rel.strategy is analyzer.InlineStrategy.Skip:
+def optimize(qi: meta.QueryInfo):
+    for rel in list(qi.rels):
+        if not rel.is_cte or not rel.is_inlineable:
             continue
 
-        remove_rel = True
-        for used_in_rel, alias in rel.used_in.items():
+        query = rel.query
 
-            if rel.strategy is analyzer.InlineStrategy.Merge:
-                inlined = merge(
-                    qi, rel, alias, used_in_rel.query, inline_count)
+        if len(query.from_clause) == 0 and len(rel.used_in) == 1:
+            inline_relation(qi, rel)
 
-                if inlined:
-                    inline_count += 1
+        elif len(query.from_clause) == 1:
+            if not query.group_clause:
+                if (isinstance(query.having, pgast.Constant) and
+                        query.having.val is True):
+                    # `HAVING True` is a special hint to inline
+                    # this CTE as a subquery.
+                    query.having = None
+                    inline_relation(qi, rel)
                 else:
-                    remove_rel = False
+                    merge_relation(qi, rel)
 
-            elif rel.strategy is analyzer.InlineStrategy.Subquery:
-                inlined = inline_subquery(qi, rel, alias, used_in_rel.query)
-                if not inlined:
-                    remove_rel = False
-
-            else:
-                remove_rel = False
-
-        if remove_rel:
-            remove_cte(rel.parent.query, rel.name)
+            elif len(rel.used_in) == 1:
+                inline_relation(qi, rel)

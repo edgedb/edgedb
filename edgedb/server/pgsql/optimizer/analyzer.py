@@ -6,91 +6,16 @@
 ##
 
 
-import collections
-import enum
-import typing
-
 from edgedb.lang.common import ast
 from edgedb.lang.common import compiler
 from edgedb.server.pgsql import ast as pgast
 
-
-class InlineStrategy(enum.Enum):
-
-    Skip = 0
-    Merge = 1
-    Subquery = 2
-
-
-class Relation:
-
-    name: typing.Optional[str]
-    is_cte: bool = False
-
-    query: pgast.Query
-    parent: typing.Optional['Relation']
-    used_in: collections.OrderedDict
-
-    strategy: InlineStrategy = InlineStrategy.Skip
-
-    def __init__(self, *, name: str,
-                 query: pgast.Query, parent: 'Relation', is_cte: bool):
-        self.name = name
-        self.query = query
-        self.parent = parent
-        self.used_in = collections.OrderedDict()
-        self.is_cte = is_cte
-
-    def get_target(self, name: str):
-        # NOTE: We can't cache the search results because
-        # self.node.query can be mutated at any time.
-
-        query: pgast.SelectStmt = self.query
-
-        for node in query.target_list:  # type: pgast.ResTarget
-            col_ref = node.val
-            if isinstance(col_ref, pgast._Ref):
-                col_ref = col_ref.node
-
-            if node.name is not None:
-                if node.name == name:
-                    return col_ref
-                else:
-                    continue
-
-            if isinstance(col_ref, pgast.ColumnRef):
-                if col_ref.name[-1] == name:
-                    return col_ref
-                elif (len(col_ref.name) == 2 and
-                        isinstance(col_ref.name[1], pgast.Star)):
-                    return pgast.ColumnRef(name=[col_ref.name[0], name])
-                else:
-                    continue
-
-        raise IndexError(
-            f'could not find target {name!r} in CTE {self.name}')
-
-    def get_range_aliases(self):
-        return RangeAnalyzer.analyze(self)
-
-
-class QueryInfo:
-
-    tree: pgast.Query
-    rels: typing.List[Relation]
-    col_refs: typing.Mapping[str, typing.List[pgast.ColumnRefTypes]]
-    range_refs: typing.Mapping[str, typing.List[pgast.RangeTypes]]
-
-    def __init__(self, tree, rels, col_refs, range_refs):
-        self.tree = tree
-        self.rels = rels
-        self.col_refs = col_refs
-        self.range_refs = range_refs
+from . import meta
 
 
 class ContextLevel(compiler.ContextLevel):
 
-    current_rel: Relation = None
+    current_rel: meta.Relation = None
 
     def __init__(self, prevlevel=None, mode=None):
         if prevlevel is None:
@@ -160,16 +85,17 @@ class Analyzer(ast.NodeTransformer):
     def visit_Query(self, node: pgast.Query):
         ctx = self.context.current
 
-        rel = Relation(
+        rel = meta.Relation(
             name=None,
             query=node,
             is_cte=False,
+            is_inlineable=self.is_inlineable_query(node),
             parent=ctx.current_rel)
 
         self.process_query(node, rel)
         return node
 
-    def is_inlineable_cte(self, node: pgast.Query):
+    def is_inlineable_query(self, node: pgast.Query):
         return (
             isinstance(node, pgast.SelectStmt) and
 
@@ -187,7 +113,7 @@ class Analyzer(ast.NodeTransformer):
             not node.rarg
         )
 
-    def process_query(self, node: pgast.Query, rel: Relation):
+    def process_query(self, node: pgast.Query, rel: meta.Relation):
         if node in self.processed_queries:
             # Because we use "generic_visit" to visit queries nodes
             # we need to maintain our own visiting memo.
@@ -197,15 +123,16 @@ class Analyzer(ast.NodeTransformer):
 
         for cte in node.ctes:
             cte_name = cte.name
-            cte_rel = Relation(
+            cte_rel = meta.Relation(
                 name=cte_name,
                 query=cte.query,
                 is_cte=True,
+                is_inlineable=self.is_inlineable_query(cte.query),
                 parent=rel)
 
             self.process_query(cte.query, cte_rel)
 
-            if self.is_inlineable_cte(cte.query):
+            if self.is_inlineable_query(cte.query):
                 self.ctes[cte_name] = cte_rel
 
         with self.context.new() as ctx:
@@ -215,70 +142,12 @@ class Analyzer(ast.NodeTransformer):
         self.rels.append(rel)
 
     @classmethod
-    def analyze(cls, tree: pgast.Query) -> QueryInfo:
+    def analyze(cls, tree: pgast.Query) -> meta.QueryInfo:
         analyzer = cls()
         analyzer.visit(tree)
 
-        rels = analyzer.rels
-        for rel in rels:
-            query = rel.query
-
-            if not rel.is_cte or not len(rel.used_in):
-                rel.strategy = InlineStrategy.Skip
-                continue
-
-            if len(query.from_clause) == 0 and len(rel.used_in) == 1:
-                rel.strategy = InlineStrategy.Subquery
-
-            elif len(query.from_clause) == 1:
-                if not query.group_clause:
-                    if (isinstance(query.having, pgast.Constant) and
-                            query.having.val is True):
-                        # `HAVING True` is a special hint to inline
-                        # this CTE as a subquery.
-                        rel.strategy = InlineStrategy.Subquery
-                        query.having = None
-                    else:
-                        rel.strategy = InlineStrategy.Merge
-
-                elif len(rel.used_in) == 1:
-                    rel.strategy = InlineStrategy.Subquery
-
-                else:
-                    # TODO: learn how to inline CREs with GROUP BY.
-                    rel.strategy = InlineStrategy.Skip
-            else:
-                # TODO: try to estimate the complexity of this CTE by
-                # analyzing if it has WHERE / JOINS. Also, handle
-                # `GROUP BY True` here.
-                rel.strategy = InlineStrategy.Skip
-
-        return QueryInfo(
+        return meta.QueryInfo(
             tree,
-            rels,
+            analyzer.rels,
             analyzer.col_refs,
             analyzer.range_refs)
-
-
-class RangeAnalyzer(ast.NodeVisitor):
-
-    def __init__(self):
-        super().__init__()
-        self.aliases = set()
-
-    def visit_RangeVar(self, node):
-        self.aliases.add(node.alias.aliasname)
-
-    def visit_RangeSubselect(self, node):
-        self.aliases.add(node.alias.aliasname)
-
-    def visit_Query(self, node):
-        # Skip Select/Insert/etc nodes
-        pass
-
-    @classmethod
-    def analyze(cls, rel: Relation) -> typing.Set[str]:
-        analyzer = cls()
-        for fc in rel.query.from_clause:
-            analyzer.visit(fc)
-        return analyzer.aliases
