@@ -3293,10 +3293,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_struct01(self):
         await self.assert_query_result(r"""
             WITH MODULE test
-            SELECT {
+            SELECT (
                 statuses := count(ALL Status),
                 issues := count(ALL Issue),
-            };
+            );
             """, [
             [{'statuses': 2, 'issues': 4}],
         ])
@@ -3306,10 +3306,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             WITH
                 MODULE test,
-                counts := (SELECT {
+                counts := (SELECT (
                     statuses := count(ALL Status),
                     issues := count(ALL Issue),
-                })
+                ))
             SELECT
                 counts.statuses + counts.issues;
             """, [
@@ -3321,12 +3321,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             WITH
                 MODULE test,
-                criteria := (SELECT {
+                criteria := (SELECT (
                     user := (SELECT SINGLETON
                              User FILTER User.name = 'Yury'),
                     status := (SELECT SINGLETON
                                Status FILTER Status.name = 'Open'),
-                })
+                ))
             SELECT
                 Issue.number
             FILTER
@@ -3342,10 +3342,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH
                 MODULE test
             SELECT
-                {
+                (
                     user := (SELECT SINGLETON User{name}
                              FILTER User.name = 'Yury')
-                };
+                );
             """, [
             [{
                 'user': {
@@ -3360,10 +3360,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH
                 MODULE test
             SELECT
-                {
+                (
                     user := (SELECT SINGLETON
                              User{name} FILTER User.name = 'Yury')
-                }.user.name;
+                ).user.name;
             """, [
             ['Yury'],
         ])
@@ -3374,34 +3374,34 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH
                 MODULE test
             SELECT
-                {user := (SELECT SINGLETON
-                          User{name} FILTER User.name = 'Yury')}
+                (user := (SELECT SINGLETON
+                          User{name} FILTER User.name = 'Yury'))
                     =
-                {user := (SELECT SINGLETON
-                          User{name} FILTER User.name = 'Yury')};
+                (user := (SELECT SINGLETON
+                          User{name} FILTER User.name = 'Yury'));
 
             WITH
                 MODULE test
             SELECT
-                {user := (SELECT SINGLETON
-                          User{name} FILTER User.name = 'Yury')}
+                (user := (SELECT SINGLETON
+                          User{name} FILTER User.name = 'Yury'))
                     =
-                {user := (SELECT SINGLETON
-                          User{name} FILTER User.name = 'Elvis')};
+                (user := (SELECT SINGLETON
+                          User{name} FILTER User.name = 'Elvis'));
 
             WITH
                 MODULE test
             SELECT
-                {
+                (
                     user := (SELECT SINGLETON
                              User{name} FILTER User.name = 'Yury'),
                     spam := 'ham',
-                }
+                )
                     =
-                {
+                (
                     user := (SELECT SINGLETON
                              User{name} FILTER User.name = 'Yury'),
-                };
+                );
 
             """, [
             [True],

@@ -236,10 +236,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue
             BY
                 Issue.time_estimate
-            SELECT _ := {
+            SELECT _ := (
                 count := count(ALL Issue.status.id),
                 te := Issue.time_estimate > 0
-            } ORDER BY
+            ) ORDER BY
                 _.te EMPTY FIRST;
         ''', [
             [{'count': 3, 'te': None}, {'count': 1, 'te': True}],
@@ -257,10 +257,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                             User.<owner[IS Issue]
                         BY
                             User.<owner[IS Issue].status.name
-                        SELECT {
+                        SELECT (
                             status := User.<owner[IS Issue].status.name,
                             count := count(ALL User.<owner[IS Issue]),
-                        }
+                        )
                         ORDER BY
                             User.<owner[IS Issue].status.name
                     )
@@ -330,10 +330,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue
             BY
                 Issue.status.name
-            SELECT {
+            SELECT (
                 sum := sum(ALL <int>Issue.number),
                 status := Issue.status.name,
-            } ORDER BY Issue.status.name;
+            ) ORDER BY Issue.status.name;
         """, [
             [{
                 'status': 'Closed',
@@ -353,10 +353,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             BY
                 Issue.status.name
             SELECT
-                _ := {
+                _ := (
                     sum := sum(ALL <int>Issue.number),
                     status := Issue.status.name,
-                }
+                )
             FILTER
                 _.sum > 5
             ORDER BY
@@ -392,11 +392,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             BY
                 Issue.status.name,
                 Issue.time_estimate
-            SELECT _ := {
+            SELECT _ := (
                 sum := sum(ALL <int>Issue.number),
                 status := Issue.status.name,
                 time_estimate := Issue.time_estimate
-            } ORDER BY Issue.status.name
+            ) ORDER BY Issue.status.name
                 THEN Issue.time_estimate;
         """, [
             [{
@@ -417,11 +417,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             BY
                 Issue.status.name,
                 Issue.time_estimate
-            SELECT {
+            SELECT (
                 sum := sum(ALL <int>Issue.number),
                 status := Issue.status.name,
                 time_estimate := Issue.time_estimate
-            } ORDER BY Issue.status.name
+            ) ORDER BY Issue.status.name
                 # ordering condition derived from one of the GROUP BY
                 # expressions
                 THEN Issue.time_estimate > 0;
@@ -443,13 +443,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             BY
                 Issue.status.name,
                 Issue.time_estimate
-            SELECT {
+            SELECT (
                 # array_agg with ordering instead of sum
                 numbers := array_agg(
                     ALL <int>Issue.number ORDER BY Issue.number),
                 status := Issue.status.name,
                 time_estimate := Issue.time_estimate
-            } ORDER BY Issue.status.name
+            ) ORDER BY Issue.status.name
                 THEN Issue.time_estimate;
         """, [
             [{
@@ -475,12 +475,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             BY
                 Issue.status.name,
                 Issue.time_estimate
-            SELECT {
+            SELECT (
                 # array_agg with ordering instead of sum
                 numbers := array_agg(ALL Issue.number ORDER BY Issue.number),
                 status := Issue.status.name,
                 time_estimate := Issue.time_estimate
-            } ORDER BY Issue.status.name
+            ) ORDER BY Issue.status.name
                 THEN Issue.time_estimate;
         """, [
             [{
@@ -506,7 +506,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             BY
                 Issue.status.name,
                 Issue.time_estimate
-            SELECT {
+            SELECT (
                 # a couple of array_agg
                 numbers := array_agg(
                     ALL <int>Issue.number ORDER BY Issue.number),
@@ -514,7 +514,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     ALL <str>Issue.watchers.name ORDER BY Issue.watchers.name),
                 status := Issue.status.name,
                 time_estimate := Issue.time_estimate
-            } ORDER BY Issue.status.name
+            ) ORDER BY Issue.status.name
                 THEN Issue.time_estimate;
         """, [
             [{
@@ -545,14 +545,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue.status.name,
                 # group by non-atomic expression
                 <int>Issue.number < 4
-            SELECT {
+            SELECT (
                 numbers := array_agg(
                     ALL Issue.number ORDER BY Issue.number),
                 # watchers will sometimes be EMPTY resulting in []
                 watchers := array_agg(
                     ALL Issue.watchers.name ORDER BY Issue.watchers.name),
                 status := Issue.status.name,
-            } ORDER BY Issue.status.name
+            ) ORDER BY Issue.status.name
                 THEN <int>Issue.number < 4;
         """, [
             [{
@@ -580,12 +580,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue.status.name,
                 # group by non-atomic expression
                 <int>Issue.number < 4
-            SELECT {
+            SELECT (
                 numbers := array_agg(
                     ALL <int>Issue.number ORDER BY Issue.number),
                 watchers := count(DISTINCT Issue.watchers),
                 status := Issue.status.name,
-            } ORDER BY Issue.status.name
+            ) ORDER BY Issue.status.name
                 # should work because count evaluates to a SINGLETON
                 THEN count(DISTINCT Issue);
         """, [
@@ -613,11 +613,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             BY
                 Issue.status.name,
                 Issue.owner.id
-            SELECT {
+            SELECT (
                 numbers := array_agg(
                     ALL <int>Issue.number ORDER BY Issue.number),
                 status := Issue.status.name,
-            } ORDER BY Issue.status.name
+            ) ORDER BY Issue.status.name
                 # should work because owner.name and owner.id are 1-1
                 THEN Issue.owner.name;
         """, [

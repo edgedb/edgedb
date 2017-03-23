@@ -750,6 +750,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Unexpected token.*BRACE", line=2, col=16)
     def test_edgeql_syntax_shape14(self):
         """
         SELECT {
@@ -929,21 +931,21 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_struct01(self):
         """
-        SELECT {
+        SELECT (
             foo := 1,
             bar := 2
-        };
+        );
         """
 
     def test_edgeql_syntax_struct02(self):
         """
-        SELECT {
-            foo := {
+        SELECT (
+            foo := (
                 foobaz := 1,
                 foobiz := 2,
-            },
+            ),
             bar := 3
-        };
+        );
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -951,10 +953,10 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
                   line=3, col=16)
     def test_edgeql_syntax_struct03(self):
         """
-        SELECT {
+        SELECT (
             foo: 1,
             bar := 3
-        };
+        );
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -962,11 +964,11 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
                   line=3, col=16)
     def test_edgeql_syntax_struct04(self):
         """
-        SELECT {
-            foo: {
+        SELECT (
+            foo: (
                 bar: 42
-            }
-        };
+            )
+        );
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -974,20 +976,57 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
                   line=3, col=16)
     def test_edgeql_syntax_struct05(self):
         """
-        SELECT {
-            foo: {
+        SELECT (
+            foo: (
                 'bar': 42
-            }
-        };
+            )
+        );
         """
 
     def test_edgeql_syntax_struct06(self):
         """
-        SELECT {
+        SELECT (
             foo := [
                 'bar' -> 42
             ]
-        };
+        );
+        """
+
+    def test_edgeql_syntax_struct07(self):
+        """
+        SELECT (
+            # unreserved keywords
+            abstract := 1,
+            action := 2
+        );
+
+% OK %
+
+        SELECT (
+            `abstract` := 1,
+            `action` := 2
+        );
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Unexpected token.*ALL", line=4, col=13)
+    def test_edgeql_syntax_struct08(self):
+        """
+        SELECT (
+            # reserved keywords
+            all := 1,
+            select := 2
+        );
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Unexpected token.*TURNSTILE", line=4, col=20)
+    def test_edgeql_syntax_struct09(self):
+        """
+        SELECT (
+            # reserved keywords
+            select := 2
+        );
         """
 
     def test_edgeql_syntax_path01(self):
@@ -1537,20 +1576,20 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         GROUP User
             BY User.name
-            SELECT {
+            SELECT (
                 name := User.name,
                 num_tasks := count(ALL User.tasks)
-            };
+            );
         """
 
     def test_edgeql_syntax_group02(self):
         """
         GROUP _1 := User
             BY _1.name
-            SELECT _2 := {
+            SELECT _2 := (
                 name := _1.name,
                 num_tasks := count(DISTINCT _1.tasks)
-            }
+            )
             ORDER BY _2.num_tasks ASC;
         """
 

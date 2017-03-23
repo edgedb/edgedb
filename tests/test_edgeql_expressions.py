@@ -780,7 +780,7 @@ class TestExpressions(tb.QueryTestCase):
                 r'operator `\+` is not defined .* struct<.*> and std::int'):
 
             await self.con.execute(r'''
-                SELECT {spam := 1, ham := 2} + 1;
+                SELECT (spam := 1, ham := 2) + 1;
             ''')
 
     async def test_edgeql_expr_struct02(self):
@@ -790,7 +790,7 @@ class TestExpressions(tb.QueryTestCase):
                 r'where only singletons are allowed',
                 position=8):
             await self.query('''\
-                SELECT {spam := (1 UNION 2)};
+                SELECT (spam := (1 UNION 2));
             ''')
 
     async def test_edgeql_expr_coalesce01(self):

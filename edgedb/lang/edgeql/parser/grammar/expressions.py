@@ -330,27 +330,6 @@ class ShapeElementList(ListNonterm, element=ShapeElement,
     pass
 
 
-class Struct(Nonterm):
-    def reduce_LBRACE_StructElementList_RBRACE(self, *kids):
-        self.val = qlast.Struct(elements=kids[1].val)
-
-    def reduce_LBRACE_StructElementList_COMMA_RBRACE(self, *kids):
-        self.val = qlast.Struct(elements=kids[1].val)
-
-
-class StructElement(Nonterm):
-    def reduce_ShapePathPtr_TURNSTILE_Expr(self, *kids):
-        self.val = qlast.StructElement(
-            name=kids[0].val,
-            val=kids[2].val
-        )
-
-
-class StructElementList(ListNonterm, element=StructElement,
-                        separator=tokens.T_COMMA):
-    pass
-
-
 class ShapePath(Nonterm):
     # A form of Path appearing as an element in shapes.
     #
@@ -396,7 +375,7 @@ class ShapePath(Nonterm):
             ]
         )
 
-    def reduce_ShapePathStart_AT_ShapePathPtr(self, *kids):
+    def reduce_ShapePathPtr_AT_ShapePathPtr(self, *kids):
         self.val = qlast.Path(
             steps=[
                 kids[0].val,
@@ -407,7 +386,7 @@ class ShapePath(Nonterm):
             ]
         )
 
-    def reduce_ShapePathStart_DOT_ShapePathPtr(self, *kids):
+    def reduce_ShapePathPtr_DOT_ShapePathPtr(self, *kids):
         from edgedb.lang.schema import pointers as s_pointers
 
         self.val = qlast.Path(
@@ -420,7 +399,7 @@ class ShapePath(Nonterm):
             ]
         )
 
-    def reduce_ShapePathStart_DOTFW_ShapePathPtr(self, *kids):
+    def reduce_ShapePathPtr_DOTFW_ShapePathPtr(self, *kids):
         from edgedb.lang.schema import pointers as s_pointers
 
         self.val = qlast.Path(
@@ -433,7 +412,7 @@ class ShapePath(Nonterm):
             ]
         )
 
-    def reduce_ShapePathStart_DOTBW_ShapePathPtr(self, *kids):
+    def reduce_ShapePathPtr_DOTBW_ShapePathPtr(self, *kids):
         from edgedb.lang.schema import pointers as s_pointers
 
         self.val = qlast.Path(
@@ -445,16 +424,6 @@ class ShapePath(Nonterm):
                 )
             ]
         )
-
-
-class ShapePathStart(Nonterm):
-    def reduce_NodeName(self, *kids):
-        self.val = qlast.ClassRef(
-            name=kids[0].val.name, module=kids[0].val.module)
-
-    def reduce_NodeNameParens(self, *kids):
-        self.val = qlast.ClassRef(
-            name=kids[0].val.name, module=kids[0].val.module)
 
 
 class ShapePathPtr(Nonterm):
@@ -606,7 +575,7 @@ class ParenExpr(Nonterm):
 
 class Expr(Nonterm):
     # Path | Expr { ... } | Constant | '(' Expr ')' | FuncExpr
-    # | Tuple | Struct | Collection
+    # | Tuple | NamedTuple | Collection
     # | '+' Expr | '-' Expr | Expr '+' Expr | Expr '-' Expr
     # | Expr '*' Expr | Expr '/' Expr | Expr '%' Expr
     # | Expr '**' Expr | Expr '<' Expr | Expr '>' Expr
@@ -687,7 +656,7 @@ class Expr(Nonterm):
     def reduce_Collection(self, *kids):
         self.val = kids[0].val
 
-    def reduce_Struct(self, *kids):
+    def reduce_NamedTuple(self, *kids):
         self.val = kids[0].val
 
     @parsing.precedence(precedence.P_UMINUS)
@@ -843,6 +812,27 @@ class Expr(Nonterm):
 class Tuple(Nonterm):
     def reduce_LPAREN_Expr_COMMA_OptExprList_RPAREN(self, *kids):
         self.val = qlast.Tuple(elements=[kids[1].val] + kids[3].val)
+
+
+class NamedTuple(Nonterm):
+    def reduce_LPAREN_NamedTupleElementList_RPAREN(self, *kids):
+        self.val = qlast.Struct(elements=kids[1].val)
+
+    def reduce_LPAREN_NamedTupleElementList_COMMA_RPAREN(self, *kids):
+        self.val = qlast.Struct(elements=kids[1].val)
+
+
+class NamedTupleElement(Nonterm):
+    def reduce_ShortOpNodeName_TURNSTILE_Expr(self, *kids):
+        self.val = qlast.StructElement(
+            name=kids[0].val,
+            val=kids[2].val
+        )
+
+
+class NamedTupleElementList(ListNonterm, element=NamedTupleElement,
+                            separator=tokens.T_COMMA):
+    pass
 
 
 class Collection(Nonterm):

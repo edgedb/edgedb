@@ -349,13 +349,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(']')
 
     def visit_Struct(self, node):
-        self.write('{')
+        self.write('(')
         self.indentation += 1
         self.new_lines = 1
         self.visit_list(node.elements, newlines=True, separator=',')
         self.indentation -= 1
         self.new_lines = 1
-        self.write('}')
+        self.write(')')
 
     def visit_StructElement(self, node):
         self.visit(node.name)
