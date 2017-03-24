@@ -7,6 +7,7 @@
 
 import copy
 import collections.abc
+import functools
 import typing
 
 from edgedb.lang.common import markup
@@ -132,15 +133,15 @@ class AST(object, metaclass=MetaAST):
         # XXX: use weakref here
         for arg, value in kwargs.items():
             if hasattr(self, arg):
-                if isinstance(value, AST):
+                if is_ast_node(value):
                     value.parent = self
                 elif isinstance(value, list):
                     for v in value:
-                        if isinstance(v, AST):
+                        if is_ast_node(v):
                             v.parent = self
                 elif isinstance(value, dict):
                     for v in value.values():
-                        if isinstance(v, AST):
+                        if is_ast_node(v):
                             v.parent = self
             else:
                 raise ASTError(
@@ -217,36 +218,46 @@ def _serialize_to_markup(ast, *, ctx):
     return node
 
 
-def is_container(value):
+@functools.lru_cache(1024)
+def _is_ast_node_type(cls):
+    return issubclass(cls, AST)
+
+
+def is_ast_node(obj):
+    return _is_ast_node_type(obj.__class__)
+
+
+@functools.lru_cache(1024)
+def _is_container_type(cls):
     return (
-        isinstance(value, (collections.abc.Sequence, collections.abc.Set)) and
-        not isinstance(value, (str, bytes, bytearray, memoryview))
+        issubclass(cls, (collections.abc.Container)) and
+        not issubclass(cls, (str, bytes, bytearray, memoryview))
     )
+
+
+def is_container(obj):
+    return _is_container_type(obj.__class__)
 
 
 def is_container_type(type_):
-    return (
-        isinstance(type_, type) and
-        issubclass(type_, collections.abc.Container) and
-        not issubclass(type_, (str, bytes, bytearray, memoryview))
-    )
+    return isinstance(type_, type) and _is_container_type(type_)
 
 
 def fix_parent_links(node):
     for field, value in iter_fields(node):
         if is_container(value):
             for n in value:
-                if isinstance(n, AST):
+                if is_ast_node(n):
                     n.parent = node
                     fix_parent_links(n)
 
         elif isinstance(value, dict):
             for n in value.values():
-                if isinstance(n, AST):
+                if is_ast_node(n):
                     n.parent = node
                     fix_parent_links(n)
 
-        elif isinstance(value, AST):
+        elif is_ast_node(value):
             value.parent = node
             fix_parent_links(value)
 

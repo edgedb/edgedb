@@ -6,48 +6,9 @@
 ##
 
 
-import copy
-import typing
-
-from edgedb.lang.common import ast
 from edgedb.server.pgsql import ast as pgast
 
 from . import meta
-
-
-class NameUpdater(ast.NodeVisitor):
-
-    def __init__(self, range_aliases, prefix: str):
-        self.prefix = prefix
-        self.range_aliases = range_aliases
-        super().__init__()
-
-    def visit_Alias(self, node: pgast.Alias):
-        if node.aliasname in self.range_aliases:
-            node.aliasname = self.prefix + node.aliasname
-
-    def visit_ColumnRef(self, node: pgast.ColumnRef):
-        if node.name[0] in self.range_aliases:
-            node.name[0] = self.prefix + node.name[0]
-
-    @classmethod
-    def update(cls, range_aliases, prefix: str, node: pgast.Alias):
-        nu = cls(range_aliases, prefix)
-        nu.visit(node)
-
-
-def copy_subtree(idx: int,
-                 root: pgast.Base,
-                 range_aliases: typing.Set[str],
-                 deepcopy: bool):
-
-    if deepcopy:
-        new_root = copy.deepcopy(root)
-    else:
-        new_root = root
-
-    NameUpdater.update(range_aliases, f'i{idx}~', new_root)
-    return new_root
 
 
 def merge_query(qi: meta.QueryInfo, *,
@@ -71,7 +32,8 @@ def merge_query(qi: meta.QueryInfo, *,
     # If the CTE is used in more than one place, always deepcopy it.
     deepcopy = len(source_rel.used_in) > 1
 
-    range_aliases = source_rel.get_range_aliases()
+    qi.merge_range_names(target_rel=target_rel, source_rel=source_rel,
+                         inline_index=inline_index)
 
     if target_alias in qi.col_refs:
         # (if the column is referenced in more than one place - deepcopy)
@@ -81,11 +43,11 @@ def merge_query(qi: meta.QueryInfo, *,
             col: pgast.ColumnRef = col_ref.node
             target = source_rel.get_target(col.name[1])
 
-            col_ref.node = copy_subtree(
-                inline_index,
+            col_ref.node = qi.copy_subtree_and_rename_refs(
                 target,
-                range_aliases,
-                col_deepcopy)
+                source_rel=source_rel,
+                inline_index=inline_index,
+                deepcopy=col_deepcopy)
 
     if target_alias in qi.range_refs:
         # (if the range is referenced in more than one place - deepcopy)
@@ -93,47 +55,46 @@ def merge_query(qi: meta.QueryInfo, *,
 
         assert len(source_rel.query.from_clause) == 1
         for range_ref in qi.range_refs[target_alias]:
-            range_ref.node = copy_subtree(
-                inline_index,
+            range_ref.node = qi.copy_subtree_and_rename_refs(
                 source_rel.query.from_clause[0],
-                range_aliases,
-                range_deepcopy)
+                source_rel=source_rel,
+                inline_index=inline_index,
+                deepcopy=range_deepcopy)
 
     if source_rel.query.group_clause:
-        query.group_clause = copy_subtree(
-            inline_index,
+        query.group_clause = qi.copy_subtree_and_rename_refs(
             source_rel.query.group_clause,
-            range_aliases,
-            deepcopy)
+            source_rel=source_rel,
+            inline_index=inline_index,
+            deepcopy=deepcopy)
 
     if source_rel.query.limit_offset:
-        query.limit_offset = copy_subtree(
-            source_rel,
-            inline_index,
+        query.limit_offset = qi.copy_subtree_and_rename_refs(
             source_rel.query.limit_offset,
-            range_aliases,
-            deepcopy)
+            source_rel=source_rel,
+            inline_index=inline_index,
+            deepcopy=deepcopy)
 
     if source_rel.query.limit_count:
-        query.limit_count = copy_subtree(
-            inline_index,
+        query.limit_count = qi.copy_subtree_and_rename_refs(
             source_rel.query.limit_count,
-            range_aliases,
-            deepcopy)
+            source_rel=source_rel,
+            inline_index=inline_index,
+            deepcopy=deepcopy)
 
     if source_rel.query.sort_clause:
-        query.sort_clause = copy_subtree(
-            inline_index,
+        query.sort_clause = qi.copy_subtree_and_rename_refs(
             source_rel.query.sort_clause,
-            range_aliases,
-            deepcopy)
+            source_rel=source_rel,
+            inline_index=inline_index,
+            deepcopy=deepcopy)
 
     if source_rel.query.where_clause:
-        new_where = copy_subtree(
-            inline_index,
+        new_where = qi.copy_subtree_and_rename_refs(
             source_rel.query.where_clause,
-            range_aliases,
-            deepcopy)
+            source_rel=source_rel,
+            inline_index=inline_index,
+            deepcopy=deepcopy)
 
         if query.where_clause:
             query.where_clause = pgast.Expr(
@@ -161,18 +122,21 @@ def merge_cte_relation(qi: meta.QueryInfo, source_rel: meta.Relation):
             del source_rel.used_in[target_rel]
 
     if not source_rel.used_in:
-        qi.remove_relation(source_rel)
+        qi.discard_relation(source_rel)
 
 
 def inline_cte_relation(qi: meta.QueryInfo, source_rel: meta.Relation):
     assert source_rel.is_cte
     rel_query = source_rel.query
 
+    deepcopy = len(source_rel.used_in) > 1
+
     for target_rel, alias in list(source_rel.used_in.items()):
         assert alias in qi.range_refs
 
         for range_ref in qi.range_refs[alias]:
-            new_query = copy.deepcopy(rel_query)
+            new_query = qi.copy_subtree(
+                rel_query, source_rel=source_rel, deepcopy=deepcopy)
 
             range_ref.node = pgast.RangeSubselect(
                 alias=range_ref.node.alias,
@@ -181,7 +145,7 @@ def inline_cte_relation(qi: meta.QueryInfo, source_rel: meta.Relation):
         del source_rel.used_in[target_rel]
 
     if not source_rel.used_in:
-        qi.remove_relation(source_rel)
+        qi.discard_relation(source_rel)
 
 
 def optimize(qi: meta.QueryInfo):

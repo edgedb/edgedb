@@ -30,7 +30,7 @@ def find_children(node, test_func, *args, force_traversal=False,
 
             if isinstance(value, (list, set, frozenset)):
                 for n in value:
-                    if not isinstance(n, AST):
+                    if not is_ast_node(n):
                         continue
 
                     try:
@@ -45,7 +45,7 @@ def find_children(node, test_func, *args, force_traversal=False,
                         if _n is not None:
                             result.extend(_n)
 
-            elif isinstance(value, AST):
+            elif is_ast_node(value):
                 try:
                     if not field_spec.hidden and test_func(
                             value, *args, **kwargs):
@@ -106,7 +106,7 @@ class NodeVisitor:
     def container_visit(self, node):
         result = []
         for elem in node:
-            if isinstance(elem, AST) or is_container(elem):
+            if is_ast_node(elem) or is_container(elem):
                 result.append(self.visit(elem))
             else:
                 result.append(elem)
@@ -148,11 +148,11 @@ class NodeVisitor:
         for field, value in iter_fields(node, include_meta=False):
             if is_container(value):
                 for item in value:
-                    if isinstance(item, AST):
+                    if is_ast_node(item):
                         res = self.visit(item)
                         if res is not None:
                             field_results.append(res)
-            elif isinstance(value, AST):
+            elif is_ast_node(value):
                 res = self.visit(value)
                 if res is not None:
                     field_results.append(res)
@@ -191,14 +191,14 @@ def nodes_equal(n1, n2):
                     except IndexError:
                         return False
 
-                    if isinstance(item1, AST):
+                    if is_ast_node(item1):
                         if not nodes_equal(item1, item2):
                             return False
                     else:
                         if item1 != item2:
                             return False
 
-            elif isinstance(n1v, AST):
+            elif is_ast_node(n1v):
                 if not nodes_equal(n1v, n2v):
                     return False
 

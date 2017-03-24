@@ -32,12 +32,10 @@ class Context(compiler.CompilerContext):
 
 class Analyzer(ast.NodeTransformer):
 
-    def __init__(self):
+    def __init__(self, qi: meta.QueryInfo):
         super().__init__()
         self.ctes = {}
-        self.rels = []
-        self.range_refs = {}
-        self.col_refs = {}
+        self.qi = qi
         self.context = Context()
         self.processed_queries = set()
 
@@ -60,17 +58,24 @@ class Analyzer(ast.NodeTransformer):
         ref = pgast._Ref(node=node)
         node.parent = ref
 
-        if alias not in self.range_refs:
-            self.range_refs[alias] = []
-        self.range_refs[alias].append(ref)
+        self.qi.track_range_ref(alias, ref)
+
+        ctx = self.context.current
 
         if relation_name in self.ctes:
-            ctx = self.context.current
             rel = self.ctes[relation_name]
             if ctx.current_rel not in rel.used_in:
                 rel.used_in[ctx.current_rel] = alias
 
+        ctx.current_rel.range_names.add(alias)
+
         return ref
+
+    def visit_RangeSubselect(self, node: pgast.RangeSubselect):
+        if node.alias is not None:
+            ctx = self.context.current
+            ctx.current_rel.range_names.add(node.alias.aliasname)
+        return self.generic_visit(node)
 
     def visit_ColumnRef(self, node: pgast.ColumnRef):
         rel_name = node.name[0]
@@ -78,10 +83,7 @@ class Analyzer(ast.NodeTransformer):
         ref = pgast._Ref(node=node)
         node.parent = ref
 
-        if rel_name not in self.col_refs:
-            self.col_refs[rel_name] = []
-        self.col_refs[rel_name].append(ref)
-
+        self.qi.track_col_ref(rel_name, ref)
         return ref
 
     def visit_Query(self, node: pgast.Query):
@@ -141,15 +143,11 @@ class Analyzer(ast.NodeTransformer):
             ctx.current_rel = rel
             self.generic_visit(node)
 
-        self.rels.append(rel)
+        self.qi.rels.append(rel)
 
     @classmethod
     def analyze(cls, tree: pgast.Query) -> meta.QueryInfo:
-        analyzer = cls()
+        qi = meta.QueryInfo(tree)
+        analyzer = cls(qi)
         analyzer.visit(tree)
-
-        return meta.QueryInfo(
-            tree,
-            analyzer.rels,
-            analyzer.col_refs,
-            analyzer.range_refs)
+        return qi
