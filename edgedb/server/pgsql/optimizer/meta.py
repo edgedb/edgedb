@@ -256,9 +256,9 @@ def _serialize_to_markup(rel, *, ctx):
         id=id(rel),
         name=type(rel).__name__)
 
-    attrs = set(Relation.__annotations__)
-    attrs.discard('query')
-    attrs.discard('parent')
+    attrs = list(Relation.__annotations__)
+    attrs.remove('query')
+    attrs.remove('parent')
 
     if rel.parent is not None:
         node.add_child(
