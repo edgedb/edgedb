@@ -146,7 +146,9 @@ def merge_query(qi: meta.QueryInfo, rel: meta.Relation,
     return True
 
 
-def merge_relation(qi: meta.QueryInfo, rel: meta.Relation):
+def merge_cte_relation(qi: meta.QueryInfo, rel: meta.Relation):
+    assert rel.is_cte
+
     for used_in_rel, alias in list(rel.used_in.items()):
         inlined = merge_query(qi, rel, alias, used_in_rel.query)
         if inlined:
@@ -156,18 +158,24 @@ def merge_relation(qi: meta.QueryInfo, rel: meta.Relation):
         qi.remove_relation(rel)
 
 
-def inline_relation(qi: meta.QueryInfo, rel: meta.Relation):
-    for used_in_rel, alias in rel.used_in.items():
+def inline_cte_relation(qi: meta.QueryInfo, rel: meta.Relation):
+    assert rel.is_cte
+    rel_query = rel.query
+
+    for used_in_rel, alias in list(rel.used_in.items()):
         assert alias in qi.range_refs
 
         for range_ref in qi.range_refs[alias]:
-            new_query = copy.deepcopy(rel.query)
+            new_query = copy.deepcopy(rel_query)
 
             range_ref.node = pgast.RangeSubselect(
                 alias=range_ref.node.alias,
                 subquery=new_query)
 
-    qi.remove_relation(rel)
+        del rel.used_in[used_in_rel]
+
+    if not rel.used_in:
+        qi.remove_relation(rel)
 
 
 def optimize(qi: meta.QueryInfo):
@@ -178,7 +186,7 @@ def optimize(qi: meta.QueryInfo):
         query = rel.query
 
         if len(query.from_clause) == 0 and len(rel.used_in) == 1:
-            inline_relation(qi, rel)
+            inline_cte_relation(qi, rel)
 
         elif len(query.from_clause) == 1:
             if not query.group_clause:
@@ -187,9 +195,9 @@ def optimize(qi: meta.QueryInfo):
                     # `HAVING True` is a special hint to inline
                     # this CTE as a subquery.
                     query.having = None
-                    inline_relation(qi, rel)
+                    inline_cte_relation(qi, rel)
                 else:
-                    merge_relation(qi, rel)
+                    merge_cte_relation(qi, rel)
 
             elif len(rel.used_in) == 1:
-                inline_relation(qi, rel)
+                inline_cte_relation(qi, rel)
