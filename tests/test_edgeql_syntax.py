@@ -1029,6 +1029,34 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         );
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Unexpected token.*TURNSTILE", line=2, col=21)
+    def test_edgeql_syntax_struct10(self):
+        """
+        SELECT (1, a:=2);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Unexpected token.*ICONST", line=2, col=23)
+    def test_edgeql_syntax_struct11(self):
+        """
+        SELECT (a:=1, 2);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Unexpected token.*RPAREN", line=2, col=26)
+    def test_edgeql_syntax_struct12(self):
+        """
+        SELECT (a:=1, foo);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Unexpected token.*DOT", line=2, col=26)
+    def test_edgeql_syntax_struct13(self):
+        """
+        SELECT (a:=1, foo.bar);
+        """
+
     def test_edgeql_syntax_path01(self):
         """
         SELECT Foo.bar;
