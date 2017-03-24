@@ -58,6 +58,7 @@ class Analyzer(ast.NodeTransformer):
             alias = relation_name
 
         ref = pgast._Ref(node=node)
+        node.parent = ref
 
         if alias not in self.range_refs:
             self.range_refs[alias] = []
@@ -75,6 +76,7 @@ class Analyzer(ast.NodeTransformer):
         rel_name = node.name[0]
 
         ref = pgast._Ref(node=node)
+        node.parent = ref
 
         if rel_name not in self.col_refs:
             self.col_refs[rel_name] = []

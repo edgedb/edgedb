@@ -50,13 +50,17 @@ def copy_subtree(idx: int,
     return new_root
 
 
-def merge_query(qi: meta.QueryInfo, rel: meta.Relation,
-                alias: str, query: pgast.Query):
+def merge_query(qi: meta.QueryInfo, *,
+                source_rel: meta.Relation,
+                target_rel: meta.Relation,
+                target_alias: str):
 
-    if (rel.query.group_clause and query.group_clause or
-            rel.query.limit_offset and query.limit_offset or
-            rel.query.limit_count and query.limit_count or
-            rel.query.sort_clause and query.sort_clause):
+    query = target_rel.query
+
+    if (source_rel.query.group_clause and query.group_clause or
+            source_rel.query.limit_offset and query.limit_offset or
+            source_rel.query.limit_count and query.limit_count or
+            source_rel.query.sort_clause and query.sort_clause):
         # if both the query and the cte we want to
         # inline have GROUP BY/LIMIT/etc:
         # skip inlining
@@ -65,17 +69,17 @@ def merge_query(qi: meta.QueryInfo, rel: meta.Relation,
     inline_index = qi.get_new_inline_index()
 
     # If the CTE is used in more than one place, always deepcopy it.
-    deepcopy = len(rel.used_in) > 1
+    deepcopy = len(source_rel.used_in) > 1
 
-    range_aliases = rel.get_range_aliases()
+    range_aliases = source_rel.get_range_aliases()
 
-    if alias in qi.col_refs:
+    if target_alias in qi.col_refs:
         # (if the column is referenced in more than one place - deepcopy)
-        col_deepcopy = deepcopy or len(qi.col_refs[alias]) > 1
+        col_deepcopy = deepcopy or len(qi.col_refs[target_alias]) > 1
 
-        for col_ref in qi.col_refs[alias]:
+        for col_ref in qi.col_refs[target_alias]:
             col: pgast.ColumnRef = col_ref.node
-            target = rel.get_target(col.name[1])
+            target = source_rel.get_target(col.name[1])
 
             col_ref.node = copy_subtree(
                 inline_index,
@@ -83,51 +87,51 @@ def merge_query(qi: meta.QueryInfo, rel: meta.Relation,
                 range_aliases,
                 col_deepcopy)
 
-    if alias in qi.range_refs:
+    if target_alias in qi.range_refs:
         # (if the range is referenced in more than one place - deepcopy)
-        range_deepcopy = deepcopy or len(qi.range_refs[alias]) > 1
+        range_deepcopy = deepcopy or len(qi.range_refs[target_alias]) > 1
 
-        assert len(rel.query.from_clause) == 1
-        for range_ref in qi.range_refs[alias]:
+        assert len(source_rel.query.from_clause) == 1
+        for range_ref in qi.range_refs[target_alias]:
             range_ref.node = copy_subtree(
                 inline_index,
-                rel.query.from_clause[0],
+                source_rel.query.from_clause[0],
                 range_aliases,
                 range_deepcopy)
 
-    if rel.query.group_clause:
+    if source_rel.query.group_clause:
         query.group_clause = copy_subtree(
             inline_index,
-            rel.query.group_clause,
+            source_rel.query.group_clause,
             range_aliases,
             deepcopy)
 
-    if rel.query.limit_offset:
+    if source_rel.query.limit_offset:
         query.limit_offset = copy_subtree(
-            rel,
+            source_rel,
             inline_index,
-            rel.query.limit_offset,
+            source_rel.query.limit_offset,
             range_aliases,
             deepcopy)
 
-    if rel.query.limit_count:
+    if source_rel.query.limit_count:
         query.limit_count = copy_subtree(
             inline_index,
-            rel.query.limit_count,
+            source_rel.query.limit_count,
             range_aliases,
             deepcopy)
 
-    if rel.query.sort_clause:
+    if source_rel.query.sort_clause:
         query.sort_clause = copy_subtree(
             inline_index,
-            rel.query.sort_clause,
+            source_rel.query.sort_clause,
             range_aliases,
             deepcopy)
 
-    if rel.query.where_clause:
+    if source_rel.query.where_clause:
         new_where = copy_subtree(
             inline_index,
-            rel.query.where_clause,
+            source_rel.query.where_clause,
             range_aliases,
             deepcopy)
 
@@ -140,29 +144,31 @@ def merge_query(qi: meta.QueryInfo, rel: meta.Relation,
         else:
             query.where_clause = new_where
 
-    if rel.query.ctes:
-        query.ctes.extend(rel.query.ctes)
+    if source_rel.query.ctes:
+        query.ctes.extend(source_rel.query.ctes)
 
     return True
 
 
-def merge_cte_relation(qi: meta.QueryInfo, rel: meta.Relation):
-    assert rel.is_cte
+def merge_cte_relation(qi: meta.QueryInfo, source_rel: meta.Relation):
+    assert source_rel.is_cte
 
-    for used_in_rel, alias in list(rel.used_in.items()):
-        inlined = merge_query(qi, rel, alias, used_in_rel.query)
+    for target_rel, alias in list(source_rel.used_in.items()):
+        inlined = merge_query(
+            qi, target_rel=target_rel, source_rel=source_rel,
+            target_alias=alias)
         if inlined:
-            del rel.used_in[used_in_rel]
+            del source_rel.used_in[target_rel]
 
-    if not rel.used_in:
-        qi.remove_relation(rel)
+    if not source_rel.used_in:
+        qi.remove_relation(source_rel)
 
 
-def inline_cte_relation(qi: meta.QueryInfo, rel: meta.Relation):
-    assert rel.is_cte
-    rel_query = rel.query
+def inline_cte_relation(qi: meta.QueryInfo, source_rel: meta.Relation):
+    assert source_rel.is_cte
+    rel_query = source_rel.query
 
-    for used_in_rel, alias in list(rel.used_in.items()):
+    for target_rel, alias in list(source_rel.used_in.items()):
         assert alias in qi.range_refs
 
         for range_ref in qi.range_refs[alias]:
@@ -172,10 +178,10 @@ def inline_cte_relation(qi: meta.QueryInfo, rel: meta.Relation):
                 alias=range_ref.node.alias,
                 subquery=new_query)
 
-        del rel.used_in[used_in_rel]
+        del source_rel.used_in[target_rel]
 
-    if not rel.used_in:
-        qi.remove_relation(rel)
+    if not source_rel.used_in:
+        qi.remove_relation(source_rel)
 
 
 def optimize(qi: meta.QueryInfo):

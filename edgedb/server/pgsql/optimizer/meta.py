@@ -88,8 +88,8 @@ class QueryInfo:
 
     tree: pgast.Query
     rels: typing.List[Relation]
-    col_refs: typing.Mapping[str, typing.List[pgast.ColumnRefTypes]]
-    range_refs: typing.Mapping[str, typing.List[pgast.RangeTypes]]
+    col_refs: typing.Mapping[str, typing.List[pgast._Ref]]
+    range_refs: typing.Mapping[str, typing.List[pgast._Ref]]
 
     def __init__(self, tree, rels, col_refs, range_refs):
         self.tree = tree
