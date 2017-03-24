@@ -537,45 +537,66 @@ class LangRenderer(BaseRenderer):
 
 
 class CodeRenderer(BaseRenderer):
+    def _write_code_token(self, val, style):
+        while val.startswith('\n'):
+            val = val[1:]
+            self.buffer.new_line()
+
+        end_nl = 0
+        while val.endswith('\n'):
+            val = val[:-1]
+            end_nl += 1
+
+        self.buffer.write(val, style=style)
+
+        while end_nl:
+            end_nl -= 1
+            self.buffer.new_line()
+
     def _render_code_Token(self, element):
-        self.buffer.write(element.val, style=self.styles.code)
+        self._write_code_token(element.val, style=self.styles.code)
 
     def _render_code_Comment(self, element):
-        self.buffer.write(element.val, style=self.styles.code_comment)
+        self._write_code_token(element.val, style=self.styles.code_comment)
 
     def _render_code_Decorator(self, element):
-        self.buffer.write(element.val, style=self.styles.code_decorator)
+        self._write_code_token(element.val, style=self.styles.code_decorator)
 
     def _render_code_String(self, element):
-        self.buffer.write(element.val, style=self.styles.code_string)
+        self._write_code_token(element.val, style=self.styles.code_string)
 
     def _render_code_Number(self, element):
-        self.buffer.write(element.val, style=self.styles.code_number)
+        self._write_code_token(element.val, style=self.styles.code_number)
 
     def _render_code_ClassName(self, element):
-        self.buffer.write(element.val, style=self.styles.code_decl_name)
+        self._write_code_token(element.val, style=self.styles.code_decl_name)
 
     def _render_code_FunctionName(self, element):
-        self.buffer.write(element.val, style=self.styles.code_decl_name)
+        self._write_code_token(element.val, style=self.styles.code_decl_name)
 
     def _render_code_Constant(self, element):
-        self.buffer.write(element.val, style=self.styles.code_constant)
+        self._write_code_token(element.val, style=self.styles.code_constant)
 
     def _render_code_Keyword(self, element):
-        self.buffer.write(element.val, style=self.styles.code_keyword)
+        self._write_code_token(element.val, style=self.styles.code_keyword)
 
     def _render_code_Punctuation(self, element):
-        self.buffer.write(element.val, style=self.styles.code_punctuation)
+        self._write_code_token(element.val, style=self.styles.code_punctuation)
 
     def _render_code_Tag(self, element):
-        self.buffer.write(element.val, style=self.styles.code_tag)
+        self._write_code_token(element.val, style=self.styles.code_tag)
 
     def _render_code_Attribute(self, element):
-        self.buffer.write(element.val, style=self.styles.code_attribute)
+        self._write_code_token(element.val, style=self.styles.code_attribute)
 
     def _render_code_Code(self, element):
-        for token in element.tokens:
-            self._render(token)
+        if len(element.tokens) > 20:
+            with self.buffer.indent():
+                for token in element.tokens:
+                    self._render(token)
+        else:
+            for token in element.tokens:
+                self._render(token)
 
 
 class Renderer(DocRenderer, LangRenderer, CodeRenderer):

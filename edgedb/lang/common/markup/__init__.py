@@ -10,7 +10,7 @@ import sys
 
 from edgedb.lang.common import exceptions
 from . import elements, serializer, renderers
-from .serializer import serialize
+from .serializer import serialize, serialize_code
 from .serializer import base as _base_serializer
 
 
