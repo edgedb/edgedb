@@ -10,6 +10,9 @@ import collections
 import typing
 
 from edgedb.lang.common import ast
+from edgedb.lang.common import markup
+
+from edgedb.server.pgsql import codegen as pgcodegen
 from edgedb.server.pgsql import ast as pgast
 
 
@@ -77,6 +80,9 @@ class Relation:
     def get_range_aliases(self):
         return RangeAnalyzer.analyze(self)
 
+    def __repr__(self):
+        return f'<Relation {id(self):#x}>'
+
 
 class QueryInfo:
 
@@ -130,3 +136,39 @@ class RangeAnalyzer(ast.NodeVisitor):
         for fc in rel.query.from_clause:
             analyzer.visit(fc)
         return analyzer.aliases
+
+
+@markup.serializer.serializer.register(Relation)
+def _serialize_to_markup(rel, *, ctx):
+    node = markup.elements.lang.TreeNode(
+        id=id(rel),
+        name=type(rel).__name__)
+
+    attrs = set(Relation.__annotations__)
+    attrs.discard('query')
+    attrs.discard('parent')
+
+    if rel.parent is not None:
+        node.add_child(
+            label='parent',
+            node=markup.elements.lang.Object(
+                id=id(rel.parent),
+                class_module='',
+                classname=type(rel.parent).__name__,
+                repr=repr(rel.parent)
+            ))
+
+    for attr in attrs:
+        node.add_child(
+            label=attr,
+            node=markup.serialize(getattr(rel, attr, None), ctx=ctx))
+
+    codegen = pgcodegen.SQLSourceGenerator()
+    codegen.visit(rel.query)
+    code = ''.join(codegen.result)
+
+    node.add_child(
+        label='query',
+        node=markup.serialize_code(code, lexer='SQL'))
+
+    return node
