@@ -115,6 +115,11 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 debug.header('SQL Tree before optimization')
                 debug.dump(qtree, _ast_include_meta=False)
 
+                codegen = self._run_codegen(qtree)
+                qchunks = codegen.result
+                debug.header('SQL before optimization')
+                debug.dump_code(''.join(qchunks), lexer='sql')
+
             opt = pg_opt.Optimizer()
             if timer is None:
                 qtree = opt.optimize(qtree)
