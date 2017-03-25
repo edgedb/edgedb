@@ -1,7 +1,34 @@
 concept Status:
-    link name to str
+    required link name to str
+
+concept Tag:
+    required link name to str
+
+link annotated_status:
+    linkproperty note to str
+
+link weighted_tags:
+    required linkproperty weight to int
+
+link annotated_tests:
+    linkproperty note to str
 
 concept UpdateTest:
-    link name to str
-    link status to Status
+    required link name to str
     link comment to str
+
+    # for testing singleton links
+    link status to Status
+    link annotated_status to Status
+
+    # for testing links to sets
+    link tags to Tag:
+        mapping: **
+    link weighted_tags to Tag:
+        mapping: **
+
+    # for testing links to sets of the same type as originator
+    link related to UpdateTest:
+        mapping: **
+    link annotated_tests to UpdateTest:
+        mapping: **

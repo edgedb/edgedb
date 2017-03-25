@@ -10,6 +10,7 @@ import os.path
 import unittest
 
 from edgedb.server import _testbase as tb
+from edgedb.client import exceptions as exc
 
 
 class TestUpdate(tb.QueryTestCase):
@@ -23,6 +24,18 @@ class TestUpdate(tb.QueryTestCase):
 
         INSERT test::Status {
             name := 'Closed'
+        };
+
+        INSERT test::Tag {
+            name := 'fun'
+        };
+
+        INSERT test::Tag {
+            name := 'boring'
+        };
+
+        INSERT test::Tag {
+            name := 'wow'
         };
     """
 
@@ -422,6 +435,468 @@ class TestUpdate(tb.QueryTestCase):
                 'name': 'update-test3',
                 'status': {
                     'name': 'Open',
+                },
+            },
+        ])
+
+    async def test_edgeql_update_multiple01(self):
+        res = await self.con.execute(r"""
+            WITH MODULE test
+            UPDATE UpdateTest
+            FILTER UpdateTest.name = 'update-test1'
+            SET {
+                tags := (SELECT Tag)
+            };
+
+            WITH MODULE test
+            SELECT UpdateTest {
+                name,
+                tags: {
+                    name
+                } ORDER BY .name
+            } FILTER UpdateTest.name = 'update-test1';
+        """)
+
+        self.assert_data_shape(res[-1], [
+            {
+                'name': 'update-test1',
+                'tags': [{
+                    'name': 'boring',
+                }, {
+                    'name': 'fun',
+                }, {
+                    'name': 'wow',
+                }],
+            },
+        ])
+
+    async def test_edgeql_update_multiple02(self):
+        res = await self.con.execute(r"""
+            WITH MODULE test
+            UPDATE UpdateTest
+            FILTER UpdateTest.name = 'update-test1'
+            SET {
+                tags := (SELECT Tag FILTER Tag.name = 'wow')
+            };
+
+            WITH MODULE test
+            SELECT UpdateTest {
+                name,
+                tags: {
+                    name
+                } ORDER BY .name
+            } FILTER UpdateTest.name = 'update-test1';
+        """)
+
+        self.assert_data_shape(res[-1], [
+            {
+                'name': 'update-test1',
+                'tags': [{
+                    'name': 'wow',
+                }],
+            },
+        ])
+
+    async def test_edgeql_update_multiple03(self):
+        res = await self.con.execute(r"""
+            WITH MODULE test
+            UPDATE UpdateTest
+            FILTER UpdateTest.name = 'update-test1'
+            SET {
+                tags := (SELECT Tag FILTER Tag.name IN ('wow', 'fun'))
+            };
+
+            WITH MODULE test
+            SELECT UpdateTest {
+                name,
+                tags: {
+                    name
+                } ORDER BY .name
+            } FILTER UpdateTest.name = 'update-test1';
+        """)
+
+        self.assert_data_shape(res[-1], [
+            {
+                'name': 'update-test1',
+                'tags': [{
+                    'name': 'fun',
+                }, {
+                    'name': 'wow',
+                }],
+            },
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_update_multiple04(self):
+        res = await self.con.execute(r"""
+            WITH
+                MODULE test,
+                U2 := UpdateTest
+            UPDATE UpdateTest
+            FILTER UpdateTest.name = 'update-test1'
+            SET {
+                related := (SELECT U2 FILTER U2.name != 'update-test1')
+            };
+
+            WITH MODULE test
+            SELECT UpdateTest {
+                name,
+                related: {
+                    name
+                } ORDER BY .name
+            } FILTER UpdateTest.name = 'update-test1';
+        """)
+
+        self.assert_data_shape(res[-1], [
+            {
+                'name': 'update-test1',
+                'related': [{
+                    'name': 'update-test2',
+                }, {
+                    'name': 'update-test3',
+                }],
+            },
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_update_multiple05(self):
+        res = await self.con.execute(r"""
+            WITH
+                MODULE test,
+                U2 := UpdateTest
+            UPDATE UpdateTest
+            FILTER UpdateTest.name = 'update-test1'
+            SET {
+                annotated_tests := (
+                    SELECT U2 FILTER U2.name != 'update-test1'
+                )
+            };
+
+            WITH MODULE test
+            SELECT UpdateTest {
+                name,
+                annotated_tests: {
+                    name,
+                    @note
+                } ORDER BY .name
+            } FILTER UpdateTest.name = 'update-test1';
+        """)
+
+        self.assert_data_shape(res[-1], [
+            {
+                'name': 'update-test1',
+                'annotated_tests': [{
+                    'name': 'update-test2',
+                    '@note': None,
+                }, {
+                    'name': 'update-test3',
+                    '@note': None,
+                }],
+            },
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_update_multiple06(self):
+        res = await self.con.execute(r"""
+            WITH
+                MODULE test,
+                U2 := UpdateTest
+            UPDATE UpdateTest
+            FILTER UpdateTest.name = 'update-test1'
+            SET {
+                annotated_tests := (
+                    SELECT U2 {
+                        @note := 'note' + U2.name[-1]
+                    } FILTER U2.name != 'update-test1'
+                )
+            };
+
+            WITH MODULE test
+            SELECT UpdateTest {
+                name,
+                annotated_tests: {
+                    name,
+                    @note
+                } ORDER BY .name
+            } FILTER UpdateTest.name = 'update-test1';
+        """)
+
+        self.assert_data_shape(res[-1], [
+            {
+                'name': 'update-test1',
+                'annotated_tests': [{
+                    'name': 'update-test2',
+                    '@note': 'note2',
+                }, {
+                    'name': 'update-test3',
+                    '@note': 'note3',
+                }],
+            },
+        ])
+
+    async def test_edgeql_update_props01(self):
+        res = await self.con.execute(r"""
+            WITH MODULE test
+            UPDATE UpdateTest
+            FILTER UpdateTest.name = 'update-test1'
+            SET {
+                weighted_tags := (
+                    SELECT Tag {
+                        @weight :=
+                            1 IF Tag.name = 'boring' ELSE
+                            2 IF Tag.name = 'wow' ELSE
+                            3
+                    }
+                )
+            };
+
+            WITH MODULE test
+            SELECT UpdateTest {
+                name,
+                weighted_tags: {
+                    name,
+                    @weight
+                } ORDER BY @weight
+            } FILTER UpdateTest.name = 'update-test1';
+        """)
+
+        self.assert_data_shape(res[-1], [
+            {
+                'name': 'update-test1',
+                'weighted_tags': [{
+                    'name': 'boring',
+                    '@weight': 1,
+                }, {
+                    'name': 'wow',
+                    '@weight': 2,
+                }, {
+                    'name': 'fun',
+                    '@weight': 3,
+                }],
+            },
+        ])
+
+    async def test_edgeql_update_props02(self):
+        res = await self.con.execute(r"""
+            WITH MODULE test
+            UPDATE UpdateTest
+            FILTER UpdateTest.name = 'update-test1'
+            SET {
+                weighted_tags := (
+                    SELECT Tag {@weight := 1} FILTER Tag.name = 'wow')
+            };
+
+            WITH MODULE test
+            SELECT UpdateTest {
+                name,
+                weighted_tags: {
+                    name,
+                    @weight
+                } ORDER BY @weight
+            } FILTER UpdateTest.name = 'update-test1';
+        """)
+
+        self.assert_data_shape(res[-1], [
+            {
+                'name': 'update-test1',
+                'weighted_tags': [{
+                    'name': 'wow',
+                    '@weight': 1,
+                }],
+            },
+        ])
+
+    async def test_edgeql_update_props03(self):
+        res = await self.con.execute(r"""
+            WITH MODULE test
+            UPDATE UpdateTest
+            FILTER UpdateTest.name = 'update-test1'
+            SET {
+                weighted_tags := (
+                    SELECT Tag {
+                        @weight := len(Tag.name) % 2 + 1
+                    } FILTER Tag.name IN ('wow', 'boring')
+                )
+            };
+
+            WITH MODULE test
+            SELECT UpdateTest {
+                name,
+                weighted_tags: {
+                    name,
+                    @weight
+                } ORDER BY @weight
+            } FILTER UpdateTest.name = 'update-test1';
+        """)
+
+        self.assert_data_shape(res[-1], [
+            {
+                'name': 'update-test1',
+                'weighted_tags': [{
+                    'name': 'boring',
+                    '@weight': 1,
+                }, {
+                    'name': 'wow',
+                    '@weight': 2,
+                }],
+            },
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_update_props04(self):
+        # XXX: not sure what the correct error should be, but a
+        #      required link property is missing
+        with self.assertRaisesRegex(exc.EdgeQLError,
+                                    r'required'):
+            await self.con.execute(r"""
+                WITH MODULE test
+                UPDATE UpdateTest
+                FILTER UpdateTest.name = 'update-test1'
+                SET {
+                    weighted_tags := (
+                        SELECT Tag FILTER Tag.name IN ('wow', 'boring')
+                    )
+                };
+            """)
+
+    async def test_edgeql_update_props05(self):
+        res = await self.con.execute(r"""
+            WITH MODULE test
+            UPDATE UpdateTest
+            FILTER UpdateTest.name = 'update-test1'
+            SET {
+                annotated_status := (
+                    SELECT Status {
+                        @note := 'Victor'
+                    } FILTER Status.name = 'Closed'
+                )
+            };
+
+            WITH MODULE test
+            SELECT UpdateTest {
+                name,
+                annotated_status: {
+                    name,
+                    @note
+                }
+            } FILTER UpdateTest.name = 'update-test1';
+        """)
+
+        self.assert_data_shape(res[-1], [
+            {
+                'name': 'update-test1',
+                'annotated_status': {
+                    'name': 'Closed',
+                    '@note': 'Victor',
+                },
+            },
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_update_props06(self):
+        res = await self.con.execute(r"""
+            WITH MODULE test
+            UPDATE UpdateTest
+            FILTER UpdateTest.name = 'update-test1'
+            SET {
+                annotated_status := (
+                    SELECT Status {
+                        @note := 'Victor'
+                    } FILTER Status = UpdateTest.status
+                )
+            };
+
+            WITH MODULE test
+            SELECT UpdateTest {
+                name,
+                annotated_status: {
+                    name,
+                    @note
+                }
+            } FILTER UpdateTest.name = 'update-test1';
+        """)
+
+        self.assert_data_shape(res[-1], [
+            {
+                'name': 'update-test1',
+                'annotated_status': {
+                    'name': 'Open',
+                    '@note': 'Victor',
+                },
+            },
+        ])
+
+    async def test_edgeql_update_props07(self):
+        res = await self.con.execute(r"""
+            WITH MODULE test
+            UPDATE UpdateTest
+            FILTER UpdateTest.name = 'update-test1'
+            SET {
+                annotated_status := (
+                    SELECT Status FILTER Status.name = 'Open'
+                )
+            };
+
+            WITH MODULE test
+            SELECT UpdateTest {
+                name,
+                annotated_status: {
+                    name,
+                    @note
+                }
+            } FILTER UpdateTest.name = 'update-test1';
+        """)
+
+        self.assert_data_shape(res[-1], [
+            {
+                'name': 'update-test1',
+                'annotated_status': {
+                    'name': 'Open',
+                    '@note': None,
+                },
+            },
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_update_props08(self):
+        res = await self.con.execute(r"""
+            WITH MODULE test
+            UPDATE UpdateTest
+            FILTER UpdateTest.name = 'update-test1'
+            SET {
+                annotated_status := (
+                    SELECT Status {
+                        @note := 'Victor'
+                    } FILTER Status.name = 'Open'
+                )
+            };
+
+            # update again, erasing the 'note' value
+            WITH MODULE test
+            UPDATE UpdateTest
+            FILTER UpdateTest.name = 'update-test1'
+            SET {
+                annotated_status: {
+                    @note := <str>EMPTY
+                }
+            };
+
+            WITH MODULE test
+            SELECT UpdateTest {
+                name,
+                annotated_status: {
+                    name,
+                    @note
+                }
+            } FILTER UpdateTest.name = 'update-test1';
+        """)
+
+        self.assert_data_shape(res[-1], [
+            {
+                'name': 'update-test1',
+                'annotated_status': {
+                    'name': 'Open',
+                    '@note': None,
                 },
             },
         ])
