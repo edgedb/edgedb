@@ -6,6 +6,7 @@
 ##
 
 
+import os.path
 import unittest
 import uuid
 
@@ -14,50 +15,10 @@ from edgedb.server import _testbase as tb
 
 
 class TestInsert(tb.QueryTestCase):
+    '''The scope of the tests is testing various modes of Object creation.'''
 
-    SETUP = """
-        CREATE MIGRATION test::d_insert01 TO eschema $$
-            link l3:
-                linkproperty comment to str:
-                    default: "N/A"
-
-            link subordinates:
-                linkproperty comment to str
-
-            concept Subordinate:
-                required link name to str
-
-            concept InsertTest:
-                link name to str
-                link l1 to int
-                required link l2 to int
-                link l3 to str:
-                    default: "test"
-                link subordinates to Subordinate:
-                    mapping: "1*"
-
-            concept Annotation:
-                required link name to str
-                link note to str
-                link subject to Object
-
-            concept DefaultTest1:
-                link num to int:
-                    default: 42
-                link foo to str
-
-            concept DefaultTest2:
-                required link num to int:
-                    # XXX: circumventing sequence deficiency
-                    default:=
-                        SELECT DefaultTest1.num + 1
-                        ORDER BY DefaultTest1.num DESC
-                        LIMIT 1
-                link foo to str
-        $$;
-
-        COMMIT MIGRATION test::d_insert01;
-    """
+    SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
+                          'insert.eschema')
 
     TEARDOWN_METHOD = """
         DELETE test::Subordinate;
