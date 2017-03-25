@@ -1,0 +1,25 @@
+abstract concept Named:
+    required link name to str:
+        abstract constraint unique
+
+link deck:
+    required linkproperty count to int
+
+
+link friends:
+    linkproperty nickname to str
+    # how the friend responded to requests for a favor
+    #linkproperty favor to array<bool>
+
+
+concept User extends Named:
+    link deck to Card:
+        mapping: **
+
+    link friends to User:
+        mapping: **
+
+
+concept Card extends Named:
+    required link element to str
+    required link cost to int
