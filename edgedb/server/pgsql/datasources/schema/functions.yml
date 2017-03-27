@@ -30,6 +30,7 @@ source: |
             f.language,
             f.code,
             f.from_function,
+            f.initial_value,
             edgedb._resolve_type(f.returntype) AS returntype
         FROM
             edgedb.function f

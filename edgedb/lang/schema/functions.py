@@ -120,6 +120,13 @@ class CreateFunction(named.CreateNamedClass, FunctionCommandMixin):
             new_value=astnode.aggregate
         ))
 
+        if astnode.initial_value is not None:
+            iv = codegen.generate_source(astnode.initial_value)
+            cmd.add(sd.AlterClassProperty(
+                property='initial_value',
+                new_value=iv
+            ))
+
         if astnode.code is not None:
             cmd.add(sd.AlterClassProperty(
                 property='language',
@@ -171,6 +178,9 @@ class Function(primary.PrimaryClass):
     language = so.Field(qlast.Language, default=None, compcoef=0.4,
                         coerce=True)
     from_function = so.Field(str, default=None, compcoef=0.4)
+
+    initial_value = so.Field(expr.ExpressionText, default=None, compcoef=0.4,
+                             coerce=True)
 
     delta_driver = sd.DeltaDriver(
         create=CreateFunction,
