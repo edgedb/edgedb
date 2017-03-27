@@ -207,6 +207,7 @@ class FunctionDeclaration(Base):
     returning: ObjectName
     single: bool = False
     aggregate: bool = False
+    initial_value: Literal
     code: FunctionCode
 
 

@@ -1429,10 +1429,26 @@ commands_block(
 
 class CreateAggregateStmt(Nonterm, _ProcessFunctionBlockMixin):
     def reduce_CreateFunction(self, *kids):
-        r"""%reduce OptAliasBlock CREATE AGGREGATE NodeName \
-                CreateFunctionArgs RETURNING OptSingle FunctionType \
+        r"""%reduce OptAliasBlock \
+                CREATE AGGREGATE NodeName CreateFunctionArgs \
+                RETURNING OptSingle FunctionType \
+                INITIAL IDENT Expr \
                 CreateAggregateCommandsBlock \
         """
+
+        init_val = kids[10].val
+        # HACK: make sure that the 'INITAIL VALUE' is used
+        #
+        if kids[9].val != 'VALUE':
+            raise EdgeQLSyntaxError('Unexpected token: {}'.format(kids[9]),
+                                    context=kids[9].context)
+
+        # make sure that the initial value is a literal for now
+        #
+        if not isinstance(init_val, (qlast.Constant, qlast.EmptyCollection,
+                                     qlast.Array, qlast.Mapping)):
+            raise EdgeQLSyntaxError("initial value must be a literal",
+                                    context=init_val.context)
 
         self.val = qlast.CreateFunction(
             aliases=kids[0].val,
@@ -1441,7 +1457,8 @@ class CreateAggregateStmt(Nonterm, _ProcessFunctionBlockMixin):
             returning=kids[7].val,
             single=kids[6].val,
             aggregate=True,
-            **self._process_function_body(kids[8])
+            initial_value=init_val,
+            **self._process_function_body(kids[11])
         )
 
 

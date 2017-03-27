@@ -24,8 +24,9 @@ edge_schema_keywords = {
     "final": ("FINAL", UNRESERVED_KEYWORD),
     "from": ("FROM", UNRESERVED_KEYWORD),
     "function": ("FUNCTION", UNRESERVED_KEYWORD),
-    "index": ("INDEX", UNRESERVED_KEYWORD),
     "import": ("IMPORT", UNRESERVED_KEYWORD),
+    "index": ("INDEX", UNRESERVED_KEYWORD),
+    "initial": ("INITIAL", UNRESERVED_KEYWORD),
     "link": ("LINK", UNRESERVED_KEYWORD),
     "linkproperty": ("LINKPROPERTY", UNRESERVED_KEYWORD),
     "on": ("ON", UNRESERVED_KEYWORD),
@@ -33,6 +34,7 @@ edge_schema_keywords = {
     "required": ("REQUIRED", RESERVED_KEYWORD),
     "to": ("TO", UNRESERVED_KEYWORD),
     "true": ("TRUE", RESERVED_KEYWORD),
+    # HACK: "value": ("VALUE", UNRESERVED_KEYWORD),
 }
 
 

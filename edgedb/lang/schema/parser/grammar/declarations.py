@@ -404,10 +404,14 @@ class FunctionDeclaration(Nonterm):
     def reduce_FUNCTION_FunctionDeclCore(self, *kids):
         self.val = kids[1].val
 
+        if self.val.initial_value is not None:
+            raise SchemaSyntaxError(
+                "unexpected 'initial value' in function definition",
+                context=self.val.initial_value.context)
+
         if self.val.code is None:
             raise SchemaSyntaxError("missing 'from' in function definition",
-                context=kids[0].context)
-
+                                    context=kids[0].context)
 
 
 class AggregateDeclaration(Nonterm):
@@ -415,21 +419,29 @@ class AggregateDeclaration(Nonterm):
         self.val = kids[1].val
         self.val.aggregate = True
 
-        if self.val.code is None:
-            raise SchemaSyntaxError("missing 'from' in aggregate definition",
+        if self.val.initial_value is None:
+            raise SchemaSyntaxError(
+                "missing 'initial value' in aggregate definition",
                 context=kids[0].context)
 
+        if self.val.code is None:
+            raise SchemaSyntaxError("missing 'from' in aggregate definition",
+                                    context=kids[0].context)
 
 
 class FunctionDeclCore(Nonterm):
     def reduce_FunctionDeclCore(self, *kids):
         r"""%reduce IDENT FunctionArgs ARROW TypeName FunctionSpecsBlob"""
         attributes = []
+        init_val = None
         code = None
 
         for spec in kids[4].val:
             if isinstance(spec, esast.Attribute):
-                attributes.append(spec)
+                if spec.name == 'initial value':
+                    init_val = spec.value
+                else:
+                    attributes.append(spec)
             elif code is None and isinstance(spec, esast.FunctionCode):
                 code = spec
             else:
@@ -441,6 +453,7 @@ class FunctionDeclCore(Nonterm):
             args=kids[1].val,
             returning=kids[3].val,
             attributes=attributes,
+            initial_value=init_val,
             code=code,
         )
 
@@ -461,6 +474,14 @@ class FunctionSpec(Nonterm):
 
     def reduce_DeclarationSpec(self, *kids):
         self.val = kids[0].val
+
+    def reduce_INITIAL_IDENT_ColonValue(self, *kids):
+        # HACK: make sure that the 'INITAIL VALUE' is used
+        #
+        if kids[1].val != 'value':
+            raise SchemaSyntaxError('Unexpected token: {}'.format(kids[1]),
+                                    context=kids[1].context)
+        self.val = esast.Attribute(name='initial value', value=kids[2].val)
 
 
 class FunctionSpecs(ListNonterm, element=FunctionSpec):

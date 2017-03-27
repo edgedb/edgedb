@@ -53,6 +53,7 @@ edgeql_keywords = {
     "index": ("INDEX", UNRESERVED_KEYWORD),
     "inherit": ("INHERIT", UNRESERVED_KEYWORD),
     "inheriting": ("INHERITING", UNRESERVED_KEYWORD),
+    "initial": ("INITIAL", UNRESERVED_KEYWORD),
     "insert": ("INSERT", RESERVED_KEYWORD),
     "intersect": ("INTERSECT", UNRESERVED_KEYWORD),
     "is": ("IS", UNRESERVED_KEYWORD),
@@ -85,7 +86,8 @@ edgeql_keywords = {
     "true": ("TRUE", RESERVED_KEYWORD),
     "update": ("UPDATE", RESERVED_KEYWORD),
     "union": ("UNION", UNRESERVED_KEYWORD),
-    "with": ("WITH", RESERVED_KEYWORD)
+    # HACK: "value": ("VALUE", UNRESERVED_KEYWORD),
+    "with": ("WITH", RESERVED_KEYWORD),
 }
 
 

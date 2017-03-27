@@ -170,6 +170,10 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         self.write(':')
         self.new_lines = 1
         self.indentation += 1
+        if node.initial_value:
+            self.write('initial value: ')
+            self.visit(node.initial_value)
+            self.new_lines = 1
         self._visit_list(node.attributes)
         self.visit(node.code)
         self.indentation -= 1

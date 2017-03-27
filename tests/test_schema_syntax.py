@@ -538,15 +538,28 @@ link time_estimate:
                 SELECT blarg;
         """
 
+    @tb.must_fail(error.SchemaSyntaxError,
+                  "unexpected 'initial value' in function definition",
+                  line=3, col=28)
+    def test_eschema_syntax_function05(self):
+        """
+        function some_func(foo: std::int = 42) -> std::str:
+            initial value: 'bad'
+            from edgeql:>
+                SELECT 'life';
+        """
+
     def test_eschema_syntax_aggregate01(self):
         """
         aggregate len() -> std::int:
+            initial value: 0
             from sql function: length
         """
 
     def test_eschema_syntax_aggregate02(self):
         """
         aggregate some_func(foo: std::int = 42) -> std::str:
+            initial value: 'start'
             from sql:>
                 SELECT 'life';
         """
@@ -554,6 +567,7 @@ link time_estimate:
     def test_eschema_syntax_aggregate03(self):
         """
         aggregate some_func(foo: std::int = 42) -> std::str:
+            initial value: ''
             from edgeql:>
                 SELECT 'life';
         """
@@ -561,8 +575,18 @@ link time_estimate:
     def test_eschema_syntax_aggregate04(self):
         """
         aggregate myfunc(arg1: str, arg2: str = 'DEFAULT', *arg3) -> int:
+            initial value: 42
             volatile: true
             description: 'myfunc sample'
             from sql:>
                 SELECT blarg;
+        """
+
+    @tb.must_fail(error.SchemaSyntaxError,
+                  "missing 'initial value' in aggregate definition",
+                  line=2, col=9)
+    def test_eschema_syntax_aggregate05(self):
+        """
+        aggregate len() -> std::int:
+            from sql function: length
         """

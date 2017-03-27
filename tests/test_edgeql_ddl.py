@@ -64,7 +64,9 @@ class TestDeltas(tb.DDLTestCase):
                 CREATE FUNCTION test::my_lower(std::str) RETURNING std::str
                     FROM SQL FUNCTION 'lower';
 
-                CREATE AGGREGATE test::my_lower(std::any) RETURNING std::str
+                CREATE AGGREGATE test::my_lower(std::any)
+                    RETURNING std::str
+                    INITIAL VALUE ''
                     FROM SQL AGGREGATE 'count';
             """)
 
@@ -72,7 +74,9 @@ class TestDeltas(tb.DDLTestCase):
                                     'Cannot create a function'):
 
             await self.con.execute("""
-                CREATE AGGREGATE test::my_lower2(std::any) RETURNING std::str
+                CREATE AGGREGATE test::my_lower2(std::any)
+                    RETURNING std::str
+                    INITIAL VALUE ''
                     FROM SQL AGGREGATE 'count';
 
                 CREATE FUNCTION test::my_lower2(std::str) RETURNING std::str

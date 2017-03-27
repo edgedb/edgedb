@@ -924,6 +924,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             if node.single:
                 self.write('SINGLETON ')
             self.visit(node.returning)
+            if node.initial_value:
+                self.write(' INITIAL VALUE ')
+                self.visit(node.initial_value)
 
             if node.commands:
                 self.write('{')

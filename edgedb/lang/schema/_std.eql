@@ -74,16 +74,24 @@ CREATE ATTRIBUTE stdattrs::varparam std::int;
 CREATE FUNCTION std::lower(std::str) RETURNING std::str
     FROM SQL FUNCTION 'lower';
 
-CREATE AGGREGATE std::sum(std::int) RETURNING std::int
+CREATE AGGREGATE std::sum(std::int)
+    RETURNING std::int
+    INITIAL VALUE 0
     FROM SQL AGGREGATE 'sum';
 
-CREATE AGGREGATE std::count(std::any) RETURNING std::int
+CREATE AGGREGATE std::count(std::any)
+    RETURNING std::int
+    INITIAL VALUE 0
     FROM SQL AGGREGATE 'count';
 
-CREATE AGGREGATE std::array_agg(std::any) RETURNING array<std::any>
+CREATE AGGREGATE std::array_agg(std::any)
+    RETURNING array<std::any>
+    INITIAL VALUE []
     FROM SQL AGGREGATE 'array_agg';
 
-CREATE AGGREGATE std::is_distinct(std::any) RETURNING std::bool
+CREATE AGGREGATE std::is_distinct(std::any)
+    RETURNING std::bool
+    INITIAL VALUE True
     FROM SQL AGGREGATE '--system--';
 
 CREATE FUNCTION std::len(std::str) RETURNING std::int

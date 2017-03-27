@@ -564,6 +564,7 @@ class CreateFunction(CreateObject):
     returning: typing.Union[TypeName, Shape]
     single: bool = False
     aggregate: bool = False
+    initial_value: Expr
     code: FunctionCode
 
 
