@@ -1278,7 +1278,7 @@ class FuncDeclArg(Nonterm):
             default=kids[2].val
         )
 
-    def reduce_OptVariadic_DOLLAR_ShortName_COLON_TypeName_OptDefault(
+    def reduce_OptVariadic_DOLLAR_Identifier_COLON_TypeName_OptDefault(
             self, *kids):
         self.val = qlast.FuncArg(
             variadic=kids[0].val,
@@ -1336,11 +1336,11 @@ def _parse_language(node):
 
 
 class FromFunction(Nonterm):
-    def reduce_FROM_IDENT_SCONST(self, *kids):
+    def reduce_FROM_Identifier_SCONST(self, *kids):
         lang = _parse_language(kids[1])
         self.val = qlast.FunctionCode(language=lang, code=kids[2].val)
 
-    def reduce_FROM_IDENT_FUNCTION_SCONST(self, *kids):
+    def reduce_FROM_Identifier_FUNCTION_SCONST(self, *kids):
         lang = _parse_language(kids[1])
         if lang != qlast.Language.SQL:
             raise EdgeQLSyntaxError(
@@ -1351,7 +1351,7 @@ class FromFunction(Nonterm):
 
 
 class FromAggregate(Nonterm):
-    def reduce_FROM_IDENT_AGGREGATE_SCONST(self, *kids):
+    def reduce_FROM_Identifier_AGGREGATE_SCONST(self, *kids):
         lang = _parse_language(kids[1])
         if lang != qlast.Language.SQL:
             raise EdgeQLSyntaxError(
@@ -1432,17 +1432,11 @@ class CreateAggregateStmt(Nonterm, _ProcessFunctionBlockMixin):
         r"""%reduce OptAliasBlock \
                 CREATE AGGREGATE NodeName CreateFunctionArgs \
                 RETURNING OptSingle FunctionType \
-                INITIAL IDENT Expr \
+                INITIAL VALUE Expr \
                 CreateAggregateCommandsBlock \
         """
 
         init_val = kids[10].val
-        # HACK: make sure that the 'INITAIL VALUE' is used
-        #
-        if kids[9].val != 'VALUE':
-            raise EdgeQLSyntaxError('Unexpected token: {}'.format(kids[9]),
-                                    context=kids[9].context)
-
         # make sure that the initial value is a literal for now
         #
         if not isinstance(init_val, (qlast.Constant, qlast.EmptyCollection,

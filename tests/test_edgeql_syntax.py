@@ -446,12 +446,12 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
 % OK %
 
-        SELECT `action`;
-        SELECT `action`;
-        SELECT (`event`::`action`);
-        SELECT (`event`::`action`);
-        SELECT (`event`::`action`);
-        SELECT (`event`::`action`);
+        SELECT action;
+        SELECT action;
+        SELECT (event::action);
+        SELECT (event::action);
+        SELECT (event::action);
+        SELECT (event::action);
         """
 
     def test_edgeql_syntax_name04(self):
@@ -463,10 +463,10 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
 % OK %
 
-        SELECT (`event`::`select`);
-        SELECT (`event`::`select`);
-        SELECT (`event`::`select`);
-        SELECT (`event`::`select`);
+        SELECT (event::`select`);
+        SELECT (event::`select`);
+        SELECT (event::`select`);
+        SELECT (event::`select`);
         """
 
     def test_edgeql_syntax_name05(self):
@@ -505,7 +505,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT foo.bar;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=16)
     def test_edgeql_syntax_name07(self):
         """
         SELECT event;
@@ -535,8 +534,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         # illegal semantically, but syntactically valid
         """
         SELECT @event;
-% OK %
-        SELECT @`event`;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=21)
@@ -999,13 +996,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             abstract := 1,
             action := 2
         );
-
-% OK %
-
-        SELECT (
-            `abstract` := 1,
-            `action` := 2
-        );
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -1096,15 +1086,15 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
 % OK %
 
-        SELECT Foo.`event`;
-        SELECT Foo.`event`;
-        SELECT Foo.<`event`;
-        SELECT Foo.`event`@`action`;
-        SELECT Foo.`event`@`action`;
-        SELECT Foo.<`event`@`action`;
-        SELECT Foo.`event`[IS `Action`];
-        SELECT Foo.`event`[IS `Action`];
-        SELECT Foo.<`event`[IS `Action`];
+        SELECT Foo.event;
+        SELECT Foo.event;
+        SELECT Foo.<event;
+        SELECT Foo.event@action;
+        SELECT Foo.event@action;
+        SELECT Foo.<event@action;
+        SELECT Foo.event[IS Action];
+        SELECT Foo.event[IS Action];
+        SELECT Foo.<event[IS Action];
         """
 
     def test_edgeql_syntax_path03(self):
@@ -1140,19 +1130,11 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_path05(self):
         """
         SELECT Foo.bar@spam[IS Bar];
-
-% OK %
-
-        SELECT Foo.bar@spam[IS Bar];
         """
 
     def test_edgeql_syntax_path06(self):
         """
         SELECT Foo.bar[IS To];  # unreserved keyword as concept name
-
-% OK %
-
-        SELECT Foo.bar[IS `To`];
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=30)
@@ -1959,7 +1941,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 % OK %
 
         CREATE DATABASE `all`;
-        CREATE DATABASE `abstract`;
+        CREATE DATABASE abstract;
         """
 
     def test_edgeql_syntax_ddl_database05(self):
@@ -1970,7 +1952,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 % OK %
 
         DROP DATABASE `all`;
-        DROP DATABASE `abstract`;
+        DROP DATABASE abstract;
         """
 
     def test_edgeql_syntax_ddl_delta01(self):
@@ -2312,7 +2294,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=30)
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=39)
     def test_edgeql_syntax_ddl_linkproperty03(self):
         """
         CREATE LINK PROPERTY PROPERTY std::linkproperty {

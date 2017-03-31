@@ -55,7 +55,7 @@ class OptSingle(Nonterm):
 
 
 class OptionallyAliasedExpr(Nonterm):
-    def reduce_ShortName_TURNSTILE_Expr(self, *kids):
+    def reduce_Identifier_TURNSTILE_Expr(self, *kids):
         self.val = AliasedExprSpec(alias=kids[0].val, expr=kids[2].val)
 
     def reduce_Expr(self, *kids):
@@ -186,7 +186,7 @@ class InsertExpr(Nonterm):
 
 
 class OptForClause(Nonterm):
-    def reduce_FOR_ShortName_IN_Expr(self, *kids):
+    def reduce_FOR_Identifier_IN_Expr(self, *kids):
         self.val = AliasedExprSpec(alias=kids[1].val, expr=kids[3].val)
 
     def reduce_empty(self, *kids):
@@ -234,12 +234,12 @@ class AliasDecl(Nonterm):
         self.val = qlast.NamespaceAliasDecl(
             namespace='.'.join(kids[1].val))
 
-    def reduce_ShortName_TURNSTILE_MODULE_ModuleName(self, *kids):
+    def reduce_Identifier_TURNSTILE_MODULE_ModuleName(self, *kids):
         self.val = qlast.NamespaceAliasDecl(
             alias=kids[0].val,
             namespace='.'.join(kids[3].val))
 
-    def reduce_ShortName_TURNSTILE_Expr(self, *kids):
+    def reduce_Identifier_TURNSTILE_Expr(self, *kids):
         self.val = qlast.AliasedExpr(
             alias=kids[0].val,
             expr=kids[2].val)
@@ -566,9 +566,6 @@ class ParenExpr(Nonterm):
     def reduce_LPAREN_Expr_RPAREN(self, *kids):
         self.val = kids[1].val
 
-    def reduce_LPAREN_OpPath_RPAREN(self, *kids):
-        self.val = kids[1].val
-
     def reduce_LPAREN_SetStmt_RPAREN(self, *kids):
         self.val = kids[1].val
 
@@ -617,7 +614,7 @@ class Expr(Nonterm):
             self.val = qlast.Indirection(arg=expr,
                                          indirection=[kids[1].val])
 
-    def reduce_Expr_LBRACKET_IS_OpNodeName_RBRACKET(self, *kids):
+    def reduce_Expr_LBRACKET_IS_NodeName_RBRACKET(self, *kids):
         # The path filter rule is here to resolve ambiguity with
         # indexes and slices, so Expr needs to be enforced as a path.
         #
@@ -823,7 +820,7 @@ class NamedTuple(Nonterm):
 
 
 class NamedTupleElement(Nonterm):
-    def reduce_ShortOpNodeName_TURNSTILE_Expr(self, *kids):
+    def reduce_ShortNodeName_TURNSTILE_Expr(self, *kids):
         self.val = qlast.StructElement(
             name=kids[0].val,
             val=kids[2].val
@@ -945,7 +942,7 @@ class ArgConstant(Nonterm):
     def reduce_DOLLAR_ICONST(self, *kids):
         self.val = qlast.Parameter(name=str(kids[1].val))
 
-    def reduce_DOLLAR_ShortName(self, *kids):
+    def reduce_DOLLAR_Identifier(self, *kids):
         self.val = qlast.Parameter(name=kids[1].val)
 
 
@@ -976,16 +973,6 @@ class BaseBooleanConstant(Nonterm):
 
     def reduce_FALSE(self, *kids):
         self.val = qlast.Constant(value=False)
-
-
-# this is used inside parentheses or in shapes
-#
-class OpPath(Nonterm):
-    @parsing.precedence(precedence.P_PATHSTART)
-    def reduce_OpOnlyNodeName(self, *kids):
-        self.val = qlast.Path(
-            steps=[qlast.ClassRef(name=kids[0].val.name,
-                                  module=kids[0].val.module)])
 
 
 class Path(Nonterm):
@@ -1045,7 +1032,7 @@ class PathStep(Nonterm):
 
 
 class PathPtr(Nonterm):
-    def reduce_ShortOpNodeName(self, *kids):
+    def reduce_ShortNodeName(self, *kids):
         self.val = qlast.ClassRef(name=kids[0].val.name,
                                   module=kids[0].val.module)
 
@@ -1057,7 +1044,7 @@ class PathPtrParen(Nonterm):
     def reduce_LPAREN_PathPtrParen_RPAREN(self, *kids):
         self.val = kids[1].val
 
-    def reduce_LPAREN_OpNodeName_RPAREN(self, *kids):
+    def reduce_LPAREN_NodeName_RPAREN(self, *kids):
         self.val = qlast.ClassRef(name=kids[1].val.name,
                                   module=kids[1].val.module)
 
@@ -1132,7 +1119,7 @@ class FuncArgExpr(Nonterm):
     def reduce_Expr(self, *kids):
         self.val = kids[0].val
 
-    def reduce_ParamName_TURNSTILE_Expr(self, *kids):
+    def reduce_Identifier_TURNSTILE_Expr(self, *kids):
         self.val = qlast.NamedArg(name=kids[0].val, arg=kids[2].val)
 
 
@@ -1164,11 +1151,6 @@ class AnyIdentifier(Nonterm):
         self.val = kids[0].val
 
 
-class ShortName(Nonterm):
-    def reduce_IDENT(self, *kids):
-        self.val = kids[0].val
-
-
 class ModuleName(ListNonterm, element=AnyIdentifier, separator=tokens.T_DOT):
     pass
 
@@ -1176,26 +1158,10 @@ class ModuleName(ListNonterm, element=AnyIdentifier, separator=tokens.T_DOT):
 # this can appear anywhere
 #
 class BaseName(Nonterm):
-    def reduce_IDENT(self, *kids):
+    def reduce_Identifier(self, *kids):
         self.val = [kids[0].val]
 
-    def reduce_IDENT_DOUBLECOLON_AnyIdentifier(self, *kids):
-        # the identifier following a '::' cannot start with '@'
-        #
-        if kids[2].val[0] == '@':
-            raise EdgeQLSyntaxError("name cannot start with '@'",
-                                    context=kids[2].context)
-
-        self.val = [kids[0].val, kids[2].val]
-
-
-# this can appear anywhere after parentheses or operator
-#
-class OpName(Nonterm):
-    def reduce_UnreservedKeyword(self, *kids):
-        self.val = [kids[0].val]
-
-    def reduce_UnreservedKeyword_DOUBLECOLON_AnyIdentifier(self, *kids):
+    def reduce_Identifier_DOUBLECOLON_AnyIdentifier(self, *kids):
         # the identifier following a '::' cannot start with '@'
         #
         if kids[2].val[0] == '@':
@@ -1212,14 +1178,6 @@ class TypeName(Nonterm):
     def reduce_NodeName_LANGBRACKET_NodeNameList_RANGBRACKET(self, *kids):
         self.val = qlast.TypeName(maintype=kids[0].val,
                                   subtypes=kids[2].val)
-
-
-class ParamName(Nonterm):
-    def reduce_IDENT(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_UnreservedKeyword(self, *kids):
-        self.val = kids[0].val
 
 
 class NodeName(Nonterm):
@@ -1242,7 +1200,7 @@ class NodeNameList(ListNonterm, element=NodeName, separator=tokens.T_COMMA):
     pass
 
 
-class ShortOpNodeName(Nonterm):
+class ShortNodeName(Nonterm):
     # NOTE: A non-qualified name that can be an identifier or
     # UNRESERVED_KEYWORD.
     #
@@ -1251,7 +1209,7 @@ class ShortOpNodeName(Nonterm):
     # quoted or parenthesized.
 
     def reduce_Identifier(self, *kids):
-        # ShortOpNodeName cannot start with a '@' in any way
+        # ShortNodeName cannot start with a '@' in any way
         #
         if kids[0].val[0] == '@':
             raise EdgeQLSyntaxError("name cannot start with '@'",
@@ -1259,34 +1217,6 @@ class ShortOpNodeName(Nonterm):
         self.val = qlast.ClassRef(
             module=None,
             name=kids[0].val)
-
-
-class OpOnlyNodeName(Nonterm):
-    # NOTE: A name that starts with UNRESERVED_KEYWORD.
-    #
-    # It can only be used inside parentheses or after a DOT. In
-    # principle, we may extend this to be used after any operator in the
-    # future.
-
-    def reduce_OpName(self, *kids):
-        # OpNodeName cannot start with a '@' in any way already
-        #
-        self.val = qlast.ClassRef(
-            module='.'.join(kids[0].val[:-1]) or None,
-            name=kids[0].val[-1])
-
-
-class OpNodeName(Nonterm):
-    # NOTE: Generic short of fully-qualified name that must be parenthesized.
-    #
-    # This name is safe to be used anywhere within parentheses. If it
-    # causes ambiguity, it may be necessary to use OpOnlyNodeName instead.
-
-    def reduce_NodeName(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_OpOnlyNodeName(self, *kids):
-        self.val = kids[0].val
 
 
 class NodeNameParens(Nonterm):
@@ -1297,7 +1227,7 @@ class NodeNameParens(Nonterm):
     def reduce_LPAREN_NodeNameParens_RPAREN(self, *kids):
         self.val = kids[1].val
 
-    def reduce_LPAREN_OpNodeName_RPAREN(self, *kids):
+    def reduce_LPAREN_NodeName_RPAREN(self, *kids):
         self.val = kids[1].val
 
 
@@ -1314,7 +1244,7 @@ class AnyNodeName(Nonterm):
     # ambiguity with NodeName, etc.
 
     def reduce_AnyIdentifier(self, *kids):
-        # ShortOpNodeName cannot start with a '@' in any way
+        # AnyNodeName cannot start with a '@' in any way
         #
         if kids[0].val[0] == '@':
             raise EdgeQLSyntaxError("name cannot start with '@'",

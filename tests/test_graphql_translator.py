@@ -2250,7 +2250,7 @@ class TestGraphQLTranslation(TranslatorTest):
         SELECT
             (`123lib`::Foo){
                 `select`,
-                `after`
+                after
             }
         FILTER
             ((`123lib`::Foo).`select` = 'bar');

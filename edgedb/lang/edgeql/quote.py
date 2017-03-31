@@ -33,8 +33,8 @@ def dollar_quote_literal(text):
 
 
 def disambiguate_identifier(text):
-    if (keywords.edgeql_keywords.get(text.lower())
-            or not _re_ident.fullmatch(text)):
+    if (keywords.by_type[keywords.RESERVED_KEYWORD].get(text.lower()) or
+            not _re_ident.fullmatch(text)):
         return '`{}`'.format(text)
     else:
         return text

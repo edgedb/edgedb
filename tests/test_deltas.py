@@ -79,7 +79,7 @@ class TestDeltaLinkInheritance(tb.DDLTestCase):
             };
 
             INSERT test::Concept01 {
-                `target` := (SELECT test::Target1
+                target := (SELECT test::Target1
                              FILTER test::Target1.name = 'Target1_linkinh_2')
             };
 
@@ -88,7 +88,7 @@ class TestDeltaLinkInheritance(tb.DDLTestCase):
             };
 
             INSERT test::Concept23 {
-                `target` := (SELECT test::Target0
+                target := (SELECT test::Target0
                              FILTER test::Target0.name = 'Target0_linkinh_2')
             };
         ''')
@@ -102,7 +102,7 @@ class TestDeltaLinkInheritance(tb.DDLTestCase):
             # Target1.
             await self.con.execute('''
                 INSERT test::Concept01 {
-                    `target` := (
+                    target := (
                         SELECT
                             test::Target0
                         FILTER
@@ -152,7 +152,7 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
                 SET readonly := False;
                 SET title := 'Base link property';
             };
-            CREATE LINK test::name INHERITING std::`link` {
+            CREATE LINK test::name INHERITING std::link {
                 SET is_virtual := False;
                 SET readonly := False;
             };
@@ -176,7 +176,7 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
                         SET readonly := False;
                         SET title := 'Link source';
                     }
-                    CREATE LINK PROPERTY std::`target` TO (std::str) {
+                    CREATE LINK PROPERTY std::target TO (std::str) {
                         SET is_virtual := False;
                         SET readonly := False;
                         SET title := 'Link target';
