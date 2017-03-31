@@ -526,7 +526,6 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_update_multiple04(self):
         res = await self.con.execute(r"""
             WITH
@@ -558,7 +557,6 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_update_multiple05(self):
         res = await self.con.execute(r"""
             WITH
@@ -595,7 +593,6 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_update_multiple06(self):
         res = await self.con.execute(r"""
             WITH

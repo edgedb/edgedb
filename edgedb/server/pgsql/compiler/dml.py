@@ -170,8 +170,8 @@ class IRCompilerDMLSupport:
         overlays = ctx.rel_overlays[ir_stmt.subject.scls]
         if isinstance(ir_stmt, irast.InsertStmt):
             overlays.append(('union', dml_cte))
-        else:
-            overlays.append(('replace', dml_cte))
+        elif isinstance(ir_stmt, irast.DeleteStmt):
+            overlays.append(('except', dml_cte))
 
         # Finaly set the DML CTE as the source for paths originating
         # in its relation.
