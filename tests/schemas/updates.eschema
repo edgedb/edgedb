@@ -8,7 +8,7 @@ link annotated_status:
     linkproperty note to str
 
 link weighted_tags:
-    required linkproperty weight to int
+    linkproperty weight to int
 
 link annotated_tests:
     linkproperty note to str

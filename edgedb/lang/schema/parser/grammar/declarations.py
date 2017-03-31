@@ -584,10 +584,6 @@ class TypeList(ListNonterm, element=TypeName, separator=T_COMMA):
 
 
 class DeclarationSpec(Nonterm):
-    def reduce_REQUIRED_DeclarationSpecBase(self, *kids):
-        self.val = kids[1].val
-        self.val.required = True
-
     def reduce_DeclarationSpecBase(self, kid):
         self.val = kid.val
 
@@ -639,6 +635,10 @@ class TurnstileBlob(parsing.Nonterm):
 class Link(Nonterm):
     def reduce_LINK_Spec(self, *kids):
         self.val = esast.Link(kids[1].val)
+
+    def reduce_REQUIRED_LINK_Spec(self, *kids):
+        self.val = esast.Link(kids[2].val)
+        self.val.required = True
 
 
 class LinkProperty(Nonterm):

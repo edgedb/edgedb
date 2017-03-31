@@ -3,7 +3,7 @@ abstract concept Named:
         abstract constraint unique
 
 link deck:
-    required linkproperty count to int
+    linkproperty count to int
 
 
 link friends:

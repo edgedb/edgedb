@@ -451,6 +451,14 @@ link time_estimate:
        constraint must_be_even: 0
         """
 
+    @tb.must_fail(error.SchemaSyntaxError,
+                  r'Unexpected token.*LINKPROPERTY', line=3, col=22)
+    def test_eschema_syntax_link07(self):
+        """
+        link coollink:
+            required linkproperty foo to int
+        """
+
     def test_eschema_syntax_import01(self):
         """
         import foo
