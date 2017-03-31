@@ -16,6 +16,8 @@ from edgedb.lang.schema import ast as esast
 
 from ...error import SchemaSyntaxError
 
+from . import keywords
+
 from .tokens import *  # NOQA
 
 
@@ -50,20 +52,28 @@ class ListNonterm(context.ListNonterm, element=None):
     pass
 
 
+class Identifier(Nonterm):
+    def reduce_IDENT(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_UnreservedKeyword(self, *kids):
+        self.val = kids[0].val
+
+
 class DotName(Nonterm):
-    def reduce_IDENT(self, kid):
+    def reduce_Identifier(self, kid):
         self.val = esast.ObjectName(name=None, module=kid.val)
 
-    def reduce_DotName_DOT_IDENT(self, *kids):
+    def reduce_DotName_DOT_Identifier(self, *kids):
         self.val = kids[0].val
         self.val.module += '.' + kids[2].val
 
 
 class ObjectName(Nonterm):
-    def reduce_IDENT(self, kid):
+    def reduce_Identifier(self, kid):
         self.val = esast.ObjectName(name=kid.val)
 
-    def reduce_DotName_DOUBLECOLON_IDENT(self, *kids):
+    def reduce_DotName_DOUBLECOLON_Identifier(self, *kids):
         self.val = kids[0].val
         self.val.name = kids[2].val
 
@@ -153,7 +163,7 @@ class ImportModule(Nonterm):
     def reduce_DotName(self, kid):
         self.val = esast.ImportModule(module=kid.val.module)
 
-    def reduce_DotName_AS_IDENT(self, *kids):
+    def reduce_DotName_AS_Identifier(self, *kids):
         self.val = esast.ImportModule(module=kids[0].val.module,
                                       alias=kids[2].val)
 
@@ -431,7 +441,7 @@ class AggregateDeclaration(Nonterm):
 
 class FunctionDeclCore(Nonterm):
     def reduce_FunctionDeclCore(self, *kids):
-        r"""%reduce IDENT FunctionArgs ARROW TypeName FunctionSpecsBlob"""
+        r"""%reduce Identifier FunctionArgs ARROW TypeName FunctionSpecsBlob"""
         attributes = []
         init_val = None
         code = None
@@ -464,23 +474,18 @@ class FunctionSpecsBlob(Nonterm):
 
 
 class FunctionSpec(Nonterm):
-    def reduce_FROM_IDENT_ColonValue(self, *kids):
+    def reduce_FROM_Identifier_ColonValue(self, *kids):
         self.val = esast.FunctionCode(language=_parse_language(kids[1]),
                                       code=kids[2].val.value)
 
-    def reduce_FROM_IDENT_FUNCTION_COLON_IDENT_NL(self, *kids):
+    def reduce_FROM_Identifier_FUNCTION_COLON_Identifier_NL(self, *kids):
         self.val = esast.FunctionCode(language=_parse_language(kids[1]),
                                       from_name=kids[4].val)
 
     def reduce_DeclarationSpec(self, *kids):
         self.val = kids[0].val
 
-    def reduce_INITIAL_IDENT_ColonValue(self, *kids):
-        # HACK: make sure that the 'INITAIL VALUE' is used
-        #
-        if kids[1].val != 'value':
-            raise SchemaSyntaxError('Unexpected token: {}'.format(kids[1]),
-                                    context=kids[1].context)
+    def reduce_INITIAL_VALUE_ColonValue(self, *kids):
         self.val = esast.Attribute(name='initial value', value=kids[2].val)
 
 
@@ -513,7 +518,7 @@ class FuncDeclArg(Nonterm):
             default=kids[2].val
         )
 
-    def reduce_OptVariadic_IDENT_COLON_TypeName_OptDefault(self, *kids):
+    def reduce_OptVariadic_Identifier_COLON_TypeName_OptDefault(self, *kids):
         self.val = esast.FuncArg(
             variadic=kids[0].val,
             name=kids[1].val,
@@ -560,13 +565,13 @@ class FunctionArgs(Nonterm):
 
 
 class NameAndExtends(Nonterm):
-    def reduce_IDENT_EXTENDS_NameList(self, *kids):
+    def reduce_Identifier_EXTENDS_NameList(self, *kids):
         self.val = esast.Declaration(name=kids[0].val, extends=kids[2].val)
 
-    def reduce_IDENT_EXTENDS_LPAREN_NameList_RPAREN(self, *kids):
+    def reduce_Identifier_EXTENDS_LPAREN_NameList_RPAREN(self, *kids):
         self.val = esast.Declaration(name=kids[0].val, extends=kids[3].val)
 
-    def reduce_IDENT(self, kid):
+    def reduce_Identifier(self, kid):
         self.val = esast.Declaration(name=kid.val)
 
 
@@ -736,3 +741,28 @@ class ColonValue(parsing.Nonterm):
 
     def reduce_COLON_NL_INDENT_Value_NL_DEDENT(self, *kids):
         self.val = kids[3].val
+
+
+class KeywordMeta(context.ContextNontermMeta):
+    def __new__(mcls, name, bases, dct, *, type):
+        result = super().__new__(mcls, name, bases, dct)
+
+        assert type in keywords.keyword_types
+
+        for val, token in keywords.by_type[type].items():
+            def method(inst, *kids):
+                inst.val = kids[0].val
+            method = context.has_context(method)
+            method.__doc__ = "%%reduce %s" % token
+            method.__name__ = 'reduce_%s' % token
+            setattr(result, method.__name__, method)
+
+        return result
+
+    def __init__(cls, name, bases, dct, *, type):
+        super().__init__(name, bases, dct)
+
+
+class UnreservedKeyword(Nonterm, metaclass=KeywordMeta,
+                        type=keywords.UNRESERVED_KEYWORD):
+    pass

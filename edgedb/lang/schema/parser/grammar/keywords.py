@@ -34,7 +34,7 @@ edge_schema_keywords = {
     "required": ("REQUIRED", RESERVED_KEYWORD),
     "to": ("TO", UNRESERVED_KEYWORD),
     "true": ("TRUE", RESERVED_KEYWORD),
-    # HACK: "value": ("VALUE", UNRESERVED_KEYWORD),
+    "value": ("VALUE", UNRESERVED_KEYWORD),
 }
 
 

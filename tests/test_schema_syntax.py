@@ -497,9 +497,9 @@ link time_estimate:
 
     def test_eschema_syntax_import06(self):
         """
-        import `action`.`event`.foo
+        import action.event.foo
 
-        concept Bar extends `action`.`event`.foo::Foo:
+        concept Bar extends action.event.foo::Foo:
             link text to str
         """
 
