@@ -10,7 +10,6 @@ import os.path
 import unittest
 
 from edgedb.server import _testbase as tb
-from edgedb.client import exceptions as exc
 
 
 class TestUpdate(tb.QueryTestCase):
