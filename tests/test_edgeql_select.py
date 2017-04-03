@@ -3134,14 +3134,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     'name': 'Elvis',
                     'open_issues': [
                         {'number': '1', 'spent_time': 50000},
-                        {'number': '4', 'spent_time': None},
+                        {'number': '4', 'spent_time': 0},
                     ]
                 },
                 {
                     'name': 'Yury',
                     'open_issues': [
-                        {'number': '2', 'spent_time': None},
-                        {'number': '3', 'spent_time': None}
+                        {'number': '2', 'spent_time': 0},
+                        {'number': '3', 'spent_time': 0}
                     ]
                 }
             ]

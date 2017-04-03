@@ -551,8 +551,12 @@ class TestExpressions(tb.QueryTestCase):
             SELECT array_agg(ALL <int>EMPTY);
             SELECT array_agg(DISTINCT <int>EMPTY);
         ''', [
-            [],
-            [],
+            [
+                []
+            ],
+            [
+                []
+            ],
         ])
 
     async def test_edgeql_expr_array12(self):
@@ -562,8 +566,12 @@ class TestExpressions(tb.QueryTestCase):
                 (SELECT schema::Concept FILTER <str>schema::Concept.id = '~')
             );
         ''', [
-            [],
-            [],
+            [
+                []
+            ],
+            [
+                []
+            ],
         ])
 
     async def test_edgeql_expr_array13(self):
@@ -579,9 +587,15 @@ class TestExpressions(tb.QueryTestCase):
             )
             SELECT array_agg(ALL x);
         ''', [
-            [],
-            [],
-            [],
+            [
+                []
+            ],
+            [
+                []
+            ],
+            [
+                []
+            ],
         ])
 
     async def test_edgeql_expr_uniqueness01(self):

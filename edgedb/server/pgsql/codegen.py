@@ -627,3 +627,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.arg)
         self.write(' COLLATE ')
         self.visit(node.collname)
+
+    def visit_CoalesceExpr(self, node):
+        self.write('COALESCE(')
+        self.visit_list(node.args, newlines=False)
+        self.write(')')

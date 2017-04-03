@@ -365,6 +365,7 @@ class FunctionCall(Expr):
     agg_set_modifier: qlast.SetModifier
     partition: typing.List[Base]
     window: bool
+    initial_value: Base
 
 
 class TupleIndirection(Expr):

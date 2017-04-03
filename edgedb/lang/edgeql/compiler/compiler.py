@@ -927,6 +927,14 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 agg_sort=agg_sort, agg_filter=agg_filter,
                 agg_set_modifier=expr.agg_set_modifier)
 
+            if funcobj.initial_value is not None:
+                rtype = irutils.infer_type(node, ctx.schema)
+                iv_ql = qlast.TypeCast(
+                    expr=qlparser.parse_fragment(funcobj.initial_value),
+                    type=self._type_to_ql_typeref(rtype)
+                )
+                node.initial_value = self.visit(iv_ql)
+
         ir_set = self._generated_set(node)
         ir_set.path_scope = path_scope
         ir_set.stmt_path_scope = stmt_path_scope
@@ -2125,6 +2133,26 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 result=expr,
             )
         return expr
+
+    def _type_to_ql_typeref(self, t):
+        if not isinstance(t, s_obj.Collection):
+            result = qlast.TypeName(
+                maintype=qlast.ClassRef(
+                    module=t.name.module,
+                    name=t.name.name
+                )
+            )
+        else:
+            result = qlast.TypeName(
+                maintype=qlast.ClassRef(
+                    name=t.schema_name
+                ),
+                subtypes=[
+                    self._type_to_ql_typeref(st) for st in t.get_subtypes()
+                ]
+            )
+
+        return result
 
     def _ql_typeref_to_ir_typeref(self, ql_t):
         maintype = ql_t.maintype

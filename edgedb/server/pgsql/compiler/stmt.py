@@ -1495,8 +1495,9 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 # check if the aggregate accepts a single argument
                 # of std::any to determine serialized input safety.
                 serialization_safe = (
-                    len(funcobj.paramtypes) == 1 and
-                    funcobj.paramtypes[0].name == 'std::any'
+                    any(irutils.is_polymorphic_type(p)
+                        for p in funcobj.paramtypes) and
+                    irutils.is_polymorphic_type(funcobj.returntype)
                 )
 
                 if not serialization_safe:
@@ -1553,6 +1554,19 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 agg_order=agg_sort, agg_filter=agg_filter,
                 agg_distinct=(
                     expr.agg_set_modifier == irast.SetModifier.DISTINCT))
+
+            if expr.initial_value is not None:
+                if newctx.expr_exposed and serialization_safe:
+                    # Serialization has changed the output type.
+                    with self.context.new() as ivctx:
+                        ivctx.expr_exposed = True
+                        iv = self.visit(expr.initial_value)
+                        iv = self._serialize_expr(iv)
+                        set_expr = self._serialize_expr(set_expr)
+                else:
+                    iv = self.visit(expr.initial_value)
+
+                set_expr = pgast.CoalesceExpr(args=[set_expr, iv])
 
             # Add an explicit GROUP BY for each non-aggregated path bond.
             for path_id in list(stmt.path_bonds):
@@ -1831,6 +1845,20 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             name = [rvar.alias.aliasname, colname]
 
         return pgast.ColumnRef(name=name, nullable=nullable, grouped=grouped)
+
+    def _serialize_expr(self, pgexpr):
+        ctx = self.context.current
+
+        if ((ctx.expr_exposed is None or ctx.expr_exposed) and
+                ctx.output_format == 'json'):
+            if isinstance(pgexpr, ResTargetList):
+                val = self._rtlist_as_json_object(pgexpr)
+            else:
+                val = pgast.FuncCall(name=('to_jsonb',), args=[pgexpr])
+        else:
+            val = pgexpr
+
+        return val
 
     def _rtlist_as_json_object(self, rtlist):
         keyvals = []
