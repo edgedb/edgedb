@@ -835,7 +835,6 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_update_props08(self):
         res = await self.con.execute(r"""
             WITH MODULE test

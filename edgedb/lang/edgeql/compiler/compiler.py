@@ -1447,6 +1447,9 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             if isinstance(ctx.stmt, irast.InsertStmt):
                 el = self._process_insert_nested_shape(
                     targetstep, shape_el.elements)
+            elif isinstance(ctx.stmt, irast.UpdateStmt):
+                el = self._process_update_nested_shape(
+                    targetstep, shape_el.elements)
             else:
                 el = self._process_shape(
                     targetstep,
@@ -1641,6 +1644,42 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 rptr=ptr_node,
                 include_implicit=True
             ),
+            path_scope=ctx.path_scope,
+            specific_path_scope={
+                ctx.sets[p] for p in ctx.stmt_path_scope
+                if p in ctx.sets and p in ctx.path_scope
+            }
+        )
+
+        result = self._generated_set(substmt)
+        result.rptr = ptr_node
+        return result
+
+    def _process_update_nested_shape(self, targetstep, elements):
+        ctx = self.context.current
+
+        for subel in elements or []:
+            is_prop = (
+                isinstance(subel.expr.steps[0], qlast.Ptr) and
+                subel.expr.steps[0].type == 'property'
+            )
+            if not is_prop:
+                raise errors.EdgeQLError(
+                    'only references to link properties are allowed '
+                    'in nested UPDATE shapes', context=subel.context)
+
+        ptr_node = targetstep.rptr
+
+        el = self._process_shape(
+            targetstep,
+            elements,
+            rptr=ptr_node,
+            _recurse=True,
+            require_expressions=True,
+            include_implicit=False)
+
+        substmt = irast.SelectStmt(
+            result=el,
             path_scope=ctx.path_scope,
             specific_path_scope={
                 ctx.sets[p] for p in ctx.stmt_path_scope

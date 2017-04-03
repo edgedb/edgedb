@@ -26,8 +26,10 @@
 from edgedb.lang.common import ast
 
 from edgedb.lang.ir import ast as irast
+from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import atoms as s_atoms
+from edgedb.lang.schema import lproperties as s_lprops
 
 from edgedb.server.pgsql import ast as pgast
 from edgedb.server.pgsql import common
@@ -376,12 +378,8 @@ class IRCompilerDMLSupport:
                     ptrcls, schema=ctx.schema, resolve_type=True,
                     link_bias=False)
 
-                props_only = False
-
                 # First, process all internal link updates
                 if ptr_info.table_type == 'concept':
-                    props_only = True
-
                     updvalue = pgast.TypeCast(
                         arg=self.visit(updvalue),
                         type_name=self._type_node(ptr_info.column_type))
@@ -390,6 +388,8 @@ class IRCompilerDMLSupport:
                         pgast.UpdateTarget(
                             name=ptr_info.column_name,
                             val=updvalue))
+
+                props_only = self._is_props_only_update(shape_el)
 
                 ptr_info = pg_types.get_pointer_storage_info(
                     ptrcls, resolve_type=False, link_bias=True)
@@ -417,8 +417,35 @@ class IRCompilerDMLSupport:
 
         # Process necessary updates to the link tables.
         for expr, props_only in external_updates:
-            self._process_link_update(
-                ir_stmt, expr, props_only, wrapper, update_cte)
+            if props_only:
+                self._process_linkprop_update(
+                    ir_stmt, expr, wrapper, update_cte)
+            else:
+                self._process_link_update(
+                    ir_stmt, expr, False, wrapper, update_cte)
+
+    def _is_props_only_update(self, shape_el):
+        """Determine whether a link update is a property-only update.
+
+        :param shape_el:
+            IR of the shape element representing a link update.
+
+        :return:
+            `True` if *shape_el* represents a link property-only update.
+        """
+        if not irutils.is_subquery_set(shape_el):
+            return False
+
+        ir_set = shape_el.expr.result
+        target = shape_el.rptr.target
+
+        ir_cset = irutils.get_canonical_set(ir_set)
+
+        if ir_cset != target:
+            return False
+
+        return all(isinstance(el.rptr.ptrcls, s_lprops.LinkProperty)
+                   for el in ir_set.shape)
 
     def _process_link_update(self, ir_stmt, ir_expr, props_only,
                              wrapper, dml_cte):
@@ -627,6 +654,81 @@ class IRCompilerDMLSupport:
             overlays.append(('union', updcte))
 
             toplevel.ctes.append(updcte)
+
+    def _process_linkprop_update(self, ir_stmt, ir_expr, wrapper, dml_cte):
+        """Perform link property updates to a link relation.
+
+        :param ir_stmt:
+            IR of the statement.
+        :param ir_expr:
+            IR of the UPDATE body element.
+        :param wrapper:
+            Top-level SQL query.
+        :param dml_cte:
+            CTE representing the SQL UPDATE to the main relation of the Class.
+        """
+        ctx = self.context.current
+
+        toplevel = ctx.toplevel_stmt
+
+        rptr = ir_expr.rptr
+        ptrcls = rptr.ptrcls
+        target_is_atom = isinstance(rptr.target, s_atoms.Atom)
+
+        target_tab = self._range_for_ptrcls(
+            ptrcls, '>', include_overlays=False)
+
+        if target_is_atom:
+            target_tab_name = (target_tab.schema, target_tab.name)
+        else:
+            target_tab_name = common.link_name_to_table_name(
+                ptrcls.shortname, catenate=False)
+
+        tab_cols = \
+            ctx.backend._type_mech.get_cached_table_columns(target_tab_name)
+
+        assert tab_cols, "could not get cols for {!r}".format(target_tab_name)
+
+        dml_cte_rvar = pgast.RangeVar(
+            relation=dml_cte,
+            alias=pgast.Alias(
+                aliasname=ctx.genalias('m')
+            )
+        )
+
+        cond = self._new_binop(
+            self._get_rvar_path_var(dml_cte_rvar, ir_stmt.subject.path_id),
+            self._get_column(target_tab, 'std::source'),
+            ast.ops.EQ
+        )
+
+        targets = []
+        shape_set = irutils.get_subquery_shape(ir_expr)
+        for prop_el in shape_set.shape:
+            ptrname = prop_el.rptr.ptrcls.shortname
+            with self.context.new() as input_rel_ctx:
+                input_rel_ctx.expr_exposed = False
+                input_rel = self.visit(prop_el.expr)
+                targets.append(
+                    pgast.UpdateTarget(
+                        name=common.edgedb_name_to_pg_name(ptrname),
+                        val=input_rel
+                    )
+                )
+
+        updstmt = pgast.UpdateStmt(
+            relation=target_tab,
+            where_clause=cond,
+            targets=targets,
+            from_clause=[dml_cte_rvar]
+        )
+
+        updcte = pgast.CommonTableExpr(
+            query=updstmt,
+            name=ctx.genalias(ptrcls.shortname.name)
+        )
+
+        toplevel.ctes.append(updcte)
 
     def _process_link_values(
             self, ir_stmt, ir_expr, target_tab, tab_cols, col_data,
