@@ -739,23 +739,6 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
-    @unittest.expectedFailure
-    async def test_edgeql_update_props04(self):
-        # XXX: not sure what the correct error should be, but a
-        #      required link property is missing
-        with self.assertRaisesRegex(exc.EdgeQLError,
-                                    r'required'):
-            await self.con.execute(r"""
-                WITH MODULE test
-                UPDATE UpdateTest
-                FILTER UpdateTest.name = 'update-test1'
-                SET {
-                    weighted_tags := (
-                        SELECT Tag FILTER Tag.name IN ('wow', 'boring')
-                    )
-                };
-            """)
-
     async def test_edgeql_update_props05(self):
         res = await self.con.execute(r"""
             WITH MODULE test
@@ -789,7 +772,6 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_update_props06(self):
         res = await self.con.execute(r"""
             WITH MODULE test

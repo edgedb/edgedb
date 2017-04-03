@@ -541,8 +541,8 @@ class IRCompilerDMLSupport:
         # Turn the IR of the expression on the right side of :=
         # into one or more sub-selects.
         tranches = self._process_link_values(
-            ir_expr, target_tab_name, tab_cols, col_data,
-            [dml_cte_rvar, lname_to_id_rvar],
+            ir_stmt, ir_expr, target_tab_name, tab_cols, col_data,
+            dml_cte_rvar, [lname_to_id_rvar],
             props_only, target_is_atom)
 
         for cols, data_cte in tranches:
@@ -629,8 +629,8 @@ class IRCompilerDMLSupport:
             toplevel.ctes.append(updcte)
 
     def _process_link_values(
-            self, ir_expr, target_tab, tab_cols, col_data, sources,
-            props_only, target_is_atom):
+            self, ir_stmt, ir_expr, target_tab, tab_cols, col_data,
+            dml_rvar, sources, props_only, target_is_atom):
         """Unpack data from an update expression into a series of selects.
 
         :param ir_expr:
@@ -667,12 +667,14 @@ class IRCompilerDMLSupport:
         with self.context.new() as input_rel_ctx:
             input_rel_ctx.expr_exposed = False
             input_rel_ctx.shape_format = context.ShapeFormat.FLAT
+            input_rel_ctx.path_bonds.pop(ir_stmt.subject.path_id, None)
             input_rel = self.visit(data)
 
         input_stmt = input_rel
 
         input_rvar = pgast.RangeSubselect(
             subquery=input_rel,
+            lateral=True,
             alias=pgast.Alias(
                 aliasname=ctx.genalias('val')
             )
@@ -727,12 +729,10 @@ class IRCompilerDMLSupport:
                         )
                     )
                 ],
-                from_clause=[input_rvar],
+                from_clause=[dml_rvar] + list(sources) + [input_rvar],
             ),
             name=ctx.genalias(hint='r')
         )
-
-        tranch_data.query.from_clause.extend(sources)
 
         tranches.append((tab_cols, tranch_data))
 

@@ -209,6 +209,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 with self.context.new() as ctx1:
                     ctx1.clause = 'where'
                     ctx1.expr_exposed = False
+                    ctx1.shape_format = context.ShapeFormat.SERIALIZED
                     query.where_clause = self.visit(stmt.where)
 
             simple_wrapper = irutils.is_simple_wrapper(stmt)

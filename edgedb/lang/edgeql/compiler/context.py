@@ -80,7 +80,7 @@ class ContextLevel(compiler.ContextLevel):
     path_as_type: bool
     """True if path references should be treated as type references."""
 
-    toplevel_shape_rptrcls: s_pointers.Pointer
+    toplevel_shape_rptr: s_pointers.Pointer
     """Pointer class for the top-level shape of the substatement."""
 
     result_path_steps: list
@@ -110,12 +110,12 @@ class ContextLevel(compiler.ContextLevel):
 
             self.result_path_steps = []
 
-            self.toplevel_shape_rptrcls = None
+            self.toplevel_shape_rptr = None
 
         else:
             self.schema = prevlevel.schema
             self.arguments = prevlevel.arguments
-            self.toplevel_shape_rptrcls = prevlevel.toplevel_shape_rptrcls
+            self.toplevel_shape_rptr = prevlevel.toplevel_shape_rptr
             self.path_scope = prevlevel.path_scope
             self.pending_path_scope = prevlevel.pending_path_scope
             self.aggregated_scope = prevlevel.aggregated_scope
@@ -127,7 +127,7 @@ class ContextLevel(compiler.ContextLevel):
                 self.namespaces = prevlevel.namespaces.copy()
                 self.substmts = prevlevel.substmts.copy()
 
-                self.toplevel_shape_rptrcls = None
+                self.toplevel_shape_rptr = None
                 self.clause = None
                 self.stmt = None
                 self.sets = prevlevel.sets

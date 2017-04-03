@@ -115,7 +115,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
     def visit_SelectQuery(self, edgeql_tree):
         parent_ctx = self.context.current
-        toplevel_shape_rptrcls = parent_ctx.toplevel_shape_rptrcls
+        toplevel_shape_rptr = parent_ctx.toplevel_shape_rptr
         is_toplevel = parent_ctx.stmt is None
 
         with self.context.subquery() as ctx:
@@ -131,7 +131,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 ctx.result_path_steps = output.expr.steps
 
             stmt.result = self._process_stmt_result(
-                edgeql_tree.result, toplevel_shape_rptrcls,
+                edgeql_tree.result, toplevel_shape_rptr,
                 edgeql_tree.result_alias)
 
             stmt.where = self._process_select_where(edgeql_tree.where)
@@ -177,7 +177,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
     def visit_GroupQuery(self, edgeql_tree):
         parent_ctx = self.context.current
-        toplevel_shape_rptrcls = parent_ctx.toplevel_shape_rptrcls
+        toplevel_shape_rptr = parent_ctx.toplevel_shape_rptr
         is_toplevel = parent_ctx.stmt is None
         parent_path_scope = parent_ctx.path_scope.copy()
 
@@ -210,7 +210,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 o_stmt = sctx.stmt = irast.SelectStmt()
 
                 o_stmt.result = self._process_stmt_result(
-                    edgeql_tree.result, toplevel_shape_rptrcls,
+                    edgeql_tree.result, toplevel_shape_rptr,
                     edgeql_tree.result_alias)
 
                 o_stmt.where = self._process_select_where(edgeql_tree.where)
@@ -265,7 +265,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             subject = self.visit(edgeql_tree.subject)
 
             stmt.subject = self._process_shape(
-                subject, None, edgeql_tree.shape,
+                subject, edgeql_tree.shape,
                 require_expressions=True,
                 include_implicit=False)
 
@@ -331,7 +331,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             stmt.where = self._process_select_where(edgeql_tree.where)
 
             stmt.subject = self._process_shape(
-                subject, None, edgeql_tree.shape,
+                subject, edgeql_tree.shape,
                 require_expressions=True,
                 include_implicit=False)
 
@@ -392,7 +392,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
     def visit_Shape(self, expr):
         subj = self.visit(expr.expr)
-        return self._process_shape(subj, None, expr.elements)
+        return self._process_shape(subj, expr.elements)
 
     def visit_Path(self, expr):
         ctx = self.context.current
@@ -1025,7 +1025,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
                     if subtype.shape:
                         shape = self._process_shape(
-                            stype.ptrcls, None, subtype.shape)
+                            stype.ptrcls, subtype.shape)
                     else:
                         shape = None
 
@@ -1269,7 +1269,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         type = s_types.normalize_type((0).__class__, self.schema)
         return irast.Constant(value=0, index=None, type=type)
 
-    def _process_shape(self, source_expr, rptrcls, shapespec, *,
+    def _process_shape(self, source_expr, shapespec, *, rptr=None,
                        require_expressions=False, include_implicit=True,
                        _visited=None, _recurse=True):
         """Build a Shape node given shape spec."""
@@ -1332,7 +1332,8 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         for shape_el in shapespec:
             with self.context.newscope():
                 el = self._process_shape_el(
-                    source_expr, rptrcls, shape_el, scls,
+                    source_expr, shape_el, scls,
+                    rptr=rptr,
                     require_expressions=require_expressions,
                     include_implicit=include_implicit,
                     _visited=_visited,
@@ -1355,7 +1356,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         return result
 
-    def _process_shape_el(self, source_expr, rptrcls, shape_el, scls, *,
+    def _process_shape_el(self, source_expr, shape_el, scls, *, rptr,
                           require_expressions=False, include_implicit=True,
                           _visited=None, _recurse=True, parent_ctx):
         ctx = self.context.current
@@ -1374,14 +1375,15 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             lexpr = steps[0]
 
         ptrname = (lexpr.ptr.module, lexpr.ptr.name)
+        is_linkprop = lexpr.type == 'property'
 
-        if lexpr.type == 'property':
-            if rptrcls is None:
+        if is_linkprop:
+            if rptr is None:
                 raise errors.EdgeQLError(
                     'invalid reference to link property '
                     'in top level shape')
 
-            ptrsource = rptrcls
+            ptrsource = rptr.ptrcls
             ptr_metacls = s_lprops.LinkProperty
         else:
             ptr_metacls = s_links.Link
@@ -1413,9 +1415,12 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 # can be resolved.  This is necessary for proper
                 # evaluation of link properties on computable links,
                 # most importantly, in INSERT/UPDATE context.
-                shape_expr_ctx.toplevel_shape_rptrcls = ptrcls
-                shape_expr_ctx.stmt_path_scope = \
-                    collections.defaultdict(int)
+                shape_expr_ctx.toplevel_shape_rptr = irast.Pointer(
+                    source=source_expr,
+                    ptrcls=ptrcls,
+                    direction=ptr_direction
+                )
+                shape_expr_ctx.stmt_path_scope = collections.defaultdict(int)
                 compexpr = self.visit(shape_el.compexpr)
 
             target_class = irutils.infer_type(compexpr, schema)
@@ -1446,8 +1451,15 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             if compexpr.result.path_id not in compexpr.path_scope:
                 compexpr.path_scope[compexpr.result.path_id] += 1
 
-            path_id = source_expr.path_id.extend(
-                ptrcls, ptr_direction, target_class)
+            if is_linkprop:
+                path_id = rptr.source.path_id.extend(
+                    rptr.ptrcls, rptr.direction, source_expr.scls
+                ).extend(
+                    ptrcls, ptr_direction, target_class
+                )
+            else:
+                path_id = source_expr.path_id.extend(
+                    ptrcls, ptr_direction, target_class)
 
             targetstep = irast.Set(
                 path_id=path_id,
@@ -1550,8 +1562,8 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
                 el = self._process_shape(
                     targetstep,
-                    ptrcls,
                     mutation_shape,
+                    rptr=ptr_node,
                     _visited=_visited,
                     _recurse=True,
                     require_expressions=require_expressions,
@@ -1570,8 +1582,8 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                     subject=el,
                     result=self._process_shape(
                         targetstep,
-                        ptrcls,
                         returning_shape,
+                        rptr=ptr_node,
                         include_implicit=True
                     ),
                     path_scope=ctx.path_scope,
@@ -1588,8 +1600,8 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             else:
                 el = self._process_shape(
                     targetstep,
-                    ptrcls,
                     shape_el.elements or [],
+                    rptr=ptr_node,
                     _visited=_visited,
                     _recurse=True,
                     require_expressions=require_expressions,
@@ -1844,8 +1856,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
         return ctx.schema.get(name=name, module_aliases=ctx.namespaces)
 
-    def _process_stmt_result(self, result, toplevel_rptrcls,
-                             result_alias=None):
+    def _process_stmt_result(self, result, toplevel_rptr, result_alias=None):
         with self.context.new() as ctx:
             ctx.clause = 'result'
 
@@ -1867,11 +1878,11 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
             if shape is not None:
                 if expr.rptr is not None:
-                    rptrcls = expr.rptr.ptrcls
+                    rptr = expr.rptr
                 else:
-                    rptrcls = toplevel_rptrcls
+                    rptr = toplevel_rptr
 
-                expr = self._process_shape(expr, rptrcls, shape)
+                expr = self._process_shape(expr, shape, rptr=rptr)
 
         expr = self._ensure_set(expr)
         self._declare_aliased_set(expr, result_alias)
