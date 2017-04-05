@@ -111,9 +111,14 @@ class Ptr(Base):
     type: str
 
 
-class TypeName(Expr):
+class _TypeName(Expr):
+    pass
+
+
+class TypeName(_TypeName):
     maintype: Expr
-    subtypes: typing.List[ClassRef]
+    subtypes: typing.List[_TypeName]
+    dimensions: typing.List[int]
 
 
 class TypeFilter(Expr):

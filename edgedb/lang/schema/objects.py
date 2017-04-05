@@ -513,9 +513,9 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
         unchanged = oldkeys & newkeys
 
         old = OrderedSet(o for o in old
-                            if o.persistent_hash() not in unchanged)
+                         if o.persistent_hash() not in unchanged)
         new = OrderedSet(o for o in new
-                            if o.persistent_hash() not in unchanged)
+                         if o.persistent_hash() not in unchanged)
 
         comparison = ((x.compare(y, context), x, y)
                       for x, y in itertools.product(new, old))
@@ -788,11 +788,27 @@ class Set(Collection):
         return frozenset
 
 
+class IntList(typed.TypedList, type=int):
+    pass
+
+
 class Array(Collection):
     schema_name = 'array'
+    dimensions = Field(IntList, [], coerce=True)
 
     def get_container(self):
-        return tuple
+        return list
+
+    @classmethod
+    def from_subtypes(cls, subtypes):
+        t = super().from_subtypes(subtypes)
+        stype = subtypes[0]
+        if isinstance(stype, cls):
+            # There is no array of arrays, only multi-dimensional arrays.
+            t.element_type = stype.element_type
+            t.dimensions = [-1] + stype.dimensions
+
+        return t
 
 
 class Map(Collection):

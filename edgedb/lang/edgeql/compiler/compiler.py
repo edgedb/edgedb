@@ -1007,40 +1007,7 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
 
     def visit_TypeCast(self, expr):
         maintype = expr.type.maintype
-        subtypes = expr.type.subtypes
-
-        if subtypes:
-            typ = irast.TypeRef(
-                maintype=maintype.name,
-                subtypes=[]
-            )
-
-            for subtype in subtypes:
-                if isinstance(subtype, qlast.Path):
-                    stype = self.visit(subtype)
-                    if isinstance(stype, irast.LinkPropRefSimple):
-                        stype = stype.ref
-                    elif not isinstance(stype, irast.EntityLink):
-                        stype = stype.rptr
-
-                    if subtype.shape:
-                        shape = self._process_shape(
-                            stype.ptrcls, subtype.shape)
-                    else:
-                        shape = None
-
-                    subtype = irast.CompositeType(node=stype, shape=shape)
-                else:
-                    subtype = self._get_schema_object(
-                        subtype.name, subtype.module)
-
-                typ.subtypes.append(subtype.name)
-        else:
-            typ = irast.TypeRef(
-                maintype=self._get_schema_object(
-                    maintype.name, maintype.module).name,
-                subtypes=[]
-            )
+        typ = self._ql_typeref_to_ir_typeref(expr.type)
 
         if isinstance(expr.expr, qlast.EmptyCollection):
             if maintype.name == 'array':
@@ -2150,3 +2117,25 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                 result=expr,
             )
         return expr
+
+    def _ql_typeref_to_ir_typeref(self, ql_t):
+        maintype = ql_t.maintype
+        subtypes = ql_t.subtypes
+
+        if subtypes:
+            typ = irast.TypeRef(
+                maintype=maintype.name,
+                subtypes=[]
+            )
+
+            for subtype in subtypes:
+                subtype = self._ql_typeref_to_ir_typeref(subtype)
+                typ.subtypes.append(subtype)
+        else:
+            typ = irast.TypeRef(
+                maintype=self._get_schema_object(
+                    maintype.name, maintype.module).name,
+                subtypes=[]
+            )
+
+        return typ

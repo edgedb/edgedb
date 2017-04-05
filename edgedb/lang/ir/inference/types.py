@@ -143,7 +143,7 @@ def __infer_func_call(ir, schema):
         return t.name == 'std::any'
 
     if is_polymorphic(result):
-        # Polymorhic function, determine the result type from
+        # Polymorphic function, determine the result type from
         # the argument type.
         for i, arg in enumerate(ir.args):
             if is_polymorphic(ir.func.paramtypes[i]):
@@ -278,16 +278,22 @@ def __infer_ifelse(ir, schema):
     return result
 
 
+@_infer_type.register(irast.TypeRef)
+def __infer_typeref(ir, schema):
+    if ir.subtypes:
+        coll = s_obj.Collection.get_class(ir.maintype)
+        result = coll.from_subtypes(
+            [infer_type(t, schema) for t in ir.subtypes])
+    else:
+        result = schema.get(ir.maintype)
+
+    return result
+
+
 @_infer_type.register(irast.TypeCast)
 @_infer_type.register(irast.TypeFilter)
 def __infer_typecast(ir, schema):
-    if ir.type.subtypes:
-        coll = s_obj.Collection.get_class(ir.type.maintype)
-        result = coll.from_subtypes(
-            [schema.get(t) for t in ir.type.subtypes])
-    else:
-        result = schema.get(ir.type.maintype)
-    return result
+    return infer_type(ir.type, schema)
 
 
 @_infer_type.register(irast.Stmt)

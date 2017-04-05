@@ -574,7 +574,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.expr)
         self.write(' IS None')
 
-    def visit_TypeName(self, node):
+    def visit_TypeName(self, node, *, parenthesise=False):
         if isinstance(node.maintype, edgeql_ast.Path):
             self.visit(node.maintype)
         else:

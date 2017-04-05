@@ -21,9 +21,7 @@ def ast_to_typeref(node: ql_ast.TypeName):
 
         subtypes = []
         for st in node.subtypes:
-            stref = so.ClassRef(
-                classname=sn.Name(module=st.module, name=st.name))
-            subtypes.append(stref)
+            subtypes.append(ast_to_typeref(st))
 
         return coll.from_subtypes(subtypes)
 

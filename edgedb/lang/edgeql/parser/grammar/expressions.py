@@ -1175,9 +1175,13 @@ class TypeName(Nonterm):
     def reduce_NodeName(self, *kids):
         self.val = qlast.TypeName(maintype=kids[0].val)
 
-    def reduce_NodeName_LANGBRACKET_NodeNameList_RANGBRACKET(self, *kids):
+    def reduce_NodeName_LANGBRACKET_TypeNameList_RANGBRACKET(self, *kids):
         self.val = qlast.TypeName(maintype=kids[0].val,
                                   subtypes=kids[2].val)
+
+
+class TypeNameList(ListNonterm, element=TypeName, separator=tokens.T_COMMA):
+    pass
 
 
 class NodeName(Nonterm):
