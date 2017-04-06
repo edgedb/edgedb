@@ -922,7 +922,7 @@ class TestExpressions(tb.QueryTestCase):
             [[[1, 'foo']]],
         ])
 
-    async def test_edgeql_expr_tuple06(self):
+    async def test_edgeql_expr_tuple_indirection01(self):
         await self.assert_query_result(r"""
             SELECT ('foo', 42).0;
             SELECT ('foo', 42).1;
@@ -931,13 +931,27 @@ class TestExpressions(tb.QueryTestCase):
             [42],
         ])
 
-    async def test_edgeql_expr_tuple07(self):
+    async def test_edgeql_expr_tuple_indirection02(self):
         await self.assert_query_result(r"""
             SELECT (name := 'foo', val := 42).name;
             SELECT (name := 'foo', val := 42).val;
         """, [
             ['foo'],
             [42],
+        ])
+
+    async def test_edgeql_expr_tuple_indirection03(self):
+        await self.assert_query_result(r"""
+            WITH _ := (SELECT ('foo', 42)) SELECT _.1;
+        """, [
+            [42],
+        ])
+
+    async def test_edgeql_expr_tuple_indirection04(self):
+        await self.assert_query_result(r"""
+            WITH _ := (SELECT (name := 'foo', val := 42)) SELECT _.name;
+        """, [
+            ['foo'],
         ])
 
     async def test_edgeql_expr_cannot_assign_dunder_class(self):

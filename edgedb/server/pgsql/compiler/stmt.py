@@ -1755,6 +1755,15 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                     selexprs.append(
                         (rt, common.edgedb_name_to_pg_name(name))
                     )
+            elif isinstance(pgexpr, pgast.ImplicitRowExpr):
+                # Bare tuple
+
+                selexprs = []
+
+                for i, el in enumerate(pgexpr.args):
+                    selexprs.append(
+                        (el, common.edgedb_name_to_pg_name(str(i)))
+                    )
             else:
                 selexprs = [(pgexpr, None)]
 
