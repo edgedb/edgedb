@@ -1391,6 +1391,24 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT -<int>EMPTY;
         """
 
+    def test_edgeql_syntax_cast05(self):
+        """
+        SELECT <array<int>>$1;
+        SELECT <array<int[2][3]>>$1;
+        """
+
+    def test_edgeql_syntax_cast06(self):
+        """
+        SELECT <map<str, int>>$1;
+        """
+
+    def test_edgeql_syntax_cast07(self):
+        """
+        SELECT <tuple>$1;
+        SELECT <tuple<Foo, int, str>>$1;
+        SELECT <tuple<obj: Foo, count: int, name: str>>$1;
+        """
+
     def test_edgeql_syntax_cardinality01(self):
         """
         SELECT SINGLETON User.name FILTER (User.name = 'special');
@@ -2105,6 +2123,116 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ddl_attribute01(self):
         """
         CREATE ATTRIBUTE std::paramtypes map<std::str, std::typeref>;
+        """
+
+    def test_edgeql_syntax_ddl_attribute02(self):
+        """
+        CREATE ATTRIBUTE stdattrs::precision array<std::int>;
+        """
+
+    def test_edgeql_syntax_ddl_attribute03(self):
+        # test parsing of array types
+        #
+        """
+        CREATE ATTRIBUTE std::foo array<int>;
+        CREATE ATTRIBUTE std::foo array<int[]>;
+        CREATE ATTRIBUTE std::foo array<int[][]>;
+        CREATE ATTRIBUTE std::foo array<int[][][]>;
+
+        CREATE ATTRIBUTE std::foo array<int[3]>;
+        CREATE ATTRIBUTE std::foo array<int[4][5]>;
+        CREATE ATTRIBUTE std::foo array<int[3][4][5]>;
+
+        CREATE ATTRIBUTE std::foo array<int[][5]>;
+        CREATE ATTRIBUTE std::foo array<int[4][]>;
+        CREATE ATTRIBUTE std::foo array<int[][4][5]>;
+        CREATE ATTRIBUTE std::foo array<int[3][4][]>;
+        CREATE ATTRIBUTE std::foo array<int[][4][]>;
+        """
+
+    def test_edgeql_syntax_ddl_attribute04(self):
+        # test parsing of map types
+        #
+        """
+        CREATE ATTRIBUTE std::foo map<int, str>;
+        CREATE ATTRIBUTE std::foo map<array<int>, str>;
+        CREATE ATTRIBUTE std::foo map<array<int>, tuple<str, str>>;
+        CREATE ATTRIBUTE std::foo map<int, foo::Bar>;
+        """
+
+    def test_edgeql_syntax_ddl_attribute05(self):
+        # test parsing of tuple types
+        #
+        """
+        CREATE ATTRIBUTE std::foo tuple;
+        CREATE ATTRIBUTE std::foo tuple<float>;
+        CREATE ATTRIBUTE std::foo tuple<int, str>;
+        CREATE ATTRIBUTE std::foo tuple<array<int>, str>;
+        CREATE ATTRIBUTE std::foo tuple<array<int>, tuple<str, str>>;
+        CREATE ATTRIBUTE std::foo tuple<int, foo::Bar>;
+
+        CREATE ATTRIBUTE std::foo tuple<count: int, name: str>;
+
+        CREATE ATTRIBUTE std::foo tuple<Baz, map<int, str>>;
+        CREATE ATTRIBUTE std::foo tuple<Baz, map<array<int>, str>>;
+        CREATE ATTRIBUTE std::foo tuple<Baz, map<array<int>, tuple<str, str>>>;
+        CREATE ATTRIBUTE std::foo tuple<Baz, map<int, foo::Bar>>;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected token.*map", line=2, col=35)
+    def test_edgeql_syntax_ddl_attribute06(self):
+        """
+        CREATE ATTRIBUTE std::foo map;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected token.*>", line=2, col=42)
+    def test_edgeql_syntax_ddl_attribute07(self):
+        """
+        CREATE ATTRIBUTE std::foo map<int>;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected token.*COMMA", line=2, col=47)
+    def test_edgeql_syntax_ddl_attribute08(self):
+        """
+        CREATE ATTRIBUTE std::foo map<int, str, float>;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected token.*array", line=2, col=35)
+    def test_edgeql_syntax_ddl_attribute09(self):
+        """
+        CREATE ATTRIBUTE std::foo array;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected token.*COMMA", line=2, col=44)
+    def test_edgeql_syntax_ddl_attribute10(self):
+        """
+        CREATE ATTRIBUTE std::foo array<int, int, int>;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected token.*<", line=2, col=46)
+    def test_edgeql_syntax_ddl_attribute11(self):
+        """
+        CREATE ATTRIBUTE std::foo array<array<int[]>>;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected token.*COLON", line=2, col=49)
+    def test_edgeql_syntax_ddl_attribute12(self):
+        """
+        CREATE ATTRIBUTE std::foo tuple<int, foo:int>;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected token.*>", line=2, col=53)
+    def test_edgeql_syntax_ddl_attribute13(self):
+        """
+        CREATE ATTRIBUTE std::foo tuple<foo:int, str>;
         """
 
     def test_edgeql_syntax_ddl_function01(self):

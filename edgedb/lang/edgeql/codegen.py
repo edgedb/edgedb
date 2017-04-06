@@ -575,6 +575,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(' IS None')
 
     def visit_TypeName(self, node, *, parenthesise=False):
+        if node.name is not None:
+            self.write(ident_to_str(node.name), ': ')
         if isinstance(node.maintype, edgeql_ast.Path):
             self.visit(node.maintype)
         else:
@@ -582,6 +584,12 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if node.subtypes:
             self.write('<')
             self.visit_list(node.subtypes, newlines=False, parenthesise=False)
+            if node.dimensions is not None:
+                for dim in node.dimensions:
+                    if dim is None:
+                        self.write('[]')
+                    else:
+                        self.write('[', str(dim), ']')
             self.write('>')
 
     # DDL nodes

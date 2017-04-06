@@ -116,9 +116,10 @@ class _TypeName(Expr):
 
 
 class TypeName(_TypeName):
+    name: str  # name is used for types in named tuples
     maintype: Expr
     subtypes: typing.List[_TypeName]
-    dimensions: typing.List[int]
+    dimensions: typing.Union[typing.List[int], None]
 
 
 class TypeFilter(Expr):

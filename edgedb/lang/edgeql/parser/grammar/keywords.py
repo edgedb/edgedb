@@ -13,6 +13,7 @@ unreserved_keywords = [
     "abstract",
     "action",
     "after",
+    "array",
     "as",
     "asc",
     "atom",
@@ -34,6 +35,7 @@ unreserved_keywords = [
     "initial",
     "last",
     "link",
+    "map",
     "migration",
     "policy",
     "property",
@@ -43,6 +45,7 @@ unreserved_keywords = [
     "then",
     "to",
     "transaction",  # do we need it?
+    "tuple",
     "value",
 ]
 

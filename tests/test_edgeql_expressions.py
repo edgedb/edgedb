@@ -711,14 +711,14 @@ class TestExpressions(tb.QueryTestCase):
         # XXX: Add DROP FUNCTION to enable optimizer tests.
 
         await self.con.execute('''
-            CREATE FUNCTION test::take(std::map<std::str, std::int>, std::str)
+            CREATE FUNCTION test::take(map<std::str, std::int>, std::str)
                 RETURNING std::int
                 FROM EdgeQL $$
                     SELECT $1[$2] + 100
                 $$;
 
             CREATE FUNCTION test::make(std::int)
-                RETURNING std::map<std::str, std::int>
+                RETURNING map<std::str, std::int>
                 FROM EdgeQL $$
                     SELECT ['aaa' -> $1]
                 $$;

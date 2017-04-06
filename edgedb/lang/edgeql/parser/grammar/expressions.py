@@ -587,7 +587,7 @@ class Expr(Nonterm):
     # | Expr '[' ':' Expr ']'
     # | Expr '[' Expr ':' ']'
     # | Expr '[' IS NodeName ']'
-    # | '<' TypeName '>' '(' Expr ')'
+    # | '<' TypeName '>' Expr
     # | Expr IF Expr ELSE Expr
     # | Expr ?? Expr
     # | Expr UNION Expr | Expr EXCEPT Expr | Expr INTERSECT Expr
@@ -1171,17 +1171,91 @@ class BaseName(Nonterm):
         self.val = [kids[0].val, kids[2].val]
 
 
-class TypeName(Nonterm):
+class NonArrayTypeName(Nonterm):
     def reduce_NodeName(self, *kids):
-        self.val = qlast.TypeName(maintype=kids[0].val)
+        maintype = kids[0].val
 
-    def reduce_NodeName_LANGBRACKET_TypeNameList_RANGBRACKET(self, *kids):
-        self.val = qlast.TypeName(maintype=kids[0].val,
-                                  subtypes=kids[2].val)
+        # maintype cannot be 'map' or 'array'
+        #
+        if maintype.module is None:
+            if maintype.name in ('array', 'map'):
+                raise EdgeQLSyntaxError(
+                    'Unexpected token: {!r}'.format(maintype.name),
+                    context=kids[0].context)
+
+        self.val = qlast.TypeName(maintype=maintype)
+
+    def reduce_MAP_LANGBRACKET_TypeName_COMMA_TypeName_RANGBRACKET(self,
+                                                                   *kids):
+        self.val = qlast.TypeName(
+            maintype=qlast.ClassRef(name='map'),
+            subtypes=[kids[2].val, kids[4].val],
+        )
+
+    def reduce_TUPLE_LANGBRACKET_TypeNameList_RANGBRACKET(self, *kids):
+        self.val = qlast.TypeName(
+            maintype=qlast.ClassRef(name='tuple'),
+            subtypes=kids[2].val,
+        )
+
+    def reduce_TUPLE_LANGBRACKET_NamedTupleTypeList_RANGBRACKET(self, *kids):
+        self.val = qlast.TypeName(
+            maintype=qlast.ClassRef(name='tuple'),
+            subtypes=kids[2].val,
+        )
+
+
+class TypeName(Nonterm):
+    def reduce_NonArrayTypeName(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_ARRAY_LANGBRACKET_NonArrayTypeName_OptDimensions_RANGBRACKET(
+            self, *kids):
+        subtype = kids[2].val
+        dimensions = kids[3].val
+
+        self.val = qlast.TypeName(
+            maintype=qlast.ClassRef(name='array'),
+            subtypes=[subtype],
+            dimensions=dimensions,
+        )
 
 
 class TypeNameList(ListNonterm, element=TypeName, separator=tokens.T_COMMA):
     pass
+
+
+class NamedTupleType(Nonterm):
+    def reduce_Identifier_COLON_TypeName(self, *kids):
+        self.val = kids[2].val
+        self.val.name = kids[0].val
+
+
+class NamedTupleTypeList(ListNonterm, element=NamedTupleType,
+                         separator=tokens.T_COMMA):
+    pass
+
+
+class Dimension(Nonterm):
+    def reduce_LBRACKET_RBRACKET(self, *kids):
+        # special value, impossible to get through any other production
+        #
+        self.val = -1
+
+    def reduce_LBRACKET_ICONST_RBRACKET(self, *kids):
+        self.val = int(kids[1].val)
+
+
+class Dimensions(ListNonterm, element=Dimension):
+    pass
+
+
+class OptDimensions(Nonterm):
+    def reduce_Dimensions(self, *kids):
+        self.val = [None if v == -1 else v for v in kids[0].val]
+
+    def reduce_empty(self):
+        self.val = None
 
 
 class NodeName(Nonterm):
