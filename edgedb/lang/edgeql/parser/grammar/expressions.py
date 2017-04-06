@@ -1005,6 +1005,16 @@ class PathStep(Nonterm):
             direction=s_pointers.PointerDirection.Outbound
         )
 
+    def reduce_DOT_ICONST(self, *kids):
+        # this is a valid link-like syntax for accessing unnamed tuples
+        #
+        from edgedb.lang.schema import pointers as s_pointers
+
+        self.val = qlast.Ptr(
+            ptr=qlast.ClassRef(name=kids[1].val),
+            direction=s_pointers.PointerDirection.Outbound
+        )
+
     def reduce_DOTFW_PathPtr(self, *kids):
         from edgedb.lang.schema import pointers as s_pointers
 

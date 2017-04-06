@@ -11,7 +11,11 @@ import re
 from .parser.grammar import keywords
 
 
-_re_ident = re.compile(r'[A-Za-z\200-\377_%][A-Za-z\200-\377_0-9\$%]*')
+_re_ident = re.compile(r'''(?x)
+    [A-Za-z\200-\377_%][A-Za-z\200-\377_\d\$%]*  # alphanumeric identifier
+    |
+    ([1-9]\d* | 0)  # purely integer identifier
+''')
 
 
 def quote_literal(text):

@@ -372,6 +372,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 if isinstance(e, edgeql_ast.ClassRef):
                     self.visit(e, parenthesise=parenthesise)
                 elif not isinstance(e, (edgeql_ast.Ptr,
+                                        edgeql_ast.Tuple,
+                                        edgeql_ast.NamedTuple,
                                         edgeql_ast.TypeFilter)):
                     self.write('(')
                     self.visit(e)

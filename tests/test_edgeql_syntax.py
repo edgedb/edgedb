@@ -1936,6 +1936,18 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             ORDER BY User.age ASC THEN User.name ASC);
         """
 
+    def test_edgeql_syntax_tuple01(self):
+        """
+        SELECT ('foo', 42).0;
+        SELECT ('foo', 42).1;
+        """
+
+    def test_edgeql_syntax_tuple02(self):
+        """
+        SELECT (name := 'foo', val := 42).name;
+        SELECT (name := 'foo', val := 42).val;
+        """
+
     # DDL
     #
 

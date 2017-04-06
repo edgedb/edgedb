@@ -3281,7 +3281,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 # set operation semantics, so here we're selecting a cross
                 # product of all user names with user owned issue statuses.
                 #
-            ORDER BY _._0 THEN _._1;
+            ORDER BY _.0 THEN _.1;
             """, [[
             ['Elvis', ['Closed', 1]],
             ['Elvis', ['Open', 1]],
