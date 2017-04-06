@@ -78,9 +78,11 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_contants01(self):
         """
+        SELECT 0;
         SELECT 1;
         SELECT +7;
         SELECT -7;
+        SELECT 551;
         """
 
     def test_edgeql_syntax_contants02(self):
@@ -138,6 +140,12 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT $1;
         SELECT $123;
         SELECT $somevar;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, 'Unknown token', line=2, col=16)
+    def test_edgeql_syntax_contants07(self):
+        """
+        SELECT 02;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=1, col=12)

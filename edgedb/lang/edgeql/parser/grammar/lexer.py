@@ -114,7 +114,7 @@ class EdgeQLLexer(lexer.Lexer):
 
         Rule(token='ICONST',
              next_state=STATE_KEEP,
-             regexp=r'\d+(?![eE.0-9])'),
+             regexp=r'([1-9]\d* | 0)(?![eE.0-9])'),
 
         Rule(token='SCONST',
              next_state=STATE_KEEP,
