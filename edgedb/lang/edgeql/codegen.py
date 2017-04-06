@@ -348,7 +348,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         self.write(']')
 
-    def visit_Struct(self, node):
+    def visit_NamedTuple(self, node):
         self.write('(')
         self.indentation += 1
         self.new_lines = 1
@@ -357,7 +357,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.new_lines = 1
         self.write(')')
 
-    def visit_StructElement(self, node):
+    def visit_TupleElement(self, node):
         self.visit(node.name)
         self.write(' := ')
         self.visit(node.val)

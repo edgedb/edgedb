@@ -128,9 +128,8 @@ def __infer_index(ir, singletons, schema):
 
 @_infer_cardinality.register(irast.Array)
 @_infer_cardinality.register(irast.Mapping)
-@_infer_cardinality.register(irast.Sequence)
-@_infer_cardinality.register(irast.Struct)
-@_infer_cardinality.register(irast.StructIndirection)
+@_infer_cardinality.register(irast.Tuple)
+@_infer_cardinality.register(irast.TupleIndirection)
 def __infer_map(ir, singletons, schema):
     return ONE
 

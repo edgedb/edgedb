@@ -89,7 +89,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             name := 'Alice',
             deck := (
                 SELECT Card {@count := len(Card.element) - 2}
-                FILTER .element IN ('Fire', 'Water')
+                FILTER .element IN ['Fire', 'Water']
             )
         };
 
@@ -97,7 +97,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
         INSERT User {
             name := 'Bob',
             deck := (
-                SELECT Card {@count := 3} FILTER .element IN ('Earth', 'Water')
+                SELECT Card {@count := 3} FILTER .element IN ['Earth', 'Water']
             )
         };
 
@@ -131,7 +131,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                         'Swampy'        IF U2.name = 'Bob' ELSE
                         'Firefighter'   IF U2.name = 'Carol' ELSE
                         'Grumpy'
-                } FILTER U2.name IN ('Bob', 'Carol', 'Dave')
+                } FILTER U2.name IN ['Bob', 'Carol', 'Dave']
             )
         };
 
@@ -373,7 +373,6 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_props_basic03(self):
         await self.assert_query_result(r'''
             # get only users who have the same count and cost in the decks

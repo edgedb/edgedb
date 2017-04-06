@@ -813,15 +813,15 @@ class Tuple(Nonterm):
 
 class NamedTuple(Nonterm):
     def reduce_LPAREN_NamedTupleElementList_RPAREN(self, *kids):
-        self.val = qlast.Struct(elements=kids[1].val)
+        self.val = qlast.NamedTuple(elements=kids[1].val)
 
     def reduce_LPAREN_NamedTupleElementList_COMMA_RPAREN(self, *kids):
-        self.val = qlast.Struct(elements=kids[1].val)
+        self.val = qlast.NamedTuple(elements=kids[1].val)
 
 
 class NamedTupleElement(Nonterm):
     def reduce_ShortNodeName_TURNSTILE_Expr(self, *kids):
-        self.val = qlast.StructElement(
+        self.val = qlast.TupleElement(
             name=kids[0].val,
             val=kids[2].val
         )

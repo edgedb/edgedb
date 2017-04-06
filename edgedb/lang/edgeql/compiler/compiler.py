@@ -732,27 +732,35 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             f'could not determine type of empty collection',
             context=expr.context)
 
-    def visit_StructElement(self, expr):
+    def visit_TupleElement(self, expr):
         name = expr.name.name
         if expr.name.module:
             name = f'{expr.name.module}::{name}'
 
         val = self._ensure_set(self.visit(expr.val))
 
-        element = irast.StructElement(
+        element = irast.TupleElement(
             name=name,
             val=val,
         )
 
         return element
 
-    def visit_Struct(self, expr):
+    def visit_NamedTuple(self, expr):
         elements = self.visit(expr.elements)
-        return self._generated_set(irast.Struct(elements=elements))
+        return self._generated_set(irast.Tuple(elements=elements, named=True))
 
     def visit_Tuple(self, expr):
-        elements = self.visit(expr.elements)
-        return irast.Sequence(elements=elements)
+        elements = []
+
+        for i, el in enumerate(expr.elements):
+            element = irast.TupleElement(
+                name=str(i),
+                val=self.visit(el)
+            )
+            elements.append(element)
+
+        return self._generated_set(irast.Tuple(elements=elements))
 
     def visit_Mapping(self, expr):
         keys = [self.visit(k) for k in expr.keys]
@@ -1662,14 +1670,14 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
                    source_context):
         ctx = self.context.current
 
-        if isinstance(source, s_obj.Struct):
+        if isinstance(source, s_obj.Tuple):
             if ptr_name[0] is not None:
                 el_name = '::'.join(ptr_name)
             else:
                 el_name = ptr_name[1]
 
             if el_name in source.element_types:
-                expr = irast.StructIndirection(
+                expr = irast.TupleIndirection(
                     expr=path_tip, name=el_name,
                     context=source_context)
             else:
@@ -1979,11 +1987,11 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
         return result
 
     def _process_type_ref_expr(self, expr):
-        if isinstance(expr, irast.Sequence):
+        if isinstance(expr.expr, irast.Tuple):
             elems = []
 
-            for elem in expr.elements:
-                ref_elem = self._process_type_ref_elem(elem, elem.context)
+            for elem in expr.expr.elements:
+                ref_elem = self._process_type_ref_elem(elem.val, elem.context)
 
                 elems.append(ref_elem)
 

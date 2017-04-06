@@ -143,10 +143,22 @@ class IRDecompiler(ast.visitor.NodeVisitor):
     def visit_Constant(self, node):
         return qlast.Constant(value=node.value)
 
-    def visit_Sequence(self, node):
-        result = qlast.Tuple(elements=[
-            self.visit(e) for e in node.elements
-        ])
+    def visit_Tuple(self, node):
+        if node.named:
+            result = qlast.NamedTuple(
+                elements=[
+                    qlast.TupleElement(
+                        name=el.name,
+                        val=self.visit(el.val)
+                    )
+                    for el in node.elements
+                ]
+            )
+        else:
+            result = qlast.Tuple(elements=[
+                self.visit(e.val) for e in node.elements
+            ])
+
         return result
 
     def visit_FunctionCall(self, node):

@@ -69,8 +69,9 @@ class GraphQLTranslator(ast.NodeVisitor):
         # create a dict of variables that will be marked as
         # critical or not
         #
-        self._context.vars = {name: [val, False]
-                      for name, val in self._context.variables.items()}
+        self._context.vars = {
+            name: [val, False]
+            for name, val in self._context.variables.items()}
         opname = None
         self._context.optype = None
 
@@ -253,9 +254,9 @@ class GraphQLTranslator(ast.NodeVisitor):
                 #
                 ids = self.visit(field.value)
 
-                if isinstance(ids, qlast.Tuple):
+                if isinstance(ids, qlast.Array):
                     op = ast.ops.IN
-                    ids = qlast.Tuple(
+                    ids = qlast.Array(
                         elements=[self._cast_value(el, 'uuid')
                                   for el in ids.elements]
                     )
@@ -322,7 +323,7 @@ class GraphQLTranslator(ast.NodeVisitor):
             return [qlast.ClassRef(module=base[0], name=base[1])]
 
         return self._join_expressions(self._visit_arguments(
-                arguments, get_path_prefix=get_path_prefix))
+            arguments, get_path_prefix=get_path_prefix))
 
     def _get_module(self, directives):
         module = None
@@ -418,7 +419,6 @@ class GraphQLTranslator(ast.NodeVisitor):
     def visit_Field(self, node):
         base = self._context.path[-1]
         base.append(node.name)
-        prev_base = None
         include_base = self._context.include_base[-1]
 
         # if this field is a duplicate, that is not identical to the
@@ -507,7 +507,8 @@ class GraphQLTranslator(ast.NodeVisitor):
             base = self._context.path[-1]
             base_type = self._context.schema.get(base[0])
             for step in base[1:]:
-                base_type = base_type.resolve_pointer(self._context.schema, step)
+                base_type = base_type.resolve_pointer(
+                    self._context.schema, step)
                 base_type = base_type.target
 
             frag_type = self._context.schema.get(frag_path)
@@ -580,7 +581,7 @@ class GraphQLTranslator(ast.NodeVisitor):
             # check the variable value
             #
             check_value = self._context.vars[node.value.value][0]
-        elif isinstance(value, qlast.Tuple):
+        elif isinstance(value, qlast.Array):
             check_value = [el.value for el in value.elements]
         else:
             check_value = value.value
@@ -631,7 +632,7 @@ class GraphQLTranslator(ast.NodeVisitor):
                     context=context)
 
     def visit_ListLiteral(self, node):
-        return qlast.Tuple(elements=self.visit(node.value))
+        return qlast.Array(elements=self.visit(node.value))
 
     def visit_ObjectLiteral(self, node):
         raise GraphQLValidationError(

@@ -351,24 +351,38 @@ class IRCompilerBase(ast.visitor.NodeVisitor, dbobj.IRCompilerDBObjects):
                     # since PostgreSQL does not create array types for custom
                     # domains and will fail to process a query with custom
                     # domains appearing as array elements.
-                    pgtype = pg_types.pg_type_from_atom(
+                    pgtype = pg_types.pg_type_from_object(
                         ctx.schema, left_type, topbase=True)
                     pgtype = pgast.TypeName(name=pgtype)
                     left = pgast.TypeCast(arg=left, type_name=pgtype)
 
-                # "expr IN <array-expr>" translates into
-                # "array_position(<array-expr>, <expr>) IS NOT NULL" and
-                # "expr NOT IN <array-expr>" translates into
-                # "array_position(<array-expr>, <expr>) IS NULL".
-                arr_pos = pgast.FuncCall(
-                    name=('array_position',),
-                    args=[right, left]
-                )
+                if ctx.singleton_mode:
+                    if expr.op == ast.ops.IN:
+                        sltype = pgast.SubLinkType.ANY
+                        op = ast.ops.EQ
+                    else:
+                        sltype = pgast.SubLinkType.ALL
+                        op = ast.ops.NE
 
-                result = pgast.NullTest(
-                    arg=arr_pos,
-                    negated=expr.op == ast.ops.IN
-                )
+                    result = self._new_binop(
+                        left,
+                        pgast.SubLink(type=sltype, expr=right),
+                        op
+                    )
+                else:
+                    # "expr IN <array-expr>" translates into
+                    # "array_position(<array-expr>, <expr>) IS NOT NULL" and
+                    # "expr NOT IN <array-expr>" translates into
+                    # "array_position(<array-expr>, <expr>) IS NULL".
+                    arr_pos = pgast.FuncCall(
+                        name=('array_position',),
+                        args=[right, left]
+                    )
+
+                    result = pgast.NullTest(
+                        arg=arr_pos,
+                        negated=expr.op == ast.ops.IN
+                    )
 
                 return result
             else:
@@ -387,13 +401,13 @@ class IRCompilerBase(ast.visitor.NodeVisitor, dbobj.IRCompilerDBObjects):
                         op == ast.ops.ADD):
                     op = '||'
 
-            if isinstance(left_type, s_obj.Struct):
+            if isinstance(left_type, s_obj.Tuple):
                 left = self._tuple_to_row_expr(expr.left)
                 left_count = len(left.args)
             else:
                 left_count = 0
 
-            if isinstance(right, ResTargetList):
+            if isinstance(right_type, s_obj.Tuple):
                 right = self._tuple_to_row_expr(expr.right)
                 right_count = len(right.args)
             else:
@@ -474,9 +488,16 @@ class IRCompilerBase(ast.visitor.NodeVisitor, dbobj.IRCompilerDBObjects):
         elements = [self.visit(e) for e in expr.elements]
         return pgast.ArrayExpr(elements=elements)
 
-    def visit_Sequence(self, expr):
+    def visit_TupleIndirection(self, expr):
+        for se in expr.expr.expr.elements:
+            if se.name == expr.name:
+                return self.visit(se.val)
+
+        raise ValueError(f'no tuple element with name {expr.name}')
+
+    def visit_Tuple(self, expr):
         ctx = self.context.current
-        elements = [self.visit(e) for e in expr.elements]
+        elements = [self.visit(e.val) for e in expr.elements]
 
         if (ctx.clause == 'result' and ctx.output_format == 'json' and
                 ctx.expr_exposed):
@@ -607,7 +628,7 @@ class IRCompilerBase(ast.visitor.NodeVisitor, dbobj.IRCompilerDBObjects):
                     # EdgeQL: <array<int>>['1', '2']
                     # to SQL: ARRAY['1', '2']::int[]
 
-                    elem_pgtype = pg_types.pg_type_from_atom(
+                    elem_pgtype = pg_types.pg_type_from_object(
                         schema, target_type.element_type, topbase=True)
 
                     return pgast.TypeCast(
@@ -853,7 +874,7 @@ class IRCompilerBase(ast.visitor.NodeVisitor, dbobj.IRCompilerDBObjects):
         row = []
         for n in subtypes:
             ref = irutils.new_expression_set(
-                irast.StructIndirection(expr=tuple_expr, name=n),
+                irast.TupleIndirection(expr=tuple_expr, name=n),
                 ctx.schema
             )
             row.append(self.visit(ref))

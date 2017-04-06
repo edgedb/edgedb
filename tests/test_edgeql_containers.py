@@ -147,14 +147,14 @@ class TestEdgeQLContainers(tb.QueryTestCase):
         UPDATE User
         FILTER User.name = 'Elvis'
         SET {
-            todo := (SELECT Issue FILTER Issue.number in ('1', '2'))
+            todo := (SELECT Issue FILTER Issue.number IN ['1', '2'])
         };
 
         WITH MODULE test
         UPDATE User
         FILTER User.name = 'Yury'
         SET {
-            todo := (SELECT Issue FILTER Issue.number in ('3', '4'))
+            todo := (SELECT Issue FILTER Issue.number IN ['3', '4'])
         };
     """
 
@@ -172,19 +172,6 @@ class TestEdgeQLContainers(tb.QueryTestCase):
         ])
 
     async def test_edgeql_containers_in01(self):
-        await self.assert_query_result('''
-            WITH MODULE test
-            SELECT Issue {
-                number,
-            } FILTER .number IN ('1', '2', '3')
-              ORDER BY .number;
-        ''', [[
-            {'number': '1'},
-            {'number': '2'},
-            {'number': '3'},
-        ]])
-
-    async def test_edgeql_containers_in02(self):
         await self.assert_query_result('''
             WITH MODULE test
             SELECT Issue {
@@ -215,7 +202,7 @@ class TestEdgeQLContainers(tb.QueryTestCase):
             WITH MODULE test
             SELECT Issue {
                 number,
-            } FILTER .number IN ('1', '2', '3', '3', '3', '2')
+            } FILTER .number IN ['1', '2', '3', '3', '3', '2']
               ORDER BY .number;
         ''', [[
             {'number': '1'},

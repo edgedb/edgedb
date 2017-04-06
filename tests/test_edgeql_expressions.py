@@ -129,11 +129,11 @@ class TestExpressions(tb.QueryTestCase):
             SELECT -1 + 2 * 3 - 5 - 6.0 / 2;
             SELECT
                 -1 + 2 * 3 - 5 - 6.0 / 2 > 0
-                OR 25 % 4 = 3 AND 42 IN (12, 42, 14);
+                OR 25 % 4 = 3 AND 42 IN [12, 42, 14];
             SELECT (-1 + 2) * 3 - (5 - 6.0) / 2;
             SELECT
                 ((-1 + 2) * 3 - (5 - 6.0) / 2 > 0 OR 25 % 4 = 3)
-                AND 42 IN (12, 42, 14);
+                AND 42 IN [12, 42, 14];
             SELECT 1 * 0.2;
             SELECT 0.2 * 1;
             SELECT -0.2 * 1;
@@ -777,7 +777,7 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_struct01(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError,
-                r'operator `\+` is not defined .* struct<.*> and std::int'):
+                r'operator `\+` is not defined .* tuple<.*> and std::int'):
 
             await self.con.execute(r'''
                 SELECT (spam := 1, ham := 2) + 1;
@@ -886,6 +886,7 @@ class TestExpressions(tb.QueryTestCase):
             [True],
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_expr_tuple03(self):
         with self.assertRaisesRegex(
                 exc._base.UnknownEdgeDBError, r'operator does not exist'):
@@ -1020,6 +1021,7 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT Object.id[IS uuid];
             ''')
 
+    @unittest.expectedFailure
     async def test_edgeql_expr_comparison01(self):
         with self.assertRaisesRegex(exc.UnknownEdgeDBError,
                                     r'operator does not exist'):
@@ -1034,6 +1036,7 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT (1 UNION 2) = [1, 2];
             ''')
 
+    @unittest.expectedFailure
     async def test_edgeql_expr_comparison03(self):
         with self.assertRaisesRegex(exc.UnknownEdgeDBError,
                                     r'operator does not exist'):

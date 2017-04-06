@@ -137,14 +137,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         UPDATE User
         FILTER User.name = 'Elvis'
         SET {
-            todo := (SELECT Issue FILTER Issue.number in ('1', '2'))
+            todo := (SELECT Issue FILTER Issue.number IN ['1', '2'])
         };
 
         WITH MODULE test
         UPDATE User
         FILTER User.name = 'Yury'
         SET {
-            todo := (SELECT Issue FILTER Issue.number in ('3', '4'))
+            todo := (SELECT Issue FILTER Issue.number IN ['3', '4'])
         };
     """
 
@@ -314,10 +314,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         ALL
                         schema::Concept.links.name
                         FILTER
-                            schema::Concept.links.name IN (
+                            schema::Concept.links.name IN [
                                 'std::id',
                                 'schema::name'
-                            )
+                            ]
                         ORDER BY schema::Concept.links.name ASC
                     )
                 }

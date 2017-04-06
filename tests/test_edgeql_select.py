@@ -139,14 +139,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         UPDATE User
         FILTER User.name = 'Elvis'
         SET {
-            todo := (SELECT Issue FILTER Issue.number in ('1', '2'))
+            todo := (SELECT Issue FILTER Issue.number IN ['1', '2'])
         };
 
         WITH MODULE test
         UPDATE User
         FILTER User.name = 'Yury'
         SET {
-            todo := (SELECT Issue FILTER Issue.number in ('3', '4'))
+            todo := (SELECT Issue FILTER Issue.number IN ['3', '4'])
         };
     """
 
@@ -2144,7 +2144,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT Issue{number}
             FILTER
-                Issue.priority.name IN ('High', 'Low')
+                Issue.priority.name IN ['High', 'Low']
                 OR
                 Issue.status.name = 'Closed'
             ORDER BY Issue.number;
@@ -2569,13 +2569,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT Issue{number}
             FILTER
-                Issue.number IN ('2', '3', '4')
+                Issue.number IN ['2', '3', '4']
                 AND
                 EXISTS (
                     # due to common prefix, the Issue referred to here is
                     # the same Issue as in the LHS of AND, therefore
                     # this condition can never be true
-                    SELECT Issue FILTER Issue.number IN ('1', '6')
+                    SELECT Issue FILTER Issue.number IN ['1', '6']
                 );
             """, [
             [],
@@ -2585,10 +2585,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             WITH
                 MODULE test,
-                sub := (SELECT Issue FILTER Issue.number IN ('1', '6'))
+                sub := (SELECT Issue FILTER Issue.number IN ['1', '6'])
             SELECT Issue{number}
             FILTER
-                Issue.number IN ('2', '3', '4')
+                Issue.number IN ['2', '3', '4']
                 AND
                 EXISTS (
                     (SELECT sub FILTER sub = Issue)
@@ -2605,12 +2605,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     SELECT
                         Issue
                     FILTER
-                        Issue.number IN ('1', '6')
+                        Issue.number IN ['1', '6']
                 )
             SELECT
                 Issue{number}
             FILTER
-                Issue.number IN ('2', '3', '4')
+                Issue.number IN ['2', '3', '4']
                 AND
                 EXISTS sub;
             """, [
@@ -3115,7 +3115,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                             )
                         }
                     FILTER
-                        User.name IN ('Elvis', 'Yury')
+                        User.name IN ['Elvis', 'Yury']
                 )
             SELECT
                 Developers {

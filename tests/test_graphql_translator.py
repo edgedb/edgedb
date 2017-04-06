@@ -10,7 +10,7 @@ import collections
 import os
 import re
 import textwrap
-import unittest
+import unittest  # NOQA
 
 from edgedb.lang import _testbase as tb
 from edgedb.lang.common import markup
@@ -794,7 +794,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 }
             }
         FILTER
-            ((test::User).groups.name IN ('admin', 'support'));
+            ((test::User).groups.name IN ['admin', 'support']);
         """
 
     def test_graphql_translation_arguments06(self):
@@ -820,7 +820,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 }
             }
         FILTER
-            ((test::User).groups.name NOT IN ('admin', 'support'));
+            ((test::User).groups.name NOT IN ['admin', 'support']);
         """
 
     def test_graphql_translation_arguments07(self):
@@ -904,7 +904,7 @@ class TestGraphQLTranslation(TranslatorTest):
                         value
                     } FILTER
                         ((test::User).groups.settings.name IN
-                            ('level', 'description'))
+                            ['level', 'description'])
                 }
             };
         """
@@ -1563,7 +1563,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         FILTER
-            ((test::User).name IN ('John', 'Jane'));
+            ((test::User).name IN ['John', 'Jane']);
         """
 
     def test_graphql_translation_arg_type10(self):
@@ -1581,7 +1581,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         FILTER
-            ((test::User).age IN (10, 20, 30, 40));
+            ((test::User).age IN [10, 20, 30, 40]);
         """
 
     def test_graphql_translation_arg_type11(self):
@@ -1599,7 +1599,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         FILTER
-            ((test::User).score IN (3.5, 3.6, 3.7));
+            ((test::User).score IN [3.5, 3.6, 3.7]);
         """
 
     def test_graphql_translation_arg_type12(self):
@@ -1617,7 +1617,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         FILTER
-            ((test::User).score IN (1, 2, 3));
+            ((test::User).score IN [1, 2, 3]);
         """
 
     @with_variables(val=["John", "Jane"])
@@ -2465,8 +2465,8 @@ class TestGraphQLTranslation(TranslatorTest):
                         SELECT (std::Object)
                         FILTER (
                             (std::Object).id IN
-                                (<std::uuid>'21e16e2e-e445-494c-acfc-cc9378620501',
-                                 <std::uuid>'fd5f4ad8-2e8c-4224-9243-361d61dee856')
+                                [<std::uuid>'21e16e2e-e445-494c-acfc-cc9378620501',
+                                 <std::uuid>'fd5f4ad8-2e8c-4224-9243-361d61dee856']
                         )
                     )
                 }
@@ -2634,8 +2634,8 @@ class TestGraphQLTranslation(TranslatorTest):
                     SELECT (std::Object)
                     FILTER (
                         (std::Object).id IN
-                            (<std::uuid>'21e16e2e-e445-494c-acfc-cc9378620501',
-                             <std::uuid>'fd5f4ad8-2e8c-4224-9243-361d61dee856')
+                            [<std::uuid>'21e16e2e-e445-494c-acfc-cc9378620501',
+                             <std::uuid>'fd5f4ad8-2e8c-4224-9243-361d61dee856']
                     )
                 )
             }

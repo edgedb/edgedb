@@ -151,13 +151,13 @@ class ExistsPredicate(Expr):
     expr: Expr
 
 
-class StructElement(Base):
+class TupleElement(Base):
     name: ClassRef
     val: Expr
 
 
-class Struct(Expr):
-    elements: typing.List[StructElement]
+class NamedTuple(Expr):
+    elements: typing.List[TupleElement]
 
 
 class EmptyCollection(Expr):

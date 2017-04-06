@@ -22,6 +22,13 @@ from edgedb.lang.edgeql import errors as ql_errors
 from edgedb.lang.ir import ast as irast
 
 
+def is_polymorphic_type(t):
+    if isinstance(t, s_obj.Collection):
+        return any(is_polymorphic_type(st) for st in t.get_subtypes())
+    else:
+        return t.name == 'std::any'
+
+
 def infer_arg_types(ir, schema):
     def flt(n):
         if isinstance(n, irast.BinOp):
@@ -55,7 +62,7 @@ def infer_arg_types(ir, schema):
             from edgedb.lang.schema import objects as s_obj
 
             elem_type = infer_type(expr, schema)
-            typ = s_obj.Set(element_type=elem_type)
+            typ = s_obj.Array(element_type=elem_type)
 
         elif isinstance(binop.op, ast.ops.BooleanOperator):
             typ = schema.get('std::bool')
@@ -136,17 +143,11 @@ def __infer_func_call(ir, schema):
     rtype = ir.func.returntype
     result = rtype
 
-    def is_polymorphic(t):
-        if isinstance(t, s_obj.Collection):
-            t = t.get_element_type()
-
-        return t.name == 'std::any'
-
-    if is_polymorphic(result):
+    if is_polymorphic_type(result):
         # Polymorphic function, determine the result type from
         # the argument type.
         for i, arg in enumerate(ir.args):
-            if is_polymorphic(ir.func.paramtypes[i]):
+            if is_polymorphic_type(ir.func.paramtypes[i]):
                 result = infer_type(arg, schema)
                 if isinstance(rtype, s_obj.Collection):
                     stypes = list(rtype.get_subtypes())
@@ -388,20 +389,13 @@ def __infer_array(ir, schema):
     return s_obj.Array(element_type=element_type)
 
 
-@_infer_type.register(irast.Sequence)
-def __infer_tuple(ir, schema):
-    return s_obj.Tuple(element_type=schema.get('std::any'))
-
-
-@_infer_type.register(irast.Struct)
+@_infer_type.register(irast.Tuple)
 def __infer_struct(ir, schema):
     element_types = {el.name: infer_type(el.val, schema) for el in ir.elements}
-    return s_obj.Struct(
-        element_type=schema.get('std::any'),
-        element_types=element_types)
+    return s_obj.Tuple(element_types=element_types)
 
 
-@_infer_type.register(irast.StructIndirection)
+@_infer_type.register(irast.TupleIndirection)
 def __infer_struct_indirection(ir, schema):
     struct_type = infer_type(ir.expr, schema)
     result = struct_type.element_types.get(ir.name)

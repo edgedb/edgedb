@@ -41,6 +41,7 @@ class CompilerContextLevel(compiler.ContextLevel):
         if prevlevel is None:
             self.backend = None
             self.schema = None
+            self.singleton_mode = False
 
             self.memo = {}
 
@@ -90,6 +91,7 @@ class CompilerContextLevel(compiler.ContextLevel):
         else:
             self.backend = prevlevel.backend
             self.schema = prevlevel.schema
+            self.singleton_mode = prevlevel.singleton_mode
 
             self.memo = {}
 

@@ -114,8 +114,8 @@ def pg_type_from_object(
     if isinstance(obj, s_atoms.Atom):
         return pg_type_from_atom(schema, obj, topbase=topbase)
 
-    elif isinstance(obj, (s_obj.Tuple, s_obj.Struct)):
-        return ('row',)
+    elif isinstance(obj, s_obj.Tuple):
+        return ('record',)
 
     elif isinstance(obj, s_obj.Map):
         return ('jsonb',)

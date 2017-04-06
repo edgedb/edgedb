@@ -678,8 +678,6 @@ class NodeClass(Class):
 
 
 class Collection(NodeClass):
-    element_type = Field(Class)
-
     @property
     def name(self):
         try:
@@ -726,11 +724,8 @@ class Collection(NodeClass):
     def get_container(self):
         raise NotImplementedError
 
-    def get_element_type(self):
-        return self.element_type
-
     def get_subtypes(self):
-        return (self.element_type,)
+        raise NotImplementedError
 
     def get_subtype(self, schema, typeref):
         from . import atoms as s_atoms
@@ -747,6 +742,41 @@ class Collection(NodeClass):
 
         return eltype
 
+    def coerce(self, values, schema):
+        raise NotImplementedError
+
+    @classmethod
+    def get_class(cls, schema_name):
+        if schema_name == 'array':
+            return Array
+        elif schema_name == 'map':
+            return Map
+        elif schema_name == 'tuple':
+            return Tuple
+        else:
+            raise ValueError(
+                'unknown collection type: {!r}'.format(schema_name))
+
+    @classmethod
+    def from_subtypes(cls, subtypes):
+        raise NotImplementedError
+
+
+class IntList(typed.TypedList, type=int):
+    pass
+
+
+class Array(Collection):
+    schema_name = 'array'
+    element_type = Field(Class)
+    dimensions = Field(IntList, [], coerce=True)
+
+    def get_container(self):
+        return tuple
+
+    def get_subtypes(self):
+        return (self.element_type,)
+
     def coerce(self, items, schema):
         container = self.get_container()
 
@@ -762,58 +792,27 @@ class Collection(NodeClass):
         return container(elements)
 
     @classmethod
-    def get_class(cls, schema_name):
-        if schema_name == 'array':
-            return Array
-        elif schema_name == 'set':
-            return Set
-        elif schema_name == 'map':
-            return Map
-        else:
-            raise ValueError(
-                'unknown collection type: {!r}'.format(schema_name))
-
-    @classmethod
     def from_subtypes(cls, subtypes):
         if len(subtypes) != 1:
             raise ValueError(
                 f'unexpected number of subtypes, expecting 1: {subtypes!r}')
-        return cls(element_type=subtypes[0])
 
-
-class Set(Collection):
-    schema_name = 'set'
-
-    def get_container(self):
-        return frozenset
-
-
-class IntList(typed.TypedList, type=int):
-    pass
-
-
-class Array(Collection):
-    schema_name = 'array'
-    dimensions = Field(IntList, [], coerce=True)
-
-    def get_container(self):
-        return list
-
-    @classmethod
-    def from_subtypes(cls, subtypes):
-        t = super().from_subtypes(subtypes)
         stype = subtypes[0]
         if isinstance(stype, cls):
             # There is no array of arrays, only multi-dimensional arrays.
-            t.element_type = stype.element_type
-            t.dimensions = [-1] + stype.dimensions
+            element_type = stype.element_type
+            dimensions = [-1] + stype.dimensions
+        else:
+            element_type = stype
+            dimensions = []
 
-        return t
+        return cls(element_type=element_type, dimensions=dimensions)
 
 
 class Map(Collection):
     schema_name = 'map'
 
+    element_type = Field(Class)
     key_type = Field(Class)
 
     def get_container(self):
@@ -828,13 +827,6 @@ class Map(Collection):
             raise ValueError(
                 f'unexpected number of subtypes, expecting 2: {subtypes!r}')
         return cls(key_type=subtypes[0], element_type=subtypes[1])
-
-
-class Tuple(Collection):
-    schema_name = 'tuple'
-
-    def get_container(self):
-        return tuple
 
 
 class ClassCollection:
@@ -960,8 +952,8 @@ class ArgDict(typed.TypedDict, keytype=str, valuetype=object):
         return basecoef + (1 - basecoef) * compcoef
 
 
-class Struct(Collection):
-    schema_name = 'struct'
+class Tuple(Collection):
+    schema_name = 'tuple'
 
     element_types = Field(ClassDict, coerce=True)
 
@@ -972,4 +964,8 @@ class Struct(Collection):
         if self.element_types:
             return list(self.element_types.values())
         else:
-            return super().get_subtypes()
+            return []
+
+    @classmethod
+    def from_subtypes(cls, subtypes):
+        return cls(element_types={str(i): t for i, t in enumerate(subtypes)})

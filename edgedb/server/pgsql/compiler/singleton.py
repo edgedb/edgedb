@@ -25,6 +25,7 @@ class SingletonExprIRCompiler(expr_compiler.IRCompilerBase):
         ctx = self.context.current
         ctx.memo = self._memo
         ctx.schema = schema
+        ctx.singleton_mode = True
         qtree = self.visit(ir_expr)
 
         if debug.flags.edgeql_compile:

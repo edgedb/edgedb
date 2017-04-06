@@ -206,7 +206,7 @@ class TestInsert(tb.QueryTestCase):
                     SELECT Subordinate {
                         @comment := (SELECT 'comment ' + Subordinate.name)
                     }
-                    FILTER Subordinate.name IN ('subtest 3', 'subtest 4')
+                    FILTER Subordinate.name IN ['subtest 3', 'subtest 4']
                 )
             };
 

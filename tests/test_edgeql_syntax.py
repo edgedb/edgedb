@@ -231,8 +231,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ops10(self):
         """
-        SELECT (User.name IN ('Alice', 'Bob'));
-        SELECT (User.name NOT IN ('Alice', 'Bob'));
+        SELECT (User.name IN ['Alice', 'Bob']);
+        SELECT (User.name NOT IN ['Alice', 'Bob']);
         SELECT (User.name IS (std::str));
         SELECT (User IS SystemUser);
         SELECT (User.name IS NOT (std::str));
@@ -261,7 +261,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ops14(self):
         """
-        SELECT -1 + 2 * 3 - 5 - 6 / 2 > 0 OR 25 % 4 = 3 AND 42 IN (12, 42, 14);
+        SELECT -1 + 2 * 3 - 5 - 6 / 2 > 0 OR 25 % 4 = 3 AND 42 IN [12, 42, 14];
 
 % OK %
 
@@ -277,7 +277,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             (
                 ((25 % 4) = 3)
                 AND
-                (42 IN (12, 42, 14))
+                (42 IN [12, 42, 14])
             )
         );
         """
@@ -286,7 +286,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         SELECT
             ((-1 + 2) * 3 - (5 - 6) / 2 > 0 OR 25 % 4 = 3)
-            AND 42 IN (12, 42, 14);
+            AND 42 IN [12, 42, 14];
 
 % OK %
 
@@ -303,7 +303,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
                 ((25 % 4) = 3)
             )
             AND
-            (42 IN (12, 42, 14))
+            (42 IN [12, 42, 14])
         );
         """
 

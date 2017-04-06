@@ -289,18 +289,15 @@ class Parameter(Base):
     type: so.NodeClass
 
 
-class StructElement(Base):
+class TupleElement(Base):
+
     name: str
     val: Base
 
 
-class Struct(Expr):
-    elements: typing.List[StructElement]
-
-
-class Sequence(Expr):
-
-    elements: typing.List[Base]
+class Tuple(Expr):
+    named: bool = False
+    elements: typing.List[TupleElement]
 
 
 class Array(Expr):
@@ -370,7 +367,7 @@ class FunctionCall(Expr):
     window: bool
 
 
-class StructIndirection(Expr):
+class TupleIndirection(Expr):
 
     expr: Base
     name: str

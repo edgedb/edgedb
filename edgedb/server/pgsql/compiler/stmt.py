@@ -345,7 +345,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 self._put_set_cte(stmt.subject, group_cte)
 
                 for group_set in stmt.groupby:
-                    if group_set.expr is None:
+                    if group_set.path_id.startswith(stmt.subject.path_id):
                         group_expr = self.visit(group_set)
                         path_id = group_set.path_id
                         alias = self._get_path_output_alias(path_id)
@@ -879,11 +879,11 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 # Expr[IS Type] expressions.
                 self._process_set_as_typefilter(ir_set, stmt)
 
-            elif isinstance(ir_set.expr, irast.Struct):
+            elif isinstance(ir_set.expr, irast.Tuple):
                 # Named tuple
                 self._process_set_as_named_tuple(ir_set, stmt)
 
-            elif isinstance(ir_set.expr, irast.StructIndirection):
+            elif isinstance(ir_set.expr, irast.TupleIndirection):
                 # Named tuple indirection.
                 self._process_set_as_named_tuple_indirection(ir_set, stmt)
 
@@ -1192,7 +1192,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                 if not path_id.startswith(ir_set.path_id):
                     subquery.path_bonds.discard(path_id)
 
-        if not isinstance(ir_set.scls, s_obj.Struct):
+        if not isinstance(ir_set.scls, s_obj.Tuple):
             rt_name = self._ensure_query_restarget_name(
                 subquery, hint=cte.name)
             self._put_path_output(subquery, ir_set, rt_name)
@@ -1219,11 +1219,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             subquery = self.visit(ir_set.expr)
 
         if not isinstance(ir_set.expr, irast.MutatingStmt):
-            if not isinstance(ir_set.scls, s_obj.Struct):
-                for path_id in list(subquery.path_bonds):
-                    if not path_id.startswith(ir_set.path_id):
-                        subquery.path_bonds.discard(path_id)
-
+            if not isinstance(ir_set.scls, s_obj.Tuple):
                 rt_name = self._ensure_query_restarget_name(
                     subquery, hint=cte.name)
                 self._put_path_output(subquery, ir_set, rt_name)
@@ -1875,25 +1871,41 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         else:
             expr = ir_set.expr
 
-        if isinstance(expr, irast.Struct):
+        if isinstance(expr, irast.Tuple):
             ctx = self.context.current
 
-            targets = []
-            attmap = []
+            if expr.named:
+                targets = []
+                attmap = []
 
-            for rt in source_rvar.query.target_list:
-                val = self._get_column(source_rvar, rt.name)
-                attmap.append(rt.name)
-                targets.append(val)
+                for rt in source_rvar.query.target_list:
+                    val = self._get_column(source_rvar, rt.name)
+                    attmap.append(rt.name)
+                    targets.append(val)
 
-            rtlist = ResTargetList(targets, attmap)
+                rtlist = ResTargetList(targets, attmap)
 
-            if ctx.expr_exposed and ctx.output_format == 'json':
-                return self._rtlist_as_json_object(rtlist)
+                if ctx.expr_exposed and ctx.output_format == 'json':
+                    return self._rtlist_as_json_object(rtlist)
+                else:
+                    return rtlist
             else:
-                return rtlist
+                elements = []
+                for rt in source_rvar.query.target_list:
+                    val = self._get_column(source_rvar, rt.name)
+                    elements.append(val)
 
-        elif isinstance(expr, irast.StructIndirection):
+                if ctx.output_format == 'json' and ctx.expr_exposed:
+                    result = pgast.FuncCall(
+                        name=('jsonb_build_array',),
+                        args=elements
+                    )
+                else:
+                    result = pgast.ImplicitRowExpr(args=elements)
+
+                return result
+
+        elif isinstance(expr, irast.TupleIndirection):
             return self._get_column(source_rvar, expr.name)
 
         else:
