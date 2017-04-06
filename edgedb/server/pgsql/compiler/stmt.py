@@ -290,7 +290,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
                     part_clause.append(partexpr)
 
-                    if expr.expr is None:
+                    if expr.path_id.startswith(stmt.subject.path_id):
                         group_paths.add(expr)
 
                 # Since we will be computing arbitrary expressions

@@ -558,7 +558,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    @unittest.expectedFailure
     async def test_edgeql_group_by_tuple06(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -579,7 +578,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 status := Issue.status.name,
             ) ORDER BY
                 Issue.status.name
-                THEN Issue.less_than_four
+                THEN Issue.less_than_four;
         """, [
             [{
                 'status': 'Closed',
