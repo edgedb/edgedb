@@ -922,24 +922,22 @@ class TestExpressions(tb.QueryTestCase):
             [[[1, 'foo']]],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_tuple06(self):
         await self.assert_query_result(r"""
             SELECT ('foo', 42).0;
             SELECT ('foo', 42).1;
         """, [
             ['foo'],
-            ['42'],
+            [42],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_tuple07(self):
         await self.assert_query_result(r"""
             SELECT (name := 'foo', val := 42).name;
             SELECT (name := 'foo', val := 42).val;
         """, [
             ['foo'],
-            ['42'],
+            [42],
         ])
 
     async def test_edgeql_expr_cannot_assign_dunder_class(self):

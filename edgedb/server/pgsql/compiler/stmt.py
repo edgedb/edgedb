@@ -735,7 +735,7 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             wrapper.from_clause = [rvar]
             self._pull_path_namespace(target=wrapper, source=rvar)
 
-            target = self._get_var_for_set_expr(ir_set, rvar)
+            target = self._get_rvar_path_var(rvar, ir_set.path_id, raw=False)
 
             wrapper.target_list.append(
                 pgast.ResTarget(
