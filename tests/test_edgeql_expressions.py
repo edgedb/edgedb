@@ -954,6 +954,13 @@ class TestExpressions(tb.QueryTestCase):
             ['foo'],
         ])
 
+    async def test_edgeql_expr_tuple_indirection05(self):
+        await self.assert_query_result(r"""
+            WITH _ := (SELECT (1,2) UNION (3,4)) SELECT _.0;
+        """, [
+            [1, 3],
+        ])
+
     async def test_edgeql_expr_cannot_assign_dunder_class(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError, r'cannot assign to __class__'):

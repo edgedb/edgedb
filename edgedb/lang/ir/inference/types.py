@@ -392,7 +392,7 @@ def __infer_array(ir, schema):
 @_infer_type.register(irast.Tuple)
 def __infer_struct(ir, schema):
     element_types = {el.name: infer_type(el.val, schema) for el in ir.elements}
-    return s_obj.Tuple(element_types=element_types)
+    return s_obj.Tuple(element_types=element_types, named=ir.named)
 
 
 @_infer_type.register(irast.TupleIndirection)

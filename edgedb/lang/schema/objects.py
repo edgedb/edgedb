@@ -955,6 +955,7 @@ class ArgDict(typed.TypedDict, keytype=str, valuetype=object):
 class Tuple(Collection):
     schema_name = 'tuple'
 
+    named = Field(bool, False)
     element_types = Field(ClassDict, coerce=True)
 
     def get_container(self):
@@ -969,3 +970,19 @@ class Tuple(Collection):
     @classmethod
     def from_subtypes(cls, subtypes):
         return cls(element_types={str(i): t for i, t in enumerate(subtypes)})
+
+    def __hash__(self):
+        return hash((
+            self.__class__,
+            self.named,
+            tuple(self.element_types.items())
+        ))
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+
+        return (
+            self.named == other.named and
+            self.element_types == other.element_types
+        )

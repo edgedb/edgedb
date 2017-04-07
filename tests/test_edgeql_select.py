@@ -3265,7 +3265,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [['Closed', 2], ['Open', 2]]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_tuple02(self):
         await self.assert_query_result(r"""
             # nested tuples
@@ -3287,6 +3286,28 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['Elvis', ['Open', 1]],
             ['Yury', ['Closed', 1]],
             ['Yury', ['Open', 1]],
+        ]])
+
+    async def test_edgeql_select_tuple03(self):
+        await self.assert_query_result(r"""
+            WITH
+                MODULE test,
+                _ := (
+                    ('Elvis',)
+                    UNION
+                    ('Yury',)
+                )
+            SELECT
+                User {
+                    name
+                }
+            FILTER
+                User.name = _.0
+            ORDER BY
+                User.name;
+            """, [[
+            {'name': 'Elvis'},
+            {'name': 'Yury'},
         ]])
 
     async def test_edgeql_select_struct01(self):

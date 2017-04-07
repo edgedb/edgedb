@@ -1200,6 +1200,12 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         cte.query = subquery
         ctx.toplevel_stmt.ctes.append(cte)
 
+        if ctx.stmt is not ctx.toplevel_stmt:
+            with self.context.new() as c1:
+                c1.stmt = c1.toplevel_stmt
+                c1.ctemap = c1.ctemap_by_stmt[c1.stmt]
+                self._put_set_cte(ir_set, cte)
+
     def _process_set_as_subquery(self, ir_set, stmt):
         """Populate the CTE for Set defined by a subquery."""
         ctx = self.context.current
@@ -1338,16 +1344,25 @@ class IRCompiler(expr_compiler.IRCompilerBase,
             subqry.larg = larg
             subqry.rarg = rarg
 
-            rt_name = self._ensure_query_restarget_name(subqry)
-            self._put_path_output(subqry, ir_set, rt_name)
-            self._put_path_rvar(subqry, ir_set, None)
-
             sub_rvar = pgast.RangeSubselect(
                 subquery=subqry,
                 alias=pgast.Alias(
                     aliasname=ctx.genalias('u')
                 )
             )
+
+            if isinstance(ir_set.scls, s_obj.Tuple):
+                for n in ir_set.scls.element_types:
+                    stmt.target_list.append(
+                        pgast.ResTarget(
+                            name=common.edgedb_name_to_pg_name(n),
+                            val=self._get_column(sub_rvar, n)
+                        )
+                    )
+            else:
+                rt_name = self._ensure_query_restarget_name(subqry)
+                self._put_path_output(subqry, ir_set, rt_name)
+                self._put_path_rvar(subqry, ir_set, None)
 
         self._pull_path_namespace(target=stmt, source=sub_rvar)
         stmt.from_clause = [sub_rvar]
@@ -1903,21 +1918,23 @@ class IRCompiler(expr_compiler.IRCompilerBase,
     def _get_var_for_set_expr(self, ir_set, source_rvar):
         ctx = self.context.current
 
-        if isinstance(ir_set.expr, irast.Stmt):
-            expr = ir_set.expr.result.expr
-        else:
-            expr = ir_set.expr
+        if (irutils.is_subquery_set(ir_set) and
+                ctx.expr_exposed and ctx.output_format == 'json'):
+            # If the set is a subquery, and we are serializing the output
+            # then we know the output has been serialized and we don't
+            # want to fall into the Tuple branch below.
+            return self._get_rvar_path_var(source_rvar, ir_set, raw=False)
 
-        if isinstance(expr, irast.Tuple):
+        if isinstance(ir_set.scls, s_obj.Tuple):
             ctx = self.context.current
 
-            if expr.named:
+            if ir_set.scls.named:
                 targets = []
                 attmap = []
 
-                for rt in source_rvar.query.target_list:
-                    val = self._get_column(source_rvar, rt.name)
-                    attmap.append(rt.name)
+                for n in ir_set.scls.element_types:
+                    val = self._get_column(source_rvar, n)
+                    attmap.append(n)
                     targets.append(val)
 
                 rtlist = ResTargetList(targets, attmap)
@@ -1928,8 +1945,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
                     return rtlist
             else:
                 elements = []
-                for rt in source_rvar.query.target_list:
-                    val = self._get_column(source_rvar, rt.name)
+                for n in ir_set.scls.element_types:
+                    val = self._get_column(source_rvar, n)
                     elements.append(val)
 
                 if ctx.output_format == 'json' and ctx.expr_exposed:
@@ -1942,8 +1959,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
 
                 return result
 
-        elif isinstance(expr, irast.TupleIndirection):
-            return self._get_column(source_rvar, expr.name)
+        elif isinstance(ir_set.expr, irast.TupleIndirection):
+            return self._get_column(source_rvar, ir_set.expr.name)
 
         else:
             return self._get_rvar_path_var(source_rvar, ir_set, raw=False)
@@ -2453,6 +2470,8 @@ class IRCompiler(expr_compiler.IRCompilerBase,
         if rptr is not None:
             ptrname = rptr.shortname
             alias = ctx.genalias(hint=ptrname.name)
+        elif isinstance(path_id[-1], s_obj.Collection):
+            alias = ctx.genalias(hint=path_id[-1].schema_name)
         else:
             alias = ctx.genalias(hint=path_id[-1].name.name)
 
