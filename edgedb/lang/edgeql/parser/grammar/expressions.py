@@ -540,14 +540,6 @@ class OptNonesOrder(Nonterm):
         self.val = None
 
 
-class OptAll(Nonterm):
-    def reduce_ALL(self, *kids):
-        self.val = True
-
-    def reduce_empty(self, *kids):
-        self.val = None
-
-
 class IndirectionEl(Nonterm):
     def reduce_LBRACKET_Expr_RBRACKET(self, *kids):
         self.val = qlast.Index(index=kids[1].val)

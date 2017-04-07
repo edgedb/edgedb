@@ -164,7 +164,7 @@ class TestDelete(tb.QueryTestCase):
             };
 
             WITH D := (DELETE test::DeleteTest)
-            SELECT count(D);
+            SELECT count(ALL D);
         """, [
             [1],
             [1],

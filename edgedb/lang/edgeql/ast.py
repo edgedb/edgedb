@@ -12,6 +12,114 @@ from edgedb.lang.common import enum as s_enum
 from edgedb.lang.common import ast, parsing
 
 
+# Operators
+#
+
+class EdgeQLOperator(ast.ops.Operator):
+    pass
+
+
+class TextSearchOperator(EdgeQLOperator):
+    pass
+
+
+SEARCH = TextSearchOperator('@@')
+
+
+class EdgeQLComparisonOperator(EdgeQLOperator, ast.ops.ComparisonOperator):
+    pass
+
+
+class EdgeQLMatchOperator(EdgeQLComparisonOperator):
+    def __new__(cls, val, *, strname=None, **kwargs):
+        return super().__new__(cls, val, **kwargs)
+
+    def __init__(self, val, *, strname=None, **kwargs):
+        super().__init__(val, **kwargs)
+        self._strname = strname
+
+    def __str__(self):
+        if self._strname:
+            return self._strname
+        else:
+            return super().__str__()
+
+
+class SetOperator(EdgeQLOperator):
+    pass
+
+
+UNION = SetOperator('UNION')
+INTERSECT = SetOperator('INTERSECT')
+EXCEPT = SetOperator('EXCEPT')
+
+AND = ast.ops.AND
+OR = ast.ops.OR
+NOT = ast.ops.NOT
+IN = ast.ops.IN
+NOT_IN = ast.ops.NOT_IN
+LIKE = EdgeQLMatchOperator('~~', strname='LIKE')
+NOT_LIKE = EdgeQLMatchOperator('!~~', strname='NOT LIKE')
+ILIKE = EdgeQLMatchOperator('~~*', strname='ILIKE')
+NOT_ILIKE = EdgeQLMatchOperator('!~~*', strname='NOT ILIKE')
+
+REMATCH = EdgeQLMatchOperator('~')
+REIMATCH = EdgeQLMatchOperator('~*')
+
+RENOMATCH = EdgeQLMatchOperator('!~')
+RENOIMATCH = EdgeQLMatchOperator('!~*')
+
+IS_OF = EdgeQLOperator('IS OF')
+IS_NOT_OF = EdgeQLOperator('IS NOT OF')
+
+
+class EquivalenceOperator(EdgeQLOperator):
+    pass
+
+
+EQUIVALENT = EquivalenceOperator('?=')
+NEQIUVALENT = EquivalenceOperator('?!=')
+
+
+class SortOrder(s_enum.StrEnum):
+    Asc = 'ASC'
+    Desc = 'DESC'
+
+
+SortAsc = SortOrder.Asc
+SortDesc = SortOrder.Desc
+SortDefault = SortAsc
+
+
+class NonesOrder(s_enum.StrEnum):
+    First = 'first'
+    Last = 'last'
+
+
+NonesFirst = NonesOrder.First
+NonesLast = NonesOrder.Last
+
+
+class SetOperator(EdgeQLOperator):
+    pass
+
+
+UNION = SetOperator('UNION')
+INTERSECT = SetOperator('INTERSECT')
+EXCEPT = SetOperator('EXCEPT')
+
+
+class SetModifier(s_enum.StrEnum):
+    ALL = 'ALL'
+    DISTINCT = 'DISTINCT'
+    NONE = ''
+
+
+AggALL = SetModifier.ALL
+AggDISTINCT = SetModifier.DISTINCT
+AggNONE = SetModifier.NONE
+
+
 class Base(ast.AST):
     __ast_hidden__ = {'context'}
     context: parsing.ParserContext
@@ -29,7 +137,7 @@ class Clause(Base):
 
 class SortExpr(Clause):
     path: Expr
-    direction: str
+    direction: SortOrder
     nones_order: str
 
 
@@ -84,7 +192,7 @@ class FunctionCall(Expr):
     agg_sort: typing.List[SortExpr]
     agg_filter: Expr
     window: WindowSpec
-    agg_set_modifier: str = ''
+    agg_set_modifier: SetModifier
 
 
 class Constant(Expr):
@@ -580,111 +688,3 @@ class AlterFunction(AlterObject):  # XXX: is this needed in the future?
 
 class DropFunction(DropObject):  # XXX: is this needed in the future?
     pass
-
-
-# Operators
-#
-
-class EdgeQLOperator(ast.ops.Operator):
-    pass
-
-
-class TextSearchOperator(EdgeQLOperator):
-    pass
-
-
-SEARCH = TextSearchOperator('@@')
-
-
-class EdgeQLComparisonOperator(EdgeQLOperator, ast.ops.ComparisonOperator):
-    pass
-
-
-class EdgeQLMatchOperator(EdgeQLComparisonOperator):
-    def __new__(cls, val, *, strname=None, **kwargs):
-        return super().__new__(cls, val, **kwargs)
-
-    def __init__(self, val, *, strname=None, **kwargs):
-        super().__init__(val, **kwargs)
-        self._strname = strname
-
-    def __str__(self):
-        if self._strname:
-            return self._strname
-        else:
-            return super().__str__()
-
-
-class SetOperator(EdgeQLOperator):
-    pass
-
-
-UNION = SetOperator('UNION')
-INTERSECT = SetOperator('INTERSECT')
-EXCEPT = SetOperator('EXCEPT')
-
-AND = ast.ops.AND
-OR = ast.ops.OR
-NOT = ast.ops.NOT
-IN = ast.ops.IN
-NOT_IN = ast.ops.NOT_IN
-LIKE = EdgeQLMatchOperator('~~', strname='LIKE')
-NOT_LIKE = EdgeQLMatchOperator('!~~', strname='NOT LIKE')
-ILIKE = EdgeQLMatchOperator('~~*', strname='ILIKE')
-NOT_ILIKE = EdgeQLMatchOperator('!~~*', strname='NOT ILIKE')
-
-REMATCH = EdgeQLMatchOperator('~')
-REIMATCH = EdgeQLMatchOperator('~*')
-
-RENOMATCH = EdgeQLMatchOperator('!~')
-RENOIMATCH = EdgeQLMatchOperator('!~*')
-
-IS_OF = EdgeQLOperator('IS OF')
-IS_NOT_OF = EdgeQLOperator('IS NOT OF')
-
-
-class EquivalenceOperator(EdgeQLOperator):
-    pass
-
-
-EQUIVALENT = EquivalenceOperator('?=')
-NEQIUVALENT = EquivalenceOperator('?!=')
-
-
-class SortOrder(s_enum.StrEnum):
-    Asc = 'ASC'
-    Desc = 'DESC'
-
-
-SortAsc = SortOrder.Asc
-SortDesc = SortOrder.Desc
-SortDefault = SortAsc
-
-
-class NonesOrder(s_enum.StrEnum):
-    First = 'first'
-    Last = 'last'
-
-
-NonesFirst = NonesOrder.First
-NonesLast = NonesOrder.Last
-
-
-class SetOperator(EdgeQLOperator):
-    pass
-
-
-UNION = SetOperator('UNION')
-INTERSECT = SetOperator('INTERSECT')
-EXCEPT = SetOperator('EXCEPT')
-
-
-class SetModifier(s_enum.StrEnum):
-    ALL = 'ALL'
-    DISTINCT = 'DISTINCT'
-    NONE = ''
-
-
-AggALL = SetModifier.ALL
-AggDISTINCT = SetModifier.DISTINCT
-AggNONE = SetModifier.NONE

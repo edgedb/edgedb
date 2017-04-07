@@ -917,7 +917,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_tuple05(self):
         await self.assert_query_result(r"""
-            SELECT array_agg((1, 'foo'));
+            SELECT array_agg(ALL (1, 'foo'));
         """, [
             [[[1, 'foo']]],
         ])
@@ -1095,4 +1095,12 @@ class TestExpressions(tb.QueryTestCase):
                                     r'operator does not exist'):
             await self.con.execute(r'''
                 SELECT (1 UNION 2) = (1, 2);
+            ''')
+
+    async def test_edgeql_expr_aggregate01(self):
+        with self.assertRaisesRegex(
+            exc.EdgeQLError,
+                r"missing a required modifier 'ALL' or 'DISTINCT'"):
+            await self.con.execute(r'''
+                SELECT count(1);
             ''')

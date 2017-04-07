@@ -858,6 +858,12 @@ class EdgeQLCompiler(ast.visitor.NodeVisitor):
             if is_agg:
                 ctx.in_aggregate = True
 
+                if expr.agg_set_modifier == qlast.AggNONE:
+                    raise errors.EdgeQLError(
+                        f"aggregate function {funcname} is missing a required"
+                        " modifier 'ALL' or 'DISTINCT'",
+                        context=expr.context)
+
             path_scope = {}
             stmt_path_scope = set()
             agg_sort = []

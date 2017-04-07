@@ -164,7 +164,13 @@ class IRDecompiler(ast.visitor.NodeVisitor):
     def visit_FunctionCall(self, node):
         result = qlast.FunctionCall(
             func=(node.func.shortname.module, node.func.shortname.name),
-            args=self.visit(node.args)
+            args=self.visit(node.args),
+            agg_sort=node.agg_sort,
+            agg_filter=
+                self.visit(node.agg_filter)
+                if node.agg_filter is not None else
+                None,
+            agg_set_modifier=node.agg_set_modifier,
         )
 
         return result

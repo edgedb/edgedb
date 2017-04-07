@@ -12,7 +12,7 @@ import unittest
 from edgedb.server import _testbase as tb
 
 
-class TestEdgeQLSelect(tb.QueryTestCase):
+class TestEdgeQLGroup(tb.QueryTestCase):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'queries.eschema')
 
@@ -269,7 +269,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT
                 R := (
                     name := User.name,
-                    issues := array_agg((
+                    issues := array_agg(ALL (
                         GROUP
                             User.<owner[IS Issue]
                         BY

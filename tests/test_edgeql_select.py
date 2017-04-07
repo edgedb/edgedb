@@ -159,7 +159,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     aliased_number := Issue.number,
                     total_time_spent := (
                         SELECT SINGLETON
-                            sum(Issue.time_spent_log.spent_time)
+                            sum(ALL Issue.time_spent_log.spent_time)
                     )
                 }
             FILTER
@@ -180,7 +180,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     number,
                     total_time_spent := (
                         SELECT SINGLETON
-                            sum(Issue.time_spent_log.spent_time)
+                            sum(ALL Issue.time_spent_log.spent_time)
                     )
                 }
             FILTER
@@ -1352,7 +1352,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT User {name}
             ORDER BY (
-                SELECT sum(<int>User.<watchers.number)
+                SELECT sum(ALL <int>User.<watchers.number)
             );
         ''', [
             [
@@ -1429,7 +1429,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT std::len(User.name) ORDER BY User.name;
 
             WITH MODULE test
-            SELECT std::sum(<std::int>Issue.number);
+            SELECT std::sum(ALL <std::int>Issue.number);
         ''', [
             [5, 4],
             [10]
@@ -3106,8 +3106,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                                     Issue {
                                         spent_time := (
                                             SELECT SINGLETON
-                                                sum(Issue.time_spent_log
-                                                         .spent_time)
+                                                sum(ALL Issue.time_spent_log
+                                                             .spent_time)
                                         )
                                     }
                                 FILTER
