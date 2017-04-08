@@ -597,13 +597,11 @@ class Backend(s_deltarepo.DeltaProvider):
             query_ir.offset = None
             query_ir.limit = None
 
-        ir_compiler = compiler.IRCompiler()
-
         qchunks, argmap, arg_index, query_type, record_info = \
-            ir_compiler.transform(query_ir, backend=self, schema=self.schema,
-                                  output_format=output_format,
-                                  optimize=optimize,
-                                  timer=timer)
+            compiler.compile_ir_to_sql(
+                query_ir, backend=self, schema=self.schema,
+                output_format=output_format,
+                optimize=optimize, timer=timer)
 
         if scrolling_cursor:
             query_ir.offset = offset

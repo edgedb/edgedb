@@ -9,6 +9,8 @@ from edgedb.lang.edgeql import ast as qlast
 from edgedb.lang.edgeql import compiler as ql_compiler
 from edgedb.lang.schema import ddl as s_ddl
 
+from edgedb.server.pgsql import compiler
+
 
 class TransactionStatement:
     def __init__(self, qlnode):
@@ -48,5 +50,5 @@ def plan_statement(stmt, backend, flags={}, *, optimize=False, timer):
         # Queries
         with timer.timeit('compile_eql_to_ir'):
             ir = ql_compiler.compile_ast_to_ir(stmt, schema=backend.schema)
-        return backend.compile(ir, output_format='json',
+        return backend.compile(ir, output_format=compiler.OutputFormat.JSON,
                                optimize=optimize, timer=timer)

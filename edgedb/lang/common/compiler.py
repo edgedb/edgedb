@@ -10,6 +10,9 @@ class ContextLevel:
     def on_pop(self, prevlevel):
         pass
 
+    def new(self, mode=None):
+        return self._stack.new(mode)
+
 
 class CompilerContextManager:
     def __init__(self, context, mode):
@@ -31,6 +34,7 @@ class CompilerContext:
 
     def push(self, mode):
         level = self.ContextLevelClass(self.current, mode)
+        level._stack = self
         self.stack.append(level)
         return level
 

@@ -6,239 +6,317 @@
 ##
 
 
+import typing
+
+from edgedb.lang.ir import ast as irast
+
+from edgedb.lang.schema import concepts as s_concepts
+from edgedb.lang.schema import links as s_links
+from edgedb.lang.schema import objects as s_obj
+from edgedb.lang.schema import pointers as s_pointers
+
 from edgedb.server.pgsql import ast as pgast
 from edgedb.server.pgsql import common
 
+from . import context
 
-class IRCompilerDBObjects:
-    def _range_for_material_concept(self, concept, path_id,
-                                    include_overlays=True):
-        ctx = self.context.current
 
-        table_schema_name, table_name = common.concept_name_to_table_name(
-            concept.name, catenate=False)
+def range_for_material_concept(
+        env: context.Environment,
+        concept: s_concepts.Concept,
+        path_id: irast.PathId,
+        include_overlays: bool=True) -> pgast.BaseRangeVar:
 
-        if concept.name.module == 'schema':
-            # Redirect all queries to schema tables to edgedbss
-            table_schema_name = 'edgedbss'
+    from . import pathctx  # XXX: fix cycle
 
-        relation = pgast.Relation(
-            schemaname=table_schema_name,
-            relname=table_name
+    table_schema_name, table_name = common.concept_name_to_table_name(
+        concept.name, catenate=False)
+
+    if concept.name.module == 'schema':
+        # Redirect all queries to schema tables to edgedbss
+        table_schema_name = 'edgedbss'
+
+    relation = pgast.Relation(
+        schemaname=table_schema_name,
+        relname=table_name
+    )
+
+    rvar = pgast.RangeVar(
+        relation=relation,
+        alias=pgast.Alias(
+            aliasname=env.aliases.get(concept.name.name)
         )
+    )
 
-        rvar = pgast.RangeVar(
-            relation=relation,
-            alias=pgast.Alias(
-                aliasname=ctx.genalias(hint=concept.name.name)
+    overlays = env.rel_overlays.get(concept)
+    if overlays and include_overlays:
+        set_ops = []
+
+        qry = pgast.SelectStmt()
+        qry.from_clause.append(rvar)
+        pathctx.put_path_rvar(env, qry, path_id, rvar)
+        qry.path_bonds.add(path_id)
+
+        set_ops.append(('union', qry))
+
+        for op, cte in overlays:
+            rvar = pgast.RangeVar(
+                relation=cte,
+                alias=pgast.Alias(
+                    aliasname=env.aliases.get(hint=cte.name)
+                )
             )
-        )
 
-        overlays = ctx.rel_overlays.get(concept)
-        if overlays and include_overlays:
-            set_ops = []
+            qry = pgast.SelectStmt(
+                from_clause=[rvar],
+            )
 
-            qry = pgast.SelectStmt()
-            qry.from_clause.append(rvar)
-            self._put_path_rvar(qry, path_id, rvar)
+            pathctx.put_path_rvar(env, qry, path_id, rvar)
+            qry.path_bonds.add(path_id)
+
+            if op == 'replace':
+                op = 'union'
+                set_ops = []
+
+            set_ops.append((op, qry))
+
+        rvar = range_from_queryset(env, set_ops, concept)
+
+    return rvar
+
+
+def range_for_concept(
+        env: context.Environment,
+        concept: s_concepts.Concept,
+        path_id: irast.PathId, *,
+        include_overlays: bool=True) -> pgast.BaseRangeVar:
+    from . import pathctx  # XXX: fix cycle
+
+    if not concept.is_virtual:
+        rvar = range_for_material_concept(
+            env, concept, path_id, include_overlays=include_overlays)
+    else:
+        # Virtual concepts are represented as a UNION of selects
+        # from their children, which is, for most purposes, equivalent
+        # to SELECTing from a parent table.
+        children = frozenset(concept.children(env.schema))
+
+        set_ops = []
+
+        for child in children:
+            c_rvar = range_for_concept(
+                env, child, path_id=path_id,
+                include_overlays=include_overlays)
+
+            qry = pgast.SelectStmt(
+                from_clause=[c_rvar],
+            )
+
+            pathctx.put_path_rvar(env, qry, path_id, c_rvar)
             qry.path_bonds.add(path_id)
 
             set_ops.append(('union', qry))
 
+        rvar = range_from_queryset(env, set_ops, concept)
+
+    return rvar
+
+
+def range_for_set(
+        env: context.Environment,
+        ir_set: irast.Set, *,
+        include_overlays: bool=True) -> pgast.BaseRangeVar:
+    rvar = range_for_concept(
+        env, ir_set.scls, ir_set.path_id, include_overlays=include_overlays)
+
+    return rvar
+
+
+def table_from_ptrcls(
+        env: context.Environment,
+        ptrcls: s_links.Link) -> pgast.RangeVar:
+    """Return a Table corresponding to a given Link."""
+    table_schema_name, table_name = common.get_table_name(
+        ptrcls, catenate=False)
+
+    pname = ptrcls.shortname
+
+    if pname.module == 'schema':
+        # Redirect all queries to schema tables to edgedbss
+        table_schema_name = 'edgedbss'
+
+    relation = pgast.Relation(
+        schemaname=table_schema_name, relname=table_name)
+
+    rvar = pgast.RangeVar(
+        relation=relation,
+        alias=pgast.Alias(
+            aliasname=env.aliases.get(pname.name)
+        )
+    )
+
+    return rvar
+
+
+def range_for_ptrcls(
+        env: context.Environment,
+        ptrcls: s_links.Link, direction: s_pointers.PointerDirection, *,
+        include_overlays: bool=True) -> pgast.BaseRangeVar:
+    """"Return a Range subclass corresponding to a given ptr step.
+
+    If `ptrcls` is a generic link, then a simple RangeVar is returned,
+    otherwise the return value may potentially be a UNION of all tables
+    corresponding to a set of specialized links computed from the given
+    `ptrcls` taking source inheritance into account.
+    """
+    linkname = ptrcls.shortname
+    endpoint = ptrcls.source
+
+    cols = [
+        'std::source',
+        'std::target'
+    ]
+
+    schema = env.schema
+
+    set_ops = []
+
+    ptrclses = set()
+
+    for source in {endpoint} | set(endpoint.descendants(schema)):
+        # Sift through the descendants to see who has this link
+        try:
+            src_ptrcls = source.pointers[linkname]
+        except KeyError:
+            # This source has no such link, skip it
+            continue
+        else:
+            if src_ptrcls in ptrclses:
+                # Seen this link already
+                continue
+            ptrclses.add(src_ptrcls)
+
+        table = table_from_ptrcls(env, src_ptrcls)
+
+        qry = pgast.SelectStmt()
+        qry.from_clause.append(table)
+        qry.rptr_rvar = table
+
+        # Make sure all property references are pulled up properly
+        for colname in cols:
+            selexpr = pgast.ColumnRef(
+                name=[table.alias.aliasname, colname])
+            qry.target_list.append(
+                pgast.ResTarget(val=selexpr, name=colname))
+
+        set_ops.append(('union', qry))
+
+        overlays = env.rel_overlays.get(src_ptrcls)
+        if overlays and include_overlays:
             for op, cte in overlays:
                 rvar = pgast.RangeVar(
                     relation=cte,
                     alias=pgast.Alias(
-                        aliasname=ctx.genalias(hint=cte.name)
+                        aliasname=env.aliases.get(cte.name)
                     )
                 )
 
                 qry = pgast.SelectStmt(
+                    target_list=[
+                        pgast.ResTarget(
+                            val=pgast.ColumnRef(
+                                name=[col]
+                            )
+                        )
+                        for col in cols
+                    ],
                     from_clause=[rvar],
                 )
-
-                self._put_path_rvar(qry, path_id, rvar)
-                qry.path_bonds.add(path_id)
-
-                if op == 'replace':
-                    op = 'union'
-                    set_ops = []
-
                 set_ops.append((op, qry))
 
-            rvar = self._range_from_queryset(set_ops, concept)
+    rvar = range_from_queryset(env, set_ops, ptrcls)
+    return rvar
 
-        return rvar
 
-    def _range_for_concept(self, concept, path_id, *, include_overlays=True):
-        if not concept.is_virtual:
-            rvar = self._range_for_material_concept(
-                concept, path_id, include_overlays=include_overlays)
-        else:
-            schema = self.context.current.schema
+def range_for_pointer(
+        env: context.Environment,
+        pointer: s_links.Link) -> pgast.BaseRangeVar:
+    return range_for_ptrcls(env, pointer.ptrcls, pointer.direction)
 
-            # Virtual concepts are represented as a UNION of selects
-            # from their children, which is, for most purposes, equivalent
-            # to SELECTing from a parent table.
-            children = frozenset(concept.children(schema))
 
-            set_ops = []
+def range_from_queryset(
+        env: context.Environment,
+        set_ops: typing.Sequence[typing.Tuple[str, pgast.BaseRelation]],
+        scls: s_obj.Class) -> pgast.BaseRangeVar:
+    if len(set_ops) > 1:
+        # More than one class table, generate a UNION/EXCEPT clause.
+        qry = pgast.SelectStmt(
+            all=True,
+            larg=set_ops[0][1]
+        )
 
-            for child in children:
-                c_rvar = self._range_for_concept(
-                    child, path_id=path_id, include_overlays=include_overlays)
+        for op, rarg in set_ops[1:]:
+            qry.op, qry.rarg = op, rarg
+            qry = pgast.SelectStmt(
+                all=True,
+                larg=qry
+            )
 
-                qry = pgast.SelectStmt(
-                    from_clause=[c_rvar],
-                )
+        qry = qry.larg
 
-                self._put_path_rvar(qry, path_id, c_rvar)
-                qry.path_bonds.add(path_id)
-
-                set_ops.append(('union', qry))
-
-            rvar = self._range_from_queryset(set_ops, concept)
-
-        return rvar
-
-    def _range_for_set(self, ir_set, *, include_overlays=True):
-        rvar = self._range_for_concept(
-            ir_set.scls, ir_set.path_id, include_overlays=include_overlays)
-
-        return rvar
-
-    def _table_from_ptrcls(self, ptrcls):
-        """Return a Table corresponding to a given Link."""
-        table_schema_name, table_name = common.get_table_name(
-            ptrcls, catenate=False)
-
-        pname = ptrcls.shortname
-
-        if pname.module == 'schema':
-            # Redirect all queries to schema tables to edgedbss
-            table_schema_name = 'edgedbss'
-
-        relation = pgast.Relation(
-            schemaname=table_schema_name, relname=table_name)
-
-        rvar = pgast.RangeVar(
-            relation=relation,
+        rvar = pgast.RangeSubselect(
+            subquery=qry,
             alias=pgast.Alias(
-                aliasname=self.context.current.genalias(hint=pname.name)
+                aliasname=env.aliases.get(scls.shortname.name)
             )
         )
 
-        return rvar
+    else:
+        # Just one class table, so return it directly
+        rvar = set_ops[0][1].from_clause[0]
 
-    def _range_for_ptrcls(self, ptrcls, direction, *,
-                          include_overlays=True):
-        """"Return a Range subclass corresponding to a given ptr step.
+    return rvar
 
-        If `ptrcls` is a generic link, then a simple RangeVar is returned,
-        otherwise the return value may potentially be a UNION of all tables
-        corresponding to a set of specialized links computed from the given
-        `ptrcls` taking source inheritance into account.
-        """
-        ctx = self.context.current
-        linkname = ptrcls.shortname
-        endpoint = ptrcls.source
 
-        cols = [
-            'std::source',
-            'std::target'
-        ]
+def get_column(
+        rvar: pgast.BaseRangeVar,
+        colspec: typing.Union[pgast.ColumnRef, str], *,
+        grouped: bool=False) -> pgast.ColumnRef:
 
-        schema = ctx.schema
+    if isinstance(colspec, pgast.ColumnRef):
+        colname = colspec.name[-1]
+        nullable = colspec.nullable
+        grouped = colspec.grouped
+    else:
+        colname = colspec
+        nullable = rvar.nullable if rvar is not None else False
+        grouped = grouped
 
-        set_ops = []
+    if rvar is None:
+        name = [colname]
+    else:
+        name = [rvar.alias.aliasname, colname]
 
-        ptrclses = set()
+    return pgast.ColumnRef(name=name, nullable=nullable, grouped=grouped)
 
-        for source in {endpoint} | set(endpoint.descendants(schema)):
-            # Sift through the descendants to see who has this link
-            try:
-                src_ptrcls = source.pointers[linkname]
-            except KeyError:
-                # This source has no such link, skip it
-                continue
-            else:
-                if src_ptrcls in ptrclses:
-                    # Seen this link already
-                    continue
-                ptrclses.add(src_ptrcls)
 
-            table = self._table_from_ptrcls(src_ptrcls)
-
-            qry = pgast.SelectStmt()
-            qry.from_clause.append(table)
-            qry.rptr_rvar = table
-
-            # Make sure all property references are pulled up properly
-            for colname in cols:
-                selexpr = pgast.ColumnRef(
-                    name=[table.alias.aliasname, colname])
-                qry.target_list.append(
-                    pgast.ResTarget(val=selexpr, name=colname))
-
-            set_ops.append(('union', qry))
-
-            overlays = ctx.rel_overlays.get(src_ptrcls)
-            if overlays and include_overlays:
-                for op, cte in overlays:
-                    rvar = pgast.RangeVar(
-                        relation=cte,
-                        alias=pgast.Alias(
-                            aliasname=ctx.genalias(hint=cte.name)
-                        )
-                    )
-
-                    qry = pgast.SelectStmt(
-                        target_list=[
-                            pgast.ResTarget(
-                                val=pgast.ColumnRef(
-                                    name=[col]
-                                )
-                            )
-                            for col in cols
-                        ],
-                        from_clause=[rvar],
-                    )
-                    set_ops.append((op, qry))
-
-        rvar = self._range_from_queryset(set_ops, ptrcls)
-        return rvar
-
-    def _range_for_pointer(self, pointer):
-        return self._range_for_ptrcls(pointer.ptrcls, pointer.direction)
-
-    def _range_from_queryset(self, set_ops, scls):
-        ctx = self.context.current
-
-        if len(set_ops) > 1:
-            # More than one class table, generate a UNION/EXCEPT clause.
-            qry = pgast.SelectStmt(
-                all=True,
-                larg=set_ops[0][1]
+def rvar_for_rel(
+        env: context.Environment, rel: pgast.Query,
+        lateral: bool=False) -> pgast.BaseRangeVar:
+    if isinstance(rel, pgast.Query):
+        rvar = pgast.RangeSubselect(
+            subquery=rel,
+            alias=pgast.Alias(
+                aliasname=env.aliases.get('q')
+            ),
+            lateral=lateral
+        )
+    else:
+        rvar = pgast.RangeVar(
+            relation=rel,
+            alias=pgast.Alias(
+                aliasname=env.aliases.get(rel.name)
             )
+        )
 
-            for op, rarg in set_ops[1:]:
-                qry.op, qry.rarg = op, rarg
-                qry = pgast.SelectStmt(
-                    all=True,
-                    larg=qry
-                )
-
-            qry = qry.larg
-
-            rvar = pgast.RangeSubselect(
-                subquery=qry,
-                alias=pgast.Alias(
-                    aliasname=ctx.genalias(hint=scls.shortname.name)
-                )
-            )
-
-        else:
-            # Just one class table, so return it directly
-            rvar = set_ops[0][1].from_clause[0]
-
-        return rvar
+    return rvar

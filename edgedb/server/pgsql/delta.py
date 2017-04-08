@@ -446,9 +446,8 @@ class CreateFunction(FunctionCommand, CreateNamedClass,
             if not irutils.is_const(ir):
                 raise ValueError('expression not constant')
 
-            ircompiler = compiler.SingletonExprIRCompiler()
-            sql_tree = ircompiler.transform_to_sql_tree(
-                ir, schema=schema)
+            sql_tree = compiler.compile_ir_to_sql_tree(
+                ir, schema=schema, singleton_mode=True)
             return codegen.SQLSourceGenerator.to_source(sql_tree)
 
         except Exception as ex:
@@ -500,10 +499,9 @@ class CreateFunction(FunctionCommand, CreateNamedClass,
         body_ir = ql_compiler.compile_to_ir(
             func.code, schema, arg_types=arg_types)
 
-        ir_compiler = compiler.IRCompiler()
-
         qchunks, argmap, arg_index, query_type, record_info = \
-            ir_compiler.transform(body_ir, schema=schema, ignore_shapes=True)
+            compiler.compile_ir_to_sql(
+                body_ir, schema=schema, ignore_shapes=True)
 
         return dbops.Function(
             name=self.get_pgname(func),
@@ -1423,8 +1421,8 @@ class CreateSourceIndex(SourceIndexCommand, CreateNamedClass,
         ir = ql_compiler.compile_fragment_to_ir(
             index.expr, schema, location='selector')
 
-        ircompiler = compiler.SingletonExprIRCompiler()
-        sql_tree = ircompiler.transform_to_sql_tree(ir, schema=schema)
+        sql_tree = compiler.compile_ir_to_sql_tree(
+            ir, schema=schema, singleton_mode=True)
         sql_expr = codegen.SQLSourceGenerator.to_source(sql_tree)
 
         if isinstance(sql_tree, pg_ast.ImplicitRowExpr):
