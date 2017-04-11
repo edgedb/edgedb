@@ -130,6 +130,13 @@ def is_subquery_set(ir_expr):
     )
 
 
+def is_strictly_subquery_set(ir_expr):
+    return (
+        is_subquery_set(ir_expr) and
+        not is_strictly_view_set(ir_expr)
+    )
+
+
 def is_inner_view_reference(ir_expr):
     return (
         isinstance(ir_expr, irast.Set) and

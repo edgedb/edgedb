@@ -164,6 +164,12 @@ class ContextLevel(compiler.ContextLevel):
                 self.aggregated_scope = prevlevel.aggregated_scope.copy()
                 self.unaggregated_scope = prevlevel.unaggregated_scope.copy()
 
+    def subquery(self):
+        return self.new(ContextSwitchMode.SUBQUERY)
+
+    def newscope(self):
+        return self.new(ContextSwitchMode.NEWSCOPE)
+
 
 class CompilerContext(compiler.CompilerContext):
     ContextLevelClass = ContextLevel
