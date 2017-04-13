@@ -41,8 +41,6 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.schema = None
             self.singleton_mode = False
 
-            self.memo = {}
-
             stmt = pgast.SelectStmt()
             self.toplevel_stmt = None
             self.stmt = stmt
@@ -51,15 +49,9 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.stmt_hierarchy = {}
 
             self.clause = None
-            self.in_exists = False
-            self.in_aggregate = False
-            self.aggregated_scope = set()
             self.in_member_test = False
-            self.in_set_expr = False
-            self.in_shape = False
             self.expr_exposed = None
             self.lax_paths = 0
-            self.weak_path_bond_regime = False
             self.correct_set_assumed = False
             self.expr_injected_path_bond = None
             self.view_path_id_map = {}
@@ -69,13 +61,11 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.ctemap = {}
             self.ctemap_by_stmt = collections.defaultdict(dict)
             self.stmtmap = {}
-            self.setscope = {}
 
             self.shape_format = ShapeFormat.SERIALIZED
 
             self.subquery_map = collections.defaultdict(dict)
             self.computed_node_rels = {}
-            self.parent_var_scope = {}
             self.path_bonds = {}
             self.path_bonds_by_stmt = collections.defaultdict(dict)
             self.parent_path_bonds = {}
@@ -88,8 +78,6 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.schema = prevlevel.schema
             self.singleton_mode = prevlevel.singleton_mode
 
-            self.memo = {}
-
             self.toplevel_stmt = prevlevel.toplevel_stmt
             self.stmt = prevlevel.stmt
             self.query = prevlevel.query
@@ -97,15 +85,9 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.stmt_hierarchy = prevlevel.stmt_hierarchy
 
             self.clause = prevlevel.clause
-            self.in_exists = prevlevel.in_exists
-            self.in_aggregate = prevlevel.in_aggregate
-            self.aggregated_scope = prevlevel.aggregated_scope
             self.in_member_test = prevlevel.in_member_test
-            self.in_set_expr = prevlevel.in_set_expr
-            self.in_shape = prevlevel.in_shape
             self.expr_exposed = prevlevel.expr_exposed
             self.lax_paths = prevlevel.lax_paths
-            self.weak_path_bond_regime = prevlevel.weak_path_bond_regime
             self.correct_set_assumed = prevlevel.correct_set_assumed
             self.expr_injected_path_bond = prevlevel.expr_injected_path_bond
             self.view_path_id_map = prevlevel.view_path_id_map
@@ -115,13 +97,11 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.ctemap = prevlevel.ctemap
             self.ctemap_by_stmt = prevlevel.ctemap_by_stmt
             self.stmtmap = prevlevel.stmtmap
-            self.setscope = prevlevel.setscope
 
             self.shape_format = prevlevel.shape_format
 
             self.subquery_map = prevlevel.subquery_map
             self.computed_node_rels = prevlevel.computed_node_rels
-            self.parent_var_scope = prevlevel.parent_var_scope
             self.path_bonds = prevlevel.path_bonds
             self.path_bonds_by_stmt = prevlevel.path_bonds_by_stmt
             self.parent_path_bonds = prevlevel.parent_path_bonds
@@ -135,18 +115,13 @@ class CompilerContextLevel(compiler.ContextLevel):
                 self.rel = self.query
 
                 self.clause = 'result'
-                self.in_aggregate = False
                 self.in_member_test = False
-                self.in_set_expr = False
-                self.in_shape = False
-                self.in_exists = False
                 self.lax_paths = (
                     prevlevel.lax_paths - 1 if prevlevel.lax_paths else 0)
                 self.correct_set_assumed = False
                 self.view_path_id_map = {}
 
                 self.ctemap = prevlevel.ctemap.copy()
-                self.setscope = {}
 
                 self.subquery_map = collections.defaultdict(dict)
                 self.path_bonds = prevlevel.path_bonds.copy()
@@ -155,7 +130,6 @@ class CompilerContextLevel(compiler.ContextLevel):
                 self.stmt = self.query
                 self.parent_path_bonds = prevlevel.path_bonds
                 self.computed_node_rels = prevlevel.computed_node_rels.copy()
-                self.parent_var_scope = prevlevel.parent_var_scope.copy()
                 self.stmt_specific_path_scope = set()
 
     def genalias(self, hint=None):

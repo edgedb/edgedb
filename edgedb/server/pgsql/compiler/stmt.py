@@ -270,8 +270,7 @@ def compile_GroupStmt(
             # When GROUP subject appears in aggregates, which by
             # default use lax paths, we still want to use the group
             # CTE as the source.
-            relctx.put_set_cte(stmt.subject, group_cte, lax=True,
-                               ctx=selctx)
+            relctx.put_set_cte(stmt.subject, group_cte, lax=True, ctx=selctx)
 
             sortoutputs = []
 

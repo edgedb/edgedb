@@ -289,10 +289,6 @@ def compile_BinOp(
         newctx.expr_exposed = False
         op = expr.op
         is_bool_op = op in {ast.ops.AND, ast.ops.OR}
-
-        if ctx.in_set_expr and is_bool_op:
-            newctx.in_set_expr = False
-
         left = dispatch.compile(expr.left, ctx=newctx)
 
         if expr.op in (ast.ops.IN, ast.ops.NOT_IN):
@@ -591,8 +587,7 @@ def compile_Set(
         result = relgen.wrap_set_rel_as_bool_disjunction(
             expr, source_cte, ctx=ctx)
 
-    elif ((ctx.clause == 'offsetlimit' and not ctx.in_set_expr) or
-            ctx.in_member_test):
+    elif ctx.clause == 'offsetlimit' or ctx.in_member_test:
         # When referred to in OFFSET/LIMIT we want to wrap the
         # set CTE into
         #    SELECT v FROM SetCTE
@@ -670,7 +665,6 @@ def _compile_shape(
             continue
 
         with ctx.new() as newctx:
-            newctx.in_shape = True
             newctx.path_bonds = newctx.path_bonds.copy()
 
             if (not is_singleton or irutils.is_subquery_set(cset) or

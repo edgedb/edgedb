@@ -196,21 +196,6 @@ def get_parent_range_scope(
     return ctx.computed_node_rels.get(ir_set)
 
 
-def put_parent_var_scope(
-        ir_set: irast.Set, var, *,
-        ctx: context.CompilerContext):
-    ir_set = irutils.get_canonical_set(ir_set)
-    if ir_set not in ctx.parent_var_scope:
-        ctx.parent_var_scope[ir_set] = var
-
-
-def get_parent_var_scope(
-        ir_set, *,
-        ctx: context.CompilerContext):
-    ir_set = irutils.get_canonical_set(ir_set)
-    return ctx.parent_var_scope.get(ir_set)
-
-
 def put_set_cte(
         ir_set: irast.Set, cte: pgast.BaseRelation, *,
         lax: typing.Optional[bool]=None,
@@ -227,12 +212,6 @@ def put_set_cte(
 
     ctx.ctemap[key] = cte
     ctx.ctemap_by_stmt[ctx.stmt][key] = cte
-
-    if (ir_set.expr is None and
-            ctx.clause in {'where', 'result'} and
-            not ctx.in_shape):
-        if lax or not ctx.setscope.get(ir_set):
-            ctx.setscope[ir_set] = lax
 
     return cte
 

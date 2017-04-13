@@ -55,10 +55,7 @@ def set_to_cte(
         subctx.rel = stmt
         subctx.path_bonds = ctx.path_bonds.copy()
 
-        if relctx.get_parent_var_scope(ir_set, ctx=subctx) is not None:
-            process_set_as_parent_var_scope(ir_set, stmt, ctx=subctx)
-
-        elif relctx.get_parent_range_scope(ir_set, ctx=subctx) is not None:
+        if relctx.get_parent_range_scope(ir_set, ctx=subctx) is not None:
             # We are ranging over this set in the parent query,
             # while evaluating a view expression.
             process_set_as_parent_scope(ir_set, stmt, ctx=subctx)
@@ -292,21 +289,6 @@ def process_set_as_root(
     ctx.query.ctes.append(relctx.get_set_cte(ir_set, ctx=ctx))
 
 
-def process_set_as_parent_var_scope(
-        ir_set: irast.Set, stmt: pgast.Query, *, ctx: context.CompilerContext):
-    var = relctx.get_parent_var_scope(ir_set, ctx=ctx)
-    alias = ctx.genalias('v')
-    stmt.target_list.append(
-        pgast.ResTarget(
-            val=var,
-            name=alias
-        )
-    )
-
-    pathctx.put_path_output(ctx.env, stmt, ir_set, alias)
-    ctx.query.ctes.append(relctx.get_set_cte(ir_set, ctx=ctx))
-
-
 def process_set_as_parent_scope(
         ir_set: irast.Set, stmt: pgast.Query, *, ctx: context.CompilerContext):
     """Populate the CTE for a Set defined by parent range."""
@@ -397,21 +379,11 @@ def process_set_as_path_step(
                 source_query = source_cte
         else:
             with newctx.new() as srcctx:
-
                 srcctx.expr_exposed = False
 
                 subrels = srcctx.subquery_map[stmt]
-                setscope = srcctx.setscope
-
                 source_rel = set_to_cte(ir_source, ctx=srcctx)
                 if source_rel not in subrels:
-                    lax_path = setscope.get(ir_source)
-                    if lax_path:
-                        lax_rel = relctx.get_set_cte(
-                            ir_source, lax=True, ctx=srcctx)
-                        if lax_rel is not None:
-                            source_rel = lax_rel
-
                     relctx.include_range(
                         stmt, source_rel, join_type='inner',
                         lateral=True, ctx=srcctx)
@@ -739,7 +711,6 @@ def process_set_as_expr(
     """Populate the CTE for Set defined by an expression."""
 
     with ctx.new() as newctx:
-        newctx.in_set_expr = True
         newctx.rel = stmt
         set_expr = dispatch.compile(ir_set.expr, ctx=newctx)
 
@@ -763,7 +734,6 @@ def process_set_as_func_expr(
         ir_set: irast.Set, stmt: pgast.Query, *, ctx: context.CompilerContext):
     """Populate the CTE for Set defined by a function call."""
     with ctx.new() as newctx:
-        newctx.in_set_expr = True
         newctx.rel = stmt
         newctx.in_member_test = False
         newctx.expr_exposed = False
@@ -803,7 +773,6 @@ def process_set_as_agg_expr(
     """Populate the CTE for Set defined by an aggregate."""
 
     with ctx.new() as newctx:
-        newctx.in_set_expr = True
         newctx.rel = stmt
         newctx.in_member_test = False
 
@@ -821,7 +790,6 @@ def process_set_as_agg_expr(
         agg_sort = []
 
         with newctx.new() as argctx:
-            argctx.in_aggregate = True
             argctx.lax_paths = True
 
             # We want array_agg() (and similar) to do the right
@@ -935,7 +903,6 @@ def process_set_as_exists_expr(
         return process_set_as_exists_stmt_expr(ir_set, stmt, ctx=ctx)
 
     with ctx.new() as newctx:
-        newctx.in_set_expr = True
         newctx.lax_paths = 1
         newctx.rel = stmt
 
@@ -984,7 +951,6 @@ def process_set_as_exists_stmt_expr(
         ir_set: irast.Set, stmt: pgast.Query, *, ctx: context.CompilerContext):
     """Populate the CTE for Set defined by an EXISTS() expression."""
     with ctx.new() as newctx:
-        newctx.in_set_expr = True
         newctx.lax_paths = 2
         newctx.rel = stmt
 

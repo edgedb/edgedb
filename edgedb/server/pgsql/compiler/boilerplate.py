@@ -17,9 +17,6 @@ def init_stmt(
     if ctx.toplevel_stmt is None:
         ctx.toplevel_stmt = ctx.stmt
 
-    if stmt.aggregated_scope:
-        ctx.aggregated_scope = stmt.aggregated_scope
-
     ctx.stmt_path_scope = stmt.path_scope.copy()
 
     ctx.stmt_specific_path_scope = \
