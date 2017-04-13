@@ -229,11 +229,12 @@ def wrap_set_rel_as_bool_disjunction(
 def get_var_for_set_expr(
         ir_set: irast.Set, source_rvar: pgast.BaseRangeVar, *,
         ctx: context.CompilerContext) -> pgast.Base:
-    if (irutils.is_subquery_set(ir_set) and
+    if ((irutils.is_subquery_set(ir_set) or
+            isinstance(ir_set.expr, irast.SetOp)) and
             output.in_serialization_ctx(ctx)):
-        # If the set is a subquery, and we are serializing the output
-        # then we know the output has been serialized and we don't
-        # want to fall into the Tuple branch below.
+        # If the set is a subquery or a set op, and we are serializing the
+        # output then we know the output has been serialized and we don't want
+        # to fall into the Tuple branch below.
         return pathctx.get_rvar_path_var(
             ctx.env, source_rvar, ir_set, raw=False)
 
@@ -667,7 +668,8 @@ def process_set_as_setop(
             )
         )
 
-        if isinstance(ir_set.scls, s_obj.Tuple):
+        if (isinstance(ir_set.scls, s_obj.Tuple) and
+                not output.in_serialization_ctx(ctx=ctx)):
             for n in ir_set.scls.element_types:
                 stmt.target_list.append(
                     pgast.ResTarget(

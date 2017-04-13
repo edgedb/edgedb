@@ -922,6 +922,13 @@ class TestExpressions(tb.QueryTestCase):
             [[[1, 'foo']]],
         ])
 
+    async def test_edgeql_expr_tuple06(self):
+        await self.assert_query_result(r"""
+            SELECT (1, 2) UNION (3, 4);
+        """, [
+            [[1, 2], [3, 4]],
+        ])
+
     async def test_edgeql_expr_tuple_indirection01(self):
         await self.assert_query_result(r"""
             SELECT ('foo', 42).0;
