@@ -11,6 +11,7 @@ import collections
 import typing
 
 from edgedb.lang.ir import ast as irast
+from edgedb.lang.ir import inference as irinference
 from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import concepts as s_concepts
@@ -326,6 +327,13 @@ def compile_shape_compexpr(
 
         if isinstance(shape_el.compexpr, qlast.Statement):
             if shape_el.compexpr.single:
+                ptrcls.mapping = s_links.LinkMapping.ManyToOne
+            else:
+                ptrcls.mapping = s_links.LinkMapping.ManyToMany
+        else:
+            cardinality = irinference.infer_cardinality(
+                compexpr, ctx.singletons, ctx.schema)
+            if cardinality == 1:
                 ptrcls.mapping = s_links.LinkMapping.ManyToOne
             else:
                 ptrcls.mapping = s_links.LinkMapping.ManyToMany

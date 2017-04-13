@@ -480,4 +480,4 @@ def compile_ifelse(
             context=src_context)
 
     return irast.SetOp(left=if_expr.expr, right=else_expr.expr,
-                       op=qlast.UNION)
+                       op=qlast.UNION, exclusive=True)

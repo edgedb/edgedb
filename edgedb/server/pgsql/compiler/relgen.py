@@ -503,10 +503,9 @@ def process_set_as_view(
             if not path_id.startswith(ir_set.path_id):
                 subquery.path_bonds.discard(path_id)
 
-    if not isinstance(ir_set.scls, s_obj.Tuple):
-        rt_name = output.ensure_query_restarget_name(
-            subquery, hint=cte.name, env=ctx.env)
-        pathctx.put_path_output(ctx.env, subquery, ir_set, rt_name)
+    rt_name = output.ensure_query_restarget_name(
+        subquery, hint=cte.name, env=ctx.env)
+    pathctx.put_path_output(ctx.env, subquery, ir_set, rt_name)
 
     cte.query = subquery
     ctx.toplevel_stmt.ctes.append(cte)
@@ -537,10 +536,9 @@ def process_set_as_subquery(
         subquery = dispatch.compile(ir_set.expr, ctx=newctx)
 
     if not isinstance(ir_set.expr, irast.MutatingStmt):
-        if not isinstance(ir_set.scls, s_obj.Tuple):
-            rt_name = output.ensure_query_restarget_name(
-                subquery, hint=cte.name, env=ctx.env)
-            pathctx.put_path_output(ctx.env, subquery, ir_set, rt_name)
+        rt_name = output.ensure_query_restarget_name(
+            subquery, hint=cte.name, env=ctx.env)
+        pathctx.put_path_output(ctx.env, subquery, ir_set, rt_name)
 
     relctx.put_set_cte(ir_set, subquery, ctx=ctx)
 

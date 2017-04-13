@@ -70,7 +70,12 @@ def __infer_coalesce(ir, singletons, schema):
 @_infer_cardinality.register(irast.SetOp)
 def __infer_setop(ir, singletons, schema):
     if ir.op == qlast.UNION:
-        result = MANY
+        if not ir.exclusive:
+            # Exclusive UNIONs are generated from IF ELSE expressions.
+            result = MANY
+        else:
+            result = _common_cardinality(
+                [ir.left, ir.right], singletons, schema)
     else:
         result = infer_cardinality(ir.left, singletons, schema)
 

@@ -315,6 +315,7 @@ class SetOp(Expr):
     left: Base
     right: Base
     op: ast.ops.Operator
+    exclusive: bool = False
 
 
 class BinOp(Expr):

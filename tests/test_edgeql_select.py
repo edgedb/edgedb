@@ -1268,10 +1268,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 number,
                 # open := 'yes' IF Issue.status.name = 'Open' ELSE 'no'
                 # equivalent to
-                open :=
+                open := (SELECT SINGLETON
                     (SELECT 'yes' FILTER Issue.status.name = 'Open')
                     UNION
                     (SELECT 'no' FILTER NOT Issue.status.name = 'Open')
+                )
             }
             ORDER BY Issue.number;
             """, [
@@ -3308,6 +3309,21 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             """, [[
             {'name': 'Elvis'},
             {'name': 'Yury'},
+        ]])
+
+    async def test_edgeql_select_tuple04(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT
+                User {
+                    t := (1, 2) UNION (3, 4)
+                }
+            FILTER
+                User.name = 'Elvis'
+            ORDER BY
+                User.name;
+            """, [[
+            {'t': [[1, 2], [3, 4]]},
         ]])
 
     async def test_edgeql_select_struct01(self):
