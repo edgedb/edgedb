@@ -466,8 +466,15 @@ class Backend(s_deltarepo.DeltaProvider):
                 else:
                     schema0 = schema
 
-                if delta.target is not None:
-                    diff = sd.delta_schemas(delta.target, schema0)
+                schema1 = delta.target
+
+                if schema1 is not None:
+                    modules = (
+                        set(schema1.modules) - {'std', 'schema', 'stdattrs'})
+                    if len(modules) != 1:
+                        raise RuntimeError('unexpected delta module structure')
+                    modname = next(iter(modules))
+                    diff = sd.delta_module(schema1, schema0, modname)
                     ddl_plan.update(diff)
 
                 await self.run_ddl_command(ddl_plan)

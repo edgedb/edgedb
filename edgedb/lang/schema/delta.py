@@ -95,6 +95,59 @@ def delta_schemas(schema1, schema2):
     return result
 
 
+def delta_module(schema1, schema2, modname):
+    from . import modules, objects as so, database
+
+    result = database.AlterDatabase()
+
+    try:
+        module2 = schema2.get_module(modname)
+    except KeyError:
+        module2 = None
+    module1 = schema1.get_module(modname)
+
+    global_adds_mods = []
+    global_dels = []
+
+    if module2 is None:
+        create = modules.CreateModule(classname=modname,
+                                      metaclass=modules.Module)
+
+        create.add(AlterClassProperty(property='name', old_value=None,
+                                      new_value=modname))
+
+        create.add(AlterClassProperty(property='imports', old_value=None,
+                                      new_value=tuple(module1.imports)))
+        result.add(create)
+
+    for type in schema1.global_dep_order:
+        new = ordered.OrderedIndex(module1.get_objects(type=type),
+                                   key=lambda o: o.persistent_hash())
+        if module2 is not None:
+            old = ordered.OrderedIndex(module2.get_objects(type=type),
+                                       key=lambda o: o.persistent_hash())
+        else:
+            old = ordered.OrderedIndex(key=lambda o: o.persistent_hash())
+
+        if type in ('link', 'link_property', 'constraint'):
+            new = filter(lambda i: i.generic(), new)
+            old = filter(lambda i: i.generic(), old)
+
+        adds_mods, dels = so.Class._delta_sets(
+            old, new, old_schema=schema2, new_schema=schema1)
+
+        global_adds_mods.append(adds_mods)
+        global_dels.append(dels)
+
+    for add_mod in global_adds_mods:
+        result.update(add_mod)
+
+    for dels in reversed(global_dels):
+        result.update(dels)
+
+    return result
+
+
 class DeltaExceptionSchemaContext(markup.MarkupExceptionContext):
     title = 'Protoschema Diff'
 

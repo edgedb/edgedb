@@ -16,7 +16,14 @@ class TestEdgeQLGroup(tb.QueryTestCase):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'queries.eschema')
 
+    SCHEMA_TESTLP = os.path.join(os.path.dirname(__file__), 'schemas',
+                                 'linkprops.eschema')
+
     SETUP = r"""
+        #
+        # MODULE test
+        #
+
         WITH MODULE test
         INSERT Priority {
             name := 'High'
@@ -145,6 +152,137 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         FILTER User.name = 'Yury'
         SET {
             todo := (SELECT Issue FILTER Issue.number IN ['3', '4'])
+        };
+
+        #
+        # MODULE testlp
+        #
+
+        # create some cards
+        WITH MODULE testlp
+        INSERT Card {
+            name := 'Imp',
+            element := 'Fire',
+            cost := 1
+        };
+
+        WITH MODULE testlp
+        INSERT Card {
+            name := 'Dragon',
+            element := 'Fire',
+            cost := 5
+        };
+
+        WITH MODULE testlp
+        INSERT Card {
+            name := 'Bog monster',
+            element := 'Water',
+            cost := 2
+        };
+
+        WITH MODULE testlp
+        INSERT Card {
+            name := 'Giant turtle',
+            element := 'Water',
+            cost := 3
+        };
+
+        WITH MODULE testlp
+        INSERT Card {
+            name := 'Dwarf',
+            element := 'Earth',
+            cost := 1
+        };
+
+        WITH MODULE testlp
+        INSERT Card {
+            name := 'Golem',
+            element := 'Earth',
+            cost := 3
+        };
+
+        WITH MODULE testlp
+        INSERT Card {
+            name := 'Sprite',
+            element := 'Air',
+            cost := 1
+        };
+
+        WITH MODULE testlp
+        INSERT Card {
+            name := 'Giant eagle',
+            element := 'Air',
+            cost := 2
+        };
+
+        WITH MODULE testlp
+        INSERT Card {
+            name := 'Djinn',
+            element := 'Air',
+            cost := 4
+        };
+
+        # create players & decks
+        WITH MODULE testlp
+        INSERT User {
+            name := 'Alice',
+            deck := (
+                SELECT Card {@count := len(Card.element) - 2}
+                FILTER .element IN ['Fire', 'Water']
+            )
+        };
+
+        WITH MODULE testlp
+        INSERT User {
+            name := 'Bob',
+            deck := (
+                SELECT Card {@count := 3} FILTER .element IN ['Earth', 'Water']
+            )
+        };
+
+        WITH MODULE testlp
+        INSERT User {
+            name := 'Carol',
+            deck := (
+                SELECT Card {@count := 5 - Card.cost} FILTER .element != 'Fire'
+            )
+        };
+
+        WITH MODULE testlp
+        INSERT User {
+            name := 'Dave',
+            deck := (
+                SELECT Card {@count := 4 IF Card.cost = 1 ELSE 1}
+                FILTER .element = 'Air' OR .cost != 1
+            )
+        };
+
+        # update friends list
+        WITH
+            MODULE testlp,
+            U2 := User
+        UPDATE User
+        FILTER User.name = 'Alice'
+        SET {
+            friends := (
+                SELECT U2 {
+                    @nickname :=
+                        'Swampy'        IF U2.name = 'Bob' ELSE
+                        'Firefighter'   IF U2.name = 'Carol' ELSE
+                        'Grumpy'
+                } FILTER U2.name IN ['Bob', 'Carol', 'Dave']
+            )
+        };
+
+        WITH
+            MODULE testlp,
+            U2 := User
+        UPDATE User
+        FILTER User.name = 'Dave'
+        SET {
+            friends := (
+                SELECT U2 FILTER U2.name = 'Bob'
+            )
         };
     """
 
@@ -661,4 +799,40 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 'status': 'Open',
                 'numbers': [2],
             }],
+        ])
+
+    @tb.expected_optimizer_failure
+    async def test_edgeql_group_linkproperty01(self):
+        await self.assert_query_result(r"""
+            WITH MODULE testlp
+            GROUP
+                Card
+            BY
+                Card.<deck@count
+            SELECT _ := (
+                cards := array_agg(
+                    DISTINCT Card.name ORDER BY Card.name),
+                count := Card.<deck@count,
+            ) ORDER BY _.count;
+        """, [
+            [
+                {
+                    'cards': ['Bog monster', 'Djinn', 'Dragon', 'Giant eagle',
+                              'Giant turtle', 'Golem'],
+                    'count': 1
+                },
+                {
+                    'cards': ['Dragon', 'Giant turtle', 'Golem', 'Imp'],
+                    'count': 1
+                },
+                {
+                    'cards': ['Bog monster', 'Dwarf', 'Giant eagle',
+                              'Giant turtle', 'Golem'],
+                    'count': 2
+                },
+                {
+                    'cards': ['Dwarf', 'Sprite'],
+                    'count': 4
+                },
+            ],
         ])

@@ -13,6 +13,7 @@ import functools
 import inspect
 import os
 import pprint
+import re
 import sys
 import textwrap
 import unittest
@@ -194,12 +195,23 @@ class DatabaseTestCase(ConnectedTestCase):
 
         script = '\nCREATE MODULE test;'
 
-        if cls.SCHEMA:
-            with open(cls.SCHEMA, 'r') as sf:
-                schema = sf.read()
+        # look at all SCHEMA entries and potentially create multiple modules
+        #
+        for name, val in cls.__dict__.items():
+            m = re.match(r'^SCHEMA(?:_(\w+))?', name)
+            if m:
+                module_name = (m.group(1) or 'test').lower().replace(
+                    '__', '.')
 
-            script += f'\nCREATE MIGRATION test::d1 TO eschema $${schema}$$;'
-            script += '\nCOMMIT MIGRATION test::d1;'
+                with open(val, 'r') as sf:
+                    schema = sf.read()
+
+                if module_name != 'test':
+                    script += f'\nCREATE MODULE {module_name};'
+
+                script += f'\nCREATE MIGRATION {module_name}::d1'
+                script += f' TO eschema $${schema}$$;'
+                script += f'\nCOMMIT MIGRATION {module_name}::d1;'
 
         if cls.SETUP:
             script += '\n' + cls.SETUP

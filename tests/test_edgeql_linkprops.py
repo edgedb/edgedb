@@ -13,7 +13,7 @@ from edgedb.server import _testbase as tb
 
 
 class TestEdgeQLLinkproperties(tb.QueryTestCase):
-    '''The scope of the tests here is for link properties.'''
+    '''The scope is to test link properties.'''
 
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'linkprops.eschema')
