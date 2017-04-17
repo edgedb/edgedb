@@ -801,9 +801,11 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             }],
         ])
 
-    @tb.expected_optimizer_failure
-    async def test_edgeql_group_linkproperty01(self):
+    @unittest.expectedFailure
+    async def test_edgeql_group_linkproperty_simple01(self):
         await self.assert_query_result(r"""
+            # group by link property
+            #
             WITH MODULE testlp
             GROUP
                 Card
@@ -823,16 +825,281 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 },
                 {
                     'cards': ['Dragon', 'Giant turtle', 'Golem', 'Imp'],
-                    'count': 1
+                    'count': 2
                 },
                 {
                     'cards': ['Bog monster', 'Dwarf', 'Giant eagle',
                               'Giant turtle', 'Golem'],
-                    'count': 2
+                    'count': 3
                 },
                 {
                     'cards': ['Dwarf', 'Sprite'],
                     'count': 4
                 },
             ],
+        ])
+
+    @tb.expected_optimizer_failure
+    async def test_edgeql_group_linkproperty_simple02(self):
+        await self.assert_query_result(r"""
+            # use link property inside a group aggregate
+            #
+            WITH MODULE testlp
+            GROUP
+                Card
+            BY
+                Card.element
+            SELECT _ := (
+                cards := array_agg(
+                    DISTINCT Card.name ORDER BY Card.name),
+                element := Card.element,
+                count := sum(ALL Card.<deck@count),
+            ) ORDER BY _.count;
+        """, [
+
+            [
+                {
+                    'element': 'Fire',
+                    'cards': ['Dragon', 'Imp'],
+                    'count': 5,
+                },
+                {
+                    'element': 'Earth',
+                    'cards': ['Dwarf', 'Golem'],
+                    'count': 13,
+                },
+                {
+                    'element': 'Air',
+                    'cards': ['Djinn', 'Giant eagle', 'Sprite'],
+                    'count': 14,
+                },
+                {
+                    'element': 'Water',
+                    'cards': ['Bog monster', 'Giant turtle'],
+                    'count': 19,
+                },
+            ]
+
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_group_linkproperty_simple03(self):
+        await self.assert_query_result(r"""
+            # group by link property
+            #
+            WITH MODULE testlp
+            GROUP
+                (SELECT User FILTER User.name = 'Alice').friends
+            BY
+                User.friends@nickname
+            SELECT _ := (
+                nickname := User.friends@nickname,
+                # using array agg here because it cannot be proven
+                # that when grouped by nickname, friends are unique
+                #
+                name := array_agg(DISTINCT User.friends.name)
+            ) ORDER BY _.nickname;
+        """, [
+            [
+                {'name': ['Bob'], 'nickname': 'Swampy'},
+                {'name': ['Dave'], 'nickname': 'Firefighter'},
+                {'name': ['Carol'], 'nickname': 'Grumpy'},
+            ]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_group_linkproperty_simple04(self):
+        await self.assert_query_result(r"""
+            # NOTE: should be the same as above because we happen to
+            # have unique nicknames for friends
+            #
+            WITH MODULE testlp
+            GROUP
+                (SELECT User FILTER User.name = 'Alice').friends
+            BY
+                User.friends@nickname
+            SELECT _ := (
+                nickname := User.friends@nickname,
+                # using array agg here because it cannot be proven
+                # that when grouped by nickname, friends are unique
+                #
+                name := array_agg(ALL User.friends.name)
+            ) ORDER BY _.nickname;
+        """, [
+            [
+                {'name': ['Bob'], 'nickname': 'Swampy'},
+                {'name': ['Dave'], 'nickname': 'Firefighter'},
+                {'name': ['Carol'], 'nickname': 'Grumpy'},
+            ]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_group_linkproperty_nested01(self):
+        await self.assert_query_result(r"""
+            WITH MODULE testlp
+            SELECT User {
+                name,
+                # total card count across the deck
+                #
+                total := sum(ALL User.deck@count),
+                # group each deck by elements, adding up the counts
+                #
+                elements := (
+                    GROUP User.deck
+                    BY User.deck.element
+                    SELECT _ := (
+                        name := User.deck.element,
+                        count := sum(ALL User.deck@count),
+                    )
+                    ORDER BY _.name
+                )
+            } ORDER BY User.name;
+        """, [
+            [
+                {
+                    'name': 'Alice',
+                    'total': 10,
+                    'elements': [
+                        {'name': 'Fire', 'count': 4},
+                        {'name': 'Water', 'count': 6}
+                    ]
+                },
+                {
+                    'name': 'Bob',
+                    'total': 12,
+                    'elements': [
+                        {'name': 'Earth', 'count': 6},
+                        {'name': 'Water', 'count': 6}
+                    ]
+                },
+                {
+                    'name': 'Carol',
+                    'total': 19,
+                    'elements': [
+                        {'name': 'Air', 'count': 8},
+                        {'name': 'Earth', 'count': 6},
+                        {'name': 'Water', 'count': 5}
+                    ]
+                },
+                {
+                    'name': 'Dave',
+                    'total': 10,
+                    'elements': [
+                        {'name': 'Air', 'count': 6},
+                        {'name': 'Earth', 'count': 1},
+                        {'name': 'Fire', 'count': 1},
+                        {'name': 'Water', 'count': 2}
+                    ]
+                }
+            ]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_group_linkproperty_nested02(self):
+        await self.assert_query_result(r"""
+            # similar to nested01, but with the root grouped by @nickname
+            #
+            WITH MODULE testlp
+            GROUP
+                (SELECT User FILTER User.name = 'Alice').friends
+            BY
+                User.friends@nickname
+            SELECT _af := (
+                name := array_agg(DISTINCT User.friends.name),
+                nickname := User.friends@nickname,
+
+                # total card count across the deck
+                #
+                total := sum(ALL User.friends.deck@count),
+                # group each deck by elements, adding up the counts
+                #
+                elements := (
+                    GROUP User.friends.deck
+                    BY User.friends.deck.element
+                    SELECT _ := (
+                        name := User.friends.deck.element,
+                        count := sum(ALL User.friends.deck@count),
+                    )
+                    ORDER BY _.name
+                )
+            ) ORDER BY _af.name;
+        """, [
+            [
+                {
+                    'name': ['Bob'],
+                    'nickname': 'Swampy',
+                    'total': 12,
+                    'elements': [
+                        {'name': 'Earth', 'count': 6},
+                        {'name': 'Water', 'count': 6}
+                    ]
+                },
+                {
+                    'name': ['Carol'],
+                    'nickname': 'Firefighter',
+                    'total': 19,
+                    'elements': [
+                        {'name': 'Air', 'count': 8},
+                        {'name': 'Earth', 'count': 6},
+                        {'name': 'Water', 'count': 5}
+                    ]
+                },
+                {
+                    'name': ['Dave'],
+                    'nickname': 'Grumpy',
+                    'total': 10,
+                    'elements': [
+                        {'name': 'Air', 'count': 6},
+                        {'name': 'Earth', 'count': 1},
+                        {'name': 'Fire', 'count': 1},
+                        {'name': 'Water', 'count': 2}
+                    ]
+                }
+            ]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_group_linkproperty_tuple01(self):
+        await self.assert_query_result(r"""
+            WITH MODULE testlp
+            GROUP
+                (SELECT User FILTER User.name = 'Dave').deck
+            BY
+                User.deck.element, User.deck@count
+            SELECT _ := (
+                cards := array_agg(
+                    ALL User.deck.name ORDER BY User.deck.name),
+                element := User.deck.element,
+                count := User.deck@count,
+            ) ORDER BY _.element ASC THEN _.count ASC;
+        """, [
+            [
+                # compare to test_edgeql_props_basic01
+                #
+                {
+                    'element': 'Air',
+                    'count': 1,
+                    'cards': ['Djinn', 'Giant eagle'],
+                },
+                {
+                    'element': 'Air',
+                    'count': 4,
+                    'cards': ['Sprite'],
+                },
+                {
+                    'element': 'Earth',
+                    'count': 1,
+                    'cards': ['Golem'],
+                },
+                {
+                    'element': 'Fire',
+                    'count': 1,
+                    'cards': ['Dragon'],
+                },
+                {
+                    'element': 'Water',
+                    'count': 1,
+                    'cards': ['Bog monster', 'Giant turtle'],
+                },
+            ]
         ])

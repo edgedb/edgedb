@@ -479,3 +479,29 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                 },
             ]
         ])
+
+    async def test_edgeql_props_basic05(self):
+        await self.assert_query_result(r'''
+            # get all the friends of Alice and their nicknames
+            #
+            WITH MODULE test
+            SELECT User {
+                name,
+                friends: {
+                    name,
+                    @nickname,
+                } ORDER BY .name,
+            }
+            FILTER .name = 'Alice';
+        ''', [
+            [
+                {
+                    'name': 'Alice',
+                    'friends': [
+                        {'name': 'Bob', '@nickname': 'Swampy'},
+                        {'name': 'Carol', '@nickname': 'Firefighter'},
+                        {'name': 'Dave', '@nickname': 'Grumpy'},
+                    ]
+                }
+            ]
+        ])
