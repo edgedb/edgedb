@@ -117,14 +117,18 @@ def ensure_correct_set(
     # Make sure that the set returned by the *query* does not
     # contain NULL values.
     restype = irutils.infer_type(stmt.result, ctx.schema)
-    if not isinstance(restype, (s_atoms.Atom, s_obj.Array, s_obj.Map)):
+    if not isinstance(restype, (s_concepts.Concept, s_atoms.Atom,
+                                s_obj.Array, s_obj.Map)):
+        return query
+
+    if not enforce_uniqueness and isinstance(restype, s_concepts.Concept):
         return query
 
     with ctx.new() as subctx:
         # This is a simple wrapper, make sure path bond
         # conditions do not get injected unnecessarily.
         subctx.path_bonds = {}
-        wrapper = wrap_set_rel_as_value(stmt.result, query, ctx=subctx)
+        wrapper = wrap_set_rel(stmt.result, query, ctx=subctx)
 
         if enforce_uniqueness:
             orig_sort = list(query.sort_clause)
@@ -157,9 +161,9 @@ def ensure_correct_set(
     return wrapper
 
 
-def wrap_set_rel_as_value(
+def wrap_set_rel(
         ir_set: irast.Set, set_rel: pgast.Query, *,
-        ctx: context.CompilerContext) -> pgast.Query:
+        as_value: bool=False, ctx: context.CompilerContext) -> pgast.Query:
     # For the *set_rel* relation representing the *ir_set*
     # return the following:
     #     (
@@ -193,7 +197,14 @@ def wrap_set_rel_as_value(
             path_scope = ctx.path_bonds
         relctx.enforce_path_scope(wrapper, path_scope, ctx=subctx)
 
-    return wrapper
+    result = wrapper
+
+    if as_value:
+        rptr = ir_set.rptr
+        if not rptr.ptrcls.singular(rptr.direction):
+            result = output.set_to_array(query=result, env=ctx.env)
+
+    return result
 
 
 def wrap_set_rel_as_bool_disjunction(
@@ -735,7 +746,7 @@ def process_set_as_func_expr(
     """Populate the CTE for Set defined by a function call."""
     with ctx.new() as newctx:
         newctx.rel = stmt
-        newctx.in_member_test = False
+        newctx.expr_as_isolated_set = False
         newctx.expr_exposed = False
 
         expr = ir_set.expr
@@ -774,7 +785,7 @@ def process_set_as_agg_expr(
 
     with ctx.new() as newctx:
         newctx.rel = stmt
-        newctx.in_member_test = False
+        newctx.expr_as_isolated_set = False
 
         path_scope = set(ctx.stmt_path_scope)
 

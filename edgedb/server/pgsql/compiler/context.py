@@ -49,7 +49,8 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.stmt_hierarchy = {}
 
             self.clause = None
-            self.in_member_test = False
+            self.expr_as_isolated_set = False
+            self.expr_as_value = False
             self.expr_exposed = None
             self.lax_paths = 0
             self.correct_set_assumed = False
@@ -85,7 +86,8 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.stmt_hierarchy = prevlevel.stmt_hierarchy
 
             self.clause = prevlevel.clause
-            self.in_member_test = prevlevel.in_member_test
+            self.expr_as_isolated_set = prevlevel.expr_as_isolated_set
+            self.expr_as_value = prevlevel.expr_as_value
             self.expr_exposed = prevlevel.expr_exposed
             self.lax_paths = prevlevel.lax_paths
             self.correct_set_assumed = prevlevel.correct_set_assumed
@@ -115,7 +117,8 @@ class CompilerContextLevel(compiler.ContextLevel):
                 self.rel = self.query
 
                 self.clause = 'result'
-                self.in_member_test = False
+                self.expr_as_isolated_set = False
+                self.expr_as_value = False
                 self.lax_paths = (
                     prevlevel.lax_paths - 1 if prevlevel.lax_paths else 0)
                 self.correct_set_assumed = False

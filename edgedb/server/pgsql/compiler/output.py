@@ -65,19 +65,9 @@ def serialize_expr(
 
 
 def set_to_array(
-        env: context.Environment, expr: pgast.Base) -> pgast.Query:
+        env: context.Environment, query: pgast.Query) -> pgast.Query:
     """Convert a set query into an array."""
-    if not isinstance(expr, pgast.SelectStmt):
-        query = pgast.SelectStmt(
-            target_list=[
-                pgast.ResTarget(val=expr)
-            ]
-        )
-    else:
-        query = expr
-
-    rt = query.target_list[0]
-    rt.name = env.aliases.get('r')
+    rt_name = ensure_query_restarget_name(query, env=env)
 
     subrvar = pgast.RangeSubselect(
         subquery=query,
@@ -92,8 +82,8 @@ def set_to_array(
                 val=pgast.FuncCall(
                     name=('array_agg',),
                     args=[
-                        dbobj.get_column(subrvar, rt.name)
-                    ]
+                        dbobj.get_column(subrvar, rt_name)
+                    ],
                 )
             )
         ],

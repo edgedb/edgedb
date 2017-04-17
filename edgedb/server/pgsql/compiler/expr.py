@@ -28,6 +28,7 @@ from . import context
 from . import dispatch
 from . import expr as expr_compiler  # NOQA
 from . import output
+from . import pathctx
 from . import relctx
 from . import relgen
 from . import typecomp
@@ -293,7 +294,7 @@ def compile_BinOp(
 
         if expr.op in (ast.ops.IN, ast.ops.NOT_IN):
             with newctx.new() as subctx:
-                subctx.in_member_test = True
+                subctx.expr_as_isolated_set = True
                 right = dispatch.compile(expr.right, ctx=subctx)
 
         else:
@@ -319,8 +320,7 @@ def compile_BinOp(
             right_type = None
 
         if (expr.op in (ast.ops.IN, ast.ops.NOT_IN) and
-                isinstance(irutils.infer_type(expr.right, ctx.schema),
-                           s_obj.Array)):
+                isinstance(right_type, s_obj.Array)):
 
             if isinstance(left_type, s_atoms.Atom) and left_type.bases:
                 # Cast atom refs to the base type in aggregate expressions,
@@ -578,20 +578,46 @@ def compile_Set(
     if ctx.singleton_mode:
         return _compile_set_in_singleton_mode(expr, ctx=ctx)
 
-    source_cte = relgen.set_to_cte(expr, ctx=ctx)
+    has_shape = (
+        bool(expr.shape) and
+        (ctx.expr_exposed or
+         ctx.shape_format == context.ShapeFormat.FLAT)
+    )
 
     if ctx.clause == 'where' and ctx.rel is ctx.stmt:
         # When referred to in WHERE
         # we want to wrap the set CTE into
         #    EXISTS(SELECT * FROM SetCTE WHERE SetCTE.expr)
+        source_cte = relgen.set_to_cte(expr, ctx=ctx)
         result = relgen.wrap_set_rel_as_bool_disjunction(
             expr, source_cte, ctx=ctx)
 
-    elif ctx.clause == 'offsetlimit' or ctx.in_member_test:
+    elif ctx.expr_as_isolated_set or ctx.expr_as_value:
         # When referred to in OFFSET/LIMIT we want to wrap the
         # set CTE into
         #    SELECT v FROM SetCTE
-        result = relgen.wrap_set_rel_as_value(expr, source_cte, ctx=ctx)
+        with ctx.subquery() as subctx:
+            source_cte = relgen.set_to_cte(expr, ctx=subctx)
+
+            relctx.include_range(
+                subctx.rel, source_cte, join_type='inner', ctx=subctx)
+
+            if has_shape:
+                shape = _compile_shape(expr, ctx=subctx)
+                alias = ctx.env.aliases.get('v')
+                subctx.rel.target_list = [
+                    pgast.ResTarget(
+                        val=shape,
+                        name=alias,
+                    )
+                ]
+                pathctx.put_path_output(
+                    ctx.env, subctx.rel, expr.path_id, alias)
+
+            source_cte = subctx.rel
+
+        result = relgen.wrap_set_rel(
+            expr, source_cte, as_value=ctx.expr_as_value, ctx=ctx)
 
     else:
         # Otherwise we join the range directly into the current rel
@@ -601,16 +627,18 @@ def compile_Set(
         else:
             join_type = 'inner'
 
+        source_cte = relgen.set_to_cte(expr, ctx=ctx)
+
         source_rvar = relctx.include_range(
             ctx.rel, source_cte, join_type=join_type,
             lateral=True, ctx=ctx)
 
         result = relgen.get_var_for_set_expr(expr, source_rvar, ctx=ctx)
 
-    if expr.shape:
-        shape = _compile_shape(expr, ctx=ctx)
-        if shape is not None:
-            result = shape
+        if has_shape:
+            shape = _compile_shape(expr, ctx=ctx)
+            if shape is not None:
+                result = shape
 
     return result
 
@@ -639,20 +667,12 @@ def _tuple_to_row_expr(tuple_expr, *, ctx):
 
 
 def _compile_shape(
-        ir_set: irast.Set, *,
-        ctx: context.CompilerContext) \
+        ir_set: irast.Set, *, ctx: context.CompilerContext) \
         -> typing.Union[pgast.Base, astutils.ResTargetList]:
     my_elements = []
     attribute_map = []
-    idref = None
 
-    # The shape is ignored if the expression is not slated for output.
-    ignore_shape = (
-        not ctx.expr_exposed and
-        ctx.shape_format != context.ShapeFormat.FLAT
-    )
-
-    for i, e in enumerate(ir_set.shape):
+    for e in ir_set.shape:
         rptr = e.rptr
         cset = irutils.get_canonical_set(e)
         ptrcls = rptr.ptrcls
@@ -660,37 +680,14 @@ def _compile_shape(
         is_singleton = ptrcls.singular(ptrdir)
         ptrname = ptrcls.shortname
 
-        # This shape is not slated for output, ignore it altogether.
-        if ignore_shape and ptrname != 'std::id':
-            continue
-
         with ctx.new() as newctx:
-            newctx.path_bonds = newctx.path_bonds.copy()
-
-            if (not is_singleton or irutils.is_subquery_set(cset) or
-                    irutils.is_inner_view_reference(cset) or
-                    isinstance(cset.scls, s_concepts.Concept)):
-                with newctx.subquery() as qctx:
-                    element = dispatch.compile(e, ctx=qctx)
-                    qctx.query.target_list = [
-                        pgast.ResTarget(
-                            val=element
-                        )
-                    ]
-
-                relctx.enforce_path_scope(
-                    qctx.query, newctx.path_bonds, ctx=newctx)
-
-                if not is_singleton:
-                    # Auto-aggregate non-singleton computables.
-                    element = output.set_to_array(ctx.env, qctx.query)
-                else:
-                    element = qctx.query
-            else:
-                element = dispatch.compile(e, ctx=newctx)
-
-        if ptrname == 'std::id':
-            idref = element
+            newctx.expr_as_value = (
+                not is_singleton or
+                irutils.is_subquery_set(cset) or
+                irutils.is_inner_view_reference(cset) or
+                isinstance(cset.scls, s_concepts.Concept)
+            )
+            element = dispatch.compile(e, ctx=newctx)
 
         attr_name = s_pointers.PointerVector(
             name=ptrname.name, module=ptrname.module,
@@ -704,13 +701,10 @@ def _compile_shape(
             attribute_map.append(attr_name)
             my_elements.append(element)
 
-    if ignore_shape:
-        result = idref
-    else:
-        result = astutils.ResTargetList(my_elements, attribute_map)
+    result = astutils.ResTargetList(my_elements, attribute_map)
 
-        if ctx.shape_format == context.ShapeFormat.SERIALIZED:
-            result = output.serialize_expr(ctx, result)
+    if ctx.shape_format == context.ShapeFormat.SERIALIZED:
+        result = output.serialize_expr(ctx, result)
 
     return result
 

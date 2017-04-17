@@ -108,6 +108,7 @@ def compile_SelectStmt(
         if stmt.offset:
             with ctx.new() as ctx1:
                 ctx1.clause = 'offsetlimit'
+                ctx1.expr_as_isolated_set = True
                 ctx1.expr_exposed = False
                 query.limit_offset = dispatch.compile(stmt.offset, ctx=ctx1)
 
@@ -115,6 +116,7 @@ def compile_SelectStmt(
         if stmt.limit:
             with ctx.new() as ctx1:
                 ctx1.clause = 'offsetlimit'
+                ctx1.expr_as_isolated_set = True
                 ctx1.expr_exposed = False
                 query.limit_count = dispatch.compile(stmt.limit, ctx=ctx1)
 
