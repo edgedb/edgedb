@@ -201,20 +201,6 @@ def compile_shape_el(
     else:
         recurse = None
 
-    where = clauses.compile_where_clause(shape_el.where, ctx=ctx)
-    orderby = clauses.compile_orderby_clause(shape_el.orderby, ctx=ctx)
-
-    if shape_el.offset is not None:
-        offset = dispatch.compile(shape_el.offset, ctx=ctx)
-    else:
-        offset = None
-
-    if shape_el.limit is not None:
-        limit = dispatch.compile(shape_el.limit, ctx=ctx)
-    else:
-        limit = None
-
-    ptr_singular = ptrcls.singular(ptr_direction)
     ptr_node = targetstep.rptr
 
     if _recurse and shape_el.elements:
@@ -237,9 +223,20 @@ def compile_shape_el(
     else:
         el = targetstep
 
-    if ((not ptr_singular or recurse is not None) and
-            el is not None and shape_el.compexpr is None and
-            not isinstance(ctx.stmt, irast.MutatingStmt)):
+    where = clauses.compile_where_clause(shape_el.where, ctx=ctx)
+    orderby = clauses.compile_orderby_clause(shape_el.orderby, ctx=ctx)
+
+    if shape_el.offset is not None:
+        offset = dispatch.compile(shape_el.offset, ctx=ctx)
+    else:
+        offset = None
+
+    if shape_el.limit is not None:
+        limit = dispatch.compile(shape_el.limit, ctx=ctx)
+    else:
+        limit = None
+
+    if where is not None or orderby or offset is not None or limit is not None:
         substmt = irast.SelectStmt(
             result=el,
             where=where,
