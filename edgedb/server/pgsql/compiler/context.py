@@ -54,6 +54,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.expr_exposed = None
             self.lax_paths = 0
             self.correct_set_assumed = False
+            self.unique_set_assumed = False
             self.expr_injected_path_bond = None
             self.view_path_id_map = {}
 
@@ -91,6 +92,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.expr_exposed = prevlevel.expr_exposed
             self.lax_paths = prevlevel.lax_paths
             self.correct_set_assumed = prevlevel.correct_set_assumed
+            self.unique_set_assumed = prevlevel.unique_set_assumed
             self.expr_injected_path_bond = prevlevel.expr_injected_path_bond
             self.view_path_id_map = prevlevel.view_path_id_map
 
@@ -122,6 +124,7 @@ class CompilerContextLevel(compiler.ContextLevel):
                 self.lax_paths = (
                     prevlevel.lax_paths - 1 if prevlevel.lax_paths else 0)
                 self.correct_set_assumed = False
+                self.unique_set_assumed = False
                 self.view_path_id_map = {}
 
                 self.ctemap = prevlevel.ctemap.copy()

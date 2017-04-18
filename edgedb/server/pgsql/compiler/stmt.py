@@ -121,8 +121,13 @@ def compile_SelectStmt(
                 query.limit_count = dispatch.compile(stmt.limit, ctx=ctx1)
 
         if not parent_ctx.correct_set_assumed and not simple_wrapper:
+            enforce_uniqueness = (
+                (query is ctx.toplevel_stmt or ctx.expr_exposed) and
+                not parent_ctx.unique_set_assumed
+            )
+            # enforce_uniqueness = query is ctx.toplevel_stmt
             query = relgen.ensure_correct_set(
-                stmt, query, query is ctx.toplevel_stmt, ctx=ctx)
+                stmt, query, enforce_uniqueness=enforce_uniqueness, ctx=ctx)
 
         boilerplate.fini_stmt(query, ctx, parent_ctx)
 
@@ -206,6 +211,8 @@ def compile_GroupStmt(
 
             pathctx.put_path_output(
                 ctx.env, gquery, group_path_id, gid_alias, raw=True)
+            pathctx.put_path_output(
+                ctx.env, gquery, group_path_id, gid_alias, raw=False)
             pathctx.put_path_bond(gquery, group_path_id)
 
         group_cte = pgast.CommonTableExpr(
@@ -235,6 +242,8 @@ def compile_GroupStmt(
                     )
                     pathctx.put_path_output(
                         ctx.env, gvctx.query, path_id, alias, raw=True)
+                    pathctx.put_path_output(
+                        ctx.env, gvctx.query, path_id, alias, raw=False)
                     pathctx.put_path_bond(gvctx.query, path_id)
                     gvctx.stmt_path_scope[path_id] = 1
 

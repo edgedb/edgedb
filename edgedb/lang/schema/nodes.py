@@ -7,6 +7,7 @@
 
 
 from . import named
+from . import objects
 from . import primary
 
 
@@ -19,5 +20,5 @@ class NodeCommand(named.NamedClassCommand):
     pass
 
 
-class Node(primary.PrimaryClass):
+class Node(primary.PrimaryClass, objects.NodeClass):
     pass

@@ -610,7 +610,6 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_props_implication01(self):
         await self.assert_query_result(r'''
             # count of 1 in at least some deck implies 'Fire'

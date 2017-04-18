@@ -161,7 +161,8 @@ def ensure_correct_rvar_for_expr(
         subqry = pgast.SelectStmt(
             target_list=[restarget]
         )
-        pathctx.put_path_output(ctx.env, subqry, ir_set, restarget.name)
+        pathctx.put_path_output(ctx.env, subqry, ir_set, restarget.name,
+                                raw=True)
         include_range(stmt, subqry, lateral=True, ctx=ctx)
         pathctx.rel_join(ctx.env, stmt, root_rvar)
         pathctx.put_path_rvar(ctx.env, stmt, ir_set.path_id, root_rvar)
@@ -196,36 +197,36 @@ def get_parent_range_scope(
     return ctx.computed_node_rels.get(ir_set)
 
 
-def put_set_cte(
-        ir_set: irast.Set, cte: pgast.BaseRelation, *,
-        lax: typing.Optional[bool]=None,
-        ctx: context.CompilerContext) -> pgast.BaseRelation:
-    if lax is None:
-        lax = ctx.lax_paths
-
+def get_ctemap_key(
+        ir_set: irast.Set, *, lax: typing.Optional[bool]=None,
+        semi: typing.Optional[bool]=False,
+        ctx: context.CompilerContext) -> tuple:
     ir_set = irutils.get_canonical_set(ir_set)
 
     if ir_set.rptr is not None and ir_set.expr is None:
-        key = (ir_set, lax)
+        if lax is None:
+            lax = bool(ctx.lax_paths)
+        key = (ir_set, lax, semi)
     else:
-        key = (ir_set, False)
+        key = (ir_set, False, False)
 
+    return key
+
+
+def put_set_cte(
+        ir_set: irast.Set, cte: pgast.BaseRelation, *,
+        lax: typing.Optional[bool]=None,
+        semi: typing.Optional[bool]=False,
+        ctx: context.CompilerContext) -> pgast.BaseRelation:
+    key = get_ctemap_key(ir_set, lax=lax, semi=semi, ctx=ctx)
     ctx.ctemap[key] = cte
     ctx.ctemap_by_stmt[ctx.stmt][key] = cte
-
     return cte
 
 
 def get_set_cte(
         ir_set: irast.Set, *, lax: typing.Optional[bool]=None,
+        semi: typing.Optional[bool]=False,
         ctx: context.CompilerContext) -> typing.Optional[pgast.BaseRelation]:
-    ir_set = irutils.get_canonical_set(ir_set)
-
-    if lax is not None:
-        key = (ir_set, lax)
-    elif ir_set.rptr is not None and ir_set.expr is None:
-        key = (ir_set, ctx.lax_paths)
-    else:
-        key = (ir_set, False)
-
+    key = get_ctemap_key(ir_set, lax=lax, semi=semi, ctx=ctx)
     return ctx.ctemap.get(key)

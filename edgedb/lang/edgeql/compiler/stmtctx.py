@@ -17,6 +17,7 @@ from edgedb.lang.schema import concepts as s_concepts
 from edgedb.lang.schema import links as s_links
 from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import name as sn
+from edgedb.lang.schema import nodes as s_nodes
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import schema as s_schema
@@ -134,7 +135,7 @@ def declare_view(
         c = result_type.__class__(name=view_name, bases=[result_type])
         c.acquire_ancestor_inheritance(ctx.schema)
     else:
-        c = s_concepts.Concept(name=view_name)
+        c = s_nodes.Node(name=view_name)
 
     path_id = irast.PathId([c])
 

@@ -60,6 +60,7 @@ def get_id_path_id(
         schema: s_schema.Schema,
         path_id: irast.PathId) -> irast.PathId:
     """For PathId representing an object, return (PathId).(std::id)."""
+    assert isinstance(path_id[-1], s_concepts.Concept)
     return path_id.extend(
         schema.get('std::id'),
         s_pointers.PointerDirection.Outbound,
@@ -121,7 +122,7 @@ def reverse_map_path_id(
 
 def get_path_var(
         env: context.Environment, rel: pgast.Query,
-        path_id: irast.PathId) -> pgast.ColumnRef:
+        path_id: irast.PathId, *, raw: bool=True) -> pgast.ColumnRef:
     """Return ColumnRef for a given *path_id* in a given *rel*."""
     if isinstance(rel, pgast.CommonTableExpr):
         rel = rel.query
@@ -129,8 +130,8 @@ def get_path_var(
     if isinstance(path_id[-1], s_concepts.Concept):
         path_id = get_id_path_id(env.schema, path_id)
 
-    if path_id in rel.path_namespace:
-        return rel.path_namespace[path_id]
+    if (path_id, raw) in rel.path_namespace:
+        return rel.path_namespace[path_id, raw]
 
     if rel.as_type:
         # Relation represents the result of a type filter ([IS Type]).
@@ -153,10 +154,11 @@ def get_path_var(
             get_path_output_or_null,
             env=env,
             path_id=path_id,
-            alias=alias)
+            alias=alias,
+            raw=raw)
 
         astutils.for_each_query_in_set(rel, cb)
-        put_path_output(env, rel, path_id, alias)
+        put_path_output(env, rel, path_id, alias, raw=raw)
         return dbobj.get_column(None, alias)
 
     ptr_info = parent_ptr_info = parent_ptrcls = parent_dir = None
@@ -230,7 +232,7 @@ def get_path_var(
             drilldown_path_id = map_path_id(
                 drilldown_path_id, path_id_map)
 
-        colname = get_path_output(env, source_rel, drilldown_path_id)
+        colname = get_path_output(env, source_rel, drilldown_path_id, raw=raw)
 
     else:
         if not isinstance(ptrcls, s_lprops.LinkProperty):
@@ -251,8 +253,8 @@ def get_path_var(
 
     canonical_path_id = get_canonical_path_id(env.schema, path_id)
 
-    rel.path_namespace[path_id] = fieldref
-    rel.path_namespace[canonical_path_id] = fieldref
+    rel.path_namespace[path_id, raw] = fieldref
+    rel.path_namespace[canonical_path_id, raw] = fieldref
 
     return fieldref
 
@@ -327,12 +329,10 @@ def get_path_output(
     path_id = proper_path_id(env.schema, path_id)
 
     result = rel.path_outputs.get((path_id, raw))
-    if result is None and not raw:
-        result = rel.path_outputs.get((path_id, True))
     if result is not None:
         return result
 
-    ref = get_path_var(env, rel, path_id)
+    ref = get_path_var(env, rel, path_id, raw=raw)
     set_op = getattr(rel, 'op', None)
     if set_op is not None:
         alias = ref.name[0]
@@ -354,9 +354,9 @@ def get_path_output(
 
 def get_path_output_or_null(
         rel: pgast.Query, path_id: irast.PathId,
-        alias: str, *, env: context.Environment) -> str:
+        alias: str, *, raw: bool=False, env: context.Environment) -> str:
     try:
-        alias = get_path_output(env, rel, path_id, alias=alias)
+        alias = get_path_output(env, rel, path_id, alias=alias, raw=raw)
     except LookupError:
         restarget = pgast.ResTarget(
             name=alias,
@@ -376,6 +376,9 @@ def put_path_output(
     canonical_path_id = get_canonical_path_id(env.schema, path_id)
     stmt.path_outputs[path_id, raw] = alias
     stmt.path_outputs[canonical_path_id, raw] = alias
+    if not isinstance(canonical_path_id[-1], s_concepts.Concept) and not raw:
+        stmt.path_outputs[path_id, True] = alias
+        stmt.path_outputs[canonical_path_id, True] = alias
 
 
 def full_inner_bond_condition(
@@ -487,8 +490,6 @@ def join_mapping_rel(
         env: context.Environment, *,
         stmt: pgast.Query, set_rvar: pgast.BaseRangeVar,
         ir_set: irast.Set, map_join_type: str='inner', semi: bool=False):
-    fromexpr = stmt.from_clause[0]
-
     link = ir_set.rptr
     if isinstance(link.ptrcls, s_lprops.LinkProperty):
         link = link.source.rptr
@@ -531,39 +532,56 @@ def join_mapping_rel(
         # Join link relation to source relation
         #
         map_join = pgast.JoinExpr(
-            larg=fromexpr,
+            larg=stmt.from_clause[0],
             rarg=map_rvar,
             type=map_join_type,
             quals=map_join_cond
         )
 
-        put_path_rvar(env, stmt, link_path_id, map_rvar)
-        stmt.ptr_join_map[link_path_id] = map_join
+        if not semi:
+            put_path_rvar(env, stmt, link_path_id, map_rvar)
+            stmt.ptr_join_map[link_path_id] = map_join
 
-    if isinstance(ir_set.scls, s_concepts.Concept) and not semi:
+    if isinstance(ir_set.scls, s_concepts.Concept):
         if map_join_type == 'left':
             set_rvar.nullable = True
 
-        # Join the target relation, if we have it
-        target_range_bond = get_rvar_path_var(env, set_rvar, ir_set.path_id)
+        target_range_bond = get_rvar_path_var(
+            env, set_rvar, ir_set.path_id)
 
         if link.direction == s_pointers.PointerDirection.Inbound:
             map_tgt_ref = source_ref
         else:
             map_tgt_ref = target_ref
 
-        cond_expr = astutils.new_binop(map_tgt_ref, target_range_bond, op='=')
+        if semi:
+            source_sq = pgast.SelectStmt(
+                target_list=[
+                    pgast.ResTarget(
+                        val=map_tgt_ref,
+                        name=env.aliases.get('t')
+                    )
+                ],
+                from_clause=[
+                    map_join
+                ]
+            )
 
-        # We use inner join for target relations to make sure this join
-        # relation is not producing dangling links, either as a result
-        # of partial data, or query constraints.
-        #
-        if map_join.rarg is None:
-            map_join.rarg = set_rvar
-            map_join.quals = cond_expr
-            map_join.type = 'inner'
+            cond = astutils.new_binop(
+                target_range_bond,
+                source_sq,
+                'IN'
+            )
+
+            stmt.where_clause = astutils.extend_binop(stmt.where_clause, cond)
+
+            map_join = set_rvar
 
         else:
+            # Join the target relation.
+            cond_expr = astutils.new_binop(
+                map_tgt_ref, target_range_bond, op='=')
+
             pre_map_join = map_join.copy()
             new_map_join = pgast.JoinExpr(
                 type=map_join_type,
@@ -572,7 +590,7 @@ def join_mapping_rel(
                 quals=cond_expr)
             map_join.copyfrom(new_map_join)
 
-    stmt.from_clause[0] = map_join
+    stmt.from_clause[:] = [map_join]
 
     return map_rvar, far_ref
 

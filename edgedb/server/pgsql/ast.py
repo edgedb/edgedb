@@ -208,7 +208,7 @@ class Query(BaseRelation, EdgeQLPathInfo):
 
     path_rvar_map: typing.Dict[irast.PathId, BaseRangeVar]
                                     # Map of RanveVars corresponding to paths.
-    path_namespace: typing.Dict[irast.PathId, ColumnRef]
+    path_namespace: dict
                                     # Map of col refs corresponding to paths.
     path_outputs: dict              # Map of res target names corresponding
                                     # to paths.

@@ -150,6 +150,25 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         };
     """
 
+    async def test_edgeql_select_unique01(self):
+        await self.assert_query_result('''
+            WITH MODULE test
+            SELECT
+                Issue.watchers.<owner[IS Issue] {
+                    name
+                } ORDER BY .name;
+        ''', [
+            [{
+                'name': 'Improve EdgeDB repl output rendering.',
+            }, {
+                'name': 'Regression.',
+            }, {
+                'name': 'Release EdgeDB',
+            }, {
+                'name': 'Repl tweak.',
+            }]
+        ])
+
     async def test_edgeql_select_computable01(self):
         await self.assert_query_result('''
             WITH MODULE test
@@ -1091,7 +1110,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 name,
                 <owner: Issue {
                     number
-                } ORDER BY User.<owner[IS Issue].number DESC,
+                } ORDER BY .number DESC,
             } ORDER BY User.name;
         ''', [
             [{
@@ -1866,7 +1885,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_exists20(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -3797,17 +3815,15 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_uniqueness01(self):
         await self.assert_query_result(r'''
-            WITH MODULE test,
+            WITH MODULE test
             SELECT Issue.owner{name}
             ORDER BY Issue.owner.name;
         ''', [[
             {'name': 'Elvis'}, {'name': 'Yury'},
         ]])
 
-    @unittest.expectedFailure
     async def test_edgeql_uniqueness02(self):
         await self.assert_query_result(r'''
             WITH
@@ -3823,7 +3839,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [4, 2, 2, 2]
         ]])
 
-    @unittest.expectedFailure
     async def test_edgeql_uniqueness03(self):
         await self.assert_query_result(r'''
             WITH
@@ -3839,7 +3854,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [4, 1, 1, 1]
         ]])
 
-    @unittest.expectedFailure
     async def test_edgeql_uniqueness04(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -3860,7 +3874,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }
         ]])
 
-    @unittest.expectedFailure
     async def test_edgeql_uniqueness05(self):
         await self.assert_query_result(r'''
             WITH

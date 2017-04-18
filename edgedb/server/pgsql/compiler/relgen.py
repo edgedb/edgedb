@@ -113,6 +113,7 @@ def set_to_cte(
 def ensure_correct_set(
         stmt: irast.Stmt, query: pgast.Query,
         enforce_uniqueness: bool=False, *,
+        path_id: irast.PathId=None,
         ctx: context.CompilerContext) -> pgast.Query:
     # Make sure that the set returned by the *query* does not
     # contain NULL values.
@@ -123,6 +124,9 @@ def ensure_correct_set(
 
     if not enforce_uniqueness and isinstance(restype, s_concepts.Concept):
         return query
+
+    if path_id is None:
+        path_id = stmt.result.path_id
 
     with ctx.new() as subctx:
         # This is a simple wrapper, make sure path bond
@@ -136,9 +140,19 @@ def ensure_correct_set(
                 query.target_list.append(
                     pgast.ResTarget(val=sortby.node, name=f's{i}')
                 )
-            query.sort_clause = [pgast.SortBy(node=pgast.Constant(val=1))]
 
-            query.distinct_clause = [pgast.Star()]
+            if isinstance(stmt.result.expr, irast.TupleIndirection):
+                ref = query.target_list[0].val
+            else:
+                ref = pathctx.get_path_var(ctx.env, query, path_id)
+
+            query.distinct_clause = [ref]
+            query.sort_clause = [ref]
+
+            wrapper.limit_offset = query.limit_offset
+            wrapper.limit_count = query.limit_count
+            query.limit_offset = None
+            query.limit_count = None
 
             for i, orig_sortby in enumerate(orig_sort):
                 wrapper.sort_clause.append(
@@ -150,7 +164,7 @@ def ensure_correct_set(
                     )
                 )
 
-    resref = pathctx.get_path_var(ctx.env, wrapper, stmt.result.path_id)
+    resref = pathctx.get_path_var(ctx.env, wrapper, path_id)
     wrapper.where_clause = astutils.extend_binop(
         wrapper.where_clause, pgast.NullTest(arg=resref, negated=True))
 
@@ -346,7 +360,6 @@ def process_set_as_path_step(
     """Populate the CTE for Set defined by a single path step."""
     rptr = ir_set.rptr
     ptrcls = rptr.ptrcls
-    fromlist = stmt.from_clause
 
     # Path is a reference to Atom.__class__.
     is_atom_class_ref = (
@@ -383,24 +396,20 @@ def process_set_as_path_step(
         ir_source = ir_set.rptr.source
 
         if return_parent:
-            source_cte = set_to_cte(ir_source, ctx=newctx)
-            if isinstance(source_cte, pgast.CommonTableExpr):
-                source_query = source_cte.query
-            else:
-                source_query = source_cte
+            source_rel = set_to_cte(ir_source, ctx=newctx)
         else:
             with newctx.new() as srcctx:
                 srcctx.expr_exposed = False
-
-                subrels = srcctx.subquery_map[stmt]
                 source_rel = set_to_cte(ir_source, ctx=srcctx)
-                if source_rel not in subrels:
-                    relctx.include_range(
-                        stmt, source_rel, join_type='inner',
-                        lateral=True, ctx=srcctx)
 
-            path_rvar = fromlist[0]
-            source_query = path_rvar.query
+            relctx.include_range(
+                stmt, source_rel, join_type='inner',
+                lateral=True, ctx=srcctx)
+
+        if isinstance(source_rel, pgast.CommonTableExpr):
+            source_query = source_rel.query
+        else:
+            source_query = source_rel
 
         set_rvar = relctx.get_root_rvar(
             ir_set, stmt, nullable=ctx.lax_paths > 0, ctx=newctx)
@@ -411,6 +420,8 @@ def process_set_as_path_step(
                 ctx.env, stmt=stmt, set_rvar=set_rvar, ir_set=ir_set)
 
         else:
+            map_join_type = 'left' if ctx.lax_paths else 'inner'
+
             if is_link_prop_ref:
                 # Reference to a link property.
                 pathctx.join_mapping_rel(
@@ -419,8 +430,7 @@ def process_set_as_path_step(
                     ir_set=ir_set, map_join_type='left')
 
             elif is_mapped_target_ref:
-                map_join_type = 'left' if ctx.lax_paths else 'inner'
-
+                # Reference to an object through a link relation.
                 pathctx.join_mapping_rel(
                     ctx.env,
                     stmt=stmt, set_rvar=set_rvar, ir_set=ir_set,
@@ -428,8 +438,6 @@ def process_set_as_path_step(
 
             elif is_concept_ref:
                 # Direct reference to another object.
-                map_join_type = 'left' if ctx.lax_paths else 'inner'
-
                 pathctx.join_inline_rel(
                     ctx.env,
                     stmt=stmt, set_rvar=set_rvar, ir_set=ir_set,
@@ -442,12 +450,10 @@ def process_set_as_path_step(
                 pass
 
     if return_parent:
-        relctx.put_set_cte(ir_set, source_cte, ctx=ctx)
+        relctx.put_set_cte(ir_set, source_rel, ctx=ctx)
     else:
         cte = relctx.get_set_cte(ir_set, ctx=ctx)
-        cte_parent = ctx.query
-
-        cte_parent.ctes.append(cte)
+        ctx.query.ctes.append(cte)
 
 
 def process_set_as_view(
@@ -470,7 +476,8 @@ def process_set_as_view(
 
         subquery = dispatch.compile(ir_set.expr, ctx=newctx)
 
-        if isinstance(ir_set.scls, s_concepts.Concept):
+        restype = irutils.infer_type(ir_set, ctx.schema)
+        if not isinstance(restype, s_obj.Tuple):
             s_rvar = pgast.RangeSubselect(
                 subquery=subquery,
                 alias=pgast.Alias(
@@ -479,7 +486,9 @@ def process_set_as_view(
             )
 
             subquery = wrap_view_ref(
-                ir_set.real_path_id, ir_set.path_id, s_rvar, ctx=newctx)
+                ir_set, ir_set.real_path_id, ir_set.path_id,
+                s_rvar, ctx=newctx)
+
             pathctx.get_path_output(ctx.env, subquery, ir_set.path_id)
 
         for path_id in list(subquery.path_bonds):
@@ -558,7 +567,8 @@ def process_set_as_view_inner_reference(
 
                 # Wrap the view rel for proper path_id translation.
                 wrapper = wrap_view_ref(
-                    src.path_id, src_ir_set.path_id, source_rvar, ctx=newctx)
+                    src_ir_set, src.path_id, src_ir_set.path_id,
+                    source_rvar, ctx=newctx)
                 # Finally, map the source Set to the wrapper.
                 relctx.put_parent_range_scope(
                     src_ir_set, wrapper, ctx=newctx)
@@ -607,7 +617,10 @@ def process_set_as_view_inner_reference(
 
     # We inhibited ensure_correct_set above.  Now that we are done with
     # the query, ensure set correctness explicitly.
-    subquery = ensure_correct_set(inner_set.expr, subquery, ctx=ctx)
+    subquery = ensure_correct_set(inner_set.expr, subquery,
+                                  enforce_uniqueness=True,
+                                  path_id=ir_set.path_id,
+                                  ctx=ctx)
 
     rt_name = output.ensure_query_restarget_name(
         subquery, hint=cte.name, env=ctx.env)
@@ -624,6 +637,7 @@ def process_set_as_setop(
     expr = ir_set.expr
 
     with ctx.new() as newctx:
+        newctx.unique_set_assumed = True
         newctx.path_bonds = ctx.parent_path_bonds.copy()
         newctx.view_path_id_map = {
             ir_set.path_id: expr.left.result.path_id
@@ -813,6 +827,8 @@ def process_set_as_agg_expr(
                     for p in funcobj.paramtypes) and
                 irutils.is_polymorphic_type(funcobj.returntype)
             )
+
+            argctx.unique_set_assumed = True
 
             if not serialization_safe:
                 argctx.expr_exposed = False
@@ -1011,6 +1027,7 @@ def process_set_as_exists_stmt_expr(
 
 
 def wrap_view_ref(
+        ir_set: irast.Set,
         inner_path_id: irast.PathId, outer_path_id: irast.PathId,
         view_rvar: pgast.BaseRangeVar, *,
         ctx: context.CompilerContext) -> pgast.SelectStmt:
@@ -1022,6 +1039,37 @@ def wrap_view_ref(
     )
 
     if isinstance(view_rvar, pgast.RangeSubselect):
+        query = view_rvar.subquery
+        orig_sort = list(query.sort_clause)
+        for i, sortby in enumerate(query.sort_clause):
+            query.target_list.append(
+                pgast.ResTarget(val=sortby.node, name=f's{i}')
+            )
+
+        if isinstance(ir_set.expr, irast.TupleIndirection):
+            ref = query.target_list[0].val
+        else:
+            ref = pathctx.get_path_var(
+                ctx.env, query, inner_path_id)
+
+        query.distinct_clause = [ref]
+        query.sort_clause = [ref]
+
+        wrapper.limit_offset = query.limit_offset
+        wrapper.limit_count = query.limit_count
+        query.limit_offset = None
+        query.limit_count = None
+
+        for i, orig_sortby in enumerate(orig_sort):
+            wrapper.sort_clause.append(
+                pgast.SortBy(
+                    node=dbobj.get_column(
+                        wrapper.from_clause[0], f's{i}'),
+                    dir=orig_sortby.dir,
+                    nulls=orig_sortby.nulls
+                )
+            )
+
         wrapper.ctes = view_rvar.subquery.ctes
         view_rvar.subquery.ctes = []
 
