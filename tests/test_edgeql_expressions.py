@@ -628,6 +628,17 @@ class TestExpressions(tb.QueryTestCase):
             [{'bar': 42}],
         ])
 
+    async def test_edgeql_expr_uniqueness04(self):
+        await self.assert_query_result('''
+            SELECT _ := (1 UNION 1 UNION 1) ORDER BY _;
+            SELECT _ := (1 UNION 2 UNION 3) ORDER BY _;
+            SELECT _ := (1 UNION 2 UNION 3 UNION 2 UNION 3) ORDER BY _;
+        ''', [
+            [1],
+            [1, 2, 3],
+            [1, 2, 3],
+        ])
+
     async def test_edgeql_expr_map01(self):
         await self.assert_query_result(r"""
             SELECT ['fo' + 'o' -> 42];
@@ -807,6 +818,15 @@ class TestExpressions(tb.QueryTestCase):
             {'ham': 3, 'spam': 2},
             {'ham': 4, 'spam': 2}
         ]])
+
+    async def test_edgeql_expr_struct02(self):
+        await self.assert_query_result('''\
+            SELECT (1, 2) = (1, 2);
+            SELECT (1, 2) UNION (1, 2);
+        ''', [
+            [True],
+            [[1, 2], [1, 2]],
+        ])
 
     async def test_edgeql_expr_coalesce01(self):
         await self.assert_query_result(r"""
@@ -1111,3 +1131,22 @@ class TestExpressions(tb.QueryTestCase):
             await self.con.execute(r'''
                 SELECT count(1);
             ''')
+
+    async def test_edgeql_expr_aggregate02(self):
+        await self.assert_query_result(r"""
+            SELECT count(DISTINCT 1 UNION 1 UNION 1);
+            SELECT count(DISTINCT 1 UNION 2 UNION 3);
+            SELECT count(DISTINCT 1 UNION 2 UNION 3 UNION 2 UNION 3);
+
+            SELECT count(ALL 1 UNION 1 UNION 1);
+            SELECT count(ALL 1 UNION 2 UNION 3);
+            SELECT count(ALL 1 UNION 2 UNION 3 UNION 2 UNION 3);
+        """, [
+            [1],
+            [3],
+            [3],
+
+            [3],
+            [3],
+            [5],
+        ])

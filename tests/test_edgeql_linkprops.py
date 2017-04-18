@@ -505,3 +505,296 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                 }
             ]
         ])
+
+    async def test_edgeql_props_cross01(self):
+        await self.assert_query_result(r'''
+            # get cards that have the same count in some deck as their cost
+            #
+            WITH MODULE test
+            SELECT Card {
+                name,
+            }
+            FILTER .cost = .<deck@count
+            ORDER BY .name;
+        ''', [
+            [
+                {'name': 'Giant turtle'},
+                {'name': 'Golem'},
+            ]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_props_cross02(self):
+        await self.assert_query_result(r'''
+            # get cards that have the same count in some deck as their cost
+            #
+            WITH MODULE test
+            SELECT Card {
+                name,
+                same := EXISTS (
+                    SELECT User
+                    FILTER
+                        Card.cost = User.deck@count AND
+                        Card = User.deck
+                )
+            }
+            ORDER BY .name;
+        ''', [
+            [
+                {'name': 'Bog monster', 'same': False},
+                {'name': 'Djinn', 'same': False},
+                {'name': 'Dragon', 'same': False},
+                {'name': 'Dwarf', 'same': False},
+                {'name': 'Giant eagle', 'same': False},
+                {'name': 'Giant turtle', 'same': True},
+                {'name': 'Golem', 'same': True},
+                {'name': 'Imp', 'same': False},
+                {'name': 'Sprite', 'same': False},
+            ]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_props_cross03(self):
+        await self.assert_query_result(r'''
+            # get cards that have the same count in some deck as their cost
+            #
+            WITH MODULE test
+            SELECT Card {
+                name,
+                same := (
+                    SELECT EXISTS User
+                    FILTER
+                        Card.cost = User.deck@count AND
+                        Card = User.deck
+                )
+            }
+            ORDER BY .name;
+        ''', [
+            [
+                {'name': 'Bog monster', 'same': False},
+                {'name': 'Djinn', 'same': False},
+                {'name': 'Dragon', 'same': False},
+                {'name': 'Dwarf', 'same': False},
+                {'name': 'Giant eagle', 'same': False},
+                {'name': 'Giant turtle', 'same': True},
+                {'name': 'Golem', 'same': True},
+                {'name': 'Imp', 'same': False},
+                {'name': 'Sprite', 'same': False},
+            ]
+        ])
+
+    async def test_edgeql_props_cross04(self):
+        await self.assert_query_result(r'''
+            # get cards that have the same count in some deck as their cost
+            #
+            WITH MODULE test
+            SELECT Card {
+                name,
+                same := (
+                    SELECT SINGLETON _ := Card.cost = Card.<deck@count
+                    ORDER BY _ DESC LIMIT 1
+                )
+            }
+            ORDER BY .name;
+        ''', [
+            [
+                {'name': 'Bog monster', 'same': False},
+                {'name': 'Djinn', 'same': False},
+                {'name': 'Dragon', 'same': False},
+                {'name': 'Dwarf', 'same': False},
+                {'name': 'Giant eagle', 'same': False},
+                {'name': 'Giant turtle', 'same': True},
+                {'name': 'Golem', 'same': True},
+                {'name': 'Imp', 'same': False},
+                {'name': 'Sprite', 'same': False},
+            ]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_props_implication01(self):
+        await self.assert_query_result(r'''
+            # count of 1 in at least some deck implies 'Fire'
+            #
+            WITH MODULE test
+            SELECT Card {
+                name,
+                element,
+                count := (SELECT _ := Card.<deck@count ORDER BY _),
+                expr := (
+                    SELECT _ := NOT Card.<deck@count = 1 OR
+                                Card.element = 'Fire'
+                    ORDER BY _ DESC LIMIT 1
+                )
+            }
+            ORDER BY .name;
+        ''', [
+            [
+                {
+                    'expr': [True],
+                    'name': 'Bog monster',
+                    'count': [1, 3],
+                    'element': 'Water',
+                },
+                {
+                    'expr': [False],
+                    'name': 'Djinn',
+                    'count': [1],
+                    'element': 'Air',
+                },
+                {
+                    'expr': [True],
+                    'name': 'Dragon',
+                    'count': [1, 2],
+                    'element': 'Fire',
+                },
+                {
+                    'expr': [True],
+                    'name': 'Dwarf',
+                    'count': [3, 4],
+                    'element': 'Earth',
+                },
+                {
+                    'expr': [True],
+                    'name': 'Giant eagle',
+                    'count': [1, 3],
+                    'element': 'Air',
+                },
+                {
+                    'expr': [True],
+                    'name': 'Giant turtle',
+                    'count': [1, 2, 3],
+                    'element': 'Water',
+                },
+                {
+                    'expr': [True],
+                    'name': 'Golem',
+                    'count': [1, 2, 3],
+                    'element': 'Earth',
+                },
+                {
+                    'expr': [True],
+                    'name': 'Imp',
+                    'count': [2],
+                    'element': 'Fire',
+                },
+                {
+                    'expr': [True],
+                    'name': 'Sprite',
+                    'count': [4],
+                    'element': 'Air',
+                },
+            ]
+        ])
+
+    async def test_edgeql_props_implication02(self):
+        await self.assert_query_result(r'''
+            # FILTER by NOT (count of 1 implies 'Fire') in at least some deck
+            #
+            WITH MODULE test
+            SELECT Card {
+                name,
+            }
+            FILTER NOT (NOT .<deck@count = 1 OR .element = 'Fire')
+            ORDER BY .name;
+        ''', [
+            [
+                # all of these have count of 1 in some deck and are not 'Fire'
+                #
+                {'name': 'Bog monster'},
+                {'name': 'Djinn'},
+                {'name': 'Giant eagle'},
+                {'name': 'Giant turtle'},
+                {'name': 'Golem'},
+            ]
+        ])
+
+    async def test_edgeql_props_implication03(self):
+        await self.assert_query_result(r'''
+            # same as above, refactored
+            #
+            WITH MODULE test
+            SELECT Card {
+                name,
+            }
+            FILTER .<deck@count = 1 AND .element != 'Fire'
+            ORDER BY .name;
+        ''', [
+            [
+                # all of these have count of 1 and are not 'Fire' in some deck
+                #
+                {'name': 'Bog monster'},
+                {'name': 'Djinn'},
+                {'name': 'Giant eagle'},
+                {'name': 'Giant turtle'},
+                {'name': 'Golem'},
+            ]
+        ])
+
+    async def test_edgeql_props_implication04(self):
+        await self.assert_query_result(r'''
+            # count of 1 implies 'Fire' in the deck of Dave
+            #
+            WITH MODULE test
+            SELECT User {
+                name,
+                deck: {
+                    name,
+                    element,
+                    @count,
+                    expr :=
+                        NOT User.deck@count = 1 OR User.deck.element = 'Fire'
+
+                }
+            }
+            FILTER .name = 'Dave';
+        ''', [
+            [
+                {
+                    'name': 'Dave',
+                    'deck': [
+                        {
+                            'name': 'Dragon',
+                            'expr': True,
+                            '@count': 1,
+                            'element': 'Fire',
+                        },
+                        {
+                            'name': 'Bog monster',
+                            'expr': False,
+                            '@count': 1,
+                            'element': 'Water',
+                        },
+                        {
+                            'name': 'Giant turtle',
+                            'expr': False,
+                            '@count': 1,
+                            'element': 'Water',
+                        },
+                        {
+                            'name': 'Golem',
+                            'expr': False,
+                            '@count': 1,
+                            'element': 'Earth',
+                        },
+                        {
+                            'name': 'Sprite',
+                            'expr': True,
+                            '@count': 4,
+                            'element': 'Air',
+                        },
+                        {
+                            'name': 'Giant eagle',
+                            'expr': False,
+                            '@count': 1,
+                            'element': 'Air',
+                        },
+                        {
+                            'name': 'Djinn',
+                            'expr': False,
+                            '@count': 1,
+                            'element': 'Air',
+                        },
+                    ],
+                }
+            ]
+        ])

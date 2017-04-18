@@ -524,6 +524,58 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             }],
         ])
 
+    async def test_edgeql_group_agg05(self):
+        await self.assert_query_result(r"""
+            WITH
+                MODULE test,
+                x := (
+                    # User is simply employed as an object to be augmented
+                    #
+                    SELECT User {
+                        count := 4,
+                        all_issues := Issue
+                    } FILTER .name = 'Elvis'
+                )
+            SELECT x.count = count(ALL x.all_issues);
+        """, [
+            [True]
+        ])
+
+    async def test_edgeql_group_agg06(self):
+        await self.assert_query_result(r"""
+            WITH
+                MODULE test,
+                x := (
+                    # User is simply employed as an object to be augmented
+                    #
+                    SELECT User {
+                        count := count(ALL Issue),
+                        all_issues := Issue
+                    } FILTER .name = 'Elvis'
+                )
+            SELECT x.count = count(ALL x.all_issues);
+        """, [
+            [True]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_group_agg07(self):
+        await self.assert_query_result(r"""
+            WITH
+                MODULE test,
+                x := (
+                    # User is simply employed as an object to be augmented
+                    #
+                    SELECT User {
+                        count := count(ALL <int>Issue.number),
+                        all_issues := <int>Issue.number
+                    } FILTER .name = 'Elvis'
+                )
+            SELECT x.count = count(ALL x.all_issues);
+        """, [
+            [True]
+        ])
+
     async def test_edgeql_group_returning01(self):
         await self.assert_query_result(r'''
             WITH MODULE test

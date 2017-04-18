@@ -1831,6 +1831,37 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '4'}],
         ])
 
+    async def test_edgeql_select_exists18(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT EXISTS Issue
+            FILTER Issue.status.name = 'Open';
+        ''', [
+            [True],
+        ])
+
+    async def test_edgeql_select_exists19(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT EXISTS (
+                SELECT Issue
+                FILTER Issue.status.name = 'Open'
+            );
+        ''', [
+            [True],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_exists20(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT EXISTS Issue
+            FILTER Issue.status.name = 'Open'
+            ORDER BY Issue.number;
+        ''', [
+            [True],
+        ])
+
     async def test_edgeql_select_coalesce01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -3750,3 +3781,89 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 ]
             }]
         ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_uniqueness01(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test,
+            SELECT Issue.owner{name}
+            ORDER BY Issue.owner.name;
+        ''', [[
+            {'name': 'Elvis'}, {'name': 'Yury'},
+        ]])
+
+    @unittest.expectedFailure
+    async def test_edgeql_uniqueness02(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE test,
+                expr := Issue.owner,
+                expr_count_a := count(ALL Issue.owner),
+                expr_count_d := count(DISTINCT Issue.owner)
+            SELECT (
+                expr_count_a, count(ALL expr),
+                expr_count_d, count(DISTINCT expr),
+            );
+        ''', [[
+            [4, 2, 2, 2]
+        ]])
+
+    @unittest.expectedFailure
+    async def test_edgeql_uniqueness03(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE test,
+                expr := <int>Issue.number < 10,
+                expr_count_a := count(ALL <int>Issue.number < 10),
+                expr_count_d := count(DISTINCT <int>Issue.number < 10)
+            SELECT (
+                expr_count_a, count(ALL expr),
+                expr_count_d, count(DISTINCT expr),
+            );
+        ''', [[
+            [4, 1, 1, 1]
+        ]])
+
+    @unittest.expectedFailure
+    async def test_edgeql_uniqueness04(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            # User is simply employed as an object to be augmented
+            #
+            SELECT User {
+                name,
+                expr_count_a := count(ALL <int>Issue.number < 10),
+                expr_count_d := count(DISTINCT <int>Issue.number < 10),
+                expr := <int>Issue.number < 10,
+            } FILTER .name = 'Elvis';
+        ''', [[
+            {
+                'name': 'Elvis',
+                'expr_count_a': 4,
+                'expr_count_d': 1,
+                'expr': [True],
+            }
+        ]])
+
+    @unittest.expectedFailure
+    async def test_edgeql_uniqueness05(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE test,
+                # User is simply employed as an object to be augmented
+                #
+                x := (
+                    SELECT User {
+                        name,
+                        expr_count_a := count(ALL <int>Issue.number < 10),
+                        expr_count_d := count(DISTINCT <int>Issue.number < 10),
+                        expr := <int>Issue.number < 10,
+                    } FILTER .name = 'Elvis'
+                )
+            SELECT (
+                x.expr_count_a = count(ALL x.expr),
+                x.expr_count_d = count(DISTINCT x.expr),
+            );
+        ''', [[
+            [False, True]
+        ]])
