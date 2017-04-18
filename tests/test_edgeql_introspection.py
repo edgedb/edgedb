@@ -324,6 +324,37 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         ])
 
+    async def test_edgeql_introspection_concept10(self):
+        await self.assert_query_result(r"""
+            # get all user-defined concepts with at least one 1* link
+            WITH MODULE schema
+            SELECT `Concept` {
+                links: {
+                    target: Array {
+                        name,
+                        element_type:  {
+                            name
+                        }
+                    }
+                } FILTER .name = 'test::tags'
+            }
+            FILTER
+                .name = 'test::Issue';
+        """, [
+            [{
+                'links': [
+                    {
+                        'target': {
+                            'name': 'array',
+                            'element_type': {
+                                'name': 'std::str'
+                            }
+                        }
+                    }
+                ]
+            }]
+        ])
+
     async def test_edgeql_introspection_link01(self):
         await self.assert_query_result(r"""
             WITH MODULE schema
@@ -383,6 +414,8 @@ class TestIntrospection(tb.QueryTestCase):
                 {'name': 'test::Text'},
                 {'name': 'test::URL'},
                 {'name': 'test::User'},
+                {'name': 'test::Virtual_1bfb5401e8affec4c5'
+                         '63a35ae764c6a56f7ca60e1d0bb8a0'},
                 {'name': 'test::address'},
                 {'name': 'test::body'},
                 {'name': 'test::due_date'},

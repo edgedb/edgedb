@@ -9,6 +9,7 @@ import collections.abc
 import itertools
 import pickle
 import re
+import uuid
 
 from edgedb.lang.edgeql import ast as ql_ast
 from edgedb.lang.edgeql import compiler as ql_compiler
@@ -50,7 +51,9 @@ from . import datasources
 from . import schemamech
 from . import types
 
+
 BACKEND_FORMAT_VERSION = 30
+TYPE_ID_NAMESPACE = uuid.UUID('00e50276-2502-11e7-97f2-27fe51238dbd')
 
 
 class CommandMeta(sd.CommandMeta):
@@ -109,6 +112,30 @@ class Record:
         return '<_Record {!r}>'.format(self._items)
 
 
+_TypeDesc = collections.namedtuple(
+    '_TypeDesc', ['id', 'maintype', 'name', 'collection',
+                  'subtypes', 'dimensions', 'is_root'],
+    module=__name__)
+
+
+class TypeDesc(_TypeDesc):
+    def __new__(cls, **kwargs):
+        if not kwargs.get('id'):
+            kwargs['id'] = cls._get_id(kwargs)
+        return super().__new__(cls, **kwargs)
+
+    @classmethod
+    def _get_id(cls, data):
+        s = (
+            f"{data['maintype']!r}\x00{data['name']!r}\x00"
+            f"{data['collection']!r}\x00"
+            f"{','.join(str(s) for s in data['subtypes'])}\x00"
+            f"{':'.join(str(d) for d in data['dimensions'])}"
+        )
+
+        return uuid.uuid5(TYPE_ID_NAMESPACE, s)
+
+
 class NamedClassMetaCommand(
         ClassMetaCommand, s_named.NamedClassCommand):
     op_priority = 0
@@ -129,45 +156,57 @@ class NamedClassMetaCommand(
 
         return name
 
+    def _get_typedesc(self, types, typedesc, is_root=True):
+        result = []
+        indexes = []
+        for tn, t in types:
+            # Fill the result with placeholders as we want the
+            # parent types to go first.
+            typedesc.append(())
+            indexes.append(len(typedesc) - 1)
+
+        for i, (tn, t) in enumerate(types):
+            if isinstance(t, s_obj.Collection):
+                if isinstance(t, s_obj.Tuple):
+                    stypes = t.element_types.items()
+                else:
+                    stypes = [(None, st) for st in t.get_subtypes()]
+
+                subtypes = self._get_typedesc(stypes, typedesc, is_root=False)
+                if isinstance(t, s_obj.Array):
+                    dimensions = t.dimensions
+                else:
+                    dimensions = []
+                desc = TypeDesc(
+                    maintype=None, name=tn, collection=t.schema_name,
+                    subtypes=subtypes, dimensions=dimensions, is_root=is_root)
+            else:
+                desc = TypeDesc(
+                    maintype=self._get_name(t), name=tn, collection=None,
+                    subtypes=[], dimensions=[], is_root=is_root)
+
+            typedesc[indexes[i]] = desc
+            result.append(desc.id)
+
+        return result
+
     def _serialize_field(self, value, col):
         recvalue = None
 
-        if isinstance(value, s_obj.ClassRef):
-            result = value.classname
-
-        elif isinstance(value, s_named.NamedClass):
-            result = value.name
-
-        elif isinstance(value, (s_obj.ClassSet, s_obj.ClassList)):
-            result = [self._get_name(v) for v in value]
-
-        elif isinstance(value, s_obj.TypeList):
-            result = []
-
-            for el in value:
-                if isinstance(el, s_obj.Collection):
-                    stypes = [self._get_name(st) for st in el.get_subtypes()]
-                    v = (None, el.schema_name, stypes)
-                else:
-                    v = (self._get_name(el), None, None)
-
-                result.append(v)
+        if isinstance(value, (s_obj.ClassSet, s_obj.ClassList)):
+            result = tuple(self._get_name(v) for v in value)
 
         elif isinstance(value, s_obj.ClassDict):
-            result = {}
+            result = []
+            self._get_typedesc(value.items(), result)
 
-            for k, v in value.items():
-                if isinstance(v, s_obj.Collection):
-                    stypes = [self._get_name(st) for st in v.get_subtypes()]
-                    v = (None, v.schema_name, stypes)
-                else:
-                    v = self._get_name(v)
+        elif isinstance(value, s_obj.ClassCollection):
+            result = []
+            self._get_typedesc([(None, v) for v in value], result)
 
-                result[k] = v
-
-        elif isinstance(value, s_obj.Collection):
-            stypes = [self._get_name(st) for st in value.get_subtypes()]
-            result = (None, value.schema_name, stypes)
+        elif isinstance(value, s_obj.Class):
+            result = []
+            self._get_typedesc([(None, value)], result)
 
         elif isinstance(value, sn.SchemaName):
             result = value
@@ -188,104 +227,28 @@ class NamedClassMetaCommand(
         if result is not value and recvalue is None:
             names = result
             if isinstance(names, list):
-                if isinstance(value, s_obj.TypeList):
-                    recvalue = dbops.Query(
-                        '''SELECT
-                                array_agg(
-                                    (SELECT ROW(
-                                        (SELECT id FROM edgedb.NamedClass
-                                            WHERE name = t.type),
-                                        t.collection,
-                                        (SELECT
-                                                array_agg(id ORDER BY st.i)
-                                            FROM
-                                                edgedb.NamedClass AS o,
-                                                UNNEST(t.subtypes)
-                                                    WITH ORDINALITY AS st(t, i)
-                                            WHERE
-                                                o.name = st.t)
-                                    )::edgedb.type_t)
-                                    ORDER BY t.i
-                                )
-                            FROM
-                                UNNEST($1::edgedb.typedesc_t[])
-                                    WITH ORDINALITY AS
-                                        t(type, collection, subtypes, i)
-                        ''', [names], type='edgedb.type_t[]')
-                else:
-                    recvalue = dbops.Query(
-                        '''SELECT
-                                array_agg(id ORDER BY st.i)
-                            FROM
-                                edgedb.NamedClass AS o,
-                                UNNEST($1::text[]) WITH ORDINALITY AS st(t, i)
-                            WHERE
-                                o.name = st.t''', [names], type='uuid[]')
-
-            elif (
-                    isinstance(names, tuple) or col is not None and
-                    col.type == 'edgedb.type_t'):
-                if not isinstance(names, tuple):
-                    names = (str(names), None, None)
-
                 recvalue = dbops.Query(
-                    '''SELECT ROW(
-                            (SELECT id FROM edgedb.NamedClass WHERE name = $1),
-                            $2,
-                            (SELECT
-                                    array_agg(id ORDER BY st.i)
-                                FROM
-                                    edgedb.NamedClass AS o,
-                                    UNNEST($3::text[])
-                                        WITH ORDINALITY AS st(t, i)
-                                WHERE
-                                    o.name = st.t)
-                        )::edgedb.type_t''', names, type='edgedb.type_t')
-
-            elif isinstance(names, dict):
-                flattened = list(itertools.chain.from_iterable(names.items()))
-
-                keys = [f for f in flattened[0::2]]
-                jbo_args = (
-                    '${:d}::text, q.types[{:d}]'.format(i + 2, i + 1)
-                    for i in range(int(len(flattened) / 2)))
-
-                names = []
-                for f in flattened[1::2]:
-                    if not isinstance(f, tuple):
-                        f = Record((str(f), None, None))
-                    else:
-                        f = Record(f)
-
-                    names.append(f)
-
-                recvalue = dbops.Query(
-                    '''(SELECT
-                            jsonb_build_object({json_seq})
-                        FROM
-                            (SELECT array_agg(ROW(
-                                (SELECT id FROM edgedb.NamedClass
-                                WHERE name = t.type),
-                                t.collection,
-                                (SELECT array_agg(id) FROM edgedb.NamedClass
-                                WHERE name = any(t.subtypes))
-                                )::edgedb.type_t) AS types
-                            FROM
-                                UNNEST($1::edgedb.typedesc_t[]) AS t
-                            ) AS q
-                        )
-                    '''.format(json_seq=', '.join(jbo_args)), [names] + keys,
-                    type='jsonb')
-
+                    '''SELECT edgedb._encode_type(
+                        ROW($1::type_desc_node_t[])::edgedb.typedesc_t)''',
+                    [names], type='edgedb.type_t')
             else:
                 recvalue = dbops.Query(
-                    '''(SELECT id FROM edgedb.NamedClass
-                       WHERE name = $1)''', [names], type='uuid')
+                    '''SELECT array_agg(id) FROM edgedb.NamedClass
+                       WHERE name = any($1::text[])''',
+                    [names], type='uuid[]')
 
         elif recvalue is None:
             recvalue = result
 
         return result, recvalue
+
+    def get_fields(self, schema):
+        if isinstance(self, sd.CreateClass):
+            fields = self.scls
+        else:
+            fields = self.get_struct_properties(schema)
+
+        return fields
 
     def fill_record(self, schema):
         updates = {}
@@ -293,10 +256,7 @@ class NamedClassMetaCommand(
         rec = None
         table = self.table
 
-        if isinstance(self, sd.CreateClass):
-            fields = self.scls
-        else:
-            fields = self.get_struct_properties(schema)
+        fields = self.get_fields(schema)
 
         for name, value in fields.items():
             col = table.get_column(name)
@@ -1512,7 +1472,11 @@ class CreateConcept(ConceptMetaCommand, adapts=s_concepts.CreateConcept):
         concept_props = self.get_struct_properties(schema)
         is_virtual = concept_props.get('is_virtual')
         if is_virtual:
-            return s_concepts.CreateConcept.apply(self, schema, context)
+            self.table = metaschema.get_metaclass_table(
+                s_concepts.VirtualConcept)
+            concept = s_concepts.CreateConcept.apply(self, schema, context)
+            fields = self.create_object(schema, concept)
+            return concept
 
         new_table_name = common.concept_name_to_table_name(
             self.classname, catenate=False)

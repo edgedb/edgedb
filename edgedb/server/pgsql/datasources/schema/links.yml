@@ -58,11 +58,11 @@ filters:
 source: |
     SELECT
             l.id,
-            _resolve_type(l.source) AS source,
-            _resolve_type(l.target) AS target,
-            _resolve_types(l.spectargets) AS spectargets,
+            edgedb._resolve_type_name(l.source) AS source,
+            edgedb._resolve_type(l.target) AS target,
+            edgedb._resolve_type_name(l.spectargets) AS spectargets,
             l.name AS name,
-            _resolve_types(l.bases) AS bases,
+            edgedb._resolve_type_name(l.bases) AS bases,
             l.mapping,
             l.exposed_behaviour,
             l.required,
@@ -109,18 +109,20 @@ source: |
     SELECT
             p.id                    AS id,
             p.name                  AS name,
-            _resolve_types(p.bases) AS bases,
+            edgedb._resolve_type_name(p.bases)
+                                    AS bases,
             p.title                 AS title,
             p.description           AS description,
             p.required              AS required,
             p.readonly              AS readonly,
             p.loading               AS loading,
             p.default               AS default,
-            l.name                  AS source,
-            _resolve_type(p.target) AS target
+            edgedb._resolve_type_name(p.source)
+                                    AS source,
+            edgedb._resolve_type(p.target)
+                                    AS target
         FROM
             edgedb.LinkProperty p
-            LEFT JOIN edgedb.link l ON l.id = p.source
         WHERE
             (%(name)s::text IS NULL OR %(name)s::text = p.name)
             AND (%(include_specialized)s::bool OR p.source IS NULL)

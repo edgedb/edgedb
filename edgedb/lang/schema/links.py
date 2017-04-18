@@ -189,22 +189,27 @@ class CreateLink(LinkCommand, referencing.CreateReferencedClass):
 
                 create_virt_parent.update((
                     sd.AlterClassProperty(
+                        property='bases',
+                        new_value=so.ClassList([
+                            so.ClassRef(classname=sn.Name(
+                                module='std', name='Object'
+                            ))
+                        ])
+                    ),
+                    sd.AlterClassProperty(
                         property='name',
                         new_value=target_name
                     ),
                     sd.AlterClassProperty(
                         property='is_virtual',
                         new_value=True
-                    ),
-                    sd.AlterClassProperty(
-                        property='is_derived',
-                        new_value=True
                     )
                 ))
 
                 alter_db_ctx = context.get(s_db.DatabaseCommandContext)
 
-                for cc in alter_db_ctx.op(concepts.CreateConcept):
+                for cc in alter_db_ctx.op.get_subcommands(
+                        type=concepts.CreateConcept):
                     if cc.classname == create_virt_parent.classname:
                         break
                 else:

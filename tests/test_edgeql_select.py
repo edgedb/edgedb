@@ -1457,15 +1457,21 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             SELECT schema::Function {
                 params: {
-                    @paramnum,
-                    @paramvariadic
+                    num,
+                    variadic,
+                    type: {
+                        name
+                    }
                 }
             } FILTER schema::Function.name = 'test::concat1';
         ''', [
             [{'params': [
                 {
-                    '@paramnum': 1,
-                    '@paramvariadic': True
+                    'num': 1,
+                    'variadic': True,
+                    'type': {
+                        'name': 'std::any'
+                    }
                 }
             ]}]
         ])
@@ -1503,22 +1509,31 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             SELECT schema::Function {
                 params: {
-                    @paramnum,
-                    @paramname,
-                    @paramvariadic
-                } ORDER BY schema::Function.params@paramnum ASC
+                    num,
+                    name,
+                    variadic,
+                    type: {
+                        name
+                    }
+                } ORDER BY schema::Function.params.num ASC
             } FILTER schema::Function.name = 'test::concat3';
         ''', [
             [{'params': [
                 {
-                    '@paramnum': 1,
-                    '@paramname': 'sep',
-                    '@paramvariadic': False
+                    'num': 1,
+                    'name': 'sep',
+                    'variadic': False,
+                    'type': {
+                        'name': 'std::str'
+                    }
                 },
                 {
-                    '@paramnum': 2,
-                    '@paramname': None,
-                    '@paramvariadic': True
+                    'num': 2,
+                    'name': None,
+                    'variadic': True,
+                    'type': {
+                        'name': 'std::str'
+                    }
                 }
             ]}]
         ])

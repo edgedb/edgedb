@@ -178,9 +178,14 @@ class PointerStorageInfo:
     @classmethod
     def _storable_in_source(cls, pointer):
         return (
-            pointer.singular() and
-            (pointer.atomic() or
-             pointer.shortname == 'std::__class__')
+            pointer.singular() and pointer.atomic() or
+            pointer.shortname in {
+                'std::__class__',
+                'schema::element_type',
+                'schema::element_types',
+                'schema::key_type',
+                'schema::type'
+            }
         )
 
     @classmethod

@@ -157,3 +157,8 @@ class Concept(sources.Source, nodes.Node,
     @classmethod
     def get_default_base_name(cls):
         return sn.Name(module='std', name='Object')
+
+
+class VirtualConcept(sources.Source, nodes.Node,
+                     constraints.ConsistencySubject, so.NodeClass):
+    pass

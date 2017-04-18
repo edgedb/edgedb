@@ -15,7 +15,7 @@ from . import ddl
 class Function(base.DBObject):
     def __init__(self, name, *, args=None, returns, text,
                  volatility='volatile', language='sql',
-                 variadic_arg=None):
+                 variadic_arg=None, strict=False):
         self.name = name
         self.args = args
         self.returns = returns
@@ -23,6 +23,7 @@ class Function(base.DBObject):
         self.volatility = volatility
         self.language = language
         self.variadic_arg = variadic_arg
+        self.strict = strict
 
     def __repr__(self):
         return '<{} {} at 0x{}>'.format(
@@ -87,14 +88,15 @@ class CreateFunction(ddl.DDLOperation):
             AS $____funcbody____$
             {text}
             $____funcbody____$
-            LANGUAGE {lang} {volatility};
+            LANGUAGE {lang} {volatility} {strict};
         ''').format(**{
             'name': common.qname(*self.function.name),
             'args': ', '.join(args),
             'returns': common.quote_type(self.function.returns),
             'lang': self.function.language,
             'volatility': self.function.volatility.upper(),
-            'text': textwrap.dedent(self.function.text).strip()
+            'text': textwrap.dedent(self.function.text).strip(),
+            'strict': 'STRICT' if self.function.strict else '',
         })
         return code.strip()
 

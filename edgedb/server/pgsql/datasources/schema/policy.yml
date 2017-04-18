@@ -66,23 +66,18 @@ filters:
 
 source: |
     SELECT
-            p.id           AS id,
-            p.name         AS name,
-            p.title        AS title,
-            p.description  AS description,
-            o.name         AS subject,
-            e.name         AS event,
-            (SELECT
-                array_agg(a.name)
-             FROM
-                edgedb.action a
-             WHERE
-                a.id = any(p.actions)
-            )              AS actions
+            p.id                        AS id,
+            p.name                      AS name,
+            p.title                     AS title,
+            p.description               AS description,
+            edgedb._resolve_type_name(p.subject)
+                                        AS subject,
+            edgedb._resolve_type_name(p.event)
+                                        AS event,
+            edgedb._resolve_type_name(p.actions)
+                                        AS actions
         FROM
             edgedb.policy p
-            INNER JOIN edgedb.NamedClass o ON o.id = p.subject
-            INNER JOIN edgedb.event e ON e.id = p.event
         WHERE
             %(name)s::text IS NULL OR p.name LIKE %(name)s::text
 ...

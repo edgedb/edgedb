@@ -28,4 +28,5 @@ source: |
         FROM
             edgedb.concept c
         WHERE
-            %(name)s::text IS NULL OR c.name = %(name)s::text
+            (%(name)s::text IS NULL OR c.name = %(name)s::text) AND
+            NOT c.is_virtual

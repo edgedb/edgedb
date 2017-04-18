@@ -18,15 +18,10 @@ source: |
             i.id            AS id,
             i.name          AS name,
             i.expr          AS expr,
-
-            (SELECT array_agg(name)
-             FROM edgedb.NamedClass
-             WHERE id = any(i.bases)) AS bases,
-
-            (SELECT name
-             FROM edgedb.NamedClass
-             WHERE id = i.subject) AS subject_name
-
+            edgedb._resolve_type_name(i.bases)
+                            AS bases,
+            edgedb._resolve_type_name(i.subject)
+                            AS subject_name
         FROM
             edgedb.SourceIndex i
 ...

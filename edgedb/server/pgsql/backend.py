@@ -764,9 +764,8 @@ class Backend(s_deltarepo.DeltaProvider):
             paramtypes = None
             if row['paramtypes']:
                 paramtypes = [
-                    self.unpack_typeref(v, schema)
-                    for v in row['paramtypes']
-                ]
+                    s[1] for s in self.unpack_typedesc_nodes(
+                        row['paramtypes']['types'], schema)]
 
             func_data = {
                 'name': name,
@@ -816,20 +815,18 @@ class Backend(s_deltarepo.DeltaProvider):
 
             allparamtypes = {}
 
-            if r['inferredparamtypes']:
-                inferredparamtypes = {
-                    n: self.unpack_typeref(v, schema)
-                    for n, v in json.loads(r['inferredparamtypes']).items()
-                }
+            if r['inferredparamtypes'] and r['inferredparamtypes']['types']:
+                inferredparamtypes = \
+                    dict(self.unpack_typedesc_nodes(
+                        r['inferredparamtypes']['types'], schema))
                 allparamtypes.update(inferredparamtypes)
             else:
                 inferredparamtypes = None
 
-            if r['paramtypes']:
-                paramtypes = {
-                    n: self.unpack_typeref(v, schema)
-                    for n, v in json.loads(r['paramtypes']).items()
-                }
+            if r['paramtypes'] and r['paramtypes']['types']:
+                paramtypes = \
+                    dict(self.unpack_typedesc_nodes(
+                        r['paramtypes']['types'], schema))
                 allparamtypes.update(paramtypes)
             else:
                 paramtypes = None
@@ -870,18 +867,45 @@ class Backend(s_deltarepo.DeltaProvider):
     async def order_constraints(self, schema):
         pass
 
-    def unpack_typeref(self, typeref, schema):
-        type = None
+    def _unpack_typedesc_node(self, typemap, id, schema):
+        t = typemap[id]
 
-        if typeref['type'] is not None:
-            type = schema.get(typeref['type'])
+        if t['collection'] is not None:
+            coll_type = s_obj.Collection.get_class(t['collection'])
+            subtypes = [
+                self._unpack_typedesc_node(typemap, stid, schema)
+                for stid in t['subtypes']
+            ]
+            if t['dimensions']:
+                typemods = (t['dimensions'],)
+            else:
+                typemods = None
+            scls = coll_type.from_subtypes(
+                [st[1] for st in subtypes], typemods=typemods)
+        else:
+            scls = schema.get(t['maintype'])
 
-        if typeref['collection'] is not None:
-            coll_type = s_obj.Collection.get_class(typeref['collection'])
-            subtypes = [schema.get(st) for st in typeref['subtypes']]
-            type = coll_type.from_subtypes(subtypes)
+        return t['name'], scls
 
-        return type
+    def unpack_typedesc_nodes(self, types, schema):
+        result = []
+        if types:
+            typemap = {
+                t['id']: t for t in types
+            }
+
+            for t in types:
+                if t['is_root']:
+                    node = self._unpack_typedesc_node(typemap, t['id'], schema)
+                    result.append(node)
+
+        return result
+
+    def unpack_typeref(self, typedesc, schema):
+        if typedesc:
+            result = self.unpack_typedesc_nodes(typedesc['types'], schema)
+            if result:
+                return result[0][1]
 
     def unpack_default(self, value):
         result = None
@@ -1067,11 +1091,12 @@ class Backend(s_deltarepo.DeltaProvider):
             description = r['description']
 
             source = schema.get(r['source']) if r['source'] else None
-            target = self.unpack_typeref(r['target'], schema)
             if r['spectargets']:
                 spectargets = [schema.get(t) for t in r['spectargets']]
+                target = None
             else:
                 spectargets = None
+                target = self.unpack_typeref(r['target'], schema)
 
             default = self.unpack_default(r['default'])
 

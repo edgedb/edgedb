@@ -679,6 +679,11 @@ class NodeClass(Class):
 
 class Collection(NodeClass):
     @property
+    def is_virtual(self):
+        # This property in necessary for compatibility with node classes.
+        return False
+
+    @property
     def name(self):
         try:
             return self._name_cached
@@ -689,7 +694,7 @@ class Collection(NodeClass):
         self._name_cached = f'{self.schema_name}<{subtypes}>'
         return self._name_cached
 
-    def issubclass(self, parent):
+    def _issubclass(self, parent):
         if not isinstance(parent, Collection) and parent.name == 'std::any':
             return True
 
@@ -704,6 +709,15 @@ class Collection(NodeClass):
                 return False
 
         return True
+
+    def issubclass(self, parent):
+        if isinstance(parent, tuple):
+            return any(self.issubclass(p) for p in parent)
+        else:
+            if parent.name == 'std::any':
+                return True
+            else:
+                return self._issubclass(parent)
 
     @classmethod
     def compare_values(cls, ours, theirs, context, compcoef):
@@ -981,7 +995,7 @@ class Tuple(Collection):
             return []
 
     @classmethod
-    def from_subtypes(cls, subtypes):
+    def from_subtypes(cls, subtypes, typemods=None):
         return cls(element_types={str(i): t for i, t in enumerate(subtypes)})
 
     def __hash__(self):
