@@ -116,7 +116,6 @@ class DerivableClass(inheriting.InheritingClass):
     def derive(self, schema, source, *qualifiers, merge_bases=None,
                replace_original=None, add_to_schema=False,
                mark_derived=False, attrs=None, dctx=None, **kwargs):
-
         if not self.generic():
             raise TypeError(
                 'cannot derive from specialized {} {!r}'.format(

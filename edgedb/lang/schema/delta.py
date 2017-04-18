@@ -444,7 +444,8 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
                 for st in ref.get_subtypes():
                     subtypes.append(schema.get(st.classname))
 
-                obj = ref.__class__.from_subtypes(subtypes)
+                obj = ref.__class__.from_subtypes(
+                    subtypes, typemods=ref.get_typemods())
             else:
                 obj = ref
         else:

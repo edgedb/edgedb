@@ -156,7 +156,7 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
                 SET is_virtual := False;
                 SET readonly := False;
             };
-            ALTER LINK test::name CREATE LINK PROPERTY test::lang TO (std::str) {
+            ALTER LINK test::name CREATE LINK PROPERTY test::lang TO std::str {
                 SET is_virtual := False;
                 SET readonly := False;
                 SET title := 'Base link property';
@@ -165,26 +165,83 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
                 SET is_virtual := False;
             };
             ALTER CONCEPT test::NamedObject {
-                CREATE REQUIRED LINK test::name TO (std::str) {
+                CREATE REQUIRED LINK test::name TO std::str {
                     SET is_virtual := False;
                     SET mapping := '*1';
                     SET readonly := False;
                 }
                 ALTER LINK test::name {
-                    CREATE LINK PROPERTY std::source TO (test::NamedObject) {
+                    CREATE LINK PROPERTY std::source TO test::NamedObject {
                         SET is_virtual := False;
                         SET readonly := False;
                         SET title := 'Link source';
                     }
-                    CREATE LINK PROPERTY std::target TO (std::str) {
+                    CREATE LINK PROPERTY std::target TO std::str {
                         SET is_virtual := False;
                         SET readonly := False;
                         SET title := 'Link target';
                     }
-                    CREATE LINK PROPERTY test::lang TO (std::str) {
+                    CREATE LINK PROPERTY test::lang TO std::str {
                         SET is_virtual := False;
                         SET readonly := False;
                         SET title := 'Base link property';
+                    }
+                }
+            };
+            '''
+        )
+
+    async def test_delta_ddlgen_02(self):
+        result = await self.con.execute("""
+            # setup delta
+            #
+            CREATE MIGRATION test::d2 TO eschema $$
+                link a:
+                    linkproperty a_prop to array<str>
+
+                concept NamedObject:
+                    required link a to array<int>
+            $$;
+
+            GET MIGRATION test::d2;
+        """)
+
+        self._assert_result(
+            result[1],
+            '''\
+            CREATE LINK PROPERTY test::a_prop {
+                SET is_virtual := False;
+                SET readonly := False;
+                SET title := 'Base link property';
+            };
+            CREATE LINK test::a INHERITING std::link {
+                SET is_virtual := False;
+                SET readonly := False;
+            };
+            ALTER LINK test::a CREATE LINK PROPERTY test::a_prop TO array<std::str> {
+                SET is_virtual := False;
+                SET readonly := False;
+                SET title := 'Base link property';
+            };
+            CREATE CONCEPT test::NamedObject INHERITING std::Object {
+                SET is_virtual := False;
+            };
+            ALTER CONCEPT test::NamedObject {
+                CREATE REQUIRED LINK test::a TO array<std::int> {
+                    SET is_virtual := False;
+                    SET mapping := '*1';
+                    SET readonly := False;
+                }
+                ALTER LINK test::a {
+                    CREATE LINK PROPERTY std::source TO test::NamedObject {
+                        SET is_virtual := False;
+                        SET readonly := False;
+                        SET title := 'Link source';
+                    }
+                    CREATE LINK PROPERTY std::target TO array<std::int> {
+                        SET is_virtual := False;
+                        SET readonly := False;
+                        SET title := 'Link target';
                     }
                 }
             };

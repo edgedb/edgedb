@@ -237,3 +237,12 @@ class TestDeltas(tb.DDLTestCase):
         """, [
             [1],
         ])
+
+    async def test_edgeql_ddl11(self):
+        await self.con.execute("""
+            CREATE CONCEPT test::TestContainerLinkConcept {
+                CREATE LINK test::test_array_link TO array<std::str>;
+                CREATE LINK test::test_array_link_2 TO array<std::str[10]>;
+                CREATE LINK test::test_map_link TO map<std::str, std::int>;
+            };
+        """)

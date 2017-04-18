@@ -19,10 +19,12 @@ class ContextLevel:
                 self.aliascnt = prevlevel.aliascnt
                 self.namespaces = prevlevel.namespaces
             self.deoptimize = prevlevel.deoptimize
+            self.strip_builtins = prevlevel.strip_builtins
         else:
             self.aliascnt = {}
             self.namespaces = {}
             self.deoptimize = False
+            self.strip_builtins = True
 
     def genalias(self, hint=None):
         if hint is None:
@@ -88,9 +90,10 @@ class ContextWrapper:
 
 
 class EdgeQLOptimizer:
-    def transform(self, edgeql_tree, deoptimize=False):
+    def transform(self, edgeql_tree, deoptimize=False, strip_builtins=True):
         context = Context()
         context.current.deoptimize = deoptimize
+        context.current.strip_builtins = strip_builtins
         self._process_expr(context, edgeql_tree)
 
         nses = []
@@ -229,8 +232,7 @@ class EdgeQLOptimizer:
 
         elif isinstance(expr, qlast.ClassRef):
             if expr.module:
-                expr.module = self._process_module_ref(
-                                context, expr.module)
+                expr.module = self._process_module_ref(context, expr.module)
 
         elif isinstance(expr, qlast.Path):
             if expr.shape:
@@ -253,8 +255,7 @@ class EdgeQLOptimizer:
                     (ns.alias, ns.namespace) for ns in expr.namespaces)
 
             expr.name.module = self._process_module_ref(
-                                    context, expr.name.module,
-                                    strip_builtins=False)
+                context, expr.name.module)
 
             if expr.commands:
                 for cmd in expr.commands:
@@ -265,47 +266,37 @@ class EdgeQLOptimizer:
             if bases:
                 for base in bases:
                     base.module = self._process_module_ref(
-                                    context, base.module,
-                                    strip_builtins=False)
+                        context, base.module)
 
             if isinstance(expr, qlast.CreateConcreteLink):
                 for t in expr.targets:
-                    t.module = self._process_module_ref(
-                                    context, t.module,
-                                    strip_builtins=False)
+                    self._process_expr(context, t)
 
             elif isinstance(expr, qlast.CreateConcreteLinkProperty):
-                expr.target.module = self._process_module_ref(
-                                        context, expr.target.module,
-                                        strip_builtins=False)
+                self._process_expr(context, expr.target)
 
         elif isinstance(expr, (qlast.CreateLocalPolicy,
                                qlast.AlterLocalPolicy)):
             expr.event.module = self._process_module_ref(
-                                        context, expr.event.module,
-                                        strip_builtins=False)
+                context, expr.event.module)
             for action in expr.actions:
                 action.module = self._process_module_ref(
-                                        context, action.module,
-                                        strip_builtins=False)
+                    context, action.module)
 
         elif isinstance(expr, qlast.AlterTarget):
             for target in expr.targets:
                 target.module = self._process_module_ref(
-                                        context, target.module,
-                                        strip_builtins=False)
+                    context, target.module)
 
         elif isinstance(expr, qlast.Rename):
             expr.new_name.module = self._process_module_ref(
-                                        context, expr.new_name.module,
-                                        strip_builtins=False)
+                context, expr.new_name.module)
 
         elif isinstance(expr, (qlast.AlterAddInherit,
                                qlast.AlterDropInherit)):
             for base in expr.bases:
                 base.module = self._process_module_ref(
-                                        context, base.module,
-                                        strip_builtins=False)
+                    context, base.module)
 
     def _process_shape(self, context, shape):
         for spec in shape:
@@ -325,11 +316,11 @@ class EdgeQLOptimizer:
                 if spec.shape:
                     self._process_shape(context, spec.shape)
 
-    def _process_module_ref(self, context, module, strip_builtins=True):
+    def _process_module_ref(self, context, module):
         if context.current.deoptimize:
             return context.current.namespaces.get(module, module)
         else:
-            if module == 'std' and strip_builtins:
+            if module == 'std' and context.current.strip_builtins:
                 return None
 
             if '.' in module:
@@ -349,15 +340,16 @@ class EdgeQLOptimizer:
                 return module
 
 
-def optimize(edgeql_tree):
+def optimize(edgeql_tree, *, strip_builtins=True):
     """Perform optimizations on EdgeQL AST tree"""
 
     optimizer = EdgeQLOptimizer()
-    return optimizer.transform(edgeql_tree)
+    return optimizer.transform(edgeql_tree, strip_builtins=strip_builtins)
 
 
-def deoptimize(edgeql_tree):
+def deoptimize(edgeql_tree, *, strip_builtins=True):
     """Reverse optimizations on EdgeQL AST tree"""
 
     optimizer = EdgeQLOptimizer()
-    return optimizer.transform(edgeql_tree, deoptimize=True)
+    return optimizer.transform(
+        edgeql_tree, deoptimize=True, strip_builtins=strip_builtins)

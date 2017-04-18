@@ -309,7 +309,8 @@ class AlterNamedClass(CreateOrAlterNamedClass):
 
         parent_ctx = context.get(sd.CommandContextToken)
         parent_op = parent_ctx.op
-        rebase = next(iter(parent_op(inheriting.RebaseNamedClass)))
+        rebase = next(iter(parent_op.get_subcommands(
+            type=inheriting.RebaseNamedClass)))
 
         dropped = rebase.removed_bases
         added = rebase.added_bases

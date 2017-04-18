@@ -30,6 +30,32 @@ def ast_to_typeref(node: ql_ast.TypeName):
     return so.ClassRef(classname=mtn)
 
 
+def typeref_to_ast(t: so.Class) -> ql_ast.TypeName:
+    if not isinstance(t, so.Collection):
+        if isinstance(t, so.ClassRef):
+            name = t.classname
+        else:
+            name = t.name
+
+        result = ql_ast.TypeName(
+            maintype=ql_ast.ClassRef(
+                module=name.module,
+                name=name.name
+            )
+        )
+    else:
+        result = ql_ast.TypeName(
+            maintype=ql_ast.ClassRef(
+                name=t.schema_name
+            ),
+            subtypes=[
+                typeref_to_ast(st) for st in t.get_subtypes()
+            ]
+        )
+
+    return result
+
+
 def is_nontrivial_container(value):
     coll_classes = (collections.abc.Sequence, collections.abc.Set)
     trivial_classes = (str, bytes, bytearray, memoryview)

@@ -839,7 +839,7 @@ class CreateConcreteLinkPropertyStmt(Nonterm):
     def reduce_CreateRegularRequiredLinkProperty(self, *kids):
         r"""%reduce \
             CREATE REQUIRED LINKPROPERTY NodeName \
-            TO NodeName OptCreateConcreteLinkPropertyCommandsBlock \
+            TO TypeName OptCreateConcreteLinkPropertyCommandsBlock \
         """
         self.val = qlast.CreateConcreteLinkProperty(
             name=kids[3].val,
@@ -851,7 +851,7 @@ class CreateConcreteLinkPropertyStmt(Nonterm):
     def reduce_CreateRegularLinkProperty(self, *kids):
         r"""%reduce \
             CREATE LINKPROPERTY NodeName \
-            TO NodeName OptCreateConcreteLinkPropertyCommandsBlock \
+            TO TypeName OptCreateConcreteLinkPropertyCommandsBlock \
         """
         self.val = qlast.CreateConcreteLinkProperty(
             name=kids[2].val,
@@ -1021,7 +1021,7 @@ class CreateConcreteLinkStmt(Nonterm):
     def reduce_CreateRegularRequiredLink(self, *kids):
         r"""%reduce \
             CREATE REQUIRED LINK NodeName \
-            TO NodeNameList OptCreateConcreteLinkCommandsBlock \
+            TO TypeNameList OptCreateConcreteLinkCommandsBlock \
         """
         self.val = qlast.CreateConcreteLink(
             name=kids[3].val,
@@ -1033,7 +1033,7 @@ class CreateConcreteLinkStmt(Nonterm):
     def reduce_CreateRegularLink(self, *kids):
         r"""%reduce \
             CREATE LINK NodeName \
-            TO NodeNameList OptCreateConcreteLinkCommandsBlock \
+            TO TypeNameList OptCreateConcreteLinkCommandsBlock \
         """
         self.val = qlast.CreateConcreteLink(
             name=kids[2].val,

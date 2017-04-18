@@ -30,7 +30,7 @@ from . import delta as sd
 
 def cmd_from_ddl(stmt, *, context=None, schema):
     # expand module aliases (implicit and explicit)
-    ddl = edgeql.deoptimize(stmt)
+    ddl = edgeql.deoptimize(stmt, strip_builtins=False)
 
     cmd = s_delta.Command.from_ast(ddl, schema=schema, context=context)
     return cmd
@@ -66,7 +66,8 @@ def ddl_text_from_delta_command(delta):
     for command in commands:
         delta_ast = ddl_from_delta(command)
         if delta_ast:
-            stmt_text = edgeql.generate_source(edgeql.optimize(delta_ast))
+            stmt_text = edgeql.generate_source(edgeql.optimize(
+                delta_ast, strip_builtins=False))
             text.append(stmt_text + ';')
 
     return '\n'.join(text)

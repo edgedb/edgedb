@@ -727,6 +727,9 @@ class Collection(NodeClass):
     def get_subtypes(self):
         raise NotImplementedError
 
+    def get_typemods(self):
+        return ()
+
     def get_subtype(self, schema, typeref):
         from . import atoms as s_atoms
         from . import types as s_types
@@ -758,7 +761,7 @@ class Collection(NodeClass):
                 'unknown collection type: {!r}'.format(schema_name))
 
     @classmethod
-    def from_subtypes(cls, subtypes):
+    def from_subtypes(cls, subtypes, typemods=None):
         raise NotImplementedError
 
 
@@ -777,6 +780,9 @@ class Array(Collection):
     def get_subtypes(self):
         return (self.element_type,)
 
+    def get_typemods(self):
+        return (self.dimensions,)
+
     def coerce(self, items, schema):
         container = self.get_container()
 
@@ -792,16 +798,23 @@ class Array(Collection):
         return container(elements)
 
     @classmethod
-    def from_subtypes(cls, subtypes):
+    def from_subtypes(cls, subtypes, typemods=None):
         if len(subtypes) != 1:
             raise ValueError(
                 f'unexpected number of subtypes, expecting 1: {subtypes!r}')
+
+        if typemods:
+            dimensions = typemods[0]
+        else:
+            dimensions = []
 
         stype = subtypes[0]
         if isinstance(stype, cls):
             # There is no array of arrays, only multi-dimensional arrays.
             element_type = stype.element_type
-            dimensions = [-1] + stype.dimensions
+            if not dimensions:
+                dimensions.append(-1)
+            dimensions += stype.dimensions
         else:
             element_type = stype
             dimensions = []
@@ -822,7 +835,7 @@ class Map(Collection):
         return (self.key_type, self.element_type,)
 
     @classmethod
-    def from_subtypes(cls, subtypes):
+    def from_subtypes(cls, subtypes, typemods=None):
         if len(subtypes) != 2:
             raise ValueError(
                 f'unexpected number of subtypes, expecting 2: {subtypes!r}')

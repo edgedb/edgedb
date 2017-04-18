@@ -19,6 +19,7 @@ from . import pointers
 from . import policy
 from . import referencing
 from . import sources
+from . import utils
 
 
 class LinkPropertySourceContext(sources.SourceCommandContext):
@@ -101,12 +102,7 @@ class CreateLinkProperty(LinkPropertyCommand,
             cmd.add(
                 sd.AlterClassProperty(
                     property='target',
-                    new_value=so.ClassRef(
-                        classname=sn.Name(
-                            module=target.module,
-                            name=target.name
-                        )
-                    )
+                    new_value=utils.ast_to_typeref(target)
                 )
             )
 
@@ -142,8 +138,7 @@ class CreateLinkProperty(LinkPropertyCommand,
         elif op.property == 'source':
             pass
         elif op.property == 'target' and link:
-            t = op.new_value.classname
-            node.target = qlast.ClassRef(name=t.name, module=t.module)
+            node.target = utils.typeref_to_ast(op.new_value)
         else:
             super()._apply_field_ast(context, node, op)
 

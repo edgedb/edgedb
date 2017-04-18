@@ -23,6 +23,7 @@ from . import pointers
 from . import policy
 from . import referencing
 from . import sources
+from . import utils
 
 
 class LinkSearchWeight(enum.StrEnum):
@@ -167,19 +168,14 @@ class CreateLink(LinkCommand, referencing.CreateReferencedClass):
                     sd.AlterClassProperty(
                         property='spectargets',
                         new_value=so.ClassList([
-                            so.ClassRef(
-                                classname=sn.Name(
-                                    module=t.module,
-                                    name=t.name
-                                )
-                            )
+                            utils.ast_to_typeref(t)
                             for t in astnode.targets
                         ])
                     )
                 )
 
                 target_name = sources.Source.gen_virt_parent_name(
-                    (sn.Name(module=t.module, name=t.name)
+                    (sn.Name(module=t.maintype.module, name=t.maintype.name)
                      for t in astnode.targets),
                     module=source_name.module
                 )
@@ -214,12 +210,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedClass):
                 else:
                     alter_db_ctx.op.add(create_virt_parent)
             else:
-                target = so.ClassRef(
-                    classname=sn.Name(
-                        module=astnode.targets[0].module,
-                        name=astnode.targets[0].name
-                    )
-                )
+                target = utils.ast_to_typeref(astnode.targets[0])
 
             cmd.add(
                 sd.AlterClassProperty(
@@ -364,10 +355,8 @@ class CreateLink(LinkCommand, referencing.CreateReferencedClass):
                 self._set_attribute_ast(context, node, 'search_weight', v)
         elif op.property == 'target' and concept:
             if not node.targets:
-                t = op.new_value.classname
-                node.targets = [
-                    qlast.ClassRef(name=t.name, module=t.module)
-                ]
+                t = op.new_value
+                node.targets = [utils.typeref_to_ast(t)]
         else:
             super()._apply_field_ast(context, node, op)
 
