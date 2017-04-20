@@ -852,7 +852,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             }],
         ])
 
-    @unittest.expectedFailure
+    @tb.expected_optimizer_failure
     async def test_edgeql_group_linkproperty_simple01(self):
         await self.assert_query_result(r"""
             # group by link property
@@ -933,7 +933,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
 
         ])
 
-    @unittest.expectedFailure
+    @tb.expected_optimizer_failure
     async def test_edgeql_group_linkproperty_simple03(self):
         await self.assert_query_result(r"""
             # group by link property
@@ -952,13 +952,13 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ) ORDER BY _.nickname;
         """, [
             [
+                {'name': ['Carol'], 'nickname': 'Firefighter'},
+                {'name': ['Dave'], 'nickname': 'Grumpy'},
                 {'name': ['Bob'], 'nickname': 'Swampy'},
-                {'name': ['Dave'], 'nickname': 'Firefighter'},
-                {'name': ['Carol'], 'nickname': 'Grumpy'},
             ]
         ])
 
-    @unittest.expectedFailure
+    @tb.expected_optimizer_failure
     async def test_edgeql_group_linkproperty_simple04(self):
         await self.assert_query_result(r"""
             # NOTE: should be the same as above because we happen to
@@ -978,13 +978,13 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ) ORDER BY _.nickname;
         """, [
             [
+                {'name': ['Carol'], 'nickname': 'Firefighter'},
+                {'name': ['Dave'], 'nickname': 'Grumpy'},
                 {'name': ['Bob'], 'nickname': 'Swampy'},
-                {'name': ['Dave'], 'nickname': 'Firefighter'},
-                {'name': ['Carol'], 'nickname': 'Grumpy'},
             ]
         ])
 
-    @unittest.expectedFailure
+    @tb.expected_optimizer_failure
     async def test_edgeql_group_linkproperty_nested01(self):
         await self.assert_query_result(r"""
             WITH MODULE testlp
@@ -1045,7 +1045,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ]
         ])
 
-    @unittest.expectedFailure
+    @tb.expected_optimizer_failure
     async def test_edgeql_group_linkproperty_nested02(self):
         await self.assert_query_result(r"""
             # similar to nested01, but with the root grouped by @nickname
@@ -1064,7 +1064,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 total := sum(ALL User.friends.deck@count),
                 # group each deck by elements, adding up the counts
                 #
-                elements := (
+                elements := array_agg(ALL (
                     GROUP User.friends.deck
                     BY User.friends.deck.element
                     SELECT _ := (
@@ -1072,7 +1072,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                         count := sum(ALL User.friends.deck@count),
                     )
                     ORDER BY _.name
-                )
+                ))
             ) ORDER BY _af.name;
         """, [
             [
@@ -1109,7 +1109,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ]
         ])
 
-    @unittest.expectedFailure
+    @tb.expected_optimizer_failure
     async def test_edgeql_group_linkproperty_tuple01(self):
         await self.assert_query_result(r"""
             WITH MODULE testlp

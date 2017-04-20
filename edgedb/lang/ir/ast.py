@@ -211,6 +211,11 @@ class PathId(tuple):
 
             result += f'{step}{lexpr}'
 
+        if len(self) == 2:
+            ptr = self[1][0]
+            ptrdir = self[1][1]
+            result += f'.{ptrdir}({ptr.name})'
+
         return result
 
     def __getitem__(self, n):
@@ -440,6 +445,7 @@ class GroupStmt(Stmt):
     subject: Base
     groupby: typing.List[Base]
     result: SelectStmt
+    group_path_id: PathId
 
 
 class MutatingStmt(Stmt):

@@ -44,6 +44,8 @@ def pull_path_namespace(
 
         for path_id in source_q.path_bonds:
             if path_id in target.path_bonds and not replace_bonds:
+                if path_id[-1].name.name == 'Group~2':
+                    print('not replacing', path_id)
                 continue
 
             orig_path_id = path_id
@@ -52,6 +54,8 @@ def pull_path_namespace(
 
             if (not path_id.is_in_scope(ctx.stmt_path_scope) and
                     not orig_path_id.is_in_scope(ctx.stmt_path_scope)):
+                if path_id[-1].name.name == 'Group~2':
+                    print('skipping', path_id)
                 continue
 
             pathctx.put_path_bond(target, path_id)
@@ -199,16 +203,15 @@ def get_parent_range_scope(
 
 def get_ctemap_key(
         ir_set: irast.Set, *, lax: typing.Optional[bool]=None,
-        semi: typing.Optional[bool]=False,
         ctx: context.CompilerContext) -> tuple:
     ir_set = irutils.get_canonical_set(ir_set)
 
     if ir_set.rptr is not None and ir_set.expr is None:
         if lax is None:
             lax = bool(ctx.lax_paths)
-        key = (ir_set, lax, semi)
+        key = (ir_set, lax)
     else:
-        key = (ir_set, False, False)
+        key = (ir_set, False)
 
     return key
 
@@ -216,9 +219,8 @@ def get_ctemap_key(
 def put_set_cte(
         ir_set: irast.Set, cte: pgast.BaseRelation, *,
         lax: typing.Optional[bool]=None,
-        semi: typing.Optional[bool]=False,
         ctx: context.CompilerContext) -> pgast.BaseRelation:
-    key = get_ctemap_key(ir_set, lax=lax, semi=semi, ctx=ctx)
+    key = get_ctemap_key(ir_set, lax=lax, ctx=ctx)
     ctx.ctemap[key] = cte
     ctx.ctemap_by_stmt[ctx.stmt][key] = cte
     return cte
@@ -226,7 +228,25 @@ def put_set_cte(
 
 def get_set_cte(
         ir_set: irast.Set, *, lax: typing.Optional[bool]=None,
-        semi: typing.Optional[bool]=False,
         ctx: context.CompilerContext) -> typing.Optional[pgast.BaseRelation]:
-    key = get_ctemap_key(ir_set, lax=lax, semi=semi, ctx=ctx)
+    key = get_ctemap_key(ir_set, lax=lax, ctx=ctx)
     return ctx.ctemap.get(key)
+
+
+def pop_prefix_ctes(
+        prefix: irast.PathId, *, lax: typing.Optional[bool]=None,
+        ctx: context.CompilerContextLevel) -> None:
+    if lax is None:
+        lax = bool(ctx.lax_paths)
+    for key in list(ctx.ctemap):
+        ir_set = key[0]
+        if key[1] == lax and ir_set.path_id.startswith(prefix):
+            ctx.ctemap.pop(key)
+
+
+def replace_set_cte_subtree(
+        ir_set: irast.Set, cte: pgast.BaseRelation, *,
+        lax: typing.Optional[bool]=None,
+        ctx: context.CompilerContext) -> pgast.BaseRelation:
+    pop_prefix_ctes(ir_set.path_id, lax=lax, ctx=ctx)
+    return put_set_cte(ir_set, cte, lax=lax, ctx=ctx)

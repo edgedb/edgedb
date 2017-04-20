@@ -6,6 +6,9 @@
 ##
 
 
+import re
+
+
 class ContextLevel:
     def on_pop(self, prevlevel):
         pass
@@ -54,3 +57,24 @@ class CompilerContext:
             return None
 
     current = property(_current)
+
+
+class AliasGenerator:
+    def __init__(self):
+        self.aliascnt = {}
+
+    def get(self, hint=None):
+        if hint is None:
+            hint = 'v'
+        m = re.search(r'~\d+$', hint)
+        if m:
+            hint = hint[:m.start()]
+
+        if hint not in self.aliascnt:
+            self.aliascnt[hint] = 1
+        else:
+            self.aliascnt[hint] += 1
+
+        alias = hint + '~' + str(self.aliascnt[hint])
+
+        return alias

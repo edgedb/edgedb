@@ -423,11 +423,15 @@ def process_set_as_path_step(
             map_join_type = 'left' if ctx.lax_paths else 'inner'
 
             if is_link_prop_ref:
-                # Reference to a link property.
-                pathctx.join_mapping_rel(
-                    ctx.env,
-                    stmt=source_query, set_rvar=set_rvar,
-                    ir_set=ir_set, map_join_type='left')
+                pvar = pathctx.maybe_get_path_var(
+                    ctx.env, source_query, ir_set.path_id)
+
+                if pvar is None:
+                    # Reference to a link property.
+                    pathctx.join_mapping_rel(
+                        ctx.env,
+                        stmt=source_query, set_rvar=set_rvar,
+                        ir_set=ir_set, map_join_type='left')
 
             elif is_mapped_target_ref:
                 # Reference to an object through a link relation.

@@ -14,6 +14,7 @@ from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import concepts as s_concepts
 from edgedb.lang.schema import expr as s_expr
+from edgedb.lang.schema import name as s_name
 
 from edgedb.lang.edgeql import ast as qlast
 from edgedb.lang.edgeql import errors
@@ -85,11 +86,24 @@ def compile_GroupQuery(
         stmt = irast.GroupStmt()
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
-        with ictx.new() as subjctx:
+        c = s_concepts.Concept(
+            name=s_name.Name(
+                module='__group__', name=ctx.aliases.get('Group')),
+            bases=[ctx.schema.get('std::Object')]
+        )
+        c.acquire_ancestor_inheritance(ctx.schema)
+
+        stmt.group_path_id = irast.PathId([c])
+        ictx.unaggregated_scope[stmt.group_path_id] = expr.context
+        pathctx.register_path_scope(stmt.group_path_id, ctx=ictx)
+
+        with ictx.newscope() as subjctx:
             subjctx.clause = 'input'
             stmt.subject = stmtctx.declare_aliased_set(
                 dispatch.compile(expr.subject, ctx=subjctx),
                 expr.subject_alias, ctx=subjctx)
+
+        ictx.path_scope.update(subjctx.path_scope)
 
         stmt.groupby = compile_groupby_clause(expr.groupby, ctx=ictx)
         ictx.group_paths = set(pathctx.extract_prefixes(stmt.groupby))
@@ -105,6 +119,7 @@ def compile_GroupQuery(
             sctx.group_paths = ictx.group_paths.copy()
             # Ignore scope in GROUP ... BY
             sctx.path_scope = parent_path_scope
+            pathctx.register_path_scope(stmt.group_path_id, ctx=sctx)
 
             o_stmt = sctx.stmt = irast.SelectStmt()
 

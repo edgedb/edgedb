@@ -6,8 +6,7 @@
 ##
 
 
-import re
-
+from edgedb.lang.common import compiler
 from edgedb.server.pgsql import common
 
 
@@ -17,22 +16,7 @@ class Alias(str):
             cls, common.edgedb_name_to_pg_name(value))
 
 
-class AliasGenerator:
-    def __init__(self):
-        self.aliascnt = {}
-
+class AliasGenerator(compiler.AliasGenerator):
     def get(self, hint=None):
-        if hint is None:
-            hint = 'v'
-        m = re.search(r'~\d+$', hint)
-        if m:
-            hint = hint[:m.start()]
-
-        if hint not in self.aliascnt:
-            self.aliascnt[hint] = 1
-        else:
-            self.aliascnt[hint] += 1
-
-        alias = hint + '~' + str(self.aliascnt[hint])
-
+        alias = super().get(hint)
         return Alias(alias)

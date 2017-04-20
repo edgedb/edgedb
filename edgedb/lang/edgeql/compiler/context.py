@@ -89,6 +89,7 @@ class ContextLevel(compiler.ContextLevel):
     def __init__(self, prevlevel=None, mode=None):
         if prevlevel is None:
             self.schema = None
+            self.aliases = compiler.AliasGenerator()
             self.anchors = {}
             self.pathvars = {}
             self.namespaces = {}
@@ -114,6 +115,7 @@ class ContextLevel(compiler.ContextLevel):
 
         else:
             self.schema = prevlevel.schema
+            self.aliases = prevlevel.aliases
             self.arguments = prevlevel.arguments
             self.toplevel_shape_rptr = prevlevel.toplevel_shape_rptr
             self.path_scope = prevlevel.path_scope

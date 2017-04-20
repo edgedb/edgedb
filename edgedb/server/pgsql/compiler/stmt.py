@@ -12,7 +12,6 @@ from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import concepts as s_concepts
-from edgedb.lang.schema import name as s_name
 from edgedb.server.pgsql import ast as pgast
 
 from . import boilerplate
@@ -143,15 +142,7 @@ def compile_GroupStmt(
     with parent_ctx.substmt() as ctx:
         boilerplate.init_stmt(stmt, ctx=ctx, parent_ctx=parent_ctx)
 
-        c = s_concepts.Concept(
-            name=s_name.Name(
-                module='__group__', name=ctx.genalias('Group')),
-            bases=[ctx.schema.get('std::Object')]
-        )
-        c.acquire_ancestor_inheritance(ctx.schema)
-
-        group_path_id = irast.PathId([c])
-
+        group_path_id = stmt.group_path_id
         ctx.stmt_path_scope = ctx.stmt_path_scope.copy()
         ctx.stmt_path_scope[group_path_id] = 1
         ctx.parent_stmt_path_scope[group_path_id] = 1
@@ -226,10 +217,13 @@ def compile_GroupStmt(
             gvctx.stmt_path_scope = collections.defaultdict(int)
             gvctx.stmt_path_scope[group_path_id] = 1
 
-            relctx.put_set_cte(stmt.subject, group_cte, ctx=gvctx)
+            relctx.replace_set_cte_subtree(
+                stmt.subject, group_cte, ctx=gvctx)
 
             for group_set in stmt.groupby:
                 if group_set.path_id.startswith(stmt.subject.path_id):
+                    relctx.replace_set_cte_subtree(
+                        group_set, group_cte, ctx=gvctx)
                     group_expr = dispatch.compile(group_set, ctx=gvctx)
                     path_id = group_set.path_id
                     alias = pathctx.get_path_output_alias(
@@ -277,17 +271,21 @@ def compile_GroupStmt(
             selctx.parent_stmt_path_scope = ctx.parent_stmt_path_scope
 
             selctx.query.ctes.append(group_cte)
-            relctx.put_set_cte(stmt.subject, group_cte, ctx=selctx)
+            # relctx.pop_prefix_ctes(stmt.subject.path_id, ctx=selctx)
+            relctx.replace_set_cte_subtree(
+                stmt.subject, group_cte, lax=False, ctx=selctx)
             # When GROUP subject appears in aggregates, which by
             # default use lax paths, we still want to use the group
             # CTE as the source.
-            relctx.put_set_cte(stmt.subject, group_cte, lax=True, ctx=selctx)
+            relctx.replace_set_cte_subtree(
+                stmt.subject, group_cte, lax=True, ctx=selctx)
 
             sortoutputs = []
 
             selctx.query.ctes.append(groupval_cte)
             for grouped_set in group_paths:
-                relctx.put_set_cte(grouped_set, groupval_cte, ctx=selctx)
+                relctx.replace_set_cte_subtree(
+                    grouped_set, groupval_cte, ctx=selctx)
 
             output.compile_output(o_stmt.result, ctx=selctx)
 
