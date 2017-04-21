@@ -949,6 +949,32 @@ class TestExpressions(tb.QueryTestCase):
             [[1, 2], [3, 4]],
         ])
 
+    async def test_edgeql_expr_tuple07(self):
+        await self.assert_query_result(r"""
+            SELECT (1, 'foo') = (a := 1, b := 'foo');
+            SELECT (a := 1, b := 'foo') = (a := 1, b := 'foo');
+            SELECT (a := 1, b := 'foo') = (c := 1, d := 'foo');
+            SELECT (a := 1, b := 'foo') = (b := 1, a := 'foo');
+            SELECT (a := 1, b := 9001) != (b := 9001, a := 1);
+            SELECT (a := 1, b := 9001).a = (b := 9001, a := 1).a;
+            SELECT (a := 1, b := 9001).b = (b := 9001, a := 1).b;
+        """, [
+            [True],
+            [True],
+            [True],
+            [True],
+            [True],
+            [True],
+            [True],
+        ])
+
+    async def test_edgeql_expr_tuple08(self):
+        with self.assertRaisesRegex(
+                exc._base.UnknownEdgeDBError, r'operator does not exist'):
+            await self.con.execute(r"""
+                SELECT (a := 1, b := 'foo') != (b := 'foo', a := 1);
+            """)
+
     async def test_edgeql_expr_tuple_indirection01(self):
         await self.assert_query_result(r"""
             SELECT ('foo', 42).0;
