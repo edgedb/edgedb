@@ -293,12 +293,17 @@ class Statement(Expr):
     aliases: typing.List[typing.Union[AliasedExpr, NamespaceAliasDecl]]
 
 
-class SubjStatement(Statement):
+class QueryStatement(Statement):
+    source_el: str
+    source: Expr
+
+
+class SubjStatement(QueryStatement):
     subject: Expr
     subject_alias: str
 
 
-class ReturningStatement(Statement):
+class ReturningStatement(QueryStatement):
     result: Expr
     result_alias: str
     single: bool = False
@@ -321,8 +326,6 @@ class GroupQuery(SubjStatement, ReturningStatement):
 
 class InsertQuery(SubjStatement):
     shape: typing.List[Expr]
-    source_el: str
-    source: Expr
 
 
 class UpdateQuery(SubjStatement):

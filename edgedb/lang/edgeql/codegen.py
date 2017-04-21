@@ -55,6 +55,15 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.new_lines = 1
             self.indentation -= 1
 
+    def _visit_for(self, node):
+        if node.source:
+            self.write('FOR ', node.source_el, ' IN')
+            self.indentation += 1
+            self.new_lines = 1
+            self.visit(node.source)
+            self.indentation -= 1
+            self.new_lines = 1
+
     def visit_AliasedExpr(self, node):
         self.write(ident_to_str(node.alias))
         self.write(' := ')
@@ -76,6 +85,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if parenthesise:
             self.write('(')
         self._visit_aliases(node)
+        self._visit_for(node)
         self.write('INSERT')
         self.indentation += 1
         self.new_lines = 1
@@ -87,14 +97,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.indentation += 1
             self._visit_shape(node.shape)
             self.indentation -= 1
-
-        if node.source:
-            self.write(' FOR ', node.source_el, ' IN ')
-            self.indentation += 1
-            self.new_lines = 1
-            self.visit(node.source)
-            self.indentation -= 1
-            self.new_lines = 1
 
         if parenthesise:
             self.write(')')
@@ -108,6 +110,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if parenthesise:
             self.write('(')
         self._visit_aliases(node)
+        self._visit_for(node)
         self.write('UPDATE')
         self.indentation += 1
         self.new_lines = 1
@@ -144,6 +147,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if parenthesise:
             self.write('(')
         self._visit_aliases(node)
+        self._visit_for(node)
         self.write('DELETE ')
         self.visit(node.subject, parenthesise=False)
 
@@ -161,6 +165,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write('(')
 
         self._visit_aliases(node)
+        self._visit_for(node)
 
         self.write('SELECT')
         if node.single:
@@ -213,6 +218,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write('(')
 
         self._visit_aliases(node)
+        self._visit_for(node)
 
         self.write('GROUP')
         self.new_lines = 1

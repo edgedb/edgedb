@@ -30,19 +30,35 @@ class ListNonterm(context.ListNonterm, element=None):
 
 
 class SetStmt(Nonterm):
-    def reduce_SelectExpr(self, *kids):
+    def reduce_AliasBlock_OptForClause_SetStmtCore(self, *kids):
+        self.val = kids[2].val
+        self.val.aliases = kids[0].val
+        self.val.source_el = kids[1].val.alias
+        self.val.source = kids[1].val.expr
+
+    def reduce_ForClause_SetStmtCore(self, *kids):
+        self.val = kids[1].val
+        self.val.source_el = kids[0].val.alias
+        self.val.source = kids[0].val.expr
+
+    def reduce_SetStmtCore(self, *kids):
         self.val = kids[0].val
 
-    def reduce_GroupExpr(self, *kids):
+
+class SetStmtCore(Nonterm):
+    def reduce_SimpleGroup(self, *kids):
         self.val = kids[0].val
 
-    def reduce_InsertExpr(self, *kids):
+    def reduce_SimpleSelect(self, *kids):
         self.val = kids[0].val
 
-    def reduce_UpdateExpr(self, *kids):
+    def reduce_SimpleInsert(self, *kids):
         self.val = kids[0].val
 
-    def reduce_DeleteExpr(self, *kids):
+    def reduce_SimpleUpdate(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_SimpleDelete(self, *kids):
         self.val = kids[0].val
 
 
@@ -81,31 +97,17 @@ class OutputExpr(Nonterm):
         )
 
 
-class ReturningClause(Nonterm):
-    def reduce_RETURNING_OutputExpr(self, *kids):
-        self.val = kids[1].val
+class ForClause(Nonterm):
+    def reduce_FOR_Identifier_IN_Expr(self, *kids):
+        self.val = AliasedExprSpec(alias=kids[1].val, expr=kids[3].val)
 
 
-class OptReturningClause(Nonterm):
-    def reduce_ReturningClause(self, *kids):
+class OptForClause(Nonterm):
+    def reduce_ForClause(self, *kids):
         self.val = kids[0].val
 
     def reduce_empty(self, *kids):
-        self.val = OutputExprSpec(
-            single=False,
-            result=None,
-            alias=None
-        )
-
-
-class SelectExpr(Nonterm):
-    def reduce_AliasBlock_SimpleSelect(self, *kids):
-        qry = kids[1].val
-        qry.aliases = kids[0].val
-        self.val = qry
-
-    def reduce_SimpleSelect(self, *kids):
-        self.val = kids[0].val
+        self.val = AliasedExprSpec(None, None)
 
 
 class SimpleSelect(Nonterm):
@@ -121,16 +123,6 @@ class SimpleSelect(Nonterm):
             offset=kids[4].val[0],
             limit=kids[4].val[1],
         )
-
-
-class GroupExpr(Nonterm):
-    def reduce_AliasBlock_SimpleGroup(self, *kids):
-        qry = kids[1].val
-        qry.aliases = kids[0].val
-        self.val = qry
-
-    def reduce_SimpleGroup(self, *kids):
-        self.val = kids[0].val
 
 
 class SimpleGroup(Nonterm):
@@ -153,13 +145,12 @@ class SimpleGroup(Nonterm):
         )
 
 
-class InsertExpr(Nonterm):
-    def reduce_InsertFrom(self, *kids):
-        r'%reduce OptAliasBlock INSERT OptionallyAliasedExpr \
-                  OptForClause'
+class SimpleInsert(Nonterm):
+    def reduce_Insert(self, *kids):
+        r'%reduce INSERT OptionallyAliasedExpr'
 
-        subj = kids[2].val.expr
-        subj_alias = kids[2].val.alias
+        subj = kids[1].val.expr
+        subj_alias = kids[1].val.alias
 
         # check that the insert subject is either a path or a shape
         #
@@ -176,43 +167,29 @@ class InsertExpr(Nonterm):
                 context=subj.context)
 
         self.val = qlast.InsertQuery(
-            aliases=kids[0].val,
             subject=concept,
             subject_alias=subj_alias,
             shape=shape,
-            source_el=kids[3].val.alias,
-            source=kids[3].val.expr,
         )
 
 
-class OptForClause(Nonterm):
-    def reduce_FOR_Identifier_IN_Expr(self, *kids):
-        self.val = AliasedExprSpec(alias=kids[1].val, expr=kids[3].val)
-
-    def reduce_empty(self, *kids):
-        self.val = AliasedExprSpec(None, None)
-
-
-class UpdateExpr(Nonterm):
-    def reduce_UpdateExpr(self, *kids):
-        "%reduce OptAliasBlock UPDATE OptionallyAliasedExpr \
-                 OptFilterClause SET Shape"
+class SimpleUpdate(Nonterm):
+    def reduce_Update(self, *kids):
+        "%reduce UPDATE OptionallyAliasedExpr OptFilterClause SET Shape"
         self.val = qlast.UpdateQuery(
-            aliases=kids[0].val,
-            subject=kids[2].val.expr,
-            subject_alias=kids[2].val.alias,
-            where=kids[3].val,
-            shape=kids[5].val,
+            subject=kids[1].val.expr,
+            subject_alias=kids[1].val.alias,
+            where=kids[2].val,
+            shape=kids[4].val,
         )
 
 
-class DeleteExpr(Nonterm):
-    def reduce_DeleteExpr(self, *kids):
-        "%reduce OptAliasBlock DELETE OptionallyAliasedExpr"
+class SimpleDelete(Nonterm):
+    def reduce_Delete(self, *kids):
+        "%reduce DELETE OptionallyAliasedExpr"
         self.val = qlast.DeleteQuery(
-            aliases=kids[0].val,
-            subject=kids[2].val.expr,
-            subject_alias=kids[2].val.alias,
+            subject=kids[1].val.expr,
+            subject_alias=kids[1].val.alias,
         )
 
 
@@ -944,14 +921,6 @@ class BaseNumberConstant(Nonterm):
 
     def reduce_FCONST(self, *kids):
         self.val = qlast.Constant(value=float(kids[0].val))
-
-
-class NumberConstant(Nonterm):
-    def reduce_BaseConstant(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_BaseNumberConstant(self, *kids):
-        self.val = kids[0].val
 
 
 class BaseStringConstant(Nonterm):

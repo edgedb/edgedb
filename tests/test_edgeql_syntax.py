@@ -1855,38 +1855,71 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    def test_edgeql_syntax_insertfrom01(self):
+    def test_edgeql_syntax_insertfor01(self):
         """
-        INSERT User{name := name} FOR name in 'a' UNION 'b' UNION 'c';
+        FOR name in 'a' UNION 'b' UNION 'c'
+        INSERT User{name := name};
 
 % OK %
 
-        INSERT User{name := name} FOR name in (('a' UNION 'b') UNION 'c');
+        FOR name in (('a' UNION 'b') UNION 'c')
+        INSERT User{name := name};
         """
 
-    def test_edgeql_syntax_insertfrom02(self):
+    def test_edgeql_syntax_insertfor02(self):
         """
-        INSERT Foo{name:= name}
-        FOR name IN (SELECT Foo.bar FILTER (Foo.baz = TRUE));
-        """
-
-    def test_edgeql_syntax_insertfrom03(self):
-        """
-        INSERT Foo{name:= bar.name}
-        FOR bar IN (INSERT Bar{name := 'bar'});
+        FOR name IN (SELECT Foo.bar FILTER (Foo.baz = TRUE))
+        INSERT Foo{name:= name};
         """
 
-    def test_edgeql_syntax_insertfrom04(self):
+    def test_edgeql_syntax_insertfor03(self):
         """
-        INSERT Foo{name:= bar.name}
-        FOR bar IN (DELETE Bar);
+        FOR bar IN (INSERT Bar{name := 'bar'})
+        INSERT Foo{name:= bar.name};
         """
 
-    def test_edgeql_syntax_insertfrom05(self):
+    def test_edgeql_syntax_insertfor04(self):
         """
-        INSERT Foo{name:= bar.name} FOR bar IN (
+        FOR bar IN (DELETE Bar)
+        INSERT Foo{name:= bar.name};
+        """
+
+    def test_edgeql_syntax_insertfor05(self):
+        """
+        FOR bar IN (
             UPDATE Bar SET {name := (name + 'bar')}
+        )
+        INSERT Foo{name:= bar.name};
+        """
+
+    def test_edgeql_syntax_selectfor01(self):
+        """
+        FOR x in (('Alice', 'White') UNION ('Bob', 'Green'))
+        SELECT User{first_tname, last_name, age}
+        FILTER (
+            (.first_name = x.0)
+            AND
+            (.last_name = x.1)
         );
+        """
+
+    def test_edgeql_syntax_deletefor01(self):
+        """
+        FOR x in (('Alice', 'White') UNION ('Bob', 'Green'))
+        DELETE (
+            SELECT User
+            FILTER (
+                (.first_name = x.0)
+                AND
+                (.last_name = x.1)
+            )
+        );
+        """
+
+    def test_edgeql_syntax_updatefor01(self):
+        """
+        FOR x in ((1, 'a') UNION (2, 'b'))
+        UPDATE Foo FILTER (Foo.id = x.0) SET {bar := x.1};
         """
 
     def test_edgeql_syntax_coalesce01(self):

@@ -491,18 +491,20 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_for01(self):
         res = await self.con.execute('''
             WITH MODULE test
+            FOR x IN 3 UNION 5 UNION 7 UNION 2
             INSERT InsertTest {
                 name := 'insert for 1',
                 l2 := x,
-            } FOR x IN 3 UNION 5 UNION 7 UNION 2;
+            };
 
             WITH MODULE test
+            FOR Q IN (SELECT InsertTest{foo := 'foo' + <str> InsertTest.l2}
+                        FILTER .name = 'insert for 1')
             INSERT InsertTest {
                 name := 'insert for 1',
                 l2 := 35 % Q.l2,
                 l3 := Q.foo,
-            } FOR Q IN (SELECT InsertTest{foo := 'foo' + <str> InsertTest.l2}
-                        FILTER .name = 'insert for 1');
+            };
 
             WITH MODULE test
             SELECT InsertTest{name, l2, l3}
@@ -562,18 +564,20 @@ class TestInsert(tb.QueryTestCase):
             # insert several objects, then annotate one of the inserted batch
             #
             WITH MODULE test
+            FOR x IN (
+                SELECT _i := (
+                    FOR y IN 3 UNION 5 UNION 7 UNION 2
+                    INSERT InsertTest {
+                        name := 'insert expr 1',
+                        l2 := y,
+                    }
+                ) ORDER BY _i.l2 DESC LIMIT 1
+            )
             INSERT Annotation {
                 name := 'insert expr 1',
                 note := 'largest ' + <str>x.l2,
                 subject := x
-            } FOR x IN (
-                SELECT _i := (
-                    INSERT InsertTest {
-                        name := 'insert expr 1',
-                        l2 := x,
-                    } FOR x IN 3 UNION 5 UNION 7 UNION 2
-                ) ORDER BY _i.l2 DESC LIMIT 1
-            );
+            };
 
             WITH MODULE test
             SELECT
@@ -629,10 +633,11 @@ class TestInsert(tb.QueryTestCase):
             WITH
                 MODULE test,
                 _i := (
+                    FOR x IN 3 UNION 5 UNION 7 UNION 2
                     INSERT InsertTest {
                         name := 'insert expr 2',
                         l2 := x,
-                    } FOR x IN 3 UNION 5 UNION 7 UNION 2
+                    }
                 ),
                 y := (SELECT _i ORDER BY _i.l2 DESC LIMIT 1)
             INSERT Annotation {
