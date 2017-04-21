@@ -12,7 +12,9 @@ from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import concepts as s_concepts
+from edgedb.lang.schema import objects as s_obj
 from edgedb.server.pgsql import ast as pgast
+from edgedb.server.pgsql import common
 
 from . import boilerplate
 from . import context
@@ -149,8 +151,9 @@ def compile_GroupStmt(
 
         # Process the GROUP .. BY part into a subquery.
         with ctx.subquery() as gctx:
+            gctx.expr_exposed = False
             gquery = gctx.query
-            dispatch.compile(stmt.subject, ctx=gctx)
+            output.compile_output(stmt.subject, ctx=gctx)
 
             group_paths = set()
 
@@ -162,9 +165,7 @@ def compile_GroupStmt(
                     partexpr = dispatch.compile(expr, ctx=subctx)
 
                 part_clause.append(partexpr)
-
-                if expr.path_id.startswith(stmt.subject.path_id):
-                    group_paths.add(expr)
+                group_paths.add(expr)
 
             # Since we will be computing arbitrary expressions
             # based on the grouped sets, it is more efficient
@@ -182,7 +183,58 @@ def compile_GroupStmt(
                 first_val = pathctx.get_path_var(
                     ctx.env, gquery, stmt.subject.path_id)
             else:
-                pass
+                with ctx.subquery() as subctx:
+                    wrapper = subctx.query
+
+                    row_number = pgast.FuncCall(
+                        name=('row_number',),
+                        args=[],
+                        over=pgast.WindowDef()
+                    )
+
+                    rn_alias = ctx.env.aliases.get('rn')
+                    gquery.target_list.append(
+                        pgast.ResTarget(
+                            val=row_number,
+                            name=rn_alias
+                        )
+                    )
+
+                    gquery_rvar = dbobj.rvar_for_rel(ctx.env, gquery)
+                    wrapper.from_clause = [gquery_rvar]
+                    relctx.pull_path_namespace(
+                        target=wrapper, source=gquery_rvar, ctx=subctx)
+
+                    new_part_clause = []
+
+                    for expr in part_clause:
+                        alias = ctx.env.aliases.get('p')
+                        gquery.target_list.append(
+                            pgast.ResTarget(
+                                val=expr,
+                                name=alias
+                            )
+                        )
+                        new_part_clause.append(
+                            dbobj.get_column(gquery_rvar, alias)
+                        )
+
+                    part_clause = new_part_clause
+
+                    first_val = dbobj.get_column(gquery_rvar, rn_alias)
+
+                    restype = irutils.infer_type(stmt.subject, ctx.env.schema)
+                    if isinstance(restype, s_obj.Tuple):
+                        for n in restype.element_types:
+                            cn = common.edgedb_name_to_pg_name(n)
+                            wrapper.target_list.append(
+                                pgast.ResTarget(
+                                    val=dbobj.get_column(gquery_rvar, cn),
+                                    name=cn
+                                )
+                            )
+
+                    gquery = wrapper
 
             group_id = pgast.FuncCall(
                 name=('first_value',),
@@ -221,25 +273,27 @@ def compile_GroupStmt(
                 stmt.subject, group_cte, ctx=gvctx)
 
             for group_set in stmt.groupby:
-                if group_set.path_id.startswith(stmt.subject.path_id):
-                    relctx.replace_set_cte_subtree(
-                        group_set, group_cte, ctx=gvctx)
-                    group_expr = dispatch.compile(group_set, ctx=gvctx)
-                    path_id = group_set.path_id
+                relctx.replace_set_cte_subtree(
+                    group_set, group_cte, ctx=gvctx)
+                group_expr = dispatch.compile(group_set, ctx=gvctx)
+                path_id = group_set.path_id
+                if isinstance(group_set.expr, irast.TupleIndirection):
+                    alias = group_set.expr.name
+                else:
                     alias = pathctx.get_path_output_alias(
                         ctx.env, path_id)
-                    gvctx.query.target_list.append(
-                        pgast.ResTarget(
-                            val=group_expr,
-                            name=alias
-                        )
+                gvctx.query.target_list.append(
+                    pgast.ResTarget(
+                        val=group_expr,
+                        name=alias
                     )
-                    pathctx.put_path_output(
-                        ctx.env, gvctx.query, path_id, alias, raw=True)
-                    pathctx.put_path_output(
-                        ctx.env, gvctx.query, path_id, alias, raw=False)
-                    pathctx.put_path_bond(gvctx.query, path_id)
-                    gvctx.stmt_path_scope[path_id] = 1
+                )
+                pathctx.put_path_output(
+                    ctx.env, gvctx.query, path_id, alias, raw=True)
+                pathctx.put_path_output(
+                    ctx.env, gvctx.query, path_id, alias, raw=False)
+                pathctx.put_path_bond(gvctx.query, path_id)
+                gvctx.stmt_path_scope[path_id] = 1
 
             for path_id in list(gvctx.query.path_rvar_map):
                 c_path_id = pathctx.get_canonical_path_id(

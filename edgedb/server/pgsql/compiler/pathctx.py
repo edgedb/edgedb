@@ -322,6 +322,14 @@ def put_path_rvar(
     stmt.path_rvar_map[path_id] = rvar
 
 
+def get_path_rvar(
+        env: context.Environment, stmt: pgast.Query,
+        path_id: irast.PathId) -> pgast.BaseRangeVar:
+    path_id = get_canonical_path_id(
+        env.schema, proper_path_id(env.schema, path_id))
+    return stmt.path_rvar_map[path_id]
+
+
 def get_path_output(
         env: context.Environment, rel: pgast.Query, path_id: irast.PathId, *,
         alias: str=None, raw: bool=False) -> str:

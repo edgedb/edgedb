@@ -372,6 +372,21 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
+    async def test_edgeql_group_expr_01(self):
+        await self.assert_query_result(r'''
+            GROUP
+                x := (1, 2) UNION (3, 4) UNION (4, 2)
+            BY
+                x.1
+            SELECT
+                (x.1, array_agg(ALL x.0))
+            ORDER BY
+                x.1;
+        ''', [
+            [[2, [1, 4]], [4, [3]]],
+        ])
+
+    @tb.expected_optimizer_failure
     async def test_edgeql_group_alias01(self):
         await self.assert_query_result(r'''
             WITH MODULE test

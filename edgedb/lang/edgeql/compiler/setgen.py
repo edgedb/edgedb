@@ -162,16 +162,22 @@ def path_step(
             el_name = ptr_name[1]
 
         if el_name in source.element_types:
-            expr = irast.TupleIndirection(
-                expr=path_tip, name=el_name,
-                context=source_context)
+            try:
+                expr = ctx.sets[path_tip, el_name]
+            except KeyError:
+                expr = irast.TupleIndirection(
+                    expr=path_tip, name=el_name,
+                    context=source_context)
+            else:
+                return expr, None
         else:
             raise errors.EdgeQLReferenceError(
                 f'{el_name} is not a member of a struct')
 
-        path_tip = generated_set(expr, ctx=ctx)
+        tuple_ind = generated_set(expr, ctx=ctx)
+        ctx.sets[path_tip, el_name] = tuple_ind
 
-        return path_tip, None
+        return tuple_ind, None
 
     else:
         # Check if the tip of the path has an associated shape.
