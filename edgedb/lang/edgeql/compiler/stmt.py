@@ -94,7 +94,6 @@ def compile_GroupQuery(
         c.acquire_ancestor_inheritance(ctx.schema)
 
         stmt.group_path_id = irast.PathId([c])
-        ictx.unaggregated_scope[stmt.group_path_id] = expr.context
         pathctx.register_path_scope(stmt.group_path_id, ctx=ictx)
 
         with ictx.newscope() as subjctx:
@@ -105,8 +104,14 @@ def compile_GroupQuery(
 
         ictx.path_scope.update(subjctx.path_scope)
 
-        stmt.groupby = compile_groupby_clause(expr.groupby, ctx=ictx)
-        ictx.group_paths = set(pathctx.extract_prefixes(stmt.groupby))
+        with ictx.new() as grpctx:
+            # Prevent singleton inference of GROUP input from
+            # leaking beyond the BY clause.
+            grpctx.singletons = ictx.singletons.copy()
+            pathctx.update_singletons(stmt.subject, ctx=grpctx)
+
+        stmt.groupby = compile_groupby_clause(
+            expr.groupby, singletons=grpctx.singletons, ctx=ictx)
 
         output = expr.result
 
@@ -116,7 +121,6 @@ def compile_GroupQuery(
             ictx.result_path_steps = output.expr.steps
 
         with ictx.subquery() as isctx, isctx.newscope() as sctx:
-            sctx.group_paths = ictx.group_paths.copy()
             # Ignore scope in GROUP ... BY
             sctx.path_scope = parent_path_scope
             pathctx.register_path_scope(stmt.group_path_id, ctx=sctx)
@@ -129,6 +133,7 @@ def compile_GroupQuery(
 
             o_stmt.where = clauses.compile_where_clause(
                 expr.where, ctx=sctx)
+
             o_stmt.orderby = clauses.compile_orderby_clause(
                 expr.orderby, ctx=sctx)
 
@@ -291,7 +296,6 @@ def fini_stmt(
         if isinstance(irstmt.result, irast.Set):
             result.path_id = irstmt.result.path_id
 
-    irstmt.aggregated_scope = set(ctx.aggregated_scope)
     irstmt.path_scope = ctx.path_scope
     irstmt.specific_path_scope = {
         ctx.sets[p] for p in ctx.stmt_path_scope
@@ -359,6 +363,7 @@ def compile_result_clause(
 
 def compile_groupby_clause(
         groupexprs: typing.Iterable[qlast.Base], *,
+        singletons: typing.Set[irast.Set],
         ctx: context.ContextLevel) -> typing.List[irast.Set]:
     result = []
     if not groupexprs:
@@ -366,6 +371,8 @@ def compile_groupby_clause(
 
     with ctx.new() as sctx:
         sctx.clause = 'groupby'
+        sctx.singletons = sctx.singletons.copy()
+        sctx.singletons.update(singletons)
 
         ir_groupexprs = []
         for groupexpr in groupexprs:
@@ -373,6 +380,7 @@ def compile_groupby_clause(
             ir_groupexpr.context = groupexpr.context
             ir_groupexprs.append(ir_groupexpr)
 
-        pathctx.update_singletons(ir_groupexprs, ctx=sctx)
+            ctx.singletons.add(irutils.get_canonical_set(ir_groupexpr))
+            ctx.group_paths.add(ir_groupexpr.path_id)
 
     return ir_groupexprs

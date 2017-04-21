@@ -44,8 +44,6 @@ def pull_path_namespace(
 
         for path_id in source_q.path_bonds:
             if path_id in target.path_bonds and not replace_bonds:
-                if path_id[-1].name.name == 'Group~2':
-                    print('not replacing', path_id)
                 continue
 
             orig_path_id = path_id
@@ -54,8 +52,6 @@ def pull_path_namespace(
 
             if (not path_id.is_in_scope(ctx.stmt_path_scope) and
                     not orig_path_id.is_in_scope(ctx.stmt_path_scope)):
-                if path_id[-1].name.name == 'Group~2':
-                    print('skipping', path_id)
                 continue
 
             pathctx.put_path_bond(target, path_id)

@@ -7,7 +7,7 @@
 
 
 import os.path
-import unittest
+import unittest  # NOQA
 
 from edgedb.server import _testbase as tb
 
@@ -820,7 +820,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             }],
         ])
 
-    @unittest.expectedFailure
+    @tb.expected_optimizer_failure
     async def test_edgeql_group_by_tuple08(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -828,13 +828,13 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 Issue
             BY
                 Issue.status.name,
-                Issue.owner.id
+                Issue.owner
             SELECT (
                 numbers := array_agg(
                     ALL <int>Issue.number ORDER BY Issue.number),
                 status := Issue.status.name,
             ) ORDER BY Issue.status.name
-                # should work because owner.name and owner.id are 1-1
+                # should work because owner.name is *-1
                 THEN Issue.owner.name;
         """, [
             [{

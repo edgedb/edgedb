@@ -14,7 +14,6 @@ from edgedb.lang.common import parsing
 from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
 
-from edgedb.lang.schema import atoms as s_atoms
 from edgedb.lang.schema import concepts as s_concepts
 from edgedb.lang.schema import nodes as s_nodes
 from edgedb.lang.schema import objects as s_obj
@@ -143,35 +142,6 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
 
     if isinstance(path_tip, irast.Set):
         pathctx.register_path_scope(path_tip.path_id, ctx=ctx)
-
-        if ((ctx.in_aggregate and not isinstance(ctx.stmt, irast.GroupStmt) or
-                ctx.clause == 'groupby')):
-            ctx.aggregated_scope[path_tip.path_id] = expr.context
-
-            if (isinstance(path_tip.scls, s_atoms.Atom) and
-                    path_tip.rptr is not None and
-                    path_tip.rptr.ptrcls.singular(
-                        path_tip.rptr.direction)):
-                ctx.aggregated_scope[path_tip.rptr.source.path_id] = \
-                    expr.context
-
-            if path_tip.path_id in ctx.unaggregated_scope:
-                srcctx = ctx.unaggregated_scope.get(path_tip.path_id)
-                raise errors.EdgeQLError(
-                    f'{path_tip.path_id!r} must appear in the '
-                    'GROUP ... BY expression or used in an '
-                    'aggregate function.', context=srcctx)
-        elif (not isinstance(ctx.stmt, irast.GroupStmt) or
-                ctx.clause not in {'input', 'groupby'}):
-            for agg_path in ctx.aggregated_scope:
-                if (path_tip.path_id.startswith(agg_path) and
-                        path_tip.path_id not in ctx.group_paths):
-                    raise errors.EdgeQLError(
-                        f'{path_tip.path_id!r} must appear in the '
-                        'GROUP ... BY expression or used in an '
-                        'aggregate function.', context=expr.context)
-
-            ctx.unaggregated_scope[path_tip.path_id] = expr.context
 
     return path_tip
 

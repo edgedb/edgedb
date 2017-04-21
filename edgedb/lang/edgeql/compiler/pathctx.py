@@ -22,16 +22,19 @@ from . import context
 
 
 class PathExtractor(ast.visitor.NodeVisitor):
-    def __init__(self, roots_only=False):
+    def __init__(self, roots_only=False, exclude=set()):
         super().__init__()
         self.paths = collections.OrderedDict()
         self.roots_only = roots_only
+        self.exclude = exclude
 
     def visit_Stmt(self, expr):
         pass
 
     def visit_Set(self, expr):
         key = expr.path_id
+        if key in self.exclude:
+            return
 
         if expr.expr is not None:
             self.visit(expr.expr)
@@ -52,8 +55,8 @@ class PathExtractor(ast.visitor.NodeVisitor):
             self.generic_visit(expr)
 
 
-def extract_prefixes(expr, roots_only=False):
-    extractor = PathExtractor(roots_only=roots_only)
+def extract_prefixes(expr, roots_only=False, *, exclude=set()):
+    extractor = PathExtractor(roots_only=roots_only, exclude=exclude)
     extractor.visit(expr)
     return extractor.paths
 
@@ -61,13 +64,14 @@ def extract_prefixes(expr, roots_only=False):
 def register_path_scope(
         path_id: irast.PathId, *, stmt_scope: bool=True,
         ctx: context.CompilerContext) -> None:
-    if not ctx.path_as_type:
-        for prefix in path_id.iter_prefixes():
-            if (ctx.in_aggregate or not ctx.aggregated_scope or
-                    prefix in ctx.unaggregated_scope):
-                ctx.path_scope[prefix] += 1
-                if stmt_scope:
-                    ctx.stmt_path_scope[prefix] += 1
+    if ctx.path_as_type:
+        return
+
+    for prefix in path_id.iter_prefixes():
+        if not prefix.starts_any_of(ctx.group_paths):
+            ctx.path_scope[prefix] += 1
+            if stmt_scope:
+                ctx.stmt_path_scope[prefix] += 1
 
 
 def update_pending_path_scope(
@@ -94,7 +98,8 @@ def enforce_singleton(expr: irast.Base, *, ctx: context.ContextLevel) -> None:
 
 
 def update_singletons(expr: irast.Base, *, ctx: context.ContextLevel) -> None:
-    for prefix, ir_sets in extract_prefixes(expr).items():
+    prefixes = extract_prefixes(expr, exclude=ctx.group_paths)
+    for prefix, ir_sets in prefixes.items():
         for ir_set in ir_sets:
             ir_set = irutils.get_canonical_set(ir_set)
             ctx.singletons.add(ir_set)

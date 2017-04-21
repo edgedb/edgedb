@@ -71,8 +71,7 @@ def compile_FunctionCall(
             # obtained by processing the agg call in the resulting
             # IR Set.
             with fctx.newscope() as scope_ctx:
-                scope_ctx.aggregated_scope.clear()
-                scope_ctx.unaggregated_scope.clear()
+                scope_ctx.group_paths.clear()
 
                 args, kwargs, arg_types = \
                     process_func_args(expr, funcname, ctx=scope_ctx)

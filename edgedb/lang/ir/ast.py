@@ -425,7 +425,6 @@ class Stmt(Base):
 
     result: Base
     singleton: bool
-    aggregated_scope: typing.Set[PathId]
     main_stmt: Base
     parent_stmt: Base
     substmts: list

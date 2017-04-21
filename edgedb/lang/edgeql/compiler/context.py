@@ -104,8 +104,6 @@ class ContextLevel(compiler.ContextLevel):
             self.path_scope = collections.defaultdict(int)
             self.stmt_path_scope = collections.defaultdict(int)
             self.pending_path_scope = set()
-            self.aggregated_scope = {}
-            self.unaggregated_scope = {}
             self.in_aggregate = False
             self.path_as_type = False
 
@@ -120,8 +118,7 @@ class ContextLevel(compiler.ContextLevel):
             self.toplevel_shape_rptr = prevlevel.toplevel_shape_rptr
             self.path_scope = prevlevel.path_scope
             self.pending_path_scope = prevlevel.pending_path_scope
-            self.aggregated_scope = prevlevel.aggregated_scope
-            self.unaggregated_scope = prevlevel.unaggregated_scope
+            self.group_paths = prevlevel.group_paths
 
             if mode == ContextSwitchMode.SUBQUERY:
                 self.anchors = prevlevel.anchors.copy()
@@ -134,7 +131,6 @@ class ContextLevel(compiler.ContextLevel):
                 self.stmt = None
                 self.sets = prevlevel.sets
                 self.singletons = prevlevel.singletons.copy()
-                self.group_paths = set()
                 self.stmt_path_scope = collections.defaultdict(int)
                 self.in_aggregate = False
                 self.path_as_type = False
@@ -150,7 +146,6 @@ class ContextLevel(compiler.ContextLevel):
                 self.clause = prevlevel.clause
                 self.stmt = prevlevel.stmt
 
-                self.group_paths = prevlevel.group_paths
                 self.stmt_path_scope = prevlevel.stmt_path_scope
                 self.in_aggregate = prevlevel.in_aggregate
                 self.path_as_type = prevlevel.path_as_type
@@ -163,8 +158,7 @@ class ContextLevel(compiler.ContextLevel):
                 self.path_scope = prevlevel.path_scope.copy()
                 self.stmt_path_scope = prevlevel.stmt_path_scope.copy()
                 self.pending_path_scope = set()
-                self.aggregated_scope = prevlevel.aggregated_scope.copy()
-                self.unaggregated_scope = prevlevel.unaggregated_scope.copy()
+                self.group_paths = prevlevel.group_paths.copy()
 
     def subquery(self):
         return self.new(ContextSwitchMode.SUBQUERY)

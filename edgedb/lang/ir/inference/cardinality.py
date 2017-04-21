@@ -144,8 +144,8 @@ def infer_cardinality(ir, singletons, schema):
         return ONE
 
     try:
-        return ir._inferred_cardinality_
-    except AttributeError:
+        return ir._inferred_cardinality_[frozenset(singletons)]
+    except (AttributeError, KeyError):
         pass
 
     result = _infer_cardinality(ir, singletons, schema)
@@ -156,5 +156,11 @@ def infer_cardinality(ir, singletons, schema):
             'set produced by expression',
             context=ir.context)
 
-    ir._inferred_cardinality_ = result
+    try:
+        cache = ir._inferred_cardinality_
+    except AttributeError:
+        cache = ir._inferred_cardinality_ = {}
+
+    cache[frozenset(singletons)] = result
+
     return result
