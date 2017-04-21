@@ -119,16 +119,28 @@ concept `Log-Entry` extends OwnedObject, Text:
     required link attachment to Post, File, User
         """
 
-    def test_eschema_syntax_concept11(self):
+    def test_eschema_syntax_type01(self):
         """
 concept User:
     required link todo to array<str>
         """
 
-    def test_eschema_syntax_concept12(self):
+    def test_eschema_syntax_type02(self):
         """
 concept User:
     required link dict to map<str, str>
+        """
+
+    def test_eschema_syntax_type03(self):
+        """
+concept User:
+    required link todo to tuple<str, int, float>
+        """
+
+    def test_eschema_syntax_type04(self):
+        """
+concept User:
+    required link todo to tuple<str, map<str, array<str>>, array<float>>
         """
 
     def test_eschema_syntax_index01(self):
