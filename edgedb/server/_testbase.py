@@ -214,7 +214,13 @@ class DatabaseTestCase(ConnectedTestCase):
                 script += f'\nCOMMIT MIGRATION {module_name}::d1;'
 
         if cls.SETUP:
-            script += '\n' + cls.SETUP
+            if '\n' not in cls.SETUP and os.path.exists(cls.SETUP):
+                with open(cls.SETUP, 'rt') as f:
+                    setup = f.read()
+            else:
+                setup = cls.SETUP
+
+            script += '\n' + setup
 
         cls.loop.run_until_complete(cls.con.execute(script))
 
