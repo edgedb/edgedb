@@ -27,6 +27,7 @@ source: |
             f.varparam,
             f.paramdefaults,
             f.aggregate,
+            f.set_returning,
             f.language,
             f.code,
             f.from_function,

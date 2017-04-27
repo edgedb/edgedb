@@ -66,6 +66,7 @@ CREATE ATTRIBUTE stdattrs::default std::str;
 CREATE ATTRIBUTE stdattrs::exposed_behaviour std::str;
 CREATE ATTRIBUTE stdattrs::mapping std::str;
 CREATE ATTRIBUTE stdattrs::aggregate std::bool;
+CREATE ATTRIBUTE stdattrs::set_returning std::bool;
 CREATE ATTRIBUTE stdattrs::language std::str;
 CREATE ATTRIBUTE stdattrs::code std::str;
 CREATE ATTRIBUTE stdattrs::from_function std::str;
@@ -95,6 +96,14 @@ CREATE AGGREGATE std::is_distinct(std::any)
     RETURNING std::bool
     INITIAL VALUE True
     FROM SQL AGGREGATE '--system--';
+
+CREATE FUNCTION std::array_unpack(array<std::any>)
+    RETURNING SET OF std::any
+    FROM SQL FUNCTION '--system--';
+
+CREATE FUNCTION std::array_enumerate(array<std::any>)
+    RETURNING SET OF tuple<std::any, std::int>
+    FROM SQL FUNCTION '--system--';
 
 CREATE FUNCTION std::len(std::str) RETURNING std::int
     FROM SQL FUNCTION 'char_length';
@@ -497,4 +506,5 @@ CREATE CONCEPT schema::Function INHERITING schema::PrimaryClass {
     };
     CREATE LINK schema::returntype TO schema::Node;
     CREATE LINK schema::aggregate TO std::bool;
+    CREATE LINK schema::set_returning TO std::bool;
 };

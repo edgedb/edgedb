@@ -6,6 +6,7 @@
 ##
 
 
+import collections
 import functools
 import typing
 
@@ -141,21 +142,46 @@ def __infer_set_or_shape(ir, schema):
 @_infer_type.register(irast.FunctionCall)
 def __infer_func_call(ir, schema):
     rtype = ir.func.returntype
-    result = rtype
 
-    if is_polymorphic_type(result):
+    if is_polymorphic_type(rtype):
         # Polymorphic function, determine the result type from
         # the argument type.
-        for i, arg in enumerate(ir.args):
-            if is_polymorphic_type(ir.func.paramtypes[i]):
-                result = infer_type(arg, schema)
-                if isinstance(rtype, s_obj.Collection):
-                    stypes = list(rtype.get_subtypes())
-                    stypes[-1] = result
-                    result = rtype.from_subtypes(stypes)
-                break
+        if isinstance(rtype, s_obj.Tuple):
+            for i, arg in enumerate(ir.args):
+                if is_polymorphic_type(ir.func.paramtypes[i]):
+                    arg_type = infer_type(arg, schema)
 
-    return result
+                    stypes = collections.OrderedDict(rtype.element_types)
+                    for sn, st in stypes.items():
+                        if is_polymorphic_type(st):
+                            stypes[sn] = arg_type
+                            break
+
+                    return rtype.from_subtypes(stypes, rtype.get_typemods())
+
+        elif isinstance(rtype, s_obj.Collection):
+            for i, arg in enumerate(ir.args):
+                if is_polymorphic_type(ir.func.paramtypes[i]):
+                    arg_type = infer_type(arg, schema)
+
+                    stypes = list(rtype.get_subtypes())
+                    for si, st in enumerate(stypes):
+                        if is_polymorphic_type(st):
+                            stypes[si] = arg_type
+                            break
+
+                    return rtype.from_subtypes(stypes, rtype.get_typemods())
+
+        else:
+            for i, arg in enumerate(ir.args):
+                if is_polymorphic_type(ir.func.paramtypes[i]):
+                    arg_type = infer_type(arg, schema)
+                    if isinstance(arg_type, s_obj.Collection):
+                        stypes = list(arg_type.get_subtypes())
+                        return stypes[-1]
+
+    else:
+        return rtype
 
 
 @_infer_type.register(irast.Constant)

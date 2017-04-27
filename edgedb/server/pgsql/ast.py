@@ -320,6 +320,7 @@ class FuncCall(Base):
     agg_star: bool                  # Argument list is '*'
     agg_distinct: bool              # Arguments were labeled DISTINCT
     over: Base                      # OVER clause, if any
+    with_ordinality: bool = False
 
 
 class Indices(Base):

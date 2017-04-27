@@ -353,7 +353,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.write(common.quote_ident(node.aliasname))
         if node.colnames:
             self.write('(')
-            self.visit_list(node.colnames)
+            self.write(', '.join(common.quote_ident(n) for n in node.colnames))
             self.write(')')
 
     def visit_Keyword(self, node):
@@ -524,6 +524,9 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             # XXX: add support for frame definition
 
             self.write(')')
+
+        if node.with_ordinality:
+            self.write(' WITH ORDINALITY')
 
     def visit_SubLink(self, node):
         if node.type == pgast.SubLinkType.EXISTS:

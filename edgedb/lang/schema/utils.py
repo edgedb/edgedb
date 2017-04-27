@@ -19,14 +19,29 @@ def ast_to_typeref(node: ql_ast.TypeName):
     if node.subtypes:
         coll = so.Collection.get_class(node.maintype.name)
 
-        subtypes = []
-        for st in node.subtypes:
-            subtypes.append(ast_to_typeref(st))
+        if issubclass(coll, so.Tuple):
+            subtypes = collections.OrderedDict()
+            named = False
+            for si, st in enumerate(node.subtypes):
+                if st.name:
+                    named = True
+                    type_name = st.name
+                else:
+                    type_name = str(si)
 
-        return coll.from_subtypes(subtypes)
+                subtypes[type_name] = ast_to_typeref(st)
+
+            return coll.from_subtypes(subtypes, {'named': named})
+        else:
+            subtypes = []
+            for st in node.subtypes:
+                subtypes.append(ast_to_typeref(st))
+
+            return coll.from_subtypes(subtypes)
 
     mtn = sn.Name(module=node.maintype.module,
                   name=node.maintype.name)
+
     return so.ClassRef(classname=mtn)
 
 

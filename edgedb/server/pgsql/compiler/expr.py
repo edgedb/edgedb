@@ -554,6 +554,10 @@ def compile_FunctionCall(
         raise RuntimeError(
             'aggregate functions are not supported in simple expressions')
 
+    if funcobj.set_returning:
+        raise RuntimeError(
+            'set returning functions are not supported in simple expressions')
+
     args = [dispatch.compile(a, ctx=ctx) for a in expr.args]
 
     if funcobj.from_function:

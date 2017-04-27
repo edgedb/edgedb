@@ -679,10 +679,10 @@ class FunctionCode(Clause):
 class CreateFunction(CreateObject):
     args: typing.List[FuncArg]
     returning: typing.Union[TypeName, Shape]
-    single: bool = False
     aggregate: bool = False
     initial_value: Expr
     code: FunctionCode
+    set_returning: bool = False
 
 
 class AlterFunction(AlterObject):  # XXX: is this needed in the future?

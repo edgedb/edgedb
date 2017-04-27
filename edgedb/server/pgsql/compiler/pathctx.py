@@ -263,7 +263,8 @@ def should_recurse_into_rvar(
         rvar: pgast.BaseRangeVar) -> bool:
     return (
         isinstance(rvar, pgast.RangeSubselect) or
-        isinstance(rvar.relation, pgast.CommonTableExpr)
+        (isinstance(rvar, pgast.RangeVar) and
+            isinstance(rvar.relation, pgast.CommonTableExpr))
     )
 
 

@@ -550,7 +550,7 @@ link time_estimate:
 
     def test_eschema_syntax_function04(self):
         """
-        function myfunc(arg1: str, arg2: str = 'DEFAULT', *arg3) -> int:
+        function myfunc(arg1: str, arg2: str = 'DEFAULT', *arg3) -> set of int:
             volatile: true
             description:>
                 myfunc sample

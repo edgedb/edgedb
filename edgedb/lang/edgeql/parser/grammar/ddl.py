@@ -1403,10 +1403,18 @@ commands_block(
 )
 
 
+class OptSetOf(Nonterm):
+    def reduce_SET_OF(self, *kids):
+        self.val = True
+
+    def reduce_empty(self):
+        self.val = False
+
+
 class CreateFunctionStmt(Nonterm, _ProcessFunctionBlockMixin):
     def reduce_CreateFunction(self, *kids):
-        r"""%reduce OptAliasBlock CREATE FUNCTION NodeName \
-                CreateFunctionArgs RETURNING OptSingle FunctionType \
+        r"""%reduce OptAliasBlock CREATE FUNCTION NodeName CreateFunctionArgs \
+                RETURNING OptSetOf FunctionType \
                 CreateFunctionCommandsBlock \
         """
         self.val = qlast.CreateFunction(
@@ -1414,7 +1422,7 @@ class CreateFunctionStmt(Nonterm, _ProcessFunctionBlockMixin):
             name=kids[3].val,
             args=kids[4].val,
             returning=kids[7].val,
-            single=kids[6].val,
+            set_returning=kids[6].val,
             **self._process_function_body(kids[8])
         )
 
@@ -1428,15 +1436,15 @@ commands_block(
 
 
 class CreateAggregateStmt(Nonterm, _ProcessFunctionBlockMixin):
-    def reduce_CreateFunction(self, *kids):
+    def reduce_CreateAggregate(self, *kids):
         r"""%reduce OptAliasBlock \
                 CREATE AGGREGATE NodeName CreateFunctionArgs \
-                RETURNING OptSingle FunctionType \
+                RETURNING FunctionType \
                 INITIAL VALUE Expr \
                 CreateAggregateCommandsBlock \
         """
 
-        init_val = kids[10].val
+        init_val = kids[9].val
         # make sure that the initial value is a literal for now
         #
         if not isinstance(init_val, (qlast.Constant, qlast.EmptyCollection,
@@ -1448,11 +1456,10 @@ class CreateAggregateStmt(Nonterm, _ProcessFunctionBlockMixin):
             aliases=kids[0].val,
             name=kids[3].val,
             args=kids[4].val,
-            returning=kids[7].val,
-            single=kids[6].val,
+            returning=kids[6].val,
             aggregate=True,
             initial_value=init_val,
-            **self._process_function_body(kids[11])
+            **self._process_function_body(kids[10])
         )
 
 

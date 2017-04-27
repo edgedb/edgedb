@@ -439,14 +439,25 @@ class AggregateDeclaration(Nonterm):
                                     context=kids[0].context)
 
 
+class OptSetOf(Nonterm):
+    def reduce_SET_OF(self, *kids):
+        self.val = True
+
+    def reduce_empty(self):
+        self.val = False
+
+
 class FunctionDeclCore(Nonterm):
     def reduce_FunctionDeclCore(self, *kids):
-        r"""%reduce Identifier FunctionArgs ARROW TypeName FunctionSpecsBlob"""
+        r"""%reduce \
+                Identifier FunctionArgs \
+                ARROW OptSetOf TypeName FunctionSpecsBlob \
+        """
         attributes = []
         init_val = None
         code = None
 
-        for spec in kids[4].val:
+        for spec in kids[5].val:
             if isinstance(spec, esast.Attribute):
                 if spec.name == 'initial value':
                     init_val = spec.value
@@ -461,7 +472,8 @@ class FunctionDeclCore(Nonterm):
         self.val = esast.FunctionDeclaration(
             name=kids[0].val,
             args=kids[1].val,
-            returning=kids[3].val,
+            set_returning=kids[3].val,
+            returning=kids[4].val,
             attributes=attributes,
             initial_value=init_val,
             code=code,

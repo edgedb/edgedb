@@ -774,6 +774,7 @@ class Backend(s_deltarepo.DeltaProvider):
                 'is_abstract': row['is_abstract'],
                 'is_final': row['is_final'],
                 'aggregate': row['aggregate'],
+                'set_returning': row['set_returning'],
                 'varparam': row['varparam'],
                 'from_function': row['from_function'],
                 'initial_value': row['initial_value'],
@@ -880,8 +881,16 @@ class Backend(s_deltarepo.DeltaProvider):
                 typemods = (t['dimensions'],)
             else:
                 typemods = None
-            scls = coll_type.from_subtypes(
-                [st[1] for st in subtypes], typemods=typemods)
+
+            named = all(s[0] is not None for s in subtypes)
+            if issubclass(coll_type, s_obj.Tuple) and named:
+                st = collections.OrderedDict(subtypes)
+                typemods = {'named': named}
+            else:
+                st = [st[1] for st in subtypes]
+
+            scls = coll_type.from_subtypes(st, typemods=typemods)
+
         else:
             scls = schema.get(t['maintype'])
 

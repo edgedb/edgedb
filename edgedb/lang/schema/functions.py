@@ -120,6 +120,11 @@ class CreateFunction(named.CreateNamedClass, FunctionCommandMixin):
             new_value=astnode.aggregate
         ))
 
+        cmd.add(sd.AlterClassProperty(
+            property='set_returning',
+            new_value=astnode.set_returning
+        ))
+
         if astnode.initial_value is not None:
             iv = codegen.generate_source(astnode.initial_value)
             cmd.add(sd.AlterClassProperty(
@@ -181,6 +186,8 @@ class Function(primary.PrimaryClass):
 
     initial_value = so.Field(expr.ExpressionText, default=None, compcoef=0.4,
                              coerce=True)
+
+    set_returning = so.Field(bool, default=False, compcoef=0.4)
 
     delta_driver = sd.DeltaDriver(
         create=CreateFunction,

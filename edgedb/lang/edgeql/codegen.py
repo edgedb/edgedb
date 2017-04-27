@@ -937,8 +937,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.visit_list(node.args, newlines=False)
             self.write(')')
             self.write(' RETURNING ')
-            if node.single:
-                self.write('SINGLETON ')
+            if node.set_returning:
+                self.write('SET OF ')
             self.visit(node.returning)
             if node.initial_value:
                 self.write(' INITIAL VALUE ')

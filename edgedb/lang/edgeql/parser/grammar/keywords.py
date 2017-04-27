@@ -37,6 +37,7 @@ unreserved_keywords = [
     "link",
     "map",
     "migration",
+    "of",
     "policy",
     "property",
     "required",

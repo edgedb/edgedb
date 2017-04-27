@@ -996,7 +996,21 @@ class Tuple(Collection):
 
     @classmethod
     def from_subtypes(cls, subtypes, typemods=None):
-        return cls(element_types={str(i): t for i, t in enumerate(subtypes)})
+        named = False
+        if typemods is not None:
+            named = typemods.get('named', False)
+
+        if not isinstance(subtypes, collections.abc.Mapping):
+            types = collections.OrderedDict()
+            for i, t in enumerate(subtypes):
+                types[str(i)] = t
+        else:
+            types = subtypes
+
+        return cls(element_types=types, named=named)
+
+    def get_typemods(self):
+        return {'named': self.named}
 
     def __hash__(self):
         return hash((

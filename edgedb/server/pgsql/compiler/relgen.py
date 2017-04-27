@@ -743,14 +743,8 @@ def process_set_as_expr(
         newctx.rel = stmt
         set_expr = dispatch.compile(ir_set.expr, ctx=newctx)
 
-    if isinstance(set_expr, astutils.ResTargetList):
-        for i, rt in enumerate(set_expr.targets):
-            stmt.target_list.append(
-                pgast.ResTarget(val=rt, name=set_expr.attmap[i])
-            )
-    else:
-        relctx.ensure_correct_rvar_for_expr(
-            ir_set, stmt, set_expr, ctx=ctx)
+    relctx.ensure_correct_rvar_for_expr(
+        ir_set, stmt, set_expr, ctx=ctx)
 
     if relctx.apply_path_bond_injections(stmt, ctx=ctx):
         # Due to injection this rel must not be a CTE.
@@ -776,7 +770,14 @@ def process_set_as_func_expr(
             arg_ref = dispatch.compile(ir_arg, ctx=newctx)
             args.append(arg_ref)
 
-        if funcobj.from_function:
+        with_ordinality = False
+
+        if funcobj.shortname == 'std::array_unpack':
+            name = ('unnest',)
+        elif funcobj.shortname == 'std::array_enumerate':
+            name = ('unnest',)
+            with_ordinality = True
+        elif funcobj.from_function:
             name = (funcobj.from_function,)
         else:
             name = (
@@ -786,7 +787,39 @@ def process_set_as_func_expr(
                     funcobj.shortname.name)
             )
 
-        set_expr = pgast.FuncCall(name=name, args=args)
+        set_expr = pgast.FuncCall(
+            name=name, args=args, with_ordinality=with_ordinality)
+
+    if funcobj.set_returning:
+        if isinstance(funcobj.returntype, s_obj.Tuple):
+            colnames = [name for name in funcobj.returntype.element_types]
+        else:
+            colnames = [ctx.env.aliases.get('v')]
+
+        func_rvar = pgast.RangeFunction(
+            alias=pgast.Alias(
+                aliasname=ctx.env.aliases.get('f'),
+                colnames=colnames),
+            lateral=True,
+            functions=[set_expr])
+
+        stmt.from_clause.append(func_rvar)
+
+        if len(colnames) == 1:
+            set_expr = dbobj.get_column(func_rvar, colnames[0])
+        else:
+            set_expr = astutils.ResTargetList(
+                targets=[dbobj.get_column(func_rvar, cn) for cn in colnames],
+                attmap=colnames)
+
+            if funcobj.shortname == 'std::array_enumerate':
+                # Patch index colref to (colref - 1) to make
+                # enumerate indexes start from 0.
+                set_expr.targets[1] = pgast.Expr(
+                    kind=pgast.ExprKind.OP,
+                    name='-',
+                    lexpr=set_expr.targets[1],
+                    rexpr=pgast.Constant(val=1))
 
     relctx.ensure_correct_rvar_for_expr(ir_set, stmt, set_expr, ctx=ctx)
 

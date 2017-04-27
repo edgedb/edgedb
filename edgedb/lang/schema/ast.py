@@ -205,10 +205,10 @@ class FunctionDeclaration(Base):
     args: list
     attributes: list
     returning: ObjectName
-    single: bool = False
     aggregate: bool = False
     initial_value: Literal
     code: FunctionCode
+    set_returning: bool = False
 
 
 class LinkDeclaration(Declaration):

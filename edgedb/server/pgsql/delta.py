@@ -167,7 +167,7 @@ class NamedClassMetaCommand(
 
         for i, (tn, t) in enumerate(types):
             if isinstance(t, s_obj.Collection):
-                if isinstance(t, s_obj.Tuple):
+                if isinstance(t, s_obj.Tuple) and t.named:
                     stypes = t.element_types.items()
                 else:
                     stypes = [(None, st) for st in t.get_subtypes()]

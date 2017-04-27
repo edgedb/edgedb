@@ -1412,7 +1412,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_cardinality01(self):
         """
         SELECT SINGLETON User.name FILTER (User.name = 'special');
-        CREATE FUNCTION spam($foo: str) RETURNING SINGLETON str
+        CREATE FUNCTION spam($foo: str) RETURNING SET OF str
             FROM EdgeQL $$ SELECT "a" $$;
         """
 

@@ -154,21 +154,28 @@ def get_root_rvar(
 def ensure_correct_rvar_for_expr(
         ir_set: irast.Set, stmt: pgast.Query, set_expr: pgast.Base, *,
         ctx: context.CompilerContext):
-    restarget = pgast.ResTarget(val=set_expr, name='v')
 
-    if isinstance(ir_set.scls, s_concepts.Concept):
-        root_rvar = get_root_rvar(ir_set, stmt, ctx=ctx)
-        subqry = pgast.SelectStmt(
-            target_list=[restarget]
-        )
-        pathctx.put_path_output(ctx.env, subqry, ir_set, restarget.name,
-                                raw=True)
-        include_range(stmt, subqry, lateral=True, ctx=ctx)
-        pathctx.rel_join(ctx.env, stmt, root_rvar)
-        pathctx.put_path_rvar(ctx.env, stmt, ir_set.path_id, root_rvar)
+    if isinstance(set_expr, astutils.ResTargetList):
+        for i, rt in enumerate(set_expr.targets):
+            stmt.target_list.append(
+                pgast.ResTarget(val=rt, name=set_expr.attmap[i])
+            )
     else:
-        stmt.target_list.append(restarget)
-        pathctx.put_path_output(ctx.env, stmt, ir_set, restarget.name)
+        restarget = pgast.ResTarget(val=set_expr, name='v')
+
+        if isinstance(ir_set.scls, s_concepts.Concept):
+            root_rvar = get_root_rvar(ir_set, stmt, ctx=ctx)
+            subqry = pgast.SelectStmt(
+                target_list=[restarget]
+            )
+            pathctx.put_path_output(ctx.env, subqry, ir_set, restarget.name,
+                                    raw=True)
+            include_range(stmt, subqry, lateral=True, ctx=ctx)
+            pathctx.rel_join(ctx.env, stmt, root_rvar)
+            pathctx.put_path_rvar(ctx.env, stmt, ir_set.path_id, root_rvar)
+        else:
+            stmt.target_list.append(restarget)
+            pathctx.put_path_output(ctx.env, stmt, ir_set, restarget.name)
 
 
 def enforce_path_scope(
