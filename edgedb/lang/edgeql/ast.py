@@ -685,9 +685,10 @@ class CreateFunction(CreateObject):
     set_returning: bool = False
 
 
-class AlterFunction(AlterObject):  # XXX: is this needed in the future?
+class AlterFunction(AlterObject):
     value: Base
 
 
-class DropFunction(DropObject):  # XXX: is this needed in the future?
-    pass
+class DropFunction(DropObject):
+    args: typing.List[FuncArg]
+    aggregate: bool = False

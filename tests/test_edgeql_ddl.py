@@ -70,18 +70,26 @@ class TestDeltas(tb.DDLTestCase):
                     FROM SQL AGGREGATE 'count';
             """)
 
+        await self.con.execute("""
+            DROP FUNCTION test::my_lower(std::str);
+        """)
+
         with self.assertRaisesRegex(client_errors.EdgeQLError,
                                     'Cannot create a function'):
 
             await self.con.execute("""
-                CREATE AGGREGATE test::my_lower2(std::any)
+                CREATE AGGREGATE test::my_lower(std::any)
                     RETURNING std::str
                     INITIAL VALUE ''
                     FROM SQL AGGREGATE 'count';
 
-                CREATE FUNCTION test::my_lower2(std::str) RETURNING std::str
+                CREATE FUNCTION test::my_lower(std::str) RETURNING std::str
                     FROM SQL FUNCTION 'lower';
             """)
+
+        await self.con.execute("""
+            DROP FUNCTION test::my_lower(std::any);
+        """)
 
     async def test_edgeql_ddl06(self):
         long_func_name = 'my_sql_func5_' + 'abc' * 50
@@ -150,6 +158,16 @@ class TestDeltas(tb.DDLTestCase):
             [16],
         ])
 
+        await self.con.execute(f"""
+            DROP FUNCTION test::my_sql_func1();
+            DROP FUNCTION test::my_sql_func2($foo: std::str);
+            DROP FUNCTION test::my_sql_func3(std::str);
+            DROP FUNCTION test::my_sql_func4(*std::str);
+            DROP FUNCTION test::{long_func_name}();
+            DROP FUNCTION test::my_sql_func6(std::str='a' + 'b');
+            DROP FUNCTION test::my_sql_func7(array<std::int>);
+        """)
+
     async def test_edgeql_ddl07(self):
         with self.assertRaisesRegex(client_errors.EdgeQLError,
                                     'could not.*broken_sql.*not constant'):
@@ -203,6 +221,13 @@ class TestDeltas(tb.DDLTestCase):
             [[42, 1, 2, 3]]
         ])
 
+        await self.con.execute(f"""
+            DROP FUNCTION test::my_edgeql_func1();
+            DROP FUNCTION test::my_edgeql_func2(std::str);
+            DROP FUNCTION test::my_edgeql_func3(std::int);
+            DROP FUNCTION test::my_edgeql_func4(std::int);
+        """)
+
     async def test_edgeql_ddl09(self):
         await self.con.execute("""
             CREATE FUNCTION test::attr_func_1() RETURNING std::str {
@@ -224,6 +249,10 @@ class TestDeltas(tb.DDLTestCase):
                 }]
             }],
         ])
+
+        await self.con.execute("""
+            DROP FUNCTION test::attr_func_1();
+        """)
 
     async def test_edgeql_ddl10(self):
         await self.con.execute("""

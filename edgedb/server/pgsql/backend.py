@@ -777,10 +777,12 @@ class Backend(s_deltarepo.DeltaProvider):
                 'set_returning': row['set_returning'],
                 'varparam': row['varparam'],
                 'from_function': row['from_function'],
+                'code': row['code'],
                 'initial_value': row['initial_value'],
                 'paramtypes': paramtypes,
+                'paramnames': row['paramnames'] if row['paramnames'] else [],
                 'paramdefaults':
-                    row['paramdefaults'] if row['paramdefaults'] else None,
+                    row['paramdefaults'] if row['paramdefaults'] else [],
                 'returntype': self.unpack_typeref(row['returntype'], schema)
             }
 

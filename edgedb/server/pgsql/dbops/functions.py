@@ -55,32 +55,42 @@ class FunctionExists(base.Condition):
         return code, self.name + (self.args, )
 
 
-class CreateFunction(ddl.DDLOperation):
+class FunctionOperation:
+    def format_args(self, args, variadic_arg, *, include_defaults=True):
+        if not args:
+            return ''
+
+        args_buf = []
+        for argi, arg in enumerate(args, 1):
+            vararg = variadic_arg == argi
+            arg_expr = 'VARIADIC ' if vararg else ''
+
+            if isinstance(arg, tuple):
+                if arg[0] is not None:
+                    arg_expr += common.qname(arg[0])
+                if len(arg) > 1:
+                    arg_expr += ' ' + common.quote_type(arg[1])
+                    if vararg:
+                        arg_expr += '[]'
+                if include_defaults:
+                    if len(arg) > 2 and arg[2] is not None:
+                        arg_expr += ' = ' + arg[2]
+
+            else:
+                arg_expr = arg
+
+            args_buf.append(arg_expr)
+
+        return ', '.join(args_buf)
+
+
+class CreateFunction(ddl.DDLOperation, FunctionOperation):
     def __init__(self, function, **kwargs):
         super().__init__(**kwargs)
         self.function = function
 
     async def code(self, context):
-        args = []
-        if self.function.args:
-            for argi, arg in enumerate(self.function.args, 1):
-                vararg = self.function.variadic_arg == argi
-                arg_expr = 'VARIADIC ' if vararg else ''
-
-                if isinstance(arg, tuple):
-                    if arg[0] is not None:
-                        arg_expr += common.qname(arg[0])
-                    if len(arg) > 1:
-                        arg_expr += ' ' + common.quote_type(arg[1])
-                        if vararg:
-                            arg_expr += '[]'
-                    if len(arg) > 2 and arg[2] is not None:
-                        arg_expr += ' = ' + arg[2]
-
-                else:
-                    arg_expr = arg
-
-                args.append(arg_expr)
+        args = self.format_args(self.function.args, self.function.variadic_arg)
 
         code = textwrap.dedent('''
             CREATE FUNCTION {name}({args})
@@ -91,7 +101,7 @@ class CreateFunction(ddl.DDLOperation):
             LANGUAGE {lang} {volatility} {strict};
         ''').format(**{
             'name': common.qname(*self.function.name),
-            'args': ', '.join(args),
+            'args': args,
             'returns': common.quote_type(self.function.returns),
             'lang': self.function.language,
             'volatility': self.function.volatility.upper(),
@@ -217,9 +227,10 @@ class AlterFunctionRenameTo(ddl.DDLOperation):
         return code
 
 
-class DropFunction(ddl.DDLOperation):
+class DropFunction(ddl.DDLOperation, FunctionOperation):
     def __init__(
-            self, name, args, *, conditions=None, neg_conditions=None,
+            self, name, args, *,
+            variadic_arg=-1, conditions=None, neg_conditions=None,
             priority=0):
         self.conditional = False
         if conditions:
@@ -236,10 +247,12 @@ class DropFunction(ddl.DDLOperation):
             priority=priority)
         self.name = name
         self.args = args
+        self.variadic_arg = variadic_arg
 
     async def code(self, context):
         code = 'DROP FUNCTION{} {}({})'.format(
             ' IF EXISTS' if self.conditional else '',
             common.qname(*self.name),
-            ', '.join(common.quote_ident(a) for a in self.args))
+            self.format_args(self.args, self.variadic_arg,
+                             include_defaults=False))
         return code

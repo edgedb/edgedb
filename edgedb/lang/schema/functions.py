@@ -30,27 +30,55 @@ class FunctionCommandMixin:
     def _get_metaclass(cls):
         return Function
 
+    @classmethod
+    def _get_function_fullname(cls, name, paramtypes):
+        quals = []
+        if paramtypes:
+            for pt in paramtypes:
+                if isinstance(pt, so.ClassRef):
+                    quals.append(pt.classname)
+                elif isinstance(pt, so.Collection):
+                    quals.append(pt.schema_name)
+                    if isinstance(pt.element_type, so.ClassRef):
+                        quals.append(pt.element_type.classname)
+                    else:
+                        quals.append(pt.element_type.name)
+                else:
+                    quals.append(pt.name)
+
+        return sn.Name(
+            module=name.module,
+            name=named.NamedClass.get_specialized_name(name, *quals))
+
+    @classmethod
+    def _parameters_from_ast(cls, astnode):
+        paramdefaults = []
+        paramnames = []
+        paramtypes = []
+        variadic = None
+        for argi, arg in enumerate(astnode.args, 1):
+            paramnames.append(arg.name)
+
+            default = None
+            if arg.default is not None:
+                default = codegen.generate_source(arg.default)
+            paramdefaults.append(default)
+
+            paramtypes.append(utils.ast_to_typeref(arg.type))
+
+            if arg.variadic:
+                variadic = argi
+
+        return paramnames, paramdefaults, paramtypes, variadic
+
 
 class CreateFunction(named.CreateNamedClass, FunctionCommandMixin):
     astnode = qlast.CreateFunction
 
     def get_struct_properties(self, schema):
         props = super().get_struct_properties(schema)
-
-        quals = []
-        if props.get('paramtypes'):
-            for pt in props['paramtypes']:
-                if isinstance(pt, so.Collection):
-                    quals.append(pt.schema_name)
-                    quals.append(pt.element_type.name)
-                else:
-                    quals.append(pt.name)
-
-        fname = props['name']
-        props['name'] = sn.Name(
-            module=fname.module,
-            name=named.NamedClass.get_specialized_name(fname, *quals))
-
+        props['name'] = self._get_function_fullname(props['name'],
+                                                    props.get('paramtypes'))
         return props
 
     def _add_to_schema(self, schema):
@@ -76,24 +104,14 @@ class CreateFunction(named.CreateNamedClass, FunctionCommandMixin):
     def _cmd_tree_from_ast(cls, astnode, context, schema):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
-        paramdefaults = []
-        paramnames = []
-        paramtypes = []
-        for argi, arg in enumerate(astnode.args, 1):
-            paramnames.append(arg.name)
+        paramnames, paramdefaults, paramtypes, variadic = \
+            cls._parameters_from_ast(astnode)
 
-            default = None
-            if arg.default is not None:
-                default = codegen.generate_source(arg.default)
-            paramdefaults.append(default)
-
-            paramtypes.append(utils.ast_to_typeref(arg.type))
-
-            if arg.variadic:
-                cmd.add(sd.AlterClassProperty(
-                    property='varparam',
-                    new_value=argi
-                ))
+        if variadic is not None:
+            cmd.add(sd.AlterClassProperty(
+                property='varparam',
+                new_value=variadic
+            ))
 
         cmd.add(sd.AlterClassProperty(
             property='paramnames',
@@ -161,6 +179,14 @@ class AlterFunction(named.AlterNamedClass, FunctionCommandMixin):
 
 class DeleteFunction(named.DeleteNamedClass, FunctionCommandMixin):
     astnode = qlast.DropFunction
+
+    @classmethod
+    def _classname_from_ast(cls, astnode, context, schema):
+        name = super()._classname_from_ast(astnode, context, schema)
+
+        _, _, paramtypes, _ = cls._parameters_from_ast(astnode)
+
+        return cls._get_function_fullname(name, paramtypes)
 
 
 class Function(primary.PrimaryClass):

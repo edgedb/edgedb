@@ -379,10 +379,6 @@ class AlterClassProperty(MetaCommand, adapts=sd.AlterClassProperty):
 class FunctionCommand:
     table = metaschema.get_metaclass_table(s_funcs.Function)
 
-
-class CreateFunction(FunctionCommand, CreateNamedClass,
-                     adapts=s_funcs.CreateFunction):
-
     def get_pgname(self, func: s_funcs.Function):
         return (
             common.edgedb_module_name_to_schema_name(func.shortname.module),
@@ -432,6 +428,10 @@ class CreateFunction(FunctionCommand, CreateNamedClass,
             args.append((an, pg_at, pg_ad))
 
         return args
+
+
+class CreateFunction(FunctionCommand, CreateNamedClass,
+                     adapts=s_funcs.CreateFunction):
 
     def compile_sql_function(self, func: s_funcs.Function, schema):
         return dbops.Function(
@@ -502,7 +502,21 @@ class AlterFunction(
 
 class DeleteFunction(
         FunctionCommand, DeleteNamedClass, adapts=s_funcs.DeleteFunction):
-    pass
+
+    def apply(self, schema, context):
+        func: s_funcs.Function = super().apply(schema, context)
+
+        if func.code:
+            # EdgeQL function (not an alias to an SQL function).
+            self.pgops.add(
+                dbops.DropFunction(
+                    name=self.get_pgname(func),
+                    args=self.compile_args(func, schema),
+                    variadic_arg=func.varparam
+                )
+            )
+
+        return func
 
 
 class AttributeCommand:

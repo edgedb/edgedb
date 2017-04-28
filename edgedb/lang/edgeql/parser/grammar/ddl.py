@@ -131,6 +131,12 @@ class InnerDDLStmt(Nonterm):
     def reduce_CreateAggregateStmt(self, *kids):
         self.val = kids[0].val
 
+    def reduce_DropFunctionStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_DropAggregateStmt(self, *kids):
+        self.val = kids[0].val
+
 
 class InnerDDLStmtBlock(ListNonterm, element=InnerDDLStmt):
     pass
@@ -1427,6 +1433,17 @@ class CreateFunctionStmt(Nonterm, _ProcessFunctionBlockMixin):
         )
 
 
+class DropFunctionStmt(Nonterm):
+    def reduce_DropFunction(self, *kids):
+        r"""%reduce OptAliasBlock \
+                DROP FUNCTION NodeName CreateFunctionArgs \
+        """
+        self.val = qlast.DropFunction(
+            aliases=kids[0].val,
+            name=kids[3].val,
+            args=kids[4].val)
+
+
 commands_block(
     'CreateAggregate',
     FromAggregate,
@@ -1469,3 +1486,15 @@ class FunctionType(Nonterm):
 
     def reduce_Shape(self, *kids):
         self.val = qlast.Shape(elements=kids[0].val)
+
+
+class DropAggregateStmt(Nonterm):
+    def reduce_DropAggregate(self, *kids):
+        r"""%reduce OptAliasBlock \
+                DROP AGGREGATE NodeName CreateFunctionArgs \
+        """
+        self.val = qlast.DropFunction(
+            aliases=kids[0].val,
+            name=kids[3].val,
+            args=kids[4].val,
+            aggregate=True)
