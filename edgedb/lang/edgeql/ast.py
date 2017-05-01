@@ -573,6 +573,18 @@ class DropConcept(DropObject):
     pass
 
 
+class CreateView(CreateObject):
+    pass
+
+
+class AlterView(AlterObject):
+    pass
+
+
+class DropView(DropObject):
+    pass
+
+
 class CreateLink(CreateInheritingObject):
     pass
 

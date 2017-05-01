@@ -63,6 +63,7 @@ CREATE ATTRIBUTE stdattrs::value std::str;
 CREATE ATTRIBUTE stdattrs::required std::bool;
 CREATE ATTRIBUTE stdattrs::readonly std::bool;
 CREATE ATTRIBUTE stdattrs::default std::str;
+CREATE ATTRIBUTE stdattrs::expression std::str;
 CREATE ATTRIBUTE stdattrs::exposed_behaviour std::str;
 CREATE ATTRIBUTE stdattrs::mapping std::str;
 CREATE ATTRIBUTE stdattrs::aggregate std::bool;
