@@ -1,5 +1,5 @@
 image:
-  magicstack/edgedb-ci:latest
+  containers.magicstack.net/magicstack/edgedb-ci-container:latest
 
 variables:
   WORKON_HOME: /var/lib/venvs
