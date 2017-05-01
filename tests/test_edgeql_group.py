@@ -1169,3 +1169,39 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 },
             ]
         ])
+
+    @tb.expected_optimizer_failure
+    async def test_edgeql_group_atom_01(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            GROUP
+                I := (1 UNION 2 UNION 3 UNION 4)
+            BY
+                I % 2 = 0
+            SELECT _ := (
+                values := array_agg(ALL I ORDER BY I)
+            ) ORDER BY _.values;
+        """, [
+            [
+                {'values': [1, 3]},
+                {'values': [2, 4]}
+            ]
+        ])
+
+    @tb.expected_optimizer_failure
+    async def test_edgeql_group_atom_02(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            GROUP
+                I := <int>Issue.number
+            BY
+                I % 2 = 0
+            SELECT _ := (
+                values := array_agg(ALL I ORDER BY I)
+            ) ORDER BY _.values;
+        """, [
+            [
+                {'values': [1, 3]},
+                {'values': [2, 4]}
+            ]
+        ])

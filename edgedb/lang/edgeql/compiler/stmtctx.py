@@ -12,15 +12,14 @@ import typing
 from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
 
-from edgedb.lang.schema import atoms as s_atoms
 from edgedb.lang.schema import concepts as s_concepts
 from edgedb.lang.schema import links as s_links
 from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import name as sn
-from edgedb.lang.schema import nodes as s_nodes
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import schema as s_schema
+from edgedb.lang.schema import views as s_views
 
 from edgedb.lang.edgeql import ast as qlast
 
@@ -131,11 +130,11 @@ def declare_view(
     result_type = irutils.infer_type(substmt, ctx.schema)
 
     view_name = sn.Name(module='__view__', name=alias)
-    if isinstance(result_type, (s_atoms.Atom, s_concepts.Concept)):
+    if isinstance(result_type, s_concepts.Concept):
         c = result_type.__class__(name=view_name, bases=[result_type])
         c.acquire_ancestor_inheritance(ctx.schema)
     else:
-        c = s_nodes.Node(name=view_name)
+        c = s_views.View(name=view_name)
 
     path_id = irast.PathId([c])
 
@@ -174,6 +173,14 @@ def declare_aliased_set(
             key = (ir_set.path_id[0].name, None)
     else:
         key = None
+
+    if alias is not None:
+        restype = irutils.infer_type(ir_set, ctx.schema)
+        if (not isinstance(restype, s_concepts.Concept) and
+                len(ir_set.path_id) == 1):
+            view_name = sn.Name(module='__aliased__', name=alias)
+            c = s_views.View(name=view_name)
+            ir_set.path_id = irast.PathId([c])
 
     if key is not None:
         ctx.substmts[key] = ir_set

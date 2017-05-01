@@ -178,6 +178,35 @@ def ensure_correct_rvar_for_expr(
             pathctx.put_path_output(ctx.env, stmt, ir_set, restarget.name)
 
 
+def ensure_bond_for_expr(
+        ir_set: irast.Set, stmt: pgast.Query, *,
+        ctx: context.CompilerContextLevel) -> None:
+    rt = irutils.infer_type(ir_set, ctx.env.schema)
+    if isinstance(rt, s_concepts.Concept):
+        # Concepts have inherent identity
+        return
+
+    # We only inject identity for sets that are aliased, i.e
+    # there is a possibility of multiple var references to the
+    # same set.
+    row_number = pgast.FuncCall(
+        name=('row_number',),
+        args=[],
+        over=pgast.WindowDef()
+    )
+
+    rt_name = ctx.env.aliases.get('rn')
+    stmt.target_list.append(
+        pgast.ResTarget(
+            val=row_number,
+            name=rt_name
+        )
+    )
+
+    pathctx.put_path_output(ctx.env, stmt, ir_set, rt_name, raw=True)
+    pathctx.put_path_bond(stmt, ir_set.path_id)
+
+
 def enforce_path_scope(
         query: pgast.Query,
         path_bonds: typing.Dict[irast.PathId, pathctx.LazyPathVarRef], *,
@@ -250,6 +279,12 @@ def pop_prefix_ctes(
 def replace_set_cte_subtree(
         ir_set: irast.Set, cte: pgast.BaseRelation, *,
         lax: typing.Optional[bool]=None,
-        ctx: context.CompilerContext) -> pgast.BaseRelation:
+        recursive: bool=True,
+        ctx: context.CompilerContext) -> None:
     pop_prefix_ctes(ir_set.path_id, lax=lax, ctx=ctx)
-    return put_set_cte(ir_set, cte, lax=lax, ctx=ctx)
+    while ir_set is not None:
+        put_set_cte(ir_set, cte, lax=lax, ctx=ctx)
+        if ir_set.rptr is not None and recursive:
+            ir_set = ir_set.rptr.source
+        else:
+            ir_set = None

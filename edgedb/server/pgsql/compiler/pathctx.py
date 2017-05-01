@@ -17,6 +17,7 @@ from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import schema as s_schema
+from edgedb.lang.schema import views as s_views
 
 from edgedb.server.pgsql import ast as pgast
 from edgedb.server.pgsql import common
@@ -279,7 +280,7 @@ def maybe_get_path_var(
 
 def put_path_bond(
         stmt: pgast.Query, path_id: irast.PathId):
-    if isinstance(path_id[-1], s_concepts.Concept):
+    if isinstance(path_id[-1], (s_concepts.Concept, s_views.View)):
         # Only Concept paths form bonds.
         stmt.path_bonds.add(path_id)
 

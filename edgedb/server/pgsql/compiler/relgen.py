@@ -503,6 +503,8 @@ def process_set_as_view(
         subquery, hint=cte.name, env=ctx.env)
     pathctx.put_path_output(ctx.env, subquery, ir_set, rt_name)
 
+    relctx.ensure_bond_for_expr(ir_set, subquery, ctx=ctx)
+
     cte.query = subquery
     ctx.toplevel_stmt.ctes.append(cte)
 
@@ -872,8 +874,41 @@ def process_set_as_agg_expr(
 
             args = []
 
-            for ir_arg in ir_set.expr.args:
+            for i, ir_arg in enumerate(ir_set.expr.args):
                 arg_ref = dispatch.compile(ir_arg, ctx=argctx)
+
+                if (not expr.agg_sort and i == 0 and
+                        irutils.is_subquery_set(ir_arg)):
+                    # If the first argument of the aggregate
+                    # is a SELECT or GROUP with an ORDER BY clause,
+                    # we move the ordering conditions to the aggregate
+                    # call to make sure the ordering is as expected.
+                    substmt = ir_arg.expr
+                    if isinstance(substmt, irast.GroupStmt):
+                        substmt = substmt.result.expr
+
+                    if (isinstance(substmt, irast.SelectStmt) and
+                            substmt.orderby):
+                        query = relctx.get_set_cte(ir_arg, ctx=argctx)
+                        qrvar = argctx.subquery_map[stmt][query]
+
+                        for i, sortref in enumerate(query.sort_clause):
+                            alias = argctx.env.aliases.get(f's{i}')
+
+                            query.target_list.append(
+                                pgast.ResTarget(
+                                    val=sortref.node,
+                                    name=alias
+                                )
+                            )
+
+                            agg_sort.append(
+                                pgast.SortBy(
+                                    node=dbobj.get_column(qrvar, alias),
+                                    dir=sortref.dir,
+                                    nulls=sortref.nulls))
+
+                        query.sort_clause = []
 
                 if (isinstance(ir_arg.scls, s_atoms.Atom) and
                         ir_arg.scls.bases):

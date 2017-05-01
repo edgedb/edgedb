@@ -154,6 +154,9 @@ def compile_GroupStmt(
             gctx.expr_exposed = False
             gquery = gctx.query
             output.compile_output(stmt.subject, ctx=gctx)
+            subj_rvar = gquery.from_clause[0]
+            relctx.ensure_bond_for_expr(
+                stmt.subject, subj_rvar.query, ctx=gctx)
 
             group_paths = set()
 
@@ -186,20 +189,6 @@ def compile_GroupStmt(
                 with ctx.subquery() as subctx:
                     wrapper = subctx.query
 
-                    row_number = pgast.FuncCall(
-                        name=('row_number',),
-                        args=[],
-                        over=pgast.WindowDef()
-                    )
-
-                    rn_alias = ctx.env.aliases.get('rn')
-                    gquery.target_list.append(
-                        pgast.ResTarget(
-                            val=row_number,
-                            name=rn_alias
-                        )
-                    )
-
                     gquery_rvar = dbobj.rvar_for_rel(ctx.env, gquery)
                     wrapper.from_clause = [gquery_rvar]
                     relctx.pull_path_namespace(
@@ -221,7 +210,8 @@ def compile_GroupStmt(
 
                     part_clause = new_part_clause
 
-                    first_val = dbobj.get_column(gquery_rvar, rn_alias)
+                    first_val = pathctx.get_rvar_path_var(
+                        ctx.env, gquery_rvar, stmt.subject.path_id)
 
                     restype = irutils.infer_type(stmt.subject, ctx.env.schema)
                     if isinstance(restype, s_obj.Tuple):
@@ -295,6 +285,8 @@ def compile_GroupStmt(
                 pathctx.put_path_bond(gvctx.query, path_id)
                 gvctx.stmt_path_scope[path_id] = 1
 
+            relctx.include_range(gvctx.query, group_cte.query, ctx=gvctx)
+
             for path_id in list(gvctx.query.path_rvar_map):
                 c_path_id = pathctx.get_canonical_path_id(
                     ctx.schema, path_id)
@@ -339,7 +331,7 @@ def compile_GroupStmt(
             selctx.query.ctes.append(groupval_cte)
             for grouped_set in group_paths:
                 relctx.replace_set_cte_subtree(
-                    grouped_set, groupval_cte, ctx=selctx)
+                    grouped_set, groupval_cte, recursive=False, ctx=selctx)
 
             output.compile_output(o_stmt.result, ctx=selctx)
 
