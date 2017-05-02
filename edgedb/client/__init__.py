@@ -12,6 +12,7 @@ import os
 
 from . import defines
 from .exceptions import *  # NOQA
+from . import exceptions
 from . import protocol as edgedb_protocol
 from .future import create_future
 from . import transaction

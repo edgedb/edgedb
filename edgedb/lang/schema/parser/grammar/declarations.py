@@ -17,6 +17,7 @@ from edgedb.lang.schema import ast as esast
 from ...error import SchemaSyntaxError
 
 from . import keywords
+from . import tokens
 
 from .tokens import *  # NOQA
 
@@ -115,7 +116,7 @@ class Value(Nonterm):
         self.val = esast.ArrayLiteral(value=[el.value for el in kids[1].val])
 
 
-class ValueList(ListNonterm, element=BaseValue, separator=T_COMMA):
+class ValueList(ListNonterm, element=BaseValue, separator=tokens.T_COMMA):
     pass
 
 
@@ -168,7 +169,8 @@ class ImportModule(Nonterm):
                                       alias=kids[2].val)
 
 
-class ImportModuleList(ListNonterm, element=ImportModule, separator=T_COMMA):
+class ImportModuleList(ListNonterm, element=ImportModule,
+                       separator=tokens.T_COMMA):
     pass
 
 
@@ -539,7 +541,8 @@ class FuncDeclArg(Nonterm):
         )
 
 
-class FuncDeclArgList(ListNonterm, element=FuncDeclArg, separator=T_COMMA):
+class FuncDeclArgList(ListNonterm, element=FuncDeclArg,
+                      separator=tokens.T_COMMA):
     pass
 
 
@@ -587,11 +590,11 @@ class NameAndExtends(Nonterm):
         self.val = esast.Declaration(name=kid.val)
 
 
-class NameList(ListNonterm, element=ObjectName, separator=T_COMMA):
+class NameList(ListNonterm, element=ObjectName, separator=tokens.T_COMMA):
     pass
 
 
-class TypeList(ListNonterm, element=TypeName, separator=T_COMMA):
+class TypeList(ListNonterm, element=TypeName, separator=tokens.T_COMMA):
     pass
 
 

@@ -6,13 +6,13 @@
 ##
 
 
-from .error import SchemaError, SchemaNameError
-from .name import SchemaName
+from .error import SchemaError, SchemaNameError  # NOQA
+from .name import SchemaName  # NOQA
 
-from .objects import Class, MetaClass
-from .schema import Schema
-from .modules import Module
+from .objects import Class, MetaClass  # NOQA
+from .schema import Schema  # NOQA
+from .modules import Module  # NOQA
 
-from . import ast
-from .codegen import generate_source
-from .parser import parse, parse_fragment
+from . import ast  # NOQA
+from .codegen import generate_source  # NOQA
+from .parser import parse, parse_fragment  # NOQA

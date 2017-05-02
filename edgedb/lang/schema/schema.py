@@ -225,8 +225,8 @@ class Schema:
                 child_names = self._inheritance_cache[scls.name]
                 raise KeyError
             except KeyError:
-                child_names = self._inheritance_cache[scls.name] = \
-                                    self._find_children(scls)
+                child_names = self._find_children(scls)
+                self._inheritance_cache[scls.name] = child_names
         else:
             child_names = [c.name for c in children]
 
@@ -236,7 +236,7 @@ class Schema:
         if max_depth is not None and depth < max_depth:
             for child in children:
                 result.update(self._get_descendants(
-                        child, max_depth=max_depth, depth=depth+1))
+                    child, max_depth=max_depth, depth=depth + 1))
 
         result.update(children)
         return result

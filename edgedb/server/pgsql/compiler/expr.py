@@ -36,7 +36,7 @@ from . import typecomp
 
 @dispatch.compile.register(irast.Parameter)
 def compile_Parameter(
-        expr: irast.Base, *, ctx: context.CompilerContext) -> pgast.Base:
+        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
     if expr.name.isnumeric():
         index = int(expr.name)
     else:
@@ -54,13 +54,13 @@ def compile_Parameter(
 
 @dispatch.compile.register(irast.EmptySet)
 def compile_EmptySet(
-        expr: irast.Base, *, ctx: context.CompilerContext) -> pgast.Base:
+        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
     return pgast.Constant(val=None)
 
 
 @dispatch.compile.register(irast.Constant)
 def compile_Constant(
-        expr: irast.Base, *, ctx: context.CompilerContext) -> pgast.Base:
+        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
     result = pgast.Constant(val=expr.value)
     result = typecomp.cast(
         result, source_type=expr.type, target_type=expr.type,
@@ -70,7 +70,7 @@ def compile_Constant(
 
 @dispatch.compile.register(irast.TypeCast)
 def compile_TypeCast(
-        expr: irast.Base, *, ctx: context.CompilerContext) -> pgast.Base:
+        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
     pg_expr = dispatch.compile(expr.expr, ctx=ctx)
 
     target_type = irutils.infer_type(expr, ctx.schema)
@@ -94,7 +94,7 @@ def compile_TypeCast(
 
 @dispatch.compile.register(irast.IndexIndirection)
 def compile_IndexIndirection(
-        expr: irast.Base, *, ctx: context.CompilerContext) -> pgast.Base:
+        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
     # Handle Expr[Index], where Expr may be std::str or array<T>.
     # For strings we translate this into substr calls, whereas
     # for arrays the native slice syntax is used.
@@ -190,7 +190,7 @@ def compile_IndexIndirection(
 
 @dispatch.compile.register(irast.SliceIndirection)
 def compile_SliceIndirection(
-        expr: irast.Base, *, ctx: context.CompilerContext) -> pgast.Base:
+        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
     # Handle Expr[Start:End], where Expr may be std::str or array<T>.
     # For strings we translate this into substr calls, whereas
     # for arrays the native slice syntax is used.
@@ -285,7 +285,7 @@ def compile_SliceIndirection(
 
 @dispatch.compile.register(irast.BinOp)
 def compile_BinOp(
-        expr: irast.Base, *, ctx: context.CompilerContext) -> pgast.Base:
+        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
     with ctx.new() as newctx:
         newctx.expr_exposed = False
         op = expr.op
@@ -447,7 +447,7 @@ def compile_BinOp(
 
 @dispatch.compile.register(irast.UnaryOp)
 def compile_UnaryOp(
-        expr: irast.Base, *, ctx: context.CompilerContext) -> pgast.Base:
+        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
     with ctx.new() as subctx:
         subctx.expr_exposed = False
         operand = dispatch.compile(expr.expr, ctx=subctx)
@@ -456,7 +456,7 @@ def compile_UnaryOp(
 
 @dispatch.compile.register(irast.IfElseExpr)
 def compile_IfElseExpr(
-        expr: irast.Base, *, ctx: context.CompilerContext) -> pgast.Base:
+        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
     with ctx.new() as subctx:
         return pgast.CaseExpr(
             args=[
@@ -469,14 +469,14 @@ def compile_IfElseExpr(
 
 @dispatch.compile.register(irast.Array)
 def compile_Array(
-        expr: irast.Base, *, ctx: context.CompilerContext) -> pgast.Base:
+        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
     elements = [dispatch.compile(e, ctx=ctx) for e in expr.elements]
     return pgast.ArrayExpr(elements=elements)
 
 
 @dispatch.compile.register(irast.TupleIndirection)
 def compile_TupleIndirection(
-        expr: irast.Base, *, ctx: context.CompilerContext) -> pgast.Base:
+        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
     for se in expr.expr.expr.elements:
         if se.name == expr.name:
             return dispatch.compile(se.val, ctx=ctx)
@@ -486,7 +486,7 @@ def compile_TupleIndirection(
 
 @dispatch.compile.register(irast.Tuple)
 def compile_Tuple(
-        expr: irast.Base, *, ctx: context.CompilerContext) -> pgast.Base:
+        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
     elements = [dispatch.compile(e.val, ctx=ctx) for e in expr.elements]
     result = pgast.ImplicitRowExpr(args=elements)
 
@@ -498,7 +498,7 @@ def compile_Tuple(
 
 @dispatch.compile.register(irast.Mapping)
 def compile_Mapping(
-        expr: irast.Base, *, ctx: context.CompilerContext) -> pgast.Base:
+        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
     elements = []
 
     schema = ctx.schema
@@ -526,7 +526,7 @@ def compile_Mapping(
 
 @dispatch.compile.register(irast.TypeRef)
 def compile_TypeRef(
-        expr: irast.Base, *, ctx: context.CompilerContext) -> pgast.Base:
+        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
     data_backend = ctx.backend
     schema = ctx.schema
 
@@ -547,7 +547,7 @@ def compile_TypeRef(
 
 @dispatch.compile.register(irast.FunctionCall)
 def compile_FunctionCall(
-        expr: irast.Base, *, ctx: context.CompilerContext) -> pgast.Base:
+        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
     funcobj = expr.func
 
     if funcobj.aggregate:
@@ -577,7 +577,7 @@ def compile_FunctionCall(
 
 @dispatch.compile.register(irast.Set)
 def compile_Set(
-        expr: irast.Base, *, ctx: context.CompilerContext) -> pgast.Base:
+        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
 
     if ctx.singleton_mode:
         return _compile_set_in_singleton_mode(expr, ctx=ctx)
@@ -649,7 +649,7 @@ def compile_Set(
 
 @dispatch.compile.register(irast.Coalesce)
 def compile_Coalesce(
-        expr: irast.Base, *, ctx: context.CompilerContext) -> pgast.Base:
+        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
     with ctx.new() as subctx:
         subctx.lax_paths = 1
         pg_args = [dispatch.compile(a, ctx=subctx) for a in expr.args]
@@ -671,7 +671,7 @@ def _tuple_to_row_expr(tuple_expr, *, ctx):
 
 
 def _compile_shape(
-        ir_set: irast.Set, *, ctx: context.CompilerContext) \
+        ir_set: irast.Set, *, ctx: context.CompilerContextLevel) \
         -> typing.Union[pgast.Base, astutils.ResTargetList]:
     my_elements = []
     attribute_map = []
@@ -714,7 +714,7 @@ def _compile_shape(
 
 
 def _compile_set_in_singleton_mode(
-        node: irast.Set, *, ctx: context.CompilerContext) -> pgast.Base:
+        node: irast.Set, *, ctx: context.CompilerContextLevel) -> pgast.Base:
     if node.expr is not None:
         return dispatch.compile(node.expr, ctx=ctx)
     else:

@@ -8,7 +8,6 @@
 
 import uuid
 
-from edgedb.client import exceptions as exc
 from edgedb.server import _testbase as tb
 
 

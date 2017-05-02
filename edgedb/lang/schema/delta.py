@@ -171,7 +171,7 @@ class DeltaExceptionSchemaContext(markup.MarkupExceptionContext):
         title = (f'Schema Delta Diff ({self.schema1_title} -> '
                  f'{self.schema2_title}):')
         body.append(me.doc.Section(
-                        title=title, body=[markup.serialize(delta, ctx=ctx)]))
+            title=title, body=[markup.serialize(delta, ctx=ctx)]))
 
         diff = edgedb_debug.get_schema_hash_diff(self.schema1, self.schema2,
                                                  a_title=self.schema1_title,
@@ -180,10 +180,10 @@ class DeltaExceptionSchemaContext(markup.MarkupExceptionContext):
         body.append(me.doc.Section(title='Schema Hash Diff', body=[diff]))
 
         diff = edgedb_debug.get_list_diff(
-                    self.schema1_checksums or [],
-                    self.schema2_checksums or [],
-                    a_title=self.schema1_title,
-                    b_title=self.schema2_title)
+            self.schema1_checksums or [],
+            self.schema2_checksums or [],
+            a_title=self.schema1_title,
+            b_title=self.schema2_title)
 
         body.append(me.doc.Section(title='Schema Object Hashes Diff',
                                    body=[diff]))
@@ -224,9 +224,9 @@ class DeltaError(EdgeDBError):
 
 class DeltaChecksumError(DeltaError):
     def __init__(self, msg=None, *, hint=None, details=None,
-                       schema1=None, schema2=None,
-                       schema1_title=None, schema2_title=None,
-                       checksums1=None, checksums2=None):
+                 schema1=None, schema2=None,
+                 schema1_title=None, schema2_title=None,
+                 checksums1=None, checksums2=None):
         super().__init__(msg, hint=hint, details=details)
         if schema1 and schema2:
             err_ctx = DeltaExceptionSchemaContext(schema1, schema2,
@@ -289,7 +289,7 @@ class DeltaRef:
 
 class DeltaDriver:
     def __init__(self, *, create=None, alter=None, rebase=None,
-                          rename=None, delete=None):
+                 rename=None, delete=None):
         self.create = create
         self.alter = alter
         self.rebase = rebase
@@ -346,8 +346,7 @@ class Delta(struct.MixedStruct, metaclass=DeltaMeta):
                     try:
                         hook_func = locals[hook]
                     except KeyError as e:
-                        msg = '{} code does not define {}() callable' \
-                                .format(stage, hook)
+                        msg = f'{stage} code does not define {hook}() callable'
                         raise DeltaHookNotFoundError(msg) from e
                     else:
                         hook_func(session)
@@ -863,16 +862,15 @@ class AlterClassProperty(Command):
                         # Remove the space between the operator and the operand
                         v = ''.join(v.split(' ', maxsplit=1))
                     else:
-                        msg = 'unexpected value in attribute {!r}: {!r}'\
-                                    .format(propname, v)
-                        raise ValueError(msg)
+                        raise ValueError(
+                            f'unexpected value in attribute '
+                            f'{propname!r}: {v!r}')
                     m[k] = v
 
                 new_value = m
             else:
-                msg = 'unexpected value in attribute: {!r}' \
-                            .format(astnode.value)
-                raise ValueError(msg)
+                raise ValueError(
+                    f'unexpected value in attribute: {astnode.value!r}')
 
         return cls(property=propname, new_value=new_value)
 
@@ -919,11 +917,11 @@ class AlterClassProperty(Command):
 
         as_expr = isinstance(value, qlast.ExpressionText)
         op = qlast.CreateAttributeValue(
-                name=qlast.ClassRef(module='', name=self.property),
-                value=value, as_expr=as_expr)
+            name=qlast.ClassRef(module='', name=self.property),
+            value=value, as_expr=as_expr)
         return op
 
     def __repr__(self):
         return '<%s.%s "%s":"%s"->"%s">' % (
-                    self.__class__.__module__, self.__class__.__name__,
-                    self.property, self.old_value, self.new_value)
+            self.__class__.__module__, self.__class__.__name__,
+            self.property, self.old_value, self.new_value)

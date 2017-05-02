@@ -143,15 +143,15 @@ class Cli:
             enable_abort_and_exit_bindings=True)
 
         @key_binding_manager.registry.add_binding(pt_keys.Keys.F3)
-        def _(event):
+        def _graphql_toggle(event):
             self.graphql = not self.graphql
 
         @key_binding_manager.registry.add_binding(pt_keys.Keys.F4)
-        def _(event):
+        def _optimizer_toggle(event):
             self.optimize = not self.optimize
 
         @key_binding_manager.registry.add_binding(pt_keys.Keys.Tab)
-        def _(event):
+        def _tab(event):
             b = cli.current_buffer
             before_cursor = b.document.current_line_before_cursor
             if b.text and (not before_cursor or before_cursor.isspace()):

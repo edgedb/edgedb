@@ -131,29 +131,28 @@ class ASTBaseTests(unittest.TestCase):
         self.assertEqual(Node().field3, 123)
 
     def test_common_ast_type_anno(self):
-        with self.assertRaisesRegex(RuntimeError,
-                                   r"Any is not a type"):
-            class Node(ast.AST):
+        with self.assertRaisesRegex(RuntimeError, r"Any is not a type"):
+            class Node1(ast.AST):
                 field: typing.Any  # We don't want to use/support it.
 
         with self.assertRaisesRegex(RuntimeError,
                                     r"'abc' is not a type"):
-            class Node(ast.AST):
+            class Node2(ast.AST):
                 field: 'abc'
 
         with self.assertRaisesRegex(RuntimeError,
                                     r"Mapping.*is not supported"):
-            class Node(ast.AST):
+            class Node3(ast.AST):
                 field: typing.Mapping[int, str]
 
         with self.assertRaisesRegex(RuntimeError,
                                     r"default is defined for.*List"):
-            class Node(ast.AST):
+            class Node4(ast.AST):
                 field: typing.List[int] = [1]
 
         with self.assertRaisesRegex(RuntimeError,
                                     r"default is defined for.*list"):
-            class Node(ast.AST):
+            class Node5(ast.AST):
                 field: list = list
 
 

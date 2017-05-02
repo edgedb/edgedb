@@ -6,7 +6,7 @@
 ##
 
 
-from edgedb.lang.common import parsing, context
+from edgedb.lang.common import parsing
 from edgedb.lang.graphql import ast as gqlast
 from edgedb.lang.graphql.parser.errors import (GraphQLParserError,
                                                GraphQLUniquenessError)

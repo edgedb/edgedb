@@ -5,10 +5,11 @@
 # See LICENSE for details.
 ##
 
+from . import _base
 from ._base import *  # NOQA
 
 
-class InternalError(EdgeDBError):
+class InternalError(_base.EdgeDBError):
     code = 'XX000'
 
 
@@ -16,7 +17,7 @@ class EdgeDBBackendError(InternalError):
     code = 'XX001'
 
 
-class IntegrityConstraintViolationError(EdgeDBError):
+class IntegrityConstraintViolationError(_base.EdgeDBError):
     code = '23000'
 
 
@@ -44,11 +45,11 @@ class LinkMappingCardinalityViolationError(IntegrityConstraintViolationError):
     code = '23600'
 
 
-class EdgeDBSyntaxError(EdgeDBError):
+class EdgeDBSyntaxError(_base.EdgeDBError):
     code = '42600'
 
 
-class InvalidTransactionStateError(EdgeDBError):
+class InvalidTransactionStateError(_base.EdgeDBError):
     code = '25000'
 
 

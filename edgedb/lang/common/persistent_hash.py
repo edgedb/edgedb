@@ -12,7 +12,6 @@ __all__ = ('persistent_hash', 'PersistentlyHashable')
 
 
 import abc
-import contextlib
 import decimal
 import functools
 import struct
@@ -61,6 +60,7 @@ def _int(value):
 
 _floatpack = struct.Struct('>d').pack
 _floatunpack = struct.Struct('>q').unpack
+
 
 @persistent_hash.register(float)
 def _float(value):

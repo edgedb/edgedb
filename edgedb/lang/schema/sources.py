@@ -11,7 +11,6 @@ from edgedb.lang.common.persistent_hash import persistent_hash
 from . import error as schema_error
 from . import indexes
 from . import name as sn
-from . import named
 from . import primary
 from . import referencing
 from . import utils
@@ -188,13 +187,13 @@ class Source(primary.PrimaryClass, indexes.IndexableSubject):
                     self.get_pointer_class().get_default_base_name())
                 skip_atomic = base_ptr_class.name == root_class.name
                 ptrs = resolver.getptr_inherited_from(
-                            self, schema, base_ptr_class, skip_atomic)
+                    self, schema, base_ptr_class, skip_atomic)
                 break
 
         return ptrs
 
     def _getptr_ascending(self, schema, name, resolver,
-                                              include_inherited=False):
+                          include_inherited=False):
         ptrs = resolver.getptr(schema, self, name)
 
         if not ptrs:
@@ -207,8 +206,8 @@ class Source(primary.PrimaryClass, indexes.IndexableSubject):
 
     def getptr_ascending(self, schema, name, include_inherited=False):
         ptrs = self._getptr_ascending(
-                    schema, name, self.__class__.PointerResolver,
-                    include_inherited=include_inherited)
+            schema, name, self.__class__.PointerResolver,
+            include_inherited=include_inherited)
 
         return ptrs
 
@@ -407,10 +406,10 @@ class Source(primary.PrimaryClass, indexes.IndexableSubject):
 
         for pointer_name in pointer_names:
             sources = self.get_ptr_sources(
-                                    schema, pointer_name,
-                                    look_in_children=look_in_children,
-                                    include_inherited=include_inherited,
-                                    strict_ancestry=strict_ancestry)
+                schema, pointer_name,
+                look_in_children=look_in_children,
+                include_inherited=include_inherited,
+                strict_ancestry=strict_ancestry)
 
             all_sources.update(sources)
 

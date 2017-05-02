@@ -7,7 +7,7 @@
 
 
 import re
-import unittest
+import unittest  # NOQA
 
 from edgedb.lang import _testbase as tb
 from edgedb.lang.edgeql import generate_source as edgeql_to_source, errors

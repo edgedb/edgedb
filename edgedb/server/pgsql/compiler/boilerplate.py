@@ -12,8 +12,8 @@ from . import context
 
 
 def init_stmt(
-        stmt: pgast.Query, ctx: context.CompilerContext,
-        parent_ctx: context.CompilerContext) -> None:
+        stmt: pgast.Query, ctx: context.CompilerContextLevel,
+        parent_ctx: context.CompilerContextLevel) -> None:
     if ctx.toplevel_stmt is None:
         ctx.toplevel_stmt = ctx.stmt
 
@@ -33,7 +33,7 @@ def init_stmt(
 
 
 def fini_stmt(
-        stmt: pgast.Query, ctx: context.CompilerContext,
-        parent_ctx: context.CompilerContext) -> None:
+        stmt: pgast.Query, ctx: context.CompilerContextLevel,
+        parent_ctx: context.CompilerContextLevel) -> None:
     if stmt is ctx.toplevel_stmt:
         stmt.argnames = ctx.argmap

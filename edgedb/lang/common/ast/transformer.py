@@ -6,11 +6,11 @@
 # This code is licensed under the PSFL license.
 ##
 
-from .base import *  # NOQA
-from .visitor import *  # NOQA
+from . import base
+from . import visitor
 
 
-class NodeTransformer(NodeVisitor):
+class NodeTransformer(visitor.NodeVisitor):
     """Walks the abstract syntax tree and allows modification of nodes.
 
     The `NodeTransformer` will walk the AST and use the return value of the
@@ -45,14 +45,14 @@ class NodeTransformer(NodeVisitor):
     """
 
     def generic_visit(self, node):
-        for field, old_value in iter_fields(node, include_meta=False):
+        for field, old_value in base.iter_fields(node, include_meta=False):
             old_value = getattr(node, field, None)
 
-            if is_container(old_value):
+            if base.is_container(old_value):
                 new_values = old_value.__class__(self.visit(old_value))
                 setattr(node, field, old_value.__class__(new_values))
 
-            elif isinstance(old_value, AST):
+            elif isinstance(old_value, base.AST):
                 new_node = self.visit(old_value)
                 if new_node is not old_value:
                     if new_node is not None:
@@ -63,20 +63,20 @@ class NodeTransformer(NodeVisitor):
 
     def replace_child(self, child, new_child):
         if child.parent is None:
-            raise ASTError('ast node does not have parent')
+            raise base.ASTError('ast node does not have parent')
 
         node = child.parent
         new_child.parent = node
         child.parent = None
 
-        for field, value in iter_fields(node, include_meta=False):
+        for field, value in base.iter_fields(node, include_meta=False):
             if isinstance(value, list):
                 for i in range(0, len(value)):
                     if value[i] == child:
                         value[i] = new_child
                         return True
 
-            elif isinstance(value, AST):
+            elif isinstance(value, base.AST):
                 if value == child:
                     setattr(node, field, new_child)
                     return True

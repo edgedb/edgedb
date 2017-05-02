@@ -95,7 +95,7 @@ class SchemaConstraintDomainConstraint(
 
     async def extra(self, context):
         # There seems to be no direct way to COMMENT on a domain constraint.
-        # See http://www.postgresql.org/message-id/5310157.yWWCtg2qIU@klinga.prans.org
+        # See http://postgr.es/m/5310157.yWWCtg2qIU@klinga.prans.org
         # Work this around by updating pg_description directly.
         #
         # text = self.raw_constraint_name()

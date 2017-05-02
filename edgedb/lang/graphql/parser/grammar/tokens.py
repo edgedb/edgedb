@@ -111,6 +111,7 @@ class T_INTEGER(Token):
     def normalized_value(self):
         return int(self.val)
 
+
 invalid_str = re.compile(r'''(?x)
     (\\u(?![0-9A-Fa-f]{4})) |
     ([\n\f\v\b]) |
@@ -159,4 +160,6 @@ def _gen_keyword_tokens():
         clskwds = dict(metaclass=parsing.TokenMeta, token=token)
         cls = types.new_class(clsname, (Token,), clskwds, clsexec)
         setattr(mod, clsname, cls)
+
+
 _gen_keyword_tokens()

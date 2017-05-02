@@ -49,8 +49,8 @@ from . import typecomp
 
 def init_dml_stmt(
         ir_stmt: irast.MutatingStmt, dml_stmt: pgast.DML, *,
-        ctx: context.CompilerContext,
-        parent_ctx: context.CompilerContext) \
+        ctx: context.CompilerContextLevel,
+        parent_ctx: context.CompilerContextLevel) \
         -> typing.Tuple[pgast.Query, pgast.CommonTableExpr,
                         pgast.CommonTableExpr]:
     """Prepare the common structure of the query representing a DML stmt.
@@ -162,8 +162,8 @@ def init_dml_stmt(
 def fini_dml_stmt(
         ir_stmt: irast.MutatingStmt, wrapper: pgast.Query,
         dml_cte: pgast.CommonTableExpr, *,
-        parent_ctx: context.CompilerContext,
-        ctx: context.CompilerContext) -> pgast.Query:
+        parent_ctx: context.CompilerContextLevel,
+        ctx: context.CompilerContextLevel) -> pgast.Query:
     dml_rvar = pgast.RangeVar(
         relation=dml_cte,
         alias=pgast.Alias(aliasname=parent_ctx.genalias('d'))
@@ -190,7 +190,7 @@ def fini_dml_stmt(
 def get_dml_range(
         ir_stmt: irast.MutatingStmt,
         dml_stmt: pgast.DML, *,
-        ctx: context.CompilerContext) -> pgast.CommonTableExpr:
+        ctx: context.CompilerContextLevel) -> pgast.CommonTableExpr:
     """Create a range CTE for the given DML statement.
 
     :param ir_stmt:
@@ -240,7 +240,7 @@ def get_dml_range(
 def process_insert_body(
         ir_stmt: irast.MutatingStmt, wrapper: pgast.Query,
         insert_cte: pgast.CommonTableExpr, *,
-        ctx: context.CompilerContext) -> None:
+        ctx: context.CompilerContextLevel) -> None:
     """Generate SQL DML CTEs from an InsertStmt IR.
 
     :param ir_stmt:
@@ -337,7 +337,7 @@ def process_update_body(
         ir_stmt: irast.MutatingStmt,
         wrapper: pgast.Query, update_cte: pgast.CommonTableExpr,
         range_cte: pgast.CommonTableExpr, *,
-        ctx: context.CompilerContext):
+        ctx: context.CompilerContextLevel):
     """Generate SQL DML CTEs from an UpdateStmt IR.
 
     :param ir_stmt:
@@ -447,7 +447,7 @@ def process_link_update(
         ir_stmt: irast.MutatingStmt, ir_expr: irast.Base,
         props_only: bool, wrapper: pgast.Query,
         dml_cte: pgast.CommonTableExpr, *,
-        ctx: context.CompilerContext) -> None:
+        ctx: context.CompilerContextLevel) -> None:
     """Perform updates to a link relation as part of a DML statement.
 
     :param ir_stmt:
@@ -657,7 +657,7 @@ def process_link_update(
 def process_linkprop_update(
         ir_stmt: irast.MutatingStmt, ir_expr: irast.Base,
         wrapper: pgast.Query, dml_cte: pgast.CommonTableExpr, *,
-        ctx: context.CompilerContext) -> None:
+        ctx: context.CompilerContextLevel) -> None:
     """Perform link property updates to a link relation.
 
     :param ir_stmt:

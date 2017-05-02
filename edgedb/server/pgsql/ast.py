@@ -54,8 +54,8 @@ class EdgeQLPathInfo(Base):
     # Ignore the below fields in AST visitor/transformer.
     __ast_meta__ = {'path_bonds'}
 
-    path_bonds: typing.Set[irast.PathId]  # A subset of paths
-                                          # necessary to perform joining.
+    # A subset of paths necessary to perform joining.
+    path_bonds: typing.Set[irast.PathId]
 
 
 class BaseRangeVar(Base):
@@ -130,11 +130,14 @@ class Star(Base):
 class ColumnRef(Base):
     """Specifies a reference to a column."""
 
-    name: typing.List[typing.Union[str, Star]]  # Column name list
-    nullable: bool                              # Whether NULL is possible
-    grouped: bool                               # Whether the col is grouped
-    weak: bool                                  # Whether the col is a weak
-                                                # path bond.
+    # Column name list.
+    name: typing.List[typing.Union[str, Star]]
+    # Whether NULL is possible.
+    nullable: bool
+    # Whether the col is grouped.
+    grouped: bool
+    # Whether the col is a weak path bond.
+    weak: bool
 
     def __repr__(self):
         return (
@@ -149,29 +152,38 @@ ColumnRefTypes = typing.Union[ColumnRef, _Ref]
 class ParamRef(Base):
     """Query parameter ($1..$n)."""
 
-    number: int                         # Number of the parameter
+    # Number of the parameter.
+    number: int
 
 
 class ResTarget(Base):
     """Query result target."""
 
-    name: str                       # column name (optional)
-    indirection: list               # subscripts, field names and '*'
-    val: Base                       # value expression to compute
+    # Column name (optional)
+    name: str
+    # subscripts, field names and '*'
+    indirection: list
+    # value expression to compute
+    val: Base
 
 
 class UpdateTarget(Base):
     """Query update target."""
 
-    name: str                       # column name (optional)
-    val: Base                       # value expression to assign
+    # column name (optional)
+    name: str
+    # value expression to assign
+    val: Base
 
 
 class InferClause(Base):
 
-    index_elems: list               # IndexElems to infer unique index
-    where_clause: Base              # Partial-index predicate
-    conname: str                    # Constraint name
+    # IndexElems to infer unique index
+    index_elems: list
+    # Partial-index predicate
+    where_clause: Base
+    # Constraint name
+    conname: str
 
 
 class OnConflictClause(Base):
@@ -184,10 +196,14 @@ class OnConflictClause(Base):
 
 class CommonTableExpr(BaseRelation):
 
-    name: str                       # Query name (unqualified)
-    aliascolnames: list             # Optional list of column names
-    query: Base                     # The CTE query
-    recursive: bool                 # True if this CTE is recursive
+    # Query name (unqualified)
+    name: str
+    # Optional list of column names
+    aliascolnames: list
+    # The CTE query
+    query: Base
+    # True if this CTE is recursive
+    recursive: bool
 
     def __repr__(self):
         return (
@@ -203,15 +219,14 @@ class Query(BaseRelation, EdgeQLPathInfo):
     __ast_meta__ = {'ptr_join_map', 'path_rvar_map', 'path_namespace',
                     'path_outputs', 'view_path_id_map', 'as_type', 'argnames'}
 
-    ptr_join_map: dict              # Map of RangeVars corresponding to pointer
-                                    # relations.
-
+    # Map of RangeVars corresponding to pointer relations.
+    ptr_join_map: dict
+    # Map of RanveVars corresponding to paths.
     path_rvar_map: typing.Dict[irast.PathId, BaseRangeVar]
-                                    # Map of RanveVars corresponding to paths.
+    # Map of col refs corresponding to paths.
     path_namespace: dict
-                                    # Map of col refs corresponding to paths.
-    path_outputs: dict              # Map of res target names corresponding
-                                    # to paths.
+    # Map of res target names corresponding to paths.
+    path_outputs: dict
 
     as_type: irast.PathId
 
@@ -225,52 +240,74 @@ class Query(BaseRelation, EdgeQLPathInfo):
 class DML(Base):
     """Generic superclass for INSERT/UPDATE/DELETE statements."""
 
-    relation: RangeTypes              # Target relation to perform the
-                                      # operation on
-    returning_list: typing.List[ResTarget]  # List of expressions returned
+    # Target relation to perform the operation on.
+    relation: RangeTypes
+    # List of expressions returned
+    returning_list: typing.List[ResTarget]
 
 
 class InsertStmt(Query, DML):
 
-    cols: typing.List[ColumnRefTypes]  # (optional) list of target column names
-    select_stmt: Query              # source SELECT/VALUES or None
-    on_conflict: OnConflictClause   # ON CONFLICT clause
+    # (optional) list of target column names
+    cols: typing.List[ColumnRefTypes]
+    # source SELECT/VALUES or None
+    select_stmt: Query
+    # ON CONFLICT clause
+    on_conflict: OnConflictClause
 
 
 class UpdateStmt(Query, DML):
 
-    targets: typing.List[UpdateTarget]          # The UPDATE target list
-    where_clause: Base                          # WHERE clause
-    from_clause: typing.List[RangeTypes]        # optional FROM clause
+    # The UPDATE target list
+    targets: typing.List[UpdateTarget]
+    # WHERE clause
+    where_clause: Base
+    # optional FROM clause
+    from_clause: typing.List[RangeTypes]
 
 
 class DeleteStmt(Query, DML):
-    where_clause: Base                          # WHERE clause
-    using_clause: typing.List[RangeTypes]       # optional USING clause
+    # WHERE clause
+    where_clause: Base
+    # optional USING clause
+    using_clause: typing.List[RangeTypes]
 
 
 class SelectStmt(Query):
 
-    distinct_clause: list               # List of DISTINCT ON expressions,
-                                        # empty list for DISTINCT ALL
-    target_list: typing.List[ResTarget] # The target list
-    from_clause: typing.List[RangeTypes]  # The FROM clause
-    where_clause: Base                  # The WHERE clause
-    group_clause: typing.List[Base]     # GROUP BY clauses
-    having: Base                        # HAVING expression
-    window_clause: typing.List[Base]    # WINDOW window_name AS(...),
-    values: typing.List[Base]           # List of ImplicitRow's in
-                                        # a VALUES query
+    # List of DISTINCT ON expressions, empty list for DISTINCT ALL
+    distinct_clause: list
+    # The target list
+    target_list: typing.List[ResTarget]
+    # The FROM clause
+    from_clause: typing.List[RangeTypes]
+    # The WHERE clause
+    where_clause: Base
+    # GROUP BY clauses
+    group_clause: typing.List[Base]
+    # HAVING expression
+    having: Base
+    # WINDOW window_name AS(...),
+    window_clause: typing.List[Base]
+    # List of ImplicitRow's in a VALUES query
+    values: typing.List[Base]
+    # ORDER BY clause
+    sort_clause: typing.List[Base]
+    # OFFSET expression
+    limit_offset: Base
+    # LIMIT expression
+    limit_count: Base
+    # FOR UPDATE clause
+    locking_clause: list
 
-    sort_clause: typing.List[Base]      # ORDER BY clause
-    limit_offset: Base                  # OFFSET expression
-    limit_count: Base                   # LIMIT expression
-    locking_clause: list                # FOR UPDATE clause
-
-    op: str                             # Set operation type
-    all: bool                           # ALL modifier
-    larg: Query                         # Left operand of set op
-    rarg: Query                         # Right operand of set op,
+    # Set operation type
+    op: str
+    # ALL modifier
+    all: bool
+    # Left operand of set op
+    larg: Query
+    # Right operand of set op,
+    rarg: Query
 
 
 class ExprKind(enum.IntEnum):
@@ -280,95 +317,132 @@ class ExprKind(enum.IntEnum):
 class Expr(Base):
     """Infix, prefix, and postfix expressions."""
 
-    kind: ExprKind      # Operator kind
-    name: str           # Possibly-qualified name of operator
-    lexpr: Base         # Left argument, if any
-    rexpr: Base         # Right argument, if any
+    # Operator kind
+    kind: ExprKind
+    # Possibly-qualified name of operator
+    name: str
+    # Left argument, if any
+    lexpr: Base
+    # Right argument, if any
+    rexpr: Base
 
 
 class Constant(Base):
     """A literal constant."""
 
-    val: object         # Constant value
+    # Constant value
+    val: object
 
 
 class LiteralExpr(Base):
     """A literal expression."""
 
-    expr: str           # Expression text
+    # Expression text
+    expr: str
 
 
 class TypeCast(Base):
     """A CAST expression."""
 
-    arg: Base               # Expression being casted
-    type_name: TypeName     # Target type
+    # Expression being casted.
+    arg: Base
+    # Target type.
+    type_name: TypeName
 
 
 class CollateClause(Base):
     """A COLLATE expression."""
 
-    arg: Base               # Input expression
-    collname: str           # Possibly-qualified collation name
+    # Input expression
+    arg: Base
+    # Possibly-qualified collation name
+    collname: str
 
 
 class FuncCall(Base):
-    name: typing.Tuple[str, ...]    # Function name
-    args: typing.List[Base]         # List of arguments
-    agg_order: typing.List[Base]    # ORDER BY
-    agg_filter: Base                # FILTER clause
-    agg_star: bool                  # Argument list is '*'
-    agg_distinct: bool              # Arguments were labeled DISTINCT
-    over: Base                      # OVER clause, if any
-    with_ordinality: bool = False
+
+    # Function name
+    name: typing.Tuple[str, ...]
+    # List of arguments
+    args: typing.List[Base]
+    # ORDER BY
+    agg_order: typing.List[Base]
+    # FILTER clause
+    agg_filter: Base
+    # Argument list is '*'
+    agg_star: bool
+    # Arguments were labeled DISTINCT
+    agg_distinct: bool
+    # OVER clause, if any
+    over: Base
+    # WITH ORDINALITY
+    with_ordinality: bool = False  # noqa (pyflakes bug)
 
 
 class Indices(Base):
     """Array subscript or slice bounds."""
 
-    is_slice: bool      # True, if slice
-    lidx: Base          # Lower bound, if any
-    ridx: Base          # Upper bound if any
+    # True, if slice
+    is_slice: bool
+    # Lower bound, if any
+    lidx: Base
+    # Upper bound if any
+    ridx: Base
 
 
 class Indirection(Base):
     """Field and/or array element indirection."""
 
-    arg: Base               # Indirection subject
-    indirection: list       # Subscripts and/or field names and/or '*'
+    # Indirection subject
+    arg: Base
+    # Subscripts and/or field names and/or '*'
+    indirection: list
 
 
 class ArrayExpr(Base):
     """ARRAY[] construct."""
 
-    elements: typing.List[Base]     # array element expressions
+    # array element expressions
+    elements: typing.List[Base]
 
 
 class MultiAssignRef(Base):
     """UPDATE (a, b, c) = row-valued-expr."""
 
-    source: Base                          # row-valued expression
-    columns: typing.List[ColumnRefTypes]  # list of columns to assign to
+    # row-valued expression
+    source: Base
+    # list of columns to assign to
+    columns: typing.List[ColumnRefTypes]
 
 
 class SortBy(Base):
     """ORDER BY clause element."""
 
-    node: Base                  # expression to sort on
-    dir: qlast.SortOrder        # ASC/DESC/USING/default
-    nulls: qlast.NonesOrder     # NULLS FIRST/LAST
+    # expression to sort on
+    node: Base
+    # ASC/DESC/USING/default
+    dir: qlast.SortOrder
+    # NULLS FIRST/LAST
+    nulls: qlast.NonesOrder
 
 
 class WindowDef(Base):
     """WINDOW and OVER clauses."""
 
-    name: str                   # window name
-    refname: str                # referenced window name, if any
-    partition_clause: typing.List[Base]     # PARTITION BY expr list
-    order_clause: typing.List[SortBy]       # ORDER BY
-    frame_options: list         # Window frame options
-    start_offset: Base          # expression for starting bound, if any
-    end_offset: Base            # expression for ending ound, if any
+    # window name
+    name: str
+    # referenced window name, if any
+    refname: str
+    # PARTITION BY expr list
+    partition_clause: typing.List[Base]
+    # ORDER BY
+    order_clause: typing.List[SortBy]
+    # Window frame options
+    frame_options: list
+    # expression for starting bound, if any
+    start_offset: Base
+    # expression for ending ound, if any
+    end_offset: Base
 
 
 class RangeSubselect(BaseRangeVar):
@@ -387,10 +461,14 @@ class RangeSubselect(BaseRangeVar):
 
 class ColumnDef(Base):
 
-    name: str                   # name of column
-    typename: TypeName          # type of column
-    default_expr: Base          # default value, if any
-    coll_clause: Base           # COLLATE clause, if any
+    # name of column
+    name: str
+    # type of column
+    typename: TypeName
+    # default value, if any
+    default_expr: Base  # noqa (pyflakes bug)
+    # COLLATE clause, if any
+    coll_clause: Base
 
 
 class RangeFunction(BaseRangeVar):
@@ -399,18 +477,24 @@ class RangeFunction(BaseRangeVar):
     ordinality: Base
     is_rowsfrom: bool
     functions: typing.List[FuncCall]
-    coldeflist: typing.List[ColumnDef]  # list of ColumnDef nodes to describe
-                                        # result of the function returning
-                                        # RECORD.
+    # list of ColumnDef nodes to describe result of
+    # the function returning RECORD.
+    coldeflist: typing.List[ColumnDef]
 
 
 class JoinExpr(BaseRangeVar):
-    type: str                           # Type of join
 
-    larg: Base                          # Left subtree
-    rarg: Base                          # Right subtree
-    using_clause: typing.List[Base]     # USING clause, if any
-    quals: Base                         # Qualifiers on join, if any
+    # Type of join
+    type: str
+
+    # Left subtree
+    larg: Base
+    # Right subtree
+    rarg: Base
+    # USING clause, if any
+    using_clause: typing.List[Base]
+    # Qualifiers on join, if any
+    quals: Base
 
     def copy(self):
         result = self.__class__()
@@ -433,46 +517,58 @@ class SubLinkType(enum.IntEnum):
 class SubLink(Base):
     """Subselect appearing in an expression."""
 
-    type: SubLinkType               # Type of sublink
-    expr: Base                      # Sublink expression
+    # Type of sublink
+    type: SubLinkType
+    # Sublink expression
+    expr: Base
 
 
 class RowExpr(Base):
     """A ROW() expression."""
 
-    args: typing.List[Base]         # The fields.
+    # The fields.
+    args: typing.List[Base]
 
 
 class ImplicitRowExpr(Base):
     """A (a, b, c) expression."""
 
-    args: typing.List[Base]         # The fields.
+    # The fields.
+    args: typing.List[Base]
 
 
 class CoalesceExpr(Base):
     """A COALESCE() expression."""
 
-    args: typing.List[Base]         # The arguments.
+    # The arguments.
+    args: typing.List[Base]
 
 
 class NullTest(Base):
     """IS [NOT] NULL."""
 
-    arg: Base                       # Input expression,
-    negated: bool                   # NOT NULL?
+    # Input expression,
+    arg: Base
+    # NOT NULL?
+    negated: bool
 
 
 class CaseWhen(Base):
 
-    expr: Base                      # Condition expression
-    result: Base                    # subsitution result
+    # Condition expression
+    expr: Base
+    # subsitution result
+    result: Base
 
 
 class CaseExpr(Base):
 
-    arg: Base                       # Equality comparison argument
-    args: typing.List[CaseWhen]     # List of WHEN clauses
-    defresult: Base                 # ELSE clause
+    # Equality comparison argument
+    arg: Base
+    # List of WHEN clauses
+    args: typing.List[CaseWhen]
+    # ELSE clause
+    defresult: Base  # noqa (pyflakes bug)
 
 
 class PgSQLOperator(ast.ops.Operator):

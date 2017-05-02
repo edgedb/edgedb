@@ -345,8 +345,8 @@ class ExistPred(Expr):
 class IfElseExpr(Expr):
 
     condition: Base
-    if_expr: Base
-    else_expr: Base
+    if_expr: Base  # noqa (pyflakes bug)
+    else_expr: Base  # noqa (pyflakes bug)
     singleton: bool = False
 
 

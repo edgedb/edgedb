@@ -56,8 +56,8 @@ def supports_colors(fileno):
     :returns: bool
     """
     return (
-        isatty(fileno) and os.getenv('TERM') != 'dumb'
-        and os.getenv('ANSI_COLORS_DISABLED') is None)
+        isatty(fileno) and os.getenv('TERM') != 'dumb' and
+        os.getenv('ANSI_COLORS_DISABLED') is None)
 
 
 def size(fileno):

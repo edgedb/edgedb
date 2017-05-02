@@ -239,8 +239,8 @@ class TypeCast(Expr):
 
 class IfElse(Expr):
     condition: Expr
-    if_expr: Expr
-    else_expr: Expr
+    if_expr: Expr  # noqa (pyflakes bug)
+    else_expr: Expr  # noqa (pyflakes bug)
 
 
 class Coalesce(Expr):
@@ -665,7 +665,7 @@ class FuncArg(Base):
     name: str
     type: TypeName
     variadic: bool = False
-    default: Expr
+    default: Expr  # noqa (pyflakes bug)
 
 
 class Language(s_enum.StrEnum):

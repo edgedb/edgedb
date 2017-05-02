@@ -6,7 +6,8 @@
 # This code is licensed under the PSFL license.
 ##
 
-from .base import *  # NOQA
+
+from . import base
 
 
 class SkipNode(Exception):
@@ -25,12 +26,12 @@ def find_children(node, test_func, *args, force_traversal=False,
         else:
             visited.add(node)
 
-        for field, value in iter_fields(node, include_meta=False):
+        for field, value in base.iter_fields(node, include_meta=False):
             field_spec = node._fields[field]
 
             if isinstance(value, (list, set, frozenset)):
                 for n in value:
-                    if not is_ast_node(n):
+                    if not base.is_ast_node(n):
                         continue
 
                     try:
@@ -45,7 +46,7 @@ def find_children(node, test_func, *args, force_traversal=False,
                         if _n is not None:
                             result.extend(_n)
 
-            elif is_ast_node(value):
+            elif base.is_ast_node(value):
                 try:
                     if not field_spec.hidden and test_func(
                             value, *args, **kwargs):
@@ -106,7 +107,7 @@ class NodeVisitor:
     def container_visit(self, node):
         result = []
         for elem in node:
-            if is_ast_node(elem) or is_container(elem):
+            if base.is_ast_node(elem) or base.is_container(elem):
                 result.append(self.visit(elem))
             else:
                 result.append(elem)
@@ -137,7 +138,7 @@ class NodeVisitor:
         return result
 
     def visit(self, node):
-        if is_container(node):
+        if base.is_container(node):
             return self.container_visit(node)
         else:
             return self.node_visit(node)
@@ -145,14 +146,14 @@ class NodeVisitor:
     def generic_visit(self, node, *, combine_results=None):
         field_results = []
 
-        for field, value in iter_fields(node, include_meta=False):
-            if is_container(value):
+        for field, value in base.iter_fields(node, include_meta=False):
+            if base.is_container(value):
                 for item in value:
-                    if is_ast_node(item):
+                    if base.is_ast_node(item):
                         res = self.visit(item)
                         if res is not None:
                             field_results.append(res)
-            elif is_ast_node(value):
+            elif base.is_ast_node(value):
                 res = self.visit(value)
                 if res is not None:
                     field_results.append(res)
@@ -170,14 +171,14 @@ def nodes_equal(n1, n2):
     if type(n1) is not type(n2):
         return False
 
-    for field, value in iter_fields(n1, include_meta=False):
+    for field, value in base.iter_fields(n1, include_meta=False):
         if not n1._fields[field].hidden:
             n1v = getattr(n1, field)
             n2v = getattr(n2, field)
 
-            if is_container(n1v):
+            if base.is_container(n1v):
                 n1v = list(n1v)
-                if is_container(n2v):
+                if base.is_container(n2v):
                     n2v = list(n2v)
                 else:
                     return False
@@ -191,14 +192,14 @@ def nodes_equal(n1, n2):
                     except IndexError:
                         return False
 
-                    if is_ast_node(item1):
+                    if base.is_ast_node(item1):
                         if not nodes_equal(item1, item2):
                             return False
                     else:
                         if item1 != item2:
                             return False
 
-            elif is_ast_node(n1v):
+            elif base.is_ast_node(n1v):
                 if not nodes_equal(n1v, n2v):
                     return False
 

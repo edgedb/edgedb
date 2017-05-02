@@ -6,6 +6,8 @@
 ##
 
 
+import typing
+
 keyword_types = range(1, 3)
 UNRESERVED_KEYWORD, RESERVED_KEYWORD = keyword_types
 
@@ -20,7 +22,7 @@ graphql_keywords = {
 }
 
 
-by_type = {typ: {} for typ in keyword_types}
+by_type: typing.Dict[int, dict] = {typ: {} for typ in keyword_types}
 
 for val, spec in graphql_keywords.items():
     by_type[spec[1]][val] = spec[0]

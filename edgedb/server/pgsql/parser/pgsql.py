@@ -760,7 +760,8 @@ class CharacterWithoutLength(Nonterm):
 
 
 class character(Nonterm):
-    # CHARACTER opt_varying | CHAR_P opt_varying | VARCHAR | NATIONAL CHARACTER opt_varying
+    # CHARACTER opt_varying | CHAR_P opt_varying | VARCHAR
+    # | NATIONAL CHARACTER opt_varying
     # | NATIONAL CHAR_P opt_varying | NCHAR opt_varying
 
     def reduce_CHARACTER_opt_varying(self, *kids):
@@ -862,9 +863,11 @@ class opt_timezone(Nonterm):
 
 
 class opt_interval(Nonterm):
-    # YEAR_P | MONTH_P | DAY_P | HOUR_P | MINUTE_P | interval_second | YEAR_P TO MONTH_P
+    # YEAR_P | MONTH_P | DAY_P | HOUR_P | MINUTE_P | interval_second
+    # | YEAR_P TO MONTH_P
     # | DAY_P TO HOUR_P | DAY_P TO MINUTE_P | DAY_P TO interval_second
-    # | HOUR_P TO MINUTE_P | HOUR_P TO interval_second | MINUTE_P TO interval_second
+    # | HOUR_P TO MINUTE_P | HOUR_P TO interval_second
+    # | MINUTE_P TO interval_second
     # | <e>
 
     def reduce_YEAR_P(self, *kids):
@@ -1351,9 +1354,11 @@ class a_expr(Nonterm):
 
 
 class c_expr(Nonterm):
-    # columnref | AexprConst | PARAM opt_indirection | '(' a_expr ')' opt_indirection
+    # columnref | AexprConst | PARAM opt_indirection
+    # | '(' a_expr ')' opt_indirection
     # | case_expr | func_expr | select_with_parens  %prec UMINUS
-    # | EXISTS select_with_parens | ARRAY select_with_parens | ARRAY array_expr
+    # | EXISTS select_with_parens | ARRAY select_with_parens
+    # | ARRAY array_expr
     # | row
 
     def reduce_columnref(self, *kids):
@@ -1409,8 +1414,10 @@ class func_expr(Nonterm):
     # | func_name '(' '*' ')' over_clause
     # | CURRENT_DATE | CURRENT_TIME | CURRENT_TIME '(' ICONST ')'
     # | CURRENT_TIMESTAMP | CURRENT_TIMESTAMP '(' ICONST ')'
-    # | LOCALTIME | LOCALTIME '(' ICONST ')' | LOCALTIMESTAMP | LOCALTIMESTAMP '(' ICONST ')'
-    # | CURRENT_ROLE | CURRENT_USER | SESSION_USER | USER | CURRENT_CATALOG | CURRENT_SCHEMA
+    # | LOCALTIME | LOCALTIME '(' ICONST ')' | LOCALTIMESTAMP
+    # | LOCALTIMESTAMP '(' ICONST ')'
+    # | CURRENT_ROLE | CURRENT_USER | SESSION_USER | USER
+    # | CURRENT_CATALOG | CURRENT_SCHEMA
     # | CAST '(' a_expr AS Typename ')'
     # | EXTRACT '(' extract_list ')'
     # | OVERLAY '(' overlay_list ')'
@@ -1578,7 +1585,7 @@ class func_arg_expr(Nonterm):
 
     def reduce_a_expr_as_param_name(self, *kids):
         "%reduce a_expr AS param_name"
-        #XXX: param_name is ignored
+        # XXX: param_name is ignored
         self.val = kids[0].val
 
 
@@ -1623,11 +1630,6 @@ class array_expr_list(Nonterm):
 
 
 class in_expr(Nonterm):
-    # select_with_parens | '(' expr_list ')'
-
-    #def reduce_select_with_parens(self, *kids):
-    #    "%reduce select_with_parens"
-
     def reduce_expr_list(self, *kids):
         "%reduce LPAREN expr_list RPAREN"
         self.val = kids[1].val

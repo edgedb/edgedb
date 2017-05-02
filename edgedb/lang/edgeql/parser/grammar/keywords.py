@@ -6,6 +6,9 @@
 ##
 
 
+import typing
+
+
 keyword_types = range(1, 4)
 UNRESERVED_KEYWORD, RESERVED_KEYWORD, TYPE_FUNC_NAME_KEYWORD = keyword_types
 
@@ -105,7 +108,7 @@ edgeql_keywords.update({k: (k.upper(), RESERVED_KEYWORD)
                         for k in reserved_keywords})
 
 
-by_type = {typ: {} for typ in keyword_types}
+by_type: typing.Dict[int, dict] = {typ: {} for typ in keyword_types}
 
 for val, spec in edgeql_keywords.items():
     by_type[spec[1]][val] = spec[0]

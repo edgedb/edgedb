@@ -32,7 +32,7 @@ from . import relctx
 
 def set_to_cte(
         ir_set: irast.Set, *,
-        ctx: context.CompilerContext) -> pgast.BaseRelation:
+        ctx: context.CompilerContextLevel) -> pgast.BaseRelation:
     """Return a BaseRelation for a given IR Set.
 
     @param ir_set: IR Set node.
@@ -114,7 +114,7 @@ def ensure_correct_set(
         stmt: irast.Stmt, query: pgast.Query,
         enforce_uniqueness: bool=False, *,
         path_id: irast.PathId=None,
-        ctx: context.CompilerContext) -> pgast.Query:
+        ctx: context.CompilerContextLevel) -> pgast.Query:
     # Make sure that the set returned by the *query* does not
     # contain NULL values.
     restype = irutils.infer_type(stmt.result, ctx.schema)
@@ -177,7 +177,8 @@ def ensure_correct_set(
 
 def wrap_set_rel(
         ir_set: irast.Set, set_rel: pgast.Query, *,
-        as_value: bool=False, ctx: context.CompilerContext) -> pgast.Query:
+        as_value: bool=False,
+        ctx: context.CompilerContextLevel) -> pgast.Query:
     # For the *set_rel* relation representing the *ir_set*
     # return the following:
     #     (
@@ -223,7 +224,7 @@ def wrap_set_rel(
 
 def wrap_set_rel_as_bool_disjunction(
         ir_set: irast.Set, set_rel: pgast.Query, *,
-        ctx: context.CompilerContext) -> pgast.Query:
+        ctx: context.CompilerContextLevel) -> pgast.Query:
     # For the *set_rel* relation representing the *ir_set*
     # return the following:
     #     EXISTS (
@@ -250,7 +251,7 @@ def wrap_set_rel_as_bool_disjunction(
 
 def get_var_for_set_expr(
         ir_set: irast.Set, source_rvar: pgast.BaseRangeVar, *,
-        ctx: context.CompilerContext) -> pgast.Base:
+        ctx: context.CompilerContextLevel) -> pgast.Base:
     if ((irutils.is_subquery_set(ir_set) or
             isinstance(ir_set.expr, irast.SetOp)) and
             output.in_serialization_ctx(ctx)):
@@ -306,7 +307,8 @@ def get_set_cte_alias(ir_set: irast.Set) -> str:
 
 
 def process_set_as_root(
-        ir_set: irast.Set, stmt: pgast.Query, *, ctx: context.CompilerContext):
+        ir_set: irast.Set, stmt: pgast.Query, *,
+        ctx: context.CompilerContextLevel) -> None:
     """Populate the CTE for a Set defined by a path root."""
     set_rvar = relctx.get_root_rvar(ir_set, stmt, ctx=ctx)
     stmt.from_clause.append(set_rvar)
@@ -315,7 +317,8 @@ def process_set_as_root(
 
 
 def process_set_as_parent_scope(
-        ir_set: irast.Set, stmt: pgast.Query, *, ctx: context.CompilerContext):
+        ir_set: irast.Set, stmt: pgast.Query, *,
+        ctx: context.CompilerContextLevel) -> None:
     """Populate the CTE for a Set defined by parent range."""
     parent_rvar, grouped = relctx.get_parent_range_scope(ir_set, ctx=ctx)
     if isinstance(parent_rvar, pgast.RangeVar):
@@ -356,7 +359,8 @@ def process_set_as_parent_scope(
 
 
 def process_set_as_path_step(
-        ir_set: irast.Set, stmt: pgast.Query, *, ctx: context.CompilerContext):
+        ir_set: irast.Set, stmt: pgast.Query, *,
+        ctx: context.CompilerContextLevel) -> None:
     """Populate the CTE for Set defined by a single path step."""
     rptr = ir_set.rptr
     ptrcls = rptr.ptrcls
@@ -461,7 +465,8 @@ def process_set_as_path_step(
 
 
 def process_set_as_view(
-        ir_set: irast.Set, stmt: pgast.Query, *, ctx: context.CompilerContext):
+        ir_set: irast.Set, stmt: pgast.Query, *,
+        ctx: context.CompilerContextLevel) -> None:
     """Populate the CTE for Set defined by a subquery defining a view."""
     cte = relctx.get_set_cte(ir_set, ctx=ctx)
     parent_stmt = ctx.stmtmap.get(ir_set.expr.parent_stmt)
@@ -516,7 +521,8 @@ def process_set_as_view(
 
 
 def process_set_as_subquery(
-        ir_set: irast.Set, stmt: pgast.Query, *, ctx: context.CompilerContext):
+        ir_set: irast.Set, stmt: pgast.Query, *,
+        ctx: context.CompilerContextLevel) -> None:
     """Populate the CTE for Set defined by a subquery."""
     cte = relctx.get_set_cte(ir_set, ctx=ctx)
 
@@ -542,7 +548,8 @@ def process_set_as_subquery(
 
 
 def process_set_as_view_inner_reference(
-        ir_set: irast.Set, stmt: pgast.Query, *, ctx: context.CompilerContext):
+        ir_set: irast.Set, stmt: pgast.Query, *,
+        ctx: context.CompilerContextLevel) -> None:
     """Populate the CTE for Set for inner view references."""
     cte = relctx.get_set_cte(ir_set, ctx=ctx)
     inner_set = ir_set.view_source
@@ -638,7 +645,8 @@ def process_set_as_view_inner_reference(
 
 
 def process_set_as_setop(
-        ir_set: irast.Set, stmt: pgast.Query, *, ctx: context.CompilerContext):
+        ir_set: irast.Set, stmt: pgast.Query, *,
+        ctx: context.CompilerContextLevel) -> None:
     """Populate the CTE for Set defined by set operation."""
     expr = ir_set.expr
 
@@ -693,7 +701,8 @@ def process_set_as_setop(
 
 
 def process_set_as_named_tuple(
-        ir_set: irast.Set, stmt: pgast.Query, *, ctx: context.CompilerContext):
+        ir_set: irast.Set, stmt: pgast.Query, *,
+        ctx: context.CompilerContextLevel) -> None:
     """Populate the CTE for Set defined by a named tuple."""
     expr = ir_set.expr
 
@@ -712,7 +721,8 @@ def process_set_as_named_tuple(
 
 
 def process_set_as_named_tuple_indirection(
-        ir_set: irast.Set, stmt: pgast.Query, *, ctx: context.CompilerContext):
+        ir_set: irast.Set, stmt: pgast.Query, *,
+        ctx: context.CompilerContextLevel) -> None:
     """Populate the CTE for Set defined by a named tuple indirection."""
     expr = ir_set.expr
 
@@ -725,7 +735,8 @@ def process_set_as_named_tuple_indirection(
 
 
 def process_set_as_typefilter(
-        ir_set: irast.Set, stmt: pgast.Query, *, ctx: context.CompilerContext):
+        ir_set: irast.Set, stmt: pgast.Query, *,
+        ctx: context.CompilerContextLevel) -> None:
     """Populate the CTE for Set defined by a Expr[IS Type] expression."""
     root_rvar = relctx.get_root_rvar(ir_set, stmt, ctx=ctx)
     stmt.from_clause.append(root_rvar)
@@ -738,7 +749,8 @@ def process_set_as_typefilter(
 
 
 def process_set_as_expr(
-        ir_set: irast.Set, stmt: pgast.Query, *, ctx: context.CompilerContext):
+        ir_set: irast.Set, stmt: pgast.Query, *,
+        ctx: context.CompilerContextLevel) -> None:
     """Populate the CTE for Set defined by an expression."""
 
     with ctx.new() as newctx:
@@ -756,7 +768,8 @@ def process_set_as_expr(
 
 
 def process_set_as_func_expr(
-        ir_set: irast.Set, stmt: pgast.Query, *, ctx: context.CompilerContext):
+        ir_set: irast.Set, stmt: pgast.Query, *,
+        ctx: context.CompilerContextLevel) -> None:
     """Populate the CTE for Set defined by a function call."""
     with ctx.new() as newctx:
         newctx.rel = stmt
@@ -833,7 +846,8 @@ def process_set_as_func_expr(
 
 
 def process_set_as_agg_expr(
-        ir_set: irast.Set, stmt: pgast.Query, *, ctx: context.CompilerContext):
+        ir_set: irast.Set, stmt: pgast.Query, *,
+        ctx: context.CompilerContextLevel) -> None:
     """Populate the CTE for Set defined by an aggregate."""
 
     with ctx.new() as newctx:
@@ -994,7 +1008,8 @@ def process_set_as_agg_expr(
 
 
 def process_set_as_exists_expr(
-        ir_set: irast.Set, stmt: pgast.Query, *, ctx: context.CompilerContext):
+        ir_set: irast.Set, stmt: pgast.Query, *,
+        ctx: context.CompilerContextLevel) -> None:
     """Populate the CTE for Set defined by an EXISTS() expression."""
 
     if isinstance(ir_set.expr.expr, irast.Stmt):
@@ -1047,7 +1062,8 @@ def process_set_as_exists_expr(
 
 
 def process_set_as_exists_stmt_expr(
-        ir_set: irast.Set, stmt: pgast.Query, *, ctx: context.CompilerContext):
+        ir_set: irast.Set, stmt: pgast.Query, *,
+        ctx: context.CompilerContextLevel) -> None:
     """Populate the CTE for Set defined by an EXISTS() expression."""
     with ctx.new() as newctx:
         newctx.lax_paths = 2
@@ -1102,7 +1118,7 @@ def wrap_view_ref(
         ir_set: irast.Set,
         inner_path_id: irast.PathId, outer_path_id: irast.PathId,
         view_rvar: pgast.BaseRangeVar, *,
-        ctx: context.CompilerContext) -> pgast.SelectStmt:
+        ctx: context.CompilerContextLevel) -> pgast.SelectStmt:
     wrapper = pgast.SelectStmt(
         from_clause=[view_rvar],
         view_path_id_map={

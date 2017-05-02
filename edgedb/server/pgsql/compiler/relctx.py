@@ -24,7 +24,7 @@ from . import pathctx
 
 def pull_path_namespace(
         *, target: pgast.Query, source: pgast.BaseRangeVar,
-        replace_bonds: bool=True, ctx: context.CompilerContext):
+        replace_bonds: bool=True, ctx: context.CompilerContextLevel):
 
     squery = source.query
     if astutils.is_set_op_query(squery):
@@ -64,7 +64,7 @@ def pull_path_namespace(
 
 
 def apply_path_bond_injections(
-        stmt: pgast.Query, *, ctx: context.CompilerContext) -> bool:
+        stmt: pgast.Query, *, ctx: context.CompilerContextLevel) -> bool:
 
     if ctx.expr_injected_path_bond is not None:
         # Inject an explicitly provided path bond.  This is necessary
@@ -92,7 +92,7 @@ def apply_path_bond_injections(
 def include_range(
         stmt: pgast.Query, rel: pgast.Query, join_type: str='inner',
         lateral: bool=False, replace_bonds: bool=True, *,
-        ctx: context.CompilerContext) -> pgast.BaseRangeVar:
+        ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
     """Ensure the *rel* is present in the from_clause of *stmt*.
 
     :param stmt:
@@ -134,7 +134,7 @@ def include_range(
 def get_root_rvar(
         ir_set: irast.Set, stmt: pgast.Query, nullable: bool=False,
         set_rvar: pgast.BaseRangeVar=None, *,
-        ctx: context.CompilerContext) -> pgast.BaseRangeVar:
+        ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
     if not isinstance(ir_set.scls, s_concepts.Concept):
         return None
 
@@ -153,7 +153,7 @@ def get_root_rvar(
 
 def ensure_correct_rvar_for_expr(
         ir_set: irast.Set, stmt: pgast.Query, set_expr: pgast.Base, *,
-        ctx: context.CompilerContext):
+        ctx: context.CompilerContextLevel):
 
     if isinstance(set_expr, astutils.ResTargetList):
         for i, rt in enumerate(set_expr.targets):
@@ -210,7 +210,7 @@ def ensure_bond_for_expr(
 def enforce_path_scope(
         query: pgast.Query,
         path_bonds: typing.Dict[irast.PathId, pathctx.LazyPathVarRef], *,
-        ctx: context.CompilerContext):
+        ctx: context.CompilerContextLevel):
     cond = pathctx.full_inner_bond_condition(ctx.env, query, path_bonds)
     if cond is not None:
         query.where_clause = astutils.extend_binop(
@@ -219,7 +219,7 @@ def enforce_path_scope(
 
 def put_parent_range_scope(
         ir_set: irast.Set, rvar: pgast.BaseRangeVar, grouped: bool=False, *,
-        ctx: context.CompilerContext):
+        ctx: context.CompilerContextLevel):
     ir_set = irutils.get_canonical_set(ir_set)
     if ir_set not in ctx.computed_node_rels:
         ctx.computed_node_rels[ir_set] = rvar, grouped
@@ -227,7 +227,7 @@ def put_parent_range_scope(
 
 def get_parent_range_scope(
         ir_set: irast.Set, *,
-        ctx: context.CompilerContext) \
+        ctx: context.CompilerContextLevel) \
         -> typing.Tuple[pgast.BaseRangeVar, bool]:
     ir_set = irutils.get_canonical_set(ir_set)
     return ctx.computed_node_rels.get(ir_set)
@@ -235,7 +235,7 @@ def get_parent_range_scope(
 
 def get_ctemap_key(
         ir_set: irast.Set, *, lax: typing.Optional[bool]=None,
-        ctx: context.CompilerContext) -> tuple:
+        ctx: context.CompilerContextLevel) -> tuple:
     ir_set = irutils.get_canonical_set(ir_set)
 
     if ir_set.rptr is not None and ir_set.expr is None:
@@ -251,7 +251,7 @@ def get_ctemap_key(
 def put_set_cte(
         ir_set: irast.Set, cte: pgast.BaseRelation, *,
         lax: typing.Optional[bool]=None,
-        ctx: context.CompilerContext) -> pgast.BaseRelation:
+        ctx: context.CompilerContextLevel) -> pgast.BaseRelation:
     key = get_ctemap_key(ir_set, lax=lax, ctx=ctx)
     ctx.ctemap[key] = cte
     ctx.ctemap_by_stmt[ctx.stmt][key] = cte
@@ -260,7 +260,8 @@ def put_set_cte(
 
 def get_set_cte(
         ir_set: irast.Set, *, lax: typing.Optional[bool]=None,
-        ctx: context.CompilerContext) -> typing.Optional[pgast.BaseRelation]:
+        ctx: context.CompilerContextLevel) -> \
+        typing.Optional[pgast.BaseRelation]:
     key = get_ctemap_key(ir_set, lax=lax, ctx=ctx)
     return ctx.ctemap.get(key)
 
@@ -280,7 +281,7 @@ def replace_set_cte_subtree(
         ir_set: irast.Set, cte: pgast.BaseRelation, *,
         lax: typing.Optional[bool]=None,
         recursive: bool=True,
-        ctx: context.CompilerContext) -> None:
+        ctx: context.CompilerContextLevel) -> None:
     pop_prefix_ctes(ir_set.path_id, lax=lax, ctx=ctx)
     while ir_set is not None:
         put_set_cte(ir_set, cte, lax=lax, ctx=ctx)

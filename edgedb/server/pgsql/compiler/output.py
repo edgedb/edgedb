@@ -42,7 +42,7 @@ def rtlist_as_json_object(rtlist):
 
 
 def in_serialization_ctx(
-        ctx: context.CompilerContext) -> bool:
+        ctx: context.CompilerContextLevel) -> bool:
     return (
         (ctx.expr_exposed is None or ctx.expr_exposed) and
         ctx.env.output_format == context.OutputFormat.JSON
@@ -50,7 +50,7 @@ def in_serialization_ctx(
 
 
 def serialize_expr(
-        ctx: context.CompilerContext, expr: pgast.Base) -> pgast.Base:
+        ctx: context.CompilerContextLevel, expr: pgast.Base) -> pgast.Base:
     if in_serialization_ctx(ctx):
         if isinstance(expr, astutils.ResTargetList):
             val = rtlist_as_json_object(expr)
@@ -123,7 +123,7 @@ def ensure_query_restarget_name(
 
 
 def compile_output(
-        result_expr: irast.Base, *, ctx: context.CompilerContext) -> None:
+        result_expr: irast.Base, *, ctx: context.CompilerContextLevel) -> None:
     query = ctx.query
 
     with ctx.new() as newctx:

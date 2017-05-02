@@ -108,9 +108,8 @@ class TracebackPoint(BaseObject):
         self.lines = self.line_numbers = None
 
         if (self.lineno and
-                ((self.filename and not self.filename.startswith('<')
-                    and not self.filename.endswith('>'))
-                 or lines)):
+                ((self.filename and not self.filename.startswith('<') and
+                    not self.filename.endswith('>')) or lines)):
 
             lineno = self.lineno
 

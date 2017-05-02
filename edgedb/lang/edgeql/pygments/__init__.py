@@ -1,5 +1,5 @@
-from pygments.lexer import RegexLexer, bygroups, include
-from pygments.token import *
+from pygments.lexer import RegexLexer, include
+from pygments import token
 
 
 __all__ = ['EdgeQLLexer']
@@ -14,16 +14,16 @@ class EdgeQLLexer(RegexLexer):
         'root': [
             include('comments'),
             include('keywords'),
-            (r'@\w+', Name.Decorator),
-            (r'\$\w+', Name.Variable),
+            (r'@\w+', token.Name.Decorator),
+            (r'\$\w+', token.Name.Variable),
             include('numbers'),
             include('strings'),
-            (r'(?i)\b(true|false|empty)\b', Keyword.Constant),
-            (r'\s+', Text),
-            (r'.', Text),
+            (r'(?i)\b(true|false|empty)\b', token.Keyword.Constant),
+            (r'\s+', token.Text),
+            (r'.', token.Text),
         ],
         'comments': [
-            (r'#.*?\n', Comment.Singleline),
+            (r'#.*?\n', token.Comment.Singleline),
         ],
         'keywords': [
             (r'''(?ix)
@@ -43,7 +43,7 @@ class EdgeQLLexer(RegexLexer):
                     target | then | to | transaction | update |
                     union | with
                 )\b
-            ''', Keyword.Reserved),
+            ''', token.Keyword.Reserved),
         ],
         'strings': [
             (r'''(?x)
@@ -52,7 +52,7 @@ class EdgeQLLexer(RegexLexer):
                     (\\['"] | \n | .)*?
                 )
                 (?P=Q)
-            ''', String),
+            ''', token.String),
             (r'''(?x)
                 (?P<Q>
                     # capture the opening quote in group Q
@@ -64,8 +64,8 @@ class EdgeQLLexer(RegexLexer):
                     (\\['"] | \n | .)*?
                 )
                 (?P=Q)
-            ''', String.Other),
-            (r'`.*?`', String.Backtick)
+            ''', token.String.Other),
+            (r'`.*?`', token.String.Backtick)
         ],
         'numbers': [
             (r'''(?x)
@@ -73,12 +73,12 @@ class EdgeQLLexer(RegexLexer):
                     |
                     \. \d+
                 ) (?:[eE](?:[+\-])?[0-9]+)
-            ''', Number.Float),
+            ''', token.Number.Float),
             (r'''(?x)
                 (?: \d+\.(?!\.)\d*
                     |
                     \.\d+)
-            ''', Number.Float),
-            (r'\d+', Number.Integer),
+            ''', token.Number.Float),
+            (r'\d+', token.Number.Integer),
         ],
     }

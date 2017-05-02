@@ -197,7 +197,7 @@ class FuncArg(Base):
     name: str
     type: ObjectName
     variadic: bool = False
-    default: Literal
+    default: Literal  # noqa (pyflakes bug)
 
 
 class FunctionDeclaration(Base):

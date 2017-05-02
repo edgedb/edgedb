@@ -10,7 +10,7 @@ from ._base import *  # NOQA
 from . import _base
 
 
-class IntegrityConstraintViolationError(EdgeDBError):
+class IntegrityConstraintViolationError(_base.EdgeDBError):
     code = '23000'
 
 
@@ -26,7 +26,7 @@ class ConstraintViolationError(IntegrityConstraintViolationError):
     code = '23514'
 
 
-class InvalidTransactionStateError(EdgeDBError):
+class InvalidTransactionStateError(_base.EdgeDBError):
     code = '25000'
 
 
@@ -34,7 +34,7 @@ class NoActiveTransactionError(InvalidTransactionStateError):
     code = '25P01'
 
 
-class EdgeDBSyntaxError(EdgeDBError):
+class EdgeDBSyntaxError(_base.EdgeDBError):
     code = '42600'
 
 

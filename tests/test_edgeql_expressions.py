@@ -819,7 +819,7 @@ class TestExpressions(tb.QueryTestCase):
             {'ham': 4, 'spam': 2}
         ]])
 
-    async def test_edgeql_expr_struct02(self):
+    async def test_edgeql_expr_struct03(self):
         await self.assert_query_result('''\
             SELECT (1, 2) = (1, 2);
             SELECT (1, 2) UNION (1, 2);

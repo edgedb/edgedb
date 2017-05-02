@@ -209,41 +209,41 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
         self._assert_result(
             result[1],
             '''\
-            CREATE LINK PROPERTY test::a_prop {
+    CREATE LINK PROPERTY test::a_prop {
+        SET is_virtual := False;
+        SET readonly := False;
+        SET title := 'Base link property';
+    };
+    CREATE LINK test::a INHERITING std::link {
+        SET is_virtual := False;
+        SET readonly := False;
+    };
+    ALTER LINK test::a CREATE LINK PROPERTY test::a_prop TO array<std::str> {
+        SET is_virtual := False;
+        SET readonly := False;
+        SET title := 'Base link property';
+    };
+    CREATE CONCEPT test::NamedObject INHERITING std::Object {
+        SET is_virtual := False;
+    };
+    ALTER CONCEPT test::NamedObject {
+        CREATE REQUIRED LINK test::a TO array<std::int> {
+            SET is_virtual := False;
+            SET mapping := '*1';
+            SET readonly := False;
+        }
+        ALTER LINK test::a {
+            CREATE LINK PROPERTY std::source TO test::NamedObject {
                 SET is_virtual := False;
                 SET readonly := False;
-                SET title := 'Base link property';
-            };
-            CREATE LINK test::a INHERITING std::link {
+                SET title := 'Link source';
+            }
+            CREATE LINK PROPERTY std::target TO array<std::int> {
                 SET is_virtual := False;
                 SET readonly := False;
-            };
-            ALTER LINK test::a CREATE LINK PROPERTY test::a_prop TO array<std::str> {
-                SET is_virtual := False;
-                SET readonly := False;
-                SET title := 'Base link property';
-            };
-            CREATE CONCEPT test::NamedObject INHERITING std::Object {
-                SET is_virtual := False;
-            };
-            ALTER CONCEPT test::NamedObject {
-                CREATE REQUIRED LINK test::a TO array<std::int> {
-                    SET is_virtual := False;
-                    SET mapping := '*1';
-                    SET readonly := False;
-                }
-                ALTER LINK test::a {
-                    CREATE LINK PROPERTY std::source TO test::NamedObject {
-                        SET is_virtual := False;
-                        SET readonly := False;
-                        SET title := 'Link source';
-                    }
-                    CREATE LINK PROPERTY std::target TO array<std::int> {
-                        SET is_virtual := False;
-                        SET readonly := False;
-                        SET title := 'Link target';
-                    }
-                }
-            };
+                SET title := 'Link target';
+            }
+        }
+    };
             '''
         )

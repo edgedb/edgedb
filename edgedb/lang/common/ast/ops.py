@@ -6,9 +6,12 @@
 ##
 
 
+import typing
+
+
 class Operator(str):
-    cache = {}
-    funcmap = {}
+    cache: typing.Any = {}
+    funcmap: typing.Any = {}
 
     def __new__(
             cls, val='', *, funcname=None, rfuncname=None, commutative=None):
@@ -53,11 +56,6 @@ GT = ComparisonOperator('>', funcname='__gt__')
 GE = ComparisonOperator('>=', funcname='__ge__')
 LT = ComparisonOperator('<', funcname='__lt__')
 LE = ComparisonOperator('<=', funcname='__le__')
-
-GT.contiguous_set_complement = LE
-GE.contiguous_set_complement = LT
-LT.contiguous_set_complement = GE
-LE.contiguous_set_complement = GT
 
 
 class ArithmeticOperator(Operator):

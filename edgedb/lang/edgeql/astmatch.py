@@ -10,9 +10,8 @@ import sys
 
 from edgedb.lang.common import ast
 from edgedb.lang.common.ast import match as astmatch
-from edgedb.lang.common.ast.match import group, match
 
-from  . import ast as irast
+from . import ast as irast
 
 
 for name, cls in irast.__dict__.items():

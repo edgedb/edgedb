@@ -281,8 +281,7 @@ class AlterNamedClass(CreateOrAlterNamedClass):
 
                     pos_node = astcmd.position
                     if pos_node.ref is not None:
-                        ref = pos_node.ref.module + '::' + \
-                                pos_node.ref.name
+                        ref = pos_node.ref.module + '::' + pos_node.ref.name
                         pos = (pos_node.position, ref)
                     else:
                         pos = pos_node.position
@@ -521,8 +520,8 @@ class NamedClass(so.Class, metaclass=NamedClassMeta):
         try:
             delta_driver = self.delta_driver
         except AttributeError:
-            msg = 'missing required delta driver info for {}'.format(
-                    self.__class__.__name__)
+            msg = (f'missing required delta driver info '
+                   f'for {self.__class__.__name__}')
             raise AttributeError(msg) from None
 
         return delta_driver.rename(classname=self.name,
@@ -536,8 +535,8 @@ class NamedClass(so.Class, metaclass=NamedClassMeta):
         if (ours is None) != (theirs is None):
             similarity /= 1.2
         elif ours is not None:
-            if ours.__class__.get_canonical_class() != \
-                        theirs.__class__.get_canonical_class():
+            if (ours.__class__.get_canonical_class() !=
+                    theirs.__class__.get_canonical_class()):
                 similarity /= 1.4
             elif ours.name != theirs.name:
                 similarity /= 1.2
@@ -546,8 +545,8 @@ class NamedClass(so.Class, metaclass=NamedClassMeta):
 
     def __repr__(self):
         cls = self.__class__
-        return '<{}.{} "{}" at 0x{:x}>'.format(
-                    cls.__module__, cls.__name__, self.name, id(self))
+        return f'<{cls.__module__}.{cls.__name__} "{self.name}" ' \
+               f'at 0x{id(self):x}>'
 
     __str__ = __repr__
 

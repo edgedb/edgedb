@@ -220,6 +220,7 @@ class Color:
     def hls_channels(self):
         return rgb_to_hls(*(c / 255 for c in self.rgb_channels()))
 
+
 # Relative to RGB max white
 XYZ_MAX_X = 95.047
 XYZ_MAX_Y = 100.0
