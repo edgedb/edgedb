@@ -11,8 +11,6 @@ import datetime
 import numbers
 import uuid
 
-from edgedb.lang.common.gis import proto as gis_class
-
 
 class Literal(metaclass=abc.ABCMeta):
     pass
@@ -27,4 +25,3 @@ Literal.register(datetime.date)
 Literal.register(datetime.timedelta)
 Literal.register(datetime.time)
 Literal.register(type(None))
-Literal.register(gis_class.geometry.Geometry)
