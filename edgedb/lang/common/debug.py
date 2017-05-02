@@ -31,16 +31,35 @@ __all__ = ()  # Don't.
 
 
 class flags:
-    pgsql_parser: 'Debug SQL parser' = False
-    edgeql_parser: 'Debug EdgeQL parser (rebuild grammar verbosly)' = False
-    edgeql_compile: 'Dump EdgeQL/IR/SQL ASTs' = False
-    edgeql_optimize: 'Dump SQL AST/Query before/after optimization' = False
-    delta_plan: 'Print expanded delta command tree prior to processing' = False
-    delta_pgsql_plan: 'Print delta command tree annortated with DB ops' = False
-    delta_plan_input: 'Print delta command tree produced from DDL' = False
-    delta_execute: 'Output SQL commands as executed during migration' = False
-    server: 'Print server errors' = False
-    print_locals: 'Dump local variables in tracebacks' = False
+    pgsql_parser = False
+    """Debug SQL parser."""
+
+    edgeql_parser = False
+    """Debug EdgeQL parser (rebuild grammar verbosly)."""
+
+    edgeql_compile = False
+    """Dump EdgeQL/IR/SQL ASTs."""
+
+    edgeql_optimize = False
+    """Dump SQL AST/Query before/after optimization."""
+
+    delta_plan = False
+    """Print expanded delta command tree prior to processing."""
+
+    delta_pgsql_plan = False
+    """Print delta command tree annortated with DB ops."""
+
+    delta_plan_input = False
+    """Print delta command tree produced from DDL."""
+
+    delta_execute = False
+    """Output SQL commands as executed during migration."""
+
+    server = False
+    """Print server errors."""
+
+    print_locals = False
+    """Include values of local variables in tracebacks."""
 
 
 def header(*args):
