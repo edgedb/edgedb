@@ -7,11 +7,6 @@ class build(build.build):
     def _compile_parsers(self):
         import parsing
 
-        import edgedb
-        import edgedb.server.main
-
-        edgedb.server.main.init_import_system()
-
         import edgedb.lang.edgeql.parser.grammar.single as edgeql_spec
         import edgedb.lang.edgeql.parser.grammar.block as edgeql_spec2
         import edgedb.server.pgsql.parser.pgsql as pgsql_spec
