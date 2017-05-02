@@ -6,22 +6,15 @@
 ##
 
 
-%SCHEMA edgedb.server.datasources.schemas.Sql
-%NAME DomainsList
----
-params:
-    schema_name:
-        type: str
-        default: "public"
+import asyncpg
+import typing
 
-    domain_name:
-        type: str
-        default: null
 
-filters:
-    - format: dict
-
-source: |
+async def fetch(
+        conn: asyncpg.connection.Connection, *,
+        schema_pattern: str=None,
+        domain_pattern: str=None) -> typing.List[asyncpg.Record]:
+    return await conn.fetch("""
         SELECT
                 t.oid                                 AS oid,
                 t.typname                             AS name,
@@ -66,16 +59,15 @@ source: |
                 LEFT JOIN pg_class AS c ON c.reltype = t.oid
                 LEFT JOIN pg_type AS bt ON t.typbasetype = bt.oid
                 LEFT JOIN pg_namespace AS bns ON bns.oid = bt.typnamespace
-            WHERE
-                --
-                -- Limit the schema scope
-                --
-                ns.nspname LIKE %(schema_name)s
 
-                AND (%(domain_name)s::text IS NULL OR t.typname LIKE %(domain_name)s::text)
-
+             WHERE
+                ($1::text IS NULL OR ns.nspname LIKE $1::text)
+                AND ($2::text IS NULL OR t.typname LIKE $2::text)
                 --
-                -- We're not interested in shell- or pseudotypes or arrays or table row types
+                -- We're not interested in shell- or pseudotypes
+                -- or arrays or table row types.
                 --
-                AND t.typisdefined AND t.typtype != 'p' AND (t.typelem IS NULL OR t.typelem = 0)
-                AND (c.oid IS NULL OR c.relkind = 'c')
+                AND t.typisdefined AND t.typtype != 'p' AND
+                    (t.typelem IS NULL OR t.typelem = 0) AND
+                    (c.oid IS NULL OR c.relkind = 'c')
+    """, schema_pattern, domain_pattern)

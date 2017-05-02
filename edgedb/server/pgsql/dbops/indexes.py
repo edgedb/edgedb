@@ -266,8 +266,8 @@ class DDLTriggerBase:
     async def get_inherited_indexes(cls, db, table_name, bases):
         bases = ['{}.{}'.format(*base.name) for base in bases]
 
-        ti = introspection.tables.TableIndexes(db)
-        idx_records = await ti.fetch(
+        idx_records = await introspection.tables.fetch_indexes(
+            db,
             table_list=bases, inheritable_only=True, include_inherited=True)
 
         # Use a dictionary here to filter out any duplicates resulting
@@ -308,9 +308,8 @@ class DDLTriggerAlterTableRename(ddl.DDLTrigger, DDLTriggerBase):
 
     @classmethod
     async def after(cls, context, op):
-        ti = introspection.tables.TableIndexes(context.db)
-
-        idx_records = await ti.fetch(
+        idx_records = await introspection.tables.fetch_indexes(
+            context.db,
             table_list=[op.name[0] + '.' + op.new_name], inheritable_only=True,
             include_inherited=True)
 

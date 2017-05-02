@@ -44,10 +44,9 @@ class ConstraintMech:
         self._constraints_cache = None
 
     async def _populate_constraint_cache(self, connection):
-        constraints_ds = introspection.constraints.Constraints(connection)
-
         constraints = {}
-        rows = await constraints_ds.fetch(
+        rows = await introspection.constraints.fetch(
+            connection,
             schema_pattern='edgedb%', constraint_pattern='%;schemaconstr%')
         for row in rows:
             constraints[row['constraint_name']] = row
@@ -418,9 +417,9 @@ class TypeMech:
         await self._load_table_columns(('edgedb_%', None), connection)
 
     async def _load_table_columns(self, table_name, connection):
-        cols = introspection.tables.TableColumns(connection)
-        cols = await cols.fetch(
-            table_name=table_name[1], schema_name=table_name[0])
+        cols = await introspection.tables.fetch_columns(
+            connection,
+            table_pattern=table_name[1], schema_pattern=table_name[0])
 
         if self._column_cache is None:
             self._column_cache = {}
@@ -455,9 +454,9 @@ class TypeMech:
         return cols
 
     async def _load_type_attributes(self, type_name, connection):
-        cols = introspection.types.CompositeTypeAttributes(connection)
-        cols = await cols.fetch(
-            type_name=type_name[1], schema_name=type_name[0])
+        cols = await introspection.types.fetch_attributes(
+            connection,
+            type_pattern=type_name[1], schema_pattern=type_name[0])
 
         if self._column_cache is None:
             self._column_cache = {}

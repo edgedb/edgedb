@@ -18,7 +18,7 @@ class MetaDeltaRepository(deltarepo.MetaDeltaRepository):
     def __init__(self, connection):
         self.connection = connection
 
-    def delta_ref_to_id(self, ref):
+    async def delta_ref_to_id(self, ref):
         table = deltadbops.DeltaRefTable()
         condition = dbops.TableExists(table.name)
         have_deltaref = condition.execute(
@@ -41,8 +41,8 @@ class MetaDeltaRepository(deltarepo.MetaDeltaRepository):
 
             if ref.offset:
                 rev_id = '%x' % result
-                result = deltalog.DeltaLog(self.connection).fetch(
-                    rev_id=rev_id, offset=ref.offset)
+                result = await deltalog.fetch(
+                    self.connection, rev_id=rev_id, offset=ref.offset)
 
                 if not result:
                     raise sd.DeltaRefError('unknown revision: %s' % ref)

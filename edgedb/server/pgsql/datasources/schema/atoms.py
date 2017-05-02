@@ -1,21 +1,19 @@
 ##
-# Copyright (c) 2008-2010 MagicStack Inc.
+# Copyright (c) 2008-present MagicStack Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
 ##
 
 
-%SCHEMA edgedb.server.datasources.schemas.Sql
-%NAME AtomList
----
-params:
+import asyncpg
+import typing
 
-filters:
-    - format: dict
 
-source: |
-    SELECT
+async def fetch(
+        conn: asyncpg.connection.Connection) -> typing.List[asyncpg.Record]:
+    return await conn.fetch("""
+        SELECT
             c.id AS id,
             c.name AS name,
             c.title AS title,
@@ -28,4 +26,4 @@ source: |
         FROM
             edgedb.atom c
         ORDER BY
-            c.id
+            c.id""")

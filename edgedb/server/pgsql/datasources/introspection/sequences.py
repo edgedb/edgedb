@@ -6,20 +6,15 @@
 ##
 
 
-%SCHEMA edgedb.server.datasources.schemas.Sql
-%NAME SequencesList
----
-params:
-    schema_name:
-        type: str
-        default: "public"
-    sequence_pattern:
-        type: str
+import asyncpg
+import typing
 
-filters:
-    - format: dict
 
-source: |
+async def fetch(
+        conn: asyncpg.connection.Connection, *,
+        schema_pattern: str=None,
+        sequence_pattern: str=None) -> typing.List[asyncpg.Record]:
+    return await conn.fetch("""
         SELECT
                 c.oid                                 AS oid,
                 c.relname                             AS name,
@@ -31,12 +26,13 @@ source: |
                 --
                 -- Limit the schema scope
                 --
-                ns.nspname LIKE %(schema_name)s
+                ($1::text IS NULL OR ns.nspname LIKE $1::text) AND
                 --
                 -- Only specified sequences
                 --
-                AND c.relname LIKE %(sequence_pattern)s
+                ($2::text IS NULL OR c.relname LIKE $2::text) AND
                 --
                 -- And only actual sequences
                 --
-                AND c.relkind = 'S'
+                c.relkind = 'S'
+    """, schema_pattern, sequence_pattern)

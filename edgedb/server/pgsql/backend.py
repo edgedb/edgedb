@@ -323,18 +323,18 @@ class Backend(s_deltarepo.DeltaProvider):
         await self.get_concept_map(force_reload=True)
 
     async def _init_relid_cache(self):
-        ds = introspection.tables.TableList(self.connection)
-        link_tables = await ds.fetch(
-            schema_name='edgedb%', table_pattern='%_link')
+        link_tables = await introspection.tables.fetch_tables(
+            self.connection,
+            schema_pattern='edgedb%', table_pattern='%_link')
         link_tables = {(t['schema'], t['name']): t for t in link_tables}
 
-        ds = introspection.types.TypesList(self.connection)
-        records = await ds.fetch(
-            schema_name='edgedb%', type_name='%_record', include_arrays=False)
+        records = await introspection.types.fetch(
+            self.connection,
+            schema_pattern='edgedb%', type_pattern='%_record',
+            include_arrays=False)
         records = {(t['schema'], t['name']): t for t in records}
 
-        ds = datasources.schema.links.ConceptLinks(self.connection)
-        links_list = await ds.fetch()
+        links_list = await datasources.schema.links.fetch(self.connection)
         links_list = collections.OrderedDict((sn.Name(r['name']), r)
                                              for r in links_list)
 
@@ -350,12 +350,11 @@ class Backend(s_deltarepo.DeltaProvider):
                 table_id_to_class_name_cache[t['typoid']] = link_name
                 classname_to_table_id_cache[link_name] = t['typoid']
 
-        ds = introspection.tables.TableList(self.connection)
-        tables = await ds.fetch(schema_name='edgedb%', table_pattern='%_data')
+        tables = await introspection.tables.fetch_tables(
+            self.connection, schema_pattern='edgedb%', table_pattern='%_data')
         tables = {(t['schema'], t['name']): t for t in tables}
 
-        ds = datasources.schema.concepts.ConceptList(self.connection)
-        concept_list = await ds.fetch()
+        concept_list = await datasources.schema.concepts.fetch(self.connection)
         concept_list = collections.OrderedDict((sn.Name(row['name']), row)
                                                for row in concept_list)
 
@@ -380,8 +379,7 @@ class Backend(s_deltarepo.DeltaProvider):
         return self.table_cache.get(table_name)['name']
 
     async def _init_atom_map_cache(self):
-        ds = datasources.schema.atoms.AtomList(self.connection)
-        atom_list = await ds.fetch()
+        atom_list = await datasources.schema.atoms.fetch(self.connection)
 
         domain_to_atom_map = {}
 
@@ -561,12 +559,10 @@ class Backend(s_deltarepo.DeltaProvider):
         self.attribute_link_map_cache.clear()
 
     async def get_concept_map(self, force_reload=False):
-        connection = self.connection
-
         if not self.concept_cache or force_reload:
-            cl_ds = datasources.schema.concepts.ConceptList(connection)
+            cl_ds = datasources.schema.concepts
 
-            for row in await cl_ds.fetch():
+            for row in await cl_ds.fetch(self.connection):
                 self.concept_cache[row['name']] = row['id']
                 self.concept_cache[row['id']] = sn.Name(row['name'])
 
@@ -629,15 +625,14 @@ class Backend(s_deltarepo.DeltaProvider):
             output_format=output_format)
 
     async def read_modules(self, schema):
-        ds = introspection.schemas.SchemasList(self.connection)
-        schemas = await ds.fetch(schema_name='edgedb_%')
+        schemas = await introspection.schemas.fetch(
+            self.connection, schema_pattern='edgedb_%')
         schemas = {
             s['name']
             for s in schemas if not s['name'].startswith('edgedb_aux_')
         }
 
-        ds = datasources.schema.modules.ModuleList(self.connection)
-        modules = await ds.fetch()
+        modules = await datasources.schema.modules.fetch(self.connection)
         modules = {
             common.edgedb_module_name_to_schema_name(m['name']):
             {'name': m['name'],
@@ -684,15 +679,14 @@ class Backend(s_deltarepo.DeltaProvider):
                     schema.add_module(impmod)
 
     async def read_atoms(self, schema):
-        ds = introspection.sequences.SequencesList(self.connection)
-        seqs = await ds.fetch(
-            schema_name='edgedb%', sequence_pattern='%_sequence')
+        seqs = await introspection.sequences.fetch(
+            self.connection,
+            schema_pattern='edgedb%', sequence_pattern='%_sequence')
         seqs = {(s['schema'], s['name']): s for s in seqs}
 
         seen_seqs = set()
 
-        ds = datasources.schema.atoms.AtomList(self.connection)
-        atom_list = await ds.fetch()
+        atom_list = await datasources.schema.atoms.fetch(self.connection)
 
         basemap = {}
 
@@ -755,8 +749,7 @@ class Backend(s_deltarepo.DeltaProvider):
             atom.acquire_ancestor_inheritance(schema)
 
     async def read_functions(self, schema):
-        ds = datasources.schema.functions.FunctionList(self.connection)
-        func_list = await ds.fetch()
+        func_list = await datasources.schema.functions.fetch(self.connection)
 
         for row in func_list:
             name = sn.Name(row['name'])
@@ -793,8 +786,8 @@ class Backend(s_deltarepo.DeltaProvider):
         pass
 
     async def read_constraints(self, schema):
-        ds = datasources.schema.constraints.Constraints(self.connection)
-        constraints_list = await ds.fetch()
+        constraints_list = await datasources.schema.constraints.fetch(
+            self.connection)
         constraints_list = collections.OrderedDict((sn.Name(r['name']), r)
                                                    for r in constraints_list)
 
@@ -956,9 +949,8 @@ class Backend(s_deltarepo.DeltaProvider):
 
     async def read_search_indexes(self):
         indexes = {}
-        index_ds = datasources.introspection.tables.TableIndexes(
-            self.connection)
-        idx_data = await index_ds.fetch(
+        idx_data = await introspection.tables.fetch_indexes(
+            self.connection,
             schema_pattern='edgedb%', index_pattern='%_search_idx')
 
         for row in idx_data:
@@ -980,9 +972,8 @@ class Backend(s_deltarepo.DeltaProvider):
             yield dbops.Index.from_introspection(table_name, idx_data)
 
     async def read_indexes(self, schema):
-        index_ds = datasources.introspection.tables.TableIndexes(
-            self.connection)
-        pg_index_data = await index_ds.fetch(
+        pg_index_data = await introspection.tables.fetch_indexes(
+            self.connection,
             schema_pattern='edgedb%', index_pattern='%_reg_idx')
 
         pg_indexes = set()
@@ -993,9 +984,9 @@ class Backend(s_deltarepo.DeltaProvider):
                     (table_name, pg_index.get_metadata('schemaname'))
                 )
 
-        ds = datasources.schema.indexes.SourceIndexes(self.connection)
+        ds = datasources.schema.indexes
 
-        for index_data in await ds.fetch():
+        for index_data in await ds.fetch(self.connection):
             subj = schema.get(index_data['subject_name'])
             subj_table_name = common.get_table_name(subj, catenate=False)
             index_name = sn.Name(index_data['name'])
@@ -1075,13 +1066,12 @@ class Backend(s_deltarepo.DeltaProvider):
         return target, attr['attribute_required']
 
     async def read_links(self, schema):
-        ds = introspection.tables.TableList(self.connection)
-        link_tables = await ds.fetch(
-            schema_name='edgedb%', table_pattern='%_link')
+        link_tables = await introspection.tables.fetch_tables(
+            self.connection,
+            schema_pattern='edgedb%', table_pattern='%_link')
         link_tables = {(t['schema'], t['name']): t for t in link_tables}
 
-        ds = datasources.schema.links.ConceptLinks(self.connection)
-        links_list = await ds.fetch()
+        links_list = await datasources.schema.links.fetch(self.connection)
         links_list = collections.OrderedDict((sn.Name(r['name']), r)
                                              for r in links_list)
 
@@ -1198,8 +1188,8 @@ class Backend(s_deltarepo.DeltaProvider):
             link.finalize(schema)
 
     async def read_link_properties(self, schema):
-        ds = datasources.schema.links.LinkProperties(self.connection)
-        link_props = await ds.fetch()
+        link_props = await datasources.schema.links.fetch_properties(
+            self.connection)
         link_props = collections.OrderedDict((sn.Name(r['name']), r)
                                              for r in link_props)
         basemap = {}
@@ -1280,9 +1270,7 @@ class Backend(s_deltarepo.DeltaProvider):
             prop.finalize(schema)
 
     async def read_attributes(self, schema):
-        attributes_ds = datasources.schema.attributes.Attributes(
-            self.connection)
-        attributes = await attributes_ds.fetch()
+        attributes = await datasources.schema.attributes.fetch(self.connection)
 
         for r in attributes:
             name = sn.Name(r['name'])
@@ -1297,9 +1285,8 @@ class Backend(s_deltarepo.DeltaProvider):
         pass
 
     async def read_attribute_values(self, schema):
-        attributes_ds = datasources.schema.attributes.AttributeValues(
+        attributes = await datasources.schema.attributes.fetch_values(
             self.connection)
-        attributes = await attributes_ds.fetch()
 
         for r in attributes:
             name = sn.Name(r['name'])
@@ -1313,8 +1300,8 @@ class Backend(s_deltarepo.DeltaProvider):
             schema.add(attribute)
 
     async def read_actions(self, schema):
-        actions_ds = datasources.schema.policy.Actions(self.connection)
-        actions = await actions_ds.fetch()
+        actions = await datasources.schema.policy.fetch_actions(
+            self.connection)
 
         for r in actions:
             name = sn.Name(r['name'])
@@ -1329,8 +1316,8 @@ class Backend(s_deltarepo.DeltaProvider):
         pass
 
     async def read_events(self, schema):
-        events_ds = datasources.schema.policy.Events(self.connection)
-        events = await events_ds.fetch()
+        events = await datasources.schema.policy.fetch_events(
+            self.connection)
 
         basemap = {}
 
@@ -1367,8 +1354,8 @@ class Backend(s_deltarepo.DeltaProvider):
         pass
 
     async def read_policies(self, schema):
-        policies_ds = datasources.schema.policy.Policies(self.connection)
-        policies = await policies_ds.fetch()
+        policies = await datasources.schema.policy.fetch_policies(
+            self.connection)
 
         for r in policies:
             name = sn.Name(r['name'])
@@ -1390,12 +1377,12 @@ class Backend(s_deltarepo.DeltaProvider):
             type_name, connection, cache)
 
     async def read_concepts(self, schema):
-        ds = introspection.tables.TableList(self.connection)
-        tables = await ds.fetch(schema_name='edgedb%', table_pattern='%_data')
+        tables = await introspection.tables.fetch_tables(
+            self.connection, schema_pattern='edgedb%', table_pattern='%_data')
         tables = {(t['schema'], t['name']): t for t in tables}
 
-        ds = datasources.schema.concepts.ConceptList(self.connection)
-        concept_list = await ds.fetch()
+        concept_list = await datasources.schema.concepts.fetch(
+            self.connection)
         concept_list = collections.OrderedDict((sn.Name(row['name']), row)
                                                for row in concept_list)
 
@@ -1471,9 +1458,9 @@ class Backend(s_deltarepo.DeltaProvider):
             concept.finalize(schema)
 
     async def pg_table_inheritance(self, table_name, schema_name):
-        inheritance = introspection.tables.TableInheritance(self.connection)
-        inheritance = await inheritance.fetch(
-            table_name=table_name, schema_name=schema_name, max_depth=1)
+        inheritance = await introspection.tables.fetch_inheritance(
+            self.connection,
+            table_pattern=table_name, schema_pattern=schema_name, max_depth=1)
         return tuple(i[:2] for i in inheritance[1:])
 
     async def pg_table_inheritance_to_bases(

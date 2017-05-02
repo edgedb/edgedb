@@ -6,17 +6,14 @@
 ##
 
 
-%SCHEMA edgedb.server.datasources.schemas.Sql
-%NAME DeltaLog
----
-params:
-    rev_id:
-        type: str
-    offset:
-        type: int
-        default: 0
+import asyncpg
+import typing
 
-source: |
+
+async def fetch(
+        conn: asyncpg.connection.Connection, *,
+        rev_id: str, offset: int=0) -> typing.List[asyncpg.Record]:
+    return await conn.fetch("""
         SELECT
                 *
             FROM
@@ -28,7 +25,7 @@ source: |
                             FROM
                                 edgedb.deltalog log
                             WHERE
-                                log.id = %(rev_id)s
+                                log.id = $1
                       UNION ALL
                         SELECT
                                 log.id            AS "id",
@@ -39,8 +36,9 @@ source: |
                                 deltalog l
                             WHERE
                                 log.id = any(l.parents)
-                                AND l."offset" < %(offset)s::int
+                                AND l."offset" < $2::int
                 )
                 SELECT "id", "offset" FROM deltalog) q
             WHERE
-                "offset" = %(offset)s::int
+                "offset" = $2::int
+    """, rev_id, offset)

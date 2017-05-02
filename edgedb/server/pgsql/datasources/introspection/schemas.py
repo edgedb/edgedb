@@ -6,18 +6,14 @@
 ##
 
 
-%SCHEMA edgedb.server.datasources.schemas.Sql
-%NAME SchemasList
----
-params:
-    schema_name:
-        type: str
-        default: null
+import asyncpg
+import typing
 
-filters:
-    - format: dict
 
-source: |
+async def fetch(
+        conn: asyncpg.connection.Connection, *,
+        schema_pattern: str=None) -> typing.List[asyncpg.Record]:
+    return await conn.fetch("""
         SELECT
                 ns.oid                                AS oid,
                 ns.nspname                            AS name
@@ -27,4 +23,5 @@ source: |
                 --
                 -- Limit the schema scope
                 --
-                %(schema_name)s::text IS NULL OR ns.nspname LIKE %(schema_name)s
+                $1::text IS NULL OR ns.nspname LIKE $1
+    """, schema_pattern)
