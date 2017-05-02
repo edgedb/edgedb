@@ -14,8 +14,6 @@ import setproctitle
 import signal
 import sys
 
-import importkit
-
 from asyncpg import cluster as pg_cluster
 
 from edgedb.lang.common import exceptions
@@ -35,14 +33,6 @@ def abort(msg, *args):
 
 def terminate_server(server, loop):
     loop.stop()
-
-
-def init_import_system():
-    importkit.install()
-    importkit.register_package('edgedb')
-
-    # We need YAML language to import datasources
-    from importkit import yaml  # NOQA
 
 
 def _init_cluster(cluster, args):
@@ -148,8 +138,6 @@ def run_server(args):
 
 
 def main(argv=sys.argv[1:]):
-    init_import_system()
-
     from edgedb.server import defines as edgedb_defines
 
     parser = argparse.ArgumentParser(description='EdgeDB Server')

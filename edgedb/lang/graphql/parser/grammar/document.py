@@ -27,15 +27,15 @@ def check_const(expr):
             check_const(field.value)
 
 
-class Nonterm(context.Nonterm):
+class Nonterm(parsing.Nonterm):
     pass
 
 
-class ListNonterm(context.ListNonterm, element=None):
+class ListNonterm(parsing.ListNonterm, element=None):
     pass
 
 
-class NameTokNontermMeta(context.ContextNontermMeta):
+class NameTokNontermMeta(parsing.NontermMeta):
     def __new__(mcls, name, bases, dct, *, exceptions=tuple()):
         if name != 'NameTokNonTerm':
             prod = NameTokNonTerm._reduce_token

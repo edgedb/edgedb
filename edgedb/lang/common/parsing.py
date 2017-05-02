@@ -5,18 +5,18 @@
 # See LICENSE for details.
 ##
 
-import bisect
 import os
 import sys
 import types
 
 import parsing
 
-from importkit import context as lang_context
-
 from edgedb.lang.common.exceptions import EdgeDBError, add_context, get_context
+from edgedb.lang.common import context as pctx
 from edgedb.lang.common import markup
 from edgedb.lang.common import lexer
+
+ParserContext = pctx.ParserContext
 
 
 class TokenMeta(type):
@@ -99,22 +99,24 @@ class NontermMeta(type):
             result.__doc__ = '%nonterm'
 
         for name, attr in result.__dict__.items():
-            if (
-                    name.startswith('reduce_') and
-                    isinstance(attr, types.FunctionType) and
-                    attr.__doc__ is None):
-                tokens = name.split('_')
-                if name == 'reduce_empty':
-                    tokens = ['reduce', '<e>']
+            if (name.startswith('reduce_') and
+                    isinstance(attr, types.FunctionType)):
+                if attr.__doc__ is None:
+                    tokens = name.split('_')
+                    if name == 'reduce_empty':
+                        tokens = ['reduce', '<e>']
 
-                doc = r'%reduce {}'.format(' '.join(tokens[1:]))
+                    doc = r'%reduce {}'.format(' '.join(tokens[1:]))
 
-                prec = getattr(attr, '__parsing_precedence__', None)
-                if prec is not None:
-                    doc += ' [{}]'.format(prec)
+                    prec = getattr(attr, '__parsing_precedence__', None)
+                    if prec is not None:
+                        doc += ' [{}]'.format(prec)
 
-                a = lambda self, *args, meth=attr: meth(self, *args)
-                a.__doc__ = doc
+                    attr = lambda self, *args, meth=attr: meth(self, *args)
+                    attr.__doc__ = doc
+
+                a = pctx.has_context(attr)
+                a.__doc__ = attr.__doc__
                 setattr(result, name, a)
 
         return result
@@ -248,93 +250,6 @@ class Precedence(parsing.Precedence, assoc='fail', metaclass=PrecedenceMeta):
     pass
 
 
-class ParserContext(lang_context.SourceContext, markup.MarkupExceptionContext):
-    title = 'Parser Context'
-
-    @classmethod
-    @markup.serializer.no_ref_detect
-    def as_markup(cls, self, *, ctx):
-        me = markup.elements
-
-        body = []
-
-        lines = []
-        line_numbers = []
-
-        buf_lines = self.buffer.split('\n')
-        line_offsets = []
-        i = 0
-        for line in buf_lines:
-            line_offsets.append(i)
-            i += len(line) + 1
-
-        if self.start.line > 1:
-            ctx_line, _ = self.get_line_snippet(
-                self.start, offset=-1, line_offsets=line_offsets)
-            lines.append(ctx_line)
-            line_numbers.append(self.start.line - 1)
-
-        snippet, offset = self.get_line_snippet(
-            self.start, line_offsets=line_offsets)
-        lines.append(snippet)
-        line_numbers.append(self.start.line)
-
-        try:
-            ctx_line, _ = self.get_line_snippet(
-                self.start, offset=1, line_offsets=line_offsets)
-        except ValueError:
-            pass
-        else:
-            lines.append(ctx_line)
-            line_numbers.append(self.start.line + 1)
-
-        tbp = me.lang.TracebackPoint(
-            name=self.name, filename=self.name, lineno=self.start.line,
-            colno=self.start.column, lines=lines, line_numbers=line_numbers,
-            context=True)
-
-        body.append(tbp)
-
-        return me.lang.ExceptionContext(title=self.title, body=body)
-
-    def _find_line(self, point, offset=0, *, line_offsets):
-        if point.line == 0:
-            if offset < 0:
-                raise ValueError('not enough lines in buffer')
-            else:
-                return 0, len(self.buffer)
-
-        line_no = bisect.bisect_right(line_offsets, point.pointer) - 1 + offset
-        if line_no >= len(line_offsets):
-            raise ValueError('not enough lines in buffer')
-
-        linestart = line_offsets[line_no]
-        try:
-            lineend = line_offsets[line_no + 1] - 1
-        except IndexError:
-            lineend = len(self.buffer)
-
-        return linestart, lineend
-
-    def get_line_snippet(
-            self, point, max_length=120, *, offset=0, line_offsets):
-        line_start, line_end = self._find_line(
-            point, offset=offset, line_offsets=line_offsets)
-        line_len = line_end - line_start
-
-        if line_len > max_length:
-            before = min(max_length // 2, point.pointer - line_start)
-            after = max_length - before
-        else:
-            before = point.pointer - line_start
-            after = line_len - before
-
-        start = point.pointer - before
-        end = point.pointer + after
-
-        return self.buffer[start:end], before
-
-
 class ParserError(EdgeDBError):
     def __init__(
             self, msg=None, *, hint=None, details=None, token=None, line=None,
@@ -366,7 +281,7 @@ class ParserError(EdgeDBError):
     @property
     def context(self):
         try:
-            return get_context(self, ParserContext)
+            return get_context(self, pctx.ParserContext)
         except LookupError:
             return None
 
@@ -472,14 +387,21 @@ class Parser:
         name = lex.filename if lex.filename else '<string>'
 
         if tok is None:
-            position = lang_context.SourcePoint(
+            position = pctx.SourcePoint(
                 line=lex.lineno, column=lex.column, pointer=lex.start)
-            context = ParserContext(
+            context = pctx.ParserContext(
                 name=name, buffer=lex.inputstr, start=position, end=position)
 
         else:
-            context = ParserContext(
+            context = pctx.ParserContext(
                 name=name, buffer=lex.inputstr, start=tok.start,
                 end=tok.end)
 
         return context
+
+
+def line_col_from_char_offset(source, position):
+    line = source[:position].count('\n') + 1
+    col = source.rfind('\n', 0, position)
+    col = position if col == -1 else position - col
+    return line, col

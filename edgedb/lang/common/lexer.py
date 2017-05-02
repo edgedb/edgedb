@@ -8,9 +8,7 @@
 import collections
 import re
 
-from importkit import context as lang_context
-from importkit.context import SourcePoint
-from edgedb.lang.common import markup
+from edgedb.lang.common import context as pctx
 
 
 class LexError(Exception):
@@ -75,40 +73,6 @@ def group(*literals, _re_alpha=re.compile(r'[^\W\d_]'), asbytes=False):
     return result
 
 
-class ParserContext(lang_context.SourceContext, markup.MarkupExceptionContext):
-    title = 'Parser Context'
-
-    @classmethod
-    def as_markup(cls, self, *, ctx):
-        me = markup.elements
-
-        prefix = '{} line={} col={}: '.format(
-            self.name, self.start.line, self.start.column)
-        snippet, offset = self.get_line_snippet(
-            self.start, max_length=80 - len(prefix))
-        errpos = ' ' * (len(prefix) + offset) + '^'
-        prefix += snippet + '\n'
-
-        body = []
-        body.append(me.doc.Text(text=prefix))
-        body.append(me.doc.Text(text=errpos))
-
-        return me.lang.ExceptionContext(title=self.title, body=body)
-
-    def get_line_snippet(self, point, max_length):
-        if point.line > 1:
-            linestart = self.buffer.rfind('\n', point.start.pointer)
-        else:
-            linestart = 0
-
-        before = min(max_length // 2, point.pointer - linestart)
-        after = max_length - before
-
-        start = point.pointer - before
-        end = point.pointer + after
-        return self.buffer[start:end], before
-
-
 class Lexer:
     NL = frozenset()
     MULTILINE_TOKENS = frozenset()
@@ -171,7 +135,7 @@ class Lexer:
 
         Update the lexer lineno, column, and start.
         """
-        start_pos = SourcePoint(self.lineno, self.column, self.start)
+        start_pos = pctx.SourcePoint(self.lineno, self.column, self.start)
         len_txt = len(txt)
 
         if rule_token is self.NL:
@@ -188,7 +152,7 @@ class Lexer:
             self.column += len_txt
 
         self.start += len_txt
-        end_pos = SourcePoint(self.lineno, self.column, self.start)
+        end_pos = pctx.SourcePoint(self.lineno, self.column, self.start)
 
         return Token(txt, type=rule_token, text=txt,
                      start=start_pos, end=end_pos,

@@ -6,16 +6,11 @@
 ##
 
 
-import builtins
 import collections
-import sys
-
-from importkit.import_ import module as module_types
 
 from edgedb.lang.common.persistent_hash import persistent_hash
 
 from .error import SchemaError
-from . import modules as schema_module
 from . import name as schema_name
 
 

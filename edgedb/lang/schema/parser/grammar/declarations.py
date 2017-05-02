@@ -44,11 +44,11 @@ def _parse_language(node):
             context=node.context) from None
 
 
-class Nonterm(context.Nonterm):
+class Nonterm(parsing.Nonterm):
     pass
 
 
-class ListNonterm(context.ListNonterm, element=None):
+class ListNonterm(parsing.ListNonterm, element=None):
     pass
 
 
@@ -755,7 +755,7 @@ class ColonValue(parsing.Nonterm):
         self.val = kids[3].val
 
 
-class KeywordMeta(context.ContextNontermMeta):
+class KeywordMeta(parsing.NontermMeta):
     def __new__(mcls, name, bases, dct, *, type):
         result = super().__new__(mcls, name, bases, dct)
 

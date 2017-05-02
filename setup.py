@@ -36,8 +36,6 @@ setup(
     },
     install_requires=[
         'asyncpg',
-        'importkit',
-        'pyyaml',
         'pytest',
         'python-dateutil',
         'Parsing',

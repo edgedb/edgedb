@@ -560,7 +560,7 @@ link time_estimate:
 
     @tb.must_fail(error.SchemaSyntaxError,
                   "unexpected 'initial value' in function definition",
-                  line=3, col=28)
+                  line=3, col=26)
     def test_eschema_syntax_function05(self):
         """
         function some_func(foo: std::int = 42) -> std::str:

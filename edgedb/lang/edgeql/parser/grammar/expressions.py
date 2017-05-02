@@ -21,11 +21,11 @@ from .precedence import *  # NOQA
 from .tokens import *  # NOQA
 
 
-class Nonterm(context.Nonterm):
+class Nonterm(parsing.Nonterm):
     pass
 
 
-class ListNonterm(context.ListNonterm, element=None):
+class ListNonterm(parsing.ListNonterm, element=None):
     pass
 
 
@@ -1303,7 +1303,7 @@ class AnyNodeName(Nonterm):
             name=kids[0].val)
 
 
-class KeywordMeta(context.ContextNontermMeta):
+class KeywordMeta(parsing.NontermMeta):
     def __new__(mcls, name, bases, dct, *, type):
         result = super().__new__(mcls, name, bases, dct)
 

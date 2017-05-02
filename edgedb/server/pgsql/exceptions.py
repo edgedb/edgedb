@@ -5,12 +5,11 @@
 # See LICENSE for details.
 ##
 
-from importkit import context as lang_context
-
 from edgedb.lang.common import exceptions as edgedb_error
 
 from edgedb.lang.common.exceptions import replace_context
 from edgedb.lang.common import markup
+from edgedb.lang.common import parsing
 
 
 class BackendError(edgedb_error.EdgeDBBackendError):
@@ -30,7 +29,7 @@ class QueryExceptionContext(markup.MarkupExceptionContext):
         me = markup.elements
 
         if self.position:
-            lineno, colno = lang_context.line_col_from_char_offset(
+            lineno, colno = parsing.line_col_from_char_offset(
                 self.query, self.position)
         else:
             lineno = colno = None
