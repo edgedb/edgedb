@@ -4,7 +4,6 @@ pyyaml
 pytest
 pytest-cov
 python-dateutil
-metamagic.json
 Parsing
 prompt-toolkit
 setproctitle

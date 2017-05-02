@@ -17,7 +17,7 @@ import sys
 
 from .exceptions import DaemonError
 
-logger = logging.getLogger('metamagic.utils.daemon')
+logger = logging.getLogger('edgedb.server.daemon')
 
 
 def is_process_running(pid: int):

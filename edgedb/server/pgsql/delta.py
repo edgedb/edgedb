@@ -7,6 +7,7 @@
 
 import collections.abc
 import itertools
+import json
 import pickle
 import re
 import uuid
@@ -32,8 +33,6 @@ from edgedb.lang.schema import name as sn
 from edgedb.lang.schema import named as s_named
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import policy as s_policy
-
-from metamagic import json
 
 from edgedb.lang.common import ordered
 from edgedb.lang.common import debug
@@ -214,12 +213,12 @@ class NamedClassMetaCommand(
 
         elif isinstance(value, nlang.WordCombination):
             result = value
-            recvalue = json.dumps(value)
+            recvalue = json.dumps(value.as_dict())
 
         elif isinstance(value, collections.abc.Mapping):
             # Other dicts are JSON'ed by default
             result = value
-            recvalue = json.dumps(value)
+            recvalue = json.dumps(dict(value))
 
         else:
             result = value

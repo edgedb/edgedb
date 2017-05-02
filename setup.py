@@ -40,7 +40,6 @@ setup(
         'pyyaml',
         'pytest',
         'python-dateutil',
-        'metamagic.json',
         'Parsing',
         'prompt-toolkit',
         'setproctitle',
