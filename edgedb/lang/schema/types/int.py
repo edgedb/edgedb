@@ -32,14 +32,22 @@ _add_map(Int, 'std::int')
 _add_map(int, 'std::int')
 
 
+class StdInt(s_types.SchemaClass, name='std::int'):
+    pass
+
+
+class StdFloat(s_types.SchemaClass, name='std::float'):
+    pass
+
+
 class IntTypeInfo(s_types.TypeInfo, type=Int):
-    def intop(self, other: int) -> 'std::int':
+    def intop(self, other: int) -> StdInt:
         pass
 
-    def unary_intop(self) -> 'std::int':
+    def unary_intop(self) -> StdInt:
         pass
 
-    def float_result(self, other: int) -> 'std::float':
+    def float_result(self, other: int) -> StdFloat:
         pass
 
     __add__ = intop

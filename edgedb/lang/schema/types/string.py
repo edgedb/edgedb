@@ -16,13 +16,18 @@ _add_map = s_types.BaseTypeMeta.add_mapping
 class Str(str):
     pass
 
+
 _add_impl('std::str', Str)
 _add_map(Str, 'std::str')
 _add_map(str, 'std::str')
 
 
+class StdStr(s_types.SchemaClass, name='std::str'):
+    pass
+
+
 class StrTypeInfo(s_types.TypeInfo, type=Str):
-    def strop(self, other: str) -> 'std::str':
+    def strop(self, other: str) -> StdStr:
         pass
 
     __add__ = strop

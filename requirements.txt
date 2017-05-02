@@ -1,7 +1,6 @@
 asyncpg
 pytest
 pytest-cov
-python-dateutil
 Parsing
 prompt-toolkit
 setproctitle

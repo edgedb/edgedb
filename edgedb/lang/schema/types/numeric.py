@@ -13,6 +13,7 @@ from edgedb.lang.common import exceptions as edgedb_error
 from edgedb.lang.common import fpdecimal
 
 from . import base as s_types
+from . import int as s_int
 
 
 _add_impl = s_types.BaseTypeMeta.add_implementation
@@ -180,11 +181,15 @@ class Decimal(fpdecimal.FPDecimal, metaclass=DecimalMeta):
         return self.__class__(super().quantize(exp, context=context, **kwargs))
 
 
+class StdDecimal(s_types.SchemaClass, name='std::decimal'):
+    pass
+
+
 class DecimalTypeInfo(s_types.TypeInfo, type=Decimal):
-    def op(self, other: (decimal.Decimal, int)) -> 'std::decimal':
+    def op(self, other: (decimal.Decimal, int)) -> StdDecimal:
         pass
 
-    def unary_op(self) -> 'std::decimal':
+    def unary_op(self) -> StdDecimal:
         pass
 
     __add__ = op
@@ -224,10 +229,10 @@ class Float(float):
 
 
 class FloatTypeInfo(s_types.TypeInfo, type=Float):
-    def op(self, other: (int, float)) -> 'std::float':
+    def op(self, other: (int, float)) -> s_int.StdFloat:
         pass
 
-    def unary_op(self) -> 'std::float':
+    def unary_op(self) -> s_int.StdFloat:
         pass
 
     __add__ = op

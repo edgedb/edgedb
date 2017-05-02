@@ -39,8 +39,12 @@ _add_impl('std::sequence', Sequence)
 _add_map(Sequence, 'std::sequence')
 
 
+class StdSequence(s_types.SchemaClass, name='std::sequence'):
+    pass
+
+
 class SequenceTypeInfo(s_types.TypeInfo, type=Sequence):
-    def strop(self, other: (str, Sequence)) -> 'std::sequence':
+    def strop(self, other: (str, Sequence)) -> StdSequence:
         pass
 
     __add__ = strop

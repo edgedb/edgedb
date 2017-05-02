@@ -37,7 +37,6 @@ setup(
     install_requires=[
         'asyncpg',
         'pytest',
-        'python-dateutil',
         'Parsing',
         'prompt-toolkit',
         'setproctitle',

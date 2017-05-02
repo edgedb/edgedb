@@ -21,8 +21,12 @@ _add_map(Bytes, 'std::bytes')
 _add_map(bytes, 'std::bytes')
 
 
+class StdBytes(s_types.SchemaClass, name='std::bytes'):
+    pass
+
+
 class BytesTypeInfo(s_types.TypeInfo, type=Bytes):
-    def bytop(self, other: bytes) -> 'std::bytes':
+    def bytop(self, other: bytes) -> StdBytes:
         pass
 
     __add__ = bytop

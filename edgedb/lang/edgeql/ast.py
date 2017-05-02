@@ -100,15 +100,6 @@ NonesFirst = NonesOrder.First
 NonesLast = NonesOrder.Last
 
 
-class SetOperator(EdgeQLOperator):
-    pass
-
-
-UNION = SetOperator('UNION')
-INTERSECT = SetOperator('INTERSECT')
-EXCEPT = SetOperator('EXCEPT')
-
-
 class SetModifier(s_enum.StrEnum):
     ALL = 'ALL'
     DISTINCT = 'DISTINCT'

@@ -116,8 +116,13 @@ class TypeInfoMeta(type):
 
                     result = args.annotations['return']
 
+                    if not issubclass(result, SchemaClass):
+                        raise TypeError(
+                            'type operation return annotations must '
+                            'be SchemaClass annotations')
+
                     for argt in itertools.product(*argtypes):
-                        TypeRules.add_rule(astop, argt, result)
+                        TypeRules.add_rule(astop, argt, result.schema_name)
 
         return result
 
@@ -224,6 +229,17 @@ class BaseTypeMeta:
     def get_mixins(cls, edgedb_name):
         mixins = cls.mixin_map.get(edgedb_name)
         return tuple(mixins) if mixins else tuple()
+
+
+class SchemaClassMeta(type):
+    def __new__(mcls, clsname, bases, dct, *, name=None):
+        cls = super().__new__(mcls, clsname, bases, dct)
+        cls.schema_name = name
+        return cls
+
+
+class SchemaClass(metaclass=SchemaClassMeta):
+    pass
 
 
 def classname_from_type(typ):
