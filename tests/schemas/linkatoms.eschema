@@ -1,0 +1,17 @@
+abstract concept Named:
+    required link name to str:
+        abstract constraint unique
+
+concept Item extends Named:
+    link tag_set1 to str:
+        mapping: 1*
+
+    # for atomic links there should not be any practical difference
+    # between a 1* and ** mapping
+    #
+    link tag_set2 to str:
+        mapping: **
+
+    link tag_array to array<str>
+
+    link components to map<str, int>
