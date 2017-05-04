@@ -192,6 +192,9 @@ def get_path_var(
                 # source table.
                 src_path_id = path_id[:-4]
                 ptr_info = parent_ptr_info
+            elif ptr_info.table_type == 'link':
+                # *-to-many atom link.
+                src_path_id = path_id[:-1]
             else:
                 # Regular atomic link, step back to link source rvar.
                 src_path_id = path_id[:-2]

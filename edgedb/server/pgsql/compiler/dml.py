@@ -473,7 +473,7 @@ def process_link_update(
 
     rptr = ir_expr.rptr
     ptrcls = rptr.ptrcls
-    target_is_atom = isinstance(rptr.target, s_atoms.Atom)
+    target_is_atom = isinstance(ptrcls.target, s_atoms.Atom)
 
     path_id = rptr.source.path_id.extend(
         ptrcls, rptr.direction, rptr.target.scls)
@@ -500,12 +500,13 @@ def process_link_update(
     lname_to_id_rvar = pgast.RangeVar(relation=lname_to_id)
     toplevel.ctes.append(lname_to_id)
 
-    target_tab = dbobj.range_for_ptrcls(
+    target_rvar = dbobj.range_for_ptrcls(
         ctx.env, ptrcls, '>', include_overlays=False)
-    target_alias = target_tab.alias.aliasname
+    target_alias = target_rvar.alias.aliasname
 
     if target_is_atom:
-        target_tab_name = (target_tab.schema, target_tab.name)
+        target_tab_name = (target_rvar.relation.schemaname,
+                           target_rvar.relation.relname)
     else:
         target_tab_name = common.link_name_to_table_name(
             ptrcls.shortname, catenate=False)
@@ -536,7 +537,7 @@ def process_link_update(
     # Drop all previous link records for this source.
     delcte = pgast.CommonTableExpr(
         query=pgast.DeleteStmt(
-            relation=target_tab,
+            relation=target_rvar,
             where_clause=astutils.new_binop(
                 lexpr=col_data['std::source'],
                 op=ast.ops.EQ,
@@ -553,7 +554,7 @@ def process_link_update(
         name=ctx.genalias(hint='d')
     )
 
-    pathctx.put_path_rvar(ctx.env, delcte.query, path_id[:-1], target_tab)
+    pathctx.put_path_rvar(ctx.env, delcte.query, path_id[:-1], target_rvar)
 
     # Record the effect of this removal in the relation overlay
     # context to ensure that the RETURNING clause potentially
@@ -619,7 +620,7 @@ def process_link_update(
         updcte = pgast.CommonTableExpr(
             name=ctx.genalias(hint='i'),
             query=pgast.InsertStmt(
-                relation=target_tab,
+                relation=target_rvar,
                 select_stmt=data_select,
                 cols=cols,
                 on_conflict=pgast.OnConflictClause(
@@ -643,7 +644,7 @@ def process_link_update(
         )
 
         pathctx.put_path_rvar(
-            ctx.env, updcte.query, path_id[:-1], target_tab)
+            ctx.env, updcte.query, path_id[:-1], target_rvar)
 
         # Record the effect of this insertion in the relation overlay
         # context to ensure that the RETURNING clause potentially
@@ -791,9 +792,13 @@ def process_link_values(
         # UNION
         input_stmt = input_stmt.rarg
 
-    path_id = next(iter(input_stmt.path_bonds))
+    path_id = data.result.path_id
     target_ref = pathctx.get_rvar_path_var(ctx.env, input_rvar, path_id)
-    source_data['std::target'] = target_ref
+
+    if target_is_atom:
+        source_data['std::target@atom'] = target_ref
+    else:
+        source_data['std::target'] = target_ref
 
     for rt in input_stmt.target_list:
         source_data[rt.name] = pgast.ColumnRef(
@@ -801,9 +806,6 @@ def process_link_values(
         )
 
     for col in tab_cols:
-        if col in {'std::target@atom'}:
-            col = 'std::target'
-
         expr = col_data.get(col)
         if expr is None:
             expr = source_data.get(col)
