@@ -16,6 +16,7 @@ from edgedb.lang.schema import name as sn
 from edgedb.lang.schema import objects as s_obj
 
 from edgedb.lang.edgeql import ast as qlast
+from edgedb.lang.edgeql import errors
 
 from . import context
 
@@ -38,8 +39,7 @@ def get_schema_object(
     try:
         return ctx.schema.get(name=name, module_aliases=ctx.namespaces)
     except s_err.SchemaError as e:
-        e.context = srcctx
-        raise
+        raise errors.EdgeQLError(e.args[0], context=srcctx)
 
 
 def resolve_schema_name(

@@ -272,7 +272,7 @@ class SchemaIterator:
                 names = OrderedSet()
 
         if not self.include_derived:
-            names -= self.module.index_derived
+            names = names - self.module.index_derived
 
         return iter(names)
 

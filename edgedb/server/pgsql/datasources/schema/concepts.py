@@ -11,8 +11,7 @@ import typing
 
 
 async def fetch(
-        conn: asyncpg.connection.Connection,
-        *, name: str=None) -> typing.List[asyncpg.Record]:
+        conn: asyncpg.connection.Connection) -> typing.List[asyncpg.Record]:
     return await conn.fetch("""
         SELECT
                 c.id AS id,
@@ -23,7 +22,20 @@ async def fetch(
                 c.is_final AS is_final
             FROM
                 edgedb.concept c
-            WHERE
-                ($1::text IS NULL OR c.name = $1::text) AND
-                NOT c.is_virtual
-    """, name)
+    """)
+
+
+async def fetch_derived(
+        conn: asyncpg.connection.Connection) -> typing.List[asyncpg.Record]:
+    return await conn.fetch("""
+        SELECT
+                c.id AS id,
+                c.name AS name,
+                edgedb._resolve_type_name(c.bases) AS bases,
+                c.title AS title,
+                c.description AS description,
+                c.is_abstract AS is_abstract,
+                c.is_final AS is_final
+            FROM
+                edgedb.derivedconcept c
+    """)

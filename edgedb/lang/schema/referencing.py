@@ -165,9 +165,9 @@ class ReferencedClassCommand(derivable.DerivableClassCommand):
 
     def _create_begin(self, schema, context):
         referrer_ctx = context.get(self.referrer_context_class)
-        if referrer_ctx is not None:
+        attrs = self.get_struct_properties(schema)
+        if referrer_ctx is not None and not attrs.get('is_derived'):
             referrer = referrer_ctx.scls
-            attrs = self.get_struct_properties(schema)
             basename = self.metaclass.get_shortname(self.classname)
             base = schema.get(basename, type=self.metaclass)
             self.scls = base.derive(schema, referrer, attrs=attrs,

@@ -42,6 +42,7 @@ from edgedb.lang.schema import name as sn
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import policy as s_policy
+from edgedb.lang.schema import views as s_views
 
 from edgedb.server import query as backend_query
 from edgedb.server.pgsql import common
@@ -399,6 +400,7 @@ class Backend(s_deltarepo.DeltaProvider):
         await self.read_attributes(schema)
         await self.read_actions(schema)
         await self.read_events(schema)
+        await self.read_views(schema)
         await self.read_concepts(schema)
         await self.read_links(schema)
         await self.read_link_properties(schema)
@@ -429,7 +431,7 @@ class Backend(s_deltarepo.DeltaProvider):
     def adapt_delta(self, delta):
         return delta_cmds.CommandMeta.adapt(delta)
 
-    def process_delta(self, delta, schema, session=None):
+    def process_delta(self, delta, schema):
         """Adapt and process the delta command."""
 
         if debug.flags.delta_plan:
@@ -437,8 +439,7 @@ class Backend(s_deltarepo.DeltaProvider):
             debug.dump(delta)
 
         delta = self.adapt_delta(delta)
-        connection = session.get_connection() if session else self.connection
-        context = delta_cmds.CommandContext(connection, session=session)
+        context = delta_cmds.CommandContext(self.connection)
         delta.apply(schema, context)
 
         if debug.flags.delta_pgsql_plan:
@@ -503,7 +504,7 @@ class Backend(s_deltarepo.DeltaProvider):
             ''', params=[[parent.name for parent in delta.parents]]),
             checksum=(await self.getschema()).get_checksum(), deltabin=b'1',
             deltasrc=s_ddl.ddl_text_from_delta_command(ddl_plan))
-        context = delta_cmds.CommandContext(self.connection, None)
+        context = delta_cmds.CommandContext(self.connection)
         await dbops.Insert(table, records=[rec]).execute(context)
 
     async def run_ddl_command(self, ddl_plan):
@@ -524,7 +525,7 @@ class Backend(s_deltarepo.DeltaProvider):
         # will also update the schema.
         plan = self.process_delta(canonical_ddl_plan, schema)
 
-        context = delta_cmds.CommandContext(self.connection, None)
+        context = delta_cmds.CommandContext(self.connection)
 
         try:
             if not isinstance(plan, (s_db.CreateDatabase, s_db.DropDatabase)):
@@ -1136,7 +1137,7 @@ class Backend(s_deltarepo.DeltaProvider):
 
             link_search = None
 
-            if isinstance(target, s_atoms.Atom):
+            if isinstance(target, s_atoms.Atom) and not source.is_derived:
                 target, required = await self.read_pointer_target_column(
                     schema, link, None)
 
@@ -1376,6 +1377,23 @@ class Backend(s_deltarepo.DeltaProvider):
         return await self._type_mech.get_type_attributes(
             type_name, connection, cache)
 
+    async def read_views(self, schema):
+        view_list = await datasources.schema.views.fetch(self.connection)
+        view_list = collections.OrderedDict((sn.Name(row['name']), row)
+                                            for row in view_list)
+
+        for name, row in view_list.items():
+            view_data = {
+                'name': name,
+                'title': self.json_to_word_combination(row['title']),
+                'description': row['description'],
+                'expr': s_expr.ExpressionText(row['expr'])
+            }
+
+            view = s_views.View(**view_data)
+
+            schema.add(view)
+
     async def read_concepts(self, schema):
         tables = await introspection.tables.fetch_tables(
             self.connection, schema_pattern='edgedb%', table_pattern='%_data')
@@ -1437,6 +1455,17 @@ class Backend(s_deltarepo.DeltaProvider):
             else:
                 concept.bases = [schema.get(b) for b in bases]
 
+        derived = await datasources.schema.concepts.fetch_derived(
+            self.connection)
+
+        for row in derived:
+            attrs = dict(row)
+            attrs['name'] = sn.SchemaName(attrs['name'])
+            attrs['bases'] = [schema.get(b) for b in attrs['bases']]
+            attrs['is_derived'] = True
+            concept = s_concepts.Concept(**attrs)
+            schema.add(concept)
+
         tabdiff = set(tables.keys()) - visited_tables
         if tabdiff:
             msg = 'internal metadata incosistency'
@@ -1446,7 +1475,8 @@ class Backend(s_deltarepo.DeltaProvider):
 
     async def order_concepts(self, schema):
         g = {}
-        for concept in schema.get_objects(type='concept'):
+        for concept in schema.get_objects(type='concept',
+                                          include_derived=True):
             g[concept.name] = {"item": concept, "merge": [], "deps": []}
             if concept.bases:
                 g[concept.name]["merge"].extend(b.name for b in concept.bases)
@@ -1454,7 +1484,8 @@ class Backend(s_deltarepo.DeltaProvider):
         topological.normalize(
             g, merger=s_concepts.Concept.merge, schema=schema)
 
-        for concept in schema.get_objects(type='concept'):
+        for concept in schema.get_objects(type='concept',
+                                          include_derived=True):
             concept.finalize(schema)
 
     async def pg_table_inheritance(self, table_name, schema_name):

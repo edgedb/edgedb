@@ -8,12 +8,16 @@
 """Abstractions for low-level database DDL and DML operations."""
 
 from edgedb.lang.schema import delta as sd
+from edgedb.lang.schema import name as sn
 from edgedb.lang.schema import objects as s_obj
 
 from edgedb.lang.common import adapter
 
+from edgedb.lang import edgeql
+
 from edgedb.server.pgsql import common
 from edgedb.server.pgsql import dbops
+from edgedb.server.pgsql import metaschema
 from edgedb.server.pgsql.dbops import catalogs as pg_catalogs
 
 
@@ -674,7 +678,7 @@ class MappingIndex(dbops.Index):
         self.mapping = mapping
 
     async def creation_code(self, context):
-        link_map = await context.get_link_map()
+        link_map = await context.get_class_map()
 
         ids = tuple(sorted(list(link_map[n] for n in self.link_names)))
         id_str = '_'.join(str(i) for i in ids)
@@ -709,3 +713,34 @@ class MappingIndex(dbops.Index):
                 cols=','.join(self.columns),
                 uniq=self.unique,
                 pred=predicate)
+
+
+class MangleExprClassRefs(dbops.Command):
+    def __init__(self, *, scls, field, expr,
+                 conditions=None, neg_conditions=None, priority=0):
+        super().__init__(
+            conditions=conditions, neg_conditions=neg_conditions,
+            priority=priority)
+
+        self.name = scls.name
+        self.table = metaschema.get_metaclass_table(scls.__class__)
+        self.field = common.edgedb_name_to_pg_name(field)
+        self.expr = expr
+
+    async def execute(self, context):
+        class_map = await context._get_class_map()
+
+        def _cb(name):
+            clsid = class_map.get(name)
+            if clsid:
+                return sn.Name(module='__class__', name=str(clsid))
+            else:
+                return name
+        expr = edgeql.rewrite_refs(self.expr, _cb)
+
+        rec = self.table.record()
+        setattr(rec, self.field, expr)
+        condition = [('name', str(self.name))]
+        upd = dbops.Update(table=self.table, record=rec, condition=condition)
+
+        await upd.execute(context)

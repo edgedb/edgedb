@@ -10,6 +10,7 @@ from edgedb.lang.edgeql import ast as qlast
 
 from . import constraints
 from . import delta as sd
+from . import derivable
 from . import inheriting
 from . import links
 from . import name as sn
@@ -37,6 +38,12 @@ class ConceptCommand(constraints.ConsistencySubjectCommand,
     def _get_metaclass(cls):
         return Concept
 
+    def _apply_field_ast(self, context, node, op):
+        if op.property == 'is_derived':
+            pass
+        else:
+            super()._apply_field_ast(context, node, op)
+
 
 class CreateConcept(ConceptCommand, inheriting.CreateInheritingClass):
     astnode = qlast.CreateConcept
@@ -58,7 +65,11 @@ class DeleteConcept(ConceptCommand, inheriting.DeleteInheritingClass):
     astnode = qlast.DropConcept
 
 
-class Concept(sources.Source, nodes.Node,
+class DerivableSource(sources.Source, derivable.DerivableClass):
+    pass
+
+
+class Concept(DerivableSource, nodes.Node,
               constraints.ConsistencySubject, so.NodeClass):
     _type = 'concept'
 
@@ -160,5 +171,10 @@ class Concept(sources.Source, nodes.Node,
 
 
 class VirtualConcept(sources.Source, nodes.Node,
+                     constraints.ConsistencySubject, so.NodeClass):
+    pass
+
+
+class DerivedConcept(sources.Source, nodes.Node,
                      constraints.ConsistencySubject, so.NodeClass):
     pass

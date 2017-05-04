@@ -22,6 +22,7 @@ from edgedb.lang.schema import schema as s_schema
 from edgedb.lang.schema import views as s_views
 
 from edgedb.lang.edgeql import ast as qlast
+from edgedb.lang.edgeql import parser as qlparser
 
 from . import context
 from . import dispatch
@@ -34,7 +35,9 @@ def init_context(
         arg_types: typing.Optional[typing.Iterable[s_obj.Class]]=None,
         modaliases: typing.Optional[typing.Iterable[str]]=None,
         anchors: typing.Optional[typing.Dict[str, s_obj.Class]]=None,
-        security_context: typing.Optional[str]=None) -> context.ContextLevel:
+        security_context: typing.Optional[str]=None,
+        derived_target_module: typing.Optional[str]=None) -> \
+        context.ContextLevel:
     stack = context.CompilerContext()
     ctx = stack.current
     ctx.schema = schema
@@ -47,6 +50,8 @@ def init_context(
 
     if anchors:
         populate_anchors(anchors, ctx=ctx)
+
+    ctx.derived_target_module = derived_target_module
 
     return ctx
 
@@ -156,6 +161,18 @@ def declare_view(
     ctx.substmts[(alias, None)] = substmt_set
     ctx.stmt.substmts.append(substmt_set)
     return substmt_set
+
+
+def declare_view_from_schema(
+        viewcls: s_obj.Class, *, ctx: context.ContextLevel) -> irast.Set:
+
+    alias = viewcls.mangle_name(viewcls.name)
+    key = (alias, None)
+    if key in ctx.substmts:
+        return ctx.substmts[key]
+    else:
+        view_expr = qlparser.parse(viewcls.expr)
+        return declare_view(view_expr, alias, ctx=ctx)
 
 
 def declare_aliased_set(

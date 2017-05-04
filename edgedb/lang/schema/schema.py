@@ -197,6 +197,9 @@ class Schema:
     def has_module(self, module):
         return module in self.modules
 
+    def has_class(self, name):
+        return self.get(name, default=None) is not None
+
     def update_virtual_inheritance(self, scls, children):
         try:
             class_children = self._virtual_inheritance_cache[scls.name]

@@ -316,9 +316,15 @@ def compile_shape_compexpr(
                 'reference to unknown pointer',
                 context=source_ctx)
 
+        ptr_module = (
+            ptrname[0] or
+            ctx.derived_target_module or
+            ptrsource.name.module
+        )
+
         ptrcls = ptr_metacls(
             name=sn.SchemaName(
-                module=ptrname[0] or ptrsource.name.module,
+                module=ptr_module,
                 name=ptrname[1]),
         ).derive(schema, ptrsource, target_class)
 

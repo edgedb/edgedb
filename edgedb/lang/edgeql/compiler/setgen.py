@@ -19,6 +19,7 @@ from edgedb.lang.schema import nodes as s_nodes
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import sources as s_sources
+from edgedb.lang.schema import views as s_views
 
 from edgedb.lang.edgeql import ast as qlast
 from edgedb.lang.edgeql import errors
@@ -27,6 +28,7 @@ from . import context
 from . import dispatch
 from . import pathctx
 from . import schemactx
+from . import stmtctx
 
 
 PtrDir = s_pointers.PointerDirection
@@ -87,16 +89,18 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             # existing Concept class, as aliases and path variables
             # have been checked above.
             scls = schemactx.get_schema_object(step, ctx=ctx)
+            if isinstance(scls, s_views.View):
+                path_tip = stmtctx.declare_view_from_schema(scls, ctx=ctx)
+            else:
+                path_id = irast.PathId([scls])
 
-            path_id = irast.PathId([scls])
-
-            try:
-                # We maintain a registry of Set nodes for each unique
-                # Path to achieve path prefix matching.
-                path_tip = ctx.sets[path_id]
-            except KeyError:
-                path_tip = class_set(scls, ctx=ctx)
-                ctx.sets[path_id] = path_tip
+                try:
+                    # We maintain a registry of Set nodes for each unique
+                    # Path to achieve path prefix matching.
+                    path_tip = ctx.sets[path_id]
+                except KeyError:
+                    path_tip = class_set(scls, ctx=ctx)
+                    ctx.sets[path_id] = path_tip
 
         elif isinstance(step, qlast.Ptr):
             # Pointer traversal step

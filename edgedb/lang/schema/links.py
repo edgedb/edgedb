@@ -716,3 +716,7 @@ class Link(pointers.Pointer, sources.Source):
     @classmethod
     def get_default_base_name(self):
         return sn.Name('std::link')
+
+
+class DerivedLink(pointers.Pointer, sources.Source):
+    pass

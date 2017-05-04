@@ -14,6 +14,8 @@ from edgedb.lang.common import ordered
 from edgedb.lang.common import topological
 
 from edgedb.lang import edgeql
+from edgedb.lang.edgeql import codegen as qlcodegen
+
 from edgedb.lang.ir import utils as ir_utils
 
 from . import ast as s_ast
@@ -24,6 +26,7 @@ from . import attributes as s_attrs
 from . import concepts as s_concepts
 from . import constraints as s_constr
 from . import error as s_err
+from . import expr as s_expr
 from . import indexes as s_indexes
 from . import links as s_links
 from . import lproperties as s_lprops
@@ -376,9 +379,9 @@ class DeclarationLoader:
     def _parse_ptr_default(self, expr, source, ptr):
         """Set the default value for a pointer."""
         if not isinstance(expr, edgeql.ast.SelectQuery):
-            expr = self._get_literal_value(expr)
+            expr = edgeql.ast.Constant(value=self._get_literal_value(expr))
 
-        ptr.default = expr
+        ptr.default = s_expr.ExpressionText(qlcodegen.generate_source(expr))
 
     def _parse_attribute_values(self, subject, subjdecl):
         attrs = {}

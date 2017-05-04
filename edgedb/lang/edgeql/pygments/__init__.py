@@ -41,7 +41,7 @@ class EdgeQLLexer(RegexLexer):
                     policy | property | required | rename | returning |
                     rollback | select | set | singleton | start |
                     target | then | to | transaction | update |
-                    union | with
+                    union | view | with
                 )\b
             ''', token.Keyword.Reserved),
         ],

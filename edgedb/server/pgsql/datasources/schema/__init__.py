@@ -7,6 +7,7 @@
 
 from . import atoms  # NOQA
 from . import attributes  # NOQA
+from . import classes  # NOQA
 from . import concepts  # NOQA
 from . import constraints  # NOQA
 from . import functions  # NOQA
@@ -14,3 +15,4 @@ from . import indexes  # NOQA
 from . import links  # NOQA
 from . import modules  # NOQA
 from . import policy  # NOQA
+from . import views  # NOQA

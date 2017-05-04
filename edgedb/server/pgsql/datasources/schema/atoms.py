@@ -20,8 +20,7 @@ async def fetch(
             c.description AS description,
             c.is_abstract AS is_abstract,
             c.is_final AS is_final,
-            (SELECT array_agg(name) FROM edgedb.NamedClass
-             WHERE id = any(c.bases)) AS bases,
+            edgedb._resolve_type_name(c.bases) AS bases,
             c.default AS default
         FROM
             edgedb.atom c

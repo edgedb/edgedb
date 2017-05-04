@@ -86,6 +86,15 @@ class InnerDDLStmt(Nonterm):
     def reduce_DropConceptStmt(self, *kids):
         self.val = kids[0].val
 
+    def reduce_CreateViewStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_AlterViewStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_DropViewStmt(self, *kids):
+        self.val = kids[0].val
+
     def reduce_CreateConstraintStmt(self, *kids):
         self.val = kids[0].val
 
@@ -1198,6 +1207,87 @@ class DropConceptStmt(Nonterm):
             aliases=kids[0].val,
             name=kids[3].val,
             commands=kids[4].val
+        )
+
+
+#
+# CREATE VIEW
+#
+
+commands_block(
+    'CreateView',
+    SetFieldStmt,
+    opt=False
+)
+
+
+class CreateViewStmt(Nonterm):
+    def reduce_CreateViewShortStmt(self, *kids):
+        r"""%reduce \
+            OptAliasBlock CREATE VIEW NodeName TURNSTILE Expr \
+        """
+        self.val = qlast.CreateView(
+            aliases=kids[0].val,
+            name=kids[3].val,
+            commands=[
+                qlast.CreateAttributeValue(
+                    name=qlast.ClassRef(name='expr'),
+                    value=kids[5].val,
+                    as_expr=True
+                )
+            ]
+        )
+
+    def reduce_CreateViewRegularStmt(self, *kids):
+        r"""%reduce \
+            OptAliasBlock CREATE VIEW NodeName \
+            CreateViewCommandsBlock \
+        """
+        self.val = qlast.CreateView(
+            aliases=kids[0].val,
+            name=kids[3].val,
+            commands=kids[4].val
+        )
+
+
+#
+# ALTER VIEW
+#
+
+commands_block(
+    'AlterView',
+    RenameStmt,
+    SetFieldStmt,
+    DropFieldStmt,
+    opt=False
+)
+
+
+class AlterViewStmt(Nonterm):
+    def reduce_AlterViewStmt(self, *kids):
+        r"""%reduce \
+            OptAliasBlock ALTER VIEW NodeName \
+            AlterViewCommandsBlock \
+        """
+        self.val = qlast.AlterView(
+            aliases=kids[0].val,
+            name=kids[3].val,
+            commands=kids[4].val
+        )
+
+
+#
+# DROP VIEW
+#
+
+class DropViewStmt(Nonterm):
+    def reduce_DropView(self, *kids):
+        r"""%reduce \
+            OptAliasBlock DROP VIEW NodeName \
+        """
+        self.val = qlast.DropView(
+            aliases=kids[0].val,
+            name=kids[3].val,
         )
 
 

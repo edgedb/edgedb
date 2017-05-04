@@ -11,3 +11,4 @@ from .codegen import generate_source  # NOQA
 from .errors import EdgeQLError, EdgeQLSyntaxError  # NOQA
 from .optimizer import optimize, deoptimize  # NOQA
 from .parser import parse, parse_fragment, parse_block  # NOQA
+from .rewriter import rewrite_refs  # NOQA

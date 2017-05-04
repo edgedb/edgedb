@@ -33,6 +33,7 @@ from edgedb.lang.schema import name as sn
 from edgedb.lang.schema import named as s_named
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import policy as s_policy
+from edgedb.lang.schema import views as s_views
 
 from edgedb.lang.common import ordered
 from edgedb.lang.common import debug
@@ -1477,18 +1478,30 @@ class DeleteSourceIndex(SourceIndexCommand, DeleteNamedClass,
 
 
 class ConceptMetaCommand(CompositeClassMetaCommand):
-    table = metaschema.get_metaclass_table(s_concepts.Concept)
+    @property
+    def table(self):
+        if self.scls.is_virtual:
+            mcls = s_concepts.VirtualConcept
+        elif self.scls.is_derived:
+            mcls = s_concepts.DerivedConcept
+        else:
+            mcls = s_concepts.Concept
+
+        return metaschema.get_metaclass_table(mcls)
+
+    @classmethod
+    def has_table(cls, concept, schema):
+        return not (concept.is_virtual or concept.is_derived)
 
 
 class CreateConcept(ConceptMetaCommand, adapts=s_concepts.CreateConcept):
     def apply(self, schema, context=None):
         concept_props = self.get_struct_properties(schema)
         is_virtual = concept_props.get('is_virtual')
-        if is_virtual:
-            self.table = metaschema.get_metaclass_table(
-                s_concepts.VirtualConcept)
+        is_derived = concept_props.get('is_derived')
+        if is_virtual or is_derived:
             concept = s_concepts.CreateConcept.apply(self, schema, context)
-            fields = self.create_object(schema, concept)
+            self.create_object(schema, concept)
             return concept
 
         new_table_name = common.concept_name_to_table_name(
@@ -1602,10 +1615,11 @@ class RebaseConcept(ConceptMetaCommand, adapts=s_concepts.RebaseConcept):
         result = s_concepts.RebaseConcept.apply(self, schema, context)
         ConceptMetaCommand.apply(self, schema, context)
 
-        concept_ctx = context.get(s_concepts.ConceptCommandContext)
-        source = concept_ctx.scls
-        orig_source = concept_ctx.original_class
-        self.apply_base_delta(orig_source, source, schema, context)
+        if self.has_table(result, schema):
+            concept_ctx = context.get(s_concepts.ConceptCommandContext)
+            source = concept_ctx.scls
+            orig_source = concept_ctx.original_class
+            self.apply_base_delta(orig_source, source, schema, context)
 
         return result
 
@@ -1625,11 +1639,12 @@ class AlterConcept(ConceptMetaCommand, adapts=s_concepts.AlterConcept):
                 dbops.Update(
                     table=self.table, record=updaterec, condition=condition))
 
-        self.attach_alter_table(context)
+        if self.has_table(concept, schema):
+            self.attach_alter_table(context)
 
-        if self.update_search_indexes:
-            self.update_search_indexes.apply(schema, context)
-            self.pgops.add(self.update_search_indexes)
+            if self.update_search_indexes:
+                self.update_search_indexes.apply(schema, context)
+                self.pgops.add(self.update_search_indexes)
 
         return concept
 
@@ -1644,9 +1659,46 @@ class DeleteConcept(ConceptMetaCommand, adapts=s_concepts.DeleteConcept):
 
         self.delete(schema, context, concept)
 
-        self.pgops.add(dbops.DropTable(name=old_table_name, priority=3))
+        if self.has_table(concept, schema):
+            self.pgops.add(dbops.DropTable(name=old_table_name, priority=3))
 
         return concept
+
+
+class ViewCommand:
+    table = metaschema.get_metaclass_table(s_views.View)
+
+    def fill_record(self, schema):
+        rec, updates = super().fill_record(schema)
+
+        if rec and False:
+            expr = updates.get('expr')
+            if expr:
+                self.pgops.add(
+                    deltadbops.MangleExprClassRefs(
+                        scls=self.scls, field='expr', expr=expr, priority=3))
+
+        return rec, updates
+
+
+class CreateView(
+        ViewCommand, CreateNamedClass, adapts=s_views.CreateView):
+    pass
+
+
+class RenameView(
+        ViewCommand, RenameNamedClass, adapts=s_views.RenameView):
+    pass
+
+
+class AlterView(
+        ViewCommand, AlterNamedClass, adapts=s_views.AlterView):
+    pass
+
+
+class DeleteView(
+        ViewCommand, DeleteNamedClass, adapts=s_views.DeleteView):
+    pass
 
 
 class ActionCommand:
@@ -1949,7 +2001,7 @@ class PointerMetaCommand(MetaCommand):
 
     @classmethod
     def has_table(cls, link, schema):
-        if link.is_pure_computable():
+        if link.is_pure_computable() or link.is_derived:
             return False
         elif link.generic():
             if link.name == 'std::link':
@@ -2612,7 +2664,7 @@ class UpdateMappingIndexes(MetaCommand):
     async def apply(self, schema, context):
         db = context.db
         if await self.schema_exists.execute(context):
-            link_map = await context._get_link_map(reverse=True)
+            link_map = await context._get_class_map(reverse=True)
             indexes = {}
             idx_data = await datasources.introspection.tables.fetch_indexes(
                 db,
@@ -2727,27 +2779,26 @@ class UpdateMappingIndexes(MetaCommand):
 
 
 class CommandContext(sd.CommandContext):
-    def __init__(self, db, session=None):
+    def __init__(self, db):
         super().__init__()
         self.db = db
-        self.session = session
-        self.link_name_to_id_map = None
+        self.class_name_to_id_map = None
 
-    async def _get_link_map(self, reverse=False):
-        links = await datasources.schema.links.fetch(self.db)
-        grouped = itertools.groupby(links, key=lambda i: i['id'])
+    async def _get_class_map(self, reverse=False):
+        classes = await datasources.schema.classes.fetch(self.db)
+        grouped = itertools.groupby(classes, key=lambda i: i['id'])
         if reverse:
-            link_map = {k: next(i)['name'] for k, i in grouped}
+            class_map = {k: next(i)['name'] for k, i in grouped}
         else:
-            link_map = {next(i)['name']: k for k, i in grouped}
-        return link_map
+            class_map = {next(i)['name']: k for k, i in grouped}
+        return class_map
 
-    async def get_link_map(self):
-        link_map = self.link_name_to_id_map
-        if not link_map:
-            link_map = await self._get_link_map()
-            self.link_name_to_id_map = link_map
-        return link_map
+    async def get_class_map(self):
+        class_map = self.class_name_to_id_map
+        if not class_map:
+            class_map = await self._get_class_map()
+            self.class_name_to_id_map = class_map
+        return class_map
 
 
 class ModuleMetaCommand(NamedClassMetaCommand):

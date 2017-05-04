@@ -102,32 +102,30 @@ class EdgeQLOptimizer:
                                             alias=alias)
             nses.append(decl)
 
-        if edgeql_tree.namespaces is not None:
-            edgeql_tree.namespaces[:] = nses
-        else:
-            edgeql_tree.namespaces = nses
+        if isinstance(edgeql_tree, qlast.Statement):
+            if deoptimize:
+                edgeql_tree.aliases[:] = [
+                    a for a in edgeql_tree.aliases
+                    if not isinstance(a, qlast.NamespaceAliasDecl)
+                ]
+            else:
+                if edgeql_tree.aliases is not None:
+                    edgeql_tree.aliases[:] = nses
+                else:
+                    edgeql_tree.aliases = nses
 
         return edgeql_tree
 
     def _process_expr(self, context, expr):
         if isinstance(expr, qlast.SelectQuery):
-            pathvars = {}
-
-            if expr.namespaces:
-                for ns in expr.namespaces:
-                    if isinstance(ns.namespace, str):
+            if expr.aliases:
+                for ns in expr.aliases:
+                    if isinstance(ns, qlast.NamespaceAliasDecl):
                         context.current.namespaces[ns.alias] = ns.namespace
                         context.current.aliascnt[ns.alias] = 1
-                    else:
-                        self._process_expr(context, ns.namespace)
-                        pathvars[ns.alias] = ns.namespace
 
             if expr.where:
                 self._process_expr(context, expr.where)
-
-            if expr.groupby:
-                for gb in expr.groupby:
-                    self._process_expr(context, gb)
 
             self._process_expr(context, expr.result)
 
@@ -222,22 +220,21 @@ class EdgeQLOptimizer:
             self._process_expr(context, expr.type)
 
         elif isinstance(expr, qlast.TypeName):
-            if expr.maintype.module:
-                expr.maintype.module = self._process_module_ref(
-                    context, expr.maintype.module)
+            expr.maintype.module = self._process_module_ref(
+                context, expr.maintype.module)
 
             if expr.subtypes:
                 for subtype in expr.subtypes:
                     self._process_expr(context, subtype)
 
         elif isinstance(expr, qlast.ClassRef):
-            if expr.module:
-                expr.module = self._process_module_ref(context, expr.module)
+            expr.module = self._process_module_ref(context, expr.module)
+
+        elif isinstance(expr, qlast.Shape):
+            self._process_expr(context, expr.expr)
+            self._process_shape(context, expr)
 
         elif isinstance(expr, qlast.Path):
-            if expr.shape:
-                self._process_shape(context, expr.shape)
-
             for step in expr.steps:
                 self._process_expr(context, step)
 
@@ -299,7 +296,7 @@ class EdgeQLOptimizer:
                     context, base.module)
 
     def _process_shape(self, context, shape):
-        for spec in shape:
+        for spec in shape.elements:
             if isinstance(spec, qlast.ShapeElement):
                 if spec.where:
                     self._process_expr(context, spec.where)
@@ -313,10 +310,13 @@ class EdgeQLOptimizer:
                 if spec.compexpr:
                     self._process_expr(context, spec.compexpr)
 
-                if spec.shape:
-                    self._process_shape(context, spec.shape)
+                if spec.elements:
+                    self._process_shape(context, spec)
 
     def _process_module_ref(self, context, module):
+        if not module:
+            return module
+
         if context.current.deoptimize:
             return context.current.namespaces.get(module, module)
         else:

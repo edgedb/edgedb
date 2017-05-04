@@ -458,12 +458,28 @@ CREATE CONCEPT schema::Concept INHERITING
          schema::Source);
 
 
+CREATE CONCEPT schema::View INHERITING
+        (schema::PrimaryClass, schema::Source) {
+    CREATE LINK schema::expr TO std::str;
+};
+
+
 CREATE CONCEPT schema::VirtualConcept INHERITING
         (schema::PrimaryClass, schema::ConsistencySubject, schema::Node,
          schema::Source);
 
 
+CREATE CONCEPT schema::DerivedConcept INHERITING
+        (schema::PrimaryClass, schema::ConsistencySubject, schema::Node,
+         schema::Source);
+
+
 CREATE CONCEPT schema::Link INHERITING
+        (schema::PrimaryClass, schema::ConsistencySubject, schema::Pointer,
+         schema::Source);
+
+
+CREATE CONCEPT schema::DerivedLink INHERITING
         (schema::PrimaryClass, schema::ConsistencySubject, schema::Pointer,
          schema::Source);
 
@@ -486,6 +502,13 @@ ALTER CONCEPT schema::Link {
 
 
 ALTER CONCEPT schema::Concept {
+    CREATE LINK schema::links TO schema::Link {
+        SET mapping := '1*';
+    };
+};
+
+
+ALTER CONCEPT schema::View {
     CREATE LINK schema::links TO schema::Link {
         SET mapping := '1*';
     };

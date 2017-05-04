@@ -25,7 +25,7 @@ from . import name as s_name
 from . import utils
 
 
-def delta_schemas(schema1, schema2):
+def delta_schemas(schema1, schema2, *, include_derived=False):
     from . import modules, objects as so, database
 
     result = database.AlterDatabase()
@@ -67,10 +67,10 @@ def delta_schemas(schema1, schema2):
     global_dels = []
 
     for type in schema1.global_dep_order:
-        new = ordered.OrderedIndex(schema1.get_objects(type=type),
-                                   key=lambda o: o.persistent_hash())
-        old = ordered.OrderedIndex(schema2.get_objects(type=type),
-                                   key=lambda o: o.persistent_hash())
+        o1 = schema1.get_objects(type=type, include_derived=include_derived)
+        new = ordered.OrderedIndex(o1, key=lambda o: o.persistent_hash())
+        o2 = schema2.get_objects(type=type, include_derived=include_derived)
+        old = ordered.OrderedIndex(o2, key=lambda o: o.persistent_hash())
 
         if type in ('link', 'link_property', 'constraint'):
             new = filter(lambda i: i.generic(), new)
@@ -524,8 +524,11 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
             yield from op.before_ops
             yield op
 
-    def get_subcommands(self, *, type):
-        return filter(lambda i: isinstance(i, type), self)
+    def get_subcommands(self, *, type=None):
+        if type is not None:
+            return filter(lambda i: isinstance(i, type), self)
+        else:
+            return list(self)
 
     def has_subcommands(self):
         return bool(self.ops)
@@ -711,6 +714,12 @@ class CommandContext:
     def current(self):
         if self.stack:
             return self.stack[-1]
+        else:
+            return None
+
+    def parent(self):
+        if len(self.stack) > 1:
+            return self.stack[-2]
         else:
             return None
 

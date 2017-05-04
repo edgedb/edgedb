@@ -48,9 +48,10 @@ unreserved_keywords = [
     "target",
     "then",
     "to",
-    "transaction",  # do we need it?
+    "transaction",
     "tuple",
     "value",
+    "view",
 ]
 
 # NOTE: all operators are made into RESERVED keywords for reasons of style.

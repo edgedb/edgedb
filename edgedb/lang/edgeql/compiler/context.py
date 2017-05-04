@@ -30,6 +30,9 @@ class ContextLevel(compiler.ContextLevel):
     schema: s_schema.Schema
     """A Schema instance to use for class resolution."""
 
+    derived_target_module: typing.Optional[str]
+    """The name of the module for classes derived by views."""
+
     anchors: typing.Dict[str, irast.Set]
     """A mapping of anchor variables (aliases to path expressions passed
     to the compiler programmatically).
@@ -89,6 +92,7 @@ class ContextLevel(compiler.ContextLevel):
     def __init__(self, prevlevel=None, mode=None):
         if prevlevel is None:
             self.schema = None
+            self.derived_target_module = None
             self.aliases = compiler.AliasGenerator()
             self.anchors = {}
             self.pathvars = {}
@@ -113,6 +117,7 @@ class ContextLevel(compiler.ContextLevel):
 
         else:
             self.schema = prevlevel.schema
+            self.derived_target_module = prevlevel.derived_target_module
             self.aliases = prevlevel.aliases
             self.arguments = prevlevel.arguments
             self.toplevel_shape_rptr = prevlevel.toplevel_shape_rptr

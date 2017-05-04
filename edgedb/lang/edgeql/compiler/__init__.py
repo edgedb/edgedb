@@ -51,6 +51,7 @@ def compile_to_ir(expr,
                   anchors=None,
                   arg_types=None,
                   security_context=None,
+                  derived_target_module=None,
                   modaliases=None):
     """Compile given EdgeQL statement into EdgeDB IR."""
 
@@ -62,7 +63,8 @@ def compile_to_ir(expr,
 
     return compile_ast_to_ir(
         tree, schema, anchors=anchors, arg_types=arg_types,
-        security_context=security_context, modaliases=modaliases)
+        security_context=security_context, modaliases=modaliases,
+        derived_target_module=derived_target_module)
 
 
 def compile_ast_to_ir(tree,
@@ -71,6 +73,7 @@ def compile_ast_to_ir(tree,
                       anchors=None,
                       arg_types=None,
                       security_context=None,
+                      derived_target_module=None,
                       modaliases=None):
     """Compile given EdgeQL AST into EdgeDB IR."""
 
@@ -80,7 +83,8 @@ def compile_ast_to_ir(tree,
 
     ctx = stmtctx.init_context(
         schema=schema, anchors=anchors, modaliases=modaliases,
-        security_context=security_context, arg_types=arg_types)
+        security_context=security_context, arg_types=arg_types,
+        derived_target_module=derived_target_module)
 
     ir = dispatch.compile(tree, ctx=ctx)
 
