@@ -366,6 +366,32 @@ class BaseQueryTestCase(DatabaseTestCase):
                         '{}: expecting more elements in list'.format(
                             message))
 
+        def _assert_set_shape(data, shape):
+            if not isinstance(data, (list, set)):
+                self.fail('{}: expected list or set'.format(message))
+
+            if not data and shape:
+                self.fail('{}: expected non-empty set'.format(message))
+
+            shape_iter = _list_shape_iter(sorted(shape))
+
+            i = 0
+            for i, el in enumerate(sorted(data)):
+                try:
+                    el_shape = next(shape_iter)
+                except StopIteration:
+                    self.fail(
+                        '{}: unexpected trailing elements in list'.format(
+                            message))
+
+                _assert_data_shape(el, el_shape)
+
+            if len(shape) > i + 1:
+                if shape[i + 1] is not Ellipsis:
+                    self.fail(
+                        '{}: expecting more elements in list'.format(
+                            message))
+
         def _assert_data_shape(data, shape):
             if isinstance(shape, nullable):
                 if data is None:
@@ -375,6 +401,8 @@ class BaseQueryTestCase(DatabaseTestCase):
 
             if isinstance(shape, list):
                 return _assert_list_shape(data, shape)
+            elif isinstance(shape, set):
+                return _assert_set_shape(data, shape)
             elif isinstance(shape, dict):
                 return _assert_dict_shape(data, shape)
             elif isinstance(shape, type):
