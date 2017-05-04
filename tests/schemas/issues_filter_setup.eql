@@ -1,0 +1,76 @@
+WITH MODULE test
+INSERT Priority {
+    name := 'High'
+};
+
+WITH MODULE test
+INSERT Priority {
+    name := 'Low'
+};
+
+WITH MODULE test
+INSERT Status {
+    name := 'Open'
+};
+
+WITH MODULE test
+INSERT Status {
+    name := 'Closed'
+};
+
+
+WITH MODULE test
+INSERT User {
+    name := 'Elvis'
+};
+
+WITH MODULE test
+INSERT User {
+    name := 'Yury'
+};
+
+WITH MODULE test
+INSERT User {
+    name := 'Victor'
+};
+
+
+WITH MODULE test
+INSERT Issue {
+    number := '1',
+    name := 'Implicit path existence',
+    body := 'Any expression involving paths also implies paths exist.',
+    owner := (SELECT User FILTER User.name = 'Elvis'),
+    status := (SELECT Status FILTER Status.name = 'Closed'),
+    time_estimate := 9001,
+};
+
+WITH MODULE test
+INSERT Issue {
+    number := '2',
+    name := 'NOT EXISTS problem',
+    body := 'Implicit path existence does not apply to NOT EXISTS.',
+    owner := (SELECT User FILTER User.name = 'Elvis'),
+    status := (SELECT Status FILTER Status.name = 'Open'),
+    due_date := <datetime>'2020/01/15',
+};
+
+WITH MODULE test
+INSERT Issue {
+    number := '3',
+    name := 'EdgeQL to SQL translator',
+    body := 'Rewrite and refactor translation to SQL.',
+    owner := (SELECT User FILTER User.name = 'Yury'),
+    status := (SELECT Status FILTER Status.name = 'Open'),
+    time_estimate := 9999,
+    due_date := <datetime>'2020/01/15',
+};
+
+WITH MODULE test
+INSERT Issue {
+    number := '4',
+    name := 'Translator optimization',
+    body := 'At some point SQL translations should be optimized.',
+    owner := (SELECT User FILTER User.name = 'Yury'),
+    status := (SELECT Status FILTER Status.name = 'Open'),
+};

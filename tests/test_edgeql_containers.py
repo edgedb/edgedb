@@ -23,7 +23,7 @@ class TestEdgeQLContainers(tb.QueryTestCase):
     '''
 
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'queries.eschema')
+                          'issues.eschema')
 
     SETUP = r"""
         WITH MODULE test

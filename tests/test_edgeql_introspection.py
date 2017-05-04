@@ -13,7 +13,7 @@ from edgedb.server import _testbase as tb
 
 class TestIntrospection(tb.QueryTestCase):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'queries.eschema')
+                          'issues.eschema')
 
     SETUP = """
     """

@@ -14,277 +14,13 @@ from edgedb.server import _testbase as tb
 
 class TestEdgeQLGroup(tb.QueryTestCase):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'queries.eschema')
+                          'issues.eschema')
 
-    SCHEMA_TESTLP = os.path.join(os.path.dirname(__file__), 'schemas',
-                                 'linkprops.eschema')
+    SCHEMA_CARDS = os.path.join(os.path.dirname(__file__), 'schemas',
+                                'cards.eschema')
 
-    SETUP = r"""
-        #
-        # MODULE test
-        #
-
-        WITH MODULE test
-        INSERT Priority {
-            name := 'High'
-        };
-
-        WITH MODULE test
-        INSERT Priority {
-            name := 'Low'
-        };
-
-        WITH MODULE test
-        INSERT Status {
-            name := 'Open'
-        };
-
-        WITH MODULE test
-        INSERT Status {
-            name := 'Closed'
-        };
-
-
-        WITH MODULE test
-        INSERT User {
-            name := 'Elvis'
-        };
-
-        WITH MODULE test
-        INSERT User {
-            name := 'Yury'
-        };
-
-        WITH MODULE test
-        INSERT URL {
-            name := 'edgedb.com',
-            address := 'https://edgedb.com'
-        };
-
-        WITH MODULE test
-        INSERT File {
-            name := 'screenshot.png'
-        };
-
-        WITH MODULE test
-        INSERT LogEntry {
-            owner := (SELECT User FILTER User.name = 'Elvis'),
-            spent_time := 50000,
-            body := 'Rewriting everything.'
-        };
-
-        WITH MODULE test
-        INSERT Issue {
-            number := '1',
-            name := 'Release EdgeDB',
-            body := 'Initial public release of EdgeDB.',
-            owner := (SELECT User FILTER User.name = 'Elvis'),
-            watchers := (SELECT User FILTER User.name = 'Yury'),
-            status := (SELECT Status FILTER Status.name = 'Open'),
-            time_spent_log := (SELECT LogEntry),
-            time_estimate := 3000
-        };
-
-        WITH MODULE test
-        INSERT Comment {
-            body := 'EdgeDB needs to happen soon.',
-            owner := (SELECT User FILTER User.name = 'Elvis'),
-            issue := (SELECT Issue FILTER Issue.number = '1')
-        };
-
-
-        WITH MODULE test
-        INSERT Issue {
-            number := '2',
-            name := 'Improve EdgeDB repl output rendering.',
-            body := 'We need to be able to render data in tabular format.',
-            owner := (SELECT User FILTER User.name = 'Yury'),
-            watchers := (SELECT User FILTER User.name = 'Elvis'),
-            status := (SELECT Status FILTER Status.name = 'Open'),
-            priority := (SELECT Priority FILTER Priority.name = 'High'),
-            references :=
-                (SELECT URL FILTER URL.address = 'https://edgedb.com')
-                UNION
-                (SELECT File FILTER File.name = 'screenshot.png')
-        };
-
-        WITH
-            MODULE test,
-            I := (SELECT Issue)
-        INSERT Issue {
-            number := '3',
-            name := 'Repl tweak.',
-            body := 'Minor lexer tweaks.',
-            owner := (SELECT User FILTER User.name = 'Yury'),
-            watchers := (SELECT User FILTER User.name = 'Elvis'),
-            status := (SELECT Status FILTER Status.name = 'Closed'),
-            related_to := (
-                SELECT I FILTER I.number = '2'
-            ),
-            priority := (SELECT Priority FILTER Priority.name = 'Low')
-        };
-
-        WITH
-            MODULE test,
-            I := (SELECT Issue)
-        INSERT Issue {
-            number := '4',
-            name := 'Regression.',
-            body := 'Fix regression introduced by lexer tweak.',
-            owner := (SELECT User FILTER User.name = 'Elvis'),
-            status := (SELECT Status FILTER Status.name = 'Closed'),
-            related_to := (
-                SELECT I FILTER I.number = '3'
-            )
-        };
-
-        # NOTE: UPDATE Users for testing the link properties
-        #
-        WITH MODULE test
-        UPDATE User
-        FILTER User.name = 'Elvis'
-        SET {
-            todo := (SELECT Issue FILTER Issue.number IN ['1', '2'])
-        };
-
-        WITH MODULE test
-        UPDATE User
-        FILTER User.name = 'Yury'
-        SET {
-            todo := (SELECT Issue FILTER Issue.number IN ['3', '4'])
-        };
-
-        #
-        # MODULE testlp
-        #
-
-        # create some cards
-        WITH MODULE testlp
-        INSERT Card {
-            name := 'Imp',
-            element := 'Fire',
-            cost := 1
-        };
-
-        WITH MODULE testlp
-        INSERT Card {
-            name := 'Dragon',
-            element := 'Fire',
-            cost := 5
-        };
-
-        WITH MODULE testlp
-        INSERT Card {
-            name := 'Bog monster',
-            element := 'Water',
-            cost := 2
-        };
-
-        WITH MODULE testlp
-        INSERT Card {
-            name := 'Giant turtle',
-            element := 'Water',
-            cost := 3
-        };
-
-        WITH MODULE testlp
-        INSERT Card {
-            name := 'Dwarf',
-            element := 'Earth',
-            cost := 1
-        };
-
-        WITH MODULE testlp
-        INSERT Card {
-            name := 'Golem',
-            element := 'Earth',
-            cost := 3
-        };
-
-        WITH MODULE testlp
-        INSERT Card {
-            name := 'Sprite',
-            element := 'Air',
-            cost := 1
-        };
-
-        WITH MODULE testlp
-        INSERT Card {
-            name := 'Giant eagle',
-            element := 'Air',
-            cost := 2
-        };
-
-        WITH MODULE testlp
-        INSERT Card {
-            name := 'Djinn',
-            element := 'Air',
-            cost := 4
-        };
-
-        # create players & decks
-        WITH MODULE testlp
-        INSERT User {
-            name := 'Alice',
-            deck := (
-                SELECT Card {@count := len(Card.element) - 2}
-                FILTER .element IN ['Fire', 'Water']
-            )
-        };
-
-        WITH MODULE testlp
-        INSERT User {
-            name := 'Bob',
-            deck := (
-                SELECT Card {@count := 3} FILTER .element IN ['Earth', 'Water']
-            )
-        };
-
-        WITH MODULE testlp
-        INSERT User {
-            name := 'Carol',
-            deck := (
-                SELECT Card {@count := 5 - Card.cost} FILTER .element != 'Fire'
-            )
-        };
-
-        WITH MODULE testlp
-        INSERT User {
-            name := 'Dave',
-            deck := (
-                SELECT Card {@count := 4 IF Card.cost = 1 ELSE 1}
-                FILTER .element = 'Air' OR .cost != 1
-            )
-        };
-
-        # update friends list
-        WITH
-            MODULE testlp,
-            U2 := User
-        UPDATE User
-        FILTER User.name = 'Alice'
-        SET {
-            friends := (
-                SELECT U2 {
-                    @nickname :=
-                        'Swampy'        IF U2.name = 'Bob' ELSE
-                        'Firefighter'   IF U2.name = 'Carol' ELSE
-                        'Grumpy'
-                } FILTER U2.name IN ['Bob', 'Carol', 'Dave']
-            )
-        };
-
-        WITH
-            MODULE testlp,
-            U2 := User
-        UPDATE User
-        FILTER User.name = 'Dave'
-        SET {
-            friends := (
-                SELECT U2 FILTER U2.name = 'Bob'
-            )
-        };
-    """
+    SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
+                         'groups_setup.eql')
 
     @tb.expected_optimizer_failure
     async def test_edgeql_group_simple01(self):
@@ -872,7 +608,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         await self.assert_query_result(r"""
             # group by link property
             #
-            WITH MODULE testlp
+            WITH MODULE cards
             GROUP
                 Card
             BY
@@ -910,7 +646,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         await self.assert_query_result(r"""
             # use link property inside a group aggregate
             #
-            WITH MODULE testlp
+            WITH MODULE cards
             GROUP
                 Card
             BY
@@ -953,7 +689,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         await self.assert_query_result(r"""
             # group by link property
             #
-            WITH MODULE testlp
+            WITH MODULE cards
             GROUP
                 (SELECT User FILTER User.name = 'Alice').friends
             BY
@@ -979,7 +715,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             # NOTE: should be the same as above because we happen to
             # have unique nicknames for friends
             #
-            WITH MODULE testlp
+            WITH MODULE cards
             GROUP
                 (SELECT User FILTER User.name = 'Alice').friends
             BY
@@ -1002,7 +738,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
     @tb.expected_optimizer_failure
     async def test_edgeql_group_linkproperty_nested01(self):
         await self.assert_query_result(r"""
-            WITH MODULE testlp
+            WITH MODULE cards
             SELECT User {
                 name,
                 # total card count across the deck
@@ -1065,7 +801,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         await self.assert_query_result(r"""
             # similar to nested01, but with the root grouped by @nickname
             #
-            WITH MODULE testlp
+            WITH MODULE cards
             GROUP
                 (SELECT User FILTER User.name = 'Alice').friends
             BY
@@ -1127,7 +863,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
     @tb.expected_optimizer_failure
     async def test_edgeql_group_linkproperty_tuple01(self):
         await self.assert_query_result(r"""
-            WITH MODULE testlp
+            WITH MODULE cards
             GROUP
                 (SELECT User FILTER User.name = 'Dave').deck
             BY

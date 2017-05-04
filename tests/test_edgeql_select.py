@@ -15,10 +15,10 @@ from edgedb.client import exceptions as exc
 
 class TestEdgeQLSelect(tb.QueryTestCase):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'queries.eschema')
+                          'issues.eschema')
 
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
-                         'queries_setup.eql')
+                         'issues_setup.eql')
 
     async def test_edgeql_select_unique01(self):
         await self.assert_query_result('''

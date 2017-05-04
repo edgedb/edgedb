@@ -14,10 +14,10 @@ from edgedb.server import _testbase as tb
 
 class TestEdgeQLFunctions(tb.QueryTestCase):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'queries.eschema')
+                          'issues.eschema')
 
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
-                         'queries_setup.eql')
+                         'issues_setup.eql')
 
     async def test_edgeql_functions_array_unpack_01(self):
         await self.assert_query_result(r'''
