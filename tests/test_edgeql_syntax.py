@@ -934,6 +934,49 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
+    def test_edgeql_syntax_shape36(self):
+        """
+        SELECT User {
+            name,
+            groups: {
+                name,
+                @`rank`,
+                @`~crazy`,
+            }
+        };
+
+% OK %
+
+        SELECT User {
+            name,
+            groups: {
+                name,
+                @rank,
+                @`~crazy`,
+            }
+        };
+        """
+
+    def test_edgeql_syntax_shape37(self):
+        """
+        SELECT Foo {
+            foo FILTER (foo > 3),
+            bar ORDER BY bar DESC,
+            baz OFFSET 1 LIMIT 3,
+        };
+        """
+
+    def test_edgeql_syntax_shape38(self):
+        """
+        SELECT Foo {
+            spam: {
+                @foo FILTER (foo > 3),
+                @bar ORDER BY bar DESC,
+                @baz OFFSET 1 LIMIT 3,
+            },
+        };
+        """
+
     def test_edgeql_syntax_struct01(self):
         """
         SELECT (
