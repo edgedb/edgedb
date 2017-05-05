@@ -444,6 +444,8 @@ class QueryTestCaseMeta(TestCaseMeta):
     @classmethod
     def add_method(mcls, methname, ns, meth):
         wrapper = mcls.wrap(meth)
+        if getattr(meth, '_expected_no_optimizer_failure', False):
+            wrapper = unittest.expectedFailure(wrapper)
         wrapper.__name__ = methname + '_no_opt'
         ns[methname + '_no_opt'] = wrapper
 
@@ -460,4 +462,9 @@ class QueryTestCase(BaseQueryTestCase, metaclass=QueryTestCaseMeta):
 
 def expected_optimizer_failure(obj):
     obj._expected_optimizer_failure = True
+    return obj
+
+
+def expected_no_optimizer_failure(obj):
+    obj._expected_no_optimizer_failure = True
     return obj

@@ -1,0 +1,72 @@
+# create some items
+WITH MODULE test
+INSERT Item {
+    name := 'table',
+
+    tag_set1 := 'wood' UNION 'rectangle',
+    tag_set2 := 'wood' UNION 'rectangle',
+    tag_array := ['wood', 'rectangle'],
+    components := ['board' -> 1, 'legs' -> 4],
+};
+
+WITH MODULE test
+INSERT Item {
+    name := 'floor lamp',
+
+    tag_set1 := 'metal' UNION 'plastic',
+    tag_set2 := 'metal' UNION 'plastic',
+    tag_array := ['metal', 'plastic'],
+    components := ['legs' -> 1, 'bulbs' -> 3],
+};
+
+# some items with incomplete data
+#
+WITH MODULE test
+INSERT Item {
+    name := 'chair',
+
+    tag_set1 := 'wood' UNION 'rectangle',
+    tag_array := ['wood', 'rectangle'],
+    components := ['board' -> 2, 'legs' -> 4],
+};
+
+
+WITH MODULE test
+INSERT Item {
+    name := 'tv',
+
+    tag_set2 := 'plastic' UNION 'rectangle',
+    tag_array := ['plastic', 'rectangle'],
+    components := ['screen' -> 1],
+};
+
+
+WITH MODULE test
+INSERT Item {
+    name := 'ball',
+
+    tag_set1 := 'plastic' UNION 'round',
+    tag_set2 := 'plastic' UNION 'round',
+};
+
+
+WITH MODULE test
+INSERT Item {
+    name := 'teapot',
+
+    tag_array := ['ceramic', 'round'],
+};
+
+WITH MODULE test
+INSERT Item {
+    name := 'mystery toy',
+
+    components := ['screen' -> 1, 'bulbs' -> 4, 'buttons' -> 42],
+};
+
+# no known properties
+#
+WITH MODULE test
+INSERT Item {
+    name := 'ectoplasm',
+};
