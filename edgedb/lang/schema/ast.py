@@ -182,6 +182,10 @@ class EventDeclaration(Declaration):
     pass
 
 
+class ViewDeclaration(Declaration):
+    pass
+
+
 class Language(s_enum.StrEnum):
     SQL = 'SQL'
     EdgeQL = 'EDGEQL'

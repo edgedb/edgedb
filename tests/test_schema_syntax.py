@@ -610,3 +610,17 @@ link time_estimate:
         aggregate len() -> std::int:
             from sql function: length
         """
+
+    def test_eschema_syntax_view01(self):
+        """
+        view FooBaz:
+            expr := SELECT Foo FILTER Foo.bar = 'baz'
+            description: 'Special Foo'
+        """
+
+    def test_eschema_syntax_view02(self):
+        """
+        view FooBaz:
+            expr :=
+                SELECT Foo FILTER Foo.bar = 'baz'
+        """

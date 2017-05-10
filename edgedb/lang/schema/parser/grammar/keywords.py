@@ -39,6 +39,7 @@ edge_schema_keywords = {
     "to": ("TO", UNRESERVED_KEYWORD),
     "true": ("TRUE", RESERVED_KEYWORD),
     "value": ("VALUE", UNRESERVED_KEYWORD),
+    "view": ("VIEW", UNRESERVED_KEYWORD),
 }
 
 

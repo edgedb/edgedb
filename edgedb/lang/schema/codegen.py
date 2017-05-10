@@ -156,6 +156,9 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
     def visit_LinkPropertyDeclaration(self, node):
         self._visit_Declaration(node)
 
+    def visit_ViewDeclaration(self, node):
+        self._visit_Declaration(node)
+
     def visit_FunctionDeclaration(self, node):
         if node.aggregate:
             self.write('aggregate ')

@@ -198,6 +198,9 @@ class Declaration(Nonterm):
     def reduce_AggregateDeclaration(self, kid):
         self.val = kid.val
 
+    def reduce_ViewDeclaration(self, kid):
+        self.val = kid.val
+
 
 class DeclarationList(ListNonterm, element=Declaration):
     pass
@@ -410,6 +413,12 @@ class EventDeclaration(Nonterm):
                     'illegal definition', context=spec.context)
 
         self.val = esast.EventDeclaration(kids[1].val, attributes=attributes)
+
+
+class ViewDeclaration(Nonterm):
+    def reduce_VIEW_Identifier_COLON_NL_INDENT_Attributes_DEDENT(self, *kids):
+        self.val = esast.ViewDeclaration(name=kids[1].val,
+                                         attributes=kids[5].val)
 
 
 class FunctionDeclaration(Nonterm):
