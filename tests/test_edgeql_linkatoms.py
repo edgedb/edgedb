@@ -85,14 +85,13 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_links_map_atoms01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Item {
                 name,
-                tag_set1 ORDER BY tag_set1 DESC,
-                tag_set2 ORDER BY tag_set2 ASC,
+                tag_set1 ORDER BY Item.tag_set1 DESC,
+                tag_set2 ORDER BY Item.tag_set2 ASC,
             } ORDER BY .name;
         ''', [
             [
@@ -100,62 +99,45 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
                     'name': 'ball',
                     'tag_set1': ['round', 'plastic'],
                     'tag_set2': ['plastic', 'round'],
-                    'tag_array': None,
-                    'components': None
                 }, {
                     'name': 'chair',
                     'tag_set1': ['wood', 'rectangle'],
                     'tag_set2': None,
-                    'tag_array': ['wood', 'rectangle'],
-                    'components': {'legs': 4, 'board': 2}
                 }, {
                     'name': 'ectoplasm',
                     'tag_set1': None,
                     'tag_set2': None,
-                    'tag_array': None,
-                    'components': None
                 }, {
                     'name': 'floor lamp',
                     'tag_set1': ['plastic', 'metal'],
                     'tag_set2': ['metal', 'plastic'],
-                    'tag_array': ['metal', 'plastic'],
-                    'components': {'legs': 1, 'bulbs': 3}
                 }, {
                     'name': 'mystery toy',
                     'tag_set1': None,
                     'tag_set2': None,
-                    'tag_array': None,
-                    'components': {'bulbs': 4, 'screen': 1, 'buttons': 42}
                 }, {
                     'name': 'table',
                     'tag_set1': ['wood', 'rectangle'],
                     'tag_set2': ['rectangle', 'wood'],
-                    'tag_array': ['wood', 'rectangle'],
-                    'components': {'legs': 4, 'board': 1}
                 }, {
                     'name': 'teapot',
                     'tag_set1': None,
                     'tag_set2': None,
-                    'tag_array': ['ceramic', 'round'],
-                    'components': None
                 }, {
                     'name': 'tv',
                     'tag_set1': None,
                     'tag_set2': ['plastic', 'rectangle'],
-                    'tag_array': ['plastic', 'rectangle'],
-                    'components': {'screen': 1}
                 },
             ]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_links_map_atoms02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Item {
                 name,
-                tag_set1 ORDER BY tag_set1 DESC LIMIT 1,
-                tag_set2 ORDER BY tag_set2 ASC OFFSET 1,
+                tag_set1 ORDER BY Item.tag_set1 DESC LIMIT 1,
+                tag_set2 ORDER BY Item.tag_set2 ASC OFFSET 1,
             } ORDER BY .name;
         ''', [
             [
@@ -182,7 +164,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
                 }, {
                     'name': 'table',
                     'tag_set1': ['wood'],
-                    'tag_set2': ['wood'],
+                    'tag_set2': ['rectangle'],
                 }, {
                     'name': 'teapot',
                     'tag_set1': None,
@@ -201,8 +183,8 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             WITH MODULE test
             SELECT Item {
                 name,
-                tag_set1 FILTER tag_set1 > 'p',
-                tag_set2 FILTER tag_set2 < 'w',
+                tag_set1 FILTER Item.tag_set1 > 'p',
+                tag_set2 FILTER Item.tag_set2 < 'w',
             } ORDER BY .name;
         ''', [
             [
