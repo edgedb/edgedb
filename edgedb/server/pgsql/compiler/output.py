@@ -8,6 +8,9 @@
 
 
 from edgedb.lang.ir import ast as irast
+from edgedb.lang.ir import utils as irutils
+
+from edgedb.lang.schema import objects as s_obj
 
 from edgedb.server.pgsql import ast as pgast
 from edgedb.server.pgsql import common
@@ -16,6 +19,7 @@ from . import astutils
 from . import context
 from . import dbobj
 from . import dispatch
+from . import pathctx
 
 
 def rtlist_as_json_object(rtlist):
@@ -120,6 +124,23 @@ def ensure_query_restarget_name(
         _get_restarget(query)
 
     return rt_name
+
+
+def ensure_output(
+        ir_set: irast.Set, query: pgast.Query, *,
+        hint=None, env: context.Environment) -> None:
+
+    restype = irutils.infer_type(ir_set, env.schema)
+    if isinstance(restype, s_obj.Tuple):
+        attmap = []
+
+        for n in ir_set.scls.element_types:
+            attmap.append(common.edgedb_name_to_pg_name(n))
+
+        pathctx.put_path_output(env, query, ir_set, attmap)
+    else:
+        rt_name = ensure_query_restarget_name(query, hint=hint, env=env)
+        pathctx.put_path_output(env, query, ir_set, rt_name)
 
 
 def compile_output(

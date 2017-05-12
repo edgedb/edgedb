@@ -252,7 +252,8 @@ def wrap_set_rel_as_bool_disjunction(
 def get_var_for_set_expr(
         ir_set: irast.Set, source_rvar: pgast.BaseRangeVar, *,
         ctx: context.CompilerContextLevel) -> pgast.Base:
-    if ((irutils.is_subquery_set(ir_set) or
+    if (((irutils.is_subquery_set(ir_set) and
+            not irutils.is_strictly_view_set(ir_set)) or
             isinstance(ir_set.expr, irast.SetOp)) and
             output.in_serialization_ctx(ctx)):
         # If the set is a subquery or a set op, and we are serializing the
@@ -505,9 +506,7 @@ def process_set_as_view(
             if not path_id.startswith(ir_set.path_id):
                 subquery.path_bonds.discard(path_id)
 
-    rt_name = output.ensure_query_restarget_name(
-        subquery, hint=cte.name, env=ctx.env)
-    pathctx.put_path_output(ctx.env, subquery, ir_set, rt_name)
+    output.ensure_output(ir_set, subquery, hint=cte.name, env=ctx.env)
 
     relctx.ensure_bond_for_expr(ir_set, subquery, ctx=ctx)
 
