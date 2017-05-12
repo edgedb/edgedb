@@ -131,7 +131,6 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_links_map_atoms02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -165,7 +164,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
                 }, {
                     'name': 'table',
                     'tag_set1': ['wood'],
-                    'tag_set2': ['rectangle'],
+                    'tag_set2': ['wood'],
                 }, {
                     'name': 'teapot',
                     'tag_set1': None,
@@ -173,12 +172,11 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
                 }, {
                     'name': 'tv',
                     'tag_set1': None,
-                    'tag_set2': ['plastic'],
+                    'tag_set2': ['rectangle'],
                 },
             ]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_links_map_atoms03(self):
         await self.assert_query_result(r'''
             WITH MODULE test

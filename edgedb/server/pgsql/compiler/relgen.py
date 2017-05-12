@@ -460,6 +460,7 @@ def process_set_as_path_step(
     if return_parent:
         relctx.put_set_cte(ir_set, source_rel, ctx=ctx)
     else:
+        relctx.ensure_bond_for_expr(ir_set, stmt, ctx=ctx)
         cte = relctx.get_set_cte(ir_set, ctx=ctx)
         ctx.query.ctes.append(cte)
 

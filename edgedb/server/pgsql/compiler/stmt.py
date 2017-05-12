@@ -13,6 +13,7 @@ from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import concepts as s_concepts
 from edgedb.lang.schema import objects as s_obj
+from edgedb.lang.schema import views as s_views
 from edgedb.server.pgsql import ast as pgast
 from edgedb.server.pgsql import common
 
@@ -282,7 +283,10 @@ def compile_GroupStmt(
                     ctx.env, gvctx.query, path_id, alias, raw=True)
                 pathctx.put_path_output(
                     ctx.env, gvctx.query, path_id, alias, raw=False)
-                pathctx.put_path_bond(gvctx.query, path_id)
+
+                if isinstance(path_id[-1], (s_concepts.Concept, s_views.View)):
+                    pathctx.put_path_bond(gvctx.query, path_id)
+
                 gvctx.stmt_path_scope[path_id] = 1
 
             relctx.include_range(gvctx.query, group_cte.query, ctx=gvctx)
