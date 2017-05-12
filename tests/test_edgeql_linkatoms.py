@@ -131,6 +131,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ]
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_links_map_atoms02(self):
         await self.assert_query_result(r'''
             WITH MODULE test

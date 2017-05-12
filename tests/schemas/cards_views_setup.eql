@@ -1,0 +1,81 @@
+CREATE VIEW test::AirCard := (
+    WITH MODULE test
+    SELECT Card {
+        owners := (
+            SELECT Card.<deck[IS User]
+        )
+    } FILTER Card.element = 'Air'
+);
+
+
+CREATE VIEW test::WaterCard := (
+    WITH MODULE test
+    SELECT Card {
+        owners := (
+            SELECT Card.<deck[IS User]
+        )
+    } FILTER Card.element = 'Water'
+);
+
+
+CREATE VIEW test::EarthCard := (
+    WITH MODULE test
+    SELECT Card {
+        owners := (
+            SELECT Card.<deck[IS User]
+        )
+    } FILTER Card.element = 'Earth'
+);
+
+
+CREATE VIEW test::FireCard := (
+    WITH MODULE test
+    SELECT Card {
+        owners := (
+            SELECT Card.<deck[IS User]
+        )
+    } FILTER Card.element = 'Fire'
+);
+
+
+CREATE VIEW test::AliceCard := (
+    WITH MODULE test
+    SELECT Card FILTER Card.<deck[IS User].name = 'Alice'
+);
+
+
+CREATE VIEW test::BobCard := (
+    WITH MODULE test
+    SELECT Card FILTER Card.<deck[IS User].name = 'Bob'
+);
+
+
+CREATE VIEW test::CarolCard := (
+    WITH MODULE test
+    SELECT Card FILTER Card.<deck[IS User].name = 'Carol'
+);
+
+
+CREATE VIEW test::DaveCard := (
+    WITH MODULE test
+    SELECT Card FILTER Card.<deck[IS User].name = 'Dave'
+);
+
+
+CREATE VIEW test::expert_map := (
+    SELECT [
+        'Alice' -> 'pro',
+        'Bob' -> 'noob',
+        'Carol' -> 'noob',
+        'Dave' -> 'casual',
+    ]
+);
+
+
+CREATE VIEW test::scores := (
+    SELECT
+        (name := 'Alice', score := 100, games := 10) UNION
+        (name := 'Bob', score := 11, games := 2) UNION
+        (name := 'Carol', score := 31, games := 5) UNION
+        (name := 'Dave', score := 78, games := 10)
+);

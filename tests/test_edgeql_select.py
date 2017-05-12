@@ -1199,6 +1199,18 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '2'}],
         ])
 
+    @unittest.expectedFailure
+    async def test_edgeql_select_setops05(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT
+                (SELECT Issue{number, name} FILTER .number > '2')
+                EXCEPT
+                (SELECT Issue{number} FILTER .owner.name = 'Yury');
+        """, [
+            [{'number': '4'}],
+        ])
+
     async def test_edgeql_select_order01(self):
         await self.assert_query_result(r'''
             WITH MODULE test

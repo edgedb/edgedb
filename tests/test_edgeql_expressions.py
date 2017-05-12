@@ -391,6 +391,16 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT <array<int>>(123, 11);
             """)
 
+    @unittest.expectedFailure
+    async def test_edgeql_expr_cast09(self):
+        await self.assert_query_result(r"""
+            SELECT <tuple<str, int>> ('foo', 42);
+            SELECT <tuple<a := str, b := int>> ('foo', 42);
+        """, [
+            [['foo', 42]],
+            [{'a': 'foo', 'b': 42}],
+        ])
+
     async def test_edgeql_expr_type01(self):
         await self.assert_query_result(r"""
             SELECT 'foo'.__class__.name;
