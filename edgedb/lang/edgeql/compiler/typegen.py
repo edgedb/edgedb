@@ -7,6 +7,7 @@
 """EdgeQL compiler type-related helpers."""
 
 
+import collections
 import typing
 
 from edgedb.lang.common import parsing
@@ -103,3 +104,32 @@ def ql_typeref_to_ir_typeref(
         )
 
     return typ
+
+
+def ql_typeref_to_type(
+        ql_t: qlast.TypeName, *,
+        ctx: context.ContextLevel) -> s_obj.Class:
+    if ql_t.subtypes:
+        coll = s_obj.Collection.get_class(ql_t.maintype.name)
+
+        if issubclass(coll, s_obj.Tuple):
+            subtypes = collections.OrderedDict()
+            named = False
+            for si, st in enumerate(ql_t.subtypes):
+                if st.name:
+                    named = True
+                    type_name = st.name
+                else:
+                    type_name = str(si)
+
+                subtypes[type_name] = ql_typeref_to_type(st, ctx=ctx)
+
+            return coll.from_subtypes(subtypes, {'named': named})
+        else:
+            subtypes = []
+            for st in ql_t.subtypes:
+                subtypes.append(ql_typeref_to_type(st, ctx=ctx))
+
+            return coll.from_subtypes(subtypes)
+    else:
+        return schemactx.get_schema_object(ql_t.maintype, ctx=ctx)

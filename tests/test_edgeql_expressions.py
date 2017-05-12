@@ -385,8 +385,8 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_cast08(self):
-        with self.assertRaisesRegex(exc.UnknownEdgeDBError,
-                                    r'cannot cast type'):
+        with self.assertRaisesRegex(exc.EdgeQLError,
+                                    r'cannot cast tuple'):
             await self.con.execute(r"""
                 SELECT <array<int>>(123, 11);
             """)

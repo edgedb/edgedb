@@ -216,19 +216,72 @@ def compile_Coalesce(
 def compile_TypeCast(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
     maintype = expr.type.maintype
-    typ = typegen.ql_typeref_to_ir_typeref(expr.type, ctx=ctx)
 
-    if isinstance(expr.expr, qlast.EmptyCollection):
+    if (isinstance(expr.expr, qlast.EmptyCollection) and
+            maintype.name in ('array', 'map')):
         if maintype.name == 'array':
-            wrapped = irast.Array()
+            ir_expr = irast.Array()
         elif maintype.name == 'map':
-            wrapped = irast.Mapping()
-        else:
-            wrapped = dispatch.compile(expr.expr, ctx=ctx)
+            ir_expr = irast.Mapping()
     else:
-        wrapped = dispatch.compile(expr.expr, ctx=ctx)
+        ir_expr = dispatch.compile(expr.expr, ctx=ctx)
 
-    return irast.TypeCast(expr=wrapped, type=typ)
+    return _cast_expr(expr.type, ir_expr, ctx=ctx,
+                      source_context=expr.expr.context)
+
+
+def _cast_expr(
+        ql_type: qlast.TypeName, ir_expr: irast.Base, *,
+        source_context: parsing.ParserContext,
+        ctx: context.ContextLevel) -> irast.Base:
+    try:
+        orig_type = irutils.infer_type(ir_expr, ctx.schema)
+    except errors.EdgeQLError:
+        # It is possible that the source expression is unresolved
+        # if the expr is EMPTY (or a coalesce of EMPTY).
+        orig_type = None
+
+    if isinstance(orig_type, s_obj.Tuple):
+        # For tuple-to-tuple casts we generate a new tuple
+        # to simplify things on sqlgen side.
+        new_type = typegen.ql_typeref_to_type(ql_type, ctx=ctx)
+        if not isinstance(new_type, s_obj.Tuple):
+            raise errors.EdgeQLError(
+                f'cannot cast tuple to {new_type.name}',
+                context=source_context)
+
+        if len(orig_type.element_types) != len(new_type.element_types):
+            raise errors.EdgeQLError(
+                f'cannot cast to {new_type.name}: '
+                f'number of elements is not the same',
+                context=source_context)
+
+        new_names = list(new_type.element_types)
+
+        elements = []
+        for i, n in enumerate(orig_type.element_types):
+            val = setgen.generated_set(
+                irast.TupleIndirection(
+                    expr=ir_expr,
+                    name=n
+                ),
+                ctx=ctx
+            )
+
+            val_type = irutils.infer_type(val, ctx.schema)
+            new_el_name = new_names[i]
+            if val_type != new_type.element_types[new_el_name]:
+                # Element cast
+                val = _cast_expr(ql_type.subtypes[i], val, ctx=ctx,
+                                 source_context=source_context)
+
+            elements.append(irast.TupleElement(name=new_el_name, val=val))
+
+        return irast.Tuple(named=new_type.named, elements=elements)
+
+    else:
+        typ = typegen.ql_typeref_to_ir_typeref(ql_type, ctx=ctx)
+        return irast.TypeCast(expr=ir_expr, type=typ)
 
 
 @dispatch.compile.register(qlast.TypeFilter)
