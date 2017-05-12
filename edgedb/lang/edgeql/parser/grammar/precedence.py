@@ -17,11 +17,8 @@ class Precedence(parsing.Precedence, assoc='fail', metaclass=PrecedenceMeta):
     pass
 
 
-class P_UNION_EXCEPT(Precedence, assoc='left', tokens=('UNION', 'EXCEPT')):
-    pass
-
-
-class P_INTERSECT(Precedence, assoc='left', tokens=('INTERSECT',)):
+class P_SETOP(Precedence, assoc='left',
+              tokens=('UNION', 'EXCEPT', 'INTERSECT')):
     pass
 
 
