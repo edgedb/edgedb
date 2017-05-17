@@ -15,7 +15,7 @@ class EdgeQLLexer(RegexLexer):
             include('comments'),
             include('keywords'),
             (r'@\w+', token.Name.Decorator),
-            (r'\$\w+', token.Name.Variable),
+            (r'\$[\w\d]+', token.Name.Variable),
             include('numbers'),
             include('strings'),
             (r'(?i)\b(true|false|empty)\b', token.Keyword.Constant),
@@ -28,20 +28,21 @@ class EdgeQLLexer(RegexLexer):
         'keywords': [
             (r'''(?ix)
                 \b(?<![:\.])(
-                    abstract | action | after | aggregate | all |
-                    alter | and | any | as | asc | atom | attribute |
-                    before | by | commit | concept | constraint |
-                    create | database | delete | desc | distinct |
-                    drop | else | except | exists | event |
-                    filter | final | first | for | from |
-                    function | get | group | if | ilike | in | index |
-                    inherit | inheriting | insert | intersect | is |
-                    last | like | limit | link | migration | module |
-                    not | offset | or | order | over | partition |
-                    policy | property | required | rename | returning |
-                    rollback | select | set | singleton | start |
-                    target | then | to | transaction | update |
-                    union | view | with
+                    abstract | action | after | array | as | asc |
+                    atom | attribute | before | by | concept |
+                    constraint | database | desc | event | final |
+                    first | for | from | index | inherit | inheriting |
+                    initial | last | link | map | migration | of |
+                    policy | property | required | rename | target |
+                    then | to | transaction | tuple | value | view |
+
+                    aggregate | all | alter | and | any | commit |
+                    create | delete | distinct | drop | else | except |
+                    exists | filter | function | get | group | if |
+                    ilike | in | insert | intersect | is | like |
+                    limit | module | not | offset | or | order | over |
+                    partition | returning | rollback | select | set |
+                    singleton | start | update | union | with
                 )\b
             ''', token.Keyword.Reserved),
         ],

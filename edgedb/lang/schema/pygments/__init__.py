@@ -28,8 +28,9 @@ class EdgeSchemaLexer(lexer.RegexLexer):
         'keywords': [
             (r'''(?x)
                 \b(?<![:\.])(
-                  action | atom | attribute | concept | constraint | event |
-                  extends | index | link | linkproperty | properties
+                  action | atom | attribute | concept | constraint |
+                  event | extends | index | initial | link |
+                  linkproperty | properties | value | view
                 )\b
             ''', token.Keyword.Reserved),
 
