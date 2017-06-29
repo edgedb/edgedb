@@ -1,0 +1,24 @@
+language: generic
+
+matrix:
+    include:
+        - os: linux
+          dist: trusty
+          sudo: false
+          language: python
+          python: "3.6"
+          services: postgresql
+          env: BUILD=tests PGVERSION=9.6
+          addons:
+              postgresql: '9.6'
+
+cache:
+    pip: true
+    directories:
+        - build
+
+install:
+    - .ci/travis-install.sh
+
+script:
+    - .ci/travis-tests.sh
