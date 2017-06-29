@@ -1,0 +1,4 @@
+--index-url https://pypi.sprymix.net/simple/
+
+Sphinx
+sphinxcontrib-aafig
