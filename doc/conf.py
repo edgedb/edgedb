@@ -41,6 +41,7 @@ extensions = [
     'sphinx.ext.todo',
     'sphinx.ext.viewcode',
     'sphinxcontrib.aafig',
+    'sphinxcontrib.srclinks',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -166,7 +167,11 @@ html_static_path = ['_static']
 
 # Custom sidebar templates, maps document names to template names.
 html_sidebars = {
-    '**': ['globaltoc.html', 'sourcelink.html', 'searchbox.html']
+    '**': [
+        'globaltoc.html',
+        'srclinks.html',
+        'searchbox.html',
+    ]
 }
 
 # Additional templates that should be rendered to pages, maps page names to
@@ -296,3 +301,10 @@ texinfo_documents = [
 
 # If true, do not generate a @detailmenu in the "Top" node's menu.
 # texinfo_no_detailmenu = False
+
+
+# config for srclink
+
+srclink_project = 'https://github.com/edgedb/edgedb'
+srclink_src_path = 'doc/'
+srclink_branch = 'doc'

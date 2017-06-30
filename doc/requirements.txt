@@ -1,4 +1,5 @@
---index-url https://pypi.sprymix.net/simple/
+--index-url https://pypi.magicstack.net/simple/
 
 Sphinx
 sphinxcontrib-aafig
+sphinxcontrib-srclinks
