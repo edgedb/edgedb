@@ -73,9 +73,10 @@ CREATE VIEW test::expert_map := (
 
 
 CREATE VIEW test::scores := (
-    SELECT
-        (name := 'Alice', score := 100, games := 10) UNION
-        (name := 'Bob', score := 11, games := 2) UNION
-        (name := 'Carol', score := 31, games := 5) UNION
-        (name := 'Dave', score := 78, games := 10)
+    SELECT {
+        (name := 'Alice', score := 100, games := 10),
+        (name := 'Bob', score := 11, games := 2),
+        (name := 'Carol', score := 31, games := 5),
+        (name := 'Dave', score := 78, games := 10),
+    }
 );

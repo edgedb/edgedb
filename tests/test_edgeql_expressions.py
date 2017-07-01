@@ -415,6 +415,38 @@ class TestExpressions(tb.QueryTestCase):
             ['std::float'],
         ])
 
+    async def test_edgeql_expr_set01(self):
+        await self.assert_query_result("""
+            SELECT <int>{};
+            SELECT {1};
+            SELECT {'foo'};
+            SELECT {1} = 1;
+        """, [
+            [],
+            [1],
+            ['foo'],
+            [True],
+        ])
+
+    async def test_edgeql_expr_set02(self):
+        await self.assert_query_result("""
+            WITH
+                MODULE schema,
+                A := (SELECT Concept FILTER Concept.name ILIKE 'schema::a%'),
+                C := (SELECT Concept FILTER Concept.name ILIKE 'schema::c%'),
+                D := (SELECT Concept FILTER Concept.name ILIKE 'schema::d%')
+            SELECT _ := {A, D, C}.name
+            ORDER BY _;
+        """, [
+            [
+                'schema::Array', 'schema::Atom', 'schema::Attribute',
+                'schema::Class', 'schema::Concept',
+                'schema::ConsistencySubject', 'schema::Constraint',
+                'schema::Delta', 'schema::DerivedConcept',
+                'schema::DerivedLink'
+            ],
+        ])
+
     async def test_edgeql_expr_array01(self):
         await self.assert_query_result("""
             SELECT [1];
@@ -493,9 +525,9 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_array06(self):
         res = await self.con.execute('''
-            SELECT array_agg(ALL 1 UNION 2 UNION 3);
-            SELECT array_agg(ALL 3 UNION 2 UNION 3);
-            SELECT array_agg(ALL 3 UNION 3 UNION 2);
+            SELECT array_agg(ALL {1, 2, 3});
+            SELECT array_agg(ALL {3, 2, 3});
+            SELECT array_agg(ALL {3, 3, 2});
         ''')
         self.assert_data_shape(res, [
             [[1, 2, 3]],
@@ -505,10 +537,10 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_array07(self):
         await self.assert_query_result('''
-            WITH x := (3 UNION 1 UNION 2)
+            WITH x := {3, 1, 2}
             SELECT array_agg(ALL x ORDER BY x);
 
-            WITH x := (3 UNION 1 UNION 2)
+            WITH x := {3, 1, 2}
             SELECT array_agg(ALL x ORDER BY x) = [1, 2, 3];
         ''', [
             [[1, 2, 3]],
@@ -533,13 +565,13 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_array09(self):
         await self.assert_query_result('''
-            WITH x := (3 UNION 1 UNION 2)
+            WITH x := {3, 1, 2}
             SELECT 2 IN array_agg(ALL x ORDER BY x);
 
-            WITH x := (3 UNION 1 UNION 2)
+            WITH x := {3, 1, 2}
             SELECT 5 IN array_agg(ALL x ORDER BY x);
 
-            WITH x := (3 UNION 1 UNION 2)
+            WITH x := {3, 1, 2}
             SELECT 5 NOT IN array_agg(ALL x ORDER BY x);
         ''', [
             [True],
@@ -640,9 +672,9 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_uniqueness04(self):
         await self.assert_query_result('''
-            SELECT _ := (1 UNION 1 UNION 1) ORDER BY _;
-            SELECT _ := (1 UNION 2 UNION 3) ORDER BY _;
-            SELECT _ := (1 UNION 2 UNION 3 UNION 2 UNION 3) ORDER BY _;
+            SELECT _ := {1, 1, 1} ORDER BY _;
+            SELECT _ := {1, 2, 3} ORDER BY _;
+            SELECT _ := {1, 2, 3, 2, 3} ORDER BY _;
         ''', [
             [1],
             [1, 2, 3],
@@ -820,7 +852,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_struct02(self):
         await self.assert_query_result('''\
-            SELECT _ := (spam := (1 UNION 2), ham := (3 UNION 4))
+            SELECT _ := (spam := {1, 2}, ham := {3, 4})
             ORDER BY _.spam THEN _.ham;
         ''', [[
             {'ham': 3, 'spam': 1},
@@ -1071,6 +1103,18 @@ class TestExpressions(tb.QueryTestCase):
             [4],
         ])
 
+    async def test_edgeql_expr_setop03(self):
+        res = await self.con.execute('''
+            SELECT array_agg(ALL 1 UNION 2 UNION 3);
+            SELECT array_agg(ALL 3 UNION 2 UNION 3);
+            SELECT array_agg(ALL 3 UNION 3 UNION 2);
+        ''')
+        self.assert_data_shape(res, [
+            [[1, 2, 3]],
+            [[3, 2, 3]],
+            [[3, 3, 2]],
+        ])
+
     async def test_edgeql_expr_cardinality01(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError,
@@ -1149,7 +1193,7 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(exc.UnknownEdgeDBError,
                                     r'operator does not exist'):
             await self.con.execute(r'''
-                SELECT (1 UNION 2) = [1, 2];
+                SELECT {1, 2} = [1, 2];
             ''')
 
     @unittest.expectedFailure
@@ -1157,7 +1201,7 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(exc.UnknownEdgeDBError,
                                     r'operator does not exist'):
             await self.con.execute(r'''
-                SELECT (1 UNION 2) = (1, 2);
+                SELECT {1, 2} = (1, 2);
             ''')
 
     async def test_edgeql_expr_aggregate01(self):
@@ -1170,13 +1214,13 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_aggregate02(self):
         await self.assert_query_result(r"""
-            SELECT count(DISTINCT 1 UNION 1 UNION 1);
-            SELECT count(DISTINCT 1 UNION 2 UNION 3);
-            SELECT count(DISTINCT 1 UNION 2 UNION 3 UNION 2 UNION 3);
+            SELECT count(DISTINCT {1, 1, 1});
+            SELECT count(DISTINCT {1, 2, 3});
+            SELECT count(DISTINCT {1, 2, 3, 2, 3});
 
-            SELECT count(ALL 1 UNION 1 UNION 1);
-            SELECT count(ALL 1 UNION 2 UNION 3);
-            SELECT count(ALL 1 UNION 2 UNION 3 UNION 2 UNION 3);
+            SELECT count(ALL {1, 1, 1});
+            SELECT count(ALL {1, 2, 3});
+            SELECT count(ALL {1, 2, 3, 2, 3});
         """, [
             [1],
             [3],

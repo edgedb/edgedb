@@ -296,12 +296,12 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Item {name}
-            FILTER .tag_set1 = ('rectangle' UNION 'wood')
+            FILTER .tag_set1 = {'rectangle', 'wood'}
             ORDER BY .name;
 
             WITH MODULE test
             SELECT Item {name}
-            FILTER .tag_set2 = ('rectangle' UNION 'wood')
+            FILTER .tag_set2 = {'rectangle', 'wood'}
             ORDER BY .name;
         ''', [
             [
@@ -319,12 +319,12 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             #
             WITH MODULE test
             SELECT Item {name}
-            FILTER .tag_set1 IN ('rectangle' UNION 'wood')
+            FILTER .tag_set1 IN {'rectangle', 'wood'}
             ORDER BY .name;
 
             WITH MODULE test
             SELECT Item {name}
-            FILTER .tag_set2 IN ('rectangle' UNION 'wood')
+            FILTER .tag_set2 IN {'rectangle', 'wood'}
             ORDER BY .name;
         ''', [
             [
@@ -342,8 +342,8 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             WITH MODULE test
             SELECT Item {
                 name,
-                foo := Item.tag_set1 INTERSECT ('rectangle' UNION 'wood'),
-                bar := Item.tag_set2 INTERSECT ('rectangle' UNION 'wood'),
+                foo := Item.tag_set1 INTERSECT {'rectangle', 'wood'},
+                bar := Item.tag_set2 INTERSECT {'rectangle', 'wood'},
             }
             ORDER BY .name;
         ''', [
@@ -392,13 +392,13 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             WITH MODULE test
             SELECT Item {name}
             FILTER count(ALL
-                Item.tag_set1 INTERSECT ('rectangle' UNION 'wood')) = 2
+                Item.tag_set1 INTERSECT {'rectangle', 'wood'}) = 2
             ORDER BY .name;
 
             WITH MODULE test
             SELECT Item {name}
             FILTER count(ALL
-                Item.tag_set2 INTERSECT ('rectangle' UNION 'wood')) = 2
+                Item.tag_set2 INTERSECT {'rectangle', 'wood'}) = 2
             ORDER BY .name;
         ''', [
             [
@@ -417,7 +417,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             #
             WITH
                 MODULE test,
-                cmp := ('rectangle' UNION 'wood')
+                cmp := {'rectangle', 'wood'}
             SELECT Item {name}
             FILTER
                 count(ALL .tag_set1 INTERSECT cmp) =
@@ -426,7 +426,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
 
             WITH
                 MODULE test,
-                cmp := ('rectangle' UNION 'wood')
+                cmp := {'rectangle', 'wood'}
             SELECT Item {name}
             FILTER
                 count(ALL .tag_set2 INTERSECT cmp) =

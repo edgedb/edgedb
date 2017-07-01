@@ -1700,6 +1700,16 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT (2 * ((1 UNION 2) EXCEPT 1));
         """
 
+    def test_edgeql_syntax_set05(self):
+        """
+        SELECT {};
+        SELECT {1};
+        SELECT {1, 2};
+        SELECT {1, 2, {}, {1, 3}};
+        SELECT {Foo.bar, Foo.baz};
+        SELECT {Foo.bar, Foo.baz}.spam;
+        """
+
     def test_edgeql_syntax_insert01(self):
         """
         INSERT Foo;
@@ -2021,16 +2031,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         SELECT (name := 'foo', val := 42).name;
         SELECT (name := 'foo', val := 42).val;
-        """
-
-    def test_edgeql_syntax_set01(self):
-        """
-        SELECT {};
-        SELECT {1};
-        SELECT {1, 2};
-        SELECT {1, 2, {}, {1, 3}};
-        SELECT {Foo.bar, Foo.baz};
-        SELECT {Foo.bar, Foo.baz}.spam;
         """
 
     # DDL

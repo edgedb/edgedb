@@ -111,7 +111,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
     async def test_edgeql_group_expr_01(self):
         await self.assert_query_result(r'''
             GROUP
-                x := (1, 2) UNION (3, 4) UNION (4, 2)
+                x := {(1, 2), (3, 4), (4, 2)}
             BY
                 x.1
             SELECT
@@ -911,7 +911,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         await self.assert_query_result(r"""
             WITH MODULE test
             GROUP
-                I := (1 UNION 2 UNION 3 UNION 4)
+                I := {1, 2, 3, 4}
             BY
                 I % 2 = 0
             SELECT _ := (

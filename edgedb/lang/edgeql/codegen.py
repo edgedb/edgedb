@@ -466,9 +466,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write('$')
         self.write(node.name)
 
-    def visit_EmptySet(self, node):
-        self.write('{}')
-
     def visit_Constant(self, node, *, parenthesise=False):
         # XXX: parenthesise is ignored completely, but exists as a
         # parameter for compatibility

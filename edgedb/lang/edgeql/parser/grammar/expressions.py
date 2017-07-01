@@ -806,10 +806,7 @@ class NamedTupleElementList(ListNonterm, element=NamedTupleElement,
 
 class Set(Nonterm):
     def reduce_LBRACE_OptExprList_RBRACE(self, *kids):
-        if kids[1].val:
-            self.val = qlast.Set(elements=kids[1].val)
-        else:
-            self.val = qlast.EmptySet()
+        self.val = qlast.Set(elements=kids[1].val)
 
 
 class Collection(Nonterm):

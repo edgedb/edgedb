@@ -189,7 +189,7 @@ class TestEdgeQLContainers(tb.QueryTestCase):
             WITH MODULE test
             SELECT Issue {
                 number,
-            } FILTER .number IN ('1' UNION '2' UNION '3')
+            } FILTER .number IN {'1', '2', '3'}
               ORDER BY .number;
         ''', [[
             {'number': '1'},
@@ -242,7 +242,7 @@ class TestEdgeQLContainers(tb.QueryTestCase):
         await self.assert_query_result('''
             WITH
                 MODULE test,
-                x := '1' UNION '2' UNION '3'
+                x := {'1', '2', '3'}
             SELECT Issue {
                 number,
             } FILTER .number IN x
@@ -257,7 +257,7 @@ class TestEdgeQLContainers(tb.QueryTestCase):
         await self.assert_query_result('''
             WITH
                 MODULE test,
-                x := array_agg(ALL '1' UNION '2' UNION '3')
+                x := array_agg(ALL {'1', '2', '3'})
             SELECT Issue {
                 number,
             } FILTER .number IN x

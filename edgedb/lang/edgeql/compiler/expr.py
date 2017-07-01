@@ -72,10 +72,29 @@ def compile_Parameter(
     return irast.Parameter(type=pt, name=expr.name)
 
 
-@dispatch.compile.register(qlast.EmptySet)
-def compile_EmptySet(
+@dispatch.compile.register(qlast.Set)
+def compile_Set(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
-    return irast.EmptySet()
+    if expr.elements:
+        if len(expr.elements) == 1:
+            return dispatch.compile(expr.elements[0], ctx=ctx)
+        else:
+            # FIXME: this is sugar for a UNION (need to change to UNION ALL)
+            elements = flatten_set(expr)
+            bigunion = qlast.BinOp(
+                left=elements[0],
+                right=elements[1],
+                op=qlast.UNION
+            )
+            for el in elements[2:]:
+                bigunion = qlast.BinOp(
+                    left=bigunion,
+                    right=el,
+                    op=qlast.UNION
+                )
+            return dispatch.compile(bigunion, ctx=ctx)
+    else:
+        return irast.EmptySet()
 
 
 @dispatch.compile.register(qlast.Constant)
@@ -205,7 +224,7 @@ def compile_ExistsPredicate(
 @dispatch.compile.register(qlast.Coalesce)
 def compile_Coalesce(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
-    if all(isinstance(a, qlast.EmptySet) for a in expr.args):
+    if all(isinstance(a, qlast.Set) and not a.elements for a in expr.args):
         return irast.EmptySet()
 
     args = [dispatch.compile(a, ctx=ctx) for a in expr.args]
@@ -532,3 +551,14 @@ def compile_ifelse(
 
     return irast.SetOp(left=if_expr.expr, right=else_expr.expr,
                        op=qlast.UNION, exclusive=True)
+
+
+def flatten_set(expr: qlast.Set) -> typing.List[qlast.Expr]:
+    elements = []
+    for el in expr.elements:
+        if isinstance(el, qlast.Set):
+            elements.extend(flatten_set(el))
+        else:
+            elements.append(el)
+
+    return elements

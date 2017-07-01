@@ -3242,11 +3242,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             WITH
                 MODULE test,
-                _ := (
-                    ('Elvis',)
-                    UNION
-                    ('Yury',)
-                )
+                _ := {('Elvis',), ('Yury',)}
             SELECT
                 User {
                     name
@@ -3265,7 +3261,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT
                 User {
-                    t := (1, 2) UNION (3, 4)
+                    t := {(1, 2), (3, 4)}
                 }
             FILTER
                 User.name = 'Elvis'

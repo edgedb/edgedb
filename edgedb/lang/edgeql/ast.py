@@ -190,10 +190,6 @@ class Constant(Expr):
     value: typing.Union[int, str, float, bool]
 
 
-class EmptySet(Expr):
-    pass
-
-
 class Parameter(Expr):
     name: str
 

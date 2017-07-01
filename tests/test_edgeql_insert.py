@@ -491,7 +491,7 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_for01(self):
         res = await self.con.execute('''
             WITH MODULE test
-            FOR x IN 3 UNION 5 UNION 7 UNION 2
+            FOR x IN {3, 5, 7, 2}
             INSERT InsertTest {
                 name := 'insert for 1',
                 l2 := x,
@@ -566,7 +566,7 @@ class TestInsert(tb.QueryTestCase):
             WITH MODULE test
             FOR x IN (
                 SELECT _i := (
-                    FOR y IN 3 UNION 5 UNION 7 UNION 2
+                    FOR y IN {3, 5, 7, 2}
                     INSERT InsertTest {
                         name := 'insert expr 1',
                         l2 := y,
@@ -633,7 +633,7 @@ class TestInsert(tb.QueryTestCase):
             WITH
                 MODULE test,
                 _i := (
-                    FOR x IN 3 UNION 5 UNION 7 UNION 2
+                    FOR x IN {3, 5, 7, 2}
                     INSERT InsertTest {
                         name := 'insert expr 2',
                         l2 := x,
