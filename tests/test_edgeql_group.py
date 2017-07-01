@@ -512,7 +512,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             SELECT (
                 numbers := array_agg(
                     ALL Issue.number ORDER BY Issue.number),
-                # watchers will sometimes be EMPTY resulting in []
+                # watchers will sometimes be empty resulting in []
                 watchers := array_agg(
                     ALL Issue.watchers.name ORDER BY Issue.watchers.name),
                 status := Issue.status.name,

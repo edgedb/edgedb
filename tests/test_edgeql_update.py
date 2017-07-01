@@ -854,7 +854,7 @@ class TestUpdate(tb.QueryTestCase):
             FILTER UpdateTest.name = 'update-test1'
             SET {
                 annotated_status: {
-                    @note := <str>EMPTY
+                    @note := <str>{}
                 }
             };
 

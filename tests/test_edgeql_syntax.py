@@ -132,7 +132,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         SELECT TRUE;
         SELECT FALSE;
-        SELECT EMPTY;
         """
 
     def test_edgeql_syntax_contants06(self):
@@ -756,7 +755,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected token.*BRACE", line=2, col=16)
+                  "Unexpected token.*TURNSTILE", line=3, col=18)
     def test_edgeql_syntax_shape14(self):
         """
         SELECT {
@@ -1431,7 +1430,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_cast04(self):
         """
-        SELECT -<int>EMPTY;
+        SELECT -<int>{};
         """
 
     def test_edgeql_syntax_cast05(self):
@@ -2022,6 +2021,16 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         SELECT (name := 'foo', val := 42).name;
         SELECT (name := 'foo', val := 42).val;
+        """
+
+    def test_edgeql_syntax_set01(self):
+        """
+        SELECT {};
+        SELECT {1};
+        SELECT {1, 2};
+        SELECT {1, 2, {}, {1, 3}};
+        SELECT {Foo.bar, Foo.baz};
+        SELECT {Foo.bar, Foo.baz}.spam;
         """
 
     # DDL

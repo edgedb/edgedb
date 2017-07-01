@@ -541,7 +541,7 @@ class ParenExpr(Nonterm):
 
 class Expr(Nonterm):
     # Path | Expr { ... } | Constant | '(' Expr ')' | FuncExpr
-    # | Tuple | NamedTuple | Collection
+    # | Tuple | NamedTuple | Collection | Set
     # | '+' Expr | '-' Expr | Expr '+' Expr | Expr '-' Expr
     # | Expr '*' Expr | Expr '/' Expr | Expr '%' Expr
     # | Expr '**' Expr | Expr '<' Expr | Expr '>' Expr
@@ -620,6 +620,9 @@ class Expr(Nonterm):
         self.val = kids[0].val
 
     def reduce_Collection(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_Set(self, *kids):
         self.val = kids[0].val
 
     def reduce_NamedTuple(self, *kids):
@@ -801,6 +804,14 @@ class NamedTupleElementList(ListNonterm, element=NamedTupleElement,
     pass
 
 
+class Set(Nonterm):
+    def reduce_LBRACE_OptExprList_RBRACE(self, *kids):
+        if kids[1].val:
+            self.val = qlast.Set(elements=kids[1].val)
+        else:
+            self.val = qlast.EmptySet()
+
+
 class Collection(Nonterm):
     def reduce_LBRACKET_OptCollectionItemList_RBRACKET(self, *kids):
         items = kids[1].val
@@ -873,12 +884,12 @@ class ExprList(ListNonterm, element=Expr, separator=tokens.T_COMMA):
 
 
 class Constant(Nonterm):
-    # BaseConstant
+    # ArgConstant
     # | BaseNumberConstant
     # | BaseStringConstant
     # | BaseBooleanConstant
 
-    def reduce_BaseConstant(self, *kids):
+    def reduce_ArgConstant(self, *kids):
         self.val = kids[0].val
 
     def reduce_BaseNumberConstant(self, *kids):
@@ -889,22 +900,6 @@ class Constant(Nonterm):
 
     def reduce_BaseBooleanConstant(self, *kids):
         self.val = kids[0].val
-
-
-class BaseConstant(Nonterm):
-    # EmptyConstant
-    # | ArgConstant
-
-    def reduce_EmptyConstant(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_ArgConstant(self, *kids):
-        self.val = kids[0].val
-
-
-class EmptyConstant(Nonterm):
-    def reduce_EMPTY(self, *kids):
-        self.val = qlast.EmptySet()
 
 
 class ArgConstant(Nonterm):

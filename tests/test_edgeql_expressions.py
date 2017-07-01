@@ -25,10 +25,10 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_emptyset01(self):
         await self.assert_query_result(r"""
-            SELECT <int>EMPTY;
-            SELECT <str>EMPTY;
-            SELECT EMPTY + 1;
-            SELECT 1 + EMPTY;
+            SELECT <int>{};
+            SELECT <str>{};
+            SELECT {} + 1;
+            SELECT 1 + {};
         """, [
             [],
             [],
@@ -40,13 +40,13 @@ class TestExpressions(tb.QueryTestCase):
                                     r'could not determine expression type'):
 
             await self.con.execute("""
-                SELECT EMPTY;
+                SELECT {};
             """)
 
     async def test_edgeql_expr_emptyset02(self):
         await self.assert_query_result(r"""
-            SELECT count(ALL <int>EMPTY);
-            SELECT count(DISTINCT <int>EMPTY);
+            SELECT count(ALL <int>{});
+            SELECT count(DISTINCT <int>{});
         """, [
             [0],
             [0],
@@ -56,7 +56,7 @@ class TestExpressions(tb.QueryTestCase):
                                     r'could not determine expression type'):
 
             await self.con.execute("""
-                SELECT count(ALL EMPTY);
+                SELECT count(ALL {});
             """)
 
     async def test_edgeql_expr_idempotent01(self):
@@ -168,9 +168,9 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_op06(self):
         await self.assert_query_result(r"""
-            SELECT EMPTY = EMPTY;
-            SELECT EMPTY = 42;
-            SELECT EMPTY = 'EMPTY';
+            SELECT {} = {};
+            SELECT {} = 42;
+            SELECT {} = '{}';
         """, [
             [],
             [],
@@ -178,10 +178,10 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_op07(self):
-        # Test boolean interaction with EMPTY
+        # Test boolean interaction with {}
         await self.assert_query_result(r"""
-            SELECT TRUE OR EMPTY;
-            SELECT FALSE AND EMPTY;
+            SELECT TRUE OR {};
+            SELECT FALSE AND {};
         """, [
             [],
             [],
@@ -206,7 +206,7 @@ class TestExpressions(tb.QueryTestCase):
             """)
 
     async def test_edgeql_expr_op10(self):
-        for query in ['SELECT -EMPTY;', 'SELECT +EMPTY;', 'SELECT NOT EMPTY;']:
+        for query in ['SELECT -{};', 'SELECT +{};', 'SELECT NOT {};']:
             with self.assertRaisesRegex(
                     exc.EdgeQLError,
                     r'unary operator `.+` is not defined for empty set'):
@@ -239,10 +239,10 @@ class TestExpressions(tb.QueryTestCase):
             SELECT 2 ?!= 2;
             SELECT 2 ?!= 3;
 
-            SELECT 2 ?= EMPTY;
-            SELECT <int>EMPTY ?= <int>EMPTY;
-            SELECT 2 ?!= EMPTY;
-            SELECT <int>EMPTY ?!= <int>EMPTY;
+            SELECT 2 ?= {};
+            SELECT <int>{} ?= <int>{};
+            SELECT 2 ?!= {};
+            SELECT <int>{} ?!= <int>{};
         """, [
             [True],
             [False],
@@ -553,13 +553,13 @@ class TestExpressions(tb.QueryTestCase):
                 r'could not determine expression type'):
 
             await self.con.execute("""
-                SELECT array_agg(ALL EMPTY);
+                SELECT array_agg(ALL {});
             """)
 
     async def test_edgeql_expr_array11(self):
         await self.assert_query_result('''
-            SELECT array_agg(ALL <int>EMPTY);
-            SELECT array_agg(DISTINCT <int>EMPTY);
+            SELECT array_agg(ALL <int>{});
+            SELECT array_agg(DISTINCT <int>{});
         ''', [
             [
                 []
@@ -586,7 +586,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_array13(self):
         await self.assert_query_result('''
-            WITH x := <int>EMPTY
+            WITH x := <int>{}
             SELECT array_agg(ALL x);
 
             WITH x := (SELECT schema::Concept FILTER False)
@@ -840,22 +840,22 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_coalesce01(self):
         await self.assert_query_result(r"""
-            SELECT EMPTY ?? 4 ?? 5;
-            SELECT EMPTY ?? 'foo' ?? 'bar';
-            SELECT 4 ?? EMPTY ?? 5;
+            SELECT {} ?? 4 ?? 5;
+            SELECT {} ?? 'foo' ?? 'bar';
+            SELECT 4 ?? {} ?? 5;
 
-            SELECT 'foo' ?? EMPTY ?? 'bar';
-            SELECT EMPTY ?? 'bar' = 'bar';
+            SELECT 'foo' ?? {} ?? 'bar';
+            SELECT {} ?? 'bar' = 'bar';
 
-            SELECT 4^EMPTY ?? 2;
-            SELECT 4+EMPTY ?? 2;
-            SELECT 4*EMPTY ?? 2;
+            SELECT 4^{} ?? 2;
+            SELECT 4+{} ?? 2;
+            SELECT 4*{} ?? 2;
 
-            SELECT -<int>EMPTY ?? 2;
-            SELECT -<int>EMPTY ?? -2 + 1;
+            SELECT -<int>{} ?? 2;
+            SELECT -<int>{} ?? -2 + 1;
 
-            SELECT <int>(EMPTY ?? EMPTY);
-            SELECT <int>(EMPTY ?? EMPTY ?? EMPTY);
+            SELECT <int>({} ?? {});
+            SELECT <int>({} ?? {} ?? {});
         """, [
             [4],
             ['foo'],
@@ -1046,8 +1046,8 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_setop01(self):
         await self.assert_query_result(r"""
-            SELECT EXISTS EMPTY;
-            SELECT NOT EXISTS EMPTY;
+            SELECT EXISTS {};
+            SELECT NOT EXISTS {};
         """, [
             [False],
             [True],

@@ -1892,12 +1892,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_equivalence03(self):
         await self.assert_query_result(r'''
-            # get Issues with priority equivalent to EMPTY
+            # get Issues with priority equivalent to empty
             #
             WITH MODULE test
             SELECT Issue {number}
             FILTER
-                Issue.priority.name ?= <str>EMPTY
+                Issue.priority.name ?= <str>{}
             ORDER BY Issue.number;
         ''', [
             [{'number': '1'}, {'number': '4'}],
@@ -1905,12 +1905,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_equivalence04(self):
         await self.assert_query_result(r'''
-            # get Issues with priority equivalent to EMPTY
+            # get Issues with priority equivalent to empty
             #
             WITH MODULE test
             SELECT Issue {number}
             FILTER
-                NOT Issue.priority.name ?!= <str>EMPTY
+                NOT Issue.priority.name ?!= <str>{}
             ORDER BY Issue.number;
         ''', [
             [{'number': '1'}, {'number': '4'}],
@@ -2330,23 +2330,23 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_empty01(self):
         await self.assert_query_result(r"""
             # This is not the same as checking that number does not EXIST.
-            # Any binary operator with one operand as EMPTY results in an
-            # EMPTY result, because the cross product of anything with an
-            # empty set is EMPTY.
+            # Any binary operator with one operand as empty results in an
+            # empty result, because the cross product of anything with an
+            # empty set is empty.
             #
-            SELECT test::Issue.number = <str>EMPTY;
+            SELECT test::Issue.number = <str>{};
             """, [
             [],
         ])
 
     async def test_edgeql_select_empty02(self):
         await self.assert_query_result(r"""
-            # Test short-circuiting operations with EMPTY
+            # Test short-circuiting operations with empty
             #
-            SELECT test::Issue.number = '1' OR <bool>EMPTY;
-            SELECT test::Issue.number = 'X' OR <bool>EMPTY;
-            SELECT test::Issue.number = '1' AND <bool>EMPTY;
-            SELECT test::Issue.number = 'X' AND <bool>EMPTY;
+            SELECT test::Issue.number = '1' OR <bool>{};
+            SELECT test::Issue.number = 'X' OR <bool>{};
+            SELECT test::Issue.number = '1' AND <bool>{};
+            SELECT test::Issue.number = 'X' AND <bool>{};
             """, [
             [],
             [],
@@ -2356,12 +2356,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_empty03(self):
         await self.assert_query_result(r"""
-            # Test short-circuiting operations with EMPTY
+            # Test short-circuiting operations with empty
             #
-            SELECT count(ALL test::Issue.number = '1' OR <bool>EMPTY);
-            SELECT count(ALL test::Issue.number = 'X' OR <bool>EMPTY);
-            SELECT count(ALL test::Issue.number = '1' AND <bool>EMPTY);
-            SELECT count(ALL test::Issue.number = 'X' AND <bool>EMPTY);
+            SELECT count(ALL test::Issue.number = '1' OR <bool>{});
+            SELECT count(ALL test::Issue.number = 'X' OR <bool>{});
+            SELECT count(ALL test::Issue.number = '1' AND <bool>{});
+            SELECT count(ALL test::Issue.number = 'X' AND <bool>{});
             """, [
             [0],
             [0],
@@ -2581,7 +2581,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             FILTER
                 Issue != Issue2
                 AND
-                # NOTE: this condition is false when one of the sides is EMPTY
+                # NOTE: this condition is false when one of the sides is empty
                 Issue.priority = Issue2.priority
             ORDER BY
                 Issue.number;
@@ -2592,7 +2592,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_subqueries06(self):
         await self.assert_query_result(r"""
             # find all issues such that there's at least one more
-            # issue with the same priority (even if the "same" means EMPTY)
+            # issue with the same priority (even if the "same" means empty)
             WITH
                 MODULE test,
                 Issue2 := (SELECT Issue)

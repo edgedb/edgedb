@@ -371,28 +371,28 @@ class TestEdgeQLFilter(tb.QueryTestCase):
 
     async def test_edgeql_filter_empty01(self):
         await self.assert_query_result(r"""
-            # the FILTER clause is always EMPTY, so it can never be true
+            # the FILTER clause is always empty, so it can never be true
             WITH MODULE test
             SELECT Issue{number}
-            FILTER EMPTY;
+            FILTER {};
             """, [
             [],
         ])
 
     async def test_edgeql_filter_empty02(self):
         await self.assert_query_result(r"""
-            # the FILTER clause evaluates to EMPTY, so it can never be true
+            # the FILTER clause evaluates to empty, so it can never be true
             WITH MODULE test
             SELECT Issue{number}
-            FILTER Issue.number = EMPTY;
+            FILTER Issue.number = {};
 
             WITH MODULE test
             SELECT Issue{number}
-            FILTER Issue.priority = EMPTY;
+            FILTER Issue.priority = {};
 
             WITH MODULE test
             SELECT Issue{number}
-            FILTER Issue.priority.name = EMPTY;
+            FILTER Issue.priority.name = {};
             """, [
             [],
             [],
@@ -438,7 +438,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
     async def test_edgeql_filter_aggregate06(self):
         await self.assert_query_result(r'''
             # regardless of what count evaluates to, FILTER clause is
-            # impossible to fulfill, so the result is EMPTY
+            # impossible to fulfill, so the result is empty
             #
             WITH MODULE test
             SELECT count(ALL Issue)
@@ -446,7 +446,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
 
             WITH MODULE test
             SELECT count(ALL Issue)
-            FILTER EMPTY;
+            FILTER {};
         ''', [
             [],
             [],

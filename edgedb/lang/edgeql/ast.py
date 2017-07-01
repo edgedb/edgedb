@@ -277,6 +277,10 @@ class Mapping(Expr):
     values: typing.List[Expr]
 
 
+class Set(Expr):
+    elements: typing.List[Expr]
+
+
 # Statements
 #
 

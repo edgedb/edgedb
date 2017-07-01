@@ -325,15 +325,16 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_Tuple(self, node):
         self.write('(')
         count = len(node.elements)
-        for i, e in enumerate(node.elements):
-            self.visit(e)
-            if i != count - 1:
-                self.write(', ')
-
+        self.visit_list(node.elements, newlines=False)
         if count == 1:
             self.write(',')
 
         self.write(')')
+
+    def visit_Set(self, node):
+        self.write('{')
+        self.visit_list(node.elements, newlines=False)
+        self.write('}')
 
     def visit_EmptyCollection(self, node):
         self.write('[]')
@@ -378,6 +379,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 if isinstance(e, edgeql_ast.ClassRef):
                     self.visit(e, parenthesise=parenthesise)
                 elif not isinstance(e, (edgeql_ast.Ptr,
+                                        edgeql_ast.Set,
                                         edgeql_ast.Tuple,
                                         edgeql_ast.NamedTuple,
                                         edgeql_ast.TypeFilter)):
@@ -465,7 +467,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(node.name)
 
     def visit_EmptySet(self, node):
-        self.write('EMPTY')
+        self.write('{}')
 
     def visit_Constant(self, node, *, parenthesise=False):
         # XXX: parenthesise is ignored completely, but exists as a
