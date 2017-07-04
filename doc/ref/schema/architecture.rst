@@ -3,8 +3,7 @@
 Schema architecture
 -------------------
 
-EdgeDB data schema is defined by a set of documents similar to YAML in
-structure.
+EdgeDB data schema is defined by a set of declarative documents.
 
 Here's how the concepts mentioned in the overview can be defined in a
 EdgeDB schema:
@@ -28,7 +27,7 @@ EdgeDB schema:
 EdgeDB schemas can define the following fundamental elements:
 ``atom``, ``link``, ``linkproperty``, ``concept``, ``constraint``,
 ``action``, and ``event``. Any combination of these can be defined in
-a given module. An empty module is also a valid module.
+a given module.
 
 Some elements are implicitly defined by being used in other
 declarations. For example using a ``link`` in a ``concept``
@@ -66,7 +65,10 @@ The following is the list of fundamental atoms defined in
 Constraints
 ~~~~~~~~~~~
 
-It is possible to add constraints to the definitions. There are some built-in constraints that are available to be used without having to define them first. It is also possible to create custom constraints if necessary.
+It is possible to add constraints to the definitions. There are some
+built-in constraints that are available to be used without having to
+define them first. It is also possible to create custom constraints if
+necessary.
 
 Built-in Constraints
 ********************
@@ -137,10 +139,11 @@ Concepts
 ~~~~~~~~
 
 *Concepts* define *entity classes*. Every concept is always a
-derivative from ``std::Object`` and always has the ``std::uuid`` link
-pointing to a ``uuid`` atom. This means that each and every concept
-instance (*entity*) has a universally-unique identifier. Concepts can
-define an arbitrary number of links to other concepts or atoms.
+derivative from ``std::Object`` and always has the ``std::id`` (which
+can be referenced by its short name ``id``) link pointing to a
+``uuid`` atom. This means that each and every concept instance
+(*entity*) has a universally-unique identifier. Concepts can define an
+arbitrary number of links to other concepts or atoms.
 
 .. code-block:: eschema
 
@@ -170,9 +173,10 @@ Links and Link Properties
 Links signify explicit relationship between two nodes. Links are used
 to bind concepts to concepts or atoms. Links have a standard hierarchy
 whereby all *specialized* links derive from a single *generic* link of
-the same name. Thus, if two different concepts each define the
-``name`` link, this will create three elements: a generic ``name``
-link and two specialized links derived from it for each concept.
+the same name. Thus, if two different concepts within the same module
+each define the ``name`` link, this will create three elements: a
+generic ``name`` link and two specialized links derived from it for
+each concept.
 
 Generic links can themselves define a list of *link properties*, which
 are the same to links as links are to concepts, except that link
@@ -248,7 +252,7 @@ Inheritance
 All four element classes of EdgeDB schema form inheritance
 hierarchies. All elements, except atoms, support multiple inheritance.
 This is an extremely important aspect of EdgeDB data architecture that
-distinguishes it from the majority of the contemporary solutions.
+distinguishes it from the majority of the contemporary databases.
 There's an important difference between OO classes and EdgeDB schema
 classes: schema classes have no methods. This means that inheritance
 only affects what something *is* (see
@@ -435,13 +439,12 @@ Schema composition
 ~~~~~~~~~~~~~~~~~~
 
 In large applications, the schema will usually be split into several
-files. All such documents within the same directory are considered to
-be part of the same *schema module*. A *schema module* defines the
-effective namespace for elements it defines. Schema modules can import
-other modules to use schema elements they define. This makes it very
-easy and natural to separate and group common schema elements into
-modules for re-use. EdgeDB core provides a default module: ``std``
-which is always implicitly imported.
+:ref:`modules<ref_schema_evolution_modules>`. A *schema module*
+defines the effective namespace for elements it defines. Schema
+modules can import other modules to use schema elements they define.
+This makes it very easy and natural to separate and group common
+schema elements into modules for re-use. EdgeDB core provides a
+default module: ``std`` which is always implicitly imported.
 
 Since both the City and Country have a name, we can inherit them from
 an abstract ``std::NamedObject``:

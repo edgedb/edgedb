@@ -71,9 +71,10 @@ to ``Comments``) the following query could be made:
     WITH MODULE example
     SELECT Issue.owner[IS SystemUser];
 
-In the above query the `path step` is expressed as ``owner[IS SystemUser]``.
-``owner`` is the name of the link to follow, and the
-qualifier ``[IS ...]`` specifies a restriction on the target's type.
+In the above query the `path step` is expressed as ``owner[IS
+SystemUser]``, where ``owner`` is the name of the link to follow, and
+the qualifier ``[IS ...]`` specifies a restriction on the target's
+type.
 
 This is equivalent to:
 
@@ -88,7 +89,7 @@ that ``[IS SystemUser]`` allows to refer to links specific to
 ``SystemUser``.
 
 Finally combining all of the above, it is possible to write a query to
-retrieve all the ``Comments`` to ``Issues`` creates by ``SystemUsers``:
+retrieve all the ``Comments`` to ``Issues`` created by ``SystemUsers``:
 
 .. code-block:: eql
 
@@ -104,6 +105,21 @@ retrieve all the ``Comments`` to ``Issues`` creates by ``SystemUsers``:
         # follow the link 'issue' to a source Comment
         .<issue[IS Comment];
 
+.. note::
+
+    Links technically also belong to a module. Typically, the module
+    doesn't need to be specified (because it is the default module or
+    the link name is unambiguous), but sometimes it is necessary to
+    specify the link module explicitly. The entire fully-qualified
+    link name then needs to be enclosed in parentheses:
+
+    .. code-block:: eql
+
+        WITH MODULE some_module
+        SELECT A.(another_module::foo).bar;
+
+
+.. _ref_edgeql_paths_scope:
 
 Scope
 -----
@@ -374,29 +390,33 @@ rule and aggregate functions. Consider the following:
     WITH MODULE example
     SELECT count(Issue);
 
-    # provide
+    # provide an array of all issue numbers
     WITH MODULE example
     SELECT array_agg(Issue.number);
 
-So far so good, but what if we wanted to annotate data about each
-individual ``Issue`` with some general statistics?
+So far so good, but what if we wanted to combine statistical data
+about total issues with some data from each individual ``Issue``? For
+the sake of the example suppose that the ``Issue.number`` is actually
+a sequential integer (still represented as a string according to our
+schema, though) and what we want is a result of the form "Open issue
+<number> / <total issues>".
 
 .. code-block:: eql
 
     # The naive way of combining the result of count with a
     # specific Issue does not work.
     #
-    # This will be a set of tuples of the form: (1, <number>)
+    # This will be a set of strings of the form:
+    #   "Open issue <number> / 1"
     WITH MODULE example
-    SELECT (count(Issue), Issue.number);
+    SELECT 'Open issue ' + Issue.number + ' / ' + <str>count(Issue)
+    FILTER Issue.status.name = 'Open';
 
-    # This will be a set of tuples of the form: ([<number>], <number>)
-    WITH MODULE example
-    SELECT (array_agg(Issue.number), Issue.number);
-
-Due to the fact that the tuple elements have a common prefix and that
-common prefix is basically treated as a *singleton* for the purpose of
-each tuple, the aggregate function works with a *singleton* each time.
+Due to the fact that ``Issue`` and ``Issue.number`` exist in the same
+scope, the :ref:`longest common prefix<ref_edgeql_paths_prefix>`
+rule dictates that ``Issue`` must refer to the same object for both of
+these expressions. This means that ``count`` is always operating on a
+set of one ``Issue``.
 
 The way to fix that is to define another set as ``Issue`` in the
 ``WITH`` clause.
@@ -408,13 +428,23 @@ The way to fix that is to define another set as ``Issue`` in the
     WITH
         MODULE example,
         I2 := Issue
-    SELECT (count(I2), Issue.number);
+    SELECT
+        'Open issue ' + Issue.number + ' / ' + <str>count(I2)
+    FILTER Issue.status.name = 'Open';
 
-    # The same trick will work for the array_agg example.
+The above query will produce the desired result. However, it is not
+terribly efficient to re-calculate the total open issue count for
+every string. A more optimal query would then be:
+
+.. code-block:: eql
+
     WITH
         MODULE example,
-        I2 := Issue
-    SELECT (array_agg(I2.number), Issue.number);
+        total := <str>count(Issue)
+    SELECT
+        'Open issue ' + Issue.number + ' / ' + total
+    FILTER Issue.status.name = 'Open';
+
 
 Here's an example of an aggregate function that specifically takes
 advantage of only being applied to the set restricted by the common
@@ -422,10 +452,12 @@ prefix:
 
 .. code-block:: eql
 
-    # Each tuple will only have the watchers of the issue denoted
-    # by the number included in the tuple.
+    # Each result will only have the watchers of a given open issue.
     WITH MODULE example
-    SELECT (array_agg(Issue.watchers), Issue.number);
+    SELECT
+        'Issue ' + Issue.number + ' watched by: ' +
+            <str>array_agg(Issue.watchers.name)
+    FILTER Issue.status.name = 'Open';
 
 
 .. _ref_edgeql_computables:

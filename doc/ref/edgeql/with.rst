@@ -40,39 +40,51 @@ The following queries are exactly equivalent:
 
 
 It is also possible to define aliases modules in the ``WITH`` block.
-Consider the following query that gets all the concepts defined in the
-``example`` module and counts how many actual Objects of that type
-exist in the DB.
+Consider the following query that needs to compare objects
+corresponding to concepts defined in two different modules.
 
 .. code-block:: eql
 
     WITH
         MODULE example,
-        s := MODULE schema
-    SELECT s::Concept {
-        name,
-        count := count(
-            (SELECT Object
-             FILTER Object.__class__ = s::Concept)
-        )
+        f := MODULE foo
+    SELECT User {
+        name
     }
-    FILTER .name LIKE 'example::%';
+    FILTER .name = f::Foo.name;
+
+Another use case is for giving short aliases to long module names
+(especially if module names contain `.`).
+
+.. code-block:: eql
+
+    WITH
+        MODULE example,
+        fbz := MODULE foo.bar.baz
+    SELECT User {
+        name
+    }
+    FILTER .name = fbz::Baz.name;
+
 
 
 Expression alias
 ----------------
 
 It is possible to specify an expression alias in the ``WITH`` block.
-Since this generates sub-scopes, aliases can be used to refer to
-different instances of the same *concept* in a query. For example, the
-following query will find all users who own the same number of issues
-as someone else:
+Since every aliased expression exists in its own
+:ref:`sub-scope<ref_edgeql_paths_scope>`, aliases can be used to refer
+to different instances of the same *concept* in a query. For example,
+the following query will find all users who own the same number of
+issues as someone else:
 
 .. code-block:: eql
 
     WITH
         MODULE example,
         U2 := User
+    # U2 and User in the SELECT clause now refer to the same concept,
+    # but different objects
     SELECT User {
         name,
         issue_count := count(User.<owner[IS Issue])

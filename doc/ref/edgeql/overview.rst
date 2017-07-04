@@ -85,7 +85,7 @@ assumed to be part of the module ``example``:
         link related_to to Issue:
             mapping: **
 
-This schema is representing the data model for an issue tracker. There
+This schema represents the data model for an issue tracker. There
 are ``Users``, who can create an ``Issue``, add a ``Comment`` to an
 ``Issue``, or add a ``LogEntry`` to document work on a particular
 ``Issue``. ``Issues`` can be related to each other. A ``User`` can
@@ -120,8 +120,8 @@ For example, a query to get all issues reported by Alice Smith:
 
 .. code-block:: eql
 
-    SELECT example.Issue
-    FILTER example.Issue.owner.name = 'Alice Smith';
+    SELECT example::Issue
+    FILTER example::Issue.owner.name = 'Alice Smith';
 
 A somewhat neater way of writing the same query is:
 
@@ -169,12 +169,17 @@ used to filter out some of these members from the result.
     FILTER Issue.owner.name = 'Alice Smith';
 
 The above query will return a set of time estimates for all of the
-issues owned by Alice Smith rather than the ``Issue`` objects. Note
-that ``time_estimate`` is an integer, so only *distinct* integer
-values will be in the resulting *set*. For instance, if the DB
-contains 10 ``Issue`` where every ``Issue`` has the same
-``time_estimate`` value, only 1 integer will be returned as the result
-of the above query.
+issues owned by Alice Smith rather than the ``Issue`` objects.
+
+.. note::
+
+    ``time_estimate`` is an *atomic value* (integer), so the resulting
+    set can contain duplicate values. Every integer is effectively
+    considered a distinct element of the set even when there are
+    already set elements of the same value in the set. See
+    :ref:`core features of EdgeDB<ref_tutorial_core>` and
+    :ref:`how expressions work<ref_edgeql_expressions>` for more
+    details.
 
 .. code-block:: eql
 
@@ -182,15 +187,14 @@ of the above query.
     SELECT (Issue.name, Issue.body)
     FILTER Issue.owner.name = 'Alice Smith';
 
-The above query will return a set of 2-tuples containing the issue
-``name`` and ``body`` for all of the issues owned by Alice Smith. Note
-that the tuple has no information about where the data came from.
-Tuples can be used in other expressions as a whole opaque entity or
-serialized for some external use. This construct is similar to
-selecting individual columns in SQL except that the column name is
-lost. If structural information is important *shapes* should be used
-instead. So selecting tuples is quite rare in EdgeQL and is not
-encouraged.
+The above query will return a set of 2-tuples containing the values of issue
+``name`` and ``body`` for all of the issues owned by Alice Smith.
+:ref:`Tuples<ref_edgeql_types_tuples>` can be used in other
+expressions as a whole opaque entity or serialized for some external
+use. This construct is similar to selecting individual columns in SQL
+except that the column name is lost. If structural information is
+important *shapes* should be used instead. So selecting tuples is
+quite rare in EdgeQL and is not encouraged.
 
 
 Using shapes

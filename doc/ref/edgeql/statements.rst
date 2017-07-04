@@ -84,7 +84,7 @@ fact that there is only one such user is a detail that can be well-
 known and important to the creator of the DB, but otherwise non-
 obvious. However, forcing the cardinality to be at most 1 by using the
 keyword ``SINGLETON`` ensures that a set with a single object or
-``EMPTY`` is returned. This way any further code that relies on the
+``{}`` is returned. This way any further code that relies on the
 result of this query can safely assume there's only one result
 available. In case EdgeDB generates more than one result for this
 query, it is going to cause a runtime error in the EdgeDB code, making
@@ -139,7 +139,7 @@ set of values as the final result.
 
 The ``SELECT`` clause is used to describe the shape of the returned
 value or values, while the optional qualifier ``SINGLETON`` declares
-the cardinality of the returned set to be at most 1 (``EMPTY`` set is
+the cardinality of the returned set to be at most 1 (empty set is
 considered a valid result where ``SINGLETON`` is expected).
 
 The data flow of a ``GROUP`` block can be conceptualized like this:
@@ -315,7 +315,7 @@ by some tool) or a query.
     # example of a bulk insert of users based on explicitly provided
     # data
     WITH MODULE example
-    FOR x IN array_unpack(['Alice', 'Bob', 'Carol', 'Dave'])
+    FOR x IN {'Alice', 'Bob', 'Carol', 'Dave'}
     INSERT User {
         name := x
     };
@@ -436,5 +436,4 @@ better done by a nested ``SELECT``:
 
     WITH MODULE example
     DELETE (SELECT User
-            FILTER User.name = array_unpack([
-                'Alice Smith', 'Bob Johnson']));
+            FILTER User.name = {'Alice Smith', 'Bob Johnson'});

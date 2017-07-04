@@ -10,26 +10,30 @@ modification of the schema in automatic mode.
 
 When it comes to schema modifications, the most common workflow of an
 application developer is to modify the source schema document and then
-use EdgeDB commands to examine and commit schema changes.
-Schema changes are stored internally as deltas just like in common SCM
-systems. The deltas, in fact, are scripts that are interpreted by the
-EdgeDB schema machine to mutate the schema.
+use EdgeDB commands to examine and commit schema changes. Schema
+changes are stored internally as migrations just like in common SCM
+systems. The migrations, in fact, are scripts that are interpreted by
+the EdgeDB schema machine to mutate the schema.
 
-Deltas are always module-specific and can specify dependencies on
-other modules. Essentially the dependencies specify which deltas must
-be applied in other modules for a given delta to be valid.
+Migrations are always module-specific and can specify dependencies on
+other modules. Essentially the dependencies specify which migrations
+must be applied in other modules for a given migration to be valid.
 
+
+.. _ref_schema_evolution_modules:
 
 Schema modules
 ~~~~~~~~~~~~~~
 
-For convenience EdgeDB framework considers all the schema files in the
-same directory describing one module. Since the schema is a
-declarative construct, there is no need to consider the order in which
-various elements are declared and so the exact way in which these
-declarations are split among one or more files is not important and is
-only reflective of convenience. Schema evolution operations deal with
-the entire module as a single unit.
+Typically, a single module is described in one `module_name.eschema`
+file. For convenience there's also a way to split one module across
+multiple `.eschema` files. EdgeDB framework considers all the schema
+files in the a directory named `module_name.eschema` describing one
+module. Since the schema is a declarative construct, there is no need
+to consider the order in which various elements are declared and so
+the exact way in which these declarations are split among one or more
+files is not important and is only reflective of convenience. Schema
+evolution operations deal with the entire module as a single unit.
 
 The simplest example of schema evolution is a situation when the
 entire schema and the changes are all contained within one single
@@ -37,11 +41,11 @@ module (adding or removing ``concepts``, ``atoms``, ``links``, etc.).
 In this case the state of this module represents the state of the
 underlying DB schema.
 
-The original state of the module can be represented by a delta from an
-empty DB to the starting state. This delta must have a name that is
-unique for the module. This name is used in specifying module
-dependencies. It is also used to determine the overall state of the
-EdgeDB schema. For example, consider the following schema:
+The original state of the module can be represented by a migration
+from an empty DB to the starting state. This migration must have a
+name that is unique for the module. This name is used in specifying
+module dependencies. It is also used to determine the overall state of
+the EdgeDB schema. For example, consider the following schema:
 
 .. code-block:: eschema
 
@@ -68,9 +72,9 @@ iteration of development and the new module schema looks like this:
             mapping: 11
 
 Adding the changes and running the migration command on the new schema
-we will get a new delta. This delta needs a name, say ``geo::v2``, and
-it has an implicit dependency on the previous delta of this module:
-``geo:v1``.
+we will get a new migration. This migration needs a name, say
+``geo::v2``, and it has an implicit dependency on the previous
+migration of this module: ``geo:v1``.
 
 Suppose we want to introduce further details and now want to add a
 ``mayor`` link for each ``City`` and this link will point to a concept
@@ -85,11 +89,12 @@ new module to our overall schema:
         link first_name to str
         link last_name to str
 
-Adding the new module will generate a delta with no dependencies (so
-far), which we will call ``subjects::v1``. At this point the overall
-state of the EdgeDB schema can be described by the set of modules that
-it is made of: ``geo::v2`` and ``subjects::v1``. Now that we have the
-2 modules defined, let's add the ``mayor`` link to the ``City``.
+Adding the new module will generate a migration with no dependencies
+(so far), which we will call ``subjects::v1``. At this point the
+overall state of the EdgeDB schema can be described by the set of
+modules that it is made of: ``geo::v2`` and ``subjects::v1``. Now that
+we have the 2 modules defined, let's add the ``mayor`` link to the
+``City``.
 
 
 .. code-block:: eschema
@@ -109,16 +114,16 @@ it is made of: ``geo::v2`` and ``subjects::v1``. Now that we have the
             mapping: 11
 
 We import the module ``subjects`` into geo and declare the ``mayor``
-link pointing to ``subjects::Person``. The corresponding delta
+link pointing to ``subjects::Person``. The corresponding migration
 ``geo::v3`` would now depend on ``geo::v2`` and ``subjects::v1``. In
 order for the overall schema to be valid all modules must satisfy all
 of their dependencies. If we further evolve the module ``subject`` to
-a new state ``subject::v2``, we will need to add a delta for the
+a new state ``subject::v2``, we will need to add a migration for the
 module ``geo`` that will update the dependencies from ``geo::v2``,
 ``subject::v1`` to ``geo::v3``, ``subject::v2`` in order to keep the
 schema valid. This means that in order to migrate the schema EdgeDB
-will require both deltas ``subject::v2`` and ``geo::v4`` and it will
-determine the order in which they need to be applied based on the
+will require both migrations ``subject::v2`` and ``geo::v4`` and it
+will determine the order in which they need to be applied based on the
 declared dependencies.
 
 .. aafig::
@@ -138,8 +143,8 @@ declared dependencies.
 
 
 EdgeDB can determine that in order to correctly initialize an empty DB
-to the final state of ``{geo::v4, subjects::v2}`` the deltas need to
-be applied in the following order given by the linearization of the
+to the final state of ``{geo::v4, subjects::v2}`` the migrations need
+to be applied in the following order given by the linearization of the
 dependency graph:
 
 ::

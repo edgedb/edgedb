@@ -32,6 +32,8 @@ information about how many issues they have:
 
     SELECT User {
         name,
+        # "issues" is not a link in the schema, it is a computable
+        # defined in the shape
         issues := count(User.<owner[IS Issue])
     };
 

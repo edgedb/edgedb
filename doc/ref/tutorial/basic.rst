@@ -16,7 +16,7 @@ an ``Issue``. We probably want a ``Status``, too. In order to provide
 feedback on issues a ``Comment`` concept seems like a good idea. So
 let's start with defining the schema with these 4 concepts. Later on,
 if we need more, we can amend the schema (producing a
-:ref:`delta migration <ref_schema_evolution>` to alter the database).
+:ref:`migration <ref_schema_evolution>` to alter the database).
 
 The original schema would be something like this:
 
@@ -50,7 +50,7 @@ The original schema would be something like this:
             # creation
 
 The schema can be applied either via a migration tool or directly
-using ``CREATE MIGRATION`` and ``APPLY MIGRATION`` commands. Let's do it in
+using ``CREATE MIGRATION`` and ``COMMIT MIGRATION`` commands. Let's do it in
 the interactive console via the low level EdgeQL commands.
 
 .. code-block:: eql
@@ -86,7 +86,7 @@ the interactive console via the low level EdgeQL commands.
             # creation
     $$;
 
-    APPLY MIGRATION test::d1;
+    COMMIT MIGRATION test::d1;
 
 Now we can start populating the DB with actual objects. For
 consistency with examples in other parts of the documentation let's

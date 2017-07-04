@@ -17,12 +17,12 @@ with ``INSERT``. It allows inserting objects in bulk.
 .. code-block:: eql
 
     WITH MODULE example
-    FOR x IN array_unpack([
+    FOR x IN {
         (name := 'Alice', theme := 'fire'),
         (name := 'Bob', theme := 'rain'),
         (name := 'Carol', theme := 'clouds'),
         (name := 'Dave', theme := 'forest')
-    ])
+    }
     INSERT
         User {
             name := x.name,
@@ -46,7 +46,7 @@ use it for performance reasons.
     # The above can be accomplished with a FOR clause,
     # but it is not recommended.
     WITH MODULE example
-    FOR x IN array_unpack(['Alice', 'Bob', 'Carol', 'Dave'])
+    FOR x IN {'Alice', 'Bob', 'Carol', 'Dave'}
     UPDATE User
     FILTER User.name = x
     SET {
@@ -74,12 +74,12 @@ use-case when a ``FOR`` clause is appropriate.
     # Using a FOR clause, the above update becomes simpler to
     # express or review for a human.
     WITH MODULE example
-    FOR x IN array_unpack([
+    FOR x IN {
         (name := 'Alice', theme := 'red'),
         (name := 'Bob', theme := 'star'),
         (name := 'Carol', theme := 'dark'),
         (name := 'Dave', theme := 'strawberry')
-    ])
+    }
     UPDATE User
     FILTER User.name = x.name
     SET {
@@ -98,7 +98,7 @@ intuitive manner.
     WITH
         MODULE example,
         U2 := User
-    FOR x IN array_unpack([
+    FOR x IN {
         (
             name := 'Alice',
             friends := [('Bob', 'coffee buff'),
@@ -109,7 +109,7 @@ intuitive manner.
             friends := [('Alice', 'movie buff'),
                         ('Dave', 'cat person')]
         )
-    ])
+    }
     UPDATE User
     FILTER User.name = x.name
     SET {

@@ -4,7 +4,7 @@
 Expressions
 ===========
 
-Expressions allow to manipulate, query and modify data in EdgeQL.
+Expressions allow to manipulate, query, and modify data in EdgeQL.
 
 All expressions evaluate to sets of *objects*, *atomic values* or
 *tuples*. Depending on the set sizes of the operands, operations
@@ -32,7 +32,7 @@ and elements.
 |                               | - creating a tuple            |
 +-------------------------------+-------------------------------+
 
-Set operations treat ``EMPTY`` set as one of the possible valid
+Set operations treat empty set ``{}`` as one of the possible valid
 inputs, but otherwise not very special.
 
 Element operations work on set elements as opposed to sets. So
@@ -52,33 +52,32 @@ measure the maximum cardinality of the result set for a given element
 operation and input sets.
 
 Another consequence of the above definition is that if any of the
-operand sets for a element operation is ``EMPTY``, the result is also
-``EMPTY`` (since there are no elements produced in the Cartesian
+operand sets for a element operation is ``{}``, the result is also
+``{}`` (since there are no elements produced in the Cartesian
 product). This is particularly important for comparisons and boolean
-logic operations as all of the following evaluate to ``EMPTY``:
+logic operations as all of the following evaluate to ``{}``:
 
 .. code-block:: eql
 
-    SELECT TRUE OR EMPTY;
-    SELECT FALSE AND EMPTY;
-    SELECT EMPTY = EMPTY;
+    SELECT TRUE OR {};
+    SELECT FALSE AND {};
+    SELECT {} = {};
 
 This can lead to subtle mistakes when using actual paths that involve
 non-required links (or the roots of which might not exists):
 
 .. code-block:: eql
 
-    # will evaluate to EMPTY if either
-    # 'a' or 'b' link is missing on a given object Foo
+    # will evaluate to {} if either 'a' or 'b' link is missing on a
+    # given object Foo
     Foo.a OR Foo.b
 
-When the desired behavior is to treat ``EMPTY`` as equivalent to
+When the desired behavior is to treat ``{}`` as equivalent to
 ``FALSE``, the coalesce ``??`` operator should be used:
 
 .. code-block:: eql
 
-    # will treat missing 'a' or 'b' links as equivalent
-    # to FALSE
+    # will treat missing 'a' or 'b' links as equivalent to FALSE
     Foo.a ?? FALSE OR Foo.b ?? FALSE
 
 
@@ -86,7 +85,7 @@ Operations and paths
 --------------------
 
 There is some important interaction of the rule of
-:ref:`"longest common prefix"<ref_edgeql_paths_prefix>`
+:ref:`longest common prefix<ref_edgeql_paths_prefix>`
 for paths and operation cardinality. Consider the following example:
 
 .. code-block:: eql
@@ -135,8 +134,9 @@ Basic set operators:
 - UNION ALL
 
     ``UNION ALL`` is only valid for sets of atoms. It performs the set
-    union where atoms are compared by *identity*. So effectively it
-    merges two sets of atoms keeping all of the members.
+    union where atoms are compared by *identity* (in all other cases
+    comparisons are made by *value*). So effectively it merges two
+    sets of atoms keeping all of the members.
 
     For example, if we use ``UNION ALL`` on two sets ``{1, 2, 2}`` and
     ``{2}``, we'll get the set ``{1, 2, 2, 2}``.
@@ -155,26 +155,33 @@ Basic set operators:
 
     ``A UNION A UNION A`` ≡ ``A UNION A`` ≡ ``DISTINCT A``
 
-.. note::
+    .. note::
 
-    The main reason why ``UNION`` works like this is that EdgeDB is
-    optimized for working with sets of objects. So the simpler
-    ``UNION`` operator must work intuitively with those sets. It would
-    be very confusing if:
+        The main reason why ``UNION`` works like this is that EdgeDB
+        is optimized for working with sets of objects. So the simpler
+        ``UNION`` operator must work intuitively with those sets. It
+        would be very confusing if:
 
-    ``(A UNION B).id`` ≢ ``A.id UNION B.id``
+        ``(A UNION B).id`` ≢ ``A.id UNION B.id``
 
-    Conversely, non-objects (e.g. atomic values) are treated specially
-    from the beginning so having a special variant operator ``UNION
-    ALL`` to preserve the set semantics they follow allows to
-    consistently indicate that indeed all the individual values are
-    desired throughout the computation.
+        Conversely, non-objects (e.g. atomic values) are treated
+        specially from the beginning so having a special variant
+        operator ``UNION ALL`` to preserve the set semantics they
+        follow allows to consistently indicate that indeed all the
+        individual values are desired throughout the computation.
 
 - EXISTS
 
     ``EXISTS`` is a set operator that returns a singleton set
-    ``{TRUE}`` if the input set is not ``EMPTY`` and returns
+    ``{TRUE}`` if the input set is not ``{}`` and returns
     ``{FALSE}`` otherwise.
+
+    .. note::
+
+        Technically, ``EXISTS`` behaves like a special built-in
+        :ref:`aggregate function<ref_edgeql_expressions_agg>`. It is
+        sufficiently basic and a special case that it is an *operator*
+        unlike a built-in aggregate function ``count``.
 
 - IF..ELSE
 
@@ -192,7 +199,9 @@ Basic set operators:
     .. XXX is it really? what about UNION ALL version?
 
     One of the consequences of this is that if the ``cond`` expression
-    is ``EMPTY``, the whole choice expression evaluates to ``EMPTY``.
+    is ``{}``, the whole choice expression evaluates to ``{}``.
+
+.. _ref_edgeql_expressions_coalesce:
 
 - Coalescing
 
@@ -202,14 +211,40 @@ Basic set operators:
 
         SELECT a IF EXISTS a ELSE b;
 
+    A typical use case of coalescing operator is to provide default
+    values for optional links.
+
+    .. code-block:: eql
+
+        # get a set of tuples (<issue name>, <priority>) for all
+        # issues
+        WITH MODULE example
+        SELECT (Issue.name, Issue.priority.name ?? 'n/a');
+
+    Without the coalescing operator the above query would skip any
+    ``Issue`` without priority.
+
+
+.. _ref_edgeql_expressions_agg:
 
 Aggregate functions
 -------------------
 
 Aggregate functions are *set functions* mapping arbitrary sets onto
-singletons. Technically, ``EXISTS`` behaves like a special built-in
-aggregate. It is sufficiently basic and a special case that it is an
-*operator* unlike a built-in aggregate function ``count``.
+singletons. Examples of aggregate functions include built-ins such as
+``count`` and ``array_agg``.
+
+.. code-block:: eql
+
+    # count maps a set to an integer, specifically it returns the
+    # number of elements in a set
+    SELECT count(example::Issue);
+
+    # array_agg maps a set to an array of the same type, specifically
+    # it returns the array made from all of the set elements (which
+    # can also be ordered)
+    WITH MODULE example
+    SELECT array_agg(Issue ORDER BY Issue.number);
 
 
 Element operations
@@ -268,8 +303,8 @@ Regular functions
 
 Many built-in functions and user-defined functions operate on
 elements, so they are also element operations. This implies that if
-any of the input sets are ``EMPTY``, the result of applying an element
-function is also ``EMPTY``.
+any of the input sets are empty, the result of applying an element
+function is also empty.
 
 
 Array or tuple creation
@@ -292,13 +327,13 @@ representing the ``Issue.priority.name``:
 Since ``priority`` is not a required link, not every ``Issue`` will
 have one. It is important to realize that the above query will *only*
 contain Issues with non-empty priorities. If it is desirable to have
-*all* Issues, then a :ref:`shape<ref_edgeql_shapes>` query should be
-used instead.
+*all* Issues, then :ref:`coalescing<ref_edgeql_expressions_coalesce>`
+or a :ref:`shape<ref_edgeql_shapes>` query should be used instead.
 
 On the other hand the following query will include *all* Issues,
 because the tuple elements are made from the set of Issues and the set
 produced by the aggregator function ``array_agg``, which is never
-``EMPTY``:
+``{}``:
 
 .. code-block:: eql
 

@@ -7,9 +7,8 @@ Syntax
 EdgeQL is a declarative language and a large part of its expressive
 power lies in the structures that describe the data. It is white space
 insensitive, using ``;`` as a statement terminator. It is case
-sensitive except for *keywords* that are case insensitive (in the
-examples the keywords are written in upper case as a matter of
-convention).
+sensitive except for *keywords* (in the examples the keywords are
+written in upper case as a matter of convention).
 
 
 Identifiers
@@ -40,8 +39,8 @@ Names and keywords
 ------------------
 
 There are a number of *reserved* and *unreserved* keywords in EdgeQL.
-Every other identifier is a valid *name*. *Names* are used to refer to
-concepts, links, link properties, etc.
+Every identifier that is not a *reserved* keyword is a valid *name*.
+*Names* are used to refer to concepts, links, link properties, etc.
 
 .. productionlist:: edgeql
     short_name: `not_keyword_ident` | `quoted_ident`
@@ -76,10 +75,6 @@ concepts, links, link properties, etc.
                       : "TRANSACTION" | "TUPLE" | "VALUE" |
                       : "VIEW"
 
-There are certain cases when *unreserved* keywords can be used as
-*names*, mostly this is allowed in path steps because no *unreserved*
-keyword may appear there (e.g. ``Foo.action.<from``).
-
 Fully-qualified names consist of a module, ``::``, and a short name.
 They can be used in most places where a short name can appear (such as
 paths and shapes).
@@ -90,8 +85,8 @@ paths and shapes).
            : `short_name` "::" `unreserved_keyword`
 
 
-Operators precedence
---------------------
+Operators
+---------
 
 EdgeQL operators listed in order of precedence:
 
@@ -141,7 +136,7 @@ EdgeQL operators listed in order of precedence:
 +------------------+-----------+-----------+-----------+----------+
 
 All set operators (``UNION ALL``, ``UNION``, ``EXISTS``,
-``DISTINCT``, ``??`` and ``IF..ELSE``) handle ``EMPTY`` set as a
-normal valid input. All other operators when operating on ``EMPTY``,
-return ``EMPTY``. For more details see
+``DISTINCT``, ``??`` and ``IF..ELSE``) handle empty set ``{}`` as a
+normal valid input. All other operators when operating on ``{}``,
+return ``{}``. For more details see
 :ref:`how expressions work<ref_edgeql_expressions>`.
