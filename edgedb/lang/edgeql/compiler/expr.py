@@ -44,10 +44,13 @@ def compile_Path(
 @dispatch.compile.register(qlast.BinOp)
 def compile_BinOp(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
+    try_folding = True
+
     if isinstance(expr.op, ast.ops.TypeCheckOperator):
         op_node = compile_type_check_op(expr, ctx=ctx)
     elif isinstance(expr.op, qlast.SetOperator):
         op_node = compile_set_op(expr, ctx=ctx)
+        try_folding = False
     elif isinstance(expr.op, qlast.EquivalenceOperator):
         op_node = compile_equivalence_op(expr, ctx=ctx)
     else:
@@ -55,11 +58,15 @@ def compile_BinOp(
         right = dispatch.compile(expr.right, ctx=ctx)
         op_node = irast.BinOp(left=left, right=right, op=expr.op)
 
-    folded = try_fold_binop(op_node, ctx=ctx)
-    if folded is not None:
-        return folded
-    else:
+    if try_folding:
+        folded = try_fold_binop(op_node, ctx=ctx)
+        if folded is not None:
+            return folded
+
+    if not isinstance(op_node, irast.Set):
         return setgen.generated_set(op_node, ctx=ctx)
+    else:
+        return op_node
 
 
 @dispatch.compile.register(qlast.Parameter)
@@ -286,6 +293,8 @@ def _cast_expr(
                 ),
                 ctx=ctx
             )
+            val.path_id = irutils.tuple_indirection_path_id(
+                ir_expr.path_id, n, orig_type.element_types[n])
 
             val_type = irutils.infer_type(val, ctx.schema)
             new_el_name = new_names[i]
@@ -475,13 +484,18 @@ def compile_type_check_op(
 def compile_set_op(
         expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.SetOp:
     # UNION/EXCEPT/INTERSECT
-    left = dispatch.compile(astutils.ensure_qlstmt(expr.left), ctx=ctx)
-    right = dispatch.compile(astutils.ensure_qlstmt(expr.right), ctx=ctx)
+
+    left_ql = astutils.ensure_qlstmt(expr.left)
+    right_ql = astutils.ensure_qlstmt(expr.right)
+
+    left = dispatch.compile(left_ql, ctx=ctx)
+    right = dispatch.compile(right_ql, ctx=ctx)
 
     result = irast.SetOp(left=left.expr, right=right.expr, op=expr.op)
     rtype = irutils.infer_type(result, ctx.schema)
     path_id = irast.PathId([rtype])
     pathctx.register_path_scope(path_id, ctx=ctx)
+
     return result
 
 

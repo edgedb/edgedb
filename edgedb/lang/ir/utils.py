@@ -8,6 +8,10 @@
 
 from edgedb.lang.common import ast
 
+from edgedb.lang.schema import concepts as s_concepts
+from edgedb.lang.schema import links as s_links
+from edgedb.lang.schema import name as s_name
+from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
 
 from . import ast as irast
@@ -186,21 +190,57 @@ def is_simple_wrapper(ir_expr):
     )
 
 
-def new_expression_set(ir_expr, schema, path_id=None):
+def new_expression_set(ir_expr, schema, path_id=None, alias=None):
     result_type = infer_type(ir_expr, schema)
 
-    if isinstance(ir_expr, irast.TypeFilter):
-        type_expr = ir_expr.expr
-    else:
-        type_expr = ir_expr
-
     if path_id is None:
+        if isinstance(ir_expr, irast.TypeFilter):
+            type_expr = ir_expr.expr
+        else:
+            type_expr = ir_expr
+
         path_id = getattr(type_expr, 'path_id', None)
+
         if not path_id:
-            path_id = irast.PathId([infer_type(type_expr, schema)])
+            if alias is None:
+                raise ValueError('either path_id or alias are required')
+            if isinstance(result_type, (s_concepts.Concept, s_obj.Collection,
+                                        s_obj.Tuple)):
+                cls = result_type
+            else:
+                cls_name = s_name.Name(module='__expr__', name=alias)
+                cls = result_type.__class__(name=cls_name, bases=[result_type])
+                cls.acquire_ancestor_inheritance(schema)
+            path_id = irast.PathId([cls])
 
     return irast.Set(
         path_id=path_id,
         scls=result_type,
         expr=ir_expr,
+    )
+
+
+class TupleIndirectionLink(s_links.Link):
+    """A Link subclass that can be used in tuple indirection path ids."""
+
+    def __init__(self, element_name):
+        super().__init__(
+            name=s_name.Name(module='__tuple__', name=str(element_name))
+        )
+
+    def __hash__(self):
+        return hash((self.__class__, self.name))
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+
+        return self.name == other.name
+
+
+def tuple_indirection_path_id(tuple_path_id, element_name, element_type):
+    return tuple_path_id.extend(
+        TupleIndirectionLink(element_name),
+        s_pointers.PointerDirection.Outbound,
+        element_type
     )

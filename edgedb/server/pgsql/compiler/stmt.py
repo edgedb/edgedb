@@ -12,10 +12,8 @@ from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import concepts as s_concepts
-from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import views as s_views
 from edgedb.server.pgsql import ast as pgast
-from edgedb.server.pgsql import common
 
 from . import boilerplate
 from . import context
@@ -43,13 +41,7 @@ def compile_SelectStmt(
         query = ctx.query
 
         # Process the result expression;
-        output.compile_output(stmt.result, ctx=ctx)
-
-        if len(query.target_list) == 1:
-            resalias = output.ensure_query_restarget_name(
-                query, env=ctx.env)
-            pathctx.put_path_output(
-                ctx.env, query, stmt.result.path_id, resalias)
+        compile_output(stmt.result, ctx=ctx)
 
         if query is not ctx.toplevel_stmt:
             specific_scope = {s for s in ctx.stmt_specific_path_scope
@@ -125,9 +117,9 @@ def compile_SelectStmt(
         if not parent_ctx.correct_set_assumed and not simple_wrapper:
             enforce_uniqueness = (
                 (query is ctx.toplevel_stmt or ctx.expr_exposed) and
-                not parent_ctx.unique_set_assumed
+                not parent_ctx.unique_set_assumed and
+                isinstance(stmt.result.scls, s_concepts.Concept)
             )
-            # enforce_uniqueness = query is ctx.toplevel_stmt
             query = relgen.ensure_correct_set(
                 stmt, query, enforce_uniqueness=enforce_uniqueness, ctx=ctx)
 
@@ -154,7 +146,7 @@ def compile_GroupStmt(
         with ctx.subquery() as gctx:
             gctx.expr_exposed = False
             gquery = gctx.query
-            output.compile_output(stmt.subject, ctx=gctx)
+            compile_output(stmt.subject, ctx=gctx)
             subj_rvar = gquery.from_clause[0]
             relctx.ensure_bond_for_expr(
                 stmt.subject, subj_rvar.query, ctx=gctx)
@@ -184,8 +176,8 @@ def compile_GroupStmt(
             # a Concept, otherwise we generate the id using
             # row_number().
             if isinstance(stmt.subject.scls, s_concepts.Concept):
-                first_val = pathctx.get_path_var(
-                    ctx.env, gquery, stmt.subject.path_id)
+                first_val = pathctx.get_path_identity_var(
+                    gquery, stmt.subject.path_id, env=ctx.env)
             else:
                 with ctx.subquery() as subctx:
                     wrapper = subctx.query
@@ -197,33 +189,20 @@ def compile_GroupStmt(
 
                     new_part_clause = []
 
-                    for expr in part_clause:
-                        alias = ctx.env.aliases.get('p')
-                        gquery.target_list.append(
-                            pgast.ResTarget(
-                                val=expr,
-                                name=alias
-                            )
-                        )
+                    for i, expr in enumerate(part_clause):
+                        path_id = stmt.groupby[i].path_id
+                        pathctx.put_path_value_var(
+                            gquery, path_id, expr, force=True, env=ctx.env)
+                        alias = pathctx.get_path_value_output(
+                            gquery, path_id, env=ctx.env)
                         new_part_clause.append(
                             dbobj.get_column(gquery_rvar, alias)
                         )
 
                     part_clause = new_part_clause
 
-                    first_val = pathctx.get_rvar_path_var(
-                        ctx.env, gquery_rvar, stmt.subject.path_id)
-
-                    restype = irutils.infer_type(stmt.subject, ctx.env.schema)
-                    if isinstance(restype, s_obj.Tuple):
-                        for n in restype.element_types:
-                            cn = common.edgedb_name_to_pg_name(n)
-                            wrapper.target_list.append(
-                                pgast.ResTarget(
-                                    val=dbobj.get_column(gquery_rvar, cn),
-                                    name=cn
-                                )
-                            )
+                    first_val = pathctx.get_rvar_path_identity_var(
+                        gquery_rvar, stmt.subject.path_id, env=ctx.env)
 
                     gquery = wrapper
 
@@ -235,18 +214,12 @@ def compile_GroupStmt(
                 )
             )
 
-            gid_alias = ctx.genalias('gid')
-            gquery.target_list.append(
-                pgast.ResTarget(
-                    val=group_id,
-                    name=gid_alias
-                )
-            )
+            pathctx.put_path_identity_var(
+                gquery, group_path_id, group_id, env=ctx.env)
 
-            pathctx.put_path_output(
-                ctx.env, gquery, group_path_id, gid_alias, raw=True)
-            pathctx.put_path_output(
-                ctx.env, gquery, group_path_id, gid_alias, raw=False)
+            pathctx.put_path_value_var(
+                gquery, group_path_id, group_id, env=ctx.env)
+
             pathctx.put_path_bond(gquery, group_path_id)
 
         group_cte = pgast.CommonTableExpr(
@@ -266,23 +239,15 @@ def compile_GroupStmt(
             for group_set in stmt.groupby:
                 relctx.replace_set_cte_subtree(
                     group_set, group_cte, ctx=gvctx)
+
                 group_expr = dispatch.compile(group_set, ctx=gvctx)
                 path_id = group_set.path_id
-                if isinstance(group_set.expr, irast.TupleIndirection):
-                    alias = group_set.expr.name
-                else:
-                    alias = pathctx.get_path_output_alias(
-                        ctx.env, path_id)
-                gvctx.query.target_list.append(
-                    pgast.ResTarget(
-                        val=group_expr,
-                        name=alias
-                    )
-                )
-                pathctx.put_path_output(
-                    ctx.env, gvctx.query, path_id, alias, raw=True)
-                pathctx.put_path_output(
-                    ctx.env, gvctx.query, path_id, alias, raw=False)
+
+                pathctx.put_path_identity_var(
+                    gvctx.query, path_id, group_expr, env=gvctx.env)
+
+                pathctx.put_path_value_var(
+                    gvctx.query, path_id, group_expr, env=gvctx.env)
 
                 if isinstance(path_id[-1], (s_concepts.Concept, s_views.View)):
                     pathctx.put_path_bond(gvctx.query, path_id)
@@ -292,13 +257,16 @@ def compile_GroupStmt(
             relctx.include_range(gvctx.query, group_cte.query, ctx=gvctx)
 
             for path_id in list(gvctx.query.path_rvar_map):
-                c_path_id = pathctx.get_canonical_path_id(
-                    ctx.schema, path_id)
-                if c_path_id not in gvctx.stmt_path_scope:
+                if path_id not in gvctx.stmt_path_scope:
                     gvctx.query.path_rvar_map.pop(path_id)
 
+            for path_id in list(gvctx.query.path_namespace):
+                if path_id not in gvctx.stmt_path_scope:
+                    gvctx.query.path_namespace.pop(path_id)
+
             gvctx.query.distinct_clause = [
-                pathctx.get_path_var(ctx.env, gvctx.query, group_path_id)
+                pathctx.get_path_identity_var(
+                    gvctx.query, group_path_id, env=ctx.env)
             ]
 
         groupval_cte = pgast.CommonTableExpr(
@@ -310,6 +278,12 @@ def compile_GroupStmt(
 
         # process the result expression;
         with ctx.subquery() as selctx:
+            outer_id = stmt.result.path_id
+            inner_id = o_stmt.result.path_id
+
+            selctx.query.view_path_id_map = {
+                outer_id: inner_id
+            }
 
             selctx.stmt_path_scope = o_stmt.path_scope.copy()
             selctx.stmt_path_scope[group_path_id] = 1
@@ -337,7 +311,7 @@ def compile_GroupStmt(
                 relctx.replace_set_cte_subtree(
                     grouped_set, groupval_cte, recursive=False, ctx=selctx)
 
-            output.compile_output(o_stmt.result, ctx=selctx)
+            compile_output(o_stmt.result, ctx=selctx)
 
             relctx.enforce_path_scope(
                 selctx.query, selctx.parent_path_bonds, ctx=selctx)
@@ -360,6 +334,11 @@ def compile_GroupStmt(
                 )
                 sortoutputs.append(alias)
 
+        if not gvctx.query.target_list:
+            # group expressions were not used in output, discard the
+            # GV CTE.
+            selctx.query.ctes.remove(groupval_cte)
+
         query = ctx.query
         result_rvar = relctx.include_range(
             query, selctx.query, lateral=True, ctx=ctx)
@@ -374,12 +353,6 @@ def compile_GroupStmt(
                         name=rt.name
                     )
                 )
-
-        if len(query.target_list) == 1:
-            resalias = output.ensure_query_restarget_name(
-                query, env=ctx.env)
-            pathctx.put_path_output(
-                ctx.env, query, o_stmt.result.path_id, resalias)
 
         for i, expr in enumerate(o_stmt.orderby):
             sort_ref = dbobj.get_column(result_rvar, sortoutputs[i])
@@ -404,8 +377,13 @@ def compile_GroupStmt(
                 query.limit_count = dispatch.compile(o_stmt.limit, ctx=ctx1)
 
         if not parent_ctx.correct_set_assumed:
+            enforce_uniqueness = (
+                (query is ctx.toplevel_stmt or ctx.expr_exposed) and
+                not parent_ctx.unique_set_assumed and
+                isinstance(stmt.result.scls, s_concepts.Concept)
+            )
             query = relgen.ensure_correct_set(
-                stmt, query, query is ctx.toplevel_stmt, ctx=ctx)
+                stmt, query, enforce_uniqueness=enforce_uniqueness, ctx=ctx)
 
         boilerplate.fini_stmt(query, ctx, parent_ctx)
 
@@ -465,3 +443,28 @@ def compile_DeleteStmt(
 
         return dml.fini_dml_stmt(stmt, wrapper, delete_cte,
                                  parent_ctx=parent_ctx, ctx=ctx)
+
+
+def compile_output(
+        ir_set: irast.Base, *, ctx: context.CompilerContextLevel) -> None:
+    with ctx.new() as newctx:
+        newctx.clause = 'result'
+        if newctx.expr_exposed is None:
+            newctx.expr_exposed = True
+        dispatch.compile(ir_set, ctx=newctx)
+        set_cte = relctx.get_set_cte(
+            irutils.get_canonical_set(ir_set), ctx=newctx)
+
+        rvar = ctx.subquery_map[ctx.rel][set_cte]
+
+        path_id = ir_set.path_id
+        if ctx.rel.view_path_id_map:
+            path_id = pathctx.reverse_map_path_id(
+                path_id, ctx.rel.view_path_id_map)
+
+        pathctx.put_path_rvar(ctx.env, ctx.rel, path_id, rvar)
+
+        if output.in_serialization_ctx(ctx):
+            pathctx.get_path_serialized_output(ctx.rel, path_id, env=ctx.env)
+        else:
+            pathctx.get_path_value_output(ctx.rel, path_id, env=ctx.env)

@@ -118,8 +118,8 @@ def init_dml_stmt(
                 id_col
             ]),
             op=ast.ops.EQ,
-            rexpr=pathctx.get_rvar_path_var(
-                ctx.env, range_rvar, target_ir_set.path_id)
+            rexpr=pathctx.get_rvar_path_identity_var(
+                range_rvar, target_ir_set.path_id, env=ctx.env)
         )
 
         # UPDATE has "FROM", while DELETE has "USING".
@@ -138,7 +138,8 @@ def init_dml_stmt(
         target_id = pathctx.get_id_path_id(
             ctx.schema, target_ir_set.path_id)
 
-        pathctx.get_path_output(ctx.env, dml_stmt, path_id=target_id)
+        pathctx.get_path_identity_output(
+            dml_stmt, path_id=target_id, env=ctx.env)
 
     # Record the effect of this insertion in the relation overlay
     # context to ensure that the RETURNING clause potentially
@@ -154,7 +155,7 @@ def init_dml_stmt(
     toplevel.ctes.append(dml_cte)
     relctx.put_set_cte(ir_stmt.subject, dml_cte, ctx=ctx)
     pathctx.put_path_rvar(
-        ctx.env, dml_stmt, ir_stmt.subject, dml_stmt.relation)
+        ctx.env, dml_stmt, ir_stmt.subject.path_id, dml_stmt.relation)
 
     return wrapper, dml_cte, range_cte
 
@@ -170,8 +171,8 @@ def fini_dml_stmt(
     )
 
     if parent_ctx.toplevel_stmt is None:
-        ret_ref = pathctx.get_rvar_path_var(
-            parent_ctx.env, dml_rvar, ir_stmt.subject)
+        ret_ref = pathctx.get_rvar_path_identity_var(
+            dml_rvar, ir_stmt.subject.path_id, env=parent_ctx.env)
         count = pgast.FuncCall(name=('count',), args=[ret_ref])
         wrapper.target_list = [
             pgast.ResTarget(val=count)
@@ -218,8 +219,8 @@ def get_dml_range(
             subctx.env, range_stmt, target_ir_set.path_id,
             subctx.subquery_map[range_stmt][target_cte])
 
-        pathctx.get_path_output(
-            subctx.env, range_stmt, id_set.path_id)
+        pathctx.get_path_identity_output(
+            range_stmt, id_set.path_id, env=subctx.env)
 
         if ir_qual_expr is not None:
             with subctx.new() as newctx:
@@ -530,8 +531,8 @@ def process_link_update(
                 'id'
             ]
         ),
-        'std::source': pathctx.get_rvar_path_var(
-            ctx.env, dml_cte_rvar, ir_stmt.subject.path_id)
+        'std::source': pathctx.get_rvar_path_identity_var(
+            dml_cte_rvar, ir_stmt.subject.path_id, env=ctx.env)
     }
 
     # Drop all previous link records for this source.
@@ -698,8 +699,8 @@ def process_linkprop_update(
     )
 
     cond = astutils.new_binop(
-        pathctx.get_rvar_path_var(
-            ctx.env, dml_cte_rvar, ir_stmt.subject.path_id),
+        pathctx.get_rvar_path_identity_var(
+            dml_cte_rvar, ir_stmt.subject.path_id, env=ctx.env),
         dbobj.get_column(target_tab, 'std::source'),
         ast.ops.EQ
     )
@@ -793,17 +794,24 @@ def process_link_values(
         input_stmt = input_stmt.rarg
 
     path_id = data.result.path_id
-    target_ref = pathctx.get_rvar_path_var(ctx.env, input_rvar, path_id)
 
     if target_is_atom:
+        target_ref = pathctx.get_rvar_path_value_var(
+            input_rvar, path_id, env=ctx.env)
         source_data['std::target@atom'] = target_ref
     else:
+        target_ref = pathctx.get_rvar_path_identity_var(
+            input_rvar, path_id, env=ctx.env)
         source_data['std::target'] = target_ref
 
-    for rt in input_stmt.target_list:
-        source_data[rt.name] = pgast.ColumnRef(
-            name=[input_rvar.alias.aliasname, rt.name]
-        )
+    output = pathctx.get_path_value_output(
+        input_stmt, path_id, env=ctx.env)
+
+    if isinstance(output, astutils.TupleVar):
+        for element in output.elements:
+            colname = common.edgedb_name_to_pg_name(
+                element.path_id[-2][0].shortname)
+            source_data[colname] = dbobj.get_column(input_rvar, element.name)
 
     for col in tab_cols:
         expr = col_data.get(col)

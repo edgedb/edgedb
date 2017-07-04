@@ -217,18 +217,16 @@ class Query(BaseRelation, EdgeQLPathInfo):
 
     # Ignore the below fields in AST visitor/transformer.
     __ast_meta__ = {'ptr_join_map', 'path_rvar_map', 'path_namespace',
-                    'path_outputs', 'view_path_id_map', 'as_type', 'argnames'}
+                    'path_outputs', 'view_path_id_map', 'argnames'}
 
     # Map of RangeVars corresponding to pointer relations.
     ptr_join_map: dict
-    # Map of RanveVars corresponding to paths.
+    # Map of RangeVars corresponding to paths.
     path_rvar_map: typing.Dict[irast.PathId, BaseRangeVar]
     # Map of col refs corresponding to paths.
     path_namespace: dict
     # Map of res target names corresponding to paths.
     path_outputs: dict
-
-    as_type: irast.PathId
 
     argnames: typing.Dict[str, int]
 

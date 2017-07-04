@@ -177,6 +177,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ]
         ])
 
+    @tb.expected_optimizer_failure
     async def test_edgeql_links_map_atoms03(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -530,6 +531,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
         ])
 
     @tb.expected_no_optimizer_failure
+    @tb.expected_optimizer_failure
     async def test_edgeql_links_set12(self):
         await self.assert_query_result(r'''
             # find an item with a unique quality

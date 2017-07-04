@@ -64,6 +64,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         ])
 
+    @tb.expected_optimizer_failure
     async def test_edgeql_views_basic03(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -169,14 +170,13 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_views_except01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT _ :=
-                (SELECT AirCard {name})
-                EXCEPT
-                (SELECT Card FILTER Card.name LIKE 'D%')
+                ((SELECT AirCard)
+                    EXCEPT
+                (SELECT Card FILTER Card.name LIKE 'D%')) { name }
             ORDER BY _.name;
         ''', [
             [

@@ -1039,35 +1039,16 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_select_setops01(self):
+    async def test_edgeql_select_setops_union_01(self):
         res = await self.con.execute(r'''
             WITH MODULE test
             SELECT
-                Issue {name, body}
-                UNION
-                Comment {body};
-
-            WITH MODULE test
-            SELECT
-                Text {body}
-                INTERSECT
-                Comment {body};
-
-            WITH MODULE test
-            SELECT
-                Text {body}
-                EXCEPT
-                Comment {body};
-
-            WITH MODULE test
-            SELECT
-                Text {body}
-                EXCEPT
-                Comment {body}
-                EXCEPT
-                Issue {body};
-
+                (Issue UNION Comment) {
+                    Issue.name,
+                    Text.body
+                };
         ''')
+
         # sorting manually to test basic functionality first
         for r in res:
             r.sort(key=lambda x: x['body'])
@@ -1085,6 +1066,28 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                          'in tabular format.',
                  'name': 'Improve EdgeDB repl output rendering.'}
             ],
+        ])
+
+    async def test_edgeql_select_setops_intersect_except_01(self):
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT
+                (Text INTERSECT Comment) {body};
+
+            WITH MODULE test
+            SELECT
+                (Text EXCEPT Comment) {body};
+
+            WITH MODULE test
+            SELECT
+                (Text EXCEPT Comment EXCEPT Issue) {body};
+        ''')
+
+        # sorting manually to test basic functionality first
+        for r in res:
+            r.sort(key=lambda x: x['body'])
+
+        self.assert_data_shape(res, [
             [
                 {'body': 'EdgeDB needs to happen soon.'},
             ],
@@ -1105,24 +1108,27 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         res = await self.con.execute(r'''
             WITH
                 MODULE test,
-                Obj := (SELECT Issue {name, body} UNION Comment {body})
-            SELECT Obj;
+                Obj := (SELECT Issue UNION Comment)
+            SELECT Obj {
+                Issue.name,
+                Text.body
+            };
 
             WITH
                 MODULE test,
-                Obj := (SELECT Issue {name, body} UNION Comment {body})
+                Obj := (SELECT Issue UNION Comment)
             SELECT Obj[IS Text] { body }
             ORDER BY Obj[IS Text].body;
 
             WITH
                 MODULE test,
-                Obj := (SELECT Text {body} INTERSECT Comment {body})
+                Obj := (SELECT Text INTERSECT Comment)
             SELECT Obj[IS Text] { body }
             ORDER BY Obj[IS Text].body;
 
             WITH
                 MODULE test,
-                Obj := (SELECT Text {body} EXCEPT Comment {body})
+                Obj := (SELECT Text EXCEPT Comment)
             SELECT Obj[IS Text] { body }
             ORDER BY Obj[IS Text].body;
         ''')
@@ -1199,14 +1205,16 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '2'}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_setops05(self):
         await self.assert_query_result(r"""
             WITH MODULE test
             SELECT
-                (SELECT Issue{number, name} FILTER .number > '2')
-                EXCEPT
-                (SELECT Issue{number} FILTER .owner.name = 'Yury');
+                (
+                    (SELECT Issue FILTER Issue.number > '2')
+                    EXCEPT
+                    (SELECT Issue FILTER Issue.owner.name = 'Yury')
+                )
+                { number };
         """, [
             [{'number': '4'}],
         ])
@@ -1756,7 +1764,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT EXISTS Issue
             FILTER Issue.status.name = 'Open';
         ''', [
-            [True],
+            [True, True],
         ])
 
     async def test_edgeql_select_exists19(self):
@@ -1777,7 +1785,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             FILTER Issue.status.name = 'Open'
             ORDER BY Issue.number;
         ''', [
-            [True],
+            [True, True],
         ])
 
     async def test_edgeql_select_coalesce01(self):
@@ -2427,7 +2435,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT _ := Issue.owner.name + Issue.watchers.name
             ORDER BY _;
             """, [
-            ['ElvisYury', 'YuryElvis'],
+            ['ElvisYury', 'YuryElvis', 'YuryElvis'],
         ])
 
     async def test_edgeql_select_cross07(self):
@@ -2448,7 +2456,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT _ := Issue.owner.name + <str>count(ALL Issue.watchers.name)
             ORDER BY _;
             """, [
-            ['Elvis0', 'Elvis1', 'Yury1'],
+            ['Elvis0', 'Elvis1', 'Yury1', 'Yury1'],
         ])
 
     async def test_edgeql_select_cross09(self):
@@ -3215,6 +3223,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [['Closed', 2], ['Open', 2]]
         ])
 
+    @tb.expected_optimizer_failure
     async def test_edgeql_select_tuple02(self):
         await self.assert_query_result(r"""
             # nested tuples
@@ -3282,6 +3291,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'statuses': 2, 'issues': 4}],
         ])
 
+    @tb.expected_optimizer_failure
     async def test_edgeql_select_struct02(self):
         # Struct in a common set expr.
         await self.assert_query_result(r"""
@@ -3297,6 +3307,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [6],
         ])
 
+    @tb.expected_optimizer_failure
     async def test_edgeql_select_struct03(self):
         # Object in a struct.
         await self.assert_query_result(r"""
@@ -3349,6 +3360,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['Yury'],
         ])
 
+    @tb.expected_optimizer_failure
     async def test_edgeql_select_struct06(self):
         # Struct comparison
         await self.assert_query_result(r"""
@@ -3703,76 +3715,4 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ORDER BY Issue.owner.name;
         ''', [[
             {'name': 'Elvis'}, {'name': 'Yury'},
-        ]])
-
-    async def test_edgeql_uniqueness02(self):
-        await self.assert_query_result(r'''
-            WITH
-                MODULE test,
-                expr := Issue.owner,
-                expr_count_a := count(ALL Issue.owner),
-                expr_count_d := count(DISTINCT Issue.owner)
-            SELECT (
-                expr_count_a, count(ALL expr),
-                expr_count_d, count(DISTINCT expr),
-            );
-        ''', [[
-            [4, 2, 2, 2]
-        ]])
-
-    async def test_edgeql_uniqueness03(self):
-        await self.assert_query_result(r'''
-            WITH
-                MODULE test,
-                expr := <int>Issue.number < 10,
-                expr_count_a := count(ALL <int>Issue.number < 10),
-                expr_count_d := count(DISTINCT <int>Issue.number < 10)
-            SELECT (
-                expr_count_a, count(ALL expr),
-                expr_count_d, count(DISTINCT expr),
-            );
-        ''', [[
-            [4, 1, 1, 1]
-        ]])
-
-    async def test_edgeql_uniqueness04(self):
-        await self.assert_query_result(r'''
-            WITH MODULE test
-            # User is simply employed as an object to be augmented
-            #
-            SELECT User {
-                name,
-                expr_count_a := count(ALL <int>Issue.number < 10),
-                expr_count_d := count(DISTINCT <int>Issue.number < 10),
-                expr := <int>Issue.number < 10,
-            } FILTER .name = 'Elvis';
-        ''', [[
-            {
-                'name': 'Elvis',
-                'expr_count_a': 4,
-                'expr_count_d': 1,
-                'expr': [True],
-            }
-        ]])
-
-    async def test_edgeql_uniqueness05(self):
-        await self.assert_query_result(r'''
-            WITH
-                MODULE test,
-                # User is simply employed as an object to be augmented
-                #
-                x := (
-                    SELECT User {
-                        name,
-                        expr_count_a := count(ALL <int>Issue.number < 10),
-                        expr_count_d := count(DISTINCT <int>Issue.number < 10),
-                        expr := <int>Issue.number < 10,
-                    } FILTER .name = 'Elvis'
-                )
-            SELECT (
-                x.expr_count_a = count(ALL x.expr),
-                x.expr_count_d = count(DISTINCT x.expr),
-            );
-        ''', [[
-            [False, True]
         ]])

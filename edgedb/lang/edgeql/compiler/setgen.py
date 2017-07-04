@@ -169,8 +169,11 @@ def path_step(
             try:
                 expr = ctx.sets[path_tip, el_name]
             except KeyError:
+                path_id = irutils.tuple_indirection_path_id(
+                    path_tip.path_id, el_name,
+                    source.element_types[el_name])
                 expr = irast.TupleIndirection(
-                    expr=path_tip, name=el_name,
+                    expr=path_tip, name=el_name, path_id=path_id,
                     context=source_context)
             else:
                 return expr, None
@@ -344,7 +347,8 @@ def class_set(
 def generated_set(
         expr: irast.Base, path_id: typing.Optional[irast.PathId]=None, *,
         ctx: context.ContextLevel) -> irast.Set:
-    return irutils.new_expression_set(expr, ctx.schema, path_id)
+    alias = ctx.aliases.get('expr')
+    return irutils.new_expression_set(expr, ctx.schema, path_id, alias=alias)
 
 
 def ensure_set(expr: irast.Base, *, ctx: context.ContextLevel) -> irast.Set:

@@ -6,13 +6,38 @@
 ##
 
 
-import collections
+import typing
 
 from edgedb.lang.common import ast
+from edgedb.lang.ir import ast as irast
 from edgedb.server.pgsql import ast as pgast
 
 
-ResTargetList = collections.namedtuple('ResTargetList', ['targets', 'attmap'])
+class TupleElement:
+    def __init__(self, path_id: irast.PathId,
+                 name: typing.Optional[str]=None,
+                 val: typing.Optional[pgast.Base]=None):
+        self.path_id = path_id
+        self.name = name
+        self.val = val
+
+    def __repr__(self):
+        return f'<{self.__class__.__name__} name={self.name} val={self.val}>'
+
+
+class TupleVar:
+    def __init__(self, elements: typing.List[TupleElement], named: bool=False):
+        self.elements = elements
+        self.named = named
+
+    def __repr__(self):
+        return f'<{self.__class__.__name__} [{self.elements!r}]'
+
+
+class ColumnList:
+    def __init__(self, elements: typing.List[str], named: bool=False):
+        self.elements = elements
+        self.named = named
 
 
 def is_null_const(expr):
@@ -27,10 +52,12 @@ def is_set_op_query(query):
 
 def for_each_query_in_set(qry, cb):
     if qry.op:
-        for_each_query_in_set(qry.larg, cb)
-        for_each_query_in_set(qry.rarg, cb)
+        result = for_each_query_in_set(qry.larg, cb)
+        result.extend(for_each_query_in_set(qry.rarg, cb))
     else:
-        cb(qry)
+        result = [cb(qry)]
+
+    return result
 
 
 def new_binop(lexpr, rexpr, op):
@@ -80,3 +107,10 @@ def set_as_exists_op(pg_expr, negated=False):
         result = new_unop(ast.ops.NOT, result)
 
     return result
+
+
+def is_nullable(expr):
+    if isinstance(expr, TupleVar):
+        return False
+    else:
+        return True

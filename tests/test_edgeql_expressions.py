@@ -640,47 +640,6 @@ class TestExpressions(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_expr_uniqueness01(self):
-        await self.assert_query_result('''
-            WITH
-                MODULE schema,
-                x := `Concept` {foo := 1}
-            SELECT x.foo;
-        ''', [
-            [1],
-        ])
-
-    async def test_edgeql_expr_uniqueness02(self):
-        await self.assert_query_result('''
-            WITH
-                MODULE schema,
-                x := `Concept` {foo := [1]}
-            SELECT x.foo;
-        ''', [
-            [[1]],
-        ])
-
-    async def test_edgeql_expr_uniqueness03(self):
-        await self.assert_query_result('''
-            WITH
-                MODULE schema,
-                x := `Concept` {foo := ['bar' -> 42]}
-            SELECT x.foo;
-        ''', [
-            [{'bar': 42}],
-        ])
-
-    async def test_edgeql_expr_uniqueness04(self):
-        await self.assert_query_result('''
-            SELECT _ := {1, 1, 1} ORDER BY _;
-            SELECT _ := {1, 2, 3} ORDER BY _;
-            SELECT _ := {1, 2, 3, 2, 3} ORDER BY _;
-        ''', [
-            [1],
-            [1, 2, 3],
-            [1, 2, 3],
-        ])
-
     async def test_edgeql_expr_map01(self):
         await self.assert_query_result(r"""
             SELECT ['fo' + 'o' -> 42];
@@ -850,6 +809,7 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT (spam := 1, ham := 2) + 1;
             ''')
 
+    @tb.expected_optimizer_failure
     async def test_edgeql_expr_struct02(self):
         await self.assert_query_result('''\
             SELECT _ := (spam := {1, 2}, ham := {3, 4})
@@ -991,6 +951,7 @@ class TestExpressions(tb.QueryTestCase):
             [[1, 2], [3, 4]],
         ])
 
+    @tb.expected_optimizer_failure
     async def test_edgeql_expr_tuple07(self):
         await self.assert_query_result(r"""
             SELECT (1, 'foo') = (a := 1, b := 'foo');

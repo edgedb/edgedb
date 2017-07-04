@@ -378,6 +378,7 @@ class TupleIndirection(Expr):
 
     expr: Base
     name: str
+    path_id: PathId
 
 
 class IndexIndirection(Expr):

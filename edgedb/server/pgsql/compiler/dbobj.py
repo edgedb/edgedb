@@ -18,6 +18,7 @@ from edgedb.lang.schema import pointers as s_pointers
 from edgedb.server.pgsql import ast as pgast
 from edgedb.server.pgsql import common
 
+from . import astutils
 from . import context
 
 
@@ -320,3 +321,24 @@ def rvar_for_rel(
         )
 
     return rvar
+
+
+def get_rvar_fieldref(
+        rvar: typing.Optional[pgast.BaseRangeVar],
+        colname: typing.Union[str, astutils.ColumnList]) -> \
+        typing.Union[pgast.ColumnRef, astutils.TupleVar]:
+
+    if isinstance(colname, astutils.TupleVar):
+        elements = []
+
+        for el in colname.elements:
+            val = get_rvar_fieldref(rvar, el.name)
+            elements.append(
+                astutils.TupleElement(
+                    path_id=el.path_id, name=el.name, val=val))
+
+        fieldref = astutils.TupleVar(elements, named=colname.named)
+    else:
+        fieldref = get_column(rvar, colname)
+
+    return fieldref

@@ -247,6 +247,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ]
         ])
 
+    @tb.expected_no_optimizer_failure
     async def test_edgeql_props_basic03(self):
         await self.assert_query_result(r'''
             # get only users who have the same count and cost in the decks
@@ -505,13 +506,13 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                 {
                     'expr': [True],
                     'name': 'Bog monster',
-                    'count': [1, 3],
+                    'count': [1, 3, 3, 3],
                     'element': 'Water',
                 },
                 {
                     'expr': [False],
                     'name': 'Djinn',
-                    'count': [1],
+                    'count': [1, 1],
                     'element': 'Air',
                 },
                 {
@@ -535,7 +536,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                 {
                     'expr': [True],
                     'name': 'Giant turtle',
-                    'count': [1, 2, 3],
+                    'count': [1, 2, 3, 3],
                     'element': 'Water',
                 },
                 {
@@ -553,7 +554,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                 {
                     'expr': [True],
                     'name': 'Sprite',
-                    'count': [4],
+                    'count': [4, 4],
                     'element': 'Air',
                 },
             ]

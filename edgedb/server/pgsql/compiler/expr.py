@@ -487,13 +487,21 @@ def compile_TupleIndirection(
 @dispatch.compile.register(irast.Tuple)
 def compile_Tuple(
         expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
-    elements = [dispatch.compile(e.val, ctx=ctx) for e in expr.elements]
-    result = pgast.ImplicitRowExpr(args=elements)
+    ttype = irutils.infer_type(expr, ctx.env.schema)
+    ttypes = ttype.element_types
+    telems = list(ttypes)
 
-    if ctx.clause == 'result' and ctx.expr_exposed:
-        result = output.serialize_expr(ctx.env, result)
+    path_id = irast.PathId([ttype])
 
-    return result
+    result = astutils.TupleVar(elements=[
+        astutils.TupleElement(
+            path_id=irutils.tuple_indirection_path_id(
+                path_id, telems[i], ttypes[telems[i]]),
+            val=dispatch.compile(e.val, ctx=ctx)
+        ) for i, e in enumerate(expr.elements)
+    ])
+
+    return output.output_as_value(result, ctx=ctx)
 
 
 @dispatch.compile.register(irast.Mapping)
@@ -607,16 +615,7 @@ def compile_Set(
                 subctx.rel, source_cte, join_type='inner', ctx=subctx)
 
             if has_shape:
-                shape = _compile_shape(expr, ctx=subctx)
-                alias = ctx.env.aliases.get('v')
-                subctx.rel.target_list = [
-                    pgast.ResTarget(
-                        val=shape,
-                        name=alias,
-                    )
-                ]
-                pathctx.put_path_output(
-                    ctx.env, subctx.rel, expr.path_id, alias)
+                _compile_shape(expr, ctx=subctx)
 
             source_cte = subctx.rel
 
@@ -637,12 +636,13 @@ def compile_Set(
             ctx.rel, source_cte, join_type=join_type,
             lateral=True, ctx=ctx)
 
-        result = relgen.get_var_for_set_expr(expr, source_rvar, ctx=ctx)
+        result = pathctx.get_rvar_path_value_var(
+            source_rvar, expr.path_id, env=ctx.env)
 
         if has_shape:
-            shape = _compile_shape(expr, ctx=ctx)
-            if shape is not None:
-                result = shape
+            result = _compile_shape(expr, ctx=ctx)
+
+        result = output.output_as_value(result, ctx=ctx)
 
     return result
 
@@ -662,7 +662,11 @@ def _tuple_to_row_expr(tuple_expr, *, ctx):
     row = []
     for n in subtypes:
         ref = irutils.new_expression_set(
-            irast.TupleIndirection(expr=tuple_expr, name=n),
+            irast.TupleIndirection(
+                expr=tuple_expr,
+                name=n,
+                path_id=irutils.tuple_indirection_path_id(
+                    tuple_expr.path_id, n, subtypes[n])),
             ctx.schema
         )
         row.append(dispatch.compile(ref, ctx=ctx))
@@ -672,9 +676,8 @@ def _tuple_to_row_expr(tuple_expr, *, ctx):
 
 def _compile_shape(
         ir_set: irast.Set, *, ctx: context.CompilerContextLevel) \
-        -> typing.Union[pgast.Base, astutils.ResTargetList]:
-    my_elements = []
-    attribute_map = []
+        -> typing.Union[pgast.Base, astutils.TupleVar]:
+    elements = []
 
     for e in ir_set.shape:
         rptr = e.rptr
@@ -698,17 +701,27 @@ def _compile_shape(
             direction=ptrdir, target=ptrcls.get_far_endpoint(ptrdir),
             is_linkprop=isinstance(ptrcls, s_lprops.LinkProperty))
 
-        if isinstance(element, astutils.ResTargetList):
-            attribute_map.extend(element.attmap)
-            my_elements.extend(element.targets)
-        else:
-            attribute_map.append(attr_name)
-            my_elements.append(element)
+        elements.append(
+            astutils.TupleElement(
+                path_id=e.path_id,
+                name=attr_name,
+                val=element
+            )
+        )
 
-    result = astutils.ResTargetList(my_elements, attribute_map)
+    result = astutils.TupleVar(elements=elements, named=True)
+    pathctx.put_path_value_var(ctx.rel, ir_set.path_id, result, env=ctx.env)
 
     if ctx.shape_format == context.ShapeFormat.SERIALIZED:
-        result = output.serialize_expr(ctx, result)
+        result = output.output_as_value(result, ctx=ctx)
+        pathctx.put_path_serialized_var(
+            ctx.rel, ir_set.path_id, result, env=ctx.env)
+
+    for element in elements:
+        # The ref might have already been added by the nested shape
+        # processing, so check for it.
+        pathctx.put_path_value_var_if_not_exists(
+            ctx.rel, element.path_id, element.val, env=ctx.env)
 
     return result
 

@@ -35,7 +35,8 @@ def pull_path_namespace(
 
     for source_q in source_qs:
         outputs = {o[0] for o in source_q.path_outputs}
-        s_paths = set(source_q.path_rvar_map) | outputs
+        ns = {o[0] for o in source_q.path_namespace}
+        s_paths = set(source_q.path_rvar_map) | outputs | ns
         for path_id in s_paths:
             path_id = pathctx.reverse_map_path_id(
                 path_id, target.view_path_id_map)
@@ -57,36 +58,32 @@ def pull_path_namespace(
             pathctx.put_path_bond(target, path_id)
 
             bond = pathctx.LazyPathVarRef(
-                pathctx.get_rvar_path_var, ctx.env, source, path_id)
+                pathctx.get_rvar_path_identity_var, ctx.env, source, path_id)
 
             ctx.path_bonds[path_id] = bond
             ctx.path_bonds_by_stmt[ctx.stmt][path_id] = bond
 
 
 def apply_path_bond_injections(
-        stmt: pgast.Query, *, ctx: context.CompilerContextLevel) -> bool:
+        stmt: pgast.Query, *,
+        ctx: context.CompilerContextLevel) -> typing.Optional[irast.PathId]:
 
     if ctx.expr_injected_path_bond is not None:
         # Inject an explicitly provided path bond.  This is necessary
         # to ensure the correct output of rels that compute view
         # expressions that do not contain relevant path bonds themselves.
-        alias = ctx.genalias(hint='b')
         bond_ref = ctx.expr_injected_path_bond['ref']
         bond_path_id = ctx.expr_injected_path_bond['path_id']
 
-        ex_ref = pathctx.maybe_get_path_var(ctx.env, stmt, bond_path_id)
+        ex_ref = pathctx.maybe_get_path_identity_var(
+            stmt, bond_path_id, env=ctx.env)
         if ex_ref is None:
-            stmt.target_list.append(
-                pgast.ResTarget(val=bond_ref, name=alias)
-            )
-            # Register this bond as output just in case.
-            # BUT, do not add it to path_bonds.
-            pathctx.put_path_output(ctx.env, stmt, bond_path_id, alias)
+            pathctx.put_path_identity_var(
+                stmt, bond_path_id, bond_ref, env=ctx.env)
             pathctx.put_path_bond(stmt, bond_path_id)
-
-        return True
+        return bond_path_id
     else:
-        return False
+        return None
 
 
 def include_range(
@@ -134,19 +131,23 @@ def include_range(
 def get_root_rvar(
         ir_set: irast.Set, stmt: pgast.Query, nullable: bool=False,
         set_rvar: pgast.BaseRangeVar=None, *,
+        path_id: typing.Optional[irast.PathId]=None,
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
     if not isinstance(ir_set.scls, s_concepts.Concept):
         return None
 
+    if path_id is None:
+        path_id = ir_set.path_id
+
     if set_rvar is None:
         set_rvar = dbobj.range_for_set(ctx.env, ir_set)
         set_rvar.nullable = nullable
-        set_rvar.path_bonds.add(ir_set.path_id)
+        set_rvar.path_bonds.add(path_id)
 
-    pathctx.put_path_rvar(ctx.env, stmt, ir_set.path_id, set_rvar)
+    pathctx.put_path_rvar(ctx.env, stmt, path_id, set_rvar)
 
-    if ir_set.path_id in ctx.stmt_path_scope:
-        pathctx.put_path_bond(stmt, ir_set.path_id)
+    if path_id in ctx.stmt_path_scope:
+        pathctx.put_path_bond(stmt, path_id)
 
     return set_rvar
 
@@ -155,27 +156,20 @@ def ensure_correct_rvar_for_expr(
         ir_set: irast.Set, stmt: pgast.Query, set_expr: pgast.Base, *,
         ctx: context.CompilerContextLevel):
 
-    if isinstance(set_expr, astutils.ResTargetList):
-        for i, rt in enumerate(set_expr.targets):
-            stmt.target_list.append(
-                pgast.ResTarget(val=rt, name=set_expr.attmap[i])
-            )
-    else:
-        restarget = pgast.ResTarget(val=set_expr, name='v')
+    if isinstance(ir_set.scls, s_concepts.Concept):
+        root_rvar = get_root_rvar(ir_set, stmt, path_id=ir_set.path_id,
+                                  ctx=ctx)
 
-        if isinstance(ir_set.scls, s_concepts.Concept):
-            root_rvar = get_root_rvar(ir_set, stmt, ctx=ctx)
-            subqry = pgast.SelectStmt(
-                target_list=[restarget]
-            )
-            pathctx.put_path_output(ctx.env, subqry, ir_set, restarget.name,
-                                    raw=True)
-            include_range(stmt, subqry, lateral=True, ctx=ctx)
-            pathctx.rel_join(ctx.env, stmt, root_rvar)
-            pathctx.put_path_rvar(ctx.env, stmt, ir_set.path_id, root_rvar)
-        else:
-            stmt.target_list.append(restarget)
-            pathctx.put_path_output(ctx.env, stmt, ir_set, restarget.name)
+        subqry = pgast.SelectStmt()
+        pathctx.put_path_identity_var(subqry, ir_set.path_id,
+                                      set_expr, env=ctx.env)
+        include_range(stmt, subqry, lateral=True, ctx=ctx)
+
+        pathctx.rel_join(ctx.env, stmt, root_rvar)
+        pathctx.put_path_rvar(ctx.env, stmt, ir_set.path_id, root_rvar)
+    else:
+        pathctx.put_path_value_var_if_not_exists(
+            stmt, ir_set.path_id, set_expr, env=ctx.env)
 
 
 def ensure_bond_for_expr(
@@ -195,15 +189,8 @@ def ensure_bond_for_expr(
         over=pgast.WindowDef()
     )
 
-    rt_name = ctx.env.aliases.get('rn')
-    stmt.target_list.append(
-        pgast.ResTarget(
-            val=row_number,
-            name=rt_name
-        )
-    )
-
-    pathctx.put_path_output(ctx.env, stmt, ir_set, rt_name, raw=True)
+    pathctx.put_path_identity_var(stmt, ir_set.path_id,
+                                  row_number, env=ctx.env)
     pathctx.put_path_bond(stmt, ir_set.path_id)
 
 
