@@ -65,16 +65,18 @@ class EdgeSchemaLexer(lexer.RegexLexer):
 
         'numbers': [
             (r'''(?x)
-                (?: \d+ (?:\.\d*)?
-                    |
-                    \. \d+
-                ) (?:[eE](?:[+\-])?[0-9]+)
+                (?<!\w)
+                    (?: \d+ (?:\.\d*)?
+                        |
+                        \. \d+
+                    ) (?:[eE](?:[+\-])?[0-9]+)
             ''', token.Number.Float),
             (r'''(?x)
-                (?: \d+\.(?!\.)\d*
-                    |
-                    \.\d+)
+                (?<!\w)
+                    (?: \d+\.(?!\.)\d*
+                        |
+                        \.\d+)
             ''', token.Number.Float),
-            (r'\d+', token.Number.Integer),
+            (r'(?<!\w)\d+', token.Number.Integer),
         ],
     }
