@@ -12,7 +12,6 @@ Welcome to the EdgeDB |version| documentation.
     :maxdepth: 2
 
     overview
-    core_features
     schema/architecture
     schema/evolution
     edgeql/index

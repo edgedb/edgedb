@@ -177,7 +177,7 @@ issues owned by Alice Smith rather than the ``Issue`` objects.
     set can contain duplicate values. Every integer is effectively
     considered a distinct element of the set even when there are
     already set elements of the same value in the set. See
-    :ref:`core features of EdgeDB<ref_tutorial_core>` and
+    :ref:`Everything is a set<ref_overview_set>` and
     :ref:`how expressions work<ref_edgeql_expressions>` for more
     details.
 
