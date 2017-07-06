@@ -1674,15 +1674,11 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_set01(self):
         """
         SELECT (1 UNION 2);
-        SELECT (1 INTERSECT 2);
-        SELECT (1 EXCEPT 2);
         """
 
     def test_edgeql_syntax_set02(self):
         """
         SELECT ((SELECT Foo) UNION (SELECT Bar));
-        SELECT ((SELECT Foo) INTERSECT (SELECT Bar));
-        SELECT ((SELECT Foo) EXCEPT (SELECT Bar));
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=9)
@@ -1693,11 +1689,11 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_set04(self):
         """
-        SELECT 2 * (1 UNION 2 EXCEPT 1);
+        SELECT 2 * (1 UNION 2 UNION 1);
 
 % OK %
 
-        SELECT (2 * ((1 UNION 2) EXCEPT 1));
+        SELECT (2 * ((1 UNION 2) UNION 1));
         """
 
     def test_edgeql_syntax_set05(self):

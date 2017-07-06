@@ -50,8 +50,6 @@ class SetOperator(EdgeQLOperator):
 
 
 UNION = SetOperator('UNION')
-INTERSECT = SetOperator('INTERSECT')
-EXCEPT = SetOperator('EXCEPT')
 
 AND = ast.ops.AND
 OR = ast.ops.OR

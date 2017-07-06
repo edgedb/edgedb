@@ -1039,7 +1039,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_select_setops_union_01(self):
+    async def test_edgeql_select_setops01(self):
         res = await self.con.execute(r'''
             WITH MODULE test
             SELECT
@@ -1068,42 +1068,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_select_setops_intersect_except_01(self):
-        res = await self.con.execute(r'''
-            WITH MODULE test
-            SELECT
-                (Text INTERSECT Comment) {body};
-
-            WITH MODULE test
-            SELECT
-                (Text EXCEPT Comment) {body};
-
-            WITH MODULE test
-            SELECT
-                (Text EXCEPT Comment EXCEPT Issue) {body};
-        ''')
-
-        # sorting manually to test basic functionality first
-        for r in res:
-            r.sort(key=lambda x: x['body'])
-
-        self.assert_data_shape(res, [
-            [
-                {'body': 'EdgeDB needs to happen soon.'},
-            ],
-            [
-                {'body': 'Fix regression introduced by lexer tweak.'},
-                {'body': 'Initial public release of EdgeDB.'},
-                {'body': 'Minor lexer tweaks.'},
-                {'body': 'Rewriting everything.'},
-                {'body': 'We need to be able to render '
-                         'data in tabular format.'}
-            ],
-            [
-                {'body': 'Rewriting everything.'},
-            ]
-        ])
-
     async def test_edgeql_select_setops02(self):
         res = await self.con.execute(r'''
             WITH
@@ -1119,18 +1083,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Obj := (SELECT Issue UNION Comment)
             SELECT Obj[IS Text] { body }
             ORDER BY Obj[IS Text].body;
-
-            WITH
-                MODULE test,
-                Obj := (SELECT Text INTERSECT Comment)
-            SELECT Obj[IS Text] { body }
-            ORDER BY Obj[IS Text].body;
-
-            WITH
-                MODULE test,
-                Obj := (SELECT Text EXCEPT Comment)
-            SELECT Obj[IS Text] { body }
-            ORDER BY Obj[IS Text].body;
         ''')
 
         self.assert_data_shape(res, [
@@ -1140,17 +1092,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 {'body': 'Fix regression introduced by lexer tweak.'},
                 {'body': 'Initial public release of EdgeDB.'},
                 {'body': 'Minor lexer tweaks.'},
-                {'body': 'We need to be able to render '
-                         'data in tabular format.'}
-            ],
-            [
-                {'body': 'EdgeDB needs to happen soon.'},
-            ],
-            [
-                {'body': 'Fix regression introduced by lexer tweak.'},
-                {'body': 'Initial public release of EdgeDB.'},
-                {'body': 'Minor lexer tweaks.'},
-                {'body': 'Rewriting everything.'},
                 {'body': 'We need to be able to render '
                          'data in tabular format.'}
             ],
@@ -1203,20 +1144,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ORDER BY Issue.number;
         """, [
             [{'number': '2'}],
-        ])
-
-    async def test_edgeql_select_setops05(self):
-        await self.assert_query_result(r"""
-            WITH MODULE test
-            SELECT
-                (
-                    (SELECT Issue FILTER Issue.number > '2')
-                    EXCEPT
-                    (SELECT Issue FILTER Issue.owner.name = 'Yury')
-                )
-                { number };
-        """, [
-            [{'number': '4'}],
         ])
 
     async def test_edgeql_select_order01(self):
