@@ -1052,16 +1052,16 @@ class TestExpressions(tb.QueryTestCase):
 
             SELECT (SELECT 2) * (1 UNION 2);
 
-            SELECT 2 * (1 UNION 2 EXCEPT 1);
+            SELECT 2 * (1 UNION 2 UNION 1);
 
             WITH
-                a := (SELECT 1 UNION 2 EXCEPT 1)
+                a := (SELECT 1 UNION 2)
             SELECT (SELECT 2) * a;
         """, [
             [2, 4],
             [2, 4],
-            [4],
-            [4],
+            [2, 4, 2],
+            [2, 4],
         ])
 
     async def test_edgeql_expr_setop03(self):
@@ -1190,4 +1190,87 @@ class TestExpressions(tb.QueryTestCase):
             [3],
             [3],
             [5],
+        ])
+
+    @tb.expected_optimizer_failure
+    async def test_edgeql_expr_alias01(self):
+        await self.assert_query_result(r"""
+            WITH
+                a := {1, 2},
+                b := {2, 3}
+            SELECT a
+            FILTER a = b;
+        """, [
+            [2],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_alias02(self):
+        await self.assert_query_result(r"""
+            WITH
+                b := {2, 3}
+            SELECT a := {1, 2}
+            FILTER a = b;
+        """, [
+            [2],
+        ])
+
+    async def test_edgeql_expr_alias03(self):
+        await self.assert_query_result(r"""
+            SELECT (
+                name := 'a',
+                foo := (
+                    WITH a := {1, 2}
+                    SELECT a
+                )
+            );
+        """, [
+            [{'name': 'a', 'foo': 1}, {'name': 'a', 'foo': 2}],
+        ])
+
+    @tb.expected_optimizer_failure
+    async def test_edgeql_expr_alias04(self):
+        await self.assert_query_result(r"""
+            SELECT (
+                name := 'a',
+                foo := (
+                    WITH a := {1, 2}
+                    SELECT a
+                    FILTER a < 2
+                )
+            );
+        """, [
+            [{'name': 'a', 'foo': 1}],
+        ])
+
+    async def test_edgeql_expr_alias05(self):
+        await self.assert_query_result(r"""
+            WITH MODULE schema
+            SELECT Concept {
+                name,
+                foo := (
+                    WITH a := {1, 2}
+                    SELECT a
+                )
+            }
+            ORDER BY .name LIMIT 1;
+        """, [
+            [{'name': 'schema::Array', 'foo': {1, 2}}],
+        ])
+
+    @tb.expected_optimizer_failure
+    async def test_edgeql_expr_alias06(self):
+        await self.assert_query_result(r"""
+            WITH MODULE schema
+            SELECT Concept {
+                name,
+                foo := (
+                    WITH a := {1, 2}
+                    SELECT a
+                    FILTER a < 2
+                )
+            }
+            ORDER BY .name LIMIT 1;
+        """, [
+            [{'name': 'schema::Array', 'foo': {1}}],
         ])

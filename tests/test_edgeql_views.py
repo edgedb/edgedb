@@ -169,18 +169,3 @@ class TestEdgeQLViews(tb.QueryTestCase):
                 {'name': 'Sprite'},
             ],
         ])
-
-    async def test_edgeql_views_except01(self):
-        await self.assert_query_result(r'''
-            WITH MODULE test
-            SELECT _ :=
-                ((SELECT AirCard)
-                    EXCEPT
-                (SELECT Card FILTER Card.name LIKE 'D%')) { name }
-            ORDER BY _.name;
-        ''', [
-            [
-                {'name': 'Giant eagle'},
-                {'name': 'Sprite'},
-            ],
-        ])

@@ -343,8 +343,16 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             WITH MODULE test
             SELECT Item {
                 name,
-                foo := Item.tag_set1 INTERSECT {'rectangle', 'wood'},
-                bar := Item.tag_set2 INTERSECT {'rectangle', 'wood'},
+                foo := (
+                    # XXX: check test_edgeql_expr_alias for failures first
+                    SELECT _ := Item.tag_set1
+                    FILTER _ = {'rectangle', 'wood'}
+                ),
+                bar := (
+                    # XXX: check test_edgeql_expr_alias for failures first
+                    SELECT _ := Item.tag_set2
+                    FILTER _ = {'rectangle', 'wood'}
+                ),
             }
             ORDER BY .name;
         ''', [
@@ -392,14 +400,20 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             #
             WITH MODULE test
             SELECT Item {name}
-            FILTER count(ALL
-                Item.tag_set1 INTERSECT {'rectangle', 'wood'}) = 2
+            FILTER count(ALL (
+                # XXX: check test_edgeql_expr_alias for failures first
+                SELECT _ := Item.tag_set1
+                FILTER _ = {'rectangle', 'wood'}
+            )) = 2
             ORDER BY .name;
 
             WITH MODULE test
             SELECT Item {name}
-            FILTER count(ALL
-                Item.tag_set2 INTERSECT {'rectangle', 'wood'}) = 2
+            FILTER count(ALL (
+                # XXX: check test_edgeql_expr_alias for failures first
+                SELECT _ := Item.tag_set2
+                FILTER _ = {'rectangle', 'wood'}
+            )) = 2
             ORDER BY .name;
         ''', [
             [
@@ -418,20 +432,24 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             #
             WITH
                 MODULE test,
-                cmp := {'rectangle', 'wood'}
+                cmp := {'rectangle', 'wood'},
+                cmp_count := count(ALL cmp)
             SELECT Item {name}
             FILTER
-                count(ALL .tag_set1 INTERSECT cmp) =
-                    count(ALL .tag_set1 UNION cmp)
+                cmp_count = count(ALL .tag_set1)
+                AND
+                cmp_count = count(ALL .tag_set1 UNION cmp)
             ORDER BY .name;
 
             WITH
                 MODULE test,
-                cmp := {'rectangle', 'wood'}
+                cmp := {'rectangle', 'wood'},
+                cmp_count := count(ALL cmp)
             SELECT Item {name}
             FILTER
-                count(ALL .tag_set2 INTERSECT cmp) =
-                    count(ALL .tag_set2 UNION cmp)
+                cmp_count = count(ALL .tag_set2)
+                AND
+                cmp_count = count(ALL .tag_set2 UNION cmp)
             ORDER BY .name;
         ''', [
             [
@@ -462,6 +480,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
+    @tb.expected_optimizer_failure
     async def test_edgeql_links_set10(self):
         await self.assert_query_result(r'''
             # find an item with a unique quality
@@ -470,8 +489,12 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
                 I2 := Item
             SELECT Item {
                 name,
-                unique := Item.tag_set1 EXCEPT (
-                    SELECT I2.tag_set1 FILTER I2 != Item)
+                unique := (
+                    SELECT _ := Item.tag_set1
+                    FILTER _ NOT IN (
+                        SELECT I2.tag_set1 FILTER I2 != Item
+                    )
+                )
             }
             ORDER BY .name;
         ''', [
@@ -504,7 +527,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    @tb.expected_no_optimizer_failure
+    @unittest.expectedFailure
     async def test_edgeql_links_set11(self):
         await self.assert_query_result(r'''
             # find an item with a unique quality
@@ -513,8 +536,12 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
                 I2 := Item
             SELECT Item {
                 name,
-                unique := count(ALL Item.tag_set1 EXCEPT (
-                    SELECT I2.tag_set1 FILTER I2 != Item))
+                unique := count(ALL (
+                    SELECT _ := Item.tag_set1
+                    FILTER _ NOT IN (
+                        SELECT I2.tag_set1 FILTER I2 != Item
+                    )
+                ))
             }
             FILTER .unique > 0
             ORDER BY .name;
@@ -530,8 +557,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    @tb.expected_no_optimizer_failure
-    @tb.expected_optimizer_failure
+    @unittest.expectedFailure
     async def test_edgeql_links_set12(self):
         await self.assert_query_result(r'''
             # find an item with a unique quality
@@ -540,8 +566,13 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
                 I2 := Item
             SELECT Item {
                 name,
-                unique := Item.tag_set1 EXCEPT (
-                    SELECT I2.tag_set1 FILTER I2 != Item)
+                unique := (
+                    # XXX: check test_edgeql_expr_alias for failures first
+                    SELECT _ := Item.tag_set1
+                    FILTER _ NOT IN (
+                        SELECT I2.tag_set1 FILTER I2 != Item
+                    )
+                )
             }
             FILTER count(ALL .unique) > 0
             ORDER BY .name;
@@ -722,6 +753,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_links_array09(self):
         await self.assert_query_result(r'''
             # find an item with a unique quality
@@ -731,7 +763,9 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             SELECT Item {
                 name,
                 unique := (
-                    SELECT array_unpack(Item.tag_array) EXCEPT (
+                    # XXX: check test_edgeql_expr_alias for failures first
+                    SELECT _ := array_unpack(Item.tag_array)
+                    FILTER _ NOT IN (
                         SELECT array_unpack(I2.tag_array) FILTER I2 != Item
                     )
                 )
@@ -767,7 +801,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    @tb.expected_no_optimizer_failure
+    @unittest.expectedFailure
     async def test_edgeql_links_array10(self):
         await self.assert_query_result(r'''
             # find an item with a unique quality
@@ -777,7 +811,9 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             SELECT Item {
                 name,
                 unique := (
-                    SELECT array_unpack(Item.tag_array) EXCEPT (
+                    # XXX: check test_edgeql_expr_alias for failures first
+                    SELECT _ := array_unpack(Item.tag_array)
+                    FILTER _ NOT IN (
                         SELECT array_unpack(I2.tag_array) FILTER I2 != Item
                     )
                 )

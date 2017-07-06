@@ -483,7 +483,7 @@ def compile_type_check_op(
 
 def compile_set_op(
         expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.SetOp:
-    # UNION/EXCEPT/INTERSECT
+    # UNION
 
     left_ql = astutils.ensure_qlstmt(expr.left)
     right_ql = astutils.ensure_qlstmt(expr.right)

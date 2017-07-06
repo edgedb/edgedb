@@ -559,7 +559,7 @@ class Expr(Nonterm):
     # | '<' TypeName '>' Expr
     # | Expr IF Expr ELSE Expr
     # | Expr ?? Expr
-    # | Expr UNION Expr | Expr EXCEPT Expr | Expr INTERSECT Expr
+    # | Expr UNION Expr
 
     def reduce_Path(self, *kids):
         self.val = kids[0].val
@@ -767,14 +767,6 @@ class Expr(Nonterm):
 
     def reduce_Expr_UNION_Expr(self, *kids):
         self.val = qlast.BinOp(left=kids[0].val, op=qlast.UNION,
-                               right=kids[2].val)
-
-    def reduce_Expr_EXCEPT_Expr(self, *kids):
-        self.val = qlast.BinOp(left=kids[0].val, op=qlast.EXCEPT,
-                               right=kids[2].val)
-
-    def reduce_Expr_INTERSECT_Expr(self, *kids):
-        self.val = qlast.BinOp(left=kids[0].val, op=qlast.INTERSECT,
                                right=kids[2].val)
 
 

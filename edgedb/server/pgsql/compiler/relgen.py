@@ -71,7 +71,7 @@ def set_to_cte(
             process_set_as_subquery(ir_set, stmt, ctx=subctx)
 
         elif isinstance(ir_set.expr, irast.SetOp):
-            # Set operation: UNION/INTERSECT/EXCEPT
+            # Set operation: UNION
             process_set_as_setop(ir_set, stmt, ctx=subctx)
 
         elif isinstance(ir_set.expr, irast.TypeFilter):
