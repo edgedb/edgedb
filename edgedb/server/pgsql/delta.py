@@ -416,6 +416,15 @@ class FunctionCommand:
         if not func.paramtypes:
             return
 
+        # TODO: Refactor to move this logic closer to pg_type_from_object,
+        # or add another layer of abstraction for typing for complex
+        # objects.
+        has_anyarray = (
+            (isinstance(func.returntype, s_obj.Array) and
+                func.returntype.element_type.name == 'std::any') or
+            any(isinstance(at, s_obj.Array) and
+                at.element_type.name == 'std::any' for at in func.paramtypes))
+
         args = []
         for an, at, ad in itertools.zip_longest(func.paramnames,
                                                 func.paramtypes,
@@ -424,7 +433,11 @@ class FunctionCommand:
             if ad is not None:
                 pg_ad = self.compile_default(func, ad, schema)
 
-            pg_at = self.get_pgtype(func, at, schema)
+            if has_anyarray and at.name == 'std::any':
+                pg_at = ('anyelement',)
+            else:
+                pg_at = self.get_pgtype(func, at, schema)
+
             args.append((an, pg_at, pg_ad))
 
         return args

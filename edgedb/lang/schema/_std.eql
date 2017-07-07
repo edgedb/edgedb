@@ -102,6 +102,12 @@ CREATE FUNCTION std::array_unpack(array<std::any>)
     RETURNING SET OF std::any
     FROM SQL FUNCTION '--system--';
 
+CREATE FUNCTION std::array_contains(array<std::any>, std::any)
+    RETURNING std::bool
+    FROM SQL $$
+        SELECT array_position($1, $2) IS NOT NULL;
+    $$;
+
 CREATE FUNCTION std::array_enumerate(array<std::any>)
     RETURNING SET OF tuple<std::any, std::int>
     FROM SQL FUNCTION '--system--';
