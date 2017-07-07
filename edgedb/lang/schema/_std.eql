@@ -167,8 +167,6 @@ CREATE CONSTRAINT std::length INHERITING std::constraint {
 
 CREATE CONSTRAINT std::minlength INHERITING (std::min, std::length) {
     SET errmessage := '{subject} must be no shorter than {param} characters.';
-    SET expr := ((subject >= $param));
-    SET subjectexpr := (len(<std::str>subject));
 };
 
 CREATE CONSTRAINT std::regexp INHERITING std::constraint {
@@ -178,13 +176,10 @@ CREATE CONSTRAINT std::regexp INHERITING std::constraint {
 
 CREATE CONSTRAINT std::maxlength INHERITING (std::max, std::length) {
     SET errmessage := '{subject} must be no longer than {param} characters.';
-    SET expr := ((subject <= $param));
-    SET subjectexpr := (len(<std::str>subject));
 };
 
 CREATE CONSTRAINT std::maxexclusive INHERITING std::max {
     SET errmessage := '{subject} must be less than {param}.';
-    SET expr := ((subject < $param));
 };
 
 CREATE CONSTRAINT std::unique INHERITING std::constraint {
