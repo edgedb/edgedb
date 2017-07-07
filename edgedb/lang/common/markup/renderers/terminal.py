@@ -258,6 +258,10 @@ class DocRenderer(BaseRenderer):
     def _render_doc_SourceCode(self, element):
         self.buffer.write(element.text)
 
+    def _render_doc_Marker(self, element):
+        self.buffer.write(element.text, style=self.styles.marker)
+        self.buffer.write(' ')
+
     def _render_doc_Section(self, element):
         if element.title:
             self.buffer.write(
@@ -606,7 +610,7 @@ class Renderer(DocRenderer, LangRenderer, CodeRenderer):
 renders = Renderer.renders
 
 
-def render(markup, file=None):
+def render(markup, *, ensure_newline=True, file=None):
     if file is None:
         file = sys.stdout
 
@@ -622,7 +626,7 @@ def render(markup, file=None):
             style_table = styles_module.Dark16
 
     rendered = renders(markup, styles=style_table, max_width=max_width)
-    if not rendered.endswith('\n'):
+    if ensure_newline and not rendered.endswith('\n'):
         rendered += '\n'
 
     print(rendered, file=file, end='')

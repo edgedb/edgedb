@@ -24,6 +24,7 @@ class Dark16(StylesTable):
     header1 = Style(color='white')
     header2 = Style(color='black', bold=True)
     exc_title = Style(color='red', bold=True)
+    marker = Style(color='red', bold=True)
 
     tb_name = Style(color='yellow')
     tb_filename = Style()
@@ -72,6 +73,7 @@ class Dark256(StylesTable):
     header1 = Style(color='#656565')
     header2 = Style(color='#474747')
     exc_title = Style(color='#d84903', bold=True)
+    marker = Style(color='#bbb', bgcolor='#582a70', bold=True)
 
     tb_name = Style(color='#5f5f87', bold=True)
     tb_filename = Style()

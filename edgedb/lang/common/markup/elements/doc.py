@@ -16,6 +16,10 @@ class DocMarkup(base.Markup, ns='doc'):
     pass
 
 
+class Marker(DocMarkup):
+    text = Field(str)
+
+
 class Section(DocMarkup):
     title = Field(str, coerce=True, default=None)
     body = Field(base.MarkupList, coerce=True)
