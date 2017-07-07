@@ -685,7 +685,6 @@ def _compile_shape(
         ptrcls = rptr.ptrcls
         ptrdir = rptr.direction or s_pointers.PointerDirection.Outbound
         is_singleton = ptrcls.singular(ptrdir)
-        ptrname = ptrcls.shortname
 
         with ctx.new() as newctx:
             newctx.expr_as_value = (
@@ -696,18 +695,7 @@ def _compile_shape(
             )
             element = dispatch.compile(e, ctx=newctx)
 
-        attr_name = s_pointers.PointerVector(
-            name=ptrname.name, module=ptrname.module,
-            direction=ptrdir, target=ptrcls.get_far_endpoint(ptrdir),
-            is_linkprop=isinstance(ptrcls, s_lprops.LinkProperty))
-
-        elements.append(
-            astutils.TupleElement(
-                path_id=e.path_id,
-                name=attr_name,
-                val=element
-            )
-        )
+        elements.append(astutils.tuple_element_for_shape_el(e, element))
 
     result = astutils.TupleVar(elements=elements, named=True)
     pathctx.put_path_value_var(ctx.rel, ir_set.path_id, result, env=ctx.env)

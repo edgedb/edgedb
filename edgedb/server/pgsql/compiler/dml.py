@@ -283,6 +283,8 @@ def process_insert_body(
     )
 
     external_inserts = []
+    tuple_elements = []
+    resolved_pointers = set()
 
     with ctx.subquery() as subctx:
         # It is necessary to process the expressions in
@@ -299,6 +301,8 @@ def process_insert_body(
         for shape_el in ir_stmt.subject.shape:
             ptrcls = shape_el.rptr.ptrcls
             insvalue = shape_el.expr
+
+            resolved_pointers.add(ptrcls)
 
             ptr_info = pg_types.get_pointer_storage_info(
                 ptrcls, schema=subctx.env.schema, resolve_type=True,
@@ -317,6 +321,10 @@ def process_insert_body(
                         arg=dispatch.compile(insvalue, ctx=insvalctx),
                         type_name=typecomp.type_node(ptr_info.column_type))
 
+                    tuple_elements.append(
+                        astutils.tuple_element_for_shape_el(
+                            shape_el, insvalue))
+
                     values.args.append(insvalue)
 
             ptr_info = pg_types.get_pointer_storage_info(
@@ -325,13 +333,37 @@ def process_insert_body(
             if ptr_info and ptr_info.table_type == 'link':
                 external_inserts.append((shape_el, props_only))
 
+        for shape_el in ir_stmt.result.shape:
+            ptrcls = shape_el.rptr.ptrcls
+            insvalue = shape_el.expr
+
+            if ptrcls in resolved_pointers or insvalue is None:
+                continue
+
+            with subctx.new() as insvalctx:
+                value = dispatch.compile(insvalue, ctx=insvalctx)
+
+                tuple_elements.append(
+                    astutils.tuple_element_for_shape_el(
+                        shape_el, value))
+
         relctx.enforce_path_scope(
             insert_stmt, ctx.path_bonds, ctx=subctx)
 
     # Process necessary updates to the link tables.
-    for expr, props_only in external_inserts:
-        process_link_update(
-            ir_stmt, expr, props_only, wrapper, insert_cte, ctx=ctx)
+    for shape_el, props_only in external_inserts:
+        value = process_link_update(
+            ir_stmt, shape_el, props_only, wrapper, insert_cte, ctx=ctx)
+
+        resolved_pointers.add(shape_el.rptr.ptrcls)
+
+    result = astutils.TupleVar(elements=tuple_elements, named=True)
+    pathctx.put_path_value_var(
+        wrapper, ir_stmt.result.path_id, result, env=ctx.env)
+
+    for element in tuple_elements:
+        pathctx.put_path_value_var_if_not_exists(
+            wrapper, element.path_id, element.val, env=ctx.env)
 
 
 def process_update_body(
@@ -448,7 +480,7 @@ def process_link_update(
         ir_stmt: irast.MutatingStmt, ir_expr: irast.Base,
         props_only: bool, wrapper: pgast.Query,
         dml_cte: pgast.CommonTableExpr, *,
-        ctx: context.CompilerContextLevel) -> None:
+        ctx: context.CompilerContextLevel) -> typing.Optional[pgast.Query]:
     """Perform updates to a link relation as part of a DML statement.
 
     :param ir_stmt:
@@ -565,95 +597,97 @@ def process_link_update(
     toplevel.ctes.append(delcte)
 
     # Turn the IR of the expression on the right side of :=
-    # into one or more sub-selects.
-    tranches = process_link_values(
+    # into a subquery returning records for the link table.
+    data_cte = process_link_values(
         ir_stmt, ir_expr, target_tab_name, tab_cols, col_data,
         dml_cte_rvar, [lname_to_id_rvar],
         props_only, target_is_atom, ctx=ctx)
 
-    for cols, data_cte in tranches:
-        toplevel.ctes.append(data_cte)
-        data_select = pgast.SelectStmt(
-            target_list=[
-                pgast.ResTarget(
-                    val=pgast.ColumnRef(
-                        name=[data_cte.name, pgast.Star()]))
-            ],
-            from_clause=[
-                pgast.RangeVar(relation=data_cte)
-            ]
+    toplevel.ctes.append(data_cte)
+
+    data_select = pgast.SelectStmt(
+        target_list=[
+            pgast.ResTarget(
+                val=pgast.ColumnRef(
+                    name=[data_cte.name, pgast.Star()]))
+        ],
+        from_clause=[
+            pgast.RangeVar(relation=data_cte)
+        ]
+    )
+
+    # Inserting rows into the link table may produce cardinality
+    # constraint violations, since the INSERT into the link table
+    # is executed in the snapshot where the above DELETE from
+    # the link table is not visible.  Hence, we need to use
+    # the ON CONFLICT clause to resolve this.
+    conflict_cols = ['std::source', 'std::target', 'link_type_id']
+    conflict_inference = []
+    conflict_exc_row = []
+
+    for col in conflict_cols:
+        conflict_inference.append(
+            pgast.ColumnRef(name=[col])
+        )
+        conflict_exc_row.append(
+            pgast.ColumnRef(name=['excluded', col])
         )
 
-        # Inserting rows into the link table may produce cardinality
-        # constraint violations, since the INSERT into the link table
-        # is executed in the snapshot where the above DELETE from
-        # the link table is not visible.  Hence, we need to use
-        # the ON CONFLICT clause to resolve this.
-        conflict_cols = ['std::source', 'std::target', 'link_type_id']
-        conflict_inference = []
-        conflict_exc_row = []
-
-        for col in conflict_cols:
-            conflict_inference.append(
-                pgast.ColumnRef(name=[col])
-            )
-            conflict_exc_row.append(
-                pgast.ColumnRef(name=['excluded', col])
-            )
-
-        conflict_data = pgast.SelectStmt(
-            target_list=[
-                pgast.ResTarget(
-                    val=pgast.ColumnRef(
-                        name=[data_cte.name, pgast.Star()]))
-            ],
-            from_clause=[
-                pgast.RangeVar(relation=data_cte)
-            ],
-            where_clause=astutils.new_binop(
-                lexpr=pgast.ImplicitRowExpr(args=conflict_inference),
-                rexpr=pgast.ImplicitRowExpr(args=conflict_exc_row),
-                op='='
-            )
+    conflict_data = pgast.SelectStmt(
+        target_list=[
+            pgast.ResTarget(
+                val=pgast.ColumnRef(
+                    name=[data_cte.name, pgast.Star()]))
+        ],
+        from_clause=[
+            pgast.RangeVar(relation=data_cte)
+        ],
+        where_clause=astutils.new_binop(
+            lexpr=pgast.ImplicitRowExpr(args=conflict_inference),
+            rexpr=pgast.ImplicitRowExpr(args=conflict_exc_row),
+            op='='
         )
+    )
 
-        cols = [pgast.ColumnRef(name=[col]) for col in cols]
-        updcte = pgast.CommonTableExpr(
-            name=ctx.genalias(hint='i'),
-            query=pgast.InsertStmt(
-                relation=target_rvar,
-                select_stmt=data_select,
-                cols=cols,
-                on_conflict=pgast.OnConflictClause(
-                    action='update',
-                    infer=pgast.InferClause(
-                        index_elems=conflict_inference
-                    ),
-                    target_list=[
-                        pgast.MultiAssignRef(
-                            columns=cols,
-                            source=conflict_data
-                        )
-                    ]
+    cols = [pgast.ColumnRef(name=[col]) for col in tab_cols]
+    updcte = pgast.CommonTableExpr(
+        name=ctx.genalias(hint='i'),
+        query=pgast.InsertStmt(
+            relation=target_rvar,
+            select_stmt=data_select,
+            cols=cols,
+            on_conflict=pgast.OnConflictClause(
+                action='update',
+                infer=pgast.InferClause(
+                    index_elems=conflict_inference
                 ),
-                returning_list=[
-                    pgast.ResTarget(
-                        val=pgast.ColumnRef(name=[pgast.Star()])
+                target_list=[
+                    pgast.MultiAssignRef(
+                        columns=cols,
+                        source=conflict_data
                     )
                 ]
-            )
+            ),
+            returning_list=[
+                pgast.ResTarget(
+                    val=pgast.ColumnRef(name=[pgast.Star()])
+                )
+            ]
         )
+    )
 
-        pathctx.put_path_rvar(
-            ctx.env, updcte.query, path_id[:-1], target_rvar)
+    pathctx.put_path_rvar(
+        ctx.env, updcte.query, path_id[:-1], target_rvar)
 
-        # Record the effect of this insertion in the relation overlay
-        # context to ensure that the RETURNING clause potentially
-        # referencing this link yields the expected results.
-        overlays = ctx.env.rel_overlays[ptrcls]
-        overlays.append(('union', updcte))
+    # Record the effect of this insertion in the relation overlay
+    # context to ensure that the RETURNING clause potentially
+    # referencing this link yields the expected results.
+    overlays = ctx.env.rel_overlays[ptrcls]
+    overlays.append(('union', updcte))
 
-        toplevel.ctes.append(updcte)
+    toplevel.ctes.append(updcte)
+
+    return data_cte
 
 
 def process_linkprop_update(
@@ -757,17 +791,7 @@ def process_link_values(
     :param target_is_atom:
         Whether the link target is an Atom.
     """
-    tranches = []
-
     data = ir_expr.expr
-    props = ['std::target']
-
-    if (props == ['std::target'] and props_only and not target_is_atom):
-        # No property upates and the target value is stored
-        # in the source table, so we don't need to modify
-        # any link tables.
-        #
-        return tranches
 
     with ctx.new() as input_rel_ctx:
         input_rel_ctx.expr_exposed = False
@@ -811,7 +835,8 @@ def process_link_values(
         for element in output.elements:
             colname = common.edgedb_name_to_pg_name(
                 element.path_id[-2][0].shortname)
-            source_data[colname] = dbobj.get_column(input_rvar, element.name)
+            source_data.setdefault(
+                colname, dbobj.get_column(input_rvar, element.name))
 
     for col in tab_cols:
         expr = col_data.get(col)
@@ -827,7 +852,7 @@ def process_link_values(
 
         row.args.append(expr)
 
-    tranch_data = pgast.CommonTableExpr(
+    link_rows = pgast.CommonTableExpr(
         query=pgast.SelectStmt(
             target_list=[
                 pgast.ResTarget(
@@ -847,6 +872,4 @@ def process_link_values(
         name=ctx.genalias(hint='r')
     )
 
-    tranches.append((tab_cols, tranch_data))
-
-    return tranches
+    return link_rows

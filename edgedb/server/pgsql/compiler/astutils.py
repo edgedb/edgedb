@@ -10,6 +10,10 @@ import typing
 
 from edgedb.lang.common import ast
 from edgedb.lang.ir import ast as irast
+
+from edgedb.lang.schema import lproperties as s_lprops
+from edgedb.lang.schema import pointers as s_pointers
+
 from edgedb.server.pgsql import ast as pgast
 
 
@@ -22,7 +26,8 @@ class TupleElement:
         self.val = val
 
     def __repr__(self):
-        return f'<{self.__class__.__name__} name={self.name} val={self.val}>'
+        return f'<{self.__class__.__name__} ' \
+               f'name={self.name} val={self.val} path_id={self.path_id}>'
 
 
 class TupleVar:
@@ -38,6 +43,24 @@ class ColumnList:
     def __init__(self, elements: typing.List[str], named: bool=False):
         self.elements = elements
         self.named = named
+
+
+def tuple_element_for_shape_el(shape_el, value):
+    rptr = shape_el.rptr
+    ptrcls = rptr.ptrcls
+    ptrdir = rptr.direction or s_pointers.PointerDirection.Outbound
+    ptrname = ptrcls.shortname
+
+    attr_name = s_pointers.PointerVector(
+        name=ptrname.name, module=ptrname.module,
+        direction=ptrdir, target=ptrcls.get_far_endpoint(ptrdir),
+        is_linkprop=isinstance(ptrcls, s_lprops.LinkProperty))
+
+    return TupleElement(
+        path_id=shape_el.path_id,
+        name=attr_name,
+        val=value
+    )
 
 
 def is_null_const(expr):

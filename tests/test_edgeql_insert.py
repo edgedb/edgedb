@@ -269,7 +269,6 @@ class TestInsert(tb.QueryTestCase):
             }]
         )
 
-    @unittest.expectedFailure
     async def test_edgeql_insert_nested04(self):
         res = await self.con.execute('''
             WITH MODULE test
