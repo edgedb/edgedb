@@ -41,6 +41,19 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [100, 101],
         ])
 
+    async def test_edgeql_functions_array_contains_01(self):
+        await self.assert_query_result(r'''
+            SELECT std::array_contains(<array<int>>[], {1, 3});
+            SELECT array_contains([1], {1, 3});
+            SELECT array_contains([1, 2], 1);
+            SELECT array_contains([1, 2], 3);
+        ''', [
+            [False, False],
+            [True, False],
+            [True],
+            [False],
+        ])
+
     @unittest.expectedFailure
     async def test_edgeql_functions_array_enumerate_02(self):
         # Fix type inference for functions.
