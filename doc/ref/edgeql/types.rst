@@ -7,8 +7,8 @@ Objects and classes
 -------------------
 
 Every object in EdgeDB has a class. The information about the object's
-class is recorded in a special attribute ``__class__``. It can be used
-to retrieve the class name, for example.
+class is reachable through a special link ``__class__``. It can be
+used to retrieve the class name, for example.
 
 .. code-block:: eql
 
@@ -130,9 +130,8 @@ Associative arrays
 Associative arrays are indexed homogeneous collections, where the
 indexes are arbitrary but must be all of the same type. Values don't
 have to be the same type as indexes, but they must still be the same
-type as each other. No specific ordering of associative array is
-assumed or guaranteed, thus slicing operators are not available for
-them.
+type as each other. No specific ordering of a map is assumed or
+guaranteed, thus slicing operators are not available for them.
 
 .. code-block:: eql
 
@@ -140,7 +139,7 @@ them.
     # this will return [{'a': 1, 'b': 2, 'c': 3}]
 
     WITH
-        # define an associative array for testing
+        # define a map for testing
         map := ['a' -> 1, 'b' -> 2, 'c' -> 3]
     SELECT
         # select the element at index 'b'
@@ -190,8 +189,8 @@ order.
 Tuple elements can be *named*, however this does not in any way affect
 the ordering of these elements within the tuple. The names are used
 for convenience to make it easier to refer to different elements as
-well as in tuple serialization. Unlike for associative arrays
-identifiers only valid identifiers can be used to name tuple elements.
+well as in tuple serialization. Unlike for maps identifiers only valid
+identifiers can be used to name tuple elements.
 
 .. code-block:: eql
 
@@ -284,7 +283,6 @@ element names for convenience.
     SELECT <tuple<int, str>>(1, 3);
     # returns [[1, '3']]
 
-    # tuples cannot be accessed by index, but arrays can
     WITH
         # a test tuple set, that could be a result of
         # some other computation
@@ -327,8 +325,9 @@ the ``owner`` link backwards. There are potentially many
     SELECT User.<owner[IS Issue]
     FILTER User.name = 'Alice';
 
-This feature makes links in paths symmetrical, regardless of which
-direction they are traversed in.
+This feature makes it possible to traverse links in paths in any
+direction conveniently without the use of a more bulky ``FILTER``
+clause.
 
 The same filtering operator can be used when it is necessary to refer
 to the attributes that exist only in the descendant classes (like

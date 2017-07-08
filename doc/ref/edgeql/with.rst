@@ -68,11 +68,11 @@ Another use case is for giving short aliases to long module names
 
 
 
-Expression alias
-----------------
+Views
+-----
 
-It is possible to specify an expression alias in the ``WITH`` block.
-Since every aliased expression exists in its own
+It is possible to specify an aliased view in the ``WITH`` block. Since
+every aliased view exists in its own
 :ref:`sub-scope<ref_edgeql_paths_scope>`, aliases can be used to refer
 to different instances of the same *concept* in a query. For example,
 the following query will find all users who own the same number of

@@ -55,9 +55,9 @@ the interactive console via the low level EdgeQL commands.
 
 .. code-block:: eql
 
-    CREATE MODULE test;
+    CREATE MODULE example;
 
-    CREATE MIGRATION test::d1 TO $$
+    CREATE MIGRATION example::d1 TO eschema $$
     concept User:
         required link name to str
 
@@ -86,29 +86,29 @@ the interactive console via the low level EdgeQL commands.
             # creation
     $$;
 
-    COMMIT MIGRATION test::d1;
+    COMMIT MIGRATION example::d1;
 
 Now we can start populating the DB with actual objects. For
 consistency with examples in other parts of the documentation let's
-name the module "test".
+name the module "example".
 
 Let's start with a few users and status objects:
 
 .. code-block:: eql
 
-    INSERT test::User {
+    INSERT example::User {
         name := 'Alice Smith'
     };
 
-    INSERT test::User {
+    INSERT example::User {
         name := 'Bob Johnson'
     };
 
-    INSERT test::Status {
+    INSERT example::Status {
         name := 'Open'
     };
 
-    INSERT test::Status {
+    INSERT example::Status {
         name := 'Closed'
     };
 
@@ -119,7 +119,7 @@ Now that we have the basics set up, we can log the first issue:
 
 .. code-block:: eql
 
-    WITH MODULE test
+    WITH MODULE example
     INSERT Issue {
         text :=
             'The issue system needs more status values and maybe priority.',
@@ -155,7 +155,7 @@ Let's add priority to the schema, first. We'll have one new
             # creation
 
     #
-    # no changes tot he above concepts
+    # no changes to the above concepts
     #
 
     concept Issue:
@@ -171,8 +171,8 @@ Let's add priority to the schema, first. We'll have one new
 
 .. code-block:: eql
 
-    CREATE MIGRATION test::d2 FROM test::d1 TO $$ ... new schema goes here $$;
-    COMMIT MIGRATION test::d2;
+    CREATE MIGRATION example::d2 FROM example::d1 TO $$ ... new schema goes here $$;
+    COMMIT MIGRATION example::d2;
 
 Given the new schema we can use the migration tools to apply the
 changes to our existing EdgeDB data. After that we can create
@@ -180,19 +180,19 @@ changes to our existing EdgeDB data. After that we can create
 
 .. code-block:: eql
 
-    INSERT test::Priority {
+    INSERT example::Priority {
         name := 'High'
     };
 
-    INSERT test::Priority {
+    INSERT example::Priority {
         name := 'Low'
     };
 
-    INSERT test::Status {
+    INSERT example::Status {
         name := 'New'
     };
 
-    INSERT test::Status {
+    INSERT example::Status {
         name := 'Rejected'
     };
 
@@ -201,7 +201,7 @@ to have "High" priority.
 
 .. code-block:: eql
 
-    WITH MODULE test
+    WITH MODULE example
     UPDATE Issue {
         priority := (SELECT Priority FILTER Priority.name = 'High')
     } FILTER Issue.id = 'd54f6472-8f07-44d9-909e-22864dc6f811';
@@ -215,7 +215,7 @@ make a comment about that and close the issue.
 
 .. code-block:: eql
 
-    WITH MODULE test
+    WITH MODULE example
     INSERT Comment {
         issue := (
             SELECT Issue
@@ -224,7 +224,7 @@ make a comment about that and close the issue.
         text := "I've added more statuses and created priorities."
     };
 
-    WITH MODULE test
+    WITH MODULE example
     UPDATE Issue {
         status := (SELECT Status FILTER Status.name = 'Closed')
     };
@@ -289,8 +289,8 @@ refactoring.
 
 .. code-block:: eql
 
-    CREATE MIGRATION test::d3 FROM test::d2 TO $$ ... new schema goes here $$;
-    COMMIT MIGRATION test::d3;
+    CREATE MIGRATION example::d3 FROM example::d2 TO $$ ... new schema goes here $$;
+    COMMIT MIGRATION example::d3;
 
 After the migration we still need to fix all comments in our system to
 have some owner. In the example so far there was only comment but
@@ -298,7 +298,7 @@ let's treat it as if we have several comments made by the same person.
 
 .. code-block:: eql
 
-    WITH MODULE test
+    WITH MODULE example
     UPDATE Comment {
         owner := (SELECT User FILTER User.name = 'Alice Smith')
     };
@@ -358,8 +358,8 @@ schema to make owner a required field for all ``Owned`` objects.
 
 .. code-block:: eql
 
-    CREATE MIGRATION test::d4 FROM test::d3 TO $$ ... new schema goes here $$;
-    COMMIT MIGRATION test::d4;
+    CREATE MIGRATION example::d4 FROM example::d3 TO $$ ... new schema goes here $$;
+    COMMIT MIGRATION example::d4;
 
 After several schema migrations and even a data migration we have
 arrived at a state with reasonable amount of features for our issue

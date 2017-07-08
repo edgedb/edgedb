@@ -111,7 +111,7 @@ being used in the query. In particular the most common use of the
 ``WITH`` block is to provide a default module for the query.
 
 Note that the only required clause in the query is ``SELECT`` itself.
-Expressions in all query clauses act as path generators. ``FILTER``
+Expressions in all query clauses act as set generators. ``FILTER``
 clause can be used to restrict the selected set and ``ORDER BY`` is
 used for sorting. ``OFFSET`` and ``LIMIT`` are used to return only a
 part of the selected set.
@@ -137,7 +137,7 @@ Using expressions
 
 One of the basic units in EdgeQL are
 :ref:`expressions<ref_edgeql_expressions>`. These always denote
-objects or values. Basically, anything with an ``id`` is an object and
+objects or values. Basically, a concept instance is an object and
 everything else is a value (more details can be found in the
 :ref:`type system<ref_edgeql_types>` section).
 
@@ -193,8 +193,7 @@ The above query will return a set of 2-tuples containing the values of issue
 expressions as a whole opaque entity or serialized for some external
 use. This construct is similar to selecting individual columns in SQL
 except that the column name is lost. If structural information is
-important *shapes* should be used instead. So selecting tuples is
-quite rare in EdgeQL and is not encouraged.
+important *shapes* should be used instead.
 
 
 Using shapes

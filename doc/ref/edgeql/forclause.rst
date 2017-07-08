@@ -5,8 +5,8 @@ Usage of FOR clause
 ===================
 
 A ``FOR`` clause provides a shorthand for multiple repetitive
-statements the results of which need to be joined by a set ``UNION``.
-It is therefore a relatively expensive operation. Also, it has
+statements the results of which need to be joined by a set ``UNION
+ALL``. It is therefore a relatively expensive operation. Also, it has
 undefined behavior if the sets to be unioned are not disjoint (since
 common elements may come from either subset, with potentially
 different augmented values).

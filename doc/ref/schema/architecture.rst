@@ -34,6 +34,22 @@ declarations. For example using a ``link`` in a ``concept``
 declaration (like in the sample above) implicitly defines a ``link``
 element with the specified name in the current module.
 
+.. todo::
+
+    Need to describe "generalized" and "specialized" notions. They are
+    kinda like metaclass and class in the sense that:
+
+    generalized [link] -> specialized [link] -> [link] instance
+
+    are like
+
+    metaclass -> class -> object
+
+    But maybe we need better terminology.
+
+    This is important when talking about definitions because certain
+    things can only be defined on specialized elements.
+
 
 Atoms
 ~~~~~
@@ -47,90 +63,22 @@ semantics and behaviour. All atoms are usually either directly or
 indirectly derived from one of the predefined fundamental types; it is
 also possible to define custom fundamental types.
 
-The following is the list of fundamental atoms defined in
-``edgedb.lang.schema.types``:
+The following is the list of fundamental atoms defined in module
+``std``:
 
-* ``str`` -- text data type
-* ``int`` -- 8-byte integer data type
-* ``float`` -- IEEE 754 floating point number
-* ``decimal`` -- arbitrary-precision fixed-point decimal number
 * ``bool`` -- boolean data type
-* ``uuid`` -- UUID data type
+* ``bytes`` -- raw bytes data type
+* ``date`` -- date data type
 * ``datetime`` -- date and time data type
+* ``decimal`` -- arbitrary-precision fixed-point decimal number
+* ``float`` -- IEEE 754 floating point number
+* ``int`` -- 8-byte integer data type
+* ``json`` -- JSON data type
+* ``sequence`` -- sequence datatype
+* ``str`` -- text data type
 * ``time`` -- time data type
 * ``timedelta`` -- time interval data type
-* ``sequence`` -- sequence datatype
-
-
-Constraints
-~~~~~~~~~~~
-
-It is possible to add constraints to the definitions. There are some
-built-in constraints that are available to be used without having to
-define them first. It is also possible to create custom constraints if
-necessary.
-
-Built-in Constraints
-********************
-
-Atoms can optionally define a list of *constraints*, such as maximum
-length or a list of allowed values, which form the shape of atom
-values *domain*. For example, an atom denoting state code can be
-defined as:
-
-.. code-block:: eschema
-
-    atom state_code_t extends str:
-        constraint minlength: 2
-        constraint maxlength: 2
-
-
-Below is a list of built-in constraint types:
-
-- ``maxlength``: <number> --
-  restricts maximum length of textual representation of atom value in characters
-
-- ``minlength``: <number> --
-  restricts minimum length of textual representation of atom value in characters
-
-- ``max``: <value> --
-  specifies the maximum allowed value of the atom, the atom must be orderable
-
-- ``maxexclusive``: <value> --
-  specifies the maximum allowed value, excluding the value itself, of the
-  atom, the atom must be orderable
-
-- ``min``: <value> --
-  specifies the minimum allowed value of the atom, the atom must be orderable
-
-- ``minexclusive``: <value> --
-  specifies the minimum allowed value, excluding the value itself, of the
-  atom, the atom must be orderable
-
-- ``regexp``: <regular expression> --
-  specifies the regular expression that must match on a textual representation
-  of atom value
-
-- ``enum``: <sequence> --
-  the value of the atom must be one of the specified values
-
-- ``unique`` --
-  the value of an atom must be unique
-
-Custom Constraints
-******************
-
-It is possible to define custom constraints using EdgeQL expressions.
-For example, suppose we need to define some atom to always take even
-values:
-
-.. code-block:: eschema
-
-    constraint must_be_even:
-        expr:= subject % 2 = 0
-
-    atom foo extends int:
-        constraint must_be_even
+* ``uuid`` -- UUID data type
 
 
 .. _ref_schema_architechture_concepts:
@@ -244,22 +192,109 @@ them.
             mapping: **
 
 
+Constraints
+~~~~~~~~~~~
+
+It is possible to add constraints to the definitions. There are some
+built-in constraints that are available to be used without having to
+define them first. It is also possible to create custom constraints if
+necessary.
+
+
+Built-in Constraints
+********************
+
+Atoms, links, link properties, and concepts can optionally define a
+list of *constraints*, such as maximum length or a list of allowed
+values. Constraints provide a mechanism for restricting the values of
+atoms, links, or link properties to some desired range. For example,
+an atom denoting a two-letter state code can be defined as:
+
+.. code-block:: eschema
+
+    atom state_code_t extends str:
+        constraint minlength: 2
+        constraint maxlength: 2
+
+Below is a list of built-in constraint types:
+
+- ``enum``: <array> --
+  the value of the atom must be one of the specified values
+
+- ``max``: <value> --
+  specifies the maximum allowed value of the atom, the atom must be orderable
+
+- ``maxlength``: <number> --
+  restricts maximum length of textual representation of atom value in characters
+
+- ``maxexclusive``: <value> --
+  specifies the maximum allowed value, excluding the value itself, of the
+  atom, the atom must be orderable
+
+- ``min``: <value> --
+  specifies the minimum allowed value of the atom, the atom must be orderable
+
+- ``minlength``: <number> --
+  restricts minimum length of textual representation of atom value in characters
+
+- ``minexclusive``: <value> --
+  specifies the minimum allowed value, excluding the value itself, of the
+  atom, the atom must be orderable
+
+- ``regexp``: <regular expression string> --
+  specifies the regular expression that must match on a textual representation
+  of atom value
+
+- ``unique`` --
+  the value of an atom must be unique
+
+
+Custom Constraints
+******************
+
+It is possible to define custom constraints using EdgeQL expressions.
+For example, suppose we need to define some atom to always take even
+values:
+
+.. code-block:: eschema
+
+    constraint must_be_even:
+        # {subject} is a special placeholder to refer what the
+        # constraint is actually applied to
+        expr := subject % 2 = 0
+        # when used in the errmessage, "subject" will be substituted
+        # with the name of the atom or link the constraint has been
+        # applied to
+        errmessage := '{subject} value must be even.'
+
+    atom foo_t extends int:
+        constraint must_be_even
+
+Custom constraints can refer to multiple links or link properties. In
+that case the constraint would be defined on the concept or link,
+respectively.
+
+For more information on how custom constraints can be defined see
+`Constraint Inheritance`_.
+
+
 .. _ref_schema_architechture_inheritance:
 
 Inheritance
 ~~~~~~~~~~~
 
-All four element classes of EdgeDB schema form inheritance
-hierarchies. All elements, except atoms, support multiple inheritance.
-This is an extremely important aspect of EdgeDB data architecture that
-distinguishes it from the majority of the contemporary databases.
-There's an important difference between OO classes and EdgeDB schema
-classes: schema classes have no methods. This means that inheritance
-only affects what something *is* (see
+All elements of EdgeDB schema form inheritance hierarchies. All,
+except atoms, support multiple inheritance. This is an extremely
+important aspect of EdgeDB data architecture that distinguishes it
+from the majority of the contemporary databases. EdgeDB schema
+primarily describes what attributes, links and properties an object
+has, rather than behavior (there's nothing quite like the notion of
+class methods used in OOP). This means that inheritance only affects
+what something *is* (see
 :ref:`IS operator in EdgeQL<ref_edgeql_types>`) and what attributes,
-links and properties an object has. This makes multiple inheritance a
-much simpler concept to understand and use. In fact, many of the usage
-patterns for multiple inheritance are the same as for *mixins* in OOP.
+links and properties an object has. This makes multiple inheritance
+easier to understand and use. In fact, many of the usage patterns for
+multiple inheritance are the same as for *mixins* in OOP.
 
 The full-fledged inheritance mechanism forms an additional dimension
 of element relationships. All elements in the schema either directly
@@ -269,28 +304,63 @@ or indirectly derive from corresponding base elements:
 * atoms derive from one of the basic types
 * links derive from ``std::link``
 * link properties derive from ``std::link_property``
+* constraints derive from ``std::constraint``
 
-Each element can specify its parents with the "extends" field in the schema.
+Each element can specify its parents with the ``extends`` field in the
+schema.
 
 
 Atom Inheritance
 ****************
 
 Atoms are the only elements that do not support multiple inheritance
-due to their nature of being "non-divisible", and also "non-
-composable". The usual reason to extend atoms is to add constraints.
-Note that it is never possible to relax constraints through
-inheritance, child atoms must have either equal or stricter
+due to their nature of being "non-divisible", and also "non-composable".
+The usual reason to extend atoms is to add constraints. Note that it
+is never possible to relax constraints through atom inheritance. When
+inheriting from a parent atom, a child atom can only add more
 constraints.
+
+Consider the following schema:
 
 .. code-block:: eschema
 
-    atom state_code_t extends str:
-        constraint minlength: 2
-        constraint maxlength: 2
+    # define some additional constraints
+    constraint must_be_even:
+        expr := subject % 2 = 0
+        errmesage := 'Stable versions must be even.'
 
-    concept Address:
-        link state_code to state_code_t
+    constraint must_be_odd:
+        expr := subject % 2 = 1
+        errmesage := 'Unstable versions must be odd.'
+
+    # define atoms that will be used for version numbers
+    atom ver_t extends int:
+        constraint min: 0
+
+    atom stable_ver_t extends ver_t:
+        constraint must_be_even
+
+    atom unstable_ver_t extends ver_t:
+        constraint must_be_odd
+
+    concept Project:
+        required link major_version to ver_t
+        required link minor_stable_version to stable_ver_t
+        required link minor_unstable_version to unstable_ver_t
+
+All of the atoms defined above have ``constraint`` as part of their
+definition. A ``ver_t`` is defined to be an integer ≥ 0 by using a
+built-in constraint ``min``. Since ``stable_ver_t`` and
+``unstable_ver_t`` both inherit from ``ver_t``, they also must satisfy
+the constraint of their parent. This means that ``stable_ver_t`` must
+both be ≥ 0 and even, whereas ``unstable_ver_t`` must be ≥ 0 and odd.
+
+.. note::
+
+    When defining custom atoms throughout this documentation ``_t`` is
+    appended to the name as a matter of convention. It stands for
+    "type" and is meant to make it easier to distinguish custom atomic
+    types from everything else.
 
 
 Concept Inheritance
@@ -301,7 +371,7 @@ Concept inheritance can be compared to class inheritance. Every
 objects and classes relationship in OOP). The two major use-cases for
 concept inheritance are representing *is-a* hierarchies and *mixins*.
 
-For representing hierarchies sometimes no new links are added tot he
+For representing hierarchies sometimes no new links are added to the
 concepts, but the type itself is carrying some meaning. For example,
 consider a system that has ``Person`` and ``Employee`` concepts. An
 ``Employee`` is definitely also a ``Person``, so there are features
@@ -384,7 +454,10 @@ to the existing schema).
 Link Inheritance
 ****************
 
-Link inheritance is similar to concept inheritance.
+Link inheritance is similar to concept and atom inheritance.
+
+Much like concepts links have an *is-a* hierarchy that can be defined
+via inheritance and used in queries:
 
 .. code-block:: eschema
 
@@ -410,8 +483,8 @@ Link inheritance is similar to concept inheritance.
         link parents to Person:
             mapping: **
 
-
-With the above schema:
+With the above schema the following queries make use of the link
+inheritance:
 
 .. code-block:: eql
 
@@ -428,11 +501,77 @@ With the above schema:
 So, even though ``Person`` defines only concrete relationship links,
 we can exploit inheritance to use implicit relationships.
 
+Much like concepts use a mixin inheritance pattern to inherit links,
+links can use the same pattern to inherit link properties.
+
 
 Link Property Inheritance
 *************************
 
-Link Property inheritance works just like link inheritance.
+Link Property inheritance works just like concept inheritance (with
+the exception that there is no parallel to inheriting links on
+concepts).
+
+
+Constraint Inheritance
+**********************
+
+When constraints are defined (as opposed to being used in other
+definitions such as those of links or atoms), they can also make use
+of inheritance. The aspects of *is-a* hierarchy and *mixin* usage
+pattern are similar to what has already been described in the case of
+concept inheritance. Constraints also make use of overriding their
+attributes to change what the constraint applies to. For example,
+consider ``maxlength`` and ``minlength`` constraints:
+
+.. code-block:: eschema
+
+    # abstract constraint cannot be applied directly, but must be
+    # inherited from, typically used as a mixin
+    abstract constraint length:
+        subject := len(<str>subject)
+        errmessage: 'Invalid {subject}'
+
+    constraint max:
+        expr := subject <= $param
+        errmessage: 'Maximum allowed value for {subject} is {param}.'
+
+    constraint min:
+        expr := subject >= $param
+        errmessage: 'Minimum allowed value for {subject} is {param}.'
+
+    constraint maxlength extends max, length:
+        errmessage: '{subject} must be no longer than {param} characters.'
+
+    constraint minlength extends min, length:
+        errmessage: '{subject} must be no shorter than {param} characters.'
+
+Every constraint in the example above overrides the ``errmessage`` to
+better correspond to its intended meaning. Additionally, ``length``
+constraint overrides ``subject`` attribute, which basically determines
+what the expression defined in ``expr`` actually operates on. By
+default the ``subject`` is whatever the constraint is attached to
+(typically, it's an *atom*, *link* or *link property*).
+
+In principle, it's possible to construct a custom constraint to
+process a string containing distance measured in meters or kilometers:
+
+.. code-block:: eschema
+
+    # assume that "max" and "min" are already defined
+
+    # define an abstract constraint to covert a str distance into a
+    # number
+    abstract constraint distance:
+        subject :=
+            <float>subject[:-2] * 1000 IF subject[:-2] = 'km' ELSE
+            <float>subject[:-1]  # assuming suffix 'm'
+
+    constraint maxldistance extends max, distance:
+        errmessage: '{subject} must be no longer than {param} meters.'
+
+    constraint minldistance extends min, distance:
+        errmessage: '{subject} must be no shorter than {param} meters.'
 
 
 Schema composition

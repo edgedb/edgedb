@@ -4,13 +4,12 @@ What is EdgeDB?
 Overview
 --------
 
-We believe that the data model is the most important part of any
-application. Real-world applications can easily have hundreds of
-distinct concepts and thousands of relations between them. When
-correctness policies, access policies, behaviours and various
-associated metadata is added to that, the data model can suddenly
-become hard to maintain with every change only worsening the
-situation.
+The data model is the most important part of any application.
+Real-world applications can easily have hundreds of distinct concepts
+and thousands of relations between them. When correctness policies,
+access policies, behaviours and various associated metadata is added
+to that, the data model becomes hard to maintain with every change
+only worsening the situation.
 
 Our approach to handle this challenge is to make data schema
 declaration a concise, simple and precise document which is easy to
@@ -74,7 +73,7 @@ examples and details.
 
 All sets must also be homogeneous, i.e. all members of a set have to
 be of the same basic :ref:`type<ref_edgeql_types>`. Thus all sets are
-either composed of *objects*, *atomic values* or
+either composed of *objects*, *atomic values*, *arrays*, *maps*, or
 :ref:`tuples<ref_edgeql_types_tuples>`. It's worth noting that mixing
 objects representing different
 :ref:`concepts<ref_schema_architechture_concepts>` is fine
@@ -86,8 +85,8 @@ For more details see :ref:`how expressions work<ref_edgeql_expressions>`.
 There is no NULL
 ----------------
 
-Traditional relational DBs deal with tables and use ``NULL`` as a
-value denoting absence of data. Thus ``NULL`` is a special *value* in
-those DBs. EdgeDB works with *sets*, so when a link/relationship is
-missing, there is no actual value associated with it, instead it's
-just an empty set.
+Traditional relational databases deal with tables and use ``NULL`` as
+a value denoting absence of data. Thus ``NULL`` is a special *value*
+in those databases. EdgeDB works with *sets*, so when a
+link/relationship is missing, there is no actual value associated with
+it, instead it's just an empty set.

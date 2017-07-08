@@ -6,9 +6,9 @@ Expressions
 
 Expressions allow to manipulate, query, and modify data in EdgeQL.
 
-All expressions evaluate to sets of *objects*, *atomic values* or
-*tuples*. Depending on the set sizes of the operands, operations
-produce different sets of results.
+All expressions evaluate to sets of *objects*, *atomic values*,
+*array*, *maps*, or *tuples*. Depending on the set sizes of the
+operands, operations produce different sets of results.
 
 
 Set and element operations
@@ -127,7 +127,8 @@ Basic set operators:
 
     ``DISTINCT`` is a set operator that returns a new set where no
     member is equal to any other member. Considering that any two
-    objects are equal if and only if they have the same identity, this
+    objects are equal if and only if they have the same identity (that
+    is to say, the value of an object is equal to its identity), this
     operator is mainly useful when applied to sets of atomic values
     (or any other non-object, such as an array or tuple).
 
@@ -263,21 +264,16 @@ of these operators require their operands to be of the same
 - string matching operators ``LIKE`` and ``ILIKE`` that work exactly the
   same way as in SQL
 
-- array membership operators ``IN`` and ``NOT IN`` that test whether
-  the left operand is an element in the right operand (which must be
-  an array or appropriate type)
+- set membership operators ``IN`` and ``NOT IN`` that test whether the
+  left operand is an element in the right operand, for each element of
+  the left operand
 
   .. code-block:: eql
 
-    SELECT 1 IN [1, 3, 5];
+    SELECT 1 IN {1, 3, 5};
     # returns [True]
 
-  In order to test membership within a set the set must be transformed
-  into an array using ``array_agg``:
-
-  .. code-block:: eql
-
-    SELECT 'Alice' IN array_agg(User.name);
+    SELECT 'Alice' IN User.name;
 
 - type-checking operators ``IS`` and ``IS NOT`` that test whether the
   left operand is of any of the types given by the comma-separated

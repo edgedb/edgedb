@@ -6,7 +6,7 @@ Schema evolution
 EdgeDB provides powerful mechanisms for schema evolution and
 versioning. Since the data schema is fully represented in an abstract
 form in EdgeDB, it is possible to perform complex analysis and
-modification of the schema in automatic mode.
+modification of the schema.
 
 When it comes to schema modifications, the most common workflow of an
 application developer is to modify the source schema document and then
@@ -150,3 +150,7 @@ dependency graph:
 ::
 
     geo::v1, geo::v2, subjects::v1, geo::v3, subjects::v2, geo::v4
+
+.. todo::
+
+    We need actual CLI examples for schema evolution.
