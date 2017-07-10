@@ -1276,7 +1276,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_func02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
-            SELECT std::lower(string:=User.name) ORDER BY User.name;
+            SELECT std::lower(string := User.name) ORDER BY User.name;
         ''', [
             ['elvis', 'yury'],
         ])
@@ -2626,7 +2626,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT Text{
                 Issue.number,
-                body_length:= len(Text.body)
+                body_length := len(Text.body)
             } ORDER BY len(Text.body);
 
             # find all issues such that there's at least one more
@@ -2662,7 +2662,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT Issue{
                 number,
-                body_length:= len(Issue.body)
+                body_length := len(Issue.body)
             }
             FILTER
                 EXISTS (

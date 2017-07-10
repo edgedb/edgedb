@@ -1070,31 +1070,31 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected token.*TURNSTILE", line=2, col=21)
+                  "Unexpected token.*TURNSTILE", line=2, col=22)
     def test_edgeql_syntax_struct10(self):
         """
-        SELECT (1, a:=2);
+        SELECT (1, a := 2);
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected token.*ICONST", line=2, col=23)
+                  "Unexpected token.*ICONST", line=2, col=25)
     def test_edgeql_syntax_struct11(self):
         """
-        SELECT (a:=1, 2);
+        SELECT (a := 1, 2);
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected token.*RPAREN", line=2, col=26)
+                  "Unexpected token.*RPAREN", line=2, col=28)
     def test_edgeql_syntax_struct12(self):
         """
-        SELECT (a:=1, foo);
+        SELECT (a := 1, foo);
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected token.*DOT", line=2, col=26)
+                  "Unexpected token.*DOT", line=2, col=28)
     def test_edgeql_syntax_struct13(self):
         """
-        SELECT (a:=1, foo.bar);
+        SELECT (a := 1, foo.bar);
         """
 
     def test_edgeql_syntax_path01(self):
@@ -1308,7 +1308,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         SELECT [
             'foo':= {
-                bar:= 42
+                bar := 42
             }
         ];
         """
@@ -1463,11 +1463,11 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         WITH
             MODULE test,
             extra := MODULE lib.extra,
-            foo:= Bar.foo,
-            baz:= (SELECT (extra::Foo).baz)
+            foo := Bar.foo,
+            baz := (SELECT (extra::Foo).baz)
         SELECT Bar {
             spam,
-            ham:= baz
+            ham := baz
         } FILTER (foo = 'special');
         """
 
@@ -1476,8 +1476,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         WITH
             MODULE test,
-            foo:= Bar.foo,
-            baz:= (SELECT Foo.baz)
+            foo := Bar.foo,
+            baz := (SELECT Foo.baz)
         COMMIT;
         """
 
@@ -1715,9 +1715,9 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_insert02(self):
         """
-        INSERT Foo{bar:= 42};
-        SELECT (INSERT Foo{bar:= 42});
-        SELECT (INSERT Foo{bar:= 42}) {bar};
+        INSERT Foo{bar := 42};
+        SELECT (INSERT Foo{bar := 42});
+        SELECT (INSERT Foo{bar := 42}) {bar};
         """
 
     def test_edgeql_syntax_insert03(self):
@@ -1729,7 +1729,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_insert04(self):
         """
         WITH MODULE test
-        INSERT Foo{bar:= 42};
+        INSERT Foo{bar := 42};
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -1773,9 +1773,9 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_insert12(self):
         """
         INSERT Foo{
-            bar:= 42,
+            bar := 42,
             baz: Baz{
-                spam:= 'ham'
+                spam := 'ham'
             }
         };
         """
@@ -1783,18 +1783,18 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_insert13(self):
         """
         INSERT Foo{
-            bar:= 42,
-            baz:= (SELECT Baz FILTER (Baz.spam = 'ham'))
+            bar := 42,
+            baz := (SELECT Baz FILTER (Baz.spam = 'ham'))
         };
         """
 
     def test_edgeql_syntax_insert14(self):
         """
         INSERT Foo{
-            bar:= 42,
+            bar := 42,
             baz: Baz{
-                spam:= 'ham',
-                @weight:= 2,
+                spam := 'ham',
+                @weight := 2,
             }
         };
         """
@@ -1802,16 +1802,16 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_insert15(self):
         """
         INSERT Foo{
-            bar:= 42,
-            baz:= 'spam' {
-                @weight:= 2,
+            bar := 42,
+            baz := 'spam' {
+                @weight := 2,
             }
         };
 
         INSERT Foo{
-            bar:= 42,
-            baz:= 24 {
-                @weight:= 2,
+            bar := 42,
+            baz := 24 {
+                @weight := 2,
             }
         };
         """
@@ -1820,9 +1820,9 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_insert16(self):
         """
         INSERT Foo{
-            bar:= 42,
+            bar := 42,
             baz: 'spam' {
-                @weight:= 2,
+                @weight := 2,
             }
         };
         """
@@ -1830,10 +1830,10 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_insert17(self):
         """
         INSERT Foo{
-            bar:= 42,
-            baz:= (
+            bar := 42,
+            baz := (
                 SELECT Baz{
-                    @weight:= 2
+                    @weight := 2
                 } FILTER (Baz.spam = 'ham')
             )
         };
@@ -1917,19 +1917,19 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_insertfor02(self):
         """
         FOR name IN (SELECT Foo.bar FILTER (Foo.baz = TRUE))
-        INSERT Foo{name:= name};
+        INSERT Foo{name := name};
         """
 
     def test_edgeql_syntax_insertfor03(self):
         """
         FOR bar IN (INSERT Bar{name := 'bar'})
-        INSERT Foo{name:= bar.name};
+        INSERT Foo{name := bar.name};
         """
 
     def test_edgeql_syntax_insertfor04(self):
         """
         FOR bar IN (DELETE Bar)
-        INSERT Foo{name:= bar.name};
+        INSERT Foo{name := bar.name};
         """
 
     def test_edgeql_syntax_insertfor05(self):
@@ -1937,7 +1937,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         FOR bar IN (
             UPDATE Bar SET {name := (name + 'bar')}
         )
-        INSERT Foo{name:= bar.name};
+        INSERT Foo{name := bar.name};
         """
 
     def test_edgeql_syntax_selectfor01(self):
@@ -1988,8 +1988,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_function02(self):
         """
-        SELECT lower(string:=User.name);
-        SELECT baz(name:=User.name, for:=User.age);
+        SELECT lower(string := User.name);
+        SELECT baz(name := User.name, for := User.age);
         """
 
     def test_edgeql_syntax_function03(self):

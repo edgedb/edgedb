@@ -31,7 +31,7 @@ concept DefaultTest2:
     link foo to str
     required link num to int:
         # XXX: circumventing sequence deficiency
-        default:=
+        default :=
             SELECT DefaultTest1.num + 1
             ORDER BY DefaultTest1.num DESC
             LIMIT 1

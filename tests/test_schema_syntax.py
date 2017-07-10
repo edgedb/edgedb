@@ -50,14 +50,14 @@ concept LogEntry extends OwnedObject, Text:
     def test_eschema_syntax_concept05(self):
         """
 concept LogEntry extends OwnedObject, Text:
-   link start_date:= SELECT datetime::current_datetime()
+   link start_date := SELECT datetime::current_datetime()
         """
 
     def test_eschema_syntax_concept06(self):
         """
 concept LogEntry extends OwnedObject, Text:
     link start_date to datetime:
-       default:=
+       default :=
             SELECT datetime::current_datetime()
        title: 'Start Date'
         """
@@ -81,10 +81,10 @@ concept Issue extends foo.bar::NamedObject, OwnedObject, Text:
     link time_spent_log to LogEntry:
         mapping: 1*
 
-    link start_date:= SELECT datetime::current_datetime()
+    link start_date := SELECT datetime::current_datetime()
 
     link start_date to datetime:
-       default:=
+       default :=
             SELECT datetime::current_datetime()
        title: 'Start Date'
 
@@ -147,7 +147,7 @@ concept User:
         """
 concept LogEntry extends OwnedObject, Text:
     required link owner to User
-    index test_index:= SELECT datetime::current_datetime()
+    index test_index := SELECT datetime::current_datetime()
         """
 
     def test_eschema_syntax_ws01(self):
@@ -161,7 +161,7 @@ concept LogEntry extends    OwnedObject,    Text:
   link start_date to datetime:
 
 
-                       default:=
+                       default :=
 
 
                         SELECT
@@ -177,7 +177,7 @@ concept LogEntry extends    OwnedObject,    Text:
         """
         concept LogEntry extends OwnedObject, Text:
             link start_date to datetime:
-               default:=
+               default :=
                     SELECT datetime::current_datetime()
                title: 'Start Date'
         """
@@ -185,7 +185,7 @@ concept LogEntry extends    OwnedObject,    Text:
     def test_eschema_syntax_ws03(self):
         """     concept LogEntry extends OwnedObject, Text:
                     link start_date to datetime:
-                       default:=
+                       default :=
                             SELECT datetime::current_datetime()
                        title: 'Start Date'
         """
@@ -196,7 +196,7 @@ concept LogEntry extends    OwnedObject,    Text:
                 OwnedObject,
                 Text):
             link start_date to datetime:
-               default:=
+               default :=
                     SELECT datetime::current_datetime()
                title: 'Start Date'
 
@@ -204,7 +204,7 @@ concept LogEntry extends    OwnedObject,    Text:
 
         concept LogEntry extends OwnedObject, Text:
             link start_date to datetime:
-               default:=
+               default :=
                     SELECT datetime::current_datetime()
                title: 'Start Date'
         """
@@ -215,7 +215,7 @@ concept LogEntry extends    OwnedObject,    Text:
                 OwnedObject,
                 Text):
             link start_date to datetime:
-               default:=
+               default :=
                     SELECT \
                     datetime::current_datetime()
                title: 'Start Date'
@@ -224,7 +224,7 @@ concept LogEntry extends    OwnedObject,    Text:
 
         concept LogEntry extends OwnedObject, Text:
             link start_date to datetime:
-               default:=
+               default :=
                     SELECT datetime::current_datetime()
                title: 'Start Date'
         """
@@ -259,7 +259,7 @@ atom basic extends int:
 
     constraint min: 0
     constraint max: 123456
-    constraint expr:= subject % 2 = 0
+    constraint expr := subject % 2 = 0
         """
 
     def test_eschema_syntax_atom05(self):
@@ -269,7 +269,7 @@ atom basic extends int:
     title: 'Basic Atom'
     default: 2
 
-    constraint expr:=
+    constraint expr :=
         subject % 2 = 0
     constraint min: 0
     constraint max: 123456
@@ -284,7 +284,7 @@ atom basic extends int:
 
     constraint min: 0
     constraint max: 123456
-    constraint expr:= subject % 2 = 0
+    constraint expr := subject % 2 = 0
 
 
 atom inherits_default extends basic
@@ -317,13 +317,13 @@ atom special extends int:
 atom special extends int:
     title: 'Special Atom'
     constraint special_constraint:
-        expr:= subject % 2 = 0
+        expr := subject % 2 = 0
         """
 
     def test_eschema_syntax_constraint01(self):
         """
 constraint max:
-    expr:= subject <= $param
+    expr := subject <= $param
     errmessage: 'Maximum allowed value for {subject} is {param}.'
 
         """
@@ -331,7 +331,7 @@ constraint max:
     def test_eschema_syntax_constraint02(self):
         """
 abstract constraint length:
-    subject:= str::len(<str>subject)
+    subject := str::len(<str>subject)
         """
 
     def test_eschema_syntax_constraint03(self):
@@ -343,11 +343,11 @@ constraint maxlength extends max, length:
     def test_eschema_syntax_constraint04(self):
         """
 constraint max:
-    expr:= subject <= $param
+    expr := subject <= $param
     errmessage: 'Maximum allowed value for {subject} is {param}.'
 
 abstract constraint length:
-    subject:= str::len(<str>subject)
+    subject := str::len(<str>subject)
 
 constraint maxlength extends max, length:
     errmessage: '{subject} must be no longer than {param} characters.'

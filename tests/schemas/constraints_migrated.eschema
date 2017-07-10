@@ -65,7 +65,7 @@ link another_link_with_unique_property_inherited extends another_link_with_uniqu
 concept Object:
     link name to str:
         constraint unique
-        constraint unique:= std::lower(subject)
+        constraint unique := std::lower(subject)
 
     link c_length to constraint_length
     link c_length_2 to constraint_length_2
@@ -77,8 +77,8 @@ concept Object:
     link c_enum to constraint_enum
 
     link translated_label to str:
-        constraint unique:= (subject@source, subject@lang)
-        constraint unique:= subject@prop1
+        constraint unique := (subject@source, subject@lang)
+        constraint unique := subject@prop1
 
 
 concept UniqueName:
@@ -93,8 +93,8 @@ concept UniqueName:
     link link_with_unique_property_inherited to str
 
     link translated_label to str:
-        constraint unique:= (subject@source, subject@lang)
-        constraint unique:= subject@prop1
+        constraint unique := (subject@source, subject@lang)
+        constraint unique := subject@prop1
 
 
 concept UniqueNameInherited extends UniqueName:
@@ -132,7 +132,7 @@ concept UniqueName_4 extends UniqueName_2_Inherited
 concept MultiConstraint_Renamed:
     link name to str:
         constraint unique
-        constraint unique:= lower(subject)
+        constraint unique := lower(subject)
 
     link m1 to str
 

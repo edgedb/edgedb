@@ -118,16 +118,16 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_simple03(self):
         res = await self.con.execute('''
-            INSERT test::DefaultTest1 { num:=100 };
+            INSERT test::DefaultTest1 { num := 100 };
 
             WITH MODULE test
             INSERT DefaultTest2;
 
-            INSERT test::DefaultTest1 { num:=101 };
+            INSERT test::DefaultTest1 { num := 101 };
 
             INSERT test::DefaultTest2;
 
-            INSERT test::DefaultTest1 { num:=102 };
+            INSERT test::DefaultTest1 { num := 102 };
 
             INSERT test::DefaultTest2;
 
