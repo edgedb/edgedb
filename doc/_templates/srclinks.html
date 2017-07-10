@@ -1,0 +1,55 @@
+{%- if show_source and has_source and sourcename %}
+  <h3>{{ _('This Page') }}</h3>
+  <ul class="this-page-menu">
+    <li><a href="{{ pathto('_sources/' + sourcename, true)|e }}"
+            rel="nofollow"
+            target="_blank">{{ _('Source RST') }}</a></li>
+   {%- if show_srclink_url %}
+    <li><a href="{{ show_srclink_url }}"
+            rel="nofollow"
+            target="_blank">{{ _('Source') }}</a></li>
+   {%- endif %}
+   {%- if edit_srclink_url %}
+    <li><a href="{{ edit_srclink_url }}"
+            rel="nofollow"
+            target="_blank">{{ _('Edit') }}</a></li>
+   {%- endif %}
+   {%- if history_srclink_url %}
+     <li><a href="{{ history_srclink_url }}"
+             rel="nofollow"
+             target="_blank">{{ _('History') }}</a></li>
+   {%- endif %}
+   {%- if annotate_srclink_url %}
+     <li><a href="{{ annotate_srclink_url }}"
+             rel="nofollow"
+             target="_blank">{{ _('Annotate') }}</a></li>
+   {%- endif %}
+  </ul>
+  <h3>Source</h3>
+  {%- if srclink_src_url %}
+  <h5><a href="{{ srclink_src_url }}">{{
+          srclink_src_url.lstrip('https://').lstrip('http://') }}</a>
+      {%- if srclink_src_rev_url %}
+      / <a href="{{ srclink_src_rev_url }}"
+                rel="nofollow"
+                target="_blank"
+                font="monospace">{{ srclink_src_rev }}</a>
+      {%- endif %}
+  </h5>
+  {%- endif %}
+
+  <ul>
+
+  {%- if srclink_src_https_url %}
+    <li><pre>{{ srclink_src_clone_cmd }} {{ srclink_src_https_url }}</pre></li>
+  {%- endif %}
+
+  {%- if srclink_src_ssh_url %}
+    <li><pre>{{ srclink_src_clone_cmd }} {{ srclink_src_ssh_url }}</pre></li>
+  {%- endif %}
+
+  {%- if srclink_src_native_url %}
+    <li><pre>{{ srclink_src_clone_cmd }} {{ srclink_src_native_url }}</pre></li>
+  {%- endif %}
+  </ul>
+{%- endif %}
