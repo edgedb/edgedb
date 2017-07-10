@@ -340,9 +340,16 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     };
                 """)
 
+
+class TestConstraintsSchemaMIgration(tb.QueryTestCase):
+    SCHEMA = os.path.join(os.path.dirname(__file__),
+                          'schemas', 'constraints_migration',
+                          'schema.eschema')
+
     async def test_constraints_unique_migration(self):
-        new_schema_f = os.path.join(os.path.dirname(__file__), 'schemas',
-                                    'constraints_migrated.eschema')
+        new_schema_f = os.path.join(os.path.dirname(__file__),
+                                    'schemas', 'constraints_migration',
+                                    'updated_schema.eschema')
 
         with open(new_schema_f) as f:
             new_schema = f.read()
