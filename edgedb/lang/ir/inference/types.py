@@ -30,66 +30,6 @@ def is_polymorphic_type(t):
         return t.name == 'std::any'
 
 
-def infer_arg_types(ir, schema):
-    def flt(n):
-        if isinstance(n, irast.BinOp):
-            return (isinstance(n.left, irast.Parameter) or
-                    isinstance(n.right, irast.Parameter))
-
-    ops = ast.find_children(ir, flt)
-
-    arg_types = {}
-
-    for binop in ops:
-        typ = None
-
-        if isinstance(binop.right, irast.Parameter):
-            expr = binop.left
-            arg = binop.right
-            reversed = False
-        else:
-            expr = binop.right
-            arg = binop.left
-            reversed = True
-
-        if isinstance(binop.op, irast.EdgeDBMatchOperator):
-            typ = schema.get('std::str')
-
-        elif isinstance(binop.op, (ast.ops.ComparisonOperator,
-                                   ast.ops.ArithmeticOperator)):
-            typ = infer_type(expr, schema)
-
-        elif isinstance(binop.op, ast.ops.MembershipOperator) and not reversed:
-            from edgedb.lang.schema import objects as s_obj
-
-            elem_type = infer_type(expr, schema)
-            typ = s_obj.Array(element_type=elem_type)
-
-        elif isinstance(binop.op, ast.ops.BooleanOperator):
-            typ = schema.get('std::bool')
-
-        else:
-            msg = 'cannot infer expr type: unsupported ' \
-                  'operator: {!r}'.format(binop.op)
-            raise ValueError(msg)
-
-        if typ is None:
-            msg = 'cannot infer expr type'
-            raise ValueError(msg)
-
-        try:
-            existing = arg_types[arg.name]
-        except KeyError:
-            arg_types[arg.name] = typ
-        else:
-            if existing != typ:
-                msg = 'cannot infer expr type: ambiguous resolution: ' + \
-                      '{!r} and {!r}'
-                raise ValueError(msg.format(existing, typ))
-
-    return arg_types
-
-
 def _infer_common_type(irs: typing.List[irast.Base], schema):
     if not irs:
         raise ql_errors.EdgeQLError(

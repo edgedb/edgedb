@@ -108,8 +108,7 @@ class ConstraintCommand(referencing.ReferencedClassCommand):
 
         referrer_ctx = context.get(self.referrer_context_class)
         if referrer_ctx is not None and self.scls.finalexpr is None:
-            Constraint.process_specialized_constraint(
-                schema, self.scls, self.scls.args)
+            Constraint.process_specialized_constraint(schema, self.scls)
 
     def _alter_begin(self, schema, context, scls):
         super()._alter_begin(schema, context, scls)
@@ -226,7 +225,8 @@ class Constraint(primary.PrimaryClass, derivable.DerivableClass):
     inferredparamtypes = so.Field(so.ClassDict, default=None,
                                   coerce=True, derived=True)
 
-    args = so.Field(so.ArgDict, default=None, coerce=True, private=True,
+    args = so.Field(s_expr.ExpressionText,
+                    default=None, coerce=True, private=True,
                     compcoef=0.875)
 
     errmessage = so.Field(str, default=None, compcoef=0.971)
@@ -273,7 +273,6 @@ class Constraint(primary.PrimaryClass, derivable.DerivableClass):
                                    inline_anchors=False):
         from edgedb.lang.edgeql import parser as edgeql_parser
         from edgedb.lang.edgeql import utils as edgeql_utils
-        from edgedb.lang.ir import utils as ir_utils
 
         if isinstance(expr, str):
             tree = edgeql_parser.parse(expr, module_aliases)
@@ -284,16 +283,17 @@ class Constraint(primary.PrimaryClass, derivable.DerivableClass):
             tree, schema, modaliases=module_aliases,
             anchors={'subject': subject}, inline_anchors=inline_anchors)
 
-        arg_types = ir_utils.infer_arg_types(ir, schema)
-
-        return edgeql_tree.result, ir.result, arg_types
+        return edgeql_tree.result, ir.result
 
     @classmethod
-    def normalize_constraint_expr(cls, schema, module_aliases, expr):
+    def normalize_constraint_expr(cls, schema, module_aliases, expr,
+                                  subject=None):
         from edgedb.lang.edgeql import codegen as edgeql_codegen
 
-        subject = cls._dummy_subject()
-        edgeql_tree, tree, arg_types = cls._normalize_constraint_expr(
+        if subject is None:
+            subject = cls._dummy_subject()
+
+        edgeql_tree, _ = cls._normalize_constraint_expr(
             schema, module_aliases, expr, subject)
 
         expr = edgeql_codegen.generate_source(edgeql_tree, pretty=False)
@@ -301,95 +301,61 @@ class Constraint(primary.PrimaryClass, derivable.DerivableClass):
         return expr
 
     @classmethod
-    def normalize_constraint_subject_expr(cls, schema, module_aliases, expr):
-        from edgedb.lang.edgeql import codegen as edgeql_codegen
-
-        subject = cls._dummy_subject()
-        edgeql_tree, _, _ = cls._normalize_constraint_expr(
-            schema, module_aliases, expr, subject)
-        expr = edgeql_codegen.generate_source(edgeql_tree, pretty=False)
-        return expr
-
-    @classmethod
-    def process_specialized_constraint(cls, schema, constraint, params):
+    def process_specialized_constraint(cls, schema, constraint, params=None):
         from edgedb.lang.edgeql import utils as edgeql_utils
         from edgedb.lang.edgeql import codegen as edgeql_codegen
+        from edgedb.lang.edgeql import parser as edgeql_parser
+        from edgedb.lang.edgeql import compiler
+        from edgedb.lang.ir import utils as ir_utils
 
         assert constraint.subject is not None
 
+        module_aliases = {}
+
         subject = constraint.subject
         subjectexpr = constraint.get_field_value('subjectexpr')
-
-        if not subjectexpr:
-            # Special case for zero-argument exprs, where the subject is an
-            # argument, e.g. unique constraints.
-            #
-            *_, arg_types = cls._normalize_constraint_expr(
-                schema, {}, constraint.expr, subject)
-
-            if not arg_types and params:
-                subjectexpr = params.pop('param')
-
         if subjectexpr:
-            edgeql_tree, subject, _ = cls._normalize_constraint_expr(
+            _, subject = cls._normalize_constraint_expr(
                 schema, {}, subjectexpr, subject)
-
-            if constraint.subjectexpr is None:
-                constraint.subjectexpr = edgeql_codegen.generate_source(
-                    edgeql_tree, pretty=False)
 
         expr = constraint.get_field_value('expr')
         if not expr:
-            err = 'missing constraint expression in ' \
-                  '{!r}'.format(constraint.name)
-            raise ValueError(err)
+            raise ValueError(
+                f'missing constraint expression in {constraint.name!r}')
 
-        edgeql_tree, tree, arg_types = cls._normalize_constraint_expr(
-            schema, {}, constraint.expr, subject)
-
-        constraint.expr = cls.normalize_constraint_expr(schema, {}, expr)
-
-        if constraint.paramtypes:
-            all_arg_types = arg_types.copy()
-            all_arg_types.update(constraint.paramtypes)
-        else:
-            all_arg_types = arg_types
-
-        args = {}
+        expr_ql = edgeql_parser.parse(expr, module_aliases)
 
         if params:
-            fmtparams = {}
-            exprparams = {}
+            args = params
+        else:
+            args = constraint.get_field_value('args')
 
-            for pn, pv in params.items():
-                try:
-                    arg_type = all_arg_types[pn]
-                except KeyError:
-                    # XXX: warn
-                    pass
-                else:
-                    arg = arg_type.coerce(pv, schema)
-                    args[pn] = arg
+        args_map = None
+        arg_types = None
+        if args:
+            args_ql = edgeql_parser.parse(args, module_aliases)
+            args_map = edgeql_utils.index_parameters(args_ql)
+            edgeql_utils.inline_parameters(expr_ql, args_map)
 
-                    if isinstance(arg, (frozenset, tuple)):
-                        # This assumes that the datatype in this collection
-                        # is orderable.  If this ever breaks, use OrderedSet.
-                        fmtparams[pn] = ', '.join(sorted(arg))
-                    else:
-                        fmtparams[pn] = str(arg)
+            arg_types = {}
+            for arg_name, arg_ql in args_map.items():
+                arg_ir = compiler.compile_ast_to_ir(
+                    arg_ql, schema, modaliases=module_aliases)
+                arg_types[arg_name] = ir_utils.infer_type(arg_ir, schema)
 
-                    exprparams[pn] = arg
-
-            edgeql_utils.inline_parameters(edgeql_tree, exprparams,
-                                           all_arg_types)
+            args_map = {name: edgeql_codegen.generate_source(val, pretty=False)
+                        for name, val in args_map.items()}
 
             constraint.errmessage = constraint.errmessage.format(
-                subject='{subject}', **fmtparams)
+                subject='{subject}', **args_map)
 
-        text = edgeql_codegen.generate_source(edgeql_tree, pretty=False)
+        expr_text = cls.normalize_constraint_expr(
+            schema, module_aliases, expr_ql, subject=subject)
 
-        constraint.localfinalexpr = text
-        constraint.finalexpr = text
+        constraint.expr = expr_text
+        constraint.localfinalexpr = expr_text
+        constraint.finalexpr = expr_text
+
         constraint.inferredparamtypes = arg_types
         constraint.args = args or None
 

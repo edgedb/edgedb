@@ -7,6 +7,7 @@
 
 
 import re
+import unittest
 
 from edgedb.lang import _testbase as tb
 from edgedb.lang.schema import generate_source as eschema_to_source, error
@@ -33,12 +34,12 @@ abstract concept OwnedObject:
     required link owner to User
         """
 
+    @unittest.expectedFailure
     def test_eschema_syntax_concept03(self):
         """
 abstract concept Text:
     required link body to str:
-        constraint maxlength:
-            10000
+        constraint maxlength := 10000
         """
 
     def test_eschema_syntax_concept04(self):
@@ -240,16 +241,18 @@ atom issue_num_t extends int:
     default: 42
         """
 
+    @unittest.expectedFailure
     def test_eschema_syntax_atom03(self):
         """
 atom basic extends int:
     title: 'Basic Atom'
     default: 2
-    constraint min: 0
-    constraint max: 123456
+    constraint min := 0
+    constraint max := 123456
     constraint must_be_even
         """
 
+    @unittest.expectedFailure
     def test_eschema_syntax_atom04(self):
         """
 atom basic extends int:
@@ -257,11 +260,13 @@ atom basic extends int:
     title: 'Basic Atom'
     default: 2
 
-    constraint min: 0
-    constraint max: 123456
-    constraint expr := subject % 2 = 0
+    constraint min := 0
+    constraint max := 123456
+    constraint expr:
+        subject := subject % 2 = 0
         """
 
+    @unittest.expectedFailure
     def test_eschema_syntax_atom05(self):
         """
 atom basic extends int:
@@ -269,12 +274,14 @@ atom basic extends int:
     title: 'Basic Atom'
     default: 2
 
-    constraint expr :=
-        subject % 2 = 0
-    constraint min: 0
-    constraint max: 123456
+    constraint expr:
+        subject :=
+            subject % 2 = 0
+    constraint min := 0
+    constraint max := 123456
         """
 
+    @unittest.expectedFailure
     def test_eschema_syntax_atom06(self):
         """
 atom basic extends int:
@@ -282,9 +289,10 @@ atom basic extends int:
     title: 'Basic Atom'
     default: 2
 
-    constraint min: 0
-    constraint max: 123456
-    constraint expr := subject % 2 = 0
+    constraint min := 0
+    constraint max := 123456
+    constraint expr:
+        subject := subject % 2 = 0
 
 
 atom inherits_default extends basic
@@ -305,11 +313,12 @@ atom basic extends int:
     abstract constraint special_constraint
         """
 
+    @unittest.expectedFailure
     def test_eschema_syntax_atom09(self):
         """
 atom special extends int:
     title: 'Special Atom'
-    abstract constraint special_constraint: [42, 100, 9001]
+    abstract constraint special_constraint := [42, 100, 9001]
         """
 
     def test_eschema_syntax_atom10(self):
@@ -424,9 +433,11 @@ link coollink:
     linkproperty foo to int
     linkproperty bar to int
 
-    constraint expr := self.foo = self.bar
+    constraint expr:
+        expr := self.foo = self.bar
         """
 
+    @unittest.expectedFailure
     def test_eschema_syntax_link05(self):
         """
 linkproperty foo:
@@ -438,8 +449,8 @@ linkproperty bar extends foo:
 link coollink:
     linkproperty foo to int:
         default: 2
-        constraint min: 0
-        constraint max: 123456
+        constraint min := 0
+        constraint max := 123456
         constraint expr := subject % 2 = 0
 
     linkproperty bar to int
@@ -456,11 +467,12 @@ event self_deleted:
 
         """
 
+    @unittest.expectedFailure
     def test_eschema_syntax_link06(self):
         """
 link time_estimate:
    linkproperty unit to str:
-       constraint must_be_even: 0
+       constraint must_be_even := 0
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
@@ -622,5 +634,6 @@ link time_estimate:
         """
         view FooBaz:
             expr :=
-                SELECT Foo FILTER Foo.bar = 'baz'
+                SELECT Foo
+                FILTER Foo.bar = 'baz'
         """

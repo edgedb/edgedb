@@ -12,6 +12,7 @@ from edgedb.lang.common import parsing, context
 from edgedb.lang.common.exceptions import get_context
 
 from edgedb.lang import edgeql
+from edgedb.lang.edgeql import ast as qlast
 from edgedb.lang.schema import ast as esast
 
 from ...error import SchemaSyntaxError
@@ -470,7 +471,7 @@ class FunctionDeclCore(Nonterm):
 
         for spec in kids[5].val:
             if isinstance(spec, esast.Attribute):
-                if spec.name == 'initial value':
+                if spec.name.name == 'initial value':
                     init_val = spec.value
                 else:
                     attributes.append(spec)
@@ -509,7 +510,9 @@ class FunctionSpec(Nonterm):
         self.val = kids[0].val
 
     def reduce_INITIAL_VALUE_ColonValue(self, *kids):
-        self.val = esast.Attribute(name='initial value', value=kids[2].val)
+        self.val = esast.Attribute(
+            name=esast.ObjectName(name='initial value'),
+            value=kids[2].val)
 
 
 class FunctionSpecs(ListNonterm, element=FunctionSpec):
@@ -737,11 +740,20 @@ class Constraint(Nonterm):
             self, *kids):
         self.val = esast.Constraint(name=kids[1].val, attributes=kids[5].val)
 
-    def reduce_CONSTRAINT_Attribute(self, *kids):
-        self.val = esast.Constraint(kids[1].val)
+    def reduce_CONSTRAINT_ObjectName_TurnstileBlob(self, *kids):
+        attributes = [
+            esast.Attribute(
+                name=esast.ObjectName(name='args'),
+                value=qlast.NamedTuple(
+                    elements=[
+                        qlast.TupleElement(
+                            name=qlast.ClassRef(name='param'),
+                            val=kids[2].val)
+                    ]))
+        ]
 
-    def reduce_CONSTRAINT_Attribute_INDENT_Attributes_DEDENT(self, *kids):
-        self.val = esast.Constraint(name=kids[1].val, attributes=kids[3].val)
+        self.val = esast.Constraint(
+            name=kids[1].val, attributes=attributes)
 
 
 class Attribute(Nonterm):

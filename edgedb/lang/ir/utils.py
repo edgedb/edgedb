@@ -16,7 +16,7 @@ from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import views as s_views
 
 from . import ast as irast
-from .inference import infer_arg_types, infer_type  # NOQA
+from .inference import infer_type  # NOQA
 from .inference import is_polymorphic_type  # NOQA
 
 

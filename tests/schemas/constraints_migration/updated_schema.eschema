@@ -7,34 +7,36 @@
 
 
 atom constraint_length extends str:
-    constraint maxlength: 16
-    constraint maxlength: 10
-    constraint minlength: 5
-    constraint minlength: 8
+    constraint maxlength := 16
+    constraint maxlength := 10
+    constraint minlength := 5
+    constraint minlength := 8
 
 
 atom constraint_length_2 extends constraint_length:
-    constraint minlength: 9
+    constraint minlength := 9
 
 
 atom constraint_minmax extends str:
-    constraint min: "99900000"
-    constraint min: "99990000"
-    constraint max: "9999999989"
+    constraint min := "99900000"
+    constraint min := "99990000"
+    constraint max := "9999999989"
 
 
 atom constraint_strvalue extends str:
-    constraint expression := (subject)[-1:] = '9'
+    constraint expression:
+        subject := (subject)[-1:] = '9'
 
-    constraint regexp: "^\\d+$"
+    constraint regexp := "^\d+$"
 
-    constraint expression := (subject)[0] = '9'
+    constraint expression:
+        subject := (subject)[0] = '9'
 
-    constraint regexp: "^\\d+9{3,}.*$"
+    constraint regexp := "^\d+9{3,}.*$"
 
 
 atom constraint_enum extends str:
-   constraint enum: ['foo', 'bar']
+   constraint enum := ['foo', 'bar']
 
 
 link translated_label:
@@ -65,20 +67,23 @@ link another_link_with_unique_property_inherited extends another_link_with_uniqu
 concept Object:
     link name to str:
         constraint unique
-        constraint unique := std::lower(subject)
+        constraint unique:
+            subject := std::lower(subject)
 
     link c_length to constraint_length
     link c_length_2 to constraint_length_2
     link c_length_3 to constraint_length_2:
-        constraint minlength: 10
+        constraint minlength := 10
 
     link c_minmax to constraint_minmax
     link c_strvalue to constraint_strvalue
     link c_enum to constraint_enum
 
     link translated_label to str:
-        constraint unique := (subject@source, subject@lang)
-        constraint unique := subject@prop1
+        constraint unique:
+            subject := (subject@source, subject@lang)
+        constraint unique:
+            subject := subject@prop1
 
 
 concept UniqueName:
@@ -93,8 +98,10 @@ concept UniqueName:
     link link_with_unique_property_inherited to str
 
     link translated_label to str:
-        constraint unique := (subject@source, subject@lang)
-        constraint unique := subject@prop1
+        constraint unique:
+            subject := (subject@source, subject@lang)
+        constraint unique:
+            subject := subject@prop1
 
 
 concept UniqueNameInherited extends UniqueName:
@@ -132,7 +139,8 @@ concept UniqueName_4 extends UniqueName_2_Inherited
 concept MultiConstraint_Renamed:
     link name to str:
         constraint unique
-        constraint unique := lower(subject)
+        constraint unique:
+            subject := lower(subject)
 
     link m1 to str
 
@@ -158,7 +166,8 @@ concept AbstractConstraintParent:
 
 concept AbstractConstraintParent2:
     link name to str:
-        abstract constraint unique := lower(subject)
+        abstract constraint unique:
+            subject := lower(subject)
 
 
 concept AbstractConstraintPureChild extends AbstractConstraintParent
@@ -166,7 +175,8 @@ concept AbstractConstraintPureChild extends AbstractConstraintParent
 
 concept AbstractConstraintMixedChild extends AbstractConstraintParent:
     link name to str:
-        constraint unique := lower(subject)
+        constraint unique:
+            subject := lower(subject)
 
 
 concept AbstractConstraintPropagated extends AbstractConstraintParent:
@@ -177,7 +187,8 @@ concept AbstractConstraintPropagated extends AbstractConstraintParent:
 concept AbstractConstraintParent3:
     link name to str:
         abstract constraint unique
-        abstract constraint unique := lower(subject)
+        abstract constraint unique:
+            subject := lower(subject)
 
 
 concept AbstractConstraintMultipleParentsFlattening extends AbstractConstraintParent, AbstractConstraintParent2:

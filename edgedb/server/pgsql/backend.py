@@ -828,14 +828,6 @@ class Backend(s_deltarepo.DeltaProvider):
             else:
                 paramtypes = None
 
-            if r['args']:
-                args = json.loads(r['args'])
-                for k, v in args.items():
-                    paramtype = allparamtypes[k]
-                    args[k] = paramtype.coerce(v, schema)
-            else:
-                args = None
-
             constraint = s_constr.Constraint(
                 name=name, subject=subject, title=title,
                 description=description, is_abstract=r['is_abstract'],
@@ -843,7 +835,7 @@ class Backend(s_deltarepo.DeltaProvider):
                 subjectexpr=r['subjectexpr'],
                 localfinalexpr=r['localfinalexpr'], finalexpr=r['finalexpr'],
                 errmessage=r['errmessage'], paramtypes=paramtypes,
-                inferredparamtypes=inferredparamtypes, args=args)
+                inferredparamtypes=inferredparamtypes, args=r['args'])
 
             if subject:
                 subject.add_constraint(constraint)

@@ -7,4 +7,4 @@
 
 
 from .cardinality import infer_cardinality  # NOQA
-from .types import infer_arg_types, infer_type, is_polymorphic_type  # NOQA
+from .types import infer_type, is_polymorphic_type  # NOQA
