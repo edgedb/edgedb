@@ -1204,7 +1204,7 @@ class TestExpressions(tb.QueryTestCase):
             [2],
         ])
 
-    @unittest.expectedFailure
+    @tb.expected_optimizer_failure
     async def test_edgeql_expr_alias02(self):
         await self.assert_query_result(r"""
             WITH

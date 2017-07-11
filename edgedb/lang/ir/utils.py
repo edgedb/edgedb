@@ -13,6 +13,7 @@ from edgedb.lang.schema import links as s_links
 from edgedb.lang.schema import name as s_name
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
+from edgedb.lang.schema import views as s_views
 
 from . import ast as irast
 from .inference import infer_arg_types, infer_type  # NOQA
@@ -138,6 +139,15 @@ def is_strictly_subquery_set(ir_expr):
     return (
         is_subquery_set(ir_expr) and
         not is_strictly_view_set(ir_expr)
+    )
+
+
+def is_aliased_set(ir_expr):
+    return (
+        isinstance(ir_expr, irast.Set) and
+        len(ir_expr.path_id) == 1 and
+        isinstance(ir_expr.path_id[0], s_views.View) and
+        ir_expr.path_id[0].name.module == '__aliased__'
     )
 
 

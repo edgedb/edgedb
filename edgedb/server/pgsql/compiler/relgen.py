@@ -108,7 +108,15 @@ def set_to_cte(
         else:
             process_set_as_root(ir_set, stmt, ctx=subctx)
 
-    return relctx.get_set_cte(ir_set, ctx=ctx)
+    rel = relctx.get_set_cte(ir_set, ctx=ctx)
+    if irutils.is_aliased_set(ir_set):
+        if isinstance(rel, pgast.CommonTableExpr):
+            query = rel.query
+        else:
+            query = rel
+        relctx.ensure_bond_for_expr(ir_set, query, ctx=ctx)
+
+    return rel
 
 
 def ensure_correct_set(
