@@ -2395,7 +2395,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [4],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_cross10(self):
         await self.assert_query_result(r"""
             WITH
@@ -2410,20 +2409,33 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [4],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_cross11(self):
         await self.assert_query_result(r"""
             WITH MODULE test
             SELECT count(ALL
                 Issue.owner.name +
-                <str>count(Issue.watchers) +
-                <str>Issue.time_estimate
+                <str>count(ALL Issue.watchers) +
+                <str>Issue.time_estimate ?? '0'
             );
             """, [
             [4],
         ])
 
     async def test_edgeql_select_cross12(self):
+        # Same as cross11, but without coalescing the time_estimate,
+        # which should collapse the counted set to a single element.
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT count(ALL
+                Issue.owner.name +
+                <str>count(ALL Issue.watchers) +
+                <str>Issue.time_estimate
+            );
+            """, [
+            [1],
+        ])
+
+    async def test_edgeql_select_cross13(self):
         await self.assert_query_result(r"""
             WITH MODULE test
             SELECT count(ALL count(ALL Issue.watchers));

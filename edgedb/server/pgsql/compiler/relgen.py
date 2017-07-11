@@ -608,7 +608,7 @@ def process_set_as_view_inner_reference(
     inner_set = ir_set.view_source
 
     with ctx.new() as newctx:
-        newctx.path_bonds = ctx.path_bonds.copy()
+        newctx.path_bonds = ctx.parent_path_bonds.copy()
         newctx.expr_exposed = False
 
         # rptr source is a view, so we need to make sure that all
@@ -619,34 +619,30 @@ def process_set_as_view_inner_reference(
         src_ir_set = irutils.get_subquery_shape(src)
         source_rvar = None
 
-        if (irutils.is_strictly_view_set(src) or
-                (irutils.is_subquery_set(src) and
-                 irutils.is_strictly_view_set(src.expr.result)) or
-                (irutils.is_inner_view_reference(src))):
+        if src.path_id in newctx.path_bonds:
+            newctx.path_bonds[src_ir_set.path_id] = \
+                newctx.path_bonds[src.path_id]
+        else:
+            source_cte = set_to_cte(src, ctx=newctx)
+            source_rvar = dbobj.rvar_for_rel(ctx.env, source_cte)
 
-            if src.path_id in newctx.path_bonds:
-                newctx.path_bonds[src_ir_set.path_id] = \
-                    newctx.path_bonds[src.path_id]
-            else:
-                source_cte = set_to_cte(src, ctx=newctx)
-                source_rvar = dbobj.rvar_for_rel(ctx.env, source_cte)
+            # Wrap the view rel for proper path_id translation.
+            wrapper = wrap_view_ref(
+                src_ir_set, src.path_id, src_ir_set.path_id,
+                source_rvar, ctx=newctx)
+            # Finally, map the source Set to the wrapper.
+            relctx.put_parent_range_scope(
+                src_ir_set, wrapper, ctx=newctx)
 
-                # Wrap the view rel for proper path_id translation.
-                wrapper = wrap_view_ref(
-                    src_ir_set, src.path_id, src_ir_set.path_id,
-                    source_rvar, ctx=newctx)
-                # Finally, map the source Set to the wrapper.
-                relctx.put_parent_range_scope(
-                    src_ir_set, wrapper, ctx=newctx)
-
-                newctx.path_bonds = ctx.path_bonds.copy()
+            newctx.path_bonds = ctx.parent_path_bonds.copy()
 
         # Prevent ensure_correct_set from wrapping the subquery as we may
         # need to fiddle with it to ensure correct cardinality first.
         newctx.correct_set_assumed = True
 
         newctx.view_path_id_map = {
-            ir_set.path_id: inner_set.expr.result.path_id
+            ir_set.path_id: inner_set.expr.result.path_id,
+            src.path_id: src_ir_set.path_id
         }
 
         # We need to make sure that the target expression is computed at
@@ -656,14 +652,15 @@ def process_set_as_view_inner_reference(
         # relevant path bond.
         # To determine whether the source_rvar JOIN is necessary, do a
         # deep search for the ``src_ir_set``.
-        flt = lambda n: n is src_ir_set
+        canonical_src_ir_set = irutils.get_canonical_set(src_ir_set)
+        flt = lambda n: n is canonical_src_ir_set
         expr_refers_to_target = ast.find_children(
             inner_set.expr, flt, terminate_early=True)
 
         if not expr_refers_to_target:
             if source_rvar is None:
                 with newctx.new() as subctx:
-                    subctx.path_bonds = ctx.path_bonds.copy()
+                    subctx.path_bonds = ctx.parent_path_bonds.copy()
                     source_cte = set_to_cte(src, ctx=subctx)
                     source_rvar = dbobj.rvar_for_rel(ctx.env, source_cte)
             newctx.expr_injected_path_bond = {
