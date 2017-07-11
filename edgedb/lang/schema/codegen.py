@@ -128,7 +128,7 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
             self._visit_specs(node)
 
     def _visit_turnstile(self, node):
-        self.write(':=')
+        self.write(' := ')
         self.new_lines = 1
         self.indentation += 1
         self.visit(node)
@@ -239,13 +239,10 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         if node.abstract:
             self.write('abstract ')
         self.write('constraint ')
-        if node.value is not None:
-            self.visit_Attribute(node)
-        else:
-            self.visit(node.name)
-            if node.attributes:
-                self.write(':')
-                self.new_lines = 1
+        self.visit(node.name)
+        if node.attributes:
+            self.write(':')
+            self.new_lines = 1
         if node.attributes:
             self.new_lines = 1
             self.indentation += 1

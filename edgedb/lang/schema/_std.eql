@@ -105,7 +105,11 @@ CREATE FUNCTION std::array_unpack(array<std::any>)
 CREATE FUNCTION std::array_contains(array<std::any>, std::any)
     RETURNING std::bool
     FROM SQL $$
-        SELECT array_position($1, $2) IS NOT NULL;
+        SELECT
+            CASE
+                WHEN $2 IS NULL THEN NULL
+                ELSE array_position($1, $2) IS NOT NULL
+            END;
     $$;
 
 CREATE FUNCTION std::array_enumerate(array<std::any>)
@@ -147,7 +151,7 @@ CREATE CONSTRAINT std::max INHERITING std::constraint {
 
 CREATE CONSTRAINT std::enum INHERITING std::constraint {
     SET errmessage := '{subject} must be one of: {param}.';
-    SET expr := ((subject IN $param));
+    SET expr := array_contains($param, subject);
 };
 
 CREATE CONSTRAINT std::min INHERITING std::constraint {
@@ -189,8 +193,8 @@ CREATE CONSTRAINT std::unique INHERITING std::constraint {
 
 CREATE ATOM std::decimal_rounding_t INHERITING std::str {
     CREATE CONSTRAINT std::enum {
-        SET args := ['param' -> ('ceiling', '05up', 'up', 'half-even',
-                                 'half-up', 'floor', 'down', 'half-down')];
+        SET args := (param := ['ceiling', '05up', 'up', 'half-even',
+                               'half-up', 'floor', 'down', 'half-down']);
     };
 };
 

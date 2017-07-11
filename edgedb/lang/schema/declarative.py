@@ -14,6 +14,7 @@ from edgedb.lang.common import ordered
 from edgedb.lang.common import topological
 
 from edgedb.lang import edgeql
+from edgedb.lang.edgeql import codegen as edgeql_codegen
 from edgedb.lang.edgeql import codegen as qlcodegen
 
 from edgedb.lang.ir import utils as ir_utils
@@ -256,7 +257,7 @@ class DeclarationLoader:
 
         for constraint, decl in constraints.items():
             attrs = {a.name.name: a.value for a in decl.attributes}
-            expr = attrs.get('expr')
+            expr = attrs.pop('expr', None)
             if expr is not None:
                 try:
                     expr = s_constr.Constraint.normalize_constraint_expr(
@@ -266,7 +267,7 @@ class DeclarationLoader:
 
                 constraint.expr = expr
 
-            subjexpr = attrs.get('subject')
+            subjexpr = attrs.pop('subject', None)
             if subjexpr is not None:
                 try:
                     subjexpr = s_constr.Constraint.normalize_constraint_expr(
@@ -275,6 +276,11 @@ class DeclarationLoader:
                     raise s_err.SchemaError(e.args[0], context=decl) from None
 
                 constraint.subjectexpr = subjexpr
+
+            if attrs:
+                raise s_err.SchemaError(
+                    f'Unrecognized constraint attributes: {set(attrs.keys())}',
+                    context=constraint)
 
     def _init_atoms(self, atoms):
         for atom, atomdecl in atoms.items():
@@ -429,6 +435,8 @@ class DeclarationLoader:
         constr = {}
 
         for constrdecl in subjdecl.constraints:
+            attrs = {a.name.name: a.value for a in constrdecl.attributes}
+
             constr_name = self._get_ref_name(constrdecl.name)
             constr_base = self._schema.get(constr_name,
                                            type=s_constr.Constraint,
@@ -438,15 +446,17 @@ class DeclarationLoader:
             constraint.is_abstract = constrdecl.abstract
             constraint.acquire_ancestor_inheritance(self._schema)
 
-            # We now have a full set of data to perform final validation
-            # and analysis of the constraint.
-            #
-            args = {}
-            if constrdecl.value is not None:
-                if isinstance(constrdecl.value, edgeql.ast.Base):
-                    args['param'] = constrdecl.value
-                else:
-                    args['param'] = self._get_literal_value(constrdecl.value)
+            args = None
+            if 'args' in attrs:
+                args = edgeql_codegen.generate_source(
+                    attrs['args'], pretty=False)
+
+            subjectexpr = attrs.pop('subject', None)
+            if subjectexpr is not None:
+                constraint.subjectexpr = \
+                    s_constr.Constraint.normalize_constraint_expr(
+                        self._schema, {}, subjectexpr, subject=subject)
+
             s_constr.Constraint.process_specialized_constraint(
                 self._schema, constraint, args)
 

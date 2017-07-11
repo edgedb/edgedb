@@ -47,11 +47,13 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             SELECT array_contains([1], {1, 3});
             SELECT array_contains([1, 2], 1);
             SELECT array_contains([1, 2], 3);
+            SELECT array_contains(['a'], <std::str>{});
         ''', [
             [False, False],
             [True, False],
             [True],
             [False],
+            [],
         ])
 
     @unittest.expectedFailure

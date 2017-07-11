@@ -10,6 +10,7 @@ import typing
 
 from edgedb.lang.common import enum as s_enum
 from edgedb.lang.common import ast, parsing
+from edgedb.lang.edgeql import ast as ql_ast
 
 
 class Base(ast.AST):
@@ -138,18 +139,14 @@ class ObjectName(Base):
 # property definitions
 #
 class Attribute(Base):
-    __fields = ['name', 'value']
+    name: ObjectName
+    value: object
 
 
-class Constraint(Attribute):
-    __fields = [('abstract', bool, False), ('attributes', list, list)]
-
-    def __init__(self, prop=None, **kwargs):
-        if prop is not None:
-            kwargs['name'] = kwargs.get('name', prop.name)
-            kwargs['value'] = kwargs.get('value', prop.value)
-
-        super().__init__(**kwargs)
+class Constraint(Base):
+    name: ObjectName
+    abstract: bool = False
+    attributes: typing.List[Attribute]
 
 
 # Statements
