@@ -15,6 +15,7 @@ from edgedb.lang.ir import utils as irutils
 from edgedb.lang.schema import concepts as s_concepts
 from edgedb.lang.schema import expr as s_expr
 from edgedb.lang.schema import name as s_name
+from edgedb.lang.schema import pointers as s_pointers
 
 from edgedb.lang.edgeql import ast as qlast
 from edgedb.lang.edgeql import errors
@@ -199,7 +200,13 @@ def compile_InsertQuery(
 
             substmt = setgen.ensure_stmt(
                 dispatch.compile(default_expr, ctx=ictx), ctx=ictx)
-            el = setgen.generated_set(substmt, ctx=ictx)
+
+            target_class = irutils.infer_type(substmt, schema=ictx.schema)
+
+            path_id = subject.path_id.extend(
+                ptrcls, s_pointers.PointerDirection.Outbound, target_class)
+
+            el = setgen.generated_set(substmt, path_id=path_id, ctx=ictx)
             el.rptr = targetstep.rptr
             stmt.subject.shape.append(el)
 
@@ -281,6 +288,16 @@ def init_stmt(
     ctx.stmt = irstmt
     irstmt.parent_stmt = parent_ctx.stmt
     process_with_block(qlstmt, ctx=ctx)
+
+    if qlstmt.iterator is not None:
+        with ctx.newscope() as scopectx:
+            irstmt.iterator_stmt = stmtctx.declare_view(
+                qlstmt.iterator, qlstmt.iterator_alias, ctx=scopectx)
+
+        ctx.singletons.add(
+            irutils.get_canonical_set(irstmt.iterator_stmt))
+
+        pathctx.register_path_scope(irstmt.iterator_stmt.path_id, ctx=ctx)
 
 
 def fini_stmt(

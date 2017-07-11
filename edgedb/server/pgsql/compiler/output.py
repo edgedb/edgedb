@@ -36,7 +36,11 @@ def tuple_var_as_json_object(tvar, *, env):
                 keyvals.append(val)
         else:
             for element in tvar.elements:
-                name = element.path_id[-2][0].shortname.name
+                name = element.path_id.rptr_name()
+                if name is None:
+                    name = element.path_id[-1].name.name
+                else:
+                    name = name.name
                 keyvals.append(pgast.Constant(val=name))
                 if isinstance(element.val, astutils.TupleVar):
                     val = serialize_expr(element.val, env=env)

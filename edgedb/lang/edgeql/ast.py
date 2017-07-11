@@ -283,8 +283,8 @@ class Statement(Expr):
 
 
 class QueryStatement(Statement):
-    source_el: str
-    source: Expr
+    iterator: Expr
+    iterator_alias: str
 
 
 class SubjStatement(QueryStatement):

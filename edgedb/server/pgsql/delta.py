@@ -1520,7 +1520,14 @@ class CreateConcept(ConceptMetaCommand, adapts=s_concepts.CreateConcept):
         new_table_name = common.concept_name_to_table_name(
             self.classname, catenate=False)
         self.table_name = new_table_name
-        concept_table = dbops.Table(name=new_table_name)
+
+        columns = []
+        if concept_props.get('name') == 'std::Object':
+            token_col = dbops.Column(
+                name='__edb_token', type='uuid', required=False)
+            columns.append(token_col)
+
+        concept_table = dbops.Table(name=new_table_name, columns=columns)
         self.pgops.add(dbops.CreateTable(table=concept_table))
 
         alter_table = self.get_alter_table(context)

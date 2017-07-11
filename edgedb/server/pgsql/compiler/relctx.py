@@ -86,6 +86,33 @@ def apply_path_bond_injections(
         return None
 
 
+def include_rvar(
+        stmt: pgast.Query, rvar: pgast.BaseRangeVar, join_type: str='inner',
+        replace_bonds: bool=True, *,
+        ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
+    """Ensure the *rvar* is present in the from_clause of *stmt*.
+
+    :param stmt:
+        The statement to include *rel* in.
+
+    :param rvar:
+        The range var node to join.
+
+    :param join_type:
+        JOIN type to use when including *rel*.
+
+    :param replace_bonds:
+        Whether the path bonds in *stmt* should be replaced.
+    """
+    pathctx.rel_join(ctx.env, stmt, rvar, type=join_type)
+    # Make sure that the path namespace of *cte* is mapped
+    # onto the path namespace of *stmt*.
+    pull_path_namespace(
+        target=stmt, source=rvar, replace_bonds=replace_bonds, ctx=ctx)
+
+    return rvar
+
+
 def include_range(
         stmt: pgast.Query, rel: pgast.Query, join_type: str='inner',
         lateral: bool=False, replace_bonds: bool=True, *,
@@ -173,24 +200,34 @@ def ensure_correct_rvar_for_expr(
 
 
 def ensure_bond_for_expr(
-        ir_set: irast.Set, stmt: pgast.Query, *,
+        ir_set: irast.Set, stmt: pgast.Query, *, type='int',
         ctx: context.CompilerContextLevel) -> None:
     rt = irutils.infer_type(ir_set, ctx.env.schema)
     if isinstance(rt, s_concepts.Concept):
         # Concepts have inherent identity
         return
 
-    # We only inject identity for sets that are aliased, i.e
-    # there is a possibility of multiple var references to the
-    # same set.
-    row_number = pgast.FuncCall(
-        name=('row_number',),
-        args=[],
-        over=pgast.WindowDef()
-    )
+    ensure_transient_identity_for_set(ir_set, stmt, type=type, ctx=ctx)
+
+
+def ensure_transient_identity_for_set(
+        ir_set: irast.Set, stmt: pgast.Query, *,
+        ctx: context.CompilerContextLevel, type='int') -> None:
+
+    if type == 'uuid':
+        id_expr = pgast.FuncCall(
+            name=('uuid_generate_v1mc',),
+            args=[],
+        )
+    else:
+        id_expr = pgast.FuncCall(
+            name=('row_number',),
+            args=[],
+            over=pgast.WindowDef()
+        )
 
     pathctx.put_path_identity_var(stmt, ir_set.path_id,
-                                  row_number, env=ctx.env)
+                                  id_expr, force=True, env=ctx.env)
     pathctx.put_path_bond(stmt, ir_set.path_id)
 
 
@@ -206,9 +243,9 @@ def enforce_path_scope(
 
 def put_parent_range_scope(
         ir_set: irast.Set, rvar: pgast.BaseRangeVar, grouped: bool=False, *,
-        ctx: context.CompilerContextLevel):
+        force: bool=False, ctx: context.CompilerContextLevel):
     ir_set = irutils.get_canonical_set(ir_set)
-    if ir_set not in ctx.computed_node_rels:
+    if ir_set not in ctx.computed_node_rels or force:
         ctx.computed_node_rels[ir_set] = rvar, grouped
 
 
@@ -222,15 +259,22 @@ def get_parent_range_scope(
 
 def get_ctemap_key(
         ir_set: irast.Set, *, lax: typing.Optional[bool]=None,
+        extrakey: typing.Optional[object]=None,
         ctx: context.CompilerContextLevel) -> tuple:
     ir_set = irutils.get_canonical_set(ir_set)
+
+    if ctx.query is not ctx.toplevel_stmt:
+        # Consider parent scope only in qubqueries.
+        extrakey = get_parent_range_scope(ir_set, ctx=ctx)
+    else:
+        extrakey = None
 
     if ir_set.rptr is not None and ir_set.expr is None:
         if lax is None:
             lax = bool(ctx.lax_paths)
-        key = (ir_set, lax)
+        key = (ir_set, lax, extrakey)
     else:
-        key = (ir_set, False)
+        key = (ir_set, False, extrakey)
 
     return key
 
@@ -250,7 +294,11 @@ def get_set_cte(
         ctx: context.CompilerContextLevel) -> \
         typing.Optional[pgast.BaseRelation]:
     key = get_ctemap_key(ir_set, lax=lax, ctx=ctx)
-    return ctx.ctemap.get(key)
+    cte = ctx.ctemap.get(key)
+    if cte is None and key[-1] is None:
+        cte = ctx.viewmap.get(ir_set)
+
+    return cte
 
 
 def pop_prefix_ctes(

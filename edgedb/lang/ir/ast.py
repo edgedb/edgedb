@@ -100,6 +100,18 @@ class PathId(tuple):
         else:
             return None
 
+    def rptr_name(self):
+        if len(self) > 1:
+            if isinstance(self[-1], so.NodeClass):
+                ptroffset = -2
+            else:
+                ptroffset = -1
+
+            genptr = self[ptroffset][0]
+            return genptr.name
+        else:
+            return None
+
     def rptr_dir(self):
         if len(self) > 1:
             if isinstance(self[-1], so.NodeClass):
@@ -428,6 +440,7 @@ class Stmt(Base):
     singleton: bool
     main_stmt: Base
     parent_stmt: Base
+    iterator_stmt: Base
     substmts: list
     path_scope: typing.Dict[PathId, int]
     specific_path_scope: typing.Set[Set]

@@ -56,11 +56,11 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.indentation -= 1
 
     def _visit_for(self, node):
-        if node.source:
-            self.write('FOR ', node.source_el, ' IN')
+        if node.iterator:
+            self.write('FOR ', ident_to_str(node.iterator_alias), ' IN')
             self.indentation += 1
             self.new_lines = 1
-            self.visit(node.source)
+            self.visit(node.iterator)
             self.indentation -= 1
             self.new_lines = 1
 

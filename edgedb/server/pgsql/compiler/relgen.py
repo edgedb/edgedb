@@ -568,6 +568,7 @@ def process_set_as_view(
             c1.stmt = c1.toplevel_stmt
             c1.ctemap = c1.ctemap_by_stmt[c1.stmt]
             relctx.put_set_cte(ir_set, cte, ctx=c1)
+            ctx.viewmap[ir_set] = cte
 
 
 def process_set_as_subquery(
@@ -577,8 +578,10 @@ def process_set_as_subquery(
     with ctx.new() as newctx:
         newctx.path_bonds = ctx.path_bonds.copy()
 
+        inner_set = ir_set.expr.result
+
         outer_id = ir_set.path_id
-        inner_id = ir_set.expr.result.path_id
+        inner_id = inner_set.path_id
 
         newctx.view_path_id_map = {
             outer_id: inner_id
@@ -1181,38 +1184,6 @@ def wrap_view_ref(
             outer_path_id: inner_path_id
         }
     )
-
-    if isinstance(view_rvar, pgast.RangeSubselect) and False:
-        query = view_rvar.subquery
-        orig_sort = list(query.sort_clause)
-        for i, sortby in enumerate(query.sort_clause):
-            query.target_list.append(
-                pgast.ResTarget(val=sortby.node, name=f's{i}')
-            )
-
-        ref = pathctx.get_path_value_var(
-            query, inner_path_id, env=ctx.env)
-
-        query.distinct_clause = [ref]
-        query.sort_clause = [ref]
-
-        wrapper.limit_offset = query.limit_offset
-        wrapper.limit_count = query.limit_count
-        query.limit_offset = None
-        query.limit_count = None
-
-        for i, orig_sortby in enumerate(orig_sort):
-            wrapper.sort_clause.append(
-                pgast.SortBy(
-                    node=dbobj.get_column(
-                        wrapper.from_clause[0], f's{i}'),
-                    dir=orig_sortby.dir,
-                    nulls=orig_sortby.nulls
-                )
-            )
-
-        wrapper.ctes = view_rvar.subquery.ctes
-        view_rvar.subquery.ctes = []
 
     relctx.pull_path_namespace(target=wrapper, source=view_rvar, ctx=ctx)
     return wrapper

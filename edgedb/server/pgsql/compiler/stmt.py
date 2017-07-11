@@ -36,7 +36,11 @@ def compile_SelectStmt(
 
     parent_ctx = ctx
     with parent_ctx.substmt() as ctx:
+        # Common setup.
         boilerplate.init_stmt(stmt, ctx=ctx, parent_ctx=parent_ctx)
+
+        # Process FOR clause.
+        boilerplate.compile_iterator_expr(ctx.query, stmt, ctx=ctx)
 
         query = ctx.query
 
@@ -71,20 +75,20 @@ def compile_SelectStmt(
             relctx.enforce_path_scope(
                 query, ctx.parent_path_bonds, ctx=ctx)
 
-        if simple_wrapper and ctx.shape_format == context.ShapeFormat.FLAT:
-            # This is a simple wrapper around a flat shape.
-            # Make sure we pull out all target refs as-is
-            subquery_rvar = query.from_clause[0]
-            subquery = subquery_rvar.query
-            query.path_outputs = subquery.path_outputs.copy()
-            query.target_list = []
-            for rt in subquery.target_list:
-                query.target_list.append(
-                    pgast.ResTarget(
-                        val=dbobj.get_column(subquery_rvar, rt.name),
-                        name=rt.name
-                    )
-                )
+        parent_range = relctx.get_parent_range_scope(stmt.result, ctx=ctx)
+        if parent_range is not None:
+            parent_rvar, _ = parent_range
+            parent_scope = {}
+            for path_id in parent_rvar.path_bonds:
+                tr_path_id = pathctx.reverse_map_path_id(
+                    path_id, parent_ctx.view_path_id_map)
+
+                parent_scope[tr_path_id] = pathctx.LazyPathVarRef(
+                    pathctx.get_rvar_path_identity_var,
+                    ctx.env, parent_rvar, path_id)
+
+            relctx.enforce_path_scope(
+                query, parent_scope, ctx=ctx)
 
         # The ORDER BY clause
         with ctx.new() as orderctx:
@@ -437,8 +441,12 @@ def compile_DeleteStmt(
     parent_ctx = ctx
     with parent_ctx.subquery() as ctx:
         # Common DML bootstrap
-        wrapper, delete_cte, _ = dml.init_dml_stmt(
+        wrapper, delete_cte, range_cte = dml.init_dml_stmt(
             stmt, pgast.DeleteStmt(), parent_ctx=parent_ctx, ctx=ctx)
+
+        ctx.toplevel_stmt.ctes.append(range_cte)
+        ctx.toplevel_stmt.ctes.append(delete_cte)
+
         relctx.enforce_path_scope(wrapper, ctx.parent_path_bonds, ctx=ctx)
 
         return dml.fini_dml_stmt(stmt, wrapper, delete_cte,

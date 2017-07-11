@@ -63,6 +63,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.ctemap = {}
             self.ctemap_by_stmt = collections.defaultdict(dict)
             self.stmtmap = {}
+            self.viewmap = {}
 
             self.shape_format = ShapeFormat.SERIALIZED
 
@@ -101,6 +102,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.ctemap = prevlevel.ctemap
             self.ctemap_by_stmt = prevlevel.ctemap_by_stmt
             self.stmtmap = prevlevel.stmtmap
+            self.viewmap = prevlevel.viewmap
 
             self.shape_format = prevlevel.shape_format
 

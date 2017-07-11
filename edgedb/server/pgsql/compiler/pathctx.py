@@ -206,9 +206,8 @@ def get_path_var(
 
         drilldown_path_id = map_path_id(path_id, rel.view_path_id_map)
 
-        if source_rel in env.root_rels:
-            assert len(source_rel.path_bonds) == 1
-            if not drilldown_path_id.is_concept_path():
+        if source_rel in env.root_rels and len(source_rel.path_bonds) == 1:
+            if not drilldown_path_id.is_concept_path() and ptrcls is not None:
                 outer_path_id = drilldown_path_id.src_path()
             else:
                 outer_path_id = drilldown_path_id
@@ -334,8 +333,8 @@ def put_path_var(
 
 def put_path_identity_var(
         rel: pgast.Query, path_id: irast.PathId, var: pgast.Base, *,
-        env: context.Environment) -> None:
-    put_path_var(rel, path_id, var, aspect='identity', env=env)
+        force: bool=False, env: context.Environment) -> None:
+    put_path_var(rel, path_id, var, aspect='identity', force=force, env=env)
 
 
 def put_path_value_var(

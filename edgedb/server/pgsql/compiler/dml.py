@@ -71,7 +71,6 @@ def init_dml_stmt(
 
     boilerplate.init_stmt(ir_stmt, ctx, parent_ctx)
 
-    toplevel = ctx.toplevel_stmt
     target_ir_set = ir_stmt.subject
 
     dml_stmt.relation = dbobj.range_for_set(
@@ -94,8 +93,6 @@ def init_dml_stmt(
         # UPDATE and DELETE operate over a range, so generate
         # the corresponding CTE and connect it to the DML query.
         range_cte = get_dml_range(ir_stmt, dml_stmt, ctx=ctx)
-
-        toplevel.ctes.append(range_cte)
 
         range_rvar = pgast.RangeVar(
             relation=range_cte,
@@ -135,25 +132,6 @@ def init_dml_stmt(
         # a result of INSERT body processing.
         range_cte = None
 
-        target_id = pathctx.get_id_path_id(
-            ctx.schema, target_ir_set.path_id)
-
-        pathctx.get_path_identity_output(
-            dml_stmt, path_id=target_id, env=ctx.env)
-
-    # Record the effect of this insertion in the relation overlay
-    # context to ensure that the RETURNING clause potentially
-    # referencing this class yields the expected results.
-    overlays = ctx.env.rel_overlays[ir_stmt.subject.scls]
-    if isinstance(ir_stmt, irast.InsertStmt):
-        overlays.append(('union', dml_cte))
-    elif isinstance(ir_stmt, irast.DeleteStmt):
-        overlays.append(('except', dml_cte))
-
-    # Finaly set the DML CTE as the source for paths originating
-    # in its relation.
-    toplevel.ctes.append(dml_cte)
-    relctx.put_set_cte(ir_stmt.subject, dml_cte, ctx=ctx)
     pathctx.put_path_rvar(
         ctx.env, dml_stmt, ir_stmt.subject.path_id, dml_stmt.relation)
 
@@ -169,6 +147,16 @@ def fini_dml_stmt(
         relation=dml_cte,
         alias=pgast.Alias(aliasname=parent_ctx.genalias('d'))
     )
+
+    # Record the effect of this insertion in the relation overlay
+    # context to ensure that the RETURNING clause potentially
+    # referencing this class yields the expected results.
+    if isinstance(ir_stmt, irast.InsertStmt):
+        dbobj.add_rel_overlay(ir_stmt.subject.scls, 'union', dml_cte,
+                              env=ctx.env)
+    elif isinstance(ir_stmt, irast.DeleteStmt):
+        dbobj.add_rel_overlay(ir_stmt.subject.scls, 'except', dml_cte,
+                              env=ctx.env)
 
     if parent_ctx.toplevel_stmt is None:
         ret_ref = pathctx.get_rvar_path_identity_var(
@@ -252,9 +240,8 @@ def process_insert_body(
         CTE representing the SQL INSERT to the main relation of the Class.
     """
     cols = [pgast.ColumnRef(name=['std::__class__'])]
-    select = pgast.SelectStmt()
-    values = pgast.ImplicitRowExpr()
-    select.values = [values]
+    select = pgast.SelectStmt(target_list=[])
+    values = select.target_list
 
     # The main INSERT query of this statement will always be
     # present to insert at least the std::id and std::__class__
@@ -264,20 +251,24 @@ def process_insert_body(
     insert_stmt.cols = cols
     insert_stmt.select_stmt = select
 
-    values.args.append(
-        pgast.SelectStmt(
-            target_list=[
-                pgast.ResTarget(
-                    val=pgast.ColumnRef(name=['id']))
-            ],
-            from_clause=[
-                pgast.RangeVar(relation=pgast.Relation(
-                    relname='concept', schemaname='edgedb'))
-            ],
-            where_clause=astutils.new_binop(
-                op=ast.ops.EQ,
-                lexpr=pgast.ColumnRef(name=['name']),
-                rexpr=pgast.Constant(val=ir_stmt.subject.scls.name)
+    iterator_cte = boilerplate.compile_iterator_expr(select, ir_stmt, ctx=ctx)
+
+    values.append(
+        pgast.ResTarget(
+            val=pgast.SelectStmt(
+                target_list=[
+                    pgast.ResTarget(
+                        val=pgast.ColumnRef(name=['id']))
+                ],
+                from_clause=[
+                    pgast.RangeVar(relation=pgast.Relation(
+                        relname='concept', schemaname='edgedb'))
+                ],
+                where_clause=astutils.new_binop(
+                    op=ast.ops.EQ,
+                    lexpr=pgast.ColumnRef(name=['name']),
+                    rexpr=pgast.Constant(val=ir_stmt.subject.scls.name)
+                )
             )
         )
     )
@@ -317,15 +308,17 @@ def process_insert_body(
                 cols.append(field)
 
                 with subctx.new() as insvalctx:
+                    insexpr = dispatch.compile(insvalue, ctx=insvalctx)
+
                     insvalue = pgast.TypeCast(
-                        arg=dispatch.compile(insvalue, ctx=insvalctx),
+                        arg=insexpr,
                         type_name=typecomp.type_node(ptr_info.column_type))
 
                     tuple_elements.append(
                         astutils.tuple_element_for_shape_el(
-                            shape_el, insvalue))
+                            shape_el, field))
 
-                    values.args.append(insvalue)
+                    values.append(pgast.ResTarget(val=insvalue))
 
             ptr_info = pg_types.get_pointer_storage_info(
                 ptrcls, resolve_type=False, link_bias=True)
@@ -347,23 +340,44 @@ def process_insert_body(
                     astutils.tuple_element_for_shape_el(
                         shape_el, value))
 
-        relctx.enforce_path_scope(
-            insert_stmt, ctx.path_bonds, ctx=subctx)
+        if iterator_cte is not None:
+            cols.append(pgast.ColumnRef(name=['__edb_token']))
+
+            values.append(
+                pgast.ResTarget(val=pathctx.get_path_identity_var(
+                    select,  ir_stmt.iterator_stmt.path_id, env=subctx.env
+                ))
+            )
+
+            pathctx.put_path_identity_var(
+                insert_stmt, ir_stmt.iterator_stmt.path_id,
+                cols[-1], force=True, env=subctx.env
+            )
+
+            pathctx.put_path_bond(insert_stmt, ir_stmt.iterator_stmt.path_id)
+
+    toplevel = ctx.toplevel_stmt
+    toplevel.ctes.append(insert_cte)
+
+    # Set the DML CTE as the source for paths originating
+    # in its relation.
+    relctx.put_set_cte(ir_stmt.subject, insert_cte, ctx=ctx)
 
     # Process necessary updates to the link tables.
     for shape_el, props_only in external_inserts:
-        value = process_link_update(
-            ir_stmt, shape_el, props_only, wrapper, insert_cte, ctx=ctx)
+        process_link_update(
+            ir_stmt, shape_el, props_only, wrapper,
+            insert_cte, iterator_cte, ctx=ctx)
 
         resolved_pointers.add(shape_el.rptr.ptrcls)
 
     result = astutils.TupleVar(elements=tuple_elements, named=True)
     pathctx.put_path_value_var(
-        wrapper, ir_stmt.result.path_id, result, env=ctx.env)
+        insert_stmt, ir_stmt.result.path_id, result, force=True, env=ctx.env)
 
     for element in tuple_elements:
         pathctx.put_path_value_var_if_not_exists(
-            wrapper, element.path_id, element.val, env=ctx.env)
+            insert_stmt, element.path_id, element.val, env=ctx.env)
 
 
 def process_update_body(
@@ -385,6 +399,13 @@ def process_update_body(
     update_stmt = update_cte.query
 
     external_updates = []
+
+    boilerplate.compile_iterator_expr(
+        update_stmt, ir_stmt, ctx=ctx)
+
+    toplevel = ctx.toplevel_stmt
+    toplevel.ctes.append(range_cte)
+    toplevel.ctes.append(update_cte)
 
     with ctx.subquery() as subctx:
         # It is necessary to process the expressions in
@@ -426,6 +447,10 @@ def process_update_body(
         relctx.enforce_path_scope(
             update_stmt, ctx.path_bonds, ctx=subctx)
 
+    # Set the DML CTE as the source for paths originating
+    # in its relation.
+    relctx.put_set_cte(ir_stmt.subject, update_cte, ctx=ctx)
+
     if not update_stmt.targets:
         # No updates directly to the set target table,
         # so convert the UPDATE statement into a SELECT.
@@ -449,7 +474,7 @@ def process_update_body(
                 ir_stmt, expr, wrapper, update_cte, ctx=ctx)
         else:
             process_link_update(
-                ir_stmt, expr, False, wrapper, update_cte, ctx=ctx)
+                ir_stmt, expr, False, wrapper, update_cte, None, ctx=ctx)
 
 
 def is_props_only_update(shape_el: irast.Set) -> bool:
@@ -479,7 +504,7 @@ def is_props_only_update(shape_el: irast.Set) -> bool:
 def process_link_update(
         ir_stmt: irast.MutatingStmt, ir_expr: irast.Base,
         props_only: bool, wrapper: pgast.Query,
-        dml_cte: pgast.CommonTableExpr, *,
+        dml_cte: pgast.CommonTableExpr, iterator_cte: pgast.CommonTableExpr, *,
         ctx: context.CompilerContextLevel) -> typing.Optional[pgast.Query]:
     """Perform updates to a link relation as part of a DML statement.
 
@@ -492,7 +517,11 @@ def process_link_update(
     :param wrapper:
         Top-level SQL query.
     :param dml_cte:
-        CTE representing the SQL UPDATE to the main relation of the Class.
+        CTE representing the SQL INSERT or UPDATE to the main
+        relation of the Class.
+    :param iterator_cte:
+        CTE representing the iterator range in the FOR clause of the
+        EdgeQL DML statement.
     """
     toplevel = ctx.toplevel_stmt
 
@@ -601,7 +630,7 @@ def process_link_update(
     data_cte = process_link_values(
         ir_stmt, ir_expr, target_tab_name, tab_cols, col_data,
         dml_cte_rvar, [lname_to_id_rvar],
-        props_only, target_is_atom, ctx=ctx)
+        props_only, target_is_atom, iterator_cte, ctx=ctx)
 
     toplevel.ctes.append(data_cte)
 
@@ -770,8 +799,8 @@ def process_linkprop_update(
 
 def process_link_values(
         ir_stmt, ir_expr, target_tab, tab_cols, col_data,
-        dml_rvar, sources, props_only, target_is_atom, *,
-        ctx=context.CompilerContext):
+        dml_rvar, sources, props_only, target_is_atom, iterator_cte, *,
+        ctx=context.CompilerContext) -> pgast.CommonTableExpr:
     """Unpack data from an update expression into a series of selects.
 
     :param ir_expr:
@@ -790,8 +819,19 @@ def process_link_values(
         Whether this link update only touches link properties.
     :param target_is_atom:
         Whether the link target is an Atom.
+    :param iterator_cte:
+        CTE representing the iterator range in the FOR clause of the
+        EdgeQL DML statement.
     """
     data = ir_expr.expr
+    row_query = pgast.SelectStmt()
+
+    relctx.include_rvar(row_query, dml_rvar, ctx=ctx)
+
+    if iterator_cte is not None:
+        iterator_rvar = relctx.include_range(row_query, iterator_cte, ctx=ctx)
+        relctx.put_parent_range_scope(
+            ir_stmt.iterator_stmt, iterator_rvar, force=True, ctx=ctx)
 
     with ctx.new() as input_rel_ctx:
         input_rel_ctx.expr_exposed = False
@@ -833,8 +873,10 @@ def process_link_values(
 
     if isinstance(output, astutils.TupleVar):
         for element in output.elements:
-            colname = common.edgedb_name_to_pg_name(
-                element.path_id[-2][0].shortname)
+            name = element.path_id.rptr_name()
+            if name is None:
+                name = element.path_id[-1].name
+            colname = common.edgedb_name_to_pg_name(name)
             source_data.setdefault(
                 colname, dbobj.get_column(input_rvar, element.name))
 
@@ -852,23 +894,24 @@ def process_link_values(
 
         row.args.append(expr)
 
-    link_rows = pgast.CommonTableExpr(
-        query=pgast.SelectStmt(
-            target_list=[
-                pgast.ResTarget(
-                    val=pgast.Indirection(
-                        arg=pgast.TypeCast(
-                            arg=row,
-                            type_name=pgast.TypeName(
-                                name=target_tab
-                            )
-                        ),
-                        indirection=[pgast.Star()]
+    row_query.target_list = [
+        pgast.ResTarget(
+            val=pgast.Indirection(
+                arg=pgast.TypeCast(
+                    arg=row,
+                    type_name=pgast.TypeName(
+                        name=target_tab
                     )
-                )
-            ],
-            from_clause=[dml_rvar] + list(sources) + [input_rvar],
-        ),
+                ),
+                indirection=[pgast.Star()]
+            )
+        )
+    ]
+
+    row_query.from_clause += list(sources) + [input_rvar]
+
+    link_rows = pgast.CommonTableExpr(
+        query=row_query,
         name=ctx.genalias(hint='r')
     )
 

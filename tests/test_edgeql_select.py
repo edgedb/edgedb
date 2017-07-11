@@ -3643,3 +3643,20 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ''', [[
             {'name': 'Elvis'}, {'name': 'Yury'},
         ]])
+
+    @tb.expected_optimizer_failure
+    async def test_edgeql_select_for01(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            FOR x IN {1, 4}
+            SELECT Issue {
+                name
+            }
+            FILTER
+                Issue.number = <str>x
+            ORDER BY
+                Issue.number;
+        ''', [[
+            {'name': 'Release EdgeDB'},
+            {'name': 'Regression.'},
+        ]])

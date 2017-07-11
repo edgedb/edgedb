@@ -342,3 +342,10 @@ def get_rvar_fieldref(
         fieldref = get_column(rvar, colname)
 
     return fieldref
+
+
+def add_rel_overlay(
+        scls: s_concepts.Concept, op: str, rel: pgast.BaseRelation, *,
+        env: context.Environment) -> None:
+    overlays = env.rel_overlays[scls]
+    overlays.append((op, rel))

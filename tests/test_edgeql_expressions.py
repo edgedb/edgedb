@@ -1274,3 +1274,18 @@ class TestExpressions(tb.QueryTestCase):
         """, [
             [{'name': 'schema::Array', 'foo': {1}}],
         ])
+
+    @tb.expected_optimizer_failure
+    async def test_edgeql_expr_for01(self):
+        await self.assert_query_result(r"""
+            FOR x IN {1, 3, 5, 7}
+            SELECT x
+            ORDER BY x;
+
+            FOR x IN {1, 3, 5, 7}
+            SELECT x + 1
+            ORDER BY x;
+        """, [
+            [1, 3, 5, 7],
+            [2, 4, 6, 8],
+        ])

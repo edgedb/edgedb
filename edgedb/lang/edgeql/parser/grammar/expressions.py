@@ -33,13 +33,13 @@ class SetStmt(Nonterm):
     def reduce_AliasBlock_OptForClause_SetStmtCore(self, *kids):
         self.val = kids[2].val
         self.val.aliases = kids[0].val
-        self.val.source_el = kids[1].val.alias
-        self.val.source = kids[1].val.expr
+        self.val.iterator_alias = kids[1].val.alias
+        self.val.iterator = kids[1].val.expr
 
     def reduce_ForClause_SetStmtCore(self, *kids):
         self.val = kids[1].val
-        self.val.source_el = kids[0].val.alias
-        self.val.source = kids[0].val.expr
+        self.val.iterator_alias = kids[0].val.alias
+        self.val.iterator = kids[0].val.expr
 
     def reduce_SetStmtCore(self, *kids):
         self.val = kids[0].val

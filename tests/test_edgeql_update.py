@@ -877,3 +877,39 @@ class TestUpdate(tb.QueryTestCase):
                 },
             },
         ])
+
+    @tb.expected_optimizer_failure
+    async def test_edgeql_update_for01(self):
+        res = await self.con.execute(r"""
+            WITH MODULE test
+            FOR x IN {
+                (name := 'update-test1', comment := 'foo'),
+                (name := 'update-test2', comment := 'bar')
+            }
+            UPDATE UpdateTest
+            FILTER UpdateTest.name = x.name
+            SET {
+                comment := x.comment
+            };
+
+            WITH MODULE test
+            SELECT UpdateTest {
+                name,
+                comment
+            } ORDER BY UpdateTest.name;
+        """)
+
+        self.assert_data_shape(res[-1], [
+            {
+                'name': 'update-test1',
+                'comment': 'foo'
+            },
+            {
+                'name': 'update-test2',
+                'comment': 'bar'
+            },
+            {
+                'name': 'update-test3',
+                'comment': 'third'
+            },
+        ])

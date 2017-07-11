@@ -7,7 +7,6 @@
 
 
 import os.path
-import unittest
 import uuid
 
 from edgedb.client import exceptions as exc
@@ -486,7 +485,7 @@ class TestInsert(tb.QueryTestCase):
             }],
         ])
 
-    @unittest.expectedFailure
+    @tb.expected_optimizer_failure
     async def test_edgeql_insert_for01(self):
         res = await self.con.execute('''
             WITH MODULE test
@@ -512,52 +511,53 @@ class TestInsert(tb.QueryTestCase):
         ''')
 
         self.assert_data_shape(
-            res[-1],
-            # insertion based on existing data
-            [{
-                'name': 'insert for 1',
-                'l2': 0,
-                'l3': 'foo5',
-            }],
-            [{
-                'name': 'insert for 1',
-                'l2': 0,
-                'l3': 'foo7',
-            }],
-            [{
-                'name': 'insert for 1',
-                'l2': 1,
-                'l3': 'foo2',
-            }],
-            [{
-                'name': 'insert for 1',
-                'l2': 2,
-                'l3': 'foo3',
-            }],
-            # inserted based on static data
-            [{
-                'name': 'insert for 1',
-                'l2': 2,
-                'l3': 'test',
-            }],
-            [{
-                'name': 'insert for 1',
-                'l2': 3,
-                'l3': 'test',
-            }],
-            [{
-                'name': 'insert for 1',
-                'l2': 5,
-                'l3': 'test',
-            }],
-            [{
-                'name': 'insert for 1',
-                'l2': 7,
-                'l3': 'test',
-            }],
+            res[-1], [
+                # insertion based on existing data
+                {
+                    'name': 'insert for 1',
+                    'l2': 0,
+                    'l3': 'foo5',
+                },
+                {
+                    'name': 'insert for 1',
+                    'l2': 0,
+                    'l3': 'foo7',
+                },
+                {
+                    'name': 'insert for 1',
+                    'l2': 1,
+                    'l3': 'foo2',
+                },
+                {
+                    'name': 'insert for 1',
+                    'l2': 2,
+                    'l3': 'foo3',
+                },
+                # inserted based on static data
+                {
+                    'name': 'insert for 1',
+                    'l2': 2,
+                    'l3': 'test',
+                },
+                {
+                    'name': 'insert for 1',
+                    'l2': 3,
+                    'l3': 'test',
+                },
+                {
+                    'name': 'insert for 1',
+                    'l2': 5,
+                    'l3': 'test',
+                },
+                {
+                    'name': 'insert for 1',
+                    'l2': 7,
+                    'l3': 'test',
+                },
+            ]
         )
 
-    @unittest.expectedFailure
+    @tb.expected_optimizer_failure
     async def test_edgeql_insert_as_expr01(self):
         res = await self.con.execute(r'''
             # insert several objects, then annotate one of the inserted batch
@@ -583,6 +583,7 @@ class TestInsert(tb.QueryTestCase):
                 InsertTest {
                     name,
                     l2,
+                    l3,
                     <subject: {
                         name,
                         note,
@@ -593,38 +594,39 @@ class TestInsert(tb.QueryTestCase):
         ''')
 
         self.assert_data_shape(
-            res[-1],
-            # inserted based on static data
-            [{
-                'name': 'insert expr 1',
-                'l2': 2,
-                'l3': 'test',
-                'subject': [],
-            }],
-            [{
-                'name': 'insert expr 1',
-                'l2': 3,
-                'l3': 'test',
-                'subject': [],
-            }],
-            [{
-                'name': 'insert expr 1',
-                'l2': 5,
-                'l3': 'test',
-                'subject': [],
-            }],
-            [{
-                'name': 'insert expr 1',
-                'l2': 7,
-                'l3': 'test',
-                'subject': [{
+            res[-1], [
+                # inserted based on static data
+                {
                     'name': 'insert expr 1',
-                    'note': 'largest 7'
-                }]
-            }],
+                    'l2': 2,
+                    'l3': 'test',
+                    'subject': None,
+                },
+                {
+                    'name': 'insert expr 1',
+                    'l2': 3,
+                    'l3': 'test',
+                    'subject': None,
+                },
+                {
+                    'name': 'insert expr 1',
+                    'l2': 5,
+                    'l3': 'test',
+                    'subject': None,
+                },
+                {
+                    'name': 'insert expr 1',
+                    'l2': 7,
+                    'l3': 'test',
+                    'subject': [{
+                        'name': 'insert expr 1',
+                        'note': 'largest 7'
+                    }]
+                },
+            ]
         )
 
-    @unittest.expectedFailure
+    @tb.expected_optimizer_failure
     async def test_edgeql_insert_as_expr02(self):
         res = await self.con.execute(r'''
             # same as above, but refactored differently
@@ -650,6 +652,7 @@ class TestInsert(tb.QueryTestCase):
                 InsertTest {
                     name,
                     l2,
+                    l3,
                     <subject: {
                         name,
                         note,
@@ -660,33 +663,34 @@ class TestInsert(tb.QueryTestCase):
         ''')
 
         self.assert_data_shape(
-            res[-1],
-            # inserted based on static data
-            [{
-                'name': 'insert expr 2',
-                'l2': 2,
-                'l3': 'test',
-                'subject': [],
-            }],
-            [{
-                'name': 'insert expr 2',
-                'l2': 3,
-                'l3': 'test',
-                'subject': [],
-            }],
-            [{
-                'name': 'insert expr 2',
-                'l2': 5,
-                'l3': 'test',
-                'subject': [],
-            }],
-            [{
-                'name': 'insert expr 2',
-                'l2': 7,
-                'l3': 'test',
-                'subject': [{
+            res[-1], [
+                # inserted based on static data
+                {
                     'name': 'insert expr 2',
-                    'note': 'largest 7'
-                }]
-            }],
+                    'l2': 2,
+                    'l3': 'test',
+                    'subject': None,
+                },
+                {
+                    'name': 'insert expr 2',
+                    'l2': 3,
+                    'l3': 'test',
+                    'subject': None,
+                },
+                {
+                    'name': 'insert expr 2',
+                    'l2': 5,
+                    'l3': 'test',
+                    'subject': None,
+                },
+                {
+                    'name': 'insert expr 2',
+                    'l2': 7,
+                    'l3': 'test',
+                    'subject': [{
+                        'name': 'insert expr 2',
+                        'note': 'largest 7'
+                    }]
+                },
+            ]
         )
