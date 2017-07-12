@@ -12,3 +12,4 @@ documentation, see :ref:`index_toplevel`.
     :maxdepth: 3
 
     ref/index
+    dev/index
