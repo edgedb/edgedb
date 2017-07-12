@@ -110,22 +110,21 @@ class Atom(nodes.Node, constraints.ConsistencySubject,
             deps.add(N(module='std', name='uuid'))
 
             for constraint in self.constraints.values():
-                for ptypes in (constraint.paramtypes,
-                               constraint.inferredparamtypes):
-                    if ptypes:
-                        for ptype in ptypes.values():
-                            if isinstance(ptype, so.Collection):
-                                subtypes = ptype.get_subtypes()
-                            else:
-                                subtypes = [ptype]
+                ptypes = constraint.paramtypes
+                if ptypes:
+                    for ptype in ptypes:
+                        if isinstance(ptype, so.Collection):
+                            subtypes = ptype.get_subtypes()
+                        else:
+                            subtypes = [ptype]
 
-                            for subtype in subtypes:
-                                if subtype is not self:
-                                    if isinstance(subtype, so.ClassRef):
-                                        if subtype.classname != self.name:
-                                            deps.add(subtype.classname)
-                                    else:
-                                        deps.add(subtype.name)
+                        for subtype in subtypes:
+                            if subtype is not self:
+                                if isinstance(subtype, so.ClassRef):
+                                    if subtype.classname != self.name:
+                                        deps.add(subtype.classname)
+                                else:
+                                    deps.add(subtype.name)
 
         return deps
 

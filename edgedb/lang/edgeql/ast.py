@@ -215,6 +215,13 @@ class TypeName(_TypeName):
     dimensions: typing.Union[typing.List[int], None]
 
 
+class FuncArg(Base):
+    name: str
+    type: TypeName
+    variadic: bool = False
+    default: Expr  # noqa (pyflakes bug)
+
+
 class TypeFilter(Expr):
     expr: Expr
     type: TypeName
@@ -600,7 +607,7 @@ class DropConcreteLink(DropObject):
 
 
 class CreateConstraint(CreateInheritingObject):
-    pass
+    args: typing.List[FuncArg]
 
 
 class AlterConstraint(AlterObject):
@@ -612,7 +619,7 @@ class DropConstraint(DropObject):
 
 
 class CreateConcreteConstraint(CreateObject):
-    # args: list
+    args: typing.List[Base]
     is_abstract: bool = False
 
 
@@ -657,13 +664,6 @@ class AlterAttributeValue(AlterObject):
 
 class DropAttributeValue(DropObject):
     pass
-
-
-class FuncArg(Base):
-    name: str
-    type: TypeName
-    variadic: bool = False
-    default: Expr  # noqa (pyflakes bug)
 
 
 class Language(s_enum.StrEnum):

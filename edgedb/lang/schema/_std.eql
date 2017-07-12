@@ -144,24 +144,24 @@ CREATE CONSTRAINT std::expression INHERITING std::constraint {
     SET expr := subject;
 };
 
-CREATE CONSTRAINT std::max INHERITING std::constraint {
-    SET errmessage := 'Maximum allowed value for {subject} is {param}.';
-    SET expr := ((subject <= $param));
+CREATE CONSTRAINT std::max(std::any) INHERITING std::constraint {
+    SET errmessage := 'Maximum allowed value for {subject} is {$0}.';
+    SET expr := ((subject <= $0));
 };
 
-CREATE CONSTRAINT std::enum INHERITING std::constraint {
-    SET errmessage := '{subject} must be one of: {param}.';
-    SET expr := array_contains($param, subject);
+CREATE CONSTRAINT std::enum(array<std::any>) INHERITING std::constraint {
+    SET errmessage := '{subject} must be one of: {$0}.';
+    SET expr := array_contains($0, subject);
 };
 
-CREATE CONSTRAINT std::min INHERITING std::constraint {
-    SET errmessage := 'Minimum allowed value for {subject} is {param}.';
-    SET expr := ((subject >= $param));
+CREATE CONSTRAINT std::min(std::any) INHERITING std::constraint {
+    SET errmessage := 'Minimum allowed value for {subject} is {$0}.';
+    SET expr := ((subject >= $0));
 };
 
-CREATE CONSTRAINT std::minexclusive INHERITING std::min {
-    SET errmessage := '{subject} must be greater than {param}.';
-    SET expr := ((subject > $param));
+CREATE CONSTRAINT std::minexclusive(std::any) INHERITING std::min {
+    SET errmessage := '{subject} must be greater than {$0}.';
+    SET expr := ((subject > $0));
 };
 
 CREATE CONSTRAINT std::length INHERITING std::constraint {
@@ -169,21 +169,21 @@ CREATE CONSTRAINT std::length INHERITING std::constraint {
     SET subjectexpr := (len(<std::str>subject));
 };
 
-CREATE CONSTRAINT std::minlength INHERITING (std::min, std::length) {
-    SET errmessage := '{subject} must be no shorter than {param} characters.';
+CREATE CONSTRAINT std::minlength(std::any) INHERITING (std::min, std::length) {
+    SET errmessage := '{subject} must be no shorter than {$0} characters.';
 };
 
-CREATE CONSTRAINT std::regexp INHERITING std::constraint {
+CREATE CONSTRAINT std::regexp(std::any) INHERITING std::constraint {
     SET errmessage := 'invalid {subject}';
-    SET expr := ((subject ~ $param));
+    SET expr := ((subject ~ $0));
 };
 
-CREATE CONSTRAINT std::maxlength INHERITING (std::max, std::length) {
-    SET errmessage := '{subject} must be no longer than {param} characters.';
+CREATE CONSTRAINT std::maxlength(std::any) INHERITING (std::max, std::length) {
+    SET errmessage := '{subject} must be no longer than {$0} characters.';
 };
 
-CREATE CONSTRAINT std::maxexclusive INHERITING std::max {
-    SET errmessage := '{subject} must be less than {param}.';
+CREATE CONSTRAINT std::maxexclusive(std::any) INHERITING std::max {
+    SET errmessage := '{subject} must be less than {$0}.';
 };
 
 CREATE CONSTRAINT std::unique INHERITING std::constraint {
@@ -192,10 +192,9 @@ CREATE CONSTRAINT std::unique INHERITING std::constraint {
 };
 
 CREATE ATOM std::decimal_rounding_t INHERITING std::str {
-    CREATE CONSTRAINT std::enum {
-        SET args := (param := ['ceiling', '05up', 'up', 'half-even',
-                               'half-up', 'floor', 'down', 'half-down']);
-    };
+    CREATE CONSTRAINT std::enum(
+        ['ceiling', '05up', 'up', 'half-even',
+         'half-up', 'floor', 'down', 'half-down']);
 };
 
 CREATE ATTRIBUTE std::rounding std::decimal_rounding_t;
@@ -415,16 +414,22 @@ CREATE ABSTRACT CONCEPT schema::PrimaryClass
 };
 
 
+CREATE CONCEPT schema::Parameter {
+    CREATE REQUIRED LINK schema::type TO schema::Node;
+    CREATE REQUIRED LINK schema::num TO std::int;
+    CREATE LINK schema::name TO std::str;
+    CREATE LINK schema::default TO std::str;
+    CREATE LINK schema::variadic TO std::bool;
+};
+
+
 CREATE CONCEPT schema::Constraint INHERITING schema::PrimaryClass {
     CREATE LINK schema::expr TO std::str;
     CREATE LINK schema::subjectexpr TO std::str;
     CREATE LINK schema::finalexpr TO std::str;
     CREATE LINK schema::errmessage TO std::str;
-    CREATE LINK schema::paramtypes TO schema::TypeElement {
-        SET mapping := '1*';
-    };
-    CREATE LINK schema::inferredparamtypes TO schema::TypeElement {
-        SET mapping := '1*';
+    CREATE LINK schema::params TO schema::Parameter {
+        SET mapping := '**';
     };
     CREATE LINK schema::args TO map<std::str, std::str>;
 };
@@ -520,17 +525,8 @@ ALTER CONCEPT schema::View {
 };
 
 
-CREATE CONCEPT schema::FunctionParameter {
-    CREATE REQUIRED LINK schema::type TO schema::Node;
-    CREATE REQUIRED LINK schema::num TO std::int;
-    CREATE LINK schema::name TO std::str;
-    CREATE LINK schema::default TO std::str;
-    CREATE LINK schema::variadic TO std::bool;
-};
-
-
 CREATE CONCEPT schema::Function INHERITING schema::PrimaryClass {
-    CREATE LINK schema::params TO schema::FunctionParameter {
+    CREATE LINK schema::params TO schema::Parameter {
         SET mapping := '**';
     };
     CREATE LINK schema::returntype TO schema::Node;

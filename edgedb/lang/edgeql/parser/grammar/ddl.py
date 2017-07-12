@@ -569,6 +569,19 @@ class CreateConstraintStmt(Nonterm):
             commands=kids[5].val,
         )
 
+    def reduce_CreateConstraint_CreateFunctionArgs(self, *kids):
+        r"""%reduce OptAliasBlock \
+                    CREATE CONSTRAINT NodeName CreateFunctionArgs \
+                    OptInheriting OptCreateCommandsBlock \
+        """
+        self.val = qlast.CreateConstraint(
+            aliases=kids[0].val,
+            name=kids[3].val,
+            args=kids[4].val,
+            bases=kids[5].val,
+            commands=kids[6].val,
+        )
+
 
 class AlterConstraintStmt(Nonterm):
     def reduce_CreateConstraint(self, *kids):
@@ -592,22 +605,32 @@ class DropConstraintStmt(Nonterm):
         )
 
 
+class OptAbstract(Nonterm):
+    def reduce_ABSTRACT(self, *kids):
+        self.val = True
+
+    def reduce_empty(self):
+        self.val = False
+
+
+class OptConcreteConstraintArgList(Nonterm):
+    def reduce_LPAREN_OptFuncArgList_RPAREN(self, *kids):
+        self.val = kids[1].val
+
+    def reduce_empty(self):
+        self.val = []
+
+
 class CreateConcreteConstraintStmt(Nonterm):
     def reduce_CreateConstraint(self, *kids):
-        r"""%reduce CREATE CONSTRAINT NodeName \
+        r"""%reduce CREATE OptAbstract CONSTRAINT \
+                    NodeName OptConcreteConstraintArgList \
                     OptCreateCommandsBlock"""
         self.val = qlast.CreateConcreteConstraint(
-            name=kids[2].val,
-            commands=kids[3].val,
-        )
-
-    def reduce_CreateAbstractConstraint(self, *kids):
-        r"""%reduce CREATE ABSTRACT CONSTRAINT NodeName \
-                    OptCreateCommandsBlock"""
-        self.val = qlast.CreateConcreteConstraint(
-            is_abstract=True,
+            is_abstract=kids[1].val,
+            args=kids[4].val,
             name=kids[3].val,
-            commands=kids[4].val,
+            commands=kids[5].val,
         )
 
 

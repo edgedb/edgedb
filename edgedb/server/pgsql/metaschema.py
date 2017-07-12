@@ -524,7 +524,7 @@ def _field_to_column(field):
     elif issubclass(ftype, (s_obj.StringList, s_expr.ExpressionList)):
         coltype = 'text[]'
 
-    elif issubclass(ftype, (s_obj.ArgDict, s_expr.ExpressionDict)):
+    elif issubclass(ftype, s_expr.ExpressionDict):
         coltype = 'jsonb'
 
     elif issubclass(ftype, nlang.WordCombination):
@@ -842,7 +842,9 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
             # so we just need to unnest the array here.
             refattr = 'UNNEST(' + q(pn.name) + ')'
 
-        elif pn.name == 'params' and mcls is s_funcs.Function:
+        elif pn.name == 'params' and (
+                mcls is s_funcs.Function or
+                mcls is s_constraints.Constraint):
             # Func params need special handling as they are defined
             # in three separate fields.
             link_query = f'''
@@ -909,15 +911,15 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
     return dbops.View(name=tabname(ptr), query=link_query)
 
 
-def _generate_func_param_view(schema):
-    FuncParam = schema.get('schema::FunctionParameter')
+def _generate_param_view(schema):
+    FuncParam = schema.get('schema::Parameter')
 
     view_query = f'''
         SELECT
             edgedb._derive_uuid(id, q.num::smallint)
                             AS {dbname('std::id')},
             (SELECT id FROM edgedb.NamedClass
-                 WHERE name = 'schema::FunctionParameter')
+                 WHERE name = 'schema::Parameter')
                             AS {dbname('std::__class__')},
             q.type_id       AS {dbname('schema::type')},
             q.num           AS {dbname('schema::num')},
@@ -936,16 +938,24 @@ def _generate_func_param_view(schema):
                 tn.name     AS name,
                 td.expr     AS def
              FROM
-                edgedb.Function AS f,
+                (SELECT
+                    id, paramtypes, paramnames, paramdefaults, varparam
+                 FROM edgedb.Function
+                 UNION ALL
+                 SELECT
+                    id, paramtypes, NULL as paramnames, NULL as paramdefaults,
+                    NULL as varparam
+                 FROM edgedb.Constraint
+                ) AS f,
                 LATERAL UNNEST((f.paramtypes).types)
                     WITH ORDINALITY AS
                         t(id, maintype, name, collection,
                           subtypes, dimensions, is_root, num)
-                INNER JOIN
+                LEFT JOIN
                     LATERAL UNNEST(f.paramnames)
                         WITH ORDINALITY AS tn(name, num)
                     ON (t.num = tn.num)
-                INNER JOIN
+                LEFT JOIN
                     LATERAL UNNEST(f.paramdefaults)
                         WITH ORDINALITY AS td(expr, num)
                     ON (t.num = td.num)
@@ -1163,13 +1173,11 @@ async def generate_views(conn, schema):
                     pass
                 elif pn.name == '__class__':
                     continue
-                elif pn.name == 'params' and mcls is s_funcs.Function:
+                elif pn.name == 'params' and (
+                        mcls is s_funcs.Function or
+                        mcls is s_constraints.Constraint):
                     # Function params need special handling as
                     # they are defined as three separate fields.
-                    pass
-                elif (pn.name in {'paramtypes', 'inferredparamtypes'} and
-                        mcls is s_constraints.Constraint):
-                    # Constraint params need special handling.
                     pass
                 else:
                     # This is nether a field, nor a refdict, that's
@@ -1229,7 +1237,7 @@ async def generate_views(conn, schema):
     te_view = _generate_type_element_view(schema, type_fields)
     views[te_view.name] = te_view
 
-    fp_view = _generate_func_param_view(schema)
+    fp_view = _generate_param_view(schema)
     views[fp_view.name] = fp_view
 
     nodes_view = views[tabname(schema.get('schema::Node'))]

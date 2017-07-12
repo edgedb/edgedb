@@ -30,8 +30,6 @@ async def fetch(
                 a.errmessage            AS errmessage,
                 edgedb._resolve_type(a.paramtypes)
                                         AS paramtypes,
-                edgedb._resolve_type(a.inferredparamtypes)
-                                        AS inferredparamtypes,
                 a.args                  AS args,
                 edgedb._resolve_type_name(a.subject)
                                         AS subject

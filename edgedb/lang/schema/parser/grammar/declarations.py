@@ -741,19 +741,9 @@ class Constraint(Nonterm):
         self.val = esast.Constraint(name=kids[1].val, attributes=kids[5].val)
 
     def reduce_CONSTRAINT_ObjectName_TurnstileBlob(self, *kids):
-        attributes = [
-            esast.Attribute(
-                name=esast.ObjectName(name='args'),
-                value=qlast.NamedTuple(
-                    elements=[
-                        qlast.TupleElement(
-                            name=qlast.ClassRef(name='param'),
-                            val=kids[2].val)
-                    ]))
-        ]
-
         self.val = esast.Constraint(
-            name=kids[1].val, attributes=attributes)
+            name=kids[1].val,
+            args=qlast.Tuple(elements=[kids[2].val]))
 
 
 class Attribute(Nonterm):

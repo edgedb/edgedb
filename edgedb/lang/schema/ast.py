@@ -10,6 +10,7 @@ import typing
 
 from edgedb.lang.common import enum as s_enum
 from edgedb.lang.common import ast, parsing
+from edgedb.lang.edgeql import ast as ql_ast
 
 
 class Base(ast.AST):
@@ -144,6 +145,7 @@ class Attribute(Base):
 
 class Constraint(Base):
     name: ObjectName
+    args: ql_ast.Tuple
     abstract: bool = False
     attributes: typing.List[Attribute]
 

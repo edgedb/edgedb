@@ -795,7 +795,14 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.name)
 
     def visit_CreateConstraint(self, node):
-        after_name = lambda: self._ddl_visit_bases(node)
+        def after_name():
+            if node.args:
+                self.write('(')
+                self.visit_list(node.args, newlines=False)
+                self.write(')')
+
+            self._ddl_visit_bases(node)
+
         self._visit_CreateObject(node, 'CONSTRAINT', after_name=after_name)
 
     def visit_AlterConstraint(self, node):
@@ -805,11 +812,17 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_DropObject(node, 'CONSTRAINT')
 
     def visit_CreateConcreteConstraint(self, node):
+        def after_name():
+            if node.args:
+                self.write('(')
+                self.visit_list(node.args, newlines=False)
+                self.write(')')
+
         keywords = []
         if node.is_abstract:
             keywords.append('ABSTRACT')
         keywords.append('CONSTRAINT')
-        self._visit_CreateObject(node, *keywords)
+        self._visit_CreateObject(node, *keywords, after_name=after_name)
 
     def visit_AlterConcreteConstraint(self, node):
         self._visit_AlterObject(node, 'CONSTRAINT', allow_short=False)
