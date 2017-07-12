@@ -40,5 +40,6 @@ setup(
         'Parsing',
         'prompt-toolkit',
         'setproctitle',
-    ]
+    ],
+    test_suite='tests.suite',
 )
