@@ -10,7 +10,7 @@ from edgedb.client import exceptions as client_errors
 from edgedb.server import _testbase as tb
 
 
-class TestDeltas(tb.DDLTestCase):
+class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl01(self):
         await self.con.execute("""

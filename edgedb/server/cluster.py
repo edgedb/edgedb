@@ -121,7 +121,7 @@ class Cluster:
         return await edgedb_client.connect(
             host='localhost', port=self._effective_port, loop=loop, **kwargs)
 
-    def init(self, **settings):
+    def init(self, *, server_settings={}):
         cluster_status = self.get_status()
 
         if not cluster_status.startswith('not-initialized'):
@@ -133,13 +133,16 @@ class Cluster:
 
         conn_args = {'port': find_available_port(), }
 
-        server_settings = {
+        default_server_settings = {
             'log_connections': 'yes',
             'log_statement': 'all',
             'log_disconnections': 'yes',
             'log_min_messages': 'WARNING',
             'client_min_messages': 'WARNING',
         }
+
+        default_server_settings.update(server_settings)
+        server_settings = default_server_settings
 
         if cluster_status == 'not-initialized':
             self._pg_cluster.init(username=self._pg_superuser, locale='C')
