@@ -193,7 +193,14 @@ class DatabaseTestCase(ConnectedTestCase):
             cls.cluster.connect(
                 database='edgedb_test', user='edgedb', loop=cls.loop))
 
-        script = '\nCREATE MODULE test;'
+        script = cls.get_setup_script()
+        if script:
+            cls.loop.run_until_complete(cls.con.execute(script))
+
+    @classmethod
+    def get_setup_script(cls):
+        # Always create the test module.
+        script = 'CREATE MODULE test;'
 
         # look at all SCHEMA entries and potentially create multiple modules
         #
@@ -228,7 +235,7 @@ class DatabaseTestCase(ConnectedTestCase):
 
                 script += '\n' + setup
 
-        cls.loop.run_until_complete(cls.con.execute(script))
+        return script.strip(' \n')
 
     @classmethod
     def tearDownClass(cls):
