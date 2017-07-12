@@ -12,6 +12,14 @@ matrix:
           addons:
               postgresql: '9.6'
 
+branches:
+    # Avoid building PR branches.
+    only:
+        - master
+        - ci
+        - releases
+        - /^v\d+(\.\d+)*$/
+
 cache:
     pip: true
     directories:
