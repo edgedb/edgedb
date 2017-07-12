@@ -345,7 +345,7 @@ def process_insert_body(
 
             values.append(
                 pgast.ResTarget(val=pathctx.get_path_identity_var(
-                    select,  ir_stmt.iterator_stmt.path_id, env=subctx.env
+                    select, ir_stmt.iterator_stmt.path_id, env=subctx.env
                 ))
             )
 
