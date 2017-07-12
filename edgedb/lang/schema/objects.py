@@ -364,6 +364,16 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
                 result.append(ClassRef(classname=p.name))
                 comparison_v.append(p.name)
 
+            elif isinstance(p, Collection):
+                strefs = []
+
+                for st in p.get_subtypes():
+                    strefs.append(ClassRef(classname=st.name))
+
+                result.append(p.__class__.from_subtypes(strefs))
+                comparison_v.append(
+                    (p.__class__, tuple(r.classname for r in strefs)))
+
             else:
                 result.append(p)
                 comparison_v.append(p.classname)
@@ -384,7 +394,7 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
         elif isinstance(value, ClassDict):
             ref, val = self._reduce_obj_dict(value)
 
-        elif isinstance(value, ClassList):
+        elif isinstance(value, (ClassList, TypeList)):
             ref, val = self._reduce_obj_list(value)
 
         elif isinstance(value, ClassSet):
@@ -952,31 +962,6 @@ class TypeList(typed.TypedList, ClassCollection, type=Class):
 
 class StringList(typed.TypedList, type=str, accept_none=True):
     pass
-
-
-class ArgDict(typed.TypedDict, keytype=str, valuetype=object):
-    @classmethod
-    def compare_values(cls, ours, theirs, context, compcoef):
-        if not ours and not theirs:
-            basecoef = 1.0
-        elif not ours or not theirs:
-            basecoef = 0.2
-        else:
-            similarity = []
-
-            for k, v in ours.items():
-                try:
-                    theirsv = theirs[k]
-                except KeyError:
-                    # key only in ours
-                    similarity.append(0.2)
-                else:
-                    similarity.append(1.0 if v == theirsv else 0.4)
-
-            similarity.extend(0.2 for k in set(theirs) - set(ours))
-            basecoef = sum(similarity) / len(similarity)
-
-        return basecoef + (1 - basecoef) * compcoef
 
 
 class Tuple(Collection):

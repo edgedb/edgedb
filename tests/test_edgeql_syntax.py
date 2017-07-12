@@ -2190,7 +2190,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_aggregate08(self):
         """
-        CREATE AGGREGATE std::count($expression: std::`any`)
+        CREATE AGGREGATE std::count($expression: std::any)
             RETURNING std::int INITIAL VALUE 0
             FROM SQL AGGREGATE 'count';
         """
@@ -2208,7 +2208,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_atom01(self):
         """
-        CREATE ABSTRACT ATOM std::`any`;
+        CREATE ABSTRACT ATOM std::any;
         CREATE ATOM std::typeref;
         CREATE ATOM std::atomref INHERITING std::typeref;
         """
@@ -2326,6 +2326,54 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ddl_attribute13(self):
         """
         CREATE ATTRIBUTE std::foo tuple<foo:int, str>;
+        """
+
+    def test_edgeql_syntax_ddl_constraint01(self):
+        """
+        CREATE CONSTRAINT std::enum(array<std::any>)
+            INHERITING std::constraint
+        {
+            SET errmessage := '{subject} must be one of: {param}.';
+            SET expr := array_contains($param, subject);
+        };
+        """
+
+    def test_edgeql_syntax_ddl_constraint02(self):
+        """
+        CREATE CONSTRAINT std::enum(array<std::any>) {
+            SET errmessage := '{subject} must be one of: {param}.';
+            SET expr := array_contains($param, subject);
+        };
+        """
+
+    def test_edgeql_syntax_ddl_constraint03(self):
+        """
+        CREATE CONSTRAINT std::enum {
+            SET errmessage := '{subject} must be one of: {param}.';
+            SET expr := array_contains($param, subject);
+        };
+        """
+
+    def test_edgeql_syntax_ddl_constraint04(self):
+        """
+        CREATE CONSTRAINT std::enum() {
+            SET errmessage := '{subject} must be one of: {param}.';
+            SET expr := array_contains($param, subject);
+        };
+
+% OK %
+
+        CREATE CONSTRAINT std::enum {
+            SET errmessage := '{subject} must be one of: {param}.';
+            SET expr := array_contains($param, subject);
+        };
+        """
+
+    def test_edgeql_syntax_ddl_constraint05(self):
+        """
+        CREATE ATOM std::decimal_rounding_t INHERITING std::str {
+            CREATE CONSTRAINT std::enum(['a', 'b']);
+        };
         """
 
     def test_edgeql_syntax_ddl_function01(self):

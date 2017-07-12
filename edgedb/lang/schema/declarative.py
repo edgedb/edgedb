@@ -296,10 +296,7 @@ class DeclarationLoader:
         if atom.constraints:
             for constraint in atom.constraints.values():
                 if constraint.paramtypes:
-                    deps.update(constraint.paramtypes.values())
-                inferred = constraint.inferredparamtypes
-                if inferred:
-                    deps.update(inferred.values())
+                    deps.update(constraint.paramtypes)
 
             for dep in list(deps):
                 if isinstance(dep, s_obj.Collection):
@@ -447,9 +444,9 @@ class DeclarationLoader:
             constraint.acquire_ancestor_inheritance(self._schema)
 
             args = None
-            if 'args' in attrs:
+            if constrdecl.args:
                 args = edgeql_codegen.generate_source(
-                    attrs['args'], pretty=False)
+                    constrdecl.args, pretty=False)
 
             subjectexpr = attrs.pop('subject', None)
             if subjectexpr is not None:

@@ -43,14 +43,12 @@ def index_parameters(ql_args):
     if isinstance(ql_args, qlast.SelectQuery):
         ql_args = ql_args.result
 
-    if not isinstance(ql_args, qlast.NamedTuple):
+    if not isinstance(ql_args, qlast.Tuple):
         raise ValueError(
-            'unable to unpack arguments: a named tuple was expected')
+            'unable to unpack arguments: a tuple was expected')
 
-    ql_args = {e.name.name:
-               e.val.result if isinstance(e.val, qlast.SelectQuery)
-               else e.val
-               for e in ql_args.elements}
+    ql_args = {str(i): e.result if isinstance(e, qlast.SelectQuery) else e
+               for i, e in enumerate(ql_args.elements)}
 
     return ql_args
 

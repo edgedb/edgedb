@@ -810,23 +810,11 @@ class Backend(s_deltarepo.DeltaProvider):
 
             basemap[name] = bases
 
-            allparamtypes = {}
-
-            if r['inferredparamtypes'] and r['inferredparamtypes']['types']:
-                inferredparamtypes = \
-                    dict(self.unpack_typedesc_nodes(
-                        r['inferredparamtypes']['types'], schema))
-                allparamtypes.update(inferredparamtypes)
-            else:
-                inferredparamtypes = None
-
-            if r['paramtypes'] and r['paramtypes']['types']:
-                paramtypes = \
-                    dict(self.unpack_typedesc_nodes(
-                        r['paramtypes']['types'], schema))
-                allparamtypes.update(paramtypes)
-            else:
-                paramtypes = None
+            paramtypes = None
+            if r['paramtypes']:
+                paramtypes = [
+                    s[1] for s in self.unpack_typedesc_nodes(
+                        r['paramtypes']['types'], schema)]
 
             constraint = s_constr.Constraint(
                 name=name, subject=subject, title=title,
@@ -835,7 +823,7 @@ class Backend(s_deltarepo.DeltaProvider):
                 subjectexpr=r['subjectexpr'],
                 localfinalexpr=r['localfinalexpr'], finalexpr=r['finalexpr'],
                 errmessage=r['errmessage'], paramtypes=paramtypes,
-                inferredparamtypes=inferredparamtypes, args=r['args'])
+                args=r['args'])
 
             if subject:
                 subject.add_constraint(constraint)

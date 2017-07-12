@@ -8,17 +8,19 @@
 
 import itertools
 
+from edgedb.lang import edgeql
 from edgedb.lang.edgeql import ast as qlast
+from edgedb.lang.edgeql import errors as ql_errors
 
 from . import delta as sd
 from . import derivable
 from . import expr as s_expr
+from . import functions as s_func
 from . import name as sn
 from . import named
 from . import objects as so
 from . import primary
 from . import referencing
-from . import utils
 
 
 class ConsistencySubjectCommandContext:
@@ -70,39 +72,6 @@ class ConstraintCommand(referencing.ReferencedClassCommand):
     def delete_constraint(self, constraint_name, parent, schema):
         parent.del_constraint(constraint_name, schema)
 
-    def _process_type_mapping(self, context, node, op):
-        if not op.new_value:
-            return
-
-        items = []
-
-        for key, value in op.new_value.items():
-            if isinstance(value, so.ClassRef):
-                v = qlast.Constant(value=value.classname)
-                v = qlast.FunctionCall(func='typeref', args=[v])
-
-            elif isinstance(value, so.Collection):
-                args = [qlast.Constant(value=value.schema_name)]
-
-                for subtype in value.get_subtypes():
-                    args.append(qlast.Constant(
-                        value=subtype.classname))
-
-                v = qlast.FunctionCall(func='typeref', args=args)
-
-            elif utils.is_nontrivial_container(value):
-                v = qlast.Tuple(elements=[
-                    qlast.Constant(value=el) for el in value
-                ])
-
-            else:
-                v = qlast.Constant(value=value)
-
-            items.append((qlast.Constant(value=key), v))
-
-        self._set_attribute_ast(context, node, op.property,
-                                qlast.Mapping(items=items))
-
     def _create_begin(self, schema, context):
         super()._create_begin(schema, context)
 
@@ -115,9 +84,63 @@ class ConstraintCommand(referencing.ReferencedClassCommand):
 
 
 class CreateConstraint(ConstraintCommand,
-                       referencing.CreateReferencedClass):
+                       referencing.CreateReferencedClass,
+                       s_func.FunctionCommandMixin):
+
     astnode = [qlast.CreateConcreteConstraint, qlast.CreateConstraint]
     referenced_astnode = qlast.CreateConcreteConstraint
+
+    @classmethod
+    def _cmd_tree_from_ast(cls, astnode, context, schema):
+        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
+
+        if isinstance(astnode, qlast.CreateConcreteConstraint):
+            if astnode.args:
+                args_ql = qlast.Tuple(elements=astnode.args)
+
+                args_expr = s_expr.ExpressionText(
+                    edgeql.generate_source(args_ql, pretty=False))
+
+                cmd.add(
+                    sd.AlterClassProperty(
+                        property='args',
+                        new_value=args_expr
+                    )
+                )
+
+        elif isinstance(astnode, qlast.CreateConstraint):
+            if astnode.args:
+                paramnames, paramdefaults, paramtypes, variadic = \
+                    cls._parameters_from_ast(astnode)
+
+                if variadic:
+                    raise ql_errors.EdgeQLError(
+                        'constraints do not support variadic parameters',
+                        context=astnode.context)
+
+                for pname, pdefault, ptype in zip(paramnames, paramdefaults,
+                                                  paramtypes):
+                    if pname is not None:
+                        raise ql_errors.EdgeQLError(
+                            'constraints do not support named parameters',
+                            context=astnode.context)
+
+                    if pdefault is not None:
+                        raise ql_errors.EdgeQLError(
+                            'constraints do not support parameters '
+                            'with defaults',
+                            context=astnode.context)
+
+                    if ptype is None:
+                        raise ql_errors.EdgeQLError(
+                            'untyped parameter', context=astnode.context)
+
+                    cmd.add(sd.AlterClassProperty(
+                        property='paramtypes',
+                        new_value=paramtypes
+                    ))
+
+        return cmd
 
     def _apply_field_ast(self, context, node, op):
         if op.property == 'is_derived':
@@ -126,8 +149,6 @@ class CreateConstraint(ConstraintCommand,
             node.is_abstract = op.new_value
         elif op.property == 'subject':
             pass
-        elif op.property in {'paramtypes', 'inferredparamtypes', 'args'}:
-            self._process_type_mapping(context, node, op)
         else:
             super()._apply_field_ast(context, node, op)
 
@@ -175,12 +196,9 @@ class AlterConstraint(ConstraintCommand, named.AlterNamedClass):
         return cmd
 
     def _apply_field_ast(self, context, node, op):
-        if op.property in {'paramtypes', 'inferredparamtypes', 'args'}:
-            self._process_type_mapping(context, node, op)
-        elif op.property == 'subject':
-            pass
-        else:
-            super()._apply_field_ast(context, node, op)
+        if op.property == 'subject':
+            return
+        super()._apply_field_ast(context, node, op)
 
 
 class DeleteConstraint(ConstraintCommand, named.DeleteNamedClass):
@@ -219,11 +237,8 @@ class Constraint(primary.PrimaryClass, derivable.DerivableClass):
 
     subject = so.Field(so.Class, default=None, private=True)
 
-    paramtypes = so.Field(so.ClassDict, default=None, coerce=True,
+    paramtypes = so.Field(so.TypeList, default=None, coerce=True,
                           compcoef=0.857)
-
-    inferredparamtypes = so.Field(so.ClassDict, default=None,
-                                  coerce=True, derived=True)
 
     args = so.Field(s_expr.ExpressionText,
                     default=None, coerce=True, private=True,
@@ -288,25 +303,20 @@ class Constraint(primary.PrimaryClass, derivable.DerivableClass):
     @classmethod
     def normalize_constraint_expr(cls, schema, module_aliases, expr,
                                   subject=None):
-        from edgedb.lang.edgeql import codegen as edgeql_codegen
-
         if subject is None:
             subject = cls._dummy_subject()
 
         edgeql_tree, _ = cls._normalize_constraint_expr(
             schema, module_aliases, expr, subject)
 
-        expr = edgeql_codegen.generate_source(edgeql_tree, pretty=False)
+        expr = edgeql.generate_source(edgeql_tree, pretty=False)
         # XXX: check that expr has boolean result
         return expr
 
     @classmethod
     def process_specialized_constraint(cls, schema, constraint, params=None):
         from edgedb.lang.edgeql import utils as edgeql_utils
-        from edgedb.lang.edgeql import codegen as edgeql_codegen
         from edgedb.lang.edgeql import parser as edgeql_parser
-        from edgedb.lang.edgeql import compiler
-        from edgedb.lang.ir import utils as ir_utils
 
         assert constraint.subject is not None
 
@@ -331,19 +341,12 @@ class Constraint(primary.PrimaryClass, derivable.DerivableClass):
             args = constraint.get_field_value('args')
 
         args_map = None
-        arg_types = None
         if args:
             args_ql = edgeql_parser.parse(args, module_aliases)
             args_map = edgeql_utils.index_parameters(args_ql)
             edgeql_utils.inline_parameters(expr_ql, args_map)
 
-            arg_types = {}
-            for arg_name, arg_ql in args_map.items():
-                arg_ir = compiler.compile_ast_to_ir(
-                    arg_ql, schema, modaliases=module_aliases)
-                arg_types[arg_name] = ir_utils.infer_type(arg_ir, schema)
-
-            args_map = {name: edgeql_codegen.generate_source(val, pretty=False)
+            args_map = {f'${name}': edgeql.generate_source(val, pretty=False)
                         for name, val in args_map.items()}
 
             constraint.errmessage = constraint.errmessage.format(
@@ -356,7 +359,6 @@ class Constraint(primary.PrimaryClass, derivable.DerivableClass):
         constraint.localfinalexpr = expr_text
         constraint.finalexpr = expr_text
 
-        constraint.inferredparamtypes = arg_types
         constraint.args = args or None
 
     def format_error_message(self):
