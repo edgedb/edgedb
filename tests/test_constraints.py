@@ -80,17 +80,17 @@ class TestConstraintsSchema(tb.QueryTestCase):
 
     async def test_constraints_atom_strvalue(self):
         data = {
-            # # last digit is 9
-            # (10 ** 9 - 12, 'invalid .*'),
+            # last digit is 9
+            (10 ** 9 - 12, 'invalid .*'),
 
-            # # and the first is 9 too
-            # (10 ** 9 - 10 ** 8 - 1, 'invalid .*'),
+            # and the first is 9 too
+            (10 ** 9 - 10 ** 8 - 1, 'invalid .*'),
 
-            # # and that all characters are digits
-            # ('99900~0009', 'invalid .*'),
+            # and that all characters are digits
+            ('99900~0009', 'invalid .*'),
 
-            # # and that first three chars are nines
-            # ('9900000009', 'invalid .*'),
+            # and that first three chars are nines
+            ('9900000009', 'invalid .*'),
             ('9999000009', 'good'),
         }
 
