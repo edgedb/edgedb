@@ -10,7 +10,6 @@ import typing
 
 from edgedb.lang.common import enum as s_enum
 from edgedb.lang.common import ast, parsing
-from edgedb.lang.edgeql import ast as ql_ast
 
 
 class Base(ast.AST):

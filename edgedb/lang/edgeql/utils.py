@@ -6,7 +6,6 @@
 ##
 
 
-import collections
 import copy
 import typing
 
@@ -49,8 +48,8 @@ def index_parameters(ql_args):
             'unable to unpack arguments: a named tuple was expected')
 
     ql_args = {e.name.name:
-                    e.val.result if isinstance(e.val, qlast.SelectQuery)
-                        else e.val
+               e.val.result if isinstance(e.val, qlast.SelectQuery)
+               else e.val
                for e in ql_args.elements}
 
     return ql_args
