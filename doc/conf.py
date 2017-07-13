@@ -27,6 +27,7 @@ from edgedb.lang.schema.pygments import EdgeSchemaLexer
 def setup(sphinx):
     sphinx.add_lexer("eschema", EdgeSchemaLexer())
     sphinx.add_lexer("eql", EdgeQLLexer())
+    sphinx.add_lexer("pseudo-eql", EdgeQLLexer())
     sphinx.add_lexer("graphql", GraphQLLexer())
 
 

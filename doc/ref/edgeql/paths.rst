@@ -500,7 +500,7 @@ sense for an admin account, for example):
                 }
             }
             ORDER BY Issue.start_date DESC
-            LIMIT 3;
+            LIMIT 3
         ),
         total_open := (
             SELECT count(Issue)

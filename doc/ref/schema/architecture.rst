@@ -213,8 +213,8 @@ an atom denoting a two-letter state code can be defined as:
 .. code-block:: eschema
 
     atom state_code_t extends str:
-        constraint minlength: 2
-        constraint maxlength: 2
+        constraint minlength(2)
+        constraint maxlength(2)
 
 Below is a list of built-in constraint types:
 
@@ -225,7 +225,8 @@ Below is a list of built-in constraint types:
   specifies the maximum allowed value of the atom, the atom must be orderable
 
 - ``maxlength``: <number> --
-  restricts maximum length of textual representation of atom value in characters
+  restricts maximum length of textual representation of atom value in
+  characters
 
 - ``maxexclusive``: <value> --
   specifies the maximum allowed value, excluding the value itself, of the
@@ -235,7 +236,8 @@ Below is a list of built-in constraint types:
   specifies the minimum allowed value of the atom, the atom must be orderable
 
 - ``minlength``: <number> --
-  restricts minimum length of textual representation of atom value in characters
+  restricts minimum length of textual representation of atom value in
+  characters
 
 - ``minexclusive``: <value> --
   specifies the minimum allowed value, excluding the value itself, of the
@@ -335,7 +337,7 @@ Consider the following schema:
 
     # define atoms that will be used for version numbers
     atom ver_t extends int:
-        constraint min: 0
+        constraint min(0)
 
     atom stable_ver_t extends ver_t:
         constraint must_be_even
@@ -395,10 +397,10 @@ for a specific ``Person`` (including ``Employee``) or a specific
 .. code-block:: eql
 
     # looking for any Person named Alice Smith
-    SELECT Person FILTER Person.name = 'Alice Smith'
+    SELECT Person FILTER Person.name = 'Alice Smith';
 
     # looking for an Employee named Bob Johnson
-    SELECT Employee FILTER Employee.name = 'Bob Johnson'
+    SELECT Employee FILTER Employee.name = 'Bob Johnson';
 
 An example of using concept inheritance as a mixin pattern would be a
 back-end for a bug-tracking system:
@@ -495,7 +497,7 @@ inheritance:
     SELECT Person.descendants.name FILTER Person.name = 'John Ham';
 
     # Select all relatives' names
-    SELECT Person.relatives.name FILTER Person.name = 'John Ham'
+    SELECT Person.relatives.name FILTER Person.name = 'John Ham';
 
 
 So, even though ``Person`` defines only concrete relationship links,
