@@ -10,7 +10,6 @@ import typing
 
 from edgedb.lang.common import enum as s_enum
 from edgedb.lang.common import ast, parsing
-from edgedb.lang.edgeql import ast as ql_ast
 
 
 class Base(ast.AST):
@@ -41,6 +40,8 @@ class Declaration(Base):
         # only links will actually allow indexes
         ('indexes', list, list),
         ('name', str),
+        # only used by constraints
+        ('args', list),
         ('extends', list, list),
         # usually there are some attributes allowed, e.g. "description"
         ('attributes', list, list),
@@ -56,6 +57,7 @@ class Declaration(Base):
             kwargs['final'] = kwargs.get('final', base.final)
             kwargs['indexes'] = kwargs.get('indexes', base.indexes)
             kwargs['name'] = kwargs.get('name', base.name)
+            kwargs['args'] = kwargs.get('args', base.args)
             kwargs['extends'] = kwargs.get('extends', base.extends)
             kwargs['attributes'] = kwargs.get('attributes', base.attributes)
             kwargs['constraints'] = kwargs.get('constraints', base.constraints)
@@ -145,7 +147,7 @@ class Attribute(Base):
 
 class Constraint(Base):
     name: ObjectName
-    args: ql_ast.Tuple
+    args: object  # TODO: make it `qlast.Tuple`
     abstract: bool = False
     attributes: typing.List[Attribute]
 

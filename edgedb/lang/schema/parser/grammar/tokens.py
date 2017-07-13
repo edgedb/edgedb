@@ -67,14 +67,6 @@ class T_RPAREN(Token):
     pass
 
 
-class T_LBRACE(Token):
-    pass
-
-
-class T_RBRACE(Token):
-    pass
-
-
 class T_LANGBRACKET(Token):
     pass
 
@@ -154,6 +146,10 @@ class T_INDENT(Token):
 
 
 class T_DEDENT(Token):
+    pass
+
+
+class T_ANYTHING(Token):
     pass
 
 

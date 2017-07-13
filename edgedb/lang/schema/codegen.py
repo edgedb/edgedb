@@ -101,6 +101,11 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         self._visit_qualifier(node)
         self.write(node.__class__.__name__.lower().replace('declaration', ' '))
         self.write(ident_to_str(node.name))
+        if node.args:
+            self.write('(')
+            self.visit_list(node.args, newlines=False)
+            self.write(')')
+
         if node.extends:
             self._visit_extends(node.extends)
         self._visit_specs(node)
@@ -240,6 +245,11 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
             self.write('abstract ')
         self.write('constraint ')
         self.visit(node.name)
+        if node.args:
+            self.write('(')
+            self.visit_list(node.args, newlines=False)
+            self.write(')')
+
         if node.attributes:
             self.write(':')
             self.new_lines = 1
