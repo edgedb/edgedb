@@ -14,7 +14,5 @@ export EDGEDB_MODPATH=$(vex test python -c \
     'import edgedb; print(next(iter(edgedb.__path__)))')
 vex test python -m unittest discover --verbose -s "${CI_PROJECT_DIR}/tests"
 cd "${CI_PROJECT_DIR}"
-vex test flake8
-cd "${CI_PROJECT_DIR}"
 find build -type f ! -name '*.pickle' ! -wholename 'build/pip/*' -delete && \
     find build -type d -empty -delete

@@ -1,6 +1,7 @@
 asyncpg
 pytest
 pytest-cov
+flake8~=3.3.0
 Parsing
 prompt-toolkit
 setproctitle
