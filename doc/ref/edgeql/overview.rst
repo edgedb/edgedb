@@ -14,10 +14,9 @@ assumed to be part of the module ``example``:
     abstract concept Text:
         # This is an abstract object containing text.
         required link body to str:
-            constraint maxlength:
-                # Maximum length of text is 10000
-                # characters.
-                10000
+            # Maximum length of text is 10000
+            # characters.
+            constraint maxlength(10000)
 
     concept User extends std::Named
     # NamedObject is a standard abstract base class,
@@ -92,9 +91,7 @@ are ``Users``, who can create an ``Issue``, add a ``Comment`` to an
 watch any ``Issue``. Every ``Issue`` has a ``Status`` and possibly a
 ``Priority``.
 
-The general structure of a simple EdgeQL query:
-
-.. code-block:: none
+The general structure of a simple EdgeQL query::
 
     [WITH [alias AS] MODULE module [,...] ]
     SELECT expression

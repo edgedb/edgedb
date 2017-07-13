@@ -11,7 +11,7 @@ For the purposes of this section we will use the following schema:
     concept Person:
         link name to str
 
-    concept Author extends Person:
+    concept Author extends Person
 
     concept Book:
         # to make our examples simpler only the title is a required
@@ -21,7 +21,7 @@ For the purposes of this section we will use the following schema:
         link author to Author:
             mapping: *1
         link isbn to str:
-            constraint maxlength: 10
+            constraint maxlength(10)
         link pub_date to datetime
         link price to float
 
@@ -112,7 +112,7 @@ mapped to variables in EdgeQL.
 +===================================+=================================+
 | .. code-block:: graphql           | .. code-block:: eql             |
 |                                   |                                 |
-|   query ($name)                   |   WITH MODULE example           |
+|   query ($name: String!)          |   WITH MODULE example           |
 |   @edgedb(module: "example") {    |   SELECT Book {                 |
 |       Book(author__name: $name) { |       title,                    |
 |           title                   |       synopsis,                 |
@@ -145,7 +145,7 @@ DB and returned as the result of this operation.
 +==================================+==================================+
 | .. code-block:: graphql          | .. code-block:: eql              |
 |                                  |                                  |
-|   mutation ($name)               |   WITH MODULE example            |
+|   mutation ($name: String!)      |   WITH MODULE example            |
 |   @edgedb(module: "example") {   |   SELECT (                       |
 |       delete__Book(author__name: |       DELETE (                   |
 |                       $name) {   |           SELECT Book            |
@@ -174,7 +174,7 @@ as filters, they make no sense as part of *insert* mutation.
 +========================================+==========================+
 | .. code-block:: graphql                | .. code-block:: eql      |
 |                                        |                          |
-|   mutation ($name)                     |   WITH MODULE example    |
+|   mutation ($name: String!)            |   WITH MODULE example    |
 |   @edgedb(module: "example") {         |   SELECT (               |
 |       insert__Person(__data:           |       INSERT Author {    |
 |                       {name: $name}) { |           name := $name  |
@@ -193,22 +193,23 @@ EdgeQL in the following manner:
 +==================================+================================+
 | .. code-block:: graphql          | .. code-block:: eql            |
 |                                  |                                |
-|   mutation ($title, $name)       |   WITH MODULE example          |
-|   @edgedb(module: "example") {   |   SELECT (                     |
-|       insert__Book(__data: {     |       INSERT Book {            |
-|           title: $title,         |           title := $title,     |
-|           author: {              |           author: {            |
-|               name: $name        |               name := $name    |
-|           }                      |           }                    |
-|       }) {                       |       }                        |
-|           id                     |   ) {                          |
-|           title                  |       id,                      |
-|           author {               |       title,                   |
-|               id                 |       author: {                |
-|               name               |           id,                  |
-|           }                      |           name                 |
-|       }                          |       }                        |
-|   }                              |   };                           |
+|   mutation ($title: String!,     |   WITH MODULE example          |
+|             $name: String!)      |   SELECT (                     |
+|   @edgedb(module: "example") {   |       INSERT Book {            |
+|       insert__Book(__data: {     |           title := $title,     |
+|           title: $title,         |           author: {            |
+|           author: {              |               name := $name    |
+|               name: $name        |           }                    |
+|           }                      |       }                        |
+|       }) {                       |   ) {                          |
+|           id                     |       id,                      |
+|           title                  |       title,                   |
+|           author {               |       author: {                |
+|               id                 |           id,                  |
+|               name               |           name                 |
+|           }                      |       }                        |
+|       }                          |   };                           |
+|   }                              |                                |
 +----------------------------------+--------------------------------+
 
 However, sometimes it's necessary to link existing objects to a newly
@@ -221,25 +222,26 @@ object to be linked.
 +==================================+====================================+
 | .. code-block:: graphql          | .. code-block:: eql                |
 |                                  |                                    |
-|     mutation ($title, $authid)   |     WITH MODULE example            |
-|     @edgedb(module: "example") { |     SELECT (                       |
-|         insert__Book(__data: {   |         INSERT Book {              |
-|             title: $title,       |             title := $title,       |
-|             author__id: $authid  |             author := (            |
-|         }) {                     |                 SELECT Object      |
-|             id                   |                 FILTER Object.id = |
-|             title                |                     $authid        |
-|             author {             |             )                      |
-|                 id               |         }                          |
-|                 name             |     ) {                            |
-|             }                    |         id,                        |
-|         }                        |         title,                     |
-|     }                            |         author: {                  |
-|                                  |             id,                    |
+|     mutation ($title: String!,   |     WITH MODULE example            |
+|               $authid: String!)  |     SELECT (                       |
+|     @edgedb(module: "example") { |         INSERT Book {              |
+|         insert__Book(__data: {   |             title := $title,       |
+|             title: $title,       |             author := (            |
+|             author__id: $authid  |                 SELECT Object      |
+|         }) {                     |                 FILTER Object.id = |
+|             id                   |                     $authid        |
+|             title                |             )                      |
+|             author {             |         }                          |
+|                 id               |     ) {                            |
+|                 name             |         id,                        |
+|             }                    |         title,                     |
+|         }                        |         author: {                  |
+|     }                            |             id,                    |
 |                                  |             name                   |
 |                                  |         }                          |
 |                                  |     };                             |
 +----------------------------------+------------------------------------+
+
 
 
 Update
@@ -260,7 +262,7 @@ the books of a specified author.
 +==================================+===================================+
 | .. code-block:: graphql          | .. code-block:: eql               |
 |                                  |                                   |
-|     mutation ($name)             |     WITH MODULE example           |
+|     mutation ($name: String!)    |     WITH MODULE example           |
 |     @edgedb(module: "example") { |     SELECT (                      |
 |         update__Book(            |         UPDATE Book               |
 |             __data: {            |         FILTER Book.author.name = |

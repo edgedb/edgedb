@@ -90,7 +90,7 @@ Arrays support indexing and slicing operators:
 
 .. code-block:: eql
 
-    SELECT [1, 2, 3]
+    SELECT [1, 2, 3];
     # this will return [[1, 2, 3]]
 
     WITH
@@ -135,7 +135,7 @@ guaranteed, thus slicing operators are not available for them.
 
 .. code-block:: eql
 
-    SELECT ['a' -> 1, 'b' -> 2, 'c' -> 3]
+    SELECT ['a' -> 1, 'b' -> 2, 'c' -> 3];
     # this will return [{'a': 1, 'b': 2, 'c': 3}]
 
     WITH
@@ -182,7 +182,7 @@ order.
         tup := ('foo', 42)
     SELECT
         # compare 2 tuples
-        tup = ('foo', 42)
+        tup = ('foo', 42);
     # returns [True]
 
 
@@ -209,14 +209,14 @@ identifiers can be used to name tuple elements.
         tup := (a := 'foo', b := 42)
     SELECT
         # compare 2 tuples
-        tup = ('foo', 42)
+        tup = ('foo', 42);
     # returns [True]
 
     WITH
         tup := (a := 'foo', b := 42)
     SELECT
         # compare 2 tuples
-        tup = (b := 42, a := 'foo')
+        tup = (b := 42, a := 'foo');
     # returns [False] because the ordering of
     # the tuple elements is different
 
@@ -225,7 +225,7 @@ identifiers can be used to name tuple elements.
         tup2 := (b := 42, a := 'foo')
     SELECT
         # compare tuple elements
-        (tup1.a = tup2.a, tup1.b = tup1.b)
+        (tup1.a = tup2.a, tup1.b = tup1.b);
     # returns [[True, True]]
 
 It is possible to nest arrays and tuples within each other:
@@ -297,11 +297,11 @@ set ``{}``, which can be required for purposes of type disambiguation.
 
 .. code-block:: eql
 
-    WITH MODULE
+    WITH MODULE example
     SELECT Text {
         name :=
             Text[IS Issue].name IF Text IS Issue ELSE
-            <str>{}
+            <str>{},
             # the cast to str is necessary here, because
             # the type of the computable must be defined
         body,

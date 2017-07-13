@@ -70,7 +70,7 @@ non-required links (or the roots of which might not exists):
 
     # will evaluate to {} if either 'a' or 'b' link is missing on a
     # given object Foo
-    Foo.a OR Foo.b
+    SELECT Foo.a OR Foo.b;
 
 When the desired behavior is to treat ``{}`` as equivalent to
 ``FALSE``, the coalesce ``??`` operator should be used:
@@ -78,7 +78,7 @@ When the desired behavior is to treat ``{}`` as equivalent to
 .. code-block:: eql
 
     # will treat missing 'a' or 'b' links as equivalent to FALSE
-    Foo.a ?? FALSE OR Foo.b ?? FALSE
+    SELECT Foo.a ?? FALSE OR Foo.b ?? FALSE;
 
 
 Operations and paths
@@ -291,7 +291,8 @@ of these operators require their operands to be of the same
     SELECT User IS (Text, Named);
     # returns [True, ..., True], one for every user
 
-- arithmetic operators ``+``, ``-``, ``*``, ``/``, ``%`` (modulo), ``^`` (power)
+- arithmetic operators ``+``, ``-``, ``*``, ``/``, ``%`` (modulo),
+  ``^`` (power)
 
 
 Regular functions

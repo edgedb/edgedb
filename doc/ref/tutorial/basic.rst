@@ -171,7 +171,12 @@ Let's add priority to the schema, first. We'll have one new
 
 .. code-block:: eql
 
-    CREATE MIGRATION example::d2 FROM example::d1 TO $$ ... new schema goes here $$;
+    CREATE MIGRATION example::d2
+    FROM example::d1
+    TO eschema $$
+        # ... new schema goes here
+    $$;
+
     COMMIT MIGRATION example::d2;
 
 Given the new schema we can use the migration tools to apply the
@@ -202,9 +207,11 @@ to have "High" priority.
 .. code-block:: eql
 
     WITH MODULE example
-    UPDATE Issue {
+    UPDATE Issue
+    FILTER Issue.id = 'd54f6472-8f07-44d9-909e-22864dc6f811'
+    SET {
         priority := (SELECT Priority FILTER Priority.name = 'High')
-    } FILTER Issue.id = 'd54f6472-8f07-44d9-909e-22864dc6f811';
+    };
 
     # The id used above is something that would have been returned by
     # the 'INSERT Issue ...' query or we could simply query it
@@ -225,7 +232,8 @@ make a comment about that and close the issue.
     };
 
     WITH MODULE example
-    UPDATE Issue {
+    UPDATE Issue
+    SET {
         status := (SELECT Status FILTER Status.name = 'Closed')
     };
 
@@ -252,10 +260,9 @@ refactoring.
     abstract concept Text:
         # This is an abstract object containing text.
         required link text to str:
-            constraint maxlength:
-                # let's limit the maximum length of text to 10000
-                # characters.
-                10000
+            # let's limit the maximum length of text to 10000
+            # characters.
+            constraint maxlength(10000)
 
     abstract concept Owned:
         # don't make the link owner required so that we can first
@@ -289,7 +296,10 @@ refactoring.
 
 .. code-block:: eql
 
-    CREATE MIGRATION example::d3 FROM example::d2 TO $$ ... new schema goes here $$;
+    CREATE MIGRATION example::d3
+    FROM example::d2 TO eschema $$
+        # ... new schema goes here
+    $$;
     COMMIT MIGRATION example::d3;
 
 After the migration we still need to fix all comments in our system to
@@ -299,7 +309,8 @@ let's treat it as if we have several comments made by the same person.
 .. code-block:: eql
 
     WITH MODULE example
-    UPDATE Comment {
+    UPDATE Comment
+    SET {
         owner := (SELECT User FILTER User.name = 'Alice Smith')
     };
 
@@ -320,10 +331,9 @@ schema to make owner a required field for all ``Owned`` objects.
     abstract concept Text:
         # This is an abstract object containing text.
         required link text to str:
-            constraint maxlength:
-                # let's limit the maximum length of text to 10000
-                # characters.
-                10000
+            # let's limit the maximum length of text to 10000
+            # characters.
+            constraint maxlength(10000)
 
     concept User extends Named
     # no need to specify 'link name' here anymore as it's inherited
@@ -358,7 +368,11 @@ schema to make owner a required field for all ``Owned`` objects.
 
 .. code-block:: eql
 
-    CREATE MIGRATION example::d4 FROM example::d3 TO $$ ... new schema goes here $$;
+    CREATE MIGRATION example::d4
+    FROM example::d3
+    TO eschema $$
+        # ... new schema goes here
+    $$;
     COMMIT MIGRATION example::d4;
 
 After several schema migrations and even a data migration we have
