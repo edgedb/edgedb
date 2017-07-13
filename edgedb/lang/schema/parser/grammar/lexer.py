@@ -247,6 +247,11 @@ class EdgeSchemaLexer(lexer.Lexer):
                  next_state=STATE_KEEP,
                  regexp=r'^[^\S\n]+'),
 
+            # 0 indentation is the end of a raw string block
+            Rule(token='RAWLEADWS',
+                 next_state=STATE_KEEP,
+                 regexp=r'^(?=\S)'),
+
             Rule(token='RAWSTRING',
                  next_state=STATE_KEEP,
                  regexp=r'.*?(?:\n|.$)'),
@@ -320,6 +325,7 @@ class EdgeSchemaLexer(lexer.Lexer):
         #
         elif self._state == STATE_RAW_STRING:
             last_indent = self.indent[-1]
+            # only valid for RAWLEADWS
             cur_indent = len(token.value)
 
             if not self.logical_line_started and tok_type != 'NEWLINE':

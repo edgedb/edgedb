@@ -391,7 +391,16 @@ abstract constraint length:
 
 constraint maxlength($param:any) extends max, length:
     errmessage: '{subject} must be no longer than {param} characters.'
+        """
 
+    def test_eschema_syntax_constraint05(self):
+        """
+abstract constraint distance:
+    subject :=
+        <float>subject
+
+constraint maxldistance extends max, distance:
+    errmessage: '{subject} must be no longer than {param} meters.'
         """
 
     def test_eschema_syntax_linkproperty01(self):
