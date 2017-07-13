@@ -25,6 +25,25 @@ class SchemaSyntaxTest(tb.BaseSyntaxTest):
 
 
 class TestEdgeSchemaParser(SchemaSyntaxTest):
+    def test_eschema_syntax_empty01(self):
+        """"""
+
+    def test_eschema_syntax_empty02(self):
+        """# comment"""
+
+    def test_eschema_syntax_empty03(self):
+        """
+
+
+        """
+
+    def test_eschema_syntax_empty04(self):
+        """
+
+        # comment
+
+        """
+
     def test_eschema_syntax_concept01(self):
         """concept User extends builtins::NamedObject"""
 
