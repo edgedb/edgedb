@@ -23,8 +23,11 @@ class EdgeIndentationError(lexer.LexError):
 STATE_KEEP = 0
 STATE_WS_SENSITIVE = 1
 STATE_WS_INSENSITIVE = 2
-STATE_RAW_STRING = 3
+STATE_RAW_PAREN = 3
+STATE_RAW_STRING = 4
 
+
+keyword_tokens = {tok[0] for tok in edge_schema_keywords.values()}
 
 re_decdigit = r"[0-9]"
 re_decdigit_ = r"[0-9_]"
@@ -35,6 +38,20 @@ re_dquote = r'\$([A-Za-z\200-\377_][0-9]*)*\$'
 
 
 Rule = lexer.Rule
+
+
+def enter_paren_state(lex):
+    if lex.prev_nw_tok.type in keyword_tokens:
+        return STATE_WS_INSENSITIVE
+    else:
+        return STATE_RAW_PAREN
+
+
+def exit_paren_state(lex):
+    if lex.paren_level == 1:
+        return STATE_WS_SENSITIVE
+    else:
+        return STATE_KEEP
 
 
 class EdgeSchemaLexer(lexer.Lexer):
@@ -65,11 +82,11 @@ class EdgeSchemaLexer(lexer.Lexer):
              regexp=r'\n'),
 
         Rule(token='LPAREN',
-             next_state=STATE_WS_INSENSITIVE,
+             next_state=enter_paren_state,
              regexp=r'\('),
 
         Rule(token='RPAREN',
-             next_state=STATE_WS_SENSITIVE,
+             next_state=exit_paren_state,
              regexp=r'\)'),
 
         Rule(token='LBRACKET',
@@ -77,23 +94,15 @@ class EdgeSchemaLexer(lexer.Lexer):
              regexp=r'\['),
 
         Rule(token='RBRACKET',
-             next_state=STATE_WS_SENSITIVE,
+             next_state=exit_paren_state,
              regexp=r'\]'),
-
-        Rule(token='LBRACE',
-             next_state=STATE_WS_INSENSITIVE,
-             regexp=r'\{'),
-
-        Rule(token='RBRACE',
-             next_state=STATE_WS_SENSITIVE,
-             regexp=r'\}'),
 
         Rule(token='LANGBRACKET',
              next_state=STATE_WS_INSENSITIVE,
              regexp=r'\<'),
 
         Rule(token='RANGBRACKET',
-             next_state=STATE_WS_SENSITIVE,
+             next_state=exit_paren_state,
              regexp=r'\>'),
 
         Rule(token='COMMA',
@@ -170,7 +179,7 @@ class EdgeSchemaLexer(lexer.Lexer):
                 (?:
                     (\\['"] | \n | .)*?
                 )
-                (?P=Q)      # match closing quote type with whatever is in Q
+                (?P=Q)  # match closing quote type with whatever is in Q
              '''.format(dollar_quote=re_dquote)),
 
         Rule(token='IDENT',
@@ -188,6 +197,39 @@ class EdgeSchemaLexer(lexer.Lexer):
     states = {
         STATE_WS_SENSITIVE: list(common_rules),
         STATE_WS_INSENSITIVE: list(common_rules),
+        STATE_RAW_PAREN: [
+            Rule(token='LPAREN',
+                 next_state=STATE_KEEP,
+                 regexp=r'\('),
+
+            Rule(token='RPAREN',
+                 next_state=exit_paren_state,
+                 regexp=r'\)'),
+
+            Rule(token='STRING',
+                 next_state=STATE_KEEP,
+                 regexp=r'''
+                    (?P<Q>
+                        # capture the opening quote in group Q
+                        (
+                            ' | " |
+                            {dollar_quote}
+                        )
+                    )
+                    (?:
+                        (\\['"] | \n | .)*?
+                    )
+                    (?P=Q)  # match closing quote type with whatever is in Q
+                 '''.format(dollar_quote=re_dquote)),
+
+            Rule(token='QIDENT',
+                 next_state=STATE_KEEP,
+                 regexp=r'`.+?`'),
+
+            Rule(token='RAWSTRING',
+                 next_state=STATE_KEEP,
+                 regexp=r'''[^()`'"][^()`'"$]*'''),
+        ],
         STATE_RAW_STRING: [
             Rule(token='NEWLINE',
                  next_state=STATE_KEEP,
@@ -336,6 +378,25 @@ class EdgeSchemaLexer(lexer.Lexer):
         yield token
 
     def lex(self):
+        """Wrapper for the lexer."""
+
+        self.indent = [0]
+        self.paren_level = 0
+        self.logical_line_started = True
+        self.prev_nw_tok = None  # previous NON-WHITEPASE token
+        self._next_state = None
+
+        for tok in self._lex():
+            if tok.type in {'LPAREN', 'LBRACKET', 'LANGBRACKET'}:
+                self.paren_level += 1
+            elif tok.type in {'RPAREN', 'RBRACKET', 'RANGBRACKET'}:
+                self.paren_level -= 1
+
+            if tok.type not in {'NEWLINE', 'WS'}:
+                self.prev_nw_tok = tok
+            yield tok
+
+    def _lex(self):
         """Lexes the src.
 
         Generator. Yields tokens (as defined by the rules).
@@ -343,10 +404,6 @@ class EdgeSchemaLexer(lexer.Lexer):
         May yield special start and EOF tokens.
         May raise UnknownTokenError exception."""
 
-        self.indent = [0]
-        self.logical_line_started = True
-        self.prevtok = None
-        self._next_state = None
         src = self.inputstr
 
         for tok in self.get_start_tokens():
@@ -367,13 +424,24 @@ class EdgeSchemaLexer(lexer.Lexer):
 
                 token = self.token_from_text(rule_token, txt)
 
+                # the next state must be evaluated before yielding the
+                # next token so that we have access to prevtok
+                if rule.next_state:
+                    # the next state can be callable
+                    if callable(rule.next_state):
+                        next_state = rule.next_state(self)
+                    else:
+                        next_state = rule.next_state
+                else:
+                    next_state = STATE_KEEP
+
                 for tok in self.token_generator(token):
                     yield tok
 
-                if rule.next_state and rule.next_state != self._state:
+                if next_state and next_state != self._state:
                     # Rule dictates that the lexer state should be
                     # switched
-                    self._state = rule.next_state
+                    self._state = next_state
                     break
                 elif self._next_state is not None:
                     self._state = self._next_state

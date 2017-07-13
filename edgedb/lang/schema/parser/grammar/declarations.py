@@ -330,10 +330,10 @@ class ConceptDeclaration(Nonterm):
 
 
 class ConstraintDeclaration(Nonterm):
-    def reduce_CONSTRAINT_NameAndExtends_NL(self, *kids):
+    def reduce_CONSTRAINT_CallableNameAndExtends_NL(self, *kids):
         self.val = esast.ConstraintDeclaration(kids[1].val)
 
-    def reduce_CONSTRAINT_NameAndExtends_DeclarationSpecsBlob(
+    def reduce_CONSTRAINT_CallableNameAndExtends_DeclarationSpecsBlob(
             self, *kids):
         attributes = []
 
@@ -519,76 +519,63 @@ class FunctionSpecs(ListNonterm, element=FunctionSpec):
     pass
 
 
-class OptDefault(Nonterm):
-    def reduce_empty(self):
-        self.val = None
+class ParenRawString(Nonterm):
+    def reduce_ParenRawString_LPAREN_ParenRawStr_RPAREN(self, *kids):
+        self.val = kids[0].val
+        self.val.value += f'({kids[2].val.value})'
 
-    def reduce_EQUALS_Value(self, *kids):
+    def reduce_ParenRawString_ParenRawStr(self, *kids):
+        self.val = kids[0].val
+        self.val.value += kids[1].val.value
+
+    def reduce_LPAREN_ParenRawStr_RPAREN(self, *kids):
         self.val = kids[1].val
 
-
-class OptVariadic(Nonterm):
-    def reduce_empty(self):
-        self.val = False
-
-    def reduce_STAR(self, *kids):
-        self.val = True
+    def reduce_ParenRawStr(self, *kids):
+        self.val = kids[0].val
 
 
-class FuncDeclArg(Nonterm):
-    def reduce_OptVariadic_TypeName_OptDefault(self, *kids):
-        self.val = esast.FuncArg(
-            variadic=kids[0].val,
-            name=None,
-            type=kids[1].val,
-            default=kids[2].val
-        )
+class ParenRawStr(Nonterm):
+    def reduce_STRING(self, *kids):
+        self.val = esast.RawLiteral(value=kids[0].val)
 
-    def reduce_OptVariadic_Identifier_COLON_TypeName_OptDefault(self, *kids):
-        self.val = esast.FuncArg(
-            variadic=kids[0].val,
-            name=kids[1].val,
-            type=kids[3].val,
-            default=kids[4].val
-        )
+    def reduce_IDENT(self, *kids):
+        # this can actually only be QIDENT
+        self.val = esast.RawLiteral(value=f'`{kids[0].val}`')
 
-
-class FuncDeclArgList(ListNonterm, element=FuncDeclArg,
-                      separator=tokens.T_COMMA):
-    pass
+    def reduce_RAWSTRING(self, *kids):
+        self.val = esast.RawLiteral(value=kids[0].val)
 
 
 class FunctionArgs(Nonterm):
     def reduce_LPAREN_RPAREN(self, *kids):
         self.val = []
 
-    def reduce_LPAREN_FuncDeclArgList_RPAREN(self, *kids):
-        args = kids[1].val
-
-        default_arg_seen = False
-        variadic_arg_seen = False
-        for arg in args:
-            if arg.variadic:
-                if variadic_arg_seen:
-                    raise SchemaSyntaxError('more than one variadic argument',
-                                            context=arg.context)
-                else:
-                    variadic_arg_seen = True
-            else:
-                if variadic_arg_seen:
-                    raise SchemaSyntaxError(
-                        'non-variadic argument follows variadic argument',
-                        context=arg.context)
-
-            if arg.default is None:
-                if default_arg_seen and not arg.variadic:
-                    raise SchemaSyntaxError(
-                        'non-default argument follows default argument',
-                        context=arg.context)
-            else:
-                default_arg_seen = True
-
+    def reduce_LPAREN_ParenRawString_RPAREN(self, *kids):
+        args = [kids[1].val]
         self.val = args
+
+
+class OptFunctionArgs(Nonterm):
+    def reduce_FunctionArgs(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_empty(self):
+        self.val = []
+
+
+class CallableNameAndExtends(Nonterm):
+    def reduce_Identifier_OptFunctionArgs_EXTENDS_NameList(self, *kids):
+        self.val = esast.Declaration(name=kids[0].val, args=kids[1].val,
+                                     extends=kids[3].val)
+
+    def reduce_Identifier_OptFunctionArgs_EXTENDS_LPAREN_NameList_RPAREN(
+            self, *kids):
+        self.val = esast.Declaration(name=kids[0].val, args=kids[1].val,
+                                     extends=kids[4].val)
+
+    def reduce_Identifier_OptFunctionArgs(self, *kids):
+        self.val = esast.Declaration(name=kids[0].val, args=kids[1].val)
 
 
 class NameAndExtends(Nonterm):
@@ -733,12 +720,16 @@ class Index(Nonterm):
 
 
 class Constraint(Nonterm):
-    def reduce_CONSTRAINT_ObjectName_NL(self, *kids):
-        self.val = esast.Constraint(name=kids[1].val)
+    def reduce_CONSTRAINT_ObjectName_OptFunctionArgs_NL(self, *kids):
+        self.val = esast.Constraint(name=kids[1].val, args=kids[2].val)
 
-    def reduce_CONSTRAINT_ObjectName_COLON_NL_INDENT_Attributes_DEDENT(
-            self, *kids):
-        self.val = esast.Constraint(name=kids[1].val, attributes=kids[5].val)
+    def reduce_constraint_with_attributes(self, *kids):
+        r"""%reduce \
+                CONSTRAINT ObjectName OptFunctionArgs \
+                COLON NL INDENT Attributes DEDENT \
+        """
+        self.val = esast.Constraint(name=kids[1].val, args=kids[2].val,
+                                    attributes=kids[6].val)
 
     def reduce_CONSTRAINT_ObjectName_TurnstileBlob(self, *kids):
         self.val = esast.Constraint(
@@ -758,7 +749,7 @@ class Attributes(ListNonterm, element=Attribute):
     pass
 
 
-class ColonValue(parsing.Nonterm):
+class ColonValue(Nonterm):
     def reduce_COLON_Value_NL(self, *kids):
         self.val = kids[1].val
 

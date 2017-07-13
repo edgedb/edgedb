@@ -37,9 +37,21 @@ abstract concept OwnedObject:
     @unittest.expectedFailure
     def test_eschema_syntax_concept03(self):
         """
-abstract concept Text:
-    required link body to str:
-        constraint maxlength := 10000
+        abstract concept Text:
+            required link body to str:
+                constraint maxlength := 10000
+
+% OK %
+
+        abstract concept Text:
+            required link body to str:
+                constraint maxlength:
+                    args :=
+                        (
+                            param := (SELECT
+                                10000
+                            )
+                        )
         """
 
     def test_eschema_syntax_concept04(self):
@@ -331,7 +343,7 @@ atom special extends int:
 
     def test_eschema_syntax_constraint01(self):
         """
-constraint max:
+constraint max($param:any):
     expr := subject <= $param
     errmessage: 'Maximum allowed value for {subject} is {param}.'
 
@@ -345,20 +357,20 @@ abstract constraint length:
 
     def test_eschema_syntax_constraint03(self):
         """
-constraint maxlength extends max, length:
+constraint maxlength($param:any) extends max, length:
     errmessage: '{subject} must be no longer than {param} characters.'
         """
 
     def test_eschema_syntax_constraint04(self):
         """
-constraint max:
+constraint max($param:any):
     expr := subject <= $param
     errmessage: 'Maximum allowed value for {subject} is {param}.'
 
 abstract constraint length:
     subject := str::len(<str>subject)
 
-constraint maxlength extends max, length:
+constraint maxlength($param:any) extends max, length:
     errmessage: '{subject} must be no longer than {param} characters.'
 
         """
@@ -467,20 +479,33 @@ event self_deleted:
 
         """
 
-    @unittest.expectedFailure
-    def test_eschema_syntax_link06(self):
-        """
-link time_estimate:
-   linkproperty unit to str:
-       constraint must_be_even := 0
-        """
-
     @tb.must_fail(error.SchemaSyntaxError,
                   r'Unexpected token.*LINKPROPERTY', line=3, col=22)
-    def test_eschema_syntax_link07(self):
+    def test_eschema_syntax_link06(self):
         """
         link coollink:
             required linkproperty foo to int
+        """
+
+    def test_eschema_syntax_link07(self):
+        """
+        link time_estimate:
+           linkproperty unit to str:
+               constraint my_constraint(0)
+        """
+
+    def test_eschema_syntax_link08(self):
+        """
+        link time_estimate:
+           linkproperty unit to str:
+               constraint my_constraint(0, <str>(42^2))
+        """
+
+    def test_eschema_syntax_link09(self):
+        """
+        link time_estimate:
+           linkproperty unit to str:
+               constraint my_constraint(')', `)`($$)$$))
         """
 
     def test_eschema_syntax_import01(self):
@@ -543,26 +568,40 @@ link time_estimate:
 
     def test_eschema_syntax_function02(self):
         """
-        function some_func(foo: std::int = 42) -> std::str:
+        function some_func($foo: std::int = 42) -> std::str:
             from sql: "SELECT 'life';"
 
 % OK %
 
-        function some_func(foo: std::int = 42) -> std::str:
+        function some_func($foo: std::int = 42) -> std::str:
             from sql:>
                 SELECT 'life';
         """
 
     def test_eschema_syntax_function03(self):
         """
-        function some_func(foo: std::int = 42) -> std::str:
+        function some_func($foo: std::int = 42) -> std::str:
             from edgeql:>
                 SELECT 'life';
         """
 
     def test_eschema_syntax_function04(self):
         """
-        function myfunc(arg1: str, arg2: str = 'DEFAULT', *arg3) -> set of int:
+        # the line continuation is just to allow long single line
+        function myfunc($arg1: str, $arg2: str = 'DEFAULT', *$arg3) -> \
+                                                                    set of int:
+            volatile: true
+            description:>
+                myfunc sample
+            from sql:>
+                SELECT blarg;
+        """
+
+    def test_eschema_syntax_function05(self):
+        """
+        function myfunc($arg1: str,
+                        $arg2: str = 'DEFAULT',
+                        *$arg3) -> set of int:
             volatile: true
             description:>
                 myfunc sample
@@ -573,12 +612,51 @@ link time_estimate:
     @tb.must_fail(error.SchemaSyntaxError,
                   "unexpected 'initial value' in function definition",
                   line=3, col=26)
-    def test_eschema_syntax_function05(self):
+    def test_eschema_syntax_function06(self):
         """
-        function some_func(foo: std::int = 42) -> std::str:
+        function some_func($foo: std::int = 42) -> std::str:
             initial value: 'bad'
             from edgeql:>
                 SELECT 'life';
+        """
+
+    def test_eschema_syntax_function07(self):
+        """
+        function some_func($foo: std::int = bar(42)) -> std::str:
+            from edgeql function: some_other_func
+        """
+
+    def test_eschema_syntax_function08(self):
+        """
+        function some_func($foo: str = ')') -> std::str:
+            from edgeql function: some_other_func
+        """
+
+    def test_eschema_syntax_function09(self):
+        """
+        function some_func($foo: str = $$)$$) -> std::str:
+            from edgeql function: some_other_func
+        """
+
+    def test_eschema_syntax_function10(self):
+        """
+        function some_func($foo: str = $a1$)$a1$) -> std::str:
+            from edgeql function: some_other_func
+        """
+
+    def test_eschema_syntax_function11(self):
+        """
+        function some_func($`(`: str = ')') -> std::str:
+            from edgeql function: some_other_func
+        """
+
+    @tb.must_fail(error.SchemaSyntaxError,
+                  r"Unexpected token.*RPAREN",
+                  line=2, col=42)
+    def test_eschema_syntax_function12(self):
+        """
+        function some_func($`(`: str = ) ) -> std::str:
+            from edgeql function: some_other_func
         """
 
     def test_eschema_syntax_aggregate01(self):
@@ -590,7 +668,7 @@ link time_estimate:
 
     def test_eschema_syntax_aggregate02(self):
         """
-        aggregate some_func(foo: std::int = 42) -> std::str:
+        aggregate some_func($foo: std::int = 42) -> std::str:
             initial value: 'start'
             from sql:>
                 SELECT 'life';
@@ -598,7 +676,7 @@ link time_estimate:
 
     def test_eschema_syntax_aggregate03(self):
         """
-        aggregate some_func(foo: std::int = 42) -> std::str:
+        aggregate some_func($foo: std::int = 42) -> std::str:
             initial value: ''
             from edgeql:>
                 SELECT 'life';
@@ -606,7 +684,7 @@ link time_estimate:
 
     def test_eschema_syntax_aggregate04(self):
         """
-        aggregate myfunc(arg1: str, arg2: str = 'DEFAULT', *arg3) -> int:
+        aggregate myfunc($arg1: str, $arg2: str = 'DEFAULT', *$arg3) -> int:
             initial value: 42
             volatile: true
             description: 'myfunc sample'
