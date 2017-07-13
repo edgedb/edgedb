@@ -38,7 +38,7 @@ use it for performance reasons.
 
     WITH MODULE example
     UPDATE User
-    FILTER User.name IN ['Alice', 'Bob', 'Carol', 'Dave']
+    FILTER User.name IN {'Alice', 'Bob', 'Carol', 'Dave'}
     SET {
         theme := 'halloween'
     };
@@ -63,7 +63,7 @@ use-case when a ``FOR`` clause is appropriate.
     # express without the use of FOR clause
     WITH MODULE example
     UPDATE User
-    FILTER User.name IN ['Alice', 'Bob', 'Carol', 'Dave']
+    FILTER User.name IN {'Alice', 'Bob', 'Carol', 'Dave'}
     SET {
         theme := 'red'  IF .name = 'Alice' ELSE
                  'star' IF .name = 'Bob' ELSE

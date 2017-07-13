@@ -119,12 +119,12 @@ WITH MODULE test
 UPDATE User
 FILTER User.name = 'Elvis'
 SET {
-    todo := (SELECT Issue FILTER Issue.number IN ['1', '2'])
+    todo := (SELECT Issue FILTER Issue.number IN {'1', '2'})
 };
 
 WITH MODULE test
 UPDATE User
 FILTER User.name = 'Yury'
 SET {
-    todo := (SELECT Issue FILTER Issue.number IN ['3', '4'])
+    todo := (SELECT Issue FILTER Issue.number IN {'3', '4'})
 };

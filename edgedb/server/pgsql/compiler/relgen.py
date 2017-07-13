@@ -7,6 +7,8 @@
 """Compiler functions to generate SQL relations for IR sets."""
 
 
+import typing
+
 from edgedb.lang.common import ast
 
 from edgedb.lang.ir import ast as irast
@@ -69,6 +71,10 @@ def set_to_cte(
 
         elif irutils.is_subquery_set(ir_set):
             process_set_as_subquery(ir_set, stmt, ctx=subctx)
+
+        elif irutils.is_set_membership_expr(ir_set.expr):
+            # A [NOT] IN B expression.
+            process_set_as_membership_expr(ir_set, stmt, ctx=subctx)
 
         elif isinstance(ir_set.expr, irast.SetOp):
             # Set operation: UNION
@@ -600,6 +606,50 @@ def process_set_as_subquery(
     relctx.put_set_cte(ir_set, subquery, ctx=ctx)
 
 
+def process_set_as_membership_expr(
+        ir_set: irast.Set, stmt: pgast.Query, *,
+        ctx: context.CompilerContextLevel) -> None:
+    """Populate the CTE for Set defined by a `A [NOT] IN B` expression."""
+
+    # A [NOT] IN B is transformed into
+    # SELECT [NOT] bool_or(val(A) = val(B)) FOR A CROSS JOIN B
+    # bool_or is used instead of an IN sublink because it is necessary
+    # to partition `B` properly considering the path scope.
+    expr = ir_set.expr
+
+    with ctx.new() as newctx:
+        newctx.expr_exposed = False
+
+        left_expr = dispatch.compile(expr.left, ctx=newctx)
+
+        with newctx.subquery() as rightctx:
+            rightctx.unique_set_assumed = True
+            right_expr = dispatch.compile(expr.right, ctx=rightctx)
+
+            check_expr = astutils.new_binop(
+                left_expr, right_expr, op=ast.ops.EQ)
+            check_expr = pgast.FuncCall(
+                name=('bool_or',), args=[check_expr])
+
+            if expr.op == ast.ops.NOT_IN:
+                check_expr = astutils.new_unop(
+                    ast.ops.NOT, check_expr)
+
+        subquery = rightctx.query
+
+        path_scope = set(rightctx.rel.path_bonds)
+        bond_path_id = fini_agg_expr_stmt(
+            ir_set, check_expr, subquery, path_scope=path_scope, ctx=rightctx)
+
+    relctx.include_range(stmt, subquery, lateral=True, ctx=ctx)
+
+    if bond_path_id:
+        # Due to injection this rel must not be a CTE.
+        relctx.put_set_cte(ir_set, stmt, ctx=ctx)
+    else:
+        ctx.query.ctes.append(relctx.get_set_cte(ir_set, ctx=ctx))
+
+
 def process_set_as_view_inner_reference(
         ir_set: irast.Set, stmt: pgast.Query, *,
         ctx: context.CompilerContextLevel) -> None:
@@ -909,8 +959,6 @@ def process_set_as_agg_expr(
         newctx.rel = stmt
         newctx.expr_as_isolated_set = False
 
-        path_scope = set(ctx.stmt_path_scope)
-
         newctx.stmt_path_scope = newctx.stmt_path_scope.copy()
         newctx.stmt_path_scope.update(ir_set.path_scope)
         newctx.stmt_specific_path_scope = \
@@ -1042,15 +1090,31 @@ def process_set_as_agg_expr(
 
             set_expr = pgast.CoalesceExpr(args=[set_expr, iv])
 
-        # Add an explicit GROUP BY for each non-aggregated path bond.
-        for path_id in list(stmt.path_bonds):
-            if path_id in path_scope:
-                path_var = pathctx.get_path_identity_var(
-                    stmt, path_id, env=ctx.env)
-                stmt.group_clause.append(path_var)
-            else:
-                stmt.path_bonds.discard(path_id)
-                stmt.path_rvar_map.pop(path_id, None)
+    bond_path_id = fini_agg_expr_stmt(
+        ir_set, set_expr, stmt, path_scope=set(stmt.path_bonds), ctx=ctx)
+
+    if bond_path_id:
+        # Due to injection this rel must not be a CTE.
+        relctx.put_set_cte(ir_set, stmt, ctx=ctx)
+    else:
+        ctx.query.ctes.append(relctx.get_set_cte(ir_set, ctx=ctx))
+
+
+def fini_agg_expr_stmt(
+        ir_set: irast.Set, set_expr: pgast.Base, stmt: pgast.Query, *,
+        path_scope: typing.Set[irast.PathId],
+        ctx: context.CompilerContextLevel) -> typing.Optional[irast.PathId]:
+    stmt_path_scope = ctx.stmt_path_scope
+
+    # Add an explicit GROUP BY for each non-aggregated path bond.
+    for path_id in path_scope:
+        if path_id in stmt_path_scope:
+            path_var = pathctx.get_path_identity_var(
+                stmt, path_id, env=ctx.env)
+            stmt.group_clause.append(path_var)
+        else:
+            stmt.path_bonds.discard(path_id)
+            stmt.path_rvar_map.pop(path_id, None)
 
     bond_path_id = relctx.apply_path_bond_injections(stmt, ctx=ctx)
     if bond_path_id:
@@ -1068,11 +1132,7 @@ def process_set_as_agg_expr(
 
     relctx.ensure_correct_rvar_for_expr(ir_set, stmt, set_expr, ctx=ctx)
 
-    if bond_path_id:
-        # Due to injection this rel must not be a CTE.
-        relctx.put_set_cte(ir_set, stmt, ctx=ctx)
-    else:
-        ctx.query.ctes.append(relctx.get_set_cte(ir_set, ctx=ctx))
+    return bond_path_id
 
 
 def process_set_as_exists_expr(

@@ -59,6 +59,13 @@ def is_const(ir):
     return not ir_sets and not variables
 
 
+def is_set_membership_expr(ir):
+    return (
+        isinstance(ir, irast.BinOp) and
+        isinstance(ir.op, ast.ops.MembershipOperator)
+    )
+
+
 def is_aggregated_expr(ir):
     def flt(n):
         if isinstance(n, irast.FunctionCall):

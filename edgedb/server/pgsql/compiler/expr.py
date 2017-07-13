@@ -291,14 +291,7 @@ def compile_BinOp(
         op = expr.op
         is_bool_op = op in {ast.ops.AND, ast.ops.OR}
         left = dispatch.compile(expr.left, ctx=newctx)
-
-        if expr.op in (ast.ops.IN, ast.ops.NOT_IN):
-            with newctx.new() as subctx:
-                subctx.expr_as_isolated_set = True
-                right = dispatch.compile(expr.right, ctx=subctx)
-
-        else:
-            right = dispatch.compile(expr.right, ctx=newctx)
+        right = dispatch.compile(expr.right, ctx=newctx)
 
     if isinstance(expr.op, ast.ops.TypeCheckOperator):
         result = pgast.FuncCall(
@@ -318,51 +311,6 @@ def compile_BinOp(
             right_type = irutils.infer_type(expr.right, ctx.schema)
         else:
             right_type = None
-
-        if (expr.op in (ast.ops.IN, ast.ops.NOT_IN) and
-                isinstance(right_type, s_obj.Array)):
-
-            if isinstance(left_type, s_atoms.Atom) and left_type.bases:
-                # Cast atom refs to the base type in aggregate expressions,
-                # since PostgreSQL does not create array types for custom
-                # domains and will fail to process a query with custom
-                # domains appearing as array elements.
-                pgtype = pg_types.pg_type_from_object(
-                    ctx.schema, left_type, topbase=True)
-                pgtype = pgast.TypeName(name=pgtype)
-                left = pgast.TypeCast(arg=left, type_name=pgtype)
-
-            if ctx.singleton_mode:
-                if expr.op == ast.ops.IN:
-                    sltype = pgast.SubLinkType.ANY
-                    op = ast.ops.EQ
-                else:
-                    sltype = pgast.SubLinkType.ALL
-                    op = ast.ops.NE
-
-                result = astutils.new_binop(
-                    left,
-                    pgast.SubLink(type=sltype, expr=right),
-                    op
-                )
-            else:
-                # "expr IN <array-expr>" translates into
-                # "array_position(<array-expr>, <expr>) IS NOT NULL" and
-                # "expr NOT IN <array-expr>" translates into
-                # "array_position(<array-expr>, <expr>) IS NULL".
-                arr_pos = pgast.FuncCall(
-                    name=('array_position',),
-                    args=[right, left]
-                )
-
-                result = pgast.NullTest(
-                    arg=arr_pos,
-                    negated=expr.op == ast.ops.IN
-                )
-
-            return result
-        else:
-            op = expr.op
 
         if (not isinstance(expr.left, irast.EmptySet) and
                 not isinstance(expr.right, irast.EmptySet)):
