@@ -262,8 +262,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ops13(self):
         """
         SELECT (User.name @@ 'bob');
-        SELECT (User.name ~ '^[[:lower:]]+$');
-        SELECT (User.name ~* 'don');
+        SELECT (User.name MATCHES '^[[:lower:]]+$');
+        SELECT (User.name NOT MATCHES 'don');
         """
 
     def test_edgeql_syntax_ops14(self):
@@ -375,7 +375,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'Unexpected token.*~', line=2, col=16)
+                  'Unknown token.*~', line=2, col=16)
     def test_edgeql_syntax_ops21(self):
         """
         SELECT ~1;

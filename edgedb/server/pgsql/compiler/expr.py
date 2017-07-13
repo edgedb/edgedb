@@ -361,6 +361,10 @@ def compile_BinOp(
                 )
 
             return result
+        elif expr.op == irast.REMATCH:
+            op = '~'
+        elif expr.op == irast.NOT_REMATCH:
+            op = '!~'
         else:
             op = expr.op
 

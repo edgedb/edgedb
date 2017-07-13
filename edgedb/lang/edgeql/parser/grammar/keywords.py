@@ -82,6 +82,7 @@ reserved_keywords = [
     "is",
     "like",
     "limit",
+    "matches",
     "module",
     "not",
     "offset",

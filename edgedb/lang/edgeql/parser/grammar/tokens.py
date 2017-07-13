@@ -148,10 +148,6 @@ class T_IDENT(Token):
     pass
 
 
-class T_OPERATOR(Token):
-    pass
-
-
 class T_OP(Token):
     pass
 

@@ -56,16 +56,14 @@ OR = ast.ops.OR
 NOT = ast.ops.NOT
 IN = ast.ops.IN
 NOT_IN = ast.ops.NOT_IN
-LIKE = EdgeQLMatchOperator('~~', strname='LIKE')
-NOT_LIKE = EdgeQLMatchOperator('!~~', strname='NOT LIKE')
-ILIKE = EdgeQLMatchOperator('~~*', strname='ILIKE')
-NOT_ILIKE = EdgeQLMatchOperator('!~~*', strname='NOT ILIKE')
 
-REMATCH = EdgeQLMatchOperator('~')
-REIMATCH = EdgeQLMatchOperator('~*')
+LIKE = EdgeQLMatchOperator('LIKE')
+NOT_LIKE = EdgeQLMatchOperator('NOT LIKE')
+ILIKE = EdgeQLMatchOperator('ILIKE')
+NOT_ILIKE = EdgeQLMatchOperator('NOT ILIKE')
 
-RENOMATCH = EdgeQLMatchOperator('!~')
-RENOIMATCH = EdgeQLMatchOperator('!~*')
+REMATCH = EdgeQLMatchOperator('MATCHES')
+NOT_REMATCH = EdgeQLMatchOperator('NOT MATCHES')
 
 IS_OF = EdgeQLOperator('IS OF')
 IS_NOT_OF = EdgeQLOperator('IS NOT OF')

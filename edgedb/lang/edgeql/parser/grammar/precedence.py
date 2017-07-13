@@ -46,7 +46,8 @@ class P_ANGBRACKET(Precedence, assoc='nonassoc',
     pass
 
 
-class P_LIKE_ILIKE(Precedence, assoc='nonassoc', tokens=('LIKE', 'ILIKE')):
+class P_MATCH(Precedence, assoc='nonassoc',
+              tokens=('LIKE', 'ILIKE', 'MATCHES')):
     pass
 
 
@@ -54,15 +55,11 @@ class P_IN(Precedence, assoc='nonassoc', tokens=('IN',)):
     pass
 
 
-class P_POSTFIXOP(Precedence, assoc='left'):
-    pass
-
-
 class P_IDENT(Precedence, assoc='nonassoc', tokens=('IDENT', 'PARTITION')):
     pass
 
 
-class P_OP(Precedence, assoc='left', tokens=('OPERATOR', 'OP')):
+class P_OP(Precedence, assoc='left', tokens=('OP',)):
     pass
 
 

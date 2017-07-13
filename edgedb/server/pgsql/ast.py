@@ -581,8 +581,10 @@ LIKE = PgSQLComparisonOperator('~~')
 NOT_LIKE = PgSQLComparisonOperator('!~~')
 ILIKE = PgSQLComparisonOperator('~~*')
 NOT_ILIKE = PgSQLComparisonOperator('!~~*')
+
 SIMILAR_TO = PgSQLComparisonOperator('~')
 NOT_SIMILAR_TO = PgSQLComparisonOperator('!~')
+
 IS_DISTINCT = PgSQLComparisonOperator('IS DISTINCT')
 IS_NOT_DISTINCT = PgSQLComparisonOperator('IS NOT DISTINCT')
 IS_OF = PgSQLComparisonOperator('IS OF')
