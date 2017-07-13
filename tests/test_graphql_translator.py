@@ -794,7 +794,9 @@ class TestGraphQLTranslation(TranslatorTest):
                 }
             }
         FILTER
-            ((test::User).groups.name IN ['admin', 'support']);
+            std::array_contains(['admin', 'support'],
+                                (test::User).groups.name)
+
         """
 
     def test_graphql_translation_arguments06(self):
@@ -820,7 +822,8 @@ class TestGraphQLTranslation(TranslatorTest):
                 }
             }
         FILTER
-            ((test::User).groups.name NOT IN ['admin', 'support']);
+            NOT std::array_contains(['admin', 'support'],
+                                    (test::User).groups.name)
         """
 
     def test_graphql_translation_arguments07(self):
@@ -903,8 +906,9 @@ class TestGraphQLTranslation(TranslatorTest):
                         name,
                         value
                     } FILTER
-                        ((test::User).groups.settings.name IN
-                            ['level', 'description'])
+                        std::array_contains(
+                            ['level', 'description'],
+                            (test::User).groups.settings.name)
                 }
             };
         """
@@ -972,8 +976,8 @@ class TestGraphQLTranslation(TranslatorTest):
             }
         FILTER
             (
-                ((test::User).name IN $names) AND
-                ((test::User).groups.name IN $groups)
+                std::array_contains($names, (test::User).name) AND
+                std::array_contains($groups, (test::User).groups.name)
             );
         """
 
@@ -1375,7 +1379,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         FILTER
-            ((test::User).name IN $val);
+            std::array_contains($val, (test::User).name);
 
         """
 
@@ -1563,7 +1567,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         FILTER
-            ((test::User).name IN ['John', 'Jane']);
+            std::array_contains(['John', 'Jane'], (test::User).name);
         """
 
     def test_graphql_translation_arg_type10(self):
@@ -1581,7 +1585,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         FILTER
-            ((test::User).age IN [10, 20, 30, 40]);
+            std::array_contains([10, 20, 30, 40], (test::User).age);
         """
 
     def test_graphql_translation_arg_type11(self):
@@ -1599,7 +1603,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         FILTER
-            ((test::User).score IN [3.5, 3.6, 3.7]);
+            std::array_contains([3.5, 3.6, 3.7], (test::User).score);
         """
 
     def test_graphql_translation_arg_type12(self):
@@ -1617,7 +1621,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         FILTER
-            ((test::User).score IN [1, 2, 3]);
+            std::array_contains([1, 2, 3], (test::User).score);
         """
 
     @with_variables(val=["John", "Jane"])
@@ -1636,7 +1640,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         FILTER
-            ((test::User).name IN $val);
+            std::array_contains($val, (test::User).name);
         """
 
     @with_variables(val=[10, 20])
@@ -1655,7 +1659,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         FILTER
-            ((test::User).age IN $val);
+            std::array_contains($val, (test::User).age);
         """
 
     @with_variables(val=[3, 3.5, 4])
@@ -1674,7 +1678,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         FILTER
-            ((test::User).score IN $val);
+            std::array_contains($val, (test::User).score);
         """
 
     @with_variables(val=[1, 2, 3])
@@ -1693,7 +1697,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 id,
             }
         FILTER
-            ((test::User).score IN $val);
+            std::array_contains($val, (test::User).score);
         """
 
     @tb.must_fail(GraphQLValidationError, line=3, col=18)

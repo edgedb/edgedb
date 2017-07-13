@@ -502,7 +502,7 @@ class TestUpdate(tb.QueryTestCase):
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test1'
             SET {
-                tags := (SELECT Tag FILTER Tag.name IN ['wow', 'fun'])
+                tags := (SELECT Tag FILTER Tag.name IN {'wow', 'fun'})
             };
 
             WITH MODULE test
@@ -711,7 +711,7 @@ class TestUpdate(tb.QueryTestCase):
                 weighted_tags := (
                     SELECT Tag {
                         @weight := len(Tag.name) % 2 + 1
-                    } FILTER Tag.name IN ['wow', 'boring']
+                    } FILTER Tag.name IN {'wow', 'boring'}
                 )
             };
 

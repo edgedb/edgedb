@@ -122,14 +122,14 @@ WITH MODULE test
 UPDATE User
 FILTER User.name = 'Elvis'
 SET {
-    todo := (SELECT Issue FILTER Issue.number IN ['1', '2'])
+    todo := (SELECT Issue FILTER Issue.number IN {'1', '2'})
 };
 
 WITH MODULE test
 UPDATE User
 FILTER User.name = 'Yury'
 SET {
-    todo := (SELECT Issue FILTER Issue.number IN ['3', '4'])
+    todo := (SELECT Issue FILTER Issue.number IN {'3', '4'})
 };
 
 #
@@ -206,7 +206,7 @@ INSERT User {
     name := 'Alice',
     deck := (
         SELECT Card {@count := len(Card.element) - 2}
-        FILTER .element IN ['Fire', 'Water']
+        FILTER .element IN {'Fire', 'Water'}
     )
 };
 
@@ -214,7 +214,7 @@ WITH MODULE cards
 INSERT User {
     name := 'Bob',
     deck := (
-        SELECT Card {@count := 3} FILTER .element IN ['Earth', 'Water']
+        SELECT Card {@count := 3} FILTER .element IN {'Earth', 'Water'}
     )
 };
 
@@ -248,7 +248,7 @@ SET {
                 'Swampy'        IF U2.name = 'Bob' ELSE
                 'Firefighter'   IF U2.name = 'Carol' ELSE
                 'Grumpy'
-        } FILTER U2.name IN ['Bob', 'Carol', 'Dave']
+        } FILTER U2.name IN {'Bob', 'Carol', 'Dave'}
     )
 };
 

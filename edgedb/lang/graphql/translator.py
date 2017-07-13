@@ -592,10 +592,24 @@ class GraphQLTranslator(ast.NodeVisitor):
         if op in (ast.ops.IN, ast.ops.NOT_IN):
             self._validate_arg(name, check_value,
                                context=node.context, as_sequence=True)
+            # In EdgeQL `IN` expects a set as a right operand, not an array,
+            # so compile this into array_cointains(right, left)
+            ql_result = qlast.FunctionCall(
+                func=('std', 'array_contains'),
+                args=[value, name]
+            )
+
+            if op == ast.ops.NOT_IN:
+                ql_result = qlast.UnaryOp(
+                    op=ast.ops.NOT,
+                    operand=ql_result
+                )
         else:
             self._validate_arg(name, check_value, context=node.context)
 
-        return qlast.BinOp(left=name, op=op, right=value)
+            ql_result = qlast.BinOp(left=name, op=op, right=value)
+
+        return ql_result
 
     def _validate_arg(self, path, value, *, context, as_sequence=False):
         # None is always valid argument for our case, simply means

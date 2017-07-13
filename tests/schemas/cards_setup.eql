@@ -68,7 +68,7 @@ INSERT User {
     name := 'Alice',
     deck := (
         SELECT Card {@count := len(Card.element) - 2}
-        FILTER .element IN ['Fire', 'Water']
+        FILTER .element IN {'Fire', 'Water'}
     )
 };
 
@@ -76,7 +76,7 @@ WITH MODULE test
 INSERT User {
     name := 'Bob',
     deck := (
-        SELECT Card {@count := 3} FILTER .element IN ['Earth', 'Water']
+        SELECT Card {@count := 3} FILTER .element IN {'Earth', 'Water'}
     )
 };
 
@@ -110,7 +110,7 @@ SET {
                 'Swampy'        IF U2.name = 'Bob' ELSE
                 'Firefighter'   IF U2.name = 'Carol' ELSE
                 'Grumpy'
-        } FILTER U2.name IN ['Bob', 'Carol', 'Dave']
+        } FILTER U2.name IN {'Bob', 'Carol', 'Dave'}
     )
 };
 

@@ -129,11 +129,11 @@ class TestExpressions(tb.QueryTestCase):
             SELECT -1 + 2 * 3 - 5 - 6.0 / 2;
             SELECT
                 -1 + 2 * 3 - 5 - 6.0 / 2 > 0
-                OR 25 % 4 = 3 AND 42 IN [12, 42, 14];
+                OR 25 % 4 = 3 AND 42 IN {12, 42, 14};
             SELECT (-1 + 2) * 3 - (5 - 6.0) / 2;
             SELECT
                 ((-1 + 2) * 3 - (5 - 6.0) / 2 > 0 OR 25 % 4 = 3)
-                AND 42 IN [12, 42, 14];
+                AND 42 IN {12, 42, 14};
             SELECT 1 * 0.2;
             SELECT 0.2 * 1;
             SELECT -0.2 * 1;
@@ -465,9 +465,6 @@ class TestExpressions(tb.QueryTestCase):
             SELECT [1, 2][10] ?? 42;
 
             SELECT <array<int>>[];
-
-            SELECT 1 IN [1, 2, 3];
-            SELECT 1 NOT IN [1, 2, 3];
         """, [
             [[1]],
             [[1, 2, 3, 4, 5]],
@@ -485,9 +482,6 @@ class TestExpressions(tb.QueryTestCase):
             [42],
 
             [[]],
-
-            [True],
-            [False]
         ])
 
     async def test_edgeql_expr_array02(self):
@@ -550,33 +544,33 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_array08(self):
         await self.assert_query_result('''
             WITH x := [3, 1, 2]
-            SELECT 2 IN x;
+            SELECT array_contains(x, 2);
 
             WITH x := [3, 1, 2]
-            SELECT 5 IN x;
+            SELECT array_contains(x, 5);
 
             WITH x := [3, 1, 2]
-            SELECT 5 NOT IN x;
+            SELECT array_contains(x, 5);
         ''', [
             [True],
             [False],
-            [True],
+            [False],
         ])
 
     async def test_edgeql_expr_array09(self):
         await self.assert_query_result('''
             WITH x := {3, 1, 2}
-            SELECT 2 IN array_agg(ALL x ORDER BY x);
+            SELECT array_contains(array_agg(ALL x ORDER BY x), 2);
 
             WITH x := {3, 1, 2}
-            SELECT 5 IN array_agg(ALL x ORDER BY x);
+            SELECT array_contains(array_agg(ALL x ORDER BY x), 5);
 
             WITH x := {3, 1, 2}
-            SELECT 5 NOT IN array_agg(ALL x ORDER BY x);
+            SELECT array_contains(array_agg(ALL x ORDER BY x), 5);
         ''', [
             [True],
             [False],
-            [True],
+            [False],
         ])
 
     async def test_edgeql_expr_array10(self):

@@ -203,10 +203,10 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                         ALL
                         schema::Concept.links.name
                         FILTER
-                            schema::Concept.links.name IN [
+                            schema::Concept.links.name IN {
                                 'std::id',
                                 'schema::name'
-                            ]
+                            }
                         ORDER BY schema::Concept.links.name ASC
                     )
                 }
