@@ -148,6 +148,9 @@ class RawStr(Nonterm):
 class Schema(Nonterm):
     "%start"
 
+    def reduce_NL(self, *kids):
+        self.val = esast.Schema(declarations=[])
+
     def reduce_NL_DeclarationList(self, *kids):
         self.val = esast.Schema(declarations=kids[1].val)
 
