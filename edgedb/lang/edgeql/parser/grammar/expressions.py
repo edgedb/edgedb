@@ -774,6 +774,9 @@ class Tuple(Nonterm):
     def reduce_LPAREN_Expr_COMMA_OptExprList_RPAREN(self, *kids):
         self.val = qlast.Tuple(elements=[kids[1].val] + kids[3].val)
 
+    def reduce_LPAREN_RPAREN(self, *kids):
+        self.val = qlast.Tuple(elements=[])
+
 
 class NamedTuple(Nonterm):
     def reduce_LPAREN_NamedTupleElementList_RPAREN(self, *kids):

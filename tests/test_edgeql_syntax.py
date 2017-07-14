@@ -2029,6 +2029,11 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT (name := 'foo', val := 42).val;
         """
 
+    def test_edgeql_syntax_tuple03(self):
+        """
+        SELECT ();
+        """
+
     # DDL
     #
 

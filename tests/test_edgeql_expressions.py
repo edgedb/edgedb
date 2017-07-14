@@ -972,6 +972,13 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT (a := 1, b := 'foo') != (b := 'foo', a := 1);
             """)
 
+    async def test_edgeql_expr_tuple09(self):
+        await self.assert_query_result(r"""
+            SELECT ();
+        """, [
+            [[]],
+        ])
+
     async def test_edgeql_expr_tuple_indirection01(self):
         await self.assert_query_result(r"""
             SELECT ('foo', 42).0;
