@@ -62,7 +62,7 @@ class P_IDENT(Precedence, assoc='nonassoc', tokens=('IDENT', 'PARTITION')):
     pass
 
 
-class P_OP(Precedence, assoc='left', tokens=('OPERATOR', 'OP')):
+class P_OP(Precedence, assoc='left', tokens=('OP',)):
     pass
 
 

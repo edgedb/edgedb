@@ -479,7 +479,6 @@ class DeleteStmt(MutatingStmt):
     where: Base
 
 
-TextSearchOperator = qlast.TextSearchOperator
 EdgeDBMatchOperator = qlast.EdgeQLMatchOperator
 EquivalenceOperator = qlast.EquivalenceOperator
 SetOperator = qlast.SetOperator
