@@ -66,7 +66,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_re_match_01(self):
-        # Fix type inference for functions.
         await self.assert_query_result(r'''
             SELECT re_match('ababab', 'ab');
             SELECT re_match('ababab', 'ab', 'g');
