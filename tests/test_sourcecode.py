@@ -31,10 +31,11 @@ class TestFlake8(unittest.TestCase):
         edgepath = list(edgedb.__path__)[0]
         edgepath = os.path.dirname(edgepath)
 
+        config_path = os.path.join(edgepath, '.flake8')
         for subdir in ['edgedb', 'tests']:  # ignore any top-level test files
             try:
                 subprocess.run(
-                    [sys.executable, '-m', 'flake8'],
+                    [sys.executable, '-m', 'flake8', '--config', config_path],
                     check=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
