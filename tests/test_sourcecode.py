@@ -8,17 +8,19 @@
 
 import collections
 import edgedb
-import flake8  # NoQA
 import os
 import subprocess
 import sys
 import textwrap
 import unittest
 
-import docutils.nodes
-import docutils.parsers
-import docutils.utils
-import docutils.frontend
+try:
+    import docutils.nodes
+    import docutils.parsers
+    import docutils.utils
+    import docutils.frontend
+except ImportError:
+    docutils = None
 
 from edgedb.lang.edgeql import parser as edgeql_parser
 from edgedb.lang.graphql import parser as graphql_parser
@@ -28,6 +30,11 @@ from edgedb.lang.schema import parser as schema_parser
 class TestFlake8(unittest.TestCase):
 
     def test_flake8(self):
+        try:
+            import flake8  # NoQA
+        except ImportError:
+            raise unittest.SkipTest('flake8 moudule is missing')
+
         edgepath = list(edgedb.__path__)[0]
         edgepath = os.path.dirname(edgepath)
 
@@ -69,29 +76,31 @@ class TestDocSnippets(unittest.TestCase):
     class RestructuredTextStyleError(Exception):
         pass
 
-    class CustomDocutilsReporter(docutils.utils.Reporter):
+    if docutils is not None:
+        class CustomDocutilsReporter(docutils.utils.Reporter):
 
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.lint_errors = set()
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.lint_errors = set()
 
-        def system_message(self, level, message, *children, **kwargs):
-            skip = (
-                message.startswith('Unknown interpreted text role') or
-                message.startswith('No role entry for') or
-                message.startswith('Unknown directive type') or
-                message.startswith('No directive entry for') or
-                level < 2  # Ignore DEBUG and INFO messages.
-            )
+            def system_message(self, level, message, *children, **kwargs):
+                skip = (
+                    message.startswith('Unknown interpreted text role') or
+                    message.startswith('No role entry for') or
+                    message.startswith('Unknown directive type') or
+                    message.startswith('No directive entry for') or
+                    level < 2  # Ignore DEBUG and INFO messages.
+                )
 
-            msg = super().system_message(level, message, *children, **kwargs)
+                msg = super().system_message(
+                    level, message, *children, **kwargs)
 
-            if not skip:
-                self.lint_errors.add(
-                    f"{message} at {msg['source']} on line "
-                    f"{msg.get('line', '?')}")
+                if not skip:
+                    self.lint_errors.add(
+                        f"{message} at {msg['source']} on line "
+                        f"{msg.get('line', '?')}")
 
-            return msg
+                return msg
 
     def find_rest_files(self, path: str):
         def scan(path):
@@ -184,6 +193,7 @@ class TestDocSnippets(unittest.TestCase):
                 f'unable to parse {block.lang} code block in '
                 f'{block.filename}, around line {block.lineno}') from ex
 
+    @unittest.skipIf(docutils is None, 'docutils is missing')
     def test_doc_snippets(self):
         edgepath = list(edgedb.__path__)[0]
         edgepath = os.path.dirname(edgepath)
@@ -198,6 +208,7 @@ class TestDocSnippets(unittest.TestCase):
             for block in blocks:
                 self.run_block_test(block)
 
+    @unittest.skipIf(docutils is None, 'docutils is missing')
     def test_doc_test_broken_code_block(self):
         source = '''
         In large applications, the schema will usually be split
@@ -228,6 +239,7 @@ class TestDocSnippets(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, 'unable to parse eql'):
             self.run_block_test(blocks[1])
 
+    @unittest.skipIf(docutils is None, 'docutils is missing')
     def test_doc_test_broken_long_lines(self):
         source = f'''
         aaaaaa aa aaa:
@@ -240,6 +252,7 @@ class TestDocSnippets(unittest.TestCase):
                                     r'lint errors:[.\s]*Line longer'):
             self.extract_code_blocks(source, '<test>')
 
+    @unittest.skipIf(docutils is None, 'docutils is missing')
     def test_doc_test_bad_header(self):
         source = textwrap.dedent('''
             Section
