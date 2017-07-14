@@ -500,21 +500,21 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT
                 Text {body}
             FILTER
-                Text.body ~ 'ed'
+                EXISTS re_match(Text.body, 'ed')
             ORDER BY Text.body;
 
             WITH MODULE test
             SELECT
                 Text {body}
             FILTER
-                Text.body ~ 'eD'
+                EXISTS re_match(Text.body, 'eD')
             ORDER BY Text.body;
 
             WITH MODULE test
             SELECT
                 Text {body}
             FILTER
-                Text.body ~ 'ed([S\s]|$)'
+                EXISTS re_match(Text.body, 'ed([S\s]|$)')
             ORDER BY Text.body;
         """, [
             [{'body': 'EdgeDB needs to happen soon.'},
@@ -532,21 +532,21 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT
                 Text {body}
             FILTER
-                Text.body ~* 'ed'
+                EXISTS re_match(Text.body, 'ed', 'i')
             ORDER BY Text.body;
 
             WITH MODULE test
             SELECT
                 Text {body}
             FILTER
-                Text.body ~* 'eD'
+                EXISTS re_match(Text.body, 'eD', 'i')
             ORDER BY Text.body;
 
             WITH MODULE test
             SELECT
                 Text {body}
             FILTER
-                Text.body ~* 'ed([S\s]|$)'
+                EXISTS re_match(Text.body, '(?i)ed([S\s]|$)')
             ORDER BY Text.body;
         """, [
             [{'body': 'EdgeDB needs to happen soon.'},

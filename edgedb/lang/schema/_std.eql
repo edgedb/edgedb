@@ -169,7 +169,7 @@ CREATE CONSTRAINT std::minlength(std::any) EXTENDING (std::min, std::length) {
 
 CREATE CONSTRAINT std::regexp(std::any) EXTENDING std::constraint {
     SET errmessage := 'invalid {subject}';
-    SET expr := ((subject ~ $0));
+    SET expr := ((EXISTS re_match(subject, $0)));
 };
 
 CREATE CONSTRAINT std::maxlength(std::any) EXTENDING (std::max, std::length) {

@@ -696,10 +696,6 @@ class Expr(Nonterm):
             op = ast.ops.GE
         elif op == '<=':
             op = ast.ops.LE
-        elif op == '~':
-            op = qlast.REMATCH
-        elif op == '~*':
-            op = qlast.REIMATCH
         elif op == '?=':
             op = qlast.EQUIVALENT
         elif op == '?!=':

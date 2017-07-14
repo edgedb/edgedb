@@ -55,12 +55,6 @@ NOT_LIKE = EdgeQLMatchOperator('NOT LIKE')
 ILIKE = EdgeQLMatchOperator('ILIKE')
 NOT_ILIKE = EdgeQLMatchOperator('NOT ILIKE')
 
-REMATCH = EdgeQLMatchOperator('~')
-REIMATCH = EdgeQLMatchOperator('~*')
-
-RENOMATCH = EdgeQLMatchOperator('!~')
-RENOIMATCH = EdgeQLMatchOperator('!~*')
-
 IS_OF = EdgeQLOperator('IS OF')
 IS_NOT_OF = EdgeQLOperator('IS NOT OF')
 
