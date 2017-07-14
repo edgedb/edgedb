@@ -19,6 +19,7 @@ contexts through the AST structure.
 """
 
 import bisect
+import os
 
 from edgedb.lang.common import ast, markup
 

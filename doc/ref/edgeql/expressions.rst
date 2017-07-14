@@ -59,7 +59,7 @@ logic operations as all of the following evaluate to ``{}``:
 
 .. code-block:: eql
 
-    SELECT TRUE OR {};
+    SELECT TRUE OR {
     SELECT FALSE AND {};
     SELECT {} = {};
 
