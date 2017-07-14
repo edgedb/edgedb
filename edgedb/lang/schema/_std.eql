@@ -130,6 +130,12 @@ CREATE FUNCTION std::len(array<std::any>) RETURNING std::int
 CREATE FUNCTION std::random() RETURNING std::float
     FROM SQL FUNCTION 'random';
 
+CREATE FUNCTION std::re_match(std::str, std::str, std::str='')
+    RETURNING SET OF array<std::str>
+    FROM SQL $$
+        SELECT regexp_matches($1, $2, $3);
+    $$;
+
 CREATE FUNCTION std::to_tsquery(std::str) RETURNING std::tsquery
     FROM SQL FUNCTION 'to_tsquery';
 

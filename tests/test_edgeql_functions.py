@@ -64,3 +64,43 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ''', [
             [110, 120],
         ])
+
+    async def test_edgeql_functions_re_match_01(self):
+        # Fix type inference for functions.
+        await self.assert_query_result(r'''
+            SELECT re_match('ababab', 'ab');
+            SELECT re_match('ababab', 'ab', 'g');
+            SELECT re_match('ababab', 'ac');
+
+            SELECT EXISTS re_match('ababab', 'ac', 'g');
+            SELECT NOT EXISTS re_match('ababab', 'ac', 'g');
+
+            SELECT EXISTS re_match('ababab', 'ac');
+            SELECT NOT EXISTS re_match('ababab', 'ac');
+
+            SELECT EXISTS re_match('ababab', 'ab', 'g');
+            SELECT NOT EXISTS re_match('ababab', 'ab', 'g');
+
+            SELECT EXISTS re_match('ababab', 'ab');
+            SELECT NOT EXISTS re_match('ababab', 'ab');
+
+            SELECT x := re_match('ababab', {'ab', 'a'}, 'g') ORDER BY x;
+        ''', [
+            [['ab']],
+            [['ab'], ['ab'], ['ab']],
+            [],
+
+            [False],
+            [True],
+
+            [False],
+            [True],
+
+            [True],
+            [False],
+
+            [True],
+            [False],
+
+            [['a'], ['a'], ['a'], ['ab'], ['ab'], ['ab']],
+        ])

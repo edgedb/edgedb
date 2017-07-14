@@ -182,7 +182,7 @@ def check_function(
                 return False
 
         elif at is None:
-            # We have less arguments than parameters.
+            # We have fewer arguments than parameters.
             if pd is None:
                 return False
         else:
