@@ -19,6 +19,7 @@ from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import sources as s_sources
 
 from edgedb.lang.edgeql import ast as qlast
+from edgedb.lang.edgeql.ast import REMATCH, NOT_REMATCH  # NOQA
 
 
 class ASTError(EdgeDBError):

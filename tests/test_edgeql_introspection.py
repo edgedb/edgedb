@@ -468,7 +468,7 @@ class TestIntrospection(tb.QueryTestCase):
             SELECT Class {
                 name
             }
-            FILTER Class.name ~ '^test::\w+$'
+            FILTER Class.name MATCHES '^test::\w+$'
             ORDER BY Class.name;
         """, [
             [

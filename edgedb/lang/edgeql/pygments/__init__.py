@@ -28,7 +28,7 @@ class EdgeQLLexer(RegexLexer):
         'keywords': [
             (r'''(?ix)
                 \b(?<![:\.])(
-                    abstract | action | after | array | as | asc |
+                    abstract | action | after | any | array | as | asc |
                     atom | attribute | before | by | concept |
                     constraint | database | desc | event | final |
                     first | for | from | index | inherit | inheriting |
@@ -36,13 +36,13 @@ class EdgeQLLexer(RegexLexer):
                     policy | property | required | rename | target |
                     then | to | transaction | tuple | value | view |
 
-                    aggregate | all | alter | and | any | commit |
-                    create | delete | distinct | drop | else | except |
-                    exists | filter | function | get | group | if |
-                    ilike | in | insert | intersect | is | like |
-                    limit | module | not | offset | or | order | over |
+                    aggregate | all | alter | and | commit | create |
+                    delete | distinct | drop | else | empty | exists |
+                    false | filter | function | get | group | if |
+                    ilike | in | insert | is | like | limit | matches |
+                    module | not | offset | or | order | over |
                     partition | returning | rollback | select | set |
-                    singleton | start | update | union | with
+                    singleton | start | true | update | union | with
                 )\b
             ''', token.Keyword.Reserved),
         ],

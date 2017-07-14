@@ -698,10 +698,6 @@ class Expr(Nonterm):
             op = ast.ops.LE
         elif op == '@@':
             op = qlast.SEARCH
-        elif op == '~':
-            op = qlast.REMATCH
-        elif op == '~*':
-            op = qlast.REIMATCH
         elif op == '?=':
             op = qlast.EQUIVALENT
         elif op == '?!=':
@@ -734,6 +730,14 @@ class Expr(Nonterm):
 
     def reduce_Expr_NOT_ILIKE_Expr(self, *kids):
         self.val = qlast.BinOp(left=kids[0].val, op=qlast.NOT_ILIKE,
+                               right=kids[3].val)
+
+    def reduce_Expr_MATCHES_Expr(self, *kids):
+        self.val = qlast.BinOp(left=kids[0].val, op=qlast.REMATCH,
+                               right=kids[2].val)
+
+    def reduce_Expr_NOT_MATCHES_Expr(self, *kids):
+        self.val = qlast.BinOp(left=kids[0].val, op=qlast.NOT_REMATCH,
                                right=kids[3].val)
 
     def reduce_Expr_IS_Expr(self, *kids):

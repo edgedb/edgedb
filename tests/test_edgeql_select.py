@@ -541,21 +541,21 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT
                 Text {body}
             FILTER
-                Text.body ~ 'ed'
+                Text.body MATCHES 'ed'
             ORDER BY Text.body;
 
             WITH MODULE test
             SELECT
                 Text {body}
             FILTER
-                Text.body ~ 'eD'
+                Text.body MATCHES 'eD'
             ORDER BY Text.body;
 
             WITH MODULE test
             SELECT
                 Text {body}
             FILTER
-                Text.body ~ 'ed([S\s]|$)'
+                Text.body MATCHES 'ed([S\s]|$)'
             ORDER BY Text.body;
         """, [
             [{'body': 'EdgeDB needs to happen soon.'},
@@ -573,21 +573,21 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT
                 Text {body}
             FILTER
-                Text.body ~* 'ed'
+                Text.body MATCHES '(?i)ed'
             ORDER BY Text.body;
 
             WITH MODULE test
             SELECT
                 Text {body}
             FILTER
-                Text.body ~* 'eD'
+                Text.body MATCHES '(?i)eD'
             ORDER BY Text.body;
 
             WITH MODULE test
             SELECT
                 Text {body}
             FILTER
-                Text.body ~* 'ed([S\s]|$)'
+                Text.body MATCHES '(?i)ed([S\s]|$)'
             ORDER BY Text.body;
         """, [
             [{'body': 'EdgeDB needs to happen soon.'},
@@ -601,6 +601,78 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'body': 'EdgeDB needs to happen soon.'},
              {'body': 'Fix regression introduced by lexer tweak.'},
              {'body': 'We need to be able to render data in tabular format.'}],
+        ])
+
+    async def test_edgeql_select_match09(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT
+                Text {body}
+            FILTER
+                Text.body NOT MATCHES 'ed'
+            ORDER BY Text.body;
+
+            WITH MODULE test
+            SELECT
+                Text {body}
+            FILTER
+                Text.body NOT MATCHES 'eD'
+            ORDER BY Text.body;
+
+            WITH MODULE test
+            SELECT
+                Text {body}
+            FILTER
+                Text.body NOT MATCHES 'ed([S\s]|$)'
+            ORDER BY Text.body;
+        """, [
+            [{'body': 'Initial public release of EdgeDB.'},
+             {'body': 'Minor lexer tweaks.'},
+             {'body': 'Rewriting everything.'}],
+            [{'body': 'Fix regression introduced by lexer tweak.'},
+             {'body': 'Minor lexer tweaks.'},
+             {'body': 'Rewriting everything.'},
+             {'body': 'We need to be able to render data in tabular format.'}],
+            [{'body': 'EdgeDB needs to happen soon.'},
+             {'body': 'Initial public release of EdgeDB.'},
+             {'body': 'Minor lexer tweaks.'},
+             {'body': 'Rewriting everything.'}],
+        ])
+
+    async def test_edgeql_select_match10(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT
+                Text {body}
+            FILTER
+                NOT Text.body MATCHES 'ed'
+            ORDER BY Text.body;
+
+            WITH MODULE test
+            SELECT
+                Text {body}
+            FILTER
+                NOT Text.body MATCHES 'eD'
+            ORDER BY Text.body;
+
+            WITH MODULE test
+            SELECT
+                Text {body}
+            FILTER
+                NOT Text.body MATCHES 'ed([S\s]|$)'
+            ORDER BY Text.body;
+        """, [
+            [{'body': 'Initial public release of EdgeDB.'},
+             {'body': 'Minor lexer tweaks.'},
+             {'body': 'Rewriting everything.'}],
+            [{'body': 'Fix regression introduced by lexer tweak.'},
+             {'body': 'Minor lexer tweaks.'},
+             {'body': 'Rewriting everything.'},
+             {'body': 'We need to be able to render data in tabular format.'}],
+            [{'body': 'EdgeDB needs to happen soon.'},
+             {'body': 'Initial public release of EdgeDB.'},
+             {'body': 'Minor lexer tweaks.'},
+             {'body': 'Rewriting everything.'}],
         ])
 
     async def test_edgeql_select_type01(self):
