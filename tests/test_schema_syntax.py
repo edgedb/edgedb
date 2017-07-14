@@ -360,6 +360,18 @@ atom special extends int:
         expr := subject % 2 = 0
         """
 
+    def test_eschema_syntax_atom11(self):
+        """
+atom constraint_length extends str:
+     constraint maxlength(16+1, len(([1])))
+        """
+
+    def test_eschema_syntax_atom12(self):
+        """
+atom constraint_length extends str:
+     constraint maxlength((16+(4*2))/((4)-1), len(([1])))
+        """
+
     def test_eschema_syntax_constraint01(self):
         """
 constraint max($param:any):

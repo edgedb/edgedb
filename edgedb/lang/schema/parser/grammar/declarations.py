@@ -523,16 +523,16 @@ class FunctionSpecs(ListNonterm, element=FunctionSpec):
 
 
 class ParenRawString(Nonterm):
-    def reduce_ParenRawString_LPAREN_ParenRawStr_RPAREN(self, *kids):
+    def reduce_ParenRawString_LPAREN_ParenRawString_RPAREN(self, *kids):
         self.val = kids[0].val
         self.val.value += f'({kids[2].val.value})'
+
+    def reduce_LPAREN_ParenRawString_RPAREN(self, *kids):
+        self.val = kids[1].val
 
     def reduce_ParenRawString_ParenRawStr(self, *kids):
         self.val = kids[0].val
         self.val.value += kids[1].val.value
-
-    def reduce_LPAREN_ParenRawStr_RPAREN(self, *kids):
-        self.val = kids[1].val
 
     def reduce_ParenRawStr(self, *kids):
         self.val = kids[0].val
