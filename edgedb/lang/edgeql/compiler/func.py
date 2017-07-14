@@ -168,9 +168,11 @@ def check_function(
                 return False
         return True
 
-    for pt, at in itertools.zip_longest(func.paramtypes, arg_types):
+    for pt, pd, at in itertools.zip_longest(func.paramtypes,
+                                            func.paramdefaults,
+                                            arg_types):
         if pt is None:
-            # We have more arguments then parameters.
+            # We have more arguments than parameters.
             if func.varparam is not None:
                 # Function has a variadic parameter
                 # (which must be the last one).
@@ -179,8 +181,15 @@ def check_function(
                 # No variadic parameter, hence no match.
                 return False
 
-        if not at.issubclass(pt):
-            return False
+        elif at is None:
+            # We have less arguments than parameters.
+            if pd is None:
+                return False
+        else:
+            # We have both types for the parameter and for
+            # the argument; check if they are compatible.
+            if not at.issubclass(pt):
+                return False
 
     # Match, the `func` passed all checks.
     return True
