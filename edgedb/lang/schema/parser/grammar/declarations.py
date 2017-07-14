@@ -23,17 +23,16 @@ from . import tokens
 from .tokens import *  # NOQA
 
 
-def parse_edgeql(expression):
-    ctx = expression.context
-
+def parse_edgeql(expr: str, ctx, *, offset_column=0):
     try:
-        node = edgeql.parse(expression.value)
+        node = edgeql.parse(expr)
     except parsing.ParserError as err:
-        context.rebase_context(ctx, get_context(err, parsing.ParserContext))
+        context.rebase_context(
+            ctx, get_context(err, parsing.ParserContext),
+            offset_column=offset_column)
         raise err
 
     context.rebase_ast_context(ctx, node)
-
     return node
 
 
@@ -465,7 +464,7 @@ class OptSetOf(Nonterm):
 class FunctionDeclCore(Nonterm):
     def reduce_FunctionDeclCore(self, *kids):
         r"""%reduce \
-                Identifier FunctionArgs \
+                Identifier FunctionParameters \
                 ARROW OptSetOf TypeName FunctionSpecsBlob \
         """
         attributes = []
@@ -537,6 +536,37 @@ class ParenRawString(Nonterm):
     def reduce_ParenRawStr(self, *kids):
         self.val = kids[0].val
 
+    def parse_as_call_args(self):
+        expr = self.val.value
+        context = self.val.context
+
+        prefix, postfix = 'SELECT f(', ')'
+        eql_query = f'{prefix}{expr}{postfix}'
+        eql = parse_edgeql(eql_query, context, offset_column=-len(prefix))
+
+        if (not isinstance(eql, qlast.SelectQuery) or
+                not isinstance(eql.result, qlast.FunctionCall)):
+            raise SchemaSyntaxError(
+                f'Could not parse EdgeQL call arguments {expr!r}',
+                context=context) from None
+
+        return eql.result.args
+
+    def parse_as_parameters_decl(self):
+        expr = self.val.value
+        context = self.val.context
+
+        prefix, postfix = 'CREATE FUNCTION f(', ') RETURNING any FROM SQL ""'
+        eql_query = f'{prefix}{expr}{postfix}'
+        eql = parse_edgeql(eql_query, context, offset_column=-len(prefix))
+
+        if not isinstance(eql, qlast.CreateFunction):
+            raise SchemaSyntaxError(
+                f'Could not parse EdgeQL parameters declaration {expr!r}',
+                context=context) from None
+
+        return eql.args
+
 
 class ParenRawStr(Nonterm):
     def reduce_STRING(self, *kids):
@@ -550,17 +580,16 @@ class ParenRawStr(Nonterm):
         self.val = esast.RawLiteral(value=kids[0].val)
 
 
-class FunctionArgs(Nonterm):
+class FunctionParameters(Nonterm):
     def reduce_LPAREN_RPAREN(self, *kids):
         self.val = []
 
     def reduce_LPAREN_ParenRawString_RPAREN(self, *kids):
-        args = [kids[1].val]
-        self.val = args
+        self.val = kids[1].parse_as_parameters_decl()
 
 
-class OptFunctionArgs(Nonterm):
-    def reduce_FunctionArgs(self, *kids):
+class OptFunctionParameters(Nonterm):
+    def reduce_FunctionParameters(self, *kids):
         self.val = kids[0].val
 
     def reduce_empty(self):
@@ -568,16 +597,16 @@ class OptFunctionArgs(Nonterm):
 
 
 class CallableNameAndExtends(Nonterm):
-    def reduce_Identifier_OptFunctionArgs_EXTENDS_NameList(self, *kids):
+    def reduce_Identifier_OptFunctionParameters_EXTENDS_NameList(self, *kids):
         self.val = esast.Declaration(name=kids[0].val, args=kids[1].val,
                                      extends=kids[3].val)
 
-    def reduce_Identifier_OptFunctionArgs_EXTENDS_LPAREN_NameList_RPAREN(
+    def reduce_Identifier_OptFunctionParameters_EXTENDS_LPAREN_NameList_RPAREN(
             self, *kids):
         self.val = esast.Declaration(name=kids[0].val, args=kids[1].val,
                                      extends=kids[4].val)
 
-    def reduce_Identifier_OptFunctionArgs(self, *kids):
+    def reduce_Identifier_OptFunctionParameters(self, *kids):
         self.val = esast.Declaration(name=kids[0].val, args=kids[1].val)
 
 
@@ -643,10 +672,12 @@ class DeclarationSpecsBlob(Nonterm):
 #
 class TurnstileBlob(parsing.Nonterm):
     def reduce_TURNSTILE_RawString_NL(self, *kids):
-        self.val = parse_edgeql(kids[1].val)
+        st = kids[1].val
+        self.val = parse_edgeql(st.value, st.context)
 
     def reduce_TURNSTILE_NL_INDENT_RawString_NL_DEDENT(self, *kids):
-        self.val = parse_edgeql(kids[3].val)
+        st = kids[3].val
+        self.val = parse_edgeql(st.value, st.context)
 
 
 class Link(Nonterm):
@@ -722,22 +753,38 @@ class Index(Nonterm):
         self.val = esast.Index(name=kids[1].val, expression=kids[2].val)
 
 
+class ConstraintCallArguments(Nonterm):
+    def reduce_LPAREN_RPAREN(self, *kids):
+        self.val = qlast.Tuple(elements=[])
+
+    def reduce_LPAREN_ParenRawString_RPAREN(self, *kids):
+        call_args = kids[1].parse_as_call_args()
+        call_args = qlast.Tuple(elements=call_args)
+        self.val = call_args
+
+
+class OptConstraintCallArguments(Nonterm):
+    def reduce_empty(self, *kids):
+        self.val = qlast.Tuple(elements=[])
+
+    def reduce_ConstraintCallArguments(self, *kids):
+        self.val = kids[0].val
+
+
 class Constraint(Nonterm):
-    def reduce_CONSTRAINT_ObjectName_OptFunctionArgs_NL(self, *kids):
+    def reduce_constraint(self, *kids):
+        r"""%reduce \
+                CONSTRAINT ObjectName OptConstraintCallArguments NL \
+        """
         self.val = esast.Constraint(name=kids[1].val, args=kids[2].val)
 
     def reduce_constraint_with_attributes(self, *kids):
         r"""%reduce \
-                CONSTRAINT ObjectName OptFunctionArgs \
+                CONSTRAINT ObjectName OptConstraintCallArguments \
                 COLON NL INDENT Attributes DEDENT \
         """
         self.val = esast.Constraint(name=kids[1].val, args=kids[2].val,
                                     attributes=kids[6].val)
-
-    def reduce_CONSTRAINT_ObjectName_TurnstileBlob(self, *kids):
-        self.val = esast.Constraint(
-            name=kids[1].val,
-            args=qlast.Tuple(elements=[kids[2].val]))
 
 
 class Attribute(Nonterm):

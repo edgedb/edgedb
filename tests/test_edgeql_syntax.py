@@ -2560,6 +2560,15 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             FROM SQL FUNCTION 'strlen';
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'missing type declaration.*\$arg3', line=2, col=74)
+    def test_edgeql_syntax_ddl_function30(self):
+        """
+        CREATE FUNCTION std::foobar($arg1: str, $arg2: str = 'DEFAULT', *$arg3)
+            RETURNING std::int
+            FROM EdgeQL $$$$;
+        """
+
     def test_edgeql_syntax_ddl_linkproperty01(self):
         """
         CREATE LINK PROPERTY std::linkproperty {

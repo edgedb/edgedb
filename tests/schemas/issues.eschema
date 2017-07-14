@@ -2,7 +2,7 @@ abstract concept Text:
     # This is an abstract object containing text.
     required link body to str:
         # Maximum length of text is 10000 characters.
-        constraint maxlength := 10000
+        constraint maxlength(10000)
 
 
 abstract concept Named:

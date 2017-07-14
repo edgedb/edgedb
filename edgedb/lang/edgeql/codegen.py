@@ -486,7 +486,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if isinstance(node.func, tuple):
             self.write('::'.join(node.func))
         else:
-            self.write(node.func)
+            self.write(ident_to_str(node.func))
 
         self.write('(')
 

@@ -7,7 +7,7 @@
 
 
 import re
-import unittest
+import unittest  # NoQA
 
 from edgedb.lang import _testbase as tb
 from edgedb.lang.schema import generate_source as eschema_to_source, error
@@ -53,24 +53,11 @@ abstract concept OwnedObject:
     required link owner to User
         """
 
-    @unittest.expectedFailure
     def test_eschema_syntax_concept03(self):
         """
         abstract concept Text:
             required link body to str:
-                constraint maxlength := 10000
-
-% OK %
-
-        abstract concept Text:
-            required link body to str:
-                constraint maxlength:
-                    args :=
-                        (
-                            param := (SELECT
-                                10000
-                            )
-                        )
+                constraint maxlength (10000)
         """
 
     def test_eschema_syntax_concept04(self):
@@ -272,18 +259,16 @@ atom issue_num_t extends int:
     default: 42
         """
 
-    @unittest.expectedFailure
     def test_eschema_syntax_atom03(self):
         """
 atom basic extends int:
     title: 'Basic Atom'
     default: 2
-    constraint min := 0
-    constraint max := 123456
+    constraint min(0)
+    constraint max(123456)
     constraint must_be_even
         """
 
-    @unittest.expectedFailure
     def test_eschema_syntax_atom04(self):
         """
 atom basic extends int:
@@ -291,13 +276,12 @@ atom basic extends int:
     title: 'Basic Atom'
     default: 2
 
-    constraint min := 0
-    constraint max := 123456
+    constraint min(0)
+    constraint max(123456)
     constraint expr:
         subject := subject % 2 = 0
         """
 
-    @unittest.expectedFailure
     def test_eschema_syntax_atom05(self):
         """
 atom basic extends int:
@@ -308,11 +292,10 @@ atom basic extends int:
     constraint expr:
         subject :=
             subject % 2 = 0
-    constraint min := 0
-    constraint max := 123456
+    constraint min(0)
+    constraint max(123456)
         """
 
-    @unittest.expectedFailure
     def test_eschema_syntax_atom06(self):
         """
 atom basic extends int:
@@ -320,8 +303,8 @@ atom basic extends int:
     title: 'Basic Atom'
     default: 2
 
-    constraint min := 0
-    constraint max := 123456
+    constraint min(0)
+    constraint max(123456)
     constraint expr:
         subject := subject % 2 = 0
 
@@ -344,11 +327,12 @@ atom basic extends int:
     abstract constraint special_constraint
         """
 
-    @unittest.expectedFailure
+    @tb.must_fail(error.SchemaSyntaxError,
+                  r"Unexpected token.*:=",
+                  line=3, col=44)
     def test_eschema_syntax_atom09(self):
         """
 atom special extends int:
-    title: 'Special Atom'
     abstract constraint special_constraint := [42, 100, 9001]
         """
 
@@ -389,7 +373,7 @@ abstract constraint length:
     def test_eschema_syntax_constraint03(self):
         """
 constraint maxlength($param:any) extends max, length:
-    errmessage: '{subject} must be no longer than {param} characters.'
+    errmessage: '{$subject} must be no longer than {$param} characters.'
         """
 
     def test_eschema_syntax_constraint04(self):
@@ -413,6 +397,14 @@ abstract constraint distance:
 
 constraint maxldistance extends max, distance:
     errmessage: '{subject} must be no longer than {param} meters.'
+        """
+
+    @tb.must_fail(error.SchemaSyntaxError,
+                  r"missing type declaration.*\$param",
+                  line=2, col=22)
+    def test_eschema_syntax_constraint06(self):
+        """
+constraint maxlength($param) extends max, length
         """
 
     def test_eschema_syntax_linkproperty01(self):
@@ -489,7 +481,6 @@ link coollink:
         expr := self.foo = self.bar
         """
 
-    @unittest.expectedFailure
     def test_eschema_syntax_link05(self):
         """
 linkproperty foo:
@@ -501,13 +492,15 @@ linkproperty bar extends foo:
 link coollink:
     linkproperty foo to int:
         default: 2
-        constraint min := 0
-        constraint max := 123456
-        constraint expr := subject % 2 = 0
+        constraint min(0)
+        constraint max(123456)
+        constraint expr:
+            subject := subject % 2 = 0
 
     linkproperty bar to int
 
-    constraint expr := self.foo = self.bar
+    constraint expr:
+        subject := self.foo = self.bar
 
     on self_deleted ignore
 
@@ -546,6 +539,12 @@ event self_deleted:
         link time_estimate:
            linkproperty unit to str:
                constraint my_constraint(')', `)`($$)$$))
+
+% OK %
+
+        link time_estimate:
+           linkproperty unit to str:
+               constraint my_constraint(')', `)`(')'))
         """
 
     def test_eschema_syntax_import01(self):
@@ -628,8 +627,9 @@ event self_deleted:
     def test_eschema_syntax_function04(self):
         """
         # the line continuation is just to allow long single line
-        function myfunc($arg1: str, $arg2: str = 'DEFAULT', *$arg3) -> \
-                                                                    set of int:
+        function myfunc($arg1: str, $arg2: str = 'DEFAULT',
+                        *$arg3:std::int) -> \
+                        set of int:
             volatile: true
             description:>
                 myfunc sample
@@ -641,7 +641,7 @@ event self_deleted:
         """
         function myfunc($arg1: str,
                         $arg2: str = 'DEFAULT',
-                        *$arg3) -> set of int:
+                        *$arg3: std::int) -> set of int:
             volatile: true
             description:>
                 myfunc sample
@@ -676,11 +676,21 @@ event self_deleted:
         """
         function some_func($foo: str = $$)$$) -> std::str:
             from edgeql function: some_other_func
+
+% OK %
+
+        function some_func($foo: str = ')') -> std::str:
+            from edgeql function: some_other_func
         """
 
     def test_eschema_syntax_function10(self):
         """
         function some_func($foo: str = $a1$)$a1$) -> std::str:
+            from edgeql function: some_other_func
+
+% OK %
+
+        function some_func($foo: str = ')') -> std::str:
             from edgeql function: some_other_func
         """
 
@@ -724,7 +734,8 @@ event self_deleted:
 
     def test_eschema_syntax_aggregate04(self):
         """
-        aggregate myfunc($arg1: str, $arg2: str = 'DEFAULT', *$arg3) -> int:
+        aggregate myfunc($arg1: str, $arg2: str = 'DEFAULT',
+                         *$arg3:std::int) -> int:
             initial value: 42
             volatile: true
             description: 'myfunc sample'
@@ -739,6 +750,16 @@ event self_deleted:
         """
         aggregate len() -> std::int:
             from sql function: length
+        """
+
+    @tb.must_fail(error.SchemaSyntaxError,
+                  r"missing type declaration.*\$arg3",
+                  line=3, col=27)
+    def test_eschema_syntax_aggregate06(self):
+        """
+        aggregate myfunc($arg1: str, $arg2: str = 'DEFAULT',
+                         *$arg3) -> int:
+            initial value: 42
         """
 
     def test_eschema_syntax_view01(self):

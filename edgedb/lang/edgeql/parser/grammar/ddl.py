@@ -1406,6 +1406,11 @@ class FuncDeclArg(Nonterm):
             default=kids[5].val
         )
 
+    def reduce_OptVariadic_DOLLAR_Identifier_OptDefault(self, *kids):
+        raise EdgeQLSyntaxError(
+            f'missing type declaration for function parameter ${kids[2].val}',
+            context=kids[1].context)
+
 
 class FuncDeclArgList(ListNonterm, element=FuncDeclArg,
                       separator=tokens.T_COMMA):
