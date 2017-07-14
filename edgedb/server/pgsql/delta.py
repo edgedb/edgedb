@@ -451,6 +451,7 @@ class CreateFunction(FunctionCommand, CreateNamedClass,
             name=self.get_pgname(func),
             args=self.compile_args(func, schema),
             variadic_arg=func.varparam,
+            set_returning=func.set_returning,
             returns=self.get_pgtype(func, func.returntype, schema),
             text=func.code)
 
