@@ -136,12 +136,6 @@ CREATE FUNCTION std::re_match(std::str, std::str, std::str='')
         SELECT regexp_matches($1, $2, $3);
     $$;
 
-CREATE FUNCTION std::to_tsquery(std::str) RETURNING std::tsquery
-    FROM SQL FUNCTION 'to_tsquery';
-
-CREATE FUNCTION std::to_tsvector(std::str) RETURNING std::tsvector
-    FROM SQL FUNCTION 'to_tsvector';
-
 CREATE CONSTRAINT std::constraint {
     SET errmessage := 'invalid {subject}';
 };

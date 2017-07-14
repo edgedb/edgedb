@@ -494,47 +494,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [],
         ])
 
-    async def test_edgeql_select_match05(self):
-        await self.assert_query_result(r"""
-            WITH MODULE test
-            SELECT
-                Issue {number}
-            FILTER
-                Issue.name @@ 'edgedb'
-            ORDER BY Issue.number;
-
-            WITH MODULE test
-            SELECT
-                Issue {number}
-            FILTER
-                Issue.body @@ 'need'
-            ORDER BY Issue.number;
-        """, [
-            [{'number': '1'}, {'number': '2'}],
-            [{'number': '2'}],
-        ])
-
-    async def test_edgeql_select_match06(self):
-        await self.assert_query_result(r"""
-            # XXX: @@ used with a query operand, as opposed to a literal
-            WITH MODULE test
-            SELECT
-                Issue {number}
-            FILTER
-                Issue.name @@ to_tsquery('edgedb & repl')
-            ORDER BY Issue.number;
-
-            WITH MODULE test
-            SELECT
-                Issue {number}
-            FILTER
-                Issue.name @@ to_tsquery('edgedb | repl')
-            ORDER BY Issue.number;
-        """, [
-            [{'number': '2'}],
-            [{'number': '1'}, {'number': '2'}, {'number': '3'}],
-        ])
-
     async def test_edgeql_select_match07(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -1865,7 +1824,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Text[IS Issue].name
-            FILTER Text.body @@ 'EdgeDB'
+            FILTER Text.body LIKE '%EdgeDB%'
             ORDER BY Text[IS Issue].name;
         ''', [
             ['Release EdgeDB']
