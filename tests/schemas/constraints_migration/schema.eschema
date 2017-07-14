@@ -7,36 +7,36 @@
 
 
 atom constraint_length extends str:
-    constraint maxlength := 16
-    constraint maxlength := 10
-    constraint minlength := 5
-    constraint minlength := 8
+    constraint maxlength(16)
+    constraint maxlength(10)
+    constraint minlength(5)
+    constraint minlength(8)
 
 
 atom constraint_length_2 extends constraint_length:
-    constraint minlength := 9
+    constraint minlength(9)
 
 
 atom constraint_minmax extends str:
-    constraint min := "99900000"
-    constraint min := "99990000"
-    constraint max := "9999999989"
+    constraint min("99900000")
+    constraint min("99990000")
+    constraint max("9999999989")
 
 
 atom constraint_strvalue extends str:
     constraint expression:
         subject := (subject)[-1:] = '9'
 
-    constraint regexp := "^\d+$"
+    constraint regexp("^\d+$")
 
     constraint expression:
         subject := (subject)[0] = '9'
 
-    constraint regexp := "^\d+9{3,}.*$"
+    constraint regexp("^\d+9{3,}.*$")
 
 
 atom constraint_enum extends str:
-   constraint enum := ['foo', 'bar']
+   constraint enum(['foo', 'bar'])
 
 
 link translated_label:
@@ -67,7 +67,7 @@ concept Object:
     link c_length to constraint_length
     link c_length_2 to constraint_length_2
     link c_length_3 to constraint_length_2:
-        constraint minlength := 10
+        constraint minlength(10)
 
     link c_minmax to constraint_minmax
     link c_strvalue to constraint_strvalue

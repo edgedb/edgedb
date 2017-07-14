@@ -193,7 +193,7 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         if node.variadic:
             self.write('*')
         if node.name is not None:
-            self.write(ident_to_str(node.name), ': ')
+            self.write('$', ident_to_str(node.name), ': ')
         self.visit(node.type)
 
         if node.default:
@@ -246,8 +246,9 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         self.write('constraint ')
         self.visit(node.name)
         if node.args:
+            assert isinstance(node.args, eqlast.Tuple)
             self.write('(')
-            self.visit_list(node.args, newlines=False)
+            self.visit_list(node.args.elements)
             self.write(')')
 
         if node.attributes:
