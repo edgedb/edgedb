@@ -7,7 +7,6 @@
 
 
 import collections
-import edgedb
 import os
 import subprocess
 import sys
@@ -27,18 +26,23 @@ from edgedb.lang.graphql import parser as graphql_parser
 from edgedb.lang.schema import parser as schema_parser
 
 
+def find_edgedb_root():
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
 class TestFlake8(unittest.TestCase):
 
     def test_flake8(self):
+        edgepath = find_edgedb_root()
+        config_path = os.path.join(edgepath, '.flake8')
+        if not os.path.exists(config_path):
+            raise RuntimeError('could not locate .flake8 file')
+
         try:
             import flake8  # NoQA
         except ImportError:
             raise unittest.SkipTest('flake8 moudule is missing')
 
-        edgepath = list(edgedb.__path__)[0]
-        edgepath = os.path.dirname(edgepath)
-
-        config_path = os.path.join(edgepath, '.flake8')
         for subdir in ['edgedb', 'tests']:  # ignore any top-level test files
             try:
                 subprocess.run(
@@ -195,8 +199,7 @@ class TestDocSnippets(unittest.TestCase):
 
     @unittest.skipIf(docutils is None, 'docutils is missing')
     def test_doc_snippets(self):
-        edgepath = list(edgedb.__path__)[0]
-        edgepath = os.path.dirname(edgepath)
+        edgepath = edgepath = find_edgedb_root()
         docspath = os.path.join(edgepath, 'doc')
 
         for filename in self.find_rest_files(docspath):
