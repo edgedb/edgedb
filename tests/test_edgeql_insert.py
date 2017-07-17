@@ -7,6 +7,7 @@
 
 
 import os.path
+import unittest  # NOQA
 import uuid
 
 from edgedb.client import exceptions as exc
@@ -24,6 +25,8 @@ class TestInsert(tb.QueryTestCase):
         DELETE test::InsertTest;
         DELETE test::DefaultTest1;
         DELETE test::DefaultTest2;
+        DELETE test::DefaultTest3;
+        DELETE test::DefaultTest4;
     """
 
     async def test_edgeql_insert_fail_1(self):
@@ -555,6 +558,164 @@ class TestInsert(tb.QueryTestCase):
                     'l3': 'test',
                 },
             ]
+        )
+
+    @unittest.expectedFailure
+    async def test_edgeql_insert_for02(self):
+        res = await self.con.execute(r'''
+            # create 1000 DefaultTest3 objects, each object is defined
+            # as having a randomly generated value for 'foo'
+            WITH MODULE test
+            FOR x IN {1, 2, 3, 4, 5, 6, 7, 8, 9, 10} *
+                     {1, 2, 3, 4, 5, 6, 7, 8, 9, 10} *
+                     {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+                     # 10 x 10 x 10 entries in the cross-product
+            INSERT DefaultTest3;
+
+            # statistically, randomly generated value for 'foo' should not be
+            # identical for all 1000 records
+            WITH
+                MODULE test,
+                DT3 := DefaultTest3
+            SELECT count(ALL
+                DefaultTest3 FILTER DefaultTest3.foo != DT3.foo) > 0;
+        ''')
+
+        self.assert_data_shape(
+            res[-1], [True]
+        )
+
+    @unittest.expectedFailure
+    async def test_edgeql_insert_for03(self):
+        res = await self.con.execute(r'''
+            # Create 5 DefaultTest4 objects. The default value for
+            # 'bar' is technically evaluated for each object, but
+            # because it is deterministic it will be same for all 5
+            # new objects.
+            WITH MODULE test
+            FOR x IN {1, 2, 3, 4, 5}
+            INSERT DefaultTest4;
+
+            WITH MODULE test
+            SELECT DefaultTest4.bar
+            ORDER BY DefaultTest4.bar;
+        ''')
+
+        self.assert_data_shape(
+            res[-1], [0, 0, 0, 0, 0]
+        )
+
+    async def test_edgeql_insert_default01(self):
+        res = await self.con.execute(r'''
+            # create 10 DefaultTest3 objects, each object is defined
+            # as having a randomly generated value for 'foo'
+            INSERT test::DefaultTest3;
+            INSERT test::DefaultTest3;
+            INSERT test::DefaultTest3;
+            INSERT test::DefaultTest3;
+            INSERT test::DefaultTest3;
+
+            INSERT test::DefaultTest3;
+            INSERT test::DefaultTest3;
+            INSERT test::DefaultTest3;
+            INSERT test::DefaultTest3;
+            INSERT test::DefaultTest3;
+
+            # statistically, randomly generated value for 'foo' should not be
+            # identical for all 10 records
+            WITH
+                MODULE test,
+                DT3 := DefaultTest3
+            SELECT count(ALL
+                DefaultTest3 FILTER DefaultTest3.foo != DT3.foo) > 0;
+        ''')
+
+        self.assert_data_shape(
+            res[-1], [True]
+        )
+
+    @unittest.expectedFailure
+    async def test_edgeql_insert_default02(self):
+        res = await self.con.execute(r'''
+            # by default the 'bar' value is simply going to be "indexing" the
+            # created objects
+            INSERT test::DefaultTest4;
+            INSERT test::DefaultTest4;
+            INSERT test::DefaultTest4;
+            INSERT test::DefaultTest4;
+            INSERT test::DefaultTest4;
+
+            WITH MODULE test
+            SELECT DefaultTest4 { bar }
+            ORDER BY DefaultTest4.bar;
+        ''')
+
+        self.assert_data_shape(
+            res[-1], [{
+                'bar': 0,
+            }, {
+                'bar': 1,
+            }, {
+                'bar': 2,
+            }, {
+                'bar': 3,
+            }, {
+                'bar': 4,
+            }]
+        )
+
+    @unittest.expectedFailure
+    async def test_edgeql_insert_default03(self):
+        res = await self.con.execute(r'''
+            # by default the 'bar' value is simply going to be "indexing" the
+            # created objects
+            INSERT test::DefaultTest4 { bar:= 10 };
+            INSERT test::DefaultTest4;
+            INSERT test::DefaultTest4;
+
+            WITH MODULE test
+            SELECT DefaultTest4 { bar }
+            ORDER BY DefaultTest4.bar;
+        ''')
+
+        self.assert_data_shape(
+            res[-1], [{
+                'bar': 1,
+            }, {
+                'bar': 2,
+            }, {
+                'bar': 10,
+            }]
+        )
+
+    @unittest.expectedFailure
+    async def test_edgeql_insert_default04(self):
+        res = await self.con.execute(r'''
+            # by default the 'bar' value is simply going to be "indexing" the
+            # created objects
+            INSERT test::DefaultTest4;
+            INSERT test::DefaultTest4;
+            INSERT test::DefaultTest4 { bar:= 0 };
+            INSERT test::DefaultTest4;
+            INSERT test::DefaultTest4;
+
+            WITH MODULE test
+            SELECT DefaultTest4 { bar }
+            ORDER BY DefaultTest4.bar;
+        ''')
+
+        self.assert_data_shape(
+            res[-1], [{
+                'bar': 0,
+            }, {
+                'bar': 0,
+            }, {
+                'bar': 1,
+            }, {
+                'bar': 3,
+            }, {
+                'bar': 4,
+            }]
         )
 
     @tb.expected_optimizer_failure

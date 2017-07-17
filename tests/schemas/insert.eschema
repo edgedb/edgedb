@@ -35,3 +35,13 @@ concept DefaultTest2:
             SELECT DefaultTest1.num + 1
             ORDER BY DefaultTest1.num DESC
             LIMIT 1
+
+concept DefaultTest3:
+    required link foo to float:
+        # non-deterministic dynamic value
+        default := random()
+
+concept DefaultTest4:
+    required link bar to int:
+        # deterministic dynamic value
+        default := (SELECT count(ALL DefaultTest4))
