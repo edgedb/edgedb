@@ -337,7 +337,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
+    @tb.expected_optimizer_failure
     async def test_edgeql_links_set06(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -359,36 +359,36 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             [
                 {
                     'name': 'ball',
-                    'tag_set1': None,
-                    'tag_set2': None,
+                    'foo': None,
+                    'bar': None,
                 }, {
                     'name': 'chair',
-                    'tag_set1': {'wood', 'rectangle'},
-                    'tag_set2': None,
+                    'foo': {'wood', 'rectangle'},
+                    'bar': None,
                 }, {
                     'name': 'ectoplasm',
-                    'tag_set1': None,
-                    'tag_set2': None,
+                    'foo': None,
+                    'bar': None,
                 }, {
                     'name': 'floor lamp',
-                    'tag_set1': None,
-                    'tag_set2': None,
+                    'foo': None,
+                    'bar': None,
                 }, {
                     'name': 'mystery toy',
-                    'tag_set1': None,
-                    'tag_set2': None,
+                    'foo': None,
+                    'bar': None,
                 }, {
                     'name': 'table',
-                    'tag_set1': {'wood', 'rectangle'},
-                    'tag_set2': {'wood', 'rectangle'},
+                    'foo': {'wood', 'rectangle'},
+                    'bar': {'wood', 'rectangle'},
                 }, {
                     'name': 'teapot',
-                    'tag_set1': None,
-                    'tag_set2': None,
+                    'foo': None,
+                    'bar': None,
                 }, {
                     'name': 'tv',
-                    'tag_set1': None,
-                    'tag_set2': {'rectangle'},
+                    'foo': None,
+                    'bar': {'rectangle'},
                 },
             ],
         ])
@@ -397,13 +397,12 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
     async def test_edgeql_links_set07(self):
         await self.assert_query_result(r'''
             # subsets
-            #
             WITH MODULE test
             SELECT Item {name}
             FILTER count(ALL (
                 # XXX: check test_edgeql_expr_alias for failures first
                 SELECT _ := Item.tag_set1
-                FILTER _ = {'rectangle', 'wood'}
+                FILTER _ IN {'rectangle', 'wood'}
             )) = 2
             ORDER BY .name;
 
@@ -412,7 +411,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             FILTER count(ALL (
                 # XXX: check test_edgeql_expr_alias for failures first
                 SELECT _ := Item.tag_set2
-                FILTER _ = {'rectangle', 'wood'}
+                FILTER _ IN {'rectangle', 'wood'}
             )) = 2
             ORDER BY .name;
         ''', [
@@ -429,7 +428,6 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
     async def test_edgeql_links_set08(self):
         await self.assert_query_result(r'''
             # match sets
-            #
             WITH
                 MODULE test,
                 cmp := {'rectangle', 'wood'},
@@ -461,7 +459,81 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_links_set09(self):
+        await self.assert_query_result(r'''
+            # same as previous, but with a different syntax, leading
+            # to a different failure scenario
+            WITH
+                MODULE test,
+                cmp := {'rectangle', 'wood'},
+                cmp_count := count(ALL cmp)
+            SELECT Item {name}
+            FILTER
+                cmp_count = count(ALL Item.tag_set1)
+                AND
+                cmp_count = count(ALL Item.tag_set1 UNION cmp)
+            ORDER BY .name;
+
+            WITH
+                MODULE test,
+                cmp := {'rectangle', 'wood'},
+                cmp_count := count(ALL cmp)
+            SELECT Item {name}
+            FILTER
+                cmp_count = count(ALL Item.tag_set2)
+                AND
+                cmp_count = count(ALL Item.tag_set2 UNION cmp)
+            ORDER BY .name;
+        ''', [
+            [
+                {'name': 'chair'},
+                {'name': 'table'},
+            ], [
+                {'name': 'table'},
+                {'name': 'tv'},
+            ],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_links_set10(self):
+        await self.assert_query_result(r'''
+            # same as previous, but with a different syntax, leading
+            # to a different failure scenario
+            WITH
+                MODULE test,
+                cmp := {'rectangle', 'wood'},
+                cmp_count := count(ALL cmp)
+            # includes tag_set1 in the shape
+            SELECT Item {name, tag_set1}
+            FILTER
+                cmp_count = count(ALL Item.tag_set1)
+                AND
+                cmp_count = count(ALL Item.tag_set1 UNION cmp)
+            ORDER BY .name;
+
+            WITH
+                MODULE test,
+                cmp := {'rectangle', 'wood'},
+                cmp_count := count(ALL cmp)
+            # includes tag_set1 in the shape
+            SELECT Item {name, tag_set2}
+            FILTER
+                cmp_count = count(ALL Item.tag_set2)
+                AND
+                cmp_count = count(ALL Item.tag_set2 UNION cmp)
+            ORDER BY .name;
+        ''', [
+            [
+                {'name': 'chair', 'tag_set1': {'rectangle', 'wood'}},
+                {'name': 'table', 'tag_set1': {'rectangle', 'wood'}},
+            ], [
+                {'name': 'table', 'tag_set2': {'rectangle', 'wood'}},
+                {'name': 'tv', 'tag_set2': {'rectangle', 'wood'}},
+            ],
+        ])
+
+    async def test_edgeql_links_set11(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Item {name}
@@ -481,7 +553,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
         ])
 
     @unittest.expectedFailure
-    async def test_edgeql_links_set10(self):
+    async def test_edgeql_links_set12(self):
         await self.assert_query_result(r'''
             # find an item with a unique quality
             WITH
@@ -528,7 +600,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
         ])
 
     @unittest.expectedFailure
-    async def test_edgeql_links_set11(self):
+    async def test_edgeql_links_set13(self):
         await self.assert_query_result(r'''
             # find an item with a unique quality
             WITH
@@ -558,7 +630,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
         ])
 
     @unittest.expectedFailure
-    async def test_edgeql_links_set12(self):
+    async def test_edgeql_links_set14(self):
         await self.assert_query_result(r'''
             # find an item with a unique quality
             WITH
