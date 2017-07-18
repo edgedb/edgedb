@@ -6,19 +6,12 @@
 ##
 
 
-import os.path
-import unittest
+import unittest  # NOQA
 
 from edgedb.server import _testbase as tb
 
 
 class TestEdgeQLFunctions(tb.QueryTestCase):
-    SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'issues.eschema')
-
-    SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
-                         'issues_setup.eql')
-
     async def test_edgeql_functions_array_unpack_01(self):
         await self.assert_query_result(r'''
             SELECT [1, 2];
@@ -67,31 +60,104 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_re_match_01(self):
         await self.assert_query_result(r'''
-            SELECT re_match('ababab', 'ab');
-            SELECT re_match('ababab', 'ab', 'g');
-            SELECT re_match('ababab', 'ac');
+            SELECT re_match('AbabaB', 'ab');
+            SELECT re_match('AbabaB', 'AB');
+            SELECT re_match('AbabaB', '(?i)AB');
+            SELECT re_match('AbabaB', 'ac');
 
-            SELECT EXISTS re_match('ababab', 'ac', 'g');
-            SELECT NOT EXISTS re_match('ababab', 'ac', 'g');
+            SELECT EXISTS re_match('AbabaB', 'ac');
+            SELECT NOT EXISTS re_match('AbabaB', 'ac');
 
-            SELECT EXISTS re_match('ababab', 'ac');
-            SELECT NOT EXISTS re_match('ababab', 'ac');
+            SELECT EXISTS re_match('AbabaB', 'ab');
+            SELECT NOT EXISTS re_match('AbabaB', 'ab');
 
-            SELECT EXISTS re_match('ababab', 'ab', 'g');
-            SELECT NOT EXISTS re_match('ababab', 'ab', 'g');
-
-            SELECT EXISTS re_match('ababab', 'ab');
-            SELECT NOT EXISTS re_match('ababab', 'ab');
-
-            SELECT x := re_match('ababab', {'ab', 'a'}, 'g') ORDER BY x;
+            SELECT x := re_match('AbabaB', {'(?i)ab', 'a'}) ORDER BY x;
+            SELECT x := re_match({'AbabaB', 'qwerty'}, {'(?i)ab', 'a'})
+                ORDER BY x;
         ''', [
             [['ab']],
-            [['ab'], ['ab'], ['ab']],
+            [],
+            [['Ab']],
             [],
 
             [False],
             [True],
 
+            [True],
+            [False],
+
+            [['Ab'], ['a']],
+            [['Ab'], ['a']],
+        ])
+
+    async def test_edgeql_functions_re_match_02(self):
+        await self.assert_query_result(r'''
+            WITH MODULE schema
+            SELECT x := re_match(Concept.name, '(\w+)::(Link\w*)')
+            ORDER BY x;
+        ''', [
+            [['schema', 'Link'], ['schema', 'LinkProperty']],
+        ])
+
+    async def test_edgeql_functions_re_match_all_01(self):
+        await self.assert_query_result(r'''
+            SELECT re_match_all('AbabaB', 'ab');
+            SELECT re_match_all('AbabaB', 'AB');
+            SELECT re_match_all('AbabaB', '(?i)AB');
+            SELECT re_match_all('AbabaB', 'ac');
+
+            SELECT EXISTS re_match_all('AbabaB', 'ac');
+            SELECT NOT EXISTS re_match_all('AbabaB', 'ac');
+
+            SELECT EXISTS re_match_all('AbabaB', '(?i)ab');
+            SELECT NOT EXISTS re_match_all('AbabaB', '(?i)ab');
+
+            SELECT x := re_match_all('AbabaB', {'(?i)ab', 'a'}) ORDER BY x;
+            SELECT x := re_match_all({'AbabaB', 'qwerty'}, {'(?i)ab', 'a'})
+                ORDER BY x;
+        ''', [
+            [['ab']],
+            [],
+            [['Ab'], ['ab'], ['aB']],
+            [],
+
+            [False],
+            [True],
+
+            [True],
+            [False],
+
+            [['Ab'], ['a'], ['a'], ['aB'], ['ab']],
+            [['Ab'], ['a'], ['a'], ['aB'], ['ab']],
+        ])
+
+    async def test_edgeql_functions_re_match_all_02(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE schema,
+                C2 := Concept
+            SELECT
+                count(ALL re_match_all(Concept.name, '(\w+)')) =
+                2 * count(ALL C2);
+        ''', [
+            [True],
+        ])
+
+    async def test_edgeql_functions_re_test_01(self):
+        await self.assert_query_result(r'''
+            SELECT re_test('AbabaB', 'ac');
+            SELECT NOT re_test('AbabaB', 'ac');
+
+            SELECT re_test('AbabaB', '(?i)ab');
+            SELECT NOT re_test('AbabaB', '(?i)ab');
+
+            # the result always exists
+            SELECT EXISTS re_test('AbabaB', '(?i)ac');
+            SELECT NOT EXISTS re_test('AbabaB', '(?i)ac');
+
+            SELECT x := re_test('AbabaB', {'ab', 'a'}) ORDER BY x;
+            SELECT x := re_test({'AbabaB', 'qwerty'}, {'ab', 'a'}) ORDER BY x;
+        ''', [
             [False],
             [True],
 
@@ -101,5 +167,16 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [True],
             [False],
 
-            [['a'], ['a'], ['a'], ['ab'], ['ab'], ['ab']],
+            [True, True],
+            [False, False, True, True],
+        ])
+
+    async def test_edgeql_functions_re_test_02(self):
+        await self.assert_query_result(r'''
+            WITH MODULE schema
+            SELECT count(ALL
+                Concept FILTER re_test(Concept.name, '(\W\w)bject')
+            ) = 1;
+        ''', [
+            [True],
         ])
