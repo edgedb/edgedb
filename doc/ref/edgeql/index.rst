@@ -22,6 +22,7 @@ inspiration include Lorel_ and UnQL_.
     with
     forclause
     introspection
+    builtins
 
 
 .. _OQL: http://en.wikipedia.org/wiki/Object_Query_Language
