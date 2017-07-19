@@ -42,7 +42,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl04(self):
         await self.con.execute("""
             CREATE CONCEPT test::A;
-            CREATE CONCEPT test::B INHERITING test::A;
+            CREATE CONCEPT test::B EXTENDING test::A;
 
             CREATE CONCEPT test::Object1 {
                 CREATE REQUIRED LINK test::a TO test::A;
@@ -53,7 +53,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
 
             CREATE CONCEPT test::Object_12
-                INHERITING (test::Object1, test::Object2);
+                EXTENDING (test::Object1, test::Object2);
         """)
 
     async def test_edgeql_ddl05(self):

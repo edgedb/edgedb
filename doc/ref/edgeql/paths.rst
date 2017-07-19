@@ -536,7 +536,7 @@ Consider the following schema:
         required link body to str
         required link owner to User
 
-    concept User extends std::Named:
+    concept User extending std::Named:
         link favorites to Post:
             mapping: **
 

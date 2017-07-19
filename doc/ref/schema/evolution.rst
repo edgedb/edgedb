@@ -49,9 +49,9 @@ the EdgeDB schema. For example, consider the following schema:
 
 .. code-block:: eschema
 
-    concept City extends NamedObject
+    concept City extending NamedObject
 
-    concept Country extends NamedObject
+    concept Country extending NamedObject
 
 Let's say that this is the starting state of the module ``geo`` called
 ``geo::v1``. It is very basic and defines a ``City`` and ``Country``
@@ -63,11 +63,11 @@ iteration of development and the new module schema looks like this:
 
     # module geo
 
-    concept City extends NamedObject:
+    concept City extending NamedObject:
         link country to Country:
             mapping: *1
 
-    concept Country extends NamedObject:
+    concept Country extending NamedObject:
         link capital to City:
             mapping: 11
 
@@ -103,13 +103,13 @@ we have the 2 modules defined, let's add the ``mayor`` link to the
 
     import subjects
 
-    concept City extends NamedObject:
+    concept City extending NamedObject:
         link country to Country:
             mapping: *1
         link mayor to subjects::Person:
             mapping: *1
 
-    concept Country extends NamedObject:
+    concept Country extending NamedObject:
         link capital to City:
             mapping: 11
 

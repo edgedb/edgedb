@@ -253,7 +253,7 @@ refactoring.
 
     # Dictionary is a NamedObject variant, that enforces
     # name uniqueness across all instances if its subclass.
-    abstract concept Dictionary extends Named:
+    abstract concept Dictionary extending Named:
         required link name to str:
             abstract constraint unique
 
@@ -270,10 +270,10 @@ refactoring.
         link owner to User:
             mapping: *1
 
-    concept User extends Named
+    concept User extending Named
     # no need to specify 'link name' here anymore as it's inherited
 
-    concept Issue extends Text, Owned:
+    concept Issue extending Text, Owned:
         required link status to Status
         link priority to Priority
         required link owner to User:
@@ -281,11 +281,11 @@ refactoring.
         # because we override the link owner to be required,
         # we need to keep this definition
 
-    concept Priority extends Dictionary
+    concept Priority extending Dictionary
 
-    concept Status extends Dictionary
+    concept Status extending Dictionary
 
-    concept Comment extends Text, Owned:
+    concept Comment extending Text, Owned:
         required link issue to Issue:
             mapping: *1
         link timestamp to datetime:
@@ -324,7 +324,7 @@ schema to make owner a required field for all ``Owned`` objects.
 
     # Dictionary is a NamedObject variant, that enforces
     # name uniqueness across all instances if its subclass.
-    abstract concept Dictionary extends Named:
+    abstract concept Dictionary extending Named:
         required link name to str:
             abstract constraint unique
 
@@ -335,14 +335,14 @@ schema to make owner a required field for all ``Owned`` objects.
             # characters.
             constraint maxlength(10000)
 
-    concept User extends Named
+    concept User extending Named
     # no need to specify 'link name' here anymore as it's inherited
 
-    concept Priority extends Dictionary
+    concept Priority extending Dictionary
 
-    concept Status extends Dictionary
+    concept Status extending Dictionary
 
-    concept Comment extends Text, Owned:
+    concept Comment extending Text, Owned:
         required link issue to Issue:
             mapping: *1
         link timestamp to datetime:
@@ -361,7 +361,7 @@ schema to make owner a required field for all ``Owned`` objects.
         required link owner to User:
             mapping: *1
 
-    concept Issue extends Text, Owned:
+    concept Issue extending Text, Owned:
         required link status to Status
         link priority to Priority
         # notice we no longer need to override the owner link

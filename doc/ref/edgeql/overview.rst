@@ -18,11 +18,11 @@ assumed to be part of the module ``example``:
             # characters.
             constraint maxlength(10000)
 
-    concept User extends std::Named
+    concept User extending std::Named
     # NamedObject is a standard abstract base class,
     # that provides a name link.
 
-    concept SystemUser extends std::User
+    concept SystemUser extending std::User
     # a type of user that represents various automatic systems, that
     # might add comments to issues, perhaps based on some automatic
     # escalation system for unresolved higher priority issues
@@ -31,27 +31,27 @@ assumed to be part of the module ``example``:
         # By default links are optional.
         required link owner to User
 
-    concept Status extends std::Dictionary
+    concept Status extending std::Dictionary
     # Dictionary is a NamedObject variant, that enforces
     # name uniqueness across all instances if its subclass.
 
-    concept Priority extends std::Dictionary
+    concept Priority extending std::Dictionary
 
-    concept LogEntry extends OwnedObject, Text:
+    concept LogEntry extending OwnedObject, Text:
         # LogEntry is an OwnedObject and a Text, so it
         # will have all of their links and attributes,
         # in particular, owner and text links.
         required link spent_time to int
 
-    atom issue_num_t extends std::sequence
+    atom issue_num_t extending std::sequence
     # issue_num_t is defined as a concrete sequence type,
     # used to generate sequential issue numbers.
 
-    concept Comment extends Text, Owned:
+    concept Comment extending Text, Owned:
         required link issue to Issue
         link parent to Comment
 
-    concept Issue extends std::Named, Owned, Text:
+    concept Issue extending std::Named, Owned, Text:
 
         required link number to issue_num_t:
             readonly: true

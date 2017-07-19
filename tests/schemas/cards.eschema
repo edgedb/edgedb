@@ -12,7 +12,7 @@ link friends:
     #linkproperty favor to array<bool>
 
 
-concept User extends Named:
+concept User extending Named:
     link deck to Card:
         mapping: **
 
@@ -20,6 +20,6 @@ concept User extends Named:
         mapping: **
 
 
-concept Card extends Named:
+concept Card extending Named:
     required link element to str
     required link cost to int

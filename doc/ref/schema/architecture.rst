@@ -187,7 +187,7 @@ them.
         required link body to str
         required link owner to User
 
-    concept User extends std::Named:
+    concept User extending std::Named:
         link favorites to Post:
             mapping: **
 
@@ -212,7 +212,7 @@ an atom denoting a two-letter state code can be defined as:
 
 .. code-block:: eschema
 
-    atom state_code_t extends str:
+    atom state_code_t extending str:
         constraint minlength(2)
         constraint maxlength(2)
 
@@ -269,7 +269,7 @@ values:
         # applied to
         errmessage := '{subject} value must be even.'
 
-    atom foo_t extends int:
+    atom foo_t extending int:
         constraint must_be_even
 
 Custom constraints can refer to multiple links or link properties. In
@@ -308,7 +308,7 @@ or indirectly derive from corresponding base elements:
 * link properties derive from ``std::link_property``
 * constraints derive from ``std::constraint``
 
-Each element can specify its parents with the ``extends`` field in the
+Each element can specify its parents with the ``extending`` field in the
 schema.
 
 
@@ -336,13 +336,13 @@ Consider the following schema:
         errmesage := 'Unstable versions must be odd.'
 
     # define atoms that will be used for version numbers
-    atom ver_t extends int:
+    atom ver_t extending int:
         constraint min(0)
 
-    atom stable_ver_t extends ver_t:
+    atom stable_ver_t extending ver_t:
         constraint must_be_even
 
-    atom unstable_ver_t extends ver_t:
+    atom unstable_ver_t extending ver_t:
         constraint must_be_odd
 
     concept Project:
@@ -388,7 +388,7 @@ rather than through introducing a special "person_type" or
     concept Person:
         required link name to str
 
-    concept Employee extends Person
+    concept Employee extending Person
 
 With the above schema it's possible to write a simple query looking
 for a specific ``Person`` (including ``Employee``) or a specific
@@ -431,16 +431,16 @@ back-end for a bug-tracking system:
     concept User:
         required link name to str
 
-    concept Issue extends (Authored, Titled, Text, Commentable,
-                           Timestamped):
+    concept Issue extending (Authored, Titled, Text, Commentable,
+                             Timestamped):
         required link status to str
 
-    concept Comment extends Authored, Text, Timestamped
+    concept Comment extending Authored, Text, Timestamped
 
-    concept Discussion extends (Authored, Titled, Text, Commentable,
-                                Timestamped)
+    concept Discussion extending (Authored, Titled, Text, Commentable,
+                                  Timestamped)
 
-    concept EmailTemplate extends Titled, Text
+    concept EmailTemplate extending Titled, Text
 
 By using multiple inheritance it's possible to create a bunch of
 concepts that share some common traits. Mixins make it easier to keep
@@ -466,12 +466,12 @@ via inheritance and used in queries:
     abstract link relatives:
         title: "Relatives"
 
-    abstract link descendants extends relatives
-    abstract link ancestors extends relatives
+    abstract link descendants extending relatives
+    abstract link ancestors extending relatives
 
-    link children extends descendants
-    link grandchildren extends descendants
-    link parents extends ancestors
+    link children extending descendants
+    link grandchildren extending descendants
+    link parents extending ancestors
 
     concept Person:
         required link name to str
@@ -534,19 +534,19 @@ consider ``maxlength`` and ``minlength`` constraints:
         subject := len(<str>subject)
         errmessage: 'Invalid {subject}'
 
-    constraint max:
-        expr := subject <= $param
-        errmessage: 'Maximum allowed value for {subject} is {param}.'
+    constraint max(any):
+        expr := subject <= $1
+        errmessage: 'Maximum allowed value for {subject} is {$1}.'
 
-    constraint min:
-        expr := subject >= $param
-        errmessage: 'Minimum allowed value for {subject} is {param}.'
+    constraint min(any):
+        expr := subject >= $1
+        errmessage: 'Minimum allowed value for {subject} is {$1}.'
 
-    constraint maxlength extends max, length:
-        errmessage: '{subject} must be no longer than {param} characters.'
+    constraint maxlength(any) extending max, length:
+        errmessage: '{$subject} must be no longer than {$1} characters.'
 
-    constraint minlength extends min, length:
-        errmessage: '{subject} must be no shorter than {param} characters.'
+    constraint minlength(any) extending min, length:
+        errmessage: '{$subject} must be no shorter than {$1} characters.'
 
 Every constraint in the example above overrides the ``errmessage`` to
 better correspond to its intended meaning. Additionally, ``length``
@@ -569,11 +569,11 @@ process a string containing distance measured in meters or kilometers:
             <float>subject[:-2] * 1000 IF subject[:-2] = 'km' ELSE
             <float>subject[:-1]  # assuming suffix 'm'
 
-    constraint maxldistance extends max, distance:
-        errmessage: '{subject} must be no longer than {param} meters.'
+    constraint maxldistance(any) extending max, distance:
+        errmessage: '{subject} must be no longer than {$1} meters.'
 
-    constraint minldistance extends min, distance:
-        errmessage: '{subject} must be no shorter than {param} meters.'
+    constraint minldistance(any) extending min, distance:
+        errmessage: '{subject} must be no shorter than {$1} meters.'
 
 
 Schema composition
@@ -592,11 +592,11 @@ an abstract ``std::NamedObject``:
 
 .. code-block:: eschema
 
-    concept City extends NamedObject:
+    concept City extending NamedObject:
         link country to Country:
             mapping: *1
 
-    concept Country extends NamedObject:
+    concept Country extending NamedObject:
         link capital to City:
             mapping: 11
 

@@ -612,7 +612,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def _ddl_visit_bases(self, node):
         if getattr(node, 'bases', None):
-            self.write(' INHERITING ')
+            self.write(' EXTENDING ')
             if len(node.bases) > 1:
                 self.write('(')
             for i, b in enumerate(node.bases):
@@ -693,14 +693,14 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 'unknown special field: {!r}'.format(node.name))
 
     def visit_AlterAddInherit(self, node):
-        self.write('INHERIT ')
+        self.write('EXTENDING ')
         self.visit_list(node.bases)
         if node.position is not None:
             self.write(' ')
             self.visit(node.position)
 
     def visit_AlterDropInherit(self, node):
-        self.write('DROP INHERIT ')
+        self.write('DROP EXTENDING ')
         self.visit_list(node.bases)
 
     def visit_CreateDatabase(self, node):

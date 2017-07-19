@@ -12,8 +12,8 @@ CREATE MODULE stdattrs;  # standard schema attributes need to be in a separate
 
 CREATE ABSTRACT ATOM std::any;
 CREATE ATOM std::typeref;
-CREATE ATOM std::atomref INHERITING std::typeref;
-CREATE ATOM std::conceptref INHERITING std::typeref;
+CREATE ATOM std::atomref EXTENDING std::typeref;
+CREATE ATOM std::conceptref EXTENDING std::typeref;
 
 CREATE ATOM std::bytes;
 
@@ -140,58 +140,58 @@ CREATE CONSTRAINT std::constraint {
     SET errmessage := 'invalid {subject}';
 };
 
-CREATE CONSTRAINT std::expression INHERITING std::constraint {
+CREATE CONSTRAINT std::expression EXTENDING std::constraint {
     SET expr := subject;
 };
 
-CREATE CONSTRAINT std::max(std::any) INHERITING std::constraint {
+CREATE CONSTRAINT std::max(std::any) EXTENDING std::constraint {
     SET errmessage := 'Maximum allowed value for {subject} is {$0}.';
     SET expr := ((subject <= $0));
 };
 
-CREATE CONSTRAINT std::enum(array<std::any>) INHERITING std::constraint {
+CREATE CONSTRAINT std::enum(array<std::any>) EXTENDING std::constraint {
     SET errmessage := '{subject} must be one of: {$0}.';
     SET expr := array_contains($0, subject);
 };
 
-CREATE CONSTRAINT std::min(std::any) INHERITING std::constraint {
+CREATE CONSTRAINT std::min(std::any) EXTENDING std::constraint {
     SET errmessage := 'Minimum allowed value for {subject} is {$0}.';
     SET expr := ((subject >= $0));
 };
 
-CREATE CONSTRAINT std::minexclusive(std::any) INHERITING std::min {
+CREATE CONSTRAINT std::minexclusive(std::any) EXTENDING std::min {
     SET errmessage := '{subject} must be greater than {$0}.';
     SET expr := ((subject > $0));
 };
 
-CREATE CONSTRAINT std::length INHERITING std::constraint {
+CREATE CONSTRAINT std::length EXTENDING std::constraint {
     SET errmessage := 'invalid {subject}';
     SET subjectexpr := (len(<std::str>subject));
 };
 
-CREATE CONSTRAINT std::minlength(std::any) INHERITING (std::min, std::length) {
+CREATE CONSTRAINT std::minlength(std::any) EXTENDING (std::min, std::length) {
     SET errmessage := '{subject} must be no shorter than {$0} characters.';
 };
 
-CREATE CONSTRAINT std::regexp(std::any) INHERITING std::constraint {
+CREATE CONSTRAINT std::regexp(std::any) EXTENDING std::constraint {
     SET errmessage := 'invalid {subject}';
     SET expr := ((subject ~ $0));
 };
 
-CREATE CONSTRAINT std::maxlength(std::any) INHERITING (std::max, std::length) {
+CREATE CONSTRAINT std::maxlength(std::any) EXTENDING (std::max, std::length) {
     SET errmessage := '{subject} must be no longer than {$0} characters.';
 };
 
-CREATE CONSTRAINT std::maxexclusive(std::any) INHERITING std::max {
+CREATE CONSTRAINT std::maxexclusive(std::any) EXTENDING std::max {
     SET errmessage := '{subject} must be less than {$0}.';
 };
 
-CREATE CONSTRAINT std::unique INHERITING std::constraint {
+CREATE CONSTRAINT std::unique EXTENDING std::constraint {
     SET errmessage := '{subject} violates unique constraint';
     SET expr := std::is_distinct(ALL subject);
 };
 
-CREATE ATOM std::decimal_rounding_t INHERITING std::str {
+CREATE ATOM std::decimal_rounding_t EXTENDING std::str {
     CREATE CONSTRAINT std::enum(
         ['ceiling', '05up', 'up', 'half-even',
          'half-up', 'floor', 'down', 'half-down']);
@@ -247,25 +247,25 @@ CREATE ACTION std::delete_target {
 
 CREATE EVENT std::event;
 
-CREATE EVENT std::cascade_base INHERITING std::event;
+CREATE EVENT std::cascade_base EXTENDING std::event;
 
-CREATE EVENT std::cascade_session_detach INHERITING std::cascade_base;
+CREATE EVENT std::cascade_session_detach EXTENDING std::cascade_base;
 
-CREATE EVENT std::cascade_serialize INHERITING std::cascade_base;
+CREATE EVENT std::cascade_serialize EXTENDING std::cascade_base;
 
-CREATE EVENT std::internal INHERITING std::event;
+CREATE EVENT std::internal EXTENDING std::event;
 
-CREATE EVENT std::deleted INHERITING std::internal;
+CREATE EVENT std::deleted EXTENDING std::internal;
 
-CREATE EVENT std::source_deleted INHERITING std::deleted;
+CREATE EVENT std::source_deleted EXTENDING std::deleted;
 
-CREATE EVENT std::self_deleted INHERITING std::deleted;
+CREATE EVENT std::self_deleted EXTENDING std::deleted;
 
-CREATE EVENT std::cascade_session_attach INHERITING std::cascade_base;
+CREATE EVENT std::cascade_session_attach EXTENDING std::cascade_base;
 
-CREATE EVENT std::cascade_copy INHERITING std::cascade_base;
+CREATE EVENT std::cascade_copy EXTENDING std::cascade_base;
 
-CREATE EVENT std::target_deleted INHERITING std::deleted;
+CREATE EVENT std::target_deleted EXTENDING std::deleted;
 
 CREATE LINK PROPERTY std::linkproperty {
     SET title := 'Base link property';
@@ -298,7 +298,7 @@ CREATE LINK std::link {
     CREATE POLICY FOR std::cascade_copy TO std::ignore;
 };
 
-CREATE LINK std::id INHERITING std::link;
+CREATE LINK std::id EXTENDING std::link;
 
 CREATE CONCEPT std::Object {
     CREATE REQUIRED LINK std::id TO std::uuid {
@@ -319,7 +319,7 @@ CREATE ABSTRACT CONCEPT schema::Class {
 };
 
 
-CREATE CONCEPT schema::Attribute INHERITING schema::Class {
+CREATE CONCEPT schema::Attribute EXTENDING schema::Class {
     CREATE LINK schema::type TO schema::Class;
 };
 
@@ -348,19 +348,19 @@ ALTER CONCEPT std::Object {
 };
 
 
-CREATE CONCEPT schema::Module INHERITING schema::Class;
+CREATE CONCEPT schema::Module EXTENDING schema::Class;
 
 
-CREATE ABSTRACT CONCEPT schema::Node INHERITING schema::Class;
+CREATE ABSTRACT CONCEPT schema::Node EXTENDING schema::Class;
 
 
-CREATE CONCEPT schema::Array INHERITING schema::Node {
+CREATE CONCEPT schema::Array EXTENDING schema::Node {
     CREATE REQUIRED LINK schema::element_type TO schema::Node;
     CREATE LINK schema::dimensions TO array<std::int>;
 };
 
 
-CREATE CONCEPT schema::Map INHERITING schema::Node {
+CREATE CONCEPT schema::Map EXTENDING schema::Node {
     CREATE REQUIRED LINK schema::element_type TO schema::Node;
     CREATE REQUIRED LINK schema::key_type TO schema::Node;
 };
@@ -373,21 +373,21 @@ CREATE CONCEPT schema::TypeElement {
 };
 
 
-CREATE CONCEPT schema::Tuple INHERITING schema::Node {
+CREATE CONCEPT schema::Tuple EXTENDING schema::Node {
     CREATE REQUIRED LINK schema::element_types TO schema::TypeElement {
         SET mapping := '1*';
     };
 };
 
 
-CREATE CONCEPT schema::Delta INHERITING schema::Class {
+CREATE CONCEPT schema::Delta EXTENDING schema::Class {
     CREATE LINK schema::parents TO schema::Delta {
         SET mapping := '**';
     };
 };
 
 
-CREATE ABSTRACT CONCEPT schema::InheritingClass INHERITING schema::Class {
+CREATE ABSTRACT CONCEPT schema::InheritingClass EXTENDING schema::Class {
     CREATE LINK schema::bases TO schema::InheritingClass {
         SET mapping := '**';
     };
@@ -407,7 +407,7 @@ CREATE ABSTRACT CONCEPT schema::InheritingClass INHERITING schema::Class {
 
 
 CREATE ABSTRACT CONCEPT schema::PrimaryClass
-    INHERITING schema::InheritingClass
+    EXTENDING schema::InheritingClass
 {
     CREATE LINK schema::title TO std::str;
     CREATE LINK schema::description TO std::str;
@@ -423,7 +423,7 @@ CREATE CONCEPT schema::Parameter {
 };
 
 
-CREATE CONCEPT schema::Constraint INHERITING schema::PrimaryClass {
+CREATE CONCEPT schema::Constraint EXTENDING schema::PrimaryClass {
     CREATE LINK schema::expr TO std::str;
     CREATE LINK schema::subjectexpr TO std::str;
     CREATE LINK schema::finalexpr TO std::str;
@@ -435,66 +435,66 @@ CREATE CONCEPT schema::Constraint INHERITING schema::PrimaryClass {
 };
 
 
-CREATE ABSTRACT CONCEPT schema::ConsistencySubject INHERITING schema::Class {
+CREATE ABSTRACT CONCEPT schema::ConsistencySubject EXTENDING schema::Class {
     CREATE LINK schema::constraints TO schema::Constraint {
         SET mapping := '**';
     };
 };
 
 
-CREATE CONCEPT schema::SourceIndex INHERITING schema::Class {
+CREATE CONCEPT schema::SourceIndex EXTENDING schema::Class {
     CREATE LINK schema::expr TO std::str;
 };
 
 
-CREATE ABSTRACT CONCEPT schema::Source INHERITING schema::Class {
+CREATE ABSTRACT CONCEPT schema::Source EXTENDING schema::Class {
     CREATE LINK schema::indexes TO schema::SourceIndex {
         SET mapping := '1*';
     };
 };
 
 
-CREATE ABSTRACT CONCEPT schema::Pointer INHERITING schema::Class;
+CREATE ABSTRACT CONCEPT schema::Pointer EXTENDING schema::Class;
 
 
-CREATE CONCEPT schema::Atom INHERITING
+CREATE CONCEPT schema::Atom EXTENDING
         (schema::PrimaryClass, schema::ConsistencySubject, schema::Node) {
     CREATE LINK schema::default TO std::str;
 };
 
 
-CREATE CONCEPT schema::Concept INHERITING
+CREATE CONCEPT schema::Concept EXTENDING
         (schema::PrimaryClass, schema::ConsistencySubject, schema::Node,
          schema::Source);
 
 
-CREATE CONCEPT schema::View INHERITING
+CREATE CONCEPT schema::View EXTENDING
         (schema::PrimaryClass, schema::Source) {
     CREATE LINK schema::expr TO std::str;
 };
 
 
-CREATE CONCEPT schema::VirtualConcept INHERITING
+CREATE CONCEPT schema::VirtualConcept EXTENDING
         (schema::PrimaryClass, schema::ConsistencySubject, schema::Node,
          schema::Source);
 
 
-CREATE CONCEPT schema::DerivedConcept INHERITING
+CREATE CONCEPT schema::DerivedConcept EXTENDING
         (schema::PrimaryClass, schema::ConsistencySubject, schema::Node,
          schema::Source);
 
 
-CREATE CONCEPT schema::Link INHERITING
+CREATE CONCEPT schema::Link EXTENDING
         (schema::PrimaryClass, schema::ConsistencySubject, schema::Pointer,
          schema::Source);
 
 
-CREATE CONCEPT schema::DerivedLink INHERITING
+CREATE CONCEPT schema::DerivedLink EXTENDING
         (schema::PrimaryClass, schema::ConsistencySubject, schema::Pointer,
          schema::Source);
 
 
-CREATE CONCEPT schema::LinkProperty INHERITING
+CREATE CONCEPT schema::LinkProperty EXTENDING
         (schema::PrimaryClass, schema::ConsistencySubject, schema::Pointer);
 
 
@@ -525,7 +525,7 @@ ALTER CONCEPT schema::View {
 };
 
 
-CREATE CONCEPT schema::Function INHERITING schema::PrimaryClass {
+CREATE CONCEPT schema::Function EXTENDING schema::PrimaryClass {
     CREATE LINK schema::params TO schema::Parameter {
         SET mapping := '**';
     };

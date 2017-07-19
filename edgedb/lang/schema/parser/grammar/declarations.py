@@ -596,26 +596,26 @@ class OptFunctionParameters(Nonterm):
         self.val = []
 
 
-class CallableNameAndExtends(Nonterm):
-    def reduce_Identifier_OptFunctionParameters_EXTENDS_NameList(self, *kids):
-        self.val = esast.Declaration(name=kids[0].val, args=kids[1].val,
-                                     extends=kids[3].val)
+class ExtendingNameList(Nonterm):
+    def reduce_EXTENDING_NameList(self, *kids):
+        self.val = kids[1].val
 
-    def reduce_Identifier_OptFunctionParameters_EXTENDS_LPAREN_NameList_RPAREN(
-            self, *kids):
+    def reduce_EXTENDING_LPAREN_NameList_RPAREN(self, *kids):
+        self.val = kids[2].val
+
+
+class CallableNameAndExtends(Nonterm):
+    def reduce_Identifier_OptFunctionParameters_ExtendingNameList(self, *kids):
         self.val = esast.Declaration(name=kids[0].val, args=kids[1].val,
-                                     extends=kids[4].val)
+                                     extends=kids[2].val)
 
     def reduce_Identifier_OptFunctionParameters(self, *kids):
         self.val = esast.Declaration(name=kids[0].val, args=kids[1].val)
 
 
 class NameAndExtends(Nonterm):
-    def reduce_Identifier_EXTENDS_NameList(self, *kids):
-        self.val = esast.Declaration(name=kids[0].val, extends=kids[2].val)
-
-    def reduce_Identifier_EXTENDS_LPAREN_NameList_RPAREN(self, *kids):
-        self.val = esast.Declaration(name=kids[0].val, extends=kids[3].val)
+    def reduce_Identifier_ExtendingNameList(self, *kids):
+        self.val = esast.Declaration(name=kids[0].val, extends=kids[1].val)
 
     def reduce_Identifier(self, kid):
         self.val = esast.Declaration(name=kid.val)

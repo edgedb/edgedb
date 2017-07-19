@@ -17,17 +17,17 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             abstract concept NamedObject:
                 required link name to str
 
-            concept Group extends NamedObject:
+            concept Group extending NamedObject:
                 link settings to Setting:
                     mapping: **
 
-            concept Setting extends NamedObject:
+            concept Setting extending NamedObject:
                 required link value to str
 
-            concept Profile extends NamedObject:
+            concept Profile extending NamedObject:
                 required link value to str
 
-            concept User extends NamedObject:
+            concept User extending NamedObject:
                 required link active to bool
                 link groups to Group:
                     mapping: **

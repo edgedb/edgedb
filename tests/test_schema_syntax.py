@@ -45,7 +45,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
 
     def test_eschema_syntax_concept01(self):
-        """concept User extends builtins::NamedObject"""
+        """concept User extending builtins::NamedObject"""
 
     def test_eschema_syntax_concept02(self):
         """
@@ -62,19 +62,19 @@ abstract concept OwnedObject:
 
     def test_eschema_syntax_concept04(self):
         """
-concept LogEntry extends OwnedObject, Text:
+concept LogEntry extending OwnedObject, Text:
     required link spent_time to int
         """
 
     def test_eschema_syntax_concept05(self):
         """
-concept LogEntry extends OwnedObject, Text:
+concept LogEntry extending OwnedObject, Text:
    link start_date := SELECT datetime::current_datetime()
         """
 
     def test_eschema_syntax_concept06(self):
         """
-concept LogEntry extends OwnedObject, Text:
+concept LogEntry extending OwnedObject, Text:
     link start_date to datetime:
        default :=
             SELECT datetime::current_datetime()
@@ -83,7 +83,7 @@ concept LogEntry extends OwnedObject, Text:
 
     def test_eschema_syntax_concept07(self):
         """
-concept Issue extends foo.bar::NamedObject, OwnedObject, Text:
+concept Issue extending foo.bar::NamedObject, OwnedObject, Text:
 
     required link number to issue_num_t:
         readonly: true
@@ -123,18 +123,18 @@ concept Foo:
 
     def test_eschema_syntax_concept09(self):
         """
-concept LogEntry extends OwnedObject, Text:
+concept LogEntry extending OwnedObject, Text:
     required link attachment to Post, File, User
         """
 
     def test_eschema_syntax_concept10(self):
         """
-concept `Log-Entry` extends `OwnedObject`, `Text`:
+concept `Log-Entry` extending `OwnedObject`, `Text`:
     required link attachment to `Post`, `File`, `User`
 
 % OK %
 
-concept `Log-Entry` extends OwnedObject, Text:
+concept `Log-Entry` extending OwnedObject, Text:
     required link attachment to Post, File, User
         """
 
@@ -164,14 +164,14 @@ concept User:
 
     def test_eschema_syntax_index01(self):
         """
-concept LogEntry extends OwnedObject, Text:
+concept LogEntry extending OwnedObject, Text:
     required link owner to User
     index test_index := SELECT datetime::current_datetime()
         """
 
     def test_eschema_syntax_ws01(self):
         """
-concept LogEntry extends    OwnedObject,    Text:
+concept LogEntry extending    OwnedObject,    Text:
 
     # irrelevant comment indent
             # irrelevant comment indent
@@ -194,7 +194,7 @@ concept LogEntry extends    OwnedObject,    Text:
 
     def test_eschema_syntax_ws02(self):
         """
-        concept LogEntry extends OwnedObject, Text:
+        concept LogEntry extending OwnedObject, Text:
             link start_date to datetime:
                default :=
                     SELECT datetime::current_datetime()
@@ -202,7 +202,7 @@ concept LogEntry extends    OwnedObject,    Text:
         """
 
     def test_eschema_syntax_ws03(self):
-        """     concept LogEntry extends OwnedObject, Text:
+        """     concept LogEntry extending OwnedObject, Text:
                     link start_date to datetime:
                        default :=
                             SELECT datetime::current_datetime()
@@ -211,7 +211,7 @@ concept LogEntry extends    OwnedObject,    Text:
 
     def test_eschema_syntax_ws04(self):
         """
-        concept LogEntry extends (
+        concept LogEntry extending (
                 OwnedObject,
                 Text):
             link start_date to datetime:
@@ -221,7 +221,7 @@ concept LogEntry extends    OwnedObject,    Text:
 
 % OK %
 
-        concept LogEntry extends OwnedObject, Text:
+        concept LogEntry extending OwnedObject, Text:
             link start_date to datetime:
                default :=
                     SELECT datetime::current_datetime()
@@ -230,7 +230,7 @@ concept LogEntry extends    OwnedObject,    Text:
 
     def test_eschema_syntax_ws05(self):
         r"""
-        concept LogEntry extends (
+        concept LogEntry extending (
                 OwnedObject,
                 Text):
             link start_date to datetime:
@@ -241,7 +241,7 @@ concept LogEntry extends    OwnedObject,    Text:
 
 % OK %
 
-        concept LogEntry extends OwnedObject, Text:
+        concept LogEntry extending OwnedObject, Text:
             link start_date to datetime:
                default :=
                     SELECT datetime::current_datetime()
@@ -250,18 +250,18 @@ concept LogEntry extends    OwnedObject,    Text:
 
     def test_eschema_syntax_atom01(self):
         """
-atom issue_num_t extends builtins::sequence
+atom issue_num_t extending builtins::sequence
         """
 
     def test_eschema_syntax_atom02(self):
         """
-atom issue_num_t extends int:
+atom issue_num_t extending int:
     default: 42
         """
 
     def test_eschema_syntax_atom03(self):
         """
-atom basic extends int:
+atom basic extending int:
     title: 'Basic Atom'
     default: 2
     constraint min(0)
@@ -271,7 +271,7 @@ atom basic extends int:
 
     def test_eschema_syntax_atom04(self):
         """
-atom basic extends int:
+atom basic extending int:
 
     title: 'Basic Atom'
     default: 2
@@ -284,7 +284,7 @@ atom basic extends int:
 
     def test_eschema_syntax_atom05(self):
         """
-atom basic extends int:
+atom basic extending int:
 
     title: 'Basic Atom'
     default: 2
@@ -298,7 +298,7 @@ atom basic extends int:
 
     def test_eschema_syntax_atom06(self):
         """
-atom basic extends int:
+atom basic extending int:
 
     title: 'Basic Atom'
     default: 2
@@ -309,9 +309,9 @@ atom basic extends int:
         subject := subject % 2 = 0
 
 
-atom inherits_default extends basic
+atom inherits_default extending basic
 
-abstract atom abstract_atom extends int
+abstract atom abstract_atom extending int
         """
 
     def test_eschema_syntax_atom07(self):
@@ -321,7 +321,7 @@ final atom none
 
     def test_eschema_syntax_atom08(self):
         """
-atom basic extends int:
+atom basic extending int:
     title: 'Basic Atom'
     default: 2
     abstract constraint special_constraint
@@ -332,13 +332,13 @@ atom basic extends int:
                   line=3, col=44)
     def test_eschema_syntax_atom09(self):
         """
-atom special extends int:
+atom special extending int:
     abstract constraint special_constraint := [42, 100, 9001]
         """
 
     def test_eschema_syntax_atom10(self):
         """
-atom special extends int:
+atom special extending int:
     title: 'Special Atom'
     constraint special_constraint:
         expr := subject % 2 = 0
@@ -346,13 +346,13 @@ atom special extends int:
 
     def test_eschema_syntax_atom11(self):
         """
-atom constraint_length extends str:
+atom constraint_length extending str:
      constraint maxlength(16+1, len(([1])))
         """
 
     def test_eschema_syntax_atom12(self):
         """
-atom constraint_length extends str:
+atom constraint_length extending str:
      constraint maxlength((16+(4*2))/((4)-1), len(([1])))
         """
 
@@ -372,7 +372,7 @@ abstract constraint length:
 
     def test_eschema_syntax_constraint03(self):
         """
-constraint maxlength($param:any) extends max, length:
+constraint maxlength($param:any) extending max, length:
     errmessage: '{$subject} must be no longer than {$param} characters.'
         """
 
@@ -385,7 +385,7 @@ constraint max($param:any):
 abstract constraint length:
     subject := str::len(<str>subject)
 
-constraint maxlength($param:any) extends max, length:
+constraint maxlength($param:any) extending max, length:
     errmessage: '{subject} must be no longer than {param} characters.'
         """
 
@@ -395,7 +395,7 @@ abstract constraint distance:
     subject :=
         <float>subject
 
-constraint maxldistance extends max, distance:
+constraint maxldistance extending max, distance:
     errmessage: '{subject} must be no longer than {param} meters.'
         """
 
@@ -404,7 +404,7 @@ constraint maxldistance extends max, distance:
                   line=2, col=22)
     def test_eschema_syntax_constraint06(self):
         """
-constraint maxlength($param) extends max, length
+constraint maxlength($param) extending max, length
         """
 
     def test_eschema_syntax_linkproperty01(self):
@@ -415,12 +415,12 @@ linkproperty foo:
 
     def test_eschema_syntax_linkproperty02(self):
         """
-linkproperty bar extends foo
+linkproperty bar extending foo
         """
 
     def test_eschema_syntax_linkproperty03(self):
         """
-linkproperty bar extends foo:
+linkproperty bar extending foo:
     title: 'Another property'
         """
 
@@ -429,7 +429,7 @@ linkproperty bar extends foo:
 linkproperty foo:
     title: 'Sample property'
 
-linkproperty bar extends foo:
+linkproperty bar extending foo:
     title: 'Another property'
         """
 
@@ -462,7 +462,7 @@ link coollink
 
     def test_eschema_syntax_link02(self):
         """
-link coollink extends boringlink
+link coollink extending boringlink
         """
 
     def test_eschema_syntax_link03(self):
@@ -486,7 +486,7 @@ link coollink:
 linkproperty foo:
     title: 'Sample property'
 
-linkproperty bar extends foo:
+linkproperty bar extending foo:
     title: 'Another property'
 
 link coollink:
@@ -551,7 +551,7 @@ event self_deleted:
         """
         import foo
 
-        concept Bar extends foo::Foo:
+        concept Bar extending foo::Foo:
             link text to str
         """
 
@@ -559,7 +559,7 @@ event self_deleted:
         """
         import mylib.util.foo
 
-        concept Bar extends mylib.util.foo::Foo:
+        concept Bar extending mylib.util.foo::Foo:
             link text to str
         """
 
@@ -567,7 +567,7 @@ event self_deleted:
         """
         import foo as bar
 
-        concept Bar extends bar::Foo:
+        concept Bar extending bar::Foo:
             link text to str
         """
 
@@ -575,7 +575,7 @@ event self_deleted:
         """
         import mylib.util.foo as bar
 
-        concept Bar extends bar::Foo:
+        concept Bar extending bar::Foo:
             link text to str
         """
 
@@ -587,7 +587,7 @@ event self_deleted:
     otherlib.bar as bar,
     otherlib.ham as spam)
 
-        concept Bar extends foo::Foo, sfoo::Foo, bar::Bar, spam::Ham:
+        concept Bar extending foo::Foo, sfoo::Foo, bar::Bar, spam::Ham:
             link text to str
         """
 
@@ -595,7 +595,7 @@ event self_deleted:
         """
         import action.event.foo
 
-        concept Bar extends action.event.foo::Foo:
+        concept Bar extending action.event.foo::Foo:
             link text to str
         """
 

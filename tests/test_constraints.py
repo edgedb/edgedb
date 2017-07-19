@@ -558,7 +558,7 @@ class TestConstraintsDDL(tb.QueryTestCase):
             };
 
             CREATE LINK test::link_with_unique_property_inherited
-                INHERITING test::link_with_unique_property;
+                EXTENDING test::link_with_unique_property;
 
             CREATE CONCEPT test::UniqueName {
                 CREATE LINK test::name TO std::str {
@@ -594,7 +594,7 @@ class TestConstraintsDDL(tb.QueryTestCase):
             };
 
             CREATE CONCEPT test::AbstractConstraintPureChild
-                INHERITING test::AbstractConstraintParent;
+                EXTENDING test::AbstractConstraintParent;
         """
 
         await self.con.execute(qry)

@@ -30,8 +30,8 @@ class EdgeQLLexer(RegexLexer):
                 \b(?<![:\.])(
                     abstract | action | after | array | as | asc |
                     atom | attribute | before | by | concept |
-                    constraint | database | desc | event | final |
-                    first | for | from | index | inherit | inheriting |
+                    constraint | database | desc | event |
+                    extending | final | first | for | from | index |
                     initial | last | link | map | migration | of |
                     policy | property | required | rename | target |
                     then | to | transaction | tuple | value | view |

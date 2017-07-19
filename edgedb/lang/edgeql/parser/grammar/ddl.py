@@ -271,10 +271,10 @@ commands_block('Alter', RenameStmt, SetFieldStmt, DropFieldStmt, opt=False)
 
 
 class OptInheriting(Nonterm):
-    def reduce_INHERITING_NodeName(self, *kids):
+    def reduce_EXTENDING_NodeName(self, *kids):
         self.val = [kids[1].val]
 
-    def reduce_INHERITING_LPAREN_NodeNameList_RPAREN(self, *kids):
+    def reduce_EXTENDING_LPAREN_NodeNameList_RPAREN(self, *kids):
         self.val = kids[2].val
 
     def reduce_empty(self, *kids):
@@ -315,11 +315,11 @@ class OptInheritPosition(Nonterm):
 
 
 class AlterInheriting(Nonterm):
-    def reduce_INHERIT_NodeNameList_OptInheritPosition(self, *kids):
+    def reduce_EXTENDING_NodeNameList_OptInheritPosition(self, *kids):
         self.val = qlast.AlterAddInherit(bases=kids[1].val,
                                          position=kids[2].val)
 
-    def reduce_DROP_INHERIT_NodeNameList(self, *kids):
+    def reduce_DROP_EXTENDING_NodeNameList(self, *kids):
         self.val = qlast.AlterDropInherit(bases=kids[2].val)
 
     def reduce_AlterAbstract(self, *kids):
