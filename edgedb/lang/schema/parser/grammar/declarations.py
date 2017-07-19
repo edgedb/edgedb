@@ -116,7 +116,7 @@ class TypeName(Nonterm):
 class RawString(Nonterm):
     def reduce_RawStr(self, *kids):
         text = kids[0].val.value
-        text = textwrap.dedent(text).strip().replace('\\\n', '')
+        text = textwrap.dedent(text).strip()
         self.val = RawLiteral(value=text)
 
 
