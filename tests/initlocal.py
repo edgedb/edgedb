@@ -15,6 +15,7 @@ import sys
 import unittest
 
 from edgedb.server import cluster as edgedb_cluster
+from edgedb.server import _testbase as tb
 
 
 class TestResult:
@@ -26,61 +27,19 @@ class TestRunner:
     def __init__(self):
         self.cases = set()
 
-    def _unroll_tests(self, tests):
-        result = set()
-
-        for test in tests:
-            if isinstance(test, unittest.TestSuite):
-                result.update(self._unroll_tests(test._tests))
-            else:
-                result.add(type(test))
-
-        return result
-
     def run(self, test):
-        self.cases.update(self._unroll_tests([test]))
+        self.cases.update(tb.get_test_cases([test]))
         return TestResult()
 
 
-async def populate_data(cluster, cases):
-    conn = await cluster.connect(database='edgedb0', user='edgedb')
-
-    for case in cases:
-        if not hasattr(case, 'get_setup_script'):
-            continue
-
-        setup_script = case.get_setup_script()
-        if not setup_script:
-            continue
-
-        if case.__name__.startswith('TestEdgeQL'):
-            dbname = case.__name__[len('TestEdgeQL'):]
-        elif case.__name__.startswith('Test'):
-            dbname = case.__name__[len('Test'):]
-        else:
-            dbname = case.__name__
-
-        dbname = dbname.lower()
-        print(f'CREATE DATABASE {dbname}')
-        await conn.execute(f'CREATE DATABASE {dbname};')
-
-        dbconn = await cluster.connect(database=dbname, user='edgedb')
-
-        await dbconn.execute(setup_script)
-
-        dbconn.close()
-
-    conn.close()
-
-
-async def execute(tests_dir, cluster):
+async def execute(tests_dir, jobs, cluster):
     runner = TestRunner()
     unittest.main(
         module=None,
         argv=['unittest', 'discover', '-s', tests_dir],
         testRunner=runner, exit=False)
 
-    await populate_data(cluster, runner.cases)
+    await tb.setup_test_cases(cluster, runner.cases, jobs=jobs)
 
 
 def die(msg):
@@ -97,6 +56,9 @@ def parse_connect_args():
     parser.add_argument(
         '-s', '--start-directory', type=str,
         help='directory to start test discovery from')
+    parser.add_argument(
+        '-j', '--jobs', type=int,
+        help='number of parallel processes to use (defaults to CPU count)')
 
     args = parser.parse_args()
 
@@ -105,11 +67,11 @@ def parse_connect_args():
     else:
         testsdir = os.path.abspath(os.path.dirname(__file__))
 
-    return testsdir, args.data_dir
+    return testsdir, args.data_dir, args.jobs
 
 
 def main():
-    tests_dir, data_dir = parse_connect_args()
+    tests_dir, data_dir, jobs = parse_connect_args()
 
     if os.path.exists(data_dir):
         if not os.path.isdir(data_dir):
@@ -133,7 +95,7 @@ def main():
     loop = asyncio.get_event_loop()
 
     try:
-        loop.run_until_complete(execute(tests_dir, cluster))
+        loop.run_until_complete(execute(tests_dir, jobs, cluster))
         print(f'Initialized and populated test EdgeDB instance in {data_dir}')
     except BaseException:
         destroy_cluster = True

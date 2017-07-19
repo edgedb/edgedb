@@ -114,12 +114,20 @@ class Cluster:
         else:
             return 'running' if db_exists else 'not-initialized,running'
 
+    def get_connect_args(self):
+        return {
+            'host': 'localhost',
+            'port': self._effective_port
+        }
+
     async def connect(self, loop=None, **kwargs):
         if loop is None:
             loop = asyncio.get_event_loop()
 
-        return await edgedb_client.connect(
-            host='localhost', port=self._effective_port, loop=loop, **kwargs)
+        connect_args = self.get_connect_args().copy()
+        connect_args.update(kwargs)
+
+        return await edgedb_client.connect(loop=loop, **connect_args)
 
     def init(self, *, server_settings={}):
         cluster_status = self.get_status()

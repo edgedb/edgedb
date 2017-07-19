@@ -8,9 +8,11 @@
 
 import asyncio
 import atexit
+import collections
 import contextlib
 import functools
 import inspect
+import multiprocessing
 import os
 import pprint
 import re
@@ -20,10 +22,31 @@ import unittest
 
 import pytest
 
+from edgedb import client as edgedb_client
 from edgedb.server import cluster as edgedb_cluster
 
 
+def get_test_cases(tests):
+    result = collections.OrderedDict()
+
+    for test in tests:
+        if isinstance(test, unittest.TestSuite):
+            result.update(get_test_cases(test._tests))
+        else:
+            cls = type(test)
+            try:
+                methods = result[cls]
+            except KeyError:
+                methods = result[cls] = []
+
+            methods.append(test)
+
+    return result
+
+
 class TestCaseMeta(type(unittest.TestCase)):
+    _database_names = set()
+
     @staticmethod
     def _iter_methods(bases, ns):
         for base in bases:
@@ -64,7 +87,17 @@ class TestCaseMeta(type(unittest.TestCase)):
                 del ns[methname]
             mcls.add_method(methname, ns, meth)
 
-        return super().__new__(mcls, name, bases, ns)
+        cls = super().__new__(mcls, name, bases, ns)
+        if hasattr(cls, 'get_database_name'):
+            dbname = cls.get_database_name()
+
+            if name in mcls._database_names:
+                raise TypeError(
+                    f'{name} wants duplicate database name: {dbname}')
+
+            mcls._database_names.add(name)
+
+        return cls
 
 
 class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
@@ -87,17 +120,31 @@ def _start_cluster(cleanup_atexit=True):
     global _default_cluster
 
     if _default_cluster is None:
-        if (not os.environ.get('EDGEDB_DEBUG_SERVER') and
-                not os.environ.get('EDGEDB_LOG_LEVEL')):
-            _env = {'EDGEDB_LOG_LEVEL': 'silent'}
-        else:
-            _env = {}
+        test_cluster_addr = os.environ.get('EDGEDB_TEST_CLUSTER')
+        if test_cluster_addr:
+            m = re.match(r'^(\w+):(\d+)', test_cluster_addr)
+            if not m:
+                raise ValueError(
+                    f'invalid value in EDGEDB_TEST_CLUSTER '
+                    f'environment variable: {test_cluster_addr}')
 
-        _default_cluster = edgedb_cluster.TempCluster(env=_env)
-        _default_cluster.init()
-        _default_cluster.start(port='dynamic', timezone='UTC')
-        if cleanup_atexit:
-            atexit.register(_shutdown_cluster, _default_cluster)
+            host = m.group(1)
+            port = m.group(2)
+
+            _default_cluster = edgedb_cluster.RunningCluster(
+                host=host, port=port)
+        else:
+            if (not os.environ.get('EDGEDB_DEBUG_SERVER') and
+                    not os.environ.get('EDGEDB_LOG_LEVEL')):
+                _env = {'EDGEDB_LOG_LEVEL': 'silent'}
+            else:
+                _env = {}
+
+            _default_cluster = edgedb_cluster.TempCluster(env=_env)
+            _default_cluster.init()
+            _default_cluster.start(port='dynamic', timezone='UTC')
+            if cleanup_atexit:
+                atexit.register(_shutdown_cluster, _default_cluster)
 
     return _default_cluster
 
@@ -196,6 +243,17 @@ class DatabaseTestCase(ConnectedTestCase):
         script = cls.get_setup_script()
         if script:
             cls.loop.run_until_complete(cls.con.execute(script))
+
+    @classmethod
+    def get_database_name(cls):
+        if cls.__name__.startswith('TestEdgeQL'):
+            dbname = cls.__name__[len('TestEdgeQL'):]
+        elif cls.__name__.startswith('Test'):
+            dbname = cls.__name__[len('Test'):]
+        else:
+            dbname = cls.__name__
+
+        return dbname.lower()
 
     @classmethod
     def get_setup_script(cls):
@@ -481,3 +539,55 @@ def expected_optimizer_failure(obj):
 def expected_no_optimizer_failure(obj):
     obj._expected_no_optimizer_failure = True
     return obj
+
+
+async def setup_test_cases(cluster, cases, *, jobs=None):
+    setup = {}
+
+    conn_args = dict(cluster.get_connect_args())
+    conn_args['user'] = 'edgedb'
+
+    admin_conn = await edgedb_client.connect(database='edgedb0', **conn_args)
+    try:
+        await admin_conn.execute(f'CREATE DATABASE edgedb1;')
+    finally:
+        admin_conn.close()
+
+    for case in cases:
+        if not hasattr(case, 'get_setup_script'):
+            continue
+
+        setup_script = case.get_setup_script()
+        if not setup_script:
+            continue
+
+        dbname = case.get_database_name()
+        setup[dbname] = setup_script
+
+    if jobs is None:
+        jobs = multiprocessing.cpu_count()
+
+    loop = asyncio.get_event_loop()
+    tasks = []
+
+    for dbname, setup_script in setup.items():
+        task = loop.create_task(
+            _setup_database(dbname, setup_script, conn_args))
+        tasks.append(task)
+
+    await asyncio.gather(*tasks)
+
+
+async def _setup_database(dbname, setup_script, conn_args):
+    admin_conn = await edgedb_client.connect(database='edgedb1', **conn_args)
+
+    try:
+        await admin_conn.execute(f'CREATE DATABASE {dbname};')
+    finally:
+        admin_conn.close()
+
+    dbconn = await edgedb_client.connect(database=dbname, **conn_args)
+    try:
+        await dbconn.execute(setup_script)
+    finally:
+        dbconn.close()
