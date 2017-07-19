@@ -785,13 +785,13 @@ class TestExpressions(tb.QueryTestCase):
 
         await self.con.execute('''
             CREATE FUNCTION test::take(map<std::str, std::int>, std::str)
-                RETURNING std::int
+                    -> std::int
                 FROM EdgeQL $$
                     SELECT $1[$2] + 100
                 $$;
 
             CREATE FUNCTION test::make(std::int)
-                RETURNING map<std::str, std::int>
+                    -> map<std::str, std::int>
                 FROM EdgeQL $$
                     SELECT ['aaa' -> $1]
                 $$;

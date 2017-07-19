@@ -1242,7 +1242,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_func05(self):
         await self.con.execute(r'''
-            CREATE FUNCTION test::concat1(*std::any) RETURNING std::str
+            CREATE FUNCTION test::concat1(*std::any) -> std::str
                 FROM SQL FUNCTION 'concat';
         ''')
 
@@ -1284,7 +1284,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_func06(self):
         await self.con.execute(r'''
-            CREATE FUNCTION test::concat2(*std::str) RETURNING std::str
+            CREATE FUNCTION test::concat2(*std::str) -> std::str
                 FROM SQL FUNCTION 'concat';
         ''')
 
@@ -1295,7 +1295,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_func07(self):
         await self.con.execute(r'''
             CREATE FUNCTION test::concat3($sep: std::str, *std::str)
-                RETURNING std::str
+                    -> std::str
                 FROM SQL FUNCTION 'concat_ws';
         ''')
 
@@ -1370,8 +1370,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_func09(self):
         await self.con.execute('''
-            CREATE FUNCTION test::my_edgeql_func1(std::str)
-                RETURNING std::str
+            CREATE FUNCTION test::my_edgeql_func1(std::str) -> std::str
                 FROM EdgeQL $$
                     SELECT 'str=' + $1
                 $$;

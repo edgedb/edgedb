@@ -61,11 +61,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                                     'Cannot create an aggregate function'):
 
             await self.con.execute("""
-                CREATE FUNCTION test::my_lower(std::str) RETURNING std::str
+                CREATE FUNCTION test::my_lower(std::str) -> std::str
                     FROM SQL FUNCTION 'lower';
 
                 CREATE AGGREGATE test::my_lower(std::any)
-                    RETURNING std::str
+                    -> std::str
                     INITIAL VALUE ''
                     FROM SQL AGGREGATE 'count';
             """)
@@ -79,11 +79,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             await self.con.execute("""
                 CREATE AGGREGATE test::my_lower(std::any)
-                    RETURNING std::str
+                    -> std::str
                     INITIAL VALUE ''
                     FROM SQL AGGREGATE 'count';
 
-                CREATE FUNCTION test::my_lower(std::str) RETURNING std::str
+                CREATE FUNCTION test::my_lower(std::str) -> std::str
                     FROM SQL FUNCTION 'lower';
             """)
 
@@ -96,43 +96,43 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         await self.con.execute(f"""
             CREATE FUNCTION test::my_sql_func1()
-                RETURNING std::str
+                -> std::str
                 FROM SQL $$
                     SELECT 'spam'::text
                 $$;
 
             CREATE FUNCTION test::my_sql_func2($foo: std::str)
-                RETURNING std::str
+                -> std::str
                 FROM SQL $$
                     SELECT $1::text
                 $$;
 
             CREATE FUNCTION test::my_sql_func3(std::str)
-                RETURNING std::str
+                -> std::str
                 FROM SQL $$
                     SELECT $1::text
                 $$;
 
             CREATE FUNCTION test::my_sql_func4(*std::str)
-                RETURNING std::str
+                -> std::str
                 FROM SQL $$
                     SELECT array_to_string($1, '-')
                 $$;
 
             CREATE FUNCTION test::{long_func_name}()
-                RETURNING std::str
+                -> std::str
                 FROM SQL $$
                     SELECT '{long_func_name}'::text
                 $$;
 
             CREATE FUNCTION test::my_sql_func6(std::str='a' + 'b')
-                RETURNING std::str
+                -> std::str
                 FROM SQL $$
                     SELECT $1 || 'c'
                 $$;
 
             CREATE FUNCTION test::my_sql_func7(array<std::int>)
-                RETURNING std::int
+                -> std::int
                 FROM SQL $$
                     SELECT sum(s)::bigint FROM UNNEST($1) AS s
                 $$;
@@ -174,7 +174,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             await self.con.execute(f"""
                 CREATE FUNCTION test::broken_sql_func1(
                     std::int=(SELECT schema::Concept))
-                RETURNING std::str
+                -> std::str
                 FROM SQL $$
                     SELECT 'spam'::text
                 $$;
@@ -183,13 +183,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl08(self):
         await self.con.execute(f"""
             CREATE FUNCTION test::my_edgeql_func1()
-                RETURNING std::str
+                -> std::str
                 FROM EdgeQL $$
                     SELECT 'sp' + 'am'
                 $$;
 
             CREATE FUNCTION test::my_edgeql_func2(std::str)
-                RETURNING schema::Concept
+                -> schema::Concept
                 FROM EdgeQL $$
                     SELECT
                         schema::Concept
@@ -197,13 +197,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 $$;
 
             CREATE FUNCTION test::my_edgeql_func3(std::int)
-                RETURNING std::int
+                -> std::int
                 FROM EdgeQL $$
                     SELECT $1 + 10
                 $$;
 
             CREATE FUNCTION test::my_edgeql_func4(std::int)
-                RETURNING array<std::int>
+                -> array<std::int>
                 FROM EdgeQL $$
                     SELECT [$1, 1, 2, 3]
                 $$;
@@ -230,7 +230,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl09(self):
         await self.con.execute("""
-            CREATE FUNCTION test::attr_func_1() RETURNING std::str {
+            CREATE FUNCTION test::attr_func_1() -> std::str {
                 SET description := 'hello';
                 FROM EdgeQL "SELECT '1'";
             };
@@ -256,7 +256,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl10(self):
         await self.con.execute("""
-            CREATE FUNCTION test::int_func_1() RETURNING std::int {
+            CREATE FUNCTION test::int_func_1() -> std::int {
                 FROM EdgeQL "SELECT 1";
             };
         """)

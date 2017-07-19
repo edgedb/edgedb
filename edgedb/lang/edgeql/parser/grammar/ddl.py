@@ -1538,7 +1538,7 @@ class OptSetOf(Nonterm):
 class CreateFunctionStmt(Nonterm, _ProcessFunctionBlockMixin):
     def reduce_CreateFunction(self, *kids):
         r"""%reduce OptAliasBlock CREATE FUNCTION NodeName CreateFunctionArgs \
-                RETURNING OptSetOf FunctionType \
+                ARROW OptSetOf FunctionType \
                 CreateFunctionCommandsBlock \
         """
         self.val = qlast.CreateFunction(
@@ -1574,7 +1574,7 @@ class CreateAggregateStmt(Nonterm, _ProcessFunctionBlockMixin):
     def reduce_CreateAggregate(self, *kids):
         r"""%reduce OptAliasBlock \
                 CREATE AGGREGATE NodeName CreateFunctionArgs \
-                RETURNING FunctionType \
+                ARROW FunctionType \
                 INITIAL VALUE Expr \
                 CreateAggregateCommandsBlock \
         """

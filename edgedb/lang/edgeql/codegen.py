@@ -948,7 +948,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write('(')
             self.visit_list(node.args, newlines=False)
             self.write(')')
-            self.write(' RETURNING ')
+            self.write(' -> ')
             if node.set_returning:
                 self.write('SET OF ')
             self.visit(node.returning)
