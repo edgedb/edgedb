@@ -2214,7 +2214,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         CREATE ABSTRACT ATOM std::any;
         CREATE ATOM std::typeref;
-        CREATE ATOM std::atomref INHERITING std::typeref;
+        CREATE ATOM std::atomref EXTENDING std::typeref;
         """
 
     def test_edgeql_syntax_ddl_attribute01(self):
@@ -2335,7 +2335,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ddl_constraint01(self):
         """
         CREATE CONSTRAINT std::enum(array<std::any>)
-            INHERITING std::constraint
+            EXTENDING std::constraint
         {
             SET errmessage := '{subject} must be one of: {param}.';
             SET expr := array_contains($param, subject);
@@ -2375,7 +2375,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_constraint05(self):
         """
-        CREATE ATOM std::decimal_rounding_t INHERITING std::str {
+        CREATE ATOM std::decimal_rounding_t EXTENDING std::str {
             CREATE CONSTRAINT std::enum(['a', 'b']);
         };
         """

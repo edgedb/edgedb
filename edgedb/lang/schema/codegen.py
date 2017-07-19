@@ -41,7 +41,7 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
                 'No method to generate code for %s' % node.__class__.__name__)
 
     def _visit_extends(self, names):
-        self.write(' extends ')
+        self.write(' extending ')
         for qname in names[:-1]:
             self.visit(qname)
             self.write(', ')

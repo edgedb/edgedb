@@ -11,7 +11,7 @@ For the purposes of this section we will use the following schema:
     concept Person:
         link name to str
 
-    concept Author extends Person
+    concept Author extending Person
 
     concept Book:
         # to make our examples simpler only the title is a required

@@ -152,7 +152,7 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
                 SET readonly := False;
                 SET title := 'Base link property';
             };
-            CREATE LINK test::name INHERITING std::link {
+            CREATE LINK test::name EXTENDING std::link {
                 SET is_virtual := False;
                 SET readonly := False;
             };
@@ -161,7 +161,7 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
                 SET readonly := False;
                 SET title := 'Base link property';
             };
-            CREATE CONCEPT test::NamedObject INHERITING std::Object {
+            CREATE CONCEPT test::NamedObject EXTENDING std::Object {
                 SET is_virtual := False;
             };
             ALTER CONCEPT test::NamedObject {
@@ -214,7 +214,7 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
         SET readonly := False;
         SET title := 'Base link property';
     };
-    CREATE LINK test::a INHERITING std::link {
+    CREATE LINK test::a EXTENDING std::link {
         SET is_virtual := False;
         SET readonly := False;
     };
@@ -223,7 +223,7 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
         SET readonly := False;
         SET title := 'Base link property';
     };
-    CREATE CONCEPT test::NamedObject INHERITING std::Object {
+    CREATE CONCEPT test::NamedObject EXTENDING std::Object {
         SET is_virtual := False;
     };
     ALTER CONCEPT test::NamedObject {

@@ -29,7 +29,7 @@ class EdgeSchemaLexer(lexer.RegexLexer):
             (r'''(?x)
                 \b(?<![:\.])(
                   action | atom | attribute | concept | constraint |
-                  event | extends | index | initial | link |
+                  event | extending | index | initial | link |
                   linkproperty | properties | value | view
                 )\b
             ''', token.Keyword.Reserved),

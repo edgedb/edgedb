@@ -10,7 +10,7 @@ concept Target0:
     link name to str
 
 
-concept Target1 extends Target0:
+concept Target1 extending Target0:
     link name to str
 
 
@@ -22,7 +22,7 @@ concept Concept1:
     link target to Target1
 
 
-concept Concept01 extends Concept0, Concept1
+concept Concept01 extending Concept0, Concept1
 
 
 concept Concept2:
@@ -33,4 +33,4 @@ concept Concept3:
     required link target to Target0
 
 
-concept Concept23 extends Concept2, Concept3
+concept Concept23 extending Concept2, Concept3

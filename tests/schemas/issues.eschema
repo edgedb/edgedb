@@ -11,7 +11,7 @@ abstract concept Named:
 
 # Dictionary is a NamedObject variant, that enforces
 # name uniqueness across all instances if its subclass.
-abstract concept Dictionary extends Named:
+abstract concept Dictionary extending Named:
     required link name to str:
         abstract constraint unique
 
@@ -21,7 +21,7 @@ link todo:
         default: 42
 
 
-concept User extends Named:
+concept User extending Named:
     link todo to Issue:
         mapping: **
 
@@ -32,13 +32,13 @@ abstract concept Owned:
         mapping: *1
 
 
-concept Status extends Dictionary
+concept Status extending Dictionary
 
 
-concept Priority extends Dictionary
+concept Priority extending Dictionary
 
 
-concept LogEntry extends Owned, Text:
+concept LogEntry extending Owned, Text:
     # LogEntry is an Owned and a Text, so it
     # will have all of their links and attributes,
     # in particular, owner and text links.
@@ -47,17 +47,17 @@ concept LogEntry extends Owned, Text:
 
 # issue_num_t is defined as a concrete sequence type,
 # used to generate sequential issue numbers.
-atom issue_num_t extends std::sequence
+atom issue_num_t extending std::sequence
 
 
-concept Comment extends Text, Owned:
+concept Comment extending Text, Owned:
     required link issue to Issue:
         mapping: *1
     link parent to Comment:
         mapping: *1
 
 
-concept Issue extends Named, Owned, Text:
+concept Issue extending Named, Owned, Text:
     required link number to issue_num_t:
         readonly: true
         # The number values are automatically generated,
@@ -98,10 +98,10 @@ concept Issue extends Named, Owned, Text:
     link tags to array<str>
 
 
-concept File extends Named
+concept File extending Named
 
 
-concept URL extends Named:
+concept URL extending Named:
     required link address to str
 
 

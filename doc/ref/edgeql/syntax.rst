@@ -66,13 +66,12 @@ Every identifier that is not a *reserved* keyword is a valid *name*.
                       : "ARRAY" | "AS" | "ASC" | "ATOM" |
                       : "ATTRIBUTE" | "BEFORE" | "BY" |
                       : "CONCEPT" | "CONSTRAINT" | "DATABASE" |
-                      : "DESC" | "EVENT" | "FINAL" | "FIRST" |
-                      : "FOR" | "FROM" | "INDEX" | "INHERIT" |
-                      : "INHERITING" | "INITIAL" | "LAST" |
-                      : "LINK" | "MAP" | "MIGRATION" | "OF" |
-                      : "POLICY" | "PROPERTY" | "REQUIRED" |
-                      : "RENAME" | "TARGET" | "THEN" | "TO" |
-                      : "TRANSACTION" | "TUPLE" | "VALUE" |
+                      : "DESC" | "EVENT" | "EXTENDING" | "FINAL" |
+                      : "FIRST" | "FOR" | "FROM" | "INDEX" |
+                      : "INITIAL" | "LAST" | "LINK" | "MAP" |
+                      : "MIGRATION" | "OF" | "POLICY" | "PROPERTY" |
+                      : "REQUIRED" | "RENAME" | "TARGET" | "THEN" |
+                      : "TO" | "TRANSACTION" | "TUPLE" | "VALUE" |
                       : "VIEW"
 
 Fully-qualified names consist of a module, ``::``, and a short name.

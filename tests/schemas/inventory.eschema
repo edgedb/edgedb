@@ -2,7 +2,7 @@ abstract concept Named:
     required link name to str:
         abstract constraint unique
 
-concept Item extends Named:
+concept Item extending Named:
     link tag_set1 to str:
         mapping: 1*
 
