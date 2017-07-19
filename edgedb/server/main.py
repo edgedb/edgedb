@@ -98,7 +98,7 @@ def run_server(args):
             logger.info('Initializing database cluster in %s', args.data_dir)
             initdb_output = cluster.init(**{
                 'username': 'postgres',
-                'locale': 'c.utf8',
+                'locale': 'en_US.utf8',
             })
             for line in initdb_output.splitlines():
                 logger.debug('initdb: %s', line)
