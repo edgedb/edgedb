@@ -255,22 +255,14 @@ concept LogEntry extending    OwnedObject,    Text:
         """
 
     def test_eschema_syntax_ws05(self):
-        r"""
+        """
         concept LogEntry extending (
                 OwnedObject,
                 Text):
             link start_date to datetime:
                default :=
-                    SELECT \
+                    SELECT
                     datetime::current_datetime()
-               title := 'Start Date'
-
-% OK %
-
-        concept LogEntry extending OwnedObject, Text:
-            link start_date to datetime:
-               default :=
-                    SELECT datetime::current_datetime()
                title := 'Start Date'
         """
 
@@ -286,7 +278,7 @@ atom issue_num_t extending int:
         """
 
     def test_eschema_syntax_atom03(self):
-        """
+        r"""
 atom basic extending int:
     title := 'Basic Atom'
     default := 2
@@ -761,6 +753,29 @@ abstract link coollink
     def test_eschema_syntax_function12(self):
         """
         function some_func($`(`: str = ) ) -> std::str:
+            from edgeql function: some_other_func
+        """
+
+    def test_eschema_syntax_function13(self):
+        r"""
+        function some_func($`(`:
+                str = ')',
+                $bar: int = bar()) -> std::str:
+            from edgeql function: some_other_func
+        """
+
+    @tb.must_fail(error.SchemaSyntaxError,
+                  r"Unexpected token.*RPAREN",
+                  line=4, col=24)
+    def test_eschema_syntax_function14(self):
+        r"""
+        function some_func($`(`:
+                str
+                    = )) -> std::str:
+            # XXX:     ^ - this is reported as "unexpected" as opposed to the
+            #              previous parentheses, this is because schema
+            #              parentheses matching is done before any analysis of
+            #              what's inside
             from edgeql function: some_other_func
         """
 
