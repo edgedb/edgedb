@@ -96,10 +96,7 @@ def run_server(args):
 
         if cluster_status == 'not-initialized':
             logger.info('Initializing database cluster in %s', args.data_dir)
-            initdb_output = cluster.init(**{
-                'username': 'postgres',
-                'locale': 'en_US.utf8',
-            })
+            initdb_output = cluster.init(username='postgres')
             for line in initdb_output.splitlines():
                 logger.debug('initdb: %s', line)
             cluster.reset_hba()
