@@ -75,35 +75,29 @@ CREATE ATTRIBUTE stdattrs::initial_value std::str;
 CREATE ATTRIBUTE stdattrs::varparam std::int;
 CREATE ATTRIBUTE stdattrs::args map<std::str, std::str>;
 
-CREATE FUNCTION std::lower(std::str) RETURNING std::str
+CREATE FUNCTION std::lower(std::str) -> std::str
     FROM SQL FUNCTION 'lower';
 
-CREATE AGGREGATE std::sum(std::int)
-    RETURNING std::int
+CREATE AGGREGATE std::sum(std::int) -> std::int
     INITIAL VALUE 0
     FROM SQL AGGREGATE 'sum';
 
-CREATE AGGREGATE std::count(std::any)
-    RETURNING std::int
+CREATE AGGREGATE std::count(std::any) -> std::int
     INITIAL VALUE 0
     FROM SQL AGGREGATE 'count';
 
-CREATE AGGREGATE std::array_agg(std::any)
-    RETURNING array<std::any>
+CREATE AGGREGATE std::array_agg(std::any) -> array<std::any>
     INITIAL VALUE []
     FROM SQL AGGREGATE 'array_agg';
 
-CREATE AGGREGATE std::is_distinct(std::any)
-    RETURNING std::bool
+CREATE AGGREGATE std::is_distinct(std::any) -> std::bool
     INITIAL VALUE True
     FROM SQL AGGREGATE '--system--';
 
-CREATE FUNCTION std::array_unpack(array<std::any>)
-    RETURNING SET OF std::any
+CREATE FUNCTION std::array_unpack(array<std::any>) -> SET OF std::any
     FROM SQL FUNCTION '--system--';
 
-CREATE FUNCTION std::array_contains(array<std::any>, std::any)
-    RETURNING std::bool
+CREATE FUNCTION std::array_contains(array<std::any>, std::any) -> std::bool
     FROM SQL $$
         SELECT
             CASE
@@ -112,26 +106,26 @@ CREATE FUNCTION std::array_contains(array<std::any>, std::any)
             END;
     $$;
 
-CREATE FUNCTION std::array_enumerate(array<std::any>)
-    RETURNING SET OF tuple<std::any, std::int>
+CREATE FUNCTION std::array_enumerate(array<std::any>) ->
+        SET OF tuple<std::any, std::int>
     FROM SQL FUNCTION '--system--';
 
-CREATE FUNCTION std::len(std::str) RETURNING std::int
+CREATE FUNCTION std::len(std::str) -> std::int
     FROM SQL FUNCTION 'char_length';
 
-CREATE FUNCTION std::len(std::bytes) RETURNING std::int
+CREATE FUNCTION std::len(std::bytes) -> std::int
     FROM SQL FUNCTION 'length';
 
-CREATE FUNCTION std::len(array<std::any>) RETURNING std::int
+CREATE FUNCTION std::len(array<std::any>) -> std::int
     FROM SQL $$
         SELECT array_length($1, 1)::bigint
     $$;
 
-CREATE FUNCTION std::random() RETURNING std::float
+CREATE FUNCTION std::random() -> std::float
     FROM SQL FUNCTION 'random';
 
-CREATE FUNCTION std::re_match(std::str, std::str, std::str='')
-    RETURNING SET OF array<std::str>
+CREATE FUNCTION std::re_match(std::str, std::str, std::str='') ->
+        SET OF array<std::str>
     FROM SQL $$
         SELECT regexp_matches($1, $2, $3);
     $$;
@@ -201,16 +195,16 @@ CREATE ATTRIBUTE std::rounding std::decimal_rounding_t;
 
 CREATE ATOM std::decimal;
 
-CREATE FUNCTION std::current_date() RETURNING std::date
+CREATE FUNCTION std::current_date() -> std::date
     FROM SQL 'SELECT current_date';
 
-CREATE FUNCTION std::current_time() RETURNING std::time
+CREATE FUNCTION std::current_time() -> std::time
     FROM SQL 'SELECT current_time';
 
-CREATE FUNCTION std::current_datetime() RETURNING std::datetime
+CREATE FUNCTION std::current_datetime() -> std::datetime
     FROM SQL FUNCTION 'now';
 
-CREATE FUNCTION std::uuid_generate_v1mc() RETURNING std::uuid
+CREATE FUNCTION std::uuid_generate_v1mc() -> std::uuid
     FROM SQL FUNCTION 'uuid_generate_v1mc';
 
 CREATE ACTION std::restrict {

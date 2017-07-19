@@ -1453,7 +1453,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_cardinality01(self):
         """
         SELECT SINGLETON User.name FILTER (User.name = 'special');
-        CREATE FUNCTION spam($foo: str) RETURNING SET OF str
+        CREATE FUNCTION spam($foo: str) -> SET OF str
             FROM EdgeQL $$ SELECT "a" $$;
         """
 
@@ -2136,7 +2136,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ddl_aggregate01(self):
         """
         CREATE AGGREGATE std::sum($v: std::int)
-            RETURNING std::int
+            -> std::int
             INITIAL VALUE 0
             FROM SQL AGGREGATE 'test';
         """
@@ -2144,7 +2144,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ddl_aggregate02(self):
         """
         CREATE AGGREGATE std::sum(std::int)
-            RETURNING std::int
+            -> std::int
             INITIAL VALUE 0
             FROM SQL AGGREGATE 'sum';
         """
@@ -2152,7 +2152,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ddl_aggregate03(self):
         """
         CREATE AGGREGATE std::sum($integer: std::int)
-            RETURNING std::int
+            -> std::int
             INITIAL VALUE 0
             FROM SQL AGGREGATE 'sum';
         """
@@ -2160,7 +2160,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ddl_aggregate04(self):
         """
         CREATE AGGREGATE std::sum($integer: std::int)
-            RETURNING std::int
+            -> std::int
             INITIAL VALUE 0
             FROM SQL AGGREGATE 'sum';
         """
@@ -2170,7 +2170,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ddl_aggregate05(self):
         """
         CREATE AGGREGATE std::sum($integer: std::int)
-            RETURNING std::int
+            -> std::int
             FROM SQL AGGREGATE 'sum';
         """
 
@@ -2179,7 +2179,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ddl_aggregate06(self):
         """
         CREATE AGGREGATE foo($string: std::str)
-            RETURNING std::int INITIAL VALUE 0
+            -> std::int INITIAL VALUE 0
             FROM AAA AGGREGATE 'foo';
         """
 
@@ -2188,14 +2188,14 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ddl_aggregate07(self):
         """
         CREATE AGGREGATE foo($string: std::str)
-            RETURNING std::int INITIAL VALUE 0
+            -> std::int INITIAL VALUE 0
             FROM SQL FUNCTION 'foo';
         """
 
     def test_edgeql_syntax_ddl_aggregate08(self):
         """
         CREATE AGGREGATE std::count($expression: std::any)
-            RETURNING std::int INITIAL VALUE 0
+            -> std::int INITIAL VALUE 0
             FROM SQL AGGREGATE 'count';
         """
 
@@ -2205,7 +2205,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         # We don't yet support creating aggregates from any kind of code.
         """
         CREATE AGGREGATE foo()
-            RETURNING std::int
+            -> std::int
             INITIAL VALUE 0
             FROM SQL 'SELECT 1';
         """
@@ -2382,40 +2382,40 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_function01(self):
         """
-        CREATE FUNCTION std::strlen($string: std::str) RETURNING std::int
+        CREATE FUNCTION std::strlen($string: std::str) -> std::int
             FROM SQL FUNCTION 'strlen';
         """
 
     def test_edgeql_syntax_ddl_function02(self):
         """
-        CREATE FUNCTION std::strlen(std::str) RETURNING std::int
+        CREATE FUNCTION std::strlen(std::str) -> std::int
             FROM SQL FUNCTION 'strlen';
         """
 
     def test_edgeql_syntax_ddl_function03(self):
         """
-        CREATE FUNCTION std::strlen($string: std::str) RETURNING std::int
+        CREATE FUNCTION std::strlen($string: std::str) -> std::int
             FROM SQL FUNCTION 'strlen';
         """
 
     def test_edgeql_syntax_ddl_function04(self):
         """
         CREATE FUNCTION std::strlen($string: std::str, $integer: std::int)
-            RETURNING std::int
+            -> std::int
             FROM SQL FUNCTION 'strlen';
         """
 
     def test_edgeql_syntax_ddl_function05(self):
         """
         CREATE FUNCTION std::strlen($string: std::str, std::int)
-            RETURNING std::int
+            -> std::int
             FROM SQL FUNCTION 'strlen';
         """
 
     def test_edgeql_syntax_ddl_function06(self):
         """
         CREATE FUNCTION std::strlen($string: std::str = '1')
-            RETURNING std::int
+            -> std::int
             FROM SQL FUNCTION 'strlen';
         """
 
@@ -2424,7 +2424,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ddl_function07(self):
         """
         CREATE FUNCTION std::strlen($string: std::str = '1', $abc: std::str)
-            RETURNING std::int;
+            -> std::int;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -2432,7 +2432,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ddl_function08(self):
         """
         CREATE FUNCTION std::strlen(*$string: std::str = '1', $abc: std::str)
-            RETURNING std::int;
+            -> std::int;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -2440,32 +2440,32 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ddl_function09(self):
         """
         CREATE FUNCTION std::strlen(*$string: std::str = '1', *$abc: std::str)
-            RETURNING std::int;
+            -> std::int;
         """
 
     def test_edgeql_syntax_ddl_function10(self):
         """
         CREATE FUNCTION std::strlen(std::str = '1', *std::str)
-            RETURNING std::int
+            -> std::int
             FROM SQL FUNCTION 'strlen';
         """
 
     def test_edgeql_syntax_ddl_function11(self):
         """
-        CREATE FUNCTION no_params() RETURNING std::int
+        CREATE FUNCTION no_params() -> std::int
         FROM EdgeQL $$ SELECT 1 $$;
         """
 
     def test_edgeql_syntax_ddl_function13(self):
         """
-        CREATE FUNCTION foo($string: std::str) RETURNING {bar: std::int}
+        CREATE FUNCTION foo($string: std::str) -> {bar: std::int}
         FROM EDGEQL $$ SELECT { bar := 123 } $$;
         """
 
     def test_edgeql_syntax_ddl_function14(self):
         """
         CREATE FUNCTION foo($string: std::str)
-        RETURNING {
+        -> {
             bar: std::int,
             baz: std::str
         } FROM EdgeQL $$ SELECT smth() $$;
@@ -2475,7 +2475,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ddl_function16(self):
         """
         CREATE FUNCTION foo($string: std::str)
-        RETURNING std::int FROM AAA FUNCTION 'foo';
+        -> std::int FROM AAA FUNCTION 'foo';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -2483,7 +2483,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ddl_function18(self):
         """
         CREATE FUNCTION foo($string: std::str)
-        RETURNING std::int FROM SQL AGGREGATE 'foo';
+        -> std::int FROM SQL AGGREGATE 'foo';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -2491,31 +2491,31 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ddl_function19(self):
         """
         CREATE FUNCTION foo($string: std::str)
-        RETURNING std::int FROM AAA 'code';
+        -> std::int FROM AAA 'code';
         """
 
     def test_edgeql_syntax_ddl_function20(self):
         """
-        CREATE FUNCTION foo() RETURNING std::int FROM SQL 'SELECT 1';
+        CREATE FUNCTION foo() -> std::int FROM SQL 'SELECT 1';
 
 % OK %
 
-        CREATE FUNCTION foo() RETURNING std::int FROM SQL $$SELECT 1$$;
+        CREATE FUNCTION foo() -> std::int FROM SQL $$SELECT 1$$;
         """
 
     def test_edgeql_syntax_ddl_function21(self):
         """
-        CREATE FUNCTION foo() RETURNING std::int FROM SQL FUNCTION 'aaa';
+        CREATE FUNCTION foo() -> std::int FROM SQL FUNCTION 'aaa';
         """
 
     def test_edgeql_syntax_ddl_function24(self):
         """
-        CREATE FUNCTION foo() RETURNING std::str FROM SQL $a$SELECT $$foo$$$a$;
+        CREATE FUNCTION foo() -> std::str FROM SQL $a$SELECT $$foo$$$a$;
         """
 
     def test_edgeql_syntax_ddl_function25(self):
         """
-        CREATE FUNCTION foo() RETURNING std::str {
+        CREATE FUNCTION foo() -> std::str {
             SET description := 'aaaa';
             FROM SQL $a$SELECT $$foo$$$a$;
         };
@@ -2523,7 +2523,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_function26(self):
         """
-        CREATE FUNCTION foo() RETURNING std::str {
+        CREATE FUNCTION foo() -> std::str {
             SET volatility := 'volatile';
             SET description := 'aaaa';
             FROM SQL $a$SELECT $$foo$$$a$;
@@ -2534,7 +2534,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
                   "FROM clause is missing", line=2)
     def test_edgeql_syntax_ddl_function27(self):
         """
-        CREATE FUNCTION foo() RETURNING std::str {
+        CREATE FUNCTION foo() -> std::str {
             SET description := 'aaaa';
         };
         """
@@ -2543,7 +2543,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
                   "more than one FROM clause", line=5)
     def test_edgeql_syntax_ddl_function28(self):
         """
-        CREATE FUNCTION foo() RETURNING std::str {
+        CREATE FUNCTION foo() -> std::str {
             FROM SQL 'SELECT 1';
             SET description := 'aaaa';
             FROM SQL 'SELECT 2';
@@ -2555,7 +2555,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ddl_function29(self):
         """
         CREATE FUNCTION std::strlen(std::str = '1', *std::str)
-            RETURNING std::int
+            -> std::int
             INITIAL VALUE 0
             FROM SQL FUNCTION 'strlen';
         """
@@ -2565,7 +2565,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ddl_function30(self):
         """
         CREATE FUNCTION std::foobar($arg1: str, $arg2: str = 'DEFAULT', *$arg3)
-            RETURNING std::int
+            -> std::int
             FROM EdgeQL $$$$;
         """
 

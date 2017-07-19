@@ -57,7 +57,7 @@ Every identifier that is not a *reserved* keyword is a valid *name*.
                     : "INSERT" | "IS" | "LIKE" | "LIMIT" |
                     : "MODULE" | "NOT" | "OFFSET" | "OR" |
                     : "ORDER" | "OVER" | "PARTITION" |
-                    : "RETURNING" | "ROLLBACK" | "SELECT" |
+                    : "ROLLBACK" | "SELECT" |
                     : "SET" | "SINGLETON" | "START" | "TRUE" |
                     : "UPDATE" | "UNION" | "WITH"
     unreserved_keyword: case insensitive sequence matching any

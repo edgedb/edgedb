@@ -89,7 +89,6 @@ reserved_keywords = frozenset([
     "order",
     "over",
     "partition",
-    "returning",
     "rollback",
     "select",
     "set",
