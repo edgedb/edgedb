@@ -12,7 +12,7 @@ import typing
 keyword_types = range(1, 4)
 UNRESERVED_KEYWORD, RESERVED_KEYWORD, TYPE_FUNC_NAME_KEYWORD = keyword_types
 
-unreserved_keywords = [
+unreserved_keywords = frozenset([
     "abstract",
     "action",
     "after",
@@ -53,11 +53,12 @@ unreserved_keywords = [
     "tuple",
     "value",
     "view",
-]
+])
+
 
 # NOTE: all operators are made into RESERVED keywords for reasons of style.
 #
-reserved_keywords = [
+reserved_keywords = frozenset([
     "aggregate",
     "all",
     "alter",
@@ -99,7 +100,19 @@ reserved_keywords = [
     "update",
     "union",
     "with",
-]
+])
+
+
+def _check_keywords():
+    duplicate_keywords = reserved_keywords & unreserved_keywords
+    if duplicate_keywords:
+        raise ValueError(
+            f'The following EdgeQL keywords are defined as *both* '
+            f'reserved and unreserved: {duplicate_keywords!r}')
+
+
+_check_keywords()
+
 
 edgeql_keywords = {k: (k.upper(), UNRESERVED_KEYWORD)
                    for k in unreserved_keywords}

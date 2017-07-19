@@ -8,39 +8,97 @@
 
 import typing
 
+from edgedb.lang import edgeql
+
+
 keyword_types = range(1, 3)
 UNRESERVED_KEYWORD, RESERVED_KEYWORD = keyword_types
 
-edge_schema_keywords = {
-    "abstract": ("ABSTRACT", RESERVED_KEYWORD),
-    "action": ("ACTION", UNRESERVED_KEYWORD),
-    "aggregate": ("AGGREGATE", UNRESERVED_KEYWORD),
-    "as": ("AS", UNRESERVED_KEYWORD),
-    "atom": ("ATOM", UNRESERVED_KEYWORD),
-    "attribute": ("ATTRIBUTE", UNRESERVED_KEYWORD),
-    "concept": ("CONCEPT", UNRESERVED_KEYWORD),
-    "constraint": ("CONSTRAINT", UNRESERVED_KEYWORD),
-    "event": ("EVENT", UNRESERVED_KEYWORD),
-    "extends": ("EXTENDS", RESERVED_KEYWORD),
-    "false": ("FALSE", RESERVED_KEYWORD),
-    "final": ("FINAL", UNRESERVED_KEYWORD),
-    "from": ("FROM", UNRESERVED_KEYWORD),
-    "function": ("FUNCTION", UNRESERVED_KEYWORD),
-    "import": ("IMPORT", UNRESERVED_KEYWORD),
-    "index": ("INDEX", UNRESERVED_KEYWORD),
-    "initial": ("INITIAL", UNRESERVED_KEYWORD),
-    "link": ("LINK", UNRESERVED_KEYWORD),
-    "linkproperty": ("LINKPROPERTY", UNRESERVED_KEYWORD),
-    "of": ("OF", UNRESERVED_KEYWORD),
-    "on": ("ON", UNRESERVED_KEYWORD),
-    "properties": ("PROPERTIES", UNRESERVED_KEYWORD),
-    "required": ("REQUIRED", RESERVED_KEYWORD),
-    "set": ("SET", RESERVED_KEYWORD),
-    "to": ("TO", UNRESERVED_KEYWORD),
-    "true": ("TRUE", RESERVED_KEYWORD),
-    "value": ("VALUE", UNRESERVED_KEYWORD),
-    "view": ("VIEW", UNRESERVED_KEYWORD),
-}
+
+unreserved_keywords = frozenset([
+    "abstract",
+    "action",
+    "as",
+    "atom",
+    "attribute",
+    "concept",
+    "constraint",
+    "event",
+    "extends",
+    "final",
+    "from",
+    "import",
+    "index",
+    "initial",
+    "link",
+    "linkproperty",
+    "of",
+    "on",
+    "required",
+    "to",
+    "value",
+    "view",
+    "abstract",
+])
+
+
+reserved_keywords = frozenset([
+    "aggregate",
+    "false",
+    "function",
+    "set",
+    "true",
+])
+
+
+def _check_keywords():
+    # TODO: Fix linkproperty; add 'on' to EdgeQL
+    ALLOWED_NEW_UNRESERVED = {'on', 'import', 'linkproperty', 'extends'}
+
+    invalid_unreserved_keywords = \
+        edgeql.keywords.reserved_keywords.intersection(unreserved_keywords)
+    if invalid_unreserved_keywords:
+        raise ValueError(
+            f'The following unreserved eschema keywords are *reserved* '
+            f'in EdgeQL: {invalid_unreserved_keywords!r}')
+
+    invalid_reserved_keywords = \
+        edgeql.keywords.unreserved_keywords.intersection(reserved_keywords)
+    if invalid_reserved_keywords:
+        raise ValueError(
+            f'The following reserved eschema keywords are *unreserved* '
+            f'in EdgeQL: {invalid_reserved_keywords!r}')
+
+    duplicate_keywords = \
+        reserved_keywords.intersection(unreserved_keywords)
+    if duplicate_keywords:
+        raise ValueError(
+            f'The following eschema keywords are defined as *both* '
+            f'reserved and unreserved: {duplicate_keywords!r}')
+
+    new_reserved_keywords = \
+        reserved_keywords - edgeql.keywords.reserved_keywords
+    if new_reserved_keywords:
+        raise ValueError(
+            f'The following reserved keywords are defined in eschema, '
+            f'but not in EdgeQL: {new_reserved_keywords!r}')
+
+    new_unreserved_keywords = (unreserved_keywords -
+                               edgeql.keywords.unreserved_keywords -
+                               ALLOWED_NEW_UNRESERVED)
+    if new_unreserved_keywords:
+        raise ValueError(
+            f'The following unreserved keywords are defined in eschema, '
+            f'but not in EdgeQL: {new_unreserved_keywords!r}')
+
+
+_check_keywords()
+
+
+edge_schema_keywords = {k: (k.upper(), UNRESERVED_KEYWORD)
+                        for k in unreserved_keywords}
+edge_schema_keywords.update({k: (k.upper(), RESERVED_KEYWORD)
+                             for k in reserved_keywords})
 
 
 by_type: typing.Dict[int, dict] = {typ: {} for typ in keyword_types}
