@@ -88,7 +88,7 @@ class TestGraphQLTranslation(TranslatorTest):
         abstract concept NamedObject:
             required link name to str
 
-        concept Group extending NamedObject:
+        concept UserGroup extending NamedObject:
             link settings to Setting:
                 mapping: 1*
 
@@ -100,7 +100,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
         concept User extending NamedObject:
             required link active to bool
-            link groups to Group:
+            link groups to UserGroup:
                 mapping: **
             required link age to int
             required link score to float
@@ -116,7 +116,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     SCHEMA_123LIB = r"""
         concept Foo:
-            link select to str
+            link `select` to str
             link after to str
     """
 
@@ -232,7 +232,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_fragment01(self):
         r"""
-        fragment groupFrag on Group @edgedb(module: "test") {
+        fragment groupFrag on UserGroup @edgedb(module: "test") {
             id
             name
         }
@@ -271,7 +271,7 @@ class TestGraphQLTranslation(TranslatorTest):
             }
         }
 
-        fragment groupFrag on Group @edgedb(module: "test") {
+        fragment groupFrag on UserGroup @edgedb(module: "test") {
             id
             name
         }
@@ -302,7 +302,7 @@ class TestGraphQLTranslation(TranslatorTest):
             }
         }
 
-        fragment groupFrag on Group @edgedb(module: "test") {
+        fragment groupFrag on UserGroup @edgedb(module: "test") {
             id
             name
         }
@@ -339,7 +339,7 @@ class TestGraphQLTranslation(TranslatorTest):
             }
         }
 
-        fragment groupFrag on Group @edgedb(module: "test") {
+        fragment groupFrag on UserGroup @edgedb(module: "test") {
             id
             name
         }
@@ -438,7 +438,7 @@ class TestGraphQLTranslation(TranslatorTest):
             }
         }
 
-        fragment groupFrag on Group @edgedb(module: "test") {
+        fragment groupFrag on UserGroup @edgedb(module: "test") {
             id
             name
         }
@@ -468,7 +468,7 @@ class TestGraphQLTranslation(TranslatorTest):
             }
         }
 
-        fragment groupFrag on Group @edgedb(module: "test") {
+        fragment groupFrag on UserGroup @edgedb(module: "test") {
             id
             name
         }
@@ -499,7 +499,7 @@ class TestGraphQLTranslation(TranslatorTest):
             }
         }
 
-        fragment groupFrag on Group @edgedb(module: "test") {
+        fragment groupFrag on UserGroup @edgedb(module: "test") {
             name
         }
 
@@ -533,7 +533,7 @@ class TestGraphQLTranslation(TranslatorTest):
             }
         }
 
-        fragment groupFrag on Group @edgedb(module: "test") {
+        fragment groupFrag on UserGroup @edgedb(module: "test") {
             name
         }
 
@@ -569,7 +569,7 @@ class TestGraphQLTranslation(TranslatorTest):
             }
         }
 
-        fragment groupFrag on Group @edgedb(module: "test") {
+        fragment groupFrag on UserGroup @edgedb(module: "test") {
             name
         }
 
@@ -604,7 +604,7 @@ class TestGraphQLTranslation(TranslatorTest):
             }
         }
 
-        fragment groupFrag on Group @edgedb(module: "test") {
+        fragment groupFrag on UserGroup @edgedb(module: "test") {
             name
         }
 
@@ -1387,7 +1387,7 @@ class TestGraphQLTranslation(TranslatorTest):
         r"""
         query @edgedb(module: "test") {
             # this is an ENUM that gets simply converted to a string in EdgeQL
-            Group(name: admin) {
+            UserGroup(name: admin) {
                 id,
                 name,
             }
@@ -1396,12 +1396,12 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            (test::`Group`){
+            (test::UserGroup){
                 id,
                 name,
             }
         FILTER
-            ((test::`Group`).name = 'admin');
+            ((test::UserGroup).name = 'admin');
         """
 
     def test_graphql_translation_arg_type01(self):
@@ -1861,7 +1861,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
 
         query @edgedb(module: "test") {
-            Group {
+            UserGroup {
                 ... userFrag
             }
         }
@@ -1875,7 +1875,7 @@ class TestGraphQLTranslation(TranslatorTest):
             name,
         }
 
-        fragment groupFrag on Group @edgedb(module: "test") {
+        fragment groupFrag on UserGroup @edgedb(module: "test") {
             ... userFrag
         }
 
@@ -2043,7 +2043,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_import01(self):
         r"""
-        fragment groupFrag on Group @edgedb(module: "test") {
+        fragment groupFrag on UserGroup @edgedb(module: "test") {
             id
             name
         }
@@ -2074,7 +2074,7 @@ class TestGraphQLTranslation(TranslatorTest):
     @tb.must_fail(GraphQLValidationError, line=8, col=13)
     def test_graphql_translation_import02(self):
         r"""
-        fragment groupFrag on Group @edgedb(module: "test") {
+        fragment groupFrag on UserGroup @edgedb(module: "test") {
             id
             name
         }
@@ -2342,7 +2342,7 @@ class TestGraphQLTranslation(TranslatorTest):
     def test_graphql_translation_insert01(self):
         r"""
         mutation @edgedb(module: "test") {
-            insert__Group(__data: {
+            insert__UserGroup(__data: {
                 name: "new"
             }) {
                 id,
@@ -2354,7 +2354,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
         SELECT (
             INSERT
-                test::`Group` {
+                test::UserGroup {
                     name := 'new'
                 }
         ) {

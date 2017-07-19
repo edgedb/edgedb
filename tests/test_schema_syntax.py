@@ -138,6 +138,15 @@ concept `Log-Entry` extending OwnedObject, Text:
     required link attachment to Post, File, User
         """
 
+    @tb.must_fail(error.SchemaSyntaxError,
+                  "Unexpected token.*COMMIT",
+                  line=2, col=9)
+    def test_eschema_syntax_concept11(self):
+        """
+concept Commit:
+    required link name to std::str
+        """
+
     def test_eschema_syntax_type01(self):
         """
 concept User:
