@@ -17,7 +17,7 @@ class TestGraphQLMutation(tb.QueryTestCase):
             abstract concept NamedObject:
                 required link name to str
 
-            concept Group extending NamedObject:
+            concept UserGroup extending NamedObject:
                 link settings to Setting:
                     mapping: **
 
@@ -29,7 +29,7 @@ class TestGraphQLMutation(tb.QueryTestCase):
 
             concept User extending NamedObject:
                 required link active to bool
-                link groups to Group:
+                link groups to UserGroup:
                     mapping: **
                 required link age to int
                 required link score to float
@@ -54,12 +54,12 @@ class TestGraphQLMutation(tb.QueryTestCase):
             };
 
             WITH MODULE test
-            INSERT `Group` {
+            INSERT UserGroup {
                 name := 'basic'
             };
 
             WITH MODULE test
-            INSERT `Group` {
+            INSERT UserGroup {
                 name := 'upgraded'
             };
 
@@ -69,7 +69,7 @@ class TestGraphQLMutation(tb.QueryTestCase):
                 age := 25,
                 active := True,
                 score := 3.14,
-                groups := (SELECT `Group` FILTER `Group`.name = 'basic')
+                groups := (SELECT UserGroup FILTER UserGroup.name = 'basic')
             };
 
             WITH MODULE test
@@ -78,7 +78,7 @@ class TestGraphQLMutation(tb.QueryTestCase):
                 age := 26,
                 active := True,
                 score := 1.23,
-                groups := (SELECT `Group` FILTER `Group`.name = 'upgraded')
+                groups := (SELECT UserGroup FILTER UserGroup.name = 'upgraded')
             };
 
             WITH MODULE test
@@ -92,7 +92,7 @@ class TestGraphQLMutation(tb.QueryTestCase):
 
     TEARDOWN_METHOD = """
             DELETE test::Setting;
-            DELETE test::Group;
+            DELETE test::UserGroup;
             DELETE test::User;
     """
 
@@ -193,7 +193,7 @@ class TestGraphQLMutation(tb.QueryTestCase):
     async def test_graphql_mutation_insert01(self):
         result = await self.con.execute(r"""
             mutation @edgedb(module: "test") {
-                insert__Group(__data: {
+                insert__UserGroup(__data: {
                     name: "new"
                 }) {
                     id
@@ -213,7 +213,7 @@ class TestGraphQLMutation(tb.QueryTestCase):
     async def test_graphql_mutation_insert02(self):
         groups = await self.con.execute(r"""
             query @edgedb(module: "test") {
-                Group(name: "basic") {
+                UserGroup(name: "basic") {
                     id,
                 }
             }
@@ -412,7 +412,7 @@ class TestGraphQLMutation(tb.QueryTestCase):
     async def test_graphql_mutation_update02(self):
         groups = await self.con.execute(r"""
             query @edgedb(module: "test") {
-                Group(name: "basic") {
+                UserGroup(name: "basic") {
                     id,
                 }
             }

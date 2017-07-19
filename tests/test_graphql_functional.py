@@ -17,7 +17,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             abstract concept NamedObject:
                 required link name to str
 
-            concept Group extending NamedObject:
+            concept UserGroup extending NamedObject:
                 link settings to Setting:
                     mapping: **
 
@@ -29,7 +29,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
 
             concept User extending NamedObject:
                 required link active to bool
-                link groups to Group:
+                link groups to UserGroup:
                     mapping: **
                 required link age to int
                 required link score to float
@@ -52,12 +52,12 @@ class TestGraphQLFunctional(tb.QueryTestCase):
         };
 
         WITH MODULE test
-        INSERT `Group` {
+        INSERT UserGroup {
             name := 'basic'
         };
 
         WITH MODULE test
-        INSERT `Group` {
+        INSERT UserGroup {
             name := 'upgraded'
         };
 
@@ -67,7 +67,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             age := 25,
             active := True,
             score := 3.14,
-            groups := (SELECT `Group` FILTER `Group`.name = 'basic')
+            groups := (SELECT UserGroup FILTER UserGroup.name = 'basic')
         };
 
         WITH MODULE test
@@ -76,7 +76,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             age := 26,
             active := True,
             score := 1.23,
-            groups := (SELECT `Group` FILTER `Group`.name = 'upgraded')
+            groups := (SELECT UserGroup FILTER UserGroup.name = 'upgraded')
         };
 
         WITH MODULE test

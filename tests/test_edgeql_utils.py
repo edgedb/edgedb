@@ -20,7 +20,7 @@ class TestEdgeQLUtils(tb.BaseSyntaxTest):
         abstract concept NamedObject:
             required link name to str
 
-        concept Group extending NamedObject:
+        concept UserGroup extending NamedObject:
             link settings to Setting:
                 mapping: 1*
 
@@ -32,7 +32,7 @@ class TestEdgeQLUtils(tb.BaseSyntaxTest):
 
         concept User extending NamedObject:
             required link active to bool
-            link groups to Group:
+            link groups to UserGroup:
                 mapping: **
             required link age to int
             required link score to float

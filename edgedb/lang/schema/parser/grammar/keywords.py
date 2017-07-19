@@ -42,13 +42,11 @@ unreserved_keywords = frozenset([
 ])
 
 
-reserved_keywords = frozenset([
-    "aggregate",
-    "false",
-    "function",
-    "set",
-    "true",
-])
+# We use the same reserved keywords in both eschema and EdgeQL
+# to enforce consistency in naming.  E.g. if a concept name is a reserved
+# keyword in EdgeQL and needs to be quoted, the same should apply to
+# eschema.
+reserved_keywords = edgeql.keywords.reserved_keywords
 
 
 def _check_keywords():
