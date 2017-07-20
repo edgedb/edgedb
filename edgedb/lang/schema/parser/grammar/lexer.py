@@ -41,7 +41,8 @@ Rule = lexer.Rule
 
 
 def enter_paren_state(lex):
-    if lex.prev_nw_tok.type in keyword_tokens:
+    tok = lex.prev_nw_tok
+    if tok.type in keyword_tokens and tok.type != 'ON':
         return STATE_WS_INSENSITIVE
     else:
         return STATE_RAW_PAREN

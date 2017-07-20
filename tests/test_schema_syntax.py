@@ -175,7 +175,7 @@ concept User:
         """
 concept LogEntry extending OwnedObject, Text:
     required link owner to User
-    index test_index := SELECT datetime::current_datetime()
+    index test_index on (SELECT datetime::current_datetime())
         """
 
     def test_eschema_syntax_ws01(self):
