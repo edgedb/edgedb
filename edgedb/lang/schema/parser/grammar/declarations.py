@@ -6,8 +6,8 @@
 ##
 
 
-import collections
 import textwrap
+import typing
 
 from edgedb.lang.common import parsing, context
 from edgedb.lang.common.exceptions import get_context
@@ -24,14 +24,20 @@ from . import tokens
 from .tokens import *  # NOQA
 
 
-RawLiteral = collections.namedtuple(
-    'RawLiteral', ('value',))
+class RawLiteral(typing.NamedTuple):
+    value: str
 
-NameWithParents = collections.namedtuple(
-    'NameWithParents', ('name', 'extends'))
 
-PointerSpec = collections.namedtuple(
-    'PointerSpec', ('name', 'target', 'spec', 'expr'))
+class NameWithParents(typing.NamedTuple):
+    name: str
+    extends: typing.List[esast.ObjectName]
+
+
+class PointerSpec(typing.NamedTuple):
+    name: str
+    target: typing.List[esast.ObjectName]
+    spec: typing.List[esast.Base]
+    expr: typing.Optional[qlast.Base]
 
 
 def parse_edgeql(expr: str, ctx, *, offset_column=0):
