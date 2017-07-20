@@ -65,7 +65,7 @@ async def _ensure_edgedb_superuser(conn):
                     ' '.join(alter)))
 
 
-async def _ensure_edgedb_template_database(conn):
+async def _get_db_info(conn, dbname):
     result = await conn.fetchrow('''
         SELECT
             r.rolname,
@@ -77,7 +77,13 @@ async def _ensure_edgedb_template_database(conn):
                 ON (d.datdba = r.oid)
         WHERE
             d.datname = $1
-    ''', edgedb_defines.EDGEDB_TEMPLATE_DB)
+    ''', dbname)
+
+    return result
+
+
+async def _ensure_edgedb_template_database(conn):
+    result = await _get_db_info(conn, edgedb_defines.EDGEDB_TEMPLATE_DB)
 
     if not result:
         logger.info('Creating template database...')
@@ -94,9 +100,6 @@ async def _ensure_edgedb_template_database(conn):
 
         if not result['datistemplate']:
             alter.append('IS_TEMPLATE')
-
-        if not result['datallowconn']:
-            alter.append('ALLOW_CONNECTIONS')
 
         if result['rolname'] != edgedb_defines.EDGEDB_SUPERUSER:
             alter_owner = True
@@ -118,6 +121,17 @@ async def _ensure_edgedb_template_database(conn):
                         edgedb_defines.EDGEDB_SUPERUSER))
 
         return False
+
+
+async def _ensure_edgedb_template_not_connectable(conn):
+    result = await _get_db_info(conn, edgedb_defines.EDGEDB_TEMPLATE_DB)
+    if result['datallowconn']:
+        await _execute(
+            conn,
+            f'''ALTER DATABASE {edgedb_defines.EDGEDB_TEMPLATE_DB}
+                WITH ALLOW_CONNECTIONS = false
+            '''
+        )
 
 
 async def _ensure_meta_schema(conn):
@@ -146,23 +160,39 @@ async def _init_std_schema(conn):
     await metaschema.generate_views(conn, bk.schema)
 
 
+async def _ensure_edgedb_default_database(conn):
+    result = await _get_db_info(conn, edgedb_defines.EDGEDB_DEFAULT_DB)
+    if not result:
+        logger.info(
+            f'Creating default database: {edgedb_defines.EDGEDB_DEFAULT_DB}')
+
+        await _execute(conn, f'''
+            CREATE DATABASE {edgedb_defines.EDGEDB_DEFAULT_DB}
+            WITH OWNER = {edgedb_defines.EDGEDB_SUPERUSER}
+            TEMPLATE = {edgedb_defines.EDGEDB_TEMPLATE_DB}
+        ''')
+
+
 async def bootstrap(cluster, loop=None):
-    conn = await cluster.connect(loop=loop)
+    pgconn = await cluster.connect(loop=loop)
 
     try:
-        await _ensure_edgedb_superuser(conn)
-        need_meta_bootstrap = await _ensure_edgedb_template_database(conn)
+        await _ensure_edgedb_superuser(pgconn)
+        need_meta_bootstrap = await _ensure_edgedb_template_database(pgconn)
+
+        if need_meta_bootstrap:
+            conn = await cluster.connect(
+                loop=loop, database=edgedb_defines.EDGEDB_TEMPLATE_DB,
+                user=edgedb_defines.EDGEDB_SUPERUSER)
+
+            try:
+                await _ensure_meta_schema(conn)
+                await _init_std_schema(conn)
+            finally:
+                await conn.close()
+
+        await _ensure_edgedb_default_database(pgconn)
+        await _ensure_edgedb_template_not_connectable(pgconn)
+
     finally:
-        await conn.close()
-
-    if need_meta_bootstrap:
-        conn = await cluster.connect(
-            loop=loop, database=edgedb_defines.EDGEDB_TEMPLATE_DB,
-            user=edgedb_defines.EDGEDB_SUPERUSER)
-
-        try:
-            await _ensure_meta_schema(conn)
-            await _init_std_schema(conn)
-
-        finally:
-            await conn.close()
+        await pgconn.close()

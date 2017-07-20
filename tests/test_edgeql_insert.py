@@ -20,15 +20,6 @@ class TestInsert(tb.QueryTestCase):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'insert.eschema')
 
-    TEARDOWN_METHOD = """
-        DELETE test::Subordinate;
-        DELETE test::InsertTest;
-        DELETE test::DefaultTest1;
-        DELETE test::DefaultTest2;
-        DELETE test::DefaultTest3;
-        DELETE test::DefaultTest4;
-    """
-
     async def test_edgeql_insert_fail_1(self):
         err = 'missing value for required pointer ' + \
               '{test::InsertTest}.{test::l2}'

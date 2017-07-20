@@ -25,7 +25,7 @@ class TestCtl(tb.TestCase):
             ctl.main(['-D', data_dir, 'init'], env=env)
 
             cluster = edgedb_cluster.Cluster(
-                data_dir=data_dir, port='dynamic', env=env)
+                data_dir, port='dynamic', env=env)
             cluster_status = cluster.get_status()
 
             self.assertEqual(cluster_status, 'stopped')

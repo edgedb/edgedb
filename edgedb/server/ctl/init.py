@@ -12,5 +12,5 @@ def main(args, env):
     """Initialize EdgeDB database cluster."""
     if args.data_dir:
         cluster = edgedb_cluster.Cluster(
-            data_dir=args.data_dir, port='dynamic', env=env)
+            args.data_dir, port='dynamic', env=env)
         cluster.init()

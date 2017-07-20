@@ -8,7 +8,6 @@
 
 
 import argparse
-import asyncio
 import os.path
 import shutil
 import sys
@@ -32,14 +31,14 @@ class TestRunner:
         return TestResult()
 
 
-async def execute(tests_dir, jobs, cluster):
+def execute(tests_dir, conns):
     runner = TestRunner()
     unittest.main(
         module=None,
         argv=['unittest', 'discover', '-s', tests_dir],
         testRunner=runner, exit=False)
 
-    await tb.setup_test_cases(cluster, runner.cases, jobs=jobs)
+    tb.setup_test_cases(runner.cases, conns)
 
 
 def die(msg):
@@ -79,6 +78,9 @@ def main():
         if os.listdir(data_dir):
             die(f'{data_dir!r} exists and is not empty')
 
+    if not jobs:
+        jobs = os.cpu_count()
+
     cluster = edgedb_cluster.Cluster(data_dir)
     print(f'Bootstrapping test EdgeDB instance in {data_dir}...')
 
@@ -90,21 +92,17 @@ def main():
             shutil.rmtree(data_dir)
         raise
 
+    servers, conns = tb.start_worker_servers(cluster, num_workers=jobs)
     destroy_cluster = False
 
-    loop = asyncio.get_event_loop()
-
     try:
-        loop.run_until_complete(execute(tests_dir, jobs, cluster))
+        execute(tests_dir, conns)
         print(f'Initialized and populated test EdgeDB instance in {data_dir}')
     except BaseException:
         destroy_cluster = True
         raise
     finally:
-        cluster.stop()
-        if destroy_cluster:
-            cluster.destroy()
-        loop.close()
+        tb.shutdown_worker_servers(servers, destroy=destroy_cluster)
 
 
 if __name__ == '__main__':

@@ -42,12 +42,6 @@ class TestUpdate(tb.QueryTestCase):
         super().setUp()
         self.loop.run_until_complete(self._setup_objects())
 
-    def tearDown(self):
-        super().tearDown()
-        self.loop.run_until_complete(self.con.execute(r"""
-            DELETE test::UpdateTest;
-        """))
-
     async def _setup_objects(self):
         res = await self.con.execute(r"""
             WITH MODULE test

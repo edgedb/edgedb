@@ -18,6 +18,7 @@ import time
 from asyncpg import cluster as pg_cluster
 
 from edgedb import client as edgedb_client
+from edgedb.client import connect_utils
 from edgedb.server import defines as edgedb_defines
 
 if sys.platform == 'linux':
@@ -69,10 +70,47 @@ class ClusterError(Exception):
 
 class Cluster:
     def __init__(
-            self, data_dir, *, pg_config_path=None, pg_superuser='postgres',
-            port=edgedb_defines.EDGEDB_PORT, env=None):
-        self._data_dir = data_dir
-        self._pg_cluster = self._get_pg_cluster(data_dir, pg_config_path)
+            self, data_dir_or_pg_cluster, *, pg_config_path=None,
+            pg_superuser='postgres', port=edgedb_defines.EDGEDB_PORT,
+            env=None):
+        if (isinstance(data_dir_or_pg_cluster, str) and
+                (data_dir_or_pg_cluster.startswith('postgres://') or
+                    data_dir_or_pg_cluster.startswith('postgres://'))):
+            self._pg_dsn = data_dir_or_pg_cluster
+            data_dir_or_pg_cluster = pg_cluster.RunningCluster(
+                dsn=self._pg_dsn)
+        else:
+            self._pg_dsn = None
+
+        self._edgedb_cmd = ['edgedb-server']
+
+        if isinstance(data_dir_or_pg_cluster, pg_cluster.Cluster):
+            self._data_dir = None
+            self._location = None
+            self._pg_cluster = data_dir_or_pg_cluster
+
+            pg_conn_spec = dict(self._pg_cluster.get_connection_spec())
+            pg_conn_spec['user'] = pg_superuser
+
+            if self._pg_dsn is None:
+                self._pg_dsn = connect_utils.render_dsn(
+                    'postgres', pg_conn_spec)
+
+            reduced_spec = {
+                k: v for k, v in pg_conn_spec.items()
+                if k in ('dsn', 'host', 'port')
+            }
+            self._location = connect_utils.render_dsn('postgres', reduced_spec)
+
+            self._edgedb_cmd.extend(['-P', self._pg_dsn])
+        else:
+            self._data_dir = data_dir_or_pg_cluster
+            self._location = self._data_dir
+            self._pg_cluster = self._get_pg_cluster(
+                self._data_dir, pg_config_path)
+
+            self._edgedb_cmd.extend(['-D', self._data_dir])
+
         self._pg_superuser = pg_superuser
         self._daemon_process = None
         self._port = port
@@ -135,7 +173,7 @@ class Cluster:
         if not cluster_status.startswith('not-initialized'):
             raise ClusterError(
                 'cluster in {!r} has already been initialized'.format(
-                    self._data_dir))
+                    self._location))
 
         is_running = 'running' in cluster_status
 
@@ -184,7 +222,7 @@ class Cluster:
             env = None
 
         self._daemon_process = subprocess.Popen(
-            ['edgedb-server', '-D', self._data_dir, *extra_args],
+            self._edgedb_cmd + extra_args,
             stdout=sys.stdout, stderr=sys.stderr,
             preexec_fn=ensure_dead_with_parent,
             env=env)
@@ -209,7 +247,7 @@ class Cluster:
             env = None
 
         init = subprocess.run(
-            ['edgedb-server', '-D', self._data_dir, '--bootstrap'],
+            self._edgedb_cmd + ['--bootstrap'],
             stdout=sys.stdout, stderr=sys.stderr,
             preexec_fn=ensure_dead_with_parent,
             env=env)
@@ -265,3 +303,29 @@ class TempCluster(Cluster):
             dir=data_dir_parent)
         super().__init__(self._data_dir, pg_config_path=pg_config_path,
                          env=env)
+
+
+class RunningCluster(Cluster):
+    def __init__(self, **conn_args):
+        self.conn_args = conn_args
+
+    def is_managed(self):
+        return False
+
+    def get_connect_args(self):
+        return dict(self.conn_args)
+
+    def get_status(self):
+        return 'running'
+
+    def init(self, **settings):
+        pass
+
+    def start(self, wait=60, **settings):
+        pass
+
+    def stop(self, wait=60):
+        pass
+
+    def destroy(self):
+        pass

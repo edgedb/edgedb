@@ -12,7 +12,6 @@ import collections
 import contextlib
 import functools
 import inspect
-import multiprocessing
 import os
 import pprint
 import re
@@ -23,7 +22,9 @@ import unittest
 import pytest
 
 from edgedb import client as edgedb_client
+from edgedb.client import connect_utils
 from edgedb.server import cluster as edgedb_cluster
+from edgedb.server import defines as edgedb_defines
 
 
 def get_test_cases(tests):
@@ -116,42 +117,52 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
 _default_cluster = None
 
 
-def _start_cluster(cleanup_atexit=True):
+def _init_cluster(data_dir_or_pg_cluster=None, *,
+                  cleanup_atexit=True, init_settings={}):
+    if (not os.environ.get('EDGEDB_DEBUG_SERVER') and
+            not os.environ.get('EDGEDB_LOG_LEVEL')):
+        _env = {'EDGEDB_LOG_LEVEL': 'silent'}
+    else:
+        _env = {}
+
+    if data_dir_or_pg_cluster is None:
+        cluster = edgedb_cluster.TempCluster(env=_env)
+        destroy = True
+    else:
+        cluster = edgedb_cluster.Cluster(data_dir_or_pg_cluster, env=_env)
+        destroy = False
+
+    if cluster.get_status() == 'not-initialized':
+        cluster.init(server_settings=init_settings)
+
+    cluster.start(port='dynamic', timezone='UTC')
+
+    if cleanup_atexit:
+        atexit.register(_shutdown_cluster, cluster, destroy=destroy)
+
+    return cluster
+
+
+def _set_default_cluster(cluster):
+    global _default_cluster
+    _default_cluster = cluster
+
+
+def _start_cluster(*, cleanup_atexit=True):
     global _default_cluster
 
     if _default_cluster is None:
-        test_cluster_addr = os.environ.get('EDGEDB_TEST_CLUSTER')
-        if test_cluster_addr:
-            m = re.match(r'^(\w+):(\d+)', test_cluster_addr)
-            if not m:
-                raise ValueError(
-                    f'invalid value in EDGEDB_TEST_CLUSTER '
-                    f'environment variable: {test_cluster_addr}')
-
-            host = m.group(1)
-            port = m.group(2)
-
-            _default_cluster = edgedb_cluster.RunningCluster(
-                host=host, port=port)
-        else:
-            if (not os.environ.get('EDGEDB_DEBUG_SERVER') and
-                    not os.environ.get('EDGEDB_LOG_LEVEL')):
-                _env = {'EDGEDB_LOG_LEVEL': 'silent'}
-            else:
-                _env = {}
-
-            _default_cluster = edgedb_cluster.TempCluster(env=_env)
-            _default_cluster.init()
-            _default_cluster.start(port='dynamic', timezone='UTC')
-            if cleanup_atexit:
-                atexit.register(_shutdown_cluster, _default_cluster)
+        pg_cluster = os.environ.get('EDGEDB_TEST_PG_CLUSTER')
+        _default_cluster = _init_cluster(
+            pg_cluster, cleanup_atexit=cleanup_atexit)
 
     return _default_cluster
 
 
-def _shutdown_cluster(cluster):
+def _shutdown_cluster(cluster, *, destroy=True):
     cluster.stop()
-    cluster.destroy()
+    if destroy:
+        cluster.destroy()
 
 
 @pytest.mark.usefixtures('cluster')
@@ -165,9 +176,9 @@ class ClusterTestCase(TestCase):
             # the cluster is done _before_ pytest plugin deinit, so
             # pytest-cov et al work as expected.
             #
-            cls.cluster = _start_cluster(False)
+            cls.cluster = _start_cluster(cleanup_atexit=False)
         else:
-            cls.cluster = _start_cluster(True)
+            cls.cluster = _start_cluster(cleanup_atexit=True)
 
 
 class RollbackChanges:
@@ -187,8 +198,7 @@ class ConnectedTestCase(ClusterTestCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.con = cls.loop.run_until_complete(
-            cls.cluster.connect(
-                database='edgedb0', user='edgedb', loop=cls.loop))
+            cls.cluster.connect(user='edgedb', loop=cls.loop))
 
     @classmethod
     def tearDownClass(cls):
@@ -213,7 +223,15 @@ class DatabaseTestCase(ConnectedTestCase):
     SETUP_METHOD = None
     TEARDOWN_METHOD = None
 
+    # Some tests may want to manage transactions manually,
+    # in which case ISOLATED_METHODS will be False.
+    ISOLATED_METHODS = True
+
     def setUp(self):
+        if self.ISOLATED_METHODS:
+            self.loop.run_until_complete(
+                self.con.execute('START TRANSACTION;'))
+
         if self.SETUP_METHOD:
             self.loop.run_until_complete(
                 self.con.execute(self.SETUP_METHOD))
@@ -226,23 +244,31 @@ class DatabaseTestCase(ConnectedTestCase):
                 self.loop.run_until_complete(
                     self.con.execute(self.TEARDOWN_METHOD))
         finally:
-            super().tearDown()
+            try:
+                if self.ISOLATED_METHODS:
+                    self.loop.run_until_complete(
+                        self.con.execute('ROLLBACK;'))
+            finally:
+                super().tearDown()
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.admin_conn = cls.con
-        script = 'CREATE DATABASE edgedb_test;'
+        dbname = cls.get_database_name()
 
-        cls.loop.run_until_complete(cls.admin_conn.execute(script))
+        if not os.environ.get('EDGEDB_TEST_CASES_SET_UP'):
+            script = f'CREATE DATABASE {dbname};'
+            cls.loop.run_until_complete(cls.admin_conn.execute(script))
 
         cls.con = cls.loop.run_until_complete(
             cls.cluster.connect(
-                database='edgedb_test', user='edgedb', loop=cls.loop))
+                database=dbname, user='edgedb', loop=cls.loop))
 
-        script = cls.get_setup_script()
-        if script:
-            cls.loop.run_until_complete(cls.con.execute(script))
+        if not os.environ.get('EDGEDB_TEST_CASES_SET_UP'):
+            script = cls.get_setup_script()
+            if script:
+                cls.loop.run_until_complete(cls.con.execute(script))
 
     @classmethod
     def get_database_name(cls):
@@ -299,7 +325,9 @@ class DatabaseTestCase(ConnectedTestCase):
     def tearDownClass(cls):
         script = ''
 
-        if cls.TEARDOWN:
+        class_set_up = os.environ.get('EDGEDB_TEST_CASES_SET_UP')
+
+        if cls.TEARDOWN and not class_set_up:
             script = cls.TEARDOWN.strip()
 
         try:
@@ -309,10 +337,12 @@ class DatabaseTestCase(ConnectedTestCase):
             cls.con.close()
             cls.con = cls.admin_conn
 
-            script = 'DROP DATABASE edgedb_test;'
-
             try:
-                cls.loop.run_until_complete(cls.admin_conn.execute(script))
+                if not class_set_up:
+                    dbname = cls.get_database_name()
+                    script = f'DROP DATABASE {dbname};'
+
+                    cls.loop.run_until_complete(cls.admin_conn.execute(script))
             finally:
                 super().tearDownClass()
 
@@ -494,7 +524,9 @@ class BaseQueryTestCase(DatabaseTestCase):
 
 
 class DDLTestCase(BaseQueryTestCase):
-    pass
+    # DDL test cases generally need to be serialized
+    # to avoid deadlocks in parallel execution.
+    SERIALIZED = True
 
 
 class QueryTestCaseMeta(TestCaseMeta):
@@ -514,6 +546,10 @@ class QueryTestCaseMeta(TestCaseMeta):
 
     @classmethod
     def add_method(mcls, methname, ns, meth):
+        if getattr(meth, '_no_optimizer', False):
+            super().add_method(methname, ns, meth)
+            return
+
         wrapper = mcls.wrap(meth)
         if getattr(meth, '_expected_no_optimizer_failure', False):
             wrapper = unittest.expectedFailure(wrapper)
@@ -531,6 +567,11 @@ class QueryTestCase(BaseQueryTestCase, metaclass=QueryTestCaseMeta):
     pass
 
 
+def no_optimizer(obj):
+    obj._no_optimizer = True
+    return obj
+
+
 def expected_optimizer_failure(obj):
     obj._expected_optimizer_failure = True
     return obj
@@ -541,17 +582,8 @@ def expected_no_optimizer_failure(obj):
     return obj
 
 
-async def setup_test_cases(cluster, cases, *, jobs=None):
-    setup = {}
-
-    conn_args = dict(cluster.get_connect_args())
-    conn_args['user'] = 'edgedb'
-
-    admin_conn = await edgedb_client.connect(database='edgedb0', **conn_args)
-    try:
-        await admin_conn.execute(f'CREATE DATABASE edgedb1;')
-    finally:
-        admin_conn.close()
+def get_test_cases_setup(cases):
+    result = []
 
     for case in cases:
         if not hasattr(case, 'get_setup_script'):
@@ -562,24 +594,66 @@ async def setup_test_cases(cluster, cases, *, jobs=None):
             continue
 
         dbname = case.get_database_name()
-        setup[dbname] = setup_script
+        result.append((case, dbname, setup_script))
 
-    if jobs is None:
-        jobs = multiprocessing.cpu_count()
+    return result
 
+
+def start_worker_servers(master_cluster, num_workers):
+    servers = [master_cluster]
+    conns = []
+
+    pg_conn_args = dict(master_cluster._pg_cluster.get_connection_spec())
+    pg_conn_args['user'] = edgedb_defines.EDGEDB_SUPERUSER
+    pg_dsn = connect_utils.render_dsn('postgres', pg_conn_args)
+
+    if num_workers > 1:
+        for i in range(num_workers - 1):
+            servers.append(_init_cluster(pg_dsn, cleanup_atexit=False))
+
+    for server in servers:
+        conn_args = dict(server.get_connect_args())
+        conn_args['user'] = edgedb_defines.EDGEDB_SUPERUSER
+        conns.append(conn_args)
+
+    return servers, conns
+
+
+def shutdown_worker_servers(servers, *, destroy=True):
+    for server in servers:
+        server.stop()
+
+    if destroy:
+        for server in servers:
+            if server._data_dir:
+                server.destroy()
+
+
+def setup_test_cases(cases, conns):
     loop = asyncio.get_event_loop()
+
+    setup = get_test_cases_setup(cases)
+
     tasks = []
 
-    for dbname, setup_script in setup.items():
+    ci = 0
+    for case, dbname, setup_script in setup:
+        conn_args = conns[ci]
         task = loop.create_task(
             _setup_database(dbname, setup_script, conn_args))
         tasks.append(task)
+        ci += 1
+        if ci == len(conns):
+            ci = 0
 
-    await asyncio.gather(*tasks)
+    result = loop.run_until_complete(asyncio.gather(*tasks))
+
+    return result
 
 
 async def _setup_database(dbname, setup_script, conn_args):
-    admin_conn = await edgedb_client.connect(database='edgedb1', **conn_args)
+    admin_conn = await edgedb_client.connect(
+        database=edgedb_defines.EDGEDB_DEFAULT_DB, **conn_args)
 
     try:
         await admin_conn.execute(f'CREATE DATABASE {dbname};')
@@ -591,3 +665,5 @@ async def _setup_database(dbname, setup_script, conn_args):
         await dbconn.execute(setup_script)
     finally:
         dbconn.close()
+
+    return dbname

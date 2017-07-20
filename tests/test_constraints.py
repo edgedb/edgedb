@@ -13,6 +13,7 @@ from edgedb.client import exceptions
 
 
 class TestConstraintsSchema(tb.QueryTestCase):
+    ISOLATED_METHODS = False
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'constraints.eschema')
 
@@ -341,11 +342,13 @@ class TestConstraintsSchema(tb.QueryTestCase):
                 """)
 
 
-class TestConstraintsSchemaMIgration(tb.QueryTestCase):
+class TestConstraintsSchemaMigration(tb.QueryTestCase):
+    ISOLATED_METHODS = False
     SCHEMA = os.path.join(os.path.dirname(__file__),
                           'schemas', 'constraints_migration',
                           'schema.eschema')
 
+    @tb.no_optimizer
     async def test_constraints_unique_migration(self):
         new_schema_f = os.path.join(os.path.dirname(__file__),
                                     'schemas', 'constraints_migration',
@@ -539,11 +542,10 @@ class TestConstraintsSchemaMIgration(tb.QueryTestCase):
 
 
 class TestConstraintsDDL(tb.QueryTestCase):
+    ISOLATED_METHODS = False
 
-    @tb.expected_optimizer_failure
+    @tb.no_optimizer
     async def test_constraints_ddl_01(self):
-        # TODO: Add DROP LINK to enable optimizer tests.
-
         qry = """
             CREATE LINK test::translated_label {
                 SET mapping := '1*';
