@@ -363,16 +363,19 @@ class ConceptDeclaration(Nonterm):
 
 
 class ConstraintCallableAndExtends(Nonterm):
-    def reduce_Identifier_OptFunctionParameters_ExtendingNameList(self, *kids):
+    def reduce_Identifier_OptFunctionParameters_OptOnExpr_ExtendingNameList(
+            self, *kids):
         self.val = esast.ConstraintDeclaration(
             name=kids[0].val,
             args=kids[1].val,
-            extends=kids[2].val)
+            subject=kids[2].val,
+            extends=kids[3].val)
 
-    def reduce_Identifier_OptFunctionParameters(self, *kids):
+    def reduce_Identifier_OptFunctionParameters_OptOnExpr(self, *kids):
         self.val = esast.ConstraintDeclaration(
             name=kids[0].val,
-            args=kids[1].val)
+            args=kids[1].val,
+            subject=kids[2].val)
 
 
 class ConstraintDeclaration(Nonterm):
@@ -596,6 +599,11 @@ class ParenRawString(Nonterm):
     def reduce_ParenRawString_LPAREN_ParenRawString_RPAREN(self, *kids):
         self.val = RawLiteral(
             value=f'{kids[0].val.value}({kids[2].val.value})',
+            context=kids[0].context)
+
+    def reduce_LPAREN_RPAREN(self, *kids):
+        self.val = RawLiteral(
+            value='()',
             context=kids[0].context)
 
     def reduce_ParenRawString_LPAREN_RPAREN(self, *kids):
@@ -898,17 +906,23 @@ class OptConstraintCallArguments(Nonterm):
 class Constraint(Nonterm):
     def reduce_constraint(self, *kids):
         r"""%reduce \
-                CONSTRAINT ObjectName OptConstraintCallArguments NL \
+                CONSTRAINT ObjectName OptConstraintCallArguments OptOnExpr NL \
         """
-        self.val = esast.Constraint(name=kids[1].val, args=kids[2].val)
+        self.val = esast.Constraint(
+            name=kids[1].val,
+            args=kids[2].val,
+            subject=kids[3].val)
 
     def reduce_constraint_with_attributes(self, *kids):
         r"""%reduce \
-                CONSTRAINT ObjectName OptConstraintCallArguments \
+                CONSTRAINT ObjectName OptConstraintCallArguments OptOnExpr \
                 COLON NL INDENT Attributes DEDENT \
         """
-        self.val = esast.Constraint(name=kids[1].val, args=kids[2].val,
-                                    attributes=kids[6].val)
+        self.val = esast.Constraint(
+            name=kids[1].val,
+            args=kids[2].val,
+            subject=kids[3].val,
+            attributes=kids[7].val)
 
 
 class Attribute(Nonterm):

@@ -530,8 +530,7 @@ consider ``maxlength`` and ``minlength`` constraints:
 
     # abstract constraint cannot be applied directly, but must be
     # inherited from, typically used as a mixin
-    abstract constraint length:
-        subject := len(<str>subject)
+    abstract constraint length on (len(<str>subject)):
         errmessage := 'Invalid {subject}'
 
     constraint max(any):
@@ -564,10 +563,10 @@ process a string containing distance measured in meters or kilometers:
 
     # define an abstract constraint to covert a str distance into a
     # number
-    abstract constraint distance:
-        subject :=
-            <float>subject[:-2] * 1000 IF subject[:-2] = 'km' ELSE
-            <float>subject[:-1]  # assuming suffix 'm'
+    abstract constraint distance on (
+        <float>subject[:-2] * 1000 IF subject[:-2] = 'km' ELSE
+        <float>subject[:-1]  # assuming suffix 'm'
+    )
 
     constraint maxldistance(any) extending max, distance:
         errmessage := '{subject} must be no longer than {$1} meters.'

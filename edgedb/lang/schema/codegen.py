@@ -164,6 +164,9 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
                 self.write('(')
                 self.visit_list(node.args, newlines=False)
                 self.write(')')
+            if node.subject:
+                self.write(' on ')
+                self.visit(node.subject)
 
         if node.abstract:
             self.write('abstract ')
@@ -264,6 +267,10 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
             self.write('(')
             self.visit_list(node.args.elements)
             self.write(')')
+
+        if node.subject:
+            self.write(' on ')
+            self.visit(node.subject)
 
         if node.attributes:
             self.write(':')

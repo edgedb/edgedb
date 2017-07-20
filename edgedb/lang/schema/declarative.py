@@ -268,6 +268,8 @@ class DeclarationLoader:
 
         for constraint, decl in constraints.items():
             attrs = {a.name.name: a.value for a in decl.attributes}
+            assert 'subject' not in attrs  # TODO: Add proper validation
+
             expr = attrs.pop('expr', None)
             if expr is not None:
                 try:
@@ -278,7 +280,7 @@ class DeclarationLoader:
 
                 constraint.expr = expr
 
-            subjexpr = attrs.pop('subject', None)
+            subjexpr = decl.subject
             if subjexpr is not None:
                 try:
                     subjexpr = s_constr.Constraint.normalize_constraint_expr(
@@ -287,11 +289,6 @@ class DeclarationLoader:
                     raise s_err.SchemaError(e.args[0], context=decl) from None
 
                 constraint.subjectexpr = subjexpr
-
-            if attrs:
-                raise s_err.SchemaError(
-                    f'Unrecognized constraint attributes: {set(attrs.keys())}',
-                    context=constraint)
 
     def _init_atoms(self, atoms):
         for atom, atomdecl in atoms.items():
@@ -444,6 +441,7 @@ class DeclarationLoader:
 
         for constrdecl in subjdecl.constraints:
             attrs = {a.name.name: a.value for a in constrdecl.attributes}
+            assert 'subject' not in attrs  # TODO: Add proper validation
 
             constr_name = self._get_ref_name(constrdecl.name)
             constr_base = self._schema.get(constr_name,
@@ -459,7 +457,7 @@ class DeclarationLoader:
                 args = edgeql_codegen.generate_source(
                     constrdecl.args, pretty=False)
 
-            subjectexpr = attrs.pop('subject', None)
+            subjectexpr = constrdecl.subject
             if subjectexpr is not None:
                 constraint.subjectexpr = \
                     s_constr.Constraint.normalize_constraint_expr(

@@ -48,10 +48,11 @@ class Attribute(Base):
 
 
 class Constraint(Base):
-    name: ObjectName
     args: qlast.Tuple  # TODO (yury): replace with `List[qlast.Base]`
-    delegated: bool = False
     attributes: typing.List[Attribute]
+    delegated: bool = False
+    name: ObjectName
+    subject: typing.Optional[qlast.Base]
 
 
 class Pointer(Base):
@@ -119,6 +120,7 @@ class ConceptDeclaration(Declaration):
 class ConstraintDeclaration(Declaration):
     abstract: bool = False
     args: typing.List[qlast.Base]
+    subject: typing.Optional[qlast.Base]
 
 
 class EventDeclaration(Declaration):

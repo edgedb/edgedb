@@ -24,13 +24,11 @@ atom constraint_minmax extending str:
 
 
 atom constraint_strvalue extending str:
-    constraint expression:
-        subject := (subject)[-1:] = '9'
+    constraint expression on ((subject)[-1:] = '9')
 
     constraint regexp("^\d+$")
 
-    constraint expression:
-        subject := (subject)[0] = '9'
+    constraint expression on ((subject)[0] = '9')
 
     constraint regexp("^\d+9{3,}.*$")
 
@@ -67,8 +65,7 @@ link another_link_with_unique_property_inherited extending another_link_with_uni
 concept Object:
     link name to str:
         constraint unique
-        constraint unique:
-            subject := std::lower(subject)
+        constraint unique on (std::lower(subject))
 
     link c_length to constraint_length
     link c_length_2 to constraint_length_2
@@ -80,10 +77,8 @@ concept Object:
     link c_enum to constraint_enum
 
     link translated_label to str:
-        constraint unique:
-            subject := (subject@source, subject@lang)
-        constraint unique:
-            subject := subject@prop1
+        constraint unique on (subject@source, subject@lang)
+        constraint unique on (subject@prop1)
 
 
 concept UniqueName:
@@ -98,10 +93,8 @@ concept UniqueName:
     link link_with_unique_property_inherited to str
 
     link translated_label to str:
-        constraint unique:
-            subject := (subject@source, subject@lang)
-        constraint unique:
-            subject := subject@prop1
+        constraint unique on (subject@source, subject@lang)
+        constraint unique on (subject@prop1)
 
 
 concept UniqueNameInherited extending UniqueName:
@@ -139,8 +132,7 @@ concept UniqueName_4 extending UniqueName_2_Inherited
 concept MultiConstraint_Renamed:
     link name to str:
         constraint unique
-        constraint unique:
-            subject := lower(subject)
+        constraint unique on (lower(subject))
 
     link m1 to str
 
@@ -166,8 +158,7 @@ concept AbstractConstraintParent:
 
 concept AbstractConstraintParent2:
     link name to str:
-        delegated constraint unique:
-            subject := lower(subject)
+        delegated constraint unique on (lower(subject))
 
 
 concept AbstractConstraintPureChild extending AbstractConstraintParent
@@ -175,8 +166,7 @@ concept AbstractConstraintPureChild extending AbstractConstraintParent
 
 concept AbstractConstraintMixedChild extending AbstractConstraintParent:
     link name to str:
-        constraint unique:
-            subject := lower(subject)
+        constraint unique on (lower(subject))
 
 
 concept AbstractConstraintPropagated extending AbstractConstraintParent:
@@ -187,8 +177,7 @@ concept AbstractConstraintPropagated extending AbstractConstraintParent:
 concept AbstractConstraintParent3:
     link name to str:
         delegated constraint unique
-        delegated constraint unique:
-            subject := lower(subject)
+        delegated constraint unique on (lower(subject))
 
 
 concept AbstractConstraintMultipleParentsFlattening extending AbstractConstraintParent, AbstractConstraintParent2:
