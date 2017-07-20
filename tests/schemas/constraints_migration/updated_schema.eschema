@@ -161,12 +161,12 @@ concept LosingParent:
 
 concept AbstractConstraintParent:
     link name to str:
-        abstract constraint unique
+        delegated constraint unique
 
 
 concept AbstractConstraintParent2:
     link name to str:
-        abstract constraint unique:
+        delegated constraint unique:
             subject := lower(subject)
 
 
@@ -181,13 +181,13 @@ concept AbstractConstraintMixedChild extending AbstractConstraintParent:
 
 concept AbstractConstraintPropagated extending AbstractConstraintParent:
     link name to str:
-        abstract constraint unique
+        delegated constraint unique
 
 
 concept AbstractConstraintParent3:
     link name to str:
-        abstract constraint unique
-        abstract constraint unique:
+        delegated constraint unique
+        delegated constraint unique:
             subject := lower(subject)
 
 
@@ -206,7 +206,7 @@ concept LosingAbstractConstraintParent2:
 
 concept BecomingAbstractConstraint:
     link name to str:
-        abstract constraint unique
+        delegated constraint unique
 
 
 concept BecomingAbstractConstraintChild extending BecomingAbstractConstraint
@@ -222,7 +222,7 @@ concept BecomingConcreteConstraintChild extending BecomingConcreteConstraint
 
 concept AbstractInheritingNonAbstract:
     link name to str:
-        abstract constraint unique
+        delegated constraint unique
 
 
 concept AbstractInheritingNonAbstractChild extending AbstractInheritingNonAbstract

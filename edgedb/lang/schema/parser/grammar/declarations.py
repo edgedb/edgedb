@@ -6,6 +6,7 @@
 ##
 
 
+import collections
 import textwrap
 
 from edgedb.lang.common import parsing, context
@@ -21,6 +22,16 @@ from . import keywords
 from . import tokens
 
 from .tokens import *  # NOQA
+
+
+RawLiteral = collections.namedtuple(
+    'RawLiteral', ('value', 'context'))
+
+NameWithParents = collections.namedtuple(
+    'NameWithParents', ('name', 'extends', 'context'))
+
+PointerSpec = collections.namedtuple(
+    'PointerSpec', ('name', 'target', 'spec', 'expr'))
 
 
 def parse_edgeql(expr: str, ctx, *, offset_column=0):
@@ -98,26 +109,30 @@ class TypeName(Nonterm):
 
 class RawString(Nonterm):
     def reduce_RawStr(self, *kids):
-        self.val = kids[0].val
-        text = self.val.value
+        text = kids[0].val.value
         text = textwrap.dedent(text).strip().replace('\\\n', '')
-        self.val.value = text
+        self.val = RawLiteral(value=text, context=kids[0].context)
 
 
 class RawStr(Nonterm):
     def reduce_RawStr_RAWLEADWS_RAWSTRING(self, *kids):
-        self.val = kids[0].val
-        self.val.value += kids[1].val + kids[2].val
+        self.val = RawLiteral(
+            value=kids[0].val.value + kids[1].val + kids[2].val,
+            context=kids[0].context)
 
     def reduce_RawStr_RAWSTRING(self, *kids):
-        self.val = kids[0].val
-        self.val.value += kids[1].val
+        self.val = RawLiteral(
+            value=kids[0].val.value + kids[1].val,
+            context=kids[0].context)
 
     def reduce_RAWLEADWS_RAWSTRING(self, *kids):
-        self.val = esast.RawLiteral(value=kids[0].val + kids[1].val)
+        self.val = RawLiteral(
+            value=kids[0].val + kids[1].val,
+            context=kids[0].context)
 
     def reduce_RAWSTRING(self, kid):
-        self.val = esast.RawLiteral(value=kid.val)
+        self.val = RawLiteral(
+            value=kid.val, context=kid.context)
 
 
 class Schema(Nonterm):
@@ -160,14 +175,6 @@ class Declaration(Nonterm):
     def reduce_IMPORT_LPAREN_ImportModuleList_RPAREN_NL(self, *kids):
         self.val = esast.Import(modules=kids[2].val)
 
-    def reduce_ABSTRACT_DeclarationBase(self, *kids):
-        self.val = kids[1].val
-        self.val.abstract = True
-
-    def reduce_FINAL_DeclarationBase(self, *kids):
-        self.val = kids[1].val
-        self.val.final = True
-
     def reduce_DeclarationBase(self, kid):
         self.val = kid.val
 
@@ -188,6 +195,35 @@ class DeclarationList(ListNonterm, element=Declaration):
 class DeclarationBase(Nonterm):
     def reduce_ActionDeclaration(self, kid):
         self.val = kid.val
+
+    def reduce_ABSTRACT_LinkDeclaration(self, *kids):
+        self.val = kids[1].val
+        self.val.abstract = True
+
+    def reduce_ABSTRACT_AtomDeclaration(self, *kids):
+        self.val = kids[1].val
+        self.val.abstract = True
+
+    def reduce_ABSTRACT_ConceptDeclaration(self, *kids):
+        self.val = kids[1].val
+        self.val.abstract = True
+
+    def reduce_FINAL_AtomDeclaration(self, *kids):
+        self.val = kids[1].val
+        self.val.final = True
+
+    def reduce_FINAL_ConceptDeclaration(self, *kids):
+        self.val = kids[1].val
+        self.val.final = True
+
+    def reduce_ABSTRACT_ConstraintDeclaration(self, *kids):
+        self.val = kids[1].val
+        self.val.abstract = True
+
+    def reduce_DELEGATED_ConstraintDeclaration(self, *kids):
+        raise SchemaSyntaxError(
+            'only specialized constraints can be delegated',
+            context=kids[0].context)
 
     def reduce_AtomDeclaration(self, kid):
         self.val = kid.val
@@ -213,10 +249,14 @@ class DeclarationBase(Nonterm):
 
 class ActionDeclaration(Nonterm):
     def reduce_ACTION_NameAndExtends_NL(self, *kids):
-        self.val = esast.ActionDeclaration(kids[1].val)
+        np: NameWithParents = kids[1].val
+        self.val = esast.ActionDeclaration(
+            name=np.name,
+            extends=np.extends)
 
     def reduce_ACTION_NameAndExtends_DeclarationSpecsBlob(
             self, *kids):
+        np: NameWithParents = kids[1].val
         attributes = []
 
         for spec in kids[2].val:
@@ -226,15 +266,22 @@ class ActionDeclaration(Nonterm):
                 raise SchemaSyntaxError(
                     'illegal definition', context=spec.context)
 
-        self.val = esast.ActionDeclaration(kids[1].val, attributes=attributes)
+        self.val = esast.ActionDeclaration(
+            name=np.name,
+            extends=np.extends,
+            attributes=attributes)
 
 
 class AtomDeclaration(Nonterm):
     def reduce_ATOM_NameAndExtends_NL(self, *kids):
-        self.val = esast.AtomDeclaration(kids[1].val)
+        np: NameWithParents = kids[1].val
+        self.val = esast.AtomDeclaration(
+            name=np.name,
+            extends=np.extends)
 
-    def reduce_ATOM_NameAndExtends_DeclarationSpecsBlob(
-            self, *kids):
+    def reduce_ATOM_NameAndExtends_DeclarationSpecsBlob(self, *kids):
+        np: NameWithParents = kids[1].val
+
         constraints = []
         attributes = []
 
@@ -247,17 +294,18 @@ class AtomDeclaration(Nonterm):
                 raise SchemaSyntaxError(
                     'illegal definition', context=spec.context)
 
-        self.val = esast.AtomDeclaration(kids[1].val,
-                                         attributes=attributes,
-                                         constraints=constraints)
+        self.val = esast.AtomDeclaration(
+            name=np.name,
+            extends=np.extends,
+            attributes=attributes,
+            constraints=constraints)
 
 
 class AttributeDeclaration(Nonterm):
     def reduce_ATTRIBUTE_NameAndExtends_NL(self, *kids):
         self.val = esast.AttributeDeclaration(kids[1].val)
 
-    def reduce_ATTRIBUTE_NameAndExtends_DeclarationSpecsBlob(
-            self, *kids):
+    def reduce_ATTRIBUTE_NameAndExtends_DeclarationSpecsBlob(self, *kids):
         attributes = []
         attr_target = None
 
@@ -278,10 +326,15 @@ class AttributeDeclaration(Nonterm):
 
 class ConceptDeclaration(Nonterm):
     def reduce_CONCEPT_NameAndExtends_NL(self, *kids):
-        self.val = esast.ConceptDeclaration(kids[1].val)
+        np: NameWithParents = kids[1].val
+        self.val = esast.ConceptDeclaration(
+            name=np.name,
+            extends=np.extends)
 
     def reduce_CONCEPT_NameAndExtends_DeclarationSpecsBlob(
             self, *kids):
+        np: NameWithParents = kids[1].val
+
         constraints = []
         links = []
         attributes = []
@@ -300,42 +353,66 @@ class ConceptDeclaration(Nonterm):
                 raise SchemaSyntaxError(
                     'illegal definition', context=spec.context)
 
-        self.val = esast.ConceptDeclaration(kids[1].val,
-                                            attributes=attributes,
-                                            constraints=constraints,
-                                            indexes=indexes,
-                                            links=links)
+        self.val = esast.ConceptDeclaration(
+            name=np.name,
+            extends=np.extends,
+            attributes=attributes,
+            constraints=constraints,
+            indexes=indexes,
+            links=links)
+
+
+class ConstraintCallableAndExtends(Nonterm):
+    def reduce_Identifier_OptFunctionParameters_ExtendingNameList(self, *kids):
+        self.val = esast.ConstraintDeclaration(
+            name=kids[0].val,
+            args=kids[1].val,
+            extends=kids[2].val)
+
+    def reduce_Identifier_OptFunctionParameters(self, *kids):
+        self.val = esast.ConstraintDeclaration(
+            name=kids[0].val,
+            args=kids[1].val)
 
 
 class ConstraintDeclaration(Nonterm):
-    def reduce_CONSTRAINT_CallableNameAndExtends_NL(self, *kids):
-        self.val = esast.ConstraintDeclaration(kids[1].val)
+    def reduce_CONSTRAINT_ConstraintCallableAndExtends_NL(
+            self, c_tok, decl, nl_tok):
+        self.val = decl.val
 
-    def reduce_CONSTRAINT_CallableNameAndExtends_DeclarationSpecsBlob(
-            self, *kids):
+    def reduce_CONSTRAINT_ConstraintCallableAndExtends_DeclarationSpecsBlob(
+            self, c_tok, decl, specs: list):
+        decl: esast.ConstraintDeclaration = decl.val
+        specs: list = specs.val
+
         attributes = []
-
-        for spec in kids[2].val:
+        for spec in specs:
             if isinstance(spec, esast.Attribute):
                 attributes.append(spec)
             else:
                 raise SchemaSyntaxError(
                     'illegal definition', context=spec.context)
 
-        self.val = esast.ConstraintDeclaration(kids[1].val,
-                                               attributes=attributes)
+        decl.attributes = attributes
+        self.val = decl
 
 
 class LinkDeclaration(Nonterm):
     def reduce_LINK_NameAndExtends_NL(self, *kids):
-        self.val = esast.LinkDeclaration(kids[1].val)
+        np: NameWithParents = kids[1].val
+        self.val = esast.LinkDeclaration(
+            name=np.name,
+            extends=np.extends)
 
     def reduce_LINK_NameAndExtends_DeclarationSpecsBlob(
             self, *kids):
+        np: NameWithParents = kids[1].val
+
         constraints = []
         properties = []
         policies = []
         attributes = []
+        indexes = []
 
         for spec in kids[2].val:
             if isinstance(spec, esast.Constraint):
@@ -346,23 +423,33 @@ class LinkDeclaration(Nonterm):
                 properties.append(spec)
             elif isinstance(spec, esast.Policy):
                 policies.append(spec)
+            elif isinstance(spec, esast.Index):
+                indexes.append(spec)
             else:
                 raise SchemaSyntaxError(
                     'illegal definition', context=spec.context)
 
-        self.val = esast.LinkDeclaration(kids[1].val,
-                                         attributes=attributes,
-                                         constraints=constraints,
-                                         properties=properties,
-                                         policies=policies)
+        self.val = esast.LinkDeclaration(
+            name=np.name,
+            extends=np.extends,
+            attributes=attributes,
+            constraints=constraints,
+            properties=properties,
+            indexes=indexes,
+            policies=policies)
 
 
 class LinkPropertyDeclaration(Nonterm):
     def reduce_LINKPROPERTY_NameAndExtends_NL(self, *kids):
-        self.val = esast.LinkPropertyDeclaration(kids[1].val)
+        np: NameWithParents = kids[1].val
+        self.val = esast.LinkPropertyDeclaration(
+            name=np.name,
+            extends=np.extends)
 
     def reduce_LINKPROPERTY_NameAndExtends_DeclarationSpecsBlob(
             self, *kids):
+        np: NameWithParents = kids[1].val
+
         attributes = []
 
         for spec in kids[2].val:
@@ -372,16 +459,21 @@ class LinkPropertyDeclaration(Nonterm):
                 raise SchemaSyntaxError(
                     'illegal definition', context=spec.context)
 
-        self.val = esast.LinkPropertyDeclaration(kids[1].val,
-                                                 attributes=attributes)
+        self.val = esast.LinkPropertyDeclaration(
+            name=np.name,
+            extends=np.extends,
+            attributes=attributes)
 
 
 class EventDeclaration(Nonterm):
     def reduce_EVENT_NameAndExtends_NL(self, *kids):
-        self.val = esast.EventDeclaration(kids[1].val)
+        np: NameWithParents = kids[1].val
+        self.val = esast.EventDeclaration(
+            name=np.name,
+            extends=np.extends)
 
-    def reduce_EVENT_NameAndExtends_DeclarationSpecsBlob(
-            self, *kids):
+    def reduce_EVENT_NameAndExtends_DeclarationSpecsBlob(self, *kids):
+        np: NameWithParents = kids[1].val
         attributes = []
 
         for spec in kids[2].val:
@@ -391,7 +483,10 @@ class EventDeclaration(Nonterm):
                 raise SchemaSyntaxError(
                     'illegal definition', context=spec.context)
 
-        self.val = esast.EventDeclaration(kids[1].val, attributes=attributes)
+        self.val = esast.EventDeclaration(
+            name=np.name,
+            extends=np.extends,
+            attributes=attributes)
 
 
 class ViewDeclaration(Nonterm):
@@ -499,19 +594,22 @@ class FunctionSpecs(ListNonterm, element=FunctionSpec):
 
 class ParenRawString(Nonterm):
     def reduce_ParenRawString_LPAREN_ParenRawString_RPAREN(self, *kids):
-        self.val = kids[0].val
-        self.val.value += f'({kids[2].val.value})'
+        self.val = RawLiteral(
+            value=f'{kids[0].val.value}({kids[2].val.value})',
+            context=kids[0].context)
 
     def reduce_ParenRawString_LPAREN_RPAREN(self, *kids):
-        self.val = kids[0].val
-        self.val.value += '()'
+        self.val = RawLiteral(
+            value=f'{kids[0].val.value}()',
+            context=kids[0].context)
 
     def reduce_LPAREN_ParenRawString_RPAREN(self, *kids):
         self.val = kids[1].val
 
     def reduce_ParenRawString_ParenRawStr(self, *kids):
-        self.val = kids[0].val
-        self.val.value += kids[1].val.value
+        self.val = RawLiteral(
+            value=f'{kids[0].val.value}{kids[1].val.value}',
+            context=kids[0].context)
 
     def reduce_ParenRawStr(self, *kids):
         self.val = kids[0].val
@@ -559,15 +657,15 @@ class ParenRawString(Nonterm):
 
 
 class ParenRawStr(Nonterm):
-    def reduce_STRING(self, *kids):
-        self.val = esast.RawLiteral(value=kids[0].val)
+    def reduce_STRING(self, kid):
+        self.val = RawLiteral(value=kid.val, context=kid.context)
 
-    def reduce_IDENT(self, *kids):
+    def reduce_IDENT(self, kid):
         # this can actually only be QIDENT
-        self.val = esast.RawLiteral(value=f'`{kids[0].val}`')
+        self.val = RawLiteral(value=f'`{kid.val}`', context=kid.context)
 
-    def reduce_RAWSTRING(self, *kids):
-        self.val = esast.RawLiteral(value=kids[0].val)
+    def reduce_RAWSTRING(self, kid):
+        self.val = RawLiteral(value=kid.val, context=kid.context)
 
 
 class OnExpr(Nonterm):
@@ -608,21 +706,18 @@ class ExtendingNameList(Nonterm):
         self.val = kids[2].val
 
 
-class CallableNameAndExtends(Nonterm):
-    def reduce_Identifier_OptFunctionParameters_ExtendingNameList(self, *kids):
-        self.val = esast.Declaration(name=kids[0].val, args=kids[1].val,
-                                     extends=kids[2].val)
-
-    def reduce_Identifier_OptFunctionParameters(self, *kids):
-        self.val = esast.Declaration(name=kids[0].val, args=kids[1].val)
-
-
 class NameAndExtends(Nonterm):
     def reduce_Identifier_ExtendingNameList(self, *kids):
-        self.val = esast.Declaration(name=kids[0].val, extends=kids[1].val)
+        self.val = NameWithParents(
+            name=kids[0].val,
+            extends=kids[1].val,
+            context=kids[0].context)
 
     def reduce_Identifier(self, kid):
-        self.val = esast.Declaration(name=kid.val)
+        self.val = NameWithParents(
+            name=kid.val,
+            extends=[],
+            context=kid.context)
 
 
 class NameList(ListNonterm, element=ObjectName, separator=tokens.T_COMMA):
@@ -649,9 +744,9 @@ class DeclarationSpecBase(Nonterm):
     def reduce_Link(self, kid):
         self.val = kid.val
 
-    def reduce_ABSTRACT_Constraint(self, *kids):
+    def reduce_DELEGATED_Constraint(self, *kids):
         self.val = kids[1].val
-        self.val.abstract = True
+        self.val.delegated = True
 
     def reduce_Constraint(self, kid):
         self.val = kid.val
@@ -684,46 +779,37 @@ class TurnstileBlob(parsing.Nonterm):
         self.val = parse_edgeql_constant(st.value, st.context)
 
 
-class Link(Nonterm):
-    def reduce_LINK_Spec(self, *kids):
-        self.val = esast.Link(kids[1].val)
-
-    def reduce_REQUIRED_LINK_Spec(self, *kids):
-        self.val = esast.Link(kids[2].val)
-        self.val.required = True
-
-
-class LinkProperty(Nonterm):
-    def reduce_LINKPROPERTY_Spec(self, *kids):
-        if kids[1].val.policies or kids[1].val.properties:
-            raise Exception('parse error')
-        self.val = esast.LinkProperty(kids[1].val)
-
-
 class Spec(Nonterm):
     def reduce_ObjectName_NL(self, *kids):
-        self.val = esast.Specialization(name=kids[0].val, target=None)
+        self.val = PointerSpec(
+            name=kids[0].val, target=None, spec=[], expr=None)
 
     def reduce_ObjectName_DeclarationSpecsBlob(self, *kids):
-        self._processdecl_specs(kids[0], None, kids[1])
+        self.val = PointerSpec(
+            name=kids[0].val, target=None, spec=kids[1].val, expr=None)
 
     def reduce_ObjectName_TO_TypeList_NL(self, *kids):
-        self.val = esast.Specialization(name=kids[0].val, target=kids[2].val)
+        self.val = PointerSpec(
+            name=kids[0].val, target=kids[2].val, spec=[], expr=None)
 
     def reduce_ObjectName_TO_TypeList_DeclarationSpecsBlob(
             self, *kids):
-        self._processdecl_specs(kids[0], kids[2], kids[3])
+        self.val = PointerSpec(
+            name=kids[0].val, target=kids[2].val, spec=kids[3].val, expr=None)
 
     def reduce_ObjectName_TurnstileBlob(self, *kids):
-        self.val = esast.Specialization(name=kids[0].val, target=kids[1].val)
+        self.val = PointerSpec(
+            name=kids[0].val, target=None, spec=[], expr=kids[1].val)
 
-    def _processdecl_specs(self, name, target, specs):
+
+class Link(Nonterm):
+    def _process_pointerspec(self, p: PointerSpec):
         constraints = []
         attributes = []
         policies = []
         properties = []
 
-        for spec in specs.val:
+        for spec in p.spec:
             if isinstance(spec, esast.Constraint):
                 constraints.append(spec)
             elif isinstance(spec, esast.Attribute):
@@ -733,18 +819,50 @@ class Spec(Nonterm):
             elif isinstance(spec, esast.Policy):
                 policies.append(spec)
             else:
-                raise SchemaSyntaxError(
+                raise SchemaSyntaxError(  # TODO: better error message
                     'illegal definition', context=spec.context)
 
-        if target:
-            target = target.val
-
-        self.val = esast.Specialization(
-            name=name.val, target=target,
+        return esast.Link(
+            name=p.name,
+            target=p.target,
+            expr=p.expr,
             attributes=attributes,
             constraints=constraints,
             policies=policies,
             properties=properties)
+
+    def reduce_LINK_Spec(self, *kids):
+        self.val = self._process_pointerspec(kids[1].val)
+
+    def reduce_REQUIRED_LINK_Spec(self, *kids):
+        link = self._process_pointerspec(kids[2].val)
+        link.required = True
+        self.val = link
+
+
+class LinkProperty(Nonterm):
+    def _process_pointerspec(self, p: PointerSpec):
+        constraints = []
+        attributes = []
+
+        for spec in p.spec:
+            if isinstance(spec, esast.Constraint):
+                constraints.append(spec)
+            elif isinstance(spec, esast.Attribute):
+                attributes.append(spec)
+            else:
+                raise SchemaSyntaxError(  # TODO: better error message
+                    'illegal definition', context=spec.context)
+
+        return esast.LinkProperty(
+            name=p.name,
+            target=p.target,
+            expr=p.expr,
+            attributes=attributes,
+            constraints=constraints)
+
+    def reduce_LINKPROPERTY_Spec(self, *kids):
+        self.val = self._process_pointerspec(kids[1].val)
 
 
 class Policy(Nonterm):
@@ -754,7 +872,9 @@ class Policy(Nonterm):
 
 class Index(Nonterm):
     def reduce_INDEX_ObjectName_OnExpr_NL(self, *kids):
-        self.val = esast.Index(name=kids[1].val, expression=kids[2].val)
+        self.val = esast.Index(
+            name=kids[1].val,
+            expression=kids[2].val)
 
 
 class ConstraintCallArguments(Nonterm):

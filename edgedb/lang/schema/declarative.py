@@ -80,9 +80,20 @@ class DeclarationLoader:
             # Only populate the absolute minimum necessary for
             # the next steps.  _setdefaults_ and _relaxrequired_  set
             # to False instruct the object to skip validation for now.
-            obj = objcls(name=name, is_abstract=decl.abstract,
-                         final=decl.final, _setdefaults_=False,
-                         _relaxrequired_=True)
+
+            # TODO: refactor this
+            objcls_kw = {}
+            if hasattr(decl, 'abstract'):
+                objcls_kw['is_abstract'] = decl.abstract
+            if hasattr(decl, 'delegated'):
+                objcls_kw['is_abstract'] = decl.delegated
+            if hasattr(decl, 'final'):
+                objcls_kw['final'] = decl.final
+
+            obj = objcls(name=name,
+                         _setdefaults_=False,
+                         _relaxrequired_=True,
+                         **objcls_kw)
 
             for attrdecl in decl.attributes:
                 attr_name = self._get_ref_name(attrdecl.name)
@@ -440,7 +451,7 @@ class DeclarationLoader:
                                            module_aliases=self._mod_aliases)
 
             constraint = constr_base.derive(self._schema, subject)
-            constraint.is_abstract = constrdecl.abstract
+            constraint.is_abstract = constrdecl.delegated
             constraint.acquire_ancestor_inheritance(self._schema)
 
             args = None
@@ -531,13 +542,13 @@ class DeclarationLoader:
                 else:
                     link_qname = link_base.name
 
-                if isinstance(linkdecl.target, edgeql.ast.SelectQuery):
+                if linkdecl.expr is not None:
                     # This is a computable, but we cannot interpret
                     # the expression yet, so set the target to `any`
                     # temporarily.
                     _targets = [self._schema.get('std::any')]
 
-                elif isinstance(linkdecl.target, list):
+                elif linkdecl.target:
                     _targets = [self._get_ref_type(t) for t in linkdecl.target]
                 else:
                     _targets = [self._get_ref_type(linkdecl.target)]
@@ -567,7 +578,7 @@ class DeclarationLoader:
                     if name == 'mapping':
                         link.mapping = self._get_literal_value(attr.value)
 
-                if isinstance(linkdecl.target, edgeql.ast.SelectQuery):
+                if linkdecl.expr is not None:
                     # Computables are always readonly.
                     link.readonly = True
 
@@ -584,14 +595,14 @@ class DeclarationLoader:
     def _normalize_link_expressions(self, link, linkdecl):
         """Interpret and validate EdgeQL expressions in link declaration."""
         for propdecl in linkdecl.properties:
-            if isinstance(propdecl.target, edgeql.ast.SelectQuery):
+            if propdecl.expr is not None:
                 # Computable
                 prop_name = self._get_ref_name(propdecl.name)
                 generic_prop = self._schema.get(
                     prop_name, module_aliases=self._mod_aliases)
                 spec_prop = link.pointers[generic_prop.name]
                 self._normalize_ptr_default(
-                    linkdecl.target, link, spec_prop)
+                    propdecl.expr, link, spec_prop)
 
         if linkdecl.constraints:
             self._parse_subject_constraints(link, linkdecl)
@@ -604,10 +615,10 @@ class DeclarationLoader:
                 link_name, module_aliases=self._mod_aliases)
             spec_link = concept.pointers[generic_link.name]
 
-            if isinstance(linkdecl.target, edgeql.ast.SelectQuery):
+            if linkdecl.expr is not None:
                 # Computable
                 self._normalize_ptr_default(
-                    linkdecl.target, concept, spec_link)
+                    linkdecl.expr, concept, spec_link)
 
             for attr in linkdecl.attributes:
                 name = attr.name.name

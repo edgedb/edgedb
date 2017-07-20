@@ -12,7 +12,6 @@ from edgedb.lang.common.exceptions import EdgeDBError
 from edgedb.lang.common.ast import codegen
 from edgedb.lang.edgeql import (generate_source as edgeql_source,
                                 ast as eqlast)
-from . import ast as esast
 from . import quote as eschema_quote
 
 
@@ -93,27 +92,21 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
             self.write(' as ')
             self.write(ident_to_str(node.alias))
 
-    def _visit_Declaration(self, node):
-        self._visit_qualifier(node)
+    def _visit_Declaration(self, node, after_name=None):
         self.write(node.__class__.__name__.lower().replace('declaration', ' '))
         self.write(ident_to_str(node.name))
-        if node.args:
-            self.write('(')
-            self.visit_list(node.args, newlines=False)
-            self.write(')')
-
+        if after_name:
+            after_name(node)
         if node.extends:
             self._visit_extends(node.extends)
         self._visit_specs(node)
 
-    def _visit_Specialization(self, node):
-        if node.required:
-            self.write('required ')
+    def _visit_Pointer(self, node):
         self.write(node.__class__.__name__.lower() + ' ')
         self.visit(node.name)
 
-        if isinstance(node.target, eqlast.Base):
-            self._visit_turnstile(node.target)
+        if node.expr:
+            self._visit_turnstile(node.expr)
         elif node.target:
             self.write(' to ')
             if isinstance(node.target, list):
@@ -158,18 +151,31 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         self._visit_Declaration(node)
 
     def visit_AtomDeclaration(self, node):
+        self._visit_qualifier(node)
         self._visit_Declaration(node)
 
     def visit_ConceptDeclaration(self, node):
+        self._visit_qualifier(node)
         self._visit_Declaration(node)
 
     def visit_ConstraintDeclaration(self, node):
-        self._visit_Declaration(node)
+        def after_name(node):
+            if node.args:
+                self.write('(')
+                self.visit_list(node.args, newlines=False)
+                self.write(')')
+
+        if node.abstract:
+            self.write('abstract ')
+
+        self._visit_Declaration(node, after_name=after_name)
 
     def visit_EventDeclaration(self, node):
         self._visit_Declaration(node)
 
     def visit_LinkDeclaration(self, node):
+        if node.abstract:
+            self.write('abstract ')
         self._visit_Declaration(node)
 
     def visit_LinkPropertyDeclaration(self, node):
@@ -226,10 +232,12 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
             self.write('>')
 
     def visit_Link(self, node):
-        self._visit_Specialization(node)
+        if node.required:
+            self.write('required ')
+        self._visit_Pointer(node)
 
     def visit_LinkProperty(self, node):
-        self._visit_Specialization(node)
+        self._visit_Pointer(node)
 
     def visit_Policy(self, node):
         self.write('on ')
@@ -247,8 +255,8 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
             self.write(')')
 
     def visit_Constraint(self, node):
-        if node.abstract:
-            self.write('abstract ')
+        if node.delegated:
+            self.write('delegated ')
         self.write('constraint ')
         self.visit(node.name)
         if node.args:
@@ -273,10 +281,7 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         if isinstance(node.value, eqlast.Base):
             self._visit_turnstile(node.value)
         else:
-            if isinstance(node.value, esast.RawLiteral):
-                self.write(':>')
-            else:
-                self.write(': ')
+            self.write(' := ')
             self.visit(node.value)
             self.new_lines = 1
 

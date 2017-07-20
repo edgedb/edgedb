@@ -255,7 +255,7 @@ refactoring.
     # name uniqueness across all instances if its subclass.
     abstract concept Dictionary extending Named:
         required link name to str:
-            abstract constraint unique
+            delegated constraint unique
 
     abstract concept Text:
         # This is an abstract object containing text.
@@ -326,7 +326,7 @@ schema to make owner a required field for all ``Owned`` objects.
     # name uniqueness across all instances if its subclass.
     abstract concept Dictionary extending Named:
         required link name to str:
-            abstract constraint unique
+            delegated constraint unique
 
     abstract concept Text:
         # This is an abstract object containing text.

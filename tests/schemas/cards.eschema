@@ -1,6 +1,6 @@
 abstract concept Named:
     required link name to str:
-        abstract constraint unique
+        delegated constraint unique
 
 link deck:
     linkproperty count to int

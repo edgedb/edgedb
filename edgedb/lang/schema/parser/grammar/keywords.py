@@ -23,6 +23,7 @@ unreserved_keywords = frozenset([
     "attribute",
     "concept",
     "constraint",
+    "delegated",
     "event",
     "extending",
     "final",
