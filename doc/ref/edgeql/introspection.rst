@@ -33,7 +33,7 @@ Various schema entities are represented by their own concepts in the
     # get all the classes defined in the 'example' module
     WITH MODULE schema
     SELECT Class.name
-    FILTER Class.name ~ '^example::\w+$'
+    FILTER Class.name LIKE 'example::%'
     ORDER BY Class.name;
 
 ``Concept`` has ``links`` that are represented by a set of ``Link``

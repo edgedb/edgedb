@@ -259,12 +259,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT EXISTS (User.groups.description);
         """
 
-    def test_edgeql_syntax_ops13(self):
-        """
-        SELECT (User.name ~ '^[[:lower:]]+$');
-        SELECT (User.name ~* 'don');
-        """
-
     def test_edgeql_syntax_ops14(self):
         """
         SELECT -1 + 2 * 3 - 5 - 6 / 2 > 0 OR 25 % 4 = 3 AND 42 IN {12, 42, 14};
@@ -374,7 +368,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'Unexpected token.*~', line=2, col=16)
+                  'Unknown token.*~', line=2, col=16)
     def test_edgeql_syntax_ops21(self):
         """
         SELECT ~1;

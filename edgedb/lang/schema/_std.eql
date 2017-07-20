@@ -124,11 +124,32 @@ CREATE FUNCTION std::len(array<std::any>) -> std::int
 CREATE FUNCTION std::random() -> std::float
     FROM SQL FUNCTION 'random';
 
-CREATE FUNCTION std::re_match(std::str, std::str, std::str='') ->
-        SET OF array<std::str>
+CREATE FUNCTION std::re_match(std::str, std::str) -> SET OF array<std::str>
     FROM SQL $$
-        SELECT regexp_matches($1, $2, $3);
+        SELECT regexp_matches($1, $2);
     $$;
+
+CREATE FUNCTION std::re_match_all(std::str, std::str) -> SET OF array<std::str>
+    FROM SQL $$
+        SELECT regexp_matches($1, $2, 'g');
+    $$;
+
+CREATE FUNCTION std::re_test(std::str, std::str) -> std::bool
+    FROM SQL $$
+        SELECT $1 ~ $2;
+    $$;
+
+CREATE FUNCTION std::current_date() -> std::date
+    FROM SQL 'SELECT current_date';
+
+CREATE FUNCTION std::current_time() -> std::time
+    FROM SQL 'SELECT current_time';
+
+CREATE FUNCTION std::current_datetime() -> std::datetime
+    FROM SQL FUNCTION 'now';
+
+CREATE FUNCTION std::uuid_generate_v1mc() -> std::uuid
+    FROM SQL FUNCTION 'uuid_generate_v1mc';
 
 CREATE CONSTRAINT std::constraint {
     SET errmessage := 'invalid {subject}';
@@ -169,7 +190,7 @@ CREATE CONSTRAINT std::minlength(std::any) EXTENDING (std::min, std::length) {
 
 CREATE CONSTRAINT std::regexp(std::any) EXTENDING std::constraint {
     SET errmessage := 'invalid {subject}';
-    SET expr := ((subject ~ $0));
+    SET expr := re_test(subject, $0);
 };
 
 CREATE CONSTRAINT std::maxlength(std::any) EXTENDING (std::max, std::length) {
@@ -194,18 +215,6 @@ CREATE ATOM std::decimal_rounding_t EXTENDING std::str {
 CREATE ATTRIBUTE std::rounding std::decimal_rounding_t;
 
 CREATE ATOM std::decimal;
-
-CREATE FUNCTION std::current_date() -> std::date
-    FROM SQL 'SELECT current_date';
-
-CREATE FUNCTION std::current_time() -> std::time
-    FROM SQL 'SELECT current_time';
-
-CREATE FUNCTION std::current_datetime() -> std::datetime
-    FROM SQL FUNCTION 'now';
-
-CREATE FUNCTION std::uuid_generate_v1mc() -> std::uuid
-    FROM SQL FUNCTION 'uuid_generate_v1mc';
 
 CREATE ACTION std::restrict {
     SET title := 'Abort the event if a pointer exists';
