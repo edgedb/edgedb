@@ -18,18 +18,18 @@ abstract concept Dictionary extending Named:
 
 link todo:
     linkproperty rank to int:
-        default: 42
+        default := 42
 
 
 concept User extending Named:
     link todo to Issue:
-        mapping: **
+        mapping := '**'
 
 
 abstract concept Owned:
     # By default links are optional.
     required link owner to User:
-        mapping: *1
+        mapping := '*1'
 
 
 concept Status extending Dictionary
@@ -52,25 +52,25 @@ atom issue_num_t extending std::sequence
 
 concept Comment extending Text, Owned:
     required link issue to Issue:
-        mapping: *1
+        mapping := '*1'
     link parent to Comment:
-        mapping: *1
+        mapping := '*1'
 
 
 concept Issue extending Named, Owned, Text:
     required link number to issue_num_t:
-        readonly: true
+        readonly := true
         # The number values are automatically generated,
         # and are not supposed to be directly writable.
 
     required link status to Status:
-        mapping: *1
+        mapping := '*1'
 
     link priority to Priority:
-        mapping: *1
+        mapping := '*1'
 
     link watchers to User:
-        mapping: **
+        mapping := '**'
         # The watchers link is mapped to User concept in
         # many-to-many relation.  The default mapping is
         # *1 -- many-to-one.
@@ -78,7 +78,7 @@ concept Issue extending Named, Owned, Text:
     link time_estimate to int
 
     link time_spent_log to LogEntry:
-        mapping: 1*
+        mapping := '1*'
         # 1* -- one-to-many mapping.
 
     link start_date to datetime:
@@ -89,11 +89,11 @@ concept Issue extending Named, Owned, Text:
     link due_date to datetime
 
     link related_to to Issue:
-        mapping: **
+        mapping := '**'
 
     # this is used to test virtual concepts
     link references to File, URL, Publication:
-        mapping: **
+        mapping := '**'
 
     link tags to array<str>
 

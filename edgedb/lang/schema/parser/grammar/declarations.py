@@ -36,6 +36,14 @@ def parse_edgeql(expr: str, ctx, *, offset_column=0):
     return node
 
 
+def parse_edgeql_constant(expr: str, ctx):
+    node = parse_edgeql(expr, ctx)
+    if (isinstance(node, qlast.SelectQuery) and
+            isinstance(node.result, qlast.Constant)):
+        node = node.result
+    return node
+
+
 def _parse_language(node):
     try:
         return esast.Language(node.val.upper())
@@ -86,38 +94,6 @@ class TypeName(Nonterm):
     def reduce_ObjectName_LANGBRACKET_TypeList_RANGBRACKET(self, *kids):
         self.val = kids[0].val
         self.val.subtypes = kids[2].val
-
-
-class BaseValue(Nonterm):
-    def reduce_ICONST(self, kid):
-        self.val = esast.IntegerLiteral(value=kid.normalized_value)
-
-    def reduce_FCONST(self, kid):
-        self.val = esast.FloatLiteral(value=kid.normalized_value)
-
-    def reduce_STRING(self, kid):
-        self.val = esast.StringLiteral(value=kid.normalized_value)
-
-    def reduce_TRUE(self, kid):
-        self.val = esast.BooleanLiteral(value=True)
-
-    def reduce_FALSE(self, kid):
-        self.val = esast.BooleanLiteral(value=False)
-
-    def reduce_MAPPING(self, kid):
-        self.val = esast.MappingLiteral(value=kid.val)
-
-
-class Value(Nonterm):
-    def reduce_BaseValue(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_LBRACKET_ValueList_RBRACKET(self, *kids):
-        self.val = esast.ArrayLiteral(value=[el.value for el in kids[1].val])
-
-
-class ValueList(ListNonterm, element=BaseValue, separator=tokens.T_COMMA):
-    pass
 
 
 class RawString(Nonterm):
@@ -500,9 +476,9 @@ class FunctionSpecsBlob(Nonterm):
 
 
 class FunctionSpec(Nonterm):
-    def reduce_FROM_Identifier_ColonValue(self, *kids):
+    def reduce_FROM_Identifier_Value(self, *kids):
         self.val = esast.FunctionCode(language=_parse_language(kids[1]),
-                                      code=kids[2].val.value)
+                                      code=kids[2].val)
 
     def reduce_FROM_Identifier_FUNCTION_COLON_Identifier_NL(self, *kids):
         self.val = esast.FunctionCode(language=_parse_language(kids[1]),
@@ -511,7 +487,7 @@ class FunctionSpec(Nonterm):
     def reduce_DeclarationSpec(self, *kids):
         self.val = kids[0].val
 
-    def reduce_INITIAL_VALUE_ColonValue(self, *kids):
+    def reduce_INITIAL_VALUE_Value(self, *kids):
         self.val = esast.Attribute(
             name=esast.ObjectName(name='initial value'),
             value=kids[2].val)
@@ -673,11 +649,11 @@ class DeclarationSpecsBlob(Nonterm):
 class TurnstileBlob(parsing.Nonterm):
     def reduce_TURNSTILE_RawString_NL(self, *kids):
         st = kids[1].val
-        self.val = parse_edgeql(st.value, st.context)
+        self.val = parse_edgeql_constant(st.value, st.context)
 
     def reduce_TURNSTILE_NL_INDENT_RawString_NL_DEDENT(self, *kids):
         st = kids[3].val
-        self.val = parse_edgeql(st.value, st.context)
+        self.val = parse_edgeql_constant(st.value, st.context)
 
 
 class Link(Nonterm):
@@ -788,10 +764,7 @@ class Constraint(Nonterm):
 
 
 class Attribute(Nonterm):
-    def reduce_ObjectName_ColonValue(self, *kids):
-        self.val = esast.Attribute(name=kids[0].val, value=kids[1].val)
-
-    def reduce_ObjectName_TurnstileBlob(self, *kids):
+    def reduce_ObjectName_Value(self, *kids):
         self.val = esast.Attribute(name=kids[0].val, value=kids[1].val)
 
 
@@ -799,15 +772,12 @@ class Attributes(ListNonterm, element=Attribute):
     pass
 
 
-class ColonValue(Nonterm):
-    def reduce_COLON_Value_NL(self, *kids):
-        self.val = kids[1].val
-
+class Value(Nonterm):
     def reduce_COLONGT_NL_INDENT_RawString_NL_DEDENT(self, *kids):
-        self.val = kids[3].val
+        self.val = qlast.Constant(value=kids[3].val.value)
 
-    def reduce_COLON_NL_INDENT_Value_NL_DEDENT(self, *kids):
-        self.val = kids[3].val
+    def reduce_TurnstileBlob(self, *kids):
+        self.val = kids[0].val
 
 
 class KeywordMeta(parsing.NontermMeta):

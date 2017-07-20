@@ -138,7 +138,7 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
                 concept NamedObject:
                     required link name to str:
                         linkproperty lang to str:
-                            title: 'Language'
+                            title := 'Language'
             $$;
 
             GET MIGRATION test::d1;

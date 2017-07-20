@@ -1,6 +1,6 @@
 link l3:
     linkproperty comment to str:
-        default: "N/A"
+        default := "N/A"
 
 link subordinates:
     linkproperty comment to str
@@ -13,9 +13,9 @@ concept InsertTest:
     link l1 to int
     required link l2 to int
     link l3 to str:
-        default: "test"
+        default := "test"
     link subordinates to Subordinate:
-        mapping: "1*"
+        mapping := '1*'
 
 concept Annotation:
     required link name to str
@@ -24,7 +24,7 @@ concept Annotation:
 
 concept DefaultTest1:
     link num to int:
-        default: 42
+        default := 42
     link foo to str
 
 concept DefaultTest2:

@@ -218,7 +218,7 @@ class DeclarationLoader:
         return typ
 
     def _get_literal_value(self, node):
-        if not isinstance(node, s_ast.Literal):
+        if not isinstance(node, edgeql.ast.Constant):
             raise TypeError('Literal expected '
                             '(got type {!r})'.format(type(node).__name__))
 

@@ -538,7 +538,7 @@ Consider the following schema:
 
     concept User extending std::Named:
         link favorites to Post:
-            mapping: **
+            mapping := '**'
 
 Then the query selecting all favorite Post sorted by their rank is:
 

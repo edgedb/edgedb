@@ -78,7 +78,7 @@ concept LogEntry extending OwnedObject, Text:
     link start_date to datetime:
        default :=
             SELECT datetime::current_datetime()
-       title: 'Start Date'
+       title := 'Start Date'
         """
 
     def test_eschema_syntax_concept07(self):
@@ -86,31 +86,31 @@ concept LogEntry extending OwnedObject, Text:
 concept Issue extending foo.bar::NamedObject, OwnedObject, Text:
 
     required link number to issue_num_t:
-        readonly: true
+        readonly := true
 
     required link status to Status
 
     link priority to Priority
 
     link watchers to User:
-        mapping: **
+        mapping := '**'
 
     link time_estimate to int
 
     link time_spent_log to LogEntry:
-        mapping: 1*
+        mapping := '1*'
 
     link start_date := SELECT datetime::current_datetime()
 
     link start_date to datetime:
        default :=
             SELECT datetime::current_datetime()
-       title: 'Start Date'
+       title := 'Start Date'
 
     link due_date to datetime
 
     link related_to to Issue:
-        mapping: **
+        mapping := '**'
         """
 
     def test_eschema_syntax_concept08(self):
@@ -118,7 +118,7 @@ concept Issue extending foo.bar::NamedObject, OwnedObject, Text:
 concept Foo:
     link time_estimate to int:
        linkproperty unit:
-           default: 'minute'
+           default := 'minute'
        """
 
     def test_eschema_syntax_concept09(self):
@@ -198,7 +198,7 @@ concept LogEntry extending    OwnedObject,    Text:
 
 
 
-                       title: 'Start Date'
+                       title := 'Start Date'
         """
 
     def test_eschema_syntax_ws02(self):
@@ -207,7 +207,7 @@ concept LogEntry extending    OwnedObject,    Text:
             link start_date to datetime:
                default :=
                     SELECT datetime::current_datetime()
-               title: 'Start Date'
+               title := 'Start Date'
         """
 
     def test_eschema_syntax_ws03(self):
@@ -215,7 +215,7 @@ concept LogEntry extending    OwnedObject,    Text:
                     link start_date to datetime:
                        default :=
                             SELECT datetime::current_datetime()
-                       title: 'Start Date'
+                       title := 'Start Date'
         """
 
     def test_eschema_syntax_ws04(self):
@@ -226,7 +226,7 @@ concept LogEntry extending    OwnedObject,    Text:
             link start_date to datetime:
                default :=
                     SELECT datetime::current_datetime()
-               title: 'Start Date'
+               title := 'Start Date'
 
 % OK %
 
@@ -234,7 +234,7 @@ concept LogEntry extending    OwnedObject,    Text:
             link start_date to datetime:
                default :=
                     SELECT datetime::current_datetime()
-               title: 'Start Date'
+               title := 'Start Date'
         """
 
     def test_eschema_syntax_ws05(self):
@@ -246,7 +246,7 @@ concept LogEntry extending    OwnedObject,    Text:
                default :=
                     SELECT \
                     datetime::current_datetime()
-               title: 'Start Date'
+               title := 'Start Date'
 
 % OK %
 
@@ -254,7 +254,7 @@ concept LogEntry extending    OwnedObject,    Text:
             link start_date to datetime:
                default :=
                     SELECT datetime::current_datetime()
-               title: 'Start Date'
+               title := 'Start Date'
         """
 
     def test_eschema_syntax_atom01(self):
@@ -265,14 +265,14 @@ atom issue_num_t extending builtins::sequence
     def test_eschema_syntax_atom02(self):
         """
 atom issue_num_t extending int:
-    default: 42
+    default := 42
         """
 
     def test_eschema_syntax_atom03(self):
         """
 atom basic extending int:
-    title: 'Basic Atom'
-    default: 2
+    title := 'Basic Atom'
+    default := 2
     constraint min(0)
     constraint max(123456)
     constraint must_be_even
@@ -282,8 +282,8 @@ atom basic extending int:
         """
 atom basic extending int:
 
-    title: 'Basic Atom'
-    default: 2
+    title := 'Basic Atom'
+    default := 2
 
     constraint min(0)
     constraint max(123456)
@@ -295,8 +295,8 @@ atom basic extending int:
         """
 atom basic extending int:
 
-    title: 'Basic Atom'
-    default: 2
+    title := 'Basic Atom'
+    default := 2
 
     constraint expr:
         subject :=
@@ -309,8 +309,8 @@ atom basic extending int:
         """
 atom basic extending int:
 
-    title: 'Basic Atom'
-    default: 2
+    title := 'Basic Atom'
+    default := 2
 
     constraint min(0)
     constraint max(123456)
@@ -331,8 +331,8 @@ final atom none
     def test_eschema_syntax_atom08(self):
         """
 atom basic extending int:
-    title: 'Basic Atom'
-    default: 2
+    title := 'Basic Atom'
+    default := 2
     abstract constraint special_constraint
         """
 
@@ -348,7 +348,7 @@ atom special extending int:
     def test_eschema_syntax_atom10(self):
         """
 atom special extending int:
-    title: 'Special Atom'
+    title := 'Special Atom'
     constraint special_constraint:
         expr := subject % 2 = 0
         """
@@ -369,7 +369,7 @@ atom constraint_length extending str:
         """
 constraint max($param:any):
     expr := subject <= $param
-    errmessage: 'Maximum allowed value for {subject} is {param}.'
+    errmessage := 'Maximum allowed value for {subject} is {param}.'
 
         """
 
@@ -382,20 +382,20 @@ abstract constraint length:
     def test_eschema_syntax_constraint03(self):
         """
 constraint maxlength($param:any) extending max, length:
-    errmessage: '{$subject} must be no longer than {$param} characters.'
+    errmessage := '{$subject} must be no longer than {$param} characters.'
         """
 
     def test_eschema_syntax_constraint04(self):
         """
 constraint max($param:any):
     expr := subject <= $param
-    errmessage: 'Maximum allowed value for {subject} is {param}.'
+    errmessage := 'Maximum allowed value for {subject} is {param}.'
 
 abstract constraint length:
     subject := str::len(<str>subject)
 
 constraint maxlength($param:any) extending max, length:
-    errmessage: '{subject} must be no longer than {param} characters.'
+    errmessage := '{subject} must be no longer than {param} characters.'
         """
 
     def test_eschema_syntax_constraint05(self):
@@ -405,7 +405,7 @@ abstract constraint distance:
         <float>subject
 
 constraint maxldistance extending max, distance:
-    errmessage: '{subject} must be no longer than {param} meters.'
+    errmessage := '{subject} must be no longer than {param} meters.'
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
@@ -419,7 +419,7 @@ constraint maxlength($param) extending max, length
     def test_eschema_syntax_linkproperty01(self):
         """
 linkproperty foo:
-    title: 'Sample property'
+    title := 'Sample property'
         """
 
     def test_eschema_syntax_linkproperty02(self):
@@ -430,16 +430,16 @@ linkproperty bar extending foo
     def test_eschema_syntax_linkproperty03(self):
         """
 linkproperty bar extending foo:
-    title: 'Another property'
+    title := 'Another property'
         """
 
     def test_eschema_syntax_linkproperty04(self):
         """
 linkproperty foo:
-    title: 'Sample property'
+    title := 'Sample property'
 
 linkproperty bar extending foo:
-    title: 'Another property'
+    title := 'Another property'
         """
 
     def test_eschema_syntax_action01(self):
@@ -450,7 +450,7 @@ action ignore
     def test_eschema_syntax_action02(self):
         """
 action ignore:
-    title: 'Deleted'
+    title := 'Deleted'
         """
 
     def test_eschema_syntax_event01(self):
@@ -461,7 +461,7 @@ event self_deleted
     def test_eschema_syntax_event02(self):
         """
 event self_deleted:
-    title: 'Deleted'
+    title := 'Deleted'
         """
 
     def test_eschema_syntax_link01(self):
@@ -493,14 +493,14 @@ link coollink:
     def test_eschema_syntax_link05(self):
         """
 linkproperty foo:
-    title: 'Sample property'
+    title := 'Sample property'
 
 linkproperty bar extending foo:
-    title: 'Another property'
+    title := 'Another property'
 
 link coollink:
     linkproperty foo to int:
-        default: 2
+        default := 2
         constraint min(0)
         constraint max(123456)
         constraint expr:
@@ -514,10 +514,10 @@ link coollink:
     on self_deleted ignore
 
 action ignore:
-    title: 'Deleted'
+    title := 'Deleted'
 
 event self_deleted:
-    title: 'Deleted'
+    title := 'Deleted'
 
         """
 
@@ -615,22 +615,27 @@ event self_deleted:
         """
 
     def test_eschema_syntax_function02(self):
-        """
+        r"""
         function some_func($foo: std::int = 42) -> std::str:
-            from sql: "SELECT 'life';"
+            from sql := "SELECT 'life';"
 
 % OK %
 
         function some_func($foo: std::int = 42) -> std::str:
-            from sql:>
-                SELECT 'life';
+            from sql :=
+                'SELECT \'life\'';
         """
 
     def test_eschema_syntax_function03(self):
-        """
+        r"""
         function some_func($foo: std::int = 42) -> std::str:
-            from edgeql:>
+            from edgeql :>
                 SELECT 'life';
+
+% OK %
+        function some_func($foo: std::int = 42) -> std::str:
+            from edgeql :=
+                'SELECT \'life\'';
         """
 
     def test_eschema_syntax_function04(self):
@@ -639,11 +644,21 @@ event self_deleted:
         function myfunc($arg1: str, $arg2: str = 'DEFAULT',
                         *$arg3:std::int) -> \
                         set of int:
-            volatile: true
-            description:>
+            volatile := true
+            description :>
                 myfunc sample
-            from sql:>
+            from sql :>
                 SELECT blarg;
+
+% OK %
+        function myfunc($arg1: str, $arg2: str = 'DEFAULT',
+                        *$arg3:std::int) -> \
+                        set of int:
+            volatile := true
+            description :=
+                'myfunc sample'
+            from sql :=
+                'SELECT blarg;'
         """
 
     def test_eschema_syntax_function05(self):
@@ -651,22 +666,19 @@ event self_deleted:
         function myfunc($arg1: str,
                         $arg2: str = 'DEFAULT',
                         *$arg3: std::int) -> set of int:
-            volatile: true
-            description:>
-                myfunc sample
-            from sql:>
-                SELECT blarg;
+            from edgeql :=
+                SELECT blarg
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
                   "unexpected 'initial value' in function definition",
-                  line=3, col=26)
+                  line=3, col=27)
     def test_eschema_syntax_function06(self):
         """
         function some_func($foo: std::int = 42) -> std::str:
-            initial value: 'bad'
-            from edgeql:>
-                SELECT 'life';
+            initial value := 'bad'
+            from edgeql :=
+                SELECT 'life'
         """
 
     def test_eschema_syntax_function07(self):
@@ -721,35 +733,42 @@ event self_deleted:
     def test_eschema_syntax_aggregate01(self):
         """
         aggregate len() -> std::int:
-            initial value: 0
+            initial value := 0
             from sql function: length
         """
 
     def test_eschema_syntax_aggregate02(self):
-        """
+        r"""
         aggregate some_func($foo: std::int = 42) -> std::str:
-            initial value: 'start'
-            from sql:>
+            initial value := 'start'
+            from sql :>
                 SELECT 'life';
+
+% OK %
+
+        aggregate some_func($foo: std::int = 42) -> std::str:
+            initial value := 'start'
+            from sql :=
+                'SELECT \'life\'';
         """
 
     def test_eschema_syntax_aggregate03(self):
         """
         aggregate some_func($foo: std::int = 42) -> std::str:
-            initial value: ''
-            from edgeql:>
-                SELECT 'life';
+            initial value := ''
+            from edgeql :=
+                SELECT 'life'
         """
 
     def test_eschema_syntax_aggregate04(self):
         """
         aggregate myfunc($arg1: str, $arg2: str = 'DEFAULT',
                          *$arg3:std::int) -> int:
-            initial value: 42
-            volatile: true
-            description: 'myfunc sample'
-            from sql:>
-                SELECT blarg;
+            initial value := 42
+            volatile := true
+            description := 'myfunc sample'
+            from sql :=
+                'SELECT blarg;'
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
@@ -768,14 +787,14 @@ event self_deleted:
         """
         aggregate myfunc($arg1: str, $arg2: str = 'DEFAULT',
                          *$arg3) -> int:
-            initial value: 42
+            initial value := 42
         """
 
     def test_eschema_syntax_view01(self):
         """
         view FooBaz:
             expr := SELECT Foo FILTER Foo.bar = 'baz'
-            description: 'Special Foo'
+            description := 'Special Foo'
         """
 
     def test_eschema_syntax_view02(self):
