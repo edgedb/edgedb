@@ -747,6 +747,11 @@ class DeclarationSpecBase(Nonterm):
         self.val = kids[1].val
         self.val.delegated = True
 
+    def reduce_ABSTRACT_Constraint(self, *kids):
+        raise SchemaSyntaxError(
+            'only top-level constraints declarations can be abstract',
+            context=kids[0].context)
+
     def reduce_Constraint(self, kid):
         self.val = kid.val
 
