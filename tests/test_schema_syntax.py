@@ -304,8 +304,7 @@ atom basic extending int:
 
     constraint min(0)
     constraint max(123456)
-    delegated constraint expr:
-        subject := subject % 2 = 0
+    delegated constraint expr on (subject % 2 = 0)
         """
 
     def test_eschema_syntax_atom05(self):
@@ -316,7 +315,7 @@ atom basic extending int:
     default := 2
 
     constraint expr:
-        subject :=
+        prop :=
             subject % 2 = 0
     constraint min(0)
     constraint max(123456)
@@ -332,7 +331,7 @@ atom basic extending int:
     constraint min(0)
     constraint max(123456)
     constraint expr:
-        subject := subject % 2 = 0
+        abc := subject % 2 = 0
 
 
 atom inherits_default extending basic
@@ -384,7 +383,8 @@ atom constraint_length extending str:
 
     def test_eschema_syntax_constraint01(self):
         """
-constraint max($param:any):
+# Test empty tuple as subject expression
+constraint max($param:any) on (()):
     expr := subject <= $param
     errmessage := 'Maximum allowed value for {subject} is {param}.'
 
@@ -523,13 +523,12 @@ link coollink:
         default := 2
         constraint min(0)
         constraint max(123456)
-        constraint expr:
-            subject := subject % 2 = 0
+        constraint expr on (subject % 2 = 0):
+            title := 'aaa'
 
     linkproperty bar to int
 
-    constraint expr:
-        subject := self.foo = self.bar
+    constraint expr on (self.foo = self.bar)
 
     on self_deleted ignore
 
