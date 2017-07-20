@@ -25,10 +25,10 @@ from .tokens import *  # NOQA
 
 
 RawLiteral = collections.namedtuple(
-    'RawLiteral', ('value', 'context'))
+    'RawLiteral', ('value',))
 
 NameWithParents = collections.namedtuple(
-    'NameWithParents', ('name', 'extends', 'context'))
+    'NameWithParents', ('name', 'extends'))
 
 PointerSpec = collections.namedtuple(
     'PointerSpec', ('name', 'target', 'spec', 'expr'))
@@ -111,28 +111,25 @@ class RawString(Nonterm):
     def reduce_RawStr(self, *kids):
         text = kids[0].val.value
         text = textwrap.dedent(text).strip().replace('\\\n', '')
-        self.val = RawLiteral(value=text, context=kids[0].context)
+        self.val = RawLiteral(value=text)
 
 
 class RawStr(Nonterm):
     def reduce_RawStr_RAWLEADWS_RAWSTRING(self, *kids):
         self.val = RawLiteral(
-            value=kids[0].val.value + kids[1].val + kids[2].val,
-            context=kids[0].context)
+            value=kids[0].val.value + kids[1].val + kids[2].val)
 
     def reduce_RawStr_RAWSTRING(self, *kids):
         self.val = RawLiteral(
-            value=kids[0].val.value + kids[1].val,
-            context=kids[0].context)
+            value=kids[0].val.value + kids[1].val)
 
     def reduce_RAWLEADWS_RAWSTRING(self, *kids):
         self.val = RawLiteral(
-            value=kids[0].val + kids[1].val,
-            context=kids[0].context)
+            value=kids[0].val + kids[1].val)
 
     def reduce_RAWSTRING(self, kid):
         self.val = RawLiteral(
-            value=kid.val, context=kid.context)
+            value=kid.val)
 
 
 class Schema(Nonterm):
@@ -598,33 +595,29 @@ class FunctionSpecs(ListNonterm, element=FunctionSpec):
 class ParenRawString(Nonterm):
     def reduce_ParenRawString_LPAREN_ParenRawString_RPAREN(self, *kids):
         self.val = RawLiteral(
-            value=f'{kids[0].val.value}({kids[2].val.value})',
-            context=kids[0].context)
+            value=f'{kids[0].val.value}({kids[2].val.value})')
 
     def reduce_LPAREN_RPAREN(self, *kids):
         self.val = RawLiteral(
-            value='()',
-            context=kids[0].context)
+            value='()')
 
     def reduce_ParenRawString_LPAREN_RPAREN(self, *kids):
         self.val = RawLiteral(
-            value=f'{kids[0].val.value}()',
-            context=kids[0].context)
+            value=f'{kids[0].val.value}()')
 
     def reduce_LPAREN_ParenRawString_RPAREN(self, *kids):
         self.val = kids[1].val
 
     def reduce_ParenRawString_ParenRawStr(self, *kids):
         self.val = RawLiteral(
-            value=f'{kids[0].val.value}{kids[1].val.value}',
-            context=kids[0].context)
+            value=f'{kids[0].val.value}{kids[1].val.value}')
 
     def reduce_ParenRawStr(self, *kids):
         self.val = kids[0].val
 
     def parse_as_call_args(self):
         expr = self.val.value
-        context = self.val.context
+        context = self.context
 
         prefix, postfix = 'SELECT f(', ')'
         eql_query = f'{prefix}{expr}{postfix}'
@@ -640,7 +633,7 @@ class ParenRawString(Nonterm):
 
     def parse_as_parameters_decl(self):
         expr = self.val.value
-        context = self.val.context
+        context = self.context
 
         prefix, postfix = 'CREATE FUNCTION f(', ') -> any FROM SQL ""'
         eql_query = f'{prefix}{expr}{postfix}'
@@ -655,7 +648,7 @@ class ParenRawString(Nonterm):
 
     def parse_as_expr(self):
         expr = self.val.value
-        context = self.val.context
+        context = self.context
 
         prefix, postfix = '(', ')'
         eql_query = f'{prefix}{expr}{postfix}'
@@ -666,14 +659,14 @@ class ParenRawString(Nonterm):
 
 class ParenRawStr(Nonterm):
     def reduce_STRING(self, kid):
-        self.val = RawLiteral(value=kid.val, context=kid.context)
+        self.val = RawLiteral(value=kid.val)
 
     def reduce_IDENT(self, kid):
         # this can actually only be QIDENT
-        self.val = RawLiteral(value=f'`{kid.val}`', context=kid.context)
+        self.val = RawLiteral(value=f'`{kid.val}`')
 
     def reduce_RAWSTRING(self, kid):
-        self.val = RawLiteral(value=kid.val, context=kid.context)
+        self.val = RawLiteral(value=kid.val)
 
 
 class OnExpr(Nonterm):
@@ -718,14 +711,12 @@ class NameAndExtends(Nonterm):
     def reduce_Identifier_ExtendingNameList(self, *kids):
         self.val = NameWithParents(
             name=kids[0].val,
-            extends=kids[1].val,
-            context=kids[0].context)
+            extends=kids[1].val)
 
     def reduce_Identifier(self, kid):
         self.val = NameWithParents(
             name=kid.val,
-            extends=[],
-            context=kid.context)
+            extends=[])
 
 
 class NameList(ListNonterm, element=ObjectName, separator=tokens.T_COMMA):
@@ -779,12 +770,10 @@ class DeclarationSpecsBlob(Nonterm):
 #
 class TurnstileBlob(parsing.Nonterm):
     def reduce_TURNSTILE_RawString_NL(self, *kids):
-        st = kids[1].val
-        self.val = parse_edgeql_constant(st.value, st.context)
+        self.val = parse_edgeql_constant(kids[1].val.value, kids[1].context)
 
     def reduce_TURNSTILE_NL_INDENT_RawString_NL_DEDENT(self, *kids):
-        st = kids[3].val
-        self.val = parse_edgeql_constant(st.value, st.context)
+        self.val = parse_edgeql_constant(kids[3].val.value, kids[3].context)
 
 
 class Spec(Nonterm):
