@@ -436,6 +436,16 @@ constraint maxldistance extending max, distance:
 constraint maxlength($param) extending max, length
         """
 
+    @tb.must_fail(error.SchemaSyntaxError,
+                  r"only top-level constraints declarations can be abstract",
+                  line=3, col=5)
+    def test_eschema_syntax_constraint07(self):
+        """
+atom special extending int:
+    abstract constraint length:
+        subject := str::len(<str>subject)
+        """
+
     def test_eschema_syntax_linkproperty01(self):
         """
 linkproperty foo:
