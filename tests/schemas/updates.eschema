@@ -23,12 +23,12 @@ concept UpdateTest:
 
     # for testing links to sets
     link tags to Tag:
-        mapping: **
+        mapping := '**'
     link weighted_tags to Tag:
-        mapping: **
+        mapping := '**'
 
     # for testing links to sets of the same type as originator
     link related to UpdateTest:
-        mapping: **
+        mapping := '**'
     link annotated_tests to UpdateTest:
-        mapping: **
+        mapping := '**'

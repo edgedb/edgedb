@@ -65,11 +65,11 @@ iteration of development and the new module schema looks like this:
 
     concept City extending NamedObject:
         link country to Country:
-            mapping: *1
+            mapping := '*1'
 
     concept Country extending NamedObject:
         link capital to City:
-            mapping: 11
+            mapping := '11'
 
 Adding the changes and running the migration command on the new schema
 we will get a new migration. This migration needs a name, say
@@ -105,13 +105,13 @@ we have the 2 modules defined, let's add the ``mayor`` link to the
 
     concept City extending NamedObject:
         link country to Country:
-            mapping: *1
+            mapping := '*1'
         link mayor to subjects::Person:
-            mapping: *1
+            mapping := '*1'
 
     concept Country extending NamedObject:
         link capital to City:
-            mapping: 11
+            mapping := '11'
 
 We import the module ``subjects`` into geo and declare the ``mayor``
 link pointing to ``subjects::Person``. The corresponding migration

@@ -133,10 +133,6 @@ class EdgeSchemaLexer(lexer.Lexer):
              next_state=STATE_KEEP,
              regexp=r'->'),
 
-        Rule(token='MAPPING',
-             next_state=STATE_KEEP,
-             regexp=r'[1*][1*]'),
-
         Rule(token='STAR',
              next_state=STATE_KEEP,
              regexp=r'\*'),

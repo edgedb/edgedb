@@ -31,11 +31,7 @@ class EdgeSchemaSourceGeneratorError(EdgeDBError):
 class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
     def generic_visit(self, node):
         if isinstance(node, eqlast.Base):
-            pad = self.indent_with * self.indentation
-            ind = self.indentation
-            self.indentation = 0
-            self.write(textwrap.indent(edgeql_source(node), pad))
-            self.indentation = ind
+            self._visit_edgeql(node)
         else:
             raise EdgeSchemaSourceGeneratorError(
                 'No method to generate code for %s' % node.__class__.__name__)
@@ -132,13 +128,31 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         else:
             self._visit_specs(node)
 
+    def _visit_edgeql(self, node, *, ident=True):
+        code = edgeql_source(node)
+        if ident:
+            pad = self.indent_with * self.indentation
+            ind = self.indentation
+            self.indentation = 0
+            self.write(textwrap.indent(code, pad))
+            self.indentation = ind
+        else:
+            self.write(code)
+
     def _visit_turnstile(self, node):
         self.write(' := ')
-        self.new_lines = 1
-        self.indentation += 1
-        self.visit(node)
-        self.indentation -= 1
-        self.new_lines = 2
+
+        if (isinstance(node, eqlast.Constant) and
+                (not isinstance(node.value, str) or
+                 '\n' not in node.value)):
+            self._visit_edgeql(node, ident=False)
+            self.new_lines = 1
+        else:
+            self.new_lines = 1
+            self.indentation += 1
+            self.visit(node)
+            self.indentation -= 1
+            self.new_lines = 2
 
     def visit_ActionDeclaration(self, node):
         self._visit_Declaration(node)
@@ -181,32 +195,21 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         self.new_lines = 1
         self.indentation += 1
         if node.initial_value:
-            self.write('initial value: ')
-            self.visit(node.initial_value)
+            self.write('initial value := ')
+            self._visit_edgeql(node.initial_value)
             self.new_lines = 1
         self._visit_list(node.attributes)
         self.visit(node.code)
         self.indentation -= 1
         self.new_lines = 2
 
-    def visit_FuncArg(self, node):
-        if node.variadic:
-            self.write('*')
-        if node.name is not None:
-            self.write('$', ident_to_str(node.name), ': ')
-        self.visit(node.type)
-
-        if node.default:
-            self.write(' = ')
-            self.visit(node.default)
-
     def visit_FunctionCode(self, node):
-        self.write(f'from {node.language}')
+        self.write(f'from {node.language.lower()}')
         if node.code:
-            self.write(':>')
+            self.write(' :=')
             self.new_lines = 1
             self.indentation += 1
-            self.write(node.code)
+            self.visit(node.code)
             self.indentation -= 1
             self.new_lines = 1
         else:
@@ -274,18 +277,6 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
             self.visit(node.value)
             self.new_lines = 1
 
-    def visit_StringLiteral(self, node):
-        self.write(self._literal_to_str(node.value))
-
-    def visit_MappingLiteral(self, node):
-        self.write(node.value)
-
-    def visit_IntegerLiteral(self, node):
-        self.write(self._literal_to_str(node.value))
-
-    def visit_FloatLiteral(self, node):
-        self.write(self._literal_to_str(node.value))
-
     def _literal_to_str(self, value):
         if isinstance(value, str):
             return eschema_quote.quote_literal(value)
@@ -295,22 +286,6 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
             return '{:g}'.format(value)
         elif isinstance(value, bool):
             return 'true' if value else 'false'
-
-    def visit_BooleanLiteral(self, node):
-        self.write(self._literal_to_str(node.value))
-
-    def visit_ArrayLiteral(self, node):
-        self.write('[')
-        val = [self._literal_to_str(el) for el in node.value]
-        self.write(', '.join(val))
-        self.write(']')
-
-    def visit_RawLiteral(self, node):
-        self.new_lines = 1
-        self.indentation += 1
-        self.write(node.value)
-        self.indentation -= 1
-        self.new_lines = 1
 
 
 generate_source = EdgeSchemaSourceGenerator.to_source

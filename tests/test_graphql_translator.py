@@ -90,7 +90,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
         concept UserGroup extending NamedObject:
             link settings to Setting:
-                mapping: 1*
+                mapping := '1*'
 
         concept Setting extending NamedObject:
             required link value to str
@@ -101,11 +101,11 @@ class TestGraphQLTranslation(TranslatorTest):
         concept User extending NamedObject:
             required link active to bool
             link groups to UserGroup:
-                mapping: **
+                mapping := '**'
             required link age to int
             required link score to float
             link profile to Profile:
-                mapping: *1
+                mapping := '*1'
     """
 
     SCHEMA_MOD2 = r"""

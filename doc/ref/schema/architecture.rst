@@ -13,15 +13,15 @@ EdgeDB schema:
     concept City:
         required link name to str
         required link country to Country:
-            mapping: *1  # any given city only belongs to one country,
-                         # but many cities can belong to the same
-                         # country
+            mapping := '*1'  # any given city only belongs to one country,
+                             # but many cities can belong to the same
+                             # country
 
     concept Country:
         required link name to str
         required link capital to City:
-            mapping: 11  # there can only be one capital per country
-                         # and vice versa
+            mapping := '11'  # there can only be one capital per country
+                             # and vice versa
 
 
 EdgeDB schemas can define the following fundamental elements:
@@ -98,9 +98,9 @@ arbitrary number of links to other concepts or atoms.
     concept City:
         required link name to str
         required link country to Country:
-            mapping: *1  # any given city only belongs to one country,
-                         # but many cities can belong to the same
-                         # country
+            mapping := '*1'  # any given city only belongs to one country,
+                             # but many cities can belong to the same
+                             # country
 
 
 In the example above concept ``City`` defines two links: ``name`` as a
@@ -159,10 +159,10 @@ Generic pointers can be defined explicitly in the corresponding sections.
 .. code-block:: eschema
 
   linkproperty assigned_on:
-      title: "Link Assignment Timestamp"
+      title := "Link Assignment Timestamp"
 
   link name:
-      title: "Name"
+      title := "Name"
       linkproperty assigned_on to datetime
 
 
@@ -189,7 +189,7 @@ them.
 
     concept User extending std::Named:
         link favorites to Post:
-            mapping: **
+            mapping := '**'
 
 
 Constraints
@@ -418,7 +418,7 @@ back-end for a bug-tracking system:
 
     abstract concept Commentable:
         link comments to Comment:
-            mapping: 1*
+            mapping := '1*'
 
     abstract concept Timestamped:
         required link timetamp to datetime:
@@ -464,7 +464,7 @@ via inheritance and used in queries:
 .. code-block:: eschema
 
     abstract link relatives:
-        title: "Relatives"
+        title := "Relatives"
 
     abstract link descendants extending relatives
     abstract link ancestors extending relatives
@@ -477,13 +477,13 @@ via inheritance and used in queries:
         required link name to str
 
         link children to Person:
-            mapping: **
+            mapping := '**'
 
         link grandchildren to Person:
-            mapping: **
+            mapping := '**'
 
         link parents to Person:
-            mapping: **
+            mapping := '**'
 
 With the above schema the following queries make use of the link
 inheritance:
@@ -532,21 +532,21 @@ consider ``maxlength`` and ``minlength`` constraints:
     # inherited from, typically used as a mixin
     abstract constraint length:
         subject := len(<str>subject)
-        errmessage: 'Invalid {subject}'
+        errmessage := 'Invalid {subject}'
 
     constraint max(any):
         expr := subject <= $1
-        errmessage: 'Maximum allowed value for {subject} is {$1}.'
+        errmessage := 'Maximum allowed value for {subject} is {$1}.'
 
     constraint min(any):
         expr := subject >= $1
-        errmessage: 'Minimum allowed value for {subject} is {$1}.'
+        errmessage := 'Minimum allowed value for {subject} is {$1}.'
 
     constraint maxlength(any) extending max, length:
-        errmessage: '{$subject} must be no longer than {$1} characters.'
+        errmessage := '{$subject} must be no longer than {$1} characters.'
 
     constraint minlength(any) extending min, length:
-        errmessage: '{$subject} must be no shorter than {$1} characters.'
+        errmessage := '{$subject} must be no shorter than {$1} characters.'
 
 Every constraint in the example above overrides the ``errmessage`` to
 better correspond to its intended meaning. Additionally, ``length``
@@ -570,10 +570,10 @@ process a string containing distance measured in meters or kilometers:
             <float>subject[:-1]  # assuming suffix 'm'
 
     constraint maxldistance(any) extending max, distance:
-        errmessage: '{subject} must be no longer than {$1} meters.'
+        errmessage := '{subject} must be no longer than {$1} meters.'
 
     constraint minldistance(any) extending min, distance:
-        errmessage: '{subject} must be no shorter than {$1} meters.'
+        errmessage := '{subject} must be no shorter than {$1} meters.'
 
 
 Schema composition
@@ -594,11 +594,11 @@ an abstract ``std::NamedObject``:
 
     concept City extending NamedObject:
         link country to Country:
-            mapping: *1
+            mapping := '*1'
 
     concept Country extending NamedObject:
         link capital to City:
-            mapping: 11
+            mapping := '11'
 
 ``std::NamedObject`` is defined as *abstract*, thus it cannot be
 instantiated, and exists solely for the purposes of being inherited

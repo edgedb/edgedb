@@ -4,13 +4,13 @@ abstract concept Named:
 
 concept Item extending Named:
     link tag_set1 to str:
-        mapping: 1*
+        mapping := '1*'
 
     # for atomic links there should not be any practical difference
     # between a 1* and ** mapping
     #
     link tag_set2 to str:
-        mapping: **
+        mapping := '**'
 
     link tag_array to array<str>
 

@@ -14,10 +14,10 @@ link friends:
 
 concept User extending Named:
     link deck to Card:
-        mapping: **
+        mapping := '**'
 
     link friends to User:
-        mapping: **
+        mapping := '**'
 
 
 concept Card extending Named:

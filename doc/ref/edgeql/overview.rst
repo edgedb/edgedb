@@ -54,7 +54,7 @@ assumed to be part of the module ``example``:
     concept Issue extending std::Named, Owned, Text:
 
         required link number to issue_num_t:
-            readonly: true
+            readonly := true
             # The number values are automatically generated,
             # and are not supposed to be directly writable.
 
@@ -63,7 +63,7 @@ assumed to be part of the module ``example``:
         link priority to Priority
 
         link watchers to User:
-            mapping: **
+            mapping := '**'
             # The watchers link is mapped to User concept in
             # many-to-many relation.  The default mapping is
             # *1 -- many-to-one.
@@ -71,7 +71,7 @@ assumed to be part of the module ``example``:
         link time_estimate to int
 
         link time_spent_log to LogEntry:
-            mapping: 1*
+            mapping := '1*'
             # 1* -- one-to-many mapping.
 
         link start_date to datetime:
@@ -82,7 +82,7 @@ assumed to be part of the module ``example``:
         link due_date to datetime
 
         link related_to to Issue:
-            mapping: **
+            mapping := '**'
 
 This schema represents the data model for an issue tracker. There
 are ``Users``, who can create an ``Issue``, add a ``Comment`` to an

@@ -42,7 +42,7 @@ The original schema would be something like this:
         # less tight. This is a good practice for relationships that
         # don't represent inherent properties.
         required link issue to Issue:
-            mapping: *1
+            mapping := '*1'
         link timestamp to datetime:
             default := SELECT datetime::current_datetime()
             # the timestap will be automatically set to the current
@@ -78,7 +78,7 @@ the interactive console via the low level EdgeQL commands.
         # less tight. This is a good practice for relationships that
         # don't represent inherent properties.
         required link issue to Issue:
-            mapping: *1
+            mapping := '*1'
         link timestamp to datetime:
             default := SELECT datetime::current_datetime()
             # the timestap will be automatically set to the current
@@ -147,7 +147,7 @@ Let's add priority to the schema, first. We'll have one new
         # less tight. This is a good practice for relationships that
         # don't represent inherent properties.
         required link issue to Issue:
-            mapping: *1
+            mapping := '*1'
         link timestamp to datetime:
             default := SELECT datetime::current_datetime()
             # the timestap will be automatically set to the current
@@ -268,7 +268,7 @@ refactoring.
         # don't make the link owner required so that we can first
         # assign an owner to Comment objects already in the DB
         link owner to User:
-            mapping: *1
+            mapping := '*1'
 
     concept User extending Named
     # no need to specify 'link name' here anymore as it's inherited
@@ -277,7 +277,7 @@ refactoring.
         required link status to Status
         link priority to Priority
         required link owner to User:
-            mapping: *1
+            mapping := '*1'
         # because we override the link owner to be required,
         # we need to keep this definition
 
@@ -287,7 +287,7 @@ refactoring.
 
     concept Comment extending Text, Owned:
         required link issue to Issue:
-            mapping: *1
+            mapping := '*1'
         link timestamp to datetime:
             default := SELECT datetime::current_datetime()
             # the timestap will be automatically set to the current
@@ -344,7 +344,7 @@ schema to make owner a required field for all ``Owned`` objects.
 
     concept Comment extending Text, Owned:
         required link issue to Issue:
-            mapping: *1
+            mapping := '*1'
         link timestamp to datetime:
             default := SELECT datetime::current_datetime()
             # the timestap will be automatically set to the current
@@ -359,7 +359,7 @@ schema to make owner a required field for all ``Owned`` objects.
         # don't make the link owner required so that we can first
         # assign an owner to Comment objects already in the DB
         required link owner to User:
-            mapping: *1
+            mapping := '*1'
 
     concept Issue extending Text, Owned:
         required link status to Status

@@ -14,10 +14,8 @@ from edgedb.lang.edgeql import ast as qlast
 
 
 class Base(ast.AST):
-    ns = 'eschema'
-    __fields = [('context', parsing.ParserContext, None,
-                 True, None, True  # this last True is "hidden" attribute
-                 )]
+    __ast_hidden__ = {'context'}
+    context: parsing.ParserContext
 
     def _extra_repr(self):
         return ''
@@ -97,36 +95,12 @@ class Specialization(Base):
 
 # expressions
 #
-class Literal(Base):
-    __fields = ['value']
 
 
-class StringLiteral(Literal):
-    pass
-
-
-class RawLiteral(Literal):
-    pass
-
-
-class MappingLiteral(Literal):
-    pass
-
-
-class IntegerLiteral(Literal):
-    pass
-
-
-class FloatLiteral(Literal):
-    pass
-
-
-class BooleanLiteral(Literal):
-    pass
-
-
-class ArrayLiteral(Literal):
-    pass
+class RawLiteral(Base):
+    # This node is used in parser, but shouldn't leak
+    # into the final AST.
+    value: str
 
 
 class ObjectName(Base):
@@ -143,7 +117,7 @@ class ObjectName(Base):
 #
 class Attribute(Base):
     name: ObjectName
-    value: object
+    value: qlast.Base
 
 
 class Constraint(Base):
@@ -194,15 +168,8 @@ class Language(s_enum.StrEnum):
 
 class FunctionCode(Base):
     language: Language
-    code: str
+    code: qlast.Base
     from_name: str
-
-
-class FuncArg(Base):
-    name: str
-    type: ObjectName
-    variadic: bool = False
-    default: Literal  # noqa (pyflakes bug)
 
 
 class FunctionDeclaration(Base):
@@ -211,7 +178,7 @@ class FunctionDeclaration(Base):
     attributes: list
     returning: ObjectName
     aggregate: bool = False
-    initial_value: Literal
+    initial_value: qlast.Base
     code: FunctionCode
     set_returning: bool = False
 

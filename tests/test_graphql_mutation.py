@@ -19,7 +19,7 @@ class TestGraphQLMutation(tb.QueryTestCase):
 
             concept UserGroup extending NamedObject:
                 link settings to Setting:
-                    mapping: **
+                    mapping := '**'
 
             concept Setting extending NamedObject:
                 required link value to str
@@ -30,11 +30,11 @@ class TestGraphQLMutation(tb.QueryTestCase):
             concept User extending NamedObject:
                 required link active to bool
                 link groups to UserGroup:
-                    mapping: **
+                    mapping := '**'
                 required link age to int
                 required link score to float
                 link profile to Profile:
-                    mapping: *1
+                    mapping := '*1'
         $$;
 
         COMMIT MIGRATION test::d1;

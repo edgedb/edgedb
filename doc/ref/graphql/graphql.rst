@@ -19,7 +19,7 @@ For the purposes of this section we will use the following schema:
         required link title to str
         link synopsis to str
         link author to Author:
-            mapping: *1
+            mapping := '*1'
         link isbn to str:
             constraint maxlength(10)
         link pub_date to datetime

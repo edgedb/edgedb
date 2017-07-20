@@ -40,7 +40,7 @@ atom constraint_enum extending str:
 
 
 link translated_label:
-    mapping: "1*"
+    mapping := '1*'
 
     linkproperty lang to str
     linkproperty prop1 to str
