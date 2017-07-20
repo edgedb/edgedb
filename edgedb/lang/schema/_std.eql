@@ -82,6 +82,10 @@ CREATE AGGREGATE std::sum(std::int) -> std::int
     INITIAL VALUE 0
     FROM SQL AGGREGATE 'sum';
 
+CREATE AGGREGATE std::sum(std::float) -> std::float
+    INITIAL VALUE 0
+    FROM SQL AGGREGATE 'sum';
+
 CREATE AGGREGATE std::count(std::any) -> std::int
     INITIAL VALUE 0
     FROM SQL AGGREGATE 'count';
