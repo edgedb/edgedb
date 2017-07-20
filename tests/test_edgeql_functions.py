@@ -8,10 +8,143 @@
 
 import unittest  # NOQA
 
+from edgedb.client import exceptions as exc
 from edgedb.server import _testbase as tb
 
 
 class TestEdgeQLFunctions(tb.QueryTestCase):
+    async def test_edgeql_functions_array_contains_01(self):
+        await self.assert_query_result(r'''
+            SELECT std::array_contains(<array<int>>[], {1, 3});
+            SELECT array_contains([1], {1, 3});
+            SELECT array_contains([1, 2], 1);
+            SELECT array_contains([1, 2], 3);
+            SELECT array_contains(['a'], <std::str>{});
+        ''', [
+            [False, False],
+            [True, False],
+            [True],
+            [False],
+            [],
+        ])
+
+    async def test_edgeql_functions_array_contains_02(self):
+        await self.assert_query_result('''
+            WITH x := [3, 1, 2]
+            SELECT array_contains(x, 2);
+
+            WITH x := [3, 1, 2]
+            SELECT array_contains(x, 5);
+
+            WITH x := [3, 1, 2]
+            SELECT array_contains(x, 5);
+        ''', [
+            [True],
+            [False],
+            [False],
+        ])
+
+    async def test_edgeql_functions_array_agg_01(self):
+        res = await self.con.execute('''
+            SELECT array_agg(ALL {1, 2, 3});
+            SELECT array_agg(ALL {3, 2, 3});
+            SELECT array_agg(ALL {3, 3, 2});
+        ''')
+        self.assert_data_shape(res, [
+            [[1, 2, 3]],
+            [[3, 2, 3]],
+            [[3, 3, 2]],
+        ])
+
+    async def test_edgeql_functions_array_agg_02(self):
+        await self.assert_query_result('''
+            WITH x := {3, 1, 2}
+            SELECT array_agg(ALL x ORDER BY x);
+
+            WITH x := {3, 1, 2}
+            SELECT array_agg(ALL x ORDER BY x) = [1, 2, 3];
+        ''', [
+            [[1, 2, 3]],
+            [True],
+        ])
+
+    async def test_edgeql_functions_array_agg_03(self):
+        await self.assert_query_result('''
+            WITH x := {3, 1, 2}
+            SELECT array_contains(array_agg(ALL x ORDER BY x), 2);
+
+            WITH x := {3, 1, 2}
+            SELECT array_contains(array_agg(ALL x ORDER BY x), 5);
+
+            WITH x := {3, 1, 2}
+            SELECT array_contains(array_agg(ALL x ORDER BY x), 5);
+        ''', [
+            [True],
+            [False],
+            [False],
+        ])
+
+    async def test_edgeql_functions_array_04(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r'could not determine expression type'):
+
+            await self.con.execute("""
+                SELECT array_agg(ALL {});
+            """)
+
+    async def test_edgeql_functions_array_agg_05(self):
+        await self.assert_query_result('''
+            SELECT array_agg(ALL <int>{});
+            SELECT array_agg(DISTINCT <int>{});
+        ''', [
+            [
+                []
+            ],
+            [
+                []
+            ],
+        ])
+
+    async def test_edgeql_functions_array_agg_06(self):
+        await self.assert_query_result('''
+            SELECT array_agg(ALL (SELECT schema::Concept FILTER False));
+            SELECT array_agg(ALL
+                (SELECT schema::Concept FILTER <str>schema::Concept.id = '~')
+            );
+        ''', [
+            [
+                []
+            ],
+            [
+                []
+            ],
+        ])
+
+    async def test_edgeql_functions_array_agg_07(self):
+        await self.assert_query_result('''
+            WITH x := <int>{}
+            SELECT array_agg(ALL x);
+
+            WITH x := (SELECT schema::Concept FILTER False)
+            SELECT array_agg(ALL x);
+
+            WITH x := (
+                SELECT schema::Concept FILTER <str>schema::Concept.id = '~'
+            )
+            SELECT array_agg(ALL x);
+        ''', [
+            [
+                []
+            ],
+            [
+                []
+            ],
+            [
+                []
+            ],
+        ])
+
     async def test_edgeql_functions_array_unpack_01(self):
         await self.assert_query_result(r'''
             SELECT [1, 2];
@@ -32,21 +165,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [[10, 20]],
             [[10, 0], [20, 1]],
             [100, 101],
-        ])
-
-    async def test_edgeql_functions_array_contains_01(self):
-        await self.assert_query_result(r'''
-            SELECT std::array_contains(<array<int>>[], {1, 3});
-            SELECT array_contains([1], {1, 3});
-            SELECT array_contains([1, 2], 1);
-            SELECT array_contains([1, 2], 3);
-            SELECT array_contains(['a'], <std::str>{});
-        ''', [
-            [False, False],
-            [True, False],
-            [True],
-            [False],
-            [],
         ])
 
     @unittest.expectedFailure
@@ -179,4 +297,22 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             ) = 1;
         ''', [
             [True],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_functions_sum_01(self):
+        await self.assert_query_result(r'''
+            SELECT sum(ALL {1, 2, 3, -4, 5});
+            SELECT sum(ALL {0.1, 0.2, 0.3, -0.4, 0.5});
+        ''', [
+            [7],
+            [0.7],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_functions_sum_02(self):
+        await self.assert_query_result(r'''
+            SELECT sum(ALL {1, 2, 3, -4.2, 5});
+        ''', [
+            [6.8],
         ])
