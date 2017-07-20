@@ -178,6 +178,23 @@ concept LogEntry extending OwnedObject, Text:
     index test_index on (SELECT datetime::current_datetime())
         """
 
+    def test_eschema_syntax_index02(self):
+        """
+link foobar:
+    linkproperty foo:
+        title := 'Sample property'
+
+    index prop on (self@foo)
+        """
+
+    @tb.must_fail(error.SchemaSyntaxError,
+                  r'illegal definition', line=3, col=5)
+    def test_eschema_syntax_index03(self):
+        """
+atom foobar:
+    index prop on (self)
+        """
+
     def test_eschema_syntax_ws01(self):
         """
 concept LogEntry extending    OwnedObject,    Text:
@@ -273,7 +290,7 @@ atom issue_num_t extending int:
 atom basic extending int:
     title := 'Basic Atom'
     default := 2
-    constraint min(0)
+    delegated constraint min(0)
     constraint max(123456)
     constraint must_be_even
         """
@@ -287,7 +304,7 @@ atom basic extending int:
 
     constraint min(0)
     constraint max(123456)
-    constraint expr:
+    delegated constraint expr:
         subject := subject % 2 = 0
         """
 
@@ -333,16 +350,16 @@ final atom none
 atom basic extending int:
     title := 'Basic Atom'
     default := 2
-    abstract constraint special_constraint
+    constraint special_constraint
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
                   r"Unexpected token.*:=",
-                  line=3, col=44)
+                  line=3, col=35)
     def test_eschema_syntax_atom09(self):
         """
 atom special extending int:
-    abstract constraint special_constraint := [42, 100, 9001]
+    constraint special_constraint := [42, 100, 9001]
         """
 
     def test_eschema_syntax_atom10(self):
@@ -373,9 +390,12 @@ constraint max($param:any):
 
         """
 
+    @tb.must_fail(error.SchemaSyntaxError,
+                  r"only specialized constraints can be delegated",
+                  line=2, col=1)
     def test_eschema_syntax_constraint02(self):
         """
-abstract constraint length:
+delegated constraint length:
     subject := str::len(<str>subject)
         """
 
@@ -400,7 +420,7 @@ constraint maxlength($param:any) extending max, length:
 
     def test_eschema_syntax_constraint05(self):
         """
-abstract constraint distance:
+constraint distance:
     subject :=
         <float>subject
 
@@ -554,6 +574,11 @@ event self_deleted:
         link time_estimate:
            linkproperty unit to str:
                constraint my_constraint(')', `)`(')'))
+        """
+
+    def test_eschema_syntax_link10(self):
+        """
+abstract link coollink
         """
 
     def test_eschema_syntax_import01(self):

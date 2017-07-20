@@ -1,6 +1,6 @@
 abstract concept Named:
     required link name to str:
-        abstract constraint unique
+        delegated constraint unique
 
 concept Item extending Named:
     link tag_set1 to str:

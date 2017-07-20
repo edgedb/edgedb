@@ -32,77 +32,6 @@ class QualName(Base):
     pass
 
 
-class Declaration(Base):
-    __fields = [
-        ('abstract', bool, False),
-        ('final', bool, False),
-        # only links will actually allow indexes
-        ('indexes', list, list),
-        ('name', str),
-        # only used by constraints
-        ('args', list),
-        ('extends', list, list),
-        # usually there are some attributes allowed, e.g. "description"
-        ('attributes', list, list),
-        # some declarations may not allow constraints
-        ('constraints', list, list),
-        # only links will actually allow policies
-        ('policies', list, list),
-    ]
-
-    def __init__(self, base=None, **kwargs):
-        if base is not None:
-            kwargs['abstract'] = kwargs.get('abstract', base.abstract)
-            kwargs['final'] = kwargs.get('final', base.final)
-            kwargs['indexes'] = kwargs.get('indexes', base.indexes)
-            kwargs['name'] = kwargs.get('name', base.name)
-            kwargs['args'] = kwargs.get('args', base.args)
-            kwargs['extends'] = kwargs.get('extends', base.extends)
-            kwargs['attributes'] = kwargs.get('attributes', base.attributes)
-            kwargs['constraints'] = kwargs.get('constraints', base.constraints)
-            kwargs['policies'] = kwargs.get('policies', base.policies)
-            kwargs['context'] = kwargs.get('context', base.context)
-
-        super().__init__(**kwargs)
-
-
-class Specialization(Base):
-    __fields = [
-        ('required', bool, False),
-        'name',
-        'target',
-        ('attributes', list, list),
-        ('constraints', list, list),
-        # only links will actually allow policies
-        ('policies', list, list),
-        # only links will actually allow properties
-        ('properties', list, list),
-    ]
-
-    def __init__(self, base=None, **kwargs):
-        if base is not None:
-            kwargs['required'] = kwargs.get('required', base.required)
-            kwargs['name'] = kwargs.get('name', base.name)
-            kwargs['target'] = kwargs.get('target', base.target)
-            kwargs['attributes'] = kwargs.get('attributes', base.attributes)
-            kwargs['constraints'] = kwargs.get('constraints', base.constraints)
-            kwargs['policies'] = kwargs.get('policies', base.policies)
-            kwargs['properties'] = kwargs.get('properties', base.properties)
-            kwargs['context'] = kwargs.get('context', base.context)
-
-        super().__init__(**kwargs)
-
-
-# expressions
-#
-
-
-class RawLiteral(Base):
-    # This node is used in parser, but shouldn't leak
-    # into the final AST.
-    value: str
-
-
 class ObjectName(Base):
     name: str
     module: str = None
@@ -113,8 +42,6 @@ class ObjectName(Base):
         return ' {!r}'.format(self.name)
 
 
-# property definitions
-#
 class Attribute(Base):
     name: ObjectName
     value: qlast.Base
@@ -122,15 +49,49 @@ class Attribute(Base):
 
 class Constraint(Base):
     name: ObjectName
-    args: qlast.Tuple  # TODO: replace with `List[qlast.Base]`
-    abstract: bool = False
+    args: qlast.Tuple  # TODO (yury): replace with `List[qlast.Base]`
+    delegated: bool = False
     attributes: typing.List[Attribute]
 
 
-# Statements
-#
-class Schema(Base):
-    declarations: list
+class Pointer(Base):
+    name: ObjectName
+
+    # Computable links don't have a target
+    target: typing.Optional[typing.List[ObjectName]]
+
+    attributes: typing.List[Attribute]
+    constraints: typing.List[Constraint]
+
+
+class Index(Base):
+    name: ObjectName
+    expression: qlast.Base
+
+
+class Policy(Base):
+    __fields = ['event', 'action']  # TODO: type this
+
+
+class LinkProperty(Pointer):
+    # Expression of a computable link property
+    expr: qlast.Base = None
+
+
+class Link(Pointer):
+    required: bool = False
+
+    # Expression of a computable link
+    expr: qlast.Base = None
+
+    policies: typing.List[Policy]
+    properties: typing.List[LinkProperty]
+
+
+class Declaration(Base):
+    name: str
+    extends: typing.List[ObjectName]
+    attributes: typing.List[Attribute]
 
 
 class ActionDeclaration(Declaration):
@@ -138,19 +99,26 @@ class ActionDeclaration(Declaration):
 
 
 class AtomDeclaration(Declaration):
-    pass
+    abstract: bool = False
+    final: bool = False
+    constraints: typing.List[Constraint]
 
 
 class AttributeDeclaration(Declaration):
-    __fields = ['target']
+    target: qlast.Base  # ??
 
 
 class ConceptDeclaration(Declaration):
-    links: list
+    abstract: bool = False
+    final: bool = False
+    links: typing.List[Link]
+    indexes: typing.List[Index]
+    constraints: typing.List[Constraint]
 
 
 class ConstraintDeclaration(Declaration):
-    pass
+    abstract: bool = False
+    args: typing.List[qlast.Base]
 
 
 class EventDeclaration(Declaration):
@@ -172,10 +140,8 @@ class FunctionCode(Base):
     from_name: str
 
 
-class FunctionDeclaration(Base):
-    name: str
+class FunctionDeclaration(Declaration):
     args: list
-    attributes: list
     returning: ObjectName
     aggregate: bool = False
     initial_value: qlast.Base
@@ -184,27 +150,15 @@ class FunctionDeclaration(Base):
 
 
 class LinkDeclaration(Declaration):
-    properties: list
+    abstract: bool = False
+    properties: typing.List[LinkProperty]
+    indexes: typing.List[Index]
+    constraints: typing.List[Constraint]
+    policies: typing.List[Policy]
 
 
 class LinkPropertyDeclaration(Declaration):
-    pass
-
-
-class Link(Specialization):
-    pass
-
-
-class LinkProperty(Specialization):
-    pass
-
-
-class Policy(Base):
-    __fields = ['event', 'action']
-
-
-class Index(Base):
-    __fields = ['name', 'expression']
+    policies: typing.List[Policy]
 
 
 class Import(Base):
@@ -214,3 +168,8 @@ class Import(Base):
 class ImportModule(Base):
     module: str
     alias: str = None
+
+
+class Schema(Base):
+    # TODO: Remove union type
+    declarations: typing.List[typing.Union[Declaration, Import]]

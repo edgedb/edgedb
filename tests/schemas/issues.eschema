@@ -13,7 +13,7 @@ abstract concept Named:
 # name uniqueness across all instances if its subclass.
 abstract concept Dictionary extending Named:
     required link name to str:
-        abstract constraint unique
+        delegated constraint unique
 
 
 link todo:

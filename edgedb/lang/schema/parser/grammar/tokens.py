@@ -170,3 +170,7 @@ def _gen_keyword_tokens():
 
 
 _gen_keyword_tokens()
+
+
+__all__ = ([name for name in vars() if name.startswith('T_')] +
+           ['Token', 'TokenMeta'])
