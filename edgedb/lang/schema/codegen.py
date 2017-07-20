@@ -241,7 +241,10 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
     def visit_Index(self, node):
         self.write('index ')
         self.visit(node.name)
-        self._visit_turnstile(node.expression)
+        if node.expression:
+            self.write(' on (')
+            self._visit_edgeql(node.expression)
+            self.write(')')
 
     def visit_Constraint(self, node):
         if node.abstract:

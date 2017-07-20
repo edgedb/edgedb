@@ -30,7 +30,7 @@ def parse_edgeql(expr: str, ctx, *, offset_column=0):
         context.rebase_context(
             ctx, get_context(err, parsing.ParserContext),
             offset_column=offset_column)
-        raise err
+        raise err from None
 
     context.rebase_ast_context(ctx, node)
     return node
@@ -502,6 +502,10 @@ class ParenRawString(Nonterm):
         self.val = kids[0].val
         self.val.value += f'({kids[2].val.value})'
 
+    def reduce_ParenRawString_LPAREN_RPAREN(self, *kids):
+        self.val = kids[0].val
+        self.val.value += '()'
+
     def reduce_LPAREN_ParenRawString_RPAREN(self, *kids):
         self.val = kids[1].val
 
@@ -543,6 +547,16 @@ class ParenRawString(Nonterm):
 
         return eql.args
 
+    def parse_as_expr(self):
+        expr = self.val.value
+        context = self.val.context
+
+        prefix, postfix = '(', ')'
+        eql_query = f'{prefix}{expr}{postfix}'
+        eql = parse_edgeql(eql_query, context, offset_column=-len(prefix))
+
+        return eql
+
 
 class ParenRawStr(Nonterm):
     def reduce_STRING(self, *kids):
@@ -554,6 +568,20 @@ class ParenRawStr(Nonterm):
 
     def reduce_RAWSTRING(self, *kids):
         self.val = esast.RawLiteral(value=kids[0].val)
+
+
+class OnExpr(Nonterm):
+    def reduce_ON_LPAREN_ParenRawString_RPAREN(self, *kids):
+        expr = kids[2].parse_as_expr()
+        self.val = expr
+
+
+class OptOnExpr(Nonterm):
+    def reduce_empty(self, *kids):
+        self.val = None
+
+    def reduce_OnExpr(self, *kids):
+        self.val = kids[0].val
 
 
 class FunctionParameters(Nonterm):
@@ -725,7 +753,7 @@ class Policy(Nonterm):
 
 
 class Index(Nonterm):
-    def reduce_INDEX_ObjectName_TurnstileBlob(self, *kids):
+    def reduce_INDEX_ObjectName_OnExpr_NL(self, *kids):
         self.val = esast.Index(name=kids[1].val, expression=kids[2].val)
 
 
