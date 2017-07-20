@@ -299,7 +299,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [True],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_functions_sum_01(self):
         await self.assert_query_result(r'''
             SELECT sum(ALL {1, 2, 3, -4, 5});
