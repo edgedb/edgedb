@@ -28,10 +28,6 @@ class Base(ast.AST):
                                            ar)
 
 
-class QualName(Base):
-    pass
-
-
 class ObjectName(Base):
     name: str
     module: str = None
