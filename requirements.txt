@@ -1,4 +1,5 @@
 asyncpg
+click
 pytest
 pytest-cov
 Parsing

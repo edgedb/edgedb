@@ -31,11 +31,13 @@ setup(
         'console_scripts': [
             'edgedb = edgedb.repl:main',
             'edgedb-server = edgedb.server.main:main',
-            'edgedb-ctl = edgedb.server.ctl:main'
+            'edgedb-ctl = edgedb.server.ctl:main',
+            'et = edgedb.tools.et:etcommands'
         ]
     },
     install_requires=[
         'asyncpg',
+        'click',
         'pytest',
         'Parsing',
         'prompt-toolkit',

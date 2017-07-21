@@ -1,11 +1,5 @@
 import unittest
 
-from . import _runner
-
-
-def runner():
-    return _runner.ParallelTextTestRunner
-
 
 def suite():
     test_loader = unittest.TestLoader()
