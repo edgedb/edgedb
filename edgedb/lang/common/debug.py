@@ -30,36 +30,57 @@ from . import markup as _markup
 __all__ = ()  # Don't.
 
 
-class flags:
-    pgsql_parser = False
-    """Debug SQL parser."""
+class FlagsMeta(type):
+    def __new__(mcls, name, bases, dct):
+        flags = {}
+        for flagname, flag in dct.items():
+            if not isinstance(flag, Flag):
+                continue
+            flags[flagname] = flag
+            dct[flagname] = False
 
-    edgeql_parser = False
-    """Debug EdgeQL parser (rebuild grammar verbosly)."""
+        dct['_items'] = flags
+        return super().__new__(mcls, name, bases, dct)
 
-    edgeql_compile = False
-    """Dump EdgeQL/IR/SQL ASTs."""
+    def items(cls):
+        return cls._items.items()
 
-    edgeql_optimize = False
-    """Dump SQL AST/Query before/after optimization."""
 
-    delta_plan = False
-    """Print expanded delta command tree prior to processing."""
+class Flag:
+    def __init__(self, *, doc: str):
+        self.doc = doc
 
-    delta_pgsql_plan = False
-    """Print delta command tree annortated with DB ops."""
 
-    delta_plan_input = False
-    """Print delta command tree produced from DDL."""
+class flags(metaclass=FlagsMeta):
+    pgsql_parser = Flag(
+        doc="Debug SQL parser.")
 
-    delta_execute = False
-    """Output SQL commands as executed during migration."""
+    edgeql_parser = Flag(
+        doc="Debug EdgeQL parser (rebuild grammar verbosly).")
 
-    server = False
-    """Print server errors."""
+    edgeql_compile = Flag(
+        doc="Dump EdgeQL/IR/SQL ASTs.")
 
-    print_locals = False
-    """Include values of local variables in tracebacks."""
+    edgeql_optimize = Flag(
+        doc="Dump SQL AST/Query before/after optimization.")
+
+    delta_plan = Flag(
+        doc="Print expanded delta command tree prior to processing.")
+
+    delta_pgsql_plan = Flag(
+        doc="Print delta command tree annortated with DB ops.")
+
+    delta_plan_input = Flag(
+        doc="Print delta command tree produced from DDL.")
+
+    delta_execute = Flag(
+        doc="Output SQL commands as executed during migration.")
+
+    server = Flag(
+        doc="Print server errors.")
+
+    print_locals = Flag(
+        doc="Include values of local variables in tracebacks.")
 
 
 def header(*args):
