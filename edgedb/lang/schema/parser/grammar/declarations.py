@@ -6,6 +6,7 @@
 ##
 
 
+import re
 import textwrap
 import typing
 
@@ -40,21 +41,21 @@ class PointerSpec(typing.NamedTuple):
     expr: typing.Optional[qlast.Base]
 
 
-def parse_edgeql(expr: str, ctx, *, offset_column=0):
+def parse_edgeql(expr: str, ctx, *, offset_column=0, indent=0):
     try:
         node = edgeql.parse(expr)
     except parsing.ParserError as err:
         context.rebase_context(
             ctx, get_context(err, parsing.ParserContext),
-            offset_column=offset_column)
+            offset_column=offset_column, indent=indent)
         raise err from None
 
     context.rebase_ast_context(ctx, node)
     return node
 
 
-def parse_edgeql_constant(expr: str, ctx):
-    node = parse_edgeql(expr, ctx)
+def parse_edgeql_constant(expr: str, ctx, *, indent=0):
+    node = parse_edgeql(expr, ctx, indent=indent)
     if (isinstance(node, qlast.SelectQuery) and
             isinstance(node.result, qlast.Constant)):
         node = node.result
@@ -115,9 +116,7 @@ class TypeName(Nonterm):
 
 class RawString(Nonterm):
     def reduce_RawStr(self, *kids):
-        text = kids[0].val.value
-        text = textwrap.dedent(text).strip()
-        self.val = RawLiteral(value=text)
+        self.val = RawLiteral(value=kids[0].val.value)
 
 
 class RawStr(Nonterm):
@@ -784,7 +783,11 @@ class TurnstileBlob(parsing.Nonterm):
         self.val = parse_edgeql_constant(kids[1].val.value, kids[1].context)
 
     def reduce_TURNSTILE_NL_INDENT_RawString_NL_DEDENT(self, *kids):
-        self.val = parse_edgeql_constant(kids[3].val.value, kids[3].context)
+        text = kids[3].val.value
+        indent = len(re.match(r'^\s*', text).group(0))
+        text = textwrap.dedent(text).strip()
+        self.val = parse_edgeql_constant(text, kids[3].context,
+                                         indent=indent)
 
 
 class Spec(Nonterm):
@@ -936,7 +939,9 @@ class Attributes(ListNonterm, element=Attribute):
 
 class Value(Nonterm):
     def reduce_COLONGT_NL_INDENT_RawString_NL_DEDENT(self, *kids):
-        self.val = qlast.Constant(value=kids[3].val.value)
+        text = kids[3].val.value
+        text = textwrap.dedent(text).strip()
+        self.val = qlast.Constant(value=text)
 
     def reduce_TurnstileBlob(self, *kids):
         self.val = kids[0].val

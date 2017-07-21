@@ -209,7 +209,7 @@ def has_context(func):
     return wrapper
 
 
-def rebase_context(base, context, *, offset_column=0):
+def rebase_context(base, context, *, offset_column=0, indent=0):
     if not context:
         return
 
@@ -218,8 +218,10 @@ def rebase_context(base, context, *, offset_column=0):
 
     if context.start.line == 1:
         context.start.column += base.start.column - 1 + offset_column
+    # indentation is always added
+    context.start.column += indent
     context.start.line += base.start.line - 1
-    context.start.pointer += base.start.pointer + offset_column
+    context.start.pointer += base.start.pointer + offset_column + indent
 
 
 class ContextVisitor(ast.NodeVisitor):
