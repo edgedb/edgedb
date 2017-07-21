@@ -45,7 +45,7 @@ class TypedTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             StrDict(**{'foo': 'bar'})
 
-        with self.assertRaises(TypeError, error_re="'valuetype'"):
+        with self.assertRaisesRegex(TypeError, "'valuetype'"):
 
             class InvalidTypedDict(TypedDict, keytype=int):
                 """no 'valuetype' arg -- this class cannot be instantiated."""
