@@ -266,6 +266,19 @@ concept LogEntry extending    OwnedObject,    Text:
                title := 'Start Date'
         """
 
+    @tb.must_fail(error.SchemaSyntaxError,
+                  r"Unknown token.*\\",
+                  line=5, col=28)
+    def test_eschema_syntax_ws06(self):
+        r"""
+        concept LogEntry extending OwnedObject, Text:
+            link start_date to datetime:
+               default :=
+                    SELECT \
+                    datetime::current_datetime()
+               title := 'Start Date'
+        """
+
     def test_eschema_syntax_atom01(self):
         """
 atom issue_num_t extending builtins::sequence
