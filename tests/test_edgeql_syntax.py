@@ -2452,17 +2452,17 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_function13(self):
         """
-        CREATE FUNCTION foo($string: std::str) -> {bar: std::int}
-        FROM EDGEQL $$ SELECT { bar := 123 } $$;
+        CREATE FUNCTION foo($string: std::str) -> tuple<bar: std::int>
+        FROM EDGEQL $$ SELECT (bar := 123) $$;
         """
 
     def test_edgeql_syntax_ddl_function14(self):
         """
         CREATE FUNCTION foo($string: std::str)
-        -> {
+        -> tuple<
             bar: std::int,
             baz: std::str
-        } FROM EdgeQL $$ SELECT smth() $$;
+        > FROM EdgeQL $$ SELECT smth() $$;
         """
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "AAA is not a valid language", line=3)

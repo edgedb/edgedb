@@ -1602,9 +1602,6 @@ class FunctionType(Nonterm):
     def reduce_TypeName(self, *kids):
         self.val = kids[0].val
 
-    def reduce_Shape(self, *kids):
-        self.val = qlast.Shape(elements=kids[0].val)
-
 
 class DropAggregateStmt(Nonterm):
     def reduce_DropAggregate(self, *kids):
