@@ -208,17 +208,17 @@ class DeclarationLoader:
             filter(lambda obj: obj.name.module == modname, objs))
 
     def _get_ref_name(self, ref):
-        if isinstance(ref, s_ast.ObjectName):
+        if isinstance(ref, edgeql.ast.ClassRef):
             if ref.module:
                 return s_name.Name(module=ref.module, name=ref.name)
             else:
                 return ref.name
         else:
-            raise TypeError('ObjectName expected '
+            raise TypeError('ClassRef expected '
                             '(got type {!r})'.format(type(ref).__name__))
 
     def _get_ref_type(self, ref):
-        clsname = self._get_ref_name(ref)
+        clsname = self._get_ref_name(ref.maintype)
         if ref.subtypes:
             subtypes = [self._get_ref_type(s) for s in ref.subtypes]
             ccls = s_obj.Collection.get_class(clsname)
@@ -242,7 +242,7 @@ class DeclarationLoader:
         if decl.extends:
             # Explicit inheritance
             for base_ref in decl.extends:
-                base_name = self._get_ref_name(base_ref)
+                base_name = self._get_ref_name(base_ref.maintype)
 
                 base = self._schema.get(base_name, type=obj.__class__,
                                         module_aliases=self._mod_aliases)

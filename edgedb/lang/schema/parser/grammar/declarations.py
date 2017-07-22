@@ -31,12 +31,12 @@ class RawLiteral(typing.NamedTuple):
 
 class NameWithParents(typing.NamedTuple):
     name: str
-    extends: typing.List[esast.ObjectName]
+    extends: typing.List[qlast.TypeName]
 
 
 class PointerSpec(typing.NamedTuple):
     name: str
-    target: typing.List[esast.ObjectName]
+    target: typing.List[qlast.TypeName]
     spec: typing.List[esast.Base]
     expr: typing.Optional[qlast.Base]
 
@@ -89,7 +89,7 @@ class Identifier(Nonterm):
 
 class DotName(Nonterm):
     def reduce_Identifier(self, kid):
-        self.val = esast.ObjectName(name=None, module=kid.val)
+        self.val = qlast.ClassRef(name=None, module=kid.val)
 
     def reduce_DotName_DOT_Identifier(self, *kids):
         self.val = kids[0].val
@@ -98,20 +98,70 @@ class DotName(Nonterm):
 
 class ObjectName(Nonterm):
     def reduce_Identifier(self, kid):
-        self.val = esast.ObjectName(name=kid.val)
+        self.val = qlast.ClassRef(name=kid.val)
 
     def reduce_DotName_DOUBLECOLON_Identifier(self, *kids):
         self.val = kids[0].val
         self.val.name = kids[2].val
 
 
-class TypeName(Nonterm):
-    def reduce_ObjectName(self, *kids):
+class TypeList(Nonterm):
+    def reduce_LPAREN_TypeList_RPAREN(self, *kids):
+        self.val = kids[1].val
+
+    def reduce_RowRawString(self, *kids):
+        self.val = kids[0].parse_as_typelist()
+
+
+class RowRawString(Nonterm):
+    def reduce_RowRawString_RowRawStr(self, *kids):
+        self.val = RawLiteral(
+            value=kids[0].val.value + kids[1].val.value)
+
+    def reduce_RowRawStr(self, *kids):
         self.val = kids[0].val
 
-    def reduce_ObjectName_LANGBRACKET_TypeList_RANGBRACKET(self, *kids):
-        self.val = kids[0].val
-        self.val.subtypes = kids[2].val
+    def parse_as_typelist(self):
+        expr = self.val.value
+        context = self.context
+
+        prefix, postfix = '<tuple<', '>>X'
+        eql_query = f'{prefix}{expr}{postfix}'
+        eql = parse_edgeql(eql_query, context, offset_column=-len(prefix))
+
+        if not isinstance(eql, qlast.SelectQuery):
+            raise SchemaSyntaxError(
+                f'Could not parse EdgeQL parameters declaration {expr!r}',
+                context=context) from None
+
+        return eql.result.type.subtypes
+
+    def parse_as_function_type(self):
+        expr = self.val.value
+        context = self.context
+
+        prefix, postfix = 'CREATE FUNCTION f() ->', ' FROM SQL ""'
+        eql_query = f'{prefix}{expr}{postfix}'
+        eql = parse_edgeql(eql_query, context, offset_column=-len(prefix))
+
+        if not isinstance(eql, qlast.CreateFunction):
+            raise SchemaSyntaxError(
+                f'Could not parse EdgeQL parameters declaration {expr!r}',
+                context=context) from None
+
+        return (eql.set_returning, eql.returning)
+
+
+class RowRawStr(Nonterm):
+    def reduce_STRING(self, kid):
+        self.val = RawLiteral(value=kid.val)
+
+    def reduce_IDENT(self, kid):
+        # this can actually only be QIDENT
+        self.val = RawLiteral(value=f'`{kid.val}`')
+
+    def reduce_RAWSTRING(self, kid):
+        self.val = RawLiteral(value=kid.val)
 
 
 class RawString(Nonterm):
@@ -305,9 +355,14 @@ class AtomDeclaration(Nonterm):
 
 class AttributeDeclaration(Nonterm):
     def reduce_ATTRIBUTE_NameAndExtends_NL(self, *kids):
-        self.val = esast.AttributeDeclaration(kids[1].val)
+        np: NameWithParents = kids[1].val
+        self.val = esast.AttributeDeclaration(
+            name=np.name,
+            extends=np.extends)
 
     def reduce_ATTRIBUTE_NameAndExtends_DeclarationSpecsBlob(self, *kids):
+        np: NameWithParents = kids[1].val
+
         attributes = []
         attr_target = None
 
@@ -321,9 +376,11 @@ class AttributeDeclaration(Nonterm):
                 raise SchemaSyntaxError(
                     'illegal definition', context=spec.context)
 
-        self.val = esast.AttributeDeclaration(kids[1].val,
-                                              target=attr_target,
-                                              attributes=attributes)
+        self.val = esast.AttributeDeclaration(
+            name=np.name,
+            extends=np.extends,
+            target=attr_target,
+            attributes=attributes)
 
 
 class ConceptDeclaration(Nonterm):
@@ -529,25 +586,17 @@ class AggregateDeclaration(Nonterm):
                                     context=kids[0].context)
 
 
-class OptSetOf(Nonterm):
-    def reduce_SET_OF(self, *kids):
-        self.val = True
-
-    def reduce_empty(self):
-        self.val = False
-
-
 class FunctionDeclCore(Nonterm):
     def reduce_FunctionDeclCore(self, *kids):
         r"""%reduce \
                 Identifier FunctionParameters \
-                ARROW OptSetOf TypeName FunctionSpecsBlob \
+                ARROW RowRawString FunctionSpecsBlob \
         """
         attributes = []
         init_val = None
         code = None
 
-        for spec in kids[5].val:
+        for spec in kids[4].val:
             if isinstance(spec, esast.Attribute):
                 if spec.name.name == 'initial value':
                     init_val = spec.value
@@ -559,11 +608,13 @@ class FunctionDeclCore(Nonterm):
                 raise SchemaSyntaxError(
                     'illegal definition', context=spec.context)
 
+        set_returning, returning = kids[3].parse_as_function_type()
+
         self.val = esast.FunctionDeclaration(
             name=kids[0].val,
             args=kids[1].val,
-            set_returning=kids[3].val,
-            returning=kids[4].val,
+            set_returning=set_returning,
+            returning=returning,
             attributes=attributes,
             initial_value=init_val,
             code=code,
@@ -589,7 +640,7 @@ class FunctionSpec(Nonterm):
 
     def reduce_INITIAL_VALUE_Value(self, *kids):
         self.val = esast.Attribute(
-            name=esast.ObjectName(name='initial value'),
+            name=qlast.ClassRef(name='initial value'),
             value=kids[2].val)
 
 
@@ -613,11 +664,11 @@ class ParenRawString(Nonterm):
     def reduce_LPAREN_ParenRawString_RPAREN(self, *kids):
         self.val = kids[1].val
 
-    def reduce_ParenRawString_ParenRawStr(self, *kids):
+    def reduce_ParenRawString_RowRawStr(self, *kids):
         self.val = RawLiteral(
             value=f'{kids[0].val.value}{kids[1].val.value}')
 
-    def reduce_ParenRawStr(self, *kids):
+    def reduce_RowRawStr(self, *kids):
         self.val = kids[0].val
 
     def parse_as_call_args(self):
@@ -662,18 +713,6 @@ class ParenRawString(Nonterm):
         return eql
 
 
-class ParenRawStr(Nonterm):
-    def reduce_STRING(self, kid):
-        self.val = RawLiteral(value=kid.val)
-
-    def reduce_IDENT(self, kid):
-        # this can actually only be QIDENT
-        self.val = RawLiteral(value=f'`{kid.val}`')
-
-    def reduce_RAWSTRING(self, kid):
-        self.val = RawLiteral(value=kid.val)
-
-
 class OnExpr(Nonterm):
     def reduce_ON_LPAREN_ParenRawString_RPAREN(self, *kids):
         expr = kids[2].parse_as_expr()
@@ -705,11 +744,8 @@ class OptFunctionParameters(Nonterm):
 
 
 class ExtendingNameList(Nonterm):
-    def reduce_EXTENDING_NameList(self, *kids):
+    def reduce_EXTENDING_TypeList(self, *kids):
         self.val = kids[1].val
-
-    def reduce_EXTENDING_LPAREN_NameList_RPAREN(self, *kids):
-        self.val = kids[2].val
 
 
 class NameAndExtends(Nonterm):
@@ -722,14 +758,6 @@ class NameAndExtends(Nonterm):
         self.val = NameWithParents(
             name=kid.val,
             extends=[])
-
-
-class NameList(ListNonterm, element=ObjectName, separator=tokens.T_COMMA):
-    pass
-
-
-class TypeList(ListNonterm, element=TypeName, separator=tokens.T_COMMA):
-    pass
 
 
 class DeclarationSpec(Nonterm):

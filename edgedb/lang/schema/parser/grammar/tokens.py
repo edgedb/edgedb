@@ -51,27 +51,11 @@ class T_DOT(Token):
     pass
 
 
-class T_LBRACKET(Token):
-    pass
-
-
-class T_RBRACKET(Token):
-    pass
-
-
 class T_LPAREN(Token):
     pass
 
 
 class T_RPAREN(Token):
-    pass
-
-
-class T_LANGBRACKET(Token):
-    pass
-
-
-class T_RANGBRACKET(Token):
     pass
 
 
@@ -95,28 +79,8 @@ class T_COLONGT(Token):
     pass
 
 
-class T_EQUALS(Token):
-    pass
-
-
 class T_ARROW(Token):
     pass
-
-
-class T_STAR(Token):
-    pass
-
-
-class T_ICONST(Token):
-    @property
-    def normalized_value(self):
-        return int(self.val)
-
-
-class T_FCONST(Token):
-    @property
-    def normalized_value(self):
-        return float(self.val)
 
 
 class T_STRING(Token):

@@ -28,18 +28,8 @@ class Base(ast.AST):
                                            ar)
 
 
-class ObjectName(Base):
-    name: str
-    module: str = None
-    # HACK: this should actually be a list of ObjectName
-    subtypes: typing.List[Base]
-
-    def _extra_repr(self):
-        return ' {!r}'.format(self.name)
-
-
 class Attribute(Base):
-    name: ObjectName
+    name: qlast.ClassRef
     value: qlast.Base
 
 
@@ -47,22 +37,22 @@ class Constraint(Base):
     args: qlast.Tuple  # TODO (yury): replace with `List[qlast.Base]`
     attributes: typing.List[Attribute]
     delegated: bool = False
-    name: ObjectName
+    name: qlast.ClassRef
     subject: typing.Optional[qlast.Base]
 
 
 class Pointer(Base):
-    name: ObjectName
+    name: qlast.ClassRef
 
     # Computable links don't have a target
-    target: typing.Optional[typing.List[ObjectName]]
+    target: typing.Optional[typing.List[qlast.TypeName]]
 
     attributes: typing.List[Attribute]
     constraints: typing.List[Constraint]
 
 
 class Index(Base):
-    name: ObjectName
+    name: qlast.ClassRef
     expression: qlast.Base
 
 
@@ -87,7 +77,7 @@ class Link(Pointer):
 
 class Declaration(Base):
     name: str
-    extends: typing.List[ObjectName]
+    extends: typing.List[qlast.TypeName]
     attributes: typing.List[Attribute]
 
 
@@ -140,7 +130,7 @@ class FunctionCode(Base):
 
 class FunctionDeclaration(Declaration):
     args: list
-    returning: ObjectName
+    returning: qlast.TypeName
     aggregate: bool = False
     initial_value: qlast.Base
     code: FunctionCode

@@ -667,7 +667,7 @@ class FunctionCode(Clause):
 
 class CreateFunction(CreateObject):
     args: typing.List[FuncArg]
-    returning: typing.Union[TypeName, Shape]
+    returning: TypeName
     aggregate: bool = False
     initial_value: Expr
     code: FunctionCode
