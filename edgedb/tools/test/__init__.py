@@ -17,6 +17,7 @@ from edgedb.tools import etcommands
 
 from . import loader
 from . import runner
+from . import styles
 
 
 @etcommands.command()
@@ -85,8 +86,8 @@ def test(*, files, jobs, include, exclude, verbose, quiet, warnings):
             nonlocal total, total_unfiltered
             total += n
             total_unfiltered += unfiltered_n
-            click.secho(f'Collected {total}/{total_unfiltered} items.\r',
-                        fg='white', bold=True, nl=False)
+            click.echo(styles.status(
+                f'Collected {total}/{total_unfiltered} tests.\r'), nl=False)
     else:
         _update_progress = None
 
@@ -96,9 +97,8 @@ def test(*, files, jobs, include, exclude, verbose, quiet, warnings):
 
     for file in files:
         if not os.path.exists(file) and verbosity > 0:
-            click.secho(
-                f'Warning: {file}: no such file or directory.',
-                fg='yellow')
+            click.echo(styles.warning(
+                f'Warning: {file}: no such file or directory.'))
 
         if os.path.isdir(file):
             tests = test_loader.discover(
@@ -110,8 +110,8 @@ def test(*, files, jobs, include, exclude, verbose, quiet, warnings):
 
     if verbosity > 0:
         click.echo()
-        click.secho(f'Using up to {jobs} processes to run tests.',
-                    fg='white', bold=True)
+        click.echo(styles.status(
+            f'Using up to {jobs} processes to run tests.'))
 
     test_runner = runner.ParallelTextTestRunner(
         verbosity=verbosity, warnings=warnings, num_workers=jobs)

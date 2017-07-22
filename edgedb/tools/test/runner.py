@@ -1,3 +1,11 @@
+##
+# Copyright (c) 2017-present MagicStack Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
 import collections.abc
 import io
 import itertools
@@ -5,6 +13,7 @@ import multiprocessing
 import multiprocessing.reduction
 import os
 import random
+import re
 import sys
 import threading
 import time
@@ -18,6 +27,8 @@ import click
 
 from edgedb.server import _testbase as tb
 from edgedb.server import cluster as edgedb_cluster
+
+from . import styles
 
 
 cache = {}
@@ -201,8 +212,106 @@ class ParallelTestSuite(unittest.TestSuite):
         return result
 
 
+class Markers:
+    passed = '.'
+    errored = 'E'
+    skipped = 's'
+    failed = 'F'
+    xfailed = 'x'  # expected fail
+    upassed = 'U'  # unexpected success
+
+    # NOTE: all markers must be one char.
+
+    all_markers = {'passed', 'errored', 'skipped',
+                   'failed', 'xfailed', 'upassed'}
+
+
+class BaseRenderer:
+    def __init__(self, *, tests, stream):
+        self.stream = stream
+        self.styles_map = {
+            getattr(Markers, marker): getattr(styles, f'marker_{marker}')
+            for marker in Markers.all_markers}
+
+    def report(self, test, marker):
+        raise NotImplementedError
+
+
+class SimpleRenderer(BaseRenderer):
+    def report(self, test, marker):
+        click.echo(self.styles_map[marker](marker), nl=False, file=self.stream)
+
+
+class MultiLineRenderer(BaseRenderer):
+    def __init__(self, *, tests, stream):
+        super().__init__(tests=tests, stream=stream)
+
+        self.total_tests = len(tests)
+        self.completed_tests = 0
+
+        test_modules = {test.__class__.__module__ for test in tests}
+        max_test_module_len = max(len(self._render_modname(name))
+                                  for name in test_modules)
+        self.first_col_width = max_test_module_len + 1  # 1 == len(' ')
+
+        self.buffer = collections.defaultdict(str)
+        self.last_lines = -1
+
+    def report(self, test, marker):
+        self.buffer[test.__class__.__module__] += marker
+        self.completed_tests += 1
+        self._render()
+
+    def _render_modname(self, name):
+        return name.replace('.', '/') + '.py'
+
+    def _render(self):
+        cols = click.get_terminal_size()[0]
+        second_col_width = cols - self.first_col_width
+
+        clear_cmd = ''
+        if self.last_lines > 0:
+            clear_cmd = '\033[A' * self.last_lines + '\r'
+
+        lines = []
+        for mod, progress in self.buffer.items():
+            line = self._render_modname(mod).ljust(self.first_col_width, ' ')
+            while progress:
+                second_col = progress[:second_col_width]
+                progress = progress[second_col_width:]
+
+                # Apply styles *after* the slicing the string
+                # (otherwise ANSI codes could be sliced in half).
+                second_col = re.sub(
+                    r'.',
+                    lambda x: self.styles_map[x[0]](x[0]),
+                    second_col)
+
+                second_col = second_col.ljust(second_col_width, ' ')
+                lines.append(f'{line}{second_col}')
+
+                if line[0] != ' ':
+                    line = ' ' * self.first_col_width
+
+        lines.append(' ' * cols)
+        lines.append(
+            f'Progress: {self.completed_tests}/{self.total_tests} tests.')
+
+        # Hide cursor.
+        print('\033[?25l', end='', flush=True, file=self.stream)
+        try:
+            # Use `print` (not `click.echo`) because we want to
+            # precisely control when the output is flushed.
+            print(clear_cmd + '\n'.join(lines), flush=False, file=self.stream)
+        finally:
+            # Show cursor.
+            print('\033[?25h', end='', flush=True, file=self.stream)
+
+        self.last_lines = len(lines)
+
+
 class ParallelTextTestResult(unittest.result.TestResult):
-    def __init__(self, *, stream, verbosity, warnings, failfast=False):
+    def __init__(self, *, stream, verbosity, warnings, tests, failfast=False):
         super().__init__(stream, False, verbosity)
         self.verbosity = verbosity
         self.catch_warnings = warnings
@@ -212,6 +321,13 @@ class ParallelTextTestResult(unittest.result.TestResult):
         # An index of all seen warnings to keep track
         # of repeated warnings.
         self._warnings = {}
+
+        if (stream.isatty() and
+                click.get_terminal_size()[0] > 60 and
+                os.name != 'nt'):
+            self.ren = MultiLineRenderer(tests=tests, stream=stream)
+        else:
+            self.ren = SimpleRenderer(tests=tests, stream=stream)
 
     def record_test_stats(self, test, stats):
         self.test_stats[test] = stats
@@ -228,7 +344,7 @@ class ParallelTextTestResult(unittest.result.TestResult):
         if self.verbosity > 1:
             click.echo(f'{self.getDescription(test)}: OK')
         elif self.verbosity == 1:
-            click.echo('.', nl=False)
+            self.ren.report(test, Markers.passed)
 
     def addError(self, test, err):
         super().addError(test, err)
@@ -236,7 +352,7 @@ class ParallelTextTestResult(unittest.result.TestResult):
             click.secho(f'{self.getDescription(test)}: ERROR', fg='red',
                         bold=True)
         elif self.verbosity == 1:
-            click.secho('E', nl=False, fg='red', bold=True)
+            self.ren.report(test, Markers.errored)
 
     def addFailure(self, test, err):
         super().addFailure(test, err)
@@ -244,21 +360,21 @@ class ParallelTextTestResult(unittest.result.TestResult):
             click.secho(f'{self.getDescription(test)}: FAILURE', fg='red',
                         bold=True)
         elif self.verbosity == 1:
-            click.secho('F', nl=False, fg='red', bold=True)
+            self.ren.report(test, Markers.failed)
 
     def addSkip(self, test, reason):
         super().addSkip(test, reason)
         if self.verbosity > 1:
             click.secho(f'{self.getDescription(test)}: skipped', fg='yellow')
         elif self.verbosity == 1:
-            click.secho('s', nl=False, fg='yellow')
+            self.ren.report(test, Markers.skipped)
 
     def addExpectedFailure(self, test, err):
         super().addExpectedFailure(test, err)
         if self.verbosity > 1:
             click.secho(f'{self.getDescription(test)}: expected failure')
         elif self.verbosity == 1:
-            click.secho('x', nl=False)
+            self.ren.report(test, Markers.xfailed)
 
     def addUnexpectedSuccess(self, test):
         super().addUnexpectedSuccess(test)
@@ -266,7 +382,7 @@ class ParallelTextTestResult(unittest.result.TestResult):
             click.secho(f'{self.getDescription(test)}: unexpected success',
                         fg='yellow', bold=True)
         elif self.verbosity == 1:
-            click.secho('x', fg='yellow', bold=True)
+            self.ren.report(test, Markers.upassed)
 
     def addWarning(self, test, wmsg):
         if not self.catch_warnings:
@@ -326,12 +442,18 @@ class ParallelTextTestRunner:
 
             start = time.monotonic()
 
-            tests = self._sort_tests(cases)
-            suite = ParallelTestSuite(tests, conns, self.num_workers)
+            all_tests = list(itertools.chain.from_iterable(
+                tests for tests in cases.values()))
+
+            suite = ParallelTestSuite(
+                self._sort_tests(cases),
+                conns,
+                self.num_workers)
 
             result = ParallelTextTestResult(
                 stream=self.stream, verbosity=self.verbosity,
-                warnings=self.warnings, failfast=self.failfast)
+                warnings=self.warnings, failfast=self.failfast,
+                tests=all_tests)
             unittest.signals.registerResult(result)
 
             self._echo()
@@ -363,7 +485,7 @@ class ParallelTextTestRunner:
 
     def _echo(self, s='', **kwargs):
         if self.verbosity > 0:
-            click.secho(s, **kwargs)
+            click.secho(s, file=self.stream, **kwargs)
 
     def _fill(self, char, **kwargs):
         self._echo(char * self._get_term_width(), **kwargs)
@@ -450,7 +572,7 @@ class ParallelTextTestRunner:
             )
         )
 
-        return tests
+        return list(tests)
 
 
 # Disable pickling of traceback objects in multiprocessing.
