@@ -12,6 +12,7 @@ import types
 import unittest.result
 import unittest.runner
 import unittest.signals
+import warnings
 
 import click
 
@@ -42,6 +43,19 @@ class StreamingTestSuite(unittest.TestSuite):
     _cleanup = False
 
     def run(self, test, result):
+        with warnings.catch_warnings(record=True) as ww:
+            warnings.resetwarnings()
+            warnings.simplefilter('default')
+
+            self._run(test, result)
+
+            if ww:
+                for wmsg in ww:
+                    if wmsg.source is not None:
+                        wmsg.source = str(wmsg.source)
+                    result.addWarning(test, wmsg)
+
+    def _run(self, test, result):
         self._tearDownPreviousClass(test, result)
         self._handleModuleFixture(test, result)
         self._handleClassSetUp(test, result)
@@ -95,7 +109,7 @@ class ChannelingTestResultMeta(type):
     def __new__(mcls, name, bases, dct):
         for meth in {'startTest', 'addSuccess', 'addError', 'addFailure',
                      'addSkip', 'addExpectedFailure', 'addUnexpectedSuccess',
-                     'addSubTest', 'record_test_stats'}:
+                     'addSubTest', 'addWarning', 'record_test_stats'}:
             dct[meth] = mcls.get_wrapper(meth)
 
         return super().__new__(mcls, name, bases, dct)
@@ -188,11 +202,16 @@ class ParallelTestSuite(unittest.TestSuite):
 
 
 class ParallelTextTestResult(unittest.result.TestResult):
-    def __init__(self, *, stream, verbosity, failfast=False):
+    def __init__(self, *, stream, verbosity, warnings, failfast=False):
         super().__init__(stream, False, verbosity)
         self.verbosity = verbosity
+        self.catch_warnings = warnings
         self.failfast = failfast
         self.test_stats = {}
+        self.warnings = []
+        # An index of all seen warnings to keep track
+        # of repeated warnings.
+        self._warnings = {}
 
     def record_test_stats(self, test, stats):
         self.test_stats[test] = stats
@@ -249,13 +268,27 @@ class ParallelTextTestResult(unittest.result.TestResult):
         elif self.verbosity == 1:
             click.secho('x', fg='yellow', bold=True)
 
+    def addWarning(self, test, wmsg):
+        if not self.catch_warnings:
+            return
+
+        key = str(wmsg.message), wmsg.filename, wmsg.lineno
+
+        if key not in self._warnings:
+            self._warnings[key] = wmsg
+            self.warnings.append((test, warnings.formatwarning(
+                wmsg.message, wmsg.category, wmsg.filename, wmsg.lineno,
+                wmsg.line
+            )))
+
 
 class ParallelTextTestRunner:
     def __init__(self, *, stream=None, num_workers=1, verbosity=1,
-                 failfast=False):
+                 warnings=True, failfast=False):
         self.stream = stream if stream is not None else sys.stderr
         self.num_workers = num_workers
         self.verbosity = verbosity
+        self.warnings = warnings
         self.failfast = failfast
 
     def run(self, test):
@@ -298,7 +331,7 @@ class ParallelTextTestRunner:
 
             result = ParallelTextTestResult(
                 stream=self.stream, verbosity=self.verbosity,
-                failfast=self.failfast)
+                warnings=self.warnings, failfast=self.failfast)
             unittest.signals.registerResult(result)
 
             self._echo()
@@ -344,13 +377,15 @@ class ParallelTextTestRunner:
         return f'{hours:02d}:{minutes:02d}:{seconds:04.1f}'
 
     def _print_errors(self, result):
-        for kind, errors in zip(('ERROR', 'FAIL'),
-                                (result.errors, result.failures)):
+        for kind, fg, errors in zip(('WARNING', 'ERROR', 'FAIL'),
+                                    ('yellow', 'red', 'red'),
+                                    (result.warnings, result.errors,
+                                     result.failures)):
             for test, err in errors:
-                self._fill('=', fg='red')
+                self._fill('=', fg=fg)
                 self._echo(f'{kind}: {result.getDescription(test)}',
-                           fg='red', bold=True)
-                self._fill('-', fg='red')
+                           fg=fg, bold=True)
+                self._fill('-', fg=fg)
                 self._echo(err)
 
     def _render_result(self, result, boot_time_taken, tests_time_taken):
