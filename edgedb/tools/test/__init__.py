@@ -25,6 +25,9 @@ from . import runner
               help='increase verbosity')
 @click.option('-q', '--quiet', is_flag=True,
               help='decrease verbosity')
+@click.option('--warnings/--no-warnings',
+              help='enable or disable warnings (enabled by default)',
+              default=True)
 @click.option('-j', '--jobs', type=int,
               default=lambda: round(os.cpu_count() * 0.75),
               help='number of parallel processes to use')
@@ -32,7 +35,7 @@ from . import runner
               help='only run tests which match the given regular expression')
 @click.option('-e', '--exclude', type=str, multiple=True, metavar='REGEXP',
               help='do not run tests which match the given regular expression')
-def test(*, files, jobs, include, exclude, verbose, quiet):
+def test(*, files, jobs, include, exclude, verbose, quiet, warnings):
     """Run EdgeDB test suite.
 
     Discovers and runs tests in the specified files or directories.
@@ -111,7 +114,7 @@ def test(*, files, jobs, include, exclude, verbose, quiet):
                     fg='white', bold=True)
 
     test_runner = runner.ParallelTextTestRunner(
-        verbosity=verbosity, num_workers=jobs)
+        verbosity=verbosity, warnings=warnings, num_workers=jobs)
     result = test_runner.run(suite)
 
     sys.exit(0 if result.wasSuccessful() else 1)
