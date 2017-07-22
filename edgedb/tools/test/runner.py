@@ -2,12 +2,13 @@ import collections.abc
 import io
 import itertools
 import multiprocessing
+import multiprocessing.reduction
 import os
-import queue as std_queue
 import random
 import sys
 import threading
 import time
+import types
 import unittest.result
 import unittest.runner
 import unittest.signals
@@ -88,7 +89,7 @@ class ChannelingTestResultMeta(type):
                 error_text = self._exc_info_to_string(args[-1], args[0])
                 args[-1] = error_text
 
-            self._queue.put_nowait((meth, args, kwargs))
+            self._queue.put((meth, args, kwargs))
         return _wrapper
 
     def __new__(mcls, name, bases, dct):
@@ -126,15 +127,14 @@ class ChannelingTestResult(unittest.result.TestResult,
         return state
 
 
-stop_monitor = threading.Event()
-
-
 def monitor_thread(queue, result):
-    while not stop_monitor.is_set():
-        try:
-            methname, args, kwargs = queue.get(timeout=1)
-        except std_queue.Empty:
-            continue
+    while True:
+        methname, args, kwargs = queue.get()
+        if methname is None and args is None and kwargs is None:
+            # This must be the last message in the queue, injected
+            # when all tests are completed and the pool is about
+            # to be closed.
+            break
 
         method = result
         for part in methname.split('.'):
@@ -149,13 +149,16 @@ class ParallelTestSuite(unittest.TestSuite):
         self.num_workers = num_workers
 
     def run(self, result):
-        result_queue = multiprocessing.Queue()
-        worker_param_queue = multiprocessing.Queue()
+        # We use SimpleQueues because they are more predictable.
+        # The do the necessary IO directly, without using a
+        # helper thread.
+        result_queue = multiprocessing.SimpleQueue()
+        worker_param_queue = multiprocessing.SimpleQueue()
 
         # Prepopulate the worker param queue with server connection
         # information.
         for server_conn in self.server_conns:
-            worker_param_queue.put_nowait(server_conn)
+            worker_param_queue.put(server_conn)
 
         result_thread = threading.Thread(
             name='test-monitor', target=monitor_thread,
@@ -171,8 +174,15 @@ class ParallelTestSuite(unittest.TestSuite):
         with pool:
             pool.map(_run_test, self.tests, chunksize=1)
 
-        stop_monitor.set()
-        result_thread.join()
+            # Post the terminal message to the queue so that
+            # test-monitor can stop.
+            result_queue.put((None, None, None))
+
+            # Give the test-monitor thread some time to
+            # process the queue messages.  If something
+            # goes wrong, the thread will be forcibly
+            # joined by a timeout.
+            result_thread.join(timeout=3)
 
         return result
 
@@ -406,3 +416,17 @@ class ParallelTextTestRunner:
         )
 
         return tests
+
+
+# Disable pickling of traceback objects in multiprocessing.
+# Test errors' tracebacks are serialized manually by
+# `TestReesult._exc_info_to_string()`.  Therefore we need
+# to make sure that some random __traceback__ attribute
+# doesn't crash the test results queue.
+multiprocessing.reduction.ForkingPickler.register(
+    types.TracebackType,
+    lambda o: (_restore_Traceback, ()))
+
+
+def _restore_Traceback():
+    return None
