@@ -523,7 +523,7 @@ class TestGraphQLParser(GraphQLSyntaxTest):
                 id
                 bar(name: "\"something\"",
                     more: "",
-                    description: "\\\/\b\f\n\r\t 'blah' спам")
+                    description: "\\/\b\f\n\r\t 'blah' спам")
             }
         }
         """

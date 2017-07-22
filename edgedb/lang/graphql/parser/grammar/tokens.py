@@ -135,7 +135,7 @@ class T_STRING(Token):
 
     @property
     def normalized_value(self):
-        return ast.literal_eval(self.val).replace('\/', '/')
+        return ast.literal_eval(self.val)
 
 
 class T_IDENT(Token):
