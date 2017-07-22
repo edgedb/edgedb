@@ -83,7 +83,7 @@ concept LogEntry extending OwnedObject, Text:
 
     def test_eschema_syntax_concept07(self):
         """
-concept Issue extending foo.bar::NamedObject, OwnedObject, Text:
+concept Issue extending `foo.bar`::NamedObject, OwnedObject, Text:
 
     required link number to issue_num_t:
         readonly := true
@@ -607,7 +607,7 @@ abstract link coollink
         """
         import mylib.util.foo
 
-        concept Bar extending mylib.util.foo::Foo:
+        concept Bar extending `mylib.util.foo`::Foo:
             link text to str
         """
 
@@ -640,6 +640,26 @@ abstract link coollink
         """
 
     def test_eschema_syntax_import06(self):
+        """
+        import action.event.foo
+
+        concept Bar extending `action.event.foo`::Foo:
+            link text to str
+        """
+
+    @tb.must_fail(error.SchemaSyntaxError,
+                  r'Unexpected token.*DOT', line=4, col=36)
+    def test_eschema_syntax_import07(self):
+        """
+        import mylib.util.foo
+
+        concept Bar extending mylib.util.foo::Foo:
+            link text to str
+        """
+
+    @tb.must_fail(error.SchemaSyntaxError,
+                  r'Unexpected token.*DOT', line=4, col=37)
+    def test_eschema_syntax_import08(self):
         """
         import action.event.foo
 
@@ -789,6 +809,36 @@ abstract link coollink
             #              previous parentheses, this is because schema
             #              parentheses matching is done before any analysis of
             #              what's inside
+            from edgeql function: some_other_func
+        """
+
+    def test_eschema_syntax_function15(self):
+        """
+        function foo() -> map<
+                    str,
+                    array<tuple<int, str>>
+                >:
+            from edgeql function: some_other_func
+        """
+
+    def test_eschema_syntax_function16(self):
+        """
+        function foo() -> map<
+                    str,
+                    array<tuple<int, `Foo:>`>>
+                >:
+            from edgeql function: some_other_func
+        """
+
+    @tb.must_fail(error.SchemaSyntaxError,
+                  r"Unexpected token.*NL",
+                  line=4, col=44)
+    def test_eschema_syntax_function17(self):
+        """
+        function foo() -> map<
+                    str,
+                    array<tuple<int, Foo>>>
+                >:
             from edgeql function: some_other_func
         """
 

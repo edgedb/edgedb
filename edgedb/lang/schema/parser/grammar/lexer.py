@@ -24,7 +24,9 @@ STATE_KEEP = 0
 STATE_WS_SENSITIVE = 1
 STATE_WS_INSENSITIVE = 2
 STATE_RAW_PAREN = 3
-STATE_RAW_STRING = 4
+STATE_RAW_ANGLE = 4
+STATE_RAW_TYPE = 5
+STATE_RAW_STRING = 6
 
 
 keyword_tokens = {tok[0] for tok in edge_schema_keywords.values()}
@@ -42,7 +44,7 @@ Rule = lexer.Rule
 
 def enter_paren_state(lex):
     tok = lex.prev_nw_tok
-    if tok.type in keyword_tokens and tok.type != 'ON':
+    if tok.type == 'IMPORT':
         return STATE_WS_INSENSITIVE
     else:
         return STATE_RAW_PAREN
@@ -55,6 +57,13 @@ def exit_paren_state(lex):
         return STATE_KEEP
 
 
+def exit_angle_state(lex):
+    if lex.paren_level == 1:
+        return STATE_RAW_TYPE
+    else:
+        return STATE_KEEP
+
+
 class EdgeSchemaLexer(lexer.Lexer):
 
     start_state = STATE_WS_SENSITIVE
@@ -63,13 +72,57 @@ class EdgeSchemaLexer(lexer.Lexer):
     MULTILINE_TOKENS = frozenset(('STRING', 'RAWSTRING'))
     RE_FLAGS = re.X | re.M | re.I
 
+    # a few reused rules
+    string_rule = Rule(
+        token='STRING',
+        next_state=STATE_KEEP,
+        regexp=r'''
+           (?P<Q>
+               # capture the opening quote in group Q
+               (
+                   ' | " |
+                   {dollar_quote}
+               )
+           )
+           (?:
+               (\\['"] | \n | .)*?
+           )
+           (?P=Q)  # match closing quote type with whatever is in Q
+        '''.format(dollar_quote=re_dquote))
+
+    qident_rule = Rule(
+        token='QIDENT',
+        next_state=STATE_KEEP,
+        regexp=r'`.+?`')
+
     # Basic keywords
     keyword_rules = [Rule(token=tok[0],
                           next_state=STATE_KEEP,
                           regexp=lexer.group(val))
-                     for val, tok in edge_schema_keywords.items()]
+                     for val, tok in edge_schema_keywords.items()
+                     if tok[0] not in {'TO', 'EXTENDING'}]
 
     common_rules = keyword_rules + [
+        # need to handle 'TO' differently based on whether it's
+        # followed by '('
+        Rule(token='TO',
+             next_state=STATE_RAW_TYPE,
+             regexp=r'\bTO\b(?!\s*\()'),
+
+        Rule(token='TO',
+             next_state=STATE_KEEP,
+             regexp=r'\bTO\b'),
+
+        # need to handle 'EXTENDING' differently based on whether it's
+        # followed by '('
+        Rule(token='EXTENDING',
+             next_state=STATE_RAW_TYPE,
+             regexp=r'\bEXTENDING\b(?!\s*\()'),
+
+        Rule(token='EXTENDING',
+             next_state=STATE_KEEP,
+             regexp=r'\bEXTENDING\b'),
+
         Rule(token='COMMENT',
              next_state=STATE_KEEP,
              regexp=r'\#[^\n]*$'),
@@ -89,22 +142,6 @@ class EdgeSchemaLexer(lexer.Lexer):
         Rule(token='RPAREN',
              next_state=exit_paren_state,
              regexp=r'\)'),
-
-        Rule(token='LBRACKET',
-             next_state=STATE_WS_INSENSITIVE,
-             regexp=r'\['),
-
-        Rule(token='RBRACKET',
-             next_state=exit_paren_state,
-             regexp=r'\]'),
-
-        Rule(token='LANGBRACKET',
-             next_state=STATE_WS_INSENSITIVE,
-             regexp=r'\<'),
-
-        Rule(token='RANGBRACKET',
-             next_state=exit_paren_state,
-             regexp=r'\>'),
 
         Rule(token='COMMA',
              next_state=STATE_KEEP,
@@ -126,58 +163,15 @@ class EdgeSchemaLexer(lexer.Lexer):
              next_state=STATE_KEEP,
              regexp=r':'),
 
-        Rule(token='EQUALS',
-             next_state=STATE_KEEP,
-             regexp=r'='),
-
         Rule(token='ARROW',
-             next_state=STATE_KEEP,
+             next_state=STATE_RAW_TYPE,
              regexp=r'->'),
-
-        Rule(token='STAR',
-             next_state=STATE_KEEP,
-             regexp=r'\*'),
-
-        Rule(token='FCONST',
-             next_state=STATE_KEEP,
-             regexp=r'''
-                    (?: \d+ (?:\.\d*)?
-                        |
-                        \. \d+
-                    ) {exppart}
-                '''.format(exppart=re_exppart)),
-
-        Rule(token='FCONST',
-             next_state=STATE_KEEP,
-             regexp=r'''
-                (?: \d+\.(?!\.)\d*
-                    |
-                    \.\d+)
-             '''),
-
-        Rule(token='ICONST',
-             next_state=STATE_KEEP,
-             regexp=r'([1-9]\d* | 0)(?![eE.0-9])'),
 
         Rule(token='DOT',
              next_state=STATE_KEEP,
              regexp=r'\.'),
 
-        Rule(token='STRING',
-             next_state=STATE_KEEP,
-             regexp=r'''
-                (?P<Q>
-                    # capture the opening quote in group Q
-                    (
-                        ' | " |
-                        {dollar_quote}
-                    )
-                )
-                (?:
-                    (\\['"] | \n | .)*?
-                )
-                (?P=Q)  # match closing quote type with whatever is in Q
-             '''.format(dollar_quote=re_dquote)),
+        string_rule,
 
         Rule(token='IDENT',
              next_state=STATE_KEEP,
@@ -186,9 +180,7 @@ class EdgeSchemaLexer(lexer.Lexer):
                     (?:\w|\$)*
                 '''),
 
-        Rule(token='QIDENT',
-             next_state=STATE_KEEP,
-             regexp=r'`.+?`'),
+        qident_rule,
     ]
 
     states = {
@@ -203,29 +195,48 @@ class EdgeSchemaLexer(lexer.Lexer):
                  next_state=exit_paren_state,
                  regexp=r'\)'),
 
-            Rule(token='STRING',
-                 next_state=STATE_KEEP,
-                 regexp=r'''
-                    (?P<Q>
-                        # capture the opening quote in group Q
-                        (
-                            ' | " |
-                            {dollar_quote}
-                        )
-                    )
-                    (?:
-                        (\\['"] | \n | .)*?
-                    )
-                    (?P=Q)  # match closing quote type with whatever is in Q
-                 '''.format(dollar_quote=re_dquote)),
-
-            Rule(token='QIDENT',
-                 next_state=STATE_KEEP,
-                 regexp=r'`.+?`'),
+            string_rule,
+            qident_rule,
 
             Rule(token='RAWSTRING',
                  next_state=STATE_KEEP,
                  regexp=r'''[^()`'"][^()`'"$]*'''),
+        ],
+        STATE_RAW_ANGLE: [
+            Rule(token='RAWSTRING',
+                 next_state=STATE_KEEP,
+                 regexp=r'\<'),
+
+            Rule(token='RAWSTRING',
+                 next_state=exit_angle_state,
+                 regexp=r'\>'),
+
+            string_rule,
+            qident_rule,
+
+            Rule(token='RAWSTRING',
+                 next_state=STATE_KEEP,
+                 regexp=r'''[^<>`'"][^<>`'"$]*'''),
+        ],
+        STATE_RAW_TYPE: [
+            Rule(token='RAWSTRING',
+                 next_state=STATE_WS_SENSITIVE,
+                 regexp=r'(?=\n|:(?!:))'),
+
+            Rule(token='RAWSTRING',
+                 next_state=STATE_KEEP,
+                 regexp=r'::'),
+
+            Rule(token='RAWSTRING',
+                 next_state=STATE_RAW_ANGLE,
+                 regexp=r'\<'),
+
+            string_rule,
+            qident_rule,
+
+            Rule(token='RAWSTRING',
+                 next_state=STATE_KEEP,
+                 regexp=r'''[^:<`'"\n][^:<`'"$\n]*'''),
         ],
         STATE_RAW_STRING: [
             Rule(token='NEWLINE',
@@ -390,10 +401,11 @@ class EdgeSchemaLexer(lexer.Lexer):
         self._next_state = None
 
         for tok in self._lex():
-            if tok.type in {'LPAREN', 'LBRACKET', 'LANGBRACKET'}:
-                self.paren_level += 1
-            elif tok.type in {'RPAREN', 'RBRACKET', 'RANGBRACKET'}:
-                self.paren_level -= 1
+            if self._state != STATE_RAW_STRING:
+                if tok.text in {'(', '<', '['}:
+                    self.paren_level += 1
+                elif tok.text in {')', '>', ']'}:
+                    self.paren_level -= 1
 
             if tok.type not in {'NEWLINE', 'WS'}:
                 self.prev_nw_tok = tok
