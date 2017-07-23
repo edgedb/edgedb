@@ -299,23 +299,25 @@ class MultiLineRenderer(BaseRenderer):
 
         clear_cmd = ''
         if self.last_lines > 0:
-            clear_cmd = '\033[A' * self.last_lines + '\r'
+            # Move cursor up `last_lines` times.
+            clear_cmd = f'\r\033[{self.last_lines}A'
 
         lines = []
         for mod, progress in self.buffer.items():
             line = self._render_modname(mod).ljust(self.first_col_width, ' ')
             while progress:
                 second_col = progress[:second_col_width]
+                second_col = second_col.ljust(second_col_width, ' ')
+
                 progress = progress[second_col_width:]
 
-                # Apply styles *after* the slicing the string
+                # Apply styles *after* slicing and padding the string
                 # (otherwise ANSI codes could be sliced in half).
                 second_col = re.sub(
-                    r'.',
+                    r'\S',
                     lambda x: self.styles_map[x[0]](x[0]),
                     second_col)
 
-                second_col = second_col.ljust(second_col_width, ' ')
                 lines.append(f'{line}{second_col}')
 
                 if line[0] != ' ':
