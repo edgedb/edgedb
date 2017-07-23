@@ -17,4 +17,4 @@ class DebugTests(unittest.TestCase):
         flags = dict(debug.flags.items())
         self.assertIn('edgeql_compile', flags)
         self.assertIn('EdgeQL', flags['edgeql_compile'].doc)
-        self.assertIs(debug.flags.edgeql_compile, False)
+        self.assertIsInstance(debug.flags.edgeql_compile, bool)
