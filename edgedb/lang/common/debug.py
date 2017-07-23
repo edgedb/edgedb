@@ -36,18 +36,20 @@ class FlagsMeta(type):
         for flagname, flag in dct.items():
             if not isinstance(flag, Flag):
                 continue
+            flag.name = flagname
             flags[flagname] = flag
             dct[flagname] = False
 
         dct['_items'] = flags
         return super().__new__(mcls, name, bases, dct)
 
-    def items(cls):
-        return cls._items.items()
+    def __iter__(cls):
+        return iter(cls._items.values())
 
 
 class Flag:
     def __init__(self, *, doc: str):
+        self.name = None
         self.doc = doc
 
 
