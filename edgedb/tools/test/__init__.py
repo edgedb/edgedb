@@ -106,7 +106,10 @@ def test(*, files, jobs, include, exclude, verbose, quiet, warnings, failfast):
             tests = test_loader.discover(
                 file, top_level_dir=top_level_dir)
         else:
-            tests = test_loader.loadTestsFromName(file)
+            tests = test_loader.discover(
+                os.path.dirname(file),
+                pattern=os.path.basename(file),
+                top_level_dir=top_level_dir)
 
         suite.addTest(tests)
 
