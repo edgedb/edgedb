@@ -173,6 +173,7 @@ class ParallelTestSuite(unittest.TestSuite):
         self.tests = tests
         self.server_conns = server_conns
         self.num_workers = num_workers
+        self.stop_requested = False
 
     def run(self, result):
         # We use SimpleQueues because they are more predictable.
@@ -198,7 +199,18 @@ class ParallelTestSuite(unittest.TestSuite):
             initargs=initargs)
 
         with pool:
-            pool.map(_run_test, self.tests, chunksize=1)
+            ar = pool.map_async(_run_test, iter(self.tests), chunksize=1)
+
+            while True:
+                try:
+                    ar.get(timeout=0.1)
+                except multiprocessing.TimeoutError:
+                    if self.stop_requested:
+                        pool.terminate()
+                        break
+                    continue
+                else:
+                    break
 
             # Post the terminal message to the queue so that
             # test-monitor can stop.
@@ -327,7 +339,8 @@ class MultiLineRenderer(BaseRenderer):
 
 
 class ParallelTextTestResult(unittest.result.TestResult):
-    def __init__(self, *, stream, verbosity, warnings, tests, failfast=False):
+    def __init__(self, *, stream, verbosity, warnings, tests,
+                 failfast=False, suite):
         super().__init__(stream, False, verbosity)
         self.verbosity = verbosity
         self.catch_warnings = warnings
@@ -337,6 +350,7 @@ class ParallelTextTestResult(unittest.result.TestResult):
         # An index of all seen warnings to keep track
         # of repeated warnings.
         self._warnings = {}
+        self.suite = suite
 
         if self.verbosity > 1:
             self.ren = VerboseRenderer(tests=tests, stream=stream)
@@ -364,10 +378,14 @@ class ParallelTextTestResult(unittest.result.TestResult):
     def addError(self, test, err):
         super().addError(test, err)
         self.ren.report(test, Markers.errored)
+        if self.failfast:
+            self.suite.stop_requested = True
 
     def addFailure(self, test, err):
         super().addFailure(test, err)
         self.ren.report(test, Markers.failed)
+        if self.failfast:
+            self.suite.stop_requested = True
 
     def addSkip(self, test, reason):
         super().addSkip(test, reason)
@@ -450,7 +468,7 @@ class ParallelTextTestRunner:
             result = ParallelTextTestResult(
                 stream=self.stream, verbosity=self.verbosity,
                 warnings=self.warnings, failfast=self.failfast,
-                tests=all_tests)
+                tests=all_tests, suite=suite)
             unittest.signals.registerResult(result)
 
             self._echo()

@@ -36,7 +36,9 @@ from . import styles
               help='only run tests which match the given regular expression')
 @click.option('-e', '--exclude', type=str, multiple=True, metavar='REGEXP',
               help='do not run tests which match the given regular expression')
-def test(*, files, jobs, include, exclude, verbose, quiet, warnings):
+@click.option('-x', '--failfast', is_flag=True,
+              help='stop tests after a first failure/error')
+def test(*, files, jobs, include, exclude, verbose, quiet, warnings, failfast):
     """Run EdgeDB test suite.
 
     Discovers and runs tests in the specified files or directories.
@@ -114,7 +116,8 @@ def test(*, files, jobs, include, exclude, verbose, quiet, warnings):
             f'Using up to {jobs} processes to run tests.'))
 
     test_runner = runner.ParallelTextTestRunner(
-        verbosity=verbosity, warnings=warnings, num_workers=jobs)
+        verbosity=verbosity, warnings=warnings, num_workers=jobs,
+        failfast=failfast)
     result = test_runner.run(suite)
 
     sys.exit(0 if result.wasSuccessful() else 1)
