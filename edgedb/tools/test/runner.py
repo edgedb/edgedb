@@ -239,6 +239,25 @@ class SimpleRenderer(BaseRenderer):
                    nl=False, file=self.stream)
 
 
+class VerboseRenderer(BaseRenderer):
+    fullnames = {
+        Markers.passed: 'OK',
+        Markers.errored: 'ERROR',
+        Markers.skipped: 'SKIPPED',
+        Markers.failed: 'FAILED',
+        Markers.xfailed: 'expected failure',
+        Markers.upassed: 'unexpected success',
+    }
+
+    def _render_test(self, test, marker):
+        return f'{test}: {self.fullnames[marker]}'
+
+    def report(self, test, marker):
+        style = self.styles_map[marker.value]
+        click.echo(style(self._render_test(test, marker)),
+                   file=self.stream)
+
+
 class MultiLineRenderer(BaseRenderer):
     def __init__(self, *, tests, stream):
         super().__init__(tests=tests, stream=stream)
@@ -319,7 +338,9 @@ class ParallelTextTestResult(unittest.result.TestResult):
         # of repeated warnings.
         self._warnings = {}
 
-        if (stream.isatty() and
+        if self.verbosity > 1:
+            self.ren = VerboseRenderer(tests=tests, stream=stream)
+        elif (stream.isatty() and
                 click.get_terminal_size()[0] > 60 and
                 os.name != 'nt'):
             self.ren = MultiLineRenderer(tests=tests, stream=stream)
@@ -338,48 +359,27 @@ class ParallelTextTestResult(unittest.result.TestResult):
 
     def addSuccess(self, test):
         super().addSuccess(test)
-        if self.verbosity > 1:
-            click.echo(f'{self.getDescription(test)}: OK')
-        elif self.verbosity == 1:
-            self.ren.report(test, Markers.passed)
+        self.ren.report(test, Markers.passed)
 
     def addError(self, test, err):
         super().addError(test, err)
-        if self.verbosity > 1:
-            click.secho(f'{self.getDescription(test)}: ERROR', fg='red',
-                        bold=True)
-        elif self.verbosity == 1:
-            self.ren.report(test, Markers.errored)
+        self.ren.report(test, Markers.errored)
 
     def addFailure(self, test, err):
         super().addFailure(test, err)
-        if self.verbosity > 1:
-            click.secho(f'{self.getDescription(test)}: FAILURE', fg='red',
-                        bold=True)
-        elif self.verbosity == 1:
-            self.ren.report(test, Markers.failed)
+        self.ren.report(test, Markers.failed)
 
     def addSkip(self, test, reason):
         super().addSkip(test, reason)
-        if self.verbosity > 1:
-            click.secho(f'{self.getDescription(test)}: skipped', fg='yellow')
-        elif self.verbosity == 1:
-            self.ren.report(test, Markers.skipped)
+        self.ren.report(test, Markers.skipped)
 
     def addExpectedFailure(self, test, err):
         super().addExpectedFailure(test, err)
-        if self.verbosity > 1:
-            click.secho(f'{self.getDescription(test)}: expected failure')
-        elif self.verbosity == 1:
-            self.ren.report(test, Markers.xfailed)
+        self.ren.report(test, Markers.xfailed)
 
     def addUnexpectedSuccess(self, test):
         super().addUnexpectedSuccess(test)
-        if self.verbosity > 1:
-            click.secho(f'{self.getDescription(test)}: unexpected success',
-                        fg='yellow', bold=True)
-        elif self.verbosity == 1:
-            self.ren.report(test, Markers.upassed)
+        self.ren.report(test, Markers.upassed)
 
     def addWarning(self, test, wmsg):
         if not self.catch_warnings:
