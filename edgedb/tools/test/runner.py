@@ -7,6 +7,7 @@
 
 
 import collections.abc
+import enum
 import io
 import itertools
 import multiprocessing
@@ -212,7 +213,7 @@ class ParallelTestSuite(unittest.TestSuite):
         return result
 
 
-class Markers:
+class Markers(enum.Enum):
     passed = '.'
     errored = 'E'
     skipped = 's'
@@ -220,18 +221,13 @@ class Markers:
     xfailed = 'x'  # expected fail
     upassed = 'U'  # unexpected success
 
-    # NOTE: all markers must be one char.
-
-    all_markers = {'passed', 'errored', 'skipped',
-                   'failed', 'xfailed', 'upassed'}
-
 
 class BaseRenderer:
     def __init__(self, *, tests, stream):
         self.stream = stream
         self.styles_map = {
-            getattr(Markers, marker): getattr(styles, f'marker_{marker}')
-            for marker in Markers.all_markers}
+            marker.value: getattr(styles, f'marker_{marker.name}')
+            for marker in Markers}
 
     def report(self, test, marker):
         raise NotImplementedError
@@ -239,7 +235,8 @@ class BaseRenderer:
 
 class SimpleRenderer(BaseRenderer):
     def report(self, test, marker):
-        click.echo(self.styles_map[marker](marker), nl=False, file=self.stream)
+        click.echo(self.styles_map[marker.value](marker.value),
+                   nl=False, file=self.stream)
 
 
 class MultiLineRenderer(BaseRenderer):
@@ -258,7 +255,7 @@ class MultiLineRenderer(BaseRenderer):
         self.last_lines = -1
 
     def report(self, test, marker):
-        self.buffer[test.__class__.__module__] += marker
+        self.buffer[test.__class__.__module__] += marker.value
         self.completed_tests += 1
         self._render()
 
