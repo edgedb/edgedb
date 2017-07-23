@@ -294,7 +294,7 @@ class MultiLineRenderer(BaseRenderer):
         return name.replace('.', '/') + '.py'
 
     def _render(self):
-        cols = click.get_terminal_size()[0]
+        cols, rows = click.get_terminal_size()
         second_col_width = cols - self.first_col_width
 
         clear_cmd = ''
@@ -326,6 +326,21 @@ class MultiLineRenderer(BaseRenderer):
         lines.append(' ' * cols)
         lines.append(
             f'Progress: {self.completed_tests}/{self.total_tests} tests.')
+
+        if self.completed_tests != self.total_tests:
+            # If it's not the last test, check if our render buffer
+            # requires more rows than currently visible.
+            if len(lines) + 1 > rows:
+                # Scroll the render buffer to the bottom and
+                # cut the lines from the beginning, so that it
+                # will fit the screen.
+                #
+                # We need to do this because we can't move the
+                # cursor past the visible screen area, so if we
+                # render more data than the screen can fit, we
+                # will have lot's of garbage output.
+                lines = lines[len(lines) + 1 - rows:]
+                lines[0] = '^' * cols
 
         # Hide cursor.
         print('\033[?25l', end='', flush=True, file=self.stream)
