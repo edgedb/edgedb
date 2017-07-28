@@ -124,6 +124,36 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         ) }
         """
 
+    def test_graphql_syntax_string11(self):
+        r"""
+        { field(arg: "\\/ \\\/") }
+
+% OK %
+
+        { field(arg: "\\/ \\/") }
+        """
+
+    def test_graphql_syntax_string12(self):
+        r"""
+        { field(arg: "\\\\x") }
+        """
+
+    @tb.must_fail(InvalidStringTokenError, line=2, col=25)
+    def test_graphql_syntax_string13(self):
+        r"""
+        { field(arg: "\\\x") }
+        """
+
+    def test_graphql_syntax_string14(self):
+        r"""
+        { field(arg: "\\'") }
+        """
+
+    def test_graphql_syntax_string15(self):
+        r"""
+        { field(arg: "\\\n \\\\n") }
+        """
+
     def test_graphql_syntax_short01(self):
         """{id}"""
 
@@ -517,6 +547,7 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         """
 
     def test_graphql_syntax_values04(self):
+        # graphql escapes: \", \\, \/, \b, \f, \n, \r, \t
         r"""
         {
             foo(id: 4) {
@@ -524,6 +555,15 @@ class TestGraphQLParser(GraphQLSyntaxTest):
                 bar(name: "\"something\"",
                     more: "",
                     description: "\\\/\b\f\n\r\t 'blah' спам")
+            }
+        }
+% OK %
+        {
+            foo(id: 4) {
+                id
+                bar(name: "\"something\"",
+                    more: "",
+                    description: "\\/\b\f\n\r\t 'blah' спам")
             }
         }
         """
