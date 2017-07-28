@@ -44,7 +44,6 @@ class StringLiteral(Literal):
         #
         value = re.sub(r'\\\\([fb])', r'\\\1', value)
         value = re.sub(r'\\\\(u[0-9a-fA-F]{4})', r'\\\1', value)
-        value = value.replace('/', r'\/')
 
         if value[0] == "'":
             # need to change quotation style
