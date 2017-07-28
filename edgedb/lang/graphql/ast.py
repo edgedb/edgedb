@@ -37,19 +37,16 @@ class StringLiteral(Literal):
     def tosource(self):
         value = self.value
         # generic substitutions for '\b' and '\f'
-        #
         value = value.replace('\b', '\\b').replace('\f', '\\f')
         value = repr(value)
         # escape \b \f \u1234 and \/ correctly
-        #
         value = re.sub(r'\\\\([fb])', r'\\\1', value)
         value = re.sub(r'\\\\(u[0-9a-fA-F]{4})', r'\\\1', value)
-        value = value.replace('/', r'\/')
+        # no need to escape '/' as '\/' since it's legal unescaped
 
+        # need to change quotation style
         if value[0] == "'":
-            # need to change quotation style
-            #
-            value = value[1:-1].replace(R'\'', "'").replace('"', R'\"')
+            value = value[1:-1].replace(R"\'", "'").replace('"', R'\"')
             value = '"' + value + '"'
 
         return value

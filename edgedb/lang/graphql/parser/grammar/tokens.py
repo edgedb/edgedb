@@ -113,10 +113,12 @@ class T_INTEGER(Token):
 
 
 invalid_str = re.compile(r'''(?x)
-    (\\u(?![0-9A-Fa-f]{4})) |
+    (?<!\\)(?:\\{2})*(\\u(?![0-9A-Fa-f]{4})) |
     ([\n\f\v\b]) |
-    (\\[^"/bfnrtu\\])
+    (?<!\\)(?:\\{2})*(\\[^"/bfnrtu\\])
     ''')
+
+unescape_fw_slash = re.compile(r'(?<!\\)((?:\\{2})*)(\\/)')
 
 
 class T_STRING(Token):
@@ -125,9 +127,11 @@ class T_STRING(Token):
         #
         invalid = invalid_str.search(val, 1, len(val) - 1)
         if invalid:
-            context.start.column += invalid.start()
+            # pick whichever group actually matched
+            inv = next(filter(None, invalid.groups()))
+            context.start.column += invalid.end() - len(inv)
             context.end.line = context.start.line
-            context.end.column = context.start.column + len(invalid.group())
+            context.end.column = context.start.column + len(inv)
             raise InvalidStringTokenError(
                 f"invalid {invalid.group()!r} within string token",
                 context=context)
@@ -135,7 +139,10 @@ class T_STRING(Token):
 
     @property
     def normalized_value(self):
-        return ast.literal_eval(self.val).replace('\/', '/')
+        # unescape possible '\/' graphql escape sequence before
+        # processing all the escape sequences that are supported by
+        # Python
+        return ast.literal_eval(unescape_fw_slash.sub(r'\1/', self.val))
 
 
 class T_IDENT(Token):
