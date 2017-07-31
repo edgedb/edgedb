@@ -114,7 +114,7 @@ class CreateInheritingClass(named.CreateNamedClass, InheritingClassCommand):
             for b in getattr(astnode, 'bases', None) or []
         )
 
-        mcls = cls._get_metaclass()
+        mcls = cls.get_schema_metaclass()
         if not bases and classname not in mcls.get_root_classes():
             default_base = mcls.get_default_base_name()
 
@@ -150,6 +150,8 @@ class DeleteInheritingClass(named.DeleteNamedClass, InheritingClassCommand):
 
 
 class RebaseNamedClass(named.NamedClassCommand):
+    _delta_action = 'rebase'
+
     new_base = so.Field(tuple, default=tuple())
     removed_bases = so.Field(tuple)
     added_bases = so.Field(tuple)
@@ -319,16 +321,17 @@ class InheritingClass(named.NamedClass):
             delta = super().delta(other, reverse=reverse, context=context)
 
             if old and new:
-                delta_driver = self.delta_driver
+                rebase = sd.ClassCommandMeta.get_command_class(
+                    RebaseNamedClass, type(self))
 
                 old_base_names = old.get_base_names()
                 new_base_names = new.get_base_names()
 
-                if old_base_names != new_base_names and delta_driver.rebase:
+                if old_base_names != new_base_names and rebase is not None:
                     removed, added = delta_bases(
                         old_base_names, new_base_names)
 
-                    delta.add(delta_driver.rebase(
+                    delta.add(rebase(
                         classname=new.name,
                         metaclass=new.__class__.get_canonical_class(),
                         removed_bases=removed,

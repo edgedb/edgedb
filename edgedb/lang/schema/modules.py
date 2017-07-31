@@ -22,64 +22,6 @@ from . import named
 from . import objects as so
 
 
-class ModuleCommandContext(sd.CommandContextToken):
-    def __init__(self, op, module=None):
-        super().__init__(op)
-        self.module = module
-
-
-class ModuleCommand(named.NamedClassCommand):
-    context_class = ModuleCommandContext
-
-    classname = so.Field(str)
-
-    @classmethod
-    def _classname_from_ast(cls, astnode, context, schema):
-        if astnode.name.module:
-            classname = sn.Name(module=astnode.name.module,
-                                name=astnode.name.name)
-        else:
-            classname = astnode.name.name
-
-        return classname
-
-    @classmethod
-    def _get_metaclass(cls):
-        return Module
-
-
-class CreateModule(named.CreateNamedClass, ModuleCommand):
-    astnode = qlast.CreateModule
-
-    def apply(self, schema, context):
-        props = self.get_struct_properties(schema)
-        self.module = self.metaclass(**props)
-        schema.add_module(self.module)
-        return self.module
-
-
-class AlterModule(named.CreateOrAlterNamedClass, ModuleCommand):
-    astnode = qlast.AlterModule
-
-    def apply(self, schema, context):
-        self.module = schema.get_module(self.classname)
-
-        props = self.get_struct_properties(schema)
-        for name, value in props.items():
-            setattr(self.module, name, value)
-
-        return self.module
-
-
-class DeleteModule(ModuleCommand):
-    astnode = qlast.DropModule
-
-    def apply(self, schema, context):
-        self.module = schema.get_module(self.classname)
-        schema.delete_module(self.module)
-        return self.module
-
-
 class Module(named.NamedClass):
     # Override 'name' to str type, since modules don't have
     # fully-qualified names.
@@ -281,3 +223,57 @@ class SchemaIterator:
 
     def __next__(self):
         return self.module.index_by_name[next(self.iter)]
+
+
+class ModuleCommandContext(sd.CommandContextToken):
+    def __init__(self, op, module=None):
+        super().__init__(op)
+        self.module = module
+
+
+class ModuleCommand(named.NamedClassCommand, schema_metaclass=Module,
+                    context_class=ModuleCommandContext):
+
+    classname = so.Field(str)
+
+    @classmethod
+    def _classname_from_ast(cls, astnode, context, schema):
+        if astnode.name.module:
+            classname = sn.Name(module=astnode.name.module,
+                                name=astnode.name.name)
+        else:
+            classname = astnode.name.name
+
+        return classname
+
+
+class CreateModule(named.CreateNamedClass, ModuleCommand):
+    astnode = qlast.CreateModule
+
+    def apply(self, schema, context):
+        props = self.get_struct_properties(schema)
+        self.module = self.metaclass(**props)
+        schema.add_module(self.module)
+        return self.module
+
+
+class AlterModule(named.CreateOrAlterNamedClass, ModuleCommand):
+    astnode = qlast.AlterModule
+
+    def apply(self, schema, context):
+        self.module = schema.get_module(self.classname)
+
+        props = self.get_struct_properties(schema)
+        for name, value in props.items():
+            setattr(self.module, name, value)
+
+        return self.module
+
+
+class DeleteModule(ModuleCommand):
+    astnode = qlast.DropModule
+
+    def apply(self, schema, context):
+        self.module = schema.get_module(self.classname)
+        schema.delete_module(self.module)
+        return self.module

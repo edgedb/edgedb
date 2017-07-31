@@ -33,13 +33,8 @@ class NamedClassCommand(sd.ClassCommand):
 
     @classmethod
     def _cmd_from_ast(cls, astnode, context, schema):
-        gpc = getattr(cls, '_get_metaclass', None)
-        if not callable(gpc):
-            raise NotImplementedError(
-                f'cannot determine metaclass for {cls.__name__}')
-
         classname = cls._classname_from_ast(astnode, context, schema)
-        metaclass = gpc()
+        metaclass = cls.get_schema_metaclass()
         return cls(classname=classname, metaclass=metaclass)
 
     def _append_subcmd_ast(cls, node, subcmd, context):
@@ -159,6 +154,8 @@ class CreateNamedClass(CreateOrAlterNamedClass, sd.CreateClass):
 
 
 class RenameNamedClass(NamedClassCommand):
+    _delta_action = 'rename'
+
     astnode = qlast.Rename
 
     new_name = so.Field(sn.Name)
@@ -225,14 +222,16 @@ class RenameNamedClass(NamedClassCommand):
     def _cmd_from_ast(cls, astnode, context, schema):
         parent_ctx = context.get(sd.CommandContextToken)
         parent_class = parent_ctx.op.metaclass
-        rename_class = NamedClassMeta.get_rename_command(parent_class)
+        rename_class = sd.ClassCommandMeta.get_command_class(
+            RenameNamedClass, parent_class)
         return rename_class._rename_cmd_from_ast(astnode, context)
 
     @classmethod
     def _rename_cmd_from_ast(cls, astnode, context):
         parent_ctx = context.get(sd.CommandContextToken)
         parent_class = parent_ctx.op.metaclass
-        rename_class = NamedClassMeta.get_rename_command(parent_class)
+        rename_class = sd.ClassCommandMeta.get_command_class(
+            RenameNamedClass, parent_class)
 
         new_name = astnode.new_name
         if new_name.name.startswith('__b32_'):
@@ -250,7 +249,7 @@ class RenameNamedClass(NamedClassCommand):
         )
 
 
-class AlterNamedClass(CreateOrAlterNamedClass):
+class AlterNamedClass(CreateOrAlterNamedClass, sd.AlterClass):
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
@@ -289,8 +288,11 @@ class AlterNamedClass(CreateOrAlterNamedClass):
                     added_bases.append((bases, pos))
 
         if added_bases or dropped_bases:
+            from . import inheriting
+
             parent_class = cmd.metaclass
-            rebase_class = NamedClassMeta.get_rebase_command(parent_class)
+            rebase_class = sd.ClassCommandMeta.get_command_class(
+                inheriting.RebaseNamedClass, parent_class)
 
             cmd.add(
                 rebase_class(
@@ -373,9 +375,6 @@ class AlterNamedClass(CreateOrAlterNamedClass):
             node = None
         return node
 
-    def get_context_token(self):
-        return self.context_class(self, None)
-
     def _alter_begin(self, schema, context, scls):
         for op in self.get_subcommands(type=RenameNamedClass):
             op.apply(schema, context)
@@ -396,7 +395,7 @@ class AlterNamedClass(CreateOrAlterNamedClass):
         scls = schema.get(self.classname, type=self.metaclass)
         self.scls = scls
 
-        with context(self.context_class(self, scls)) as ctx:
+        with self.new_context(context) as ctx:
             ctx.original_class = \
                 scls.__class__.get_canonical_class().copy(scls)
 
@@ -407,7 +406,7 @@ class AlterNamedClass(CreateOrAlterNamedClass):
         return scls
 
 
-class DeleteNamedClass(NamedClassCommand):
+class DeleteNamedClass(NamedClassCommand, sd.DeleteClass):
     def _delete_begin(self, schema, context, scls):
         pass
 
@@ -422,7 +421,7 @@ class DeleteNamedClass(NamedClassCommand):
         self.scls = scls
         self.old_class = scls
 
-        with context(self.context_class(self, scls)) as ctx:
+        with self.new_context(context) as ctx:
             ctx.original_class = scls
 
             self._delete_begin(schema, context, scls)
@@ -432,40 +431,7 @@ class DeleteNamedClass(NamedClassCommand):
         return scls
 
 
-class NamedClassMeta(type(so.Class)):
-    _rename_map = {}
-    _rebase_map = {}
-
-    def __new__(mcls, name, bases, dct):
-        cls = super().__new__(mcls, name, bases, dct)
-        dd = dct.get('delta_driver')
-        if dd is not None:
-            rename_cmd = dd.rename
-            if rename_cmd:
-                ccls = cls.get_canonical_class()
-                if ccls not in mcls._rename_map:
-                    mcls._rename_map[ccls] = rename_cmd
-
-            rebase_cmd = dd.rebase
-            if rebase_cmd:
-                ccls = cls.get_canonical_class()
-                if ccls not in mcls._rebase_map:
-                    mcls._rebase_map[ccls] = rebase_cmd
-
-        return cls
-
-    @classmethod
-    def get_rename_command(mcls, objcls):
-        cobjcls = objcls.get_canonical_class()
-        return mcls._rename_map.get(cobjcls)
-
-    @classmethod
-    def get_rebase_command(mcls, objcls):
-        cobjcls = objcls.get_canonical_class()
-        return mcls._rebase_map.get(cobjcls)
-
-
-class NamedClass(so.Class, metaclass=NamedClassMeta):
+class NamedClass(so.Class):
     name = so.Field(sn.Name, private=True, compcoef=0.640)
 
     @classmethod
@@ -517,16 +483,12 @@ class NamedClass(so.Class, metaclass=NamedClassMeta):
         super().delta_properties(delta, other, reverse, context)
 
     def delta_rename(self, new_name):
-        try:
-            delta_driver = self.delta_driver
-        except AttributeError:
-            msg = (f'missing required delta driver info '
-                   f'for {self.__class__.__name__}')
-            raise AttributeError(msg) from None
+        rename_class = sd.ClassCommandMeta.get_command_class_or_die(
+            RenameNamedClass, type(self))
 
-        return delta_driver.rename(classname=self.name,
-                                   new_name=new_name,
-                                   metaclass=self.get_canonical_class())
+        return rename_class(classname=self.name,
+                            new_name=new_name,
+                            metaclass=self.get_canonical_class())
 
     @classmethod
     def compare_values(cls, ours, theirs, context, compcoef):

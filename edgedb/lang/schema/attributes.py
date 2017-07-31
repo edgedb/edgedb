@@ -18,16 +18,107 @@ from . import referencing
 from . import utils
 
 
+class Attribute(primary.PrimaryClass):
+    _type = 'attribute'
+
+    type = so.Field(so.Class, compcoef=0.909)
+
+
+class AttributeValue(derivable.DerivableClass):
+    _type = 'attribute-value'
+
+    subject = so.Field(named.NamedClass, compcoef=1.0)
+    attribute = so.Field(Attribute, compcoef=0.429)
+    value = so.Field(object, compcoef=0.909)
+
+    def __str__(self):
+        return '<{}: {}={!r} at 0x{:x}>'.format(
+            self.__class__.__name__,
+            self.attribute.name if self.attribute else '<nil>',
+            self.value, id(self))
+
+    __repr__ = __str__
+
+
+class AttributeSubject(referencing.ReferencingClass):
+    attributes = referencing.RefDict(ref_cls=AttributeValue, compcoef=0.909)
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._attr_name_cache = None
+
+    def add_attribute(self, attribute, replace=False):
+        self.add_classref('attributes', attribute, replace=replace)
+        self._attr_name_cache = None
+
+    def del_attribute(self, attribute_name, schema):
+        self.del_classref('attributes', attribute_name, schema)
+
+    def delta_all_attributes(self, old, new, delta, context):
+        oldattributes = old.local_attributes if old else {}
+        newattributes = new.local_attributes if new else {}
+
+        self.delta_attributes(oldattributes, newattributes, delta, context)
+
+    def get_attribute(self, name):
+        value = None
+
+        try:
+            value = self.attributes[name]
+        except KeyError:
+            if self._attr_name_cache is None:
+                self._attr_name_cache = self._build_attr_name_cache()
+
+            try:
+                value = self._attr_name_cache[name]
+            except KeyError:
+                pass
+
+        return value
+
+    def _build_attr_name_cache(self):
+        _attr_name_cache = {}
+        ambiguous = set()
+
+        for an, attr in self.attributes.items():
+            if an.name in _attr_name_cache:
+                ambiguous.add(an.name)
+            _attr_name_cache[an.name] = attr
+
+        for amb in ambiguous:
+            del _attr_name_cache[amb]
+
+        return _attr_name_cache
+
+    @classmethod
+    def delta_attributes(cls, set1, set2, delta, context=None):
+        oldattributes = set(set1)
+        newattributes = set(set2)
+
+        for attribute in oldattributes - newattributes:
+            d = set1[attribute].delta(None, reverse=True, context=context)
+            delta.add(d)
+
+        for attribute in newattributes - oldattributes:
+            d = set2[attribute].delta(None, context=context)
+            delta.add(d)
+
+        for attribute in newattributes & oldattributes:
+            oldattr = set1[attribute]
+            newattr = set2[attribute]
+
+            if newattr.compare(oldattr, context=context) != 1.0:
+                d = newattr.delta(oldattr, context=context)
+                delta.add(d)
+
+
 class AttributeCommandContext(sd.ClassCommandContext):
     pass
 
 
-class AttributeCommand(sd.ClassCommand):
-    context_class = AttributeCommandContext
-
-    @classmethod
-    def _get_metaclass(cls):
-        return Attribute
+class AttributeCommand(sd.ClassCommand, schema_metaclass=Attribute,
+                       context_class=AttributeCommandContext):
+    pass
 
 
 class CreateAttribute(AttributeCommand, named.CreateNamedClass):
@@ -113,13 +204,8 @@ class AttributeValueCommandContext(sd.ClassCommandContext):
     pass
 
 
-class AttributeValueCommand(sd.ClassCommand):
-    context_class = AttributeValueCommandContext
-
-    @classmethod
-    def _get_metaclass(cls):
-        return AttributeValue
-
+class AttributeValueCommand(sd.ClassCommand, schema_metaclass=AttributeValue,
+                            context_class=AttributeValueCommandContext):
     @classmethod
     def _classname_from_ast(cls, astnode, context, schema):
         propname = super()._classname_from_ast(astnode, context, schema)
@@ -292,111 +378,3 @@ class DeleteAttributeValue(AttributeValueCommand, named.DeleteNamedClass):
         self.delete_attribute(self.classname, attrsubj.scls, schema)
 
         return super().apply(schema, context)
-
-
-class Attribute(primary.PrimaryClass):
-    _type = 'attribute'
-
-    type = so.Field(so.Class, compcoef=0.909)
-
-    delta_driver = sd.DeltaDriver(
-        create=CreateAttribute,
-        alter=AlterAttribute,
-        rename=RenameAttribute,
-        delete=DeleteAttribute
-    )
-
-
-class AttributeValue(derivable.DerivableClass):
-    _type = 'attribute-value'
-
-    subject = so.Field(named.NamedClass, compcoef=1.0)
-    attribute = so.Field(Attribute, compcoef=0.429)
-    value = so.Field(object, compcoef=0.909)
-
-    delta_driver = sd.DeltaDriver(
-        create=CreateAttributeValue,
-        alter=AlterAttributeValue,
-        rename=RenameAttributeValue,
-        delete=DeleteAttributeValue
-    )
-
-    def __str__(self):
-        return '<{}: {}={!r} at 0x{:x}>'.format(
-            self.__class__.__name__,
-            self.attribute.name if self.attribute else '<nil>',
-            self.value, id(self))
-
-    __repr__ = __str__
-
-
-class AttributeSubject(referencing.ReferencingClass):
-    attributes = referencing.RefDict(ref_cls=AttributeValue, compcoef=0.909)
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self._attr_name_cache = None
-
-    def add_attribute(self, attribute, replace=False):
-        self.add_classref('attributes', attribute, replace=replace)
-        self._attr_name_cache = None
-
-    def del_attribute(self, attribute_name, schema):
-        self.del_classref('attributes', attribute_name, schema)
-
-    def delta_all_attributes(self, old, new, delta, context):
-        oldattributes = old.local_attributes if old else {}
-        newattributes = new.local_attributes if new else {}
-
-        self.delta_attributes(oldattributes, newattributes, delta, context)
-
-    def get_attribute(self, name):
-        value = None
-
-        try:
-            value = self.attributes[name]
-        except KeyError:
-            if self._attr_name_cache is None:
-                self._attr_name_cache = self._build_attr_name_cache()
-
-            try:
-                value = self._attr_name_cache[name]
-            except KeyError:
-                pass
-
-        return value
-
-    def _build_attr_name_cache(self):
-        _attr_name_cache = {}
-        ambiguous = set()
-
-        for an, attr in self.attributes.items():
-            if an.name in _attr_name_cache:
-                ambiguous.add(an.name)
-            _attr_name_cache[an.name] = attr
-
-        for amb in ambiguous:
-            del _attr_name_cache[amb]
-
-        return _attr_name_cache
-
-    @classmethod
-    def delta_attributes(cls, set1, set2, delta, context=None):
-        oldattributes = set(set1)
-        newattributes = set(set2)
-
-        for attribute in oldattributes - newattributes:
-            d = set1[attribute].delta(None, reverse=True, context=context)
-            delta.add(d)
-
-        for attribute in newattributes - oldattributes:
-            d = set2[attribute].delta(None, context=context)
-            delta.add(d)
-
-        for attribute in newattributes & oldattributes:
-            oldattr = set1[attribute]
-            newattr = set2[attribute]
-
-            if newattr.compare(oldattr, context=context) != 1.0:
-                d = newattr.delta(oldattr, context=context)
-                delta.add(d)

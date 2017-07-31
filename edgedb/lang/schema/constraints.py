@@ -23,189 +23,6 @@ from . import primary
 from . import referencing
 
 
-class ConsistencySubjectCommandContext:
-    # context mixin
-    pass
-
-
-class ConsistencySubjectCommand(sd.ClassCommand):
-    def _create_innards(self, schema, context):
-        super()._create_innards(schema, context)
-
-        for op in self.get_subcommands(type=ConstraintCommand):
-            op.apply(schema, context=context)
-
-    def _alter_innards(self, schema, context, scls):
-        super()._alter_innards(schema, context, scls)
-
-        for op in self.get_subcommands(type=ConstraintCommand):
-            op.apply(schema, context=context)
-
-    def _delete_innards(self, schema, context, scls):
-        super()._delete_innards(schema, context, scls)
-
-        for op in self.get_subcommands(type=ConstraintCommand):
-            op.apply(schema, context=context)
-
-    def _apply_fields_ast(self, context, node):
-        super()._apply_fields_ast(context, node)
-
-        for op in self.get_subcommands(type=ConstraintCommand):
-            self._append_subcmd_ast(node, op, context)
-
-
-class ConstraintCommandContext(sd.ClassCommandContext):
-    pass
-
-
-class ConstraintCommand(referencing.ReferencedClassCommand):
-    context_class = ConstraintCommandContext
-    referrer_context_class = ConsistencySubjectCommandContext
-
-    @classmethod
-    def _get_metaclass(cls):
-        return Constraint
-
-    def add_constraint(self, constraint, parent, schema):
-        parent.add_constraint(constraint)
-
-    def delete_constraint(self, constraint_name, parent, schema):
-        parent.del_constraint(constraint_name, schema)
-
-    def _create_begin(self, schema, context):
-        super()._create_begin(schema, context)
-
-        referrer_ctx = context.get(self.referrer_context_class)
-        if referrer_ctx is not None and self.scls.finalexpr is None:
-            Constraint.process_specialized_constraint(schema, self.scls)
-
-    def _alter_begin(self, schema, context, scls):
-        super()._alter_begin(schema, context, scls)
-
-
-class CreateConstraint(ConstraintCommand,
-                       referencing.CreateReferencedClass,
-                       s_func.FunctionCommandMixin):
-
-    astnode = [qlast.CreateConcreteConstraint, qlast.CreateConstraint]
-    referenced_astnode = qlast.CreateConcreteConstraint
-
-    @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context, schema):
-        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
-
-        if isinstance(astnode, qlast.CreateConcreteConstraint):
-            if astnode.args:
-                args_ql = qlast.Tuple(elements=astnode.args)
-
-                args_expr = s_expr.ExpressionText(
-                    edgeql.generate_source(args_ql, pretty=False))
-
-                cmd.add(
-                    sd.AlterClassProperty(
-                        property='args',
-                        new_value=args_expr
-                    )
-                )
-
-        elif isinstance(astnode, qlast.CreateConstraint):
-            if astnode.args:
-                paramnames, paramdefaults, paramtypes, variadic = \
-                    cls._parameters_from_ast(astnode)
-
-                if variadic:
-                    raise ql_errors.EdgeQLError(
-                        'constraints do not support variadic parameters',
-                        context=astnode.context)
-
-                for pname, pdefault, ptype in zip(paramnames, paramdefaults,
-                                                  paramtypes):
-                    if pname is not None:
-                        raise ql_errors.EdgeQLError(
-                            'constraints do not support named parameters',
-                            context=astnode.context)
-
-                    if pdefault is not None:
-                        raise ql_errors.EdgeQLError(
-                            'constraints do not support parameters '
-                            'with defaults',
-                            context=astnode.context)
-
-                    if ptype is None:
-                        raise ql_errors.EdgeQLError(
-                            'untyped parameter', context=astnode.context)
-
-                    cmd.add(sd.AlterClassProperty(
-                        property='paramtypes',
-                        new_value=paramtypes
-                    ))
-
-        return cmd
-
-    def _apply_field_ast(self, context, node, op):
-        if op.property == 'is_derived':
-            pass
-        elif op.property == 'is_abstract':
-            node.is_abstract = op.new_value
-        elif op.property == 'subject':
-            pass
-        else:
-            super()._apply_field_ast(context, node, op)
-
-
-class RenameConstraint(ConstraintCommand, named.RenameNamedClass):
-    pass
-
-
-class AlterConstraint(ConstraintCommand, named.AlterNamedClass):
-    astnode = [qlast.AlterConcreteConstraint, qlast.AlterConstraint]
-    referenced_astnode = qlast.AlterConcreteConstraint
-
-    @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context, schema):
-        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
-
-        if isinstance(astnode, qlast.AlterConcreteConstraint):
-            subject_ctx = context.get(ConsistencySubjectCommandContext)
-            new_subject_name = None
-            for op in subject_ctx.op(named.RenameNamedClass):
-                new_subject_name = op.new_name
-
-            if new_subject_name is not None:
-                cmd.add(
-                    sd.AlterClassProperty(
-                        property='subject',
-                        new_value=so.ClassRef(
-                            classname=new_subject_name
-                        )
-                    )
-                )
-
-            new_name = None
-            for op in cmd(RenameConstraint):
-                new_name = op.new_name
-
-            if new_name is not None:
-                cmd.add(
-                    sd.AlterClassProperty(
-                        property='name',
-                        new_value=new_name
-                    )
-                )
-
-        return cmd
-
-    def _apply_field_ast(self, context, node, op):
-        if op.property == 'subject':
-            return
-        super()._apply_field_ast(context, node, op)
-
-
-class DeleteConstraint(ConstraintCommand, named.DeleteNamedClass):
-    astnode = [qlast.DropConcreteConstraint, qlast.DropConstraint]
-    referenced_astnode = qlast.DropConcreteConstraint
-
-
 class CumulativeBoolExpr(s_expr.ExpressionText):
     @classmethod
     def merge_values(cls, ours, theirs, schema):
@@ -245,13 +62,6 @@ class Constraint(primary.PrimaryClass, derivable.DerivableClass):
                     compcoef=0.875)
 
     errmessage = so.Field(str, default=None, compcoef=0.971)
-
-    delta_driver = sd.DeltaDriver(
-        create=CreateConstraint,
-        alter=AlterConstraint,
-        rename=RenameConstraint,
-        delete=DeleteConstraint
-    )
 
     def generic(self):
         return self.subject is None
@@ -454,3 +264,183 @@ class ConsistencySubject(referencing.ReferencingClass):
         newconstraints = new.local_constraints if new else {}
 
         self.delta_constraints(oldconstraints, newconstraints, delta, context)
+
+
+class ConsistencySubjectCommandContext:
+    # context mixin
+    pass
+
+
+class ConsistencySubjectCommand(sd.ClassCommand):
+    def _create_innards(self, schema, context):
+        super()._create_innards(schema, context)
+
+        for op in self.get_subcommands(type=ConstraintCommand):
+            op.apply(schema, context=context)
+
+    def _alter_innards(self, schema, context, scls):
+        super()._alter_innards(schema, context, scls)
+
+        for op in self.get_subcommands(type=ConstraintCommand):
+            op.apply(schema, context=context)
+
+    def _delete_innards(self, schema, context, scls):
+        super()._delete_innards(schema, context, scls)
+
+        for op in self.get_subcommands(type=ConstraintCommand):
+            op.apply(schema, context=context)
+
+    def _apply_fields_ast(self, context, node):
+        super()._apply_fields_ast(context, node)
+
+        for op in self.get_subcommands(type=ConstraintCommand):
+            self._append_subcmd_ast(node, op, context)
+
+
+class ConstraintCommandContext(sd.ClassCommandContext):
+    pass
+
+
+class ConstraintCommand(
+        referencing.ReferencedClassCommand,
+        schema_metaclass=Constraint, context_class=ConstraintCommandContext,
+        referrer_context_class=ConsistencySubjectCommandContext):
+
+    def add_constraint(self, constraint, parent, schema):
+        parent.add_constraint(constraint)
+
+    def delete_constraint(self, constraint_name, parent, schema):
+        parent.del_constraint(constraint_name, schema)
+
+    def _create_begin(self, schema, context):
+        super()._create_begin(schema, context)
+
+        referrer_ctx = self.get_referrer_context(context)
+        if referrer_ctx is not None and self.scls.finalexpr is None:
+            Constraint.process_specialized_constraint(schema, self.scls)
+
+    def _alter_begin(self, schema, context, scls):
+        super()._alter_begin(schema, context, scls)
+
+
+class CreateConstraint(ConstraintCommand,
+                       referencing.CreateReferencedClass,
+                       s_func.FunctionCommandMixin):
+
+    astnode = [qlast.CreateConcreteConstraint, qlast.CreateConstraint]
+    referenced_astnode = qlast.CreateConcreteConstraint
+
+    @classmethod
+    def _cmd_tree_from_ast(cls, astnode, context, schema):
+        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
+
+        if isinstance(astnode, qlast.CreateConcreteConstraint):
+            if astnode.args:
+                args_ql = qlast.Tuple(elements=astnode.args)
+
+                args_expr = s_expr.ExpressionText(
+                    edgeql.generate_source(args_ql, pretty=False))
+
+                cmd.add(
+                    sd.AlterClassProperty(
+                        property='args',
+                        new_value=args_expr
+                    )
+                )
+
+        elif isinstance(astnode, qlast.CreateConstraint):
+            if astnode.args:
+                paramnames, paramdefaults, paramtypes, variadic = \
+                    cls._parameters_from_ast(astnode)
+
+                if variadic:
+                    raise ql_errors.EdgeQLError(
+                        'constraints do not support variadic parameters',
+                        context=astnode.context)
+
+                for pname, pdefault, ptype in zip(paramnames, paramdefaults,
+                                                  paramtypes):
+                    if pname is not None:
+                        raise ql_errors.EdgeQLError(
+                            'constraints do not support named parameters',
+                            context=astnode.context)
+
+                    if pdefault is not None:
+                        raise ql_errors.EdgeQLError(
+                            'constraints do not support parameters '
+                            'with defaults',
+                            context=astnode.context)
+
+                    if ptype is None:
+                        raise ql_errors.EdgeQLError(
+                            'untyped parameter', context=astnode.context)
+
+                    cmd.add(sd.AlterClassProperty(
+                        property='paramtypes',
+                        new_value=paramtypes
+                    ))
+
+        return cmd
+
+    def _apply_field_ast(self, context, node, op):
+        if op.property == 'is_derived':
+            pass
+        elif op.property == 'is_abstract':
+            node.is_abstract = op.new_value
+        elif op.property == 'subject':
+            pass
+        else:
+            super()._apply_field_ast(context, node, op)
+
+
+class RenameConstraint(ConstraintCommand, named.RenameNamedClass):
+    pass
+
+
+class AlterConstraint(ConstraintCommand, named.AlterNamedClass):
+    astnode = [qlast.AlterConcreteConstraint, qlast.AlterConstraint]
+    referenced_astnode = qlast.AlterConcreteConstraint
+
+    @classmethod
+    def _cmd_tree_from_ast(cls, astnode, context, schema):
+        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
+
+        if isinstance(astnode, qlast.AlterConcreteConstraint):
+            subject_ctx = context.get(ConsistencySubjectCommandContext)
+            new_subject_name = None
+            for op in subject_ctx.op(named.RenameNamedClass):
+                new_subject_name = op.new_name
+
+            if new_subject_name is not None:
+                cmd.add(
+                    sd.AlterClassProperty(
+                        property='subject',
+                        new_value=so.ClassRef(
+                            classname=new_subject_name
+                        )
+                    )
+                )
+
+            new_name = None
+            for op in cmd(RenameConstraint):
+                new_name = op.new_name
+
+            if new_name is not None:
+                cmd.add(
+                    sd.AlterClassProperty(
+                        property='name',
+                        new_value=new_name
+                    )
+                )
+
+        return cmd
+
+    def _apply_field_ast(self, context, node, op):
+        if op.property == 'subject':
+            return
+        super()._apply_field_ast(context, node, op)
+
+
+class DeleteConstraint(ConstraintCommand, named.DeleteNamedClass):
+    astnode = [qlast.DropConcreteConstraint, qlast.DropConstraint]
+    referenced_astnode = qlast.DropConcreteConstraint

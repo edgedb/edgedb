@@ -19,17 +19,38 @@ from . import primary
 from . import utils
 
 
+class Function(primary.PrimaryClass):
+    _type = 'function'
+
+    paramnames = so.Field(so.StringList, default=None, coerce=True,
+                          compcoef=0.4)
+
+    paramtypes = so.Field(so.TypeList, default=None, coerce=True,
+                          compcoef=0.4)
+
+    # Number of the variadic parameter (+1)
+    varparam = so.Field(int, default=None, compcoef=0.4)
+
+    paramdefaults = so.Field(expr.ExpressionList, default=None, coerce=True)
+    returntype = so.Field(so.Class, compcoef=0.2)
+    aggregate = so.Field(bool, default=False, compcoef=0.4)
+
+    code = so.Field(str, default=None, compcoef=0.4)
+    language = so.Field(qlast.Language, default=None, compcoef=0.4,
+                        coerce=True)
+    from_function = so.Field(str, default=None, compcoef=0.4)
+
+    initial_value = so.Field(expr.ExpressionText, default=None, compcoef=0.4,
+                             coerce=True)
+
+    set_returning = so.Field(bool, default=False, compcoef=0.4)
+
+
 class FunctionCommandContext(sd.ClassCommandContext):
     pass
 
 
 class FunctionCommandMixin:
-    context_class = FunctionCommandContext
-
-    @classmethod
-    def _get_metaclass(cls):
-        return Function
-
     @classmethod
     def _get_function_fullname(cls, name, paramtypes):
         quals = []
@@ -72,7 +93,13 @@ class FunctionCommandMixin:
         return paramnames, paramdefaults, paramtypes, variadic
 
 
-class CreateFunction(named.CreateNamedClass, FunctionCommandMixin):
+class FunctionCommand(named.NamedClassCommand, FunctionCommandMixin,
+                      schema_metaclass=Function,
+                      context_class=FunctionCommandContext):
+    pass
+
+
+class CreateFunction(named.CreateNamedClass, FunctionCommand):
     astnode = qlast.CreateFunction
 
     def get_struct_properties(self, schema):
@@ -169,15 +196,15 @@ class CreateFunction(named.CreateNamedClass, FunctionCommandMixin):
         return cmd
 
 
-class RenameFunction(named.RenameNamedClass, FunctionCommandMixin):
+class RenameFunction(named.RenameNamedClass, FunctionCommand):
     pass
 
 
-class AlterFunction(named.AlterNamedClass, FunctionCommandMixin):
+class AlterFunction(named.AlterNamedClass, FunctionCommand):
     astnode = qlast.AlterFunction
 
 
-class DeleteFunction(named.DeleteNamedClass, FunctionCommandMixin):
+class DeleteFunction(named.DeleteNamedClass, FunctionCommand):
     astnode = qlast.DropFunction
 
     @classmethod
@@ -187,37 +214,3 @@ class DeleteFunction(named.DeleteNamedClass, FunctionCommandMixin):
         _, _, paramtypes, _ = cls._parameters_from_ast(astnode)
 
         return cls._get_function_fullname(name, paramtypes)
-
-
-class Function(primary.PrimaryClass):
-    _type = 'function'
-
-    paramnames = so.Field(so.StringList, default=None, coerce=True,
-                          compcoef=0.4)
-
-    paramtypes = so.Field(so.TypeList, default=None, coerce=True,
-                          compcoef=0.4)
-
-    # Number of the variadic parameter (+1)
-    varparam = so.Field(int, default=None, compcoef=0.4)
-
-    paramdefaults = so.Field(expr.ExpressionList, default=None, coerce=True)
-    returntype = so.Field(so.Class, compcoef=0.2)
-    aggregate = so.Field(bool, default=False, compcoef=0.4)
-
-    code = so.Field(str, default=None, compcoef=0.4)
-    language = so.Field(qlast.Language, default=None, compcoef=0.4,
-                        coerce=True)
-    from_function = so.Field(str, default=None, compcoef=0.4)
-
-    initial_value = so.Field(expr.ExpressionText, default=None, compcoef=0.4,
-                             coerce=True)
-
-    set_returning = so.Field(bool, default=False, compcoef=0.4)
-
-    delta_driver = sd.DeltaDriver(
-        create=CreateFunction,
-        alter=AlterFunction,
-        rename=RenameFunction,
-        delete=DeleteFunction
-    )

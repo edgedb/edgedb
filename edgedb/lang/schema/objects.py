@@ -283,12 +283,7 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
             return None
 
     def delta(self, other, reverse=False, context=None):
-        try:
-            delta_driver = self.delta_driver
-        except AttributeError:
-            raise AttributeError(
-                'missing required delta driver info for'
-                f'{self.__class__.__name__}') from None
+        from . import delta as sd
 
         old, new = (other, self) if not reverse else (self, other)
 
@@ -302,7 +297,9 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
             else:
                 command_args['classname'] = name
 
-            delta = delta_driver.alter(metaclass=new.__class__, **command_args)
+            alter_class = sd.ClassCommandMeta.get_command_class_or_die(
+                sd.AlterClass, type(self))
+            delta = alter_class(metaclass=new.__class__, **command_args)
             self.delta_properties(delta, other, reverse, context=context)
 
         elif not old:
@@ -313,8 +310,9 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
             else:
                 command_args['classname'] = name
 
-            delta = delta_driver.create(metaclass=new.__class__,
-                                        **command_args)
+            create_class = sd.ClassCommandMeta.get_command_class_or_die(
+                sd.CreateClass, type(self))
+            delta = create_class(metaclass=new.__class__, **command_args)
             self.delta_properties(delta, other, reverse, context=context)
 
         else:
@@ -325,8 +323,9 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
             else:
                 command_args['classname'] = name
 
-            delta = delta_driver.delete(metaclass=old.__class__,
-                                        **command_args)
+            delete_class = sd.ClassCommandMeta.get_command_class_or_die(
+                sd.DeleteClass, type(self))
+            delta = delete_class(metaclass=old.__class__, **command_args)
 
         return delta
 
@@ -501,8 +500,8 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
         from edgedb.lang.schema import named as s_named
         from edgedb.lang.schema import database as s_db
 
-        adds_mods = s_db.AlterDatabase()
-        dels = s_db.AlterDatabase()
+        adds_mods = s_db.AlterDatabase(metaclass=s_db.Database)
+        dels = s_db.AlterDatabase(metaclass=s_db.Database)
 
         if old is None:
             for n in new:

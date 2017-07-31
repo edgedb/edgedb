@@ -20,79 +20,12 @@ from . import objects as so
 from . import types as s_types
 
 
-class AtomCommandContext(sd.ClassCommandContext,
-                         attributes.AttributeSubjectCommandContext,
-                         constraints.ConsistencySubjectCommandContext,
-                         nodes.NodeCommandContext):
-    def __setattr__(self, name, value):
-        super().__setattr__(name, value)
-        if (name == 'scls' and value is not None and
-                value.__class__.__name__ != 'Atom'):
-            assert False, value
-
-
-class AtomCommand(constraints.ConsistencySubjectCommand,
-                  attributes.AttributeSubjectCommand,
-                  nodes.NodeCommand):
-    context_class = AtomCommandContext
-
-    @classmethod
-    def _get_metaclass(cls):
-        return Atom
-
-
-class CreateAtom(AtomCommand, inheriting.CreateInheritingClass):
-    astnode = qlast.CreateAtom
-
-    @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context, schema):
-        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
-
-        for sub in cmd.get_subcommands(type=sd.AlterClassProperty):
-            if sub.property == 'default':
-                sub.new_value = [sub.new_value]
-
-        return cmd
-
-    def _apply_field_ast(self, context, node, op):
-        if op.property == 'default':
-            if op.new_value:
-                op.new_value = op.new_value[0]
-                super()._apply_field_ast(context, node, op)
-        else:
-            super()._apply_field_ast(context, node, op)
-
-
-class RenameAtom(AtomCommand, named.RenameNamedClass):
-    pass
-
-
-class RebaseAtom(AtomCommand, inheriting.RebaseNamedClass):
-    pass
-
-
-class AlterAtom(AtomCommand, inheriting.AlterInheritingClass):
-    astnode = qlast.AlterAtom
-
-
-class DeleteAtom(AtomCommand, inheriting.DeleteInheritingClass):
-    astnode = qlast.DropAtom
-
-
 class Atom(nodes.Node, constraints.ConsistencySubject,
            attributes.AttributeSubject, so.NodeClass):
     _type = 'atom'
 
     default = so.Field(expr.ExpressionText, default=None,
                        coerce=True, compcoef=0.909)
-
-    delta_driver = sd.DeltaDriver(
-        create=CreateAtom,
-        alter=AlterAtom,
-        rebase=RebaseAtom,
-        rename=RenameAtom,
-        delete=DeleteAtom
-    )
 
     def _get_deps(self):
         deps = super()._get_deps()
@@ -146,3 +79,56 @@ class Atom(nodes.Node, constraints.ConsistencySubject,
             return base_t(value)
         else:
             return value
+
+
+class AtomCommandContext(sd.ClassCommandContext,
+                         attributes.AttributeSubjectCommandContext,
+                         constraints.ConsistencySubjectCommandContext,
+                         nodes.NodeCommandContext):
+    pass
+
+
+class AtomCommand(constraints.ConsistencySubjectCommand,
+                  attributes.AttributeSubjectCommand,
+                  nodes.NodeCommand,
+                  schema_metaclass=Atom,
+                  context_class=AtomCommandContext):
+    pass
+
+
+class CreateAtom(AtomCommand, inheriting.CreateInheritingClass):
+    astnode = qlast.CreateAtom
+
+    @classmethod
+    def _cmd_tree_from_ast(cls, astnode, context, schema):
+        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
+
+        for sub in cmd.get_subcommands(type=sd.AlterClassProperty):
+            if sub.property == 'default':
+                sub.new_value = [sub.new_value]
+
+        return cmd
+
+    def _apply_field_ast(self, context, node, op):
+        if op.property == 'default':
+            if op.new_value:
+                op.new_value = op.new_value[0]
+                super()._apply_field_ast(context, node, op)
+        else:
+            super()._apply_field_ast(context, node, op)
+
+
+class RenameAtom(AtomCommand, named.RenameNamedClass):
+    pass
+
+
+class RebaseAtom(AtomCommand, inheriting.RebaseNamedClass):
+    pass
+
+
+class AlterAtom(AtomCommand, inheriting.AlterInheritingClass):
+    astnode = qlast.AlterAtom
+
+
+class DeleteAtom(AtomCommand, inheriting.DeleteInheritingClass):
+    astnode = qlast.DropAtom

@@ -457,7 +457,7 @@ class Backend(s_deltarepo.DeltaProvider):
             delta = delta_cmd.apply(schema, context)
 
             if isinstance(delta_cmd, s_deltas.CommitDelta):
-                ddl_plan = s_db.AlterDatabase()
+                ddl_plan = s_db.AlterDatabase(metaclass=s_db.Database)
 
                 if delta.commands:
                     ddl_plan.update(delta.commands)

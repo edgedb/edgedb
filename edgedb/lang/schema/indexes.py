@@ -19,6 +19,30 @@ from . import primary
 from . import referencing
 
 
+class SourceIndex(derivable.DerivableClass):
+    _type = 'index'
+
+    subject = so.Field(primary.PrimaryClass)
+    expr = so.Field(str, compcoef=0.909)
+
+    def __repr__(self):
+        cls = self.__class__
+        return '<{}.{} {!r} {!r} at 0x{:x}>'.format(
+            cls.__module__, cls.__name__, self.name, self.expr, id(self))
+
+    __str__ = __repr__
+
+
+class IndexableSubject(referencing.ReferencingClass):
+    indexes = referencing.RefDict(ref_cls=SourceIndex, compcoef=0.909)
+
+    def add_index(self, index):
+        self.add_classref('indexes', index)
+
+    def del_index(self, index, schema):
+        self.del_classref('indexes', index, schema)
+
+
 class IndexSourceCommandContext:
     pass
 
@@ -53,14 +77,10 @@ class SourceIndexCommandContext(sd.ClassCommandContext):
     pass
 
 
-class SourceIndexCommand(referencing.ReferencedClassCommand):
-    context_class = SourceIndexCommandContext
-    referrer_context_class = IndexSourceCommandContext
-
-    @classmethod
-    def _get_metaclass(cls):
-        return SourceIndex
-
+class SourceIndexCommand(referencing.ReferencedClassCommand,
+                         schema_metaclass=SourceIndex,
+                         context_class=SourceIndexCommandContext,
+                         referrer_context_class=IndexSourceCommandContext):
     @classmethod
     def _classname_from_ast(cls, astnode, context, schema):
         parent_ctx = context.get(sd.CommandContextToken)
@@ -127,34 +147,3 @@ class AlterSourceIndex(SourceIndexCommand, named.AlterNamedClass):
 
 class DeleteSourceIndex(SourceIndexCommand, named.DeleteNamedClass):
     astnode = qlast.DropIndex
-
-
-class SourceIndex(derivable.DerivableClass):
-    _type = 'index'
-
-    subject = so.Field(primary.PrimaryClass)
-    expr = so.Field(str, compcoef=0.909)
-
-    delta_driver = sd.DeltaDriver(
-        create=CreateSourceIndex,
-        alter=AlterSourceIndex,
-        delete=DeleteSourceIndex,
-        rename=RenameSourceIndex
-    )
-
-    def __repr__(self):
-        cls = self.__class__
-        return '<{}.{} {!r} {!r} at 0x{:x}>'.format(
-            cls.__module__, cls.__name__, self.name, self.expr, id(self))
-
-    __str__ = __repr__
-
-
-class IndexableSubject(referencing.ReferencingClass):
-    indexes = referencing.RefDict(ref_cls=SourceIndex, compcoef=0.909)
-
-    def add_index(self, index):
-        self.add_classref('indexes', index)
-
-    def del_index(self, index, schema):
-        self.del_classref('indexes', index, schema)

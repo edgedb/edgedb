@@ -22,7 +22,7 @@ class MetaDeltaRepository:
         if d.script:
             delta_script = edgeql.parse_block(d.script)
 
-            alter_db = s_db.AlterDatabase()
+            alter_db = s_db.AlterDatabase(metaclass=s_db.Database)
             context = sd.CommandContext()
 
             with context(s_db.DatabaseCommandContext(alter_db)):
@@ -163,7 +163,7 @@ class MetaDeltaRepository:
         v1, v1_schema, v2, v2_schema, d = self._cumulative_delta(ref1, ref2)
 
         if d is None and (preprocess is not None or postprocess is not None):
-            d = s_db.AlterDatabase()
+            d = s_db.AlterDatabase(metaclass=s_db.Database)
 
         if d is not None:
             parent_id = v1.id if v1 else None

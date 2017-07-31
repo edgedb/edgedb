@@ -38,9 +38,8 @@ class DeltaCommandContext(sd.CommandContextToken):
     pass
 
 
-class DeltaCommand(named.NamedClassCommand):
-    context_class = DeltaCommandContext
-
+class DeltaCommand(named.NamedClassCommand, schema_metaclass=Delta,
+                   context_class=DeltaCommandContext):
     @classmethod
     def _classname_from_ast(cls, astnode, context, schema):
         if astnode.name.module:
@@ -50,10 +49,6 @@ class DeltaCommand(named.NamedClassCommand):
             classname = astnode.name.name
 
         return classname
-
-    @classmethod
-    def _get_metaclass(cls):
-        return Delta
 
 
 class CreateDelta(named.CreateNamedClass, DeltaCommand):

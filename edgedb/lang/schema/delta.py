@@ -28,7 +28,7 @@ from . import utils
 def delta_schemas(schema1, schema2, *, include_derived=False):
     from . import modules, objects as so, database
 
-    result = database.AlterDatabase()
+    result = database.AlterDatabase(metaclass=database.Database)
 
     my_modules = set(schema1.modules)
     other_modules = set(schema2.modules)
@@ -98,7 +98,7 @@ def delta_schemas(schema1, schema2, *, include_derived=False):
 def delta_module(schema1, schema2, modname):
     from . import modules, objects as so, database
 
-    result = database.AlterDatabase()
+    result = database.AlterDatabase(metaclass=database.Database)
 
     try:
         module2 = schema2.get_module(modname)
@@ -287,16 +287,6 @@ class DeltaRef:
         return result
 
 
-class DeltaDriver:
-    def __init__(self, *, create=None, alter=None, rebase=None,
-                 rename=None, delete=None):
-        self.create = create
-        self.alter = alter
-        self.rebase = rebase
-        self.rename = rename
-        self.delete = delete
-
-
 class Delta(struct.MixedStruct, metaclass=DeltaMeta):
     CURRENT_FORMAT_VERSION = 14
 
@@ -391,7 +381,15 @@ class CommandMeta(adapter.Adapter, struct.MixedStructMeta,
 
     _astnode_map = {}
 
-    def __init__(cls, name, bases, clsdict, *, adapts=None):
+    def __new__(mcls, name, bases, dct, *, context_class=None, **kwargs):
+        cls = super().__new__(mcls, name, bases, dct, **kwargs)
+
+        if context_class is not None:
+            cls._context_class = context_class
+
+        return cls
+
+    def __init__(cls, name, bases, clsdict, *, adapts=None, **kwargs):
         adapter.Adapter.__init__(cls, name, bases, clsdict, adapts=adapts)
         struct.MixedStructMeta.__init__(cls, name, bases, clsdict)
         astnodes = clsdict.get('astnode')
@@ -411,10 +409,15 @@ class CommandMeta(adapter.Adapter, struct.MixedStructMeta,
                 mapping[astnode] = cls
 
 
+_void = object()
+
+
 class Command(struct.MixedStruct, metaclass=CommandMeta):
     """Abstract base class for all delta commands."""
 
     source_context = struct.Field(object, default=None)
+
+    _context_class = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -573,22 +576,18 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         pass
 
     def upgrade(self, context, format_ver, schema):
-        try:
-            context_class = self.__class__.context_class
-        except AttributeError:
+        if context is None:
+            context = CommandContext()
+
+        with self.new_context(context):
             for op in self.ops:
                 op.upgrade(context, format_ver, schema)
-        else:
-            with context(context_class(self)):
-                for op in self.ops:
-                    op.upgrade(context, format_ver, schema)
 
     def get_ast(self, context=None):
         if context is None:
             context = CommandContext()
 
-        context_class = self.__class__.context_class
-        with context(context_class(self)):
+        with self.new_context(context):
             return self._get_ast(context)
 
     @classmethod
@@ -614,7 +613,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         cmd.source_context = astnode.context
 
         if getattr(astnode, 'commands', None):
-            context_class = getattr(cls, 'context_class', None)
+            context_class = cls.get_context_class()
 
             if context_class is not None:
                 with context(context_class(cmd)):
@@ -650,6 +649,20 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
                 node.add_child(node=markup.serialize(dd, ctx=ctx))
 
         return node
+
+    @classmethod
+    def get_context_class(cls):
+        return cls._context_class
+
+    def new_context(self, context, scls=_void):
+        if context is None:
+            context = CommandContext()
+
+        if scls is _void:
+            scls = getattr(self, 'scls', None)
+
+        context_class = self.get_context_class()
+        return context(context_class(self, scls))
 
     def __str__(self):
         return struct.MixedStruct.__str__(self)
@@ -701,6 +714,9 @@ class CommandContext:
         return self.stack.pop()
 
     def get(self, cls):
+        if issubclass(cls, Command):
+            cls = cls.get_context_class()
+
         for item in reversed(self.stack):
             if isinstance(item, cls):
                 return item
@@ -743,10 +759,58 @@ class DeltaUpgradeContext(CommandContext):
         self.new_format_ver = new_format_ver
 
 
-class ClassCommand(Command):
+class ClassCommandMeta(type(Command)):
+    _transparent_adapter_subclass = True
+    _schema_metaclasses = {}
+
+    def __new__(mcls, name, bases, dct, *, schema_metaclass=None, **kwargs):
+        cls = super().__new__(mcls, name, bases, dct, **kwargs)
+        if cls.get_adaptee() is not None:
+            # This is a command adapter rather than the actual
+            # command, so skip the registrations.
+            return cls
+
+        if (schema_metaclass is not None or
+                not hasattr(cls, '_schema_metaclass')):
+            cls._schema_metaclass = schema_metaclass
+
+        delta_action = getattr(cls, '_delta_action', None)
+        if cls._schema_metaclass is not None and delta_action is not None:
+            key = delta_action, cls._schema_metaclass
+            cmdcls = mcls._schema_metaclasses.get(key)
+            if cmdcls is not None:
+                raise TypeError(
+                    f'Action {cls._delta_action!r} for '
+                    f'{cls._schema_metaclass} is already claimed by {cmdcls}'
+                )
+            mcls._schema_metaclasses[key] = cls
+
+        return cls
+
+    @classmethod
+    def get_command_class(mcls, cmdtype, schema_metaclass):
+        return mcls._schema_metaclasses.get(
+            (cmdtype._delta_action, schema_metaclass))
+
+    @classmethod
+    def get_command_class_or_die(mcls, cmdtype, schema_metaclass):
+        cmdcls = mcls.get_command_class(cmdtype, schema_metaclass)
+        if cmdcls is None:
+            raise TypeError(f'missing {cmdtype.__name__} implementation '
+                            f'for {schema_metaclass.__name__}')
+        return cmdcls
+
+
+class ClassCommand(Command, metaclass=ClassCommandMeta):
     """Base class for all Class-related commands."""
 
     metaclass = struct.Field(so.MetaClass, str_formatter=None)
+
+    @classmethod
+    def get_schema_metaclass(cls):
+        if cls._schema_metaclass is None:
+            raise TypeError(f'schema metaclass not set for {cls}')
+        return cls._schema_metaclass
 
 
 class Ghost(ClassCommand):
@@ -775,6 +839,8 @@ class ClassCommandContext(CommandContextToken):
 
 
 class CreateClass(ClassCommand):
+    _delta_action = 'create'
+
     def _create_begin(self, schema, context):
         props = self.get_struct_properties(schema)
 
@@ -789,10 +855,18 @@ class CreateClass(ClassCommand):
 
     def apply(self, schema, context):
         self._create_begin(schema, context)
-        with context(self.context_class(self, self.scls)):
+        with self.new_context(context):
             self._create_innards(schema, context)
             self._create_finalize(schema, context)
         return self.scls
+
+
+class AlterClass(ClassCommand):
+    _delta_action = 'alter'
+
+
+class DeleteClass(ClassCommand):
+    _delta_action = 'delete'
 
 
 class AlterSpecialClassProperty(Command):
