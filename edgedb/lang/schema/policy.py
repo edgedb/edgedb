@@ -18,28 +18,132 @@ from . import primary
 from . import referencing
 
 
+class Action(primary.PrimaryClass):
+    _type = 'action'
+
+
+class ActionSet(so.ClassSet, type=Action):
+    pass
+
+
+class Event(primary.PrimaryClass):
+    _type = 'event'
+
+
+class Policy(derivable.DerivableClass, primary.PrimaryClass):
+    _type = 'policy'
+
+    # Policy subject, i.e object in the schema to which
+    # this policy is applied
+    subject = so.Field(named.NamedClass, compcoef=0.714)
+    # Event
+    event = so.Field(Event, compcoef=0.429)
+    # Actions in response to an event
+    actions = so.Field(ActionSet, ActionSet, coerce=True, compcoef=0.86)
+
+    def init_derived(self, schema, source, *, replace_original=None, **kwargs):
+        policy = super().init_derived(schema, source, **kwargs)
+        policy.subject = source
+
+        return policy
+
+
+class InternalPolicySubject(referencing.ReferencingClass):
+    policy = referencing.RefDict(ref_cls=Policy, compcoef=0.857)
+
+    def add_policy(self, policy, replace=False):
+        self.add_classref('policy', policy, replace=replace)
+
+    def del_policy(self, policy_name, schema):
+        self.del_classref('policy', policy_name, schema)
+
+
+class PolicySubject:
+    def get_policy(self, schema, policy_cls, policy_key):
+        return schema._policy_schema.get(policy_cls, policy_key)
+
+    def materialize_policies(self, schema):
+        self._merge_policies(schema, self.bases)
+
+    def _merge_policies(self, schema, bases, force_first=False):
+        seen = set()
+
+        for base in bases:
+            for event, policies in schema._policy_schema.iter(base):
+                self_policies = schema._policy_schema.get(self, event)
+
+                if (self_policies is None or
+                        (force_first and (self, event) not in seen)):
+                    schema._policy_schema.add(policies[-1], self)
+                    seen.add((self, event))
+
+
+class PolicySchema:
+    def __init__(self):
+        self._index = {}
+
+    def add(self, policy, subject=None):
+        if subject is None:
+            subject = policy.subject
+
+        event = policy.event
+
+        try:
+            subject_policies = self._index[subject]
+        except KeyError:
+            subject_policies = self._index[subject] = {}
+
+        try:
+            policy_stack = subject_policies[event]
+        except KeyError:
+            policy_stack = subject_policies[event] = []
+
+        policy_stack.append(policy)
+
+    def delete(self, policy):
+        subject_policies = self._index[policy.subject]
+        policy_stack = subject_policies[policy.event]
+        policy_stack.remove(policy)
+
+    def get_all(self, subject, event):
+        try:
+            subject_policies = self._index[subject]
+        except KeyError:
+            return None
+        else:
+            return subject_policies.get(event)
+
+    def get(self, subject, event):
+        stack = self.get_all(subject, event)
+
+        if stack:
+            return stack[-1]
+
+    def iter(self, subject):
+        try:
+            subject_policies = self._index[subject]
+        except KeyError:
+            return ()
+        else:
+            return subject_policies.items()
+
+
 class ActionCommandContext(sd.ClassCommandContext):
     pass
 
 
-class ActionCommand:
-    context_class = ActionCommandContext
-
-    @classmethod
-    def _get_metaclass(cls):
-        return Action
+class ActionCommand(named.NamedClassCommand, schema_metaclass=Action,
+                    context_class=ActionCommandContext):
+    pass
 
 
 class EventCommandContext(sd.ClassCommandContext):
     pass
 
 
-class EventCommand:
-    context_class = EventCommandContext
-
-    @classmethod
-    def _get_metaclass(cls):
-        return Event
+class EventCommand(named.NamedClassCommand, schema_metaclass=Event,
+                   context_class=EventCommandContext):
+    pass
 
 
 class PolicyCommandContext(sd.ClassCommandContext):
@@ -87,13 +191,11 @@ class DeleteEvent(inheriting.DeleteInheritingClass, EventCommand):
     astnode = qlast.DropEvent
 
 
-class PolicyCommand(referencing.ReferencedClassCommand):
-    context_class = PolicyCommandContext
-    referrer_context_class = InternalPolicySubjectCommandContext
-
-    @classmethod
-    def _get_metaclass(cls):
-        return Policy
+class PolicyCommand(
+        referencing.ReferencedClassCommand,
+        schema_metaclass=Policy,
+        context_class=PolicyCommandContext,
+        referrer_context_class=InternalPolicySubjectCommandContext):
 
     @classmethod
     def _classname_from_ast(cls, astnode, context, schema):
@@ -208,134 +310,3 @@ class AlterPolicy(PolicyCommand, named.AlterNamedClass):
 
 class DeletePolicy(PolicyCommand, named.DeleteNamedClass):
     pass
-
-
-class Action(primary.PrimaryClass):
-    _type = 'action'
-
-    delta_driver = sd.DeltaDriver(
-        create=CreateAction,
-        alter=AlterAction,
-        rename=RenameAction,
-        delete=DeleteAction
-    )
-
-
-class ActionSet(so.ClassSet, type=Action):
-    pass
-
-
-class Event(primary.PrimaryClass):
-    _type = 'event'
-
-    delta_driver = sd.DeltaDriver(
-        create=CreateEvent,
-        alter=AlterEvent,
-        rename=RenameEvent,
-        delete=DeleteEvent
-    )
-
-
-class Policy(derivable.DerivableClass, primary.PrimaryClass):
-    _type = 'policy'
-
-    delta_driver = sd.DeltaDriver(
-        create=CreatePolicy,
-        alter=AlterPolicy,
-        rename=RenamePolicy,
-        delete=DeletePolicy
-    )
-
-    # Policy subject, i.e object in the schema to which
-    # this policy is applied
-    subject = so.Field(named.NamedClass, compcoef=0.714)
-    # Event
-    event = so.Field(Event, compcoef=0.429)
-    # Actions in response to an event
-    actions = so.Field(ActionSet, ActionSet, coerce=True, compcoef=0.86)
-
-    def init_derived(self, schema, source, *, replace_original=None, **kwargs):
-        policy = super().init_derived(schema, source, **kwargs)
-        policy.subject = source
-
-        return policy
-
-
-class InternalPolicySubject(referencing.ReferencingClass):
-    policy = referencing.RefDict(ref_cls=Policy, compcoef=0.857)
-
-    def add_policy(self, policy, replace=False):
-        self.add_classref('policy', policy, replace=replace)
-
-    def del_policy(self, policy_name, schema):
-        self.del_classref('policy', policy_name, schema)
-
-
-class PolicySubject:
-    def get_policy(self, schema, policy_cls, policy_key):
-        return schema._policy_schema.get(policy_cls, policy_key)
-
-    def materialize_policies(self, schema):
-        self._merge_policies(schema, self.bases)
-
-    def _merge_policies(self, schema, bases, force_first=False):
-        seen = set()
-
-        for base in bases:
-            for event, policies in schema._policy_schema.iter(base):
-                self_policies = schema._policy_schema.get(self, event)
-
-                if (self_policies is None or
-                        (force_first and (self, event) not in seen)):
-                    schema._policy_schema.add(policies[-1], self)
-                    seen.add((self, event))
-
-
-class PolicySchema:
-    def __init__(self):
-        self._index = {}
-
-    def add(self, policy, subject=None):
-        if subject is None:
-            subject = policy.subject
-
-        event = policy.event
-
-        try:
-            subject_policies = self._index[subject]
-        except KeyError:
-            subject_policies = self._index[subject] = {}
-
-        try:
-            policy_stack = subject_policies[event]
-        except KeyError:
-            policy_stack = subject_policies[event] = []
-
-        policy_stack.append(policy)
-
-    def delete(self, policy):
-        subject_policies = self._index[policy.subject]
-        policy_stack = subject_policies[policy.event]
-        policy_stack.remove(policy)
-
-    def get_all(self, subject, event):
-        try:
-            subject_policies = self._index[subject]
-        except KeyError:
-            return None
-        else:
-            return subject_policies.get(event)
-
-    def get(self, subject, event):
-        stack = self.get_all(subject, event)
-
-        if stack:
-            return stack[-1]
-
-    def iter(self, subject):
-        try:
-            subject_policies = self._index[subject]
-        except KeyError:
-            return ()
-        else:
-            return subject_policies.items()

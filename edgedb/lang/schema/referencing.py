@@ -134,16 +134,41 @@ class ReferencingClassMeta(type(inheriting.InheritingClass)):
         return cls._refdicts_by_refclass[refcls]
 
 
-class ReferencedClassCommand(derivable.DerivableClassCommand):
+class ReferencedClassCommandMeta(type(derivable.DerivableClassCommand)):
+    _transparent_adapter_subclass = True
+
+    def __new__(mcls, name, bases, clsdct, *,
+                referrer_context_class=None, **kwargs):
+        cls = super().__new__(mcls, name, bases, clsdct, **kwargs)
+        if referrer_context_class is not None:
+            cls._referrer_context_class = referrer_context_class
+        return cls
+
+
+class ReferencedClassCommand(derivable.DerivableClassCommand,
+                             metaclass=ReferencedClassCommandMeta):
+    _referrer_context_class = None
+
+    @classmethod
+    def get_referrer_context_class(cls):
+        if cls._referrer_context_class is None:
+            raise TypeError(
+                f'referrer_context_class is not defined for {cls}')
+        return cls._referrer_context_class
+
+    @classmethod
+    def get_referrer_context(cls, context):
+        return context.get(cls.get_referrer_context_class())
+
     @classmethod
     def _classname_from_ast(cls, astnode, context, schema):
         name = super()._classname_from_ast(astnode, context, schema)
 
-        parent_ctx = context.get(cls.referrer_context_class)
+        parent_ctx = cls.get_referrer_context(context)
         if parent_ctx is not None:
             referrer_name = parent_ctx.op.classname
 
-            pcls = cls._get_metaclass()
+            pcls = cls.get_schema_metaclass()
             pnn = pcls.get_specialized_name(
                 sn.Name(name), referrer_name
             )
@@ -153,7 +178,7 @@ class ReferencedClassCommand(derivable.DerivableClassCommand):
         return name
 
     def _get_ast_node(self, context):
-        subject_ctx = context.get(self.referrer_context_class)
+        subject_ctx = self.get_referrer_context(context)
         ref_astnode = getattr(self, 'referenced_astnode', None)
         if subject_ctx is not None and ref_astnode is not None:
             return ref_astnode
@@ -164,7 +189,7 @@ class ReferencedClassCommand(derivable.DerivableClassCommand):
                 return self.astnode
 
     def _create_begin(self, schema, context):
-        referrer_ctx = context.get(self.referrer_context_class)
+        referrer_ctx = self.get_referrer_context(context)
         attrs = self.get_struct_properties(schema)
         if referrer_ctx is not None and not attrs.get('is_derived'):
             referrer = referrer_ctx.scls
@@ -178,7 +203,7 @@ class ReferencedClassCommand(derivable.DerivableClassCommand):
     def _create_innards(self, schema, context):
         super()._create_innards(schema, context)
 
-        referrer_ctx = context.get(self.referrer_context_class)
+        referrer_ctx = self.get_referrer_context(context)
         if referrer_ctx is not None:
             referrer = referrer_ctx.scls
             refdict = referrer.__class__.get_refdict_for_class(
@@ -203,7 +228,7 @@ class ReferencedClassCommand(derivable.DerivableClassCommand):
     def _rename_innards(self, schema, context, scls):
         super()._rename_innards(schema, context, scls)
 
-        referrer_ctx = context.get(self.referrer_context_class)
+        referrer_ctx = self.get_referrer_context(context)
         if referrer_ctx is not None:
             referrer = referrer_ctx.scls
             old_name = scls.get_shortname(self.old_name)
@@ -235,7 +260,7 @@ class ReferencedClassCommand(derivable.DerivableClassCommand):
     def _delete_innards(self, schema, context, scls):
         super()._delete_innards(schema, context, scls)
 
-        referrer_ctx = context.get(self.referrer_context_class)
+        referrer_ctx = self.get_referrer_context(context)
         if referrer_ctx is not None:
             referrer = referrer_ctx.scls
             refdict = referrer.__class__.get_refdict_for_class(
@@ -249,7 +274,7 @@ class CreateReferencedClass(inheriting.CreateInheritingClass):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
         if isinstance(astnode, cls.referenced_astnode):
-            objcls = cls._get_metaclass()
+            objcls = cls.get_schema_metaclass()
             nname = objcls.get_shortname(cmd.classname)
 
             cmd.add(
@@ -266,7 +291,7 @@ class CreateReferencedClass(inheriting.CreateInheritingClass):
                 )
             )
 
-            referrer_ctx = context.get(cls.referrer_context_class)
+            referrer_ctx = cls.get_referrer_context(context)
             referrer_class = referrer_ctx.op.metaclass
             referrer_name = referrer_ctx.op.classname
             refdict = referrer_class.get_refdict_for_class(objcls)

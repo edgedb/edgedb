@@ -33,6 +33,7 @@ from edgedb.lang.schema import name as sn
 from edgedb.lang.schema import named as s_named
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import policy as s_policy
+from edgedb.lang.schema import referencing as s_referencing
 from edgedb.lang.schema import views as s_views
 
 from edgedb.lang.common import ordered
@@ -58,6 +59,15 @@ TYPE_ID_NAMESPACE = uuid.UUID('00e50276-2502-11e7-97f2-27fe51238dbd')
 
 class CommandMeta(sd.CommandMeta):
     pass
+
+
+class ClassCommandMeta(sd.ClassCommandMeta, CommandMeta):
+    _transparent_adapter_subclass = True
+
+
+class ReferencedClassCommandMeta(
+        ClassCommandMeta, s_referencing.ReferencedClassCommandMeta):
+    _transparent_adapter_subclass = True
 
 
 class MetaCommand(sd.Command, metaclass=CommandMeta):
@@ -94,7 +104,8 @@ class CommandGroupAdapted(MetaCommand, adapts=sd.CommandGroup):
         MetaCommand.apply(self, schema, context)
 
 
-class ClassMetaCommand(MetaCommand, sd.ClassCommand):
+class ClassMetaCommand(MetaCommand, sd.ClassCommand,
+                       metaclass=ClassCommandMeta):
     pass
 
 
@@ -560,7 +571,8 @@ class DeleteAttribute(
     pass
 
 
-class AttributeValueCommand(metaclass=CommandMeta):
+class AttributeValueCommand(sd.ClassCommand,
+                            metaclass=ReferencedClassCommandMeta):
     table = metaschema.get_metaclass_table(s_attrs.AttributeValue)
     op_priority = 1
 
@@ -612,7 +624,7 @@ class DeleteAttributeValue(
     pass
 
 
-class ConstraintCommand(metaclass=CommandMeta):
+class ConstraintCommand(metaclass=ReferencedClassCommandMeta):
     table = metaschema.get_metaclass_table(s_constr.Constraint)
     op_priority = 3
 
@@ -1057,8 +1069,7 @@ class CompositeClassMetaCommand(NamedClassMetaCommand):
         tabname = table_name if table_name else self.table_name
 
         if not tabname:
-            assert self.__class__.context_class
-            ctx = context.get(self.__class__.context_class)
+            ctx = context.get(self.__class__)
             assert ctx
             tabname = common.get_table_name(ctx.scls, catenate=False)
             if table_name is None:
@@ -1392,7 +1403,7 @@ class CompositeClassMetaCommand(NamedClassMetaCommand):
                     alter_table_add_parent.add_operation((op, None, [cond]))
 
 
-class SourceIndexCommand:
+class SourceIndexCommand(metaclass=ReferencedClassCommandMeta):
     table = metaschema.get_metaclass_table(s_indexes.SourceIndex)
 
 
@@ -1775,7 +1786,7 @@ class DeleteEvent(
     pass
 
 
-class PolicyCommand(metaclass=CommandMeta):
+class PolicyCommand(metaclass=ReferencedClassCommandMeta):
     table = metaschema.get_metaclass_table(s_policy.Policy)
     op_priority = 2
 
@@ -1836,7 +1847,7 @@ class CancelLinkMappingUpdate(MetaCommand):
     pass
 
 
-class PointerMetaCommand(MetaCommand):
+class PointerMetaCommand(MetaCommand, metaclass=ReferencedClassCommandMeta):
     def get_host(self, schema, context):
         if context:
             link = context.get(s_links.LinkCommandContext)
@@ -2885,13 +2896,13 @@ class DeleteModule(ModuleMetaCommand, adapts=s_mod.DeleteModule):
         return module
 
 
-class CreateDatabase(MetaCommand, adapts=s_db.CreateDatabase):
+class CreateDatabase(ClassMetaCommand, adapts=s_db.CreateDatabase):
     def apply(self, schema, context):
         s_db.CreateDatabase.apply(self, schema, context)
         self.pgops.add(dbops.CreateDatabase(dbops.Database(self.name)))
 
 
-class AlterDatabase(MetaCommand, adapts=s_db.AlterDatabase):
+class AlterDatabase(ClassMetaCommand, adapts=s_db.AlterDatabase):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._renames = {}
@@ -2929,7 +2940,7 @@ class AlterDatabase(MetaCommand, adapts=s_db.AlterDatabase):
                 queue.append(op)
 
 
-class DropDatabase(MetaCommand, adapts=s_db.DropDatabase):
+class DropDatabase(ClassMetaCommand, adapts=s_db.DropDatabase):
     def apply(self, schema, context):
         s_db.CreateDatabase.apply(self, schema, context)
         self.pgops.add(dbops.DropDatabase(self.name))

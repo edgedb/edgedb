@@ -134,7 +134,7 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
             super()._apply_field_ast(context, node, op)
 
     def _create_begin(self, schema, context):
-        referrer_ctx = context.get(self.referrer_context_class)
+        referrer_ctx = self.get_referrer_context(context)
         if referrer_ctx is not None:
             # This is a specialized pointer, check that appropriate
             # generic parent exists, and if not, create it.

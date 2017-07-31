@@ -25,6 +25,24 @@ from . import schema as s_schema
 from . import sources
 
 
+class View(sources.Source, nodes.Node, attributes.AttributeSubject):
+    _type = 'view'
+
+    expr = so.Field(expr.ExpressionText, default=None,
+                    coerce=True, compcoef=0.909)
+
+    result_type = so.Field(so.NodeClass, None, compcoef=0.833)
+
+    def copy(self):
+        result = super().copy()
+        result.expr = self.expr
+        return result
+
+    @classmethod
+    def get_pointer_class(cls):
+        return links.Link
+
+
 class ViewCommandContext(sd.ClassCommandContext,
                          attributes.AttributeSubjectCommandContext,
                          nodes.NodeCommandContext):
@@ -33,12 +51,8 @@ class ViewCommandContext(sd.ClassCommandContext,
 
 class ViewCommand(constraints.ConsistencySubjectCommand,
                   attributes.AttributeSubjectCommand,
-                  nodes.NodeCommand):
-    context_class = ViewCommandContext
-
-    @classmethod
-    def _get_metaclass(cls):
-        return View
+                  nodes.NodeCommand, schema_metaclass=View,
+                  context_class=ViewCommandContext):
 
     def _create_innards(self, schema, context):
         super()._create_innards(schema, context)
@@ -127,31 +141,6 @@ class DeleteView(ViewCommand, named.DeleteNamedClass):
         cmd.update(derived_delta.get_subcommands())
 
         return cmd
-
-
-class View(sources.Source, nodes.Node, attributes.AttributeSubject):
-    _type = 'view'
-
-    expr = so.Field(expr.ExpressionText, default=None,
-                    coerce=True, compcoef=0.909)
-
-    result_type = so.Field(so.NodeClass, None, compcoef=0.833)
-
-    delta_driver = sd.DeltaDriver(
-        create=CreateView,
-        alter=AlterView,
-        rename=RenameView,
-        delete=DeleteView
-    )
-
-    def copy(self):
-        result = super().copy()
-        result.expr = self.expr
-        return result
-
-    @classmethod
-    def get_pointer_class(cls):
-        return links.Link
 
 
 def _view_schema_from_ir(view_name, ir, schema):

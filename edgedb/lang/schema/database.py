@@ -13,14 +13,22 @@ from edgedb.lang.edgeql import ast as qlast
 
 from . import delta as sd
 from . import modules
+from . import named
 from . import objects as so
+
+
+class Database(named.NamedClass):
+    # Override 'name' to str type, since databases don't have
+    # fully-qualified names.
+    name = so.Field(str)
 
 
 class DatabaseCommandContext(sd.CommandContextToken):
     pass
 
 
-class DatabaseCommand(sd.Command):
+class DatabaseCommand(sd.ClassCommand, schema_metaclass=Database,
+                      context_class=DatabaseCommandContext):
     pass
 
 
@@ -30,12 +38,10 @@ class CreateDatabase(DatabaseCommand):
 
     @classmethod
     def _cmd_from_ast(cls, astnode, context, schema):
-        return cls(name=astnode.name.name)
+        return cls(name=astnode.name.name, metaclass=Database)
 
 
 class AlterDatabase(DatabaseCommand):
-    context_class = DatabaseCommandContext
-
     def apply(self, schema, context=None):
         context = context or sd.CommandContext()
 
@@ -89,4 +95,4 @@ class DropDatabase(DatabaseCommand):
 
     @classmethod
     def _cmd_from_ast(cls, astnode, context, schema):
-        return cls(name=astnode.name.name)
+        return cls(name=astnode.name.name, metaclass=Database)

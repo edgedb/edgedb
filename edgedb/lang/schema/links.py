@@ -6,13 +6,13 @@
 ##
 
 
+from edgedb.lang.common import enum
 from edgedb.lang.edgeql import ast as qlast
 
 from . import atoms
 from . import constraints
 from . import database as s_db
 from . import delta as sd
-from edgedb.lang.common import enum
 from . import indexes
 from . import inheriting
 from . import lproperties
@@ -83,6 +83,142 @@ class LinkSearchConfiguration(so.Class):
                       introspectable=False)
 
 
+class Link(pointers.Pointer, sources.Source):
+    _type = 'link'
+
+    spectargets = so.Field(named.NamedClassSet, named.NamedClassSet,
+                           coerce=True)
+
+    mapping = so.Field(LinkMapping, default=None,
+                       compcoef=0.833, coerce=True)
+
+    exposed_behaviour = so.Field(pointers.PointerExposedBehaviour,
+                                 default=None, compcoef=0.98)
+
+    search = so.Field(LinkSearchConfiguration, default=None, compcoef=0.909)
+
+    @classmethod
+    def get_pointer_class(cls):
+        return lproperties.LinkProperty
+
+    @classmethod
+    def get_special_pointers(cls):
+        return (sn.Name('std::linkid'),
+                sn.Name('std::source'),
+                sn.Name('std::target'))
+
+    def get_exposed_behaviour(self):
+        if self.exposed_behaviour is not None:
+            return self.exposed_behaviour
+        else:
+            if self.mapping in {LinkMapping.OneToOne, LinkMapping.ManyToOne}:
+                return pointers.PointerExposedBehaviour.FirstItem
+            else:
+                return pointers.PointerExposedBehaviour.Set
+
+    def init_std_props(self, schema, *, mark_derived=False,
+                       add_to_schema=False, dctx=None):
+
+        src_n = sn.Name('std::source')
+        if src_n not in self.pointers:
+            source_pbase = schema.get(src_n)
+            source_p = source_pbase.derive(
+                schema, self, self.source, mark_derived=mark_derived,
+                add_to_schema=add_to_schema, dctx=dctx)
+
+            self.add_pointer(source_p)
+
+        tgt_n = sn.Name('std::target')
+        if tgt_n not in self.pointers:
+            target_pbase = schema.get(tgt_n)
+            target_p = target_pbase.derive(
+                schema, self, self.target, mark_derived=mark_derived,
+                add_to_schema=add_to_schema, dctx=dctx)
+
+            self.add_pointer(target_p)
+
+    def init_derived(self, schema, source, *qualifiers,
+                     mark_derived=False, add_to_schema=False,
+                     dctx=None, init_props=True, **kwargs):
+
+        ptr = super().init_derived(
+            schema, source, *qualifiers, mark_derived=mark_derived,
+            add_to_schema=add_to_schema, dctx=dctx, **kwargs)
+
+        if init_props:
+            ptr.init_std_props(schema, mark_derived=mark_derived,
+                               add_to_schema=add_to_schema)
+
+        return ptr
+
+    def singular(self, direction=pointers.PointerDirection.Outbound):
+        if direction == pointers.PointerDirection.Outbound:
+            return self.mapping in \
+                (LinkMapping.OneToOne, LinkMapping.ManyToOne)
+        else:
+            return self.mapping in \
+                (LinkMapping.OneToOne, LinkMapping.OneToMany)
+
+    def atomic(self):
+        assert not self.generic(), \
+            "atomicity is not determined for generic links"
+        return (
+            isinstance(self.target, atoms.Atom) or
+            isinstance(self.target, so.Collection)
+        )
+
+    def has_user_defined_properties(self):
+        return bool([p for p in self.pointers.values()
+                     if not p.is_special_pointer()])
+
+    def compare(self, other, context=None):
+        if not isinstance(other, Link):
+            if isinstance(other, pointers.BasePointer):
+                return 0.0
+            else:
+                return NotImplemented
+
+        return super().compare(other, context=context)
+
+    def copy(self):
+        result = super().copy()
+        result.source = self.source
+        result.target = self.target
+        result.default = self.default
+
+        return result
+
+    def finalize(self, schema, bases=None, *, dctx=None):
+        super().finalize(schema, bases=bases, dctx=dctx)
+
+        if not self.generic() and self.mapping is None:
+            self.mapping = LinkMapping.ManyToOne
+
+            if dctx is not None:
+                from . import delta as sd
+
+                dctx.current().op.add(sd.AlterClassProperty(
+                    property='mapping',
+                    new_value=self.mapping,
+                    source='default'
+                ))
+
+    @classmethod
+    def get_root_classes(cls):
+        return (
+            sn.Name(module='std', name='link'),
+            sn.Name(module='schema', name='__class__'),
+        )
+
+    @classmethod
+    def get_default_base_name(self):
+        return sn.Name('std::link')
+
+
+class DerivedLink(pointers.Pointer, sources.Source):
+    pass
+
+
 class LinkSourceCommandContext(sources.SourceCommandContext):
     pass
 
@@ -122,13 +258,10 @@ class LinkCommandContext(pointers.PointerCommandContext,
 
 
 class LinkCommand(lproperties.LinkPropertySourceCommand,
-                  pointers.PointerCommand):
-    context_class = LinkCommandContext
-    referrer_context_class = LinkSourceCommandContext
-
-    @classmethod
-    def _get_metaclass(cls):
-        return Link
+                  pointers.PointerCommand,
+                  schema_metaclass=Link, context_class=LinkCommandContext,
+                  referrer_context_class=LinkSourceCommandContext):
+    pass
 
 
 class CreateLink(LinkCommand, referencing.CreateReferencedClass):
@@ -576,147 +709,3 @@ class DeleteLink(LinkCommand, named.DeleteNamedClass):
 
         for op in self.get_objects(type=policy.PolicyCommand):
             self._append_subcmd_ast(node, op, context)
-
-
-class Link(pointers.Pointer, sources.Source):
-    _type = 'link'
-
-    spectargets = so.Field(named.NamedClassSet, named.NamedClassSet,
-                           coerce=True)
-
-    mapping = so.Field(LinkMapping, default=None,
-                       compcoef=0.833, coerce=True)
-
-    exposed_behaviour = so.Field(pointers.PointerExposedBehaviour,
-                                 default=None, compcoef=0.98)
-
-    search = so.Field(LinkSearchConfiguration, default=None, compcoef=0.909)
-
-    delta_driver = sd.DeltaDriver(
-        create=CreateLink,
-        alter=AlterLink,
-        rebase=RebaseLink,
-        rename=RenameLink,
-        delete=DeleteLink
-    )
-
-    @classmethod
-    def get_pointer_class(cls):
-        return lproperties.LinkProperty
-
-    @classmethod
-    def get_special_pointers(cls):
-        return (sn.Name('std::linkid'),
-                sn.Name('std::source'),
-                sn.Name('std::target'))
-
-    def get_exposed_behaviour(self):
-        if self.exposed_behaviour is not None:
-            return self.exposed_behaviour
-        else:
-            if self.mapping in {LinkMapping.OneToOne, LinkMapping.ManyToOne}:
-                return pointers.PointerExposedBehaviour.FirstItem
-            else:
-                return pointers.PointerExposedBehaviour.Set
-
-    def init_std_props(self, schema, *, mark_derived=False,
-                       add_to_schema=False, dctx=None):
-
-        src_n = sn.Name('std::source')
-        if src_n not in self.pointers:
-            source_pbase = schema.get(src_n)
-            source_p = source_pbase.derive(
-                schema, self, self.source, mark_derived=mark_derived,
-                add_to_schema=add_to_schema, dctx=dctx)
-
-            self.add_pointer(source_p)
-
-        tgt_n = sn.Name('std::target')
-        if tgt_n not in self.pointers:
-            target_pbase = schema.get(tgt_n)
-            target_p = target_pbase.derive(
-                schema, self, self.target, mark_derived=mark_derived,
-                add_to_schema=add_to_schema, dctx=dctx)
-
-            self.add_pointer(target_p)
-
-    def init_derived(self, schema, source, *qualifiers,
-                     mark_derived=False, add_to_schema=False,
-                     dctx=None, init_props=True, **kwargs):
-
-        ptr = super().init_derived(
-            schema, source, *qualifiers, mark_derived=mark_derived,
-            add_to_schema=add_to_schema, dctx=dctx, **kwargs)
-
-        if init_props:
-            ptr.init_std_props(schema, mark_derived=mark_derived,
-                               add_to_schema=add_to_schema)
-
-        return ptr
-
-    def singular(self, direction=pointers.PointerDirection.Outbound):
-        if direction == pointers.PointerDirection.Outbound:
-            return self.mapping in \
-                (LinkMapping.OneToOne, LinkMapping.ManyToOne)
-        else:
-            return self.mapping in \
-                (LinkMapping.OneToOne, LinkMapping.OneToMany)
-
-    def atomic(self):
-        assert not self.generic(), \
-            "atomicity is not determined for generic links"
-        return (
-            isinstance(self.target, atoms.Atom) or
-            isinstance(self.target, so.Collection)
-        )
-
-    def has_user_defined_properties(self):
-        return bool([p for p in self.pointers.values()
-                     if not p.is_special_pointer()])
-
-    def compare(self, other, context=None):
-        if not isinstance(other, Link):
-            if isinstance(other, pointers.BasePointer):
-                return 0.0
-            else:
-                return NotImplemented
-
-        return super().compare(other, context=context)
-
-    def copy(self):
-        result = super().copy()
-        result.source = self.source
-        result.target = self.target
-        result.default = self.default
-
-        return result
-
-    def finalize(self, schema, bases=None, *, dctx=None):
-        super().finalize(schema, bases=bases, dctx=dctx)
-
-        if not self.generic() and self.mapping is None:
-            self.mapping = LinkMapping.ManyToOne
-
-            if dctx is not None:
-                from . import delta as sd
-
-                dctx.current().op.add(sd.AlterClassProperty(
-                    property='mapping',
-                    new_value=self.mapping,
-                    source='default'
-                ))
-
-    @classmethod
-    def get_root_classes(cls):
-        return (
-            sn.Name(module='std', name='link'),
-            sn.Name(module='schema', name='__class__'),
-        )
-
-    @classmethod
-    def get_default_base_name(self):
-        return sn.Name('std::link')
-
-
-class DerivedLink(pointers.Pointer, sources.Source):
-    pass

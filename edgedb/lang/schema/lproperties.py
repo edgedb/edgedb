@@ -22,6 +22,59 @@ from . import sources
 from . import utils
 
 
+class LinkProperty(pointers.Pointer):
+    _type = 'link_property'
+
+    def derive(self, schema, source, target=None, attrs=None, **kwargs):
+        if target is None:
+            target = self.target
+
+        ptr = super().derive(schema, source, target, attrs=attrs, **kwargs)
+
+        if ptr.shortname == 'std::source':
+            ptr.target = source.source
+
+        if ptr.shortname == 'std::target':
+            ptr.target = source.target
+
+        return ptr
+
+    @classmethod
+    def merge_targets(cls, schema, ptr, t1, t2):
+        if ptr.is_endpoint_pointer():
+            return t1
+        else:
+            return super().merge_targets(schema, ptr, t1, t2)
+
+    def atomic(self):
+        assert not self.generic(), \
+            "atomicity is not determined for generic pointers"
+        return isinstance(self.target, atoms.Atom)
+
+    def singular(self, direction=pointers.PointerDirection.Outbound):
+        return True
+
+    def get_exposed_behaviour(self):
+        return pointers.PointerExposedBehaviour.FirstItem
+
+    def copy(self):
+        result = super().copy()
+        result.source = self.source
+        result.target = self.target
+        result.default = self.default
+        return result
+
+    @classmethod
+    def get_root_classes(cls):
+        return (
+            sn.Name(module='std', name='linkproperty'),
+        )
+
+    @classmethod
+    def get_default_base_name(self):
+        return 'std::linkproperty'
+
+
 class LinkPropertySourceContext(sources.SourceCommandContext):
     pass
 
@@ -57,13 +110,11 @@ class LinkPropertyCommandContext(pointers.PointerCommandContext,
     pass
 
 
-class LinkPropertyCommand(pointers.PointerCommand):
-    context_class = LinkPropertyCommandContext
-    referrer_context_class = LinkPropertySourceContext
-
-    @classmethod
-    def _get_metaclass(cls):
-        return LinkProperty
+class LinkPropertyCommand(pointers.PointerCommand,
+                          schema_metaclass=LinkProperty,
+                          context_class=LinkPropertyCommandContext,
+                          referrer_context_class=LinkPropertySourceContext):
+    pass
 
 
 class CreateLinkProperty(LinkPropertyCommand,
@@ -211,64 +262,3 @@ class DeleteLinkProperty(LinkPropertyCommand,
 
         for op in self.get_subcommands(type=policy.PolicyCommand):
             self._append_subcmd_ast(node, op, context)
-
-
-class LinkProperty(pointers.Pointer):
-    _type = 'link_property'
-
-    delta_driver = sd.DeltaDriver(
-        create=CreateLinkProperty,
-        alter=AlterLinkProperty,
-        rebase=RebaseLinkProperty,
-        rename=RenameLinkProperty,
-        delete=DeleteLinkProperty
-    )
-
-    def derive(self, schema, source, target=None, attrs=None, **kwargs):
-        if target is None:
-            target = self.target
-
-        ptr = super().derive(schema, source, target, attrs=attrs, **kwargs)
-
-        if ptr.shortname == 'std::source':
-            ptr.target = source.source
-
-        if ptr.shortname == 'std::target':
-            ptr.target = source.target
-
-        return ptr
-
-    @classmethod
-    def merge_targets(cls, schema, ptr, t1, t2):
-        if ptr.is_endpoint_pointer():
-            return t1
-        else:
-            return super().merge_targets(schema, ptr, t1, t2)
-
-    def atomic(self):
-        assert not self.generic(), \
-            "atomicity is not determined for generic pointers"
-        return isinstance(self.target, atoms.Atom)
-
-    def singular(self, direction=pointers.PointerDirection.Outbound):
-        return True
-
-    def get_exposed_behaviour(self):
-        return pointers.PointerExposedBehaviour.FirstItem
-
-    def copy(self):
-        result = super().copy()
-        result.source = self.source
-        result.target = self.target
-        result.default = self.default
-        return result
-
-    @classmethod
-    def get_root_classes(cls):
-        return (
-            sn.Name(module='std', name='linkproperty'),
-        )
-
-    @classmethod
-    def get_default_base_name(self):
-        return 'std::linkproperty'

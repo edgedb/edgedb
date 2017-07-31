@@ -13,6 +13,7 @@ class AdapterError(Exception):
 class Adapter(type):
     adapters = {}
     instance_adapters = {}
+    _transparent_adapter_subclass = False
 
     def __new__(
             mcls, name, bases, clsdict, *, adapts=None,
@@ -123,10 +124,18 @@ class Adapter(type):
 
     @classmethod
     def get_registry_key(mcls, adapterargs):
-        if adapterargs:
-            return (mcls, frozenset(adapterargs.items()))
+        if mcls._transparent_adapter_subclass:
+            for parent in mcls.__mro__[1:]:
+                if not parent._transparent_adapter_subclass:
+                    registry_holder = parent
+                    break
         else:
-            return mcls
+            registry_holder = mcls
+
+        if adapterargs:
+            return (registry_holder, frozenset(adapterargs.items()))
+        else:
+            return registry_holder
 
     def get_adaptee(cls):
         return cls.__sx_adaptee__

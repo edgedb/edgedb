@@ -21,50 +21,6 @@ from . import referencing
 from . import sources
 
 
-class ConceptCommandContext(sd.ClassCommandContext,
-                            constraints.ConsistencySubjectCommandContext,
-                            links.LinkSourceCommandContext,
-                            nodes.NodeCommandContext):
-    pass
-
-
-class ConceptCommand(constraints.ConsistencySubjectCommand,
-                     sources.SourceCommand,
-                     links.LinkSourceCommand,
-                     nodes.NodeCommand):
-    context_class = ConceptCommandContext
-
-    @classmethod
-    def _get_metaclass(cls):
-        return Concept
-
-    def _apply_field_ast(self, context, node, op):
-        if op.property == 'is_derived':
-            pass
-        else:
-            super()._apply_field_ast(context, node, op)
-
-
-class CreateConcept(ConceptCommand, inheriting.CreateInheritingClass):
-    astnode = qlast.CreateConcept
-
-
-class RenameConcept(ConceptCommand, named.RenameNamedClass):
-    pass
-
-
-class RebaseConcept(ConceptCommand, referencing.RebaseReferencingClass):
-    pass
-
-
-class AlterConcept(ConceptCommand, inheriting.AlterInheritingClass):
-    astnode = qlast.AlterConcept
-
-
-class DeleteConcept(ConceptCommand, inheriting.DeleteInheritingClass):
-    astnode = qlast.DropConcept
-
-
 class DerivableSource(sources.Source, derivable.DerivableClass):
     pass
 
@@ -72,14 +28,6 @@ class DerivableSource(sources.Source, derivable.DerivableClass):
 class Concept(DerivableSource, nodes.Node,
               constraints.ConsistencySubject, so.NodeClass):
     _type = 'concept'
-
-    delta_driver = sd.DeltaDriver(
-        create=CreateConcept,
-        alter=AlterConcept,
-        rebase=RebaseConcept,
-        rename=RenameConcept,
-        delete=DeleteConcept
-    )
 
     @classmethod
     def get_pointer_class(cls):
@@ -178,3 +126,41 @@ class VirtualConcept(sources.Source, nodes.Node,
 class DerivedConcept(sources.Source, nodes.Node,
                      constraints.ConsistencySubject, so.NodeClass):
     pass
+
+
+class ConceptCommandContext(sd.ClassCommandContext,
+                            constraints.ConsistencySubjectCommandContext,
+                            links.LinkSourceCommandContext,
+                            nodes.NodeCommandContext):
+    pass
+
+
+class ConceptCommand(constraints.ConsistencySubjectCommand,
+                     sources.SourceCommand, links.LinkSourceCommand,
+                     nodes.NodeCommand, schema_metaclass=Concept,
+                     context_class=ConceptCommandContext):
+    def _apply_field_ast(self, context, node, op):
+        if op.property == 'is_derived':
+            pass
+        else:
+            super()._apply_field_ast(context, node, op)
+
+
+class CreateConcept(ConceptCommand, inheriting.CreateInheritingClass):
+    astnode = qlast.CreateConcept
+
+
+class RenameConcept(ConceptCommand, named.RenameNamedClass):
+    pass
+
+
+class RebaseConcept(ConceptCommand, referencing.RebaseReferencingClass):
+    pass
+
+
+class AlterConcept(ConceptCommand, inheriting.AlterInheritingClass):
+    astnode = qlast.AlterConcept
+
+
+class DeleteConcept(ConceptCommand, inheriting.DeleteInheritingClass):
+    astnode = qlast.DropConcept
