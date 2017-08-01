@@ -38,7 +38,7 @@ class CreateDatabase(DatabaseCommand):
 
     @classmethod
     def _cmd_from_ast(cls, astnode, context, schema):
-        return cls(name=astnode.name.name, metaclass=Database)
+        return cls(name=astnode.name.name)
 
 
 class AlterDatabase(DatabaseCommand):
@@ -95,4 +95,4 @@ class DropDatabase(DatabaseCommand):
 
     @classmethod
     def _cmd_from_ast(cls, astnode, context, schema):
-        return cls(name=astnode.name.name, metaclass=Database)
+        return cls(name=astnode.name.name)

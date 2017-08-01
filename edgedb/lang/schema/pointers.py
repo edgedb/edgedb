@@ -142,7 +142,7 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
             base_name = base_ref.classname
             base = schema.get(base_name, default=None)
             if base is None:
-                cls = self.metaclass
+                cls = self.get_schema_metaclass()
                 std_link = schema.get(cls.get_default_base_name())
                 base = cls(name=base_name, bases=[std_link])
                 delta = base.delta(None)

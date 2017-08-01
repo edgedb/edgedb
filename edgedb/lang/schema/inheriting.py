@@ -162,7 +162,8 @@ class RebaseNamedClass(named.NamedClassCommand):
                                  self.classname)
 
     def apply(self, schema, context):
-        scls = schema.get(self.classname, type=self.metaclass)
+        metaclass = self.get_schema_metaclass()
+        scls = schema.get(self.classname, type=metaclass)
         bases = list(scls.bases)
         removed_bases = {b.classname for b in self.removed_bases}
         existing_bases = set()

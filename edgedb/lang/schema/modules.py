@@ -252,7 +252,8 @@ class CreateModule(named.CreateNamedClass, ModuleCommand):
 
     def apply(self, schema, context):
         props = self.get_struct_properties(schema)
-        self.module = self.metaclass(**props)
+        metaclass = self.get_schema_metaclass()
+        self.module = metaclass(**props)
         schema.add_module(self.module)
         return self.module
 
