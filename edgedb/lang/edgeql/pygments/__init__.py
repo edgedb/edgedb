@@ -28,23 +28,22 @@ class EdgeQLLexer(RegexLexer):
         'keywords': [
             (r'''(?ix)
                 \b(?<![:\.])(
-                    abstract | action | after | array | as | asc |
+                    abstract | action | after | any | array | as | asc |
                     atom | attribute | before | by | concept |
-                    constraint | database | desc | event |
+                    constraint | database | delegated | desc | event |
                     extending | final | first | for | from | index |
                     initial | last | link | map | migration | of |
                     policy | property | required | rename | target |
                     then | to | transaction | tuple | value | view |
 
-                    aggregate | all | alter | and | any | commit |
-                    create | delete | distinct | drop | else | except |
-                    exists | filter | function | get | group | if |
-                    ilike | in | insert | intersect | is | like |
-                    limit | module | not | offset | or | order | over |
-                    partition | returning | rollback | select | set |
-                    singleton | start | update | union | with
-                )\b
-            ''', token.Keyword.Reserved),
+                    aggregate | all | alter | and | commit | create |
+                    delete | distinct | drop | else | exists | filter |
+                    function | get | group | if | ilike | in |
+                    insert | is | like | limit | module | not | offset |
+                    or | order | over | partition | rollback |
+                    select | set | singleton | start | update | union |
+                    with
+                )\b ''', token.Keyword.Reserved),
         ],
         'strings': [
             (r'''(?x)

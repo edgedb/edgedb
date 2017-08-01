@@ -13,10 +13,11 @@ class EdgeSchemaLexer(lexer.RegexLexer):
         'root': [
             lexer.include('comments'),
             lexer.include('keywords'),
-            (r'\*1|\*\*|1\*', token.String),
+            (r'@\w+', token.Name.Decorator),
+            (r'\$[\w\d]+', token.Name.Variable),
             lexer.include('numbers'),
             lexer.include('strings'),
-            (r'\b(true|false|null)\b', token.Keyword.Constant),
+            (r'(?i)\b(true|false|empty)\b', token.Keyword.Constant),
             (r'\s+', token.Text),
             (r'.', token.Text),
         ],
@@ -26,18 +27,33 @@ class EdgeSchemaLexer(lexer.RegexLexer):
         ],
 
         'keywords': [
-            (r'''(?x)
+            (r'''(?ix)
                 \b(?<![:\.])(
-                  action | atom | attribute | concept | constraint |
-                  event | extending | index | initial | link |
-                  linkproperty | properties | value | view
+                  (?# schema-scpecific)
+                  linkproperty |
+
+                  (?# from EdgeQL)
+                  action | after | asc | atom |
+                  attribute | before | by | concept | constraint |
+                  database | delegated | desc | event | extending |
+                  first | for | from | index | initial | last | link |
+                  migration | of | policy | property | rename |
+                  target | then | transaction | value | view |
+
+                  aggregate | all | alter | and | commit | create | delete |
+                  distinct | drop | else | exists | filter |
+                  function | get | group | if | ilike | in | insert | is |
+                  like | limit | module | not | offset | or | order | over |
+                  partition | rollback | select | set | singleton | start |
+                  update | union | with
+
                 )\b
             ''', token.Keyword.Reserved),
 
-            (r'\b(?<![:\.])(abstract|final|required)\b',
+            (r'\b(?i)(?<![:\.])(abstract|final|required)\b',
              token.Keyword.Declaration),
 
-            (r'\b(?<![:\.])(as|import|on|to)\b', token.Keyword.Namespace),
+            (r'\b(?i)(?<![:\.])(as|import|on|to)\b', token.Keyword.Namespace),
         ],
 
         'strings': [
