@@ -11,6 +11,8 @@ import typing
 from edgedb.lang import edgeql
 
 
+# NOTE: Please update the pygments lexer with any keyword changes made here
+
 keyword_types = range(1, 3)
 UNRESERVED_KEYWORD, RESERVED_KEYWORD = keyword_types
 
