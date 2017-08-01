@@ -79,30 +79,8 @@ class LinkPropertySourceContext(sources.SourceCommandContext):
     pass
 
 
-class LinkPropertySourceCommand(sd.ClassCommand):
-    def _create_innards(self, schema, context):
-        for op in self.get_subcommands(type=LinkPropertyCommand):
-            op.apply(schema, context=context)
-
-        super()._create_innards(schema, context)
-
-    def _alter_innards(self, schema, context, scls):
-        for op in self.get_subcommands(type=LinkPropertyCommand):
-            op.apply(schema, context=context)
-
-        super()._alter_innards(schema, context, scls)
-
-    def _delete_innards(self, schema, context, scls):
-        super()._delete_innards(schema, context, scls)
-
-        for op in self.get_subcommands(type=LinkPropertyCommand):
-            op.apply(schema, context=context)
-
-    def _apply_fields_ast(self, context, node):
-        super()._apply_fields_ast(context, node)
-
-        for op in self.get_subcommands(type=LinkPropertyCommand):
-            self._append_subcmd_ast(node, op, context)
+class LinkPropertySourceCommand(referencing.ReferencingClassCommand):
+    pass
 
 
 class LinkPropertyCommandContext(pointers.PointerCommandContext,

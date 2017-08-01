@@ -1036,7 +1036,7 @@ def process_set_as_agg_expr(
                     # types for custom domains and will fail to process a
                     # query with custom domains appearing as array
                     # elements.
-                    pgtype = pg_types.pg_type_from_atom(
+                    pgtype = pg_types.pg_type_from_object(
                         ctx.schema, ir_arg.scls, topbase=True)
                     pgtype = pgast.TypeName(name=pgtype)
                     arg_ref = pgast.TypeCast(arg=arg_ref, type_name=pgtype)

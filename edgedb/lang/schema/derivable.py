@@ -15,10 +15,7 @@ class DerivableClassCommand(inheriting.InheritingClassCommand):
     pass
 
 
-class DerivableClass(inheriting.InheritingClass):
-    name = so.Field(sn.Name, private=True, compcoef=0.909)
-    is_derived = so.Field(bool, False, compcoef=0.909)
-
+class DerivableClassBase:
     # Override name field comparison coefficient on the
     # presumption that the derived names may be different,
     # but base names may be equal.
@@ -133,3 +130,8 @@ class DerivableClass(inheriting.InheritingClass):
             dctx=dctx)
 
         return derived
+
+
+class DerivableClass(DerivableClassBase, inheriting.InheritingClass):
+    name = so.Field(sn.Name, private=True, compcoef=0.909)
+    is_derived = so.Field(bool, False, compcoef=0.909)

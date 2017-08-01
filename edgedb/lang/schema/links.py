@@ -83,7 +83,7 @@ class LinkSearchConfiguration(so.Class):
                       introspectable=False)
 
 
-class Link(pointers.Pointer, sources.Source):
+class Link(sources.Source, pointers.Pointer):
     _type = 'link'
 
     spectargets = so.Field(named.NamedClassSet, named.NamedClassSet,
@@ -223,30 +223,8 @@ class LinkSourceCommandContext(sources.SourceCommandContext):
     pass
 
 
-class LinkSourceCommand(sd.ClassCommand):
-    def _create_innards(self, schema, context):
-        super()._create_innards(schema, context)
-
-        for op in self.get_subcommands(type=LinkCommand):
-            op.apply(schema, context=context)
-
-    def _alter_innards(self, schema, context, scls):
-        super()._alter_innards(schema, context, scls)
-
-        for op in self.get_subcommands(type=LinkCommand):
-            op.apply(schema, context=context)
-
-    def _delete_innards(self, schema, context, scls):
-        super()._delete_innards(schema, context, scls)
-
-        for op in self.get_subcommands(type=LinkCommand):
-            op.apply(schema, context=context)
-
-    def _apply_fields_ast(self, context, node):
-        super()._apply_fields_ast(context, node)
-
-        for op in self.get_subcommands(type=LinkCommand):
-            self._append_subcmd_ast(node, op, context)
+class LinkSourceCommand(referencing.ReferencingClassCommand):
+    pass
 
 
 class LinkCommandContext(pointers.PointerCommandContext,

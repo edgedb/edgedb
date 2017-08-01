@@ -527,6 +527,7 @@ class DDLTestCase(BaseQueryTestCase):
     # DDL test cases generally need to be serialized
     # to avoid deadlocks in parallel execution.
     SERIALIZED = True
+    ISOLATED_METHODS = False
 
 
 class QueryTestCaseMeta(TestCaseMeta):

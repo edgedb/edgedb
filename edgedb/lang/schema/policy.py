@@ -30,7 +30,7 @@ class Event(primary.PrimaryClass):
     _type = 'event'
 
 
-class Policy(derivable.DerivableClass, primary.PrimaryClass):
+class Policy(derivable.DerivableClassBase, primary.PrimaryClass):
     _type = 'policy'
 
     # Policy subject, i.e object in the schema to which
@@ -249,6 +249,10 @@ class CreatePolicy(PolicyCommand, named.CreateNamedClass):
         subject_name = parent_ctx.op.classname
 
         cmd.update((
+            sd.AlterClassProperty(
+                property='bases',
+                new_value=so.ClassList()
+            ),
             sd.AlterClassProperty(
                 property='subject',
                 new_value=so.ClassRef(classname=subject_name)
