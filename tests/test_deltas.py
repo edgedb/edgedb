@@ -59,6 +59,72 @@ class TestDeltas(tb.DDLTestCase):
             }]
         ])
 
+    async def test_delta_drop_01(self):
+        # Check that constraints defined on atoms being dropped are
+        # dropped.
+        result = await self.con.execute("""
+            CREATE ATOM test::a1 EXTENDING std::str {
+                CREATE CONSTRAINT std::enum(['a', 'b']) {
+                    SET description := 'test_delta_drop_01_constraint';
+                };
+            };
+
+            WITH MODULE schema
+            SELECT Constraint {name}
+            FILTER Constraint.description = 'test_delta_drop_01_constraint';
+
+            DROP ATOM test::a1;
+
+            WITH MODULE schema
+            SELECT Constraint {name}
+            FILTER Constraint.description = 'test_delta_drop_01_constraint';
+        """)
+
+        self.assert_data_shape(result, [
+            None,
+
+            [{
+                'name': 'std::enum',
+            }],
+
+            None,
+
+            []
+        ])
+
+    async def test_delta_drop_02(self):
+        # Check that links defined on concepts being dropped are
+        # dropped.
+        result = await self.con.execute("""
+            CREATE CONCEPT test::C1 {
+                CREATE LINK test::l1 TO std::str {
+                    SET description := 'test_delta_drop_02_link';
+                };
+            };
+
+            WITH MODULE schema
+            SELECT Link {name}
+            FILTER Link.description = 'test_delta_drop_02_link';
+
+            DROP CONCEPT test::C1;
+
+            WITH MODULE schema
+            SELECT Link {name}
+            FILTER Link.description = 'test_delta_drop_02_link';
+        """)
+
+        self.assert_data_shape(result, [
+            None,
+
+            [{
+                'name': 'test::l1',
+            }],
+
+            None,
+
+            []
+        ])
+
 
 class TestDeltaLinkInheritance(tb.DDLTestCase):
     async def test_delta_link_inheritance(self):

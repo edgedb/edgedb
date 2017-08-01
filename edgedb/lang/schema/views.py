@@ -56,20 +56,20 @@ class ViewCommand(constraints.ConsistencySubjectCommand,
 
     def _create_innards(self, schema, context):
         super()._create_innards(schema, context)
-
-        for op in self.get_subcommands():
-            op.apply(schema, context=context)
+        self._process_innards(schema, context)
 
     def _alter_innards(self, schema, context, scls):
         super()._alter_innards(schema, context, scls)
-
-        for op in self.get_subcommands():
-            op.apply(schema, context=context)
+        self._process_innards(schema, context)
 
     def _delete_innards(self, schema, context, scls):
         super()._delete_innards(schema, context, scls)
+        self._process_innards(schema, context)
 
-        for op in self.get_subcommands():
+    def _process_innards(self, schema, context):
+        # Limit to Concept subcommands, as the others have
+        # been processed by the ReferencingClassCommand.
+        for op in self.get_subcommands(metaclass=concepts.Concept):
             op.apply(schema, context=context)
 
     @classmethod

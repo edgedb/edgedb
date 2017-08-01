@@ -807,6 +807,15 @@ class ClassCommand(Command, metaclass=ClassCommandMeta):
             raise TypeError(f'schema metaclass not set for {cls}')
         return cls._schema_metaclass
 
+    def get_subcommands(self, *, type=None, metaclass=None):
+        if metaclass is not None:
+            return filter(
+                lambda i: (isinstance(i, ClassCommand) and
+                           issubclass(i.get_schema_metaclass(), metaclass)),
+                self)
+        else:
+            return super().get_subcommands(type=type)
+
 
 class Ghost(ClassCommand):
     """A special class to represent deleted delta commands."""

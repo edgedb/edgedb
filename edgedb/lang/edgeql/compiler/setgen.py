@@ -15,6 +15,7 @@ from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import concepts as s_concepts
+from edgedb.lang.schema import links as s_links
 from edgedb.lang.schema import nodes as s_nodes
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
@@ -287,15 +288,16 @@ def resolve_ptr(
                 ptr = bptr.derive(ctx.schema, near_endpoint, schema_cls)
 
     if not ptr:
-        msg = ('({near_endpoint}).{direction}({ptr_name}{far_endpoint}) '
-               'does not resolve to any known path')
-        far_endpoint_str = ' TO {}'.format(target.name) if target else ''
-        msg = msg.format(
-            near_endpoint=near_endpoint.name,
-            direction=direction,
-            ptr_name=pointer_name,
-            far_endpoint=far_endpoint_str)
-        raise errors.EdgeQLReferenceError(msg)
+        if isinstance(near_endpoint, s_links.Link):
+            path = f'({near_endpoint.shortname})@({pointer_name})'
+        else:
+            path = f'({near_endpoint.name}).{direction}({pointer_name})'
+
+        if target:
+            path += f'[IS {target.name}]'
+
+        raise errors.EdgeQLReferenceError(
+            f'{path} does not resolve to any known path')
 
     return ptr
 

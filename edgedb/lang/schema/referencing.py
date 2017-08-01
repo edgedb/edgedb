@@ -80,7 +80,7 @@ class RebaseReferencingClass(inheriting.RebaseNamedClass):
 
 class ReferencingClassMeta(type(inheriting.InheritingClass)):
     def __new__(mcls, name, bases, clsdict):
-        refdicts = {}
+        refdicts = collections.OrderedDict()
         mydicts = {k: v for k, v in clsdict.items() if isinstance(v, RefDict)}
         cls = super().__new__(mcls, name, bases, clsdict)
 
@@ -112,9 +112,10 @@ class ReferencingClassMeta(type(inheriting.InheritingClass)):
 
                 cls._refdicts_by_refclass[dct.ref_cls] = dct
 
-        cls._refdicts = collections.OrderedDict(
-            sorted(refdicts.items(), key=lambda e: e[0])
-        )
+        # Refdicts need to be reversed here to respect the __mro__,
+        # as we have iterated over it in reverse above.
+        cls._refdicts = collections.OrderedDict(reversed(refdicts.items()))
+
         setattr(cls, '{}.{}_refdicts'.format(cls.__module__, cls.__name__),
                      mydicts)
 
@@ -191,7 +192,10 @@ class ReferencedClassCommand(derivable.DerivableClassCommand,
     def _create_begin(self, schema, context):
         referrer_ctx = self.get_referrer_context(context)
         attrs = self.get_struct_properties(schema)
-        if referrer_ctx is not None and not attrs.get('is_derived'):
+        mcls = self.get_schema_metaclass()
+
+        if (referrer_ctx is not None and not attrs.get('is_derived') and
+                issubclass(mcls, derivable.DerivableClass)):
             referrer = referrer_ctx.scls
             metaclass = self.get_schema_metaclass()
             basename = metaclass.get_shortname(self.classname)
@@ -727,3 +731,68 @@ class ReferencingClass(inheriting.InheritingClass,
                                                dctx=dctx)
 
             all_coll.update(local_coll)
+
+
+class ReferencingClassCommand(sd.ClassCommand):
+    def _apply_fields_ast(self, context, node):
+        super()._apply_fields_ast(context, node)
+
+        mcls = self.get_schema_metaclass()
+
+        for refdict in mcls.get_refdicts():
+            self._apply_refs_fields_ast(context, node, refdict)
+
+    def _create_innards(self, schema, context):
+        super()._create_innards(schema, context)
+
+        mcls = self.get_schema_metaclass()
+
+        for refdict in mcls.get_refdicts():
+            self._create_refs(schema, context, self.scls, refdict)
+
+    def _alter_innards(self, schema, context, scls):
+        super()._alter_innards(schema, context, scls)
+
+        mcls = self.get_schema_metaclass()
+
+        for refdict in mcls.get_refdicts():
+            self._alter_refs(schema, context, scls, refdict)
+
+    def _delete_innards(self, schema, context, scls):
+        super()._delete_innards(schema, context, scls)
+
+        mcls = self.get_schema_metaclass()
+
+        for refdict in mcls.get_refdicts():
+            self._delete_refs(schema, context, scls, refdict)
+
+    def _apply_refs_fields_ast(self, context, node, refdict):
+        for op in self.get_subcommands(metaclass=refdict.ref_cls):
+            self._append_subcmd_ast(node, op, context)
+
+    def _create_refs(self, schema, context, scls, refdict):
+        for op in self.get_subcommands(metaclass=refdict.ref_cls):
+            op.apply(schema, context=context)
+
+    def _alter_refs(self, schema, context, scls, refdict):
+        for op in self.get_subcommands(metaclass=refdict.ref_cls):
+            op.apply(schema, context=context)
+
+    def _delete_refs(self, schema, context, scls, refdict):
+        del_cmd = sd.ClassCommandMeta.get_command_class(
+            named.DeleteNamedClass, refdict.ref_cls)
+
+        deleted_refs = set()
+
+        for op in self.get_subcommands(type=del_cmd):
+            deleted_ref = op.apply(schema, context=context)
+            deleted_refs.add(deleted_ref)
+
+        # Add implicit Delete commands for any local refs not
+        # deleted explicitly.
+        all_refs = set(getattr(scls, refdict.local_attr).values())
+
+        for ref in all_refs - deleted_refs:
+            op = del_cmd(classname=ref.name)
+            op.apply(schema, context=context)
+            self.add(op)

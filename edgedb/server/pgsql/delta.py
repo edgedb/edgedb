@@ -1791,34 +1791,6 @@ class PolicyCommand(sd.ClassCommand, metaclass=ReferencedClassCommandMeta):
     table = metaschema.get_metaclass_table(s_policy.Policy)
     op_priority = 2
 
-    def fill_record(self, schema):
-        rec, updates = super().fill_record(schema)
-
-        if rec:
-            subj = updates.get('subject')
-            if subj:
-                rec.subject = dbops.Query(
-                    '(SELECT id FROM edgedb.NamedClass WHERE name = $1)',
-                    [subj],
-                    type='uuid')
-
-            event = updates.get('event')
-            if event:
-                rec.event = dbops.Query(
-                    '(SELECT id FROM edgedb.NamedClass WHERE name = $1)',
-                    [event],
-                    type='uuid')
-
-            actions = updates.get('actions')
-            if actions:
-                rec.actions = dbops.Query(
-                    '''(SELECT array_agg(id)
-                        FROM edgedb.NamedClass
-                        WHERE name = any($1::text[]))''', [actions],
-                    type='uuid[]')
-
-        return rec, updates
-
 
 class CreatePolicy(
         PolicyCommand, CreateNamedClass, adapts=s_policy.CreatePolicy):
@@ -1904,7 +1876,7 @@ class PointerMetaCommand(MetaCommand, sd.ClassCommand,
         column_name = common.edgedb_name_to_pg_name(ptr.shortname)
 
         if isinstance(new_target, s_atoms.Atom):
-            target_type = types.pg_type_from_atom(schema, new_target)
+            target_type = types.pg_type_from_object(schema, new_target)
 
             if isinstance(old_target, s_atoms.Atom):
                 AlterAtom.alter_atom(
