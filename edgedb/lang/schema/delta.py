@@ -28,7 +28,7 @@ from . import utils
 def delta_schemas(schema1, schema2, *, include_derived=False):
     from . import modules, objects as so, database
 
-    result = database.AlterDatabase(metaclass=database.Database)
+    result = database.AlterDatabase()
 
     my_modules = set(schema1.modules)
     other_modules = set(schema2.modules)
@@ -40,8 +40,7 @@ def delta_schemas(schema1, schema2, *, include_derived=False):
     for added_module in added_modules:
         my_module = schema1.get_module(added_module)
 
-        create = modules.CreateModule(classname=added_module,
-                                      metaclass=modules.Module)
+        create = modules.CreateModule(classname=added_module)
 
         create.add(AlterClassProperty(property='name', old_value=None,
                                       new_value=added_module))
@@ -55,8 +54,7 @@ def delta_schemas(schema1, schema2, *, include_derived=False):
         other_module = schema2.get_module(common_module)
 
         if my_module.imports != other_module.imports:
-            alter = modules.AlterModule(classname=common_module,
-                                        metaclass=modules.Module)
+            alter = modules.AlterModule(classname=common_module)
 
             alter.add(AlterClassProperty(property='imports',
                                          old_value=tuple(other_module.imports),
@@ -89,8 +87,7 @@ def delta_schemas(schema1, schema2, *, include_derived=False):
         result.update(dels)
 
     for dropped_module in dropped_modules:
-        result.add(modules.DeleteModule(classname=dropped_module,
-                                        metaclass=modules.Module))
+        result.add(modules.DeleteModule(classname=dropped_module))
 
     return result
 
@@ -98,7 +95,7 @@ def delta_schemas(schema1, schema2, *, include_derived=False):
 def delta_module(schema1, schema2, modname):
     from . import modules, objects as so, database
 
-    result = database.AlterDatabase(metaclass=database.Database)
+    result = database.AlterDatabase()
 
     try:
         module2 = schema2.get_module(modname)
@@ -110,8 +107,7 @@ def delta_module(schema1, schema2, modname):
     global_dels = []
 
     if module2 is None:
-        create = modules.CreateModule(classname=modname,
-                                      metaclass=modules.Module)
+        create = modules.CreateModule(classname=modname)
 
         create.add(AlterClassProperty(property='name', old_value=None,
                                       new_value=modname))
@@ -498,10 +494,11 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
 
     def get_struct_properties(self, schema):
         result = {}
+        metaclass = self.get_schema_metaclass()
 
         for op in self.get_subcommands(type=AlterClassProperty):
             try:
-                field = self.metaclass.get_field(op.property)
+                field = metaclass.get_field(op.property)
             except KeyError:
                 continue
 
@@ -804,8 +801,6 @@ class ClassCommandMeta(type(Command)):
 class ClassCommand(Command, metaclass=ClassCommandMeta):
     """Base class for all Class-related commands."""
 
-    metaclass = struct.Field(so.MetaClass, str_formatter=None)
-
     @classmethod
     def get_schema_metaclass(cls):
         if cls._schema_metaclass is None:
@@ -844,7 +839,8 @@ class CreateClass(ClassCommand):
     def _create_begin(self, schema, context):
         props = self.get_struct_properties(schema)
 
-        self.scls = self.metaclass(
+        metaclass = self.get_schema_metaclass()
+        self.scls = metaclass(
             **props, _setdefaults_=False, _relaxrequired_=True)
 
     def _create_innards(self, schema, context):
@@ -896,7 +892,7 @@ class AlterClassProperty(Command):
 
         if isinstance(astnode, qlast.DropAttributeValue):
             parent_ctx = context.get(CommandContextToken)
-            parent_cls = parent_ctx.op.metaclass
+            parent_cls = parent_ctx.op.get_schema_metaclass()
 
             field = parent_cls._fields.get(propname)
             if (field is not None and

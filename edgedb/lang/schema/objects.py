@@ -299,7 +299,7 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
 
             alter_class = sd.ClassCommandMeta.get_command_class_or_die(
                 sd.AlterClass, type(self))
-            delta = alter_class(metaclass=new.__class__, **command_args)
+            delta = alter_class(**command_args)
             self.delta_properties(delta, other, reverse, context=context)
 
         elif not old:
@@ -312,7 +312,7 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
 
             create_class = sd.ClassCommandMeta.get_command_class_or_die(
                 sd.CreateClass, type(self))
-            delta = create_class(metaclass=new.__class__, **command_args)
+            delta = create_class(**command_args)
             self.delta_properties(delta, other, reverse, context=context)
 
         else:
@@ -325,7 +325,7 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
 
             delete_class = sd.ClassCommandMeta.get_command_class_or_die(
                 sd.DeleteClass, type(self))
-            delta = delete_class(metaclass=old.__class__, **command_args)
+            delta = delete_class(**command_args)
 
         return delta
 
@@ -500,8 +500,8 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
         from edgedb.lang.schema import named as s_named
         from edgedb.lang.schema import database as s_db
 
-        adds_mods = s_db.AlterDatabase(metaclass=s_db.Database)
-        dels = s_db.AlterDatabase(metaclass=s_db.Database)
+        adds_mods = s_db.AlterDatabase()
+        dels = s_db.AlterDatabase()
 
         if old is None:
             for n in new:

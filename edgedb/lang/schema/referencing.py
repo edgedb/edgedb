@@ -193,8 +193,9 @@ class ReferencedClassCommand(derivable.DerivableClassCommand,
         attrs = self.get_struct_properties(schema)
         if referrer_ctx is not None and not attrs.get('is_derived'):
             referrer = referrer_ctx.scls
-            basename = self.metaclass.get_shortname(self.classname)
-            base = schema.get(basename, type=self.metaclass)
+            metaclass = self.get_schema_metaclass()
+            basename = metaclass.get_shortname(self.classname)
+            base = schema.get(basename, type=metaclass)
             self.scls = base.derive(schema, referrer, attrs=attrs,
                                     add_to_schema=True, init_props=False)
         else:
@@ -292,7 +293,7 @@ class CreateReferencedClass(inheriting.CreateInheritingClass):
             )
 
             referrer_ctx = cls.get_referrer_context(context)
-            referrer_class = referrer_ctx.op.metaclass
+            referrer_class = referrer_ctx.op.get_schema_metaclass()
             referrer_name = referrer_ctx.op.classname
             refdict = referrer_class.get_refdict_for_class(objcls)
 

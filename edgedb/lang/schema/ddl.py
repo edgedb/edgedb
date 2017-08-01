@@ -37,7 +37,7 @@ def cmd_from_ddl(stmt, *, context=None, schema):
 
 
 def delta_from_ddl(stmts, *, schema):
-    alter_db = s_db.AlterDatabase(metaclass=s_db.Database)
+    alter_db = s_db.AlterDatabase()
     context = s_delta.CommandContext()
 
     if isinstance(stmts, edgeql.ast.Base):

@@ -66,7 +66,7 @@ class ClassCommandMeta(sd.ClassCommandMeta, CommandMeta):
 
 
 class ReferencedClassCommandMeta(
-        ClassCommandMeta, s_referencing.ReferencedClassCommandMeta):
+        s_referencing.ReferencedClassCommandMeta, ClassCommandMeta):
     _transparent_adapter_subclass = True
 
 
@@ -624,7 +624,7 @@ class DeleteAttributeValue(
     pass
 
 
-class ConstraintCommand(metaclass=ReferencedClassCommandMeta):
+class ConstraintCommand(sd.ClassCommand, metaclass=ReferencedClassCommandMeta):
     table = metaschema.get_metaclass_table(s_constr.Constraint)
     op_priority = 3
 
@@ -1403,7 +1403,8 @@ class CompositeClassMetaCommand(NamedClassMetaCommand):
                     alter_table_add_parent.add_operation((op, None, [cond]))
 
 
-class SourceIndexCommand(metaclass=ReferencedClassCommandMeta):
+class SourceIndexCommand(sd.ClassCommand,
+                         metaclass=ReferencedClassCommandMeta):
     table = metaschema.get_metaclass_table(s_indexes.SourceIndex)
 
 
@@ -1786,7 +1787,7 @@ class DeleteEvent(
     pass
 
 
-class PolicyCommand(metaclass=ReferencedClassCommandMeta):
+class PolicyCommand(sd.ClassCommand, metaclass=ReferencedClassCommandMeta):
     table = metaschema.get_metaclass_table(s_policy.Policy)
     op_priority = 2
 
@@ -1847,7 +1848,8 @@ class CancelLinkMappingUpdate(MetaCommand):
     pass
 
 
-class PointerMetaCommand(MetaCommand, metaclass=ReferencedClassCommandMeta):
+class PointerMetaCommand(MetaCommand, sd.ClassCommand,
+                         metaclass=ReferencedClassCommandMeta):
     def get_host(self, schema, context):
         if context:
             link = context.get(s_links.LinkCommandContext)
@@ -2489,8 +2491,9 @@ class RenameLinkProperty(
 class AlterLinkProperty(
         LinkPropertyMetaCommand, adapts=s_lprops.AlterLinkProperty):
     def apply(self, schema, context=None):
+        metaclass = self.get_schema_metaclass()
         self.old_prop = old_prop = schema.get(
-            self.classname, type=self.metaclass).copy()
+            self.classname, type=metaclass).copy()
         prop = s_lprops.AlterLinkProperty.apply(self, schema, context)
         LinkPropertyMetaCommand.apply(self, schema, context)
 

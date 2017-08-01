@@ -34,8 +34,7 @@ class NamedClassCommand(sd.ClassCommand):
     @classmethod
     def _cmd_from_ast(cls, astnode, context, schema):
         classname = cls._classname_from_ast(astnode, context, schema)
-        metaclass = cls.get_schema_metaclass()
-        return cls(classname=classname, metaclass=metaclass)
+        return cls(classname=classname)
 
     def _append_subcmd_ast(cls, node, subcmd, context):
         subnode = subcmd.get_ast(context)
@@ -46,10 +45,11 @@ class NamedClassCommand(sd.ClassCommand):
         return self.__class__.astnode
 
     def _get_ast(self, context):
+        metaclass = self.get_schema_metaclass()
         astnode = self._get_ast_node(context)
         if isinstance(self.classname, sn.Name):
-            if hasattr(self.metaclass, 'get_shortname'):
-                nname = self.metaclass.get_shortname(self.classname)
+            if hasattr(metaclass, 'get_shortname'):
+                nname = metaclass.get_shortname(self.classname)
             else:
                 nname = self.classname
             name = qlast.ClassRef(module=nname.module, name=nname.name)
@@ -95,7 +95,8 @@ class NamedClassCommand(sd.ClassCommand):
                 node.commands.append(subnode)
 
     def _add_to_schema(self, schema):
-        if schema.get(self.classname, default=None, type=self.metaclass):
+        metaclass = self.get_schema_metaclass()
+        if schema.get(self.classname, default=None, type=metaclass):
             raise ValueError(f'{self.classname!r} already exists in schema')
         schema.add(self.scls)
 
@@ -141,7 +142,8 @@ class CreateNamedClass(CreateOrAlterNamedClass, sd.CreateClass):
             super()._apply_field_ast(context, node, op)
 
     def apply(self, schema, context):
-        if schema.get(self.classname, default=None, type=self.metaclass):
+        metaclass = self.get_schema_metaclass()
+        if schema.get(self.classname, default=None, type=metaclass):
             raise ValueError(f'{self.classname!r} already exists in schema')
 
         # apply will add to the schema
@@ -188,7 +190,8 @@ class RenameNamedClass(NamedClassCommand):
         pass
 
     def apply(self, schema, context):
-        scls = schema.get(self.classname, type=self.metaclass)
+        metaclass = self.get_schema_metaclass()
+        scls = schema.get(self.classname, type=metaclass)
         self.scls = scls
 
         self._rename_begin(schema, context, scls)
@@ -199,9 +202,10 @@ class RenameNamedClass(NamedClassCommand):
 
     def _get_ast(self, context):
         astnode = self._get_ast_node(context)
+        metaclass = self.get_schema_metaclass()
 
-        if hasattr(self.metaclass, 'get_shortname'):
-            new_name = self.metaclass.get_shortname(self.new_name)
+        if hasattr(metaclass, 'get_shortname'):
+            new_name = metaclass.get_shortname(self.new_name)
         else:
             new_name = self.new_name
 
@@ -221,7 +225,7 @@ class RenameNamedClass(NamedClassCommand):
     @classmethod
     def _cmd_from_ast(cls, astnode, context, schema):
         parent_ctx = context.get(sd.CommandContextToken)
-        parent_class = parent_ctx.op.metaclass
+        parent_class = parent_ctx.op.get_schema_metaclass()
         rename_class = sd.ClassCommandMeta.get_command_class(
             RenameNamedClass, parent_class)
         return rename_class._rename_cmd_from_ast(astnode, context)
@@ -229,7 +233,7 @@ class RenameNamedClass(NamedClassCommand):
     @classmethod
     def _rename_cmd_from_ast(cls, astnode, context):
         parent_ctx = context.get(sd.CommandContextToken)
-        parent_class = parent_ctx.op.metaclass
+        parent_class = parent_ctx.op.get_schema_metaclass()
         rename_class = sd.ClassCommandMeta.get_command_class(
             RenameNamedClass, parent_class)
 
@@ -290,7 +294,7 @@ class AlterNamedClass(CreateOrAlterNamedClass, sd.AlterClass):
         if added_bases or dropped_bases:
             from . import inheriting
 
-            parent_class = cmd.metaclass
+            parent_class = cmd.get_schema_metaclass()
             rebase_class = sd.ClassCommandMeta.get_command_class(
                 inheriting.RebaseNamedClass, parent_class)
 
@@ -392,7 +396,8 @@ class AlterNamedClass(CreateOrAlterNamedClass, sd.AlterClass):
         pass
 
     def apply(self, schema, context):
-        scls = schema.get(self.classname, type=self.metaclass)
+        metaclass = self.get_schema_metaclass()
+        scls = schema.get(self.classname, type=metaclass)
         self.scls = scls
 
         with self.new_context(context) as ctx:
@@ -417,7 +422,8 @@ class DeleteNamedClass(NamedClassCommand, sd.DeleteClass):
         schema.delete(scls)
 
     def apply(self, schema, context=None):
-        scls = schema.get(self.classname, type=self.metaclass)
+        metaclass = self.get_schema_metaclass()
+        scls = schema.get(self.classname, type=metaclass)
         self.scls = scls
         self.old_class = scls
 

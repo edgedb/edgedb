@@ -73,7 +73,8 @@ class CreateDelta(named.CreateNamedClass, DeltaCommand):
 
     def apply(self, schema, context):
         props = self.get_struct_properties(schema)
-        delta = self.metaclass(**props)
+        metaclass = self.get_schema_metaclass()
+        delta = metaclass(**props)
         schema.add_delta(delta)
         return delta
 
