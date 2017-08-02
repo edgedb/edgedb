@@ -596,6 +596,7 @@ class DropConcreteLink(DropObject):
 
 class CreateConstraint(CreateInheritingObject):
     args: typing.List[FuncArg]
+    subject: typing.Optional[Expr]
 
 
 class AlterConstraint(AlterObject):
@@ -609,6 +610,7 @@ class DropConstraint(DropObject):
 class CreateConcreteConstraint(CreateObject):
     args: typing.List[Base]
     is_abstract: bool = False
+    subject: typing.Optional[Expr]
 
 
 class AlterConcreteConstraint(AlterObject):

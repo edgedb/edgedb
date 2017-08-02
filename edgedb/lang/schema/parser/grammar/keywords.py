@@ -53,8 +53,8 @@ reserved_keywords = edgeql.keywords.reserved_keywords
 
 
 def _check_keywords():
-    # TODO: Fix linkproperty; add 'on' to EdgeQL
-    ALLOWED_NEW_UNRESERVED = {'on', 'import', 'linkproperty'}
+    # TODO: Fix linkproperty;
+    ALLOWED_NEW_UNRESERVED = {'import', 'linkproperty'}
 
     invalid_unreserved_keywords = \
         edgeql.keywords.reserved_keywords.intersection(unreserved_keywords)

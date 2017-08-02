@@ -44,6 +44,7 @@ unreserved_keywords = frozenset([
     "map",
     "migration",
     "of",
+    "on",
     "policy",
     "property",
     "required",
