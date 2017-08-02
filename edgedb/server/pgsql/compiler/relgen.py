@@ -491,7 +491,27 @@ def process_set_as_path_step(
             rptr.direction == s_pointers.PointerDirection.Outbound):
         with ctx.new() as newctx:
             source_rel = set_to_cte(ir_source, ctx=newctx)
-        relctx.put_set_cte(ir_set, source_rel, ctx=ctx)
+            ptr_src = ptrcls.source
+            path_src = ir_source.scls
+
+            if ptr_src != path_src and not path_src.issubclass(ptr_src):
+                # This is a polymorphic path element of a shape.
+                src_path_id = ir_set.path_id[:-2]
+                relctx.include_range(
+                    stmt, source_rel, join_type='inner',
+                    lateral=True, ctx=newctx)
+                poly_rvar = dbobj.range_for_concept(
+                    ctx.env, ptr_src, src_path_id)
+                poly_rvar.path_bonds.add(src_path_id)
+                poly_rvar.nullable = True
+                pathctx.rel_join(ctx.env, stmt, poly_rvar, type='left',
+                                 allow_implicit_bond=False)
+                pathctx.put_path_rvar(ctx.env, stmt, src_path_id, poly_rvar)
+
+                cte = relctx.get_set_cte(ir_set, ctx=ctx)
+                ctx.query.ctes.append(cte)
+            else:
+                relctx.put_set_cte(ir_set, source_rel, ctx=ctx)
         return
 
     with ctx.new() as newctx:
@@ -504,11 +524,6 @@ def process_set_as_path_step(
         relctx.include_range(
             stmt, source_rel, join_type='inner',
             lateral=True, ctx=srcctx)
-
-        if isinstance(source_rel, pgast.CommonTableExpr):
-            source_query = source_rel.query
-        else:
-            source_query = source_rel
 
         set_rvar = relctx.get_root_rvar(
             ir_set, stmt, nullable=ctx.lax_paths > 0, ctx=newctx)
@@ -834,6 +849,8 @@ def process_set_as_typefilter(
     pathctx.put_path_rvar(
         ctx.env, stmt, ir_set.expr.expr.path_id, root_rvar)
     dispatch.compile(ir_set.expr.expr, ctx=ctx)
+    pathctx.put_path_rvar(
+        ctx.env, stmt, ir_set.expr.expr.path_id, root_rvar)
 
     ctx.query.ctes.append(relctx.get_set_cte(ir_set, ctx=ctx))
 
