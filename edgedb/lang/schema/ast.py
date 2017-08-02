@@ -38,7 +38,7 @@ class Constraint(Base):
     attributes: typing.List[Attribute]
     delegated: bool = False
     name: qlast.ClassRef
-    subject: typing.Optional[qlast.Base]
+    subject: typing.Optional[qlast.Expr]
 
 
 class Pointer(Base):
@@ -106,7 +106,7 @@ class ConceptDeclaration(Declaration):
 class ConstraintDeclaration(Declaration):
     abstract: bool = False
     args: typing.List[qlast.Base]
-    subject: typing.Optional[qlast.Base]
+    subject: typing.Optional[qlast.Expr]
 
 
 class EventDeclaration(Declaration):

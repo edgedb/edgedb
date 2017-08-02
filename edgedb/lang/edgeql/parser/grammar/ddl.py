@@ -560,26 +560,28 @@ class DropLocalPolicyStmt(Nonterm):
 class CreateConstraintStmt(Nonterm):
     def reduce_CreateConstraint(self, *kids):
         r"""%reduce OptAliasBlock \
-                    CREATE CONSTRAINT NodeName OptInheriting \
+                    CREATE CONSTRAINT NodeName OptOnExpr OptInheriting \
                     OptCreateCommandsBlock"""
         self.val = qlast.CreateConstraint(
             aliases=kids[0].val,
             name=kids[3].val,
-            bases=kids[4].val,
-            commands=kids[5].val,
+            subject=kids[4].val,
+            bases=kids[5].val,
+            commands=kids[6].val,
         )
 
     def reduce_CreateConstraint_CreateFunctionArgs(self, *kids):
         r"""%reduce OptAliasBlock \
-                    CREATE CONSTRAINT NodeName CreateFunctionArgs \
+                    CREATE CONSTRAINT NodeName CreateFunctionArgs OptOnExpr \
                     OptInheriting OptCreateCommandsBlock \
         """
         self.val = qlast.CreateConstraint(
             aliases=kids[0].val,
             name=kids[3].val,
             args=kids[4].val,
-            bases=kids[5].val,
-            commands=kids[6].val,
+            subject=kids[5].val,
+            bases=kids[6].val,
+            commands=kids[7].val,
         )
 
 
@@ -605,6 +607,19 @@ class DropConstraintStmt(Nonterm):
         )
 
 
+class OnExpr(Nonterm):
+    def reduce_ON_LPAREN_Expr_RPAREN(self, *kids):
+        self.val = kids[2].val
+
+
+class OptOnExpr(Nonterm):
+    def reduce_empty(self, *kids):
+        self.val = None
+
+    def reduce_OnExpr(self, *kids):
+        self.val = kids[0].val
+
+
 class OptAbstract(Nonterm):
     def reduce_ABSTRACT(self, *kids):
         self.val = True
@@ -624,13 +639,14 @@ class OptConcreteConstraintArgList(Nonterm):
 class CreateConcreteConstraintStmt(Nonterm):
     def reduce_CreateConstraint(self, *kids):
         r"""%reduce CREATE OptAbstract CONSTRAINT \
-                    NodeName OptConcreteConstraintArgList \
+                    NodeName OptConcreteConstraintArgList OptOnExpr \
                     OptCreateCommandsBlock"""
         self.val = qlast.CreateConcreteConstraint(
             is_abstract=kids[1].val,
             args=kids[4].val,
             name=kids[3].val,
-            commands=kids[5].val,
+            subject=kids[5].val,
+            commands=kids[6].val,
         )
 
 

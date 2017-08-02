@@ -451,6 +451,12 @@ atom special extending int:
         subject := str::len(<str>subject)
         """
 
+    def test_eschema_syntax_constraint08(self):
+        """
+constraint foo($param:Foo) on (len(subject.bar)) extending max:
+    errmessage := 'bar must be no more than {$param}.'
+        """
+
     def test_eschema_syntax_linkproperty01(self):
         """
 linkproperty foo:

@@ -800,6 +800,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.write('(')
                 self.visit_list(node.args, newlines=False)
                 self.write(')')
+            if node.subject:
+                self.write(' on (')
+                self.visit(node.subject)
+                self.write(')')
 
             self._ddl_visit_bases(node)
 
@@ -816,6 +820,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             if node.args:
                 self.write('(')
                 self.visit_list(node.args, newlines=False)
+                self.write(')')
+            if node.subject:
+                self.write(' on (')
+                self.visit(node.subject)
                 self.write(')')
 
         keywords = []

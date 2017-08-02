@@ -2374,6 +2374,22 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
+    def test_edgeql_syntax_ddl_constraint06(self):
+        """
+        CREATE CONSTRAINT std::length ON (len(<std::str>subject))
+            EXTENDING std::constraint
+        {
+            SET errmessage := 'invalid {subject}';
+        };
+        """
+
+    def test_edgeql_syntax_ddl_constraint07(self):
+        """
+        CREATE ATOM std::decimal_rounding_t EXTENDING std::str {
+            CREATE CONSTRAINT max(99) ON (<int>subject);
+        };
+        """
+
     def test_edgeql_syntax_ddl_function01(self):
         """
         CREATE FUNCTION std::strlen($string: std::str) -> std::int
