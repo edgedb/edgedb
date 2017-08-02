@@ -216,7 +216,12 @@ class PointerStorageInfo:
             table_type = 'link'
             col_name = common.edgedb_name_to_pg_name(pointer.shortname)
         else:
-            if cls._storable_in_source(pointer) and not link_bias:
+            if isinstance(source, s_atoms.Atom):
+                # This is a pseudo-link on an atom (__class__)
+                table = None
+                table_type = 'concept'
+                col_name = None
+            elif cls._storable_in_source(pointer) and not link_bias:
                 table, table_type, col_name = cls._source_table_info(pointer)
             elif cls._storable_in_pointer(pointer):
                 table, table_type, col_name = cls._pointer_table_info(pointer)

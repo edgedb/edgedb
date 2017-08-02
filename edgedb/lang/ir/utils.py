@@ -228,7 +228,7 @@ def new_expression_set(ir_expr, schema, path_id=None, alias=None):
                 cls_name = s_name.Name(module='__expr__', name=alias)
                 cls = result_type.__class__(name=cls_name, bases=[result_type])
                 cls.acquire_ancestor_inheritance(schema)
-            path_id = irast.PathId([cls])
+            path_id = irast.PathId(cls)
 
     return irast.Set(
         path_id=path_id,
@@ -253,6 +253,10 @@ class TupleIndirectionLink(s_links.Link):
             return False
 
         return self.name == other.name
+
+    def generic(self):
+        # Make PathId happy.
+        return False
 
 
 def tuple_indirection_path_id(tuple_path_id, element_name, element_type):

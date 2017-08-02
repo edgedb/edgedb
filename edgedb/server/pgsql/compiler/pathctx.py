@@ -17,6 +17,7 @@ from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import schema as s_schema
+from edgedb.lang.schema import sources as s_sources  # NOQA
 
 from edgedb.server.pgsql import ast as pgast
 from edgedb.server.pgsql import common
@@ -61,9 +62,10 @@ def get_id_path_id(
         schema: s_schema.Schema,
         path_id: irast.PathId) -> irast.PathId:
     """For PathId representing an object, return (PathId).(std::id)."""
-    assert isinstance(path_id[-1], s_concepts.Concept)
+    source: s_sources.Source = path_id[-1]
+    assert isinstance(source, s_concepts.Concept)
     return path_id.extend(
-        schema.get('std::id'),
+        source.resolve_pointer(schema, 'std::id'),
         s_pointers.PointerDirection.Outbound,
         schema.get('std::uuid'))
 
@@ -72,11 +74,11 @@ def get_canonical_path_id(
         schema: s_schema.Schema,
         path_id: irast.PathId) -> irast.PathId:
     """For a path id (PathId).(std::id) return PathId."""
-    rptr = path_id.rptr(schema)
+    rptr = path_id.rptr()
     if (rptr is not None and
             path_id.rptr_dir() == s_pointers.PointerDirection.Outbound and
             rptr.shortname == 'std::id'):
-        return irast.PathId(path_id[:-2])
+        return path_id[:-2]
     else:
         return path_id
 
@@ -120,7 +122,7 @@ def get_path_var(
     else:
         ptr_path_id = path_id
 
-    ptrcls = ptr_path_id.rptr(env.schema)
+    ptrcls = ptr_path_id.rptr()
     if ptrcls is not None:
         ptrname = ptrcls.shortname
     else:
@@ -151,7 +153,7 @@ def get_path_var(
         ptr_info = pg_types.get_pointer_storage_info(
             ptrcls, resolve_type=False, link_bias=False)
 
-        parent_ptrcls = irast.PathId(ptr_path_id[:-2]).rptr(env.schema)
+        parent_ptrcls = ptr_path_id[:-2].rptr()
         if parent_ptrcls is not None:
             parent_ptr_info = pg_types.get_pointer_storage_info(
                 parent_ptrcls, resolve_type=False, link_bias=False)
@@ -233,7 +235,7 @@ def get_path_var(
         if not isinstance(ptrcls, s_lprops.LinkProperty):
             path_src = ptr_path_id[-3]
             ptr_src = ptrcls.source
-            src_path_id = irast.PathId(ptr_path_id[:-2])
+            src_path_id = ptr_path_id[:-2]
             if path_src != ptr_src and not path_src.issubclass(ptr_src):
                 poly_rvar = dbobj.range_for_concept(env, ptr_src, src_path_id)
                 poly_rvar.nullable = True
@@ -365,7 +367,7 @@ def put_path_bond(
 
 def get_path_output_alias(
         env: context.Environment, path_id: irast.PathId) -> str:
-    rptr = path_id.rptr(env.schema)
+    rptr = path_id.rptr()
     if rptr is not None:
         ptrname = rptr.shortname
         alias = env.aliases.get(ptrname.name)
@@ -383,7 +385,7 @@ def get_rvar_path_var(
     if isinstance(rvar.query, pgast.Relation):
         if isinstance(path_id[-1], s_concepts.Concept):
             path_id = get_id_path_id(env.schema, path_id)
-        ptr = path_id.rptr(env.schema)
+        ptr = path_id.rptr()
         name = common.edgedb_name_to_pg_name(ptr.shortname)
     else:
         name = get_path_output(rvar.query, path_id, aspect=aspect, env=env)
@@ -565,7 +567,7 @@ def full_inner_bond_condition(
     condition = None
 
     for path_id in query.path_bonds:
-        rptr = path_id.rptr(env.schema)
+        rptr = path_id.rptr()
         if rptr and rptr.singular(path_id.rptr_dir()):
             continue
 
@@ -604,7 +606,7 @@ def full_outer_bond_condition(
     condition = None
 
     for path_id in right_rvar.path_bonds:
-        rptr = path_id.rptr(env.schema)
+        rptr = path_id.rptr()
         if rptr and rptr.singular(path_id.rptr_dir()):
             continue
 

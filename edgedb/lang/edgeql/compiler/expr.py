@@ -493,7 +493,7 @@ def compile_set_op(
 
     result = irast.SetOp(left=left.expr, right=right.expr, op=expr.op)
     rtype = irutils.infer_type(result, ctx.schema)
-    path_id = irast.PathId([rtype])
+    path_id = irast.PathId(rtype)
     pathctx.register_path_scope(path_id, ctx=ctx)
 
     return result

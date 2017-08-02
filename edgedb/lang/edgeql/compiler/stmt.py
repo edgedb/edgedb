@@ -94,7 +94,7 @@ def compile_GroupQuery(
         )
         c.acquire_ancestor_inheritance(ctx.schema)
 
-        stmt.group_path_id = irast.PathId([c])
+        stmt.group_path_id = irast.PathId(c)
         pathctx.register_path_scope(stmt.group_path_id, ctx=ictx)
 
         with ictx.newscope() as subjctx:

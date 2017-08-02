@@ -439,7 +439,7 @@ def compile_Tuple(
     ttypes = ttype.element_types
     telems = list(ttypes)
 
-    path_id = irast.PathId([ttype])
+    path_id = irast.PathId(ttype)
 
     result = astutils.TupleVar(elements=[
         astutils.TupleElement(
