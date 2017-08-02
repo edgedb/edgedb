@@ -7,7 +7,6 @@
 
 
 import os.path
-import unittest
 
 from edgedb.server import _testbase as tb
 
@@ -416,7 +415,6 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_introspection_constraint02(self):
         await self.assert_query_result(r"""
             SELECT schema::Constraint {

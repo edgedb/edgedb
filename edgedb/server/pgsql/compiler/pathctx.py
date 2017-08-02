@@ -225,25 +225,13 @@ def get_path_var(
             source_rel, drilldown_path_id, aspect=aspect, env=env)
 
     elif ptrcls is None:
-        # At this point we cannot continue with a resolved pointer.
+        # At this point we cannot continue without a resolved pointer.
         # This is actually fine for leafs in UNION operations.
         raise LookupError(
             f'{path_id} does not exist for {rel}'
         )
 
     else:
-        if not isinstance(ptrcls, s_lprops.LinkProperty):
-            path_src = ptr_path_id[-3]
-            ptr_src = ptrcls.source
-            src_path_id = ptr_path_id[:-2]
-            if path_src != ptr_src and not path_src.issubclass(ptr_src):
-                poly_rvar = dbobj.range_for_concept(env, ptr_src, src_path_id)
-                poly_rvar.nullable = True
-                poly_rvar.path_bonds.add(src_path_id)
-                rel_join(env, rel, poly_rvar, type='left')
-
-                rel_rvar = poly_rvar
-
         colname = ptr_info.column_name
 
     if is_relation_rvar(rel_rvar) and aspect not in {'identity', 'value'}:
@@ -602,12 +590,13 @@ def full_inner_bond_condition(
 
 def full_outer_bond_condition(
         env: context.Environment, query: pgast.Query,
-        right_rvar: pgast.BaseRangeVar) -> typing.Optional[pgast.Expr]:
+        right_rvar: pgast.BaseRangeVar,
+        allow_implicit: bool=True) -> typing.Optional[pgast.Expr]:
     condition = None
 
     for path_id in right_rvar.path_bonds:
         rptr = path_id.rptr()
-        if rptr and rptr.singular(path_id.rptr_dir()):
+        if rptr and rptr.singular(path_id.rptr_dir()) and allow_implicit:
             continue
 
         lref = maybe_get_path_identity_var(query, path_id, env=env)
@@ -630,12 +619,13 @@ def full_outer_bond_condition(
 def rel_join(
         env: context.Environment,
         query: pgast.Query, right_rvar: pgast.BaseRangeVar,
-        type: str='inner', front: bool=False):
+        type: str='inner', front: bool=False, allow_implicit_bond=True):
     if not query.from_clause:
         query.from_clause.append(right_rvar)
         return
 
-    condition = full_outer_bond_condition(env, query, right_rvar)
+    condition = full_outer_bond_condition(env, query, right_rvar,
+                                          allow_implicit=allow_implicit_bond)
 
     if type == 'where':
         # A "where" JOIN is equivalent to an INNER join with
