@@ -531,10 +531,14 @@ class ParallelTextTestRunner:
         return f'{hours:02d}:{minutes:02d}:{seconds:04.1f}'
 
     def _print_errors(self, result):
-        for kind, fg, errors in zip(('WARNING', 'ERROR', 'FAIL'),
-                                    ('yellow', 'red', 'red'),
-                                    (result.warnings, result.errors,
-                                     result.failures)):
+        uxsuccesses = ((s, '') for s in result.unexpectedSuccesses)
+        data = zip(
+            ('WARNING', 'ERROR', 'FAIL', 'UNEXPECTED SUCCESS'),
+            ('yellow', 'red', 'red', 'red'),
+            (result.warnings, result.errors, result.failures, uxsuccesses)
+        )
+
+        for kind, fg, errors in data:
             for test, err in errors:
                 self._fill('=', fg=fg)
                 self._echo(f'{kind}: {result.getDescription(test)}',
