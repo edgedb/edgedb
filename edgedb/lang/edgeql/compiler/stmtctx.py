@@ -141,12 +141,12 @@ def declare_view(
     else:
         c = s_views.View(name=view_name)
 
-    path_id = irast.PathId([c])
+    path_id = irast.PathId(c)
 
     if isinstance(substmt.result, irast.Set):
         real_path_id = substmt.result.path_id
     else:
-        real_path_id = irast.PathId([result_type])
+        real_path_id = irast.PathId(result_type)
 
     substmt.main_stmt = ctx.stmt
     substmt.parent_stmt = ctx.stmt.parent_stmt
@@ -197,7 +197,7 @@ def declare_aliased_set(
                 len(ir_set.path_id) == 1):
             view_name = sn.Name(module='__aliased__', name=alias)
             c = s_views.View(name=view_name)
-            ir_set.path_id = irast.PathId([c])
+            ir_set.path_id = irast.PathId(c)
 
     if key is not None:
         ctx.substmts[key] = ir_set

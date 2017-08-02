@@ -93,7 +93,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             if isinstance(scls, s_views.View):
                 path_tip = stmtctx.declare_view_from_schema(scls, ctx=ctx)
             else:
-                path_id = irast.PathId([scls])
+                path_id = irast.PathId(scls)
 
                 try:
                     # We maintain a registry of Set nodes for each unique
@@ -340,7 +340,7 @@ def extend_path(
 
 def class_set(
         scls: s_nodes.Node, *, ctx: context.ContextLevel) -> irast.Set:
-    path_id = irast.PathId([scls])
+    path_id = irast.PathId(scls)
     ir_set = irast.Set(path_id=path_id, scls=scls)
     pathctx.register_path_scope(ir_set.path_id, ctx=ctx)
     return ir_set
