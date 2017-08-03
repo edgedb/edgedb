@@ -15,6 +15,7 @@ from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import concepts as s_concepts
+from edgedb.lang.schema import expr as s_expr
 from edgedb.lang.schema import links as s_links
 from edgedb.lang.schema import nodes as s_nodes
 from edgedb.lang.schema import objects as s_obj
@@ -24,6 +25,7 @@ from edgedb.lang.schema import views as s_views
 
 from edgedb.lang.edgeql import ast as qlast
 from edgedb.lang.edgeql import errors
+from edgedb.lang.edgeql import parser as qlparser
 
 from . import context
 from . import dispatch
@@ -320,7 +322,7 @@ def extend_path(
         target_set = None
 
     if target_set is None:
-        target_set = ctx.sets[path_id] = irast.Set()
+        target_set = irast.Set()
         target_set.scls = target
         target_set.path_id = path_id
 
@@ -332,6 +334,11 @@ def extend_path(
         )
 
         target_set.rptr = ptr
+
+        if ptrcls.is_pure_computable():
+            target_set = computable_ptr_set(ptr, ctx=ctx)
+
+        ctx.sets[path_id] = target_set
 
         pathctx.register_path_scope(target_set.path_id, ctx=ctx)
 
@@ -370,3 +377,35 @@ def ensure_stmt(expr: irast.Base, *, ctx: context.ContextLevel) -> irast.Stmt:
             if p in ctx.sets
         }
     return expr
+
+
+def computable_ptr_set(
+        rptr: irast.Pointer, *,
+        ctx: context.ContextLevel) -> irast.Set:
+    """Return ir.Set for a pointer defined as a computable."""
+    ptrcls = rptr.ptrcls
+    if not ptrcls.default:
+        raise ValueError(f'{ptrcls.shortname!r} is not a computable pointer')
+
+    if isinstance(ptrcls.default, s_expr.ExpressionText):
+        default_expr = qlparser.parse(ptrcls.default)
+    else:
+        default_expr = qlast.Constant(value=ptrcls.default)
+
+    if not isinstance(default_expr, qlast.Statement):
+        default_expr = qlast.SelectQuery(result=default_expr)
+
+    with ctx.new() as subctx:
+        subctx.anchors = subctx.anchors.copy()
+        subctx.anchors['self'] = rptr.source
+        substmt = dispatch.compile(default_expr, ctx=subctx)
+
+    target_class = irutils.infer_type(substmt, schema=ctx.schema)
+
+    path_id = rptr.source.path_id.extend(
+        ptrcls, s_pointers.PointerDirection.Outbound, target_class)
+
+    s = generated_set(substmt.expr, path_id=path_id, ctx=ctx)
+    s.rptr = rptr
+
+    return s
