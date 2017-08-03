@@ -616,7 +616,11 @@ def process_set_as_subquery(
             outer_id: inner_id
         }
 
-        subquery = dispatch.compile(ir_set.expr, ctx=newctx)
+        if ir_set.rptr and ir_set.rptr.ptrcls.is_pure_computable():
+            subquery = process_computable_subquery(
+                ir_set, ir_set.expr, ctx=newctx)
+        else:
+            subquery = dispatch.compile(ir_set.expr, ctx=newctx)
 
     relctx.put_set_cte(ir_set, subquery, ctx=ctx)
 
@@ -710,38 +714,8 @@ def process_set_as_view_inner_reference(
             src.path_id: src_ir_set.path_id
         }
 
-        # We need to make sure that the target expression is computed at
-        # least N times, where N is the cardinality of the ``rptr.source``
-        # set.  However, we cannot simply inject ``source_rvar`` here, as
-        # it might have already been injected if the expression has the
-        # relevant path bond.
-        # To determine whether the source_rvar JOIN is necessary, do a
-        # deep search for the ``src_ir_set``.
-        canonical_src_ir_set = irutils.get_canonical_set(src_ir_set)
-        flt = lambda n: n is canonical_src_ir_set
-        expr_refers_to_target = ast.find_children(
-            inner_set.expr, flt, terminate_early=True)
-
-        if not expr_refers_to_target:
-            if source_rvar is None:
-                with newctx.new() as subctx:
-                    subctx.path_bonds = ctx.parent_path_bonds.copy()
-                    source_cte = set_to_cte(src, ctx=subctx)
-                    source_rvar = dbobj.rvar_for_rel(ctx.env, source_cte)
-            newctx.expr_injected_path_bond = {
-                'ref': pathctx.get_rvar_path_identity_var(
-                    source_rvar, src.path_id, env=ctx.env),
-                'path_id': src.path_id
-            }
-
-        subquery = dispatch.compile(inner_set.expr, ctx=newctx)
-
-        if not expr_refers_to_target:
-            # Use a "where" join here to avoid mangling the canonical set
-            # rvar in from_clause[0], as _pull_path_rvar will choke on a
-            # JOIN there.
-            pathctx.rel_join(ctx.env, subquery, source_rvar,
-                             type='where', front=True)
+        subquery = process_computable_subquery(
+            ir_set, inner_set.expr, src_ir_set, source_rvar, ctx=newctx)
 
     # We inhibited ensure_correct_set above.  Now that we are done with
     # the query, ensure set correctness explicitly.
@@ -1269,3 +1243,49 @@ def wrap_view_ref(
 
     relctx.pull_path_namespace(target=wrapper, source=view_rvar, ctx=ctx)
     return wrapper
+
+
+def process_computable_subquery(
+        ir_set: irast.Set, expr: irast.Base,
+        src_ir_set: typing.Optional[irast.Set] = None,
+        source_rvar: typing.Optional[pgast.BaseRangeVar] = None, *,
+        ctx: context.CompilerContextLevel) -> pgast.Query:
+    # We need to make sure that the target expression is computed at
+    # least N times, where N is the cardinality of the ``rptr.source``
+    # set.  However, we cannot simply inject ``source_rvar`` here, as
+    # it might have already been injected if the expression has the
+    # relevant path bond.
+    # To determine whether the source_rvar JOIN is necessary, do a
+    # deep search for the ``src_ir_set``.
+    src = ir_set.rptr.source
+    if src_ir_set is None:
+        src_ir_set = src
+
+    canonical_src_ir_set = irutils.get_canonical_set(src_ir_set)
+    flt = lambda n: n is canonical_src_ir_set
+    expr_refers_to_target = ast.find_children(
+        expr, flt, terminate_early=True)
+
+    if not expr_refers_to_target:
+        if source_rvar is None:
+            with ctx.new() as subctx:
+                subctx.path_bonds = ctx.parent_path_bonds.copy()
+                source_cte = set_to_cte(src, ctx=subctx)
+                source_rvar = dbobj.rvar_for_rel(ctx.env, source_cte)
+
+        ctx.expr_injected_path_bond = {
+            'ref': pathctx.get_rvar_path_identity_var(
+                source_rvar, src.path_id, env=ctx.env),
+            'path_id': src.path_id
+        }
+
+    subquery = dispatch.compile(expr, ctx=ctx)
+
+    if not expr_refers_to_target:
+        # Use a "where" join here to avoid mangling the canonical set
+        # rvar in from_clause[0], as _pull_path_rvar will choke on a
+        # JOIN there.
+        pathctx.rel_join(ctx.env, subquery, source_rvar,
+                         type='where', front=True)
+
+    return subquery

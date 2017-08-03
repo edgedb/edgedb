@@ -38,6 +38,8 @@ def find_children(node, test_func, *args, force_traversal=False,
                         if not field_spec.hidden and test_func(
                                 n, *args, **kwargs):
                             result.append(n)
+                            if terminate_early:
+                                return result
                     except SkipNode:
                         continue
 
@@ -45,12 +47,16 @@ def find_children(node, test_func, *args, force_traversal=False,
                         _n = _find_children(n, test_func)
                         if _n is not None:
                             result.extend(_n)
+                            if terminate_early:
+                                return result
 
             elif base.is_ast_node(value):
                 try:
                     if not field_spec.hidden and test_func(
                             value, *args, **kwargs):
                         result.append(value)
+                        if terminate_early:
+                            return result
                 except SkipNode:
                     continue
 
@@ -58,9 +64,18 @@ def find_children(node, test_func, *args, force_traversal=False,
                     _n = _find_children(value, test_func)
                     if _n is not None:
                         result.extend(_n)
+                        if terminate_early:
+                            return result
         return result
 
-    return _find_children(node, test_func)
+    nodes = _find_children(node, test_func)
+    if terminate_early:
+        if nodes:
+            return nodes[0]
+        else:
+            return None
+    else:
+        return nodes
 
 
 def find_parent(node, test_func):

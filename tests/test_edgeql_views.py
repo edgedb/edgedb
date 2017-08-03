@@ -170,3 +170,45 @@ class TestEdgeQLViews(tb.QueryTestCase):
                 {'name': 'Sprite'},
             ],
         ])
+
+    async def test_edgeql_computable_link_01(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Card {
+                owners: {
+                    name
+                } ORDER BY .name
+            }
+            FILTER .name = 'Djinn';
+        ''', [
+            [{
+                'owners': [
+                    {'name': 'Carol'},
+                    {'name': 'Dave'}
+                ]
+            }]
+        ])
+
+    async def test_edgeql_computable_link_02(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT User {
+                name,
+                deck_cost
+            }
+            ORDER BY User.name;
+        ''', [
+            [{
+                'name': 'Alice',
+                'deck_cost': 11
+            }, {
+                'name': 'Bob',
+                'deck_cost': 9
+            }, {
+                'name': 'Carol',
+                'deck_cost': 16
+            }, {
+                'name': 'Dave',
+                'deck_cost': 20
+            }]
+        ])

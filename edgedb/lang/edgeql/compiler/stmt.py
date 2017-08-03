@@ -13,13 +13,10 @@ from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import concepts as s_concepts
-from edgedb.lang.schema import expr as s_expr
 from edgedb.lang.schema import name as s_name
-from edgedb.lang.schema import pointers as s_pointers
 
 from edgedb.lang.edgeql import ast as qlast
 from edgedb.lang.edgeql import errors
-from edgedb.lang.edgeql import parser as qlparser
 
 from . import astutils
 from . import clauses
@@ -188,26 +185,12 @@ def compile_InsertQuery(
         for pn, ptrcls in subject.scls.pointers.items():
             if (not ptrcls.default or
                     pn in explicit_ptrs or
-                    ptrcls.is_special_pointer()):
+                    ptrcls.is_special_pointer() or
+                    ptrcls.is_pure_computable()):
                 continue
 
             targetstep = setgen.extend_path(subject, ptrcls, ctx=ictx)
-
-            if isinstance(ptrcls.default, s_expr.ExpressionText):
-                default_expr = qlparser.parse(ptrcls.default)
-            else:
-                default_expr = qlast.Constant(value=ptrcls.default)
-
-            substmt = setgen.ensure_stmt(
-                dispatch.compile(default_expr, ctx=ictx), ctx=ictx)
-
-            target_class = irutils.infer_type(substmt, schema=ictx.schema)
-
-            path_id = subject.path_id.extend(
-                ptrcls, s_pointers.PointerDirection.Outbound, target_class)
-
-            el = setgen.generated_set(substmt, path_id=path_id, ctx=ictx)
-            el.rptr = targetstep.rptr
+            el = setgen.computable_ptr_set(targetstep.rptr, ctx=ictx)
             stmt.subject.shape.append(el)
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)

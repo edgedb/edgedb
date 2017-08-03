@@ -1898,14 +1898,13 @@ class PointerMetaCommand(MetaCommand, sd.ClassCommand,
         default = self.updates.get('default')
         default_value = None
 
-        if default:
-            if default is not None:
-                if isinstance(default, s_expr.ExpressionText):
-                    default_value = schemamech.ptr_default_to_col_default(
-                        schema, link, default)
-                else:
-                    default_value = common.quote_literal(
-                        str(default))
+        if default is not None and not link.is_pure_computable():
+            if isinstance(default, s_expr.ExpressionText):
+                default_value = schemamech.ptr_default_to_col_default(
+                    schema, link, default)
+            else:
+                default_value = common.quote_literal(
+                    str(default))
 
         return default_value
 

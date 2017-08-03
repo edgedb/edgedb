@@ -10,6 +10,7 @@
 import collections
 import itertools
 
+from edgedb.lang.common import ast
 from edgedb.lang.common import ordered
 from edgedb.lang.common import topological
 
@@ -18,6 +19,7 @@ from edgedb.lang.edgeql import codegen as edgeql_codegen
 from edgedb.lang.edgeql import codegen as qlcodegen
 
 from edgedb.lang.ir import utils as ir_utils
+from edgedb.lang.ir import inference as ir_inference
 
 from . import ast as s_ast
 from . import parser as s_parser
@@ -150,14 +152,14 @@ class DeclarationLoader:
         constraints.update(c for c in module.get_objects(type='constraint')
                            if c.subject is not None)
 
-        # Final pass, set empty fields to default values amd do
+        # Final pass, set empty fields to default values and do
         # other object finalization.
 
         for link, linkdecl in objects['link'].items():
-            self._normalize_link_expressions(link, linkdecl)
+            self._normalize_link_constraints(link, linkdecl)
 
         for concept, conceptdecl in objects['concept'].items():
-            self._normalize_concept_expressions(concept, conceptdecl)
+            self._normalize_concept_constraints(concept, conceptdecl)
 
         # Arrange classes in the resulting schema according to determined
         # topological order.
@@ -167,6 +169,14 @@ class DeclarationLoader:
 
         for obj in module.get_objects():
             obj.finalize(self._schema)
+
+        # Normalization for defaults and other expressions must be
+        # *after* finalize() so that all pointers have been inherited.
+        for link, linkdecl in objects['link'].items():
+            self._normalize_link_expressions(link, linkdecl)
+
+        for concept, conceptdecl in objects['concept'].items():
+            self._normalize_concept_expressions(concept, conceptdecl)
 
     def _process_imports(self, tree):
         for decl in tree.declarations:
@@ -234,6 +244,11 @@ class DeclarationLoader:
                             '(got type {!r})'.format(type(node).__name__))
 
         return node.value
+
+    def _get_literal_attribute(self, node, name):
+        for attr in node.attributes:
+            if attr.name.name == name:
+                return self._get_literal_value(attr.value)
 
     def _get_bases(self, obj, decl):
         """Resolve object bases from the "extends" declaration."""
@@ -570,11 +585,9 @@ class DeclarationLoader:
                 link.spectargets = spectargets
 
                 link.required = bool(linkdecl.required)
-
-                for attr in linkdecl.attributes:
-                    name = attr.name.name
-                    if name == 'mapping':
-                        link.mapping = self._get_literal_value(attr.value)
+                mapping = self._get_literal_attribute(linkdecl, 'mapping')
+                if mapping is not None:
+                    link.mapping = mapping
 
                 if linkdecl.expr is not None:
                     # Computables are always readonly.
@@ -590,6 +603,10 @@ class DeclarationLoader:
             if conceptdecl.constraints:
                 self._parse_subject_constraints(concept, conceptdecl)
 
+    def _normalize_link_constraints(self, link, linkdecl):
+        if linkdecl.constraints:
+            self._parse_subject_constraints(link, linkdecl)
+
     def _normalize_link_expressions(self, link, linkdecl):
         """Interpret and validate EdgeQL expressions in link declaration."""
         for propdecl in linkdecl.properties:
@@ -600,10 +617,16 @@ class DeclarationLoader:
                     prop_name, module_aliases=self._mod_aliases)
                 spec_prop = link.pointers[generic_prop.name]
                 self._normalize_ptr_default(
-                    propdecl.expr, link, spec_prop)
+                    propdecl.expr, link, spec_prop, propdecl)
 
-        if linkdecl.constraints:
-            self._parse_subject_constraints(link, linkdecl)
+    def _normalize_concept_constraints(self, concept, conceptdecl):
+        for linkdecl in conceptdecl.links:
+            if linkdecl.constraints:
+                link_name = self._get_ref_name(linkdecl.name)
+                generic_link = self._schema.get(
+                    link_name, module_aliases=self._mod_aliases)
+                spec_link = concept.pointers[generic_link.name]
+                self._parse_subject_constraints(spec_link, linkdecl)
 
     def _normalize_concept_expressions(self, concept, conceptdecl):
         """Interpret and validate EdgeQL expressions in concept declaration."""
@@ -616,30 +639,31 @@ class DeclarationLoader:
             if linkdecl.expr is not None:
                 # Computable
                 self._normalize_ptr_default(
-                    linkdecl.expr, concept, spec_link)
+                    linkdecl.expr, concept, spec_link, linkdecl)
 
             for attr in linkdecl.attributes:
                 name = attr.name.name
                 if name == 'default':
                     if isinstance(attr.value, edgeql.ast.SelectQuery):
                         self._normalize_ptr_default(
-                            attr.value, concept, spec_link)
+                            attr.value, concept, spec_link, linkdecl)
                     else:
                         expr = edgeql.ast.Constant(
                             value=self._get_literal_value(attr.value))
                         _, _, spec_link.default = edgeql.utils.normalize_tree(
                             expr, self._schema)
 
-            if linkdecl.constraints:
-                self._parse_subject_constraints(spec_link, linkdecl)
-
-    def _normalize_ptr_default(self, expr, source, ptr):
+    def _normalize_ptr_default(self, expr, source, ptr, ptrdecl):
         module_aliases = {None: source.name.module}
 
         ir, _, expr_text = edgeql.utils.normalize_tree(
             expr, self._schema,
             modaliases=module_aliases,
             anchors={'self': source})
+
+        self_set = ast.find_children(
+            ir, lambda n: getattr(n, 'anchor', None) == 'self',
+            terminate_early=True)
 
         try:
             expr_type = ir_utils.infer_type(ir.result, self._schema)
@@ -662,6 +686,24 @@ class DeclarationLoader:
                 pname = s_name.Name('std::target')
                 tgt_prop = ptr.pointers[pname]
                 tgt_prop.target = expr_type
+
+            mapping = self._get_literal_attribute(ptrdecl, 'mapping')
+            if mapping is not None:
+                raise s_err.SchemaError(
+                    'computable links must not define explicit cardinality',
+                    context=expr.context)
+
+            singletons = set()
+            if self_set is not None:
+                singletons.add(self_set)
+
+            cardinality = \
+                ir_inference.infer_cardinality(ir, singletons, self._schema)
+
+            if cardinality > 1:
+                ptr.mapping = s_links.LinkMapping.ManyToMany
+            else:
+                ptr.mapping = s_links.LinkMapping.ManyToOne
 
         if (not isinstance(expr_type, s_obj.NodeClass) or
                 (ptr.target is not None and
