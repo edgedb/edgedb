@@ -207,7 +207,7 @@ class AttributeValueCommand(sd.ClassCommand, schema_metaclass=AttributeValue,
 
         if '::' not in propname:
             return sd.AlterClassProperty._cmd_tree_from_ast(
-                astnode, context)
+                astnode, context, schema)
         else:
             return super()._cmd_tree_from_ast(astnode, context, schema)
 

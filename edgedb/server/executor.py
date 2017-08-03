@@ -42,6 +42,8 @@ async def execute_plan(plan, protocol):
                     'there is no transaction in progress')
             transaction = protocol.transactions.pop()
             await transaction.rollback()
+            await backend.invalidate_schema_cache()
+            await backend.getschema()
 
         else:
             raise exceptions.InternalError(
