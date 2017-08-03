@@ -592,8 +592,8 @@ class AlterConstraintStmt(Nonterm):
                     AlterCommandsBlock"""
         self.val = qlast.AlterConstraint(
             aliases=kids[0].val,
-            name=kids[2].val,
-            commands=kids[3].val,
+            name=kids[3].val,
+            commands=kids[4].val,
         )
 
 

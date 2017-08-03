@@ -284,6 +284,7 @@ class DeclarationLoader:
         for constraint, decl in constraints.items():
             attrs = {a.name.name: a.value for a in decl.attributes}
             assert 'subject' not in attrs  # TODO: Add proper validation
+            assert 'subjectexpr' not in attrs  # TODO: Add proper validation
 
             expr = attrs.pop('expr', None)
             if expr is not None:

@@ -183,9 +183,10 @@ CREATE CONSTRAINT std::minexclusive(std::any) EXTENDING std::min {
     SET expr := ((subject > $0));
 };
 
-CREATE CONSTRAINT std::length EXTENDING std::constraint {
+CREATE CONSTRAINT std::length ON (len(<std::str>subject))
+    EXTENDING std::constraint
+{
     SET errmessage := 'invalid {subject}';
-    SET subjectexpr := (len(<std::str>subject));
 };
 
 CREATE CONSTRAINT std::minlength(std::any) EXTENDING (std::min, std::length) {

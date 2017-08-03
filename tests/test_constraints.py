@@ -7,6 +7,7 @@
 
 
 import os.path
+import unittest
 
 from edgedb.server import _testbase as tb
 from edgedb.client import exceptions
@@ -541,10 +542,7 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
                 """)
 
 
-class TestConstraintsDDL(tb.QueryTestCase):
-    ISOLATED_METHODS = False
-
-    @tb.no_optimizer
+class TestConstraintsDDL(tb.DDLTestCase):
     async def test_constraints_ddl_01(self):
         qry = """
             CREATE LINK test::translated_label {
@@ -623,3 +621,408 @@ class TestConstraintsDDL(tb.QueryTestCase):
                     name := 'unique_name_ap1'
                 };
             """)
+
+    async def test_constraints_ddl_02(self):
+        # testing the generalized constraint with 'ON (...)' clause
+        qry = """
+            CREATE CONSTRAINT test::mymax1(std::int) ON (len(subject)) {
+                SET errmessage :=
+                    '{subject} must be no longer than {$0} characters.';
+                SET expr := subject <= $0;
+            };
+
+            CREATE CONSTRAINT test::mymax_ext1(std::int) ON (len(subject))
+                EXTENDING std::max
+            {
+                SET errmessage :=
+                    '{subject} must be no longer than {$0} characters.';
+            };
+
+            CREATE CONCEPT test::ConstraintOnTest1 {
+                CREATE LINK test::foo TO std::str {
+                    CREATE CONSTRAINT test::mymax1(3);
+                };
+
+                CREATE LINK test::bar TO std::str {
+                    CREATE CONSTRAINT test::mymax_ext1(3);
+                };
+            };
+        """
+
+        await self.con.execute(qry)
+
+        # making sure the constraint was applied successfully
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    exceptions.ConstraintViolationError,
+                    'foo must be no longer than 3 characters.'):
+                await self.con.execute("""
+                    INSERT test::ConstraintOnTest1 {
+                        foo := 'Test'
+                    };
+                """)
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    exceptions.ConstraintViolationError,
+                    'bar must be no longer than 3 characters.'):
+                await self.con.execute("""
+                    INSERT test::ConstraintOnTest1 {
+                        bar := 'Test'
+                    };
+                """)
+
+        async with self._run_and_rollback():
+            # constraint should not fail
+            await self.con.execute("""
+                INSERT test::ConstraintOnTest1 {
+                    foo := '',
+                    bar := ''
+                };
+
+                INSERT test::ConstraintOnTest1 {
+                    foo := 'a',
+                    bar := 'q'
+                };
+
+                INSERT test::ConstraintOnTest1 {
+                    foo := 'ab',
+                    bar := 'qw'
+                };
+
+                INSERT test::ConstraintOnTest1 {
+                    foo := 'abc',
+                    bar := 'qwe'
+                };
+
+                # a duplicate 'foo' and 'bar' just for good measure
+                INSERT test::ConstraintOnTest1 {
+                    foo := 'ab',
+                    bar := 'qw'
+                };
+            """)
+
+    async def test_constraints_ddl_03(self):
+        # testing the specialized constraint with 'ON (...)' clause
+        qry = """
+            CREATE CONSTRAINT test::mymax2(std::int) {
+                SET errmessage :=
+                    '{subject} must be no longer than {$0} characters.';
+                SET expr := subject <= $0;
+            };
+
+            CREATE CONCEPT test::ConstraintOnTest2 {
+                CREATE LINK test::foo TO std::str {
+                    CREATE CONSTRAINT test::mymax2(3) ON (len(subject));
+                };
+
+                CREATE LINK test::bar TO std::str {
+                    CREATE CONSTRAINT std::max(3) ON (len(subject)) {
+                        SET errmessage :=
+                          '{subject} must be no longer than {$0} characters.';
+                    };
+                };
+            };
+        """
+
+        await self.con.execute(qry)
+
+        # making sure the constraint was applied successfully
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    exceptions.ConstraintViolationError,
+                    'foo must be no longer than 3 characters.'):
+                await self.con.execute("""
+                    INSERT test::ConstraintOnTest2 {
+                        foo := 'Test'
+                    };
+                """)
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    exceptions.ConstraintViolationError,
+                    'bar must be no longer than 3 characters.'):
+                await self.con.execute("""
+                    INSERT test::ConstraintOnTest2 {
+                        bar := 'Test'
+                    };
+                """)
+
+        async with self._run_and_rollback():
+            # constraint should not fail
+            await self.con.execute("""
+                INSERT test::ConstraintOnTest2 {
+                    foo := '',
+                    bar := ''
+                };
+
+                INSERT test::ConstraintOnTest2 {
+                    foo := 'a',
+                    bar := 'q'
+                };
+
+                INSERT test::ConstraintOnTest2 {
+                    foo := 'ab',
+                    bar := 'qw'
+                };
+
+                INSERT test::ConstraintOnTest2 {
+                    foo := 'abc',
+                    bar := 'qwe'
+                };
+
+                # a duplicate 'foo' and 'bar' just for good measure
+                INSERT test::ConstraintOnTest2 {
+                    foo := 'ab',
+                    bar := 'qw'
+                };
+            """)
+
+    @unittest.expectedFailure
+    # XXX: the test fails because errmessage is an expression that's not
+    #      a simple string literal, but a concatenation of 2 string literals.
+    async def test_constraints_ddl_04(self):
+        # testing an issue with expressions used for 'errmessage'
+        qry = """
+            CREATE CONSTRAINT test::mymax3(std::int) {
+                SET errmessage :=
+                    '{subject} must be no longer ' +
+                    'than {$0} characters.';
+                SET expr := subject <= $0;
+            };
+
+            CREATE CONCEPT test::ConstraintOnTest3 {
+                CREATE LINK test::foo TO std::str {
+                    CREATE CONSTRAINT test::mymax3(3) ON (len(subject));
+                };
+            };
+        """
+
+        await self.con.execute(qry)
+
+        # making sure the constraint was applied successfully
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    exceptions.ConstraintViolationError,
+                    'foo must be no longer than 3 characters.'):
+                await self.con.execute("""
+                    INSERT test::ConstraintOnTest3 {
+                        foo := 'Test'
+                    };
+                """)
+
+    async def test_constraints_ddl_error_01(self):
+        # testing various incorrect create constraint DDL commands
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    exceptions.EdgeQLError,
+                    'subjectexpr cannot be set directly'):
+                await self.con.execute("""
+                    CREATE CONSTRAINT test::len_fail(std::str) {
+                        SET expr := subject <= $0;
+                        SET subjectexpr := len(subject);
+                    };
+                """)
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    exceptions.EdgeQLError,
+                    'subject cannot be set directly'):
+                await self.con.execute("""
+                    CREATE CONSTRAINT test::len_fail(std::str) {
+                        SET expr := subject <= $0;
+                        # doesn't matter what subject is set to, it's illegal
+                        SET subject := len(subject);
+                    };
+                """)
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    exceptions.EdgeQLError,
+                    'subjectexpr cannot be set directly'):
+                await self.con.execute("""
+                    CREATE CONSTRAINT test::len_fail(std::int) {
+                        SET expr := subject <= $0;
+                    };
+
+                    CREATE CONCEPT test::InvalidConstraintTest1 {
+                        CREATE LINK test::foo TO std::str {
+                            CREATE CONSTRAINT test::len_fail(3) {
+                                SET subjectexpr := len(subject);
+                            };
+                        };
+                    };
+                """)
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    exceptions.EdgeQLError,
+                    'subject cannot be set directly'):
+                await self.con.execute("""
+                    CREATE CONSTRAINT test::len_fail(std::int) {
+                        SET expr := subject <= $0;
+                    };
+
+                    CREATE CONCEPT test::InvalidConstraintTest1 {
+                        CREATE LINK test::foo TO std::str {
+                            CREATE CONSTRAINT test::len_fail(3) {
+                                SET subject := len(subject);
+                            };
+                        };
+                    };
+                """)
+
+    @unittest.expectedFailure
+    async def test_constraints_ddl_error_02(self):
+        # testing that subjectexpr cannot be overridden after it is
+        # specified explicitly
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    exceptions.EdgeQLError,
+                    'subjectexpr already exists'):
+                await self.con.execute("""
+                    CREATE CONSTRAINT test::max_int(std::int)
+                        ON (<int>subject)
+                    {
+                        SET errmessage :=
+                          '{subject} must be no longer than {$0} characters.';
+                        SET expr := subject <= $0;
+                    };
+
+                    CREATE CONCEPT test::InvalidConstraintTest2 {
+                        CREATE LINK test::foo TO std::str {
+                            CREATE CONSTRAINT test::max_int(3)
+                                ON (len(subject));
+                        };
+                    };
+                """)
+
+    async def test_constraints_ddl_error_03(self):
+        # testing various incorrect alter constraint DDL commands
+        qry = """
+            CREATE CONSTRAINT test::foo_alter(std::any) {
+                SET errmessage := 'foo';
+                SET expr := subject = $0;
+            };
+
+            CREATE CONCEPT test::ConstraintAlterTest1 {
+                CREATE LINK test::value TO std::int {
+                    CREATE CONSTRAINT std::max(3);
+                };
+            };
+        """
+
+        await self.con.execute(qry)
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    exceptions.EdgeQLError,
+                    'subjectexpr cannot be set directly'):
+                await self.con.execute("""
+                    ALTER CONSTRAINT test::foo_alter {
+                        SET subjectexpr := len(subject);
+                    };
+                """)
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    exceptions.EdgeQLError,
+                    'subject cannot be set directly'):
+                await self.con.execute("""
+                    ALTER CONSTRAINT test::foo_alter {
+                        SET subject := len(subject);
+                    };
+                """)
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    exceptions.EdgeQLError,
+                    'subjectexpr cannot be set directly'):
+                await self.con.execute("""
+                    ALTER CONCEPT test::ConstraintAlterTest1 {
+                        ALTER LINK test::value {
+                            ALTER CONSTRAINT std::max {
+                                SET subjectexpr := len(subject);
+                            };
+                        };
+                    };
+                """)
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    exceptions.EdgeQLError,
+                    'subject cannot be set directly'):
+                await self.con.execute("""
+                    ALTER CONCEPT test::ConstraintAlterTest1 {
+                        ALTER LINK test::value {
+                            ALTER CONSTRAINT std::max {
+                                SET subject := len(subject);
+                            };
+                        };
+                    };
+                """)
+
+    async def test_constraints_ddl_error_04(self):
+        # testing various incorrect DELETE constraint DDL commands
+        qry = """
+            CREATE CONSTRAINT test::foo_drop(std::any) ON (len(subject)) {
+                SET errmessage := 'foo';
+                SET expr := subject = $0;
+            };
+
+            CREATE CONCEPT test::ConstraintAlterTest2 {
+                CREATE LINK test::value TO std::int {
+                    CREATE CONSTRAINT std::max(3) ON (subject % 10);
+                };
+            };
+        """
+
+        await self.con.execute(qry)
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    exceptions.EdgeQLError,
+                    'subjectexpr cannot be dropped directly'):
+                await self.con.execute("""
+                    ALTER CONSTRAINT test::foo_drop {
+                        DROP ATTRIBUTE subjectexpr;
+                    };
+                """)
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    exceptions.EdgeQLError,
+                    'subject cannot be dropped directly'):
+                await self.con.execute("""
+                    ALTER CONSTRAINT test::foo_drop {
+                        DROP ATTRIBUTE subject;
+                    };
+                """)
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    exceptions.EdgeQLError,
+                    'subjectexpr cannot be dropped directly'):
+                await self.con.execute("""
+                    ALTER CONCEPT test::ConstraintAlterTest1 {
+                        ALTER LINK test::value {
+                            ALTER CONSTRAINT std::max {
+                                DROP ATTRIBUTE subjectexpr;
+                            };
+                        };
+                    };
+                """)
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    exceptions.EdgeQLError,
+                    'subject cannot be dropped directly'):
+                await self.con.execute("""
+                    ALTER CONCEPT test::ConstraintAlterTest1 {
+                        ALTER LINK test::value {
+                            ALTER CONSTRAINT std::max {
+                                DROP ATTRIBUTE subject;
+                            };
+                        };
+                    };
+                """)

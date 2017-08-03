@@ -300,6 +300,30 @@ class ConstraintCommand(
     def _alter_begin(self, schema, context, scls):
         super()._alter_begin(schema, context, scls)
 
+    @classmethod
+    def _validate_subcommands(cls, astnode):
+        # check that 'subject' and 'subjectexpr' are not set as attributes
+        for command in astnode.commands:
+            if isinstance(command, qlast.CreateAttributeValue):
+                if cls._is_special_name(command.name):
+                    raise ql_errors.EdgeQLError(
+                        f'{command.name.name} cannot be set directly as an ' +
+                        'attribute in constraints',
+                        context=command.context)
+
+            elif isinstance(command, qlast.DropAttributeValue):
+                if cls._is_special_name(command.name):
+                    raise ql_errors.EdgeQLError(
+                        f'{command.name.name} cannot be dropped directly ' +
+                        'as an attribute in constraints',
+                        context=command.context)
+
+    @classmethod
+    def _is_special_name(cls, astnode):
+        # check that 'subject' and 'subjectexpr' are not set as attributes
+        return (astnode.name in {'subject', 'subjectexpr'} and
+                not astnode.module)
+
 
 class CreateConstraint(ConstraintCommand,
                        referencing.CreateReferencedClass,
@@ -358,6 +382,18 @@ class CreateConstraint(ConstraintCommand,
                         new_value=paramtypes
                     ))
 
+        # 'subject' can be present in either astnode type
+        if astnode.subject:
+            subjectexpr = s_expr.ExpressionText(
+                edgeql.generate_source(astnode.subject, pretty=False))
+
+            cmd.add(sd.AlterClassProperty(
+                property='subjectexpr',
+                new_value=subjectexpr
+            ))
+
+        cls._validate_subcommands(astnode)
+
         return cmd
 
     def _apply_field_ast(self, context, node, op):
@@ -386,7 +422,9 @@ class AlterConstraint(ConstraintCommand, named.AlterNamedClass):
         if isinstance(astnode, qlast.AlterConcreteConstraint):
             subject_ctx = context.get(ConsistencySubjectCommandContext)
             new_subject_name = None
-            for op in subject_ctx.op(named.RenameNamedClass):
+
+            for op in subject_ctx.op.get_subcommands(
+                    type=named.RenameNamedClass):
                 new_subject_name = op.new_name
 
             if new_subject_name is not None:
@@ -400,7 +438,7 @@ class AlterConstraint(ConstraintCommand, named.AlterNamedClass):
                 )
 
             new_name = None
-            for op in cmd(RenameConstraint):
+            for op in cmd.get_subcommands(type=RenameConstraint):
                 new_name = op.new_name
 
             if new_name is not None:
@@ -410,6 +448,8 @@ class AlterConstraint(ConstraintCommand, named.AlterNamedClass):
                         new_value=new_name
                     )
                 )
+
+        cls._validate_subcommands(astnode)
 
         return cmd
 
