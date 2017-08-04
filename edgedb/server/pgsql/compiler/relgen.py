@@ -741,11 +741,14 @@ def process_set_as_setop(
             ir_set.path_id: expr.left.result.path_id
         }
         larg = dispatch.compile(expr.left, ctx=newctx)
+        ensure_path_scope_in_output(expr.left, larg, ctx=newctx)
+
         newctx.path_scope_refs = ctx.parent_path_scope_refs.copy()
         newctx.view_path_id_map = {
             ir_set.path_id: expr.right.result.path_id
         }
         rarg = dispatch.compile(expr.right, ctx=newctx)
+        ensure_path_scope_in_output(expr.right, rarg, ctx=newctx)
 
     with ctx.subquery() as subctx:
         subqry = subctx.query
@@ -944,7 +947,7 @@ def process_set_as_agg_expr(
     """Populate the CTE for Set defined by an aggregate."""
 
     with ctx.new() as newctx:
-        init_agg_expr_stmt(ir_set, ctx=newctx)
+        init_scoped_set_ctx(ir_set, ctx=newctx)
 
         expr = ir_set.expr
         funcobj = expr.func
@@ -1091,7 +1094,7 @@ def process_set_as_exists_expr(
         return process_set_as_exists_stmt_expr(ir_set, stmt, ctx=ctx)
 
     with ctx.new() as newctx:
-        init_agg_expr_stmt(ir_set, ctx=newctx)
+        init_scoped_set_ctx(ir_set, ctx=newctx)
         newctx.lax_paths = 1
 
         ir_expr = ir_set.expr.expr
@@ -1124,7 +1127,7 @@ def process_set_as_exists_stmt_expr(
         ctx: context.CompilerContextLevel) -> None:
     """Populate the CTE for Set defined by an EXISTS() expression."""
     with ctx.new() as newctx:
-        init_agg_expr_stmt(ir_set, ctx=newctx)
+        init_scoped_set_ctx(ir_set, ctx=newctx)
         newctx.lax_paths = 2
 
         ir_expr = ir_set.expr.expr
@@ -1162,14 +1165,13 @@ def process_set_as_exists_stmt_expr(
     relctx.put_set_cte(ir_set, stmt, ctx=ctx)
 
 
-def init_agg_expr_stmt(
+def init_scoped_set_ctx(
         ir_set: irast.Set, *,
         ctx: context.CompilerContextLevel) -> None:
     ctx.expr_as_isolated_set = False
-    ctx.path_scope = ctx.path_scope.copy()
-    ctx.path_scope.update(ir_set.path_scope)
-    ctx.local_scope_sets = ctx.local_scope_sets.copy()
-    ctx.local_scope_sets.update(ir_set.local_scope_sets)
+    ctx.path_scope = frozenset(ctx.path_scope | ir_set.path_scope)
+    ctx.local_scope_sets = \
+        frozenset(ctx.local_scope_sets | ir_set.local_scope_sets)
 
 
 def fini_agg_expr_stmt(
@@ -1267,3 +1269,21 @@ def process_computable_subquery(
                          type='where', front=True)
 
     return subquery
+
+
+def ensure_path_scope_in_output(
+        ir_stmt: irast.Stmt, query: pgast.Query, *,
+        ctx: context.CompilerContextLevel) -> None:
+
+    specific_scope = {s for s in ir_stmt.local_scope_sets
+                      if s.path_id in ctx.parent_path_scope_refs}
+
+    for ir_set in specific_scope:
+        if (isinstance(ir_set.scls, s_concepts.Concept) and
+                ir_set.path_id not in query.path_scope):
+            # The selector does not include this path explicitly,
+            # so we must do so here.
+            cte = set_to_cte(ir_set, ctx=ctx)
+            relctx.include_range(
+                query, cte, join_type='left',
+                replace_bonds=False, ctx=ctx)

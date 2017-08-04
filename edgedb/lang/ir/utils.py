@@ -6,6 +6,8 @@
 ##
 
 
+import typing
+
 from edgedb.lang.common import ast
 
 from edgedb.lang.schema import concepts as s_concepts
@@ -207,7 +209,12 @@ def is_simple_wrapper(ir_expr):
     )
 
 
-def new_expression_set(ir_expr, schema, path_id=None, alias=None):
+def new_expression_set(ir_expr, schema, path_id=None,
+                       alias=None,
+                       typehint: typing.Optional[irast.TypeRef]=None):
+    if isinstance(ir_expr, irast.EmptySet) and typehint is not None:
+        ir_expr = irast.TypeCast(expr=ir_expr, type=typehint)
+
     result_type = infer_type(ir_expr, schema)
 
     if path_id is None:

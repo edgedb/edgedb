@@ -70,28 +70,17 @@ def register_path_scope(
     for prefix in path_id.iter_prefixes():
         if not prefix.starts_any_of(ctx.group_paths):
             ctx.path_scope.add(prefix)
+            ctx.traced_path_scope.add(prefix)
             if stmt_scope:
-                ctx.local_path_scope.add(prefix)
-
-
-def update_pending_path_scope(
-        scope: typing.Set[irast.PathId], *,
-        ctx: context.CompilerContext) -> None:
-    promoted_scope = ctx.pending_path_scope & scope
-    new_pending_scope = scope - promoted_scope
-    ctx.pending_path_scope -= promoted_scope
-    ctx.pending_path_scope.update(new_pending_scope)
-
-    for path_id in promoted_scope:
-        register_path_scope(path_id, stmt_scope=False, ctx=ctx)
+                ctx.stmt_local_path_scope.add(prefix)
 
 
 def get_local_scope_sets(
-        *, ctx: context.CompilerContext) -> typing.Set[irast.Set]:
-    return {
-        ctx.sets[path_id] for path_id in ctx.local_path_scope
-        if path_id in ctx.sets and path_id in ctx.path_scope
-    }
+        *, ctx: context.CompilerContext) -> typing.FrozenSet[irast.Set]:
+    return frozenset(
+        ctx.sets[path_id] for path_id in ctx.stmt_local_path_scope
+        if path_id in ctx.sets
+    )
 
 
 def enforce_singleton(expr: irast.Base, *, ctx: context.ContextLevel) -> None:

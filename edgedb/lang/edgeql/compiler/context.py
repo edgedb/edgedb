@@ -22,6 +22,7 @@ class ContextSwitchMode(enum.Enum):
     NEW = enum.auto()
     SUBQUERY = enum.auto()
     NEWSCOPE = enum.auto()
+    NEW_TRACED_SCOPE = enum.auto()
 
 
 class ContextLevel(compiler.ContextLevel):
@@ -71,10 +72,10 @@ class ContextLevel(compiler.ContextLevel):
     """A set of path ids in the GROUP BY clause of the current statement."""
 
     path_scope: typing.Set[irast.PathId]
-    """Global path scope (including inherited scope)."""
+    """Full path scope (including inherited scope)."""
 
-    local_path_scope: typing.Set[irast.PathId]
-    """Per-statement local path scope (excluding inherited scope)."""
+    stmt_local_path_scope: typing.Set[irast.PathId]
+    """Local path scope (excluding inherited scope)."""
 
     in_aggregate: bool
     """True if the current location is inside an aggregate function call."""
@@ -105,8 +106,8 @@ class ContextLevel(compiler.ContextLevel):
             self.singletons = set()
             self.group_paths = set()
             self.path_scope = set()
-            self.local_path_scope = set()
-            self.pending_path_scope = set()
+            self.stmt_local_path_scope = set()
+            self.traced_path_scope = set()
             self.in_aggregate = False
             self.path_as_type = False
 
@@ -121,7 +122,7 @@ class ContextLevel(compiler.ContextLevel):
             self.arguments = prevlevel.arguments
             self.toplevel_shape_rptr = prevlevel.toplevel_shape_rptr
             self.path_scope = prevlevel.path_scope
-            self.pending_path_scope = prevlevel.pending_path_scope
+            self.traced_path_scope = prevlevel.traced_path_scope
             self.group_paths = prevlevel.group_paths
 
             if mode == ContextSwitchMode.SUBQUERY:
@@ -135,7 +136,7 @@ class ContextLevel(compiler.ContextLevel):
                 self.stmt = None
                 self.sets = prevlevel.sets
                 self.singletons = prevlevel.singletons.copy()
-                self.local_path_scope = set()
+                self.stmt_local_path_scope = set()
                 self.in_aggregate = False
                 self.path_as_type = False
 
@@ -150,7 +151,7 @@ class ContextLevel(compiler.ContextLevel):
                 self.clause = prevlevel.clause
                 self.stmt = prevlevel.stmt
 
-                self.local_path_scope = prevlevel.local_path_scope
+                self.stmt_local_path_scope = prevlevel.stmt_local_path_scope
                 self.in_aggregate = prevlevel.in_aggregate
                 self.path_as_type = prevlevel.path_as_type
 
@@ -158,17 +159,22 @@ class ContextLevel(compiler.ContextLevel):
                 self.sets = prevlevel.sets
                 self.singletons = prevlevel.singletons
 
-            if mode == ContextSwitchMode.NEWSCOPE:
+            if mode in {ContextSwitchMode.NEWSCOPE,
+                        ContextSwitchMode.NEW_TRACED_SCOPE}:
                 self.path_scope = prevlevel.path_scope.copy()
-                self.local_path_scope = prevlevel.local_path_scope.copy()
-                self.pending_path_scope = set()
                 self.group_paths = prevlevel.group_paths.copy()
+
+            if mode == ContextSwitchMode.NEW_TRACED_SCOPE:
+                self.traced_path_scope = set()
 
     def subquery(self):
         return self.new(ContextSwitchMode.SUBQUERY)
 
     def newscope(self):
         return self.new(ContextSwitchMode.NEWSCOPE)
+
+    def new_traced_scope(self):
+        return self.new(ContextSwitchMode.NEW_TRACED_SCOPE)
 
 
 class CompilerContext(compiler.CompilerContext):

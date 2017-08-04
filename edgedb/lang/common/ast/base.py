@@ -306,6 +306,8 @@ def _check_annotation(f_type, f_fullname, f_default):
                 f_default = tuple
             elif issubclass(f_type, typing.Set):
                 f_default = set
+            elif issubclass(f_type, typing.FrozenSet):
+                f_default = frozenset
             elif issubclass(f_type, typing.Dict):
                 f_default = dict
             else:
@@ -380,6 +382,9 @@ def _check_type(type_, value, raise_error):
 
         elif issubclass(type_, typing.Set):
             _check_container_type(type_, value, raise_error, set)
+
+        elif issubclass(type_, typing.FrozenSet):
+            _check_container_type(type_, value, raise_error, frozenset)
 
         elif issubclass(type_, typing.Dict):
             _check_mapping_type(type_, value, raise_error, dict)

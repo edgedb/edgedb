@@ -5,6 +5,7 @@
 # See LICENSE for details.
 ##
 
+import typing
 
 from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
@@ -45,27 +46,8 @@ def compile_SelectStmt(
         # Process the result expression;
         compile_output(stmt.result, ctx=ctx)
 
-        if query is not ctx.toplevel_stmt:
-            specific_scope = {s for s in ctx.local_scope_sets
-                              if s.path_id in ctx.parent_path_scope_refs}
-
-            for ir_set in specific_scope:
-                if (isinstance(ir_set.scls, s_concepts.Concept) and
-                        ir_set.path_id not in query.path_scope):
-                    # The selector does not include this path explicitly,
-                    # so we must do so here.
-                    cte = relgen.set_to_cte(ir_set, ctx=ctx)
-                    relctx.include_range(
-                        ctx.rel, cte, join_type='left',
-                        replace_bonds=False, ctx=ctx)
-
-        # The WHERE clause
-        if stmt.where:
-            with ctx.new() as ctx1:
-                ctx1.clause = 'where'
-                ctx1.expr_exposed = False
-                ctx1.shape_format = context.ShapeFormat.SERIALIZED
-                query.where_clause = dispatch.compile(stmt.where, ctx=ctx1)
+        # The FILTER clause.
+        query.where_clause = compile_filter_clause(stmt.where, ctx=ctx)
 
         simple_wrapper = irutils.is_simple_wrapper(stmt)
 
@@ -89,32 +71,13 @@ def compile_SelectStmt(
                 query, parent_scope, ctx=ctx)
 
         # The ORDER BY clause
-        with ctx.new() as orderctx:
-            orderctx.clause = 'orderby'
-            query = orderctx.query
-
-            for expr in stmt.orderby:
-                sortexpr = pgast.SortBy(
-                    node=dispatch.compile(expr.expr, ctx=orderctx),
-                    dir=expr.direction,
-                    nulls=expr.nones_order)
-                query.sort_clause.append(sortexpr)
+        query.sort_clause = compile_orderby_clause(stmt.orderby, ctx=ctx)
 
         # The OFFSET clause
-        if stmt.offset:
-            with ctx.new() as ctx1:
-                ctx1.clause = 'offsetlimit'
-                ctx1.expr_as_isolated_set = True
-                ctx1.expr_exposed = False
-                query.limit_offset = dispatch.compile(stmt.offset, ctx=ctx1)
+        query.limit_offset = compile_limit_offset_clause(stmt.offset, ctx=ctx)
 
         # The LIMIT clause
-        if stmt.limit:
-            with ctx.new() as ctx1:
-                ctx1.clause = 'offsetlimit'
-                ctx1.expr_as_isolated_set = True
-                ctx1.expr_exposed = False
-                query.limit_count = dispatch.compile(stmt.limit, ctx=ctx1)
+        query.limit_count = compile_limit_offset_clause(stmt.limit, ctx=ctx)
 
         if not parent_ctx.correct_set_assumed and not simple_wrapper:
             enforce_uniqueness = (
@@ -229,7 +192,8 @@ def compile_GroupStmt(
         # Generate another subquery contaning distinct values of
         # path expressions in BY.
         with ctx.subquery() as gvctx:
-            gvctx.path_scope = {group_path_id}
+            gvctx.path_scope = frozenset(
+                {group_path_id} | {s.path_id for s in stmt.groupby})
 
             relctx.replace_set_cte_subtree(
                 stmt.subject, group_cte, ctx=gvctx)
@@ -249,8 +213,6 @@ def compile_GroupStmt(
 
                 if isinstance(path_id[-1], (s_concepts.Concept, s_views.View)):
                     pathctx.put_path_bond(gvctx.query, path_id)
-
-                gvctx.path_scope.add(path_id)
 
             relctx.include_range(gvctx.query, group_cte.query, ctx=gvctx)
 
@@ -283,12 +245,8 @@ def compile_GroupStmt(
                 outer_id: inner_id
             }
 
-            selctx.path_scope = o_stmt.path_scope.copy()
-            selctx.path_scope.add(group_path_id)
-
-            selctx.local_scope_sets = \
-                {s for s in o_stmt.local_scope_sets
-                 if s.path_id in selctx.path_scope}
+            selctx.path_scope = o_stmt.path_scope
+            selctx.local_scope_sets = o_stmt.local_scope_sets
 
             selctx.query.ctes.append(group_cte)
             # relctx.pop_prefix_ctes(stmt.subject.path_id, ctx=selctx)
@@ -313,11 +271,8 @@ def compile_GroupStmt(
                 selctx.query, selctx.parent_path_scope_refs, ctx=selctx)
 
             # The WHERE clause
-            if o_stmt.where:
-                with selctx.new() as ctx1:
-                    selctx.clause = 'where'
-                    selctx.query.where_clause = dispatch.compile(
-                        o_stmt.where, ctx=ctx1)
+            selctx.query.where_clause = compile_filter_clause(
+                o_stmt.where, ctx=selctx)
 
             for ir_sortexpr in o_stmt.orderby:
                 alias = ctx.genalias('s')
@@ -468,3 +423,56 @@ def compile_output(
             pathctx.get_path_serialized_output(ctx.rel, path_id, env=ctx.env)
         else:
             pathctx.get_path_value_output(ctx.rel, path_id, env=ctx.env)
+
+
+def compile_filter_clause(
+        ir_set: typing.Optional[irast.Base], *,
+        ctx: context.CompilerContextLevel) -> pgast.Expr:
+    if ir_set is None:
+        return None
+
+    with ctx.new() as ctx1:
+        ctx1.clause = 'where'
+        ctx1.expr_exposed = False
+        ctx1.shape_format = context.ShapeFormat.SERIALIZED
+        relgen.init_scoped_set_ctx(ir_set, ctx=ctx1)
+        where_clause = dispatch.compile(ir_set, ctx=ctx1)
+
+    return where_clause
+
+
+def compile_orderby_clause(
+        ir_exprs: typing.List[irast.Base], *,
+        ctx: context.CompilerContextLevel) -> pgast.Expr:
+    if not ir_exprs:
+        return []
+
+    sort_clause = []
+
+    for expr in ir_exprs:
+        with ctx.new() as orderctx:
+            orderctx.clause = 'orderby'
+            relgen.init_scoped_set_ctx(expr.expr, ctx=orderctx)
+            sortexpr = pgast.SortBy(
+                node=dispatch.compile(expr.expr, ctx=orderctx),
+                dir=expr.direction,
+                nulls=expr.nones_order)
+            sort_clause.append(sortexpr)
+
+    return sort_clause
+
+
+def compile_limit_offset_clause(
+        ir_set: typing.Optional[irast.Base], *,
+        ctx: context.CompilerContextLevel) -> pgast.Expr:
+    if ir_set is None:
+        return None
+
+    with ctx.new() as ctx1:
+        relgen.init_scoped_set_ctx(ir_set, ctx=ctx1)
+        ctx1.clause = 'offsetlimit'
+        ctx1.expr_as_isolated_set = True
+        ctx1.expr_exposed = False
+        limit_offset_clause = dispatch.compile(ir_set, ctx=ctx1)
+
+    return limit_offset_clause

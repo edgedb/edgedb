@@ -51,17 +51,11 @@ def compile_SelectQuery(
         stmt.orderby = clauses.compile_orderby_clause(
             expr.orderby, ctx=sctx)
 
-        if expr.offset:
-            offset_ir = dispatch.compile(expr.offset, ctx=sctx)
-            offset_ir.context = expr.offset.context
-            pathctx.enforce_singleton(offset_ir, ctx=sctx)
-            stmt.offset = offset_ir
+        stmt.offset = clauses.compile_limit_offset_clause(
+            expr.offset, ctx=sctx)
 
-        if expr.limit:
-            limit_ir = dispatch.compile(expr.limit, ctx=sctx)
-            limit_ir.context = expr.limit.context
-            pathctx.enforce_singleton(limit_ir, ctx=sctx)
-            stmt.limit = limit_ir
+        stmt.limit = clauses.compile_limit_offset_clause(
+            expr.limit, ctx=sctx)
 
         result = fini_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
 
@@ -135,19 +129,14 @@ def compile_GroupQuery(
             o_stmt.orderby = clauses.compile_orderby_clause(
                 expr.orderby, ctx=sctx)
 
-            if expr.offset:
-                offset_ir = dispatch.compile(expr.offset, ctx=sctx)
-                offset_ir.context = expr.offset.context
-                pathctx.enforce_singleton(offset_ir, ctx=sctx)
-                o_stmt.offset = offset_ir
+            o_stmt.offset = clauses.compile_limit_offset_clause(
+                expr.offset, ctx=sctx)
 
-            if expr.limit:
-                limit_ir = dispatch.compile(expr.limit, ctx=sctx)
-                limit_ir.context = expr.limit.context
-                pathctx.enforce_singleton(limit_ir, ctx=sctx)
-                o_stmt.limit = limit_ir
+            o_stmt.limit = clauses.compile_limit_offset_clause(
+                expr.limit, ctx=sctx)
 
-            o_stmt.path_scope = sctx.path_scope
+            o_stmt.path_scope = \
+                frozenset(sctx.path_scope | {stmt.group_path_id})
             o_stmt.local_scope_sets = pathctx.get_local_scope_sets(ctx=sctx)
 
         stmt.result = setgen.generated_set(o_stmt, ctx=ictx)
@@ -292,7 +281,7 @@ def fini_stmt(
         if isinstance(irstmt.result, irast.Set):
             result.path_id = irstmt.result.path_id
 
-    irstmt.path_scope = ctx.path_scope
+    irstmt.path_scope = frozenset(ctx.path_scope)
     irstmt.local_scope_sets = pathctx.get_local_scope_sets(ctx=ctx)
 
     return result

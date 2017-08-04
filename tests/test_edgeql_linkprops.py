@@ -398,7 +398,6 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_props_cross02(self):
         await self.assert_query_result(r'''
             # get cards that have the same count in some deck as their cost

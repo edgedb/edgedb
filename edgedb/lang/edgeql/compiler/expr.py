@@ -208,7 +208,7 @@ def compile_UnaryOp(
 @dispatch.compile.register(qlast.ExistsPredicate)
 def compile_ExistsPredicate(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
-    with ctx.newscope() as aggctx:
+    with ctx.new_traced_scope() as aggctx:
         # EXISTS is a special aggregate, so we need to put a scope
         # fence for the same reasons we do for aggregates.
         operand = dispatch.compile(expr.expr, ctx=aggctx)
@@ -217,9 +217,7 @@ def compile_ExistsPredicate(
         ir_set = setgen.generated_set(
             irast.ExistPred(expr=operand), ctx=aggctx)
 
-        ir_set.path_scope = aggctx.path_scope.copy()
-        ir_set.local_scope_sets = pathctx.get_local_scope_sets(ctx=aggctx)
-        pathctx.update_pending_path_scope(aggctx.path_scope, ctx=ctx)
+        ir_set.path_scope = frozenset(aggctx.traced_path_scope)
 
     return ir_set
 

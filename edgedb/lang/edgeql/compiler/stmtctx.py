@@ -26,6 +26,7 @@ from edgedb.lang.edgeql import parser as qlparser
 
 from . import context
 from . import dispatch
+from . import pathctx
 from . import setgen
 
 
@@ -201,5 +202,7 @@ def declare_aliased_set(
 
     if key is not None:
         ctx.substmts[key] = ir_set
+
+    pathctx.register_path_scope(ir_set.path_id, ctx=ctx)
 
     return ir_set

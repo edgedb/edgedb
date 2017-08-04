@@ -21,6 +21,7 @@ from edgedb.lang.schema import nodes as s_nodes
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import sources as s_sources
+from edgedb.lang.schema import utils as s_utils
 from edgedb.lang.schema import views as s_views
 
 from edgedb.lang.edgeql import ast as qlast
@@ -32,6 +33,7 @@ from . import dispatch
 from . import pathctx
 from . import schemactx
 from . import stmtctx
+from . import typegen
 
 
 PtrDir = s_pointers.PointerDirection
@@ -355,14 +357,35 @@ def class_set(
 
 def generated_set(
         expr: irast.Base, path_id: typing.Optional[irast.PathId]=None, *,
+        typehint: typing.Optional[s_obj.NodeClass]=None,
         ctx: context.ContextLevel) -> irast.Set:
     alias = ctx.aliases.get('expr')
-    return irutils.new_expression_set(expr, ctx.schema, path_id, alias=alias)
+    if typehint is not None:
+        ql_typeref = s_utils.typeref_to_ast(typehint)
+        ir_typeref = typegen.ql_typeref_to_ir_typeref(ql_typeref, ctx=ctx)
+    else:
+        ir_typeref = None
+
+    return irutils.new_expression_set(
+        expr, ctx.schema, path_id, alias=alias, typehint=ir_typeref)
 
 
-def ensure_set(expr: irast.Base, *, ctx: context.ContextLevel) -> irast.Set:
+def scoped_set(
+        expr: irast.Base, *,
+        typehint: typing.Optional[s_obj.NodeClass]=None,
+        ctx: context.ContextLevel) -> irast.Set:
+    ir_set = ensure_set(expr, typehint=typehint, ctx=ctx)
+    ir_set.path_scope = frozenset(ctx.path_scope.copy())
+    ir_set.local_scope_sets = pathctx.get_local_scope_sets(ctx=ctx)
+    return ir_set
+
+
+def ensure_set(
+        expr: irast.Base, *,
+        typehint: typing.Optional[s_obj.NodeClass]=None,
+        ctx: context.ContextLevel) -> irast.Set:
     if not isinstance(expr, irast.Set):
-        expr = generated_set(expr, ctx=ctx)
+        expr = generated_set(expr, typehint=typehint, ctx=ctx)
     return expr
 
 
@@ -370,7 +393,7 @@ def ensure_stmt(expr: irast.Base, *, ctx: context.ContextLevel) -> irast.Stmt:
     if not isinstance(expr, irast.Stmt):
         expr = irast.SelectStmt(
             result=ensure_set(expr, ctx=ctx),
-            path_scope=ctx.path_scope,
+            path_scope=frozenset(ctx.path_scope),
             local_scope_sets=pathctx.get_local_scope_sets(ctx=ctx)
         )
     return expr

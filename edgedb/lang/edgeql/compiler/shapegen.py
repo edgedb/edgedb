@@ -224,16 +224,8 @@ def compile_shape_el(
 
     where = clauses.compile_where_clause(shape_el.where, ctx=ctx)
     orderby = clauses.compile_orderby_clause(shape_el.orderby, ctx=ctx)
-
-    if shape_el.offset is not None:
-        offset = dispatch.compile(shape_el.offset, ctx=ctx)
-    else:
-        offset = None
-
-    if shape_el.limit is not None:
-        limit = dispatch.compile(shape_el.limit, ctx=ctx)
-    else:
-        limit = None
+    offset = clauses.compile_limit_offset_clause(shape_el.offset, ctx=ctx)
+    limit = clauses.compile_limit_offset_clause(shape_el.limit, ctx=ctx)
 
     if where is not None or orderby or offset is not None or limit is not None:
         substmt = irast.SelectStmt(
@@ -242,7 +234,7 @@ def compile_shape_el(
             orderby=orderby,
             offset=offset,
             limit=limit,
-            path_scope=ctx.path_scope,
+            path_scope=frozenset(ctx.path_scope),
             local_scope_sets=pathctx.get_local_scope_sets(ctx=ctx)
         )
 
@@ -297,7 +289,7 @@ def compile_shape_compexpr(
             ptrcls=ptrcls,
             direction=ptr_direction
         )
-        shape_expr_ctx.local_path_scope = set()
+        shape_expr_ctx.stmt_local_path_scope = set()
         compexpr = dispatch.compile(shape_el.compexpr, ctx=shape_expr_ctx)
 
     target_class = irutils.infer_type(compexpr, schema)
@@ -338,7 +330,7 @@ def compile_shape_compexpr(
                 ptrcls.mapping = s_links.LinkMapping.ManyToMany
 
     compexpr = setgen.ensure_stmt(compexpr, ctx=shape_expr_ctx)
-    compexpr.path_scope.add(compexpr.result.path_id)
+    compexpr.path_scope |= {compexpr.result.path_id}
 
     if is_linkprop:
         path_id = rptr.source.path_id.extend(
@@ -434,7 +426,7 @@ def compile_insert_nested_shape(
             include_implicit=True,
             ctx=ctx
         ),
-        path_scope=ctx.path_scope,
+        path_scope=frozenset(ctx.path_scope),
         local_scope_sets=pathctx.get_local_scope_sets(ctx=ctx)
     )
 
@@ -470,7 +462,7 @@ def compile_update_nested_shape(
 
     substmt = irast.SelectStmt(
         result=el,
-        path_scope=ctx.path_scope,
+        path_scope=frozenset(ctx.path_scope),
         local_scope_sets=pathctx.get_local_scope_sets(ctx=ctx)
     )
 

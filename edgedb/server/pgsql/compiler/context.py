@@ -72,8 +72,8 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.path_scope_refs = {}
             self.path_scope_refs_by_stmt = collections.defaultdict(dict)
             self.parent_path_scope_refs = {}
-            self.path_scope = set()
-            self.local_scope_sets = set()
+            self.path_scope = frozenset()
+            self.local_scope_sets = frozenset()
 
         else:
             self.backend = prevlevel.backend
@@ -136,8 +136,6 @@ class CompilerContextLevel(compiler.ContextLevel):
                 self.stmt = self.query
                 self.parent_path_scope_refs = prevlevel.path_scope_refs
                 self.computed_node_rels = prevlevel.computed_node_rels.copy()
-                self.path_scope = prevlevel.path_scope.copy()
-                self.local_scope_sets = set()
 
     def genalias(self, hint=None):
         return self.env.aliases.get(hint)

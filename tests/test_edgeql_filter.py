@@ -48,18 +48,20 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             WITH MODULE test
             SELECT User{name}
             FILTER
-                NOT (
-                    NOT (
-                        EXISTS User.<owner[IS Issue].time_estimate
-                        AND
-                        User.<owner[IS Issue].time_estimate > 9000
-                    )
-                    OR
-                    NOT (
-                        EXISTS User.<owner[IS Issue].due_date
-                        AND
-                        User.<owner[IS Issue].due_date = <datetime>'2020/01/15'
-                    )
+                EXISTS (
+                    SELECT
+                        I := User.<owner[IS Issue]
+                    FILTER
+                        NOT (
+                            NOT (
+                                EXISTS I.time_estimate AND
+                                I.time_estimate > 9000
+                            ) OR
+                            NOT (
+                                EXISTS I.due_date
+                                AND I.due_date = <datetime>'2020/01/15'
+                            )
+                        )
                 )
             ORDER BY User.name;
         ''', [
@@ -76,14 +78,16 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             WITH MODULE test
             SELECT User{name}
             FILTER
-                NOT (
-                    NOT EXISTS User.<owner[IS Issue].time_estimate
-                    OR
-                    NOT EXISTS User.<owner[IS Issue].due_date
-                    OR
-                    User.<owner[IS Issue].time_estimate <= 9000
-                    OR
-                    User.<owner[IS Issue].due_date != <datetime>'2020/01/15'
+                EXISTS (
+                    SELECT
+                        I := User.<owner[IS Issue]
+                    FILTER
+                        NOT (
+                            NOT EXISTS I.time_estimate OR
+                            NOT EXISTS I.due_date OR
+                            I.time_estimate <= 9000 OR
+                            I.due_date != <datetime>'2020/01/15'
+                        )
                 )
             ORDER BY User.name;
         ''', [
@@ -156,9 +160,10 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             WITH MODULE test
             SELECT User{name}
             FILTER
-                NOT EXISTS User.<owner[IS Issue].time_estimate
-                AND
-                EXISTS User.<owner[IS Issue]
+                EXISTS (
+                    SELECT I := User.<owner[IS Issue]
+                    FILTER NOT EXISTS I.time_estimate
+                )
             ORDER BY User.name;
         ''', [
             # Elvis and Yury have Issues without time_estimate.
@@ -199,9 +204,12 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             WITH MODULE test
             SELECT User{name}
             FILTER
-                EXISTS User.<owner[IS Issue].time_estimate
-                AND
-                EXISTS User.<owner[IS Issue].due_date
+                EXISTS (
+                    SELECT
+                        I := User.<owner[IS Issue]
+                    FILTER
+                        EXISTS I.time_estimate AND EXISTS I.due_date
+                )
             ORDER BY User.name;
         ''', [
             # Only one Issue satisfies this and its owner is Yury.
@@ -218,10 +226,14 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             WITH MODULE test
             SELECT User{name}
             FILTER
-                NOT (
-                    NOT EXISTS User.<owner[IS Issue].time_estimate
-                    OR
-                    NOT EXISTS User.<owner[IS Issue].due_date
+                EXISTS (
+                    SELECT
+                        I := User.<owner[IS Issue]
+                    FILTER
+                        NOT (
+                            NOT EXISTS I.time_estimate OR
+                            NOT EXISTS I.due_date
+                        )
                 )
             ORDER BY User.name;
         ''', [
@@ -269,13 +281,17 @@ class TestEdgeQLFilter(tb.QueryTestCase):
                 U2 := User
             SELECT User{name}
             FILTER
-                NOT (
-                    NOT EXISTS User.<owner[IS Issue].time_estimate
-                    OR
-                    NOT EXISTS (
-                        SELECT U2.<owner[IS Issue].due_date
-                        FILTER User.<owner[IS Issue] = U2.<owner[IS Issue]
-                    )
+                EXISTS (
+                    SELECT
+                        I := User.<owner[IS Issue]
+                    FILTER
+                        NOT (
+                            NOT EXISTS I.time_estimate OR
+                            NOT EXISTS (
+                                SELECT U2.<owner[IS Issue].due_date
+                                FILTER I = U2.<owner[IS Issue]
+                            )
+                        )
                 )
             ORDER BY User.name;
         ''', [

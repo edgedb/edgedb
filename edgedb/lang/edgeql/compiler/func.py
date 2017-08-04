@@ -23,7 +23,6 @@ from edgedb.lang.edgeql import parser as qlparser
 
 from . import context
 from . import dispatch
-from . import pathctx
 from . import setgen
 from . import typegen
 
@@ -57,8 +56,7 @@ def compile_FunctionCall(
                     " modifier 'ALL' or 'DISTINCT'",
                     context=expr.context)
 
-        path_scope = set()
-        local_scope_sets = set()
+        path_scope = frozenset()
         agg_sort = []
         agg_filter = None
         partition = []
@@ -70,7 +68,7 @@ def compile_FunctionCall(
             # so put a newscope barrier here.  Store the scope
             # obtained by processing the agg call in the resulting
             # IR Set.
-            with fctx.newscope() as scope_ctx:
+            with fctx.new_traced_scope() as scope_ctx:
                 scope_ctx.group_paths.clear()
 
                 args, kwargs, arg_types = \
@@ -104,10 +102,7 @@ def compile_FunctionCall(
                     agg_filter = dispatch.compile(
                         expr.agg_filter, ctx=scope_ctx)
 
-                path_scope = scope_ctx.path_scope.copy()
-                local_scope_sets = pathctx.get_local_scope_sets(ctx=fctx)
-
-            pathctx.update_pending_path_scope(fctx.path_scope, ctx=fctx)
+                path_scope = frozenset(scope_ctx.traced_path_scope)
 
         else:
             args, kwargs, arg_types = \
@@ -137,7 +132,6 @@ def compile_FunctionCall(
 
     ir_set = setgen.generated_set(node, ctx=ctx)
     ir_set.path_scope = path_scope
-    ir_set.local_scope_sets = local_scope_sets
 
     return ir_set
 

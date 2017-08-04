@@ -10,11 +10,13 @@
 import typing
 
 from edgedb.lang.edgeql import ast as qlast
+from edgedb.lang.edgeql import errors
 from edgedb.lang.ir import ast as irast
 
 from . import context
 from . import dispatch
 from . import pathctx
+from . import setgen
 
 
 def compile_where_clause(
@@ -24,9 +26,19 @@ def compile_where_clause(
     if where is None:
         return None
     else:
-        with ctx.new() as subctx:
+        with ctx.newscope() as subctx:
             subctx.clause = 'where'
-            return dispatch.compile(where, ctx=subctx)
+            ir_expr = dispatch.compile(where, ctx=subctx)
+            bool_t = ctx.schema.get('std::bool')
+            ir_set = setgen.scoped_set(ir_expr, typehint=bool_t, ctx=subctx)
+
+            if not ir_set.scls.issubclass(bool_t):
+                raise errors.EdgeQLError(
+                    f'expression in FILTER clause must be of type bool',
+                    context=where.context
+                )
+
+        return ir_set
 
 
 def compile_orderby_clause(
@@ -40,9 +52,12 @@ def compile_orderby_clause(
         subctx.clause = 'orderby'
 
         for sortexpr in sortexprs:
-            ir_sortexpr = dispatch.compile(sortexpr.path, ctx=subctx)
-            ir_sortexpr.context = sortexpr.context
-            pathctx.enforce_singleton(ir_sortexpr, ctx=subctx)
+            with subctx.newscope() as exprctx:
+                ir_sortexpr = dispatch.compile(sortexpr.path, ctx=exprctx)
+                ir_sortexpr = setgen.scoped_set(ir_sortexpr, ctx=exprctx)
+                ir_sortexpr.context = sortexpr.context
+                pathctx.enforce_singleton(ir_sortexpr, ctx=exprctx)
+
             result.append(
                 irast.SortExpr(
                     expr=ir_sortexpr,
@@ -50,3 +65,19 @@ def compile_orderby_clause(
                     nones_order=sortexpr.nones_order))
 
     return result
+
+
+def compile_limit_offset_clause(
+        expr: qlast.Base, *,
+        ctx: context.ContextLevel) -> typing.Optional[irast.Set]:
+    if expr is not None:
+        with ctx.newscope() as subctx:
+            ir_expr = dispatch.compile(expr, ctx=subctx)
+            int_t = ctx.schema.get('std::int')
+            ir_set = setgen.scoped_set(ir_expr, typehint=int_t, ctx=subctx)
+            ir_set.context = expr.context
+            pathctx.enforce_singleton(ir_set, ctx=subctx)
+    else:
+        ir_set = None
+
+    return ir_set
