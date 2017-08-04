@@ -148,11 +148,7 @@ def compile_GroupQuery(
                 o_stmt.limit = limit_ir
 
             o_stmt.path_scope = sctx.path_scope
-
-            o_stmt.specific_path_scope = {
-                sctx.sets[p] for p in sctx.stmt_path_scope
-                if p in sctx.sets and p in o_stmt.path_scope
-            }
+            o_stmt.local_scope_sets = pathctx.get_local_scope_sets(ctx=sctx)
 
         stmt.result = setgen.generated_set(o_stmt, ctx=ictx)
 
@@ -297,10 +293,7 @@ def fini_stmt(
             result.path_id = irstmt.result.path_id
 
     irstmt.path_scope = ctx.path_scope
-    irstmt.specific_path_scope = {
-        ctx.sets[p] for p in ctx.stmt_path_scope
-        if p in ctx.sets and p in irstmt.path_scope
-    }
+    irstmt.local_scope_sets = pathctx.get_local_scope_sets(ctx=ctx)
 
     return result
 

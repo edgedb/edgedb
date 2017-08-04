@@ -57,8 +57,8 @@ class Set(Base):
     anchor: str
     show_as_anchor: str
     shape: typing.List[Base]
-    path_scope: typing.Dict[PathId, int]
-    specific_path_scope: typing.Set[Base]
+    path_scope: typing.Set[PathId]
+    local_scope_sets: typing.Set[Base]
 
     def __repr__(self):
         return \
@@ -226,8 +226,8 @@ class Stmt(Base):
     parent_stmt: Base
     iterator_stmt: Base
     substmts: list
-    path_scope: typing.Dict[PathId, int]
-    specific_path_scope: typing.Set[Set]
+    path_scope: typing.Set[PathId]
+    local_scope_sets: typing.Set[Set]
 
 
 class SelectStmt(Stmt):

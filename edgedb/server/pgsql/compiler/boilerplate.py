@@ -23,14 +23,11 @@ def init_stmt(
     if ctx.toplevel_stmt is None:
         ctx.toplevel_stmt = ctx.stmt
 
-    ctx.stmt_path_scope = stmt.path_scope.copy()
+    ctx.path_scope = stmt.path_scope.copy()
 
-    ctx.stmt_specific_path_scope = \
-        {s for s in stmt.specific_path_scope
-         if s.path_id in ctx.stmt_path_scope}
-
-    if stmt.parent_stmt is not None:
-        ctx.parent_stmt_path_scope = stmt.parent_stmt.path_scope.copy()
+    ctx.local_scope_sets = \
+        {s for s in stmt.local_scope_sets
+         if s.path_id in ctx.path_scope}
 
     ctx.stmtmap[stmt] = ctx.stmt
     ctx.stmt_hierarchy[ctx.stmt] = parent_ctx.stmt

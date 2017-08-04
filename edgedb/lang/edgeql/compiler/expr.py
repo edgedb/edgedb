@@ -218,11 +218,7 @@ def compile_ExistsPredicate(
             irast.ExistPred(expr=operand), ctx=aggctx)
 
         ir_set.path_scope = aggctx.path_scope.copy()
-        ir_set.stmt_path_scope = {
-            aggctx.sets[p] for p in aggctx.stmt_path_scope
-            if p in aggctx.sets
-        }
-
+        ir_set.local_scope_sets = pathctx.get_local_scope_sets(ctx=aggctx)
         pathctx.update_pending_path_scope(aggctx.path_scope, ctx=ctx)
 
     return ir_set

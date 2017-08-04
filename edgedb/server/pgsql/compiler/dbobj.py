@@ -56,7 +56,7 @@ def range_for_material_concept(
         qry = pgast.SelectStmt()
         qry.from_clause.append(rvar)
         pathctx.put_path_rvar(env, qry, path_id, rvar)
-        qry.path_bonds.add(path_id)
+        qry.path_scope.add(path_id)
 
         set_ops.append(('union', qry))
 
@@ -73,7 +73,7 @@ def range_for_material_concept(
             )
 
             pathctx.put_path_rvar(env, qry, path_id, rvar)
-            qry.path_bonds.add(path_id)
+            qry.path_scope.add(path_id)
 
             if op == 'replace':
                 op = 'union'
@@ -114,7 +114,7 @@ def range_for_concept(
             )
 
             pathctx.put_path_rvar(env, qry, path_id, c_rvar)
-            qry.path_bonds.add(path_id)
+            qry.path_scope.add(path_id)
 
             set_ops.append(('union', qry))
 

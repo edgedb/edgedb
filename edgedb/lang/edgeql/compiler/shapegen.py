@@ -7,7 +7,6 @@
 """EdgeQL shape compilation functions."""
 
 
-import collections
 import typing
 
 from edgedb.lang.ir import ast as irast
@@ -244,10 +243,7 @@ def compile_shape_el(
             offset=offset,
             limit=limit,
             path_scope=ctx.path_scope,
-            specific_path_scope={
-                ctx.sets[p] for p in ctx.stmt_path_scope
-                if p in ctx.sets and p in ctx.path_scope
-            }
+            local_scope_sets=pathctx.get_local_scope_sets(ctx=ctx)
         )
 
         if recurse is not None:
@@ -301,7 +297,7 @@ def compile_shape_compexpr(
             ptrcls=ptrcls,
             direction=ptr_direction
         )
-        shape_expr_ctx.stmt_path_scope = collections.defaultdict(int)
+        shape_expr_ctx.local_path_scope = set()
         compexpr = dispatch.compile(shape_el.compexpr, ctx=shape_expr_ctx)
 
     target_class = irutils.infer_type(compexpr, schema)
@@ -342,8 +338,7 @@ def compile_shape_compexpr(
                 ptrcls.mapping = s_links.LinkMapping.ManyToMany
 
     compexpr = setgen.ensure_stmt(compexpr, ctx=shape_expr_ctx)
-    if compexpr.result.path_id not in compexpr.path_scope:
-        compexpr.path_scope[compexpr.result.path_id] += 1
+    compexpr.path_scope.add(compexpr.result.path_id)
 
     if is_linkprop:
         path_id = rptr.source.path_id.extend(
@@ -440,10 +435,7 @@ def compile_insert_nested_shape(
             ctx=ctx
         ),
         path_scope=ctx.path_scope,
-        specific_path_scope={
-            ctx.sets[p] for p in ctx.stmt_path_scope
-            if p in ctx.sets and p in ctx.path_scope
-        }
+        local_scope_sets=pathctx.get_local_scope_sets(ctx=ctx)
     )
 
     result = setgen.generated_set(substmt, ctx=ctx)
@@ -479,10 +471,7 @@ def compile_update_nested_shape(
     substmt = irast.SelectStmt(
         result=el,
         path_scope=ctx.path_scope,
-        specific_path_scope={
-            ctx.sets[p] for p in ctx.stmt_path_scope
-            if p in ctx.sets and p in ctx.path_scope
-        }
+        local_scope_sets=pathctx.get_local_scope_sets(ctx=ctx)
     )
 
     result = setgen.generated_set(substmt, ctx=ctx)

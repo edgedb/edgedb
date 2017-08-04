@@ -56,7 +56,7 @@ def set_to_cte(
 
     with ctx.new() as subctx:
         subctx.rel = stmt
-        subctx.path_bonds = ctx.path_bonds.copy()
+        subctx.path_scope_refs = ctx.path_scope_refs.copy()
 
         if relctx.get_parent_range_scope(ir_set, ctx=subctx) is not None:
             # We are ranging over this set in the parent query,
@@ -148,7 +148,7 @@ def ensure_correct_set(
     with ctx.new() as subctx:
         # This is a simple wrapper, make sure path bond
         # conditions do not get injected unnecessarily.
-        subctx.path_bonds = {}
+        subctx.path_scope_refs = {}
         wrapper = wrap_set_rel(stmt.result, query, ctx=subctx)
 
         if enforce_uniqueness:
@@ -225,9 +225,9 @@ def wrap_set_rel(
         # use the _parent_'s query scope, not the scope of
         # the query where the OFFSET/LIMIT clause is.
         if ctx.clause == 'offsetlimit':
-            path_scope = ctx.parent_path_bonds
+            path_scope = ctx.parent_path_scope_refs
         else:
-            path_scope = ctx.path_bonds
+            path_scope = ctx.path_scope_refs
         relctx.enforce_path_scope(wrapper, path_scope, ctx=subctx)
 
     result = wrapper
@@ -299,7 +299,7 @@ def wrap_set_rel_as_bool_disjunction(
             target=wrapper, source=rvar, ctx=subctx)
         wrapper.where_clause = pathctx.get_rvar_path_value_var(
             rvar, ir_set.path_id, env=subctx.env)
-        relctx.enforce_path_scope(wrapper, ctx.path_bonds, ctx=subctx)
+        relctx.enforce_path_scope(wrapper, ctx.path_scope_refs, ctx=subctx)
 
     return pgast.SubLink(
         type=pgast.SubLinkType.EXISTS,
@@ -328,7 +328,7 @@ def process_set_as_root(
     """Populate the CTE for a Set defined by a path root."""
     set_rvar = relctx.get_root_rvar(ir_set, stmt, ctx=ctx)
     stmt.from_clause.append(set_rvar)
-    relctx.enforce_path_scope(stmt, ctx.parent_path_bonds, ctx=ctx)
+    relctx.enforce_path_scope(stmt, ctx.parent_path_scope_refs, ctx=ctx)
     ctx.query.ctes.append(relctx.get_set_cte(ir_set, ctx=ctx))
 
 
@@ -364,7 +364,7 @@ def process_set_as_parent_scope(
 
     if isinstance(parent_rvar, pgast.RangeVar):
         parent_scope = {}
-        for path_id in parent_rvar.path_bonds:
+        for path_id in parent_rvar.path_scope:
             parent_scope[path_id] = pathctx.LazyPathVarRef(
                 pathctx.get_rvar_path_identity_var,
                 ctx.env, parent_rvar, path_id)
@@ -380,7 +380,7 @@ def process_set_as_atom_class_ref(
         ctx: context.CompilerContextLevel) -> None:
 
     with ctx.new() as newctx:
-        newctx.path_bonds = ctx.parent_path_bonds.copy()
+        newctx.path_scope_refs = ctx.parent_path_scope_refs.copy()
         set_rvar = relctx.get_root_rvar(
             ir_set, stmt, nullable=ctx.lax_paths > 0, ctx=newctx)
         pathctx.join_class_rel(
@@ -396,7 +396,7 @@ def process_set_as_link_property_ref(
     ir_source = ir_set.rptr.source
 
     with ctx.new() as newctx:
-        newctx.path_bonds = ctx.parent_path_bonds.copy()
+        newctx.path_scope_refs = ctx.parent_path_scope_refs.copy()
 
         source_rel = set_to_cte(ir_source, ctx=newctx)
         if isinstance(source_rel, pgast.CommonTableExpr):
@@ -451,7 +451,7 @@ def process_set_as_path_step(
 
         if source_is_inline:
             with ctx.new() as newctx:
-                newctx.path_bonds = ctx.parent_path_bonds.copy()
+                newctx.path_scope_refs = ctx.parent_path_scope_refs.copy()
                 source_rel = set_to_cte(ir_source, ctx=newctx)
 
             if isinstance(source_rel, pgast.CommonTableExpr):
@@ -502,7 +502,7 @@ def process_set_as_path_step(
                     lateral=True, ctx=newctx)
                 poly_rvar = dbobj.range_for_concept(
                     ctx.env, ptr_src, src_path_id)
-                poly_rvar.path_bonds.add(src_path_id)
+                poly_rvar.path_scope.add(src_path_id)
                 poly_rvar.nullable = True
                 pathctx.rel_join(ctx.env, stmt, poly_rvar, type='left',
                                  allow_implicit_bond=False)
@@ -515,7 +515,7 @@ def process_set_as_path_step(
         return
 
     with ctx.new() as newctx:
-        newctx.path_bonds = ctx.parent_path_bonds.copy()
+        newctx.path_scope_refs = ctx.parent_path_scope_refs.copy()
 
         with newctx.new() as srcctx:
             srcctx.expr_exposed = False
@@ -560,10 +560,11 @@ def process_set_as_view(
 
     with ctx.new() as newctx:
         if parent_stmt is not None:
-            newctx.path_bonds = ctx.path_bonds_by_stmt[parent_stmt].copy()
+            newctx.path_scope_refs = \
+                ctx.path_scope_refs_by_stmt[parent_stmt].copy()
             newctx.ctemap = ctx.ctemap_by_stmt[parent_stmt].copy()
         else:
-            newctx.path_bonds = {}
+            newctx.path_scope_refs = {}
             newctx.ctemap = {}
 
         newctx.computed_node_rels = {}
@@ -583,9 +584,9 @@ def process_set_as_view(
             ir_set, ir_set.real_path_id, ir_set.path_id,
             s_rvar, ctx=newctx)
 
-        for path_id in list(subquery.path_bonds):
+        for path_id in list(subquery.path_scope):
             if not path_id.startswith(ir_set.path_id):
-                subquery.path_bonds.discard(path_id)
+                subquery.path_scope.discard(path_id)
 
     relctx.ensure_bond_for_expr(ir_set, subquery, ctx=ctx)
 
@@ -605,7 +606,7 @@ def process_set_as_subquery(
         ctx: context.CompilerContextLevel) -> None:
     """Populate the CTE for Set defined by a subquery."""
     with ctx.new() as newctx:
-        newctx.path_bonds = ctx.path_bonds.copy()
+        newctx.path_scope_refs = ctx.path_scope_refs.copy()
 
         inner_set = ir_set.expr.result
 
@@ -656,7 +657,7 @@ def process_set_as_membership_expr(
 
         subquery = rightctx.query
 
-        path_scope = set(rightctx.rel.path_bonds)
+        path_scope = set(rightctx.rel.path_scope)
         bond_path_id = fini_agg_expr_stmt(
             ir_set, check_expr, subquery, path_scope=path_scope, ctx=rightctx)
 
@@ -677,7 +678,7 @@ def process_set_as_view_inner_reference(
     inner_set = ir_set.view_source
 
     with ctx.new() as newctx:
-        newctx.path_bonds = ctx.parent_path_bonds.copy()
+        newctx.path_scope_refs = ctx.parent_path_scope_refs.copy()
         newctx.expr_exposed = False
 
         # rptr source is a view, so we need to make sure that all
@@ -688,9 +689,9 @@ def process_set_as_view_inner_reference(
         src_ir_set = irutils.get_subquery_shape(src)
         source_rvar = None
 
-        if src.path_id in newctx.path_bonds:
-            newctx.path_bonds[src_ir_set.path_id] = \
-                newctx.path_bonds[src.path_id]
+        if src.path_id in newctx.path_scope_refs:
+            newctx.path_scope_refs[src_ir_set.path_id] = \
+                newctx.path_scope_refs[src.path_id]
         else:
             source_cte = set_to_cte(src, ctx=newctx)
             source_rvar = dbobj.rvar_for_rel(ctx.env, source_cte)
@@ -703,7 +704,7 @@ def process_set_as_view_inner_reference(
             relctx.put_parent_range_scope(
                 src_ir_set, wrapper, ctx=newctx)
 
-            newctx.path_bonds = ctx.parent_path_bonds.copy()
+            newctx.path_scope_refs = ctx.parent_path_scope_refs.copy()
 
         # Prevent ensure_correct_set from wrapping the subquery as we may
         # need to fiddle with it to ensure correct cardinality first.
@@ -739,12 +740,12 @@ def process_set_as_setop(
     with ctx.new() as newctx:
         newctx.expr_exposed = False
         newctx.correct_set_assumed = True
-        newctx.path_bonds = ctx.parent_path_bonds.copy()
+        newctx.path_scope_refs = ctx.parent_path_scope_refs.copy()
         newctx.view_path_id_map = {
             ir_set.path_id: expr.left.result.path_id
         }
         larg = dispatch.compile(expr.left, ctx=newctx)
-        newctx.path_bonds = ctx.parent_path_bonds.copy()
+        newctx.path_scope_refs = ctx.parent_path_scope_refs.copy()
         newctx.view_path_id_map = {
             ir_set.path_id: expr.right.result.path_id
         }
@@ -782,7 +783,7 @@ def process_set_as_named_tuple(
         elements = []
 
         for element in expr.elements:
-            subctx.path_bonds = ctx.parent_path_bonds.copy()
+            subctx.path_scope_refs = ctx.parent_path_scope_refs.copy()
             el_ref = dispatch.compile(element.val, ctx=subctx)
             path_id = irutils.tuple_indirection_path_id(
                 ir_set.path_id, element.name,
@@ -947,13 +948,7 @@ def process_set_as_agg_expr(
     """Populate the CTE for Set defined by an aggregate."""
 
     with ctx.new() as newctx:
-        newctx.rel = stmt
-        newctx.expr_as_isolated_set = False
-
-        newctx.stmt_path_scope = newctx.stmt_path_scope.copy()
-        newctx.stmt_path_scope.update(ir_set.path_scope)
-        newctx.stmt_specific_path_scope = \
-            newctx.stmt_specific_path_scope.copy()
+        init_agg_expr_stmt(ir_set, ctx=newctx)
 
         expr = ir_set.expr
         funcobj = expr.func
@@ -962,6 +957,7 @@ def process_set_as_agg_expr(
 
         with newctx.new() as argctx:
             argctx.lax_paths = True
+            argctx.unique_set_assumed = True
 
             # We want array_agg() (and similar) to do the right
             # thing with respect to output format, so, barring
@@ -973,8 +969,6 @@ def process_set_as_agg_expr(
                     for p in funcobj.paramtypes) and
                 irutils.is_polymorphic_type(funcobj.returntype)
             )
-
-            argctx.unique_set_assumed = True
 
             if not serialization_safe:
                 argctx.expr_exposed = False
@@ -1082,7 +1076,7 @@ def process_set_as_agg_expr(
             set_expr = pgast.CoalesceExpr(args=[set_expr, iv])
 
     bond_path_id = fini_agg_expr_stmt(
-        ir_set, set_expr, stmt, path_scope=set(stmt.path_bonds), ctx=ctx)
+        ir_set, set_expr, stmt, path_scope=set(stmt.path_scope), ctx=ctx)
 
     if bond_path_id:
         # Due to injection this rel must not be a CTE.
@@ -1091,11 +1085,102 @@ def process_set_as_agg_expr(
         ctx.query.ctes.append(relctx.get_set_cte(ir_set, ctx=ctx))
 
 
+def process_set_as_exists_expr(
+        ir_set: irast.Set, stmt: pgast.Query, *,
+        ctx: context.CompilerContextLevel) -> None:
+    """Populate the CTE for Set defined by an EXISTS() expression."""
+
+    if isinstance(ir_set.expr.expr, irast.Stmt):
+        # Statement varant.
+        return process_set_as_exists_stmt_expr(ir_set, stmt, ctx=ctx)
+
+    with ctx.new() as newctx:
+        init_agg_expr_stmt(ir_set, ctx=newctx)
+        newctx.lax_paths = 1
+
+        ir_expr = ir_set.expr.expr
+        set_ref = dispatch.compile(ir_expr, ctx=newctx)
+
+        set_expr = astutils.new_binop(
+            pgast.FuncCall(
+                name=('count',),
+                args=[set_ref],
+                agg_filter=pgast.NullTest(arg=set_ref, negated=True)
+            ),
+            pgast.Constant(
+                val=0
+            ),
+            op=ast.ops.EQ if ir_set.expr.negated else ast.ops.GT
+        )
+
+    bond_path_id = fini_agg_expr_stmt(
+        ir_set, set_expr, stmt, path_scope=set(stmt.path_scope), ctx=ctx)
+
+    if bond_path_id:
+        # Due to injection this rel must not be a CTE.
+        relctx.put_set_cte(ir_set, stmt, ctx=ctx)
+    else:
+        ctx.query.ctes.append(relctx.get_set_cte(ir_set, ctx=ctx))
+
+
+def process_set_as_exists_stmt_expr(
+        ir_set: irast.Set, stmt: pgast.Query, *,
+        ctx: context.CompilerContextLevel) -> None:
+    """Populate the CTE for Set defined by an EXISTS() expression."""
+    with ctx.new() as newctx:
+        init_agg_expr_stmt(ir_set, ctx=newctx)
+        newctx.lax_paths = 2
+
+        ir_expr = ir_set.expr.expr
+        set_expr = dispatch.compile(ir_expr, ctx=newctx)
+
+        for path_id in list(set_expr.path_scope):
+            if not path_id.starts_any_of(ctx.path_scope):
+                set_expr.path_scope.discard(path_id)
+
+    if not set_expr.path_scope:
+        set_expr = astutils.set_as_exists_op(
+            set_expr, negated=ir_set.expr.negated)
+    else:
+        set_rvar = relctx.include_range(stmt, set_expr, ctx=ctx)
+        set_ref = pathctx.get_rvar_path_identity_var(
+            set_rvar, ir_expr.result.path_id, env=ctx.env)
+
+        for path_id in stmt.path_scope:
+            var = pathctx.get_path_identity_var(stmt, path_id, env=ctx.env)
+            stmt.group_clause.append(var)
+
+        set_expr = astutils.new_binop(
+            pgast.FuncCall(
+                name=('count',),
+                args=[set_ref],
+                agg_filter=pgast.NullTest(arg=set_ref, negated=True)
+            ),
+            pgast.Constant(
+                val=0
+            ),
+            op=ast.ops.EQ if ir_set.expr.negated else ast.ops.GT
+        )
+
+    pathctx.put_path_value_var(stmt, ir_set.path_id, set_expr, env=ctx.env)
+    relctx.put_set_cte(ir_set, stmt, ctx=ctx)
+
+
+def init_agg_expr_stmt(
+        ir_set: irast.Set, *,
+        ctx: context.CompilerContextLevel) -> None:
+    ctx.expr_as_isolated_set = False
+    ctx.path_scope = ctx.path_scope.copy()
+    ctx.path_scope.update(ir_set.path_scope)
+    ctx.local_scope_sets = ctx.local_scope_sets.copy()
+    ctx.local_scope_sets.update(ir_set.local_scope_sets)
+
+
 def fini_agg_expr_stmt(
         ir_set: irast.Set, set_expr: pgast.Base, stmt: pgast.Query, *,
         path_scope: typing.Set[irast.PathId],
         ctx: context.CompilerContextLevel) -> typing.Optional[irast.PathId]:
-    stmt_path_scope = ctx.stmt_path_scope
+    stmt_path_scope = ctx.path_scope
 
     # Add an explicit GROUP BY for each non-aggregated path bond.
     for path_id in path_scope:
@@ -1104,7 +1189,7 @@ def fini_agg_expr_stmt(
                 stmt, path_id, env=ctx.env)
             stmt.group_clause.append(path_var)
         else:
-            stmt.path_bonds.discard(path_id)
+            stmt.path_scope.discard(path_id)
             stmt.path_rvar_map.pop(path_id, None)
 
     bond_path_id = relctx.apply_path_bond_injections(stmt, ctx=ctx)
@@ -1124,109 +1209,6 @@ def fini_agg_expr_stmt(
     relctx.ensure_correct_rvar_for_expr(ir_set, stmt, set_expr, ctx=ctx)
 
     return bond_path_id
-
-
-def process_set_as_exists_expr(
-        ir_set: irast.Set, stmt: pgast.Query, *,
-        ctx: context.CompilerContextLevel) -> None:
-    """Populate the CTE for Set defined by an EXISTS() expression."""
-
-    if isinstance(ir_set.expr.expr, irast.Stmt):
-        # Statement varant.
-        return process_set_as_exists_stmt_expr(ir_set, stmt, ctx=ctx)
-
-    with ctx.new() as newctx:
-        newctx.lax_paths = 1
-        newctx.rel = stmt
-
-        path_scope = set(ctx.stmt_path_scope)
-
-        newctx.stmt_path_scope = newctx.stmt_path_scope.copy()
-        newctx.stmt_path_scope.update(ir_set.path_scope)
-        newctx.stmt_specific_path_scope = \
-            newctx.stmt_specific_path_scope.copy()
-        newctx.stmt_specific_path_scope.update(ir_set.stmt_path_scope)
-
-        ir_expr = ir_set.expr.expr
-        set_ref = dispatch.compile(ir_expr, ctx=newctx)
-
-        for path_id in list(stmt.path_bonds):
-            if not path_id.starts_any_of(path_scope):
-                stmt.path_bonds.discard(path_id)
-            else:
-                var = pathctx.get_path_identity_var(stmt, path_id, env=ctx.env)
-                stmt.group_clause.append(var)
-
-        if not stmt.group_clause and not stmt.having:
-            # This is a sentinel HAVING clause so that the optimizer
-            # knows how to inline the resulting query correctly.
-            stmt.having = pgast.Constant(val=True)
-
-        set_expr = astutils.new_binop(
-            pgast.FuncCall(
-                name=('count',),
-                args=[set_ref],
-                agg_filter=pgast.NullTest(arg=set_ref, negated=True)
-            ),
-            pgast.Constant(
-                val=0
-            ),
-            op=ast.ops.EQ if ir_set.expr.negated else ast.ops.GT
-        )
-
-        pathctx.put_path_value_var(stmt, ir_set.path_id, set_expr, env=ctx.env)
-        ctx.query.ctes.append(relctx.get_set_cte(ir_set, ctx=newctx))
-
-
-def process_set_as_exists_stmt_expr(
-        ir_set: irast.Set, stmt: pgast.Query, *,
-        ctx: context.CompilerContextLevel) -> None:
-    """Populate the CTE for Set defined by an EXISTS() expression."""
-    with ctx.new() as newctx:
-        newctx.lax_paths = 2
-        newctx.rel = stmt
-
-        path_scope = set(ctx.stmt_path_scope)
-
-        newctx.stmt_path_scope = newctx.stmt_path_scope.copy()
-        newctx.stmt_path_scope.update(ir_set.path_scope)
-        newctx.stmt_specific_path_scope = \
-            newctx.stmt_specific_path_scope.copy()
-        newctx.stmt_specific_path_scope.update(ir_set.stmt_path_scope)
-
-        ir_expr = ir_set.expr.expr
-        set_expr = dispatch.compile(ir_expr, ctx=newctx)
-
-        for path_id in list(set_expr.path_bonds):
-            if not path_id.starts_any_of(path_scope):
-                set_expr.path_bonds.discard(path_id)
-
-    if not set_expr.path_bonds:
-        set_expr = astutils.set_as_exists_op(
-            set_expr, negated=ir_set.expr.negated)
-    else:
-        set_rvar = relctx.include_range(stmt, set_expr, ctx=ctx)
-        set_ref = pathctx.get_rvar_path_identity_var(
-            set_rvar, ir_expr.result.path_id, env=ctx.env)
-
-        for path_id in stmt.path_bonds:
-            var = pathctx.get_path_identity_var(stmt, path_id, env=ctx.env)
-            stmt.group_clause.append(var)
-
-        set_expr = astutils.new_binop(
-            pgast.FuncCall(
-                name=('count',),
-                args=[set_ref],
-                agg_filter=pgast.NullTest(arg=set_ref, negated=True)
-            ),
-            pgast.Constant(
-                val=0
-            ),
-            op=ast.ops.EQ if ir_set.expr.negated else ast.ops.GT
-        )
-
-    pathctx.put_path_value_var(stmt, ir_set.path_id, set_expr, env=ctx.env)
-    relctx.put_set_cte(ir_set, stmt, ctx=ctx)
 
 
 def wrap_view_ref(
@@ -1269,7 +1251,7 @@ def process_computable_subquery(
     if not expr_refers_to_target:
         if source_rvar is None:
             with ctx.new() as subctx:
-                subctx.path_bonds = ctx.parent_path_bonds.copy()
+                subctx.path_scope_refs = ctx.parent_path_scope_refs.copy()
                 source_cte = set_to_cte(src, ctx=subctx)
                 source_rvar = dbobj.rvar_for_rel(ctx.env, source_cte)
 

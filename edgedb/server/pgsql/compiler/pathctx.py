@@ -208,14 +208,14 @@ def get_path_var(
 
         drilldown_path_id = map_path_id(path_id, rel.view_path_id_map)
 
-        if source_rel in env.root_rels and len(source_rel.path_bonds) == 1:
+        if source_rel in env.root_rels and len(source_rel.path_scope) == 1:
             if not drilldown_path_id.is_concept_path() and ptrcls is not None:
                 outer_path_id = drilldown_path_id.src_path()
             else:
                 outer_path_id = drilldown_path_id
 
             path_id_map = {
-                outer_path_id: next(iter(source_rel.path_bonds))
+                outer_path_id: next(iter(source_rel.path_scope))
             }
 
             drilldown_path_id = map_path_id(
@@ -350,7 +350,7 @@ def put_path_value_var_if_not_exists(
 
 def put_path_bond(
         stmt: pgast.Query, path_id: irast.PathId):
-    stmt.path_bonds.add(path_id)
+    stmt.path_scope.add(path_id)
 
 
 def get_path_output_alias(
@@ -551,15 +551,15 @@ def get_path_output_or_null(
 def full_inner_bond_condition(
         env: context.Environment,
         query: pgast.Query,
-        parent_path_bonds: typing.Dict[irast.PathId, LazyPathVarRef]):
+        parent_path_scope_refs: typing.Dict[irast.PathId, LazyPathVarRef]):
     condition = None
 
-    for path_id in query.path_bonds:
+    for path_id in query.path_scope:
         rptr = path_id.rptr()
         if rptr and rptr.singular(path_id.rptr_dir()):
             continue
 
-        rref = parent_path_bonds.get(path_id)
+        rref = parent_path_scope_refs.get(path_id)
         if rref is None:
             continue
 
@@ -594,7 +594,7 @@ def full_outer_bond_condition(
         allow_implicit: bool=True) -> typing.Optional[pgast.Expr]:
     condition = None
 
-    for path_id in right_rvar.path_bonds:
+    for path_id in right_rvar.path_scope:
         rptr = path_id.rptr()
         if rptr and rptr.singular(path_id.rptr_dir()) and allow_implicit:
             continue

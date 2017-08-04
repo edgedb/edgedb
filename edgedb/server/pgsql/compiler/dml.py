@@ -77,7 +77,7 @@ def init_dml_stmt(
         ctx.env, ir_stmt.subject, include_overlays=False)
     pathctx.put_path_rvar(
         ctx.env, dml_stmt, target_ir_set.path_id, dml_stmt.relation)
-    dml_stmt.path_bonds.add(target_ir_set.path_id)
+    dml_stmt.path_scope.add(target_ir_set.path_id)
 
     dml_cte = pgast.CommonTableExpr(
         query=dml_stmt,
@@ -216,7 +216,7 @@ def get_dml_range(
                 range_stmt.where_clause = dispatch.compile(
                     ir_qual_expr, ctx=newctx)
 
-        relctx.enforce_path_scope(range_stmt, ctx.path_bonds, ctx=subctx)
+        relctx.enforce_path_scope(range_stmt, ctx.path_scope_refs, ctx=subctx)
 
         range_cte = pgast.CommonTableExpr(
             query=range_stmt,
@@ -445,7 +445,7 @@ def process_update_body(
                 external_updates.append((shape_el, props_only))
 
         relctx.enforce_path_scope(
-            update_stmt, ctx.path_bonds, ctx=subctx)
+            update_stmt, ctx.path_scope_refs, ctx=subctx)
 
     # Set the DML CTE as the source for paths originating
     # in its relation.
@@ -461,7 +461,7 @@ def process_update_body(
             where_clause=update_stmt.where_clause,
             path_namespace=update_stmt.path_namespace,
             path_outputs=update_stmt.path_outputs,
-            path_bonds=update_stmt.path_bonds,
+            path_scope=update_stmt.path_scope,
             path_rvar_map=update_stmt.path_rvar_map.copy(),
             view_path_id_map=update_stmt.view_path_id_map.copy(),
             ptr_join_map=update_stmt.ptr_join_map.copy(),
@@ -836,7 +836,7 @@ def process_link_values(
     with ctx.new() as input_rel_ctx:
         input_rel_ctx.expr_exposed = False
         input_rel_ctx.shape_format = context.ShapeFormat.FLAT
-        input_rel_ctx.path_bonds.pop(ir_stmt.subject.path_id, None)
+        input_rel_ctx.path_scope_refs.pop(ir_stmt.subject.path_id, None)
         input_rel = dispatch.compile(data, ctx=input_rel_ctx)
 
     input_stmt = input_rel

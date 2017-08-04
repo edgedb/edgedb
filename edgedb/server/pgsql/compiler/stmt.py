@@ -6,8 +6,6 @@
 ##
 
 
-import collections
-
 from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
 
@@ -48,12 +46,12 @@ def compile_SelectStmt(
         compile_output(stmt.result, ctx=ctx)
 
         if query is not ctx.toplevel_stmt:
-            specific_scope = {s for s in ctx.stmt_specific_path_scope
-                              if s.path_id in ctx.parent_path_bonds}
+            specific_scope = {s for s in ctx.local_scope_sets
+                              if s.path_id in ctx.parent_path_scope_refs}
 
             for ir_set in specific_scope:
                 if (isinstance(ir_set.scls, s_concepts.Concept) and
-                        ir_set.path_id not in query.path_bonds):
+                        ir_set.path_id not in query.path_scope):
                     # The selector does not include this path explicitly,
                     # so we must do so here.
                     cte = relgen.set_to_cte(ir_set, ctx=ctx)
@@ -73,13 +71,13 @@ def compile_SelectStmt(
 
         if not simple_wrapper:
             relctx.enforce_path_scope(
-                query, ctx.parent_path_bonds, ctx=ctx)
+                query, ctx.parent_path_scope_refs, ctx=ctx)
 
         parent_range = relctx.get_parent_range_scope(stmt.result, ctx=ctx)
         if parent_range is not None:
             parent_rvar, _ = parent_range
             parent_scope = {}
-            for path_id in parent_rvar.path_bonds:
+            for path_id in parent_rvar.path_scope:
                 tr_path_id = pathctx.reverse_map_path_id(
                     path_id, parent_ctx.view_path_id_map)
 
@@ -142,9 +140,6 @@ def compile_GroupStmt(
         boilerplate.init_stmt(stmt, ctx=ctx, parent_ctx=parent_ctx)
 
         group_path_id = stmt.group_path_id
-        ctx.stmt_path_scope = ctx.stmt_path_scope.copy()
-        ctx.stmt_path_scope[group_path_id] = 1
-        ctx.parent_stmt_path_scope[group_path_id] = 1
 
         # Process the GROUP .. BY part into a subquery.
         with ctx.subquery() as gctx:
@@ -161,7 +156,7 @@ def compile_GroupStmt(
 
             for expr in stmt.groupby:
                 with gctx.new() as subctx:
-                    subctx.path_bonds = gctx.parent_path_bonds.copy()
+                    subctx.path_scope_refs = gctx.parent_path_scope_refs.copy()
                     partexpr = dispatch.compile(expr, ctx=subctx)
 
                 part_clause.append(partexpr)
@@ -234,8 +229,7 @@ def compile_GroupStmt(
         # Generate another subquery contaning distinct values of
         # path expressions in BY.
         with ctx.subquery() as gvctx:
-            gvctx.stmt_path_scope = collections.defaultdict(int)
-            gvctx.stmt_path_scope[group_path_id] = 1
+            gvctx.path_scope = {group_path_id}
 
             relctx.replace_set_cte_subtree(
                 stmt.subject, group_cte, ctx=gvctx)
@@ -256,16 +250,16 @@ def compile_GroupStmt(
                 if isinstance(path_id[-1], (s_concepts.Concept, s_views.View)):
                     pathctx.put_path_bond(gvctx.query, path_id)
 
-                gvctx.stmt_path_scope[path_id] = 1
+                gvctx.path_scope.add(path_id)
 
             relctx.include_range(gvctx.query, group_cte.query, ctx=gvctx)
 
             for path_id in list(gvctx.query.path_rvar_map):
-                if path_id not in gvctx.stmt_path_scope:
+                if path_id not in gvctx.path_scope:
                     gvctx.query.path_rvar_map.pop(path_id)
 
             for path_id in list(gvctx.query.path_namespace):
-                if path_id not in gvctx.stmt_path_scope:
+                if path_id not in gvctx.path_scope:
                     gvctx.query.path_namespace.pop(path_id)
 
             gvctx.query.distinct_clause = [
@@ -289,14 +283,12 @@ def compile_GroupStmt(
                 outer_id: inner_id
             }
 
-            selctx.stmt_path_scope = o_stmt.path_scope.copy()
-            selctx.stmt_path_scope[group_path_id] = 1
+            selctx.path_scope = o_stmt.path_scope.copy()
+            selctx.path_scope.add(group_path_id)
 
-            selctx.stmt_specific_path_scope = \
-                {s for s in o_stmt.specific_path_scope
-                 if s.path_id in selctx.stmt_path_scope}
-
-            selctx.parent_stmt_path_scope = ctx.parent_stmt_path_scope
+            selctx.local_scope_sets = \
+                {s for s in o_stmt.local_scope_sets
+                 if s.path_id in selctx.path_scope}
 
             selctx.query.ctes.append(group_cte)
             # relctx.pop_prefix_ctes(stmt.subject.path_id, ctx=selctx)
@@ -318,7 +310,7 @@ def compile_GroupStmt(
             compile_output(o_stmt.result, ctx=selctx)
 
             relctx.enforce_path_scope(
-                selctx.query, selctx.parent_path_bonds, ctx=selctx)
+                selctx.query, selctx.parent_path_scope_refs, ctx=selctx)
 
             # The WHERE clause
             if o_stmt.where:
@@ -407,7 +399,7 @@ def compile_InsertStmt(
 
         # Process INSERT body
         dml.process_insert_body(stmt, wrapper, insert_cte, ctx=ctx)
-        relctx.enforce_path_scope(wrapper, ctx.parent_path_bonds, ctx=ctx)
+        relctx.enforce_path_scope(wrapper, ctx.parent_path_scope_refs, ctx=ctx)
 
         return dml.fini_dml_stmt(stmt, wrapper, insert_cte,
                                  parent_ctx=parent_ctx, ctx=ctx)
@@ -427,7 +419,7 @@ def compile_UpdateStmt(
         # Process UPDATE body
         dml.process_update_body(stmt, wrapper, update_cte, range_cte,
                                 ctx=ctx)
-        relctx.enforce_path_scope(wrapper, ctx.parent_path_bonds, ctx=ctx)
+        relctx.enforce_path_scope(wrapper, ctx.parent_path_scope_refs, ctx=ctx)
 
         return dml.fini_dml_stmt(stmt, wrapper, update_cte,
                                  parent_ctx=parent_ctx, ctx=ctx)
@@ -447,7 +439,7 @@ def compile_DeleteStmt(
         ctx.toplevel_stmt.ctes.append(range_cte)
         ctx.toplevel_stmt.ctes.append(delete_cte)
 
-        relctx.enforce_path_scope(wrapper, ctx.parent_path_bonds, ctx=ctx)
+        relctx.enforce_path_scope(wrapper, ctx.parent_path_scope_refs, ctx=ctx)
 
         return dml.fini_dml_stmt(stmt, wrapper, delete_cte,
                                  parent_ctx=parent_ctx, ctx=ctx)

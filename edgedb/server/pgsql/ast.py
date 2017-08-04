@@ -52,10 +52,10 @@ class EdgeQLPathInfo(Base):
     """A general mixin providing EdgeQL-specific metadata on certain nodes."""
 
     # Ignore the below fields in AST visitor/transformer.
-    __ast_meta__ = {'path_bonds'}
+    __ast_meta__ = {'path_scope'}
 
     # A subset of paths necessary to perform joining.
-    path_bonds: typing.Set[irast.PathId]
+    path_scope: typing.Set[irast.PathId]
 
 
 class BaseRangeVar(Base):
@@ -77,12 +77,8 @@ class BaseRangeVar(Base):
         return self.query.path_namespace
 
     @property
-    def path_bonds(self):
-        return self.query.path_bonds
-
-    @property
-    def inner_path_bonds(self):
-        return self.query.inner_path_bonds
+    def path_scope(self):
+        return self.query.path_scope
 
 
 RangeTypes = typing.Union[BaseRangeVar, _Ref]

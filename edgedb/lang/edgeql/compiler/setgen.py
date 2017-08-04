@@ -370,12 +370,9 @@ def ensure_stmt(expr: irast.Base, *, ctx: context.ContextLevel) -> irast.Stmt:
     if not isinstance(expr, irast.Stmt):
         expr = irast.SelectStmt(
             result=ensure_set(expr, ctx=ctx),
-            path_scope=ctx.path_scope
+            path_scope=ctx.path_scope,
+            local_scope_sets=pathctx.get_local_scope_sets(ctx=ctx)
         )
-        expr.specific_path_scope = {
-            ctx.sets[p] for p in ctx.stmt_path_scope
-            if p in ctx.sets
-        }
     return expr
 
 

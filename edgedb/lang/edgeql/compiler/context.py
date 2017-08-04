@@ -6,7 +6,6 @@
 ##
 """EdgeQL to IR compiler context."""
 
-import collections
 import enum
 import typing
 
@@ -71,11 +70,11 @@ class ContextLevel(compiler.ContextLevel):
     group_paths: typing.Set[irast.PathId]
     """A set of path ids in the GROUP BY clause of the current statement."""
 
-    path_scope: typing.Dict[irast.PathId, int]
-    """A map of path ids together with use counts for this context."""
+    path_scope: typing.Set[irast.PathId]
+    """Global path scope (including inherited scope)."""
 
-    stmt_path_scope: typing.Dict[irast.PathId, int]
-    """A map of path ids together with use counts for this statement."""
+    local_path_scope: typing.Set[irast.PathId]
+    """Per-statement local path scope (excluding inherited scope)."""
 
     in_aggregate: bool
     """True if the current location is inside an aggregate function call."""
@@ -105,8 +104,8 @@ class ContextLevel(compiler.ContextLevel):
             self.sets = {}
             self.singletons = set()
             self.group_paths = set()
-            self.path_scope = collections.defaultdict(int)
-            self.stmt_path_scope = collections.defaultdict(int)
+            self.path_scope = set()
+            self.local_path_scope = set()
             self.pending_path_scope = set()
             self.in_aggregate = False
             self.path_as_type = False
@@ -136,7 +135,7 @@ class ContextLevel(compiler.ContextLevel):
                 self.stmt = None
                 self.sets = prevlevel.sets
                 self.singletons = prevlevel.singletons.copy()
-                self.stmt_path_scope = collections.defaultdict(int)
+                self.local_path_scope = set()
                 self.in_aggregate = False
                 self.path_as_type = False
 
@@ -151,7 +150,7 @@ class ContextLevel(compiler.ContextLevel):
                 self.clause = prevlevel.clause
                 self.stmt = prevlevel.stmt
 
-                self.stmt_path_scope = prevlevel.stmt_path_scope
+                self.local_path_scope = prevlevel.local_path_scope
                 self.in_aggregate = prevlevel.in_aggregate
                 self.path_as_type = prevlevel.path_as_type
 
@@ -161,7 +160,7 @@ class ContextLevel(compiler.ContextLevel):
 
             if mode == ContextSwitchMode.NEWSCOPE:
                 self.path_scope = prevlevel.path_scope.copy()
-                self.stmt_path_scope = prevlevel.stmt_path_scope.copy()
+                self.local_path_scope = prevlevel.local_path_scope.copy()
                 self.pending_path_scope = set()
                 self.group_paths = prevlevel.group_paths.copy()
 

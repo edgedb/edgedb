@@ -57,8 +57,8 @@ def compile_FunctionCall(
                     " modifier 'ALL' or 'DISTINCT'",
                     context=expr.context)
 
-        path_scope = {}
-        stmt_path_scope = set()
+        path_scope = set()
+        local_scope_sets = set()
         agg_sort = []
         agg_filter = None
         partition = []
@@ -105,10 +105,7 @@ def compile_FunctionCall(
                         expr.agg_filter, ctx=scope_ctx)
 
                 path_scope = scope_ctx.path_scope.copy()
-                stmt_path_scope = {
-                    fctx.sets[p] for p in scope_ctx.stmt_path_scope
-                    if p in fctx.sets
-                }
+                local_scope_sets = pathctx.get_local_scope_sets(ctx=fctx)
 
             pathctx.update_pending_path_scope(fctx.path_scope, ctx=fctx)
 
@@ -140,7 +137,7 @@ def compile_FunctionCall(
 
     ir_set = setgen.generated_set(node, ctx=ctx)
     ir_set.path_scope = path_scope
-    ir_set.stmt_path_scope = stmt_path_scope
+    ir_set.local_scope_sets = local_scope_sets
 
     return ir_set
 

@@ -69,12 +69,11 @@ class CompilerContextLevel(compiler.ContextLevel):
 
             self.subquery_map = collections.defaultdict(dict)
             self.computed_node_rels = {}
-            self.path_bonds = {}
-            self.path_bonds_by_stmt = collections.defaultdict(dict)
-            self.parent_path_bonds = {}
-            self.stmt_path_scope = dict()
-            self.stmt_specific_path_scope = set()
-            self.parent_stmt_path_scope = dict()
+            self.path_scope_refs = {}
+            self.path_scope_refs_by_stmt = collections.defaultdict(dict)
+            self.parent_path_scope_refs = {}
+            self.path_scope = set()
+            self.local_scope_sets = set()
 
         else:
             self.backend = prevlevel.backend
@@ -108,12 +107,11 @@ class CompilerContextLevel(compiler.ContextLevel):
 
             self.subquery_map = prevlevel.subquery_map
             self.computed_node_rels = prevlevel.computed_node_rels
-            self.path_bonds = prevlevel.path_bonds
-            self.path_bonds_by_stmt = prevlevel.path_bonds_by_stmt
-            self.parent_path_bonds = prevlevel.parent_path_bonds
-            self.stmt_path_scope = prevlevel.stmt_path_scope
-            self.stmt_specific_path_scope = prevlevel.stmt_specific_path_scope
-            self.parent_stmt_path_scope = prevlevel.parent_stmt_path_scope
+            self.path_scope_refs = prevlevel.path_scope_refs
+            self.path_scope_refs_by_stmt = prevlevel.path_scope_refs_by_stmt
+            self.parent_path_scope_refs = prevlevel.parent_path_scope_refs
+            self.path_scope = prevlevel.path_scope
+            self.local_scope_sets = prevlevel.local_scope_sets
 
             if mode in {ContextSwitchMode.SUBQUERY,
                         ContextSwitchMode.SUBSTMT}:
@@ -132,13 +130,14 @@ class CompilerContextLevel(compiler.ContextLevel):
                 self.ctemap = prevlevel.ctemap.copy()
 
                 self.subquery_map = collections.defaultdict(dict)
-                self.path_bonds = prevlevel.path_bonds.copy()
+                self.path_scope_refs = prevlevel.path_scope_refs.copy()
 
             if mode == ContextSwitchMode.SUBSTMT:
                 self.stmt = self.query
-                self.parent_path_bonds = prevlevel.path_bonds
+                self.parent_path_scope_refs = prevlevel.path_scope_refs
                 self.computed_node_rels = prevlevel.computed_node_rels.copy()
-                self.stmt_specific_path_scope = set()
+                self.path_scope = prevlevel.path_scope.copy()
+                self.local_scope_sets = set()
 
     def genalias(self, hint=None):
         return self.env.aliases.get(hint)

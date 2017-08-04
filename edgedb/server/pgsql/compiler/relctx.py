@@ -43,16 +43,16 @@ def pull_path_namespace(
             if path_id not in target.path_rvar_map or replace_bonds:
                 pathctx.put_path_rvar(ctx.env, target, path_id, source)
 
-        for path_id in source_q.path_bonds:
-            if path_id in target.path_bonds and not replace_bonds:
+        for path_id in source_q.path_scope:
+            if path_id in target.path_scope and not replace_bonds:
                 continue
 
             orig_path_id = path_id
             path_id = pathctx.reverse_map_path_id(
                 path_id, target.view_path_id_map)
 
-            if (not path_id.is_in_scope(ctx.stmt_path_scope) and
-                    not orig_path_id.is_in_scope(ctx.stmt_path_scope)):
+            if (not path_id.is_in_scope(ctx.path_scope) and
+                    not orig_path_id.is_in_scope(ctx.path_scope)):
                 continue
 
             pathctx.put_path_bond(target, path_id)
@@ -60,8 +60,8 @@ def pull_path_namespace(
             bond = pathctx.LazyPathVarRef(
                 pathctx.get_rvar_path_identity_var, ctx.env, source, path_id)
 
-            ctx.path_bonds[path_id] = bond
-            ctx.path_bonds_by_stmt[ctx.stmt][path_id] = bond
+            ctx.path_scope_refs[path_id] = bond
+            ctx.path_scope_refs_by_stmt[ctx.stmt][path_id] = bond
 
 
 def apply_path_bond_injections(
@@ -169,11 +169,11 @@ def get_root_rvar(
     if set_rvar is None:
         set_rvar = dbobj.range_for_set(ctx.env, ir_set)
         set_rvar.nullable = nullable
-        set_rvar.path_bonds.add(path_id)
+        set_rvar.path_scope.add(path_id)
 
     pathctx.put_path_rvar(ctx.env, stmt, path_id, set_rvar)
 
-    if path_id in ctx.stmt_path_scope:
+    if path_id in ctx.path_scope:
         pathctx.put_path_bond(stmt, path_id)
 
     return set_rvar
@@ -233,9 +233,9 @@ def ensure_transient_identity_for_set(
 
 def enforce_path_scope(
         query: pgast.Query,
-        path_bonds: typing.Dict[irast.PathId, pathctx.LazyPathVarRef], *,
+        path_scope: typing.Dict[irast.PathId, pathctx.LazyPathVarRef], *,
         ctx: context.CompilerContextLevel):
-    cond = pathctx.full_inner_bond_condition(ctx.env, query, path_bonds)
+    cond = pathctx.full_inner_bond_condition(ctx.env, query, path_scope)
     if cond is not None:
         query.where_clause = astutils.extend_binop(
             query.where_clause, cond)
