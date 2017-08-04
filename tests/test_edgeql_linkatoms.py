@@ -314,6 +314,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
+    @tb.expected_optimizer_failure
     async def test_edgeql_links_set05(self):
         await self.assert_query_result(r'''
             # subsets

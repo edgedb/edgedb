@@ -642,26 +642,22 @@ def process_set_as_membership_expr(
 
         left_expr = dispatch.compile(expr.left, ctx=newctx)
 
-        with newctx.subquery() as rightctx:
-            rightctx.unique_set_assumed = True
-            right_expr = dispatch.compile(expr.right, ctx=rightctx)
+        newctx.unique_set_assumed = True
 
-            check_expr = astutils.new_binop(
-                left_expr, right_expr, op=ast.ops.EQ)
-            check_expr = pgast.FuncCall(
-                name=('bool_or',), args=[check_expr])
+        right_expr = dispatch.compile(expr.right, ctx=newctx)
 
-            if expr.op == ast.ops.NOT_IN:
-                check_expr = astutils.new_unop(
-                    ast.ops.NOT, check_expr)
+        check_expr = astutils.new_binop(
+            left_expr, right_expr, op=ast.ops.EQ)
+        check_expr = pgast.FuncCall(
+            name=('bool_or',), args=[check_expr])
 
-        subquery = rightctx.query
+        if expr.op == ast.ops.NOT_IN:
+            check_expr = astutils.new_unop(
+                ast.ops.NOT, check_expr)
 
-        path_scope = set(rightctx.rel.path_scope)
+        path_scope = set(newctx.rel.path_scope)
         bond_path_id = fini_agg_expr_stmt(
-            ir_set, check_expr, subquery, path_scope=path_scope, ctx=rightctx)
-
-    relctx.include_range(stmt, subquery, lateral=True, ctx=ctx)
+            ir_set, check_expr, stmt, path_scope=path_scope, ctx=newctx)
 
     if bond_path_id:
         # Due to injection this rel must not be a CTE.
