@@ -872,14 +872,13 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     };
                 """)
 
-    @unittest.expectedFailure
     async def test_constraints_ddl_error_02(self):
         # testing that subjectexpr cannot be overridden after it is
         # specified explicitly
         async with self._run_and_rollback():
             with self.assertRaisesRegex(
-                    exceptions.EdgeQLError,
-                    'subjectexpr already exists'):
+                    exceptions.UnknownEdgeDBError,
+                    r"subjectexpr is already defined for .+max_int"):
                 await self.con.execute("""
                     CREATE CONSTRAINT test::max_int(std::int)
                         ON (<int>subject)
