@@ -37,7 +37,7 @@ class EdgeSchemaLexer(lexer.RegexLexer):
                   attribute | before | by | concept | constraint |
                   database | delegated | desc | event | extending |
                   first | for | from | index | initial | last | link |
-                  migration | of | policy | property | rename |
+                  migration | of | on | policy | property | rename |
                   target | then | transaction | value | view |
 
                   aggregate | all | alter | and | commit | create | delete |
@@ -53,7 +53,7 @@ class EdgeSchemaLexer(lexer.RegexLexer):
             (r'\b(?i)(?<![:\.])(abstract|final|required)\b',
              token.Keyword.Declaration),
 
-            (r'\b(?i)(?<![:\.])(as|import|on|to)\b', token.Keyword.Namespace),
+            (r'\b(?i)(?<![:\.])(as|import|to)\b', token.Keyword.Namespace),
         ],
 
         'strings': [

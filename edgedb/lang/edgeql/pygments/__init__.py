@@ -32,7 +32,7 @@ class EdgeQLLexer(RegexLexer):
                     atom | attribute | before | by | concept |
                     constraint | database | delegated | desc | event |
                     extending | final | first | for | from | index |
-                    initial | last | link | map | migration | of |
+                    initial | last | link | map | migration | of | on |
                     policy | property | required | rename | target |
                     then | to | transaction | tuple | value | view |
 

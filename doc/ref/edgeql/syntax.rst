@@ -62,17 +62,15 @@ Every identifier that is not a *reserved* keyword is a valid *name*.
                     : "UPDATE" | "UNION" | "WITH"
     unreserved_keyword: case insensitive sequence matching any
                       : of the following
-                      : "ABSTRACT" | "ACTION" | "AFTER" |
-                      : "ARRAY" | "AS" | "ASC" | "ATOM" |
-                      : "ATTRIBUTE" | "BEFORE" | "BY" |
-                      : "CONCEPT" | "CONSTRAINT" | "DATABASE" |
+                      : "ABSTRACT" | "ACTION" | "AFTER" | "ARRAY" |
+                      : "AS" | "ASC" | "ATOM" | "ATTRIBUTE" | "BEFORE" |
+                      : "BY" | "CONCEPT" | "CONSTRAINT" | "DATABASE" |
                       : "DESC" | "EVENT" | "EXTENDING" | "FINAL" |
-                      : "FIRST" | "FOR" | "FROM" | "INDEX" |
-                      : "INITIAL" | "LAST" | "LINK" | "MAP" |
-                      : "MIGRATION" | "OF" | "POLICY" | "PROPERTY" |
-                      : "REQUIRED" | "RENAME" | "TARGET" | "THEN" |
-                      : "TO" | "TRANSACTION" | "TUPLE" | "VALUE" |
-                      : "VIEW"
+                      : "FIRST" | "FOR" | "FROM" | "INDEX" | "INITIAL" |
+                      : "LAST" | "LINK" | "MAP" | "MIGRATION" | "OF" |
+                      : "ON" | "POLICY" | "PROPERTY" | "REQUIRED" |
+                      : "RENAME" | "TARGET" | "THEN" | "TO" |
+                      : "TRANSACTION" | "TUPLE" | "VALUE" | "VIEW"
 
 Fully-qualified names consist of a module, ``::``, and a short name.
 They can be used in most places where a short name can appear (such as
