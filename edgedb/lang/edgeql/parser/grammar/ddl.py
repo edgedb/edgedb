@@ -270,12 +270,17 @@ class RenameStmt(Nonterm):
 commands_block('Alter', RenameStmt, SetFieldStmt, DropFieldStmt, opt=False)
 
 
-class OptInheriting(Nonterm):
+class Inheriting(Nonterm):
     def reduce_EXTENDING_NodeName(self, *kids):
         self.val = [kids[1].val]
 
     def reduce_EXTENDING_LPAREN_NodeNameList_RPAREN(self, *kids):
         self.val = kids[2].val
+
+
+class OptInheriting(Nonterm):
+    def reduce_Inheriting(self, *kids):
+        self.val = kids[0].val
 
     def reduce_empty(self, *kids):
         self.val = []
@@ -766,14 +771,26 @@ class DropAtomStmt(Nonterm):
 # CREATE ATTRIBUTE
 #
 class CreateAttributeStmt(Nonterm):
-    def reduce_CreateAttribute(self, *kids):
+    def reduce_CreateAttributeWithType(self, *kids):
         r"""%reduce OptAliasBlock \
-                    CREATE ATTRIBUTE NodeName TypeName \
+                    CREATE ATTRIBUTE NodeName TypeName OptInheriting \
                     OptCreateCommandsBlock"""
         self.val = qlast.CreateAttribute(
             aliases=kids[0].val,
             name=kids[3].val,
             type=kids[4].val,
+            bases=kids[5].val,
+            commands=kids[6].val,
+        )
+
+    def reduce_CreateAttributeWithoutType(self, *kids):
+        r"""%reduce OptAliasBlock \
+                    CREATE ATTRIBUTE NodeName Inheriting \
+                    OptCreateCommandsBlock"""
+        self.val = qlast.CreateAttribute(
+            aliases=kids[0].val,
+            name=kids[3].val,
+            bases=kids[4].val,
             commands=kids[5].val,
         )
 

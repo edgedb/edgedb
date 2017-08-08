@@ -2326,6 +2326,13 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         CREATE ATTRIBUTE std::foo tuple<foo:int, str>;
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected token.*SEMICOLON", line=2, col=41)
+    def test_edgeql_syntax_ddl_attribute14(self):
+        """
+        CREATE ATTRIBUTE std::paramtypes;
+        """
+
     def test_edgeql_syntax_ddl_constraint01(self):
         """
         CREATE CONSTRAINT std::enum(array<std::any>)

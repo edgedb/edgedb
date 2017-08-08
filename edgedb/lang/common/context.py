@@ -229,17 +229,22 @@ class ContextVisitor(ast.NodeVisitor):
 
 
 class ContextRebaser(ContextVisitor):
-    def __init__(self, base):
+    def __init__(self, base, *, offset_column=0, indent=0):
         super().__init__()
         self._base = base
+        self._offset_column = offset_column
+        self._indent = indent
 
     def generic_visit(self, node):
-        rebase_context(self._base, node.context)
+        rebase_context(self._base, node.context,
+                       offset_column=self._offset_column,
+                       indent=self._indent)
         super().generic_visit(node)
 
 
-def rebase_ast_context(base, root):
-    return ContextRebaser.run(root, base=base)
+def rebase_ast_context(base, root, *, offset_column=0, indent=0):
+    return ContextRebaser.run(root, base=base, offset_column=offset_column,
+                              indent=indent)
 
 
 class ContextPropagator(ContextVisitor):

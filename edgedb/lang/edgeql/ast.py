@@ -494,8 +494,8 @@ class DropEvent(DropObject):
     pass
 
 
-class CreateAttribute(CreateObject):
-    type: TypeName
+class CreateAttribute(CreateInheritingObject):
+    type: typing.Optional[TypeName]
 
 
 class DropAttribute(DropObject):

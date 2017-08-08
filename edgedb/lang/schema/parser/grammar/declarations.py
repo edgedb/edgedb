@@ -50,7 +50,8 @@ def parse_edgeql(expr: str, ctx, *, offset_column=0, indent=0):
             offset_column=offset_column, indent=indent)
         raise err from None
 
-    context.rebase_ast_context(ctx, node)
+    context.rebase_ast_context(ctx, node,
+                               offset_column=offset_column, indent=indent)
     return node
 
 
@@ -354,33 +355,44 @@ class AtomDeclaration(Nonterm):
 
 
 class AttributeDeclaration(Nonterm):
-    def reduce_ATTRIBUTE_NameAndExtends_NL(self, *kids):
-        np: NameWithParents = kids[1].val
+    def reduce_ATTRIBUTE_ParenRawString_NL(self, *kids):
+        eql = kids[1].parse_as_attribute_decl()
         self.val = esast.AttributeDeclaration(
-            name=np.name,
-            extends=np.extends)
+            name=eql.name.name,
+            extends=[qlast.TypeName(maintype=base) for base in eql.bases],
+            type=eql.type)
 
-    def reduce_ATTRIBUTE_NameAndExtends_DeclarationSpecsBlob(self, *kids):
-        np: NameWithParents = kids[1].val
-
+    def reduce_ATTRIBUTE_ParenRawString_DeclarationSpecsBlob(self, *kids):
+        eql = kids[1].parse_as_attribute_decl()
         attributes = []
-        attr_target = None
-
         for spec in kids[2].val:
             if isinstance(spec, esast.Attribute):
-                if spec.name == 'target':
-                    attr_target = spec.value
-                else:
-                    attributes.append(spec)
+                attributes.append(spec)
             else:
                 raise SchemaSyntaxError(
                     'illegal definition', context=spec.context)
 
         self.val = esast.AttributeDeclaration(
-            name=np.name,
-            extends=np.extends,
-            target=attr_target,
+            name=eql.name.name,
+            extends=[qlast.TypeName(maintype=base) for base in eql.bases],
+            type=eql.type,
             attributes=attributes)
+
+
+class RawTypeList(Nonterm):
+    def reduce_LPAREN_RawTypeList_RPAREN(self, *kids):
+        self.val = kids[1].val
+
+    def reduce_RowRawString(self, *kids):
+        self.val = kids[0].val
+
+
+class OptRawExtending(Nonterm):
+    def reduce_EXTENDING_RawTypeList(self, *kids):
+        self.val = kids[1].val
+
+    def reduce_empty(self, *kids):
+        self.val = None
 
 
 class ConceptDeclaration(Nonterm):
@@ -709,6 +721,23 @@ class ParenRawString(Nonterm):
         prefix, postfix = '(', ')'
         eql_query = f'{prefix}{expr}{postfix}'
         eql = parse_edgeql(eql_query, context, offset_column=-len(prefix))
+
+        return eql
+
+    def parse_as_attribute_decl(self):
+        expr = self.val.value
+        context = self.context
+
+        # XXX: the prefix also includes a module in order to break if
+        # the module name is supplied in the schema
+        prefix = 'CREATE ATTRIBUTE foo::'
+        eql_query = f'{prefix}{expr}'
+        eql = parse_edgeql(eql_query, context, offset_column=-len(prefix))
+
+        if not isinstance(eql, qlast.CreateAttribute):
+            raise SchemaSyntaxError(
+                f'Could not parse attribute declaration {expr!r}',
+                context=context) from None
 
         return eql
 
