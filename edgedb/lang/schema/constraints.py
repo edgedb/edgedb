@@ -132,6 +132,15 @@ class Constraint(primary.PrimaryClass, derivable.DerivableClass):
 
         module_aliases = {}
 
+        # check to make sure that the specialized constraint doesn't redefine
+        # an already defined subjectexpr
+        if constraint.subjectexpr is not None:
+            for base in constraint.bases:
+                base_se = base.get_field_value('subjectexpr')
+                if base_se and base_se != constraint.subjectexpr:
+                    raise ValueError('subjectexpr is already defined for ' +
+                                     f'{constraint.name!r}')
+
         subject = constraint.subject
         subjectexpr = constraint.get_field_value('subjectexpr')
         if subjectexpr:
