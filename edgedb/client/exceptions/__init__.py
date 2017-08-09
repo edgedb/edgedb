@@ -34,6 +34,18 @@ class NoActiveTransactionError(InvalidTransactionStateError):
     code = '25P01'
 
 
+class SchemaError(_base.EdgeDBError):
+    code = '32000'
+
+
+class SchemaDefinitionError(SchemaError):
+    code = '32100'
+
+
+class InvalidConstraintDefinitionError(SchemaDefinitionError):
+    code = '32101'
+
+
 class EdgeDBSyntaxError(_base.EdgeDBError):
     code = '42600'
 
