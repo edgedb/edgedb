@@ -815,8 +815,8 @@ class TestConstraintsDDL(tb.DDLTestCase):
         # testing various incorrect create constraint DDL commands
         async with self._run_and_rollback():
             with self.assertRaisesRegex(
-                    exceptions.EdgeQLError,
-                    'subjectexpr cannot be set directly'):
+                    exceptions.SchemaDefinitionError,
+                    'subjectexpr is not a valid constraint attribute'):
                 await self.con.execute("""
                     CREATE CONSTRAINT test::len_fail(std::str) {
                         SET expr := subject <= $0;
@@ -826,8 +826,8 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         async with self._run_and_rollback():
             with self.assertRaisesRegex(
-                    exceptions.EdgeQLError,
-                    'subject cannot be set directly'):
+                    exceptions.SchemaDefinitionError,
+                    'subject is not a valid constraint attribute'):
                 await self.con.execute("""
                     CREATE CONSTRAINT test::len_fail(std::str) {
                         SET expr := subject <= $0;
@@ -838,8 +838,8 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         async with self._run_and_rollback():
             with self.assertRaisesRegex(
-                    exceptions.EdgeQLError,
-                    'subjectexpr cannot be set directly'):
+                    exceptions.SchemaDefinitionError,
+                    'subjectexpr is not a valid constraint attribute'):
                 await self.con.execute("""
                     CREATE CONSTRAINT test::len_fail(std::int) {
                         SET expr := subject <= $0;
@@ -856,8 +856,8 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         async with self._run_and_rollback():
             with self.assertRaisesRegex(
-                    exceptions.EdgeQLError,
-                    'subject cannot be set directly'):
+                    exceptions.SchemaDefinitionError,
+                    'subject is not a valid constraint attribute'):
                 await self.con.execute("""
                     CREATE CONSTRAINT test::len_fail(std::int) {
                         SET expr := subject <= $0;
@@ -877,7 +877,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
         # specified explicitly
         async with self._run_and_rollback():
             with self.assertRaisesRegex(
-                    exceptions.UnknownEdgeDBError,
+                    exceptions.InvalidConstraintDefinitionError,
                     r"subjectexpr is already defined for .+max_int"):
                 await self.con.execute("""
                     CREATE CONSTRAINT test::max_int(std::int)
@@ -915,8 +915,8 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         async with self._run_and_rollback():
             with self.assertRaisesRegex(
-                    exceptions.EdgeQLError,
-                    'subjectexpr cannot be set directly'):
+                    exceptions.SchemaDefinitionError,
+                    'subjectexpr is not a valid constraint attribute'):
                 await self.con.execute("""
                     ALTER CONSTRAINT test::foo_alter {
                         SET subjectexpr := len(subject);
@@ -925,8 +925,8 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         async with self._run_and_rollback():
             with self.assertRaisesRegex(
-                    exceptions.EdgeQLError,
-                    'subject cannot be set directly'):
+                    exceptions.SchemaDefinitionError,
+                    'subject is not a valid constraint attribute'):
                 await self.con.execute("""
                     ALTER CONSTRAINT test::foo_alter {
                         SET subject := len(subject);
@@ -935,8 +935,8 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         async with self._run_and_rollback():
             with self.assertRaisesRegex(
-                    exceptions.EdgeQLError,
-                    'subjectexpr cannot be set directly'):
+                    exceptions.SchemaDefinitionError,
+                    'subjectexpr is not a valid constraint attribute'):
                 await self.con.execute("""
                     ALTER CONCEPT test::ConstraintAlterTest1 {
                         ALTER LINK test::value {
@@ -949,8 +949,8 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         async with self._run_and_rollback():
             with self.assertRaisesRegex(
-                    exceptions.EdgeQLError,
-                    'subject cannot be set directly'):
+                    exceptions.SchemaDefinitionError,
+                    'subject is not a valid constraint attribute'):
                 await self.con.execute("""
                     ALTER CONCEPT test::ConstraintAlterTest1 {
                         ALTER LINK test::value {
@@ -980,8 +980,8 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         async with self._run_and_rollback():
             with self.assertRaisesRegex(
-                    exceptions.EdgeQLError,
-                    'subjectexpr cannot be dropped directly'):
+                    exceptions.SchemaDefinitionError,
+                    'subjectexpr is not a valid constraint attribute'):
                 await self.con.execute("""
                     ALTER CONSTRAINT test::foo_drop {
                         DROP ATTRIBUTE subjectexpr;
@@ -990,8 +990,8 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         async with self._run_and_rollback():
             with self.assertRaisesRegex(
-                    exceptions.EdgeQLError,
-                    'subject cannot be dropped directly'):
+                    exceptions.SchemaDefinitionError,
+                    'subject is not a valid constraint attribute'):
                 await self.con.execute("""
                     ALTER CONSTRAINT test::foo_drop {
                         DROP ATTRIBUTE subject;
@@ -1000,8 +1000,8 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         async with self._run_and_rollback():
             with self.assertRaisesRegex(
-                    exceptions.EdgeQLError,
-                    'subjectexpr cannot be dropped directly'):
+                    exceptions.SchemaDefinitionError,
+                    'subjectexpr is not a valid constraint attribute'):
                 await self.con.execute("""
                     ALTER CONCEPT test::ConstraintAlterTest1 {
                         ALTER LINK test::value {
@@ -1014,8 +1014,8 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         async with self._run_and_rollback():
             with self.assertRaisesRegex(
-                    exceptions.EdgeQLError,
-                    'subject cannot be dropped directly'):
+                    exceptions.SchemaDefinitionError,
+                    'subject is not a valid constraint attribute'):
                 await self.con.execute("""
                     ALTER CONCEPT test::ConstraintAlterTest1 {
                         ALTER LINK test::value {

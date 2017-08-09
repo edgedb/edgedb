@@ -14,6 +14,7 @@ from edgedb.lang.edgeql import errors as ql_errors
 
 from . import delta as sd
 from . import derivable
+from . import error as s_errors
 from . import expr as s_expr
 from . import functions as s_func
 from . import name as sn
@@ -138,8 +139,9 @@ class Constraint(primary.PrimaryClass, derivable.DerivableClass):
             for base in constraint.bases:
                 base_se = base.get_field_value('subjectexpr')
                 if base_se and base_se != constraint.subjectexpr:
-                    raise ValueError('subjectexpr is already defined for ' +
-                                     f'{constraint.name!r}')
+                    raise s_errors.InvalidConstraintDefinitionError(
+                        'subjectexpr is already defined for ' +
+                        f'{constraint.name!r}')
 
         subject = constraint.subject
         subjectexpr = constraint.get_field_value('subjectexpr')
@@ -149,7 +151,7 @@ class Constraint(primary.PrimaryClass, derivable.DerivableClass):
 
         expr = constraint.get_field_value('expr')
         if not expr:
-            raise ValueError(
+            raise s_errors.InvalidConstraintDefinitionError(
                 f'missing constraint expression in {constraint.name!r}')
 
         expr_ql = edgeql_parser.parse(expr, module_aliases)
@@ -313,19 +315,10 @@ class ConstraintCommand(
     def _validate_subcommands(cls, astnode):
         # check that 'subject' and 'subjectexpr' are not set as attributes
         for command in astnode.commands:
-            if isinstance(command, qlast.CreateAttributeValue):
-                if cls._is_special_name(command.name):
-                    raise ql_errors.EdgeQLError(
-                        f'{command.name.name} cannot be set directly as an ' +
-                        'attribute in constraints',
-                        context=command.context)
-
-            elif isinstance(command, qlast.DropAttributeValue):
-                if cls._is_special_name(command.name):
-                    raise ql_errors.EdgeQLError(
-                        f'{command.name.name} cannot be dropped directly ' +
-                        'as an attribute in constraints',
-                        context=command.context)
+            if cls._is_special_name(command.name):
+                raise s_errors.SchemaDefinitionError(
+                    f'{command.name.name} is not a valid constraint attribute',
+                    context=command.context)
 
     @classmethod
     def _is_special_name(cls, astnode):
