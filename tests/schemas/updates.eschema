@@ -5,13 +5,13 @@ concept Tag:
     required link name to str
 
 link annotated_status:
-    linkproperty note to str
+    link property note to str
 
 link weighted_tags:
-    linkproperty weight to int
+    link property weight to int
 
 link annotated_tests:
-    linkproperty note to str
+    link property note to str
 
 concept UpdateTest:
     required link name to str

@@ -117,7 +117,7 @@ concept Issue extending `foo.bar`::NamedObject, OwnedObject, Text:
         """
 concept Foo:
     link time_estimate to int:
-       linkproperty unit:
+       link property unit:
            default := 'minute'
        """
 
@@ -181,7 +181,7 @@ concept LogEntry extending OwnedObject, Text:
     def test_eschema_syntax_index_02(self):
         """
 link foobar:
-    linkproperty foo:
+    link property foo:
         title := 'Sample property'
 
     index prop on (self@foo)
@@ -459,27 +459,27 @@ constraint foo($param:Foo) on (len(subject.bar)) extending max:
 
     def test_eschema_syntax_linkproperty_01(self):
         """
-linkproperty foo:
+link property foo:
     title := 'Sample property'
         """
 
     def test_eschema_syntax_linkproperty_02(self):
         """
-linkproperty bar extending foo
+link property bar extending foo
         """
 
     def test_eschema_syntax_linkproperty_03(self):
         """
-linkproperty bar extending foo:
+link property bar extending foo:
     title := 'Another property'
         """
 
     def test_eschema_syntax_linkproperty_04(self):
         """
-linkproperty foo:
+link property foo:
     title := 'Sample property'
 
-linkproperty bar extending foo:
+link property bar extending foo:
     title := 'Another property'
         """
 
@@ -518,14 +518,14 @@ link coollink extending boringlink
     def test_eschema_syntax_link_03(self):
         """
 link coollink:
-    linkproperty foo to int
+    link property foo to int
         """
 
     def test_eschema_syntax_link_04(self):
         """
 link coollink:
-    linkproperty foo to int
-    linkproperty bar to int
+    link property foo to int
+    link property bar to int
 
     constraint expr:
         expr := self.foo = self.bar
@@ -533,21 +533,21 @@ link coollink:
 
     def test_eschema_syntax_link_05(self):
         """
-linkproperty foo:
+link property foo:
     title := 'Sample property'
 
-linkproperty bar extending foo:
+link property bar extending foo:
     title := 'Another property'
 
 link coollink:
-    linkproperty foo to int:
+    link property foo to int:
         default := 2
         constraint min(0)
         constraint max(123456)
         constraint expr on (subject % 2 = 0):
             title := 'aaa'
 
-    linkproperty bar to int
+    link property bar to int
 
     constraint expr on (self.foo = self.bar)
 
@@ -566,33 +566,33 @@ event self_deleted:
     def test_eschema_syntax_link_06(self):
         """
         link coollink:
-            required linkproperty foo to int
+            required link property foo to int
         """
 
     def test_eschema_syntax_link_07(self):
         """
         link time_estimate:
-           linkproperty unit to str:
+           link property unit to str:
                constraint my_constraint(0)
         """
 
     def test_eschema_syntax_link_08(self):
         """
         link time_estimate:
-           linkproperty unit to str:
+           link property unit to str:
                constraint my_constraint(0, <str>(42^2))
         """
 
     def test_eschema_syntax_link_09(self):
         """
         link time_estimate:
-           linkproperty unit to str:
+           link property unit to str:
                constraint my_constraint(')', `)`($$)$$))
 
 % OK %
 
         link time_estimate:
-           linkproperty unit to str:
+           link property unit to str:
                constraint my_constraint(')', `)`(')'))
         """
 

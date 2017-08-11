@@ -17,7 +17,7 @@ abstract concept Dictionary extending Named:
 
 
 link todo:
-    linkproperty rank to int:
+    link property rank to int:
         default := 42
 
 

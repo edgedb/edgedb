@@ -530,7 +530,7 @@ Consider the following schema:
 .. code-block:: eschema
 
     link favorites:
-        linkproperty rank to int
+        link property rank to int
 
     concept Post:
         required link body to str

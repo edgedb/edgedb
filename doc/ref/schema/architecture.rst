@@ -25,7 +25,7 @@ EdgeDB schema:
 
 
 EdgeDB schemas can define the following fundamental elements:
-``atom``, ``link``, ``linkproperty``, ``concept``, ``constraint``,
+``atom``, ``link``, ``link property``, ``concept``, ``constraint``,
 ``action``, and ``event``. Any combination of these can be defined in
 a given module.
 
@@ -158,12 +158,12 @@ Generic pointers can be defined explicitly in the corresponding sections.
 
 .. code-block:: eschema
 
-  linkproperty assigned_on:
+  link property assigned_on:
       title := "Link Assignment Timestamp"
 
   link name:
       title := "Name"
-      linkproperty assigned_on to datetime
+      link property assigned_on to datetime
 
 
 *Link properties* are meant to qualify the kind of relationship the
@@ -181,7 +181,7 @@ them.
 .. code-block:: eschema
 
     link favorites:
-        linkproperty rank to int
+        link property rank to int
 
     concept Post:
         required link body to str

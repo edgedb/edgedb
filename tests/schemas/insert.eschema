@@ -1,9 +1,9 @@
 link l3:
-    linkproperty comment to str:
+    link property comment to str:
         default := "N/A"
 
 link subordinates:
-    linkproperty comment to str
+    link property comment to str
 
 concept Subordinate:
     required link name to str

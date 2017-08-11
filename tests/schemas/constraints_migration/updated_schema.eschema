@@ -40,15 +40,15 @@ atom constraint_enum extending str:
 link translated_label:
     mapping := '1*'
 
-    linkproperty lang to str
-    linkproperty prop1 to str
+    link property lang to str
+    link property prop1 to str
 
 
 link link_with_unique_property:
-    linkproperty unique_property to str:
+    link property unique_property to str:
         constraint unique
 
-    linkproperty unique_property2 to str:
+    link property unique_property2 to str:
         constraint unique
 
 
@@ -56,7 +56,7 @@ link link_with_unique_property_inherited extending link_with_unique_property
 
 
 link another_link_with_unique_property:
-    linkproperty unique_property to str
+    link property unique_property to str
 
 
 link another_link_with_unique_property_inherited extending another_link_with_unique_property
