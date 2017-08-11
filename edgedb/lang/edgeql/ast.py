@@ -133,6 +133,14 @@ class ClassRef(Expr):
     module: str
 
 
+class Self(Expr):
+    pass
+
+
+class Subject(Expr):
+    pass
+
+
 class Index(Base):
     index: Expr
 

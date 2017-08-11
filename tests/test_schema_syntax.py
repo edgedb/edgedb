@@ -309,7 +309,7 @@ atom basic extending int:
 
     constraint min(0)
     constraint max(123456)
-    delegated constraint expr on (subject % 2 = 0)
+    delegated constraint expr on (__subject__ % 2 = 0)
         """
 
     def test_eschema_syntax_atom_05(self):
@@ -321,7 +321,7 @@ atom basic extending int:
 
     constraint expr:
         prop :=
-            subject % 2 = 0
+            __subject__ % 2 = 0
     constraint min(0)
     constraint max(123456)
         """
@@ -336,7 +336,7 @@ atom basic extending int:
     constraint min(0)
     constraint max(123456)
     constraint expr:
-        abc := subject % 2 = 0
+        abc := __subject__ % 2 = 0
 
 
 atom inherits_default extending basic
@@ -371,7 +371,7 @@ atom special extending int:
 atom special extending int:
     title := 'Special Atom'
     constraint special_constraint:
-        expr := subject % 2 = 0
+        expr := __subject__ % 2 = 0
         """
 
     def test_eschema_syntax_atom_11(self):
@@ -390,8 +390,8 @@ atom constraint_length extending str:
         """
 # Test empty tuple as subject expression
 constraint max($param:any) on (()):
-    expr := subject <= $param
-    errmessage := 'Maximum allowed value for {subject} is {param}.'
+    expr := __subject__ <= $param
+    errmessage := 'Maximum allowed value for {subject} is {$param}.'
 
         """
 
@@ -401,36 +401,36 @@ constraint max($param:any) on (()):
     def test_eschema_syntax_constraint_02(self):
         """
 delegated constraint length:
-    subject := str::len(<str>subject)
+    subject := str::len(<str>__subject__)
         """
 
     def test_eschema_syntax_constraint_03(self):
         """
 constraint maxlength($param:any) extending max, length:
-    errmessage := '{$subject} must be no longer than {$param} characters.'
+    errmessage := '{subject} must be no longer than {$param} characters.'
         """
 
     def test_eschema_syntax_constraint_04(self):
         """
 constraint max($param:any):
-    expr := subject <= $param
-    errmessage := 'Maximum allowed value for {subject} is {param}.'
+    expr := __subject__ <= $param
+    errmessage := 'Maximum allowed value for {subject} is {$param}.'
 
 abstract constraint length:
-    subject := str::len(<str>subject)
+    subject := str::len(<str>__subject__)
 
 constraint maxlength($param:any) extending max, length:
-    errmessage := '{subject} must be no longer than {param} characters.'
+    errmessage := '{subject} must be no longer than {$param} characters.'
         """
 
     def test_eschema_syntax_constraint_05(self):
         """
 constraint distance:
     subject :=
-        <float>subject
+        <float>__subject__
 
 constraint maxldistance extending max, distance:
-    errmessage := '{subject} must be no longer than {param} meters.'
+    errmessage := '{subject} must be no longer than {$param} meters.'
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
@@ -448,12 +448,12 @@ constraint maxlength($param) extending max, length
         """
 atom special extending int:
     abstract constraint length:
-        subject := str::len(<str>subject)
+        subject := str::len(<str>__subject__)
         """
 
     def test_eschema_syntax_constraint_08(self):
         """
-constraint foo($param:Foo) on (len(subject.bar)) extending max:
+constraint foo($param:Foo) on (len(__subject__.bar)) extending max:
     errmessage := 'bar must be no more than {$param}.'
         """
 
@@ -544,7 +544,7 @@ link coollink:
         default := 2
         constraint min(0)
         constraint max(123456)
-        constraint expr on (subject % 2 = 0):
+        constraint expr on (__subject__ % 2 = 0):
             title := 'aaa'
 
     link property bar to int

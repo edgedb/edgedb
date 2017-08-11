@@ -53,6 +53,14 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                                      context=expr.context)
 
     for i, step in enumerate(expr.steps):
+        if isinstance(step, qlast.Self):
+            # HACK: just treat it as a ClassRef for now
+            step = qlast.ClassRef(name='self', context=step.context)
+
+        elif isinstance(step, qlast.Subject):
+            # HACK: just treat it as a ClassRef for now
+            step = qlast.ClassRef(name='subject', context=step.context)
+
         if isinstance(step, qlast.ClassRef):
             if i > 0:
                 raise RuntimeError(

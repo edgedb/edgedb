@@ -160,30 +160,30 @@ CREATE CONSTRAINT std::constraint {
 };
 
 CREATE CONSTRAINT std::expression EXTENDING std::constraint {
-    SET expr := subject;
+    SET expr := __subject__;
 };
 
 CREATE CONSTRAINT std::max(std::any) EXTENDING std::constraint {
     SET errmessage := 'Maximum allowed value for {subject} is {$0}.';
-    SET expr := ((subject <= $0));
+    SET expr := __subject__ <= $0;
 };
 
 CREATE CONSTRAINT std::enum(array<std::any>) EXTENDING std::constraint {
     SET errmessage := '{subject} must be one of: {$0}.';
-    SET expr := array_contains($0, subject);
+    SET expr := array_contains($0, __subject__);
 };
 
 CREATE CONSTRAINT std::min(std::any) EXTENDING std::constraint {
     SET errmessage := 'Minimum allowed value for {subject} is {$0}.';
-    SET expr := ((subject >= $0));
+    SET expr := __subject__ >= $0;
 };
 
 CREATE CONSTRAINT std::minexclusive(std::any) EXTENDING std::min {
     SET errmessage := '{subject} must be greater than {$0}.';
-    SET expr := ((subject > $0));
+    SET expr := __subject__ > $0;
 };
 
-CREATE CONSTRAINT std::length ON (len(<std::str>subject))
+CREATE CONSTRAINT std::length ON (len(<std::str>__subject__))
     EXTENDING std::constraint
 {
     SET errmessage := 'invalid {subject}';
@@ -195,7 +195,7 @@ CREATE CONSTRAINT std::minlength(std::any) EXTENDING (std::min, std::length) {
 
 CREATE CONSTRAINT std::regexp(std::any) EXTENDING std::constraint {
     SET errmessage := 'invalid {subject}';
-    SET expr := re_test(subject, $0);
+    SET expr := re_test(__subject__, $0);
 };
 
 CREATE CONSTRAINT std::maxlength(std::any) EXTENDING (std::max, std::length) {
@@ -208,7 +208,7 @@ CREATE CONSTRAINT std::maxexclusive(std::any) EXTENDING std::max {
 
 CREATE CONSTRAINT std::unique EXTENDING std::constraint {
     SET errmessage := '{subject} violates unique constraint';
-    SET expr := std::is_distinct(ALL subject);
+    SET expr := std::is_distinct(ALL __subject__);
 };
 
 CREATE ATOM std::decimal_rounding_t EXTENDING std::str {

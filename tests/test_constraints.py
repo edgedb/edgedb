@@ -625,13 +625,13 @@ class TestConstraintsDDL(tb.DDLTestCase):
     async def test_constraints_ddl_02(self):
         # testing the generalized constraint with 'ON (...)' clause
         qry = """
-            CREATE CONSTRAINT test::mymax1(std::int) ON (len(subject)) {
+            CREATE CONSTRAINT test::mymax1(std::int) ON (len(__subject__)) {
                 SET errmessage :=
                     '{subject} must be no longer than {$0} characters.';
                 SET expr := subject <= $0;
             };
 
-            CREATE CONSTRAINT test::mymax_ext1(std::int) ON (len(subject))
+            CREATE CONSTRAINT test::mymax_ext1(std::int) ON (len(__subject__))
                 EXTENDING std::max
             {
                 SET errmessage :=
@@ -713,11 +713,11 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
             CREATE CONCEPT test::ConstraintOnTest2 {
                 CREATE LINK test::foo TO std::str {
-                    CREATE CONSTRAINT test::mymax2(3) ON (len(subject));
+                    CREATE CONSTRAINT test::mymax2(3) ON (len(__subject__));
                 };
 
                 CREATE LINK test::bar TO std::str {
-                    CREATE CONSTRAINT std::max(3) ON (len(subject)) {
+                    CREATE CONSTRAINT std::max(3) ON (len(__subject__)) {
                         SET errmessage :=
                           '{subject} must be no longer than {$0} characters.';
                     };
@@ -793,7 +793,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
             CREATE CONCEPT test::ConstraintOnTest3 {
                 CREATE LINK test::foo TO std::str {
-                    CREATE CONSTRAINT test::mymax3(3) ON (len(subject));
+                    CREATE CONSTRAINT test::mymax3(3) ON (len(__subject__));
                 };
             };
         """
@@ -820,7 +820,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                 await self.con.execute("""
                     CREATE CONSTRAINT test::len_fail(std::str) {
                         SET expr := subject <= $0;
-                        SET subjectexpr := len(subject);
+                        SET subjectexpr := len(__subject__);
                     };
                 """)
 
@@ -832,7 +832,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     CREATE CONSTRAINT test::len_fail(std::str) {
                         SET expr := subject <= $0;
                         # doesn't matter what subject is set to, it's illegal
-                        SET subject := len(subject);
+                        SET subject := len(__subject__);
                     };
                 """)
 
@@ -848,7 +848,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     CREATE CONCEPT test::InvalidConstraintTest1 {
                         CREATE LINK test::foo TO std::str {
                             CREATE CONSTRAINT test::len_fail(3) {
-                                SET subjectexpr := len(subject);
+                                SET subjectexpr := len(__subject__);
                             };
                         };
                     };
@@ -866,7 +866,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     CREATE CONCEPT test::InvalidConstraintTest1 {
                         CREATE LINK test::foo TO std::str {
                             CREATE CONSTRAINT test::len_fail(3) {
-                                SET subject := len(subject);
+                                SET subject := len(__subject__);
                             };
                         };
                     };
@@ -891,7 +891,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     CREATE CONCEPT test::InvalidConstraintTest2 {
                         CREATE LINK test::foo TO std::str {
                             CREATE CONSTRAINT test::max_int(3)
-                                ON (len(subject));
+                                ON (len(__subject__));
                         };
                     };
                 """)
@@ -919,7 +919,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     'subjectexpr is not a valid constraint attribute'):
                 await self.con.execute("""
                     ALTER CONSTRAINT test::foo_alter {
-                        SET subjectexpr := len(subject);
+                        SET subjectexpr := len(__subject__);
                     };
                 """)
 
@@ -929,7 +929,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     'subject is not a valid constraint attribute'):
                 await self.con.execute("""
                     ALTER CONSTRAINT test::foo_alter {
-                        SET subject := len(subject);
+                        SET subject := len(__subject__);
                     };
                 """)
 
@@ -941,7 +941,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     ALTER CONCEPT test::ConstraintAlterTest1 {
                         ALTER LINK test::value {
                             ALTER CONSTRAINT std::max {
-                                SET subjectexpr := len(subject);
+                                SET subjectexpr := len(__subject__);
                             };
                         };
                     };
@@ -955,7 +955,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     ALTER CONCEPT test::ConstraintAlterTest1 {
                         ALTER LINK test::value {
                             ALTER CONSTRAINT std::max {
-                                SET subject := len(subject);
+                                SET subject := len(__subject__);
                             };
                         };
                     };
@@ -964,14 +964,14 @@ class TestConstraintsDDL(tb.DDLTestCase):
     async def test_constraints_ddl_error_04(self):
         # testing various incorrect DELETE constraint DDL commands
         qry = """
-            CREATE CONSTRAINT test::foo_drop(std::any) ON (len(subject)) {
+            CREATE CONSTRAINT test::foo_drop(std::any) ON (len(__subject__)) {
                 SET errmessage := 'foo';
                 SET expr := subject = $0;
             };
 
             CREATE CONCEPT test::ConstraintAlterTest2 {
                 CREATE LINK test::value TO std::int {
-                    CREATE CONSTRAINT std::max(3) ON (subject % 10);
+                    CREATE CONSTRAINT std::max(3) ON (__subject__ % 10);
                 };
             };
         """

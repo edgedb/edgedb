@@ -153,7 +153,6 @@ class SimpleInsert(Nonterm):
         subj_alias = kids[1].val.alias
 
         # check that the insert subject is either a path or a shape
-        #
         if isinstance(subj, qlast.Shape):
             concept = subj.expr
             shape = subj.elements
@@ -408,9 +407,11 @@ class ShapePathPtr(Nonterm):
         self.val = qlast.ClassRef(name=kids[0].val.name,
                                   module=kids[0].val.module)
 
-    def reduce_NodeNameParens(self, *kids):
-        self.val = qlast.ClassRef(name=kids[0].val.name,
-                                  module=kids[0].val.module)
+    def reduce_DUNDERCLASS(self, *kids):
+        self.val = qlast.ClassRef(name=kids[0].val)
+
+    def reduce_LPAREN_ShapePathPtr_RPAREN(self, *kids):
+        self.val = kids[1].val
 
 
 class ShapePointer(Nonterm):
@@ -560,6 +561,7 @@ class Expr(Nonterm):
     # | Expr IF Expr ELSE Expr
     # | Expr ?? Expr
     # | Expr UNION Expr
+    # | 'self' | '__subject__'
 
     def reduce_Path(self, *kids):
         self.val = kids[0].val
@@ -569,6 +571,12 @@ class Expr(Nonterm):
 
     def reduce_Constant(self, *kids):
         self.val = kids[0].val
+
+    def reduce_SELF(self, *kids):
+        self.val = qlast.Path(steps=[qlast.Self()])
+
+    def reduce_DUNDERSUBJECT(self, *kids):
+        self.val = qlast.Path(steps=[qlast.Subject()])
 
     @parsing.precedence(precedence.P_UMINUS)
     def reduce_ParenExpr(self, *kids):
@@ -590,19 +598,16 @@ class Expr(Nonterm):
         # NOTE: We specifically disallow "Foo.(bar[IS Baz])"" because
         # it is incorrect logical grouping. The example where the
         # incorrect grouping is more obvious is: "Foo.<(bar[IS Baz])"
-        #
         path = kids[0].val
 
         if (isinstance(path, qlast.Path) and
                 isinstance(path.steps[-1], qlast.Ptr)):
             # filtering a longer path
-            #
             path.steps[-1].target = kids[3].val
             self.val = path
 
         else:
             # any other expression is a path with a filter
-            #
             self.val = qlast.Path(
                 steps=[qlast.TypeFilter(
                     expr=path,
@@ -949,7 +954,6 @@ class PathStep(Nonterm):
 
     def reduce_DOT_ICONST(self, *kids):
         # this is a valid link-like syntax for accessing unnamed tuples
-        #
         from edgedb.lang.schema import pointers as s_pointers
 
         self.val = qlast.Ptr(
@@ -988,6 +992,9 @@ class PathPtr(Nonterm):
         self.val = qlast.ClassRef(name=kids[0].val.name,
                                   module=kids[0].val.module)
 
+    def reduce_DUNDERCLASS(self, *kids):
+        self.val = qlast.ClassRef(name=kids[0].val)
+
     def reduce_PathPtrParen(self, *kids):
         self.val = kids[0].val
 
@@ -999,6 +1006,9 @@ class PathPtrParen(Nonterm):
     def reduce_LPAREN_NodeName_RPAREN(self, *kids):
         self.val = qlast.ClassRef(name=kids[1].val.name,
                                   module=kids[1].val.module)
+
+    def reduce_LPAREN_DUNDERCLASS_RPAREN(self, *kids):
+        self.val = qlast.ClassRef(name=kids[1].val)
 
 
 class LinkDirection(Nonterm):
@@ -1108,14 +1118,12 @@ class ModuleName(ListNonterm, element=AnyIdentifier, separator=tokens.T_DOT):
 
 
 # this can appear anywhere
-#
 class BaseName(Nonterm):
     def reduce_Identifier(self, *kids):
         self.val = [kids[0].val]
 
     def reduce_Identifier_DOUBLECOLON_AnyIdentifier(self, *kids):
         # the identifier following a '::' cannot start with '@'
-        #
         if kids[2].val[0] == '@':
             raise EdgeQLSyntaxError("name cannot start with '@'",
                                     context=kids[2].context)
@@ -1128,7 +1136,6 @@ class NonArrayTypeName(Nonterm):
         maintype = kids[0].val
 
         # maintype cannot be 'map' or 'array'
-        #
         if maintype.module is None:
             if maintype.name in ('array', 'map'):
                 raise EdgeQLSyntaxError(
@@ -1191,7 +1198,6 @@ class NamedTupleTypeList(ListNonterm, element=NamedTupleType,
 class Dimension(Nonterm):
     def reduce_LBRACKET_RBRACKET(self, *kids):
         # special value, impossible to get through any other production
-        #
         self.val = -1
 
     def reduce_LBRACKET_ICONST_RBRACKET(self, *kids):
@@ -1217,7 +1223,6 @@ class NodeName(Nonterm):
 
     def reduce_BaseName(self, *kids):
         # NodeName must not start with a '@' in any way
-        #
         if kids[0].val[-1][0] == '@':
             raise EdgeQLSyntaxError("name cannot start with '@'",
                                     context=kids[0].context)
@@ -1240,25 +1245,12 @@ class ShortNodeName(Nonterm):
 
     def reduce_Identifier(self, *kids):
         # ShortNodeName cannot start with a '@' in any way
-        #
         if kids[0].val[0] == '@':
             raise EdgeQLSyntaxError("name cannot start with '@'",
                                     context=kids[0].context)
         self.val = qlast.ClassRef(
             module=None,
             name=kids[0].val)
-
-
-class NodeNameParens(Nonterm):
-    # NOTE: Arbitrarily parenthesized name.
-    #
-    # This is used in shapes.
-
-    def reduce_LPAREN_NodeNameParens_RPAREN(self, *kids):
-        self.val = kids[1].val
-
-    def reduce_LPAREN_NodeName_RPAREN(self, *kids):
-        self.val = kids[1].val
 
 
 class AnyNodeName(Nonterm):
@@ -1275,7 +1267,6 @@ class AnyNodeName(Nonterm):
 
     def reduce_AnyIdentifier(self, *kids):
         # AnyNodeName cannot start with a '@' in any way
-        #
         if kids[0].val[0] == '@':
             raise EdgeQLSyntaxError("name cannot start with '@'",
                                     context=kids[0].context)

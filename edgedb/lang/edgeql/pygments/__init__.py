@@ -44,6 +44,11 @@ class EdgeQLLexer(RegexLexer):
                     select | set | singleton | start | update | union |
                     with
                 )\b ''', token.Keyword.Reserved),
+
+            (r'\b(?i)(?<![:\.])(self|__subject__)\b',
+             token.Name.Builtin.Pseudo),
+
+            (r'\b(?i)(__class__)\b', token.Name.Builtin.Pseudo),
         ],
         'strings': [
             (r'''(?x)

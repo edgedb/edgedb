@@ -25,28 +25,28 @@ class EdgeQLSyntaxTest(tb.BaseSyntaxTest):
 
 
 class TestEdgeSchemaParser(EdgeQLSyntaxTest):
-    def test_edgeql_syntax_empty01(self):
+    def test_edgeql_syntax_empty_01(self):
         """"""
 
-    def test_edgeql_syntax_empty02(self):
+    def test_edgeql_syntax_empty_02(self):
         """# only comment"""
 
-    def test_edgeql_syntax_empty03(self):
+    def test_edgeql_syntax_empty_03(self):
         """
 
         # only comment
 
         """
 
-    def test_edgeql_syntax_empty04(self):
+    def test_edgeql_syntax_empty_04(self):
         """;
 % OK %  """
 
-    def test_edgeql_syntax_empty05(self):
+    def test_edgeql_syntax_empty_05(self):
         """;# only comment
 % OK %  """
 
-    def test_edgeql_syntax_empty06(self):
+    def test_edgeql_syntax_empty_06(self):
         """
         ;
         # only comment
@@ -54,7 +54,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 % OK %
         """
 
-    def test_edgeql_syntax_case01(self):
+    def test_edgeql_syntax_case_01(self):
         """
         Select 1;
         select 1;
@@ -66,17 +66,17 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     # semicolons are obligatory terminators
     #
     @tb.must_fail(errors.EdgeQLSyntaxError, line=1, col=9)
-    def test_edgeql_syntax_nonstatement01(self):
+    def test_edgeql_syntax_nonstatement_01(self):
         """SELECT 1"""
 
     # 1 + 2 is a valid expression, but it has to have SELECT keyword
     # to be a statement
     #
     @tb.must_fail(errors.EdgeQLSyntaxError, line=1, col=1)
-    def test_edgeql_syntax_nonstatement02(self):
+    def test_edgeql_syntax_nonstatement_02(self):
         """1 + 2;"""
 
-    def test_edgeql_syntax_contants01(self):
+    def test_edgeql_syntax_contants_01(self):
         """
         SELECT 0;
         SELECT 1;
@@ -85,7 +85,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT 551;
         """
 
-    def test_edgeql_syntax_contants02(self):
+    def test_edgeql_syntax_contants_02(self):
         """
         SELECT 'a1';
         SELECT "a1";
@@ -100,14 +100,14 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT 'a1';
         """
 
-    def test_edgeql_syntax_contants03(self):
+    def test_edgeql_syntax_contants_03(self):
         """
         SELECT 3.5432;
         SELECT +3.5432;
         SELECT -3.5432;
         """
 
-    def test_edgeql_syntax_contants04(self):
+    def test_edgeql_syntax_contants_04(self):
         """
         SELECT 354.32;
         SELECT 35400000000000.32;
@@ -128,13 +128,13 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT 3.5432e-18;
         """
 
-    def test_edgeql_syntax_contants05(self):
+    def test_edgeql_syntax_contants_05(self):
         """
         SELECT TRUE;
         SELECT FALSE;
         """
 
-    def test_edgeql_syntax_contants06(self):
+    def test_edgeql_syntax_contants_06(self):
         """
         SELECT $1;
         SELECT $123;
@@ -142,26 +142,26 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, 'Unknown token', line=2, col=16)
-    def test_edgeql_syntax_contants07(self):
+    def test_edgeql_syntax_contants_07(self):
         """
         SELECT 02;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=1, col=12)
-    def test_edgeql_syntax_ops01(self):
+    def test_edgeql_syntax_ops_01(self):
         """SELECT 40 >> 2;"""
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=1, col=14)
-    def test_edgeql_syntax_ops02(self):
+    def test_edgeql_syntax_ops_02(self):
         """SELECT 40 << 2;"""
 
-    def test_edgeql_syntax_ops03(self):
+    def test_edgeql_syntax_ops_03(self):
         """
         SELECT (40 <= 2);
         SELECT (40 >= 2);
         """
 
-    def test_edgeql_syntax_ops04(self):
+    def test_edgeql_syntax_ops_04(self):
         """
         SELECT 1 + 2;
         SELECT (1 + 2);
@@ -176,7 +176,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT (1 + 2);
         """
 
-    def test_edgeql_syntax_ops05(self):
+    def test_edgeql_syntax_ops_05(self):
         """
         SELECT User.age + 2;
         SELECT (User.age + 2);
@@ -191,7 +191,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT (User.age + 2);
         """
 
-    def test_edgeql_syntax_ops06(self):
+    def test_edgeql_syntax_ops_06(self):
         """
         SELECT (40 + 2);
         SELECT (40 - 2);
@@ -208,12 +208,12 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=20)
-    def test_edgeql_syntax_ops07(self):
+    def test_edgeql_syntax_ops_07(self):
         """
         SELECT 40 == 2;
         """
 
-    def test_edgeql_syntax_ops08(self):
+    def test_edgeql_syntax_ops_08(self):
         """
         SELECT (User.age + 2);
         SELECT (User.age - 2);
@@ -229,14 +229,14 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT (User.age != 2);
         """
 
-    def test_edgeql_syntax_ops09(self):
+    def test_edgeql_syntax_ops_09(self):
         """
         SELECT (Foo.foo AND Foo.bar);
         SELECT (Foo.foo OR Foo.bar);
         SELECT NOT Foo.foo;
         """
 
-    def test_edgeql_syntax_ops10(self):
+    def test_edgeql_syntax_ops_10(self):
         """
         SELECT (User.name IN {'Alice', 'Bob'});
         SELECT (User.name NOT IN {'Alice', 'Bob'});
@@ -246,7 +246,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT (User IS NOT SystemUser);
         """
 
-    def test_edgeql_syntax_ops11(self):
+    def test_edgeql_syntax_ops_11(self):
         """
         SELECT (User.name LIKE 'Al%');
         SELECT (User.name ILIKE 'al%');
@@ -254,12 +254,12 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT (User.name NOT ILIKE 'al%');
         """
 
-    def test_edgeql_syntax_ops12(self):
+    def test_edgeql_syntax_ops_12(self):
         """
         SELECT EXISTS (User.groups.description);
         """
 
-    def test_edgeql_syntax_ops14(self):
+    def test_edgeql_syntax_ops_14(self):
         """
         SELECT -1 + 2 * 3 - 5 - 6 / 2 > 0 OR 25 % 4 = 3 AND 42 IN {12, 42, 14};
 
@@ -282,7 +282,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         );
         """
 
-    def test_edgeql_syntax_ops15(self):
+    def test_edgeql_syntax_ops_15(self):
         """
         SELECT
             ((-1 + 2) * 3 - (5 - 6) / 2 > 0 OR 25 % 4 = 3)
@@ -307,7 +307,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         );
         """
 
-    def test_edgeql_syntax_ops16(self):
+    def test_edgeql_syntax_ops_16(self):
         """
         SELECT (42 IF foo ELSE 24);
         SELECT (
@@ -319,7 +319,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         );
         """
 
-    def test_edgeql_syntax_ops17(self):
+    def test_edgeql_syntax_ops_17(self):
         """
         SELECT 42 IF Foo.bar ELSE
                43 IF Foo.baz ELSE
@@ -336,7 +336,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         );
         """
 
-    def test_edgeql_syntax_ops18(self):
+    def test_edgeql_syntax_ops_18(self):
         """
         SELECT 40 + 2 IF Foo.bar ELSE
                40 + 3 IF Foo.baz ELSE
@@ -355,39 +355,39 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   'Unexpected token.*>=', line=2, col=16)
-    def test_edgeql_syntax_ops19(self):
+    def test_edgeql_syntax_ops_19(self):
         """
         SELECT >=1;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   'Unexpected token.*\*', line=2, col=16)
-    def test_edgeql_syntax_ops20(self):
+    def test_edgeql_syntax_ops_20(self):
         """
         SELECT *1;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   'Unknown token.*~', line=2, col=16)
-    def test_edgeql_syntax_ops21(self):
+    def test_edgeql_syntax_ops_21(self):
         """
         SELECT ~1;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   'Unexpected token.*>', line=2, col=16)
-    def test_edgeql_syntax_ops22(self):
+    def test_edgeql_syntax_ops_22(self):
         """
         SELECT >1;
         """
 
-    def test_edgeql_syntax_ops23(self):
+    def test_edgeql_syntax_ops_23(self):
         """
         SELECT (Foo.a ?= Foo.b);
         SELECT (Foo.b ?!= Foo.b);
         """
 
-    def test_edgeql_syntax_list01(self):
+    def test_edgeql_syntax_list_01(self):
         """
         SELECT (some_list_fn())[2];
         SELECT (some_list_fn())[2:4];
@@ -397,7 +397,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT (some_list_fn())[:-1];
         """
 
-    def test_edgeql_syntax_name01(self):
+    def test_edgeql_syntax_name_01(self):
         """
         SELECT bar;
         SELECT `bar`;
@@ -416,7 +416,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT (foo::bar);
         """
 
-    def test_edgeql_syntax_name02(self):
+    def test_edgeql_syntax_name_02(self):
         """
         SELECT (bar);
         SELECT (`bar`);
@@ -435,7 +435,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT (foo::bar);
         """
 
-    def test_edgeql_syntax_name03(self):
+    def test_edgeql_syntax_name_03(self):
         """
         SELECT (action);
         SELECT (`action`);
@@ -454,7 +454,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT (event::action);
         """
 
-    def test_edgeql_syntax_name04(self):
+    def test_edgeql_syntax_name_04(self):
         """
         SELECT (event::select);
         SELECT (event::`select`);
@@ -469,7 +469,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT (event::`select`);
         """
 
-    def test_edgeql_syntax_name05(self):
+    def test_edgeql_syntax_name_05(self):
         """
         SELECT foo.bar;
         SELECT `foo.bar`;
@@ -486,7 +486,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT (`foo.bar`::`spam.ham`);
         """
 
-    def test_edgeql_syntax_name06(self):
+    def test_edgeql_syntax_name_06(self):
         """
         SELECT foo.bar;
         SELECT (foo).bar;
@@ -505,62 +505,62 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT foo.bar;
         """
 
-    def test_edgeql_syntax_name07(self):
+    def test_edgeql_syntax_name_07(self):
         """
         SELECT event;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=17)
-    def test_edgeql_syntax_name08(self):
+    def test_edgeql_syntax_name_08(self):
         """
         SELECT (event::all);
         SELECT (all::event);
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=23)
-    def test_edgeql_syntax_name09(self):
+    def test_edgeql_syntax_name_09(self):
         """
         SELECT (event::select);
         SELECT (select::event);
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=16)
-    def test_edgeql_syntax_name10(self):
+    def test_edgeql_syntax_name_10(self):
         """
         SELECT `@event`;
         """
 
-    def test_edgeql_syntax_name11(self):
+    def test_edgeql_syntax_name_11(self):
         # illegal semantically, but syntactically valid
         """
         SELECT @event;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=21)
-    def test_edgeql_syntax_name12(self):
+    def test_edgeql_syntax_name_12(self):
         """
         SELECT foo::`@event`;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=21)
-    def test_edgeql_syntax_name13(self):
+    def test_edgeql_syntax_name_13(self):
         """
         SELECT foo::@event;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=20)
-    def test_edgeql_syntax_name14(self):
+    def test_edgeql_syntax_name_14(self):
         """
         SELECT Foo.`@event`;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=24)
-    def test_edgeql_syntax_name15(self):
+    def test_edgeql_syntax_name_15(self):
         """
         SELECT (event::`@event`);
         """
 
-    def test_edgeql_syntax_shape01(self):
+    def test_edgeql_syntax_shape_01(self):
         """
         SELECT Foo {bar};
         SELECT (Foo) {bar};
@@ -573,7 +573,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT Foo {bar};
         """
 
-    def test_edgeql_syntax_shape02(self):
+    def test_edgeql_syntax_shape_02(self):
         """
         SELECT Foo {bar};
         SELECT Foo {(bar)};
@@ -604,7 +604,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT Foo {<bar};
         """
 
-    def test_edgeql_syntax_shape03(self):
+    def test_edgeql_syntax_shape_03(self):
         """
         SELECT Foo {Bar.bar};
         SELECT Foo {Bar.(bar)};
@@ -629,7 +629,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT Foo {Bar.<bar};
         """
 
-    def test_edgeql_syntax_shape04(self):
+    def test_edgeql_syntax_shape_04(self):
         """
         SELECT Foo {Bar.bar};
         SELECT Foo {(Bar).(bar)};
@@ -655,7 +655,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=13)
-    def test_edgeql_syntax_shape05(self):
+    def test_edgeql_syntax_shape_05(self):
         """
         SELECT Foo {
             `@foo`:= 42
@@ -663,7 +663,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=4, col=13)
-    def test_edgeql_syntax_shape06(self):
+    def test_edgeql_syntax_shape_06(self):
         """
         SELECT Foo {
             bar,
@@ -672,7 +672,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=7, col=13)
-    def test_edgeql_syntax_shape07(self):
+    def test_edgeql_syntax_shape_07(self):
         """
         SELECT Foo {
             bar: {
@@ -684,7 +684,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=5, col=17)
-    def test_edgeql_syntax_shape08(self):
+    def test_edgeql_syntax_shape_08(self):
         """
         SELECT Foo {
             bar: {
@@ -696,7 +696,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=6, col=22)
-    def test_edgeql_syntax_shape09(self):
+    def test_edgeql_syntax_shape_09(self):
         """
         SELECT Foo {
             bar: {
@@ -708,7 +708,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=7, col=13)
-    def test_edgeql_syntax_shape10(self):
+    def test_edgeql_syntax_shape_10(self):
         """
         SELECT Foo {
             bar: {
@@ -721,14 +721,14 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     # NOTE: this is syntactically allowed, but the compiler should
     # throw an error
-    def test_edgeql_syntax_shape11(self):
+    def test_edgeql_syntax_shape_11(self):
         """
         SELECT Foo {
             __class__.name
         };
         """
 
-    def test_edgeql_syntax_shape12(self):
+    def test_edgeql_syntax_shape_12(self):
         """
         SELECT Foo {
             __class__: {
@@ -737,7 +737,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    def test_edgeql_syntax_shape13(self):
+    def test_edgeql_syntax_shape_13(self):
         """
         SELECT Foo {
             __class__: {
@@ -749,7 +749,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "Unexpected token.*TURNSTILE", line=3, col=18)
-    def test_edgeql_syntax_shape14(self):
+    def test_edgeql_syntax_shape_14(self):
         """
         SELECT {
             name := 'foo',
@@ -757,7 +757,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    def test_edgeql_syntax_shape19(self):
+    def test_edgeql_syntax_shape_19(self):
         """
             SELECT
                 test::Issue {
@@ -805,7 +805,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
         """
 
-    def test_edgeql_syntax_shape20(self):
+    def test_edgeql_syntax_shape_20(self):
         """
         INSERT Foo{
             bar: {
@@ -815,7 +815,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    def test_edgeql_syntax_shape21(self):
+    def test_edgeql_syntax_shape_21(self):
         """
         INSERT Foo{
             bar := 'some_string_val' {
@@ -824,14 +824,14 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    def test_edgeql_syntax_shape23(self):
+    def test_edgeql_syntax_shape_23(self):
         """
         SELECT 'Foo' {
             bar := 42
         };
         """
 
-    def test_edgeql_syntax_shape24(self):
+    def test_edgeql_syntax_shape_24(self):
         """
         SELECT Foo {
             spam
@@ -841,14 +841,14 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=24)
-    def test_edgeql_syntax_shape25(self):
+    def test_edgeql_syntax_shape_25(self):
         """
         SELECT Foo.bar AS bar;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "Unexpected token.*STAR", line=4, col=24)
-    def test_edgeql_syntax_shape26(self):
+    def test_edgeql_syntax_shape_26(self):
         """
         SELECT Issue{
             name,
@@ -858,7 +858,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "Unexpected token.*STAR", line=4, col=24)
-    def test_edgeql_syntax_shape27(self):
+    def test_edgeql_syntax_shape_27(self):
         """
         SELECT Issue{
             name,
@@ -868,7 +868,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "Unexpected token.*STAR", line=4, col=24)
-    def test_edgeql_syntax_shape28(self):
+    def test_edgeql_syntax_shape_28(self):
         """
         SELECT Issue{
             name,
@@ -878,7 +878,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "Unexpected token.*STAR", line=4, col=24)
-    def test_edgeql_syntax_shape29(self):
+    def test_edgeql_syntax_shape_29(self):
         """
         SELECT Issue{
             name,
@@ -886,7 +886,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    def test_edgeql_syntax_shape32(self):
+    def test_edgeql_syntax_shape_32(self):
         """
         SELECT User{
             name,
@@ -896,7 +896,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    def test_edgeql_syntax_shape33(self):
+    def test_edgeql_syntax_shape_33(self):
         """
         SELECT User {
             name,
@@ -906,7 +906,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    def test_edgeql_syntax_shape34(self):
+    def test_edgeql_syntax_shape_34(self):
         """
         SELECT User{
             name,
@@ -916,7 +916,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         } FILTER (.<owner.body = 'foo');
         """
 
-    def test_edgeql_syntax_shape35(self):
+    def test_edgeql_syntax_shape_35(self):
         """
         SELECT User {
             name,
@@ -926,7 +926,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    def test_edgeql_syntax_shape36(self):
+    def test_edgeql_syntax_shape_36(self):
         """
         SELECT User {
             name,
@@ -949,7 +949,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    def test_edgeql_syntax_shape37(self):
+    def test_edgeql_syntax_shape_37(self):
         """
         SELECT Foo {
             foo FILTER (foo > 3),
@@ -958,7 +958,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    def test_edgeql_syntax_shape38(self):
+    def test_edgeql_syntax_shape_38(self):
         """
         SELECT Foo {
             spam: {
@@ -969,7 +969,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    def test_edgeql_syntax_struct01(self):
+    def test_edgeql_syntax_struct_01(self):
         """
         SELECT (
             foo := 1,
@@ -977,7 +977,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         );
         """
 
-    def test_edgeql_syntax_struct02(self):
+    def test_edgeql_syntax_struct_02(self):
         """
         SELECT (
             foo := (
@@ -991,7 +991,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   'Unexpected token: <Token COLON ":">',
                   line=3, col=16)
-    def test_edgeql_syntax_struct03(self):
+    def test_edgeql_syntax_struct_03(self):
         """
         SELECT (
             foo: 1,
@@ -1002,7 +1002,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   'Unexpected token: <Token COLON ":">',
                   line=3, col=16)
-    def test_edgeql_syntax_struct04(self):
+    def test_edgeql_syntax_struct_04(self):
         """
         SELECT (
             foo: (
@@ -1014,7 +1014,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   'Unexpected token: <Token COLON ":">',
                   line=3, col=16)
-    def test_edgeql_syntax_struct05(self):
+    def test_edgeql_syntax_struct_05(self):
         """
         SELECT (
             foo: (
@@ -1023,7 +1023,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         );
         """
 
-    def test_edgeql_syntax_struct06(self):
+    def test_edgeql_syntax_struct_06(self):
         """
         SELECT (
             foo := [
@@ -1032,7 +1032,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         );
         """
 
-    def test_edgeql_syntax_struct07(self):
+    def test_edgeql_syntax_struct_07(self):
         """
         SELECT (
             # unreserved keywords
@@ -1043,7 +1043,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "Unexpected token.*ALL", line=4, col=13)
-    def test_edgeql_syntax_struct08(self):
+    def test_edgeql_syntax_struct_08(self):
         """
         SELECT (
             # reserved keywords
@@ -1054,7 +1054,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "Unexpected token.*TURNSTILE", line=4, col=20)
-    def test_edgeql_syntax_struct09(self):
+    def test_edgeql_syntax_struct_09(self):
         """
         SELECT (
             # reserved keywords
@@ -1064,33 +1064,33 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "Unexpected token.*TURNSTILE", line=2, col=22)
-    def test_edgeql_syntax_struct10(self):
+    def test_edgeql_syntax_struct_10(self):
         """
         SELECT (1, a := 2);
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "Unexpected token.*ICONST", line=2, col=25)
-    def test_edgeql_syntax_struct11(self):
+    def test_edgeql_syntax_struct_11(self):
         """
         SELECT (a := 1, 2);
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "Unexpected token.*RPAREN", line=2, col=28)
-    def test_edgeql_syntax_struct12(self):
+    def test_edgeql_syntax_struct_12(self):
         """
         SELECT (a := 1, foo);
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "Unexpected token.*DOT", line=2, col=28)
-    def test_edgeql_syntax_struct13(self):
+    def test_edgeql_syntax_struct_13(self):
         """
         SELECT (a := 1, foo.bar);
         """
 
-    def test_edgeql_syntax_path01(self):
+    def test_edgeql_syntax_path_01(self):
         """
         SELECT Foo.bar;
         SELECT Foo.>bar;
@@ -1115,7 +1115,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT Foo.<bar[IS Baz];
         """
 
-    def test_edgeql_syntax_path02(self):
+    def test_edgeql_syntax_path_02(self):
         """
         SELECT Foo.event;
         SELECT Foo.>event;
@@ -1140,7 +1140,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT Foo.<event[IS Action];
         """
 
-    def test_edgeql_syntax_path03(self):
+    def test_edgeql_syntax_path_03(self):
         """
         SELECT Foo.(lib::bar);
         SELECT Foo.>(lib::bar);
@@ -1165,29 +1165,29 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT Foo.<(lib::bar)[IS lib::Baz];
         """
 
-    def test_edgeql_syntax_path04(self):
+    def test_edgeql_syntax_path_04(self):
         """
         SELECT Foo[IS Bar];
         """
 
-    def test_edgeql_syntax_path05(self):
+    def test_edgeql_syntax_path_05(self):
         """
         SELECT Foo.bar@spam[IS Bar];
         """
 
-    def test_edgeql_syntax_path06(self):
+    def test_edgeql_syntax_path_06(self):
         """
         SELECT Foo.bar[IS To];  # unreserved keyword as concept name
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=30)
-    def test_edgeql_syntax_path07(self):
+    def test_edgeql_syntax_path_07(self):
         """
         SELECT Foo.bar[IS To To];
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=27)
-    def test_edgeql_syntax_path08(self):
+    def test_edgeql_syntax_path_08(self):
         """
         SELECT Foo.bar[IS All];
         """
@@ -1195,7 +1195,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     # This is actually odd, but legal, simply filtering by type a
     # particular array element.
     #
-    def test_edgeql_syntax_path09(self):
+    def test_edgeql_syntax_path_09(self):
         """
         SELECT Foo.bar[2][IS Baz];
 
@@ -1204,22 +1204,22 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT (Foo.bar)[2][IS Baz];
         """
 
-    def test_edgeql_syntax_path10(self):
+    def test_edgeql_syntax_path_10(self):
         """
         SELECT (Foo.bar)[2:4][IS Baz];
         """
 
-    def test_edgeql_syntax_path11(self):
+    def test_edgeql_syntax_path_11(self):
         """
         SELECT (Foo.bar)[2:][IS Baz];
         """
 
-    def test_edgeql_syntax_path12(self):
+    def test_edgeql_syntax_path_12(self):
         """
         SELECT (Foo.bar)[:2][IS Baz];
         """
 
-    def test_edgeql_syntax_path13(self):
+    def test_edgeql_syntax_path_13(self):
         """
         SELECT (Foo.bar)[IS Baz];
         SELECT Foo.(bar)[IS Baz];
@@ -1232,19 +1232,19 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT Foo.<bar[IS Baz];
         """
 
-    def test_edgeql_syntax_path14(self):
+    def test_edgeql_syntax_path_14(self):
         """
         SELECT User.__class__.name LIMIT 1;
         """
 
-    def test_edgeql_syntax_path15(self):
+    def test_edgeql_syntax_path_15(self):
         """
         SELECT (42).foo;
 % OK %
         SELECT (42).foo;
         """
 
-    def test_edgeql_syntax_path16(self):
+    def test_edgeql_syntax_path_16(self):
         # illegal semantically, but syntactically valid
         """
         SELECT .foo;
@@ -1252,23 +1252,44 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, 'Unexpected token.*"."', line=2)
-    def test_edgeql_syntax_path17(self):
+    def test_edgeql_syntax_path_17(self):
         """
         SELECT ..foo;
         """
 
-    def test_edgeql_syntax_type_interpretation01(self):
+    @tb.must_fail(errors.EdgeQLSyntaxError, 'Unexpected token.*SELF',
+                  line=2, col=20)
+    def test_edgeql_syntax_path_18(self):
+        """
+        SELECT Foo.self;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, 'Unexpected token.*DUNDERSUBJECT',
+                  line=2, col=20)
+    def test_edgeql_syntax_path_19(self):
+        """
+        SELECT Foo.__subject__;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, 'Unexpected token.*DUNDERCLASS',
+                  line=2, col=16)
+    def test_edgeql_syntax_path_20(self):
+        """
+        SELECT __class__;
+        """
+
+    def test_edgeql_syntax_type_interpretation_01(self):
         """
         SELECT Foo[IS Bar].spam;
         SELECT Foo[IS Bar].<ham;
         """
 
-    def test_edgeql_syntax_type_interpretation02(self):
+    def test_edgeql_syntax_type_interpretation_02(self):
         """
         SELECT (Foo + Bar)[IS Spam].ham;
         """
 
-    def test_edgeql_syntax_map01(self):
+    def test_edgeql_syntax_map_01(self):
         """
         SELECT [
             'name' -> 'foo',
@@ -1287,7 +1308,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         ];
         """
 
-    def test_edgeql_syntax_map02(self):
+    def test_edgeql_syntax_map_02(self):
         """
         SELECT [
             'foo' -> [
@@ -1297,7 +1318,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=18)
-    def test_edgeql_syntax_map03(self):
+    def test_edgeql_syntax_map_03(self):
         """
         SELECT [
             'foo':= {
@@ -1306,7 +1327,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         ];
         """
 
-    def test_edgeql_syntax_map04(self):
+    def test_edgeql_syntax_map_04(self):
         """
         SELECT ['foo'-> 42, 'bar'-> 'something'];
         SELECT ['foo'-> 42, 'bar'-> 'something']['foo'];
@@ -1322,7 +1343,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   'unexpected map item in array',
                   line=2, col=23)
-    def test_edgeql_syntax_map05(self):
+    def test_edgeql_syntax_map_05(self):
         """
         SELECT [1, 2, 1->2, 3];
         """
@@ -1330,12 +1351,12 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   'unexpected array item in map',
                   line=2, col=29)
-    def test_edgeql_syntax_map06(self):
+    def test_edgeql_syntax_map_06(self):
         """
         SELECT [1->1, 2->2, 1, 3];
         """
 
-    def test_edgeql_syntax_sequence01(self):
+    def test_edgeql_syntax_sequence_01(self):
         """
         SELECT (User.name);  # not a sequence
         SELECT (User.name,);
@@ -1352,7 +1373,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT ((User.name != 'Alice'), (User.age < 42), 'comment');
         """
 
-    def test_edgeql_syntax_array01(self):
+    def test_edgeql_syntax_array_01(self):
         """
         SELECT [1];
         SELECT [1, 2, 3, 4, 5];
@@ -1360,7 +1381,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT [User.name, User.description, 'filler'];
         """
 
-    def test_edgeql_syntax_array02(self):
+    def test_edgeql_syntax_array_02(self):
         """
         SELECT [1, 2, 3, 4, 5][2];
         SELECT [1, 2, 3, 4, 5][2:4];
@@ -1371,7 +1392,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT ([1, 2, 3, 4, 5])[2:4];
         """
 
-    def test_edgeql_syntax_array03(self):
+    def test_edgeql_syntax_array_03(self):
         """
         SELECT ([1, 2, 3, 4, 5])[2];
         SELECT ([1, 2, 3, 4, 5])[2:4];
@@ -1382,7 +1403,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT ([1, 2, 3, 4, 5])[:-2];
         """
 
-    def test_edgeql_syntax_array04(self):
+    def test_edgeql_syntax_array_04(self):
         """
         SELECT ([Foo.bar, Foo.baz, Foo.spam, Foo.ham])[Bar.setting];
         SELECT ([Foo.bar, Foo.baz, Foo.spam, Foo.ham])[1:Bar.setting];
@@ -1391,17 +1412,17 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT ([Foo.bar, Foo.baz, Foo.spam, Foo.ham])[:-Bar.setting];
         """
 
-    def test_edgeql_syntax_array05(self):
+    def test_edgeql_syntax_array_05(self):
         """
         SELECT (get_nested_obj())['a']['b']['c'];
         """
 
-    def test_edgeql_syntax_cast01(self):
+    def test_edgeql_syntax_cast_01(self):
         """
         SELECT <float> (SELECT User.age);
         """
 
-    def test_edgeql_syntax_cast02(self):
+    def test_edgeql_syntax_cast_02(self):
         """
         SELECT <float> (((SELECT User.age)));
 
@@ -1412,7 +1433,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "Unexpected token.*LBRACE", line=3, col=19)
-    def test_edgeql_syntax_cast03(self):
+    def test_edgeql_syntax_cast_03(self):
         """
         SELECT
             <User {name, description}> [
@@ -1421,37 +1442,37 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             ];
         """
 
-    def test_edgeql_syntax_cast04(self):
+    def test_edgeql_syntax_cast_04(self):
         """
         SELECT -<int>{};
         """
 
-    def test_edgeql_syntax_cast05(self):
+    def test_edgeql_syntax_cast_05(self):
         """
         SELECT <array<int>>$1;
         SELECT <array<int[2][3]>>$1;
         """
 
-    def test_edgeql_syntax_cast06(self):
+    def test_edgeql_syntax_cast_06(self):
         """
         SELECT <map<str, int>>$1;
         """
 
-    def test_edgeql_syntax_cast07(self):
+    def test_edgeql_syntax_cast_07(self):
         """
         SELECT <tuple>$1;
         SELECT <tuple<Foo, int, str>>$1;
         SELECT <tuple<obj: Foo, count: int, name: str>>$1;
         """
 
-    def test_edgeql_syntax_cardinality01(self):
+    def test_edgeql_syntax_cardinality_01(self):
         """
         SELECT SINGLETON User.name FILTER (User.name = 'special');
         CREATE FUNCTION spam($foo: str) -> SET OF str
             FROM EdgeQL $$ SELECT "a" $$;
         """
 
-    def test_edgeql_syntax_with01(self):
+    def test_edgeql_syntax_with_01(self):
         """
         WITH
             MODULE test,
@@ -1465,7 +1486,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=6, col=9)
-    def test_edgeql_syntax_with02(self):
+    def test_edgeql_syntax_with_02(self):
         """
         WITH
             MODULE test,
@@ -1475,7 +1496,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=4, col=16)
-    def test_edgeql_syntax_with03(self):
+    def test_edgeql_syntax_with_03(self):
         """
         WITH
             MODULE test
@@ -1483,27 +1504,27 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=4, col=14)
-    def test_edgeql_syntax_with04(self):
+    def test_edgeql_syntax_with_04(self):
         """
         WITH
             MODULE test
         DROP DATABASE sample;
         """
 
-    def test_edgeql_syntax_with05(self):
+    def test_edgeql_syntax_with_05(self):
         """
         WITH MODULE test CREATE ACTION sample;
         WITH MODULE test DROP ACTION sample;
         """
 
-    def test_edgeql_syntax_with06(self):
+    def test_edgeql_syntax_with_06(self):
         """
         WITH MODULE abstract SELECT Foo;
         WITH MODULE all SELECT Foo;
         WITH MODULE all.abstract.bar SELECT Foo;
         """
 
-    def test_edgeql_syntax_with07(self):
+    def test_edgeql_syntax_with_07(self):
         """
         WITH MODULE `all.abstract.bar` SELECT Foo;
 
@@ -1512,12 +1533,12 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         WITH MODULE all.abstract.bar SELECT Foo;
         """
 
-    def test_edgeql_syntax_with08(self):
+    def test_edgeql_syntax_with_08(self):
         """
         WITH MODULE `~all.abstract.bar` SELECT Foo;
         """
 
-    def test_edgeql_syntax_select01(self):
+    def test_edgeql_syntax_select_01(self):
         """
         SELECT 42;
         SELECT User{name};
@@ -1533,7 +1554,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             OFFSET 2 LIMIT 5;
         """
 
-    def test_edgeql_syntax_select02(self):
+    def test_edgeql_syntax_select_02(self):
         """
         SELECT User{name} ORDER BY User.name;
         SELECT User{name} ORDER BY User.name ASC;
@@ -1546,7 +1567,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT User{name} ORDER BY User.name DESC;
         """
 
-    def test_edgeql_syntax_select03(self):
+    def test_edgeql_syntax_select_03(self):
         """
         SELECT User{name, age} ORDER BY User.name THEN User.age;
         SELECT User{name, age} ORDER BY User.name THEN User.age DESC;
@@ -1561,7 +1582,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT User{name, age} ORDER BY User.name DESC THEN User.age ASC;
         """
 
-    def test_edgeql_syntax_select04(self):
+    def test_edgeql_syntax_select_04(self):
         """
         SELECT
             User.name
@@ -1572,7 +1593,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         OFFSET 2 LIMIT 5;
         """
 
-    def test_edgeql_syntax_select05(self):
+    def test_edgeql_syntax_select_05(self):
         """
         WITH MODULE test
         SELECT 42;
@@ -1595,7 +1616,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             OFFSET 2 LIMIT 5;
         """
 
-    def test_edgeql_syntax_select06(self):
+    def test_edgeql_syntax_select_06(self):
         """
         WITH MODULE test
         SELECT
@@ -1608,12 +1629,12 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=9)
-    def test_edgeql_syntax_select07(self):
+    def test_edgeql_syntax_select_07(self):
         """
         (SELECT User.name) OFFSET 2;
         """
 
-    def test_edgeql_syntax_select08(self):
+    def test_edgeql_syntax_select_08(self):
         """
         WITH MODULE test
         SELECT User{name} ORDER BY User.name ASC;
@@ -1623,27 +1644,27 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT User{name} OFFSET 2 LIMIT 5;
         """
 
-    def test_edgeql_syntax_select09(self):
+    def test_edgeql_syntax_select_09(self):
         """
         SELECT Issue {name} ORDER BY Issue.priority.name ASC EMPTY FIRST;
         SELECT Issue {name} ORDER BY Issue.priority.name DESC EMPTY LAST;
         """
 
-    def test_edgeql_syntax_select10(self):
+    def test_edgeql_syntax_select_10(self):
         """
         SELECT User.name OFFSET $1;
         SELECT User.name LIMIT $2;
         SELECT User.name OFFSET $1 LIMIT $2;
         """
 
-    def test_edgeql_syntax_select11(self):
+    def test_edgeql_syntax_select_11(self):
         """
         SELECT User.name OFFSET Foo.bar;
         SELECT User.name LIMIT (Foo.bar * 10);
         SELECT User.name OFFSET Foo.bar LIMIT (Foo.bar * 10);
         """
 
-    def test_edgeql_syntax_group01(self):
+    def test_edgeql_syntax_group_01(self):
         """
         GROUP User
             BY User.name
@@ -1653,7 +1674,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             );
         """
 
-    def test_edgeql_syntax_group02(self):
+    def test_edgeql_syntax_group_02(self):
         """
         GROUP _1 := User
             BY _1.name
@@ -1664,23 +1685,23 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             ORDER BY _2.num_tasks ASC;
         """
 
-    def test_edgeql_syntax_set01(self):
+    def test_edgeql_syntax_set_01(self):
         """
         SELECT (1 UNION 2);
         """
 
-    def test_edgeql_syntax_set02(self):
+    def test_edgeql_syntax_set_02(self):
         """
         SELECT ((SELECT Foo) UNION (SELECT Bar));
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=9)
-    def test_edgeql_syntax_set03(self):
+    def test_edgeql_syntax_set_03(self):
         """
         (SELECT Foo) UNION (SELECT Bar);
         """
 
-    def test_edgeql_syntax_set04(self):
+    def test_edgeql_syntax_set_04(self):
         """
         SELECT 2 * (1 UNION 2 UNION 1);
 
@@ -1689,7 +1710,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT (2 * ((1 UNION 2) UNION 1));
         """
 
-    def test_edgeql_syntax_set05(self):
+    def test_edgeql_syntax_set_05(self):
         """
         SELECT {};
         SELECT {1};
@@ -1699,27 +1720,27 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT {Foo.bar, Foo.baz}.spam;
         """
 
-    def test_edgeql_syntax_insert01(self):
+    def test_edgeql_syntax_insert_01(self):
         """
         INSERT Foo;
         SELECT (INSERT Foo);
         SELECT (INSERT Foo) {bar};
         """
 
-    def test_edgeql_syntax_insert02(self):
+    def test_edgeql_syntax_insert_02(self):
         """
         INSERT Foo{bar := 42};
         SELECT (INSERT Foo{bar := 42});
         SELECT (INSERT Foo{bar := 42}) {bar};
         """
 
-    def test_edgeql_syntax_insert03(self):
+    def test_edgeql_syntax_insert_03(self):
         """
         WITH MODULE test
         INSERT Foo;
         """
 
-    def test_edgeql_syntax_insert04(self):
+    def test_edgeql_syntax_insert_04(self):
         """
         WITH MODULE test
         INSERT Foo{bar := 42};
@@ -1728,42 +1749,42 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   'insert expression must be a concept or a view',
                   line=2, col=16)
-    def test_edgeql_syntax_insert05(self):
+    def test_edgeql_syntax_insert_05(self):
         """
         INSERT 42;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=20)
-    def test_edgeql_syntax_insert06(self):
+    def test_edgeql_syntax_insert_06(self):
         """
         INSERT Foo FILTER Foo.bar = 42;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=20)
-    def test_edgeql_syntax_insert07(self):
+    def test_edgeql_syntax_insert_07(self):
         """
         INSERT Foo GROUP BY Foo.bar;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=20)
-    def test_edgeql_syntax_insert08(self):
+    def test_edgeql_syntax_insert_08(self):
         """
         INSERT Foo ORDER BY Foo.bar;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=20)
-    def test_edgeql_syntax_insert09(self):
+    def test_edgeql_syntax_insert_09(self):
         """
         INSERT Foo OFFSET 2;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=20)
-    def test_edgeql_syntax_insert10(self):
+    def test_edgeql_syntax_insert_10(self):
         """
         INSERT Foo LIMIT 5;
         """
 
-    def test_edgeql_syntax_insert12(self):
+    def test_edgeql_syntax_insert_12(self):
         """
         INSERT Foo{
             bar := 42,
@@ -1773,7 +1794,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    def test_edgeql_syntax_insert13(self):
+    def test_edgeql_syntax_insert_13(self):
         """
         INSERT Foo{
             bar := 42,
@@ -1781,7 +1802,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    def test_edgeql_syntax_insert14(self):
+    def test_edgeql_syntax_insert_14(self):
         """
         INSERT Foo{
             bar := 42,
@@ -1792,7 +1813,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    def test_edgeql_syntax_insert15(self):
+    def test_edgeql_syntax_insert_15(self):
         """
         INSERT Foo{
             bar := 42,
@@ -1810,7 +1831,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=4, col=18)
-    def test_edgeql_syntax_insert16(self):
+    def test_edgeql_syntax_insert_16(self):
         """
         INSERT Foo{
             bar := 42,
@@ -1820,7 +1841,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    def test_edgeql_syntax_insert17(self):
+    def test_edgeql_syntax_insert_17(self):
         """
         INSERT Foo{
             bar := 42,
@@ -1832,36 +1853,36 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    def test_edgeql_syntax_delete01(self):
+    def test_edgeql_syntax_delete_01(self):
         """
         DELETE Foo;
         """
 
-    def test_edgeql_syntax_delete02(self):
+    def test_edgeql_syntax_delete_02(self):
         """
         WITH MODULE test
         DELETE Foo;
         """
 
-    def test_edgeql_syntax_delete03(self):
+    def test_edgeql_syntax_delete_03(self):
         # NOTE: this must be rejected by the compiler
         """
         DELETE 42;
         """
 
-    def test_edgeql_syntax_delete04(self):
+    def test_edgeql_syntax_delete_04(self):
         # this is legal and equivalent to DELETE Foo;
         """
         DELETE Foo{bar};
         """
 
-    def test_edgeql_syntax_update01(self):
+    def test_edgeql_syntax_update_01(self):
         """
         UPDATE Foo SET {bar := 42};
         UPDATE Foo FILTER (Foo.bar = 24) SET {bar := 42};
         """
 
-    def test_edgeql_syntax_update02(self):
+    def test_edgeql_syntax_update_02(self):
         """
         WITH MODULE test
         UPDATE Foo SET {bar := 42};
@@ -1872,18 +1893,18 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   'Unexpected token: <Token SEMICOLON ";">',
                   line=2, col=18)
-    def test_edgeql_syntax_update03(self):
+    def test_edgeql_syntax_update_03(self):
         """
         UPDATE 42;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=19)
-    def test_edgeql_syntax_update04(self):
+    def test_edgeql_syntax_update_04(self):
         """
         UPDATE Foo;
         """
 
-    def test_edgeql_syntax_update07(self):
+    def test_edgeql_syntax_update_07(self):
         """
         UPDATE Foo
         FILTER (Foo.bar = 24)
@@ -1896,7 +1917,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    def test_edgeql_syntax_insertfor01(self):
+    def test_edgeql_syntax_insertfor_01(self):
         """
         FOR name in 'a' UNION 'b' UNION 'c'
         INSERT User{name := name};
@@ -1907,25 +1928,25 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         INSERT User{name := name};
         """
 
-    def test_edgeql_syntax_insertfor02(self):
+    def test_edgeql_syntax_insertfor_02(self):
         """
         FOR name IN (SELECT Foo.bar FILTER (Foo.baz = TRUE))
         INSERT Foo{name := name};
         """
 
-    def test_edgeql_syntax_insertfor03(self):
+    def test_edgeql_syntax_insertfor_03(self):
         """
         FOR bar IN (INSERT Bar{name := 'bar'})
         INSERT Foo{name := bar.name};
         """
 
-    def test_edgeql_syntax_insertfor04(self):
+    def test_edgeql_syntax_insertfor_04(self):
         """
         FOR bar IN (DELETE Bar)
         INSERT Foo{name := bar.name};
         """
 
-    def test_edgeql_syntax_insertfor05(self):
+    def test_edgeql_syntax_insertfor_05(self):
         """
         FOR bar IN (
             UPDATE Bar SET {name := (name + 'bar')}
@@ -1933,7 +1954,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         INSERT Foo{name := bar.name};
         """
 
-    def test_edgeql_syntax_selectfor01(self):
+    def test_edgeql_syntax_selectfor_01(self):
         """
         FOR x in (('Alice', 'White') UNION ('Bob', 'Green'))
         SELECT User{first_tname, last_name, age}
@@ -1944,7 +1965,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         );
         """
 
-    def test_edgeql_syntax_deletefor01(self):
+    def test_edgeql_syntax_deletefor_01(self):
         """
         FOR x in (('Alice', 'White') UNION ('Bob', 'Green'))
         DELETE (
@@ -1957,13 +1978,13 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         );
         """
 
-    def test_edgeql_syntax_updatefor01(self):
+    def test_edgeql_syntax_updatefor_01(self):
         """
         FOR x in ((1, 'a') UNION (2, 'b'))
         UPDATE Foo FILTER (Foo.id = x.0) SET {bar := x.1};
         """
 
-    def test_edgeql_syntax_coalesce01(self):
+    def test_edgeql_syntax_coalesce_01(self):
         """
         SELECT a ?? x;
         SELECT a ?? x.a;
@@ -1971,7 +1992,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT (a ?? x.a[IS ABC]@aaa + 1);
         """
 
-    def test_edgeql_syntax_function01(self):
+    def test_edgeql_syntax_function_01(self):
         """
         SELECT foo();
         SELECT bar(User.name);
@@ -1979,13 +2000,13 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT lower(User.name);
         """
 
-    def test_edgeql_syntax_function02(self):
+    def test_edgeql_syntax_function_02(self):
         """
         SELECT lower(string := User.name);
         SELECT baz(name := User.name, for := User.age);
         """
 
-    def test_edgeql_syntax_function03(self):
+    def test_edgeql_syntax_function_03(self):
         """
         SELECT some_agg(User.name ORDER BY User.age ASC);
         SELECT some_agg(User.name
@@ -1996,7 +2017,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
                         ORDER BY User.age DESC THEN User.email ASC);
         """
 
-    def test_edgeql_syntax_function04(self):
+    def test_edgeql_syntax_function_04(self):
         """
         SELECT some_agg(User.name) OVER (ORDER BY User.age ASC);
         SELECT some_agg(User.name) OVER (
@@ -2010,19 +2031,19 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             ORDER BY User.age ASC THEN User.name ASC);
         """
 
-    def test_edgeql_syntax_tuple01(self):
+    def test_edgeql_syntax_tuple_01(self):
         """
         SELECT ('foo', 42).0;
         SELECT ('foo', 42).1;
         """
 
-    def test_edgeql_syntax_tuple02(self):
+    def test_edgeql_syntax_tuple_02(self):
         """
         SELECT (name := 'foo', val := 42).name;
         SELECT (name := 'foo', val := 42).val;
         """
 
-    def test_edgeql_syntax_tuple03(self):
+    def test_edgeql_syntax_tuple_03(self):
         """
         SELECT ();
         """
@@ -2030,7 +2051,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     # DDL
     #
 
-    def test_edgeql_syntax_ddl_database01(self):
+    def test_edgeql_syntax_ddl_database_01(self):
         """
         CREATE DATABASE mytestdb;
         DROP DATABASE mytestdb;
@@ -2039,18 +2060,18 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=25)
-    def test_edgeql_syntax_ddl_database02(self):
+    def test_edgeql_syntax_ddl_database_02(self):
         """
         CREATE DATABASE (mytestdb);
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=28)
-    def test_edgeql_syntax_ddl_database03(self):
+    def test_edgeql_syntax_ddl_database_03(self):
         """
         CREATE DATABASE foo::mytestdb;
         """
 
-    def test_edgeql_syntax_ddl_database04(self):
+    def test_edgeql_syntax_ddl_database_04(self):
         """
         CREATE DATABASE all;
         CREATE DATABASE abstract;
@@ -2061,7 +2082,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         CREATE DATABASE abstract;
         """
 
-    def test_edgeql_syntax_ddl_database05(self):
+    def test_edgeql_syntax_ddl_database_05(self):
         """
         DROP DATABASE all;
         DROP DATABASE abstract;
@@ -2072,7 +2093,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         DROP DATABASE abstract;
         """
 
-    def test_edgeql_syntax_ddl_delta01(self):
+    def test_edgeql_syntax_ddl_delta_01(self):
         """
         ALTER MIGRATION test::d_links01_0 {
             RENAME TO test::pretty_name;
@@ -2084,7 +2105,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             RENAME TO test::pretty_name;
         """
 
-    def test_edgeql_syntax_ddl_delta02(self):
+    def test_edgeql_syntax_ddl_delta_02(self):
         """
         CREATE MIGRATION test::d_links01_0 TO eschema $$concept Foo$$;
         ALTER MIGRATION test::d_links01_0
@@ -2093,7 +2114,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         DROP MIGRATION test::d_links01_0;
         """
 
-    def test_edgeql_syntax_ddl_delta03(self):
+    def test_edgeql_syntax_ddl_delta_03(self):
         """
         CREATE MIGRATION test::d_links01_0 TO eschema $$concept Foo$$;
         CREATE MIGRATION test::d_links01_0 TO ESCHEMA $$concept Foo$$;
@@ -2108,12 +2129,12 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   'unknown migration language: BadLang', line=2, col=47)
-    def test_edgeql_syntax_ddl_delta04(self):
+    def test_edgeql_syntax_ddl_delta_04(self):
         """
         CREATE MIGRATION test::d_links01_0 TO BadLang $$concept Foo$$;
         """
 
-    def test_edgeql_syntax_ddl_action01(self):
+    def test_edgeql_syntax_ddl_action_01(self):
         """
         CREATE ACTION std::restrict {
             SET title := 'Abort the event if a pointer exists';
@@ -2121,13 +2142,13 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=13)
-    def test_edgeql_syntax_ddl_action02(self):
+    def test_edgeql_syntax_ddl_action_02(self):
         """
         CREATE ACTION std::restrict
             SET title := 'Abort the event if a pointer exists';
         """
 
-    def test_edgeql_syntax_ddl_aggregate01(self):
+    def test_edgeql_syntax_ddl_aggregate_01(self):
         """
         CREATE AGGREGATE std::sum($v: std::int)
             -> std::int
@@ -2135,7 +2156,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             FROM SQL AGGREGATE 'test';
         """
 
-    def test_edgeql_syntax_ddl_aggregate02(self):
+    def test_edgeql_syntax_ddl_aggregate_02(self):
         """
         CREATE AGGREGATE std::sum(std::int)
             -> std::int
@@ -2143,7 +2164,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             FROM SQL AGGREGATE 'sum';
         """
 
-    def test_edgeql_syntax_ddl_aggregate03(self):
+    def test_edgeql_syntax_ddl_aggregate_03(self):
         """
         CREATE AGGREGATE std::sum($integer: std::int)
             -> std::int
@@ -2151,7 +2172,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             FROM SQL AGGREGATE 'sum';
         """
 
-    def test_edgeql_syntax_ddl_aggregate04(self):
+    def test_edgeql_syntax_ddl_aggregate_04(self):
         """
         CREATE AGGREGATE std::sum($integer: std::int)
             -> std::int
@@ -2161,7 +2182,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "Unexpected token.*FROM", line=4, col=13)
-    def test_edgeql_syntax_ddl_aggregate05(self):
+    def test_edgeql_syntax_ddl_aggregate_05(self):
         """
         CREATE AGGREGATE std::sum($integer: std::int)
             -> std::int
@@ -2170,7 +2191,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "AAA is not a valid language", line=4)
-    def test_edgeql_syntax_ddl_aggregate06(self):
+    def test_edgeql_syntax_ddl_aggregate_06(self):
         """
         CREATE AGGREGATE foo($string: std::str)
             -> std::int INITIAL VALUE 0
@@ -2179,14 +2200,14 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "Unexpected token.*FUNCTION", line=4, col=22)
-    def test_edgeql_syntax_ddl_aggregate07(self):
+    def test_edgeql_syntax_ddl_aggregate_07(self):
         """
         CREATE AGGREGATE foo($string: std::str)
             -> std::int INITIAL VALUE 0
             FROM SQL FUNCTION 'foo';
         """
 
-    def test_edgeql_syntax_ddl_aggregate08(self):
+    def test_edgeql_syntax_ddl_aggregate_08(self):
         """
         CREATE AGGREGATE std::count($expression: std::any)
             -> std::int INITIAL VALUE 0
@@ -2195,7 +2216,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "Unexpected token.*SELECT 1", line=5)
-    def test_edgeql_syntax_ddl_aggregate09(self):
+    def test_edgeql_syntax_ddl_aggregate_09(self):
         # We don't yet support creating aggregates from any kind of code.
         """
         CREATE AGGREGATE foo()
@@ -2204,24 +2225,24 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             FROM SQL 'SELECT 1';
         """
 
-    def test_edgeql_syntax_ddl_atom01(self):
+    def test_edgeql_syntax_ddl_atom_01(self):
         """
         CREATE ABSTRACT ATOM std::any;
         CREATE ATOM std::typeref;
         CREATE ATOM std::atomref EXTENDING std::typeref;
         """
 
-    def test_edgeql_syntax_ddl_attribute01(self):
+    def test_edgeql_syntax_ddl_attribute_01(self):
         """
         CREATE ATTRIBUTE std::paramtypes map<std::str, std::typeref>;
         """
 
-    def test_edgeql_syntax_ddl_attribute02(self):
+    def test_edgeql_syntax_ddl_attribute_02(self):
         """
         CREATE ATTRIBUTE stdattrs::precision array<std::int>;
         """
 
-    def test_edgeql_syntax_ddl_attribute03(self):
+    def test_edgeql_syntax_ddl_attribute_03(self):
         # test parsing of array types
         #
         """
@@ -2241,7 +2262,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         CREATE ATTRIBUTE std::foo array<int[][4][]>;
         """
 
-    def test_edgeql_syntax_ddl_attribute04(self):
+    def test_edgeql_syntax_ddl_attribute_04(self):
         # test parsing of map types
         #
         """
@@ -2251,7 +2272,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         CREATE ATTRIBUTE std::foo map<int, foo::Bar>;
         """
 
-    def test_edgeql_syntax_ddl_attribute05(self):
+    def test_edgeql_syntax_ddl_attribute_05(self):
         # test parsing of tuple types
         #
         """
@@ -2272,164 +2293,164 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r"Unexpected token.*map", line=2, col=35)
-    def test_edgeql_syntax_ddl_attribute06(self):
+    def test_edgeql_syntax_ddl_attribute_06(self):
         """
         CREATE ATTRIBUTE std::foo map;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r"Unexpected token.*>", line=2, col=42)
-    def test_edgeql_syntax_ddl_attribute07(self):
+    def test_edgeql_syntax_ddl_attribute_07(self):
         """
         CREATE ATTRIBUTE std::foo map<int>;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r"Unexpected token.*COMMA", line=2, col=47)
-    def test_edgeql_syntax_ddl_attribute08(self):
+    def test_edgeql_syntax_ddl_attribute_08(self):
         """
         CREATE ATTRIBUTE std::foo map<int, str, float>;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r"Unexpected token.*array", line=2, col=35)
-    def test_edgeql_syntax_ddl_attribute09(self):
+    def test_edgeql_syntax_ddl_attribute_09(self):
         """
         CREATE ATTRIBUTE std::foo array;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r"Unexpected token.*COMMA", line=2, col=44)
-    def test_edgeql_syntax_ddl_attribute10(self):
+    def test_edgeql_syntax_ddl_attribute_10(self):
         """
         CREATE ATTRIBUTE std::foo array<int, int, int>;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r"Unexpected token.*<", line=2, col=46)
-    def test_edgeql_syntax_ddl_attribute11(self):
+    def test_edgeql_syntax_ddl_attribute_11(self):
         """
         CREATE ATTRIBUTE std::foo array<array<int[]>>;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r"Unexpected token.*COLON", line=2, col=49)
-    def test_edgeql_syntax_ddl_attribute12(self):
+    def test_edgeql_syntax_ddl_attribute_12(self):
         """
         CREATE ATTRIBUTE std::foo tuple<int, foo:int>;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r"Unexpected token.*>", line=2, col=53)
-    def test_edgeql_syntax_ddl_attribute13(self):
+    def test_edgeql_syntax_ddl_attribute_13(self):
         """
         CREATE ATTRIBUTE std::foo tuple<foo:int, str>;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r"Unexpected token.*SEMICOLON", line=2, col=41)
-    def test_edgeql_syntax_ddl_attribute14(self):
+    def test_edgeql_syntax_ddl_attribute_14(self):
         """
         CREATE ATTRIBUTE std::paramtypes;
         """
 
-    def test_edgeql_syntax_ddl_constraint01(self):
+    def test_edgeql_syntax_ddl_constraint_01(self):
         """
         CREATE CONSTRAINT std::enum(array<std::any>)
             EXTENDING std::constraint
         {
             SET errmessage := '{subject} must be one of: {param}.';
-            SET expr := array_contains($param, subject);
+            SET expr := array_contains($param, __subject__);
         };
         """
 
-    def test_edgeql_syntax_ddl_constraint02(self):
+    def test_edgeql_syntax_ddl_constraint_02(self):
         """
         CREATE CONSTRAINT std::enum(array<std::any>) {
             SET errmessage := '{subject} must be one of: {param}.';
-            SET expr := array_contains($param, subject);
+            SET expr := array_contains($param, __subject__);
         };
         """
 
-    def test_edgeql_syntax_ddl_constraint03(self):
+    def test_edgeql_syntax_ddl_constraint_03(self):
         """
         CREATE CONSTRAINT std::enum {
             SET errmessage := '{subject} must be one of: {param}.';
-            SET expr := array_contains($param, subject);
+            SET expr := array_contains($param, __subject__);
         };
         """
 
-    def test_edgeql_syntax_ddl_constraint04(self):
+    def test_edgeql_syntax_ddl_constraint_04(self):
         """
         CREATE CONSTRAINT std::enum() {
             SET errmessage := '{subject} must be one of: {param}.';
-            SET expr := array_contains($param, subject);
+            SET expr := array_contains($param, __subject__);
         };
 
 % OK %
 
         CREATE CONSTRAINT std::enum {
             SET errmessage := '{subject} must be one of: {param}.';
-            SET expr := array_contains($param, subject);
+            SET expr := array_contains($param, __subject__);
         };
         """
 
-    def test_edgeql_syntax_ddl_constraint05(self):
+    def test_edgeql_syntax_ddl_constraint_05(self):
         """
         CREATE ATOM std::decimal_rounding_t EXTENDING std::str {
             CREATE CONSTRAINT std::enum(['a', 'b']);
         };
         """
 
-    def test_edgeql_syntax_ddl_constraint06(self):
+    def test_edgeql_syntax_ddl_constraint_06(self):
         """
-        CREATE CONSTRAINT std::length ON (len(<std::str>subject))
+        CREATE CONSTRAINT std::length ON (len(<std::str>__subject__))
             EXTENDING std::constraint
         {
             SET errmessage := 'invalid {subject}';
         };
         """
 
-    def test_edgeql_syntax_ddl_constraint07(self):
+    def test_edgeql_syntax_ddl_constraint_07(self):
         """
         CREATE ATOM std::decimal_rounding_t EXTENDING std::str {
-            CREATE CONSTRAINT max(99) ON (<int>subject);
+            CREATE CONSTRAINT max(99) ON (<int>__subject__);
         };
         """
 
-    def test_edgeql_syntax_ddl_function01(self):
+    def test_edgeql_syntax_ddl_function_01(self):
         """
         CREATE FUNCTION std::strlen($string: std::str) -> std::int
             FROM SQL FUNCTION 'strlen';
         """
 
-    def test_edgeql_syntax_ddl_function02(self):
+    def test_edgeql_syntax_ddl_function_02(self):
         """
         CREATE FUNCTION std::strlen(std::str) -> std::int
             FROM SQL FUNCTION 'strlen';
         """
 
-    def test_edgeql_syntax_ddl_function03(self):
+    def test_edgeql_syntax_ddl_function_03(self):
         """
         CREATE FUNCTION std::strlen($string: std::str) -> std::int
             FROM SQL FUNCTION 'strlen';
         """
 
-    def test_edgeql_syntax_ddl_function04(self):
+    def test_edgeql_syntax_ddl_function_04(self):
         """
         CREATE FUNCTION std::strlen($string: std::str, $integer: std::int)
             -> std::int
             FROM SQL FUNCTION 'strlen';
         """
 
-    def test_edgeql_syntax_ddl_function05(self):
+    def test_edgeql_syntax_ddl_function_05(self):
         """
         CREATE FUNCTION std::strlen($string: std::str, std::int)
             -> std::int
             FROM SQL FUNCTION 'strlen';
         """
 
-    def test_edgeql_syntax_ddl_function06(self):
+    def test_edgeql_syntax_ddl_function_06(self):
         """
         CREATE FUNCTION std::strlen($string: std::str = '1')
             -> std::int
@@ -2438,7 +2459,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   'non-default argument follows', line=2, col=62)
-    def test_edgeql_syntax_ddl_function07(self):
+    def test_edgeql_syntax_ddl_function_07(self):
         """
         CREATE FUNCTION std::strlen($string: std::str = '1', $abc: std::str)
             -> std::int;
@@ -2446,7 +2467,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   'non-variadic argument follows', line=2, col=63)
-    def test_edgeql_syntax_ddl_function08(self):
+    def test_edgeql_syntax_ddl_function_08(self):
         """
         CREATE FUNCTION std::strlen(*$string: std::str = '1', $abc: std::str)
             -> std::int;
@@ -2454,32 +2475,32 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   'more than one variadic argument', line=2, col=63)
-    def test_edgeql_syntax_ddl_function09(self):
+    def test_edgeql_syntax_ddl_function_09(self):
         """
         CREATE FUNCTION std::strlen(*$string: std::str = '1', *$abc: std::str)
             -> std::int;
         """
 
-    def test_edgeql_syntax_ddl_function10(self):
+    def test_edgeql_syntax_ddl_function_10(self):
         """
         CREATE FUNCTION std::strlen(std::str = '1', *std::str)
             -> std::int
             FROM SQL FUNCTION 'strlen';
         """
 
-    def test_edgeql_syntax_ddl_function11(self):
+    def test_edgeql_syntax_ddl_function_11(self):
         """
         CREATE FUNCTION no_params() -> std::int
         FROM EdgeQL $$ SELECT 1 $$;
         """
 
-    def test_edgeql_syntax_ddl_function13(self):
+    def test_edgeql_syntax_ddl_function_13(self):
         """
         CREATE FUNCTION foo($string: std::str) -> tuple<bar: std::int>
         FROM EDGEQL $$ SELECT (bar := 123) $$;
         """
 
-    def test_edgeql_syntax_ddl_function14(self):
+    def test_edgeql_syntax_ddl_function_14(self):
         """
         CREATE FUNCTION foo($string: std::str)
         -> tuple<
@@ -2489,7 +2510,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "AAA is not a valid language", line=3)
-    def test_edgeql_syntax_ddl_function16(self):
+    def test_edgeql_syntax_ddl_function_16(self):
         """
         CREATE FUNCTION foo($string: std::str)
         -> std::int FROM AAA FUNCTION 'foo';
@@ -2497,7 +2518,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "Unexpected token.*AGGREGATE", line=3)
-    def test_edgeql_syntax_ddl_function18(self):
+    def test_edgeql_syntax_ddl_function_18(self):
         """
         CREATE FUNCTION foo($string: std::str)
         -> std::int FROM SQL AGGREGATE 'foo';
@@ -2505,13 +2526,13 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "AAA is not a valid language", line=3)
-    def test_edgeql_syntax_ddl_function19(self):
+    def test_edgeql_syntax_ddl_function_19(self):
         """
         CREATE FUNCTION foo($string: std::str)
         -> std::int FROM AAA 'code';
         """
 
-    def test_edgeql_syntax_ddl_function20(self):
+    def test_edgeql_syntax_ddl_function_20(self):
         """
         CREATE FUNCTION foo() -> std::int FROM SQL 'SELECT 1';
 
@@ -2520,17 +2541,17 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         CREATE FUNCTION foo() -> std::int FROM SQL $$SELECT 1$$;
         """
 
-    def test_edgeql_syntax_ddl_function21(self):
+    def test_edgeql_syntax_ddl_function_21(self):
         """
         CREATE FUNCTION foo() -> std::int FROM SQL FUNCTION 'aaa';
         """
 
-    def test_edgeql_syntax_ddl_function24(self):
+    def test_edgeql_syntax_ddl_function_24(self):
         """
         CREATE FUNCTION foo() -> std::str FROM SQL $a$SELECT $$foo$$$a$;
         """
 
-    def test_edgeql_syntax_ddl_function25(self):
+    def test_edgeql_syntax_ddl_function_25(self):
         """
         CREATE FUNCTION foo() -> std::str {
             SET description := 'aaaa';
@@ -2538,7 +2559,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    def test_edgeql_syntax_ddl_function26(self):
+    def test_edgeql_syntax_ddl_function_26(self):
         """
         CREATE FUNCTION foo() -> std::str {
             SET volatility := 'volatile';
@@ -2549,7 +2570,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "FROM clause is missing", line=2)
-    def test_edgeql_syntax_ddl_function27(self):
+    def test_edgeql_syntax_ddl_function_27(self):
         """
         CREATE FUNCTION foo() -> std::str {
             SET description := 'aaaa';
@@ -2558,7 +2579,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "more than one FROM clause", line=5)
-    def test_edgeql_syntax_ddl_function28(self):
+    def test_edgeql_syntax_ddl_function_28(self):
         """
         CREATE FUNCTION foo() -> std::str {
             FROM SQL 'SELECT 1';
@@ -2569,7 +2590,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   'Unexpected token.*INITIAL', line=4, col=13)
-    def test_edgeql_syntax_ddl_function29(self):
+    def test_edgeql_syntax_ddl_function_29(self):
         """
         CREATE FUNCTION std::strlen(std::str = '1', *std::str)
             -> std::int
@@ -2579,14 +2600,14 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r'missing type declaration.*\$arg3', line=2, col=74)
-    def test_edgeql_syntax_ddl_function30(self):
+    def test_edgeql_syntax_ddl_function_30(self):
         """
         CREATE FUNCTION std::foobar($arg1: str, $arg2: str = 'DEFAULT', *$arg3)
             -> std::int
             FROM EdgeQL $$$$;
         """
 
-    def test_edgeql_syntax_ddl_linkproperty01(self):
+    def test_edgeql_syntax_ddl_linkproperty_01(self):
         """
         CREATE LINK PROPERTY std::linkproperty {
             SET title := 'Base link property';
@@ -2594,7 +2615,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=21)
-    def test_edgeql_syntax_ddl_linkproperty02(self):
+    def test_edgeql_syntax_ddl_linkproperty_02(self):
         """
         CREATE LINK LINK PROPERTY std::linkproperty {
             SET title := 'Base link property';
@@ -2602,14 +2623,14 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=39)
-    def test_edgeql_syntax_ddl_linkproperty03(self):
+    def test_edgeql_syntax_ddl_linkproperty_03(self):
         """
         CREATE LINK PROPERTY PROPERTY std::linkproperty {
             SET title := 'Base link property';
         };
         """
 
-    def test_edgeql_syntax_ddl_module01(self):
+    def test_edgeql_syntax_ddl_module_01(self):
         """
         CREATE MODULE foo;
         CREATE MODULE foo.bar;

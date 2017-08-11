@@ -54,6 +54,11 @@ class EdgeSchemaLexer(lexer.RegexLexer):
              token.Keyword.Declaration),
 
             (r'\b(?i)(?<![:\.])(as|import|to)\b', token.Keyword.Namespace),
+
+            (r'\b(?i)(?<![:\.])(self|__subject__)\b',
+             token.Name.Builtin.Pseudo),
+
+            (r'\b(?i)(__class__)\b', token.Name.Builtin.Pseudo),
         ],
 
         'strings': [

@@ -33,7 +33,9 @@ def dollar_quote_literal(text):
 
 
 def disambiguate_identifier(text):
-    if (keywords.by_type[keywords.RESERVED_KEYWORD].get(text) or
+    if text.lower() == '__class__':
+        return '__class__'
+    elif (keywords.by_type[keywords.RESERVED_KEYWORD].get(text.lower()) or
             not _re_ident.fullmatch(text)):
         return '`{}`'.format(text)
     else:

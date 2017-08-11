@@ -24,11 +24,11 @@ atom constraint_minmax extending str:
 
 
 atom constraint_strvalue extending str:
-    constraint expression on ((subject)[-1:] = '9')
+    constraint expression on (__subject__[-1:] = '9')
 
     constraint regexp("^\d+$")
 
-    constraint expression on ((subject)[0] = '9')
+    constraint expression on (__subject__[0] = '9')
 
     constraint regexp("^\d+9{3,}.*$")
 
@@ -81,8 +81,8 @@ concept UniqueName:
     link link_with_unique_property_inherited to str
 
     link translated_label to str:
-        constraint unique on (subject@source, subject@lang)
-        constraint unique on (subject@prop1)
+        constraint unique on (__subject__@source, __subject__@lang)
+        constraint unique on (__subject__@prop1)
 
 
 concept UniqueNameInherited extending UniqueName:
@@ -111,7 +111,7 @@ concept UniqueName_2_Inherited extending UniqueName_2
 
 concept UniqueName_3 extending UniqueName_2:
     link name to str:
-        constraint unique on (lower(subject))
+        constraint unique on (lower(__subject__))
 
 
 concept UniqueName_4 extending UniqueName_2_Inherited
@@ -120,7 +120,7 @@ concept UniqueName_4 extending UniqueName_2_Inherited
 concept MultiConstraint:
     link name to str:
         constraint unique
-        constraint unique on (lower(subject))
+        constraint unique on (lower(__subject__))
 
     link m1 to str
 
@@ -146,7 +146,7 @@ concept AbstractConstraintParent:
 
 concept AbstractConstraintParent2:
     link name to str:
-        delegated constraint unique on (lower(subject))
+        delegated constraint unique on (lower(__subject__))
 
 
 concept AbstractConstraintPureChild extending AbstractConstraintParent
@@ -154,7 +154,7 @@ concept AbstractConstraintPureChild extending AbstractConstraintParent
 
 concept AbstractConstraintMixedChild extending AbstractConstraintParent:
     link name to str:
-        constraint unique on (lower(subject))
+        constraint unique on (lower(__subject__))
 
 
 concept AbstractConstraintPropagated extending AbstractConstraintParent:
@@ -165,7 +165,7 @@ concept AbstractConstraintPropagated extending AbstractConstraintParent:
 concept AbstractConstraintParent3:
     link name to str:
         delegated constraint unique
-        delegated constraint unique on (lower(subject))
+        delegated constraint unique on (lower(__subject__))
 
 
 concept AbstractConstraintMultipleParentsFlattening extending AbstractConstraintParent, AbstractConstraintParent2:
