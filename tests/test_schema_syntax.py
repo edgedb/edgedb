@@ -25,54 +25,54 @@ class SchemaSyntaxTest(tb.BaseSyntaxTest):
 
 
 class TestEdgeSchemaParser(SchemaSyntaxTest):
-    def test_eschema_syntax_empty01(self):
+    def test_eschema_syntax_empty_01(self):
         """"""
 
-    def test_eschema_syntax_empty02(self):
+    def test_eschema_syntax_empty_02(self):
         """# comment"""
 
-    def test_eschema_syntax_empty03(self):
+    def test_eschema_syntax_empty_03(self):
         """
 
 
         """
 
-    def test_eschema_syntax_empty04(self):
+    def test_eschema_syntax_empty_04(self):
         """
 
         # comment
 
         """
 
-    def test_eschema_syntax_concept01(self):
+    def test_eschema_syntax_concept_01(self):
         """concept User extending builtins::NamedObject"""
 
-    def test_eschema_syntax_concept02(self):
+    def test_eschema_syntax_concept_02(self):
         """
 abstract concept OwnedObject:
     required link owner to User
         """
 
-    def test_eschema_syntax_concept03(self):
+    def test_eschema_syntax_concept_03(self):
         """
         abstract concept Text:
             required link body to str:
                 constraint maxlength (10000)
         """
 
-    def test_eschema_syntax_concept04(self):
+    def test_eschema_syntax_concept_04(self):
         """
 concept LogEntry extending OwnedObject, Text:
     required link spent_time to int
         """
 
-    def test_eschema_syntax_concept05(self):
+    def test_eschema_syntax_concept_05(self):
         """
 concept LogEntry extending OwnedObject, Text:
    link start_date := SELECT datetime::current_datetime()
         """
 
-    def test_eschema_syntax_concept06(self):
+    def test_eschema_syntax_concept_06(self):
         """
 concept LogEntry extending OwnedObject, Text:
     link start_date to datetime:
@@ -81,7 +81,7 @@ concept LogEntry extending OwnedObject, Text:
        title := 'Start Date'
         """
 
-    def test_eschema_syntax_concept07(self):
+    def test_eschema_syntax_concept_07(self):
         """
 concept Issue extending `foo.bar`::NamedObject, OwnedObject, Text:
 
@@ -113,7 +113,7 @@ concept Issue extending `foo.bar`::NamedObject, OwnedObject, Text:
         mapping := '**'
         """
 
-    def test_eschema_syntax_concept08(self):
+    def test_eschema_syntax_concept_08(self):
         """
 concept Foo:
     link time_estimate to int:
@@ -121,13 +121,13 @@ concept Foo:
            default := 'minute'
        """
 
-    def test_eschema_syntax_concept09(self):
+    def test_eschema_syntax_concept_09(self):
         """
 concept LogEntry extending OwnedObject, Text:
     required link attachment to Post, File, User
         """
 
-    def test_eschema_syntax_concept10(self):
+    def test_eschema_syntax_concept_10(self):
         """
 concept `Log-Entry` extending `OwnedObject`, `Text`:
     required link attachment to `Post`, `File`, `User`
@@ -141,44 +141,44 @@ concept `Log-Entry` extending OwnedObject, Text:
     @tb.must_fail(error.SchemaSyntaxError,
                   "Unexpected token.*COMMIT",
                   line=2, col=9)
-    def test_eschema_syntax_concept11(self):
+    def test_eschema_syntax_concept_11(self):
         """
 concept Commit:
     required link name to std::str
         """
 
-    def test_eschema_syntax_type01(self):
+    def test_eschema_syntax_type_01(self):
         """
 concept User:
     required link todo to array<str>
         """
 
-    def test_eschema_syntax_type02(self):
+    def test_eschema_syntax_type_02(self):
         """
 concept User:
     required link dict to map<str, str>
         """
 
-    def test_eschema_syntax_type03(self):
+    def test_eschema_syntax_type_03(self):
         """
 concept User:
     required link todo to tuple<str, int, float>
         """
 
-    def test_eschema_syntax_type04(self):
+    def test_eschema_syntax_type_04(self):
         """
 concept User:
     required link todo to tuple<str, map<str, array<str>>, array<float>>
         """
 
-    def test_eschema_syntax_index01(self):
+    def test_eschema_syntax_index_01(self):
         """
 concept LogEntry extending OwnedObject, Text:
     required link owner to User
     index test_index on (SELECT datetime::current_datetime())
         """
 
-    def test_eschema_syntax_index02(self):
+    def test_eschema_syntax_index_02(self):
         """
 link foobar:
     linkproperty foo:
@@ -189,13 +189,13 @@ link foobar:
 
     @tb.must_fail(error.SchemaSyntaxError,
                   r'illegal definition', line=3, col=5)
-    def test_eschema_syntax_index03(self):
+    def test_eschema_syntax_index_03(self):
         """
 atom foobar:
     index prop on (self)
         """
 
-    def test_eschema_syntax_ws01(self):
+    def test_eschema_syntax_ws_01(self):
         """
 concept LogEntry extending    OwnedObject,    Text:
 
@@ -218,7 +218,7 @@ concept LogEntry extending    OwnedObject,    Text:
                        title := 'Start Date'
         """
 
-    def test_eschema_syntax_ws02(self):
+    def test_eschema_syntax_ws_02(self):
         """
         concept LogEntry extending OwnedObject, Text:
             link start_date to datetime:
@@ -227,7 +227,7 @@ concept LogEntry extending    OwnedObject,    Text:
                title := 'Start Date'
         """
 
-    def test_eschema_syntax_ws03(self):
+    def test_eschema_syntax_ws_03(self):
         """     concept LogEntry extending OwnedObject, Text:
                     link start_date to datetime:
                        default :=
@@ -235,7 +235,7 @@ concept LogEntry extending    OwnedObject,    Text:
                        title := 'Start Date'
         """
 
-    def test_eschema_syntax_ws04(self):
+    def test_eschema_syntax_ws_04(self):
         """
         concept LogEntry extending (
                 OwnedObject,
@@ -254,7 +254,7 @@ concept LogEntry extending    OwnedObject,    Text:
                title := 'Start Date'
         """
 
-    def test_eschema_syntax_ws05(self):
+    def test_eschema_syntax_ws_05(self):
         """
         concept LogEntry extending (
                 OwnedObject,
@@ -269,7 +269,7 @@ concept LogEntry extending    OwnedObject,    Text:
     @tb.must_fail(error.SchemaSyntaxError,
                   r"Unknown token.*\\",
                   line=5, col=28)
-    def test_eschema_syntax_ws06(self):
+    def test_eschema_syntax_ws_06(self):
         r"""
         concept LogEntry extending OwnedObject, Text:
             link start_date to datetime:
@@ -279,18 +279,18 @@ concept LogEntry extending    OwnedObject,    Text:
                title := 'Start Date'
         """
 
-    def test_eschema_syntax_atom01(self):
+    def test_eschema_syntax_atom_01(self):
         """
 atom issue_num_t extending builtins::sequence
         """
 
-    def test_eschema_syntax_atom02(self):
+    def test_eschema_syntax_atom_02(self):
         """
 atom issue_num_t extending int:
     default := 42
         """
 
-    def test_eschema_syntax_atom03(self):
+    def test_eschema_syntax_atom_03(self):
         r"""
 atom basic extending int:
     title := 'Basic Atom'
@@ -300,7 +300,7 @@ atom basic extending int:
     constraint must_be_even
         """
 
-    def test_eschema_syntax_atom04(self):
+    def test_eschema_syntax_atom_04(self):
         """
 atom basic extending int:
 
@@ -312,7 +312,7 @@ atom basic extending int:
     delegated constraint expr on (subject % 2 = 0)
         """
 
-    def test_eschema_syntax_atom05(self):
+    def test_eschema_syntax_atom_05(self):
         """
 atom basic extending int:
 
@@ -326,7 +326,7 @@ atom basic extending int:
     constraint max(123456)
         """
 
-    def test_eschema_syntax_atom06(self):
+    def test_eschema_syntax_atom_06(self):
         """
 atom basic extending int:
 
@@ -344,12 +344,12 @@ atom inherits_default extending basic
 abstract atom abstract_atom extending int
         """
 
-    def test_eschema_syntax_atom07(self):
+    def test_eschema_syntax_atom_07(self):
         """
 final atom none
         """
 
-    def test_eschema_syntax_atom08(self):
+    def test_eschema_syntax_atom_08(self):
         """
 atom basic extending int:
     title := 'Basic Atom'
@@ -360,13 +360,13 @@ atom basic extending int:
     @tb.must_fail(error.SchemaSyntaxError,
                   r"Unexpected token.*:=",
                   line=3, col=35)
-    def test_eschema_syntax_atom09(self):
+    def test_eschema_syntax_atom_09(self):
         """
 atom special extending int:
     constraint special_constraint := [42, 100, 9001]
         """
 
-    def test_eschema_syntax_atom10(self):
+    def test_eschema_syntax_atom_10(self):
         """
 atom special extending int:
     title := 'Special Atom'
@@ -374,19 +374,19 @@ atom special extending int:
         expr := subject % 2 = 0
         """
 
-    def test_eschema_syntax_atom11(self):
+    def test_eschema_syntax_atom_11(self):
         """
 atom constraint_length extending str:
      constraint maxlength(16+1, len(([1])))
         """
 
-    def test_eschema_syntax_atom12(self):
+    def test_eschema_syntax_atom_12(self):
         """
 atom constraint_length extending str:
      constraint maxlength((16+(4*2))/((4)-1), len(([1])))
         """
 
-    def test_eschema_syntax_constraint01(self):
+    def test_eschema_syntax_constraint_01(self):
         """
 # Test empty tuple as subject expression
 constraint max($param:any) on (()):
@@ -398,19 +398,19 @@ constraint max($param:any) on (()):
     @tb.must_fail(error.SchemaSyntaxError,
                   r"only specialized constraints can be delegated",
                   line=2, col=1)
-    def test_eschema_syntax_constraint02(self):
+    def test_eschema_syntax_constraint_02(self):
         """
 delegated constraint length:
     subject := str::len(<str>subject)
         """
 
-    def test_eschema_syntax_constraint03(self):
+    def test_eschema_syntax_constraint_03(self):
         """
 constraint maxlength($param:any) extending max, length:
     errmessage := '{$subject} must be no longer than {$param} characters.'
         """
 
-    def test_eschema_syntax_constraint04(self):
+    def test_eschema_syntax_constraint_04(self):
         """
 constraint max($param:any):
     expr := subject <= $param
@@ -423,7 +423,7 @@ constraint maxlength($param:any) extending max, length:
     errmessage := '{subject} must be no longer than {param} characters.'
         """
 
-    def test_eschema_syntax_constraint05(self):
+    def test_eschema_syntax_constraint_05(self):
         """
 constraint distance:
     subject :=
@@ -436,7 +436,7 @@ constraint maxldistance extending max, distance:
     @tb.must_fail(error.SchemaSyntaxError,
                   r"missing type declaration.*\$param",
                   line=2, col=22)
-    def test_eschema_syntax_constraint06(self):
+    def test_eschema_syntax_constraint_06(self):
         """
 constraint maxlength($param) extending max, length
         """
@@ -444,37 +444,37 @@ constraint maxlength($param) extending max, length
     @tb.must_fail(error.SchemaSyntaxError,
                   r"only top-level constraints declarations can be abstract",
                   line=3, col=5)
-    def test_eschema_syntax_constraint07(self):
+    def test_eschema_syntax_constraint_07(self):
         """
 atom special extending int:
     abstract constraint length:
         subject := str::len(<str>subject)
         """
 
-    def test_eschema_syntax_constraint08(self):
+    def test_eschema_syntax_constraint_08(self):
         """
 constraint foo($param:Foo) on (len(subject.bar)) extending max:
     errmessage := 'bar must be no more than {$param}.'
         """
 
-    def test_eschema_syntax_linkproperty01(self):
+    def test_eschema_syntax_linkproperty_01(self):
         """
 linkproperty foo:
     title := 'Sample property'
         """
 
-    def test_eschema_syntax_linkproperty02(self):
+    def test_eschema_syntax_linkproperty_02(self):
         """
 linkproperty bar extending foo
         """
 
-    def test_eschema_syntax_linkproperty03(self):
+    def test_eschema_syntax_linkproperty_03(self):
         """
 linkproperty bar extending foo:
     title := 'Another property'
         """
 
-    def test_eschema_syntax_linkproperty04(self):
+    def test_eschema_syntax_linkproperty_04(self):
         """
 linkproperty foo:
     title := 'Sample property'
@@ -483,45 +483,45 @@ linkproperty bar extending foo:
     title := 'Another property'
         """
 
-    def test_eschema_syntax_action01(self):
+    def test_eschema_syntax_action_01(self):
         """
 action ignore
         """
 
-    def test_eschema_syntax_action02(self):
+    def test_eschema_syntax_action_02(self):
         """
 action ignore:
     title := 'Deleted'
         """
 
-    def test_eschema_syntax_event01(self):
+    def test_eschema_syntax_event_01(self):
         """
 event self_deleted
         """
 
-    def test_eschema_syntax_event02(self):
+    def test_eschema_syntax_event_02(self):
         """
 event self_deleted:
     title := 'Deleted'
         """
 
-    def test_eschema_syntax_link01(self):
+    def test_eschema_syntax_link_01(self):
         """
 link coollink
         """
 
-    def test_eschema_syntax_link02(self):
+    def test_eschema_syntax_link_02(self):
         """
 link coollink extending boringlink
         """
 
-    def test_eschema_syntax_link03(self):
+    def test_eschema_syntax_link_03(self):
         """
 link coollink:
     linkproperty foo to int
         """
 
-    def test_eschema_syntax_link04(self):
+    def test_eschema_syntax_link_04(self):
         """
 link coollink:
     linkproperty foo to int
@@ -531,7 +531,7 @@ link coollink:
         expr := self.foo = self.bar
         """
 
-    def test_eschema_syntax_link05(self):
+    def test_eschema_syntax_link_05(self):
         """
 linkproperty foo:
     title := 'Sample property'
@@ -563,27 +563,27 @@ event self_deleted:
 
     @tb.must_fail(error.SchemaSyntaxError,
                   r'Unexpected token.*LINKPROPERTY', line=3, col=22)
-    def test_eschema_syntax_link06(self):
+    def test_eschema_syntax_link_06(self):
         """
         link coollink:
             required linkproperty foo to int
         """
 
-    def test_eschema_syntax_link07(self):
+    def test_eschema_syntax_link_07(self):
         """
         link time_estimate:
            linkproperty unit to str:
                constraint my_constraint(0)
         """
 
-    def test_eschema_syntax_link08(self):
+    def test_eschema_syntax_link_08(self):
         """
         link time_estimate:
            linkproperty unit to str:
                constraint my_constraint(0, <str>(42^2))
         """
 
-    def test_eschema_syntax_link09(self):
+    def test_eschema_syntax_link_09(self):
         """
         link time_estimate:
            linkproperty unit to str:
@@ -596,12 +596,12 @@ event self_deleted:
                constraint my_constraint(')', `)`(')'))
         """
 
-    def test_eschema_syntax_link10(self):
+    def test_eschema_syntax_link_10(self):
         """
 abstract link coollink
         """
 
-    def test_eschema_syntax_import01(self):
+    def test_eschema_syntax_import_01(self):
         """
         import foo
 
@@ -609,7 +609,7 @@ abstract link coollink
             link text to str
         """
 
-    def test_eschema_syntax_import02(self):
+    def test_eschema_syntax_import_02(self):
         """
         import mylib.util.foo
 
@@ -617,7 +617,7 @@ abstract link coollink
             link text to str
         """
 
-    def test_eschema_syntax_import03(self):
+    def test_eschema_syntax_import_03(self):
         """
         import foo as bar
 
@@ -625,7 +625,7 @@ abstract link coollink
             link text to str
         """
 
-    def test_eschema_syntax_import04(self):
+    def test_eschema_syntax_import_04(self):
         """
         import mylib.util.foo as bar
 
@@ -633,7 +633,7 @@ abstract link coollink
             link text to str
         """
 
-    def test_eschema_syntax_import05(self):
+    def test_eschema_syntax_import_05(self):
         """
         import mylib.util.foo as foo, mylib.special.foo as sfoo
         import (
@@ -645,7 +645,7 @@ abstract link coollink
             link text to str
         """
 
-    def test_eschema_syntax_import06(self):
+    def test_eschema_syntax_import_06(self):
         """
         import action.event.foo
 
@@ -655,7 +655,7 @@ abstract link coollink
 
     @tb.must_fail(error.SchemaSyntaxError,
                   r'Unexpected token.*DOT', line=4, col=36)
-    def test_eschema_syntax_import07(self):
+    def test_eschema_syntax_import_07(self):
         """
         import mylib.util.foo
 
@@ -665,7 +665,7 @@ abstract link coollink
 
     @tb.must_fail(error.SchemaSyntaxError,
                   r'Unexpected token.*DOT', line=4, col=37)
-    def test_eschema_syntax_import08(self):
+    def test_eschema_syntax_import_08(self):
         """
         import action.event.foo
 
@@ -673,13 +673,13 @@ abstract link coollink
             link text to str
         """
 
-    def test_eschema_syntax_function01(self):
+    def test_eschema_syntax_function_01(self):
         """
         function len() -> std::int:
             from sql function: length
         """
 
-    def test_eschema_syntax_function02(self):
+    def test_eschema_syntax_function_02(self):
         r"""
         function some_func($foo: std::int = 42) -> std::str:
             from sql := "SELECT 'life';"
@@ -691,7 +691,7 @@ abstract link coollink
                 'SELECT \'life\'';
         """
 
-    def test_eschema_syntax_function03(self):
+    def test_eschema_syntax_function_03(self):
         r"""
         function some_func($foo: std::int = 42) -> std::str:
             from edgeql :>
@@ -703,7 +703,7 @@ abstract link coollink
                 'SELECT \'life\'';
         """
 
-    def test_eschema_syntax_function04(self):
+    def test_eschema_syntax_function_04(self):
         """
         # the line continuation is just to allow long single line
         function myfunc($arg1: str, $arg2: str = 'DEFAULT',
@@ -726,7 +726,7 @@ abstract link coollink
                 'SELECT blarg;'
         """
 
-    def test_eschema_syntax_function05(self):
+    def test_eschema_syntax_function_05(self):
         """
         function myfunc($arg1: str,
                         $arg2: str = 'DEFAULT',
@@ -738,7 +738,7 @@ abstract link coollink
     @tb.must_fail(error.SchemaSyntaxError,
                   "unexpected 'initial value' in function definition",
                   line=3, col=27)
-    def test_eschema_syntax_function06(self):
+    def test_eschema_syntax_function_06(self):
         """
         function some_func($foo: std::int = 42) -> std::str:
             initial value := 'bad'
@@ -746,19 +746,19 @@ abstract link coollink
                 SELECT 'life'
         """
 
-    def test_eschema_syntax_function07(self):
+    def test_eschema_syntax_function_07(self):
         """
         function some_func($foo: std::int = bar(42)) -> std::str:
             from edgeql function: some_other_func
         """
 
-    def test_eschema_syntax_function08(self):
+    def test_eschema_syntax_function_08(self):
         """
         function some_func($foo: str = ')') -> std::str:
             from edgeql function: some_other_func
         """
 
-    def test_eschema_syntax_function09(self):
+    def test_eschema_syntax_function_09(self):
         """
         function some_func($foo: str = $$)$$) -> std::str:
             from edgeql function: some_other_func
@@ -769,7 +769,7 @@ abstract link coollink
             from edgeql function: some_other_func
         """
 
-    def test_eschema_syntax_function10(self):
+    def test_eschema_syntax_function_10(self):
         """
         function some_func($foo: str = $a1$)$a1$) -> std::str:
             from edgeql function: some_other_func
@@ -780,7 +780,7 @@ abstract link coollink
             from edgeql function: some_other_func
         """
 
-    def test_eschema_syntax_function11(self):
+    def test_eschema_syntax_function_11(self):
         """
         function some_func($`(`: str = ')') -> std::str:
             from edgeql function: some_other_func
@@ -789,13 +789,13 @@ abstract link coollink
     @tb.must_fail(error.SchemaSyntaxError,
                   r"Unexpected token.*RPAREN",
                   line=2, col=42)
-    def test_eschema_syntax_function12(self):
+    def test_eschema_syntax_function_12(self):
         """
         function some_func($`(`: str = ) ) -> std::str:
             from edgeql function: some_other_func
         """
 
-    def test_eschema_syntax_function13(self):
+    def test_eschema_syntax_function_13(self):
         r"""
         function some_func($`(`:
                 str = ')',
@@ -806,7 +806,7 @@ abstract link coollink
     @tb.must_fail(error.SchemaSyntaxError,
                   r"Unexpected token.*RPAREN",
                   line=4, col=24)
-    def test_eschema_syntax_function14(self):
+    def test_eschema_syntax_function_14(self):
         r"""
         function some_func($`(`:
                 str
@@ -818,7 +818,7 @@ abstract link coollink
             from edgeql function: some_other_func
         """
 
-    def test_eschema_syntax_function15(self):
+    def test_eschema_syntax_function_15(self):
         """
         function foo() -> map<
                     str,
@@ -827,7 +827,7 @@ abstract link coollink
             from edgeql function: some_other_func
         """
 
-    def test_eschema_syntax_function16(self):
+    def test_eschema_syntax_function_16(self):
         """
         function foo() -> map<
                     str,
@@ -839,7 +839,7 @@ abstract link coollink
     @tb.must_fail(error.SchemaSyntaxError,
                   r"Unexpected token.*NL",
                   line=4, col=44)
-    def test_eschema_syntax_function17(self):
+    def test_eschema_syntax_function_17(self):
         """
         function foo() -> map<
                     str,
@@ -848,14 +848,14 @@ abstract link coollink
             from edgeql function: some_other_func
         """
 
-    def test_eschema_syntax_aggregate01(self):
+    def test_eschema_syntax_aggregate_01(self):
         """
         aggregate len() -> std::int:
             initial value := 0
             from sql function: length
         """
 
-    def test_eschema_syntax_aggregate02(self):
+    def test_eschema_syntax_aggregate_02(self):
         r"""
         aggregate some_func($foo: std::int = 42) -> std::str:
             initial value := 'start'
@@ -870,7 +870,7 @@ abstract link coollink
                 'SELECT \'life\'';
         """
 
-    def test_eschema_syntax_aggregate03(self):
+    def test_eschema_syntax_aggregate_03(self):
         """
         aggregate some_func($foo: std::int = 42) -> std::str:
             initial value := ''
@@ -878,7 +878,7 @@ abstract link coollink
                 SELECT 'life'
         """
 
-    def test_eschema_syntax_aggregate04(self):
+    def test_eschema_syntax_aggregate_04(self):
         """
         aggregate myfunc($arg1: str, $arg2: str = 'DEFAULT',
                          *$arg3:std::int) -> int:
@@ -892,7 +892,7 @@ abstract link coollink
     @tb.must_fail(error.SchemaSyntaxError,
                   "missing 'initial value' in aggregate definition",
                   line=2, col=9)
-    def test_eschema_syntax_aggregate05(self):
+    def test_eschema_syntax_aggregate_05(self):
         """
         aggregate len() -> std::int:
             from sql function: length
@@ -901,24 +901,108 @@ abstract link coollink
     @tb.must_fail(error.SchemaSyntaxError,
                   r"missing type declaration.*\$arg3",
                   line=3, col=27)
-    def test_eschema_syntax_aggregate06(self):
+    def test_eschema_syntax_aggregate_06(self):
         """
         aggregate myfunc($arg1: str, $arg2: str = 'DEFAULT',
                          *$arg3) -> int:
             initial value := 42
         """
 
-    def test_eschema_syntax_view01(self):
+    def test_eschema_syntax_view_01(self):
         """
         view FooBaz:
             expr := SELECT Foo FILTER Foo.bar = 'baz'
             description := 'Special Foo'
         """
 
-    def test_eschema_syntax_view02(self):
+    def test_eschema_syntax_view_02(self):
         """
         view FooBaz:
             expr :=
                 SELECT Foo
                 FILTER Foo.bar = 'baz'
+        """
+
+    def test_eschema_syntax_attribute_01(self):
+        """
+        attribute foobar std::str
+        """
+
+    def test_eschema_syntax_attribute_02(self):
+        """
+        attribute foobar test::mystr extending baz
+        """
+
+    def test_eschema_syntax_attribute_03(self):
+        """
+        attribute foobar extending baz
+        """
+
+    def test_eschema_syntax_attribute_04(self):
+        """
+        attribute foobar std::str:
+            title := 'Some title'
+        """
+
+    def test_eschema_syntax_attribute_05(self):
+        """
+        attribute foobar test::mystr extending baz:
+            title := 'Some title'
+        """
+
+    def test_eschema_syntax_attribute_06(self):
+        """
+        attribute foobar extending baz:
+            title := 'Some title'
+        """
+
+    @tb.must_fail(error.SchemaSyntaxError,
+                  r'Unexpected token.*DOUBLECOLON', line=2, col=23)
+    def test_eschema_syntax_attribute_07(self):
+        """
+        attribute test::foobar as std::str
+        """
+
+    def test_eschema_syntax_attribute_08(self):
+        """
+        attribute foobar extending (foo1, foo2)
+        """
+
+    def test_eschema_syntax_attribute_09(self):
+        """
+        attribute foobar extending (foo1,
+    foo2)
+        """
+
+    def test_eschema_syntax_attribute_10(self):
+        """
+        attribute foobar extending (foo1,
+    foo2):
+            title := 'Title'
+        """
+
+    def test_eschema_syntax_attribute_11(self):
+        """
+        attribute as as extending foo
+        """
+
+    @tb.must_fail(error.SchemaSyntaxError,
+                  r'Unexpected token:.*EXTENDING', line=2, col=32)
+    def test_eschema_syntax_attribute_12(self):
+        """
+        attribute as extending extending foo
+        """
+
+    @tb.must_fail(error.SchemaSyntaxError,
+                  r'Unexpected token:.*EXTENDING', line=2, col=35)
+    def test_eschema_syntax_attribute_13(self):
+        """
+        attribute as as extending extending
+        """
+
+    @tb.must_fail(error.SchemaSyntaxError,
+                  r'Unexpected token:.*NL', line=2, col=25)
+    def test_eschema_syntax_attribute_14(self):
+        """
+        attribute foobar
         """

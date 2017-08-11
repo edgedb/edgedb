@@ -15,6 +15,10 @@ class EdgeSchemaParser(parsing.Parser):
     def get_exception(self, native_err, context):
         if isinstance(native_err, SchemaSyntaxError):
             return native_err
+        # if the error is about unexpected <$> token, convert the text to be
+        # referencing <NL> token
+        if native_err.args[0] == 'Unexpected token: <$>':
+            return SchemaSyntaxError('Unexpected token: <NL>', context=context)
         return SchemaSyntaxError(native_err.args[0], context=context)
 
     def get_parser_spec_module(self):

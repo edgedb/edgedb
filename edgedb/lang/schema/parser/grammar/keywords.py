@@ -27,7 +27,6 @@ unreserved_keywords = frozenset([
     "constraint",
     "delegated",
     "event",
-    "extending",
     "final",
     "from",
     "import",

@@ -92,7 +92,7 @@ class AtomDeclaration(Declaration):
 
 
 class AttributeDeclaration(Declaration):
-    target: qlast.Base  # ??
+    type: typing.Optional[qlast.TypeName]
 
 
 class ConceptDeclaration(Declaration):

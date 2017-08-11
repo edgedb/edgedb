@@ -27,6 +27,7 @@ STATE_RAW_PAREN = 3
 STATE_RAW_ANGLE = 4
 STATE_RAW_TYPE = 5
 STATE_RAW_STRING = 6
+STATE_ATTRIBUTE_RAW_TYPE = 7
 
 
 keyword_tokens = {tok[0] for tok in edge_schema_keywords.values()}
@@ -42,25 +43,24 @@ re_dquote = r'\$([A-Za-z\200-\377_][0-9]*)*\$'
 Rule = lexer.Rule
 
 
-def enter_paren_state(lex):
-    tok = lex.prev_nw_tok
-    if tok.type == 'IMPORT':
-        return STATE_WS_INSENSITIVE
-    else:
-        return STATE_RAW_PAREN
+def push_state(new_state):
+    def _push_state(lex):
+        lex.state_stack.append(lex._state)
+        tok = lex.prev_nw_tok
+
+        if tok.type == 'IMPORT':
+            return STATE_WS_INSENSITIVE
+        else:
+            return new_state
+    return _push_state
 
 
-def exit_paren_state(lex):
-    if lex.paren_level == 1:
-        return STATE_WS_SENSITIVE
-    else:
-        return STATE_KEEP
-
-
-def exit_angle_state(lex):
-    if lex.paren_level == 1:
-        return STATE_RAW_TYPE
-    else:
+def pop_state(lex):
+    try:
+        return lex.state_stack.pop()
+    except IndexError:
+        # this is likely an illegal state, but the parser is in a
+        # better position to correctly reject it
         return STATE_KEEP
 
 
@@ -90,6 +90,14 @@ class EdgeSchemaLexer(lexer.Lexer):
            (?P=Q)  # match closing quote type with whatever is in Q
         '''.format(dollar_quote=re_dquote))
 
+    ident_rule = Rule(
+        token='IDENT',
+        next_state=STATE_KEEP,
+        regexp=r'''
+               (?:[^\W\d]|\$)
+               (?:\w|\$)*
+        ''')
+
     qident_rule = Rule(
         token='QIDENT',
         next_state=STATE_KEEP,
@@ -100,14 +108,14 @@ class EdgeSchemaLexer(lexer.Lexer):
                           next_state=STATE_KEEP,
                           regexp=lexer.group(val))
                      for val, tok in edge_schema_keywords.items()
-                     if tok[0] not in {'TO', 'EXTENDING'}]
+                     if tok[0] not in {'TO', 'EXTENDING', 'ATTRIBUTE'}]
 
     common_rules = keyword_rules + [
         # need to handle 'TO' differently based on whether it's
         # followed by '('
         Rule(token='TO',
              next_state=STATE_RAW_TYPE,
-             regexp=r'\bTO\b(?!\s*\()'),
+             regexp=r'\bTO\b(?!$|\s*\()'),
 
         Rule(token='TO',
              next_state=STATE_KEEP,
@@ -117,11 +125,15 @@ class EdgeSchemaLexer(lexer.Lexer):
         # followed by '('
         Rule(token='EXTENDING',
              next_state=STATE_RAW_TYPE,
-             regexp=r'\bEXTENDING\b(?!\s*\()'),
+             regexp=r'\bEXTENDING\b(?!$|\s*\()'),
 
         Rule(token='EXTENDING',
              next_state=STATE_KEEP,
              regexp=r'\bEXTENDING\b'),
+
+        Rule(token='ATTRIBUTE',
+             next_state=STATE_ATTRIBUTE_RAW_TYPE,
+             regexp=r'\bATTRIBUTE\b'),
 
         Rule(token='COMMENT',
              next_state=STATE_KEEP,
@@ -136,11 +148,11 @@ class EdgeSchemaLexer(lexer.Lexer):
              regexp=r'\n'),
 
         Rule(token='LPAREN',
-             next_state=enter_paren_state,
+             next_state=push_state(STATE_RAW_PAREN),
              regexp=r'\('),
 
         Rule(token='RPAREN',
-             next_state=exit_paren_state,
+             next_state=pop_state,
              regexp=r'\)'),
 
         Rule(token='COMMA',
@@ -172,14 +184,7 @@ class EdgeSchemaLexer(lexer.Lexer):
              regexp=r'\.'),
 
         string_rule,
-
-        Rule(token='IDENT',
-             next_state=STATE_KEEP,
-             regexp=r'''
-                    (?:[^\W\d]|\$)
-                    (?:\w|\$)*
-                '''),
-
+        ident_rule,
         qident_rule,
     ]
 
@@ -188,11 +193,11 @@ class EdgeSchemaLexer(lexer.Lexer):
         STATE_WS_INSENSITIVE: list(common_rules),
         STATE_RAW_PAREN: [
             Rule(token='LPAREN',
-                 next_state=STATE_KEEP,
+                 next_state=push_state(STATE_RAW_PAREN),
                  regexp=r'\('),
 
             Rule(token='RPAREN',
-                 next_state=exit_paren_state,
+                 next_state=pop_state,
                  regexp=r'\)'),
 
             string_rule,
@@ -204,11 +209,11 @@ class EdgeSchemaLexer(lexer.Lexer):
         ],
         STATE_RAW_ANGLE: [
             Rule(token='RAWSTRING',
-                 next_state=STATE_KEEP,
+                 next_state=push_state(STATE_RAW_ANGLE),
                  regexp=r'\<'),
 
             Rule(token='RAWSTRING',
-                 next_state=exit_angle_state,
+                 next_state=pop_state,
                  regexp=r'\>'),
 
             string_rule,
@@ -228,7 +233,7 @@ class EdgeSchemaLexer(lexer.Lexer):
                  regexp=r'::'),
 
             Rule(token='RAWSTRING',
-                 next_state=STATE_RAW_ANGLE,
+                 next_state=push_state(STATE_RAW_ANGLE),
                  regexp=r'\<'),
 
             string_rule,
@@ -263,7 +268,31 @@ class EdgeSchemaLexer(lexer.Lexer):
             Rule(token='RAWSTRING',
                  next_state=STATE_KEEP,
                  regexp=r'.*?(?:\n|.$)'),
-        ]
+        ],
+        STATE_ATTRIBUTE_RAW_TYPE: [
+            Rule(token='RAWSTRING',
+                 next_state=STATE_WS_SENSITIVE,
+                 regexp=r'(?=\n|:(?!:))'),
+
+            Rule(token='RAWSTRING',
+                 next_state=STATE_KEEP,
+                 regexp=r'::'),
+
+            Rule(token='RAWSTRING',
+                 next_state=push_state(STATE_RAW_ANGLE),
+                 regexp=r'\<'),
+
+            Rule(token='LPAREN',
+                 next_state=push_state(STATE_RAW_PAREN),
+                 regexp=r'\('),
+
+            string_rule,
+            qident_rule,
+
+            Rule(token='RAWSTRING',
+                 next_state=STATE_KEEP,
+                 regexp=r'''[^:<(`'"\n][^:<(`'"$\n]*'''),
+        ],
     }
 
     def token_from_text(self, rule_token, txt):
@@ -395,18 +424,12 @@ class EdgeSchemaLexer(lexer.Lexer):
         """Wrapper for the lexer."""
 
         self.indent = [0]
-        self.paren_level = 0
+        self.state_stack = []
         self.logical_line_started = True
         self.prev_nw_tok = None  # previous NON-WHITEPASE token
         self._next_state = None
 
         for tok in self._lex():
-            if self._state != STATE_RAW_STRING:
-                if tok.text in {'(', '<', '['}:
-                    self.paren_level += 1
-                elif tok.text in {')', '>', ']'}:
-                    self.paren_level -= 1
-
             if tok.type not in {'NEWLINE', 'WS'}:
                 self.prev_nw_tok = tok
             yield tok

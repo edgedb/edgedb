@@ -410,7 +410,7 @@ class DropObject(ObjectDDL):
     pass
 
 
-class CreateInheritingObject(CreateObject):
+class CreateExtendingObject(CreateObject):
     bases: typing.List[ClassRef]
     is_abstract: bool = False
     is_final: bool = False
@@ -482,7 +482,7 @@ class DropAction(DropObject):
     pass
 
 
-class CreateEvent(CreateInheritingObject):
+class CreateEvent(CreateExtendingObject):
     pass
 
 
@@ -494,15 +494,15 @@ class DropEvent(DropObject):
     pass
 
 
-class CreateAttribute(CreateObject):
-    type: TypeName
+class CreateAttribute(CreateExtendingObject):
+    type: typing.Optional[TypeName]
 
 
 class DropAttribute(DropObject):
     pass
 
 
-class CreateAtom(CreateInheritingObject):
+class CreateAtom(CreateExtendingObject):
     pass
 
 
@@ -514,7 +514,7 @@ class DropAtom(DropObject):
     pass
 
 
-class CreateLinkProperty(CreateInheritingObject):
+class CreateLinkProperty(CreateExtendingObject):
     pass
 
 
@@ -545,7 +545,7 @@ class SetSpecialField(Base):
     as_expr: bool = False
 
 
-class CreateConcept(CreateInheritingObject):
+class CreateConcept(CreateExtendingObject):
     pass
 
 
@@ -569,7 +569,7 @@ class DropView(DropObject):
     pass
 
 
-class CreateLink(CreateInheritingObject):
+class CreateLink(CreateExtendingObject):
     pass
 
 
@@ -581,7 +581,7 @@ class DropLink(DropObject):
     pass
 
 
-class CreateConcreteLink(CreateInheritingObject):
+class CreateConcreteLink(CreateExtendingObject):
     is_required: bool = False
     targets: typing.List[Expr]
 
@@ -594,7 +594,7 @@ class DropConcreteLink(DropObject):
     pass
 
 
-class CreateConstraint(CreateInheritingObject):
+class CreateConstraint(CreateExtendingObject):
     args: typing.List[FuncArg]
     subject: typing.Optional[Expr]
 

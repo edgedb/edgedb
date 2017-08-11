@@ -154,6 +154,15 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         self._visit_qualifier(node)
         self._visit_Declaration(node)
 
+    def visit_AttributeDeclaration(self, node):
+        def after_name(node):
+            if node.type:
+                self.write(' ')
+                self.visit(node.type)
+                self.write(' ')
+
+        self._visit_Declaration(node, after_name=after_name)
+
     def visit_ConceptDeclaration(self, node):
         self._visit_qualifier(node)
         self._visit_Declaration(node)
