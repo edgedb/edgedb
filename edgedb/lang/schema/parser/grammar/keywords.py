@@ -95,9 +95,9 @@ def _check_keywords():
 _check_keywords()
 
 
-edge_schema_keywords = {k: (k.upper(), UNRESERVED_KEYWORD)
+edge_schema_keywords = {k: (edgeql.keywords.tok_name(k), UNRESERVED_KEYWORD)
                         for k in unreserved_keywords}
-edge_schema_keywords.update({k: (k.upper(), RESERVED_KEYWORD)
+edge_schema_keywords.update({k: (edgeql.keywords.tok_name(k), RESERVED_KEYWORD)
                              for k in reserved_keywords})
 
 

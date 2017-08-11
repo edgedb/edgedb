@@ -6,6 +6,7 @@
 ##
 
 
+import re
 import typing
 
 
@@ -59,8 +60,9 @@ unreserved_keywords = frozenset([
 
 
 # NOTE: all operators are made into RESERVED keywords for reasons of style.
-#
 reserved_keywords = frozenset([
+    "__class__",
+    "__subject__",
     "aggregate",
     "all",
     "alter",
@@ -95,6 +97,7 @@ reserved_keywords = frozenset([
     "partition",
     "rollback",
     "select",
+    "self",
     "set",
     "singleton",
     "start",
@@ -116,9 +119,20 @@ def _check_keywords():
 _check_keywords()
 
 
-edgeql_keywords = {k: (k.upper(), UNRESERVED_KEYWORD)
+_dunder_re = re.compile(r'(?i)^__[a-z]+__$')
+
+
+def tok_name(keyword):
+    '''Convert a literal keyword into a token name.'''
+    if _dunder_re.match(keyword):
+        return f'DUNDER{keyword[2:-2].upper()}'
+    else:
+        return keyword.upper()
+
+
+edgeql_keywords = {k: (tok_name(k), UNRESERVED_KEYWORD)
                    for k in unreserved_keywords}
-edgeql_keywords.update({k: (k.upper(), RESERVED_KEYWORD)
+edgeql_keywords.update({k: (tok_name(k), RESERVED_KEYWORD)
                         for k in reserved_keywords})
 
 

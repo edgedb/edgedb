@@ -378,6 +378,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             if i == 0:
                 if isinstance(e, edgeql_ast.ClassRef):
                     self.visit(e, parenthesise=parenthesise)
+                elif isinstance(e, (edgeql_ast.Self,
+                                    edgeql_ast.Subject)):
+                    self.visit(e)
                 elif not isinstance(e, (edgeql_ast.Ptr,
                                         edgeql_ast.Set,
                                         edgeql_ast.Tuple,
@@ -469,8 +472,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_Constant(self, node, *, parenthesise=False):
         # XXX: parenthesise is ignored completely, but exists as a
         # parameter for compatibility
-        #
         try:
+            # XXX: __mm_edgeql__ seems to not be used anymore
             edgeql_repr = node.value.__mm_edgeql__
         except AttributeError:
             if isinstance(node.value, str):
@@ -576,6 +579,12 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         if node.module and parenthesise:
             self.write(')')
+
+    def visit_Self(self, node):
+        self.write('self')
+
+    def visit_Subject(self, node):
+        self.write('__subject__')
 
     def visit_NoneTest(self, node):
         self.visit(node.expr)

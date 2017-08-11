@@ -263,7 +263,7 @@ values:
     constraint must_be_even:
         # {subject} is a special placeholder to refer what the
         # constraint is actually applied to
-        expr := subject % 2 = 0
+        expr := __subject__ % 2 = 0
         # when used in the errmessage, "subject" will be substituted
         # with the name of the atom or link the constraint has been
         # applied to
@@ -328,11 +328,11 @@ Consider the following schema:
 
     # define some additional constraints
     constraint must_be_even:
-        expr := subject % 2 = 0
+        expr := __subject__ % 2 = 0
         errmesage := 'Stable versions must be even.'
 
     constraint must_be_odd:
-        expr := subject % 2 = 1
+        expr := __subject__ % 2 = 1
         errmesage := 'Unstable versions must be odd.'
 
     # define atoms that will be used for version numbers
@@ -530,22 +530,22 @@ consider ``maxlength`` and ``minlength`` constraints:
 
     # abstract constraint cannot be applied directly, but must be
     # inherited from, typically used as a mixin
-    abstract constraint length on (len(<str>subject)):
+    abstract constraint length on (len(<str>__subject__)):
         errmessage := 'Invalid {subject}'
 
     constraint max(any):
-        expr := subject <= $1
-        errmessage := 'Maximum allowed value for {subject} is {$1}.'
+        expr := __subject__ <= $0
+        errmessage := 'Maximum allowed value for {subject} is {$0}.'
 
     constraint min(any):
-        expr := subject >= $1
-        errmessage := 'Minimum allowed value for {subject} is {$1}.'
+        expr := __subject__ >= $0
+        errmessage := 'Minimum allowed value for {subject} is {$0}.'
 
     constraint maxlength(any) extending max, length:
-        errmessage := '{$subject} must be no longer than {$1} characters.'
+        errmessage := '{subject} must be no longer than {$0} characters.'
 
     constraint minlength(any) extending min, length:
-        errmessage := '{$subject} must be no shorter than {$1} characters.'
+        errmessage := '{subject} must be no shorter than {$0} characters.'
 
 Every constraint in the example above overrides the ``errmessage`` to
 better correspond to its intended meaning. Additionally, ``length``
@@ -564,15 +564,15 @@ process a string containing distance measured in meters or kilometers:
     # define an abstract constraint to covert a str distance into a
     # number
     abstract constraint distance on (
-        <float>subject[:-2] * 1000 IF subject[:-2] = 'km' ELSE
-        <float>subject[:-1]  # assuming suffix 'm'
+        <float>__subject__[:-2] * 1000 IF __subject__[:-2] = 'km' ELSE
+        <float>__subject__[:-1]  # assuming suffix 'm'
     )
 
     constraint maxldistance(any) extending max, distance:
-        errmessage := '{subject} must be no longer than {$1} meters.'
+        errmessage := '{subject} must be no longer than {$0} meters.'
 
     constraint minldistance(any) extending min, distance:
-        errmessage := '{subject} must be no shorter than {$1} meters.'
+        errmessage := '{subject} must be no shorter than {$0} meters.'
 
 
 Schema composition
