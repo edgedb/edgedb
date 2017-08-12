@@ -156,7 +156,7 @@ CREATE FUNCTION std::uuid_generate_v1mc() -> std::uuid
     FROM SQL FUNCTION 'uuid_generate_v1mc';
 
 CREATE CONSTRAINT std::constraint {
-    SET errmessage := 'invalid {subject}';
+    SET errmessage := 'invalid {__subject__}';
 };
 
 CREATE CONSTRAINT std::expression EXTENDING std::constraint {
@@ -164,50 +164,50 @@ CREATE CONSTRAINT std::expression EXTENDING std::constraint {
 };
 
 CREATE CONSTRAINT std::max(std::any) EXTENDING std::constraint {
-    SET errmessage := 'Maximum allowed value for {subject} is {$0}.';
+    SET errmessage := 'Maximum allowed value for {__subject__} is {$0}.';
     SET expr := __subject__ <= $0;
 };
 
 CREATE CONSTRAINT std::enum(array<std::any>) EXTENDING std::constraint {
-    SET errmessage := '{subject} must be one of: {$0}.';
+    SET errmessage := '{__subject__} must be one of: {$0}.';
     SET expr := array_contains($0, __subject__);
 };
 
 CREATE CONSTRAINT std::min(std::any) EXTENDING std::constraint {
-    SET errmessage := 'Minimum allowed value for {subject} is {$0}.';
+    SET errmessage := 'Minimum allowed value for {__subject__} is {$0}.';
     SET expr := __subject__ >= $0;
 };
 
 CREATE CONSTRAINT std::minexclusive(std::any) EXTENDING std::min {
-    SET errmessage := '{subject} must be greater than {$0}.';
+    SET errmessage := '{__subject__} must be greater than {$0}.';
     SET expr := __subject__ > $0;
 };
 
 CREATE CONSTRAINT std::length ON (len(<std::str>__subject__))
     EXTENDING std::constraint
 {
-    SET errmessage := 'invalid {subject}';
+    SET errmessage := 'invalid {__subject__}';
 };
 
 CREATE CONSTRAINT std::minlength(std::any) EXTENDING (std::min, std::length) {
-    SET errmessage := '{subject} must be no shorter than {$0} characters.';
+    SET errmessage := '{__subject__} must be no shorter than {$0} characters.';
 };
 
 CREATE CONSTRAINT std::regexp(std::any) EXTENDING std::constraint {
-    SET errmessage := 'invalid {subject}';
+    SET errmessage := 'invalid {__subject__}';
     SET expr := re_test(__subject__, $0);
 };
 
 CREATE CONSTRAINT std::maxlength(std::any) EXTENDING (std::max, std::length) {
-    SET errmessage := '{subject} must be no longer than {$0} characters.';
+    SET errmessage := '{__subject__} must be no longer than {$0} characters.';
 };
 
 CREATE CONSTRAINT std::maxexclusive(std::any) EXTENDING std::max {
-    SET errmessage := '{subject} must be less than {$0}.';
+    SET errmessage := '{__subject__} must be less than {$0}.';
 };
 
 CREATE CONSTRAINT std::unique EXTENDING std::constraint {
-    SET errmessage := '{subject} violates unique constraint';
+    SET errmessage := '{__subject__} violates unique constraint';
     SET expr := std::is_distinct(ALL __subject__);
 };
 

@@ -107,7 +107,7 @@ class Constraint(primary.PrimaryClass, derivable.DerivableClass):
 
         ir, edgeql_tree, _ = edgeql_utils.normalize_tree(
             tree, schema, modaliases=module_aliases,
-            anchors={'subject': subject}, inline_anchors=inline_anchors)
+            anchors={'__subject__': subject}, inline_anchors=inline_anchors)
 
         return edgeql_tree.result, ir.result
 
@@ -171,7 +171,7 @@ class Constraint(primary.PrimaryClass, derivable.DerivableClass):
                         for name, val in args_map.items()}
 
             constraint.errmessage = constraint.errmessage.format(
-                subject='{subject}', **args_map)
+                __subject__='{__subject__}', **args_map)
 
         expr_text = cls.normalize_constraint_expr(
             schema, module_aliases, expr_ql, subject=subject)
@@ -194,7 +194,7 @@ class Constraint(primary.PrimaryClass, derivable.DerivableClass):
 
             subjtitle = subjname.name
 
-        formatted = errmsg.format(subject=subjtitle)
+        formatted = errmsg.format(__subject__=subjtitle)
 
         return formatted
 
