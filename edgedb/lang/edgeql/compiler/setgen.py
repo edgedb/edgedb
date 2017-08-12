@@ -54,14 +54,18 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
 
     for i, step in enumerate(expr.steps):
         if isinstance(step, qlast.Self):
-            # HACK: just treat it as a ClassRef for now
-            step = qlast.ClassRef(name='self', context=step.context)
+            # 'self' can only appear as the starting path label
+            # syntactically and is a known anchor
+            path_tip = anchors.get('self')
+            continue
 
         elif isinstance(step, qlast.Subject):
-            # HACK: just treat it as a ClassRef for now
-            step = qlast.ClassRef(name='subject', context=step.context)
+            # '__subject__' can only appear as the starting path label
+            # syntactically and is a known anchor
+            path_tip = anchors.get('__subject__')
+            continue
 
-        if isinstance(step, qlast.ClassRef):
+        elif isinstance(step, qlast.ClassRef):
             if i > 0:
                 raise RuntimeError(
                     'unexpected ClassRef as a non-first path item')

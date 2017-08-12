@@ -624,18 +624,18 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
     async def test_constraints_ddl_02(self):
         # testing the generalized constraint with 'ON (...)' clause
-        qry = """
+        qry = r"""
             CREATE CONSTRAINT test::mymax1(std::int) ON (len(__subject__)) {
                 SET errmessage :=
-                    '{subject} must be no longer than {$0} characters.';
-                SET expr := subject <= $0;
+                    '{__subject__} must be no longer than {$0} characters.';
+                SET expr := __subject__ <= $0;
             };
 
             CREATE CONSTRAINT test::mymax_ext1(std::int) ON (len(__subject__))
                 EXTENDING std::max
             {
                 SET errmessage :=
-                    '{subject} must be no longer than {$0} characters.';
+                    '{__subject__} must be no longer than {$0} characters.';
             };
 
             CREATE CONCEPT test::ConstraintOnTest1 {
@@ -704,11 +704,11 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
     async def test_constraints_ddl_03(self):
         # testing the specialized constraint with 'ON (...)' clause
-        qry = """
+        qry = r"""
             CREATE CONSTRAINT test::mymax2(std::int) {
                 SET errmessage :=
-                    '{subject} must be no longer than {$0} characters.';
-                SET expr := subject <= $0;
+                    '{__subject__} must be no longer than {$0} characters.';
+                SET expr := __subject__ <= $0;
             };
 
             CREATE CONCEPT test::ConstraintOnTest2 {
@@ -719,7 +719,9 @@ class TestConstraintsDDL(tb.DDLTestCase):
                 CREATE LINK test::bar TO std::str {
                     CREATE CONSTRAINT std::max(3) ON (len(__subject__)) {
                         SET errmessage :=
-                          '{subject} must be no longer than {$0} characters.';
+                      # XXX: once simple string concat is possible here
+                      #      formatting can be saner
+                      '{__subject__} must be no longer than {$0} charsacters.';
                     };
                 };
             };
@@ -783,12 +785,12 @@ class TestConstraintsDDL(tb.DDLTestCase):
     #      a simple string literal, but a concatenation of 2 string literals.
     async def test_constraints_ddl_04(self):
         # testing an issue with expressions used for 'errmessage'
-        qry = """
+        qry = r"""
             CREATE CONSTRAINT test::mymax3(std::int) {
                 SET errmessage :=
-                    '{subject} must be no longer ' +
+                    '{__subject__} must be no longer ' +
                     'than {$0} characters.';
-                SET expr := subject <= $0;
+                SET expr := __subject__ <= $0;
             };
 
             CREATE CONCEPT test::ConstraintOnTest3 {
@@ -819,7 +821,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     'subjectexpr is not a valid constraint attribute'):
                 await self.con.execute("""
                     CREATE CONSTRAINT test::len_fail(std::str) {
-                        SET expr := subject <= $0;
+                        SET expr := __subject__ <= $0;
                         SET subjectexpr := len(__subject__);
                     };
                 """)
@@ -830,7 +832,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     'subject is not a valid constraint attribute'):
                 await self.con.execute("""
                     CREATE CONSTRAINT test::len_fail(std::str) {
-                        SET expr := subject <= $0;
+                        SET expr := __subject__ <= $0;
                         # doesn't matter what subject is set to, it's illegal
                         SET subject := len(__subject__);
                     };
@@ -842,7 +844,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     'subjectexpr is not a valid constraint attribute'):
                 await self.con.execute("""
                     CREATE CONSTRAINT test::len_fail(std::int) {
-                        SET expr := subject <= $0;
+                        SET expr := __subject__ <= $0;
                     };
 
                     CREATE CONCEPT test::InvalidConstraintTest1 {
@@ -860,7 +862,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     'subject is not a valid constraint attribute'):
                 await self.con.execute("""
                     CREATE CONSTRAINT test::len_fail(std::int) {
-                        SET expr := subject <= $0;
+                        SET expr := __subject__ <= $0;
                     };
 
                     CREATE CONCEPT test::InvalidConstraintTest1 {
@@ -879,13 +881,15 @@ class TestConstraintsDDL(tb.DDLTestCase):
             with self.assertRaisesRegex(
                     exceptions.InvalidConstraintDefinitionError,
                     r"subjectexpr is already defined for .+max_int"):
-                await self.con.execute("""
+                await self.con.execute(r"""
                     CREATE CONSTRAINT test::max_int(std::int)
-                        ON (<int>subject)
+                        ON (<int>__subject__)
                     {
                         SET errmessage :=
-                          '{subject} must be no longer than {$0} characters.';
-                        SET expr := subject <= $0;
+                      # XXX: once simple string concat is possible here
+                      #      formatting can be saner
+                      '{__subject__} must be no longer than {$0} charsacters.';
+                        SET expr := __subject__ <= $0;
                     };
 
                     CREATE CONCEPT test::InvalidConstraintTest2 {
@@ -901,7 +905,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
         qry = """
             CREATE CONSTRAINT test::foo_alter(std::any) {
                 SET errmessage := 'foo';
-                SET expr := subject = $0;
+                SET expr := __subject__ = $0;
             };
 
             CREATE CONCEPT test::ConstraintAlterTest1 {
@@ -966,7 +970,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
         qry = """
             CREATE CONSTRAINT test::foo_drop(std::any) ON (len(__subject__)) {
                 SET errmessage := 'foo';
-                SET expr := subject = $0;
+                SET expr := __subject__ = $0;
             };
 
             CREATE CONCEPT test::ConstraintAlterTest2 {

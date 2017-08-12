@@ -261,13 +261,13 @@ values:
 .. code-block:: eschema
 
     constraint must_be_even:
-        # {subject} is a special placeholder to refer what the
+        # {__subject__} is a special placeholder to refer what the
         # constraint is actually applied to
         expr := __subject__ % 2 = 0
         # when used in the errmessage, "subject" will be substituted
         # with the name of the atom or link the constraint has been
         # applied to
-        errmessage := '{subject} value must be even.'
+        errmessage := '{__subject__} value must be even.'
 
     atom foo_t extending int:
         constraint must_be_even
@@ -531,21 +531,21 @@ consider ``maxlength`` and ``minlength`` constraints:
     # abstract constraint cannot be applied directly, but must be
     # inherited from, typically used as a mixin
     abstract constraint length on (len(<str>__subject__)):
-        errmessage := 'Invalid {subject}'
+        errmessage := 'Invalid {__subject__}'
 
     constraint max(any):
         expr := __subject__ <= $0
-        errmessage := 'Maximum allowed value for {subject} is {$0}.'
+        errmessage := 'Maximum allowed value for {__subject__} is {$0}.'
 
     constraint min(any):
         expr := __subject__ >= $0
-        errmessage := 'Minimum allowed value for {subject} is {$0}.'
+        errmessage := 'Minimum allowed value for {__subject__} is {$0}.'
 
     constraint maxlength(any) extending max, length:
-        errmessage := '{subject} must be no longer than {$0} characters.'
+        errmessage := '{__subject__} must be no longer than {$0} characters.'
 
     constraint minlength(any) extending min, length:
-        errmessage := '{subject} must be no shorter than {$0} characters.'
+        errmessage := '{__subject__} must be no shorter than {$0} characters.'
 
 Every constraint in the example above overrides the ``errmessage`` to
 better correspond to its intended meaning. Additionally, ``length``
@@ -569,10 +569,10 @@ process a string containing distance measured in meters or kilometers:
     )
 
     constraint maxldistance(any) extending max, distance:
-        errmessage := '{subject} must be no longer than {$0} meters.'
+        errmessage := '{__subject__} must be no longer than {$0} meters.'
 
     constraint minldistance(any) extending min, distance:
-        errmessage := '{subject} must be no shorter than {$0} meters.'
+        errmessage := '{__subject__} must be no shorter than {$0} meters.'
 
 
 Schema composition
