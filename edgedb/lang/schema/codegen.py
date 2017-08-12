@@ -93,7 +93,9 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
             self.write(ident_to_str(node.alias))
 
     def _visit_Declaration(self, node, after_name=None):
-        self.write(node.__class__.__name__.lower().replace('declaration', ' '))
+        decl = node.__class__.__name__.lower().replace('declaration', ' ')
+        decl = decl.replace('linkproperty', 'link property')
+        self.write(decl)
         self.write(ident_to_str(node.name))
         if after_name:
             after_name(node)
@@ -102,7 +104,9 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         self._visit_specs(node)
 
     def _visit_Pointer(self, node):
-        self.write(node.__class__.__name__.lower() + ' ')
+        decl = node.__class__.__name__.lower().replace('linkproperty',
+                                                       'link property')
+        self.write(decl, ' ')
         self.visit(node.name)
 
         if node.expr:
