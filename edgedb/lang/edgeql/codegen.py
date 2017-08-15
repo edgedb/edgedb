@@ -472,18 +472,12 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_Constant(self, node, *, parenthesise=False):
         # XXX: parenthesise is ignored completely, but exists as a
         # parameter for compatibility
-        try:
-            # XXX: __mm_edgeql__ seems to not be used anymore
-            edgeql_repr = node.value.__mm_edgeql__
-        except AttributeError:
-            if isinstance(node.value, str):
-                self.write(edgeql_quote.quote_literal(node.value))
-            elif isinstance(node.value, AST):
-                self.visit(node.value)
-            else:
-                self.write(str(node.value))
+        if isinstance(node.value, str):
+            self.write(edgeql_quote.quote_literal(node.value))
+        elif isinstance(node.value, AST):
+            self.visit(node.value)
         else:
-            self.write(edgeql_repr())
+            self.write(str(node.value))
 
     def visit_FunctionCall(self, node):
         if isinstance(node.func, tuple):
