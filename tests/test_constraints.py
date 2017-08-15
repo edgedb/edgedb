@@ -721,7 +721,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                         SET errmessage :=
                       # XXX: once simple string concat is possible here
                       #      formatting can be saner
-                      '{__subject__} must be no longer than {$0} charsacters.';
+                      '{__subject__} must be no longer than {$0} characters.';
                     };
                 };
             };
@@ -888,7 +888,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                         SET errmessage :=
                       # XXX: once simple string concat is possible here
                       #      formatting can be saner
-                      '{__subject__} must be no longer than {$0} charsacters.';
+                      '{__subject__} must be no longer than {$0} characters.';
                         SET expr := __subject__ <= $0;
                     };
 
