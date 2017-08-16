@@ -1015,6 +1015,15 @@ class TestExpressions(tb.QueryTestCase):
             [[3, 3, 2]],
         ])
 
+    @unittest.expectedFailure
+    async def test_edgeql_expr_setop_04(self):
+        res = await self.con.execute('''
+            SELECT DISTINCT {1, 2, 2, 3};
+        ''')
+        self.assert_data_shape(res, [
+            [{1, 2, 3}],
+        ])
+
     async def test_edgeql_expr_cardinality_01(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError,

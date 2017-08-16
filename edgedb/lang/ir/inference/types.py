@@ -163,6 +163,12 @@ def __infer_setop(ir, schema):
     return result
 
 
+@_infer_type.register(irast.DistinctOp)
+def __infer_distinctop(ir, schema):
+    result = infer_type(ir.expr, schema)
+    return result
+
+
 @_infer_type.register(irast.BinOp)
 def __infer_binop(ir, schema):
     if isinstance(ir.op, (ast.ops.ComparisonOperator,

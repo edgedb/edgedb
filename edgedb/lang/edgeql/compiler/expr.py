@@ -188,8 +188,10 @@ def compile_IfElse(
 @dispatch.compile.register(qlast.UnaryOp)
 def compile_UnaryOp(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
-    operand = dispatch.compile(expr.operand, ctx=ctx)
+    if expr.op == qlast.DISTINCT:
+        return compile_distinct_op(expr, ctx=ctx)
 
+    operand = dispatch.compile(expr.operand, ctx=ctx)
     if astutils.is_exists_expr_set(operand):
         operand.expr.negated = not operand.expr.negated
         return operand
@@ -491,6 +493,22 @@ def compile_set_op(
     result = irast.SetOp(left=left.expr, right=right.expr, op=expr.op)
     rtype = irutils.infer_type(result, ctx.schema)
     path_id = pathctx.get_path_id(rtype, ctx=ctx)
+    pathctx.register_path_scope(path_id, ctx=ctx)
+
+    return result
+
+
+def compile_distinct_op(
+        expr: qlast.UnaryOp, *, ctx: context.ContextLevel) -> irast.DistinctOp:
+    # DISTINCT
+
+    expr_ql = astutils.ensure_qlstmt(expr.operand)
+
+    operand = dispatch.compile(expr_ql, ctx=ctx)
+
+    result = irast.DistinctOp(expr=operand.expr)
+    rtype = irutils.infer_type(result, ctx.schema)
+    path_id = irast.PathId(rtype)
     pathctx.register_path_scope(path_id, ctx=ctx)
 
     return result

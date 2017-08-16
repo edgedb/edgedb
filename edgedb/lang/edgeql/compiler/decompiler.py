@@ -140,6 +140,12 @@ class IRDecompiler(ast.visitor.NodeVisitor):
         result.op = node.op
         return result
 
+    def visit_DistinctOp(self, node):
+        result = qlast.UnaryOp()
+        result.operand = self.visit(node.expr)
+        result.op = qlast.DISTINCT
+        return result
+
     def visit_Parameter(self, node):
         return qlast.Parameter(name=node.name)
 

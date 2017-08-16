@@ -1721,6 +1721,11 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT {Foo.bar, Foo.baz}.spam;
         """
 
+    def test_edgeql_syntax_set_06(self):
+        """
+        SELECT DISTINCT {1, 2, 2, 3};
+        """
+
     def test_edgeql_syntax_insert_01(self):
         """
         INSERT Foo;

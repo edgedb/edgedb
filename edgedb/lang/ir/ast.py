@@ -138,6 +138,10 @@ class ExistPred(Expr):
     negated: bool = False
 
 
+class DistinctOp(Expr):
+    expr: Base
+
+
 class IfElseExpr(Expr):
 
     condition: Base
