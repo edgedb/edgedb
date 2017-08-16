@@ -83,6 +83,11 @@ def __infer_setop(ir, singletons, schema):
     return result
 
 
+@_infer_cardinality.register(irast.DistinctOp)
+def __infer_distinctop(ir, singletons, schema):
+    return infer_cardinality(ir.expr, singletons, schema)
+
+
 @_infer_cardinality.register(irast.BinOp)
 def __infer_binop(ir, singletons, schema):
     return _common_cardinality([ir.left, ir.right], singletons, schema)
