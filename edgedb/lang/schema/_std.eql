@@ -208,7 +208,7 @@ CREATE CONSTRAINT std::maxexclusive(std::any) EXTENDING std::max {
 
 CREATE CONSTRAINT std::unique EXTENDING std::constraint {
     SET errmessage := '{__subject__} violates unique constraint';
-    SET expr := std::is_distinct(ALL __subject__);
+    SET expr := std::is_distinct(__subject__);
 };
 
 CREATE ATOM std::decimal_rounding_t EXTENDING std::str {

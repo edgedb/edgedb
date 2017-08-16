@@ -452,7 +452,7 @@ class TestIntrospection(tb.QueryTestCase):
         # make sure that ALL schema Classes are std::Objects
         res = await self.con.execute(r"""
             WITH MODULE schema
-            SELECT count(ALL Class);
+            SELECT count(Class);
 
             WITH MODULE schema
             SELECT Class IS std::Object;
@@ -557,7 +557,7 @@ class TestIntrospection(tb.QueryTestCase):
             SELECT `Concept` {
                 name,
                 count := (
-                    SELECT SINGLETON std::count(ALL `Concept`.<__class__)
+                    SELECT SINGLETON std::count(`Concept`.<__class__)
                 )
             }
             FILTER `Concept`.name LIKE 'test::%'

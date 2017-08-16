@@ -21,7 +21,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'inventory_setup.eql')
 
-    async def test_edgeql_links_basic01(self):
+    async def test_edgeql_links_basic_01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Item {
@@ -180,7 +180,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_links_map_atoms03(self):
+    async def test_edgeql_links_map_atoms_03(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Item {
@@ -226,7 +226,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ]
         ])
 
-    async def test_edgeql_links_set01(self):
+    async def test_edgeql_links_set_01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Item {name}
@@ -270,19 +270,19 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_links_set03(self):
+    async def test_edgeql_links_set_03(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Item {name}
             FILTER
-                array_agg(ALL .tag_set1 ORDER BY .tag_set1) =
+                array_agg(.tag_set1 ORDER BY .tag_set1) =
                     ['rectangle', 'wood']
             ORDER BY .name;
 
             WITH MODULE test
             SELECT Item {name}
             FILTER
-                array_agg(ALL .tag_set2 ORDER BY .tag_set2) =
+                array_agg(.tag_set2 ORDER BY .tag_set2) =
                     ['rectangle', 'wood']
             ORDER BY .name;
         ''', [
@@ -294,7 +294,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_links_set04(self):
+    async def test_edgeql_links_set_04(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Item {name}
@@ -315,7 +315,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_links_set05(self):
+    async def test_edgeql_links_set_05(self):
         await self.assert_query_result(r'''
             # subsets
             #
@@ -339,7 +339,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_links_set06(self):
+    async def test_edgeql_links_set_06(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Item {
@@ -394,13 +394,14 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    @tb.expected_optimizer_failure
-    async def test_edgeql_links_set07(self):
+    @unittest.expectedFailure
+    async def test_edgeql_links_set_07(self):
         await self.assert_query_result(r'''
             # subsets
             WITH MODULE test
             SELECT Item {name}
-            FILTER count(ALL (
+            FILTER count( (
+                # XXX: check test_edgeql_expr_alias for failures first
                 SELECT _ := Item.tag_set1
                 FILTER _ IN {'rectangle', 'wood'}
             )) = 2
@@ -408,7 +409,8 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
 
             WITH MODULE test
             SELECT Item {name}
-            FILTER count(ALL (
+            FILTER count( (
+                # XXX: check test_edgeql_expr_alias for failures first
                 SELECT _ := Item.tag_set2
                 FILTER _ IN {'rectangle', 'wood'}
             )) = 2
@@ -423,65 +425,29 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
         ])
 
     @unittest.expectedFailure
-    async def test_edgeql_links_set08(self):
+    async def test_edgeql_links_set_08(self):
         await self.assert_query_result(r'''
             # match sets
             WITH
                 MODULE test,
                 cmp := {'rectangle', 'wood'},
-                cmp_count := count(ALL cmp)
+                cmp_count := count(cmp)
             SELECT Item {name}
             FILTER
-                cmp_count = count(ALL .tag_set1)
+                cmp_count = count(.tag_set1)
                 AND
-                cmp_count = count(ALL .tag_set1 UNION cmp)
+                cmp_count = count(.tag_set1 UNION cmp)
             ORDER BY .name;
 
             WITH
                 MODULE test,
                 cmp := {'rectangle', 'wood'},
-                cmp_count := count(ALL cmp)
+                cmp_count := count(cmp)
             SELECT Item {name}
             FILTER
-                cmp_count = count(ALL .tag_set2)
+                cmp_count = count(.tag_set2)
                 AND
-                cmp_count = count(ALL .tag_set2 UNION cmp)
-            ORDER BY .name;
-        ''', [
-            [
-                {'name': 'chair'},
-                {'name': 'table'},
-            ], [
-                {'name': 'table'},
-                {'name': 'tv'},
-            ],
-        ])
-
-    @unittest.expectedFailure
-    async def test_edgeql_links_set09(self):
-        await self.assert_query_result(r'''
-            # same as previous, but with a different syntax, leading
-            # to a different failure scenario
-            WITH
-                MODULE test,
-                cmp := {'rectangle', 'wood'},
-                cmp_count := count(ALL cmp)
-            SELECT Item {name}
-            FILTER
-                cmp_count = count(ALL Item.tag_set1)
-                AND
-                cmp_count = count(ALL Item.tag_set1 UNION cmp)
-            ORDER BY .name;
-
-            WITH
-                MODULE test,
-                cmp := {'rectangle', 'wood'},
-                cmp_count := count(ALL cmp)
-            SELECT Item {name}
-            FILTER
-                cmp_count = count(ALL Item.tag_set2)
-                AND
-                cmp_count = count(ALL Item.tag_set2 UNION cmp)
+                cmp_count = count(.tag_set2 UNION cmp)
             ORDER BY .name;
         ''', [
             [
@@ -494,32 +460,68 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
         ])
 
     @unittest.expectedFailure
-    async def test_edgeql_links_set10(self):
+    async def test_edgeql_links_set_09(self):
         await self.assert_query_result(r'''
             # same as previous, but with a different syntax, leading
             # to a different failure scenario
             WITH
                 MODULE test,
                 cmp := {'rectangle', 'wood'},
-                cmp_count := count(ALL cmp)
+                cmp_count := count(cmp)
+            SELECT Item {name}
+            FILTER
+                cmp_count = count(Item.tag_set1)
+                AND
+                cmp_count = count(Item.tag_set1 UNION cmp)
+            ORDER BY .name;
+
+            WITH
+                MODULE test,
+                cmp := {'rectangle', 'wood'},
+                cmp_count := count(cmp)
+            SELECT Item {name}
+            FILTER
+                cmp_count = count(Item.tag_set2)
+                AND
+                cmp_count = count(Item.tag_set2 UNION cmp)
+            ORDER BY .name;
+        ''', [
+            [
+                {'name': 'chair'},
+                {'name': 'table'},
+            ], [
+                {'name': 'table'},
+                {'name': 'tv'},
+            ],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_links_set_10(self):
+        await self.assert_query_result(r'''
+            # same as previous, but with a different syntax, leading
+            # to a different failure scenario
+            WITH
+                MODULE test,
+                cmp := {'rectangle', 'wood'},
+                cmp_count := count(cmp)
             # includes tag_set1 in the shape
             SELECT Item {name, tag_set1}
             FILTER
-                cmp_count = count(ALL Item.tag_set1)
+                cmp_count = count(Item.tag_set1)
                 AND
-                cmp_count = count(ALL Item.tag_set1 UNION cmp)
+                cmp_count = count(Item.tag_set1 UNION cmp)
             ORDER BY .name;
 
             WITH
                 MODULE test,
                 cmp := {'rectangle', 'wood'},
-                cmp_count := count(ALL cmp)
+                cmp_count := count(cmp)
             # includes tag_set1 in the shape
             SELECT Item {name, tag_set2}
             FILTER
-                cmp_count = count(ALL Item.tag_set2)
+                cmp_count = count(Item.tag_set2)
                 AND
-                cmp_count = count(ALL Item.tag_set2 UNION cmp)
+                cmp_count = count(Item.tag_set2 UNION cmp)
             ORDER BY .name;
         ''', [
             [
@@ -531,13 +533,13 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_links_set11(self):
+    async def test_edgeql_links_set_11(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Item {name}
             FILTER
-                array_agg(ALL .tag_set1 ORDER BY .tag_set1) =
-                    array_agg(ALL .tag_set2 ORDER BY .tag_set2)
+                array_agg(.tag_set1 ORDER BY .tag_set1) =
+                    array_agg(.tag_set2 ORDER BY .tag_set2)
             ORDER BY .name;
         ''', [
             [
@@ -606,7 +608,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
                 I2 := Item
             SELECT Item {
                 name,
-                unique := count(ALL (
+                unique := count( (
                     SELECT _ := Item.tag_set1
                     FILTER _ NOT IN (
                         SELECT I2.tag_set1 FILTER I2 != Item
@@ -644,7 +646,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
                     )
                 )
             }
-            FILTER count(ALL .unique) > 0
+            FILTER count(.unique) > 0
             ORDER BY .name;
         ''', [
             [
@@ -665,7 +667,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             WITH MODULE test
             SELECT Item {name}
             FILTER .tag_set1 IN {'wood', 'plastic'}
-            ORDER BY count(ALL (
+            ORDER BY count((
                 SELECT _ := Item.tag_set1
                 FILTER _ IN {'rectangle', 'plastic', 'wood'}
             )) DESC THEN .name;
@@ -760,7 +762,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_links_array03(self):
+    async def test_edgeql_links_array_03(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Item {name}
@@ -772,7 +774,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_links_array04(self):
+    async def test_edgeql_links_array_04(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Item {name}
@@ -784,7 +786,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_links_array05(self):
+    async def test_edgeql_links_array_05(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Item {name}
@@ -796,7 +798,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_links_array06(self):
+    async def test_edgeql_links_array_06(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Item {name}
@@ -808,7 +810,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_links_array07(self):
+    async def test_edgeql_links_array_07(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Item {name}
@@ -822,7 +824,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_links_array08(self):
+    async def test_edgeql_links_array_08(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Item {name}
@@ -902,7 +904,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
                     )
                 )
             }
-            FILTER count(ALL .unique) > 0
+            FILTER count(.unique) > 0
             ORDER BY .name;
         ''', [
             [
@@ -951,7 +953,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_links_map01(self):
+    async def test_edgeql_links_map_01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Item {name}
@@ -964,7 +966,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_links_map02(self):
+    async def test_edgeql_links_map_02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Item {name}
@@ -977,7 +979,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_links_map03(self):
+    async def test_edgeql_links_map_03(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Item {name}
@@ -987,7 +989,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             [],
         ])
 
-    async def test_edgeql_links_map04(self):
+    async def test_edgeql_links_map_04(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Item {name}

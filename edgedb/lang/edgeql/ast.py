@@ -43,6 +43,7 @@ class SetOperator(EdgeQLOperator):
 
 
 UNION = SetOperator('UNION')
+DISTINCT = SetOperator('DISTINCT')
 
 AND = ast.ops.AND
 OR = ast.ops.OR
@@ -177,7 +178,8 @@ class FunctionCall(Expr):
     agg_sort: typing.List[SortExpr]
     agg_filter: Expr
     window: WindowSpec
-    agg_set_modifier: SetModifier
+    # FIXME: drop this completely
+    agg_set_modifier: typing.Optional[SetModifier]
 
 
 class Constant(Expr):

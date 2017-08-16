@@ -487,9 +487,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         self.write('(')
 
-        if node.agg_set_modifier:
-            self.write(node.agg_set_modifier, ' ')
-
         for i, arg in enumerate(node.args):
             if i > 0:
                 self.write(', ')

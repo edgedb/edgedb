@@ -1671,7 +1671,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             BY User.name
             SELECT (
                 name := User.name,
-                num_tasks := count(ALL User.tasks)
+                num_tasks := count(User.tasks)
             );
         """
 
@@ -2030,6 +2030,13 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT some_agg(User.name) OVER (
             PARTITION BY User.email, User.age
             ORDER BY User.age ASC THEN User.name ASC);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.*ALL', line=2, col=22)
+    def test_edgeql_syntax_function_05(self):
+        """
+        SELECT count(ALL 1);
         """
 
     def test_edgeql_syntax_tuple_01(self):

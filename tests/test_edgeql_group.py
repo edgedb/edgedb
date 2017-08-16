@@ -23,7 +23,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                          'groups_setup.eql')
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_group_simple01(self):
+    async def test_edgeql_group_simple_01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             GROUP
@@ -31,7 +31,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             BY
                 User.name
             SELECT
-                count(ALL User.<owner)
+                count(User.<owner)
             ORDER BY
                 User.name;
         ''', [
@@ -39,7 +39,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_group_simple02(self):
+    async def test_edgeql_group_simple_02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             GROUP
@@ -48,7 +48,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 Issue.time_estimate
             SELECT
                 # count using link 'id'
-                count(ALL Issue.id)
+                count(Issue.id)
             ORDER BY
                 Issue.time_estimate EMPTY FIRST;
         ''', [
@@ -56,7 +56,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_group_simple03(self):
+    async def test_edgeql_group_simple_03(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             GROUP
@@ -65,7 +65,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 Issue.time_estimate
             SELECT
                 # count Issue directly
-                count(ALL Issue)
+                count(Issue)
             ORDER BY
                 Issue.time_estimate EMPTY FIRST;
         ''', [
@@ -73,7 +73,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_group_simple04(self):
+    async def test_edgeql_group_simple_04(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             GROUP
@@ -83,7 +83,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             SELECT
                 # count Issue statuses, which should be same as counting
                 # Issues, since the status link is *1
-                count(ALL Issue.status.id)
+                count(Issue.status.id)
             ORDER BY
                 Issue.time_estimate EMPTY FIRST;
         ''', [
@@ -91,7 +91,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_group_simple05(self):
+    async def test_edgeql_group_simple_05(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             GROUP
@@ -115,7 +115,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             BY
                 x.1
             SELECT
-                (x.1, array_agg(ALL x.0))
+                (x.1, array_agg(x.0))
             ORDER BY
                 x.1;
         ''', [
@@ -123,7 +123,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_group_alias01(self):
+    async def test_edgeql_group_alias_01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             GROUP
@@ -131,7 +131,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             BY
                 Issue.time_estimate
             SELECT _ := (
-                count := count(ALL Issue.status.id),
+                count := count(Issue.status.id),
                 te := Issue.time_estimate > 0
             ) ORDER BY
                 _.te EMPTY FIRST;
@@ -142,7 +142,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             BY
                 Issue.time_estimate
             SELECT _ := (
-                count := count(ALL Issue.status.id),
+                count := count(Issue.status.id),
                 te := Issue.time_estimate > 0
             ) ORDER BY
                 _.te EMPTY LAST;
@@ -152,20 +152,20 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_group_nested01(self):
+    async def test_edgeql_group_nested_01(self):
         await self.assert_query_result(r"""
             WITH MODULE test
             SELECT
                 R := (
                     name := User.name,
-                    issues := array_agg(ALL (
+                    issues := array_agg( (
                         GROUP
                             User.<owner[IS Issue]
                         BY
                             User.<owner[IS Issue].status.name
                         SELECT (
                             status := User.<owner[IS Issue].status.name,
-                            count := count(ALL User.<owner[IS Issue]),
+                            count := count(User.<owner[IS Issue]),
                         )
                         ORDER BY
                             User.<owner[IS Issue].status.name
@@ -195,12 +195,11 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             },
         ]])
 
-    async def test_edgeql_group_agg01(self):
+    async def test_edgeql_group_agg_01(self):
         await self.assert_query_result(r"""
             SELECT
                 schema::Concept {
                     l := array_agg(
-                        ALL
                         schema::Concept.links.name
                         FILTER
                             schema::Concept.links.name IN {
@@ -218,11 +217,10 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             }]
         ])
 
-    async def test_edgeql_group_agg02(self):
+    async def test_edgeql_group_agg_02(self):
         await self.assert_query_result(r"""
             WITH MODULE test
             SELECT array_agg(
-                ALL
                 [<str>Issue.number, Issue.status.name]
                 ORDER BY Issue.number);
         """, [
@@ -230,7 +228,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_group_agg03(self):
+    async def test_edgeql_group_agg_03(self):
         await self.assert_query_result(r"""
             WITH MODULE test
             GROUP
@@ -238,7 +236,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             BY
                 Issue.status.name
             SELECT (
-                sum := sum(ALL <int>Issue.number),
+                sum := sum(<int>Issue.number),
                 status := Issue.status.name,
             ) ORDER BY Issue.status.name;
         """, [
@@ -252,7 +250,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_group_agg04(self):
+    async def test_edgeql_group_agg_04(self):
         await self.assert_query_result(r"""
             WITH MODULE test
             GROUP
@@ -261,7 +259,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 Issue.status.name
             SELECT
                 _ := (
-                    sum := sum(ALL <int>Issue.number),
+                    sum := sum(<int>Issue.number),
                     status := Issue.status.name,
                 )
             FILTER
@@ -275,7 +273,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             }],
         ])
 
-    async def test_edgeql_group_agg05(self):
+    async def test_edgeql_group_agg_05(self):
         await self.assert_query_result(r"""
             WITH
                 MODULE test,
@@ -287,12 +285,12 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                         all_issues := Issue
                     } FILTER .name = 'Elvis'
                 )
-            SELECT x.count = count(ALL x.all_issues);
+            SELECT x.count = count(x.all_issues);
         """, [
             [True]
         ])
 
-    async def test_edgeql_group_agg06(self):
+    async def test_edgeql_group_agg_06(self):
         await self.assert_query_result(r"""
             WITH
                 MODULE test,
@@ -300,16 +298,16 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                     # User is simply employed as an object to be augmented
                     #
                     SELECT User {
-                        count := count(ALL Issue),
+                        count := count(Issue),
                         all_issues := Issue
                     } FILTER .name = 'Elvis'
                 )
-            SELECT x.count = count(ALL x.all_issues);
+            SELECT x.count = count(x.all_issues);
         """, [
             [True]
         ])
 
-    async def test_edgeql_group_agg07(self):
+    async def test_edgeql_group_agg_07(self):
         await self.assert_query_result(r"""
             WITH
                 MODULE test,
@@ -317,16 +315,16 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                     # User is simply employed as an object to be augmented
                     #
                     SELECT User {
-                        count := count(ALL <int>Issue.number),
+                        count := count(<int>Issue.number),
                         all_issues := <int>Issue.number
                     } FILTER .name = 'Elvis'
                 )
-            SELECT x.count = count(ALL x.all_issues);
+            SELECT x.count = count(x.all_issues);
         """, [
             [True]
         ])
 
-    async def test_edgeql_group_returning01(self):
+    async def test_edgeql_group_returning_01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             GROUP
@@ -343,7 +341,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_group_by_tuple01(self):
+    async def test_edgeql_group_by_tuple_01(self):
         await self.assert_query_result(r"""
             WITH MODULE test
             GROUP
@@ -352,7 +350,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 Issue.status.name,
                 Issue.time_estimate
             SELECT _ := (
-                sum := sum(ALL <int>Issue.number),
+                sum := sum(<int>Issue.number),
                 status := Issue.status.name,
                 time_estimate := Issue.time_estimate
             ) ORDER BY Issue.status.name
@@ -368,7 +366,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_group_by_tuple02(self):
+    async def test_edgeql_group_by_tuple_02(self):
         await self.assert_query_result(r"""
             WITH MODULE test
             GROUP
@@ -377,7 +375,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 Issue.status.name,
                 Issue.time_estimate
             SELECT (
-                sum := sum(ALL <int>Issue.number),
+                sum := sum(<int>Issue.number),
                 status := Issue.status.name,
                 time_estimate := Issue.time_estimate
             ) ORDER BY Issue.status.name
@@ -395,7 +393,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_group_by_tuple03(self):
+    async def test_edgeql_group_by_tuple_03(self):
         await self.assert_query_result(r"""
             WITH MODULE test
             GROUP
@@ -406,7 +404,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             SELECT (
                 # array_agg with ordering instead of sum
                 numbers := array_agg(
-                    ALL <int>Issue.number ORDER BY Issue.number),
+                    <int>Issue.number ORDER BY Issue.number),
                 status := Issue.status.name,
                 time_estimate := Issue.time_estimate
             ) ORDER BY Issue.status.name
@@ -428,7 +426,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_group_by_tuple04(self):
+    async def test_edgeql_group_by_tuple_04(self):
         await self.assert_query_result(r"""
             WITH MODULE test
             GROUP
@@ -438,7 +436,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 Issue.time_estimate
             SELECT (
                 # array_agg with ordering instead of sum
-                numbers := array_agg(ALL Issue.number ORDER BY Issue.number),
+                numbers := array_agg(Issue.number ORDER BY Issue.number),
                 status := Issue.status.name,
                 time_estimate := Issue.time_estimate
             ) ORDER BY Issue.status.name
@@ -460,7 +458,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_group_by_tuple05(self):
+    async def test_edgeql_group_by_tuple_05(self):
         await self.assert_query_result(r"""
             WITH MODULE test
             GROUP
@@ -471,9 +469,9 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             SELECT (
                 # a couple of array_agg
                 numbers := array_agg(
-                    ALL <int>Issue.number ORDER BY Issue.number),
+                    <int>Issue.number ORDER BY Issue.number),
                 watchers := array_agg(
-                    ALL <str>Issue.watchers.name ORDER BY Issue.watchers.name),
+                    <str>Issue.watchers.name ORDER BY Issue.watchers.name),
                 status := Issue.status.name,
                 time_estimate := Issue.time_estimate
             ) ORDER BY Issue.status.name
@@ -498,7 +496,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_group_by_tuple06(self):
+    async def test_edgeql_group_by_tuple_06(self):
         await self.assert_query_result(r"""
             WITH MODULE test
             GROUP
@@ -511,10 +509,10 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 Issue.less_than_four
             SELECT (
                 numbers := array_agg(
-                    ALL Issue.number ORDER BY Issue.number),
+                    Issue.number ORDER BY Issue.number),
                 # watchers will sometimes be empty resulting in []
                 watchers := array_agg(
-                    ALL Issue.watchers.name ORDER BY Issue.watchers.name),
+                    Issue.watchers.name ORDER BY Issue.watchers.name),
                 status := Issue.status.name,
             ) ORDER BY
                 Issue.status.name
@@ -536,7 +534,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_group_by_tuple07(self):
+    async def test_edgeql_group_by_tuple_07(self):
         await self.assert_query_result(r"""
             WITH MODULE test
             GROUP
@@ -547,7 +545,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 <int>Issue.number < 4
             SELECT _ := (
                 numbers := array_agg(
-                    ALL <int>Issue.number ORDER BY Issue.number),
+                    <int>Issue.number ORDER BY Issue.number),
                 watchers := count(DISTINCT Issue.watchers),
                 status := Issue.status.name,
             ) ORDER BY
@@ -572,7 +570,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_group_by_tuple08(self):
+    async def test_edgeql_group_by_tuple_08(self):
         await self.assert_query_result(r"""
             WITH MODULE test
             GROUP
@@ -582,7 +580,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 Issue.owner
             SELECT (
                 numbers := array_agg(
-                    ALL <int>Issue.number ORDER BY Issue.number),
+                    <int>Issue.number ORDER BY Issue.number),
                 status := Issue.status.name,
             ) ORDER BY Issue.status.name
                 # should work because owner.name is *-1
@@ -604,7 +602,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_group_linkproperty_simple01(self):
+    async def test_edgeql_group_linkproperty_simple_01(self):
         await self.assert_query_result(r"""
             # group by link property
             #
@@ -642,7 +640,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_group_linkproperty_simple02(self):
+    async def test_edgeql_group_linkproperty_simple_02(self):
         await self.assert_query_result(r"""
             # use link property inside a group aggregate
             #
@@ -655,7 +653,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 cards := array_agg(
                     DISTINCT Card.name ORDER BY Card.name),
                 element := Card.element,
-                count := sum(ALL Card.<deck@count),
+                count := sum(Card.<deck@count),
             ) ORDER BY _.count;
         """, [
 
@@ -685,7 +683,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_group_linkproperty_simple03(self):
+    async def test_edgeql_group_linkproperty_simple_03(self):
         await self.assert_query_result(r"""
             # group by link property
             #
@@ -710,7 +708,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_group_linkproperty_simple04(self):
+    async def test_edgeql_group_linkproperty_simple_04(self):
         await self.assert_query_result(r"""
             # NOTE: should be the same as above because we happen to
             # have unique nicknames for friends
@@ -725,7 +723,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 # using array agg here because it cannot be proven
                 # that when grouped by nickname, friends are unique
                 #
-                name := array_agg(ALL User.friends.name)
+                name := array_agg(User.friends.name)
             ) ORDER BY _.nickname;
         """, [
             [
@@ -736,14 +734,14 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_group_linkproperty_nested01(self):
+    async def test_edgeql_group_linkproperty_nested_01(self):
         await self.assert_query_result(r"""
             WITH MODULE cards
             SELECT User {
                 name,
                 # total card count across the deck
                 #
-                total := sum(ALL User.deck@count),
+                total := sum(User.deck@count),
                 # group each deck by elements, adding up the counts
                 #
                 elements := (
@@ -751,7 +749,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                     BY User.deck.element
                     SELECT _ := (
                         name := User.deck.element,
-                        count := sum(ALL User.deck@count),
+                        count := sum(User.deck@count),
                     )
                     ORDER BY _.name
                 )
@@ -797,7 +795,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_group_linkproperty_nested02(self):
+    async def test_edgeql_group_linkproperty_nested_02(self):
         await self.assert_query_result(r"""
             # similar to nested01, but with the root grouped by @nickname
             #
@@ -812,15 +810,15 @@ class TestEdgeQLGroup(tb.QueryTestCase):
 
                 # total card count across the deck
                 #
-                total := sum(ALL User.friends.deck@count),
+                total := sum(User.friends.deck@count),
                 # group each deck by elements, adding up the counts
                 #
-                elements := array_agg(ALL (
+                elements := array_agg( (
                     GROUP User.friends.deck
                     BY User.friends.deck.element
                     SELECT _ := (
                         name := User.friends.deck.element,
-                        count := sum(ALL User.friends.deck@count),
+                        count := sum(User.friends.deck@count),
                     )
                     ORDER BY _.name
                 ))
@@ -861,7 +859,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_group_linkproperty_tuple01(self):
+    async def test_edgeql_group_linkproperty_tuple_01(self):
         await self.assert_query_result(r"""
             WITH MODULE cards
             GROUP
@@ -870,7 +868,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 User.deck.element, User.deck@count
             SELECT _ := (
                 cards := array_agg(
-                    ALL User.deck.name ORDER BY User.deck.name),
+                    User.deck.name ORDER BY User.deck.name),
                 element := User.deck.element,
                 count := User.deck@count,
             ) ORDER BY _.element ASC THEN _.count ASC;
@@ -915,7 +913,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             BY
                 I % 2 = 0
             SELECT _ := (
-                values := array_agg(ALL I ORDER BY I)
+                values := array_agg(I ORDER BY I)
             ) ORDER BY _.values;
         """, [
             [
@@ -933,7 +931,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             BY
                 I % 2 = 0
             SELECT _ := (
-                values := array_agg(ALL I ORDER BY I)
+                values := array_agg(I ORDER BY I)
             ) ORDER BY _.values;
         """, [
             [

@@ -23,7 +23,7 @@ class TestExpressions(tb.QueryTestCase):
     TEARDOWN = """
     """
 
-    async def test_edgeql_expr_emptyset01(self):
+    async def test_edgeql_expr_emptyset_01(self):
         await self.assert_query_result(r"""
             SELECT <int>{};
             SELECT <str>{};
@@ -43,9 +43,9 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT {};
             """)
 
-    async def test_edgeql_expr_emptyset02(self):
+    async def test_edgeql_expr_emptyset_02(self):
         await self.assert_query_result(r"""
-            SELECT count(ALL <int>{});
+            SELECT count(<int>{});
             SELECT count(DISTINCT <int>{});
         """, [
             [0],
@@ -56,17 +56,17 @@ class TestExpressions(tb.QueryTestCase):
                                     r'could not determine expression type'):
 
             await self.con.execute("""
-                SELECT count(ALL {});
+                SELECT count({});
             """)
 
-    async def test_edgeql_expr_idempotent01(self):
+    async def test_edgeql_expr_idempotent_01(self):
         await self.assert_query_result(r"""
             SELECT (SELECT (SELECT (SELECT 42)));
         """, [
             [42],
         ])
 
-    async def test_edgeql_expr_idempotent02(self):
+    async def test_edgeql_expr_idempotent_02(self):
         await self.assert_query_result(r"""
             SELECT 'f';
             SELECT 'f'[0];
@@ -81,7 +81,7 @@ class TestExpressions(tb.QueryTestCase):
             ['f'],
         ])
 
-    async def test_edgeql_expr_op01(self):
+    async def test_edgeql_expr_op_01(self):
         await self.assert_query_result(r"""
             SELECT 40 + 2;
             SELECT 40 - 2;
@@ -96,7 +96,7 @@ class TestExpressions(tb.QueryTestCase):
             [0],
         ])
 
-    async def test_edgeql_expr_op02(self):
+    async def test_edgeql_expr_op_02(self):
         await self.assert_query_result(r"""
             SELECT 40 ^ 2;
             SELECT 121 ^ 0.5;
@@ -107,7 +107,7 @@ class TestExpressions(tb.QueryTestCase):
             [2 ** 3 ** 2],
         ])
 
-    async def test_edgeql_expr_op03(self):
+    async def test_edgeql_expr_op_03(self):
         await self.assert_query_result(r"""
             SELECT 40 < 2;
             SELECT 40 > 2;
@@ -124,7 +124,7 @@ class TestExpressions(tb.QueryTestCase):
             [True],
         ])
 
-    async def test_edgeql_expr_op04(self):
+    async def test_edgeql_expr_op_04(self):
         await self.assert_query_result(r"""
             SELECT -1 + 2 * 3 - 5 - 6.0 / 2;
             SELECT
@@ -159,14 +159,14 @@ class TestExpressions(tb.QueryTestCase):
             [-0.2],
         ])
 
-    async def test_edgeql_expr_op05(self):
+    async def test_edgeql_expr_op_05(self):
         await self.assert_query_result(r"""
             SELECT 'foo' + 'bar';
         """, [
             ['foobar'],
         ])
 
-    async def test_edgeql_expr_op06(self):
+    async def test_edgeql_expr_op_06(self):
         await self.assert_query_result(r"""
             SELECT {} = {};
             SELECT {} = 42;
@@ -177,7 +177,7 @@ class TestExpressions(tb.QueryTestCase):
             [],
         ])
 
-    async def test_edgeql_expr_op07(self):
+    async def test_edgeql_expr_op_07(self):
         # Test boolean interaction with {}
         await self.assert_query_result(r"""
             SELECT TRUE OR {};
@@ -187,7 +187,7 @@ class TestExpressions(tb.QueryTestCase):
             [],
         ])
 
-    async def test_edgeql_expr_op08(self):
+    async def test_edgeql_expr_op_08(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError,
                 r'unary operator `-` is not defined .* std::str'):
@@ -196,7 +196,7 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT -'aaa';
             """)
 
-    async def test_edgeql_expr_op09(self):
+    async def test_edgeql_expr_op_09(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError,
                 r'unary operator `NOT` is not defined .* std::str'):
@@ -205,7 +205,7 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT NOT 'aaa';
             """)
 
-    async def test_edgeql_expr_op10(self):
+    async def test_edgeql_expr_op_10(self):
         for query in ['SELECT -{};', 'SELECT +{};', 'SELECT NOT {};']:
             with self.assertRaisesRegex(
                     exc.EdgeQLError,
@@ -213,7 +213,7 @@ class TestExpressions(tb.QueryTestCase):
 
                 await self.con.execute(query)
 
-    async def test_edgeql_expr_op11(self):
+    async def test_edgeql_expr_op_11(self):
         # Test non-trivial folding
         await self.assert_query_result(r"""
             SELECT 1 + (1 + len([1, 2])) + 1;
@@ -223,7 +223,7 @@ class TestExpressions(tb.QueryTestCase):
             [16],
         ])
 
-    async def test_edgeql_expr_op12(self):
+    async def test_edgeql_expr_op_12(self):
         # Test power precedence
         await self.assert_query_result(r"""
             SELECT -2^2;
@@ -231,7 +231,7 @@ class TestExpressions(tb.QueryTestCase):
             [-4],
         ])
 
-    async def test_edgeql_expr_op13(self):
+    async def test_edgeql_expr_op_13(self):
         # test equivalence comparison
         await self.assert_query_result(r"""
             SELECT 2 ?= 2;
@@ -256,7 +256,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_expr_op14(self):
+    async def test_edgeql_expr_op_14(self):
         await self.assert_query_result(r"""
             SELECT _ := {9, 1, 13}
             FILTER _ IN {11, 12, 13};
@@ -269,7 +269,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_expr_op15(self):
+    async def test_edgeql_expr_op_15(self):
         await self.assert_query_result(r"""
             SELECT _ := {9, 12, 13}
             FILTER _ NOT IN {11, 12, 13};
@@ -282,7 +282,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_expr_op16(self):
+    async def test_edgeql_expr_op_16(self):
         await self.assert_query_result(r"""
             WITH a := {11, 12, 13}
             SELECT _ := {9, 1, 13}
@@ -302,7 +302,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_expr_op17(self):
+    async def test_edgeql_expr_op_17(self):
         await self.assert_query_result(r"""
             WITH a := {11, 12, 13}
             SELECT _ := {9, 1, 13}
@@ -364,7 +364,7 @@ class TestExpressions(tb.QueryTestCase):
             };
         """)
 
-    async def test_edgeql_expr_cast01(self):
+    async def test_edgeql_expr_cast_01(self):
         await self.assert_query_result(r"""
             SELECT <std::str>123;
             SELECT <std::int>"123";
@@ -385,7 +385,7 @@ class TestExpressions(tb.QueryTestCase):
             [0],
         ])
 
-    async def test_edgeql_expr_cast02(self):
+    async def test_edgeql_expr_cast_02(self):
         # testing precedence of casting vs. multiplication
         #
         with self.assertRaisesRegex(
@@ -396,28 +396,28 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT <std::str>123 * 2;
             """)
 
-    async def test_edgeql_expr_cast03(self):
+    async def test_edgeql_expr_cast_03(self):
         await self.assert_query_result(r"""
             SELECT <std::str><std::int><std::float>'123.45' + 'foo';
         """, [
             ['123foo'],
         ])
 
-    async def test_edgeql_expr_cast04(self):
+    async def test_edgeql_expr_cast_04(self):
         await self.assert_query_result(r"""
             SELECT <str><int><float>'123.45' + 'foo';
         """, [
             ['123foo'],
         ])
 
-    async def test_edgeql_expr_cast05(self):
+    async def test_edgeql_expr_cast_05(self):
         await self.assert_query_result(r"""
             SELECT <array<int>>['123', '11'];
         """, [
             [[123, 11]],
         ])
 
-    async def test_edgeql_expr_cast06(self):
+    async def test_edgeql_expr_cast_06(self):
         await self.assert_query_result(r"""
             SELECT <array<bool>>['t', 'tr', 'tru', 'true'];
             SELECT <array<bool>>['T', 'TR', 'TRU', 'TRUE'];
@@ -434,7 +434,7 @@ class TestExpressions(tb.QueryTestCase):
             [[True, True, True]],
         ])
 
-    async def test_edgeql_expr_cast07(self):
+    async def test_edgeql_expr_cast_07(self):
         await self.assert_query_result(r"""
             SELECT <array<bool>>['f', 'fa', 'fal', 'fals', 'false'];
             SELECT <array<bool>>['F', 'FA', 'FAL', 'FALS', 'FALSE'];
@@ -451,14 +451,14 @@ class TestExpressions(tb.QueryTestCase):
             [[False, False]],
         ])
 
-    async def test_edgeql_expr_cast08(self):
+    async def test_edgeql_expr_cast_08(self):
         with self.assertRaisesRegex(exc.EdgeQLError,
                                     r'cannot cast tuple'):
             await self.con.execute(r"""
                 SELECT <array<int>>(123, 11);
             """)
 
-    async def test_edgeql_expr_cast09(self):
+    async def test_edgeql_expr_cast_09(self):
         await self.assert_query_result(r"""
             SELECT <tuple<str, int>> ('foo', 42);
             SELECT <tuple<a: str, b: int>> ('foo', 42);
@@ -467,21 +467,21 @@ class TestExpressions(tb.QueryTestCase):
             [{'a': 'foo', 'b': 42}],
         ])
 
-    async def test_edgeql_expr_type01(self):
+    async def test_edgeql_expr_type_01(self):
         await self.assert_query_result(r"""
             SELECT 'foo'.__class__.name;
         """, [
             ['std::str'],
         ])
 
-    async def test_edgeql_expr_type02(self):
+    async def test_edgeql_expr_type_02(self):
         await self.assert_query_result(r"""
             SELECT (1.0 + 2).__class__.name;
         """, [
             ['std::float'],
         ])
 
-    async def test_edgeql_expr_set01(self):
+    async def test_edgeql_expr_set_01(self):
         await self.assert_query_result("""
             SELECT <int>{};
             SELECT {1};
@@ -494,7 +494,7 @@ class TestExpressions(tb.QueryTestCase):
             [True],
         ])
 
-    async def test_edgeql_expr_set02(self):
+    async def test_edgeql_expr_set_02(self):
         await self.assert_query_result("""
             WITH
                 MODULE schema,
@@ -513,7 +513,7 @@ class TestExpressions(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_expr_array01(self):
+    async def test_edgeql_expr_array_01(self):
         await self.assert_query_result("""
             SELECT [1];
             SELECT [1, 2, 3, 4, 5];
@@ -550,7 +550,7 @@ class TestExpressions(tb.QueryTestCase):
             [[]],
         ])
 
-    async def test_edgeql_expr_array02(self):
+    async def test_edgeql_expr_array_02(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError, r'could not determine array type'):
 
@@ -558,7 +558,7 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT [1, '1'];
             """)
 
-    async def test_edgeql_expr_array03(self):
+    async def test_edgeql_expr_array_03(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError, r'cannot index array by.*str'):
 
@@ -566,7 +566,7 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT [1, 2]['1'];
             """)
 
-    async def test_edgeql_expr_array04(self):
+    async def test_edgeql_expr_array_04(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError,
                 r'could not determine type of empty collection'):
@@ -576,14 +576,14 @@ class TestExpressions(tb.QueryTestCase):
             """)
 
     @unittest.expectedFailure
-    async def test_edgeql_expr_array05(self):
+    async def test_edgeql_expr_array_05(self):
         await self.assert_query_result('''
             SELECT [1, 2] + [3, 4];
         ''', [
             [[1, 2, 3, 4]],
         ])
 
-    async def test_edgeql_expr_map01(self):
+    async def test_edgeql_expr_map_01(self):
         await self.assert_query_result(r"""
             SELECT ['fo' + 'o' -> 42];
             SELECT <map<str,int>>['foo' -> '42'];
@@ -645,7 +645,7 @@ class TestExpressions(tb.QueryTestCase):
             [{}]
         ])
 
-    async def test_edgeql_expr_map02(self):
+    async def test_edgeql_expr_map_02(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError, r'could not determine map values type'):
 
@@ -661,7 +661,7 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT ['a' -> '1']['a'] + 1;
             ''')
 
-    async def test_edgeql_expr_map03(self):
+    async def test_edgeql_expr_map_03(self):
         await self.con.execute('''
             CREATE FUNCTION test::take(map<std::str, std::int>, std::str)
                     -> std::int
@@ -684,7 +684,7 @@ class TestExpressions(tb.QueryTestCase):
             [9000],
         ])
 
-    async def test_edgeql_expr_map04(self):
+    async def test_edgeql_expr_map_04(self):
         await self.assert_query_result(r"""
             SELECT <map<str, datetime>>['foo' -> '2020-10-10'];
             SELECT (<map<int,int>>['+1' -> '+42'])[1];  # '+1'::bigint = 1
@@ -707,7 +707,7 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT [1 -> 1]['1'];
             ''')
 
-    async def test_edgeql_expr_map05(self):
+    async def test_edgeql_expr_map_05(self):
         await self.assert_query_result(r"""
             SELECT [1 -> [ [[1]], [[-2]], [[3]] ] ]   [1];
             SELECT [1 -> [ [[true]], [[false]], [[true]] ] ]   [1];
@@ -729,7 +729,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     @unittest.expectedFailure
-    async def test_edgeql_expr_map06(self):
+    async def test_edgeql_expr_map_06(self):
         await self.assert_query_result(r"""
             SELECT [1 -> [ [[1]], [[-2]], [[3]] ] ]   [1][0];
             SELECT [1 -> [ [[1]], [[-2]], [[3]] ] ]   [1][0][0];
@@ -740,7 +740,7 @@ class TestExpressions(tb.QueryTestCase):
             [1],
         ])
 
-    async def test_edgeql_expr_struct01(self):
+    async def test_edgeql_expr_struct_01(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError,
                 r'operator `\+` is not defined .* tuple<.*> and std::int'):
@@ -750,7 +750,7 @@ class TestExpressions(tb.QueryTestCase):
             ''')
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_expr_struct02(self):
+    async def test_edgeql_expr_struct_02(self):
         await self.assert_query_result('''\
             SELECT _ := (spam := {1, 2}, ham := {3, 4})
             ORDER BY _.spam THEN _.ham;
@@ -761,7 +761,7 @@ class TestExpressions(tb.QueryTestCase):
             {'ham': 4, 'spam': 2}
         ]])
 
-    async def test_edgeql_expr_struct03(self):
+    async def test_edgeql_expr_struct_03(self):
         await self.assert_query_result('''\
             SELECT (1, 2) = (1, 2);
             SELECT (1, 2) UNION (1, 2);
@@ -770,7 +770,7 @@ class TestExpressions(tb.QueryTestCase):
             [[1, 2], [1, 2]],
         ])
 
-    async def test_edgeql_expr_coalesce01(self):
+    async def test_edgeql_expr_coalesce_01(self):
         await self.assert_query_result(r"""
             SELECT {} ?? 4 ?? 5;
             SELECT {} ?? 'foo' ?? 'bar';
@@ -807,7 +807,7 @@ class TestExpressions(tb.QueryTestCase):
             [],
         ])
 
-    async def test_edgeql_expr_string01(self):
+    async def test_edgeql_expr_string_01(self):
         await self.assert_query_result("""
             SELECT 'qwerty';
             SELECT 'qwerty'[2];
@@ -834,7 +834,7 @@ class TestExpressions(tb.QueryTestCase):
             ['qwer'],
         ])
 
-    async def test_edgeql_expr_string02(self):
+    async def test_edgeql_expr_string_02(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError, r'cannot index string by.*str'):
 
@@ -842,14 +842,14 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT '123'['1'];
             """)
 
-    async def test_edgeql_expr_tuple01(self):
+    async def test_edgeql_expr_tuple_01(self):
         await self.assert_query_result(r"""
             SELECT (1, 'foo');
         """, [
             [[1, 'foo']],
         ])
 
-    async def test_edgeql_expr_tuple02(self):
+    async def test_edgeql_expr_tuple_02(self):
         await self.assert_query_result(r"""
             SELECT (1, 'foo') = (1, 'foo');
             SELECT (1, 'foo') = (2, 'foo');
@@ -862,21 +862,21 @@ class TestExpressions(tb.QueryTestCase):
             [True],
         ])
 
-    async def test_edgeql_expr_tuple03(self):
+    async def test_edgeql_expr_tuple_03(self):
         with self.assertRaisesRegex(
                 exc._base.UnknownEdgeDBError, r'operator does not exist'):
             await self.con.execute(r"""
                 SELECT (1, 'foo') = ('1', 'foo');
             """)
 
-    async def test_edgeql_expr_tuple04(self):
+    async def test_edgeql_expr_tuple_04(self):
         await self.assert_query_result(r"""
-            SELECT array_agg(ALL (1, 'foo'));
+            SELECT array_agg((1, 'foo'));
         """, [
             [[[1, 'foo']]],
         ])
 
-    async def test_edgeql_expr_tuple05(self):
+    async def test_edgeql_expr_tuple_05(self):
         await self.assert_query_result(r"""
             SELECT (1, 2) UNION (3, 4);
         """, [
@@ -884,7 +884,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_expr_tuple06(self):
+    async def test_edgeql_expr_tuple_06(self):
         await self.assert_query_result(r"""
             SELECT (1, 'foo') = (a := 1, b := 'foo');
             SELECT (a := 1, b := 'foo') = (a := 1, b := 'foo');
@@ -903,21 +903,21 @@ class TestExpressions(tb.QueryTestCase):
             [True],
         ])
 
-    async def test_edgeql_expr_tuple07(self):
+    async def test_edgeql_expr_tuple_07(self):
         with self.assertRaisesRegex(
                 exc._base.UnknownEdgeDBError, r'operator does not exist'):
             await self.con.execute(r"""
                 SELECT (a := 1, b := 'foo') != (b := 'foo', a := 1);
             """)
 
-    async def test_edgeql_expr_tuple08(self):
+    async def test_edgeql_expr_tuple_08(self):
         await self.assert_query_result(r"""
             SELECT ();
         """, [
             [[]],
         ])
 
-    async def test_edgeql_expr_tuple_indirection01(self):
+    async def test_edgeql_expr_tuple_indirection_01(self):
         await self.assert_query_result(r"""
             SELECT ('foo', 42).0;
             SELECT ('foo', 42).1;
@@ -926,7 +926,7 @@ class TestExpressions(tb.QueryTestCase):
             [42],
         ])
 
-    async def test_edgeql_expr_tuple_indirection02(self):
+    async def test_edgeql_expr_tuple_indirection_02(self):
         await self.assert_query_result(r"""
             SELECT (name := 'foo', val := 42).name;
             SELECT (name := 'foo', val := 42).val;
@@ -935,21 +935,21 @@ class TestExpressions(tb.QueryTestCase):
             [42],
         ])
 
-    async def test_edgeql_expr_tuple_indirection03(self):
+    async def test_edgeql_expr_tuple_indirection_03(self):
         await self.assert_query_result(r"""
             WITH _ := (SELECT ('foo', 42)) SELECT _.1;
         """, [
             [42],
         ])
 
-    async def test_edgeql_expr_tuple_indirection04(self):
+    async def test_edgeql_expr_tuple_indirection_04(self):
         await self.assert_query_result(r"""
             WITH _ := (SELECT (name := 'foo', val := 42)) SELECT _.name;
         """, [
             ['foo'],
         ])
 
-    async def test_edgeql_expr_tuple_indirection05(self):
+    async def test_edgeql_expr_tuple_indirection_05(self):
         await self.assert_query_result(r"""
             WITH _ := (SELECT (1,2) UNION (3,4)) SELECT _.0;
         """, [
@@ -976,7 +976,7 @@ class TestExpressions(tb.QueryTestCase):
             ['s2'],
         ])
 
-    async def test_edgeql_expr_setop01(self):
+    async def test_edgeql_expr_setop_01(self):
         await self.assert_query_result(r"""
             SELECT EXISTS {};
             SELECT NOT EXISTS {};
@@ -985,7 +985,7 @@ class TestExpressions(tb.QueryTestCase):
             [True],
         ])
 
-    async def test_edgeql_expr_setop02(self):
+    async def test_edgeql_expr_setop_02(self):
         await self.assert_query_result(r"""
             SELECT 2 * ((SELECT 1) UNION (SELECT 2));
 
@@ -1003,11 +1003,11 @@ class TestExpressions(tb.QueryTestCase):
             [2, 4],
         ])
 
-    async def test_edgeql_expr_setop03(self):
+    async def test_edgeql_expr_setop_03(self):
         res = await self.con.execute('''
-            SELECT array_agg(ALL 1 UNION 2 UNION 3);
-            SELECT array_agg(ALL 3 UNION 2 UNION 3);
-            SELECT array_agg(ALL 3 UNION 3 UNION 2);
+            SELECT array_agg(1 UNION 2 UNION 3);
+            SELECT array_agg(3 UNION 2 UNION 3);
+            SELECT array_agg(3 UNION 3 UNION 2);
         ''')
         self.assert_data_shape(res, [
             [[1, 2, 3]],
@@ -1015,7 +1015,7 @@ class TestExpressions(tb.QueryTestCase):
             [[3, 3, 2]],
         ])
 
-    async def test_edgeql_expr_cardinality01(self):
+    async def test_edgeql_expr_cardinality_01(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError,
                 r'possibly more than one element returned by an expression '
@@ -1027,7 +1027,7 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT Issue.name ORDER BY Issue.watchers.name;
             ''')
 
-    async def test_edgeql_expr_cardinality02(self):
+    async def test_edgeql_expr_cardinality_02(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError,
                 r'possibly more than one element returned by an expression '
@@ -1039,7 +1039,7 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT Issue LIMIT User.name;
             ''')
 
-    async def test_edgeql_expr_cardinality03(self):
+    async def test_edgeql_expr_cardinality_03(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError,
                 r'possibly more than one element returned by an expression '
@@ -1082,14 +1082,14 @@ class TestExpressions(tb.QueryTestCase):
             ''')
 
     @unittest.expectedFailure
-    async def test_edgeql_expr_comparison01(self):
+    async def test_edgeql_expr_comparison_01(self):
         with self.assertRaisesRegex(exc.UnknownEdgeDBError,
                                     r'operator does not exist'):
             await self.con.execute(r'''
                 SELECT (1, 2) = [1, 2];
             ''')
 
-    async def test_edgeql_expr_comparison02(self):
+    async def test_edgeql_expr_comparison_02(self):
         with self.assertRaisesRegex(exc.UnknownEdgeDBError,
                                     r'operator does not exist'):
             await self.con.execute(r'''
@@ -1097,30 +1097,22 @@ class TestExpressions(tb.QueryTestCase):
             ''')
 
     @unittest.expectedFailure
-    async def test_edgeql_expr_comparison03(self):
+    async def test_edgeql_expr_comparison_03(self):
         with self.assertRaisesRegex(exc.UnknownEdgeDBError,
                                     r'operator does not exist'):
             await self.con.execute(r'''
                 SELECT {1, 2} = (1, 2);
             ''')
 
-    async def test_edgeql_expr_aggregate01(self):
-        with self.assertRaisesRegex(
-            exc.EdgeQLError,
-                r"missing a required modifier 'ALL' or 'DISTINCT'"):
-            await self.con.execute(r'''
-                SELECT count(1);
-            ''')
-
-    async def test_edgeql_expr_aggregate02(self):
+    async def test_edgeql_expr_aggregate_01(self):
         await self.assert_query_result(r"""
             SELECT count(DISTINCT {1, 1, 1});
             SELECT count(DISTINCT {1, 2, 3});
             SELECT count(DISTINCT {1, 2, 3, 2, 3});
 
-            SELECT count(ALL {1, 1, 1});
-            SELECT count(ALL {1, 2, 3});
-            SELECT count(ALL {1, 2, 3, 2, 3});
+            SELECT count({1, 1, 1});
+            SELECT count({1, 2, 3});
+            SELECT count({1, 2, 3, 2, 3});
         """, [
             [1],
             [3],
@@ -1132,7 +1124,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_expr_alias01(self):
+    async def test_edgeql_expr_alias_01(self):
         await self.assert_query_result(r"""
             WITH
                 a := {1, 2},
@@ -1144,7 +1136,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_expr_alias02(self):
+    async def test_edgeql_expr_alias_02(self):
         await self.assert_query_result(r"""
             WITH
                 b := {2, 3}
@@ -1154,7 +1146,7 @@ class TestExpressions(tb.QueryTestCase):
             [2],
         ])
 
-    async def test_edgeql_expr_alias03(self):
+    async def test_edgeql_expr_alias_03(self):
         await self.assert_query_result(r"""
             SELECT (
                 name := 'a',
@@ -1168,7 +1160,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_expr_alias04(self):
+    async def test_edgeql_expr_alias_04(self):
         await self.assert_query_result(r"""
             SELECT (
                 name := 'a',
@@ -1182,7 +1174,7 @@ class TestExpressions(tb.QueryTestCase):
             [{'name': 'a', 'foo': 1}],
         ])
 
-    async def test_edgeql_expr_alias05(self):
+    async def test_edgeql_expr_alias_05(self):
         await self.assert_query_result(r"""
             WITH MODULE schema
             SELECT Concept {
@@ -1198,7 +1190,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_expr_alias06(self):
+    async def test_edgeql_expr_alias_06(self):
         await self.assert_query_result(r"""
             WITH MODULE schema
             SELECT Concept {
@@ -1215,7 +1207,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_expr_for01(self):
+    async def test_edgeql_expr_for_01(self):
         await self.assert_query_result(r"""
             FOR x IN {1, 3, 5, 7}
             SELECT x

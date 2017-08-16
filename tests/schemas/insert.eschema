@@ -44,7 +44,7 @@ concept DefaultTest3:
 concept DefaultTest4:
     required link bar to int:
         # deterministic dynamic value
-        default := (SELECT count(ALL DefaultTest4))
+        default := (SELECT count(DefaultTest4))
 
 # links and concepts to test atomic links with link properties
 link special:

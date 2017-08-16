@@ -418,7 +418,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
     async def test_edgeql_filter_aggregate01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
-            SELECT count(ALL Issue);
+            SELECT count(Issue);
         ''', [
             [4],
         ])
@@ -426,13 +426,13 @@ class TestEdgeQLFilter(tb.QueryTestCase):
     async def test_edgeql_filter_aggregate04(self):
         await self.assert_query_result(r'''
             WITH MODULE test
-            SELECT count(ALL Issue)
+            SELECT count(Issue)
             # this filter is not related to the aggregate and is allowed
             #
             FILTER Status.name = 'Open';
 
             WITH MODULE test
-            SELECT count(ALL Issue)
+            SELECT count(Issue)
             # this filter is conceptually equivalent to the above
             #
             FILTER TRUE;
@@ -446,7 +446,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             WITH
                 MODULE test,
                 I := (SELECT Issue FILTER Issue.status.name = 'Open')
-            SELECT count(ALL I);
+            SELECT count(I);
         ''', [
             [3],
         ])
@@ -457,11 +457,11 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             # impossible to fulfill, so the result is empty
             #
             WITH MODULE test
-            SELECT count(ALL Issue)
+            SELECT count(Issue)
             FILTER FALSE;
 
             WITH MODULE test
-            SELECT count(ALL Issue)
+            SELECT count(Issue)
             FILTER {};
         ''', [
             [],

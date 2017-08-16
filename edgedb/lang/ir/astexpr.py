@@ -19,7 +19,7 @@ class DistinctConjunctionExpr:
 
     def get_pattern(self):
         if self.pattern is None:
-            # Basic std::is_distinct(ALL blah) expression
+            # Basic std::is_distinct(blah) expression
             pure_distinct_expr = irastmatch.FunctionCall(
                 func=astmatch.Object(shortname='std::is_distinct'),
                 args=[astmatch.group('expr', irastmatch.Base())],

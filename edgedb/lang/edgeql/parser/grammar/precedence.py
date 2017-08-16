@@ -21,6 +21,10 @@ class P_SETOP(Precedence, assoc='left', tokens=('UNION',)):
     pass
 
 
+class P_DISTINCT(Precedence, assoc='left', tokens=('DISTINCT',)):
+    pass
+
+
 class P_IFELSE(Precedence, assoc='right', tokens=('IF', 'ELSE')):
     pass
 
