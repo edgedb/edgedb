@@ -89,18 +89,26 @@ def compile_Set(
         if len(expr.elements) == 1:
             return dispatch.compile(expr.elements[0], ctx=ctx)
         else:
-            # FIXME: this is sugar for a UNION (need to change to UNION ALL)
             elements = flatten_set(expr)
+            # If the type is some sort of Concept, then the set should
+            # be made using UNION, otherwise use UNION ALL.
+            el_type = irutils.infer_type(
+                dispatch.compile(elements[0], ctx=ctx), ctx.schema)
+            if isinstance(el_type, s_concepts.Concept):
+                op = qlast.UNION
+            else:
+                op = qlast.UNION_ALL
+
             bigunion = qlast.BinOp(
                 left=elements[0],
                 right=elements[1],
-                op=qlast.UNION
+                op=op
             )
             for el in elements[2:]:
                 bigunion = qlast.BinOp(
                     left=bigunion,
                     right=el,
-                    op=qlast.UNION
+                    op=op
                 )
             return dispatch.compile(bigunion, ctx=ctx)
     else:
@@ -491,6 +499,7 @@ def compile_set_op(
     right = dispatch.compile(right_ql, ctx=ctx)
 
     result = irast.SetOp(left=left.expr, right=right.expr, op=expr.op)
+    # get and validate the overall expression type
     rtype = irutils.infer_type(result, ctx.schema)
     path_id = pathctx.get_path_id(rtype, ctx=ctx)
     pathctx.register_path_scope(path_id, ctx=ctx)
@@ -578,8 +587,15 @@ def compile_ifelse(
                 if_expr_type.name, else_expr_type.name),
             context=src_context)
 
+    # If the type is some sort of Concept, then the translation should
+    # be made into UNION, otherwise to UNION ALL.
+    if isinstance(if_expr_type, s_concepts.Concept):
+        op = qlast.UNION
+    else:
+        op = qlast.UNION_ALL
+
     return irast.SetOp(left=if_expr.expr, right=else_expr.expr,
-                       op=qlast.UNION, exclusive=True)
+                       op=op, exclusive=True)
 
 
 def compile_membership_op(

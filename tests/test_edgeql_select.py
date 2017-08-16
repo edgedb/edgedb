@@ -1646,31 +1646,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_exists_18(self):
         await self.assert_query_result(r'''
             WITH MODULE test
-            SELECT EXISTS Issue
-            FILTER Issue.status.name = 'Open';
-        ''', [
-            [True, True],
-        ])
-
-    async def test_edgeql_select_exists_19(self):
-        await self.assert_query_result(r'''
-            WITH MODULE test
             SELECT EXISTS (
                 SELECT Issue
                 FILTER Issue.status.name = 'Open'
             );
         ''', [
             [True],
-        ])
-
-    async def test_edgeql_select_exists_20(self):
-        await self.assert_query_result(r'''
-            WITH MODULE test
-            SELECT EXISTS Issue
-            FILTER Issue.status.name = 'Open'
-            ORDER BY Issue.number;
-        ''', [
-            [True, True],
         ])
 
     async def test_edgeql_select_coalesce_01(self):

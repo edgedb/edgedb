@@ -86,7 +86,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_links_map_atoms01(self):
+    async def test_edgeql_links_map_atoms_01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Item {
@@ -133,7 +133,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_links_map_atoms02(self):
+    async def test_edgeql_links_map_atoms_02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Item {
@@ -248,7 +248,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_links_set02(self):
+    async def test_edgeql_links_set_02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Item {name}
@@ -394,7 +394,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
+    @tb.expected_optimizer_failure
     async def test_edgeql_links_set_07(self):
         await self.assert_query_result(r'''
             # subsets
@@ -553,7 +553,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_links_set12(self):
+    async def test_edgeql_links_set_12(self):
         await self.assert_query_result(r'''
             # find an item with a unique quality
             WITH
@@ -600,7 +600,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_links_set13(self):
+    async def test_edgeql_links_set_13(self):
         await self.assert_query_result(r'''
             # find an item with a unique quality
             WITH
@@ -630,7 +630,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_links_set14(self):
+    async def test_edgeql_links_set_14(self):
         await self.assert_query_result(r'''
             # find an item with a unique quality
             WITH
@@ -661,7 +661,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_links_set15(self):
+    async def test_edgeql_links_set_15(self):
         await self.assert_query_result(r'''
             # subsets
             WITH MODULE test
@@ -680,7 +680,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_links_array01(self):
+    async def test_edgeql_links_array_01(self):
         await self.assert_query_result(r'''
             # just a simple unpack
             WITH
@@ -721,7 +721,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_links_array02(self):
+    async def test_edgeql_links_array_02(self):
         await self.assert_query_result(r'''
             # just a simple unpack
             WITH
@@ -843,7 +843,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_links_array09(self):
+    async def test_edgeql_links_array_09(self):
         await self.assert_query_result(r'''
             # find an item with a unique quality
             WITH
@@ -889,7 +889,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_links_array10(self):
+    async def test_edgeql_links_array_10(self):
         await self.assert_query_result(r'''
             # find an item with a unique quality
             WITH
@@ -918,7 +918,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_links_array11(self):
+    async def test_edgeql_links_array_11(self):
         await self.assert_query_result(r'''
             # find an item with ALL unique qualities
             WITH

@@ -557,7 +557,7 @@ class Expr(Nonterm):
     # | '<' TypeName '>' Expr
     # | Expr IF Expr ELSE Expr
     # | Expr ?? Expr
-    # | Expr UNION Expr
+    # | Expr UNION Expr | Expr UNION ALL Expr
     # | DISTINCT Expr
     # | 'self' | '__subject__'
 
@@ -768,6 +768,10 @@ class Expr(Nonterm):
     def reduce_Expr_UNION_Expr(self, *kids):
         self.val = qlast.BinOp(left=kids[0].val, op=qlast.UNION,
                                right=kids[2].val)
+
+    def reduce_Expr_UNION_ALL_Expr(self, *kids):
+        self.val = qlast.BinOp(left=kids[0].val, op=qlast.UNION_ALL,
+                               right=kids[3].val)
 
 
 class Tuple(Nonterm):

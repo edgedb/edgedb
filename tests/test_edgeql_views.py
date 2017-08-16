@@ -23,7 +23,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
              os.path.join(os.path.dirname(__file__), 'schemas',
                           'cards_views_setup.eql')]
 
-    async def test_edgeql_views_basic01(self):
+    async def test_edgeql_views_basic_01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT AirCard {
@@ -49,7 +49,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_views_basic02(self):
+    async def test_edgeql_views_basic_02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT expert_map;
@@ -65,7 +65,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_views_basic03(self):
+    async def test_edgeql_views_basic_03(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT scores ORDER BY scores.name;
@@ -79,7 +79,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_views_basic04(self):
+    async def test_edgeql_views_basic_04(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT <tuple<str, int, int>>scores
@@ -94,7 +94,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_views_basic05(self):
+    async def test_edgeql_views_basic_05(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT <tuple<name: str, points: int, plays: int>>scores
@@ -108,7 +108,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_views_create01(self):
+    async def test_edgeql_views_create_01(self):
         await self.assert_query_result(r'''
             CREATE VIEW test::DCard := (
                 WITH MODULE test
@@ -147,7 +147,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
             None
         ])
 
-    async def test_edgeql_views_filter01(self):
+    async def test_edgeql_views_filter_01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT FireCard {name}

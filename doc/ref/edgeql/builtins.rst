@@ -39,7 +39,7 @@ Array functions
     Return the array made from all of the input set elements. The
     ordering of the input set will be preserved if specified.
 
-    .. code-block:: pseudo-eql
+    .. code-block:: eql
 
         SELECT array_agg({2, 3, 5});
         # returns [2, 3, 5]
@@ -139,7 +139,7 @@ Set aggregate functions
 
     Return the number of elements in a set.
 
-    .. code-block:: pseudo-eql
+    .. code-block:: eql
 
         SELECT count({2, 3, 5});
         # returns 3
