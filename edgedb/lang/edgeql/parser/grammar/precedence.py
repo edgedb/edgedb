@@ -17,7 +17,7 @@ class Precedence(parsing.Precedence, assoc='fail', metaclass=PrecedenceMeta):
     pass
 
 
-class P_SETOP(Precedence, assoc='left', tokens=('UNION',)):
+class P_SETOP(Precedence, assoc='left', tokens=('UNION', 'ALL')):
     pass
 
 

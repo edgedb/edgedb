@@ -728,8 +728,19 @@ def process_set_as_setop(
 
     with ctx.subquery() as subctx:
         subqry = subctx.query
-        subqry.op = pgast.PgSQLSetOperator(expr.op)
-        subqry.all = True
+        # There are only two binary set operators possible coming from IR:
+        # UNION and UNION ALL
+        subqry.op = pgast.UNION
+        if expr.op == 'UNION ALL':
+            subqry.all = True
+        else:
+            # If the type is some sort of Concept, then the translation should
+            # be made into UNION, otherwise to UNION ALL.
+            if isinstance(irutils.infer_type(expr.left, ctx.schema),
+                          s_concepts.Concept):
+                subqry.all = True
+            else:
+                subqry.all = False
         subqry.larg = larg
         subqry.rarg = rarg
 

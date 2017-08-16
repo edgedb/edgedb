@@ -740,36 +740,6 @@ class TestExpressions(tb.QueryTestCase):
             [1],
         ])
 
-    async def test_edgeql_expr_struct_01(self):
-        with self.assertRaisesRegex(
-                exc.EdgeQLError,
-                r'operator `\+` is not defined .* tuple<.*> and std::int'):
-
-            await self.con.execute(r'''
-                SELECT (spam := 1, ham := 2) + 1;
-            ''')
-
-    @tb.expected_optimizer_failure
-    async def test_edgeql_expr_struct_02(self):
-        await self.assert_query_result('''\
-            SELECT _ := (spam := {1, 2}, ham := {3, 4})
-            ORDER BY _.spam THEN _.ham;
-        ''', [[
-            {'ham': 3, 'spam': 1},
-            {'ham': 4, 'spam': 1},
-            {'ham': 3, 'spam': 2},
-            {'ham': 4, 'spam': 2}
-        ]])
-
-    async def test_edgeql_expr_struct_03(self):
-        await self.assert_query_result('''\
-            SELECT (1, 2) = (1, 2);
-            SELECT (1, 2) UNION (1, 2);
-        ''', [
-            [True],
-            [[1, 2], [1, 2]],
-        ])
-
     async def test_edgeql_expr_coalesce_01(self):
         await self.assert_query_result(r"""
             SELECT {} ?? 4 ?? 5;
@@ -917,6 +887,38 @@ class TestExpressions(tb.QueryTestCase):
             [[]],
         ])
 
+    async def test_edgeql_expr_tuple_09(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r'operator `\+` is not defined .* tuple<.*> and std::int'):
+
+            await self.con.execute(r'''
+                SELECT (spam := 1, ham := 2) + 1;
+            ''')
+
+    @tb.expected_optimizer_failure
+    async def test_edgeql_expr_tuple_10(self):
+        await self.assert_query_result('''\
+            SELECT _ := (spam := {1, 2}, ham := {3, 4})
+            ORDER BY _.spam THEN _.ham;
+        ''', [[
+            {'ham': 3, 'spam': 1},
+            {'ham': 4, 'spam': 1},
+            {'ham': 3, 'spam': 2},
+            {'ham': 4, 'spam': 2}
+        ]])
+
+    async def test_edgeql_expr_tuple_11(self):
+        await self.assert_query_result('''\
+            SELECT (1, 2) = (1, 2);
+            SELECT (1, 2) UNION (1, 2);
+            SELECT (1, 2) UNION ALL (1, 2);
+        ''', [
+            [True],
+            [[1, 2]],
+            [[1, 2], [1, 2]],
+        ])
+
     async def test_edgeql_expr_tuple_indirection_01(self):
         await self.assert_query_result(r"""
             SELECT ('foo', 42).0;
@@ -988,15 +990,15 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_setop_02(self):
         await self.assert_query_result(r"""
             SELECT 2 * ((SELECT 1) UNION (SELECT 2));
-
             SELECT (SELECT 2) * (1 UNION 2);
-
             SELECT 2 * (1 UNION 2 UNION 1);
+            SELECT 2 * (1 UNION ALL 2 UNION ALL 1);
 
             WITH
                 a := (SELECT 1 UNION 2)
             SELECT (SELECT 2) * a;
         """, [
+            [2, 4],
             [2, 4],
             [2, 4],
             [2, 4, 2],
@@ -1005,9 +1007,9 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_setop_03(self):
         res = await self.con.execute('''
-            SELECT array_agg(1 UNION 2 UNION 3);
-            SELECT array_agg(3 UNION 2 UNION 3);
-            SELECT array_agg(3 UNION 3 UNION 2);
+            SELECT array_agg(1 UNION ALL 2 UNION ALL 3);
+            SELECT array_agg(3 UNION ALL 2 UNION ALL 3);
+            SELECT array_agg(3 UNION ALL 3 UNION ALL 2);
         ''')
         self.assert_data_shape(res, [
             [[1, 2, 3]],
@@ -1021,8 +1023,45 @@ class TestExpressions(tb.QueryTestCase):
             SELECT DISTINCT {1, 2, 2, 3};
         ''')
         self.assert_data_shape(res, [
-            [{1, 2, 3}],
+            {1, 2, 3},
         ])
+
+    async def test_edgeql_expr_setop_05(self):
+        res = await self.con.execute('''
+            SELECT (2 UNION ALL 2 UNION ALL 2);
+        ''')
+        self.assert_data_shape(res, [
+            [2, 2, 2],
+        ])
+
+    async def test_edgeql_expr_setop_06(self):
+        res = await self.con.execute('''
+            SELECT (2 UNION 2 UNION 2);
+        ''')
+        self.assert_data_shape(res, [
+            [2],
+        ])
+
+    async def test_edgeql_expr_setop_07(self):
+        res = await self.con.execute('''
+            SELECT (2 UNION ALL 2 UNION 2);
+            SELECT (2 UNION 2 UNION ALL 2);
+            SELECT (2 UNION ALL 1 UNION 2);
+        ''')
+        self.assert_data_shape(res, [
+            [2],
+            [2, 2],
+            {1, 2},
+        ])
+
+    async def test_edgeql_expr_setop_08(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                'invalid UNION ALL operand: schema::Concept is a concept'):
+            await self.con.execute('''
+                WITH MODULE schema
+                SELECT Concept UNION ALL Attribute;
+            ''')
 
     async def test_edgeql_expr_cardinality_01(self):
         with self.assertRaisesRegex(
