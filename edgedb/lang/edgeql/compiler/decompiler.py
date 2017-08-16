@@ -170,13 +170,18 @@ class IRDecompiler(ast.visitor.NodeVisitor):
         return result
 
     def visit_FunctionCall(self, node):
+        # FIXME: this is a temporary solution to bridge the gap to EdgeQL
+        if node.agg_set_modifier == qlast.AggDISTINCT:
+            args = qlast.UnaryOp(op=qlast.DISTINCT, operand=node.args[0])
+        else:
+            args = node.args
+
         result = qlast.FunctionCall(
             func=(node.func.shortname.module, node.func.shortname.name),
-            args=self.visit(node.args),
+            args=self.visit(args),
             agg_sort=node.agg_sort,
             agg_filter=(self.visit(node.agg_filter)
                         if node.agg_filter is not None else None),
-            agg_set_modifier=node.agg_set_modifier,
         )
 
         return result

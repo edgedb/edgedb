@@ -568,7 +568,7 @@ class TestInsert(tb.QueryTestCase):
             WITH
                 MODULE test,
                 DT3 := DefaultTest3
-            SELECT count(ALL
+            SELECT count(
                 DefaultTest3 FILTER DefaultTest3.foo != DT3.foo) > 0;
         ''')
 
@@ -616,7 +616,7 @@ class TestInsert(tb.QueryTestCase):
             WITH
                 MODULE test,
                 DT3 := DefaultTest3
-            SELECT count(ALL
+            SELECT count(
                 DefaultTest3 FILTER DefaultTest3.foo != DT3.foo) > 0;
         ''')
 

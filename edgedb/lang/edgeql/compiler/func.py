@@ -50,11 +50,26 @@ def compile_FunctionCall(
         if is_agg:
             fctx.in_aggregate = True
 
-            if expr.agg_set_modifier == qlast.AggNONE:
-                raise errors.EdgeQLError(
-                    f"aggregate function {funcname} is missing a required"
-                    " modifier 'ALL' or 'DISTINCT'",
-                    context=expr.context)
+            # FIXME: a stop-gap solution
+            if (len(expr.args) == 1 and
+                isinstance(expr.args[0], qlast.UnaryOp) and
+                    expr.args[0].op == qlast.DISTINCT):
+
+                expr = qlast.FunctionCall(
+                    func=expr.func,
+                    args=[expr.args[0].operand],
+                    agg_set_modifier=qlast.AggDISTINCT,
+                    agg_filter=expr.agg_filter,
+                    agg_sort=expr.agg_sort
+                )
+            else:
+                expr = qlast.FunctionCall(
+                    func=expr.func,
+                    args=expr.args,
+                    agg_set_modifier=qlast.AggALL,
+                    agg_filter=expr.agg_filter,
+                    agg_sort=expr.agg_sort
+                )
 
         path_scope = frozenset()
         agg_sort = []

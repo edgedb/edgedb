@@ -46,9 +46,9 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_array_agg_01(self):
         res = await self.con.execute('''
-            SELECT array_agg(ALL {1, 2, 3});
-            SELECT array_agg(ALL {3, 2, 3});
-            SELECT array_agg(ALL {3, 3, 2});
+            SELECT array_agg({1, 2, 3});
+            SELECT array_agg({3, 2, 3});
+            SELECT array_agg({3, 3, 2});
         ''')
         self.assert_data_shape(res, [
             [[1, 2, 3]],
@@ -59,10 +59,10 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_array_agg_02(self):
         await self.assert_query_result('''
             WITH x := {3, 1, 2}
-            SELECT array_agg(ALL x ORDER BY x);
+            SELECT array_agg(x ORDER BY x);
 
             WITH x := {3, 1, 2}
-            SELECT array_agg(ALL x ORDER BY x) = [1, 2, 3];
+            SELECT array_agg(x ORDER BY x) = [1, 2, 3];
         ''', [
             [[1, 2, 3]],
             [True],
@@ -71,13 +71,13 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_array_agg_03(self):
         await self.assert_query_result('''
             WITH x := {3, 1, 2}
-            SELECT array_contains(array_agg(ALL x ORDER BY x), 2);
+            SELECT array_contains(array_agg(x ORDER BY x), 2);
 
             WITH x := {3, 1, 2}
-            SELECT array_contains(array_agg(ALL x ORDER BY x), 5);
+            SELECT array_contains(array_agg(x ORDER BY x), 5);
 
             WITH x := {3, 1, 2}
-            SELECT array_contains(array_agg(ALL x ORDER BY x), 5);
+            SELECT array_contains(array_agg(x ORDER BY x), 5);
         ''', [
             [True],
             [False],
@@ -90,12 +90,12 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 r'could not determine expression type'):
 
             await self.con.execute("""
-                SELECT array_agg(ALL {});
+                SELECT array_agg({});
             """)
 
     async def test_edgeql_functions_array_agg_05(self):
         await self.assert_query_result('''
-            SELECT array_agg(ALL <int>{});
+            SELECT array_agg(<int>{});
             SELECT array_agg(DISTINCT <int>{});
         ''', [
             [
@@ -108,8 +108,8 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_array_agg_06(self):
         await self.assert_query_result('''
-            SELECT array_agg(ALL (SELECT schema::Concept FILTER False));
-            SELECT array_agg(ALL
+            SELECT array_agg((SELECT schema::Concept FILTER False));
+            SELECT array_agg(
                 (SELECT schema::Concept FILTER <str>schema::Concept.id = '~')
             );
         ''', [
@@ -124,15 +124,15 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_array_agg_07(self):
         await self.assert_query_result('''
             WITH x := <int>{}
-            SELECT array_agg(ALL x);
+            SELECT array_agg(x);
 
             WITH x := (SELECT schema::Concept FILTER False)
-            SELECT array_agg(ALL x);
+            SELECT array_agg(x);
 
             WITH x := (
                 SELECT schema::Concept FILTER <str>schema::Concept.id = '~'
             )
-            SELECT array_agg(ALL x);
+            SELECT array_agg(x);
         ''', [
             [
                 []
@@ -255,8 +255,8 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 MODULE schema,
                 C2 := Concept
             SELECT
-                count(ALL re_match_all(Concept.name, '(\w+)')) =
-                2 * count(ALL C2);
+                count(re_match_all(Concept.name, '(\w+)')) =
+                2 * count(C2);
         ''', [
             [True],
         ])
@@ -293,7 +293,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_re_test_02(self):
         await self.assert_query_result(r'''
             WITH MODULE schema
-            SELECT count(ALL
+            SELECT count(
                 Concept FILTER re_test(Concept.name, '(\W\w)bject')
             ) = 1;
         ''', [
@@ -302,8 +302,8 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_sum_01(self):
         await self.assert_query_result(r'''
-            SELECT sum(ALL {1, 2, 3, -4, 5});
-            SELECT sum(ALL {0.1, 0.2, 0.3, -0.4, 0.5});
+            SELECT sum({1, 2, 3, -4, 5});
+            SELECT sum({0.1, 0.2, 0.3, -0.4, 0.5});
         ''', [
             [7],
             [0.7],
@@ -312,7 +312,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     @unittest.expectedFailure
     async def test_edgeql_functions_sum_02(self):
         await self.assert_query_result(r'''
-            SELECT sum(ALL {1, 2, 3, -4.2, 5});
+            SELECT sum({1, 2, 3, -4.2, 5});
         ''', [
             [6.8],
         ])

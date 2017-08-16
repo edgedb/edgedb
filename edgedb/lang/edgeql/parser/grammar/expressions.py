@@ -558,6 +558,7 @@ class Expr(Nonterm):
     # | Expr IF Expr ELSE Expr
     # | Expr ?? Expr
     # | Expr UNION Expr
+    # | DISTINCT Expr
     # | 'self' | '__subject__'
 
     def reduce_Path(self, *kids):
@@ -760,6 +761,9 @@ class Expr(Nonterm):
     def reduce_Expr_IF_Expr_ELSE_Expr(self, *kids):
         self.val = qlast.IfElse(
             if_expr=kids[0].val, condition=kids[2].val, else_expr=kids[4].val)
+
+    def reduce_DISTINCT_Expr(self, *kids):
+        self.val = qlast.UnaryOp(op=qlast.DISTINCT, operand=kids[1].val)
 
     def reduce_Expr_UNION_Expr(self, *kids):
         self.val = qlast.BinOp(left=kids[0].val, op=qlast.UNION,
@@ -1013,34 +1017,22 @@ class LinkDirection(Nonterm):
 
 class FuncApplication(Nonterm):
     def reduce_FuncApplication(self, *kids):
-        r"""%reduce NodeName LPAREN OptSetModifier OptFuncArgList \
+        r"""%reduce NodeName LPAREN OptFuncArgList \
                     OptFilterClause OptSortClause RPAREN \
         """
         module = kids[0].val.module
         func_name = kids[0].val.name
-        args = kids[3].val
         name = func_name if not module else (module, func_name)
-        self.val = qlast.FunctionCall(func=name, args=args,
-                                      agg_set_modifier=kids[2].val,
-                                      agg_filter=kids[4].val,
-                                      agg_sort=kids[5].val)
+        self.val = qlast.FunctionCall(func=name,
+                                      args=kids[2].val,
+                                      agg_filter=kids[3].val,
+                                      agg_sort=kids[4].val)
 
 
 class FuncExpr(Nonterm):
     def reduce_FuncApplication_OptOverClause(self, *kids):
         self.val = kids[0].val
         self.val.window = kids[1].val
-
-
-class OptSetModifier(Nonterm):
-    def reduce_ALL(self, *kids):
-        self.val = qlast.AggALL
-
-    def reduce_DISTINCT(self, *kids):
-        self.val = qlast.AggDISTINCT
-
-    def reduce_empty(self, *kids):
-        self.val = qlast.AggNONE
 
 
 class OptOverClause(Nonterm):

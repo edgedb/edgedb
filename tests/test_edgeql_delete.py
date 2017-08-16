@@ -164,7 +164,7 @@ class TestDelete(tb.QueryTestCase):
             };
 
             WITH D := (DELETE test::DeleteTest)
-            SELECT count(ALL D);
+            SELECT count(D);
         """, [
             [1],
             [1],
@@ -238,7 +238,7 @@ class TestDelete(tb.QueryTestCase):
                 Q := (DELETE DeleteTest)
             SELECT DeleteTest2 {
                 name,
-                count := count(ALL Q),
+                count := count(Q),
             } FILTER DeleteTest2.name = 'dt2.1';
 
             WITH MODULE test
@@ -281,7 +281,7 @@ class TestDelete(tb.QueryTestCase):
             #
             SELECT DeleteTest2 {
                 name,
-                count := count(ALL D),
+                count := count(D),
             } FILTER DeleteTest2.name = 'dt2.1';
 
             WITH MODULE test
