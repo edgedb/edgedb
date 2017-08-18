@@ -12,12 +12,12 @@ from edgedb.server import _testbase as tb
 
 class TestEdgeQLDDL(tb.DDLTestCase):
 
-    async def test_edgeql_ddl01(self):
+    async def test_edgeql_ddl_01(self):
         await self.con.execute("""
             CREATE LINK test::test_link;
         """)
 
-    async def test_edgeql_ddl02(self):
+    async def test_edgeql_ddl_02(self):
         await self.con.execute("""
             CREATE LINK test::test_concept_link {
                 CREATE LINK PROPERTY test::test_link_prop TO std::int;
@@ -32,14 +32,14 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-    async def test_edgeql_ddl03(self):
+    async def test_edgeql_ddl_03(self):
         await self.con.execute("""
             CREATE LINK test::test_concept_link_prop {
                 CREATE LINK PROPERTY test::link_prop1 TO std::str;
             };
         """)
 
-    async def test_edgeql_ddl04(self):
+    async def test_edgeql_ddl_04(self):
         await self.con.execute("""
             CREATE CONCEPT test::A;
             CREATE CONCEPT test::B EXTENDING test::A;
@@ -56,7 +56,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 EXTENDING (test::Object1, test::Object2);
         """)
 
-    async def test_edgeql_ddl05(self):
+    async def test_edgeql_ddl_05(self):
         with self.assertRaisesRegex(client_errors.EdgeQLError,
                                     'Cannot create an aggregate function'):
 
@@ -91,7 +91,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             DROP FUNCTION test::my_lower(std::any);
         """)
 
-    async def test_edgeql_ddl06(self):
+    async def test_edgeql_ddl_06(self):
         long_func_name = 'my_sql_func5_' + 'abc' * 50
 
         await self.con.execute(f"""
@@ -168,7 +168,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             DROP FUNCTION test::my_sql_func7(array<std::int>);
         """)
 
-    async def test_edgeql_ddl07(self):
+    async def test_edgeql_ddl_07(self):
         with self.assertRaisesRegex(client_errors.EdgeQLError,
                                     'could not.*broken_sql.*not constant'):
             await self.con.execute(f"""
@@ -180,7 +180,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 $$;
             """)
 
-    async def test_edgeql_ddl08(self):
+    async def test_edgeql_ddl_08(self):
         await self.con.execute(f"""
             CREATE FUNCTION test::my_edgeql_func1()
                 -> std::str
@@ -228,7 +228,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             DROP FUNCTION test::my_edgeql_func4(std::int);
         """)
 
-    async def test_edgeql_ddl09(self):
+    async def test_edgeql_ddl_09(self):
         await self.con.execute("""
             CREATE FUNCTION test::attr_func_1() -> std::str {
                 SET description := 'hello';
@@ -254,7 +254,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             DROP FUNCTION test::attr_func_1();
         """)
 
-    async def test_edgeql_ddl10(self):
+    async def test_edgeql_ddl_10(self):
         await self.con.execute("""
             CREATE FUNCTION test::int_func_1() -> std::int {
                 FROM EdgeQL "SELECT 1";
@@ -267,7 +267,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             [1],
         ])
 
-    async def test_edgeql_ddl11(self):
+    async def test_edgeql_ddl_11(self):
         await self.con.execute("""
             CREATE CONCEPT test::TestContainerLinkConcept {
                 CREATE LINK test::test_array_link TO array<std::str>;
@@ -275,3 +275,28 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 CREATE LINK test::test_map_link TO map<std::str, std::int>;
             };
         """)
+
+    async def test_edgeql_ddl_12(self):
+        with self.assertRaisesRegex(
+                client_errors.EdgeQLError,
+                'reference to a non-existent schema class: __subject__'):
+            await self.con.execute(r"""
+                CREATE CONCEPT test::TestBadContainerLinkConcept {
+                    CREATE LINK test::foo TO std::str {
+                        CREATE CONSTRAINT expression
+                            ON (`__subject__` = 'foo');
+                    };
+                };
+            """)
+
+    async def test_edgeql_ddl_13(self):
+        with self.assertRaisesRegex(
+                client_errors.EdgeQLError,
+                'reference to a non-existent schema class: self'):
+            await self.con.execute(r"""
+                CREATE CONCEPT test::TestBadContainerLinkConcept {
+                    CREATE LINK test::foo TO std::str {
+                        CREATE CONSTRAINT expression ON (`self` = 'foo');
+                    };
+                };
+            """)

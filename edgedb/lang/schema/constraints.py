@@ -107,7 +107,7 @@ class Constraint(primary.PrimaryClass, derivable.DerivableClass):
 
         ir, edgeql_tree, _ = edgeql_utils.normalize_tree(
             tree, schema, modaliases=module_aliases,
-            anchors={'__subject__': subject}, inline_anchors=inline_anchors)
+            anchors={qlast.Subject: subject}, inline_anchors=inline_anchors)
 
         return edgeql_tree.result, ir.result
 

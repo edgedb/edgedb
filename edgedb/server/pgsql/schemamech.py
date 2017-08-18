@@ -12,6 +12,7 @@ from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import astexpr as irastexpr
 from edgedb.lang.ir import utils as ir_utils
 from edgedb.lang.edgeql import compiler as ql_compiler
+from edgedb.lang.edgeql import ast as qlast
 
 from edgedb.lang.schema import atoms as s_atoms
 from edgedb.lang.schema import concepts as s_concepts
@@ -222,7 +223,7 @@ class ConstraintMech:
         assert constraint.subject is not None
 
         ir = ql_compiler.compile_to_ir(
-            constraint.finalexpr, schema, anchors={'__subject__': subject})
+            constraint.finalexpr, schema, anchors={qlast.Subject: subject})
 
         terminal_refs = ir_utils.get_terminal_references(ir.result)
         ref_tables = cls._get_ref_storage_info(schema, terminal_refs)

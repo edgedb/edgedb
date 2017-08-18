@@ -56,13 +56,13 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         if isinstance(step, qlast.Self):
             # 'self' can only appear as the starting path label
             # syntactically and is a known anchor
-            path_tip = anchors.get('self')
+            path_tip = anchors.get(step.__class__)
             continue
 
         elif isinstance(step, qlast.Subject):
             # '__subject__' can only appear as the starting path label
             # syntactically and is a known anchor
-            path_tip = anchors.get('__subject__')
+            path_tip = anchors.get(step.__class__)
             continue
 
         elif isinstance(step, qlast.ClassRef):
@@ -427,7 +427,8 @@ def computable_ptr_set(
     # Must use an entirely separate context, as the computable
     # expression is totally independent from the surrounding query.
     subctx = stmtctx.init_context(schema=ctx.schema)
-    subctx.anchors['self'] = rptr.source
+    # subctx.anchors['self'] = rptr.source
+    subctx.anchors[qlast.Self] = rptr.source
 
     # Pull in the outer scope, but _only_ for the path denoted by `self`
     prefixes = set(rptr.source.path_id.iter_prefixes())
