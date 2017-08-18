@@ -15,6 +15,7 @@ from edgedb.lang.common import ordered
 from edgedb.lang.common import topological
 
 from edgedb.lang import edgeql
+from edgedb.lang.edgeql import ast as qlast
 from edgedb.lang.edgeql import codegen as edgeql_codegen
 from edgedb.lang.edgeql import codegen as qlcodegen
 
@@ -518,7 +519,7 @@ class DeclarationLoader:
             _, _, index_expr = edgeql.utils.normalize_tree(
                 indexdecl.expression, self._schema,
                 modaliases=module_aliases,
-                anchors={'self': subject},
+                anchors={qlast.Self: subject},
                 inline_anchors=True)
 
             index = s_indexes.SourceIndex(
@@ -660,10 +661,10 @@ class DeclarationLoader:
         ir, _, expr_text = edgeql.utils.normalize_tree(
             expr, self._schema,
             modaliases=module_aliases,
-            anchors={'self': source})
+            anchors={qlast.Self: source})
 
         self_set = ast.find_children(
-            ir, lambda n: getattr(n, 'anchor', None) == 'self',
+            ir, lambda n: getattr(n, 'anchor', None) == qlast.Self,
             terminate_early=True)
 
         try:

@@ -87,7 +87,10 @@ class IRDecompiler(ast.visitor.NodeVisitor):
             result = qlast.Path()
 
             if node.show_as_anchor and not self.context.inline_anchors:
-                step = qlast.ClassRef(name=node.show_as_anchor)
+                if issubclass(node.show_as_anchor, qlast.Expr):
+                    step = node.show_as_anchor()
+                else:
+                    step = qlast.ClassRef(name=node.show_as_anchor)
             else:
                 step = qlast.ClassRef(name=node.scls.name.name,
                                       module=node.scls.name.module)

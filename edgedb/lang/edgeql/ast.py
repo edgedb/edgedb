@@ -137,7 +137,7 @@ class Self(Expr):
     pass
 
 
-class Subject(Expr):
+class Subject(Expr):  # __subject__
     pass
 
 

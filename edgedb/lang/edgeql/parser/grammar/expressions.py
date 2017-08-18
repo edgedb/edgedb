@@ -407,9 +407,6 @@ class ShapePathPtr(Nonterm):
         self.val = qlast.ClassRef(name=kids[0].val.name,
                                   module=kids[0].val.module)
 
-    def reduce_DUNDERCLASS(self, *kids):
-        self.val = qlast.ClassRef(name=kids[0].val)
-
     def reduce_LPAREN_ShapePathPtr_RPAREN(self, *kids):
         self.val = kids[1].val
 
@@ -989,11 +986,7 @@ class PathStep(Nonterm):
 
 class PathPtr(Nonterm):
     def reduce_ShortNodeName(self, *kids):
-        self.val = qlast.ClassRef(name=kids[0].val.name,
-                                  module=kids[0].val.module)
-
-    def reduce_DUNDERCLASS(self, *kids):
-        self.val = qlast.ClassRef(name=kids[0].val)
+        self.val = kids[0].val
 
     def reduce_PathPtrParen(self, *kids):
         self.val = kids[0].val
@@ -1006,9 +999,6 @@ class PathPtrParen(Nonterm):
     def reduce_LPAREN_NodeName_RPAREN(self, *kids):
         self.val = qlast.ClassRef(name=kids[1].val.name,
                                   module=kids[1].val.module)
-
-    def reduce_LPAREN_DUNDERCLASS_RPAREN(self, *kids):
-        self.val = qlast.ClassRef(name=kids[1].val)
 
 
 class LinkDirection(Nonterm):

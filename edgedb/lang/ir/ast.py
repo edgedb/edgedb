@@ -41,8 +41,8 @@ class Pointer(Base):
     target: Base
     ptrcls: so.Class
     direction: str
-    anchor: str
-    show_as_anchor: str
+    anchor: typing.Union[str, ast.MetaAST]
+    show_as_anchor: typing.Union[str, ast.MetaAST]
 
 
 class Set(Base):
@@ -54,8 +54,8 @@ class Set(Base):
     view_source: Base
     expr: Base
     rptr: Pointer
-    anchor: str
-    show_as_anchor: str
+    anchor: typing.Union[str, ast.MetaAST]
+    show_as_anchor: typing.Union[str, ast.MetaAST]
     shape: typing.List[Base]
     path_scope: typing.FrozenSet[PathId]
     local_scope_sets: typing.FrozenSet[Base]

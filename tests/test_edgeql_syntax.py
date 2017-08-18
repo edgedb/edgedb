@@ -1271,11 +1271,12 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT Foo.__subject__;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, 'Unexpected token.*DUNDERCLASS',
-                  line=2, col=16)
     def test_edgeql_syntax_path_20(self):
+        # illegal semantically, but syntactically valid
         """
         SELECT __class__;
+        SELECT `__subject__`;
+        SELECT `self`;
         """
 
     def test_edgeql_syntax_type_interpretation_01(self):
