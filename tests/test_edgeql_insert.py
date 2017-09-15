@@ -28,7 +28,7 @@ class TestInsert(tb.QueryTestCase):
                 INSERT test::InsertTest;
             ''')
 
-    async def test_edgeql_insert_simple01(self):
+    async def test_edgeql_insert_simple_01(self):
         result = await self.con.execute(r"""
             INSERT test::InsertTest {
                 name := 'insert simple 01',
@@ -91,7 +91,7 @@ class TestInsert(tb.QueryTestCase):
             }]
         ])
 
-    async def test_edgeql_insert_simple02(self):
+    async def test_edgeql_insert_simple_02(self):
         res = await self.con.execute('''
             WITH MODULE test
             INSERT DefaultTest1 { foo := '02' };
@@ -109,7 +109,7 @@ class TestInsert(tb.QueryTestCase):
             [{'num': 42}, {'num': 42}, {'num': 42}],
         )
 
-    async def test_edgeql_insert_simple03(self):
+    async def test_edgeql_insert_simple_03(self):
         res = await self.con.execute('''
             INSERT test::DefaultTest1 { num := 100 };
 
@@ -134,7 +134,7 @@ class TestInsert(tb.QueryTestCase):
             [{'num': 101}, {'num': 102}, {'num': 103}],
         )
 
-    async def test_edgeql_insert_nested01(self):
+    async def test_edgeql_insert_nested_01(self):
         res = await self.con.execute('''
             INSERT test::Subordinate {
                 name := 'subtest 1'
@@ -179,7 +179,7 @@ class TestInsert(tb.QueryTestCase):
             }]
         )
 
-    async def test_edgeql_insert_nested02(self):
+    async def test_edgeql_insert_nested_02(self):
         res = await self.con.execute('''
             WITH MODULE test
             INSERT Subordinate {
@@ -230,7 +230,7 @@ class TestInsert(tb.QueryTestCase):
             }]
         )
 
-    async def test_edgeql_insert_nested03(self):
+    async def test_edgeql_insert_nested_03(self):
         res = await self.con.execute('''
             WITH MODULE test
             INSERT InsertTest {
@@ -262,7 +262,7 @@ class TestInsert(tb.QueryTestCase):
             }]
         )
 
-    async def test_edgeql_insert_nested04(self):
+    async def test_edgeql_insert_nested_04(self):
         res = await self.con.execute('''
             WITH MODULE test
             INSERT InsertTest {
@@ -297,7 +297,7 @@ class TestInsert(tb.QueryTestCase):
             }]
         )
 
-    async def test_edgeql_insert_nested05(self):
+    async def test_edgeql_insert_nested_05(self):
         res = await self.con.execute('''
             INSERT test::Subordinate {
                 name := 'only subordinate'
@@ -338,7 +338,7 @@ class TestInsert(tb.QueryTestCase):
             }],
         )
 
-    async def test_edgeql_insert_returning01(self):
+    async def test_edgeql_insert_returning_01(self):
         res = await self.con.execute('''
             WITH MODULE test
             INSERT DefaultTest1 {
@@ -370,7 +370,7 @@ class TestInsert(tb.QueryTestCase):
             ]
         )
 
-    async def test_edgeql_insert_returning02(self):
+    async def test_edgeql_insert_returning_02(self):
         res = await self.con.execute('''
             WITH MODULE test
             SELECT SINGLETON (INSERT DefaultTest1 {
@@ -404,7 +404,7 @@ class TestInsert(tb.QueryTestCase):
             ]
         )
 
-    async def test_edgeql_insert_returning03(self):
+    async def test_edgeql_insert_returning_03(self):
         res = await self.con.execute('''
             INSERT test::Subordinate {
                 name := 'sub returning 3'
@@ -440,7 +440,7 @@ class TestInsert(tb.QueryTestCase):
             }],
         )
 
-    async def test_edgeql_insert_returning04(self):
+    async def test_edgeql_insert_returning_04(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT (INSERT DefaultTest1 {
@@ -480,7 +480,7 @@ class TestInsert(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_insert_for01(self):
+    async def test_edgeql_insert_for_01(self):
         res = await self.con.execute('''
             WITH MODULE test
             FOR x IN {3, 5, 7, 2}
@@ -552,7 +552,7 @@ class TestInsert(tb.QueryTestCase):
         )
 
     @unittest.expectedFailure
-    async def test_edgeql_insert_for02(self):
+    async def test_edgeql_insert_for_02(self):
         res = await self.con.execute(r'''
             # create 1000 DefaultTest3 objects, each object is defined
             # as having a randomly generated value for 'foo'
@@ -577,7 +577,7 @@ class TestInsert(tb.QueryTestCase):
         )
 
     @unittest.expectedFailure
-    async def test_edgeql_insert_for03(self):
+    async def test_edgeql_insert_for_03(self):
         res = await self.con.execute(r'''
             # Create 5 DefaultTest4 objects. The default value for
             # 'bar' is technically evaluated for each object, but
@@ -596,7 +596,7 @@ class TestInsert(tb.QueryTestCase):
             res[-1], [0, 0, 0, 0, 0]
         )
 
-    async def test_edgeql_insert_default01(self):
+    async def test_edgeql_insert_default_01(self):
         res = await self.con.execute(r'''
             # create 10 DefaultTest3 objects, each object is defined
             # as having a randomly generated value for 'foo'
@@ -626,7 +626,7 @@ class TestInsert(tb.QueryTestCase):
         )
 
     @unittest.expectedFailure
-    async def test_edgeql_insert_default02(self):
+    async def test_edgeql_insert_default_02(self):
         res = await self.con.execute(r'''
             # by default the 'bar' value is simply going to be "indexing" the
             # created objects
@@ -656,7 +656,7 @@ class TestInsert(tb.QueryTestCase):
         )
 
     @unittest.expectedFailure
-    async def test_edgeql_insert_default03(self):
+    async def test_edgeql_insert_default_03(self):
         res = await self.con.execute(r'''
             # by default the 'bar' value is simply going to be "indexing" the
             # created objects
@@ -680,7 +680,7 @@ class TestInsert(tb.QueryTestCase):
         )
 
     @unittest.expectedFailure
-    async def test_edgeql_insert_default04(self):
+    async def test_edgeql_insert_default_04(self):
         res = await self.con.execute(r'''
             # by default the 'bar' value is simply going to be "indexing" the
             # created objects
@@ -710,7 +710,7 @@ class TestInsert(tb.QueryTestCase):
         )
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_insert_as_expr01(self):
+    async def test_edgeql_insert_as_expr_01(self):
         res = await self.con.execute(r'''
             # insert several objects, then annotate one of the inserted batch
             #
@@ -779,7 +779,7 @@ class TestInsert(tb.QueryTestCase):
         )
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_insert_as_expr02(self):
+    async def test_edgeql_insert_as_expr_02(self):
         res = await self.con.execute(r'''
             # same as above, but refactored differently
             #
@@ -845,4 +845,60 @@ class TestInsert(tb.QueryTestCase):
                     }]
                 },
             ]
+        )
+
+    @unittest.expectedFailure
+    async def test_edgeql_insert_linkprops_01(self):
+        res = await self.con.execute(r'''
+            INSERT test::Offer {
+                # XXX: there's a separate question of how to even
+                # express inserting several titles in different
+                # languages
+                title: {
+                    @target := 'Super offer',
+                    @lang := 'en-US'
+                }
+            };
+
+            INSERT test::Offer {
+                title: {
+                    @target := 'Sample',
+                    @lang := 'en-CA'
+                },
+                special: {
+                    @target := 'Unavailable, sorry.',
+                    @lang := 'en-CA'
+                }
+            };
+
+            WITH MODULE test
+            SELECT Offer {
+                title: {
+                    @target,
+                    @lang
+                } ORDER BY Offer.title@lang,
+                special: {
+                    @target,
+                    @lang
+                }
+            }
+            ORDER BY Offer.special;
+        ''')
+
+        self.assert_data_shape(
+            res[-1], [{
+                'title': [{
+                    '@target': 'Super offer',
+                    '@lang': 'en-US',
+                }],
+            }, {
+                'title': [{
+                    '@target': 'Sample',
+                    '@lang': 'en-CA',
+                }],
+                'special': {
+                    '@target': 'Unavailable, sorry.',
+                    '@lang': 'en-CA',
+                },
+            }]
         )

@@ -45,3 +45,19 @@ concept DefaultTest4:
     required link bar to int:
         # deterministic dynamic value
         default := (SELECT count(ALL DefaultTest4))
+
+# links and concepts to test atomic links with link properties
+link special:
+    link property lang to str
+
+link title:
+    link property lang to str
+
+
+concept Offer:
+    # title translated into multiple languages
+    required link title to str:
+        mapping := '1*'
+
+    # some king of special offer for a specific language
+    link special to str
