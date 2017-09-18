@@ -14,39 +14,53 @@ from edgedb.lang.schema import objects as so
 class PathId:
     """Unique identifier of a path in an expression."""
 
-    def __init__(self, initializer=None):
+    def __init__(self, initializer=None, *, namespace=None):
         if isinstance(initializer, PathId):
             self._path = initializer._path
             self._norm_path = initializer._norm_path
+            if namespace is not None:
+                self._namespace = namespace
+            else:
+                self._namespace = initializer._namespace
         elif initializer is not None:
             if not isinstance(initializer, so.NodeClass):
                 raise ValueError(
                     f'invalid PathId: bad source: {initializer!r}')
             self._path = (initializer,)
             self._norm_path = (initializer,)
+            self._namespace = namespace
         else:
             self._path = ()
             self._norm_path = ()
+            self._namespace = namespace
 
     def __hash__(self):
-        return hash((self.__class__, self._norm_path))
+        return hash((self.__class__, self._norm_path, self._namespace))
 
     def __eq__(self, other):
         if not isinstance(other, PathId):
             return NotImplemented
 
-        return self._norm_path == other._norm_path
+        return (
+            self._norm_path == other._norm_path and
+            self._namespace == other._namespace
+        )
 
     def __len__(self):
         return len(self._path)
 
     def __str__(self):
+        result = ''
+
         if not self._path:
             return ''
 
+        if self._namespace:
+            result += f'{self._namespace}@@'
+
         path = self._norm_path
 
-        result = f'({path[0].name})'
+        result += f'({path[0].name})'
 
         for i in range(1, len(path) - 1, 2):
             ptr = path[i][0]
@@ -79,6 +93,7 @@ class PathId:
             result = self.__class__()
             result._path = self._path[n]
             result._norm_path = self._norm_path[n]
+            result._namespace = self._namespace
             return result
 
     __repr__ = __str__
@@ -156,6 +171,7 @@ class PathId:
                 result._path = replacement._path + self._path[prefix_len:]
                 result._norm_path = \
                     replacement._norm_path + self._norm_path[prefix_len:]
+                result._namespace = self._namespace
                 return result
             else:
                 return replacement
@@ -176,6 +192,7 @@ class PathId:
         result._path = self._path + ((link, direction), target)
         result._norm_path = \
             self._norm_path + ((link.shortname, direction), target)
+        result._namespace = self._namespace
 
         return result
 

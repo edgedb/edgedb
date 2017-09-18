@@ -576,7 +576,6 @@ class TestInsert(tb.QueryTestCase):
             res[-1], [True]
         )
 
-    @unittest.expectedFailure
     async def test_edgeql_insert_for_03(self):
         res = await self.con.execute(r'''
             # Create 5 DefaultTest4 objects. The default value for
@@ -625,7 +624,6 @@ class TestInsert(tb.QueryTestCase):
             res[-1], [True]
         )
 
-    @unittest.expectedFailure
     async def test_edgeql_insert_default_02(self):
         res = await self.con.execute(r'''
             # by default the 'bar' value is simply going to be "indexing" the
@@ -655,7 +653,6 @@ class TestInsert(tb.QueryTestCase):
             }]
         )
 
-    @unittest.expectedFailure
     async def test_edgeql_insert_default_03(self):
         res = await self.con.execute(r'''
             # by default the 'bar' value is simply going to be "indexing" the
@@ -679,7 +676,6 @@ class TestInsert(tb.QueryTestCase):
             }]
         )
 
-    @unittest.expectedFailure
     async def test_edgeql_insert_default_04(self):
         res = await self.con.execute(r'''
             # by default the 'bar' value is simply going to be "indexing" the
