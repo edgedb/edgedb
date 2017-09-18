@@ -843,28 +843,15 @@ class TestInsert(tb.QueryTestCase):
             ]
         )
 
-    @unittest.expectedFailure
     async def test_edgeql_insert_linkprops_01(self):
         res = await self.con.execute(r'''
             INSERT test::Offer {
-                # XXX: there's a separate question of how to even
-                # express inserting several titles in different
-                # languages
-                title: {
-                    @target := 'Super offer',
-                    @lang := 'en-US'
-                }
+                title := (SELECT 'Super offer' {@lang := 'en-US'})
             };
 
             INSERT test::Offer {
-                title: {
-                    @target := 'Sample',
-                    @lang := 'en-CA'
-                },
-                special: {
-                    @target := 'Unavailable, sorry.',
-                    @lang := 'en-CA'
-                }
+                title := (SELECT 'Sample' {@lang := 'en-CA'}),
+                special := (SELECT 'Unavailable, sorry.' {@lang := 'en-CA'})
             };
 
             WITH MODULE test

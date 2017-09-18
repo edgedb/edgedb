@@ -291,7 +291,7 @@ def process_insert_body(
         # a separate link table.
         for shape_el in ir_stmt.subject.shape:
             ptrcls = shape_el.rptr.ptrcls
-            insvalue = shape_el.expr
+            ins_expr = shape_el.expr
 
             resolved_pointers.add(ptrcls)
 
@@ -308,7 +308,35 @@ def process_insert_body(
                 cols.append(field)
 
                 with subctx.new() as insvalctx:
-                    insexpr = dispatch.compile(insvalue, ctx=insvalctx)
+                    input_stmt = dispatch.compile(ins_expr, ctx=insvalctx)
+
+                    insvalue = pathctx.get_path_value_output(
+                        input_stmt, ins_expr.result.path_id, env=ctx.env)
+
+                    if isinstance(insvalue, astutils.TupleVar):
+                        insrvar = pgast.RangeSubselect(
+                            alias=pgast.Alias(aliasname=ctx.genalias('t')),
+                            subquery=input_stmt
+                        )
+                        insexpr = pgast.SelectStmt(
+                            from_clause=[insrvar]
+                        )
+
+                        for element in insvalue.elements:
+                            name = element.path_id.rptr_name()
+                            if name == 'std::target':
+                                target = pathctx.get_rvar_path_value_var(
+                                    insrvar, element.path_id, env=ctx.env)
+                                break
+                        else:
+                            raise RuntimeError('could not find std::target in '
+                                               'insert computable')
+
+                        insexpr.target_list = [
+                            pgast.ResTarget(val=target)
+                        ]
+                    else:
+                        insexpr = input_stmt
 
                     insvalue = pgast.TypeCast(
                         arg=insexpr,
@@ -859,15 +887,6 @@ def process_link_values(
 
     path_id = data.result.path_id
 
-    if target_is_atom:
-        target_ref = pathctx.get_rvar_path_value_var(
-            input_rvar, path_id, env=ctx.env)
-        source_data['std::target@atom'] = target_ref
-    else:
-        target_ref = pathctx.get_rvar_path_identity_var(
-            input_rvar, path_id, env=ctx.env)
-        source_data['std::target'] = target_ref
-
     output = pathctx.get_path_value_output(
         input_stmt, path_id, env=ctx.env)
 
@@ -877,8 +896,25 @@ def process_link_values(
             if name is None:
                 name = element.path_id[-1].name
             colname = common.edgedb_name_to_pg_name(name)
+            if target_is_atom and colname == 'std::target':
+                colname = 'std::target@atom'
+
             source_data.setdefault(
                 colname, dbobj.get_column(input_rvar, element.name))
+    else:
+        if target_is_atom:
+            target_ref = pathctx.get_rvar_path_value_var(
+                input_rvar, path_id, env=ctx.env)
+            source_data['std::target@atom'] = target_ref
+        else:
+            target_ref = pathctx.get_rvar_path_identity_var(
+                input_rvar, path_id, env=ctx.env)
+            source_data['std::target'] = target_ref
+
+    if not target_is_atom and 'std::target' not in source_data:
+        target_ref = pathctx.get_rvar_path_identity_var(
+            input_rvar, path_id, env=ctx.env)
+        source_data['std::target'] = target_ref
 
     for col in tab_cols:
         expr = col_data.get(col)

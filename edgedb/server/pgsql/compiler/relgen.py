@@ -183,6 +183,10 @@ def ensure_correct_set(
         resref = pathctx.get_path_identity_var(wrapper, path_id, env=ctx.env)
     else:
         resref = pathctx.get_path_value_var(wrapper, path_id, env=ctx.env)
+
+    if isinstance(resref, astutils.TupleVar):
+        return query
+
     wrapper.where_clause = astutils.extend_binop(
         wrapper.where_clause, pgast.NullTest(arg=resref, negated=True))
 

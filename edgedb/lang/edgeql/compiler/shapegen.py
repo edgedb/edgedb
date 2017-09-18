@@ -13,6 +13,7 @@ from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import inference as irinference
 from edgedb.lang.ir import utils as irutils
 
+from edgedb.lang.schema import atoms as s_atoms
 from edgedb.lang.schema import concepts as s_concepts
 from edgedb.lang.schema import links as s_links
 from edgedb.lang.schema import lproperties as s_lprops
@@ -55,9 +56,10 @@ def compile_shape(
     scls = source_expr.scls
 
     elements = []
+    precompiled_exprs = {}
 
-    if isinstance(scls, s_concepts.Concept):
-        if include_implicit:
+    if include_implicit:
+        if isinstance(scls, s_concepts.Concept):
             implicit_ptrs = (sn.Name('std::id'),)
 
             implicit_shape_els = []
@@ -78,28 +80,21 @@ def compile_shape(
 
             shapespec = implicit_shape_els + list(shapespec)
 
-    else:
-        if include_implicit:
-            implicit_ptrs = (sn.Name('std::target'),)
-
-            implicit_shape_els = []
-
-            for pn in implicit_ptrs:
-                shape_el = qlast.ShapeElement(
-                    expr=qlast.Path(steps=[
-                        qlast.Ptr(
-                            ptr=qlast.ClassRef(
-                                name=pn.name,
-                                module=pn.module
-                            ),
-                            type='property'
-                        )
-                    ])
-                )
-
-                implicit_shape_els.append(shape_el)
-
-            shapespec = implicit_shape_els + list(shapespec)
+        elif source_expr.rptr is not None or rptr is not None:
+            target_prop = sn.Name('std::target')
+            target_el = qlast.ShapeElement(
+                expr=qlast.Path(steps=[
+                    qlast.Ptr(
+                        ptr=qlast.ClassRef(
+                            name=target_prop.name,
+                            module=target_prop.module
+                        ),
+                        type='property'
+                    )
+                ])
+            )
+            precompiled_exprs[target_el] = source_expr
+            shapespec = [target_el] + list(shapespec)
 
     for shape_el in shapespec:
         with ctx.newscope() as elctx:
@@ -109,6 +104,7 @@ def compile_shape(
                 rptr=rptr,
                 require_expressions=require_expressions,
                 include_implicit=include_implicit,
+                precompiled_compexpr=precompiled_exprs.get(shape_el),
                 _visited=_visited,
                 _recurse=_recurse,
                 ctx=elctx,
@@ -139,6 +135,7 @@ def compile_shape_el(
         scls: s_nodes.Node,
         require_expressions: bool=False,
         include_implicit: bool=True,
+        precompiled_compexpr: typing.Optional[irast.Base]=None,
         _visited=None, _recurse=True,
         parent_ctx: context.CompilerContext,
         ctx: context.CompilerContext) -> irast.Set:
@@ -162,18 +159,18 @@ def compile_shape_el(
         if rptr is None:
             raise errors.EdgeQLError(
                 'invalid reference to link property '
-                'in top level shape')
+                'in top level shape', context=lexpr.context)
 
         ptrsource = rptr.ptrcls
 
     ptr_direction = \
         lexpr.direction or s_pointers.PointerDirection.Outbound
 
-    if shape_el.compexpr is not None:
+    if shape_el.compexpr is not None or precompiled_compexpr is not None:
         # The shape element is defined as a computable expression.
         targetstep = compile_shape_compexpr(
             source_expr, shape_el, ptrname, ptrsource, ptr_direction,
-            is_linkprop, rptr, lexpr.context, ctx=ctx)
+            is_linkprop, rptr, precompiled_compexpr, lexpr.context, ctx=ctx)
 
         ptrcls = targetstep.rptr.ptrcls
 
@@ -256,6 +253,7 @@ def compile_shape_compexpr(
         ptr_direction: s_pointers.PointerDirection,
         is_linkprop: bool,
         rptr: irast.Pointer,
+        precompiled_compexpr: irast.Base,
         source_ctx: parsing, *,
         ctx: context.ContextLevel) -> irast.Set:
     schema = ctx.schema
@@ -271,6 +269,10 @@ def compile_shape_compexpr(
     else:
         pointer_name = ptrname[1]
 
+    if isinstance(ptrsource, s_atoms.Atom):
+        raise errors.EdgeQLError(
+            'atoms cannot have computable pointers', context=source_ctx)
+
     ptrcls = ptrsource.resolve_pointer(
         ctx.schema,
         pointer_name,
@@ -278,19 +280,22 @@ def compile_shape_compexpr(
         look_in_children=False,
         include_inherited=True)
 
-    with ctx.new() as shape_expr_ctx:
-        # Put current pointer class in context, so
-        # that references to link properties in sub-SELECT
-        # can be resolved.  This is necessary for proper
-        # evaluation of link properties on computable links,
-        # most importantly, in INSERT/UPDATE context.
-        shape_expr_ctx.toplevel_shape_rptr = irast.Pointer(
-            source=source_expr,
-            ptrcls=ptrcls,
-            direction=ptr_direction
-        )
-        shape_expr_ctx.stmt_local_path_scope = set()
-        compexpr = dispatch.compile(shape_el.compexpr, ctx=shape_expr_ctx)
+    if precompiled_compexpr is not None:
+        compexpr = precompiled_compexpr
+    else:
+        with ctx.new() as shape_expr_ctx:
+            # Put current pointer class in context, so
+            # that references to link properties in sub-SELECT
+            # can be resolved.  This is necessary for proper
+            # evaluation of link properties on computable links,
+            # most importantly, in INSERT/UPDATE context.
+            shape_expr_ctx.toplevel_shape_rptr = irast.Pointer(
+                source=source_expr,
+                ptrcls=ptrcls,
+                direction=ptr_direction
+            )
+            shape_expr_ctx.stmt_local_path_scope = set()
+            compexpr = dispatch.compile(shape_el.compexpr, ctx=shape_expr_ctx)
 
     target_class = irutils.infer_type(compexpr, schema)
     if target_class is None:
@@ -329,7 +334,7 @@ def compile_shape_compexpr(
             else:
                 ptrcls.mapping = s_links.LinkMapping.ManyToMany
 
-    compexpr = setgen.ensure_stmt(compexpr, ctx=shape_expr_ctx)
+    compexpr = setgen.ensure_stmt(compexpr, ctx=ctx)
     compexpr.path_scope |= {compexpr.result.path_id}
 
     if is_linkprop:
