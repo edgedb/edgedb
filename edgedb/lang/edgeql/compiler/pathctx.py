@@ -15,6 +15,8 @@ from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import inference as irinference
 from edgedb.lang.ir import utils as irutils
 
+from edgedb.lang.schema import objects as s_obj
+
 from edgedb.lang.edgeql import errors
 
 from . import astutils
@@ -53,6 +55,11 @@ class PathExtractor(ast.visitor.NodeVisitor):
             pass
         else:
             self.generic_visit(expr)
+
+
+def get_path_id(scls: s_obj.Class, *,
+                ctx: context.CompilerContext) -> irast.PathId:
+    return irast.PathId(scls, namespace=ctx.path_id_namespace)
 
 
 def extract_prefixes(expr, roots_only=False, *, exclude=set()):

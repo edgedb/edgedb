@@ -97,7 +97,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             if isinstance(scls, s_views.View):
                 path_tip = stmtctx.declare_view_from_schema(scls, ctx=ctx)
             else:
-                path_id = irast.PathId(scls)
+                path_id = pathctx.get_path_id(scls, ctx=ctx)
 
                 try:
                     # We maintain a registry of Set nodes for each unique
@@ -349,7 +349,7 @@ def extend_path(
 
 def class_set(
         scls: s_nodes.Node, *, ctx: context.ContextLevel) -> irast.Set:
-    path_id = irast.PathId(scls)
+    path_id = pathctx.get_path_id(scls, ctx=ctx)
     ir_set = irast.Set(path_id=path_id, scls=scls)
     pathctx.register_path_scope(ir_set.path_id, ctx=ctx)
     return ir_set
@@ -412,20 +412,25 @@ def computable_ptr_set(
     else:
         default_expr = qlast.Constant(value=ptrcls.default)
 
-    if not isinstance(default_expr, qlast.Statement):
-        default_expr = qlast.SelectQuery(result=default_expr)
+    # Must use an entirely separate context, as the computable
+    # expression is totally independent from the surrounding query.
+    subctx = stmtctx.init_context(schema=ctx.schema)
+    subctx.anchors['self'] = rptr.source
 
-    with ctx.new() as subctx:
-        subctx.anchors = subctx.anchors.copy()
-        subctx.anchors['self'] = rptr.source
-        substmt = dispatch.compile(default_expr, ctx=subctx)
+    # Pull in the outer scope, but _only_ for the path denoted by `self`
+    prefixes = set(rptr.source.path_id.iter_prefixes())
+    subctx.path_id_namespace = subctx.aliases.get('ns')
+    subctx.path_scope = ctx.path_scope & prefixes
+    subctx.stmt_path_scope = ctx.stmt_local_path_scope & prefixes
+
+    substmt = dispatch.compile(default_expr, ctx=subctx)
 
     target_class = irutils.infer_type(substmt, schema=ctx.schema)
 
     path_id = rptr.source.path_id.extend(
         ptrcls, s_pointers.PointerDirection.Outbound, target_class)
 
-    s = generated_set(substmt.expr, path_id=path_id, ctx=ctx)
+    s = generated_set(substmt, path_id=path_id, ctx=ctx)
     s.rptr = rptr
 
     return s

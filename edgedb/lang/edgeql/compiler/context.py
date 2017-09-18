@@ -71,6 +71,9 @@ class ContextLevel(compiler.ContextLevel):
     group_paths: typing.Set[irast.PathId]
     """A set of path ids in the GROUP BY clause of the current statement."""
 
+    path_id_namespace: str
+    """A namespace to use for all path ids."""
+
     path_scope: typing.Set[irast.PathId]
     """Full path scope (including inherited scope)."""
 
@@ -105,6 +108,7 @@ class ContextLevel(compiler.ContextLevel):
             self.sets = {}
             self.singletons = set()
             self.group_paths = set()
+            self.path_id_namespace = None
             self.path_scope = set()
             self.stmt_local_path_scope = set()
             self.traced_path_scope = set()
@@ -121,6 +125,7 @@ class ContextLevel(compiler.ContextLevel):
             self.aliases = prevlevel.aliases
             self.arguments = prevlevel.arguments
             self.toplevel_shape_rptr = prevlevel.toplevel_shape_rptr
+            self.path_id_namespace = prevlevel.path_id_namespace
             self.path_scope = prevlevel.path_scope
             self.traced_path_scope = prevlevel.traced_path_scope
             self.group_paths = prevlevel.group_paths

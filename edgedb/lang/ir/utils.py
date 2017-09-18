@@ -10,7 +10,6 @@ import typing
 
 from edgedb.lang.common import ast
 
-from edgedb.lang.schema import concepts as s_concepts
 from edgedb.lang.schema import links as s_links
 from edgedb.lang.schema import name as s_name
 from edgedb.lang.schema import objects as s_obj
@@ -209,8 +208,7 @@ def is_simple_wrapper(ir_expr):
     )
 
 
-def new_expression_set(ir_expr, schema, path_id=None,
-                       alias=None,
+def new_expression_set(ir_expr, schema, path_id=None, alias=None,
                        typehint: typing.Optional[irast.TypeRef]=None):
     if isinstance(ir_expr, irast.EmptySet) and typehint is not None:
         ir_expr = irast.TypeCast(expr=ir_expr, type=typehint)
@@ -228,8 +226,7 @@ def new_expression_set(ir_expr, schema, path_id=None,
         if not path_id:
             if alias is None:
                 raise ValueError('either path_id or alias are required')
-            if isinstance(result_type, (s_concepts.Concept, s_obj.Collection,
-                                        s_obj.Tuple)):
+            if isinstance(result_type, (s_obj.Collection, s_obj.Tuple)):
                 cls = result_type
             else:
                 cls_name = s_name.Name(module='__expr__', name=alias)
