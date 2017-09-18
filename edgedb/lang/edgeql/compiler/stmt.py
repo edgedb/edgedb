@@ -315,7 +315,8 @@ def compile_result_clause(
         sctx.clause = 'result'
 
         if isinstance(result, qlast.Shape):
-            expr = dispatch.compile(result.expr, ctx=sctx)
+            expr = setgen.ensure_set(
+                dispatch.compile(result.expr, ctx=sctx), ctx=sctx)
             shape = result.elements
         else:
             expr = dispatch.compile(result, ctx=sctx)

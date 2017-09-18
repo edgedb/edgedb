@@ -65,6 +65,7 @@ class PathId:
         for i in range(1, len(path) - 1, 2):
             ptr = path[i][0]
             ptrdir = path[i][1]
+            is_lprop = path[i][2]
             tgt = path[i + 1]
 
             if tgt:
@@ -72,7 +73,7 @@ class PathId:
             else:
                 lexpr = f'({ptr})'
 
-            if isinstance(ptr, s_lprops.LinkProperty):
+            if is_lprop:
                 step = '@'
             else:
                 step = f'.{ptrdir}'
@@ -190,8 +191,9 @@ class PathId:
 
         result = self.__class__()
         result._path = self._path + ((link, direction), target)
-        result._norm_path = \
-            self._norm_path + ((link.shortname, direction), target)
+        l = (link.shortname, direction,
+             isinstance(link, s_lprops.LinkProperty))
+        result._norm_path = self._norm_path + (l, target)
         result._namespace = self._namespace
 
         return result
