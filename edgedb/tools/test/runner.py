@@ -225,6 +225,24 @@ class ParallelTestSuite(unittest.TestSuite):
         return result
 
 
+class SequentialTestSuite(unittest.TestSuite):
+    def __init__(self, tests, server_conns):
+        self.tests = tests
+        self.server_conns = server_conns
+
+    def run(self, result):
+        server_addr = next(iter(self.server_conns))
+        cluster = edgedb_cluster.RunningCluster(**server_addr)
+        tb._set_default_cluster(cluster)
+
+        suite = StreamingTestSuite()
+
+        for test in self.tests:
+            suite.run(test, result)
+
+        return result
+
+
 class Markers(enum.Enum):
     passed = '.'
     errored = 'E'
@@ -457,7 +475,8 @@ class ParallelTextTestRunner:
                 cluster = tb._init_cluster(init_settings={
                     # Make sure the server accomodates the possible
                     # number of connections from all test classes.
-                    'max_connections': self.num_workers * len(setup) * 2
+                    'max_connections':
+                        max(10, self.num_workers * len(setup) * 2)
                 }, cleanup_atexit=False)
 
                 servers, conns = tb.start_worker_servers(
@@ -477,10 +496,16 @@ class ParallelTextTestRunner:
             all_tests = list(itertools.chain.from_iterable(
                 tests for tests in cases.values()))
 
-            suite = ParallelTestSuite(
-                self._sort_tests(cases),
-                conns,
-                self.num_workers)
+            if self.num_workers > 1:
+                suite = ParallelTestSuite(
+                    self._sort_tests(cases),
+                    conns,
+                    self.num_workers)
+            else:
+                suite = SequentialTestSuite(
+                    self._sort_tests(cases),
+                    conns
+                )
 
             result = ParallelTextTestResult(
                 stream=self.stream, verbosity=self.verbosity,
