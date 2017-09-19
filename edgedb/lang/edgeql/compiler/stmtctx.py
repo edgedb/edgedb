@@ -173,7 +173,8 @@ def declare_view_from_schema(
         return ctx.substmts[key]
     else:
         view_expr = qlparser.parse(viewcls.expr)
-        return declare_view(view_expr, alias, ctx=ctx)
+        with ctx.newscope() as scopectx:
+            return declare_view(view_expr, alias, ctx=scopectx)
 
 
 def declare_aliased_set(

@@ -157,7 +157,6 @@ class TestEdgeQLViews(tb.QueryTestCase):
             [{'name': 'Dragon'}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_views_filter02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
