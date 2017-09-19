@@ -246,7 +246,6 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_links_set02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -314,7 +313,6 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_links_set05(self):
         await self.assert_query_result(r'''
             # subsets
@@ -401,7 +399,6 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             WITH MODULE test
             SELECT Item {name}
             FILTER count(ALL (
-                # XXX: check test_edgeql_expr_alias for failures first
                 SELECT _ := Item.tag_set1
                 FILTER _ IN {'rectangle', 'wood'}
             )) = 2
@@ -410,7 +407,6 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             WITH MODULE test
             SELECT Item {name}
             FILTER count(ALL (
-                # XXX: check test_edgeql_expr_alias for failures first
                 SELECT _ := Item.tag_set2
                 FILTER _ IN {'rectangle', 'wood'}
             )) = 2
@@ -421,7 +417,6 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
                 {'name': 'table'},
             ], [
                 {'name': 'table'},
-                {'name': 'tv'},
             ],
         ])
 
@@ -553,7 +548,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
+    @tb.expected_optimizer_failure
     async def test_edgeql_links_set12(self):
         await self.assert_query_result(r'''
             # find an item with a unique quality
@@ -824,7 +819,6 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_links_array09(self):
         await self.assert_query_result(r'''
             # find an item with a unique quality
@@ -871,7 +865,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
+    @tb.expected_no_optimizer_failure
     async def test_edgeql_links_array10(self):
         await self.assert_query_result(r'''
             # find an item with a unique quality
@@ -901,7 +895,6 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_links_array11(self):
         await self.assert_query_result(r'''
             # find an item with ALL unique qualities
@@ -913,7 +906,9 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
                 tag_array,
             }
             FILTER
-                # such that does not exist
+                # such that has tag_array
+                EXISTS Item.tag_array AND
+                # and such that does not exist
                 NOT EXISTS (
                     # another item
                     SELECT I2
@@ -930,7 +925,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             [
                 {
                     'name': 'teapot',
-                    'unique': {'ceramic', 'round'}
+                    'tag_array': {'ceramic', 'round'}
                 },
             ],
         ])

@@ -53,6 +53,9 @@ def compile_BinOp(
         try_folding = False
     elif isinstance(expr.op, qlast.EquivalenceOperator):
         op_node = compile_equivalence_op(expr, ctx=ctx)
+    elif isinstance(expr.op, ast.ops.MembershipOperator):
+        op_node = compile_membership_op(expr, ctx=ctx)
+        try_folding = False
     else:
         left = dispatch.compile(expr.left, ctx=ctx)
         right = dispatch.compile(expr.right, ctx=ctx)
@@ -559,6 +562,20 @@ def compile_ifelse(
 
     return irast.SetOp(left=if_expr.expr, right=else_expr.expr,
                        op=qlast.UNION, exclusive=True)
+
+
+def compile_membership_op(
+        expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.Base:
+    with ctx.new_traced_scope() as scopectx:
+        # [NOT] IN is a set function, so we need to put a scope
+        # fence.
+        left = dispatch.compile(expr.left, ctx=scopectx)
+        right = dispatch.compile(expr.right, ctx=scopectx)
+        op_node = irast.BinOp(left=left, right=right, op=expr.op)
+        ir_set = setgen.ensure_set(op_node, ctx=scopectx)
+        ir_set.path_scope = frozenset(scopectx.traced_path_scope)
+
+    return ir_set
 
 
 def flatten_set(expr: qlast.Set) -> typing.List[qlast.Expr]:
