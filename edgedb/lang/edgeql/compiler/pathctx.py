@@ -23,7 +23,7 @@ from . import astutils
 from . import context
 
 
-class PathExtractor(ast.visitor.NodeVisitor):
+class SingletonPathExtractor(ast.visitor.NodeVisitor):
     def __init__(self, roots_only=False, exclude=set()):
         super().__init__()
         self.paths = collections.OrderedDict()
@@ -56,16 +56,25 @@ class PathExtractor(ast.visitor.NodeVisitor):
         else:
             self.generic_visit(expr)
 
+    def visit_ExistPred(self, expr):
+        pass
+
+    def visit_DistinctOp(self, expr):
+        pass
+
+    def visit_BinOp(self, expr):
+        if isinstance(expr.op, irast.SetOperator):
+            return
+
+        self.generic_visit(expr.left)
+
+        if not isinstance(expr.op, ast.ops.MembershipOperator):
+            self.generic_visit(expr.right)
+
 
 def get_path_id(scls: s_obj.Class, *,
                 ctx: context.CompilerContext) -> irast.PathId:
     return irast.PathId(scls, namespace=ctx.path_id_namespace)
-
-
-def extract_prefixes(expr, roots_only=False, *, exclude=set()):
-    extractor = PathExtractor(roots_only=roots_only, exclude=exclude)
-    extractor.visit(expr)
-    return extractor.paths
 
 
 def register_path_scope(
@@ -101,7 +110,9 @@ def enforce_singleton(expr: irast.Base, *, ctx: context.ContextLevel) -> None:
 
 
 def update_singletons(expr: irast.Base, *, ctx: context.ContextLevel) -> None:
-    prefixes = extract_prefixes(expr, exclude=ctx.group_paths)
+    extractor = SingletonPathExtractor()
+    extractor.visit(expr)
+    prefixes = extractor.paths
     for prefix, ir_sets in prefixes.items():
         for ir_set in ir_sets:
             ir_set = irutils.get_canonical_set(ir_set)

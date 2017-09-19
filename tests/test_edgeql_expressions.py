@@ -1099,6 +1099,54 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT Issue OFFSET User.name;
             ''')
 
+    async def test_edgeql_expr_cardinality_04(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r'possibly more than one element returned by an expression '
+                r'where only singletons are allowed',
+                position=46):
+
+            await self.query('''\
+                WITH MODULE test
+                SELECT EXISTS Issue ORDER BY Issue.name;
+            ''')
+
+    async def test_edgeql_expr_cardinality_05(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r'possibly more than one element returned by an expression '
+                r'where only singletons are allowed',
+                position=53):
+
+            await self.query('''\
+                WITH MODULE test
+                SELECT 'foo' IN Issue.name ORDER BY Issue.name;
+            ''')
+
+    async def test_edgeql_expr_cardinality_06(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r'possibly more than one element returned by an expression '
+                r'where only singletons are allowed',
+                position=50):
+
+            await self.query('''\
+                WITH MODULE test
+                SELECT Issue UNION Text ORDER BY Issue.name;
+            ''')
+
+    async def test_edgeql_expr_cardinality_07(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r'possibly more than one element returned by an expression '
+                r'where only singletons are allowed',
+                position=48):
+
+            await self.query('''\
+                WITH MODULE test
+                SELECT DISTINCT Issue ORDER BY Issue.name;
+            ''')
+
     async def test_edgeql_expr_type_filter_01(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError,
