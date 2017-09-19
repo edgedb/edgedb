@@ -25,6 +25,7 @@ from edgedb.server.pgsql import types as pg_types
 
 from . import astutils
 from . import context
+from . import dbobj
 from . import dispatch
 from . import expr as expr_compiler  # NOQA
 from . import output
@@ -548,11 +549,25 @@ def compile_Set(
         # When referred to in WHERE
         # we want to wrap the set CTE into
         #    EXISTS(SELECT * FROM SetCTE WHERE SetCTE.expr)
-        source_cte = relgen.set_to_cte(expr, ctx=ctx)
-        result = relgen.wrap_set_rel_as_bool_disjunction(
-            expr, source_cte, ctx=ctx)
+        with ctx.subquery() as subctx:
+            set_rel = relgen.set_to_cte(expr, ctx=subctx)
+            wrapper = subctx.query
+            rvar = dbobj.rvar_for_rel(ctx.env, set_rel)
+            wrapper.from_clause = [rvar]
+            pathctx.put_path_rvar(ctx.env, wrapper, expr.path_id, rvar)
+            relctx.pull_path_namespace(
+                target=wrapper, source=rvar, ctx=subctx)
+            wrapper.where_clause = pathctx.get_rvar_path_value_var(
+                rvar, expr.path_id, env=subctx.env)
+            relctx.enforce_path_scope(wrapper, ctx.path_scope_refs, ctx=subctx)
 
-    elif ctx.expr_as_isolated_set or ctx.expr_as_value:
+        result = pgast.SubLink(
+            type=pgast.SubLinkType.EXISTS,
+            expr=wrapper
+        )
+
+    elif (ctx.expr_as_isolated_set or ctx.expr_as_value or
+            (ctx.clause == 'orderby' and ctx.rel is ctx.stmt)):
         # When referred to in OFFSET/LIMIT we want to wrap the
         # set CTE into
         #    SELECT v FROM SetCTE

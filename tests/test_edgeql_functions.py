@@ -261,6 +261,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [True],
         ])
 
+    @tb.expected_optimizer_failure
     async def test_edgeql_functions_re_test_01(self):
         await self.assert_query_result(r'''
             SELECT re_test('AbabaB', 'ac');

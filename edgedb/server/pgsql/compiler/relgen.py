@@ -283,34 +283,6 @@ def set_to_array(
     return result
 
 
-def wrap_set_rel_as_bool_disjunction(
-        ir_set: irast.Set, set_rel: pgast.Query, *,
-        ctx: context.CompilerContextLevel) -> pgast.Query:
-    # For the *set_rel* relation representing the *ir_set*
-    # return the following:
-    #     EXISTS (
-    #         SELECT
-    #         FROM <set_rel>
-    #         [WHERE <set_rel>.v]
-    #     )
-    #
-    with ctx.subquery() as subctx:
-        wrapper = subctx.query
-        rvar = dbobj.rvar_for_rel(ctx.env, set_rel)
-        wrapper.from_clause = [rvar]
-        pathctx.put_path_rvar(ctx.env, wrapper, ir_set.path_id, rvar)
-        relctx.pull_path_namespace(
-            target=wrapper, source=rvar, ctx=subctx)
-        wrapper.where_clause = pathctx.get_rvar_path_value_var(
-            rvar, ir_set.path_id, env=subctx.env)
-        relctx.enforce_path_scope(wrapper, ctx.path_scope_refs, ctx=subctx)
-
-    return pgast.SubLink(
-        type=pgast.SubLinkType.EXISTS,
-        expr=wrapper
-    )
-
-
 def get_set_cte_alias(ir_set: irast.Set) -> str:
     if ir_set.rptr is not None and ir_set.rptr.source.scls is not None:
         alias_hint = '{}_{}'.format(
@@ -333,7 +305,7 @@ def process_set_as_root(
     set_rvar = relctx.get_root_rvar(ir_set, stmt, ctx=ctx)
     stmt.from_clause.append(set_rvar)
     relctx.enforce_path_scope(stmt, ctx.parent_path_scope_refs, ctx=ctx)
-    ctx.query.ctes.append(relctx.get_set_cte(ir_set, ctx=ctx))
+    relctx.register_set_cte(ir_set, ctx=ctx)
 
 
 def process_set_as_parent_scope(
@@ -376,7 +348,7 @@ def process_set_as_parent_scope(
 
         relctx.enforce_path_scope(stmt, parent_scope, ctx=ctx)
 
-    ctx.query.ctes.append(relctx.get_set_cte(ir_set, ctx=ctx))
+    relctx.register_set_cte(ir_set, ctx=ctx)
 
 
 def process_set_as_atom_class_ref(
@@ -667,7 +639,7 @@ def process_set_as_membership_expr(
         # Due to injection this rel must not be a CTE.
         relctx.put_set_cte(ir_set, stmt, ctx=ctx)
     else:
-        ctx.query.ctes.append(relctx.get_set_cte(ir_set, ctx=ctx))
+        relctx.register_set_cte(ir_set, ctx=ctx)
 
 
 def process_set_as_view_inner_reference(
@@ -799,7 +771,7 @@ def process_set_as_named_tuple(
 
     relctx.ensure_bond_for_expr(ir_set, stmt, ctx=ctx)
     pathctx.put_path_value_var(stmt, ir_set.path_id, set_expr, env=ctx.env)
-    ctx.query.ctes.append(relctx.get_set_cte(ir_set, ctx=ctx))
+    relctx.register_set_cte(ir_set, ctx=ctx)
 
 
 def process_set_as_named_tuple_indirection(
@@ -815,7 +787,7 @@ def process_set_as_named_tuple_indirection(
                                                env=ctx.env)
 
     relctx.ensure_correct_rvar_for_expr(ir_set, stmt, tuple_var, ctx=ctx)
-    ctx.query.ctes.append(relctx.get_set_cte(ir_set, ctx=ctx))
+    relctx.register_set_cte(ir_set, ctx=ctx)
 
 
 def process_set_as_typefilter(
@@ -830,7 +802,7 @@ def process_set_as_typefilter(
     pathctx.put_path_rvar(
         ctx.env, stmt, ir_set.expr.expr.path_id, root_rvar)
 
-    ctx.query.ctes.append(relctx.get_set_cte(ir_set, ctx=ctx))
+    relctx.register_set_cte(ir_set, ctx=ctx)
 
 
 def process_set_as_expr(
@@ -848,7 +820,7 @@ def process_set_as_expr(
         # Due to injection this rel must not be a CTE.
         relctx.put_set_cte(ir_set, stmt, ctx=ctx)
     else:
-        ctx.query.ctes.append(relctx.get_set_cte(ir_set, ctx=ctx))
+        relctx.register_set_cte(ir_set, ctx=ctx)
 
 
 def process_set_as_func_expr(
@@ -942,7 +914,7 @@ def process_set_as_func_expr(
         # Due to injection this rel must not be a CTE.
         relctx.put_set_cte(ir_set, stmt, ctx=ctx)
     else:
-        ctx.query.ctes.append(relctx.get_set_cte(ir_set, ctx=ctx))
+        relctx.register_set_cte(ir_set, ctx=ctx)
 
 
 def process_set_as_agg_expr(
@@ -1085,7 +1057,7 @@ def process_set_as_agg_expr(
         # Due to injection this rel must not be a CTE.
         relctx.put_set_cte(ir_set, stmt, ctx=ctx)
     else:
-        ctx.query.ctes.append(relctx.get_set_cte(ir_set, ctx=ctx))
+        relctx.register_set_cte(ir_set, ctx=ctx)
 
 
 def process_set_as_exists_expr(
@@ -1123,7 +1095,7 @@ def process_set_as_exists_expr(
         # Due to injection this rel must not be a CTE.
         relctx.put_set_cte(ir_set, stmt, ctx=ctx)
     else:
-        ctx.query.ctes.append(relctx.get_set_cte(ir_set, ctx=ctx))
+        relctx.register_set_cte(ir_set, ctx=ctx)
 
 
 def process_set_as_exists_stmt_expr(

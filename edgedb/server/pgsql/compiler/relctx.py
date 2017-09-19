@@ -324,3 +324,11 @@ def replace_set_cte_subtree(
             ir_set = ir_set.rptr.source
         else:
             ir_set = None
+
+
+def register_set_cte(
+        ir_set: irast.Set, ctx: context.CompilerContextLevel) -> None:
+    cte = get_set_cte(ir_set, ctx=ctx)
+    if cte is None:
+        raise RuntimeError(f'cannot find CTE for {ir_set!r}')
+    ctx.query.ctes.append(cte)

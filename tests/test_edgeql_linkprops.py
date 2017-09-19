@@ -247,7 +247,6 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ]
         ])
 
-    @tb.expected_no_optimizer_failure
     async def test_edgeql_props_basic03(self):
         await self.assert_query_result(r'''
             # get only users who have the same count and cost in the decks
@@ -427,7 +426,6 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_props_cross03(self):
         await self.assert_query_result(r'''
             # get cards that have the same count in some deck as their cost
@@ -435,8 +433,9 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             WITH MODULE test
             SELECT Card {
                 name,
-                same := (
-                    SELECT EXISTS User
+                same := EXISTS (
+                    SELECT
+                        User
                     FILTER
                         Card.cost = User.deck@count AND
                         Card = User.deck
@@ -457,6 +456,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ]
         ])
 
+    @tb.expected_optimizer_failure
     async def test_edgeql_props_cross04(self):
         await self.assert_query_result(r'''
             # get cards that have the same count in some deck as their cost
@@ -484,6 +484,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ]
         ])
 
+    @tb.expected_optimizer_failure
     async def test_edgeql_props_implication01(self):
         await self.assert_query_result(r'''
             # count of 1 in at least some deck implies 'Fire'

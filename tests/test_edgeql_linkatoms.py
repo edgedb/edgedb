@@ -85,6 +85,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ]
         ])
 
+    @tb.expected_optimizer_failure
     async def test_edgeql_links_map_atoms01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -131,6 +132,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ]
         ])
 
+    @tb.expected_optimizer_failure
     async def test_edgeql_links_map_atoms02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -392,7 +394,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
+    @tb.expected_optimizer_failure
     async def test_edgeql_links_set07(self):
         await self.assert_query_result(r'''
             # subsets
@@ -595,7 +597,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
+    @tb.expected_optimizer_failure
     async def test_edgeql_links_set13(self):
         await self.assert_query_result(r'''
             # find an item with a unique quality
@@ -625,7 +627,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
+    @tb.expected_optimizer_failure
     async def test_edgeql_links_set14(self):
         await self.assert_query_result(r'''
             # find an item with a unique quality
@@ -653,6 +655,26 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
                     'name': 'floor lamp',
                     'unique': ['metal'],
                 },
+            ],
+        ])
+
+    @tb.expected_optimizer_failure
+    async def test_edgeql_links_set15(self):
+        await self.assert_query_result(r'''
+            # subsets
+            WITH MODULE test
+            SELECT Item {name}
+            FILTER .tag_set1 IN {'wood', 'plastic'}
+            ORDER BY count(ALL (
+                SELECT _ := Item.tag_set1
+                FILTER _ IN {'rectangle', 'plastic', 'wood'}
+            )) DESC THEN .name;
+        ''', [
+            [
+                {'name': 'chair'},
+                {'name': 'table'},
+                {'name': 'ball'},
+                {'name': 'floor lamp'},
             ],
         ])
 
@@ -865,7 +887,6 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    @tb.expected_no_optimizer_failure
     async def test_edgeql_links_array10(self):
         await self.assert_query_result(r'''
             # find an item with a unique quality

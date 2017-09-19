@@ -843,6 +843,7 @@ class TestInsert(tb.QueryTestCase):
             ]
         )
 
+    @tb.expected_optimizer_failure
     async def test_edgeql_insert_linkprops_01(self):
         res = await self.con.execute(r'''
             INSERT test::Offer {

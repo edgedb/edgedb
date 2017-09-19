@@ -2284,6 +2284,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['Elvis1', 'Elvis4', 'Yury2', 'Yury3'],
         ])
 
+    @tb.expected_optimizer_failure
     async def test_edgeql_select_cross05(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -2294,6 +2295,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [['Elvis', 'Yury'], ['Yury', 'Elvis'], ['Yury', 'Elvis']],
         ])
 
+    @tb.expected_optimizer_failure
     async def test_edgeql_select_cross06(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -2316,6 +2318,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [2],
         ])
 
+    @tb.expected_optimizer_failure
     async def test_edgeql_select_cross08(self):
         await self.assert_query_result(r"""
             WITH MODULE test
