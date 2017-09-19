@@ -138,6 +138,14 @@ class Protocol(asyncio.Protocol):
                                  flags=message.get('__flags__')))
             fut.add_done_callback(self._on_script_done)
 
+        elif message['__type__'] == 'list_dbs':
+            fut = self._loop.create_task(self._list_dbs())
+            fut.add_done_callback(self._on_script_done)
+
+        elif message['__type__'] == 'get_pgcon':
+            fut = self._loop.create_task(self._get_pgcon())
+            fut.add_done_callback(self._on_script_done)
+
     def send_message(self, msg):
         self.transport.write(json.dumps(msg).encode('utf-8'))
 
@@ -165,6 +173,30 @@ class Protocol(asyncio.Protocol):
                 'T': traceback.format_tb(err.__traceback__),
             }
         })
+
+    async def _get_pgcon(self):
+        timer = Timer()
+
+        with timer.timeit('execution'):
+            result = self._pg_cluster.get_connection_spec()
+
+        return result, timer.as_dict()
+
+    async def _list_dbs(self):
+        timer = Timer()
+
+        with timer.timeit('execution'):
+            result = await self.pgconn.fetch('''
+                SELECT d.datname
+                    FROM pg_database d
+                    INNER JOIN pg_shdescription c ON c.objoid = d.oid
+                WHERE
+                    d.datistemplate = false AND
+                    substr(c.description, 1, 4) = '$CMR';
+            ''')
+
+        result = [r['datname'] for r in result]
+        return result, timer.as_dict()
 
     async def _run_script(self, script, *,
                           graphql=False, optimize=False, flags={}):

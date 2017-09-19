@@ -36,6 +36,12 @@ class Connection:
     def get_optimize(self):
         return self._optimize
 
+    async def list_dbs(self):
+        return await self._protocol.list_dbs()
+
+    async def get_pgcon(self):
+        return await self._protocol.get_pgcon()
+
     async def execute(self, query, *args, graphql=False, flags={}):
         return await self._protocol.execute_script(
             query,

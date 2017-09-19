@@ -50,6 +50,26 @@ class Protocol(asyncio.Protocol):
         msg = json.loads(data.decode('utf-8'))
         self.process_message(msg)
 
+    def list_dbs(self):
+        msg = {
+            '__type__': 'list_dbs',
+        }
+
+        self._waiter = create_future(self._loop)
+        self.send_message(msg)
+
+        return self._waiter
+
+    def get_pgcon(self):
+        msg = {
+            '__type__': 'get_pgcon',
+        }
+
+        self._waiter = create_future(self._loop)
+        self.send_message(msg)
+
+        return self._waiter
+
     def execute_script(self, script, *, graphql=False, optimize=False,
                        flags={}):
         msg = {

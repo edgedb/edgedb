@@ -215,7 +215,7 @@ class UpdateMetadata(PutMetadata):
         return result
 
 
-class CreateObject(DDLOperation):
+class CreateObject(SchemaObjectOperation):
     async def extra(self, context):
         ops = await super().extra(context)
 
@@ -229,7 +229,7 @@ class CreateObject(DDLOperation):
         return ops
 
 
-class RenameObject(DDLOperation):
+class RenameObject(SchemaObjectOperation):
     def __init__(self, object, *, new_name, **kwargs):
         super().__init__(**kwargs)
         self.object = object
@@ -251,7 +251,7 @@ class RenameObject(DDLOperation):
         return ops
 
 
-class AlterObject(DDLOperation):
+class AlterObject(SchemaObjectOperation):
     async def extra(self, context):
         ops = await super().extra(context)
 
