@@ -301,7 +301,7 @@ class TestExpressions(tb.QueryTestCase):
             {13},
         ])
 
-    @unittest.expectedFailure
+    @tb.expected_optimizer_failure
     async def test_edgeql_expr_op17(self):
         await self.assert_query_result(r"""
             WITH a := {11, 12, 13}
@@ -317,10 +317,9 @@ class TestExpressions(tb.QueryTestCase):
                 FILTER Concept.name LIKE 'schema::%'
             );
 
-            SELECT len(schema::Concept.name);
         """, [
-            {13},
-            {13},
+            {9, 1},
+            {9, 1},
         ])
 
     async def test_edgeql_expr_paths_01(self):
