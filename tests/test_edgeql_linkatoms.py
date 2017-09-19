@@ -702,7 +702,6 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_links_array02(self):
         await self.assert_query_result(r'''
             # just a simple unpack

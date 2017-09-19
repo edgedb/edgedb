@@ -51,9 +51,10 @@ def __infer_set(ir, singletons, schema):
 
 @_infer_cardinality.register(irast.FunctionCall)
 def __infer_func_call(ir, singletons, schema):
-    # XXX: fix function result cardinality with respect to
-    # set-returning functions when they are supported.
-    return ONE
+    if ir.func.set_returning:
+        return MANY
+    else:
+        return ONE
 
 
 @_infer_cardinality.register(irast.Constant)
