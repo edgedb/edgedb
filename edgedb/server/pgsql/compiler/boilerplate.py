@@ -24,7 +24,6 @@ def init_stmt(
         ctx.toplevel_stmt = ctx.stmt
 
     ctx.path_scope = stmt.path_scope
-    ctx.local_scope_sets = stmt.local_scope_sets
     ctx.stmtmap[stmt] = ctx.stmt
     ctx.stmt_hierarchy[ctx.stmt] = parent_ctx.stmt
 

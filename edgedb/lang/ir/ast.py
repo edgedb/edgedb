@@ -58,7 +58,6 @@ class Set(Base):
     show_as_anchor: typing.Union[str, ast.MetaAST]
     shape: typing.List[Base]
     path_scope: typing.FrozenSet[PathId]
-    local_scope_sets: typing.FrozenSet[Base]
 
     def __repr__(self):
         return \
@@ -117,6 +116,9 @@ class SetOp(Expr):
     right: Base
     op: ast.ops.Operator
     exclusive: bool = False
+    # UNIONs generated from IF-ELSE need to keep
+    # track of the set scope in condition.
+    local_scope_sets: typing.FrozenSet[Set]
 
 
 class BinOp(Expr):
@@ -231,7 +233,6 @@ class Stmt(Base):
     iterator_stmt: Base
     substmts: list
     path_scope: typing.FrozenSet[PathId]
-    local_scope_sets: typing.FrozenSet[Set]
 
 
 class SelectStmt(Stmt):

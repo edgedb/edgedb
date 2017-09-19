@@ -572,6 +572,11 @@ def compile_ifelse(
     else_expr.where = astutils.extend_qlbinop(
         else_expr.where, not_condition)
 
+    with ctx.new_traced_scope() as scopectx:
+        dispatch.compile(condition, ctx=scopectx)
+
+    condition_scope = scopectx.traced_path_scope
+
     if_expr = dispatch.compile(if_expr, ctx=ctx)
     else_expr = dispatch.compile(else_expr, ctx=ctx)
 
@@ -594,8 +599,14 @@ def compile_ifelse(
     else:
         op = qlast.UNION_ALL
 
+    local_scope_sets = frozenset(
+        ctx.sets[path_id] for path_id in condition_scope
+        if path_id in ctx.sets
+    )
+
     return irast.SetOp(left=if_expr.expr, right=else_expr.expr,
-                       op=op, exclusive=True)
+                       op=op, exclusive=True,
+                       local_scope_sets=local_scope_sets)
 
 
 def compile_membership_op(

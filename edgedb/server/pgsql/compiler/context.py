@@ -73,7 +73,6 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.path_scope_refs_by_stmt = collections.defaultdict(dict)
             self.parent_path_scope_refs = {}
             self.path_scope = frozenset()
-            self.local_scope_sets = frozenset()
 
         else:
             self.backend = prevlevel.backend
@@ -111,7 +110,6 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.path_scope_refs_by_stmt = prevlevel.path_scope_refs_by_stmt
             self.parent_path_scope_refs = prevlevel.parent_path_scope_refs
             self.path_scope = prevlevel.path_scope
-            self.local_scope_sets = prevlevel.local_scope_sets
 
             if mode in {ContextSwitchMode.SUBQUERY,
                         ContextSwitchMode.SUBSTMT}:

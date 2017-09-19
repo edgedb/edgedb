@@ -232,7 +232,6 @@ def compile_shape_el(
             offset=offset,
             limit=limit,
             path_scope=frozenset(ctx.path_scope),
-            local_scope_sets=pathctx.get_local_scope_sets(ctx=ctx)
         )
 
         if recurse is not None:
@@ -432,7 +431,6 @@ def compile_insert_nested_shape(
             ctx=ctx
         ),
         path_scope=frozenset(ctx.path_scope),
-        local_scope_sets=pathctx.get_local_scope_sets(ctx=ctx)
     )
 
     result = setgen.generated_set(substmt, ctx=ctx)
@@ -468,7 +466,6 @@ def compile_update_nested_shape(
     substmt = irast.SelectStmt(
         result=el,
         path_scope=frozenset(ctx.path_scope),
-        local_scope_sets=pathctx.get_local_scope_sets(ctx=ctx)
     )
 
     result = setgen.generated_set(substmt, ctx=ctx)

@@ -717,14 +717,16 @@ def process_set_as_setop(
             ir_set.path_id: expr.left.result.path_id
         }
         larg = dispatch.compile(expr.left, ctx=newctx)
-        ensure_path_scope_in_output(expr.left, larg, ctx=newctx)
+        ensure_path_scope_in_output(expr.left, larg, expr.local_scope_sets,
+                                    ctx=newctx)
 
         newctx.path_scope_refs = ctx.parent_path_scope_refs.copy()
         newctx.view_path_id_map = {
             ir_set.path_id: expr.right.result.path_id
         }
         rarg = dispatch.compile(expr.right, ctx=newctx)
-        ensure_path_scope_in_output(expr.right, rarg, ctx=newctx)
+        ensure_path_scope_in_output(expr.right, rarg, expr.local_scope_sets,
+                                    ctx=newctx)
 
     with ctx.subquery() as subctx:
         subqry = subctx.query
@@ -1157,8 +1159,6 @@ def init_scoped_set_ctx(
         ctx: context.CompilerContextLevel) -> None:
     ctx.expr_as_isolated_set = False
     ctx.path_scope = frozenset(ctx.path_scope | ir_set.path_scope)
-    ctx.local_scope_sets = \
-        frozenset(ctx.local_scope_sets | ir_set.local_scope_sets)
 
 
 def fini_agg_expr_stmt(
@@ -1259,13 +1259,11 @@ def process_computable_subquery(
 
 
 def ensure_path_scope_in_output(
-        ir_stmt: irast.Stmt, query: pgast.Query, *,
+        ir_stmt: irast.Stmt, query: pgast.Query,
+        scope: typing.FrozenSet[irast.Set], *,
         ctx: context.CompilerContextLevel) -> None:
 
-    specific_scope = {s for s in ir_stmt.local_scope_sets
-                      if s.path_id in ctx.parent_path_scope_refs}
-
-    for ir_set in specific_scope:
+    for ir_set in scope:
         if (isinstance(ir_set.scls, s_concepts.Concept) and
                 ir_set.path_id not in query.path_scope):
             # The selector does not include this path explicitly,

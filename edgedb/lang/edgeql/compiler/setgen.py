@@ -388,7 +388,6 @@ def scoped_set(
         ctx: context.ContextLevel) -> irast.Set:
     ir_set = ensure_set(expr, typehint=typehint, ctx=ctx)
     ir_set.path_scope = frozenset(ctx.path_scope.copy())
-    ir_set.local_scope_sets = pathctx.get_local_scope_sets(ctx=ctx)
     return ir_set
 
 
@@ -406,7 +405,6 @@ def ensure_stmt(expr: irast.Base, *, ctx: context.ContextLevel) -> irast.Stmt:
         expr = irast.SelectStmt(
             result=ensure_set(expr, ctx=ctx),
             path_scope=frozenset(ctx.path_scope),
-            local_scope_sets=pathctx.get_local_scope_sets(ctx=ctx)
         )
     return expr
 

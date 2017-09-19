@@ -137,7 +137,6 @@ def compile_GroupQuery(
 
             o_stmt.path_scope = \
                 frozenset(sctx.path_scope | {stmt.group_path_id})
-            o_stmt.local_scope_sets = pathctx.get_local_scope_sets(ctx=sctx)
 
         stmt.result = setgen.generated_set(o_stmt, ctx=ictx)
 
@@ -282,7 +281,6 @@ def fini_stmt(
             result.path_id = irstmt.result.path_id
 
     irstmt.path_scope = frozenset(ctx.path_scope)
-    irstmt.local_scope_sets = pathctx.get_local_scope_sets(ctx=ctx)
 
     return result
 

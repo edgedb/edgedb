@@ -8,7 +8,6 @@
 
 
 import collections
-import typing
 
 from edgedb.lang.common import ast
 from edgedb.lang.ir import ast as irast
@@ -89,14 +88,6 @@ def register_path_scope(
             ctx.traced_path_scope.add(prefix)
             if stmt_scope:
                 ctx.stmt_local_path_scope.add(prefix)
-
-
-def get_local_scope_sets(
-        *, ctx: context.CompilerContext) -> typing.FrozenSet[irast.Set]:
-    return frozenset(
-        ctx.sets[path_id] for path_id in ctx.stmt_local_path_scope
-        if path_id in ctx.sets
-    )
 
 
 def enforce_singleton(expr: irast.Base, *, ctx: context.ContextLevel) -> None:

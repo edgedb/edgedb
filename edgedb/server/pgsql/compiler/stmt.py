@@ -246,7 +246,6 @@ def compile_GroupStmt(
             }
 
             selctx.path_scope = o_stmt.path_scope
-            selctx.local_scope_sets = o_stmt.local_scope_sets
 
             selctx.query.ctes.append(group_cte)
             # relctx.pop_prefix_ctes(stmt.subject.path_id, ctx=selctx)
