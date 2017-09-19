@@ -568,7 +568,7 @@ class CreateInheritableTableObject(ddl.CreateObject):
     """Base creation operation class for objects with managed."""
 
     def __init__(self, object, **kwargs):
-        super().__init__(**kwargs)
+        super().__init__(object.get_id(), **kwargs)
         self.object = object
 
     async def extra(self, context):

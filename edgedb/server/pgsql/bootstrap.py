@@ -15,6 +15,8 @@ from edgedb.lang.schema import ddl as s_ddl
 from edgedb.server import defines as edgedb_defines
 
 from . import backend
+from . import dbops
+from . import delta
 from . import metaschema
 
 
@@ -166,11 +168,9 @@ async def _ensure_edgedb_default_database(conn):
         logger.info(
             f'Creating default database: {edgedb_defines.EDGEDB_DEFAULT_DB}')
 
-        await _execute(conn, f'''
-            CREATE DATABASE {edgedb_defines.EDGEDB_DEFAULT_DB}
-            WITH OWNER = {edgedb_defines.EDGEDB_SUPERUSER}
-            TEMPLATE = {edgedb_defines.EDGEDB_TEMPLATE_DB}
-        ''')
+        ctx = delta.CommandContext(conn)
+        db = dbops.Database(edgedb_defines.EDGEDB_DEFAULT_DB)
+        await dbops.CreateDatabase(db).execute(ctx)
 
 
 async def bootstrap(cluster, loop=None):

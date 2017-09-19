@@ -11,6 +11,7 @@ import asyncio
 import getpass
 import os
 import select
+import subprocess
 import sys
 
 from prompt_toolkit import application as pt_app
@@ -98,6 +99,12 @@ class Cli:
 
     exit_commands = {'exit', 'quit', '\q', ':q'}
 
+    def _command(prefix, title, desc, *, _all_commands={}):
+        def wrap(func):
+            _all_commands[prefix] = title, desc, func
+            return func
+        return wrap
+
     def __init__(self, conn_args):
         self.connection = None
 
@@ -108,6 +115,7 @@ class Cli:
         self.cur_db = None
         self.graphql = False
         self.optimize = False
+        self.commands = type(self)._command.__kwdefaults__['_all_commands']
 
     def get_prompt(self):
         return '{}>'.format(self.cur_db)
@@ -227,6 +235,44 @@ class Cli:
             print('Could not establish connection', file=sys.stderr)
             exit(1)
 
+    @_command('c', '\c DBNAME', 'connect to database DBNAME')
+    def command_connect(self, args):
+        new_db = args.strip()
+        new_args = {**self.conn_args,
+                    'database': new_db}
+        self.connection._transport.abort()
+        self.connection = None
+        self.ensure_connection(new_args)
+        self.conn_args = new_args
+
+    @_command('l', '\l', 'list databases')
+    def command_list_dbs(self, args):
+        result = self.run_coroutine(
+            self.connection.list_dbs())
+
+        print('List of databases:')
+        for dbn in result:
+            print(f'  {dbn}')
+
+    @_command('psql', '\psql', 'open psql to the current postgres process')
+    def command_psql(self, args):
+        result = self.run_coroutine(
+            self.connection.get_pgcon())
+
+        cmd = [
+            'psql',
+            '-h', result['host'],
+            '-p', result['port'],
+            '-d', self.cur_db,
+            '-U', 'postgres'
+        ]
+
+        self.cli.run_in_terminal(
+            lambda: subprocess.call(cmd) == 0)
+
+        self.cli.current_buffer.reset()
+        print('\r                ')
+
     def run(self):
         self.cli = self.build_cli()
         self.ensure_connection(self.conn_args)
@@ -242,18 +288,20 @@ class Cli:
                 if command in self.exit_commands:
                     raise EOFError
 
-                if command.startswith('\\'):
-                    if command.startswith('\\c '):
-                        new_db = command.split(' ', 1)
-                        new_args = {**self.conn_args,
-                                    'database': new_db[1].strip()}
-                        self.connection._transport.abort()
-                        self.connection = None
-                        self.ensure_connection(new_args)
-                        self.conn_args = new_args
-                        continue
+                if command == '\?':
+                    for title, desc, _ in self.commands.values():
+                        print(f'  {title:<20} {desc}')
+                    continue
 
-                    print('Unknown command')
+                elif command.startswith('\\'):
+                    prefix, _, args = command.partition(' ')
+                    prefix = prefix[1:]
+                    if prefix in self.commands:
+                        self.ensure_connection(self.conn_args)
+                        self.commands[prefix][2](self, args)
+                    else:
+                        print(f'No command {command} is found.')
+                        print('Try \? to see the list of supported commands.')
                     continue
 
                 self.ensure_connection(self.conn_args)
