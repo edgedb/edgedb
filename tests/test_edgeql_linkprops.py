@@ -21,7 +21,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'cards_setup.eql')
 
-    async def test_edgeql_props_basic01(self):
+    async def test_edgeql_props_basic_01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT User {
@@ -190,7 +190,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ]
         ])
 
-    async def test_edgeql_props_basic02(self):
+    async def test_edgeql_props_basic_02(self):
         await self.assert_query_result(r'''
             # get users and only cards that have the same count and
             # cost in the decks
@@ -247,7 +247,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ]
         ])
 
-    async def test_edgeql_props_basic03(self):
+    async def test_edgeql_props_basic_03(self):
         await self.assert_query_result(r'''
             # get only users who have the same count and cost in the decks
             #
@@ -325,7 +325,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ]
         ])
 
-    async def test_edgeql_props_basic04(self):
+    async def test_edgeql_props_basic_04(self):
         await self.assert_query_result(r'''
             # get all cards that match their cost to the count in at
             # least some deck
@@ -354,7 +354,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ]
         ])
 
-    async def test_edgeql_props_basic05(self):
+    async def test_edgeql_props_basic_05(self):
         await self.assert_query_result(r'''
             # get all the friends of Alice and their nicknames
             #
@@ -380,7 +380,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ]
         ])
 
-    async def test_edgeql_props_cross01(self):
+    async def test_edgeql_props_cross_01(self):
         await self.assert_query_result(r'''
             # get cards that have the same count in some deck as their cost
             #
@@ -397,7 +397,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ]
         ])
 
-    async def test_edgeql_props_cross02(self):
+    async def test_edgeql_props_cross_02(self):
         await self.assert_query_result(r'''
             # get cards that have the same count in some deck as their cost
             #
@@ -426,7 +426,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ]
         ])
 
-    async def test_edgeql_props_cross03(self):
+    async def test_edgeql_props_cross_03(self):
         await self.assert_query_result(r'''
             # get cards that have the same count in some deck as their cost
             #
@@ -457,7 +457,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_props_cross04(self):
+    async def test_edgeql_props_cross_04(self):
         await self.assert_query_result(r'''
             # get cards that have the same count in some deck as their cost
             #
@@ -485,7 +485,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
-    async def test_edgeql_props_implication01(self):
+    async def test_edgeql_props_implication_01(self):
         await self.assert_query_result(r'''
             # count of 1 in at least some deck implies 'Fire'
             #
@@ -560,7 +560,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ]
         ])
 
-    async def test_edgeql_props_implication02(self):
+    async def test_edgeql_props_implication_02(self):
         await self.assert_query_result(r'''
             # FILTER by NOT (count of 1 implies 'Fire') in at least some deck
             #
@@ -582,7 +582,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ]
         ])
 
-    async def test_edgeql_props_implication03(self):
+    async def test_edgeql_props_implication_03(self):
         await self.assert_query_result(r'''
             # same as above, refactored
             #
@@ -604,7 +604,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ]
         ])
 
-    async def test_edgeql_props_implication04(self):
+    async def test_edgeql_props_implication_04(self):
         await self.assert_query_result(r'''
             # count of 1 implies 'Fire' in the deck of Dave
             #
@@ -671,4 +671,123 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                     ],
                 }
             ]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_props_setops_01(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT DISTINCT User.deck@count;
+
+            WITH MODULE test
+            SELECT DISTINCT (
+                SELECT User.deck@count FILTER User.deck.element = 'Fire'
+            );
+
+            WITH MODULE test
+            SELECT DISTINCT (
+                SELECT User.deck@count FILTER User.deck.element = 'Water'
+            );
+
+            WITH MODULE test
+            SELECT DISTINCT (
+                SELECT Card.<deck@count FILTER Card.element = 'Water'
+            );
+        ''', [
+            {1, 2, 3, 4},
+            {1, 2},
+            {1, 2, 3},
+            {1, 2, 3},
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_props_setops_02(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE test,
+                C := (SELECT User.deck.name FILTER User.name = 'Carol'),
+                D := (SELECT User.deck.name FILTER User.name = 'Dave')
+            SELECT _ := C UNION ALL D
+            ORDER BY _;
+
+            WITH
+                MODULE test,
+                C := (SELECT User.deck.name FILTER User.name = 'Carol'),
+                D := (SELECT User.deck.name FILTER User.name = 'Dave')
+            SELECT _ := C UNION D
+            ORDER BY _;
+
+            WITH
+                MODULE test,
+                C := (SELECT User.deck.name FILTER User.name = 'Carol'),
+                D := (SELECT User.deck.name FILTER User.name = 'Dave')
+            SELECT _ := DISTINCT (C UNION ALL D)
+            ORDER BY _;
+        ''', [
+            [
+                'Bog monster',
+                'Bog monster',
+                'Djinn',
+                'Djinn',
+                'Dragon',
+                'Dwarf',
+                'Giant eagle',
+                'Giant eagle',
+                'Giant turtle',
+                'Giant turtle',
+                'Golem',
+                'Golem',
+                'Sprite',
+                'Sprite'
+            ],
+            [
+                'Bog monster',
+                'Djinn',
+                'Dragon',
+                'Dwarf',
+                'Giant eagle',
+                'Giant turtle',
+                'Golem',
+                'Sprite'
+            ],
+            [
+                'Bog monster',
+                'Djinn',
+                'Dragon',
+                'Dwarf',
+                'Giant eagle',
+                'Giant turtle',
+                'Golem',
+                'Sprite'
+            ],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_props_setops_03(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT _ := {
+                # this is equivalent to UNION ALL
+                User.name,
+                User.friends@nickname,
+                {'Foo', 'Bob'}
+            }
+            ORDER BY _;
+
+            WITH MODULE test
+            SELECT _ := DISTINCT {
+                User.name,
+                User.friends@nickname,
+                {'Foo', 'Bob'}
+            }
+            ORDER BY _;
+        ''', [
+            [
+                'Alice', 'Bob', 'Bob', 'Carol', 'Dave', 'Firefighter',
+                'Foo', 'Grumpy', 'Swampy'
+            ],
+            [
+                'Alice', 'Bob', 'Carol', 'Dave', 'Firefighter', 'Foo',
+                'Grumpy', 'Swampy',
+            ],
         ])

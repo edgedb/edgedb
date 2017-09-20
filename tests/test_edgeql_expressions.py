@@ -1006,12 +1006,11 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_setop_03(self):
-        res = await self.con.execute('''
+        await self.assert_query_result('''
             SELECT array_agg(1 UNION ALL 2 UNION ALL 3);
             SELECT array_agg(3 UNION ALL 2 UNION ALL 3);
             SELECT array_agg(3 UNION ALL 3 UNION ALL 2);
-        ''')
-        self.assert_data_shape(res, [
+        ''', [
             [[1, 2, 3]],
             [[3, 2, 3]],
             [[3, 3, 2]],
@@ -1019,36 +1018,32 @@ class TestExpressions(tb.QueryTestCase):
 
     @unittest.expectedFailure
     async def test_edgeql_expr_setop_04(self):
-        res = await self.con.execute('''
+        await self.assert_query_result('''
             SELECT DISTINCT {1, 2, 2, 3};
-        ''')
-        self.assert_data_shape(res, [
+        ''', [
             {1, 2, 3},
         ])
 
     async def test_edgeql_expr_setop_05(self):
-        res = await self.con.execute('''
+        await self.assert_query_result('''
             SELECT (2 UNION ALL 2 UNION ALL 2);
-        ''')
-        self.assert_data_shape(res, [
+        ''', [
             [2, 2, 2],
         ])
 
     async def test_edgeql_expr_setop_06(self):
-        res = await self.con.execute('''
+        await self.assert_query_result('''
             SELECT (2 UNION 2 UNION 2);
-        ''')
-        self.assert_data_shape(res, [
+        ''', [
             [2],
         ])
 
     async def test_edgeql_expr_setop_07(self):
-        res = await self.con.execute('''
+        await self.assert_query_result('''
             SELECT (2 UNION ALL 2 UNION 2);
             SELECT (2 UNION 2 UNION ALL 2);
             SELECT (2 UNION ALL 1 UNION 2);
-        ''')
-        self.assert_data_shape(res, [
+        ''', [
             [2],
             [2, 2],
             {1, 2},
@@ -1062,6 +1057,50 @@ class TestExpressions(tb.QueryTestCase):
                 WITH MODULE schema
                 SELECT Concept UNION ALL Attribute;
             ''')
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_setop_09(self):
+        res = await self.con.execute('''
+            SELECT DISTINCT {[1, 2], [1, 2], [2, 3]};
+        ''')
+        self.assert_data_shape(res, [
+            {[1, 2], [2, 3]},
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_setop_10(self):
+        res = await self.con.execute('''
+            SELECT DISTINCT {(1, 2), (2, 3), (1, 2)};
+            SELECT DISTINCT {(a := 1, b := 2),
+                             (a := 2, b := 3),
+                             (a := 1, b := 2)};
+        ''')
+        self.assert_data_shape(res, [
+            {[1, 2], [2, 3]},
+            {{'a': 1, 'b': 2}, {'a': 2, 'b': 3}},
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_setop_11(self):
+        res = await self.con.execute('''
+            WITH
+                MODULE schema,
+                C := (SELECT Concept FILTER Concept.name LIKE 'schema::%')
+            SELECT _ := len(C.name)
+            ORDER BY _;
+
+            WITH
+                MODULE schema,
+                C := (SELECT Concept FILTER Concept.name LIKE 'schema::%')
+            SELECT _ := DISTINCT len(C.name)
+            ORDER BY _;
+        ''')
+
+        # test the results of DISTINCT directly, rather than relying
+        # on an aggregate function
+        self.assertEqual(
+            len(res[0]) > len(res[1]),
+            'DISTINCT len(Concept.name) failed to filter out dupplicates')
 
     async def test_edgeql_expr_cardinality_01(self):
         with self.assertRaisesRegex(
