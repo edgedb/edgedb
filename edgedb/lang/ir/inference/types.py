@@ -213,12 +213,6 @@ def __infer_binop(ir, schema):
 @_infer_type.register(irast.UnaryOp)
 def __infer_unaryop(ir, schema):
     result = None
-
-    if isinstance(ir.expr, irast.EmptySet):
-        raise ql_errors.EdgeQLError(
-            f'unary operator `{ir.op.upper()}` is not defined for empty set',
-            context=ir.context)
-
     operand_type = infer_type(ir.expr, schema)
 
     if ir.op == ast.ops.NOT:

@@ -206,12 +206,16 @@ class TestExpressions(tb.QueryTestCase):
             """)
 
     async def test_edgeql_expr_op_10(self):
-        for query in ['SELECT -{};', 'SELECT +{};', 'SELECT NOT {};']:
-            with self.assertRaisesRegex(
-                    exc.EdgeQLError,
-                    r'unary operator `.+` is not defined for empty set'):
-
-                await self.con.execute(query)
+        await self.assert_query_result(r"""
+            # the types are put in to satisfy type infering
+            SELECT +<int>{};
+            SELECT -<int>{};
+            SELECT NOT <bool>{};
+        """, [
+            [],
+            [],
+            [],
+        ])
 
     async def test_edgeql_expr_op_11(self):
         # Test non-trivial folding
