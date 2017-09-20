@@ -1105,6 +1105,128 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '2'}],
         ])
 
+    @unittest.expectedFailure
+    async def test_edgeql_select_setops_05(self):
+        await self.assert_query_result(r"""
+            # using UNION with overlapping sets of Objects
+            WITH MODULE test
+            SELECT _ := ((
+                # Issue 1, 4
+                SELECT User.<owner[IS Issue]
+                FILTER User.name = 'Elvis'
+            ) UNION (
+                # Issue 1
+                SELECT User.<watchers[IS Issue]
+                FILTER User.name = 'Yury'
+            ) UNION (
+                # Issue 1, 4
+                SELECT Issue
+                FILTER NOT EXISTS Issue.priority
+            )){number}
+            ORDER BY _.number;
+        """, [
+            [{'number': '1'}, {'number': '4'}],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_setops_06(self):
+        await self.assert_query_result(r"""
+            # using UNION with overlapping sets of Objects
+            WITH MODULE test
+            SELECT _ := count((
+                # Issue 1, 4
+                SELECT User.<owner[IS Issue]
+                FILTER User.name = 'Elvis'
+            ) UNION (
+                # Issue 1
+                SELECT User.<watchers[IS Issue]
+                FILTER User.name = 'Yury'
+            ) UNION (
+                # Issue 1, 4
+                SELECT Issue
+                FILTER NOT EXISTS Issue.priority
+            ));
+        """, [
+            [2],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_setops_07(self):
+        await self.assert_query_result(r"""
+            # using UNION with overlapping sets of Objects
+            WITH MODULE test
+            SELECT _ := {  # equivalent to UNION for Objects
+                # Issue 1, 4
+                (
+                    SELECT Issue
+                    FILTER Issue.owner.name = 'Elvis'
+                ), (
+                    SELECT Issue
+                    FILTER Issue.number = '1'
+                )
+            }{number}
+            ORDER BY _.number;
+        """, [
+            [{'number': '1'}, {'number': '4'}],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_setops_08(self):
+        await self.assert_query_result(r"""
+            # using implicit nested UNION with overlapping sets of Objects
+            WITH MODULE test
+            SELECT _ := {  # equivalent to UNION for Objects
+                # Issue 1, 4
+                (
+                    SELECT Issue
+                    FILTER Issue.owner.name = 'Elvis'
+                ),
+                {
+                    (
+                        # Issue 1, 4
+                        SELECT User.<owner[IS Issue]
+                        FILTER User.name = 'Elvis'
+                    ) UNION (
+                        # Issue 1
+                        SELECT User.<watchers[IS Issue]
+                        FILTER User.name = 'Yury'
+                    ),
+                    (
+                        # Issue 1, 4
+                        SELECT Issue
+                        FILTER NOT EXISTS Issue.priority
+                    )
+                },
+                (
+                    SELECT Issue
+                    FILTER Issue.number = '1'
+                )
+            }{number}
+            ORDER BY _.number;
+        """, [
+            [{'number': '1'}, {'number': '4'}],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_setops_09(self):
+        await self.assert_query_result(r"""
+            # using UNION in a FILTER
+            WITH MODULE test
+            SELECT _ := User{name}
+            FILTER (
+                (
+                    SELECT User.<owner[IS Issue]
+                ) UNION (
+                    # this part should guarantee the filter is always true
+                    SELECT Issue
+                    FILTER Issue.number = '1'
+                )
+            ).number = '1'
+            ORDER BY _.name;
+        """, [
+            [{'name': 'Elvis'}, {'name': 'Yury'}],
+        ])
+
     async def test_edgeql_select_order_01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -3589,7 +3711,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         ])
 
-    async def test_edgeql_uniqueness01(self):
+    async def test_edgeql_select_uniqueness_01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue.owner{name}

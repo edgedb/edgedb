@@ -326,6 +326,15 @@ class TestExpressions(tb.QueryTestCase):
             {9, 1},
         ])
 
+    @unittest.expectedFailure
+    async def test_edgeql_expr_op_18(self):
+        await self.assert_query_result(r"""
+            SELECT _ := {1, 2, 3} IN {3, 4}
+            ORDER BY _;
+        """, [
+            {False, False, True},
+        ])
+
     async def test_edgeql_expr_paths_01(self):
         cases = [
             "Issue.owner.name",
@@ -515,6 +524,16 @@ class TestExpressions(tb.QueryTestCase):
                 'schema::Delta', 'schema::DerivedConcept',
                 'schema::DerivedLink'
             ],
+        ])
+
+    @tb.expected_optimizer_failure
+    async def test_edgeql_expr_set_03(self):
+        await self.assert_query_result(r"""
+            # "nested" sets are merged using UNION ALL
+            SELECT _ := {{2, 3, {1, 4}, 4}, {4, 1}}
+            ORDER BY _;
+        """, [
+            [1, 1, 2, 3, 4, 4, 4],
         ])
 
     async def test_edgeql_expr_array_01(self):
