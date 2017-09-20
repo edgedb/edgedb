@@ -123,7 +123,12 @@ class Star(Base):
     """'*' representing all columns of a table or compound field."""
 
 
-class ColumnRef(Base):
+class OutputVar(Base):
+    """A base class representing expression output address."""
+    pass
+
+
+class ColumnRef(OutputVar):
     """Specifies a reference to a column."""
 
     # Column name list.
@@ -132,8 +137,8 @@ class ColumnRef(Base):
     nullable: bool
     # Whether the col is grouped.
     grouped: bool
-    # Whether the col is a weak path bond.
-    weak: bool
+    # Whether the col is an optional path bond (i.e accepted when NULL)
+    optional: bool
 
     def __repr__(self):
         return (
@@ -143,6 +148,28 @@ class ColumnRef(Base):
 
 
 ColumnRefTypes = typing.Union[ColumnRef, _Ref]
+
+
+class TupleElement:
+    def __init__(self, path_id: irast.PathId,
+                 name: typing.Optional[str]=None,
+                 val: typing.Optional[Base]=None):
+        self.path_id = path_id
+        self.name = name
+        self.val = val
+
+    def __repr__(self):
+        return f'<{self.__class__.__name__} ' \
+               f'name={self.name} val={self.val} path_id={self.path_id}>'
+
+
+class TupleVar(OutputVar):
+    def __init__(self, elements: typing.List[TupleElement], named: bool=False):
+        self.elements = elements
+        self.named = named
+
+    def __repr__(self):
+        return f'<{self.__class__.__name__} [{self.elements!r}]'
 
 
 class ParamRef(Base):

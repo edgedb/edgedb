@@ -18,7 +18,6 @@ from edgedb.lang.schema import pointers as s_pointers
 from edgedb.server.pgsql import ast as pgast
 from edgedb.server.pgsql import common
 
-from . import astutils
 from . import context
 
 
@@ -282,15 +281,17 @@ def range_from_queryset(
 def get_column(
         rvar: pgast.BaseRangeVar,
         colspec: typing.Union[pgast.ColumnRef, str], *,
-        grouped: bool=False) -> pgast.ColumnRef:
+        grouped: bool=False, optional: bool=False) -> pgast.ColumnRef:
 
     if isinstance(colspec, pgast.ColumnRef):
         colname = colspec.name[-1]
         nullable = colspec.nullable
+        optional = colspec.optional
         grouped = colspec.grouped
     else:
         colname = colspec
         nullable = rvar.nullable if rvar is not None else False
+        optional = optional
         grouped = grouped
 
     if rvar is None:
@@ -298,7 +299,8 @@ def get_column(
     else:
         name = [rvar.alias.aliasname, colname]
 
-    return pgast.ColumnRef(name=name, nullable=nullable, grouped=grouped)
+    return pgast.ColumnRef(name=name, nullable=nullable,
+                           grouped=grouped, optional=optional)
 
 
 def rvar_for_rel(
@@ -325,19 +327,19 @@ def rvar_for_rel(
 
 def get_rvar_fieldref(
         rvar: typing.Optional[pgast.BaseRangeVar],
-        colname: typing.Union[str, astutils.ColumnList]) -> \
-        typing.Union[pgast.ColumnRef, astutils.TupleVar]:
+        colname: typing.Union[str, pgast.TupleVar]) -> \
+        typing.Union[pgast.ColumnRef, pgast.TupleVar]:
 
-    if isinstance(colname, astutils.TupleVar):
+    if isinstance(colname, pgast.TupleVar):
         elements = []
 
         for el in colname.elements:
             val = get_rvar_fieldref(rvar, el.name)
             elements.append(
-                astutils.TupleElement(
+                pgast.TupleElement(
                     path_id=el.path_id, name=el.name, val=val))
 
-        fieldref = astutils.TupleVar(elements, named=colname.named)
+        fieldref = pgast.TupleVar(elements, named=colname.named)
     else:
         fieldref = get_column(rvar, colname)
 

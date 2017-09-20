@@ -237,8 +237,7 @@ def enforce_path_scope(
         ctx: context.CompilerContextLevel):
     cond = pathctx.full_inner_bond_condition(ctx.env, query, path_scope)
     if cond is not None:
-        query.where_clause = astutils.extend_binop(
-            query.where_clause, cond)
+        query.where_clause = astutils.extend_binop(query.where_clause, cond)
 
 
 def put_parent_range_scope(

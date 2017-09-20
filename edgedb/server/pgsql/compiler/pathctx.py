@@ -10,6 +10,8 @@
 import functools
 import typing
 
+from edgedb.lang.common import ast
+
 from edgedb.lang.ir import ast as irast
 
 from edgedb.lang.schema import concepts as s_concepts
@@ -47,6 +49,7 @@ class LazyPathVarRef:
                 ref = pgast.ColumnRef(
                     name=ref.name,
                     nullable=ref.nullable,
+                    optional=ref.optional,
                     grouped=self.grouped,
                     weak=self.weak
                 )
@@ -109,7 +112,7 @@ def reverse_map_path_id(
 
 def get_path_var(
         env: context.Environment, rel: pgast.Query,
-        path_id: irast.PathId, *, aspect: str) -> pgast.ColumnRef:
+        path_id: irast.PathId, *, aspect: str) -> pgast.OutputVar:
     """Return ColumnRef for a given *path_id* in a given *rel*."""
     if isinstance(rel, pgast.CommonTableExpr):
         rel = rel.query
@@ -136,15 +139,29 @@ def get_path_var(
             aspect=aspect)
 
         outputs = astutils.for_each_query_in_set(rel, cb)
-        if all(is_null for _, is_null in outputs):
+
+        first = None
+        optional = False
+        all_null = True
+
+        for colref, is_null in outputs:
+            if first is None:
+                first = colref
+            if is_null:
+                optional = True
+            else:
+                all_null = False
+
+        if all_null:
             raise LookupError(
                 f'cannot find refs for '
                 f'path {path_id} {aspect} in {rel}')
 
-        first = next(iter(alias for alias, _ in outputs))
-
         fieldref = dbobj.get_rvar_fieldref(None, first)
-
+        # Path vars produced by UNION expressions can be "optional",
+        # i.e the record is accepted as-is when such var is NULL.
+        # This is necessary to correctly join heterogeneous UNIONs.
+        fieldref.optional = optional
         rel.path_namespace[path_id, aspect] = fieldref
         return fieldref
 
@@ -201,8 +218,6 @@ def get_path_var(
                 f'cannot find source range for '
                 f'path {src_path_id} {aspect} in {rel}')
 
-    colname = None
-
     if should_recurse_into_rvar(rel_rvar):
         source_rel = rel_rvar.query
 
@@ -221,7 +236,7 @@ def get_path_var(
             drilldown_path_id = map_path_id(
                 drilldown_path_id, path_id_map)
 
-        colname = get_path_output(
+        outvar = get_path_output(
             source_rel, drilldown_path_id, aspect=aspect, env=env)
 
     elif ptrcls is None:
@@ -232,27 +247,27 @@ def get_path_var(
         )
 
     else:
-        colname = ptr_info.column_name
+        outvar = pgast.ColumnRef(name=[ptr_info.column_name])
 
     if is_relation_rvar(rel_rvar) and aspect not in {'identity', 'value'}:
         raise LookupError(
             f'{path_id} {aspect} is not defined in {rel}'
         )
 
-    fieldref = dbobj.get_rvar_fieldref(rel_rvar, colname)
+    fieldref = dbobj.get_rvar_fieldref(rel_rvar, outvar)
     rel.path_namespace[path_id, aspect] = fieldref
     return fieldref
 
 
 def get_path_identity_var(
         rel: pgast.Query, path_id: irast.PathId, *,
-        env: context.Environment) -> pgast.ColumnRef:
+        env: context.Environment) -> pgast.OutputVar:
     return get_path_var(env, rel, path_id, aspect='identity')
 
 
 def get_path_value_var(
         rel: pgast.Query, path_id: irast.PathId, *,
-        env: context.Environment) -> pgast.ColumnRef:
+        env: context.Environment) -> pgast.OutputVar:
     return get_path_var(env, rel, path_id, aspect='value')
 
 
@@ -275,7 +290,7 @@ def is_relation_rvar(
 
 def maybe_get_path_var(
         rel: pgast.Query, path_id: irast.PathId, *, aspect: str,
-        env: context.Environment) -> typing.Optional[pgast.ColumnRef]:
+        env: context.Environment) -> typing.Optional[pgast.OutputVar]:
     try:
         return get_path_var(env, rel, path_id, aspect=aspect)
     except LookupError:
@@ -285,7 +300,7 @@ def maybe_get_path_var(
 def maybe_get_path_identity_var(
         rel: pgast.Query,
         path_id: irast.PathId, *,
-        env: context.Environment) -> typing.Optional[pgast.ColumnRef]:
+        env: context.Environment) -> typing.Optional[pgast.OutputVar]:
     try:
         return get_path_var(env, rel, path_id, aspect='identity')
     except LookupError:
@@ -295,7 +310,7 @@ def maybe_get_path_identity_var(
 def maybe_get_path_value_var(
         rel: pgast.Query,
         path_id: irast.PathId, *,
-        env: context.Environment) -> typing.Optional[pgast.ColumnRef]:
+        env: context.Environment) -> typing.Optional[pgast.OutputVar]:
     try:
         return get_path_var(env, rel, path_id, aspect='value')
     except LookupError:
@@ -305,7 +320,7 @@ def maybe_get_path_value_var(
 def maybe_get_path_serialized_var(
         rel: pgast.Query,
         path_id: irast.PathId, *,
-        env: context.Environment) -> typing.Optional[pgast.ColumnRef]:
+        env: context.Environment) -> typing.Optional[pgast.OutputVar]:
     try:
         return get_path_var(env, rel, path_id, aspect='serialized')
     except LookupError:
@@ -369,16 +384,20 @@ def get_path_output_alias(
 
 def get_rvar_path_var(
         rvar: pgast.BaseRangeVar, path_id: irast.PathId, aspect: str, *,
-        env: context.Environment) -> pgast.Base:
+        env: context.Environment) -> pgast.OutputVar:
+    """Return ColumnRef for a given *path_id* in a given *range var*."""
     if isinstance(rvar.query, pgast.Relation):
+        # Range is a regular table.
         if isinstance(path_id[-1], s_concepts.Concept):
             path_id = get_id_path_id(env.schema, path_id)
         ptr = path_id.rptr()
         name = common.edgedb_name_to_pg_name(ptr.shortname)
+        outvar = pgast.ColumnRef(name=[name])
     else:
-        name = get_path_output(rvar.query, path_id, aspect=aspect, env=env)
+        # Range is another query.
+        outvar = get_path_output(rvar.query, path_id, aspect=aspect, env=env)
 
-    return dbobj.get_rvar_fieldref(rvar, name)
+    return dbobj.get_rvar_fieldref(rvar, outvar)
 
 
 def get_rvar_path_identity_var(
@@ -424,7 +443,7 @@ def find_path_output(
 
 def get_path_output(
         rel: pgast.Query, path_id: irast.PathId, *,
-        aspect: str, env: context.Environment) -> str:
+        aspect: str, env: context.Environment) -> pgast.OutputVar:
 
     result = rel.path_outputs.get((path_id, aspect))
     if result is not None:
@@ -437,20 +456,20 @@ def get_path_output(
         rel.path_outputs[path_id, aspect] = other_output
         return other_output
 
-    if isinstance(ref, astutils.TupleVar):
+    if isinstance(ref, pgast.TupleVar):
         elements = []
         for el in ref.elements:
             el_path_id = reverse_map_path_id(
                 el.path_id, rel.view_path_id_map)
             element = get_path_value_output(rel, el_path_id, env=env)
-            elements.append(astutils.TupleElement(
+            elements.append(pgast.TupleElement(
                 path_id=el_path_id, name=element))
-        alias = astutils.TupleVar(elements=elements, named=ref.named)
+        result = pgast.TupleVar(elements=elements, named=ref.named)
 
     else:
         if astutils.is_set_op_query(rel):
             assert isinstance(ref, pgast.ColumnRef)
-            alias = ref.name[-1]
+            result = dbobj.get_column(None, ref)
         else:
             alias = get_path_output_alias(env, path_id)
 
@@ -460,25 +479,35 @@ def get_path_output(
             else:
                 rel.target_list.append(restarget)
 
-    rel.path_outputs[path_id, aspect] = alias
-    return alias
+            if isinstance(ref, pgast.ColumnRef):
+                nullable = ref.nullable
+                optional = ref.optional
+            else:
+                nullable = None
+                optional = None
+
+            result = pgast.ColumnRef(
+                name=[alias], nullable=nullable, optional=optional)
+
+    rel.path_outputs[path_id, aspect] = result
+    return result
 
 
 def get_path_identity_output(
         rel: pgast.Query, path_id: irast.PathId, *,
-        env: context.Environment) -> str:
+        env: context.Environment) -> pgast.OutputVar:
     return get_path_output(rel, path_id, aspect='identity', env=env)
 
 
 def get_path_value_output(
         rel: pgast.Query, path_id: irast.PathId, *,
-        env: context.Environment) -> str:
+        env: context.Environment) -> pgast.OutputVar:
     return get_path_output(rel, path_id, aspect='value', env=env)
 
 
 def get_path_serialized_output(
         rel: pgast.Query, path_id: irast.PathId, *,
-        env: context.Environment) -> str:
+        env: context.Environment) -> pgast.OutputVar:
     # Serialized output is a special case, we don't
     # want this behaviour to be recursive, so it
     # must be kept outside of get_path_output() generic.
@@ -493,19 +522,19 @@ def get_path_serialized_output(
     if ref is None:
         ref = get_path_var(env, rel, path_id, aspect='value')
 
-    if isinstance(ref, astutils.TupleVar):
+    if isinstance(ref, pgast.TupleVar):
         elements = []
         for el in ref.elements:
             el_path_id = reverse_map_path_id(
                 el.path_id, rel.view_path_id_map)
-            element = astutils.TupleElement(
+            element = pgast.TupleElement(
                 path_id=el_path_id,
                 name=el.name,
                 val=get_path_value_var(rel, el_path_id, env=env)
             )
             elements.append(element)
 
-        r_expr = astutils.TupleVar(elements=elements, named=ref.named)
+        r_expr = pgast.TupleVar(elements=elements, named=ref.named)
 
         alias = env.aliases.get('s')
         val = output.serialize_expr(r_expr, env=env)
@@ -524,15 +553,17 @@ def get_path_serialized_output(
         else:
             rel.target_list.append(restarget)
 
-    rel.path_outputs[path_id, aspect] = alias
-    return alias
+    result = pgast.ColumnRef(name=[alias])
+    rel.path_outputs[path_id, aspect] = result
+    return result
 
 
 def get_path_output_or_null(
         rel: pgast.Query, path_id: irast.PathId, *,
-        aspect: str, env: context.Environment) -> str:
+        aspect: str, env: context.Environment) -> \
+        typing.Tuple[pgast.OutputVar, bool]:
     try:
-        alias = get_path_output(rel, path_id, aspect=aspect, env=env)
+        ref = get_path_output(rel, path_id, aspect=aspect, env=env)
         is_null = False
     except LookupError:
         alias = env.aliases.get('null')
@@ -544,8 +575,40 @@ def get_path_output_or_null(
         else:
             rel.target_list.append(restarget)
         is_null = True
+        ref = pgast.ColumnRef(name=[alias], nullable=True)
 
-    return alias, is_null
+    return ref, is_null
+
+
+def bond_condition(lref: pgast.ColumnRef, rref: pgast.ColumnRef) -> pgast.Base:
+    if rref.grouped:
+        op = '='
+        rref = pgast.SubLink(
+            type=pgast.SubLinkType.ANY,
+            expr=pgast.FuncCall(
+                name=('array_agg',),
+                args=[rref]
+            )
+        )
+    else:
+        if lref.nullable or rref.nullable:
+            op = 'IS NOT DISTINCT FROM'
+        else:
+            op = '='
+
+    path_cond = astutils.new_binop(lref, rref, op=op)
+
+    if lref.optional:
+        opt_cond = pgast.NullTest(arg=lref)
+        path_cond = astutils.extend_binop(
+            path_cond, opt_cond, op=ast.ops.OR)
+
+    if rref.optional:
+        opt_cond = pgast.NullTest(arg=rref)
+        path_cond = astutils.extend_binop(
+            path_cond, opt_cond, op=ast.ops.OR)
+
+    return path_cond
 
 
 def full_inner_bond_condition(
@@ -564,25 +627,9 @@ def full_inner_bond_condition(
             continue
 
         rref = rref.get()
-
         lref = get_path_identity_var(query, path_id, env=env)
 
-        if rref.grouped:
-            op = '='
-            rref = pgast.SubLink(
-                type=pgast.SubLinkType.ANY,
-                expr=pgast.FuncCall(
-                    name=('array_agg',),
-                    args=[rref]
-                )
-            )
-        else:
-            if lref.nullable or rref.nullable:
-                op = 'IS NOT DISTINCT FROM'
-            else:
-                op = '='
-
-        path_cond = astutils.new_binop(lref, rref, op=op)
+        path_cond = bond_condition(lref, rref)
         condition = astutils.extend_binop(condition, path_cond)
 
     return condition
@@ -605,12 +652,7 @@ def full_outer_bond_condition(
 
         rref = get_rvar_path_identity_var(right_rvar, path_id, env=env)
 
-        if lref.nullable or rref.nullable:
-            op = 'IS NOT DISTINCT FROM'
-        else:
-            op = '='
-
-        path_cond = astutils.new_binop(lref, rref, op=op)
+        path_cond = bond_condition(lref, rref)
         condition = astutils.extend_binop(condition, path_cond)
 
     return condition

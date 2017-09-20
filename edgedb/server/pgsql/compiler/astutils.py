@@ -6,43 +6,12 @@
 ##
 
 
-import typing
-
 from edgedb.lang.common import ast
-from edgedb.lang.ir import ast as irast
 
 from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import pointers as s_pointers
 
 from edgedb.server.pgsql import ast as pgast
-
-
-class TupleElement:
-    def __init__(self, path_id: irast.PathId,
-                 name: typing.Optional[str]=None,
-                 val: typing.Optional[pgast.Base]=None):
-        self.path_id = path_id
-        self.name = name
-        self.val = val
-
-    def __repr__(self):
-        return f'<{self.__class__.__name__} ' \
-               f'name={self.name} val={self.val} path_id={self.path_id}>'
-
-
-class TupleVar:
-    def __init__(self, elements: typing.List[TupleElement], named: bool=False):
-        self.elements = elements
-        self.named = named
-
-    def __repr__(self):
-        return f'<{self.__class__.__name__} [{self.elements!r}]'
-
-
-class ColumnList:
-    def __init__(self, elements: typing.List[str], named: bool=False):
-        self.elements = elements
-        self.named = named
 
 
 def tuple_element_for_shape_el(shape_el, value):
@@ -56,7 +25,7 @@ def tuple_element_for_shape_el(shape_el, value):
         direction=ptrdir, target=ptrcls.get_far_endpoint(ptrdir),
         is_linkprop=isinstance(ptrcls, s_lprops.LinkProperty))
 
-    return TupleElement(
+    return pgast.TupleElement(
         path_id=shape_el.path_id,
         name=attr_name,
         val=value
@@ -133,7 +102,7 @@ def set_as_exists_op(pg_expr, negated=False):
 
 
 def is_nullable(expr):
-    if isinstance(expr, TupleVar):
+    if isinstance(expr, pgast.TupleVar):
         return False
     else:
         return True

@@ -9,7 +9,6 @@
 
 from edgedb.server.pgsql import ast as pgast
 
-from . import astutils
 from . import context
 
 
@@ -29,7 +28,7 @@ def tuple_var_as_json_object(tvar, *, env):
                 else:
                     key = key.name
                 keyvals.append(pgast.Constant(val=key))
-                if isinstance(element.val, astutils.TupleVar):
+                if isinstance(element.val, pgast.TupleVar):
                     val = serialize_expr(element.val, env=env)
                 else:
                     val = element.val
@@ -42,7 +41,7 @@ def tuple_var_as_json_object(tvar, *, env):
                 else:
                     name = name.name
                 keyvals.append(pgast.Constant(val=name))
-                if isinstance(element.val, astutils.TupleVar):
+                if isinstance(element.val, pgast.TupleVar):
                     val = serialize_expr(element.val, env=env)
                 else:
                     val = element.val
@@ -64,7 +63,7 @@ def output_as_value(
         expr: pgast.Base, *,
         ctx: context.CompilerContextLevel) -> pgast.Base:
 
-    if isinstance(expr, astutils.TupleVar):
+    if isinstance(expr, pgast.TupleVar):
         if in_serialization_ctx(ctx):
             val = serialize_expr(expr, env=ctx.env)
         else:
@@ -88,7 +87,7 @@ def serialize_expr_if_needed(
 def serialize_expr(
         expr: pgast.Base, *, env: context.Environment) -> pgast.Base:
     if env.output_format == context.OutputFormat.JSON:
-        if isinstance(expr, astutils.TupleVar):
+        if isinstance(expr, pgast.TupleVar):
             val = tuple_var_as_json_object(expr, env=env)
         elif isinstance(expr, pgast.ImplicitRowExpr):
             val = pgast.FuncCall(name=('jsonb_build_array',), args=expr.args)

@@ -184,7 +184,7 @@ def ensure_correct_set(
     else:
         resref = pathctx.get_path_value_var(wrapper, path_id, env=ctx.env)
 
-    if isinstance(resref, astutils.TupleVar):
+    if isinstance(resref, pgast.TupleVar):
         return query
 
     wrapper.where_clause = astutils.extend_binop(
@@ -250,10 +250,10 @@ def set_to_array(
         ctx: context.CompilerContextLevel) -> pgast.Query:
     """Convert a set query into an array."""
     if output.in_serialization_ctx(ctx):
-        rt_name = pathctx.get_path_serialized_output(
+        output_ref = pathctx.get_path_serialized_output(
             rel=query, path_id=ir_set.path_id, env=ctx.env)
     else:
-        rt_name = pathctx.get_path_value_output(
+        output_ref = pathctx.get_path_value_output(
             rel=query, path_id=ir_set.path_id, env=ctx.env)
 
     subrvar = pgast.RangeSubselect(
@@ -263,7 +263,7 @@ def set_to_array(
         )
     )
 
-    val = dbobj.get_rvar_fieldref(subrvar, rt_name)
+    val = dbobj.get_rvar_fieldref(subrvar, output_ref)
     val = output.serialize_expr_if_needed(ctx, val)
 
     result = pgast.SelectStmt(
@@ -777,10 +777,10 @@ def process_set_as_named_tuple(
                 ir_set.path_id, element.name,
                 ir_set.scls.element_types[element.name]
             )
-            elements.append(astutils.TupleElement(path_id=path_id))
+            elements.append(pgast.TupleElement(path_id=path_id))
             pathctx.put_path_value_var(stmt, path_id, el_ref, env=ctx.env)
 
-        set_expr = astutils.TupleVar(elements=elements, named=expr.named)
+        set_expr = pgast.TupleVar(elements=elements, named=expr.named)
 
     relctx.ensure_bond_for_expr(ir_set, stmt, ctx=ctx)
     pathctx.put_path_value_var(stmt, ir_set.path_id, set_expr, env=ctx.env)
@@ -894,9 +894,9 @@ def process_set_as_func_expr(
         if len(colnames) == 1:
             set_expr = dbobj.get_column(func_rvar, colnames[0])
         else:
-            set_expr = astutils.TupleVar(
+            set_expr = pgast.TupleVar(
                 elements=[
-                    astutils.TupleElement(
+                    pgast.TupleElement(
                         path_id=irutils.tuple_indirection_path_id(
                             ir_set.path_id, n, rtype.element_types[n],
                         ),
@@ -965,7 +965,7 @@ def process_set_as_agg_expr(
 
             for i, ir_arg in enumerate(ir_set.expr.args):
                 arg_ref = dispatch.compile(ir_arg, ctx=argctx)
-                if isinstance(arg_ref, astutils.TupleVar):
+                if isinstance(arg_ref, pgast.TupleVar):
                     # tuple
                     arg_ref = output.serialize_expr_if_needed(argctx, arg_ref)
 

@@ -155,10 +155,10 @@ def compile_GroupStmt(
                         path_id = stmt.groupby[i].path_id
                         pathctx.put_path_value_var(
                             gquery, path_id, expr, force=True, env=ctx.env)
-                        alias = pathctx.get_path_value_output(
+                        output_ref = pathctx.get_path_value_output(
                             gquery, path_id, env=ctx.env)
                         new_part_clause.append(
-                            dbobj.get_column(gquery_rvar, alias)
+                            dbobj.get_column(gquery_rvar, output_ref)
                         )
 
                     part_clause = new_part_clause

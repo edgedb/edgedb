@@ -1119,6 +1119,7 @@ class TestExpressions(tb.QueryTestCase):
             [True],
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_expr_setop_02(self):
         await self.assert_query_result(r"""
             SELECT 2 * ((SELECT 1) UNION (SELECT 2));

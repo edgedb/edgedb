@@ -1207,7 +1207,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '1'}, {'number': '4'}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_setops_09(self):
         await self.assert_query_result(r"""
             # using UNION in a FILTER

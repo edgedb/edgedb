@@ -313,7 +313,7 @@ def process_insert_body(
                     insvalue = pathctx.get_path_value_output(
                         input_stmt, ins_expr.result.path_id, env=ctx.env)
 
-                    if isinstance(insvalue, astutils.TupleVar):
+                    if isinstance(insvalue, pgast.TupleVar):
                         insrvar = pgast.RangeSubselect(
                             alias=pgast.Alias(aliasname=ctx.genalias('t')),
                             subquery=input_stmt
@@ -399,7 +399,7 @@ def process_insert_body(
 
         resolved_pointers.add(shape_el.rptr.ptrcls)
 
-    result = astutils.TupleVar(elements=tuple_elements, named=True)
+    result = pgast.TupleVar(elements=tuple_elements, named=True)
     pathctx.put_path_value_var(
         insert_stmt, ir_stmt.result.path_id, result, force=True, env=ctx.env)
 
@@ -890,7 +890,7 @@ def process_link_values(
     output = pathctx.get_path_value_output(
         input_stmt, path_id, env=ctx.env)
 
-    if isinstance(output, astutils.TupleVar):
+    if isinstance(output, pgast.TupleVar):
         for element in output.elements:
             name = element.path_id.rptr_name()
             if name is None:

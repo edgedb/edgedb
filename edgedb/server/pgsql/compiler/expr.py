@@ -442,8 +442,8 @@ def compile_Tuple(
 
     path_id = irast.PathId(ttype)
 
-    result = astutils.TupleVar(elements=[
-        astutils.TupleElement(
+    result = pgast.TupleVar(elements=[
+        pgast.TupleElement(
             path_id=irutils.tuple_indirection_path_id(
                 path_id, telems[i], ttypes[telems[i]]),
             val=dispatch.compile(e.val, ctx=ctx)
@@ -639,7 +639,7 @@ def _tuple_to_row_expr(tuple_expr, *, ctx):
 
 def _compile_shape(
         ir_set: irast.Set, *, ctx: context.CompilerContextLevel) \
-        -> typing.Union[pgast.Base, astutils.TupleVar]:
+        -> typing.Union[pgast.Base, pgast.TupleVar]:
     elements = []
 
     for e in ir_set.shape:
@@ -660,7 +660,7 @@ def _compile_shape(
 
         elements.append(astutils.tuple_element_for_shape_el(e, element))
 
-    result = astutils.TupleVar(elements=elements, named=True)
+    result = pgast.TupleVar(elements=elements, named=True)
     pathctx.put_path_value_var(ctx.rel, ir_set.path_id, result, env=ctx.env)
 
     if ctx.shape_format == context.ShapeFormat.SERIALIZED:
