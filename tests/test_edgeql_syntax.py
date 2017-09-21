@@ -76,7 +76,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_nonstatement_02(self):
         """1 + 2;"""
 
-    def test_edgeql_syntax_contants_01(self):
+    def test_edgeql_syntax_constants_01(self):
         """
         SELECT 0;
         SELECT 1;
@@ -85,7 +85,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT 551;
         """
 
-    def test_edgeql_syntax_contants_02(self):
+    def test_edgeql_syntax_constants_02(self):
         """
         SELECT 'a1';
         SELECT "a1";
@@ -100,14 +100,14 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT 'a1';
         """
 
-    def test_edgeql_syntax_contants_03(self):
+    def test_edgeql_syntax_constants_03(self):
         """
         SELECT 3.5432;
         SELECT +3.5432;
         SELECT -3.5432;
         """
 
-    def test_edgeql_syntax_contants_04(self):
+    def test_edgeql_syntax_constants_04(self):
         """
         SELECT 354.32;
         SELECT 35400000000000.32;
@@ -128,13 +128,13 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT 3.5432e-18;
         """
 
-    def test_edgeql_syntax_contants_05(self):
+    def test_edgeql_syntax_constants_05(self):
         """
         SELECT TRUE;
         SELECT FALSE;
         """
 
-    def test_edgeql_syntax_contants_06(self):
+    def test_edgeql_syntax_constants_06(self):
         """
         SELECT $1;
         SELECT $123;
@@ -142,9 +142,22 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, 'Unknown token', line=2, col=16)
-    def test_edgeql_syntax_contants_07(self):
+    def test_edgeql_syntax_constants_07(self):
         """
         SELECT 02;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, 'Unexpected token.*SEMICOLON',
+                  line=2, col=18)
+    def test_edgeql_syntax_constants_08(self):
+        """
+        SELECT 1.;
+        """
+
+    def test_edgeql_syntax_constants_09(self):
+        # technically this is syntactically legal, but semantically wrong
+        """
+        SELECT .1;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=1, col=12)
