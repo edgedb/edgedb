@@ -155,7 +155,10 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     def test_edgeql_syntax_constants_09(self):
-        # technically this is syntactically legal, but semantically wrong
+        # NOTE: Although it looks like a float, the expression `.1` in
+        # this test is not a float, instead it is a partial path (like
+        # `.name`). It is syntactically legal, but will fail to
+        # resolve to anything (see test_edgeql_expr_paths_03).
         """
         SELECT .1;
         """
@@ -1290,6 +1293,25 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT __class__;
         SELECT `__subject__`;
         SELECT `self`;
+        """
+
+    def test_edgeql_syntax_path_21(self):
+        # legal when `TUP` is a tuple
+        """
+        SELECT TUP.0;
+        SELECT TUP.0.name;
+        SELECT Foo.TUP.0.name;
+
+        SELECT TUP.0.1;
+        SELECT TUP.0.1.name;
+        SELECT Foo.TUP.0.1.name;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, 'Unexpected token.*FCONST',
+                  line=2, col=20)
+    def test_edgeql_syntax_path_22(self):
+        """
+        SELECT TUP.0.2e2;
         """
 
     def test_edgeql_syntax_type_interpretation_01(self):

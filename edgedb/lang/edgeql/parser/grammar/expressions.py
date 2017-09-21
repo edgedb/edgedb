@@ -947,6 +947,54 @@ class Path(Nonterm):
     def reduce_PathStep(self, *kids):
         self.val = qlast.Path(steps=[kids[0].val], partial=True)
 
+    # special case of Path.0.1 etc.
+    @parsing.precedence(precedence.P_DOT)
+    def reduce_Expr_DOT_FCONST(self, *kids):
+        # this is a valid link-like syntax for accessing unnamed tuples
+        path = kids[0].val
+        if not isinstance(path, qlast.Path):
+            path = qlast.Path(steps=[path])
+
+        path.steps.extend(self._float_to_path(kids[2], kids[1].context))
+        self.val = path
+
+    @parsing.precedence(precedence.P_DOT)
+    def reduce_DOT_FCONST(self, *kids):
+        # this is a valid link-like syntax for accessing unnamed tuples
+        self.val = qlast.Path(
+            steps=self._float_to_path(kids[1], kids[0].context),
+            partial=True)
+
+    def _float_to_path(self, token, context):
+        from edgedb.lang.schema import pointers as s_pointers
+
+        # make sure that the float is of the type 0.1
+        parts = token.val.split('.')
+        if not (len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit()):
+            raise EdgeQLSyntaxError(
+                'Unexpected token: {!r}'.format(token),
+                context=token.context)
+
+        # context for the AST is established manually here
+        return [
+            qlast.Ptr(
+                ptr=qlast.ClassRef(
+                    name=parts[0],
+                    context=token.context,
+                ),
+                direction=s_pointers.PointerDirection.Outbound,
+                context=context,
+            ),
+            qlast.Ptr(
+                ptr=qlast.ClassRef(
+                    name=parts[1],
+                    context=token.context,
+                ),
+                direction=s_pointers.PointerDirection.Outbound,
+                context=token.context,
+            )
+        ]
+
 
 class PathStep(Nonterm):
     def reduce_DOT_PathPtr(self, *kids):
