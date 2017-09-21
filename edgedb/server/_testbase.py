@@ -644,19 +644,25 @@ def setup_test_cases(cases, conns):
 
     tasks = []
 
-    ci = 0
-    for case, dbname, setup_script in setup:
-        conn_args = conns[ci]
-        task = loop.create_task(
-            _setup_database(dbname, setup_script, conn_args))
-        tasks.append(task)
-        ci += 1
-        if ci == len(conns):
-            ci = 0
+    if len(conns) == 1:
+        # Special case for --jobs=1
+        for case, dbname, setup_script in setup:
+            loop.run_until_complete(_setup_database(
+                dbname, setup_script, conns[0]))
+    else:
+        ci = 0
+        for case, dbname, setup_script in setup:
+            conn_args = conns[ci]
+            task = loop.create_task(
+                _setup_database(dbname, setup_script, conn_args))
+            tasks.append(task)
+            ci += 1
+            if ci == len(conns):
+                ci = 0
 
-    result = loop.run_until_complete(asyncio.gather(*tasks))
+        loop.run_until_complete(asyncio.gather(*tasks))
 
-    return result
+    return
 
 
 async def _setup_database(dbname, setup_script, conn_args):
