@@ -357,6 +357,25 @@ class TestExpressions(tb.QueryTestCase):
                     %s = 'Elvis';
             ''' % (case,))
 
+    @unittest.expectedFailure
+    async def test_edgeql_expr_paths_02(self):
+        await self.assert_query_result(r"""
+            SELECT (1, (2, 3), 4).1.0;
+        """, [
+            [2],
+        ])
+
+    async def test_edgeql_expr_paths_03(self):
+        # NOTE: The expression `.1` in this test is not a float,
+        # instead it is a partial path (like `.name`). It is
+        # syntactically legal (see test_edgeql_syntax_constants_09),
+        # but will fail to resolve to anything.
+        with self.assertRaisesRegex(
+                exc.EdgeQLError, r'could not resolve partial path'):
+            await self.con.execute(r"""
+                SELECT .1;
+            """)
+
     async def test_edgeql_expr_polymorphic_01(self):
         await self.con.execute(r"""
             WITH MODULE test
