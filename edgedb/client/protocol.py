@@ -9,6 +9,7 @@
 import asyncio
 import enum
 import json
+import struct
 
 
 from . import exceptions
@@ -20,6 +21,9 @@ class ConnectionState(enum.Enum):
     NEW = 1
     AUTHENTICATING = 2
     READY = 3
+
+
+msg_header = struct.Struct('!L')
 
 
 class Protocol(asyncio.Protocol):
@@ -39,6 +43,8 @@ class Protocol(asyncio.Protocol):
 
         self._last_timings = None
 
+        self.buffer = bytearray()
+
     def connection_made(self, transport):
         self.transport = transport
         self._init_connection()
@@ -47,28 +53,30 @@ class Protocol(asyncio.Protocol):
         self.transport.close()
 
     def data_received(self, data):
-        msg = json.loads(data.decode('utf-8'))
-        self.process_message(msg)
+        self.buffer.extend(data)
+        buf_len = len(self.buffer)
+        header_size = msg_header.size
+        if buf_len > header_size:
+            msg_len, = msg_header.unpack(self.buffer[:header_size])
+            if buf_len >= header_size + msg_len:
+                msg = self.buffer[header_size:header_size + msg_len]
+                self.buffer = self.buffer[header_size + msg_len:]
+                msg = json.loads(msg.decode('utf-8'))
+                self._loop.call_soon(self.process_message, msg)
 
     def list_dbs(self):
         msg = {
             '__type__': 'list_dbs',
         }
 
-        self._waiter = create_future(self._loop)
-        self.send_message(msg)
-
-        return self._waiter
+        return self.send_message(msg)
 
     def get_pgcon(self):
         msg = {
             '__type__': 'get_pgcon',
         }
 
-        self._waiter = create_future(self._loop)
-        self.send_message(msg)
-
-        return self._waiter
+        return self.send_message(msg)
 
     def execute_script(self, script, *, graphql=False, optimize=False,
                        flags={}):
@@ -80,19 +88,26 @@ class Protocol(asyncio.Protocol):
             'script': script
         }
 
-        self._waiter = create_future(self._loop)
-        self.send_message(msg)
+        return self.send_message(msg)
 
-        return self._waiter
+    def _new_waiter(self):
+        if self._waiter is not None:
+            raise RuntimeError('another operation is in progress')
+        self._waiter = create_future(self._loop)
 
     def send_message(self, message):
-        self.transport.write(json.dumps(message).encode('utf-8'))
+        self._new_waiter()
+
+        em = json.dumps(message).encode('utf-8')
+        self.transport.write(msg_header.pack(len(em)) + em)
+
+        return self._waiter
 
     def process_message(self, message):
         if message['__type__'] == 'authresult':
             if not self._connect_waiter.cancelled():
                 self._connect_waiter.set_result(None)
-            self._connect_waiter = None
+            self._connect_waiter = self._waiter = None
 
         elif message['__type__'] == 'error':
             if self._connect_waiter is not None:
@@ -117,5 +132,5 @@ class Protocol(asyncio.Protocol):
             'database': self._database
         }
 
-        self.send_message(msg)
         self.state = ConnectionState.AUTHENTICATING
+        return self.send_message(msg)

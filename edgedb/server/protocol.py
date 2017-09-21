@@ -9,6 +9,7 @@ import asyncio
 import contextlib
 import enum
 import json
+import struct
 import time
 import traceback
 
@@ -27,6 +28,9 @@ from edgedb.lang.common import debug
 from edgedb.lang.common import markup
 from edgedb.lang.common import exceptions
 from edgedb.lang.common import parsing
+
+
+msg_header = struct.Struct('!L')
 
 
 class Timer:
@@ -74,6 +78,7 @@ class Protocol(asyncio.Protocol):
         self.pgconn = None
         self.state = ConnectionState.NOT_CONNECTED
         self.transactions = []
+        self.buffer = bytearray()
 
     def connection_made(self, transport):
         self.transport = transport
@@ -85,8 +90,16 @@ class Protocol(asyncio.Protocol):
             self.pgconn.terminate()
 
     def data_received(self, data):
-        msg = json.loads(data.decode('utf-8'))
-        self.process_message(msg)
+        self.buffer.extend(data)
+        buf_len = len(self.buffer)
+        header_size = msg_header.size
+        if buf_len > header_size:
+            msg_len, = msg_header.unpack(self.buffer[:header_size])
+            if buf_len >= header_size + msg_len:
+                msg = self.buffer[header_size:header_size + msg_len]
+                self.buffer = self.buffer[header_size + msg_len:]
+                msg = json.loads(msg.decode('utf-8'))
+                self._loop.call_soon(self.process_message, msg)
 
     def process_message(self, message):
         if message['__type__'] == 'init':
@@ -147,7 +160,8 @@ class Protocol(asyncio.Protocol):
             fut.add_done_callback(self._on_script_done)
 
     def send_message(self, msg):
-        self.transport.write(json.dumps(msg).encode('utf-8'))
+        msg = json.dumps(msg).encode('utf-8')
+        self.transport.write(msg_header.pack(len(msg)) + msg)
 
     def send_error(self, err):
         try:
