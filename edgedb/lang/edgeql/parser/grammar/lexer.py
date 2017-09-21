@@ -94,23 +94,16 @@ class EdgeQLLexer(lexer.Lexer):
         Rule(token='FCONST',
              next_state=STATE_KEEP,
              regexp=r"""
-                    (?: \d+ (?:\.\d*)?
-                        |
-                        \. \d+
-                    ) (?:[eE](?:[+\-])?[0-9]+)
-                """),
-
-        Rule(token='FCONST',
-             next_state=STATE_KEEP,
-             regexp=r'''
-                (?: \d+\.(?!\.)\d*
+                    (?: \d+ (?:\.\d+)?
+                        (?:[eE](?:[+\-])?[0-9]+)
+                    )
                     |
-                    \.\d+)
-             '''),
+                    (?: \d+\.\d+)
+                """),
 
         Rule(token='ICONST',
              next_state=STATE_KEEP,
-             regexp=r'([1-9]\d* | 0)(?![eE.0-9])'),
+             regexp=r'([1-9]\d* | 0)(?![0-9])'),
 
         Rule(token='SCONST',
              next_state=STATE_KEEP,
