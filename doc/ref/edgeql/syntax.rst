@@ -134,7 +134,7 @@ EdgeQL operators listed in order of precedence:
 +------------------+-----------+-----------+-----------+----------+
 
 All set operators (``UNION ALL``, ``UNION``, ``EXISTS``, ``DISTINCT``,
-``??``, ``IF..ELSE``, ``IN`` and ``NOT IN``) handle empty set ``{}``
-as a normal valid input. All other operators when operating on ``{}``,
-return ``{}``. For more details see
+``??``, ``IF..ELSE``, ``IN`` and ``NOT IN``) handle the empty set
+``{}`` as a normal valid input. All other operators when operating on
+an empty set, return the empty set. For more details see
 :ref:`how expressions work<ref_edgeql_expressions>`.
