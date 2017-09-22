@@ -229,9 +229,9 @@ Basic set operators:
 
   Set membership operators ``IN`` and ``NOT IN`` test whether the
   *elements* of the left operand are members of the right operand. The
-  resulting set is a set of ``TRUE`` and ``FALSE`` values, one per
-  each element of the left operand. If all values are ``TRUE``, then
-  the entire left operand is a *subset* of the right operand.
+  result is a set of ``TRUE`` and ``FALSE`` values, one per each
+  element of the left operand. If all values are ``TRUE``, then the
+  entire left operand is a *subset* of the right operand.
 
   .. code-block:: eql
 
