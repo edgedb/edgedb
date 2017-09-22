@@ -1,0 +1,565 @@
+##
+# Copyright (c) 2017-present MagicStack Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
+import os.path
+import unittest  # NOQA
+
+from edgedb.server import _testbase as tb
+
+
+class TestEdgeQLScope(tb.QueryTestCase):
+    '''This tests the scoping rules.'''
+
+    SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
+                          'cards.eschema')
+
+    SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
+                         'cards_setup.eql')
+
+    # TODO: Ideally the tests here should use ORDER BY to sort
+    # results, but that is contingent on (at least some) other tests
+    # passing:
+    #
+    # - test_edgeql_scope_order_01
+    # - test_edgeql_expr_tuple_12-13
+    # - test_edgeql_expr_tuple_indirection_06+
+    #
+    # Once these work we can drop the special
+    # sort_and_assert_query_result in favor of assert_query_result
+    # and the commented ORDER BY clause may be uncommented.
+    async def sort_and_assert_query_result(self, query, key, result):
+        res = await self.con.execute(query)
+        # sort the query result by using the supplied key
+        res.sort(key=key)
+
+        from edgedb.lang.common.markup import dump
+        dump(res, marker='test_edgeql_scope.py:39')
+
+        self.assert_data_shape(res, result)
+        return res
+
+    @unittest.expectedFailure
+    async def test_edgeql_scope_order_01(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE test,
+                A := {1, 2},
+                U := (SELECT User FILTER User.name IN {'Alice', 'Bob'})
+            SELECT _ := (U{name}, A)
+            # specifically test the ORDER clause
+            ORDER BY _.1 THEN _.0.name DESC;
+        ''', [
+            [
+                [{'name': 'Bob'}, 1],
+                [{'name': 'Alice'}, 1],
+                [{'name': 'Bob'}, 2],
+                [{'name': 'Alice'}, 2],
+            ]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_scope_tuple_01(self):
+        await self.sort_and_assert_query_result(r'''
+            WITH
+                MODULE test,
+                A := {1, 2}
+            SELECT _ := (User{name, a := A}, A)
+            # ORDER BY _.0.name THEN _.1
+            ;
+        ''', lambda x: (x[0]['name'], x[1]), [
+            [
+                [{'a': [1], 'name': 'Alice'}, 1],
+                [{'a': [1], 'name': 'Bob'}, 1],
+                [{'a': [1], 'name': 'Carol'}, 1],
+                [{'a': [1], 'name': 'Dave'}, 1],
+                [{'a': [2], 'name': 'Alice'}, 2],
+                [{'a': [2], 'name': 'Bob'}, 2],
+                [{'a': [2], 'name': 'Carol'}, 2],
+                [{'a': [2], 'name': 'Dave'}, 2],
+            ]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_scope_tuple_02(self):
+        await self.sort_and_assert_query_result(r'''
+            WITH
+                MODULE test,
+                A := {1, 2}
+            SELECT _ := (A, User{name, a := A})
+            # ORDER BY _.0.name THEN _.1
+            ;
+        ''', lambda x: (x[0], x[1]['name']), [
+            [
+                [1, {'a': [1], 'name': 'Alice'}],
+                [1, {'a': [1], 'name': 'Bob'}],
+                [1, {'a': [1], 'name': 'Carol'}],
+                [1, {'a': [1], 'name': 'Dave'}],
+                [2, {'a': [2], 'name': 'Alice'}],
+                [2, {'a': [2], 'name': 'Bob'}],
+                [2, {'a': [2], 'name': 'Carol'}],
+                [2, {'a': [2], 'name': 'Dave'}],
+            ]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_scope_tuple_03(self):
+        await self.sort_and_assert_query_result(r'''
+            WITH MODULE test
+            SELECT _ := (
+                # User.friends is a common path, so it refers to the
+                # SAME object in both tuple elements. In particular
+                # that means that in the User shape there will always
+                # be a single object appearing in friends link
+                # (although it's a ** link).
+                User {name, friends: {@nickname}},
+                User.friends.name
+            )
+            # ORDER BY _.0.name THEN _.1
+            ;
+        ''', lambda x: (x[0]['name'], x[1]), [
+            [
+                [
+                    {
+                        'name': 'Alice',
+                        'friends': [{'@nickname': 'Swampy'}],
+                    },
+                    'Bob',
+                ],
+                [
+                    {
+                        'name': 'Alice',
+                        'friends': [{'@nickname': 'Firefighter'}],
+                    },
+                    'Carol',
+                ],
+                [
+                    {
+                        'name': 'Alice',
+                        'friends': [{'@nickname': 'Grumpy'}],
+                    },
+                    'Dave',
+                ],
+                [
+                    {
+                        'name': 'Dave',
+                        'friends': [{'@nickname': None}],
+                    },
+                    'Bob',
+                ]
+            ]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_scope_tuple_04(self):
+        await self.sort_and_assert_query_result(r'''
+            WITH
+                MODULE test,
+                U2 := User
+            SELECT (
+                User {name, foo := U2 {name}},
+                U2.name
+            )
+            FILTER U2.name = 'Alice';
+            # ORDER BY _.0.name THEN _.1
+            ;
+        ''', lambda x: (x[0]['name'], x[1]), [
+            [
+                [
+                    {
+                        'name': 'Alice',
+                        'foo': [
+                            {'name': 'Alice'},
+                        ],
+                    },
+                    'Alice'
+                ],
+                [
+                    {
+                        'name': 'Bob',
+                        'foo': [
+                            {'name': 'Alice'},
+                        ],
+                    },
+                    'Alice'
+                ],
+                [
+                    {
+                        'name': 'Carol',
+                        'foo': [
+                            {'name': 'Alice'},
+                        ],
+                    },
+                    'Alice'
+                ],
+                [
+                    {
+                        'name': 'Dave',
+                        'foo': [
+                            {'name': 'Alice'},
+                        ],
+                    },
+                    'Alice'
+                ],
+            ]
+        ])
+
+    @tb.expected_no_optimizer_failure
+    async def test_edgeql_scope_tuple_05(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT User {
+                name,
+                foo := (
+                    # this is the same as enclosing User
+                    WITH U2 := User
+                    SELECT U2 {name} ORDER BY U2.name
+                )
+            }
+            ORDER BY User.name;
+        ''', [
+            [
+                {
+                    'name': 'Alice',
+                    'foo': [
+                        {'name': 'Alice'},
+                    ],
+                },
+                {
+                    'name': 'Bob',
+                    'foo': [
+                        {'name': 'Bob'},
+                    ],
+                },
+                {
+                    'name': 'Carol',
+                    'foo': [
+                        {'name': 'Carol'},
+                    ],
+                },
+                {
+                    'name': 'Dave',
+                    'foo': [
+                        {'name': 'Dave'},
+                    ],
+                },
+            ]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_scope_tuple_06(self):
+        await self.sort_and_assert_query_result(r'''
+            # compare to test_edgeql_scope_filter_03 to see how it
+            # works out without tuples
+            WITH
+                MODULE test,
+                U2 := User
+            SELECT (
+                User {
+                    name,
+                    friends_of_others := (
+                        SELECT U2.friends {name}
+                        FILTER
+                            # not me
+                            U2.friends != User
+                            AND
+                            # not one of my friends
+                            U2.friends NOT IN User.friends
+                        ORDER BY U2.friends.name
+                    )
+                },
+                U2.friends.name
+            )
+            FILTER U2.friends.name = 'Bob'
+            # ORDER BY _.0.name THEN _.1
+            ;
+        ''', lambda x: (x[0]['name'], x[1]), [
+            [
+                [
+                    {
+                        'name': 'Alice',
+                        'friends_of_others': None,  # Bob is a direct friend
+                    },
+                    'Bob',
+                ],
+                [
+                    {
+                        'name': 'Bob',
+                        'friends_of_others': None,  # this is Bob
+                    },
+                    'Bob',
+                ],
+                [
+                    {
+                        'name': 'Carol',
+                        'friends_of_others': [
+                            {'name': 'Bob'},
+                        ],
+                    },
+                    'Bob',
+                ],
+                [
+                    {
+                        'name': 'Dave',
+                        'friends_of_others': None,  # Bob is a direct friend
+                    },
+                    'Bob',
+                ],
+            ]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_scope_tuple_07(self):
+        await self.sort_and_assert_query_result(r'''
+            # compare to test_edgeql_scope_filter_03 to see how it
+            # works out without tuples
+            WITH
+                MODULE test,
+                U2 := User
+            SELECT (
+                User {
+                    name,
+                    friends_of_others := (
+                        # similar to previous test, but refactored
+                        WITH F := (
+                            SELECT U2.friends
+                            FILTER
+                                # not me
+                                U2.friends != User
+                                AND
+                                # not one of my friends
+                                U2.friends NOT IN User.friends
+                        )
+                        SELECT F {name}
+                        ORDER BY F.name
+                    )
+                },
+                U2.friends.name
+            )
+            FILTER U2.friends.name = 'Bob'
+            # ORDER BY _.0.name THEN _.1
+            ;
+        ''', lambda x: (x[0]['name'], x[1]), [
+            [
+                [
+                    {
+                        'name': 'Alice',
+                        'friends_of_others': None,  # Bob is a direct friend
+                    },
+                    'Bob',
+                ],
+                [
+                    {
+                        'name': 'Bob',
+                        'friends_of_others': None,  # this is Bob
+                    },
+                    'Bob',
+                ],
+                [
+                    {
+                        'name': 'Carol',
+                        'friends_of_others': [
+                            {'name': 'Bob'},
+                        ],
+                    },
+                    'Bob',
+                ],
+                [
+                    {
+                        'name': 'Dave',
+                        'friends_of_others': None,  # Bob is a direct friend
+                    },
+                    'Bob',
+                ],
+            ]
+        ])
+
+    async def test_edgeql_scope_filter_01(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE test,
+                U2 := User
+            SELECT User {
+                name,
+                foo := (SELECT U2 {name} ORDER BY U2.name)
+            }
+            # the FILTER clause is irrelevant because it's in a
+            # parallel scope to the other mentions of U2
+            FILTER U2.name = 'Alice'
+            ORDER BY User.name;
+        ''', [
+            [
+                {
+                    'name': 'Alice',
+                    'foo': [
+                        {'name': 'Alice'},
+                        {'name': 'Bob'},
+                        {'name': 'Carol'},
+                        {'name': 'Dave'},
+                    ],
+                },
+                {
+                    'name': 'Bob',
+                    'foo': [
+                        {'name': 'Alice'},
+                        {'name': 'Bob'},
+                        {'name': 'Carol'},
+                        {'name': 'Dave'},
+                    ],
+                },
+                {
+                    'name': 'Carol',
+                    'foo': [
+                        {'name': 'Alice'},
+                        {'name': 'Bob'},
+                        {'name': 'Carol'},
+                        {'name': 'Dave'},
+                    ],
+                },
+                {
+                    'name': 'Dave',
+                    'foo': [
+                        {'name': 'Alice'},
+                        {'name': 'Bob'},
+                        {'name': 'Carol'},
+                        {'name': 'Dave'},
+                    ],
+                },
+            ]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_scope_filter_02(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT User.friends {name}
+            FILTER User.friends NOT IN {}
+            ORDER BY User.friends.name;
+        ''', [
+            [
+                {'name': 'Bob'},
+                {'name': 'Carol'},
+                {'name': 'Dave'},
+            ]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_scope_filter_03(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE test,
+                U2 := User
+            SELECT User {
+                name,
+                friends_of_others := (
+                    SELECT U2.friends {name}
+                    FILTER
+                        # not me
+                        U2.friends != User
+                        AND
+                        # not one of my friends
+                        U2.friends NOT IN User.friends
+                    ORDER BY U2.friends.name
+                )
+            }
+            ORDER BY User.name;
+        ''', [
+            [
+                {
+                    'name': 'Alice',
+                    'friends_of_others': None,
+                },
+                {
+                    'name': 'Bob',
+                    'friends_of_others': [
+                        {'name': 'Carol'},
+                        {'name': 'Dave'},
+                    ],
+                },
+                {
+                    'name': 'Carol',
+                    'friends_of_others': [
+                        {'name': 'Bob'},
+                        {'name': 'Dave'},
+                    ],
+                },
+                {
+                    'name': 'Dave',
+                    'friends_of_others': [
+                        {'name': 'Carol'},
+                    ],
+                }
+            ]
+        ])
+
+    async def test_edgeql_scope_filter_04(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT User {
+                name,
+                friends: {
+                    name
+                } ORDER BY User.friends.name
+            }
+            FILTER User.friends.name = 'Carol';
+        ''', [
+            [
+                {
+                    'name': 'Alice',
+                    'friends': [
+                        {'name': 'Bob'},
+                        {'name': 'Carol'},
+                        {'name': 'Dave'},
+                    ],
+                },
+            ]
+        ])
+
+    async def test_edgeql_scope_filter_05(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT User {
+                name,
+                friends: {
+                    name
+                } ORDER BY User.friends.name
+            }
+            ORDER BY (
+                    SELECT SINGLETON
+                        User.friends.name
+                    FILTER User.friends@nickname = 'Firefighter'
+                ) EMPTY FIRST
+                THEN
+                User.name;
+        ''', [
+            [
+                {
+                    'name': 'Bob',
+                    'friends': None
+                },
+                {
+                    'name': 'Carol',
+                    'friends': None
+                },
+                {
+
+                    'name': 'Dave',
+                    'friends': [
+                        {'name': 'Bob'},
+                    ],
+                },
+                {
+
+                    'name': 'Alice',
+                    'friends': [
+                        {'name': 'Bob'},
+                        {'name': 'Carol'},
+                        {'name': 'Dave'},
+                    ],
+                }
+            ]
+        ])
