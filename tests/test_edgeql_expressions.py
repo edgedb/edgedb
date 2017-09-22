@@ -332,7 +332,22 @@ class TestExpressions(tb.QueryTestCase):
             SELECT _ := {1, 2, 3} IN {3, 4}
             ORDER BY _;
         """, [
-            {False, False, True},
+            [False, False, True],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_op_19(self):
+        await self.assert_query_result(r"""
+            SELECT 1 IN {};
+            SELECT {1, 2, 3} IN {};
+
+            SELECT 1 NOT IN {};
+            SELECT {1, 2, 3} NOT IN {};
+        """, [
+            [False],
+            [False, False, False],
+            [True],
+            [True, True, True],
         ])
 
     async def test_edgeql_expr_paths_01(self):
