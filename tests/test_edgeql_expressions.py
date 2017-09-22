@@ -961,6 +961,29 @@ class TestExpressions(tb.QueryTestCase):
             [[1, 2], [1, 2]],
         ])
 
+    @tb.expected_optimizer_failure
+    async def test_edgeql_expr_tuple_12(self):
+        await self.assert_query_result(r'''
+            WITH A := {1, 2, 3}
+            SELECT _ := ({'a', 'b'}, A)
+            ORDER BY _;
+        ''', [
+            [['a', 1], ['a', 2], ['a', 3], ['b', 1], ['b', 2], ['b', 3]],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_tuple_13(self):
+        await self.assert_query_result(r"""
+            SELECT (1, ('a', 'b', (0.1, 0.2)), 2, 3);
+
+            # should be the same as above
+            WITH _ := (1, ('a', 'b', (0.1, 0.2)), 2, 3)
+            SELECT _;
+        """, [
+            [[1, ['a', 'b', [0.1, 0.2]], 2, 3]],
+            [[1, ['a', 'b', [0.1, 0.2]], 2, 3]],
+        ])
+
     async def test_edgeql_expr_tuple_indirection_01(self):
         await self.assert_query_result(r"""
             SELECT ('foo', 42).0;
@@ -999,6 +1022,58 @@ class TestExpressions(tb.QueryTestCase):
         """, [
             [1, 3],
         ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_tuple_indirection_06(self):
+        await self.assert_query_result(r"""
+            SELECT (1, ('a', 'b', (0.1, 0.2)), 2, 3).0;
+            SELECT (1, ('a', 'b', (0.1, 0.2)), 2, 3).1;
+            SELECT (1, ('a', 'b', (0.1, 0.2)), 2, 3).1.2;
+            SELECT (1, ('a', 'b', (0.1, 0.2)), 2, 3).1.2.0;
+        """, [
+            [1],
+            [['a', 'b', [0.1, 0.2]]],
+            [[0.1, 0.2]],
+            [0.1],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_tuple_indirection_07(self):
+        await self.assert_query_result(r"""
+            WITH A := (1, ('a', 'b', (0.1, 0.2)), 2, 3) SELECT A.0;
+            WITH A := (1, ('a', 'b', (0.1, 0.2)), 2, 3) SELECT A.1;
+            WITH A := (1, ('a', 'b', (0.1, 0.2)), 2, 3) SELECT A.1.2;
+            WITH A := (1, ('a', 'b', (0.1, 0.2)), 2, 3) SELECT A.1.2.0;
+        """, [
+            [1],
+            [['a', 'b', [0.1, 0.2]]],
+            [[0.1, 0.2]],
+            [0.1],
+        ])
+
+    @tb.expected_optimizer_failure
+    async def test_edgeql_expr_tuple_indirection_08(self):
+        await self.assert_query_result(r"""
+            SELECT _ := (1, ({55, 66}, {77, 88}), 2)
+            ORDER BY _.1 DESC;
+        """, [[
+            [1, [66, 88], 2],
+            [1, [66, 77], 2],
+            [1, [55, 88], 2],
+            [1, [55, 77], 2],
+        ]])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_tuple_indirection_09(self):
+        await self.assert_query_result(r"""
+            SELECT _ := (1, ({55, 66}, {77, 88}), 2)
+            ORDER BY _.1.1 THEN _.1.0;
+        """, [[
+            [1, [55, 77], 2],
+            [1, [66, 77], 2],
+            [1, [55, 88], 2],
+            [1, [66, 88], 2],
+        ]])
 
     async def test_edgeql_expr_cannot_assign_dunder_class(self):
         with self.assertRaisesRegex(
