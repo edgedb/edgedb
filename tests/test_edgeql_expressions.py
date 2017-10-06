@@ -1318,6 +1318,16 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT DISTINCT Issue ORDER BY Issue.name;
             ''')
 
+    @unittest.expectedFailure
+    async def test_edgeql_expr_cardinality_08(self):
+        # we expect some sort of error because the set {1, 2} is not a
+        # SINGLETON
+        with self.assertRaisesRegex(exc.UnknownEdgeDBError, ''):
+            await self.query(r'''
+                WITH MODULE test
+                SELECT SINGLETON {1, 2};
+            ''')
+
     async def test_edgeql_expr_type_filter_01(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError,
