@@ -1000,6 +1000,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write('*')
         if node.name is not None:
             self.write('$', ident_to_str(node.name), ': ')
+        if node.is_set:
+            self.write('SET OF ')
         self.visit(node.type)
 
         if node.default:

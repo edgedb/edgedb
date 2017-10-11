@@ -2205,6 +2205,14 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             SET title := 'Abort the event if a pointer exists';
         """
 
+    # TODO: remove this test once the entire grammar is converted
+    def test_edgeql_syntax_ddl_aggregate_00(self):
+        """
+        CREATE FUNCTION std::sum($v: SET OF std::int)
+            -> std::int
+            FROM SQL FUNCTION 'sum';
+        """
+
     def test_edgeql_syntax_ddl_aggregate_01(self):
         """
         CREATE AGGREGATE std::sum($v: std::int)

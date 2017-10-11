@@ -1422,21 +1422,25 @@ class OptVariadic(Nonterm):
 
 
 class FuncDeclArg(Nonterm):
-    def reduce_OptVariadic_TypeName_OptDefault(self, *kids):
+    def reduce_OptVariadic_OptSetOf_TypeName_OptDefault(self, *kids):
         self.val = qlast.FuncArg(
             variadic=kids[0].val,
             name=None,
-            type=kids[1].val,
-            default=kids[2].val
+            is_set=kids[1].val,
+            type=kids[2].val,
+            default=kids[3].val
         )
 
-    def reduce_OptVariadic_DOLLAR_Identifier_COLON_TypeName_OptDefault(
-            self, *kids):
+    def reduce_kwarg(self, *kids):
+        r"""%reduce OptVariadic DOLLAR Identifier COLON \
+                OptSetOf TypeName OptDefault \
+        """
         self.val = qlast.FuncArg(
             variadic=kids[0].val,
             name=kids[2].val,
-            type=kids[4].val,
-            default=kids[5].val
+            is_set=kids[4].val,
+            type=kids[5].val,
+            default=kids[6].val
         )
 
     def reduce_OptVariadic_DOLLAR_Identifier_OptDefault(self, *kids):
