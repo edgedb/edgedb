@@ -1484,16 +1484,102 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
+    async def test_edgeql_expr_alias_07(self):
+        await self.assert_query_result(r"""
+            # test variable masking
+            WITH x := (
+                WITH x := {2, 3} SELECT {4, 5, x}
+            )
+            SELECT x ORDER BY x;
+        """, [
+            [2, 3, 4, 5],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_alias_08(self):
+        await self.assert_query_result(r"""
+            # test variable masking
+            WITH x := (
+                FOR (x IN {2, 3})
+                x + 2
+            )
+            SELECT x ORDER BY x;
+        """, [
+            [4, 5],
+        ])
+
+    # TODO: this test indicates that the current semantics of FOR
+    # needs a review due to odd interpretation of what the ORDER
+    # clause actually applies to (similar to dangling else problem).
+    #
+    # See also test_edgeql_select_for_02.
+    @tb.expected_optimizer_failure
     async def test_edgeql_expr_for_01(self):
         await self.assert_query_result(r"""
-            FOR x IN {1, 3, 5, 7}
-            SELECT x
+            FOR (x IN {1, 3, 5, 7})
+            x
             ORDER BY x;
 
-            FOR x IN {1, 3, 5, 7}
-            SELECT x + 1
+            FOR (x IN {1, 3, 5, 7})
+            x + 1
             ORDER BY x;
         """, [
             [1, 3, 5, 7],
             [2, 4, 6, 8],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_for_02(self):
+        await self.assert_query_result(r"""
+            FOR (x IN {2, 3})
+            {x, x + 2};
+        """, [
+            {2, 3, 4, 5},
+        ])
+
+    @tb.expected_optimizer_failure
+    async def test_edgeql_expr_forgroup_01(self):
+        await self.assert_query_result(r"""
+            WITH I := {1, 2, 3, 4}
+            FOR (
+                I, _ IN
+                GROUP I
+                BY I % 2 = 0
+            )
+            _r := (
+                values := array_agg(I ORDER BY I)
+            ) ORDER BY _r.values;
+        """, [
+            [
+                {'values': [1, 3]},
+                {'values': [2, 4]}
+            ]
+        ])
+
+    @tb.expected_optimizer_failure
+    async def test_edgeql_expr_forgroup_02(self):
+        await self.assert_sorted_query_result(r'''
+            WITH x := {(1, 2), (3, 4), (4, 2)}
+            FOR (
+                x, _ IN
+                GROUP x BY x.1
+            )
+            array_agg(x.0);
+        ''', lambda x: x, [
+            [[1, 4], [3]],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_forgroup_03(self):
+        await self.assert_query_result(r'''
+            WITH x := {(1, 2), (3, 4), (4, 2)}
+            FOR (
+                x, B IN
+                GROUP x BY x.1
+            )
+            (B, array_agg(x.0))
+            ORDER BY
+                B;
+        ''', [
+            [[2, [1, 4]], [4, [3]]],
         ])

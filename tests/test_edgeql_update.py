@@ -872,19 +872,22 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
-    @tb.expected_optimizer_failure
+    @unittest.expectedFailure
     async def test_edgeql_update_for01(self):
         res = await self.con.execute(r"""
             WITH MODULE test
-            FOR x IN {
-                (name := 'update-test1', comment := 'foo'),
-                (name := 'update-test2', comment := 'bar')
-            }
-            UPDATE UpdateTest
-            FILTER UpdateTest.name = x.name
-            SET {
-                comment := x.comment
-            };
+            FOR (
+                x IN {
+                    (name := 'update-test1', comment := 'foo'),
+                    (name := 'update-test2', comment := 'bar')
+                }
+            ) (
+                UPDATE UpdateTest
+                FILTER UpdateTest.name = x.name
+                SET {
+                    comment := x.comment
+                }
+            );
 
             WITH MODULE test
             SELECT UpdateTest {

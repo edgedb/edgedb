@@ -3724,8 +3724,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_for_01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
-            FOR x IN {1, 4}
-            SELECT Issue {
+            FOR (x IN {1, 4})
+            Issue {
                 name
             }
             FILTER
@@ -3735,4 +3735,36 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ''', [[
             {'name': 'Release EdgeDB'},
             {'name': 'Regression.'},
+        ]])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_for_02(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            FOR (x IN {1, 3, 4})
+            (
+                SELECT Issue {
+                    name,
+                    number,
+                }
+                FILTER
+                    Issue.number > <str>x
+                ORDER BY
+                    Issue.number
+                LIMIT 2
+            )
+            ORDER BY Issue.number;
+        ''', [[
+            {
+                'name': 'Improve EdgeDB repl output rendering.',
+                'number': '2'
+            },
+            {
+                'name': 'Repl tweak.',
+                'number': '3'
+            },
+            {
+                'name': 'Regression.',
+                'numebr': '4'
+            },
         ]])

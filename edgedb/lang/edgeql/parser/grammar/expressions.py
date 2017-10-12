@@ -30,23 +30,16 @@ class ListNonterm(parsing.ListNonterm, element=None):
 
 
 class SetStmt(Nonterm):
-    def reduce_AliasBlock_OptForClause_SetStmtCore(self, *kids):
-        self.val = kids[2].val
-        self.val.aliases = kids[0].val
-        self.val.iterator_alias = kids[1].val.alias
-        self.val.iterator = kids[1].val.expr
-
-    def reduce_ForClause_SetStmtCore(self, *kids):
+    def reduce_AliasBlock_SetStmtCore(self, *kids):
         self.val = kids[1].val
-        self.val.iterator_alias = kids[0].val.alias
-        self.val.iterator = kids[0].val.expr
+        self.val.aliases = kids[0].val
 
     def reduce_SetStmtCore(self, *kids):
         self.val = kids[0].val
 
 
 class SetStmtCore(Nonterm):
-    def reduce_SimpleGroup(self, *kids):
+    def reduce_SimpleFor(self, *kids):
         self.val = kids[0].val
 
     def reduce_SimpleSelect(self, *kids):
@@ -97,17 +90,42 @@ class OutputExpr(Nonterm):
         )
 
 
-class ForClause(Nonterm):
-    def reduce_FOR_Identifier_IN_Expr(self, *kids):
-        self.val = AliasedExprSpec(alias=kids[1].val, expr=kids[3].val)
-
-
-class OptForClause(Nonterm):
-    def reduce_ForClause(self, *kids):
+class IteratorExpr(Nonterm):
+    def reduce_Expr(self, *kids):
         self.val = kids[0].val
 
-    def reduce_empty(self, *kids):
-        self.val = AliasedExprSpec(None, None)
+    def reduce_GROUP_Expr_BY_ByExprList(self, *kids):
+        self.val = qlast.GroupExpr(subject=kids[1].val, by=kids[3].val)
+
+
+class GroupExpr(Nonterm):
+    def reduce_Expr(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_SET_OF_Expr(self, *kids):
+        self.val = kids[2].val
+
+    def reduce_EACH_Expr(self, *kids):
+        self.val = kids[1].val
+
+
+class GroupExprList(ListNonterm, element=GroupExpr, separator=tokens.T_COMMA):
+    pass
+
+
+class ByExpr(Nonterm):
+    def reduce_GroupExpr(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_CUBE_LPAREN_GroupExprList_RPAREN(self, *kids):
+        self.val = kids[2].val
+
+    def reduce_ROLLUP_LPAREN_GroupExprList_RPAREN(self, *kids):
+        self.val = kids[2].val
+
+
+class ByExprList(ListNonterm, element=ByExpr, separator=tokens.T_COMMA):
+    pass
 
 
 class SimpleSelect(Nonterm):
@@ -125,23 +143,20 @@ class SimpleSelect(Nonterm):
         )
 
 
-class SimpleGroup(Nonterm):
-    def reduce_Group(self, *kids):
-        r"%reduce GROUP OptionallyAliasedExpr ByClause SimpleSelect"
-
-        select = kids[3].val
-
-        self.val = qlast.GroupQuery(
-            subject=kids[1].val.expr,
-            subject_alias=kids[1].val.alias,
-            groupby=kids[2].val,
-            single=select.single,
-            result=select.result,
-            result_alias=select.result_alias,
-            where=select.where,
-            orderby=select.orderby,
-            offset=select.offset,
-            limit=select.limit,
+class SimpleFor(Nonterm):
+    def reduce_For(self, *kids):
+        r"%reduce FOR LPAREN IdentifierList IN IteratorExpr RPAREN \
+                  OptionallyAliasedExpr \
+                  OptFilterClause OptSortClause OptSelectLimit"
+        self.val = qlast.ForQuery(
+            iterator_aliases=kids[2].val,
+            iterator=kids[4].val,
+            result=kids[6].val.expr,
+            result_alias=kids[6].val.alias,
+            where=kids[7].val,
+            orderby=kids[8].val,
+            offset=kids[9].val[0],
+            limit=kids[9].val[1],
         )
 
 
@@ -429,14 +444,6 @@ class OptFilterClause(Nonterm):
 
     def reduce_empty(self, *kids):
         self.val = None
-
-
-class ByClause(Nonterm):
-    def reduce_BY_ExprList(self, *kids):
-        self.val = kids[1].val
-
-    def reduce_empty(self, *kids):
-        self.val = []
 
 
 class SortClause(Nonterm):
@@ -1082,33 +1089,8 @@ class FuncApplication(Nonterm):
 
 
 class FuncExpr(Nonterm):
-    def reduce_FuncApplication_OptOverClause(self, *kids):
+    def reduce_FuncApplication(self, *kids):
         self.val = kids[0].val
-        self.val.window = kids[1].val
-
-
-class OptOverClause(Nonterm):
-    def reduce_OVER_WindowSpec(self, *kids):
-        self.val = kids[1].val
-
-    def reduce_empty(self, *kids):
-        self.val = None
-
-
-class WindowSpec(Nonterm):
-    def reduce_LPAREN_OptPartitionClause_OptSortClause_RPAREN(self, *kids):
-        self.val = qlast.WindowSpec(
-            partition=kids[1].val,
-            orderby=kids[2].val
-        )
-
-
-class OptPartitionClause(Nonterm):
-    def reduce_PARTITION_BY_ExprList(self, *kids):
-        self.val = kids[2].val
-
-    def reduce_empty(self, *kids):
-        self.val = []
 
 
 class FuncArgExpr(Nonterm):
@@ -1148,6 +1130,12 @@ class AnyIdentifier(Nonterm):
 
 
 class ModuleName(ListNonterm, element=AnyIdentifier, separator=tokens.T_DOT):
+    pass
+
+
+# this is used for unpacking elements in FOR
+class IdentifierList(ListNonterm, element=Identifier,
+                     separator=tokens.T_COMMA):
     pass
 
 

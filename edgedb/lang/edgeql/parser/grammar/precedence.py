@@ -124,3 +124,7 @@ class P_DOT(Precedence, assoc='left', tokens=('DOT', 'DOTFW', 'DOTBW')):
 
 class P_AT(Precedence, assoc='left', tokens=('AT',)):
     pass
+
+
+class P_BY(Precedence, assoc='nonassoc', tokens=('CUBE', 'ROLLUP')):
+    pass
