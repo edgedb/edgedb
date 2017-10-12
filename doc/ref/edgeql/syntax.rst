@@ -109,7 +109,8 @@ EdgeQL operators listed in order of precedence:
 +------------------+-----------+-----------+-----------+----------+
 | LIKE, ILIKE      | str       | --        | str       | str      |
 +------------------+-----------+-----------+-----------+----------+
-| IN, NOT IN       | any       | --        | sequence  | bool     |
+| IN, NOT IN       | set       | --        | set       | set of   |
+|                  |           |           |           | bool     |
 +------------------+-----------+-----------+-----------+----------+
 | IS, IS NOT       | any       | --        | Class,    | bool     |
 |                  |           |           | sequence  |          |
@@ -132,8 +133,8 @@ EdgeQL operators listed in order of precedence:
 | ^                | number    | --        | number    | number   |
 +------------------+-----------+-----------+-----------+----------+
 
-All set operators (``UNION ALL``, ``UNION``, ``EXISTS``,
-``DISTINCT``, ``??`` and ``IF..ELSE``) handle empty set ``{}`` as a
-normal valid input. All other operators when operating on ``{}``,
-return ``{}``. For more details see
+All set operators (``UNION ALL``, ``UNION``, ``EXISTS``, ``DISTINCT``,
+``??``, ``IF..ELSE``, ``IN`` and ``NOT IN``) handle the empty set
+``{}`` as a normal valid input. All other operators when operating on
+an empty set, return the empty set. For more details see
 :ref:`how expressions work<ref_edgeql_expressions>`.

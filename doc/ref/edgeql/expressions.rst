@@ -24,12 +24,12 @@ and elements.
 | - UNION, UNION ALL, DISTINCT  | - =, !=                       |
 | - EXISTS                      | - <, >, <=, >=                |
 | - IF..ELSE                    | - LIKE, ILIKE                 |
-| - ??                          | - IN, NOT IN                  |
-| - all aggregate functions     | - IS, IS NOT                  |
-|                               | - +, -, \*, /, %, ^           |
-|                               | - all regular functions       |
+| - ??                          | - IS, IS NOT                  |
+| - IN, NOT IN                  | - +, -, \*, /, %, ^           |
+| - all aggregate functions     | - all regular functions       |
 |                               | - creating an array           |
 |                               | - creating a tuple            |
+|                               |                               |
 +-------------------------------+-------------------------------+
 
 Set operations treat empty set ``{}`` as one of the possible valid
@@ -225,6 +225,28 @@ Basic set operators:
     Without the coalescing operator the above query would skip any
     ``Issue`` without priority.
 
+- IN, NOT IN
+
+  Set membership operators ``IN`` and ``NOT IN`` test whether the
+  *elements* of the left operand are members of the right operand. The
+  result is a set of ``TRUE`` and ``FALSE`` values, one per each
+  element of the left operand. If all values are ``TRUE``, then the
+  entire left operand is a *subset* of the right operand.
+
+  .. code-block:: eql
+
+    SELECT 1 IN {1, 3, 5};
+    # returns [True]
+
+    SELECT 'Alice' IN User.name;
+
+    SELECT {1, 2} IN {1, 3, 5};
+    # returns [True, False]
+
+    # Here's a way to test whether A is a subset of B.
+    WITH C := DISTINCT(A IN B)
+    SELECT C = TRUE AND count(C) = 1;
+
 
 .. _ref_edgeql_expressions_agg:
 
@@ -263,17 +285,6 @@ of these operators require their operands to be of the same
 
 - string matching operators ``LIKE`` and ``ILIKE`` that work exactly the
   same way as in SQL
-
-- set membership operators ``IN`` and ``NOT IN`` that test whether the
-  left operand is an element in the right operand, for each element of
-  the left operand
-
-  .. code-block:: eql
-
-    SELECT 1 IN {1, 3, 5};
-    # returns [True]
-
-    SELECT 'Alice' IN User.name;
 
 - type-checking operators ``IS`` and ``IS NOT`` that test whether the
   left operand is of any of the types given by the comma-separated
