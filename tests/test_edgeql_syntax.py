@@ -2672,6 +2672,27 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             FROM EdgeQL $$$$;
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  'Unexpected token.*STAR', line=2, col=41)
+    def test_edgeql_syntax_ddl_function_31(self):
+        """
+        CREATE FUNCTION std::foo(SET OF *std::str) -> std::int;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  'variadic parameter cannot be a set', line=2, col=36)
+    def test_edgeql_syntax_ddl_function_32(self):
+        """
+        CREATE FUNCTION std::foo(* SET OF std::str) -> std::int;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  'variadic parameter cannot be a set', line=2, col=41)
+    def test_edgeql_syntax_ddl_function_33(self):
+        """
+        CREATE FUNCTION std::foo(*$bar: SET OF std::str) -> std::int;
+        """
+
     def test_edgeql_syntax_ddl_linkproperty_01(self):
         """
         CREATE LINK PROPERTY std::linkproperty {

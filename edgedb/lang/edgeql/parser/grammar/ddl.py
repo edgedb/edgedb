@@ -1423,6 +1423,11 @@ class OptVariadic(Nonterm):
 
 class FuncDeclArg(Nonterm):
     def reduce_OptVariadic_OptSetOf_TypeName_OptDefault(self, *kids):
+        # variadic parameters are effectively arrays, so they cannot
+        # be arrays of sets
+        if kids[0].val and kids[1].val:
+            raise EdgeQLSyntaxError(
+                'variadic parameter cannot be a set', context=kids[1].context)
         self.val = qlast.FuncArg(
             variadic=kids[0].val,
             name=None,
@@ -1435,6 +1440,9 @@ class FuncDeclArg(Nonterm):
         r"""%reduce OptVariadic DOLLAR Identifier COLON \
                 OptSetOf TypeName OptDefault \
         """
+        if kids[0].val and kids[4].val:
+            raise EdgeQLSyntaxError(
+                'variadic parameter cannot be a set', context=kids[4].context)
         self.val = qlast.FuncArg(
             variadic=kids[0].val,
             name=kids[2].val,
