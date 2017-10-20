@@ -4,6 +4,10 @@
 Usage of FOR clause
 ===================
 
+.. note::
+
+    This section needs a complete re-write.
+
 A ``FOR`` clause provides a shorthand for multiple repetitive
 statements the results of which need to be joined by a set ``UNION
 ALL``. It is therefore a relatively expensive operation. Also, it has
@@ -17,17 +21,20 @@ with ``INSERT``. It allows inserting objects in bulk.
 .. code-block:: eql
 
     WITH MODULE example
-    FOR x IN {
-        (name := 'Alice', theme := 'fire'),
-        (name := 'Bob', theme := 'rain'),
-        (name := 'Carol', theme := 'clouds'),
-        (name := 'Dave', theme := 'forest')
-    }
-    INSERT
-        User {
-            name := x.name,
-            theme := x.theme,
-        };
+    FOR (
+        x IN {
+            (name := 'Alice', theme := 'fire'),
+            (name := 'Bob', theme := 'rain'),
+            (name := 'Carol', theme := 'clouds'),
+            (name := 'Dave', theme := 'forest')
+        }
+    ) (
+        INSERT
+            User {
+                name := x.name,
+                theme := x.theme,
+            }
+    );
 
 The next logical example is a variation of a bulk ``UPDATE``. When
 updating data that mostly or completely depends on the objects being
@@ -46,12 +53,14 @@ use it for performance reasons.
     # The above can be accomplished with a FOR clause,
     # but it is not recommended.
     WITH MODULE example
-    FOR x IN {'Alice', 'Bob', 'Carol', 'Dave'}
-    UPDATE User
-    FILTER User.name = x
-    SET {
-        theme := 'halloween'
-    };
+    FOR (x IN {'Alice', 'Bob', 'Carol', 'Dave'})
+    (
+        UPDATE User
+        FILTER User.name = x
+        SET {
+            theme := 'halloween'
+        }
+    );
 
 However, there are cases when a bulk update lots of external data,
 that cannot be derived from the objects being updated. That is a good
@@ -74,17 +83,20 @@ use-case when a ``FOR`` clause is appropriate.
     # Using a FOR clause, the above update becomes simpler to
     # express or review for a human.
     WITH MODULE example
-    FOR x IN {
-        (name := 'Alice', theme := 'red'),
-        (name := 'Bob', theme := 'star'),
-        (name := 'Carol', theme := 'dark'),
-        (name := 'Dave', theme := 'strawberry')
-    }
-    UPDATE User
-    FILTER User.name = x.name
-    SET {
-        theme := x.theme
-    };
+    FOR (
+        x IN {
+            (name := 'Alice', theme := 'red'),
+            (name := 'Bob', theme := 'star'),
+            (name := 'Carol', theme := 'dark'),
+            (name := 'Dave', theme := 'strawberry')
+        }
+    ) (
+        UPDATE User
+        FILTER User.name = x.name
+        SET {
+            theme := x.theme
+        }
+    );
 
 Another example of using a ``FOR`` clause is working with link
 properties. Specifying the link properties either at creation time or
@@ -98,23 +110,26 @@ intuitive manner.
     WITH
         MODULE example,
         U2 := User
-    FOR x IN {
-        (
-            name := 'Alice',
-            friends := [('Bob', 'coffee buff'),
-                        ('Carol', 'dog person')]
-        ),
-        (
-            name := 'Bob',
-            friends := [('Alice', 'movie buff'),
-                        ('Dave', 'cat person')]
-        )
-    }
-    UPDATE User
-    FILTER User.name = x.name
-    SET {
-        friends := (
-            FOR f in unnest(x.friends)
-            SELECT U2 {@nickname := f.1} FILTER U2.name = f.0
-        )
-    };
+    FOR (
+        x IN {
+            (
+                name := 'Alice',
+                friends := [('Bob', 'coffee buff'),
+                            ('Carol', 'dog person')]
+            ),
+            (
+                name := 'Bob',
+                friends := [('Alice', 'movie buff'),
+                            ('Dave', 'cat person')]
+            )
+        }
+    ) (
+        UPDATE User
+        FILTER User.name = x.name
+        SET {
+            friends := (
+                FOR (f in unnest(x.friends))
+                (SELECT U2 {@nickname := f.1} FILTER U2.name = f.0)
+            )
+        }
+    );

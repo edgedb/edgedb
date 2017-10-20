@@ -4,6 +4,10 @@
 Statements
 ==========
 
+.. note::
+
+    This section needs a significant re-write w.r.t usage of FOR.
+
 EdgeQL has Select_, Group_, Insert_, Update_, and Delete_ statements
 for managing the data in the DB. Each of these statements can also be
 used as an *expression* if it is enclosed in parentheses, in which
@@ -183,7 +187,7 @@ Consider the following example of a query that gets some statistics
 about Issues, namely what's the total number of issues and time spent
 per owner:
 
-.. code-block:: eql
+.. code-block:: pseudo-eql
 
     WITH MODULE example
     GROUP Issue
@@ -202,7 +206,7 @@ If there's a need to only look at statistics that end up over a
 certain threshold of total time spent, a ``FILTER`` can be used in
 conjunction with an alias of the ``SELECT`` clause result:
 
-.. code-block:: eql
+.. code-block:: pseudo-eql
 
     WITH MODULE example
     GROUP Issue
@@ -223,7 +227,7 @@ If there's a need to filter the *input* set of Issues, then this can
 be done by using a ``SELECT`` expression at the subject clause of the
 ``GROUP``:
 
-.. code-block:: eql
+.. code-block:: pseudo-eql
 
     WITH MODULE example
     GROUP (
@@ -321,23 +325,23 @@ by some tool) or a query.
     # example of a bulk insert of users based on explicitly provided
     # data
     WITH MODULE example
-    FOR x IN {'Alice', 'Bob', 'Carol', 'Dave'}
-    INSERT User {
+    FOR (x IN {'Alice', 'Bob', 'Carol', 'Dave'})
+    (INSERT User {
         name := x
-    };
+    });
 
     # example of a bulk insert of issues based on a query
     WITH
         MODULE example,
         Elvis := (SELECT User FILTER .name = 'Elvis'),
         Open := (SELECT Status FILTER .name = 'Open')
-    FOR Q IN (SELECT User FILTER .name ILIKE 'A%')
-    INSERT Issue {
+    FOR (Q IN (SELECT User FILTER .name ILIKE 'A%'))
+    (INSERT Issue {
         name := Q.name + ' access problem',
         body := 'This user was affected by recent system glitch',
         owner := Elvis,
         status := Open
-    };
+    });
 
 The clause ``FOR <x> IN <expr>`` allows to perform bulk inserts. It is
 equivalent to invoking ``INSERT`` statement separately once for every
