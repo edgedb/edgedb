@@ -1732,6 +1732,49 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         );
         """
 
+    def test_edgeql_syntax_forgroup_04(self):
+        """
+        FOR (User, G IN
+                GROUP F := User.friends
+                BY F.name)
+        (
+            name := G,
+            num_tasks := count(User.tasks)
+        );
+        """
+
+    def test_edgeql_syntax_forgroup_05(self):
+        """
+        FOR (User, G1, G2, G3, G4 IN
+                GROUP User
+                BY
+                    CUBE(User.name, User.age),
+                    ROLLUP(User.rank, User.status)
+            )
+        (
+            name := G,
+            num_tasks := count(User.tasks)
+        );
+        """
+
+    def test_edgeql_syntax_forgroup_06(self):
+        """
+        FOR (User, G1, G2, G3, G4 IN
+                GROUP User
+                BY
+                    EACH User.friends,
+                    SET OF User.name,
+                    ROLLUP(
+                        EACH User.rank,
+                        SET OF User.status
+                    )
+            )
+        (
+            name := G,
+            num_tasks := count(User.tasks)
+        );
+        """
+
     def test_edgeql_syntax_set_01(self):
         """
         SELECT (1 UNION 2);

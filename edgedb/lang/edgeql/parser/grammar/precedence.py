@@ -17,6 +17,10 @@ class Precedence(parsing.Precedence, assoc='fail', metaclass=PrecedenceMeta):
     pass
 
 
+class P_BY(Precedence, assoc='nonassoc', tokens=('CUBE', 'ROLLUP')):
+    pass
+
+
 class P_SETOP(Precedence, assoc='left', tokens=('UNION', 'ALL')):
     pass
 
@@ -123,8 +127,4 @@ class P_DOT(Precedence, assoc='left', tokens=('DOT', 'DOTFW', 'DOTBW')):
 
 
 class P_AT(Precedence, assoc='left', tokens=('AT',)):
-    pass
-
-
-class P_BY(Precedence, assoc='nonassoc', tokens=('CUBE', 'ROLLUP')):
     pass

@@ -217,11 +217,27 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_GroupExpr(self, node):
         self.write('GROUP ')
+        if node.subject_alias:
+            self.write(node.subject_alias, ' := ')
         self.visit(node.subject)
         self.write(' BY ')
         self._block_ws(1)
         self.visit_list(node.by)
         self._block_ws(-1)
+
+    def visit_ByExpr(self, node):
+        if node.each is not None:
+            if node.each:
+                self.write('EACH ')
+            else:
+                self.write('SET OF ')
+
+        self.visit(node.expr)
+
+    def visit_GroupBuiltin(self, node):
+        self.write(node.name, '(')
+        self.visit_list(node.elements, newlines=False)
+        self.write(')')
 
     def visit_NamespaceAliasDecl(self, node):
         if node.alias:

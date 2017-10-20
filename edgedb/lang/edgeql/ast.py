@@ -284,13 +284,32 @@ class Set(Expr):
     elements: typing.List[Expr]
 
 
-# Statements
+# Expressions used only in statemets
 #
+
+class ByExprBase(Base):
+    '''Abstract parent of all grouping sets.'''
+    pass
+
+
+class ByExpr(ByExprBase):
+    each: bool
+    expr: Expr
+
+
+class GroupBuiltin(ByExprBase):
+    name: str
+    elements: typing.List[ByExpr]
+
 
 class GroupExpr(Expr):
     subject: Expr
-    by: typing.List[Expr]
+    subject_alias: str
+    by: typing.List[ByExprBase]
 
+
+# Statements
+#
 
 class Statement(Expr):
     aliases: typing.List[typing.Union[AliasedExpr, NamespaceAliasDecl]]

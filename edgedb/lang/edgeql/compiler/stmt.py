@@ -150,9 +150,10 @@ def compile_GroupQuery(
         aliases = expr.iterator_aliases
         with ictx.newscope() as subjctx:
             subjctx.clause = 'input'
+            subj_c = dispatch.compile(gexpr.subject, ctx=subjctx)
+            # FIXME: process subject alias as given in GROUP
             stmt.subject = stmtctx.declare_aliased_set(
-                dispatch.compile(gexpr.subject, ctx=subjctx),
-                aliases[0], ctx=subjctx)
+                subj_c, gexpr.subject_alias, ctx=subjctx)
 
         ictx.path_scope.update(subjctx.path_scope)
 
@@ -164,6 +165,8 @@ def compile_GroupQuery(
 
         stmt.groupby = compile_groupby_clause(
             aliases[1:], gexpr.by, singletons=grpctx.singletons, ctx=ictx)
+        # FIXME: process subject alias as given in FOR
+        stmtctx.declare_aliased_set(subj_c, aliases[0], ctx=ictx)
 
         output = expr.result
 
@@ -409,10 +412,10 @@ def compile_groupby_clause(
         ir_groupexprs = []
         for alias, groupexpr in zip(aliases, groupexprs):
             # FIXME: This is not quite correct handling as it results in a
-            # cross-product somewhere (see test_edgeql_group_by_tuple_02).
+            # cross-product somewhere.
             with sctx.newscope() as gsctx:
-                stmtctx.declare_view(groupexpr, alias, ctx=gsctx)
-                ir_groupexpr = dispatch.compile(groupexpr, ctx=gsctx)
+                stmtctx.declare_view(groupexpr.expr, alias, ctx=gsctx)
+                ir_groupexpr = dispatch.compile(groupexpr.expr, ctx=gsctx)
 
             ir_groupexpr.context = groupexpr.context
             ir_groupexprs.append(ir_groupexpr)

@@ -1556,8 +1556,22 @@ class TestExpressions(tb.QueryTestCase):
             ]
         ])
 
-    @tb.expected_optimizer_failure
+    @unittest.expectedFailure
     async def test_edgeql_expr_forgroup_02(self):
+        await self.assert_sorted_query_result(r'''
+            # handle a number of different aliases
+            WITH x := {(1, 2), (3, 4), (4, 2)}
+            FOR (
+                z, _ IN
+                GROUP y := x BY y.1
+            )
+            array_agg(z.0);
+        ''', lambda x: x, [
+            [[1, 4], [3]],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_forgroup_03(self):
         await self.assert_sorted_query_result(r'''
             WITH x := {(1, 2), (3, 4), (4, 2)}
             FOR (
@@ -1570,7 +1584,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     @unittest.expectedFailure
-    async def test_edgeql_expr_forgroup_03(self):
+    async def test_edgeql_expr_forgroup_04(self):
         await self.assert_query_result(r'''
             WITH x := {(1, 2), (3, 4), (4, 2)}
             FOR (

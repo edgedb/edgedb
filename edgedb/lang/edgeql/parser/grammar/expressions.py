@@ -94,34 +94,39 @@ class IteratorExpr(Nonterm):
     def reduce_Expr(self, *kids):
         self.val = kids[0].val
 
-    def reduce_GROUP_Expr_BY_ByExprList(self, *kids):
-        self.val = qlast.GroupExpr(subject=kids[1].val, by=kids[3].val)
+    def reduce_GROUP_OptionallyAliasedExpr_BY_ByExprList(self, *kids):
+        self.val = qlast.GroupExpr(subject_alias=kids[1].val.alias,
+                                   subject=kids[1].val.expr,
+                                   by=kids[3].val)
 
 
-class GroupExpr(Nonterm):
+class GroupingSet(Nonterm):
     def reduce_Expr(self, *kids):
-        self.val = kids[0].val
+        self.val = qlast.ByExpr(each=None, expr=kids[0].val)
 
     def reduce_SET_OF_Expr(self, *kids):
-        self.val = kids[2].val
+        self.val = qlast.ByExpr(each=False, expr=kids[2].val)
 
     def reduce_EACH_Expr(self, *kids):
-        self.val = kids[1].val
+        self.val = qlast.ByExpr(each=True, expr=kids[1].val)
 
 
-class GroupExprList(ListNonterm, element=GroupExpr, separator=tokens.T_COMMA):
+class GroupingSetList(ListNonterm, element=GroupingSet,
+                      separator=tokens.T_COMMA):
     pass
 
 
 class ByExpr(Nonterm):
-    def reduce_GroupExpr(self, *kids):
+    def reduce_GroupingSet(self, *kids):
         self.val = kids[0].val
 
-    def reduce_CUBE_LPAREN_GroupExprList_RPAREN(self, *kids):
-        self.val = kids[2].val
+    def reduce_CUBE_LPAREN_GroupingSetList_RPAREN(self, *kids):
+        self.val = qlast.GroupBuiltin(name=kids[0].val,
+                                      elements=kids[2].val)
 
-    def reduce_ROLLUP_LPAREN_GroupExprList_RPAREN(self, *kids):
-        self.val = kids[2].val
+    def reduce_ROLLUP_LPAREN_GroupingSetList_RPAREN(self, *kids):
+        self.val = qlast.GroupBuiltin(name=kids[0].val,
+                                      elements=kids[2].val)
 
 
 class ByExprList(ListNonterm, element=ByExpr, separator=tokens.T_COMMA):
