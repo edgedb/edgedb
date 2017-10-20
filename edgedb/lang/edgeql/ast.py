@@ -217,6 +217,7 @@ class TypeName(_TypeName):
 class FuncArg(Base):
     name: str
     type: TypeName
+    is_set: bool = False
     variadic: bool = False
     default: Expr  # noqa (pyflakes bug)
 
