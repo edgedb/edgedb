@@ -21,14 +21,13 @@ with ``INSERT``. It allows inserting objects in bulk.
 .. code-block:: eql
 
     WITH MODULE example
-    FOR (
-        x IN {
+    FOR x IN {
             (name := 'Alice', theme := 'fire'),
             (name := 'Bob', theme := 'rain'),
             (name := 'Carol', theme := 'clouds'),
             (name := 'Dave', theme := 'forest')
         }
-    ) (
+    UNION OF (
         INSERT
             User {
                 name := x.name,
@@ -53,8 +52,8 @@ use it for performance reasons.
     # The above can be accomplished with a FOR clause,
     # but it is not recommended.
     WITH MODULE example
-    FOR (x IN {'Alice', 'Bob', 'Carol', 'Dave'})
-    (
+    FOR x IN {'Alice', 'Bob', 'Carol', 'Dave'}
+    UNION OF (
         UPDATE User
         FILTER User.name = x
         SET {
@@ -83,14 +82,13 @@ use-case when a ``FOR`` clause is appropriate.
     # Using a FOR clause, the above update becomes simpler to
     # express or review for a human.
     WITH MODULE example
-    FOR (
-        x IN {
+    FOR x IN {
             (name := 'Alice', theme := 'red'),
             (name := 'Bob', theme := 'star'),
             (name := 'Carol', theme := 'dark'),
             (name := 'Dave', theme := 'strawberry')
         }
-    ) (
+    UNION OF (
         UPDATE User
         FILTER User.name = x.name
         SET {
@@ -110,8 +108,7 @@ intuitive manner.
     WITH
         MODULE example,
         U2 := User
-    FOR (
-        x IN {
+    FOR x IN {
             (
                 name := 'Alice',
                 friends := [('Bob', 'coffee buff'),
@@ -123,13 +120,16 @@ intuitive manner.
                             ('Dave', 'cat person')]
             )
         }
-    ) (
+    UNION OF (
         UPDATE User
         FILTER User.name = x.name
         SET {
             friends := (
-                FOR (f in unnest(x.friends))
-                (SELECT U2 {@nickname := f.1} FILTER U2.name = f.0)
+                FOR f in unnest(x.friends)
+                UNION OF (
+                    SELECT U2 {@nickname := f.1}
+                    FILTER U2.name = f.0
+                )
             )
         }
     );

@@ -1500,8 +1500,8 @@ class TestExpressions(tb.QueryTestCase):
         await self.assert_query_result(r"""
             # test variable masking
             WITH x := (
-                FOR (x IN {2, 3})
-                x + 2
+                FOR x IN {2, 3}
+                UNION OF x + 2
             )
             SELECT x ORDER BY x;
         """, [
@@ -1516,12 +1516,12 @@ class TestExpressions(tb.QueryTestCase):
     @tb.expected_optimizer_failure
     async def test_edgeql_expr_for_01(self):
         await self.assert_query_result(r"""
-            FOR (x IN {1, 3, 5, 7})
-            x
+            FOR x IN {1, 3, 5, 7}
+            UNION OF x
             ORDER BY x;
 
-            FOR (x IN {1, 3, 5, 7})
-            x + 1
+            FOR x IN {1, 3, 5, 7}
+            UNION OF x + 1
             ORDER BY x;
         """, [
             [1, 3, 5, 7],
@@ -1531,8 +1531,8 @@ class TestExpressions(tb.QueryTestCase):
     @unittest.expectedFailure
     async def test_edgeql_expr_for_02(self):
         await self.assert_query_result(r"""
-            FOR (x IN {2, 3})
-            {x, x + 2};
+            FOR x IN {2, 3}
+            UNION OF {x, x + 2};
         """, [
             {2, 3, 4, 5},
         ])
@@ -1541,12 +1541,10 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_forgroup_01(self):
         await self.assert_query_result(r"""
             WITH I := {1, 2, 3, 4}
-            FOR (
-                I, _ IN
-                GROUP I
-                BY I % 2 = 0
+            FOR I, _ IN (
+                GROUP I BY I % 2 = 0
             )
-            _r := (
+            UNION OF _r := (
                 values := array_agg(I ORDER BY I)
             ) ORDER BY _r.values;
         """, [
@@ -1561,11 +1559,10 @@ class TestExpressions(tb.QueryTestCase):
         await self.assert_sorted_query_result(r'''
             # handle a number of different aliases
             WITH x := {(1, 2), (3, 4), (4, 2)}
-            FOR (
-                z, _ IN
+            FOR z, _ IN (
                 GROUP y := x BY y.1
             )
-            array_agg(z.0);
+            UNION OF array_agg(z.0);
         ''', lambda x: x, [
             [[1, 4], [3]],
         ])
@@ -1574,11 +1571,10 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_forgroup_03(self):
         await self.assert_sorted_query_result(r'''
             WITH x := {(1, 2), (3, 4), (4, 2)}
-            FOR (
-                x, _ IN
+            FOR x, _ IN (
                 GROUP x BY x.1
             )
-            array_agg(x.0);
+            UNION OF array_agg(x.0);
         ''', lambda x: x, [
             [[1, 4], [3]],
         ])
@@ -1587,11 +1583,10 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_forgroup_04(self):
         await self.assert_query_result(r'''
             WITH x := {(1, 2), (3, 4), (4, 2)}
-            FOR (
-                x, B IN
+            FOR x, B IN (
                 GROUP x BY x.1
             )
-            (B, array_agg(x.0))
+            UNION OF (B, array_agg(x.0))
             ORDER BY
                 B;
         ''', [

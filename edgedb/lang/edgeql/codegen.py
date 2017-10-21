@@ -197,11 +197,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         self._visit_aliases(node)
 
-        self.write('FOR (')
+        self.write('FOR ')
         self.write(', '.join([ident_to_str(a) for a in node.iterator_aliases]))
         self.write(' IN ')
         self.visit(node.iterator)
-        self.write(')')
+        # guarantee an newline here
+        self.new_lines = 1
+        self.write('UNION OF ')
         if node.result_alias:
             self.write(node.result_alias, ' := ')
         self._block_ws(1)
@@ -216,6 +218,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(')')
 
     def visit_GroupExpr(self, node):
+        # GROUP expression is always parenthesised
+        self.write('(')
+        self._block_ws(1)
         self.write('GROUP ')
         if node.subject_alias:
             self.write(node.subject_alias, ' := ')
@@ -223,7 +228,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(' BY ')
         self._block_ws(1)
         self.visit_list(node.by)
-        self._block_ws(-1)
+        self._block_ws(-2)
+        self.write(')')
 
     def visit_ByExpr(self, node):
         if node.each is not None:

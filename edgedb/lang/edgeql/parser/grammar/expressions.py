@@ -94,10 +94,11 @@ class IteratorExpr(Nonterm):
     def reduce_Expr(self, *kids):
         self.val = kids[0].val
 
-    def reduce_GROUP_OptionallyAliasedExpr_BY_ByExprList(self, *kids):
-        self.val = qlast.GroupExpr(subject_alias=kids[1].val.alias,
-                                   subject=kids[1].val.expr,
-                                   by=kids[3].val)
+    def reduce_Group(self, *kids):
+        r'%reduce LPAREN GROUP OptionallyAliasedExpr BY ByExprList RPAREN'
+        self.val = qlast.GroupExpr(subject_alias=kids[2].val.alias,
+                                   subject=kids[2].val.expr,
+                                   by=kids[4].val)
 
 
 class GroupingSet(Nonterm):
@@ -150,18 +151,18 @@ class SimpleSelect(Nonterm):
 
 class SimpleFor(Nonterm):
     def reduce_For(self, *kids):
-        r"%reduce FOR LPAREN IdentifierList IN IteratorExpr RPAREN \
-                  OptionallyAliasedExpr \
+        r"%reduce FOR IdentifierList IN IteratorExpr \
+                  UNIONOF OptionallyAliasedExpr \
                   OptFilterClause OptSortClause OptSelectLimit"
         self.val = qlast.ForQuery(
-            iterator_aliases=kids[2].val,
-            iterator=kids[4].val,
-            result=kids[6].val.expr,
-            result_alias=kids[6].val.alias,
-            where=kids[7].val,
-            orderby=kids[8].val,
-            offset=kids[9].val[0],
-            limit=kids[9].val[1],
+            iterator_aliases=kids[1].val,
+            iterator=kids[3].val,
+            result=kids[5].val.expr,
+            result_alias=kids[5].val.alias,
+            where=kids[6].val,
+            orderby=kids[7].val,
+            offset=kids[8].val[0],
+            limit=kids[8].val[1],
         )
 
 

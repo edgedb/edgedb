@@ -3724,8 +3724,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_for_01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
-            FOR (x IN {1, 4})
-            Issue {
+            FOR x IN {1, 4}
+            UNION OF Issue {
                 name
             }
             FILTER
@@ -3741,8 +3741,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_for_02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
-            FOR (x IN {1, 3, 4})
-            (
+            FOR x IN {1, 3, 4}
+            UNION OF (
                 SELECT Issue {
                     name,
                     number,

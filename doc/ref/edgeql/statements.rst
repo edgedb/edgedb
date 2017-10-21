@@ -325,8 +325,8 @@ by some tool) or a query.
     # example of a bulk insert of users based on explicitly provided
     # data
     WITH MODULE example
-    FOR (x IN {'Alice', 'Bob', 'Carol', 'Dave'})
-    (INSERT User {
+    FOR x IN {'Alice', 'Bob', 'Carol', 'Dave'}
+    UNION OF (INSERT User {
         name := x
     });
 
@@ -335,8 +335,8 @@ by some tool) or a query.
         MODULE example,
         Elvis := (SELECT User FILTER .name = 'Elvis'),
         Open := (SELECT Status FILTER .name = 'Open')
-    FOR (Q IN (SELECT User FILTER .name ILIKE 'A%'))
-    (INSERT Issue {
+    FOR Q IN (SELECT User FILTER .name ILIKE 'A%')
+    UNION OF (INSERT Issue {
         name := Q.name + ' access problem',
         body := 'This user was affected by recent system glitch',
         owner := Elvis,

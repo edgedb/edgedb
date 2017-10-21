@@ -876,12 +876,11 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_for01(self):
         res = await self.con.execute(r"""
             WITH MODULE test
-            FOR (
-                x IN {
+            FOR x IN {
                     (name := 'update-test1', comment := 'foo'),
                     (name := 'update-test2', comment := 'bar')
                 }
-            ) (
+            UNION OF (
                 UPDATE UpdateTest
                 FILTER UpdateTest.name = x.name
                 SET {
