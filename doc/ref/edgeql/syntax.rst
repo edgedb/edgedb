@@ -38,7 +38,7 @@ allow referring to a link named "order" as ```order```).
 Names and keywords
 ------------------
 
-.. note::
+.. TODO::
 
     This section needs a significant update.
 

@@ -1,32 +1,33 @@
-.. _ref_edgeql_forclause:
+.. _ref_edgeql_forstatement:
 
 
-Usage of FOR clause
-===================
+Usage of FOR statement
+======================
 
-.. note::
+``FOR`` statement has some powerful features that deserve to be
+considered in detail separately. However, the common core is that
+``FOR`` iterates over elements of some complex expression. Then for
+each element of the iterator some set is computed and combined via a
+``UNION`` or ``UNION ALL`` with the other such computed sets.
 
-    This section needs a complete re-write.
+Simple FOR
+----------
 
-A ``FOR`` clause provides a shorthand for multiple repetitive
-statements the results of which need to be joined by a set ``UNION
-ALL``. It is therefore a relatively expensive operation. Also, it has
-undefined behavior if the sets to be unioned are not disjoint (since
-common elements may come from either subset, with potentially
-different augmented values).
-
-A simple example of the usage of the ``FOR`` clause is in conjunction
-with ``INSERT``. It allows inserting objects in bulk.
+The simplest use case is when the iterator is given by a set
+expression and it follows the general form of ``FOR x IN A ...``::
 
 .. code-block:: eql
 
     WITH MODULE example
+    # the iterator is an explicit set of tuples, so x is an element of
+    # this set, i.e. a single tuple
     FOR x IN {
             (name := 'Alice', theme := 'fire'),
             (name := 'Bob', theme := 'rain'),
             (name := 'Carol', theme := 'clouds'),
             (name := 'Dave', theme := 'forest')
         }
+    # typically this is used with an INSERT, DELETE or UPDATE
     UNION OF (
         INSERT
             User {
@@ -35,40 +36,19 @@ with ``INSERT``. It allows inserting objects in bulk.
             }
     );
 
-The next logical example is a variation of a bulk ``UPDATE``. When
-updating data that mostly or completely depends on the objects being
-updated there's no need to use ``FOR`` clause and it is not advised to
-use it for performance reasons.
+Since ``x`` is an element of a set it is guaranteed to be a non-empty
+singleton in all of the expressions user by the ``UNION OF`` and later
+clauses of ``FOR``.
 
-.. code-block:: eql
-
-    WITH MODULE example
-    UPDATE User
-    FILTER User.name IN {'Alice', 'Bob', 'Carol', 'Dave'}
-    SET {
-        theme := 'halloween'
-    };
-
-    # The above can be accomplished with a FOR clause,
-    # but it is not recommended.
-    WITH MODULE example
-    FOR x IN {'Alice', 'Bob', 'Carol', 'Dave'}
-    UNION OF (
-        UPDATE User
-        FILTER User.name = x
-        SET {
-            theme := 'halloween'
-        }
-    );
-
-However, there are cases when a bulk update lots of external data,
-that cannot be derived from the objects being updated. That is a good
-use-case when a ``FOR`` clause is appropriate.
+Another variation this usage of ``FOR`` is a bulk ``UPDATE``. There
+are cases when a bulk update lots of external data, that cannot be
+derived from the objects being updated. That is a good use-case when a
+``FOR`` statement is appropriate.
 
 .. code-block:: eql
 
     # Here's an example of an update that is awkward to
-    # express without the use of FOR clause
+    # express without the use of FOR statement
     WITH MODULE example
     UPDATE User
     FILTER User.name IN {'Alice', 'Bob', 'Carol', 'Dave'}
@@ -79,7 +59,7 @@ use-case when a ``FOR`` clause is appropriate.
                  'strawberry'
     };
 
-    # Using a FOR clause, the above update becomes simpler to
+    # Using a FOR statement, the above update becomes simpler to
     # express or review for a human.
     WITH MODULE example
     FOR x IN {
@@ -96,15 +76,40 @@ use-case when a ``FOR`` clause is appropriate.
         }
     );
 
-Another example of using a ``FOR`` clause is working with link
-properties. Specifying the link properties either at creation time or
-in a later step with an update is often simpler with a ``FOR`` clause
-helping to associate the link target to the link property in an
-intuitive manner.
+When updating data that mostly or completely depends on the objects
+being updated there's no need to use ``FOR`` statement and it is not
+advised to use it for performance reasons.
 
 .. code-block:: eql
 
-    # Expressing this without FOR clause is fairly tedious.
+    WITH MODULE example
+    UPDATE User
+    FILTER User.name IN {'Alice', 'Bob', 'Carol', 'Dave'}
+    SET {
+        theme := 'halloween'
+    };
+
+    # The above can be accomplished with a FOR statement,
+    # but it is not recommended.
+    WITH MODULE example
+    FOR x IN {'Alice', 'Bob', 'Carol', 'Dave'}
+    UNION OF (
+        UPDATE User
+        FILTER User.name = x
+        SET {
+            theme := 'halloween'
+        }
+    );
+
+Another example of using a ``FOR`` statement is working with link
+properties. Specifying the link properties either at creation time or
+in a later step with an update is often simpler with a ``FOR``
+statement helping to associate the link target to the link property in
+an intuitive manner.
+
+.. code-block:: eql
+
+    # Expressing this without FOR statement is fairly tedious.
     WITH
         MODULE example,
         U2 := User
@@ -133,3 +138,18 @@ intuitive manner.
             )
         }
     );
+
+FOR and GROUP
+-------------
+
+There's a special ``GROUP`` clause that can only appear as the
+iterator in ``FOR`` statement. This clause allows to break a set into
+subsets based on one or more parameters. In the simple form
+``GROUP...BY`` partitions some set.
+
+
+Advanced use of GROUP
+---------------------
+
+The more advanced usage of ``GROUP...BY`` allows to break a set into
+some arbitrary subsets (overlapping or non-covering).
