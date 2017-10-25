@@ -333,6 +333,12 @@ class SelectQuery(ReturningStatement):
     limit: Expr
 
 
+class GroupQuery(SelectQuery):
+    subject: AliasedExpr
+    using: typing.List[AliasedExpr]
+    by: typing.List[Expr]
+
+
 class InsertQuery(SubjStatement):
     shape: typing.List[Expr]
 
@@ -348,7 +354,7 @@ class DeleteQuery(SubjStatement):
 
 class ForQuery(SelectQuery):
     iterator: Expr
-    iterator_aliases: typing.List[str]
+    iterator_alias: str
 
 
 class ShapeElement(Expr):

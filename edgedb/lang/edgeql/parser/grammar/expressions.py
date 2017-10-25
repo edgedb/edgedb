@@ -45,6 +45,9 @@ class SetStmtCore(Nonterm):
     def reduce_SimpleSelect(self, *kids):
         self.val = kids[0].val
 
+    def reduce_SimpleGroup(self, *kids):
+        self.val = kids[0].val
+
     def reduce_SimpleInsert(self, *kids):
         self.val = kids[0].val
 
@@ -63,12 +66,23 @@ class OptSingle(Nonterm):
         self.val = False
 
 
-class OptionallyAliasedExpr(Nonterm):
+class AliasedExpr(Nonterm):
     def reduce_Identifier_TURNSTILE_Expr(self, *kids):
-        self.val = AliasedExprSpec(alias=kids[0].val, expr=kids[2].val)
+        self.val = qlast.AliasedExpr(alias=kids[0].val, expr=kids[2].val)
+
+
+class OptionallyAliasedExpr(Nonterm):
+    def reduce_AliasedExpr(self, *kids):
+        val = kids[0].val
+        self.val = AliasedExprSpec(alias=val.alias, expr=val.expr)
 
     def reduce_Expr(self, *kids):
         self.val = AliasedExprSpec(alias=None, expr=kids[0].val)
+
+
+class AliasedExprList(ListNonterm, element=AliasedExpr,
+                      separator=tokens.T_COMMA):
+    pass
 
 
 # NOTE: This is intentionally not an AST node, since this structure never
@@ -90,48 +104,32 @@ class OutputExpr(Nonterm):
         )
 
 
-class IteratorExpr(Nonterm):
-    def reduce_Expr(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_Group(self, *kids):
-        r'%reduce LPAREN GROUP OptionallyAliasedExpr BY ByExprList RPAREN'
-        self.val = qlast.GroupExpr(subject_alias=kids[2].val.alias,
-                                   subject=kids[2].val.expr,
-                                   by=kids[4].val)
-
-
-class GroupingSet(Nonterm):
-    def reduce_Expr(self, *kids):
-        self.val = qlast.ByExpr(each=None, expr=kids[0].val)
-
-    def reduce_SET_OF_Expr(self, *kids):
-        self.val = qlast.ByExpr(each=False, expr=kids[2].val)
-
-    def reduce_EACH_Expr(self, *kids):
-        self.val = qlast.ByExpr(each=True, expr=kids[1].val)
-
-
-class GroupingSetList(ListNonterm, element=GroupingSet,
-                      separator=tokens.T_COMMA):
-    pass
-
-
+# ByExpr will eventually be expanded to include more than just
+# Identifiers as its members (such as CUBE, ROLLUP and grouping sets).
 class ByExpr(Nonterm):
-    def reduce_GroupingSet(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_CUBE_LPAREN_GroupingSetList_RPAREN(self, *kids):
-        self.val = qlast.GroupBuiltin(name=kids[0].val,
-                                      elements=kids[2].val)
-
-    def reduce_ROLLUP_LPAREN_GroupingSetList_RPAREN(self, *kids):
-        self.val = qlast.GroupBuiltin(name=kids[0].val,
-                                      elements=kids[2].val)
+    def reduce_Identifier(self, *kids):
+        self.val = qlast.Path(steps=[qlast.ClassRef(name=kids[0].val)])
 
 
 class ByExprList(ListNonterm, element=ByExpr, separator=tokens.T_COMMA):
     pass
+
+
+class SimpleFor(Nonterm):
+    def reduce_For(self, *kids):
+        r"%reduce FOR Identifier IN Set \
+                  UNION OptionallyAliasedExpr \
+                  OptFilterClause OptSortClause OptSelectLimit"
+        self.val = qlast.ForQuery(
+            iterator_alias=kids[1].val,
+            iterator=kids[3].val,
+            result=kids[5].val.expr,
+            result_alias=kids[5].val.alias,
+            where=kids[6].val,
+            orderby=kids[7].val,
+            offset=kids[8].val[0],
+            limit=kids[8].val[1],
+        )
 
 
 class SimpleSelect(Nonterm):
@@ -149,20 +147,23 @@ class SimpleSelect(Nonterm):
         )
 
 
-class SimpleFor(Nonterm):
-    def reduce_For(self, *kids):
-        r"%reduce FOR IdentifierList IN IteratorExpr \
-                  UNIONOF OptionallyAliasedExpr \
+class SimpleGroup(Nonterm):
+    def reduce_Group(self, *kids):
+        r"%reduce GROUP AliasedExpr \
+                  USING AliasedExprList \
+                  BY ByExprList \
+                  UNION OptionallyAliasedExpr \
                   OptFilterClause OptSortClause OptSelectLimit"
-        self.val = qlast.ForQuery(
-            iterator_aliases=kids[1].val,
-            iterator=kids[3].val,
-            result=kids[5].val.expr,
-            result_alias=kids[5].val.alias,
-            where=kids[6].val,
-            orderby=kids[7].val,
-            offset=kids[8].val[0],
-            limit=kids[8].val[1],
+        self.val = qlast.GroupQuery(
+            subject=kids[1].val,
+            using=kids[3].val,
+            by=kids[5].val,
+            result=kids[7].val.expr,
+            result_alias=kids[7].val.alias,
+            where=kids[8].val,
+            orderby=kids[9].val,
+            offset=kids[10].val[0],
+            limit=kids[10].val[1],
         )
 
 
@@ -236,10 +237,8 @@ class AliasDecl(Nonterm):
             alias=kids[0].val,
             namespace='.'.join(kids[3].val))
 
-    def reduce_Identifier_TURNSTILE_Expr(self, *kids):
-        self.val = qlast.AliasedExpr(
-            alias=kids[0].val,
-            expr=kids[2].val)
+    def reduce_AliasedExpr(self, *kids):
+        self.val = kids[0].val
 
 
 class AliasDeclList(ListNonterm, element=AliasDecl,
@@ -1136,12 +1135,6 @@ class AnyIdentifier(Nonterm):
 
 
 class ModuleName(ListNonterm, element=AnyIdentifier, separator=tokens.T_DOT):
-    pass
-
-
-# this is used for unpacking elements in FOR
-class IdentifierList(ListNonterm, element=Identifier,
-                     separator=tokens.T_COMMA):
     pass
 
 

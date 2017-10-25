@@ -3725,7 +3725,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             FOR x IN {1, 4}
-            UNION OF Issue {
+            UNION Issue {
                 name
             }
             FILTER
@@ -3737,12 +3737,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             {'name': 'Regression.'},
         ]])
 
-    @unittest.expectedFailure
+    @tb.expected_optimizer_failure
     async def test_edgeql_select_for_02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             FOR x IN {1, 3, 4}
-            UNION OF (
+            UNION (
                 SELECT Issue {
                     name,
                     number,
@@ -3765,6 +3765,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             },
             {
                 'name': 'Regression.',
-                'numebr': '4'
+                'number': '4'
             },
         ]])

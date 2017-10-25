@@ -73,12 +73,6 @@ def compile_SelectQuery(
 @dispatch.compile.register(qlast.ForQuery)
 def compile_ForQuery(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
-    # ForQuery has two major modes of operation:
-    # 1) direct iteration over elements of a set
-    # 2) iteration over subsets defined by GROUP BY
-    if isinstance(expr.iterator, qlast.GroupExpr):
-        return compile_GroupQuery(expr, ctx=ctx)
-
     with ctx.subquery() as sctx:
         stmt = irast.SelectStmt()
         init_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
@@ -87,7 +81,7 @@ def compile_ForQuery(
         # ForQuery has this kind of processing
         with sctx.newscope() as scopectx:
             stmt.iterator_stmt = stmtctx.declare_view(
-                expr.iterator, expr.iterator_aliases[0], ctx=scopectx)
+                expr.iterator, expr.iterator_alias, ctx=scopectx)
         sctx.singletons.add(
             irutils.get_canonical_set(stmt.iterator_stmt))
         pathctx.register_path_scope(stmt.iterator_stmt.path_id, ctx=sctx)
@@ -128,6 +122,7 @@ def compile_ForQuery(
 
 
 # this is a variant of ForQuery now
+@dispatch.compile.register(qlast.GroupQuery)
 def compile_GroupQuery(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
     parent_path_scope = ctx.path_scope.copy()
@@ -146,14 +141,18 @@ def compile_GroupQuery(
         pathctx.register_path_scope(stmt.group_path_id, ctx=ictx)
 
         # handle the GROUP expression first
-        gexpr = expr.iterator
-        aliases = expr.iterator_aliases
+        subject = expr.subject
         with ictx.newscope() as subjctx:
             subjctx.clause = 'input'
-            subj_c = dispatch.compile(gexpr.subject, ctx=subjctx)
+            subj_c = dispatch.compile(subject.expr, ctx=subjctx)
             # FIXME: process subject alias as given in GROUP
             stmt.subject = stmtctx.declare_aliased_set(
-                subj_c, gexpr.subject_alias, ctx=subjctx)
+                subj_c, subject.alias, ctx=subjctx)
+            # FIXME: process grouping parameter aliases
+            for uexpr in expr.using:
+                param = dispatch.compile(uexpr.expr, ctx=subjctx)
+                stmtctx.declare_aliased_set(
+                    param, uexpr.alias, ctx=subjctx)
 
         ictx.path_scope.update(subjctx.path_scope)
 
@@ -164,9 +163,7 @@ def compile_GroupQuery(
             pathctx.update_singletons(stmt.subject, ctx=grpctx)
 
         stmt.groupby = compile_groupby_clause(
-            aliases[1:], gexpr.by, singletons=grpctx.singletons, ctx=ictx)
-        # FIXME: process subject alias as given in FOR
-        stmtctx.declare_aliased_set(subj_c, aliases[0], ctx=ictx)
+            expr.by, singletons=grpctx.singletons, ctx=ictx)
 
         output = expr.result
 
@@ -396,7 +393,6 @@ def compile_result_clause(
 
 
 def compile_groupby_clause(
-        aliases: typing.Iterable[str],
         groupexprs: typing.Iterable[qlast.Base], *,
         singletons: typing.Set[irast.Set],
         ctx: context.ContextLevel) -> typing.List[irast.Set]:
@@ -410,12 +406,8 @@ def compile_groupby_clause(
         sctx.singletons.update(singletons)
 
         ir_groupexprs = []
-        for alias, groupexpr in zip(aliases, groupexprs):
-            # FIXME: This is not quite correct handling as it results in a
-            # cross-product somewhere.
-            with sctx.newscope() as gsctx:
-                stmtctx.declare_view(groupexpr.expr, alias, ctx=gsctx)
-                ir_groupexpr = dispatch.compile(groupexpr.expr, ctx=gsctx)
+        for groupexpr in groupexprs:
+            ir_groupexpr = dispatch.compile(groupexpr, ctx=sctx)
 
             ir_groupexpr.context = groupexpr.context
             ir_groupexprs.append(ir_groupexpr)

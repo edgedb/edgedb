@@ -1700,71 +1700,64 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT User.name OFFSET Foo.bar LIMIT (Foo.bar * 10);
         """
 
-    def test_edgeql_syntax_forgroup_01(self):
+    def test_edgeql_syntax_group_01(self):
         """
-        FOR User, _ IN (GROUP User BY User.name)
-        UNION OF count(User.tasks);
+        GROUP User := User
+        USING _ :=  User.name
+        BY _
+        UNION count(User.tasks);
         """
 
-    def test_edgeql_syntax_forgroup_02(self):
+    def test_edgeql_syntax_group_02(self):
         """
         # define and mask aliases
         WITH
             _1 := User
-        FOR _1, _ IN (GROUP _1 BY _1.name)
-        UNION OF _2 := (
-            num_tasks := count(DISTINCT _1.tasks)
+        GROUP _2 := _1
+        USING _ :=  _2.name
+        BY _
+        UNION _3 := (
+            num_tasks := count(DISTINCT _2.tasks)
         )
-        ORDER BY _2.num_tasks ASC;
+        ORDER BY _3.num_tasks ASC;
         """
 
-    def test_edgeql_syntax_forgroup_03(self):
+    def test_edgeql_syntax_group_03(self):
         """
-        FOR User, G IN (GROUP User BY User.name)
-        UNION OF (
+        GROUP User := User
+        USING G :=  User.name
+        BY G
+        UNION (
             name := G,
             num_tasks := count(User.tasks)
         );
         """
 
-    def test_edgeql_syntax_forgroup_04(self):
+    def test_edgeql_syntax_group_04(self):
         """
-        FOR User, G IN (GROUP F := User.friends BY F.name)
-        UNION OF (
+        GROUP F := User.friends
+        USING G :=  F.name
+        BY G
+        UNION (
             name := G,
-            num_tasks := count(User.tasks)
+            num_tasks := count(F.tasks)
         );
         """
 
-    def test_edgeql_syntax_forgroup_05(self):
+    def test_edgeql_syntax_group_05(self):
         """
-        FOR User, G1, G2, G3, G4 IN (
-            GROUP User
-            BY
-                CUBE(User.name, User.age),
-                ROLLUP(User.rank, User.status)
-        )
-        UNION OF (
-            name := G,
-            num_tasks := count(User.tasks)
-        );
-        """
-
-    def test_edgeql_syntax_forgroup_06(self):
-        """
-        FOR User, G1, G2, G3, G4 IN (
-            GROUP User
-            BY
-                EACH User.friends,
-                SET OF User.name,
-                ROLLUP(
-                    EACH User.rank,
-                    SET OF User.status
-                )
-        )
-        UNION OF (
-            name := G,
-            num_tasks := count(User.tasks)
+        GROUP
+            U := User
+        USING
+            G1 := User.name,
+            G2 := User.age,
+            G3 := User.rank,
+            G4 := User.status
+        BY
+            G1, G2, G3, G4
+        UNION (
+            name := G1,
+            num_tasks := count(U.tasks)
         );
         """
 
@@ -2016,45 +2009,54 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_insertfor_01(self):
         """
-        FOR name in 'a' UNION 'b' UNION 'c'
-        UNION OF (INSERT User{name := name});
+        FOR name IN {'a', 'b', 'c'}
+        UNION (INSERT User{name := name});
 
-% OK %
-
-        FOR name in (('a' UNION 'b') UNION 'c')
-        UNION OF (INSERT User{name := name});
+        FOR name IN {'a', 'b', Foo.bar, Foo.baz}
+        UNION (INSERT User{name := name});
         """
 
     def test_edgeql_syntax_insertfor_02(self):
         """
-        FOR name IN (SELECT Foo.bar FILTER (Foo.baz = TRUE))
-        UNION OF (INSERT Foo{name := name});
+        FOR name IN {'a' UNION 'b' UNION 'c'}
+        UNION (INSERT User{name := name});
+
+% OK %
+
+        FOR name IN {(('a' UNION 'b') UNION 'c')}
+        UNION (INSERT User{name := name});
         """
 
     def test_edgeql_syntax_insertfor_03(self):
         """
-        FOR bar IN (INSERT Bar{name := 'bar'})
-        UNION OF (INSERT Foo{name := bar.name});
+        FOR name IN {(SELECT Foo.bar FILTER (Foo.baz = TRUE))}
+        UNION (INSERT Foo{name := name});
         """
 
     def test_edgeql_syntax_insertfor_04(self):
         """
-        FOR bar IN (DELETE Bar)
-        UNION OF (INSERT Foo{name := bar.name});
+        FOR bar IN {(INSERT Bar{name := 'bar'})}
+        UNION (INSERT Foo{name := bar.name});
         """
 
     def test_edgeql_syntax_insertfor_05(self):
         """
-        FOR bar IN (
+        FOR bar IN {(DELETE Bar)}
+        UNION (INSERT Foo{name := bar.name});
+        """
+
+    def test_edgeql_syntax_insertfor_06(self):
+        """
+        FOR bar IN {(
             UPDATE Bar SET {name := (name + 'bar')}
-        )
-        UNION OF (INSERT Foo{name := bar.name});
+        )}
+        UNION (INSERT Foo{name := bar.name});
         """
 
     def test_edgeql_syntax_selectfor_01(self):
         """
-        FOR x in (('Alice', 'White') UNION ('Bob', 'Green'))
-        UNION OF (
+        FOR x IN {(('Alice', 'White') UNION ('Bob', 'Green'))}
+        UNION (
             SELECT User{first_tname, last_name, age}
             FILTER (
                 (.first_name = x.0)
@@ -2066,8 +2068,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_deletefor_01(self):
         """
-        FOR x in (('Alice', 'White') UNION ('Bob', 'Green'))
-        UNION OF (
+        FOR x IN {(('Alice', 'White') UNION ('Bob', 'Green'))}
+        UNION (
             DELETE (
                 SELECT User
                 FILTER (
@@ -2081,8 +2083,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_updatefor_01(self):
         """
-        FOR x in ((1, 'a') UNION (2, 'b'))
-        UNION OF (UPDATE Foo FILTER (Foo.id = x.0) SET {bar := x.1});
+        FOR x IN {((1, 'a') UNION (2, 'b'))}
+        UNION (UPDATE Foo FILTER (Foo.id = x.0) SET {bar := x.1});
         """
 
     def test_edgeql_syntax_coalesce_01(self):

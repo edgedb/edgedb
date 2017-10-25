@@ -484,15 +484,15 @@ class TestInsert(tb.QueryTestCase):
         res = await self.con.execute(r'''
             WITH MODULE test
             FOR x IN {3, 5, 7, 2}
-            UNION OF (INSERT InsertTest {
+            UNION (INSERT InsertTest {
                 name := 'insert for 1',
                 l2 := x,
             });
 
             WITH MODULE test
-            FOR Q IN (SELECT InsertTest{foo := 'foo' + <str> InsertTest.l2}
-                      FILTER .name = 'insert for 1')
-            UNION OF (INSERT InsertTest {
+            FOR Q IN {(SELECT InsertTest{foo := 'foo' + <str> InsertTest.l2}
+                       FILTER .name = 'insert for 1')}
+            UNION (INSERT InsertTest {
                 name := 'insert for 1',
                 l2 := 35 % Q.l2,
                 l3 := Q.foo,
@@ -561,7 +561,7 @@ class TestInsert(tb.QueryTestCase):
                      {1, 2, 3, 4, 5, 6, 7, 8, 9, 10} *
                      {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
                      # 10 x 10 x 10 entries in the cross-product
-            UNION OF (INSERT DefaultTest3);
+            UNION (INSERT DefaultTest3);
 
             # statistically, randomly generated value for 'foo' should not be
             # identical for all 1000 records
@@ -585,7 +585,7 @@ class TestInsert(tb.QueryTestCase):
             # new objects.
             WITH MODULE test
             FOR x IN {1, 2, 3, 4, 5}
-            UNION OF (INSERT DefaultTest4);
+            UNION (INSERT DefaultTest4);
 
             WITH MODULE test
             SELECT DefaultTest4.bar
@@ -710,18 +710,17 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_as_expr_01(self):
         res = await self.con.execute(r'''
             # insert several objects, then annotate one of the inserted batch
-            #
             WITH MODULE test
-            FOR x IN (
+            FOR x IN {(
                     SELECT _i := (
                         FOR y IN {3, 5, 7, 2}
-                        UNION OF (INSERT InsertTest {
+                        UNION (INSERT InsertTest {
                             name := 'insert expr 1',
                             l2 := y,
                         })
                     ) ORDER BY _i.l2 DESC LIMIT 1
-                )
-            UNION OF (INSERT Annotation {
+                )}
+            UNION (INSERT Annotation {
                 name := 'insert expr 1',
                 note := 'largest ' + <str>x.l2,
                 subject := x
@@ -779,12 +778,11 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_as_expr_02(self):
         res = await self.con.execute(r'''
             # same as above, but refactored differently
-            #
             WITH
                 MODULE test,
                 _i := (
-                    FOR (x IN {3, 5, 7, 2})
-                    (INSERT InsertTest {
+                    FOR x IN {3, 5, 7, 2}
+                    UNION (INSERT InsertTest {
                         name := 'insert expr 2',
                         l2 := x,
                     })

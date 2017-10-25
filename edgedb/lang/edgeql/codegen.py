@@ -198,12 +198,50 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_aliases(node)
 
         self.write('FOR ')
-        self.write(', '.join([ident_to_str(a) for a in node.iterator_aliases]))
+        self.write(ident_to_str(node.iterator_alias))
         self.write(' IN ')
         self.visit(node.iterator)
         # guarantee an newline here
         self.new_lines = 1
-        self.write('UNION OF ')
+        self.write('UNION ')
+        if node.result_alias:
+            self.write(node.result_alias, ' := ')
+        self._block_ws(1)
+        self.visit(node.result)
+        self.indentation -= 1
+
+        self._visit_filter(node)
+        self._visit_order(node)
+        self._visit_offset_limit(node)
+
+        if parenthesise:
+            self.write(')')
+
+    def visit_GroupQuery(self, node):
+        # need to parenthesise when GROUP appears as an expression
+        parenthesise = (isinstance(node.parent, edgeql_ast.Base) and
+                        not isinstance(node.parent, edgeql_ast.DDL))
+
+        if parenthesise:
+            self.write('(')
+
+        self._visit_aliases(node)
+
+        self.write('GROUP')
+        self._block_ws(1)
+        self.visit(node.subject)
+        self._block_ws(-1)
+        self.write('USING')
+        self._block_ws(1)
+        self.visit_list(node.using)
+        self._block_ws(-1)
+        self.write('BY')
+        self._block_ws(1)
+        self.visit_list(node.by, newlines=False)
+        self._block_ws(-1)
+
+        # guarantee an newline here
+        self.write('UNION ')
         if node.result_alias:
             self.write(node.result_alias, ' := ')
         self._block_ws(1)

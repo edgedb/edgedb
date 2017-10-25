@@ -141,7 +141,7 @@ class EdgeQLLexer(lexer.Lexer):
             common_rules,
     }
 
-    MERGE_TOKENS = {('LINK', 'PROPERTY'), ('UNION', 'OF')}
+    MERGE_TOKENS = {('LINK', 'PROPERTY')}
 
     def __init__(self):
         super().__init__()

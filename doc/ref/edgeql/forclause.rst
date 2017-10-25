@@ -14,21 +14,21 @@ Simple FOR
 ----------
 
 The simplest use case is when the iterator is given by a set
-expression and it follows the general form of ``FOR x IN A ...``::
+expression and it follows the general form of ``FOR x IN A ...``:
 
 .. code-block:: eql
 
     WITH MODULE example
-    # the iterator is an explicit set of tuples, so x is an element of
-    # this set, i.e. a single tuple
+    # the iterator is an explicit set of tuples, so x is an
+    # element of this set, i.e. a single tuple
     FOR x IN {
-            (name := 'Alice', theme := 'fire'),
-            (name := 'Bob', theme := 'rain'),
-            (name := 'Carol', theme := 'clouds'),
-            (name := 'Dave', theme := 'forest')
-        }
+        (name := 'Alice', theme := 'fire'),
+        (name := 'Bob', theme := 'rain'),
+        (name := 'Carol', theme := 'clouds'),
+        (name := 'Dave', theme := 'forest')
+    }
     # typically this is used with an INSERT, DELETE or UPDATE
-    UNION OF (
+    UNION (
         INSERT
             User {
                 name := x.name,
@@ -63,12 +63,12 @@ derived from the objects being updated. That is a good use-case when a
     # express or review for a human.
     WITH MODULE example
     FOR x IN {
-            (name := 'Alice', theme := 'red'),
-            (name := 'Bob', theme := 'star'),
-            (name := 'Carol', theme := 'dark'),
-            (name := 'Dave', theme := 'strawberry')
-        }
-    UNION OF (
+        (name := 'Alice', theme := 'red'),
+        (name := 'Bob', theme := 'star'),
+        (name := 'Carol', theme := 'dark'),
+        (name := 'Dave', theme := 'strawberry')
+    }
+    UNION (
         UPDATE User
         FILTER User.name = x.name
         SET {
@@ -93,7 +93,7 @@ advised to use it for performance reasons.
     # but it is not recommended.
     WITH MODULE example
     FOR x IN {'Alice', 'Bob', 'Carol', 'Dave'}
-    UNION OF (
+    UNION (
         UPDATE User
         FILTER User.name = x
         SET {
@@ -114,42 +114,27 @@ an intuitive manner.
         MODULE example,
         U2 := User
     FOR x IN {
-            (
-                name := 'Alice',
-                friends := [('Bob', 'coffee buff'),
-                            ('Carol', 'dog person')]
-            ),
-            (
-                name := 'Bob',
-                friends := [('Alice', 'movie buff'),
-                            ('Dave', 'cat person')]
-            )
-        }
-    UNION OF (
+        (
+            name := 'Alice',
+            friends := [('Bob', 'coffee buff'),
+                        ('Carol', 'dog person')]
+        ),
+        (
+            name := 'Bob',
+            friends := [('Alice', 'movie buff'),
+                        ('Dave', 'cat person')]
+        )
+    }
+    UNION (
         UPDATE User
         FILTER User.name = x.name
         SET {
             friends := (
-                FOR f in unnest(x.friends)
-                UNION OF (
+                FOR f in {unnest(x.friends)}
+                UNION (
                     SELECT U2 {@nickname := f.1}
                     FILTER U2.name = f.0
                 )
             )
         }
     );
-
-FOR and GROUP
--------------
-
-There's a special ``GROUP`` clause that can only appear as the
-iterator in ``FOR`` statement. This clause allows to break a set into
-subsets based on one or more parameters. In the simple form
-``GROUP...BY`` partitions some set.
-
-
-Advanced use of GROUP
----------------------
-
-The more advanced usage of ``GROUP...BY`` allows to break a set into
-some arbitrary subsets (overlapping or non-covering).
