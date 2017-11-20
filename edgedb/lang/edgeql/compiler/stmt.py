@@ -70,6 +70,58 @@ def compile_SelectQuery(
     return result
 
 
+@dispatch.compile.register(qlast.ForQuery)
+def compile_ForQuery(
+        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
+    with ctx.subquery() as sctx:
+        stmt = irast.SelectStmt()
+        init_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
+
+        # XXX: this was factored out of init_stmt, since now only a
+        # ForQuery has this kind of processing
+        with sctx.newscope() as scopectx:
+            stmt.iterator_stmt = stmtctx.declare_view(
+                expr.iterator, expr.iterator_alias, ctx=scopectx)
+        sctx.singletons.add(
+            irutils.get_canonical_set(stmt.iterator_stmt))
+        pathctx.register_path_scope(stmt.iterator_stmt.path_id, ctx=sctx)
+
+        output = expr.result
+
+        if (isinstance(output, qlast.Shape) and
+                isinstance(output.expr, qlast.Path) and
+                output.expr.steps):
+            sctx.result_path_steps = output.expr.steps
+
+        stmt.result = compile_result_clause(
+            expr.result, ctx.toplevel_shape_rptr, expr.result_alias, ctx=sctx)
+
+        stmt.where = clauses.compile_where_clause(
+            expr.where, ctx=sctx)
+
+        stmt.orderby = clauses.compile_orderby_clause(
+            expr.orderby, ctx=sctx)
+
+        stmt.offset = clauses.compile_limit_offset_clause(
+            expr.offset, ctx=sctx)
+
+        stmt.limit = clauses.compile_limit_offset_clause(
+            expr.limit, ctx=sctx)
+
+        result = fini_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
+
+    # Query cardinality inference must be ran in parent context.
+    if expr.single:
+        stmt.result.context = expr.result.context
+        # XXX: correct cardinality inference depends on
+        # query selectivity estimator, which is not done yet.
+        # pathctx.enforce_singleton(stmt.result, ctx=ctx)
+        stmt.singleton = True
+
+    return result
+
+
+# this is a variant of ForQuery now
 @dispatch.compile.register(qlast.GroupQuery)
 def compile_GroupQuery(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
@@ -88,11 +140,19 @@ def compile_GroupQuery(
         stmt.group_path_id = pathctx.get_path_id(c, ctx=ictx)
         pathctx.register_path_scope(stmt.group_path_id, ctx=ictx)
 
+        # handle the GROUP expression first
+        subject = expr.subject
         with ictx.newscope() as subjctx:
             subjctx.clause = 'input'
+            subj_c = dispatch.compile(subject.expr, ctx=subjctx)
+            # FIXME: process subject alias as given in GROUP
             stmt.subject = stmtctx.declare_aliased_set(
-                dispatch.compile(expr.subject, ctx=subjctx),
-                expr.subject_alias, ctx=subjctx)
+                subj_c, subject.alias, ctx=subjctx)
+            # FIXME: process grouping parameter aliases
+            for uexpr in expr.using:
+                param = dispatch.compile(uexpr.expr, ctx=subjctx)
+                stmtctx.declare_aliased_set(
+                    param, uexpr.alias, ctx=subjctx)
 
         ictx.path_scope.update(subjctx.path_scope)
 
@@ -103,7 +163,7 @@ def compile_GroupQuery(
             pathctx.update_singletons(stmt.subject, ctx=grpctx)
 
         stmt.groupby = compile_groupby_clause(
-            expr.groupby, singletons=grpctx.singletons, ctx=ictx)
+            expr.by, singletons=grpctx.singletons, ctx=ictx)
 
         output = expr.result
 
@@ -256,16 +316,6 @@ def init_stmt(
     irstmt.parent_stmt = parent_ctx.stmt
     process_with_block(qlstmt, ctx=ctx)
 
-    if qlstmt.iterator is not None:
-        with ctx.newscope() as scopectx:
-            irstmt.iterator_stmt = stmtctx.declare_view(
-                qlstmt.iterator, qlstmt.iterator_alias, ctx=scopectx)
-
-        ctx.singletons.add(
-            irutils.get_canonical_set(irstmt.iterator_stmt))
-
-        pathctx.register_path_scope(irstmt.iterator_stmt.path_id, ctx=ctx)
-
 
 def fini_stmt(
         irstmt: irast.Stmt, qlstmt: qlast.Statement, *,
@@ -358,6 +408,7 @@ def compile_groupby_clause(
         ir_groupexprs = []
         for groupexpr in groupexprs:
             ir_groupexpr = dispatch.compile(groupexpr, ctx=sctx)
+
             ir_groupexpr.context = groupexpr.context
             ir_groupexprs.append(ir_groupexpr)
 

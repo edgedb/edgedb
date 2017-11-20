@@ -120,6 +120,8 @@ class SortExpr(Clause):
     nones_order: str
 
 
+# TODO: this needs clean-up and refactoring to account for different
+# uses of aliases
 class AliasedExpr(Clause):
     expr: Expr
     alias: str
@@ -282,6 +284,30 @@ class Set(Expr):
     elements: typing.List[Expr]
 
 
+# Expressions used only in statemets
+#
+
+class ByExprBase(Base):
+    '''Abstract parent of all grouping sets.'''
+    pass
+
+
+class ByExpr(ByExprBase):
+    each: bool
+    expr: Expr
+
+
+class GroupBuiltin(ByExprBase):
+    name: str
+    elements: typing.List[ByExpr]
+
+
+class GroupExpr(Expr):
+    subject: Expr
+    subject_alias: str
+    by: typing.List[ByExprBase]
+
+
 # Statements
 #
 
@@ -289,17 +315,12 @@ class Statement(Expr):
     aliases: typing.List[typing.Union[AliasedExpr, NamespaceAliasDecl]]
 
 
-class QueryStatement(Statement):
-    iterator: Expr
-    iterator_alias: str
-
-
-class SubjStatement(QueryStatement):
+class SubjStatement(Statement):
     subject: Expr
     subject_alias: str
 
 
-class ReturningStatement(QueryStatement):
+class ReturningStatement(Statement):
     result: Expr
     result_alias: str
     single: bool = False
@@ -312,12 +333,10 @@ class SelectQuery(ReturningStatement):
     limit: Expr
 
 
-class GroupQuery(SubjStatement, ReturningStatement):
-    where: Expr
-    groupby: typing.List[Expr]
-    orderby: typing.List[SortExpr]
-    offset: Expr
-    limit: Expr
+class GroupQuery(SelectQuery):
+    subject: AliasedExpr
+    using: typing.List[AliasedExpr]
+    by: typing.List[Expr]
 
 
 class InsertQuery(SubjStatement):
@@ -331,6 +350,11 @@ class UpdateQuery(SubjStatement):
 
 class DeleteQuery(SubjStatement):
     where: Expr
+
+
+class ForQuery(SelectQuery):
+    iterator: Expr
+    iterator_alias: str
 
 
 class ShapeElement(Expr):

@@ -235,24 +235,24 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
                     SET is_virtual := False;
                     SET mapping := '*1';
                     SET readonly := False;
-                }
+                };
                 ALTER LINK test::name {
                     CREATE LINK PROPERTY std::source TO test::NamedObject {
                         SET is_virtual := False;
                         SET readonly := False;
                         SET title := 'Link source';
-                    }
+                    };
                     CREATE LINK PROPERTY std::target TO std::str {
                         SET is_virtual := False;
                         SET readonly := False;
                         SET title := 'Link target';
-                    }
+                    };
                     CREATE LINK PROPERTY test::lang TO std::str {
                         SET is_virtual := False;
                         SET readonly := False;
                         SET title := 'Base link property';
-                    }
-                }
+                    };
+                };
             };
             '''
         )
@@ -297,19 +297,19 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
             SET is_virtual := False;
             SET mapping := '*1';
             SET readonly := False;
-        }
+        };
         ALTER LINK test::a {
             CREATE LINK PROPERTY std::source TO test::NamedObject {
                 SET is_virtual := False;
                 SET readonly := False;
                 SET title := 'Link source';
-            }
+            };
             CREATE LINK PROPERTY std::target TO array<std::int> {
                 SET is_virtual := False;
                 SET readonly := False;
                 SET title := 'Link target';
-            }
-        }
+            };
+        };
     };
             '''
         )

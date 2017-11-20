@@ -191,6 +191,19 @@ them.
         link favorites to Post:
             mapping := '**'
 
+.. TODO::
+
+    Computables probably need a section of their own, but for now it
+    will be covered here.
+
+Links can have computable values. That means that every time the link
+value is accessed in a new scope the computable expression will be
+evaluated.
+
+Links can also declare default values and those defaults can be
+computable. The default value is *only* evaluated once at the time of
+an ``INSERT`` and is used to provide a value for the link.
+
 
 Constraints
 ~~~~~~~~~~~

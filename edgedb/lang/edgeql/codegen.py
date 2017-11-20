@@ -46,52 +46,72 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         raise EdgeQLSourceGeneratorError(
             'No method to generate code for %s' % node.__class__.__name__)
 
+    def _block_ws(self, change, newlines=True):
+        if newlines:
+            self.indentation += change
+            self.new_lines = 1
+        else:
+            self.write(' ')
+
     def _visit_aliases(self, node):
         if node.aliases:
             self.write('WITH')
-            self.indentation += 1
-            self.new_lines = 1
+            self._block_ws(1)
             self.visit_list(node.aliases)
-            self.new_lines = 1
-            self.indentation -= 1
+            self._block_ws(-1)
 
-    def _visit_for(self, node):
-        if node.iterator:
-            self.write('FOR ', ident_to_str(node.iterator_alias), ' IN')
-            self.indentation += 1
-            self.new_lines = 1
-            self.visit(node.iterator)
-            self.indentation -= 1
-            self.new_lines = 1
+    def _visit_filter(self, node, newlines=True):
+        if node.where:
+            self.write('FILTER')
+            self._block_ws(1, newlines)
+            self.visit(node.where)
+            self._block_ws(-1, newlines)
+
+    def _visit_order(self, node, newlines=True):
+        if node.orderby:
+            self.write('ORDER BY')
+            self._block_ws(1, newlines)
+            self.visit_list(node.orderby, separator=' THEN', newlines=newlines)
+            self._block_ws(-1, newlines)
+
+    def _visit_offset_limit(self, node, newlines=True):
+        if node.offset is not None:
+            self.write('OFFSET')
+            self._block_ws(1, newlines)
+            self.visit(node.offset)
+            self._block_ws(-1, newlines)
+        if node.limit is not None:
+            self.write('LIMIT')
+            self._block_ws(1, newlines)
+            self.visit(node.limit)
+            self._block_ws(-1, newlines)
 
     def visit_AliasedExpr(self, node):
-        self.write(ident_to_str(node.alias))
-        self.write(' := ')
-        self.new_lines = 1
-        self.indentation += 1
+        if node.alias:
+            self.write(ident_to_str(node.alias))
+            self.write(' := ')
+            self._block_ws(1)
+
         self.visit(node.expr)
-        self.indentation -= 1
-        self.new_lines = 1
+
+        if node.alias:
+            self._block_ws(-1)
 
     def visit_Coalesce(self, node):
         self.visit_list(node.args, separator=' ?? ', newlines=False)
 
     def visit_InsertQuery(self, node):
         # need to parenthesise when INSERT appears as an expression
-        #
         parenthesise = (isinstance(node.parent, edgeql_ast.Base) and
                         not isinstance(node.parent, edgeql_ast.DDL))
 
         if parenthesise:
             self.write('(')
         self._visit_aliases(node)
-        self._visit_for(node)
         self.write('INSERT')
-        self.indentation += 1
-        self.new_lines = 1
+        self._block_ws(1)
         self.visit(node.subject, parenthesise=False)
-        self.indentation -= 1
-        self.new_lines = 1
+        self._block_ws(-1)
 
         if node.shape:
             self.indentation += 1
@@ -103,28 +123,18 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_UpdateQuery(self, node):
         # need to parenthesise when UPDATE appears as an expression
-        #
         parenthesise = (isinstance(node.parent, edgeql_ast.Base) and
                         not isinstance(node.parent, edgeql_ast.DDL))
 
         if parenthesise:
             self.write('(')
         self._visit_aliases(node)
-        self._visit_for(node)
         self.write('UPDATE')
-        self.indentation += 1
-        self.new_lines = 1
+        self._block_ws(1)
         self.visit(node.subject, parenthesise=False)
-        self.indentation -= 1
-        self.new_lines = 1
+        self._block_ws(-1)
 
-        if node.where:
-            self.new_lines = 1
-            self.write('FILTER')
-            self.indentation += 1
-            self.new_lines = 1
-            self.visit(node.where)
-            self.indentation -= 1
+        self._visit_filter(node)
 
         self.new_lines = 1
         self.write('SET ')
@@ -140,14 +150,12 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_DeleteQuery(self, node):
         # need to parenthesise when DELETE appears as an expression
-        #
         parenthesise = (isinstance(node.parent, edgeql_ast.Base) and
                         not isinstance(node.parent, edgeql_ast.DDL))
 
         if parenthesise:
             self.write('(')
         self._visit_aliases(node)
-        self._visit_for(node)
         self.write('DELETE ')
         self.visit(node.subject, parenthesise=False)
 
@@ -157,7 +165,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_SelectQuery(self, node, *, parenthesise=False):
         # XXX: need to parenthesise when SELECT appears as an expression,
         # the actual passed value is ignored.
-        #
         parenthesise = (isinstance(node.parent, edgeql_ast.Base) and
                         not isinstance(node.parent, edgeql_ast.DDL))
 
@@ -165,52 +172,53 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write('(')
 
         self._visit_aliases(node)
-        self._visit_for(node)
 
         self.write('SELECT')
         if node.single:
             self.write(' SINGLETON')
-        self.new_lines = 1
-        self.indentation += 1
+        self._block_ws(1)
         if node.result_alias:
             self.write(node.result_alias, ' := ')
         self.visit(node.result)
+        self._block_ws(-1)
+        self._visit_filter(node)
+        self._visit_order(node)
+        self._visit_offset_limit(node)
+        if parenthesise:
+            self.write(')')
+
+    def visit_ForQuery(self, node):
+        # need to parenthesise when GROUP appears as an expression
+        parenthesise = (isinstance(node.parent, edgeql_ast.Base) and
+                        not isinstance(node.parent, edgeql_ast.DDL))
+
+        if parenthesise:
+            self.write('(')
+
+        self._visit_aliases(node)
+
+        self.write('FOR ')
+        self.write(ident_to_str(node.iterator_alias))
+        self.write(' IN ')
+        self.visit(node.iterator)
+        # guarantee an newline here
         self.new_lines = 1
+        self.write('UNION ')
+        if node.result_alias:
+            self.write(node.result_alias, ' := ')
+        self._block_ws(1)
+        self.visit(node.result)
         self.indentation -= 1
-        if node.where:
-            self.write('FILTER')
-            self.new_lines = 1
-            self.indentation += 1
-            self.visit(node.where)
-            self.new_lines = 1
-            self.indentation -= 1
-        if node.orderby:
-            self.write('ORDER BY')
-            self.new_lines = 1
-            self.indentation += 1
-            self.visit_list(node.orderby, separator=' THEN')
-            self.new_lines = 1
-            self.indentation -= 1
-        if node.offset is not None:
-            self.write('OFFSET')
-            self.new_lines = 1
-            self.indentation += 1
-            self.visit(node.offset)
-            self.indentation -= 1
-            self.new_lines = 1
-        if node.limit is not None:
-            self.write('LIMIT')
-            self.new_lines = 1
-            self.indentation += 1
-            self.visit(node.limit)
-            self.indentation -= 1
-            self.new_lines = 1
+
+        self._visit_filter(node)
+        self._visit_order(node)
+        self._visit_offset_limit(node)
+
         if parenthesise:
             self.write(')')
 
     def visit_GroupQuery(self, node):
         # need to parenthesise when GROUP appears as an expression
-        #
         parenthesise = (isinstance(node.parent, edgeql_ast.Base) and
                         not isinstance(node.parent, edgeql_ast.DDL))
 
@@ -218,65 +226,62 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write('(')
 
         self._visit_aliases(node)
-        self._visit_for(node)
 
         self.write('GROUP')
-        self.new_lines = 1
-        self.indentation += 1
+        self._block_ws(1)
+        self.visit(node.subject)
+        self._block_ws(-1)
+        self.write('USING')
+        self._block_ws(1)
+        self.visit_list(node.using)
+        self._block_ws(-1)
+        self.write('BY')
+        self._block_ws(1)
+        self.visit_list(node.by, newlines=False)
+        self._block_ws(-1)
+
+        # guarantee an newline here
+        self.write('UNION ')
+        if node.result_alias:
+            self.write(node.result_alias, ' := ')
+        self._block_ws(1)
+        self.visit(node.result)
+        self.indentation -= 1
+
+        self._visit_filter(node)
+        self._visit_order(node)
+        self._visit_offset_limit(node)
+
+        if parenthesise:
+            self.write(')')
+
+    def visit_GroupExpr(self, node):
+        # GROUP expression is always parenthesised
+        self.write('(')
+        self._block_ws(1)
+        self.write('GROUP ')
         if node.subject_alias:
             self.write(node.subject_alias, ' := ')
         self.visit(node.subject)
-        self.new_lines = 1
-        self.indentation -= 1
-        self.write('BY')
-        self.new_lines = 1
-        self.indentation += 1
-        self.visit_list(node.groupby, separator=' THEN')
-        self.new_lines = 1
-        self.indentation -= 1
+        self.write(' BY ')
+        self._block_ws(1)
+        self.visit_list(node.by)
+        self._block_ws(-2)
+        self.write(')')
 
-        if node.result is not None:
-            self.new_lines = 1
-            self.write('SELECT')
-            if node.single:
-                self.write(' SINGLETON')
-            if node.result_alias:
-                self.write(node.result_alias, ' := ')
-            self.indentation += 1
-            self.new_lines = 1
-            self.visit(node.result)
-            self.indentation -= 1
+    def visit_ByExpr(self, node):
+        if node.each is not None:
+            if node.each:
+                self.write('EACH ')
+            else:
+                self.write('SET OF ')
 
-        if node.where:
-            self.write('FILTER')
-            self.new_lines = 1
-            self.indentation += 1
-            self.visit(node.where)
-            self.new_lines = 1
-            self.indentation -= 1
-        if node.orderby:
-            self.write('ORDER BY')
-            self.new_lines = 1
-            self.indentation += 1
-            self.visit_list(node.orderby, separator=' THEN')
-            self.new_lines = 1
-            self.indentation -= 1
-        if node.offset is not None:
-            self.write('OFFSET')
-            self.new_lines = 1
-            self.indentation += 1
-            self.visit(node.offset)
-            self.indentation -= 1
-            self.new_lines = 1
-        if node.limit is not None:
-            self.write('LIMIT')
-            self.new_lines = 1
-            self.indentation += 1
-            self.visit(node.limit)
-            self.indentation -= 1
-            self.new_lines = 1
-        if parenthesise:
-            self.write(')')
+        self.visit(node.expr)
+
+    def visit_GroupBuiltin(self, node):
+        self.write(node.name, '(')
+        self.visit_list(node.elements, newlines=False)
+        self.write(')')
 
     def visit_NamespaceAliasDecl(self, node):
         if node.alias:
@@ -357,11 +362,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_NamedTuple(self, node):
         self.write('(')
-        self.indentation += 1
-        self.new_lines = 1
+        self._block_ws(1)
         self.visit_list(node.elements, newlines=True, separator=',')
-        self.indentation -= 1
-        self.new_lines = 1
+        self._block_ws(-1)
         self.write(')')
 
     def visit_TupleElement(self, node):
@@ -405,11 +408,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def _visit_shape(self, shape):
         if shape:
             self.write('{')
-            self.indentation += 1
-            self.new_lines = 1
+            self._block_ws(1)
             self.visit_list(shape)
-            self.indentation -= 1
-            self.new_lines = 1
+            self._block_ws(-1)
             self.write('}')
 
     def visit_Ptr(self, node, *, quote=True):
@@ -504,8 +505,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         if node.window:
             self.write(' OVER (')
-            self.new_lines = 1
-            self.indentation += 1
+            self._block_ws(1)
 
             if node.window.partition:
                 self.write('PARTITION BY ')
@@ -516,8 +516,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.write('ORDER BY ')
                 self.visit_list(node.window.orderby, separator=' THEN')
 
-            self.indentation -= 1
-            self.new_lines = 1
+            self._block_ws(-1)
             self.write(')')
 
     def visit_NamedArg(self, node):
@@ -633,12 +632,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             after_name()
         if node.commands and render_commands:
             self.write(' {')
-            self.new_lines = 1
-            self.indentation += 1
-            self.visit(node.commands)
+            self._block_ws(1)
+            self.visit_list(node.commands, terminator=';')
             self.indentation -= 1
             self.write('}')
-        self.new_lines = 1
 
     def _visit_AlterObject(self, node, *object_keywords, allow_short=True):
         self._visit_aliases(node)
@@ -651,14 +648,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.visit(node.commands[0])
             else:
                 self.write(' {')
-                self.new_lines = 1
-                self.indentation += 1
-                for cmd in node.commands:
-                    self.visit(cmd)
-                    self.new_lines = 1
-                self.indentation -= 1
+                self._block_ws(1)
+                self.visit_list(node.commands, terminator=';')
+                self._block_ws(-1)
                 self.write('}')
-        self.new_lines = 1
 
     def _visit_DropObject(self, node, *object_keywords):
         self._visit_aliases(node)
@@ -667,12 +660,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.name, parenthesise=False)
         if node.commands:
             self.write(' {')
-            self.new_lines = 1
-            self.indentation += 1
-            self.visit(node.commands)
+            self._block_ws(1)
+            self.visit_list(node.commands, terminator=';')
             self.indentation -= 1
             self.write('}')
-        self.new_lines = 1
 
     def visit_Rename(self, node):
         self.write('RENAME TO ')
@@ -966,8 +957,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
             if node.commands:
                 self.write('{')
-                self.new_lines = 1
-                self.indentation += 1
+                self._block_ws(1)
                 self.visit_list(node.commands, terminator=';')
                 self.new_lines = 1
 
@@ -981,8 +971,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
             if node.commands:
                 self.write(';')
-                self.new_lines = 1
-                self.indentation -= 1
+                self._block_ws(-1)
                 self.write('}')
 
         typ = 'AGGREGATE' if node.aggregate else 'FUNCTION'
@@ -1013,7 +1002,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             cls, node, indent_with=' ' * 4, add_line_information=False,
             pretty=True):
         # make sure that all the parents are properly set
-        #
         if isinstance(node, (list, tuple)):
             for n in node:
                 base.fix_parent_links(n)

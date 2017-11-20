@@ -1485,16 +1485,145 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     @tb.expected_optimizer_failure
+    async def test_edgeql_expr_alias_07(self):
+        await self.assert_query_result(r"""
+            # test variable masking
+            WITH x := (
+                WITH x := {2, 3} SELECT {4, 5, x}
+            )
+            SELECT x ORDER BY x;
+        """, [
+            [2, 3, 4, 5],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_alias_08(self):
+        await self.assert_query_result(r"""
+            # test variable masking
+            WITH x := (
+                FOR x IN {2, 3}
+                UNION x + 2
+            )
+            SELECT x ORDER BY x;
+        """, [
+            [4, 5],
+        ])
+
+    # TODO: this test indicates that the current semantics of FOR
+    # needs a review due to odd interpretation of what the ORDER
+    # clause actually applies to (similar to dangling else problem).
+    #
+    # See also test_edgeql_select_for_02.
+    @tb.expected_optimizer_failure
     async def test_edgeql_expr_for_01(self):
         await self.assert_query_result(r"""
             FOR x IN {1, 3, 5, 7}
-            SELECT x
+            UNION x
             ORDER BY x;
 
             FOR x IN {1, 3, 5, 7}
-            SELECT x + 1
+            UNION x + 1
             ORDER BY x;
         """, [
             [1, 3, 5, 7],
             [2, 4, 6, 8],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_for_02(self):
+        await self.assert_query_result(r"""
+            FOR x IN {2, 3}
+            UNION {x, x + 2};
+        """, [
+            {2, 3, 4, 5},
+        ])
+
+    @tb.expected_optimizer_failure
+    async def test_edgeql_expr_forgroup_01(self):
+        await self.assert_query_result(r"""
+            WITH I := {1, 2, 3, 4}
+            GROUP I := I
+            USING _ := I % 2 = 0
+            BY _
+            UNION _r := (
+                values := array_agg(I ORDER BY I)
+            ) ORDER BY _r.values;
+        """, [
+            [
+                {'values': [1, 3]},
+                {'values': [2, 4]}
+            ]
+        ])
+
+    @tb.expected_optimizer_failure
+    async def test_edgeql_expr_forgroup_02(self):
+        await self.assert_sorted_query_result(r'''
+            # handle a number of different aliases
+            WITH x := {(1, 2), (3, 4), (4, 2)}
+            GROUP y := x
+            USING _ := y.1
+            BY _
+            UNION array_agg(y.0);
+        ''', lambda x: x, [
+            [[1, 4], [3]],
+        ])
+
+    @tb.expected_optimizer_failure
+    async def test_edgeql_expr_forgroup_03(self):
+        await self.assert_sorted_query_result(r'''
+            WITH x := {(1, 2), (3, 4), (4, 2)}
+            GROUP x := x
+            USING _ := x.1
+            BY _
+            UNION array_agg(x.0);
+        ''', lambda x: x, [
+            [[1, 4], [3]],
+        ])
+
+    @tb.expected_optimizer_failure
+    async def test_edgeql_expr_forgroup_04(self):
+        await self.assert_query_result(r'''
+            WITH x := {(1, 2), (3, 4), (4, 2)}
+            GROUP x := x
+            USING B := x.1
+            BY B
+            UNION (B, array_agg(x.0))
+            ORDER BY
+                B;
+        ''', [
+            [[2, [1, 4]], [4, [3]]],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_forgroup_05(self):
+        await self.assert_query_result(r'''
+            # handle the case where the value to be computed depends
+            # on both, the grouped subset and the original set
+            WITH
+                x1 := {(1, 0), (1, 0), (1, 0), (2, 0), (3, 0), (3, 0)},
+                x2 := x1
+            GROUP y := x1
+            USING z := y.0
+            BY z
+            UNION (
+                # we expect that count(x1) and count(x2) will be
+                # identical in this context, whereas count(y) will
+                # represent the size of each subset
+                z, count(y), count(x1), count(x2)
+            )
+            ORDER BY z;
+        ''', [
+            [[1, 3, 6, 6], [2, 1, 6, 6], [3, 2, 6, 6]]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_forgroup_06(self):
+        await self.assert_query_result(r'''
+            GROUP X := {1, 1, 1, 2, 3, 3}
+            USING y := X
+            BY y
+            UNION (y, count(X))
+            ORDER BY y;
+        ''', [
+            [[1, 3], [2, 1], [3, 2]]
         ])
