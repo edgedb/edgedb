@@ -66,7 +66,7 @@ class EquivalenceOperator(EdgeQLOperator):
 
 
 EQUIVALENT = EquivalenceOperator('?=')
-NEQIUVALENT = EquivalenceOperator('?!=')
+NEQUIVALENT = EquivalenceOperator('?!=')
 
 
 class SortOrder(s_enum.StrEnum):

@@ -38,13 +38,15 @@ def __infer_none(ir, singletons, schema):
 
 @_infer_cardinality.register(irast.Set)
 def __infer_set(ir, singletons, schema):
-    if ir.expr is not None:
-        return infer_cardinality(ir.expr, singletons, schema)
+    if ir.path_id in singletons:
+        return ONE
     elif ir.rptr is not None:
         if ir.rptr.ptrcls.singular(ir.rptr.direction):
             return infer_cardinality(ir.rptr.source, singletons, schema)
         else:
             return MANY
+    elif ir.expr is not None:
+        return infer_cardinality(ir.expr, singletons, schema)
     else:
         return MANY
 
@@ -65,7 +67,7 @@ def __infer_const_or_param(ir, singletons, schema):
 
 @_infer_cardinality.register(irast.Coalesce)
 def __infer_coalesce(ir, singletons, schema):
-    return _common_cardinality(ir.args, singletons, schema)
+    return _common_cardinality([ir.left, ir.right], singletons, schema)
 
 
 @_infer_cardinality.register(irast.SetOp)
@@ -93,6 +95,11 @@ def __infer_binop(ir, singletons, schema):
     return _common_cardinality([ir.left, ir.right], singletons, schema)
 
 
+@_infer_cardinality.register(irast.EquivalenceOp)
+def __infer_equivop(ir, singletons, schema):
+    return _common_cardinality([ir.left, ir.right], singletons, schema)
+
+
 @_infer_cardinality.register(irast.UnaryOp)
 def __infer_unaryop(ir, singletons, schema):
     return infer_cardinality(ir.expr, singletons, schema)
@@ -106,11 +113,6 @@ def __infer_ifelse(ir, singletons, schema):
 
 @_infer_cardinality.register(irast.TypeCast)
 def __infer_typecast(ir, singletons, schema):
-    return infer_cardinality(ir.expr, singletons, schema)
-
-
-@_infer_cardinality.register(irast.TypeFilter)
-def __infer_typefilter(ir, singletons, schema):
     return infer_cardinality(ir.expr, singletons, schema)
 
 
@@ -146,9 +148,6 @@ def __infer_map(ir, singletons, schema):
 
 
 def infer_cardinality(ir, singletons, schema):
-    if ir in singletons:
-        return ONE
-
     try:
         return ir._inferred_cardinality_[frozenset(singletons)]
     except (AttributeError, KeyError):

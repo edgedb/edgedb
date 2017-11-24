@@ -22,10 +22,10 @@ from . import context
 
 
 def range_for_material_concept(
-        env: context.Environment,
         concept: s_concepts.Concept,
-        path_id: irast.PathId,
-        include_overlays: bool=True) -> pgast.BaseRangeVar:
+        path_id: irast.PathId, *,
+        include_overlays: bool=True,
+        env: context.Environment) -> pgast.BaseRangeVar:
 
     from . import pathctx  # XXX: fix cycle
 
@@ -38,7 +38,9 @@ def range_for_material_concept(
 
     relation = pgast.Relation(
         schemaname=table_schema_name,
-        relname=table_name
+        name=table_name,
+        nullable=False,
+        path_id=path_id,
     )
 
     rvar = pgast.RangeVar(
@@ -54,7 +56,7 @@ def range_for_material_concept(
 
         qry = pgast.SelectStmt()
         qry.from_clause.append(rvar)
-        pathctx.put_path_rvar(env, qry, path_id, rvar)
+        pathctx.put_path_value_rvar(qry, path_id, rvar, env=env)
         qry.path_scope.add(path_id)
 
         set_ops.append(('union', qry))
@@ -71,7 +73,7 @@ def range_for_material_concept(
                 from_clause=[rvar],
             )
 
-            pathctx.put_path_rvar(env, qry, path_id, rvar)
+            pathctx.put_path_value_rvar(qry, path_id, rvar, env=env)
             qry.path_scope.add(path_id)
 
             if op == 'replace':
@@ -80,21 +82,21 @@ def range_for_material_concept(
 
             set_ops.append((op, qry))
 
-        rvar = range_from_queryset(env, set_ops, concept)
+        rvar = range_from_queryset(set_ops, concept, env=env)
 
     return rvar
 
 
 def range_for_concept(
-        env: context.Environment,
         concept: s_concepts.Concept,
         path_id: irast.PathId, *,
-        include_overlays: bool=True) -> pgast.BaseRangeVar:
+        include_overlays: bool=True,
+        env: context.Environment) -> pgast.BaseRangeVar:
     from . import pathctx  # XXX: fix cycle
 
     if not concept.is_virtual:
         rvar = range_for_material_concept(
-            env, concept, path_id, include_overlays=include_overlays)
+            concept, path_id, include_overlays=include_overlays, env=env)
     else:
         # Virtual concepts are represented as a UNION of selects
         # from their children, which is, for most purposes, equivalent
@@ -105,36 +107,40 @@ def range_for_concept(
 
         for child in children:
             c_rvar = range_for_concept(
-                env, child, path_id=path_id,
-                include_overlays=include_overlays)
+                child, path_id=path_id,
+                include_overlays=include_overlays, env=env)
 
             qry = pgast.SelectStmt(
                 from_clause=[c_rvar],
             )
 
-            pathctx.put_path_rvar(env, qry, path_id, c_rvar)
+            pathctx.put_path_value_rvar(qry, path_id, c_rvar, env=env)
             qry.path_scope.add(path_id)
 
             set_ops.append(('union', qry))
 
-        rvar = range_from_queryset(env, set_ops, concept)
+        rvar = range_from_queryset(set_ops, concept, env=env)
+
+    rvar.query.is_distinct = True
+    rvar.query.path_id = path_id
 
     return rvar
 
 
 def range_for_set(
-        env: context.Environment,
         ir_set: irast.Set, *,
-        include_overlays: bool=True) -> pgast.BaseRangeVar:
+        include_overlays: bool=True,
+        env: context.Environment) -> pgast.BaseRangeVar:
     rvar = range_for_concept(
-        env, ir_set.scls, ir_set.path_id, include_overlays=include_overlays)
+        ir_set.scls, ir_set.path_id,
+        include_overlays=include_overlays, env=env)
 
     return rvar
 
 
 def table_from_ptrcls(
-        env: context.Environment,
-        ptrcls: s_links.Link) -> pgast.RangeVar:
+        ptrcls: s_links.Link, *,
+        env: context.Environment) -> pgast.RangeVar:
     """Return a Table corresponding to a given Link."""
     table_schema_name, table_name = common.get_table_name(
         ptrcls, catenate=False)
@@ -146,7 +152,7 @@ def table_from_ptrcls(
         table_schema_name = 'edgedbss'
 
     relation = pgast.Relation(
-        schemaname=table_schema_name, relname=table_name)
+        schemaname=table_schema_name, name=table_name)
 
     rvar = pgast.RangeVar(
         relation=relation,
@@ -159,9 +165,9 @@ def table_from_ptrcls(
 
 
 def range_for_ptrcls(
-        env: context.Environment,
         ptrcls: s_links.Link, direction: s_pointers.PointerDirection, *,
-        include_overlays: bool=True) -> pgast.BaseRangeVar:
+        include_overlays: bool=True,
+        env: context.Environment) -> pgast.BaseRangeVar:
     """"Return a Range subclass corresponding to a given ptr step.
 
     If `ptrcls` is a generic link, then a simple RangeVar is returned,
@@ -196,7 +202,7 @@ def range_for_ptrcls(
                 continue
             ptrclses.add(src_ptrcls)
 
-        table = table_from_ptrcls(env, src_ptrcls)
+        table = table_from_ptrcls(src_ptrcls, env=env)
 
         qry = pgast.SelectStmt()
         qry.from_clause.append(table)
@@ -234,20 +240,20 @@ def range_for_ptrcls(
                 )
                 set_ops.append((op, qry))
 
-    rvar = range_from_queryset(env, set_ops, ptrcls)
+    rvar = range_from_queryset(set_ops, ptrcls, env=env)
     return rvar
 
 
 def range_for_pointer(
-        env: context.Environment,
-        pointer: s_links.Link) -> pgast.BaseRangeVar:
-    return range_for_ptrcls(env, pointer.ptrcls, pointer.direction)
+        pointer: s_links.Link, *,
+        env: context.Environment) -> pgast.BaseRangeVar:
+    return range_for_ptrcls(pointer.ptrcls, pointer.direction, env=env)
 
 
 def range_from_queryset(
-        env: context.Environment,
         set_ops: typing.Sequence[typing.Tuple[str, pgast.BaseRelation]],
-        scls: s_obj.Class) -> pgast.BaseRangeVar:
+        scls: s_obj.Class, *,
+        env: context.Environment) -> pgast.BaseRangeVar:
     if len(set_ops) > 1:
         # More than one class table, generate a UNION/EXCEPT clause.
         qry = pgast.SelectStmt(
@@ -281,45 +287,45 @@ def range_from_queryset(
 def get_column(
         rvar: pgast.BaseRangeVar,
         colspec: typing.Union[pgast.ColumnRef, str], *,
-        grouped: bool=False, optional: bool=False) -> pgast.ColumnRef:
+        optional: bool=False) -> pgast.ColumnRef:
 
     if isinstance(colspec, pgast.ColumnRef):
         colname = colspec.name[-1]
         nullable = colspec.nullable
         optional = colspec.optional
-        grouped = colspec.grouped
     else:
         colname = colspec
         nullable = rvar.nullable if rvar is not None else False
         optional = optional
-        grouped = grouped
 
     if rvar is None:
         name = [colname]
     else:
         name = [rvar.alias.aliasname, colname]
 
-    return pgast.ColumnRef(name=name, nullable=nullable,
-                           grouped=grouped, optional=optional)
+    return pgast.ColumnRef(name=name, nullable=nullable, optional=optional)
 
 
 def rvar_for_rel(
-        env: context.Environment, rel: pgast.Query,
-        lateral: bool=False) -> pgast.BaseRangeVar:
+        rel: pgast.BaseRelation, *,
+        lateral: bool=False, colnames: typing.List[str]=[],
+        env: context.Environment) -> pgast.BaseRangeVar:
     if isinstance(rel, pgast.Query):
+        alias = env.aliases.get(rel.name or 'q')
+
         rvar = pgast.RangeSubselect(
             subquery=rel,
-            alias=pgast.Alias(
-                aliasname=env.aliases.get('q')
-            ),
-            lateral=lateral
+            alias=pgast.Alias(aliasname=alias, colnames=colnames),
+            lateral=lateral,
+            nullable=rel.nullable
         )
     else:
+        alias = env.aliases.get(rel.name)
+
         rvar = pgast.RangeVar(
             relation=rel,
-            alias=pgast.Alias(
-                aliasname=env.aliases.get(rel.name)
-            )
+            nullable=rel.nullable,
+            alias=pgast.Alias(aliasname=alias, colnames=colnames)
         )
 
     return rvar
@@ -327,8 +333,9 @@ def rvar_for_rel(
 
 def get_rvar_fieldref(
         rvar: typing.Optional[pgast.BaseRangeVar],
-        colname: typing.Union[str, pgast.TupleVar]) -> \
-        typing.Union[pgast.ColumnRef, pgast.TupleVar]:
+        colname: typing.Union[str, pgast.TupleVar],
+        *, optional: bool=False) \
+        -> typing.Union[pgast.ColumnRef, pgast.TupleVar]:
 
     if isinstance(colname, pgast.TupleVar):
         elements = []
@@ -337,11 +344,12 @@ def get_rvar_fieldref(
             val = get_rvar_fieldref(rvar, el.name)
             elements.append(
                 pgast.TupleElement(
-                    path_id=el.path_id, name=el.name, val=val))
+                    path_id=el.path_id, name=el.name, val=val,
+                    aspect=el.aspect))
 
         fieldref = pgast.TupleVar(elements, named=colname.named)
     else:
-        fieldref = get_column(rvar, colname)
+        fieldref = get_column(rvar, colname, optional=optional)
 
     return fieldref
 
@@ -351,3 +359,14 @@ def add_rel_overlay(
         env: context.Environment) -> None:
     overlays = env.rel_overlays[scls]
     overlays.append((op, rel))
+
+
+def cte_for_query(
+        rel: pgast.Query, *,
+        env: context.Environment) -> pgast.CommonTableExpr:
+    return pgast.CommonTableExpr(
+        query=rel,
+        alias=pgast.Alias(
+            aliasname=env.aliases.get(rel.name)
+        )
+    )

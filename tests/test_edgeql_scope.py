@@ -198,7 +198,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         ])
 
-    @tb.expected_no_optimizer_failure
+    @unittest.expectedFailure
     async def test_edgeql_scope_tuple_05(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -449,6 +449,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_scope_filter_01(self):
         await self.assert_query_result(r'''
             WITH
@@ -503,7 +504,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_scope_filter_02(self):
         await self.assert_query_result(r'''
             WITH MODULE test

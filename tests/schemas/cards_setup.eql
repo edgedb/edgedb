@@ -56,7 +56,7 @@ INSERT Card {
 };
 
 WITH MODULE test
-INSERT Card {
+INSERT SpecialCard {
     name := 'Djinn',
     element := 'Air',
     cost := 4

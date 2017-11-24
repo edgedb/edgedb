@@ -14,16 +14,17 @@ class ContextLevel:
         pass
 
     def new(self, mode=None):
-        return self._stack.new(mode)
+        return self._stack.new(mode, self)
 
 
 class CompilerContextManager:
-    def __init__(self, context, mode):
+    def __init__(self, context, mode, prevlevel):
         self.context = context
         self.mode = mode
+        self.prevlevel = prevlevel
 
     def __enter__(self):
-        self.context.push(self.mode)
+        self.context.push(self.mode, self.prevlevel)
         return self.context.current
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -35,8 +36,10 @@ class CompilerContext:
         self.stack = []
         self.push(None)
 
-    def push(self, mode):
-        level = self.ContextLevelClass(self.current, mode)
+    def push(self, mode, prevlevel=None):
+        if prevlevel is None:
+            prevlevel = self.current
+        level = self.ContextLevelClass(prevlevel, mode)
         level._stack = self
         self.stack.append(level)
         return level
@@ -45,10 +48,10 @@ class CompilerContext:
         level = self.stack.pop()
         level.on_pop(self.stack[-1] if self.stack else None)
 
-    def new(self, mode=None):
+    def new(self, mode=None, prevlevel=None):
         if mode is None:
             mode = self.default_mode
-        return CompilerContextManager(self, mode)
+        return CompilerContextManager(self, mode, prevlevel)
 
     def _current(self):
         if len(self.stack) > 0:

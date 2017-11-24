@@ -168,7 +168,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_op_06(self):
         await self.assert_query_result(r"""
-            SELECT {} = {};
+            SELECT {} = <int>{};
             SELECT {} = 42;
             SELECT {} = '{}';
         """, [
@@ -259,7 +259,6 @@ class TestExpressions(tb.QueryTestCase):
             [False],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_expr_op_14(self):
         await self.assert_query_result(r"""
             SELECT _ := {9, 1, 13}
@@ -272,7 +271,6 @@ class TestExpressions(tb.QueryTestCase):
             {11, 13},
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_expr_op_15(self):
         await self.assert_query_result(r"""
             SELECT _ := {9, 12, 13}
@@ -285,7 +283,6 @@ class TestExpressions(tb.QueryTestCase):
             {1, 9},
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_expr_op_16(self):
         await self.assert_query_result(r"""
             WITH a := {11, 12, 13}
@@ -305,7 +302,6 @@ class TestExpressions(tb.QueryTestCase):
             {13},
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_expr_op_17(self):
         await self.assert_query_result(r"""
             WITH a := {11, 12, 13}
@@ -326,7 +322,6 @@ class TestExpressions(tb.QueryTestCase):
             {9, 1},
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_op_18(self):
         await self.assert_query_result(r"""
             SELECT _ := {1, 2, 3} IN {3, 4}
@@ -335,7 +330,6 @@ class TestExpressions(tb.QueryTestCase):
             [False, False, True],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_op_19(self):
         await self.assert_query_result(r"""
             SELECT 1 IN {};
@@ -910,7 +904,6 @@ class TestExpressions(tb.QueryTestCase):
             [[1, 2], [3, 4]],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_expr_tuple_06(self):
         await self.assert_query_result(r"""
             SELECT (1, 'foo') = (a := 1, b := 'foo');
@@ -953,7 +946,6 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT (spam := 1, ham := 2) + 1;
             ''')
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_expr_tuple_10(self):
         await self.assert_query_result('''\
             SELECT _ := (spam := {1, 2}, ham := {3, 4})
@@ -976,7 +968,6 @@ class TestExpressions(tb.QueryTestCase):
             [[1, 2], [1, 2]],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_expr_tuple_12(self):
         await self.assert_query_result(r'''
             WITH A := {1, 2, 3}
@@ -1066,7 +1057,6 @@ class TestExpressions(tb.QueryTestCase):
             [0.1],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_expr_tuple_indirection_08(self):
         await self.assert_query_result(r"""
             SELECT _ := (1, ({55, 66}, {77, 88}), 2)
@@ -1119,7 +1109,6 @@ class TestExpressions(tb.QueryTestCase):
             [True],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_setop_02(self):
         await self.assert_query_result(r"""
             SELECT 2 * ((SELECT 1) UNION (SELECT 2));
@@ -1256,7 +1245,7 @@ class TestExpressions(tb.QueryTestCase):
 
             await self.query('''\
                 WITH MODULE test
-                SELECT Issue LIMIT User.name;
+                SELECT Issue LIMIT LogEntry.spent_time;
             ''')
 
     async def test_edgeql_expr_cardinality_03(self):
@@ -1268,7 +1257,7 @@ class TestExpressions(tb.QueryTestCase):
 
             await self.query('''\
                 WITH MODULE test
-                SELECT Issue OFFSET User.name;
+                SELECT Issue OFFSET LogEntry.spent_time;
             ''')
 
     async def test_edgeql_expr_cardinality_04(self):
@@ -1401,7 +1390,6 @@ class TestExpressions(tb.QueryTestCase):
             [5],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_expr_alias_01(self):
         await self.assert_query_result(r"""
             WITH
@@ -1413,7 +1401,6 @@ class TestExpressions(tb.QueryTestCase):
             [2],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_expr_alias_02(self):
         await self.assert_query_result(r"""
             WITH
@@ -1437,7 +1424,6 @@ class TestExpressions(tb.QueryTestCase):
             [{'name': 'a', 'foo': 1}, {'name': 'a', 'foo': 2}],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_expr_alias_04(self):
         await self.assert_query_result(r"""
             SELECT (
@@ -1467,7 +1453,6 @@ class TestExpressions(tb.QueryTestCase):
             [{'name': 'schema::Array', 'foo': {1, 2}}],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_expr_alias_06(self):
         await self.assert_query_result(r"""
             WITH MODULE schema
@@ -1484,7 +1469,6 @@ class TestExpressions(tb.QueryTestCase):
             [{'name': 'schema::Array', 'foo': {1}}],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_expr_for_01(self):
         await self.assert_query_result(r"""
             FOR x IN {1, 3, 5, 7}

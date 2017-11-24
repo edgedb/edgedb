@@ -30,7 +30,16 @@ from . import stmtctx
 
 @dispatch.compile.register(qlast.SelectQuery)
 def compile_SelectQuery(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
+        expr: qlast.SelectQuery, *, ctx: context.ContextLevel) -> irast.Base:
+    if astutils.is_degenerate_select(expr):
+        # Compile "SELECT Path" as "Path"
+        with ctx.new() as sctx:
+            process_with_block(expr, ctx=sctx, parent_ctx=ctx)
+            result = compile_result_clause(
+                expr.result, ctx.toplevel_shape_rptr, None, ctx=sctx)
+
+        return result
+
     with ctx.subquery() as sctx:
         stmt = irast.SelectStmt()
         init_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
@@ -73,7 +82,6 @@ def compile_SelectQuery(
 @dispatch.compile.register(qlast.GroupQuery)
 def compile_GroupQuery(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
-    parent_path_scope = ctx.path_scope.copy()
     with ctx.subquery() as ictx:
         stmt = irast.GroupStmt()
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
@@ -86,24 +94,27 @@ def compile_GroupQuery(
         c.acquire_ancestor_inheritance(ctx.schema)
 
         stmt.group_path_id = pathctx.get_path_id(c, ctx=ictx)
-        pathctx.register_path_scope(stmt.group_path_id, ctx=ictx)
+        pathctx.register_path_in_scope(stmt.group_path_id, ctx=ictx)
 
-        with ictx.newscope() as subjctx:
+        with ictx.newfence() as subjctx:
             subjctx.clause = 'input'
+
+            subject_set = setgen.scoped_set(
+                dispatch.compile(expr.subject, ctx=subjctx), ctx=subjctx)
+
             stmt.subject = stmtctx.declare_aliased_set(
-                dispatch.compile(expr.subject, ctx=subjctx),
-                expr.subject_alias, ctx=subjctx)
+                subject_set, expr.subject_alias, ctx=ictx)
 
-        ictx.path_scope.update(subjctx.path_scope)
+            with subjctx.new() as grpctx:
+                # Prevent singleton inference of GROUP input from
+                # leaking beyond the BY clause.
+                grpctx.singletons = ictx.singletons.copy()
+                pathctx.update_singletons(subject_set, ctx=grpctx)
 
-        with ictx.new() as grpctx:
-            # Prevent singleton inference of GROUP input from
-            # leaking beyond the BY clause.
-            grpctx.singletons = ictx.singletons.copy()
-            pathctx.update_singletons(stmt.subject, ctx=grpctx)
+                stmt.groupby = compile_groupby_clause(
+                    expr.groupby, singletons=grpctx.singletons, ctx=grpctx)
 
-        stmt.groupby = compile_groupby_clause(
-            expr.groupby, singletons=grpctx.singletons, ctx=ictx)
+            pathctx.update_singletons(stmt.subject, ctx=ictx)
 
         output = expr.result
 
@@ -112,11 +123,7 @@ def compile_GroupQuery(
                 output.expr.steps):
             ictx.result_path_steps = output.expr.steps
 
-        with ictx.subquery() as isctx, isctx.newscope() as sctx:
-            # Ignore scope in GROUP ... BY
-            sctx.path_scope = parent_path_scope
-            pathctx.register_path_scope(stmt.group_path_id, ctx=sctx)
-
+        with ictx.subquery() as isctx, isctx.newfence() as sctx:
             o_stmt = sctx.stmt = irast.SelectStmt()
 
             o_stmt.result = compile_result_clause(
@@ -135,10 +142,7 @@ def compile_GroupQuery(
             o_stmt.limit = clauses.compile_limit_offset_clause(
                 expr.limit, ctx=sctx)
 
-            o_stmt.path_scope = \
-                frozenset(sctx.path_scope | {stmt.group_path_id})
-
-        stmt.result = setgen.generated_set(o_stmt, ctx=ictx)
+            stmt.result = setgen.scoped_set(o_stmt, ctx=sctx)
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
@@ -203,13 +207,13 @@ def compile_UpdateQuery(
         stmt.where = clauses.compile_where_clause(
             expr.where, ctx=ictx)
 
+        stmt.result = subject.__copy__()
+
         stmt.subject = shapegen.compile_shape(
             subject, expr.shape,
             require_expressions=True,
             include_implicit=False,
             ctx=ictx)
-
-        stmt.result = subject
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
@@ -223,9 +227,14 @@ def compile_DeleteQuery(
         stmt = irast.DeleteStmt()
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
+        with ictx.newfence() as scopectx:
+            # Pretend the DELETE statement is a view.
+            subjset = setgen.scoped_set(
+                dispatch.compile(expr.subject, ctx=scopectx),
+                ctx=scopectx)
+
         subject = stmtctx.declare_aliased_set(
-            dispatch.compile(expr.subject, ctx=ictx),
-            expr.subject_alias, ctx=ictx)
+            subjset, expr.subject_alias, ctx=ictx)
 
         subj_type = irutils.infer_type(subject, ictx.schema)
         if not isinstance(subj_type, s_concepts.Concept):
@@ -245,7 +254,9 @@ def compile_DeleteQuery(
 def compile_Shape(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
     subj = dispatch.compile(expr.expr, ctx=ctx)
-    return shapegen.compile_shape(subj, expr.elements, ctx=ctx)
+    ir_set = setgen.ensure_set(subj, ctx=ctx)
+    return shapegen.compile_shape(
+        ir_set, expr.elements, rptr=ir_set.rptr, ctx=ctx)
 
 
 def init_stmt(
@@ -254,17 +265,26 @@ def init_stmt(
 
     ctx.stmt = irstmt
     irstmt.parent_stmt = parent_ctx.stmt
-    process_with_block(qlstmt, ctx=ctx)
+
+    if irstmt.parent_stmt is None:
+        irstmt.path_scope = parent_ctx.path_scope
+
+    process_with_block(qlstmt, ctx=ctx, parent_ctx=parent_ctx)
 
     if qlstmt.iterator is not None:
-        with ctx.newscope() as scopectx:
-            irstmt.iterator_stmt = stmtctx.declare_view(
+        with ctx.newfence() as scopectx:
+            # Paths in the statement must not be coalesced with
+            # paths in view definitions, so the view scope must
+            # "ignore the parent" when paths are added to the parent
+            # scope.
+            scopectx.path_scope.ignore_parent = True
+            iterator_stmt = stmtctx.declare_view(
                 qlstmt.iterator, qlstmt.iterator_alias, ctx=scopectx)
+            irstmt.iterator_stmt = setgen.scoped_set(
+                iterator_stmt, ctx=scopectx)
 
-        ctx.singletons.add(
-            irutils.get_canonical_set(irstmt.iterator_stmt))
-
-        pathctx.register_path_scope(irstmt.iterator_stmt.path_id, ctx=ctx)
+        ctx.singletons.add(irstmt.iterator_stmt.path_id)
+        pathctx.register_path_in_scope(irstmt.iterator_stmt.path_id, ctx=ctx)
 
 
 def fini_stmt(
@@ -275,33 +295,36 @@ def fini_stmt(
     if irstmt.parent_stmt is None:
         irstmt.argument_types = ctx.arguments
         result = irstmt
+        irutils.infer_type(irstmt, schema=ctx.schema)
     else:
         result = setgen.generated_set(irstmt, ctx=ctx)
-        if isinstance(irstmt.result, irast.Set):
-            result.path_id = irstmt.result.path_id
-
-    irstmt.path_scope = frozenset(ctx.path_scope)
+        pathctx.register_path_in_scope(result.path_id, ctx=ctx)
 
     return result
 
 
 def process_with_block(
-        edgeql_tree: qlast.Base, *, ctx: context.ContextLevel) -> None:
-    stmt = ctx.stmt
-    stmt.substmts = []
-
+        edgeql_tree: qlast.Base, *,
+        ctx: context.ContextLevel, parent_ctx: context.ContextLevel) -> None:
     for with_entry in edgeql_tree.aliases:
         if isinstance(with_entry, qlast.NamespaceAliasDecl):
             ctx.namespaces[with_entry.alias] = with_entry.namespace
 
         elif isinstance(with_entry, qlast.AliasedExpr):
-            with ctx.newscope() as scopectx:
+            with ctx.new() as scopectx:
+                scopectx.path_scope = parent_ctx.path_scope.add_fence()
+                # Paths in the statement must not be coalesced with
+                # paths in view definitions, so the view scope must
+                # "ignore the parent" when paths are added to the parent
+                # scope.
+                scopectx.path_scope.ignore_parent = True
+
                 stmtctx.declare_view(
                     with_entry.expr, with_entry.alias, ctx=scopectx)
 
         else:
-            expr = dispatch.compile(with_entry.expr, ctx=ctx)
-            ctx.pathvars[with_entry.alias] = expr
+            raise RuntimeError(
+                f'unexpected expression in WITH block: {with_entry}')
 
 
 def compile_result_clause(
@@ -318,14 +341,7 @@ def compile_result_clause(
             shape = result.elements
         else:
             expr = dispatch.compile(result, ctx=sctx)
-            if (isinstance(expr, irast.Set) and
-                    isinstance(expr.scls, s_concepts.Concept) and
-                    (not irutils.is_subquery_set(expr) or
-                        isinstance(expr.expr, irast.MutatingStmt)) and
-                    not astutils.is_set_op_set(expr)):
-                shape = []
-            else:
-                shape = None
+            shape = None
 
         pathctx.update_singletons(expr, ctx=sctx)
 
@@ -337,8 +353,9 @@ def compile_result_clause(
 
             expr = shapegen.compile_shape(expr, shape, rptr=rptr, ctx=sctx)
 
-    expr = setgen.ensure_set(expr, ctx=ctx)
-    stmtctx.declare_aliased_set(expr, result_alias, ctx=ctx)
+    expr = stmtctx.declare_aliased_set(expr, result_alias, ctx=ctx)
+    pathctx.update_singletons(expr, ctx=ctx)
+
     return expr
 
 
@@ -357,11 +374,13 @@ def compile_groupby_clause(
 
         ir_groupexprs = []
         for groupexpr in groupexprs:
-            ir_groupexpr = dispatch.compile(groupexpr, ctx=sctx)
-            ir_groupexpr.context = groupexpr.context
-            ir_groupexprs.append(ir_groupexpr)
+            with sctx.newfence() as scopectx:
+                ir_groupexpr = setgen.scoped_set(
+                    dispatch.compile(groupexpr, ctx=scopectx), ctx=scopectx)
+                ir_groupexpr.context = groupexpr.context
+                ir_groupexprs.append(ir_groupexpr)
 
-            ctx.singletons.add(irutils.get_canonical_set(ir_groupexpr))
-            ctx.group_paths.add(ir_groupexpr.path_id)
+                ctx.singletons.add(ir_groupexpr.path_id)
+                ctx.group_paths.add(ir_groupexpr.path_id)
 
     return ir_groupexprs

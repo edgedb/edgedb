@@ -13,10 +13,11 @@ from edgedb.lang.common import ast, parsing
 
 from edgedb.lang.schema import name as sn
 from edgedb.lang.schema import objects as so
+from edgedb.lang.schema import pointers as s_pointers
 
 from edgedb.lang.edgeql import ast as qlast
 
-from .pathid import PathId
+from .pathid import PathId, ScopeBranchNode, ScopeFenceNode  # noqa
 
 
 class ASTError(EdgeDBError):
@@ -40,14 +41,19 @@ class Pointer(Base):
     source: Base
     target: Base
     ptrcls: so.Class
-    direction: str
+    direction: s_pointers.PointerDirection
     anchor: typing.Union[str, ast.MetaAST]
     show_as_anchor: typing.Union[str, ast.MetaAST]
+
+    @property
+    def is_inbound(self):
+        return self.direction == s_pointers.PointerDirection.Inbound
 
 
 class Set(Base):
 
     path_id: PathId
+    path_scope: ScopeBranchNode
     real_path_id: PathId
     scls: so.NodeClass
     source: Base
@@ -57,7 +63,6 @@ class Set(Base):
     anchor: typing.Union[str, ast.MetaAST]
     show_as_anchor: typing.Union[str, ast.MetaAST]
     shape: typing.List[Base]
-    path_scope: typing.FrozenSet[PathId]
 
     def __repr__(self):
         return \
@@ -68,7 +73,7 @@ class Expr(Base):
     pass
 
 
-class EmptySet(Base):
+class EmptySet(Set):
     pass
 
 
@@ -112,20 +117,21 @@ class Mapping(Expr):
 
 
 class SetOp(Expr):
-    left: Base
-    right: Base
+    left: Set
+    right: Set
     op: ast.ops.Operator
     exclusive: bool = False
-    # UNIONs generated from IF-ELSE need to keep
-    # track of the set scope in condition.
-    local_scope_sets: typing.FrozenSet[Set]
 
 
-class BinOp(Expr):
+class BaseBinOp(Expr):
 
     left: Base
     right: Base
     op: ast.ops.Operator
+
+
+class BinOp(BaseBinOp):
+    pass
 
 
 class UnaryOp(Expr):
@@ -136,12 +142,16 @@ class UnaryOp(Expr):
 
 class ExistPred(Expr):
 
-    expr: Base
+    expr: Set
     negated: bool = False
 
 
 class DistinctOp(Expr):
     expr: Base
+
+
+class EquivalenceOp(BaseBinOp):
+    pass
 
 
 class IfElseExpr(Expr):
@@ -153,7 +163,8 @@ class IfElseExpr(Expr):
 
 
 class Coalesce(Base):
-    args: typing.List[Base]
+    left: Set
+    right: Set
 
 
 class SortExpr(Base):
@@ -210,29 +221,14 @@ class TypeCast(Expr):
     type: TypeRef
 
 
-class TypeFilter(Expr):
-    """Expr[IS Type]"""
-
-    path_id: PathId
-    expr: Base
-    type: TypeRef
-
-
-class CompositeType(Base):
-
-    node: so.Class
-    shape: list
-
-
 class Stmt(Base):
 
+    name: str
+    path_scope: ScopeBranchNode
     result: Base
     singleton: bool
-    main_stmt: Base
     parent_stmt: Base
     iterator_stmt: Base
-    substmts: list
-    path_scope: typing.FrozenSet[PathId]
 
 
 class SelectStmt(Stmt):
@@ -272,3 +268,9 @@ EdgeDBMatchOperator = qlast.EdgeQLMatchOperator
 EquivalenceOperator = qlast.EquivalenceOperator
 SetOperator = qlast.SetOperator
 SetModifier = qlast.SetModifier
+
+UNION = qlast.UNION
+UNION_ALL = qlast.UNION_ALL
+
+EQUIVALENT = qlast.EQUIVALENT
+NEQUIVALENT = qlast.NEQUIVALENT

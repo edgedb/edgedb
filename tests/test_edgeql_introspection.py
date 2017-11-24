@@ -554,14 +554,14 @@ class TestIntrospection(tb.QueryTestCase):
             # concepts that have 0 objects.
             #
             WITH MODULE schema
-            SELECT `Concept` {
+            SELECT Concept {
                 name,
                 count := (
-                    SELECT SINGLETON std::count(`Concept`.<__class__)
+                    SELECT SINGLETON std::count(Concept.<__class__)
                 )
             }
-            FILTER `Concept`.name LIKE 'test::%'
-            ORDER BY `Concept`.name;
+            FILTER Concept.name LIKE 'test::%'
+            ORDER BY Concept.name;
         """, [
             [
                 {'name': 'test::Comment', 'count': 0},

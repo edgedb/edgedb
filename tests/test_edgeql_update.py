@@ -872,7 +872,6 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_update_for01(self):
         res = await self.con.execute(r"""
             WITH MODULE test

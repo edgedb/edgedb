@@ -37,10 +37,9 @@ def compile_ir_to_sql_tree(
         # Transform to sql tree
         ctx_stack = context.CompilerContext()
         ctx = ctx_stack.current
-        ctx.backend = backend
-        ctx.schema = schema
-        ctx.env = context.Environment(schema, output_format)
-        ctx.singleton_mode = singleton_mode
+        ctx.env = context.Environment(
+            schema=schema, output_format=output_format,
+            backend=backend, singleton_mode=singleton_mode)
         if ignore_shapes:
             ctx.expr_exposed = False
         qtree = dispatch.compile(ir_expr, ctx=ctx)

@@ -25,8 +25,6 @@ from . import lproperties  # NOQA
 from . import modules  # NOQA
 from . import policy  # NOQA
 
-from . import delta as sd
-
 
 def cmd_from_ddl(stmt, *, context=None, schema):
     # expand module aliases (implicit and explicit)
@@ -75,17 +73,8 @@ def ddl_text_from_delta_command(delta):
 
 def ddl_text_from_delta(schema, delta):
     """Return DDL text for a delta object."""
-    commands = []
-
-    if delta.target is not None:
-        diff = sd.delta_schemas(delta.target, schema)
-        commands.extend(diff)
-
-    if delta.commands:
-        commands.extend(delta.commands)
-
     text = []
-    for command in commands:
+    for command in delta.commands:
         cmd_text = ddl_text_from_delta_command(command)
         text.append(cmd_text)
 

@@ -14,6 +14,7 @@ from edgedb.lang.common import ast
 
 from edgedb.lang.schema import concepts as s_concepts
 from edgedb.lang.schema import inheriting as s_inh
+from edgedb.lang.schema import name as s_name
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import types as s_types
 from edgedb.lang.schema import utils as s_utils
@@ -31,6 +32,15 @@ def is_polymorphic_type(t):
         return t.name == 'std::any'
 
 
+def amend_empty_set_type(es: irast.EmptySet, t: s_obj.Class, schema) -> None:
+    alias = es.path_id[-1].name.name
+    scls_name = s_name.Name(module='__expr__', name=alias)
+    scls = t.__class__(name=scls_name, bases=[t])
+    scls.acquire_ancestor_inheritance(schema)
+    es.path_id = irast.PathId(scls)
+    es.scls = t
+
+
 def _infer_common_type(irs: typing.List[irast.Base], schema):
     if not irs:
         raise ql_errors.EdgeQLError(
@@ -39,8 +49,10 @@ def _infer_common_type(irs: typing.List[irast.Base], schema):
 
     col_type = None
     arg_types = []
-    for arg in irs:
-        if isinstance(arg, irast.EmptySet):
+    empties = []
+    for i, arg in enumerate(irs):
+        if isinstance(arg, irast.EmptySet) and arg.scls is None:
+            empties.append(i)
             continue
 
         arg_type = infer_type(arg, schema)
@@ -59,9 +71,14 @@ def _infer_common_type(irs: typing.List[irast.Base], schema):
             raise ql_errors.EdgeQLError(
                 'cannot determine common type',
                 context=irs[0].context)
-        return col_type
+        common_type = col_type
     else:
-        return s_utils.get_class_nearest_common_ancestor(arg_types)
+        common_type = s_utils.get_class_nearest_common_ancestor(arg_types)
+
+    for i in empties:
+        amend_empty_set_type(irs[i], common_type, schema)
+
+    return common_type
 
 
 @functools.singledispatch
@@ -133,7 +150,7 @@ def __infer_const_or_param(ir, schema):
 
 @_infer_type.register(irast.Coalesce)
 def __infer_coalesce(ir, schema):
-    result = _infer_common_type(ir.args, schema)
+    result = _infer_common_type([ir.left, ir.right], schema)
     if result is None:
         raise ql_errors.EdgeQLError(
             'coalescing operator must have operands of related types',
@@ -179,27 +196,45 @@ def __infer_distinctop(ir, schema):
     return result
 
 
+def _infer_binop_args(left, right, schema):
+    if not isinstance(left, irast.EmptySet) or left.scls is not None:
+        left_type = infer_type(left, schema)
+    else:
+        left_type = None
+
+    if not isinstance(right, irast.EmptySet) or right.scls is not None:
+        right_type = infer_type(right, schema)
+    else:
+        right_type = None
+
+    if left_type is None and right_type is None:
+        raise ql_errors.EdgeQLError(
+            'cannot determine the type of an empty set',
+            context=left.context)
+    elif left_type is None:
+        amend_empty_set_type(left, right_type, schema)
+        left_type = right_type
+    elif right_type is None:
+        amend_empty_set_type(right, left_type, schema)
+        right_type = left_type
+
+    return left_type, right_type
+
+
 @_infer_type.register(irast.BinOp)
 def __infer_binop(ir, schema):
+    left_type, right_type = _infer_binop_args(ir.left, ir.right, schema)
+
     if isinstance(ir.op, (ast.ops.ComparisonOperator,
                           ast.ops.TypeCheckOperator,
-                          ast.ops.MembershipOperator,
-                          irast.EquivalenceOperator)):
-        return schema.get('std::bool')
-
-    if isinstance(ir.left, irast.EmptySet):
-        return infer_type(ir.right, schema)
-    elif isinstance(ir.right, irast.EmptySet):
-        return infer_type(ir.left, schema)
-
-    left_type = infer_type(ir.left, schema)
-    right_type = infer_type(ir.right, schema)
-
-    result = s_types.TypeRules.get_result(
-        ir.op, (left_type, right_type), schema)
-    if result is None:
+                          ast.ops.MembershipOperator)):
+        result = schema.get('std::bool')
+    else:
         result = s_types.TypeRules.get_result(
-            (ir.op, 'reversed'), (right_type, left_type), schema)
+            ir.op, (left_type, right_type), schema)
+        if result is None:
+            result = s_types.TypeRules.get_result(
+                (ir.op, 'reversed'), (right_type, left_type), schema)
 
     if result is None:
         raise ql_errors.EdgeQLError(
@@ -208,6 +243,12 @@ def __infer_binop(ir, schema):
             context=ir.left.context)
 
     return result
+
+
+@_infer_type.register(irast.EquivalenceOp)
+def __infer_equivop(ir, schema):
+    left_type, right_type = _infer_binop_args(ir.left, ir.right, schema)
+    return schema.get('std::bool')
 
 
 @_infer_type.register(irast.UnaryOp)
@@ -267,7 +308,6 @@ def __infer_typeref(ir, schema):
 
 
 @_infer_type.register(irast.TypeCast)
-@_infer_type.register(irast.TypeFilter)
 def __infer_typecast(ir, schema):
     return infer_type(ir.type, schema)
 
@@ -279,7 +319,10 @@ def __infer_stmt(ir, schema):
 
 @_infer_type.register(irast.ExistPred)
 def __infer_exist(ir, schema):
-    return schema.get('std::bool')
+    bool_t = schema.get('std::bool')
+    if isinstance(ir.expr, irast.EmptySet) and ir.expr.scls is None:
+        amend_empty_set_type(ir.expr, bool_t, schema=schema)
+    return bool_t
 
 
 @_infer_type.register(irast.SliceIndirection)

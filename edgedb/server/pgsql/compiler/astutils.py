@@ -15,7 +15,10 @@ from edgedb.server.pgsql import ast as pgast
 
 
 def tuple_element_for_shape_el(shape_el, value):
-    rptr = shape_el.rptr
+    if shape_el.path_id.is_type_indirection_path():
+        rptr = shape_el.rptr.source.rptr
+    else:
+        rptr = shape_el.rptr
     ptrcls = rptr.ptrcls
     ptrdir = rptr.direction or s_pointers.PointerDirection.Outbound
     ptrname = ptrcls.shortname
@@ -28,7 +31,8 @@ def tuple_element_for_shape_el(shape_el, value):
     return pgast.TupleElement(
         path_id=shape_el.path_id,
         name=attr_name,
-        val=value
+        val=value,
+        aspect='value'
     )
 
 
@@ -61,16 +65,13 @@ def new_binop(lexpr, rexpr, op):
     )
 
 
-def extend_binop(binop, *exprs, op=ast.ops.AND, reversed=False):
+def extend_binop(binop, *exprs, op=ast.ops.AND):
     exprs = list(exprs)
     binop = binop or exprs.pop(0)
 
     for expr in exprs:
-        if expr is not binop:
-            if reversed:  # XXX: dead
-                binop = new_binop(rexpr=binop, op=op, lexpr=expr)
-            else:
-                binop = new_binop(lexpr=binop, op=op, rexpr=expr)
+        if expr is not None and expr is not binop:
+            binop = new_binop(lexpr=binop, op=op, rexpr=expr)
 
     return binop
 
@@ -83,26 +84,22 @@ def new_unop(op, expr):
     )
 
 
-def set_as_exists_op(pg_expr, negated=False):
-    if isinstance(pg_expr, pgast.Query):
-        result = pgast.SubLink(
-            type=pgast.SubLinkType.EXISTS, expr=pg_expr)
-
-    elif isinstance(pg_expr, (pgast.Constant, pgast.ParamRef)):
-        result = pgast.NullTest(arg=pg_expr, negated=True)
-
+def join_condition(lref: pgast.ColumnRef, rref: pgast.ColumnRef) -> pgast.Base:
+    if lref.nullable or rref.nullable:
+        op = 'IS NOT DISTINCT FROM'
     else:
-        raise RuntimeError(  # pragma: no cover
-            f'unexpected argument to _set_as_exists_op: {pg_expr!r}')
+        op = '='
 
-    if negated:
-        result = new_unop(ast.ops.NOT, result)
+    path_cond = new_binop(lref, rref, op=op)
 
-    return result
+    if lref.optional:
+        opt_cond = pgast.NullTest(arg=lref)
+        path_cond = extend_binop(
+            path_cond, opt_cond, op=ast.ops.OR)
 
+    if rref.optional:
+        opt_cond = pgast.NullTest(arg=rref)
+        path_cond = extend_binop(
+            path_cond, opt_cond, op=ast.ops.OR)
 
-def is_nullable(expr):
-    if isinstance(expr, pgast.TupleVar):
-        return False
-    else:
-        return True
+    return path_cond

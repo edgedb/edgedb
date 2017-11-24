@@ -332,12 +332,9 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             BY
                 Issue.time_estimate
             SELECT
-                # since we're returning the same element for all of
-                # the groups the expected resulting SET should only
-                # have one element
                 42;
         ''', [
-            [42],
+            [42, 42, 42, 42],
         ])
 
     @tb.expected_optimizer_failure
@@ -569,7 +566,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             }],
         ])
 
-    @tb.expected_optimizer_failure
+    @unittest.expectedFailure
     async def test_edgeql_group_by_tuple_08(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -682,7 +679,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
 
         ])
 
-    @tb.expected_optimizer_failure
+    @unittest.expectedFailure
     async def test_edgeql_group_linkproperty_simple_03(self):
         await self.assert_query_result(r"""
             # group by link property
@@ -707,7 +704,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ]
         ])
 
-    @tb.expected_optimizer_failure
+    @unittest.expectedFailure
     async def test_edgeql_group_linkproperty_simple_04(self):
         await self.assert_query_result(r"""
             # NOTE: should be the same as above because we happen to
@@ -733,7 +730,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ]
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_group_linkproperty_nested_01(self):
         await self.assert_query_result(r"""
             WITH MODULE cards
@@ -794,7 +790,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ]
         ])
 
-    @tb.expected_optimizer_failure
+    @unittest.expectedFailure
     async def test_edgeql_group_linkproperty_nested_02(self):
         await self.assert_query_result(r"""
             # similar to nested01, but with the root grouped by @nickname
@@ -858,7 +854,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ]
         ])
 
-    @tb.expected_optimizer_failure
+    @unittest.expectedFailure
     async def test_edgeql_group_linkproperty_tuple_01(self):
         await self.assert_query_result(r"""
             WITH MODULE cards
@@ -922,7 +918,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ]
         ])
 
-    @tb.expected_optimizer_failure
+    @unittest.expectedFailure
     async def test_edgeql_group_atom_02(self):
         await self.assert_query_result(r"""
             WITH MODULE test

@@ -1000,6 +1000,7 @@ class Tuple(Collection):
         return hash((
             self.__class__,
             self.named,
+            self.name,
             tuple(self.element_types.items())
         ))
 
@@ -1008,6 +1009,6 @@ class Tuple(Collection):
             return False
 
         return (
-            self.named == other.named and
+            self.named == other.named and self.name == other.name and
             self.element_types == other.element_types
         )

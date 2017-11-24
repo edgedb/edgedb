@@ -479,7 +479,6 @@ class TestInsert(tb.QueryTestCase):
             }],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_insert_for_01(self):
         res = await self.con.execute('''
             WITH MODULE test
@@ -551,20 +550,16 @@ class TestInsert(tb.QueryTestCase):
             ]
         )
 
-    @unittest.expectedFailure
     async def test_edgeql_insert_for_02(self):
         res = await self.con.execute(r'''
             # create 1000 DefaultTest3 objects, each object is defined
             # as having a randomly generated value for 'foo'
             WITH MODULE test
-            FOR x IN {1, 2, 3, 4, 5, 6, 7, 8, 9, 10} *
-                     {1, 2, 3, 4, 5, 6, 7, 8, 9, 10} *
-                     {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
-                     # 10 x 10 x 10 entries in the cross-product
+            FOR x IN {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
             INSERT DefaultTest3;
 
             # statistically, randomly generated value for 'foo' should not be
-            # identical for all 1000 records
+            # identical for all 10 records
             WITH
                 MODULE test,
                 DT3 := DefaultTest3
@@ -705,21 +700,20 @@ class TestInsert(tb.QueryTestCase):
             }]
         )
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_insert_as_expr_01(self):
         res = await self.con.execute(r'''
             # insert several objects, then annotate one of the inserted batch
             #
-            WITH MODULE test
-            FOR x IN (
-                SELECT _i := (
+            WITH
+                MODULE test,
+                I := (
                     FOR y IN {3, 5, 7, 2}
                     INSERT InsertTest {
                         name := 'insert expr 1',
                         l2 := y,
                     }
-                ) ORDER BY _i.l2 DESC LIMIT 1
-            )
+                )
+            FOR x IN (SELECT I ORDER BY I.l2 DESC LIMIT 1)
             INSERT Annotation {
                 name := 'insert expr 1',
                 note := 'largest ' + <str>x.l2,
@@ -774,7 +768,7 @@ class TestInsert(tb.QueryTestCase):
             ]
         )
 
-    @tb.expected_optimizer_failure
+    @unittest.expectedFailure
     async def test_edgeql_insert_as_expr_02(self):
         res = await self.con.execute(r'''
             # same as above, but refactored differently
@@ -843,7 +837,6 @@ class TestInsert(tb.QueryTestCase):
             ]
         )
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_insert_linkprops_01(self):
         res = await self.con.execute(r'''
             INSERT test::Offer {

@@ -267,8 +267,18 @@ class Cli:
             '-U', 'postgres'
         ]
 
+        def _psql(cmd):
+            proc = subprocess.Popen(cmd)
+            while proc.returncode is None:
+                try:
+                    proc.wait()
+                except KeyboardInterrupt:
+                    pass
+
+            return proc.returncode
+
         self.cli.run_in_terminal(
-            lambda: subprocess.call(cmd) == 0)
+            lambda: _psql(cmd) == 0)
 
         self.cli.current_buffer.reset()
         print('\r                ')

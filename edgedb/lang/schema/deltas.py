@@ -64,6 +64,26 @@ class CreateDelta(named.CreateNamedClass, DeltaCommand):
                 (cmd.classname.module, astnode.target)
             ])
 
+            modules = (
+                set(target.modules) - {'std', 'schema', 'stdattrs'})
+            if len(modules) != 1:
+                raise RuntimeError('unexpected delta module structure')
+
+            modname = next(iter(modules))
+
+            diff = sd.delta_module(target, schema, modname)
+            migration = list(diff.get_subcommands())
+
+            for op in cmd.get_subcommands(type=sd.AlterClassProperty):
+                if op.property == 'commands':
+                    op.new_value = migration + op.new_value
+                    break
+            else:
+                cmd.add(sd.AlterClassProperty(
+                    property='commands',
+                    new_value=migration
+                ))
+
             cmd.add(sd.AlterClassProperty(
                 property='target',
                 new_value=target
@@ -106,6 +126,9 @@ class CommitDelta(DeltaCommand):
 
     def apply(self, schema, context):
         delta = schema.get_delta(self.classname)
+        for cmd in delta.commands:
+            cmd.apply(schema, context)
+
         return delta
 
 

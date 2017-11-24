@@ -127,29 +127,29 @@ class AST(object, metaclass=MetaAST):
     __fields = []
 
     def __init__(self, **kwargs):
-        self.parent = None
+        object.__setattr__(self, 'parent', None)
         self._init_fields(kwargs)
 
         # XXX: use weakref here
         for arg, value in kwargs.items():
             if hasattr(self, arg):
                 if is_ast_node(value):
-                    value.parent = self
+                    object.__setattr__(value, 'parent', self)
                 elif isinstance(value, list):
                     for v in value:
                         if is_ast_node(v):
-                            v.parent = self
+                            object.__setattr__(v, 'parent', self)
                 elif isinstance(value, dict):
                     for v in value.values():
                         if is_ast_node(v):
-                            v.parent = self
+                            object.__setattr__(v, 'parent', self)
             else:
                 raise ASTError(
                     'cannot set attribute "%s" in ast class "%s"' %
                     (arg, self.__class__.__name__))
 
         if 'parent' in kwargs:
-            self.parent = kwargs['parent']
+            object.__setattr__(self, 'parent', kwargs['parent'])
 
     def _init_fields(self, values):
         for field_name, field in self.__class__._fields.items():
@@ -202,12 +202,29 @@ class AST(object, metaclass=MetaAST):
         markup.dump(self)
 
 
+class ImmutableASTMixin:
+    __frozen = False
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.__frozen = True
+
+    def __setattr__(self, name, value):
+        if self.__frozen:
+            raise TypeError(f'cannot set {name} on immutable {self!r}')
+        else:
+            super().__setattr__(name, value)
+
+
 @markup.serializer.serializer.register(AST)
 def _serialize_to_markup(ast, *, ctx):
     node = markup.elements.lang.TreeNode(id=id(ast), name=type(ast).__name__)
     include_meta = ctx.kwargs.get('_ast_include_meta', True)
+    exclude_unset = ctx.kwargs.get('_ast_exclude_unset', True)
 
-    for fieldname, field in iter_fields(ast, include_meta=include_meta):
+    fields = iter_fields(
+        ast, include_meta=include_meta, exclude_unset=exclude_unset)
+    for fieldname, field in fields:
         if ast._fields[fieldname].hidden:
             continue
         if field is None:
@@ -235,8 +252,16 @@ def _is_container_type(cls):
     )
 
 
+@functools.lru_cache(1024)
+def _is_iterable_type(cls):
+    return (
+        issubclass(cls, collections.abc.Iterable)
+    )
+
+
 def is_container(obj):
-    return _is_container_type(obj.__class__)
+    cls = obj.__class__
+    return _is_container_type(cls) and _is_iterable_type(cls)
 
 
 def is_container_type(type_):
@@ -267,7 +292,7 @@ def fix_parent_links(node):
 _marker = object()
 
 
-def iter_fields(node, *, include_meta=True):
+def iter_fields(node, *, include_meta=True, exclude_unset=False):
     exclude_meta = not include_meta
     for field_name, field in node._fields.items():
         if exclude_meta and field.meta:
@@ -275,6 +300,13 @@ def iter_fields(node, *, include_meta=True):
         field_val = getattr(node, field_name, _marker)
         if field_val is _marker:
             continue
+        if exclude_unset:
+            if callable(field.default):
+                default = field.default()
+            else:
+                default = field.default
+            if field_val == default:
+                continue
         yield field_name, field_val
 
 
@@ -341,6 +373,20 @@ def _check_container_type(type_, value, raise_error, instance_type):
         _check_type(eltype, el, raise_error)
 
 
+def _check_tuple_type(type_, value, raise_error, instance_type):
+    if not isinstance(value, instance_type):
+        raise_error(str(type_), value)
+
+    eltype = None
+
+    for i, el in enumerate(value):
+        new_eltype = type_.__args__[i]
+        if new_eltype is not Ellipsis:
+            eltype = new_eltype
+        if eltype is not None:
+            _check_type(eltype, el, raise_error)
+
+
 def _check_mapping_type(type_, value, raise_error, instance_type):
     if not isinstance(value, instance_type):
         raise_error(str(type_), value)
@@ -378,7 +424,7 @@ def _check_type(type_, value, raise_error):
             _check_container_type(type_, value, raise_error, list)
 
         elif issubclass(type_, typing.Tuple):
-            _check_container_type(type_, value, raise_error, tuple)
+            _check_tuple_type(type_, value, raise_error, tuple)
 
         elif issubclass(type_, typing.Set):
             _check_container_type(type_, value, raise_error, set)

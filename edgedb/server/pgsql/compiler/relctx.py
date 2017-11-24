@@ -13,13 +13,17 @@ from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import concepts as s_concepts
+from edgedb.lang.schema import pointers as s_pointers
 
 from edgedb.server.pgsql import ast as pgast
+from edgedb.server.pgsql import common
+from edgedb.server.pgsql import types as pg_types
 
 from . import astutils
 from . import context
 from . import dbobj
 from . import pathctx
+from . import typecomp
 
 
 def pull_path_namespace(
@@ -34,63 +38,30 @@ def pull_path_namespace(
         source_qs = [squery]
 
     for source_q in source_qs:
-        outputs = {o[0] for o in source_q.path_outputs}
-        ns = {o[0] for o in source_q.path_namespace}
-        s_paths = set(source_q.path_rvar_map) | outputs | ns
-        for path_id in s_paths:
-            path_id = pathctx.reverse_map_path_id(
-                path_id, target.view_path_id_map)
-            if path_id not in target.path_rvar_map or replace_bonds:
-                pathctx.put_path_rvar(ctx.env, target, path_id, source)
+        s_paths = set()
+        if hasattr(source_q, 'value_scope'):
+            s_paths.update((p, 'value') for p in source_q.value_scope)
+        if hasattr(source_q, 'path_outputs'):
+            s_paths.update(source_q.path_outputs)
+        if hasattr(source_q, 'path_namespace'):
+            s_paths.update(source_q.path_namespace)
+        if hasattr(source_q, 'path_rvar_map'):
+            s_paths.update(source_q.path_rvar_map)
 
-        for path_id in source_q.path_scope:
-            if path_id in target.path_scope and not replace_bonds:
-                continue
+        view_path_id_map = getattr(source_q, 'view_path_id_map', {})
 
-            orig_path_id = path_id
-            path_id = pathctx.reverse_map_path_id(
-                path_id, target.view_path_id_map)
-
-            if (not path_id.is_in_scope(ctx.path_scope) and
-                    not orig_path_id.is_in_scope(ctx.path_scope)):
-                continue
-
-            pathctx.put_path_bond(target, path_id)
-
-            bond = pathctx.LazyPathVarRef(
-                pathctx.get_rvar_path_identity_var, ctx.env, source, path_id)
-
-            ctx.path_scope_refs[path_id] = bond
-            ctx.path_scope_refs_by_stmt[ctx.stmt][path_id] = bond
-
-
-def apply_path_bond_injections(
-        stmt: pgast.Query, *,
-        ctx: context.CompilerContextLevel) -> typing.Optional[irast.PathId]:
-
-    if ctx.expr_injected_path_bond is not None:
-        # Inject an explicitly provided path bond.  This is necessary
-        # to ensure the correct output of rels that compute view
-        # expressions that do not contain relevant path bonds themselves.
-        bond_ref = ctx.expr_injected_path_bond['ref']
-        bond_path_id = ctx.expr_injected_path_bond['path_id']
-
-        ex_ref = pathctx.maybe_get_path_identity_var(
-            stmt, bond_path_id, env=ctx.env)
-        if ex_ref is None:
-            pathctx.put_path_identity_var(
-                stmt, bond_path_id, bond_ref, env=ctx.env)
-            pathctx.put_path_bond(stmt, bond_path_id)
-        return bond_path_id
-    else:
-        return None
+        for path_id, aspect in s_paths:
+            path_id = pathctx.reverse_map_path_id(path_id, view_path_id_map)
+            pathctx.put_path_rvar_if_not_exists(
+                target, path_id, source, aspect=aspect, env=ctx.env)
 
 
 def include_rvar(
-        stmt: pgast.Query, rvar: pgast.BaseRangeVar, join_type: str='inner',
-        replace_bonds: bool=True, *,
+        stmt: pgast.Query, rvar: pgast.BaseRangeVar,
+        path_id: irast.PathId=None, *,
+        aspect: str='value',
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
-    """Ensure the *rvar* is present in the from_clause of *stmt*.
+    """Ensure that *rvar* is visible in *stmt*.
 
     :param stmt:
         The statement to include *rel* in.
@@ -101,102 +72,328 @@ def include_rvar(
     :param join_type:
         JOIN type to use when including *rel*.
 
-    :param replace_bonds:
-        Whether the path bonds in *stmt* should be replaced.
+    :param aspect:
+        The reference aspect of the range var.
+
+    :param ctx:
+        Compiler context.
     """
-    pathctx.rel_join(ctx.env, stmt, rvar, type=join_type)
-    # Make sure that the path namespace of *cte* is mapped
-    # onto the path namespace of *stmt*.
-    pull_path_namespace(
-        target=stmt, source=rvar, replace_bonds=replace_bonds, ctx=ctx)
+
+    if not has_rvar(stmt, rvar, ctx=ctx):
+        rel_join(stmt, rvar, ctx=ctx)
+        # Make sure that the path namespace of *cte* is mapped
+        # onto the path namespace of *stmt*.
+        pull_path_namespace(target=stmt, source=rvar, ctx=ctx)
+
+    if path_id is not None:
+        pathctx.put_path_rvar_if_not_exists(
+            stmt, path_id, rvar, aspect=aspect, env=ctx.env)
 
     return rvar
 
 
-def include_range(
-        stmt: pgast.Query, rel: pgast.Query, join_type: str='inner',
-        lateral: bool=False, replace_bonds: bool=True, *,
-        ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
-    """Ensure the *rel* is present in the from_clause of *stmt*.
+def has_rvar(
+        stmt: pgast.Query, rvar: pgast.BaseRangeVar, *,
+        ctx: context.CompilerContextLevel) -> bool:
+    while stmt is not None:
+        if pathctx.has_rvar(stmt, rvar, env=ctx.env):
+            return True
+        stmt = ctx.rel_hierarchy.get(stmt)
+    return False
 
-    :param stmt:
-        The statement to include *rel* in.
 
-    :param rel:
-        The relation node to join.
+def _get_path_rvar(
+        stmt: pgast.Query, path_id: irast.PathId, *,
+        aspect: str, ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
+    qry = stmt
+    while qry is not None:
+        rvar = pathctx.maybe_get_path_rvar(
+            qry, path_id, aspect=aspect, env=ctx.env)
+        if rvar is not None:
+            if qry is not stmt:
+                # Cache the rvar reference.
+                pathctx.put_path_rvar(stmt, path_id, rvar, aspect=aspect,
+                                      env=ctx.env)
+            return rvar, path_id
+        if path_id in qry.path_id_mask:
+            break
+        if qry.view_path_id_map:
+            path_id = pathctx.reverse_map_path_id(
+                path_id, qry.view_path_id_map)
+        qry = ctx.rel_hierarchy.get(qry)
 
-    :param join_type:
-        JOIN type to use when including *rel*.
+    raise LookupError(
+        f'there is no range var for {path_id} in {stmt}')
 
-    :param lateral:
-        Whether *rel* should be joined laterally.
 
-    :param replace_bonds:
-        Whether the path bonds in *stmt* should be replaced.
-
-    :return:
-        RangeVar or RangeSubselect representing the *rel* in the
-        context of current rel.
-    """
-    rvar = ctx.subquery_map[stmt].get(rel)
-    if rvar is None:
-        # The rel has not been recorded as a sub-relation of this rel,
-        # make it so.
-        rvar = dbobj.rvar_for_rel(ctx.env, rel, lateral=lateral)
-        pathctx.rel_join(ctx.env, stmt, rvar, type=join_type)
-
-        ctx.subquery_map[stmt][rel] = rvar
-
-    # Make sure that the path namespace of *cte* is mapped
-    # onto the path namespace of *stmt*.
-    pull_path_namespace(
-        target=stmt, source=rvar, replace_bonds=replace_bonds, ctx=ctx)
-
+def get_path_rvar(
+        stmt: pgast.Query, path_id: irast.PathId, *,
+        aspect: str, ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
+    rvar, _ = _get_path_rvar(stmt, path_id, aspect=aspect, ctx=ctx)
     return rvar
 
 
-def get_root_rvar(
-        ir_set: irast.Set, stmt: pgast.Query, nullable: bool=False,
-        set_rvar: pgast.BaseRangeVar=None, *,
-        path_id: typing.Optional[irast.PathId]=None,
-        ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
-    if not isinstance(ir_set.scls, s_concepts.Concept):
+def get_path_var(
+        stmt: pgast.Query, path_id: irast.PathId, *,
+        aspect: str, ctx: context.CompilerContextLevel) -> pgast.OutputVar:
+    rvar, path_id = _get_path_rvar(stmt, path_id, aspect=aspect, ctx=ctx)
+    return pathctx.get_rvar_path_var(
+        rvar, path_id, aspect=aspect, env=ctx.env)
+
+
+def maybe_get_path_rvar(
+        stmt: pgast.Query, path_id: irast.PathId, *,
+        aspect: str, ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
+    try:
+        return get_path_rvar(stmt, path_id, aspect=aspect, ctx=ctx)
+    except LookupError:
         return None
 
-    if path_id is None:
-        path_id = ir_set.path_id
 
-    if set_rvar is None:
-        set_rvar = dbobj.range_for_set(ctx.env, ir_set)
-        set_rvar.nullable = nullable
-        set_rvar.path_scope.add(path_id)
+def maybe_get_path_var(
+        stmt: pgast.Query, path_id: irast.PathId, *,
+        aspect: str, ctx: context.CompilerContextLevel) -> pgast.OutputVar:
+    try:
+        rvar, path_id = _get_path_rvar(stmt, path_id, aspect=aspect, ctx=ctx)
+    except LookupError:
+        return None
+    else:
+        try:
+            return pathctx.get_rvar_path_var(
+                rvar, path_id, aspect=aspect, env=ctx.env)
+        except LookupError:
+            return None
 
-    pathctx.put_path_rvar(ctx.env, stmt, path_id, set_rvar)
 
-    if path_id in ctx.path_scope:
-        pathctx.put_path_bond(stmt, path_id)
+def new_empty_rvar(
+        ir_set: irast.EmptySet, *,
+        ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
+    nullref_alias = ctx.env.aliases.get('e')
+    val = typecomp.cast(pgast.Constant(val=None, nullable=True),
+                        source_type=ir_set.scls, target_type=ir_set.scls,
+                        force=True, env=ctx.env)
+
+    nullrel = pgast.SelectStmt(
+        target_list=[
+            pgast.ResTarget(
+                val=val,
+                name=nullref_alias
+            )
+        ],
+        nullable=True
+    )
+    rvar = dbobj.rvar_for_rel(nullrel, env=ctx.env)
+    rvar.path_scope.add(ir_set.path_id)
+    rvar.value_scope.add(ir_set.path_id)
+    null_ref = pgast.ColumnRef(name=[nullref_alias], nullable=True)
+    pathctx.put_rvar_path_output(rvar, ir_set.path_id, aspect='value',
+                                 var=null_ref, env=ctx.env)
+    if ir_set.path_id.is_concept_path():
+        pathctx.put_rvar_path_output(rvar, ir_set.path_id, aspect='identity',
+                                     var=null_ref, env=ctx.env)
+    return rvar
+
+
+def new_root_rvar(
+        ir_set: irast.Set, nullable: bool=False, *,
+        ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
+    if not isinstance(ir_set.scls, s_concepts.Concept):
+        raise ValueError('cannot create root rvar for non-concept path')
+
+    set_rvar = dbobj.range_for_set(ir_set, env=ctx.env)
+    set_rvar.nullable = nullable
+    set_rvar.path_scope.add(ir_set.path_id)
+    set_rvar.value_scope.add(ir_set.path_id)
+
+    if ir_set.rptr and ir_set.rptr.is_inbound:
+        ptr_info = pg_types.get_pointer_storage_info(
+            ir_set.rptr.ptrcls, resolve_type=False, link_bias=False)
+
+        if ptr_info.table_type == 'concept':
+            # Inline link
+            rref = dbobj.get_column(None, ptr_info.column_name)
+            set_rvar.path_scope.add(ir_set.path_id.src_path())
+            pathctx.put_rvar_path_output(
+                set_rvar, ir_set.path_id.src_path(),
+                aspect='identity', var=rref, env=ctx.env)
 
     return set_rvar
 
 
-def ensure_correct_rvar_for_expr(
-        ir_set: irast.Set, stmt: pgast.Query, set_expr: pgast.Base, *,
-        ctx: context.CompilerContextLevel):
+def new_poly_rvar(
+        ir_set: irast.Set, *, nullable: bool=False,
+        ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
 
-    if isinstance(ir_set.scls, s_concepts.Concept):
-        root_rvar = get_root_rvar(ir_set, stmt, path_id=ir_set.path_id,
-                                  ctx=ctx)
+    rvar = new_root_rvar(ir_set, nullable=nullable, ctx=ctx)
+    rvar.path_scope.add(ir_set.path_id.src_path())
+    return rvar
 
-        subqry = pgast.SelectStmt()
-        pathctx.put_path_identity_var(subqry, ir_set.path_id,
-                                      set_expr, env=ctx.env)
-        include_range(stmt, subqry, lateral=True, ctx=ctx)
 
-        pathctx.rel_join(ctx.env, stmt, root_rvar)
-        pathctx.put_path_rvar(ctx.env, stmt, ir_set.path_id, root_rvar)
+def new_pointer_rvar(
+        ir_ptr: irast.Pointer, *, nullable: bool=False,
+        link_bias: bool=False, src_rvar: pgast.BaseRangeVar,
+        ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
+
+    ptrcls = ir_ptr.ptrcls
+
+    ptr_info = pg_types.get_pointer_storage_info(
+        ptrcls, resolve_type=False, link_bias=link_bias)
+
+    if ptr_info.table_type == 'concept':
+        # Inline link
+        return _new_inline_pointer_rvar(
+            ir_ptr, nullable=nullable, ptr_info=ptr_info,
+            src_rvar=src_rvar, ctx=ctx)
     else:
-        pathctx.put_path_value_var_if_not_exists(
-            stmt, ir_set.path_id, set_expr, env=ctx.env)
+        return _new_mapped_pointer_rvar(ir_ptr, nullable, ctx=ctx)
+
+
+def _new_inline_pointer_rvar(
+        ir_ptr: irast.Pointer, *, nullable: bool=False, lateral: bool=True,
+        ptr_info: pg_types.PointerStorageInfo,
+        src_rvar: pgast.BaseRangeVar,
+        ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
+    ptr_rel = pgast.SelectStmt()
+    ptr_rvar = dbobj.rvar_for_rel(ptr_rel, lateral=lateral, env=ctx.env)
+    ptr_rvar.query.path_id = ir_ptr.target.path_id.ptr_path()
+
+    is_inbound = ir_ptr.direction == s_pointers.PointerDirection.Inbound
+
+    if is_inbound:
+        far_pid = ir_ptr.source.path_id
+    else:
+        far_pid = ir_ptr.target.path_id
+
+    far_ref = pathctx.get_rvar_path_identity_var(
+        src_rvar, far_pid, env=ctx.env)
+
+    ptr_rvar.path_scope.add(far_pid)
+    pathctx.put_path_identity_var(ptr_rel, far_pid, var=far_ref, env=ctx.env)
+
+    return ptr_rvar
+
+
+def _new_mapped_pointer_rvar(
+        ir_ptr: irast.Pointer, nullable: bool=False, *,
+        ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
+    ptrcls = ir_ptr.ptrcls
+    ptr_rvar = dbobj.range_for_pointer(ir_ptr, env=ctx.env)
+    ptr_rvar.nullable = nullable
+
+    # Set up references according to the link direction.
+    src_ptr_info = pg_types.get_pointer_storage_info(
+        ptrcls.getptr(ctx.env.schema, 'std::source'), resolve_type=False)
+    src_col = src_ptr_info.column_name
+    source_ref = dbobj.get_column(None, src_col)
+
+    tgt_ptr_info = pg_types.get_pointer_storage_info(
+        ptrcls.getptr(ctx.env.schema, 'std::target'), resolve_type=False)
+    tgt_col = tgt_ptr_info.column_name
+    target_ref = dbobj.get_column(None, tgt_col)
+
+    if ir_ptr.direction == s_pointers.PointerDirection.Inbound:
+        near_ref = target_ref
+        far_ref = source_ref
+    else:
+        near_ref = source_ref
+        far_ref = target_ref
+
+    ptr_rvar.query.path_id = ir_ptr.target.path_id.ptr_path()
+    ptr_rvar.path_scope.add(ptr_rvar.query.path_id)
+
+    src_pid = ir_ptr.source.path_id
+    ptr_rvar.path_scope.add(src_pid)
+    pathctx.put_rvar_path_output(ptr_rvar, src_pid, aspect='identity',
+                                 var=near_ref, env=ctx.env)
+
+    tgt_pid = ir_ptr.target.path_id
+    if tgt_pid.is_concept_path():
+        ptr_rvar.path_scope.add(tgt_pid)
+        pathctx.put_rvar_path_output(ptr_rvar, tgt_pid, aspect='identity',
+                                     var=far_ref, env=ctx.env)
+    else:
+        pathctx.put_rvar_path_output(ptr_rvar, tgt_pid, aspect='value',
+                                     var=far_ref, env=ctx.env)
+
+    return ptr_rvar
+
+
+def new_rel_rvar(
+        ir_set: irast.Set, stmt: pgast.Query, *,
+        lateral: bool=True,
+        ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
+    if irutils.is_aliased_set(ir_set):
+        ensure_bond_for_expr(ir_set, stmt, ctx=ctx)
+
+    return dbobj.rvar_for_rel(stmt, lateral=lateral, env=ctx.env)
+
+
+def new_static_class_rvar(
+        ir_set: irast.Set, *,
+        lateral: bool=True,
+        ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
+    set_rvar = new_root_rvar(ir_set, ctx=ctx)
+    clsname = pgast.Constant(val=ir_set.rptr.source.scls.name)
+    nameref = dbobj.get_column(
+        set_rvar, common.edgedb_name_to_pg_name('schema::name'))
+    condition = astutils.new_binop(nameref, clsname, op='=')
+    substmt = pgast.SelectStmt()
+    include_rvar(substmt, set_rvar, ir_set.path_id, aspect='value', ctx=ctx)
+    substmt.where_clause = astutils.extend_binop(
+        substmt.where_clause, condition)
+    return new_rel_rvar(ir_set, substmt, ctx=ctx)
+
+
+def semi_join(
+        stmt: pgast.Query, ir_set: irast.Set, src_rvar: pgast.BaseRangeVar, *,
+        ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
+    """Join an IR Set using semi-join."""
+    rptr = ir_set.rptr
+    ptrcls = rptr.ptrcls
+    ptr_info = pg_types.get_pointer_storage_info(
+        ptrcls, resolve_type=False, link_bias=False)
+    is_inline_ref = ptr_info.table_type == 'concept'
+
+    # Target set range.
+    set_rvar = new_root_rvar(ir_set, ctx=ctx)
+
+    # Link range.
+    map_rvar = new_pointer_rvar(rptr, src_rvar=src_rvar, ctx=ctx)
+
+    # Target identity in the target range.
+    if rptr.is_inbound and is_inline_ref:
+        tgt_pid = ir_set.path_id.extend(ptrcls)
+    else:
+        tgt_pid = ir_set.path_id
+
+    tgt_ref = pathctx.get_rvar_path_identity_var(
+        set_rvar, tgt_pid, env=ctx.env)
+
+    include_rvar(
+        ctx.rel, map_rvar,
+        path_id=ir_set.path_id.ptr_path(), aspect='value', ctx=ctx)
+
+    pathctx.get_path_identity_output(ctx.rel, ir_set.path_id, env=ctx.env)
+
+    cond = astutils.new_binop(tgt_ref, ctx.rel, 'IN')
+    stmt.where_clause = astutils.extend_binop(
+        stmt.where_clause, cond)
+
+    return set_rvar
+
+
+def ensure_value_rvar(
+        ir_set: irast.Set, stmt: pgast.Query, *,
+        ctx: context.CompilerContextLevel) \
+        -> pgast.BaseRangeVar:
+
+    rvar = maybe_get_path_rvar(stmt, ir_set.path_id, aspect='value', ctx=ctx)
+    if rvar is None:
+        scope_stmt = get_scope_stmt(ir_set.path_id, ctx=ctx)
+        rvar = new_root_rvar(ir_set, ctx=ctx)
+        include_rvar(scope_stmt, rvar, ctx=ctx)
+
+    return rvar
 
 
 def ensure_bond_for_expr(
@@ -231,103 +428,99 @@ def ensure_transient_identity_for_set(
     pathctx.put_path_bond(stmt, ir_set.path_id)
 
 
-def enforce_path_scope(
-        query: pgast.Query,
-        path_scope: typing.Dict[irast.PathId, pathctx.LazyPathVarRef], *,
-        ctx: context.CompilerContextLevel):
-    cond = pathctx.full_inner_bond_condition(ctx.env, query, path_scope)
-    if cond is not None:
-        query.where_clause = astutils.extend_binop(query.where_clause, cond)
-
-
-def put_parent_range_scope(
-        ir_set: irast.Set, rvar: pgast.BaseRangeVar, grouped: bool=False, *,
-        force: bool=False, ctx: context.CompilerContextLevel):
-    ir_set = irutils.get_canonical_set(ir_set)
-    if ir_set not in ctx.computed_node_rels or force:
-        ctx.computed_node_rels[ir_set] = rvar, grouped
-
-
-def get_parent_range_scope(
-        ir_set: irast.Set, *,
-        ctx: context.CompilerContextLevel) \
-        -> typing.Tuple[pgast.BaseRangeVar, bool]:
-    ir_set = irutils.get_canonical_set(ir_set)
-    return ctx.computed_node_rels.get(ir_set)
-
-
-def get_ctemap_key(
-        ir_set: irast.Set, *, lax: typing.Optional[bool]=None,
-        extrakey: typing.Optional[object]=None,
-        ctx: context.CompilerContextLevel) -> tuple:
-    ir_set = irutils.get_canonical_set(ir_set)
-
-    if ctx.query is not ctx.toplevel_stmt:
-        # Consider parent scope only in qubqueries.
-        extrakey = get_parent_range_scope(ir_set, ctx=ctx)
-    else:
-        extrakey = None
-
-    if ir_set.rptr is not None and ir_set.expr is None:
-        if lax is None:
-            lax = bool(ctx.lax_paths)
-        key = (ir_set, lax, extrakey)
-    else:
-        key = (ir_set, False, extrakey)
-
-    return key
-
-
-def put_set_cte(
-        ir_set: irast.Set, cte: pgast.BaseRelation, *,
-        lax: typing.Optional[bool]=None,
-        ctx: context.CompilerContextLevel) -> pgast.BaseRelation:
-    key = get_ctemap_key(ir_set, lax=lax, ctx=ctx)
-    ctx.ctemap[key] = cte
-    ctx.ctemap_by_stmt[ctx.stmt][key] = cte
-    return cte
-
-
-def get_set_cte(
-        ir_set: irast.Set, *, lax: typing.Optional[bool]=None,
-        ctx: context.CompilerContextLevel) -> \
-        typing.Optional[pgast.BaseRelation]:
-    key = get_ctemap_key(ir_set, lax=lax, ctx=ctx)
-    cte = ctx.ctemap.get(key)
-    if cte is None and key[-1] is None:
-        cte = ctx.viewmap.get(ir_set)
-
-    return cte
-
-
-def pop_prefix_ctes(
-        prefix: irast.PathId, *, lax: typing.Optional[bool]=None,
+def update_scope(
+        ir_set: irast.Set, stmt: pgast.Query, *,
         ctx: context.CompilerContextLevel) -> None:
-    if lax is None:
-        lax = bool(ctx.lax_paths)
-    for key in list(ctx.ctemap):
-        ir_set = key[0]
-        if key[1] == lax and ir_set.path_id.startswith(prefix):
-            ctx.ctemap.pop(key)
+
+    ctx.scope_tree = ir_set.path_scope
+    ctx.path_scope = ctx.path_scope.new_child()
+    child_paths = set(ir_set.path_scope.paths)
+    grandchild_paths = ir_set.path_scope.get_all_paths() - child_paths
+    ctx.path_scope.update({p: stmt for p in child_paths})
+    # Mask grandchild paths, so outer statements don't get picked
+    # up accidentally.
+    ctx.path_scope.update({p: pathctx.scope_mask for p in grandchild_paths})
+    stmt.path_id_mask.update(grandchild_paths)
 
 
-def replace_set_cte_subtree(
-        ir_set: irast.Set, cte: pgast.BaseRelation, *,
-        lax: typing.Optional[bool]=None,
-        recursive: bool=True,
+def get_scope_stmt(
+        path_id: irast.PathId, *,
+        ctx: context.CompilerContextLevel) -> pgast.Query:
+    stmt = ctx.path_scope.get(path_id)
+    if stmt is None and path_id.is_ptr_path():
+        stmt = ctx.path_scope.get(path_id.tgt_path())
+    if stmt is None:
+        raise LookupError(f'cannot find scope statement for {path_id}')
+    return stmt
+
+
+def maybe_get_scope_stmt(
+        path_id: irast.PathId, *,
+        ctx: context.CompilerContextLevel) -> typing.Optional[pgast.Query]:
+    try:
+        return get_scope_stmt(path_id, ctx=ctx)
+    except LookupError:
+        return None
+
+
+def rel_join(
+        query: pgast.Query, right_rvar: pgast.BaseRangeVar, *,
         ctx: context.CompilerContextLevel) -> None:
-    pop_prefix_ctes(ir_set.path_id, lax=lax, ctx=ctx)
-    while ir_set is not None:
-        put_set_cte(ir_set, cte, lax=lax, ctx=ctx)
-        if ir_set.rptr is not None and recursive:
-            ir_set = ir_set.rptr.source
+    use_where = (not query.from_clause and not query.nonempty)
+    condition = None
+
+    if query.nonempty and not query.from_clause:
+        left_rel = pgast.SelectStmt()
+        left_rvar = dbobj.rvar_for_rel(left_rel, env=ctx.env)
+    else:
+        left_rvar = None
+
+    for path_id in right_rvar.path_scope:
+        lref = maybe_get_path_var(query, path_id, aspect='identity', ctx=ctx)
+        if lref is None:
+            continue
+
+        if left_rvar is not None:
+            pathctx.put_path_var(left_rel, path_id, lref, aspect='identity',
+                                 env=ctx.env)
+            lref = pathctx.get_rvar_path_identity_var(
+                left_rvar, path_id, env=ctx.env)
+
+        rref = pathctx.get_rvar_path_identity_var(
+            right_rvar, path_id, env=ctx.env)
+
+        path_cond = astutils.join_condition(lref, rref)
+        condition = astutils.extend_binop(condition, path_cond)
+
+    if use_where:
+        # A "where" JOIN is equivalent to an INNER join with
+        # its condition moved to a WHERE clause.
+        if condition is not None:
+            query.where_clause = astutils.extend_binop(
+                query.where_clause, condition)
+
+        query.from_clause.append(right_rvar)
+    else:
+        if condition is None:
+            join_type = 'cross'
+        elif query.nonempty:
+            if not query.from_clause:
+                query.from_clause.append(left_rvar)
+
+            join_type = 'left'
         else:
-            ir_set = None
+            join_type = 'inner'
 
+        if not query.from_clause:
+            query.from_clause.append(right_rvar)
+        else:
+            larg = query.from_clause[0]
+            rarg = right_rvar
 
-def register_set_cte(
-        ir_set: irast.Set, ctx: context.CompilerContextLevel) -> None:
-    cte = get_set_cte(ir_set, ctx=ctx)
-    if cte is None:
-        raise RuntimeError(f'cannot find CTE for {ir_set!r}')
-    ctx.query.ctes.append(cte)
+            query.from_clause[0] = pgast.JoinExpr(
+                type=join_type, larg=larg, rarg=rarg, quals=condition)
+            if join_type == 'left':
+                right_rvar.nullable = True
+
+    if not right_rvar.is_distinct:
+        query.is_distinct = False

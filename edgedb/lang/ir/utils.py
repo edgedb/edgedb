@@ -10,13 +10,17 @@ import typing
 
 from edgedb.lang.common import ast
 
+from edgedb.lang.schema import concepts as s_concepts
 from edgedb.lang.schema import links as s_links
 from edgedb.lang.schema import name as s_name
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
+from edgedb.lang.schema import schema as s_schema
+from edgedb.lang.schema import sources as s_sources  # NOQA
 from edgedb.lang.schema import views as s_views
 
 from . import ast as irast
+from .inference import amend_empty_set_type  # NOQA
 from .inference import infer_type  # NOQA
 from .inference import is_polymorphic_type  # NOQA
 
@@ -105,6 +109,25 @@ def extend_path(schema, source_set, ptr):
     return target_set
 
 
+def get_id_path_id(
+        path_id: irast.PathId, *,
+        schema: s_schema.Schema) -> irast.PathId:
+    """For PathId representing an object, return (PathId).(std::id)."""
+    source: s_sources.Source = path_id[-1]
+    assert isinstance(source, s_concepts.Concept)
+    return path_id.extend(
+        source.resolve_pointer(schema, 'std::id'),
+        s_pointers.PointerDirection.Outbound,
+        schema.get('std::uuid'))
+
+
+def get_id_path(ir_set: irast.Set, *, schema: s_schema.Schema) -> irast.Set:
+    if not isinstance(ir_set.scls, s_concepts.Concept):
+        return ir_set
+    else:
+        return extend_path(schema, ir_set, 'std::id')
+
+
 def get_subquery_shape(ir_expr):
     if (isinstance(ir_expr, irast.Set) and
             isinstance(ir_expr.expr, irast.Stmt) and
@@ -123,7 +146,7 @@ def get_subquery_shape(ir_expr):
 def is_view_set(ir_expr):
     return (
         isinstance(ir_expr, irast.Set) and
-        (isinstance(ir_expr.expr, irast.Stmt) and
+        (isinstance(ir_expr.expr, irast.SelectStmt) and
             isinstance(ir_expr.expr.result, irast.Set)) or
         ir_expr.view_source is not None
     )
@@ -174,14 +197,6 @@ def is_simple_path(ir_expr):
     )
 
 
-def get_canonical_set(ir_expr):
-    if (isinstance(ir_expr, irast.Set) and ir_expr.source is not None and
-            ir_expr.expr is None):
-        return ir_expr.source
-    else:
-        return ir_expr
-
-
 def wrap_stmt_set(ir_set):
     if is_subquery_set(ir_set):
         src_stmt = ir_set.expr
@@ -208,6 +223,17 @@ def is_simple_wrapper(ir_expr):
     )
 
 
+def new_empty_set(schema, *, scls=None, alias):
+    if scls is None:
+        base_scls = schema.get('std::str')
+    else:
+        base_scls = scls
+    cls_name = s_name.Name(module='__expr__', name=alias)
+    cls = base_scls.__class__(name=cls_name, bases=[base_scls])
+    cls.acquire_ancestor_inheritance(schema)
+    return irast.EmptySet(path_id=irast.PathId(cls), scls=scls)
+
+
 def new_expression_set(ir_expr, schema, path_id=None, alias=None,
                        typehint: typing.Optional[irast.TypeRef]=None):
     if isinstance(ir_expr, irast.EmptySet) and typehint is not None:
@@ -216,20 +242,17 @@ def new_expression_set(ir_expr, schema, path_id=None, alias=None,
     result_type = infer_type(ir_expr, schema)
 
     if path_id is None:
-        if isinstance(ir_expr, irast.TypeFilter):
-            type_expr = ir_expr.expr
-        else:
-            type_expr = ir_expr
-
-        path_id = getattr(type_expr, 'path_id', None)
+        path_id = getattr(ir_expr, 'path_id', None)
 
         if not path_id:
             if alias is None:
                 raise ValueError('either path_id or alias are required')
+            cls_name = s_name.Name(module='__expr__', name=alias)
             if isinstance(result_type, (s_obj.Collection, s_obj.Tuple)):
-                cls = result_type
+                cls = result_type.copy()
+                # XXX: this is a hack
+                cls._name_cached = cls_name
             else:
-                cls_name = s_name.Name(module='__expr__', name=alias)
                 cls = result_type.__class__(name=cls_name, bases=[result_type])
                 cls.acquire_ancestor_inheritance(schema)
             path_id = irast.PathId(cls)
@@ -268,4 +291,43 @@ def tuple_indirection_path_id(tuple_path_id, element_name, element_type):
         TupleIndirectionLink(element_name),
         s_pointers.PointerDirection.Outbound,
         element_type
+    )
+
+
+class TypeIndirectionLink(s_links.Link):
+    """A Link subclass that can be used in type indirection path ids."""
+
+    def __init__(self, source, target, *, optional, cardinality):
+        name = 'optindirection' if optional else 'indirection'
+        super().__init__(
+            name=s_name.Name(module='__type__', name=name),
+            source=source,
+            target=target,
+            direction=s_pointers.PointerDirection.Outbound
+        )
+        self.optional = optional
+        self.mapping = cardinality
+
+    def __hash__(self):
+        return hash((self.__class__, self.name, self.source, self.target))
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+
+        return (self.name == other.name and self.source == other.source and
+                self.target == other.target)
+
+    def generic(self):
+        # Make PathId happy.
+        return False
+
+
+def type_indirection_path_id(path_id, target_type, *, optional: bool,
+                             cardinality: s_links.LinkMapping):
+    return path_id.extend(
+        TypeIndirectionLink(path_id[-1], target_type,
+                            optional=optional, cardinality=cardinality),
+        s_pointers.PointerDirection.Outbound,
+        target_type
     )

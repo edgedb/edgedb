@@ -15,7 +15,9 @@ from . import context
 def tuple_var_as_json_object(tvar, *, env):
     if not tvar.named:
         return pgast.FuncCall(
-            name=('jsonb_build_array',), args=[t.val for t in tvar.elements])
+            name=('jsonb_build_array',),
+            args=[t.val for t in tvar.elements],
+            null_safe=True, nullable=tvar.nullable)
     else:
         keyvals = []
 
@@ -48,7 +50,8 @@ def tuple_var_as_json_object(tvar, *, env):
                 keyvals.append(val)
 
         return pgast.FuncCall(
-            name=('jsonb_build_object',), args=keyvals)
+            name=('jsonb_build_object',),
+            args=keyvals, null_safe=True, nullable=tvar.nullable)
 
 
 def in_serialization_ctx(
@@ -90,9 +93,12 @@ def serialize_expr(
         if isinstance(expr, pgast.TupleVar):
             val = tuple_var_as_json_object(expr, env=env)
         elif isinstance(expr, pgast.ImplicitRowExpr):
-            val = pgast.FuncCall(name=('jsonb_build_array',), args=expr.args)
+            val = pgast.FuncCall(
+                name=('jsonb_build_array',), args=expr.args,
+                null_safe=True)
         else:
-            val = pgast.FuncCall(name=('to_jsonb',), args=[expr])
+            val = pgast.FuncCall(
+                name=('to_jsonb',), args=[expr], null_safe=True)
     else:
         val = expr
 

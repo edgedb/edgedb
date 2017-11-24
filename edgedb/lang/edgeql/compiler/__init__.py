@@ -89,6 +89,9 @@ def compile_ast_to_ir(tree,
     ir = dispatch.compile(tree, ctx=ctx)
 
     if debug.flags.edgeql_compile:
+        if ir.path_scope:
+            debug.header('Scope Tree')
+            print(ir.path_scope.pformat())
         debug.header('EdgeDB IR')
         debug.dump(ir)
 

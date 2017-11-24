@@ -102,15 +102,21 @@ def _run_test(case):
         suite.run(case, result)
 
 
+def _is_exc_info(args):
+    return (
+        isinstance(args, tuple) and
+        len(args) == 3 and
+        issubclass(args[0], Exception)
+    )
+
+
 class ChannelingTestResultMeta(type):
     @staticmethod
     def get_wrapper(meth):
         def _wrapper(self, *args, **kwargs):
             args = list(args)
 
-            if (args and isinstance(args[-1], tuple) and
-                    len(args[-1]) == 3 and
-                    issubclass(args[-1][0], Exception)):
+            if args and _is_exc_info(args[-1]):
                 # exc_info triple
                 error_text = self._exc_info_to_string(args[-1], args[0])
                 args[-1] = error_text
@@ -229,6 +235,7 @@ class SequentialTestSuite(unittest.TestSuite):
     def __init__(self, tests, server_conns):
         self.tests = tests
         self.server_conns = server_conns
+        self.stop_requested = False
 
     def run(self, result):
         server_addr = next(iter(self.server_conns))
@@ -239,6 +246,8 @@ class SequentialTestSuite(unittest.TestSuite):
 
         for test in self.tests:
             suite.run(test, result)
+            if self.stop_requested:
+                break
 
         return result
 
@@ -380,7 +389,7 @@ class ParallelTextTestResult(unittest.result.TestResult):
         self.verbosity = verbosity
         self.catch_warnings = warnings
         self.failfast = failfast
-        self.test_stats = {}
+        self.test_stats = []
         self.warnings = []
         # An index of all seen warnings to keep track
         # of repeated warnings.
@@ -397,7 +406,7 @@ class ParallelTextTestResult(unittest.result.TestResult):
             self.ren = SimpleRenderer(tests=tests, stream=stream)
 
     def record_test_stats(self, test, stats):
-        self.test_stats[test] = stats
+        self.test_stats.append((test, stats))
 
     def _exc_info_to_string(self, err, test):
         # Errors are serialized in the worker.
@@ -472,11 +481,11 @@ class ParallelTextTestRunner:
                 self._echo('Populating test databases... ',
                            fg='white', nl=False)
 
+                max_conns = max(10, self.num_workers * len(setup) * 2)
                 cluster = tb._init_cluster(init_settings={
                     # Make sure the server accomodates the possible
                     # number of connections from all test classes.
-                    'max_connections':
-                        max(10, self.num_workers * len(setup) * 2)
+                    'max_connections': max_conns,
                 }, cleanup_atexit=False)
 
                 servers, conns = tb.start_worker_servers(
@@ -569,6 +578,9 @@ class ParallelTextTestRunner:
                 self._echo(f'{kind}: {result.getDescription(test)}',
                            fg=fg, bold=True)
                 self._fill('-', fg=fg)
+                if _is_exc_info(err):
+                    err = unittest.result.TestResult._exc_info_to_string(
+                        result, err, test)
                 self._echo(err)
 
     def _render_result(self, result, boot_time_taken, tests_time_taken):

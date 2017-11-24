@@ -5,7 +5,10 @@
 # See LICENSE for details.
 ##
 
+import functools
 import typing
+
+from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import atoms as s_atoms
 from edgedb.lang.schema import concepts as s_concepts
@@ -211,7 +214,11 @@ class PointerStorageInfo:
             pointer = source
             is_prop = False
 
-        if is_prop:
+        if isinstance(pointer, irutils.TupleIndirectionLink):
+            table = None
+            table_type = 'concept'
+            col_name = common.edgedb_name_to_pg_name(pointer.shortname.name)
+        elif is_prop:
             table = common.get_table_name(source, catenate=False)
             table_type = 'link'
             col_name = common.edgedb_name_to_pg_name(pointer.shortname)
@@ -253,6 +260,7 @@ class PointerStorageInfo:
                 self.table_type, self.column_name, self.column_type, id(self))
 
 
+@functools.lru_cache()
 def get_pointer_storage_info(
         pointer, *, schema=None, source=None, resolve_type=True,
         link_bias=False):

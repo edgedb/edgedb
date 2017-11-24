@@ -188,7 +188,8 @@ class ConstraintMech:
                         f'Atom constraint: {".".join(ref.name)}'
                     )
 
-                ref.name = ['VALUE']
+                # work around the immutability check
+                object.__setattr__(ref, 'name', ['VALUE'])
 
         plain_expr = codegen.SQLSourceGenerator.to_source(sql_expr)
 
