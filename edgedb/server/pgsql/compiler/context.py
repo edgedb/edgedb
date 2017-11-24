@@ -18,8 +18,9 @@ from . import aliases
 
 class ContextSwitchMode(enum.Enum):
     TRANSPARENT = enum.auto()
-    SUBQUERY = enum.auto()
+    SUBREL = enum.auto()
     SUBSTMT = enum.auto()
+    NEWSCOPE = enum.auto()
 
 
 class ShapeFormat(enum.Enum):
@@ -33,134 +34,90 @@ class OutputFormat(enum.Enum):
 
 
 class CompilerContextLevel(compiler.ContextLevel):
-    def __init__(self, prevlevel=None, mode=None):
-        self._mode = mode
-
+    def __init__(self, prevlevel, mode):
         if prevlevel is None:
-            self.backend = None
-            self.schema = None
-            self.singleton_mode = False
+            self.env = None
+            self.argmap = collections.OrderedDict()
 
             stmt = pgast.SelectStmt()
             self.toplevel_stmt = None
             self.stmt = stmt
-            self.query = stmt
             self.rel = stmt
-            self.stmt_hierarchy = {}
+            self.rel_hierarchy = {}
+            self.pending_query = None
 
             self.clause = None
-            self.expr_as_isolated_set = False
-            self.expr_as_value = False
             self.expr_exposed = None
-            self.lax_paths = 0
-            self.correct_set_assumed = False
-            self.unique_set_assumed = False
-            self.expr_injected_path_bond = None
-            self.view_path_id_map = {}
-
-            self.env = None
-            self.argmap = collections.OrderedDict()
-            self.ctemap = {}
-            self.ctemap_by_stmt = collections.defaultdict(dict)
-            self.stmtmap = {}
-            self.viewmap = {}
+            self.volatility_ref = None
+            self.group_by_rels = {}
 
             self.shape_format = ShapeFormat.SERIALIZED
+            self.disable_semi_join = set()
+            self.unique_paths = set()
 
-            self.subquery_map = collections.defaultdict(dict)
-            self.computed_node_rels = {}
-            self.path_scope_refs = {}
-            self.path_scope_refs_by_stmt = collections.defaultdict(dict)
-            self.parent_path_scope_refs = {}
-            self.path_scope = frozenset()
+            self.path_scope = collections.ChainMap()
+            self.scope_tree = None
 
         else:
-            self.backend = prevlevel.backend
-            self.schema = prevlevel.schema
-            self.singleton_mode = prevlevel.singleton_mode
+            self.env = prevlevel.env
+            self.argmap = prevlevel.argmap
 
             self.toplevel_stmt = prevlevel.toplevel_stmt
             self.stmt = prevlevel.stmt
-            self.query = prevlevel.query
             self.rel = prevlevel.rel
-            self.stmt_hierarchy = prevlevel.stmt_hierarchy
+            self.rel_hierarchy = prevlevel.rel_hierarchy
+            self.pending_query = prevlevel.pending_query
 
             self.clause = prevlevel.clause
-            self.expr_as_isolated_set = prevlevel.expr_as_isolated_set
-            self.expr_as_value = prevlevel.expr_as_value
             self.expr_exposed = prevlevel.expr_exposed
-            self.lax_paths = prevlevel.lax_paths
-            self.correct_set_assumed = prevlevel.correct_set_assumed
-            self.unique_set_assumed = prevlevel.unique_set_assumed
-            self.expr_injected_path_bond = prevlevel.expr_injected_path_bond
-            self.view_path_id_map = prevlevel.view_path_id_map
-
-            self.env = prevlevel.env
-            self.argmap = prevlevel.argmap
-            self.ctemap = prevlevel.ctemap
-            self.ctemap_by_stmt = prevlevel.ctemap_by_stmt
-            self.stmtmap = prevlevel.stmtmap
-            self.viewmap = prevlevel.viewmap
+            self.volatility_ref = prevlevel.volatility_ref
+            self.group_by_rels = prevlevel.group_by_rels
 
             self.shape_format = prevlevel.shape_format
+            self.disable_semi_join = prevlevel.disable_semi_join.copy()
+            self.unique_paths = prevlevel.unique_paths.copy()
 
-            self.subquery_map = prevlevel.subquery_map
-            self.computed_node_rels = prevlevel.computed_node_rels
-            self.path_scope_refs = prevlevel.path_scope_refs
-            self.path_scope_refs_by_stmt = prevlevel.path_scope_refs_by_stmt
-            self.parent_path_scope_refs = prevlevel.parent_path_scope_refs
             self.path_scope = prevlevel.path_scope
+            self.scope_tree = prevlevel.scope_tree
 
-            if mode in {ContextSwitchMode.SUBQUERY,
-                        ContextSwitchMode.SUBSTMT}:
-                self.query = pgast.SelectStmt()
-                self.rel = self.query
+            if mode in {ContextSwitchMode.SUBREL, ContextSwitchMode.SUBSTMT}:
+                if self.pending_query and mode == ContextSwitchMode.SUBSTMT:
+                    self.rel = self.pending_query
+                else:
+                    self.rel = pgast.SelectStmt()
+                    self.rel_hierarchy[self.rel] = prevlevel.rel
 
+                self.pending_query = None
                 self.clause = 'result'
-                self.expr_as_isolated_set = False
-                self.expr_as_value = False
-                self.lax_paths = (
-                    prevlevel.lax_paths - 1 if prevlevel.lax_paths else 0)
-                self.correct_set_assumed = False
-                self.unique_set_assumed = False
-                self.view_path_id_map = {}
-
-                self.ctemap = prevlevel.ctemap.copy()
-
-                self.subquery_map = collections.defaultdict(dict)
-                self.path_scope_refs = prevlevel.path_scope_refs.copy()
 
             if mode == ContextSwitchMode.SUBSTMT:
-                self.stmt = self.query
-                self.parent_path_scope_refs = prevlevel.path_scope_refs
-                self.computed_node_rels = prevlevel.computed_node_rels.copy()
+                self.stmt = self.rel
 
-    def genalias(self, hint=None):
-        return self.env.aliases.get(hint)
+            if mode == ContextSwitchMode.NEWSCOPE:
+                self.path_scope = prevlevel.path_scope.new_child()
 
-    def subquery(self):
-        return self.new(ContextSwitchMode.SUBQUERY)
+    def subrel(self):
+        return self.new(ContextSwitchMode.SUBREL)
 
     def substmt(self):
         return self.new(ContextSwitchMode.SUBSTMT)
+
+    def newscope(self):
+        return self.new(ContextSwitchMode.NEWSCOPE)
 
 
 class CompilerContext(compiler.CompilerContext):
     ContextLevelClass = CompilerContextLevel
     default_mode = ContextSwitchMode.TRANSPARENT
 
-    def subquery(self):
-        return self.new(ContextSwitchMode.SUBQUERY)
-
-    def substmt(self):
-        return self.new(ContextSwitchMode.SUBSTMT)
-
 
 class Environment:
     """Static compilation environment."""
 
-    def __init__(self, schema, output_format=OutputFormat.NATIVE):
+    def __init__(self, *, schema, output_format, backend, singleton_mode):
         self.schema = schema
+        self.backend = backend
+        self.singleton_mode = singleton_mode
         self.aliases = aliases.AliasGenerator()
         self.root_rels = set()
         self.rel_overlays = collections.defaultdict(list)

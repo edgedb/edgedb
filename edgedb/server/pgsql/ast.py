@@ -27,6 +27,10 @@ class Base(ast.AST):
         return f'<pg.{self.__class__.__name__} at 0x{id(self):x}>'
 
 
+class ImmutableBase(ast.ImmutableASTMixin, Base):
+    pass
+
+
 class _Ref(Base):
 
     node: Base
@@ -48,14 +52,60 @@ class Keyword(Base):
     name: str                   # Keyword name
 
 
+class Star(Base):
+    """'*' representing all columns of a table or compound field."""
+
+
+class BaseExpr(ImmutableBase):
+    """Any non-statement expression node that returns a value."""
+
+    __ast_meta__ = {'nullable'}
+
+    nullable: bool              # Whether the result can be NULL.
+
+    def __init__(self, *, nullable: typing.Optional[bool]=None,
+                 **kwargs) -> None:
+        nullable = self._is_nullable(kwargs, nullable)
+        super().__init__(nullable=nullable, **kwargs)
+
+    def _is_nullable(self, kwargs: typing.Dict[str, object],
+                     nullable: typing.Optional[bool]) -> bool:
+        if nullable is None:
+            nullable = False
+            for v in kwargs.values():
+                if getattr(v, 'nullable', None):
+                    nullable = True
+                    break
+        return nullable
+
+
+class OutputVar(BaseExpr):
+    """A base class representing expression output address."""
+    pass
+
+
 class EdgeQLPathInfo(Base):
     """A general mixin providing EdgeQL-specific metadata on certain nodes."""
 
     # Ignore the below fields in AST visitor/transformer.
-    __ast_meta__ = {'path_scope'}
+    __ast_meta__ = {
+        'path_scope', 'path_outputs', 'path_id', 'is_distinct', 'value_scope'
+    }
+
+    # The path id represented by the node.
+    path_id: irast.PathId
+
+    # Whether the node represents a distinct set.
+    is_distinct: bool = True
 
     # A subset of paths necessary to perform joining.
     path_scope: typing.Set[irast.PathId]
+
+    # A set of path ids for which this node provides the value aspect.
+    value_scope: typing.Set[irast.PathId]
+
+    # Map of res target names corresponding to paths.
+    path_outputs: typing.Dict[irast.PathId, OutputVar]
 
 
 class BaseRangeVar(Base):
@@ -65,8 +115,8 @@ class BaseRangeVar(Base):
     nullable: bool
 
     @property
-    def path_id(self):
-        return self.query.path_id
+    def is_distinct(self):
+        return self.query.is_distinct
 
     @property
     def path_outputs(self):
@@ -80,12 +130,18 @@ class BaseRangeVar(Base):
     def path_scope(self):
         return self.query.path_scope
 
+    @property
+    def value_scope(self):
+        return self.query.value_scope
+
 
 RangeTypes = typing.Union[BaseRangeVar, _Ref]
 
 
 class BaseRelation(Base):
-    pass
+    name: str
+    # Whether the query output can contain NULLs.
+    nullable: bool = True
 
 
 class Relation(BaseRelation, EdgeQLPathInfo):
@@ -93,7 +149,7 @@ class Relation(BaseRelation, EdgeQLPathInfo):
 
     catalogname: str
     schemaname: str
-    relname: str
+    nullable: bool = False  # no EdgeDB table ever has a NULL row
 
 
 class RangeVar(BaseRangeVar):
@@ -119,15 +175,6 @@ class TypeName(Base):
     array_bounds: list              # Array bounds
 
 
-class Star(Base):
-    """'*' representing all columns of a table or compound field."""
-
-
-class OutputVar(Base):
-    """A base class representing expression output address."""
-    pass
-
-
 class ColumnRef(OutputVar):
     """Specifies a reference to a column."""
 
@@ -135,44 +182,58 @@ class ColumnRef(OutputVar):
     name: typing.List[typing.Union[str, Star]]
     # Whether NULL is possible.
     nullable: bool
-    # Whether the col is grouped.
-    grouped: bool
     # Whether the col is an optional path bond (i.e accepted when NULL)
     optional: bool
 
     def __repr__(self):
-        return (
-            f'<pg.{self.__class__.__name__} '
-            f'name={".".join(self.name)!r} at 0x{id(self):x}>'
-        )
+        if hasattr(self, 'name'):
+            return (
+                f'<pg.{self.__class__.__name__} '
+                f'name={".".join(self.name)!r} at 0x{id(self):x}>'
+            )
+        else:
+            return super().__repr__()
 
 
 ColumnRefTypes = typing.Union[ColumnRef, _Ref]
 
 
-class TupleElement:
+class TupleElement(Base):
+    path_id: irast.PathId
+    name: typing.Union[OutputVar, str]
+    aspect: str
+    val: Base
+
     def __init__(self, path_id: irast.PathId,
-                 name: typing.Optional[str]=None,
-                 val: typing.Optional[Base]=None):
+                 name: typing.Optional[OutputVar]=None,
+                 val: typing.Optional[Base]=None, *,
+                 aspect: str):
         self.path_id = path_id
         self.name = name
         self.val = val
+        self.aspect = aspect
 
     def __repr__(self):
         return f'<{self.__class__.__name__} ' \
-               f'name={self.name} val={self.val} path_id={self.path_id}>'
+               f'name={self.name} val={self.val} path_id={self.path_id} ' \
+               f'aspect={self.aspect}>'
 
 
 class TupleVar(OutputVar):
-    def __init__(self, elements: typing.List[TupleElement], named: bool=False):
+    elements: typing.List[TupleElement]
+    named: bool
+
+    def __init__(self, elements: typing.List[TupleElement],
+                 *, named: bool=False, nullable: bool=False):
         self.elements = elements
         self.named = named
+        self.nullable = nullable
 
     def __repr__(self):
         return f'<{self.__class__.__name__} [{self.elements!r}]'
 
 
-class ParamRef(Base):
+class ParamRef(BaseExpr):
     """Query parameter ($1..$n)."""
 
     # Number of the parameter.
@@ -240,20 +301,23 @@ class Query(BaseRelation, EdgeQLPathInfo):
 
     # Ignore the below fields in AST visitor/transformer.
     __ast_meta__ = {'ptr_join_map', 'path_rvar_map', 'path_namespace',
-                    'path_outputs', 'view_path_id_map', 'argnames'}
+                    'view_path_id_map', 'path_id_mask', 'argnames',
+                    'nullable', 'nonempty'}
+
+    view_path_id_map: typing.Dict[irast.PathId, irast.PathId]
+    path_id_mask: typing.Set[irast.PathId]
+    # True when the cardinality of the result set is guaranteed to
+    # not be zero.
+    nonempty: bool
 
     # Map of RangeVars corresponding to pointer relations.
     ptr_join_map: dict
     # Map of RangeVars corresponding to paths.
-    path_rvar_map: typing.Dict[irast.PathId, BaseRangeVar]
+    path_rvar_map: typing.Dict[typing.Tuple[irast.PathId, str], BaseRangeVar]
     # Map of col refs corresponding to paths.
     path_namespace: dict
-    # Map of res target names corresponding to paths.
-    path_outputs: dict
 
     argnames: typing.Dict[str, int]
-
-    view_path_id_map: typing.Dict[irast.PathId, irast.PathId]
 
     ctes: typing.List[CommonTableExpr]
 
@@ -335,7 +399,7 @@ class ExprKind(enum.IntEnum):
     OP = enum.auto()
 
 
-class Expr(Base):
+class Expr(BaseExpr):
     """Infix, prefix, and postfix expressions."""
 
     # Operator kind
@@ -348,21 +412,21 @@ class Expr(Base):
     rexpr: Base
 
 
-class Constant(Base):
+class Constant(BaseExpr):
     """A literal constant."""
 
     # Constant value
     val: object
 
 
-class LiteralExpr(Base):
+class LiteralExpr(BaseExpr):
     """A literal expression."""
 
     # Expression text
     expr: str
 
 
-class TypeCast(Base):
+class TypeCast(BaseExpr):
     """A CAST expression."""
 
     # Expression being casted.
@@ -371,7 +435,7 @@ class TypeCast(Base):
     type_name: TypeName
 
 
-class CollateClause(Base):
+class CollateClause(BaseExpr):
     """A COLLATE expression."""
 
     # Input expression
@@ -380,7 +444,7 @@ class CollateClause(Base):
     collname: str
 
 
-class FuncCall(Base):
+class FuncCall(BaseExpr):
 
     # Function name
     name: typing.Tuple[str, ...]
@@ -399,6 +463,36 @@ class FuncCall(Base):
     # WITH ORDINALITY
     with_ordinality: bool = False  # noqa (pyflakes bug)
 
+    def __init__(self, *, nullable: typing.Optional[bool]=None,
+                 null_safe: bool=False, **kwargs) -> None:
+        """Function call node.
+
+        @param null_safe:
+            Specifies whether this function is guaranteed
+            to never return NULL on non-NULL input.
+        """
+        if nullable is None and not null_safe:
+            nullable = True
+        super().__init__(nullable=nullable, **kwargs)
+
+    def _is_nullable(self, kwargs: typing.Dict[str, object],
+                     nullable: typing.Optional[bool]) -> bool:
+        if nullable is None:
+            nullable = False
+            for k, v in kwargs.items():
+                if k == 'args':
+                    for arg in v:
+                        if getattr(arg, 'nullable', None):
+                            nullable = True
+                            break
+                if getattr(v, 'nullable', None):
+                    nullable = True
+
+                if nullable:
+                    break
+
+        return nullable
+
 
 class Indices(Base):
     """Array subscript or slice bounds."""
@@ -411,7 +505,7 @@ class Indices(Base):
     ridx: Base
 
 
-class Indirection(Base):
+class Indirection(BaseExpr):
     """Field and/or array element indirection."""
 
     # Indirection subject
@@ -420,7 +514,7 @@ class Indirection(Base):
     indirection: list
 
 
-class ArrayExpr(Base):
+class ArrayExpr(BaseExpr):
     """ARRAY[] construct."""
 
     # array element expressions
@@ -544,28 +638,28 @@ class SubLink(Base):
     expr: Base
 
 
-class RowExpr(Base):
+class RowExpr(BaseExpr):
     """A ROW() expression."""
 
     # The fields.
     args: typing.List[Base]
 
 
-class ImplicitRowExpr(Base):
+class ImplicitRowExpr(BaseExpr):
     """A (a, b, c) expression."""
 
     # The fields.
     args: typing.List[Base]
 
 
-class CoalesceExpr(Base):
+class CoalesceExpr(BaseExpr):
     """A COALESCE() expression."""
 
     # The arguments.
     args: typing.List[Base]
 
 
-class NullTest(Base):
+class NullTest(BaseExpr):
     """IS [NOT] NULL."""
 
     # Input expression,
@@ -582,7 +676,7 @@ class CaseWhen(Base):
     result: Base
 
 
-class CaseExpr(Base):
+class CaseExpr(BaseExpr):
 
     # Equality comparison argument
     arg: Base

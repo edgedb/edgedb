@@ -436,32 +436,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         return result
 
     def _resolve_type_ref(self, ref, schema):
-        if isinstance(ref, so.Tuple):
-            if any(isinstance(st, so.ClassRef) for st in ref.get_subtypes()):
-                subtypes = collections.OrderedDict()
-                for st_name, st in ref.element_types.items():
-                    subtypes[st_name] = schema.get(st.classname)
-
-                obj = ref.__class__.from_subtypes(
-                    subtypes, typemods=ref.get_typemods())
-            else:
-                obj = ref
-
-        elif isinstance(ref, so.Collection):
-            if any(isinstance(st, so.ClassRef) for st in ref.get_subtypes()):
-                subtypes = []
-                for st in ref.get_subtypes():
-                    subtypes.append(schema.get(st.classname))
-
-                obj = ref.__class__.from_subtypes(
-                    subtypes, typemods=ref.get_typemods())
-            else:
-                obj = ref
-
-        else:
-            obj = schema.get(ref.classname)
-
-        return obj
+        return utils.resolve_typeref(ref, schema)
 
     def _resolve_attr_value(self, value, fname, field, schema):
         ftype = field.type[0]

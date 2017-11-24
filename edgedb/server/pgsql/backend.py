@@ -454,36 +454,19 @@ class Backend(s_deltarepo.DeltaProvider):
         result = None
 
         with context(s_deltas.DeltaCommandContext(delta_cmd)):
-            delta = delta_cmd.apply(schema, context)
-
             if isinstance(delta_cmd, s_deltas.CommitDelta):
+                delta = schema.get_delta(delta_cmd.classname)
                 ddl_plan = s_db.AlterDatabase()
-
-                if delta.commands:
-                    ddl_plan.update(delta.commands)
-                    schema0 = schema.copy()
-                else:
-                    schema0 = schema
-
-                schema1 = delta.target
-
-                if schema1 is not None:
-                    modules = (
-                        set(schema1.modules) - {'std', 'schema', 'stdattrs'})
-                    if len(modules) != 1:
-                        raise RuntimeError('unexpected delta module structure')
-                    modname = next(iter(modules))
-                    diff = sd.delta_module(schema1, schema0, modname)
-                    ddl_plan.update(diff)
-
+                ddl_plan.update(delta.commands)
                 await self.run_ddl_command(ddl_plan)
                 await self._commit_delta(delta, ddl_plan)
 
-            elif isinstance(delta_cmd, s_deltas.CreateDelta):
-                pass
-
             elif isinstance(delta_cmd, s_deltas.GetDelta):
+                delta = schema.get_delta(delta_cmd.classname)
                 result = s_ddl.ddl_text_from_delta(schema, delta)
+
+            elif isinstance(delta_cmd, s_deltas.CreateDelta):
+                delta_cmd.apply(schema, context)
 
             else:
                 raise RuntimeError(

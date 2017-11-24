@@ -6,6 +6,7 @@
 ##
 
 
+import difflib
 import os.path
 import textwrap
 import uuid
@@ -191,7 +192,17 @@ class TestDeltaLinkInheritance(tb.DDLTestCase):
 
 class TestDeltaDDLGeneration(tb.DDLTestCase):
     def _assert_result(self, result, expected):
-        self.assertEqual(result.strip(), textwrap.dedent(expected).strip())
+        result = result.strip()
+        expected = textwrap.dedent(expected).strip()
+
+        if result != expected:
+            diff = '\n'.join(difflib.context_diff(
+                expected.split('\n'), result.split('\n')))
+
+            self.fail(
+                f'DDL does not match the expected result.'
+                f'\nEXPECTED:\n{expected}\nACTUAL:\n{result}'
+                f'\nDIFF:\n{diff}')
 
     async def test_delta_ddlgen_01(self):
         result = await self.con.execute("""

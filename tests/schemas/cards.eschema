@@ -26,3 +26,6 @@ concept Card extending Named:
     required link element to str
     required link cost to int
     link owners := self.<deck[IS User]
+
+
+concept SpecialCard extending Card

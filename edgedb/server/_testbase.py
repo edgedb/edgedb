@@ -553,7 +553,7 @@ class QueryTestCaseMeta(TestCaseMeta):
         return wrapper
 
     @classmethod
-    def add_method(mcls, methname, ns, meth):
+    def _add_method(mcls, methname, ns, meth):
         if getattr(meth, '_no_optimizer', False):
             super().add_method(methname, ns, meth)
             return

@@ -5,6 +5,7 @@
 # See LICENSE for details.
 ##
 
+"""Compilation handlers for non-statement expressions."""
 
 import typing
 
@@ -25,14 +26,43 @@ from edgedb.server.pgsql import types as pg_types
 
 from . import astutils
 from . import context
-from . import dbobj
 from . import dispatch
 from . import expr as expr_compiler  # NOQA
 from . import output
 from . import pathctx
-from . import relctx
 from . import relgen
 from . import typecomp
+
+
+@dispatch.compile.register(irast.Set)
+def compile_Set(
+        ir_set: irast.Set, *,
+        ctx: context.CompilerContextLevel) -> pgast.Base:
+
+    if ctx.env.singleton_mode:
+        return _compile_set_in_singleton_mode(ir_set, ctx=ctx)
+
+    if isinstance(ir_set.expr, irast.Constant):
+        # Avoid creating needlessly complicated constructs for
+        # constant expressions.  Besides being an optimization,
+        # this helps in GROUP BY queries.
+        value = dispatch.compile(ir_set.expr, ctx=ctx)
+        pathctx.put_path_value_var(ctx.rel, ir_set.path_id, value, env=ctx.env)
+        shape = _get_shape(ir_set, ctx=ctx)
+        if shape:
+            value = _compile_shape(ir_set, shape=shape, ctx=ctx)
+
+    elif ir_set.path_scope is not None:
+        # This Set is behind a scope fence, so compute it
+        # in a fenced context.
+        with ctx.newscope() as scopectx:
+            value = _compile_set(ir_set, ctx=scopectx)
+
+    else:
+        # All other sets.
+        value = _compile_set(ir_set, ctx=ctx)
+
+    return output.output_as_value(value, ctx=ctx)
 
 
 @dispatch.compile.register(irast.Parameter)
@@ -53,12 +83,6 @@ def compile_Parameter(
         force=True, env=ctx.env)
 
 
-@dispatch.compile.register(irast.EmptySet)
-def compile_EmptySet(
-        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
-    return pgast.Constant(val=None)
-
-
 @dispatch.compile.register(irast.Constant)
 def compile_Constant(
         expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
@@ -74,7 +98,7 @@ def compile_TypeCast(
         expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
     pg_expr = dispatch.compile(expr.expr, ctx=ctx)
 
-    target_type = irutils.infer_type(expr, ctx.schema)
+    target_type = irutils.infer_type(expr, ctx.env.schema)
 
     if (isinstance(expr.expr, irast.EmptySet) or
             (isinstance(expr.expr, irast.Array) and
@@ -87,7 +111,7 @@ def compile_TypeCast(
             target_type=target_type, force=True, env=ctx.env)
 
     else:
-        source_type = irutils.infer_type(expr.expr, ctx.schema)
+        source_type = irutils.infer_type(expr.expr, ctx.env.schema)
         return typecomp.cast(
             pg_expr, source_type=source_type, target_type=target_type,
             env=ctx.env)
@@ -100,7 +124,7 @@ def compile_IndexIndirection(
     # For strings we translate this into substr calls, whereas
     # for arrays the native slice syntax is used.
     is_string = False
-    arg_type = irutils.infer_type(expr.expr, ctx.schema)
+    arg_type = irutils.infer_type(expr.expr, ctx.env.schema)
 
     subj = dispatch.compile(expr.expr, ctx=ctx)
     index = dispatch.compile(expr.index, ctx=ctx)
@@ -108,11 +132,11 @@ def compile_IndexIndirection(
     if isinstance(arg_type, s_obj.Map):
         # When we compile maps we always cast keys to text,
         # hence we need to cast the index to text here.
-        index_type = irutils.infer_type(expr.index, ctx.schema)
+        index_type = irutils.infer_type(expr.index, ctx.env.schema)
         index = typecomp.cast(
             index,
             source_type=index_type,
-            target_type=ctx.schema.get('std::str'),
+            target_type=ctx.env.schema.get('std::str'),
             env=ctx.env)
 
         if isinstance(arg_type.element_type, s_obj.Array):
@@ -121,7 +145,7 @@ def compile_IndexIndirection(
                     lexpr=subj,
                     op='->',
                     rexpr=index),
-                source_type=ctx.schema.get('std::json'),
+                source_type=ctx.env.schema.get('std::json'),
                 target_type=arg_type.element_type,
                 env=ctx.env)
 
@@ -137,7 +161,7 @@ def compile_IndexIndirection(
                     lexpr=subj,
                     op='->>',
                     rexpr=index),
-                source_type=ctx.schema.get('std::str'),
+                source_type=ctx.env.schema.get('std::str'),
                 target_type=arg_type.element_type,
                 env=ctx.env)
 
@@ -202,7 +226,7 @@ def compile_SliceIndirection(
     zero = pgast.Constant(val=0)
 
     is_string = False
-    arg_type = irutils.infer_type(expr.expr, ctx.schema)
+    arg_type = irutils.infer_type(expr.expr, ctx.env.schema)
 
     if isinstance(arg_type, s_atoms.Atom):
         b = arg_type.get_topmost_base()
@@ -304,22 +328,22 @@ def compile_BinOp(
 
     else:
         if not isinstance(expr.left, irast.EmptySet):
-            left_type = irutils.infer_type(expr.left, ctx.schema)
+            left_type = irutils.infer_type(expr.left, ctx.env.schema)
         else:
             left_type = None
 
         if not isinstance(expr.right, irast.EmptySet):
-            right_type = irutils.infer_type(expr.right, ctx.schema)
+            right_type = irutils.infer_type(expr.right, ctx.env.schema)
         else:
             right_type = None
 
         if (not isinstance(expr.left, irast.EmptySet) and
                 not isinstance(expr.right, irast.EmptySet)):
             left_pg_type = pg_types.pg_type_from_object(
-                ctx.schema, left_type, True)
+                ctx.env.schema, left_type, True)
 
             right_pg_type = pg_types.pg_type_from_object(
-                ctx.schema, right_type, True)
+                ctx.env.schema, right_type, True)
 
             if (left_pg_type in {('text',), ('varchar',)} and
                     right_pg_type in {('text',), ('varchar',)} and
@@ -442,13 +466,18 @@ def compile_Tuple(
 
     path_id = irast.PathId(ttype)
 
-    result = pgast.TupleVar(elements=[
-        pgast.TupleElement(
-            path_id=irutils.tuple_indirection_path_id(
-                path_id, telems[i], ttypes[telems[i]]),
-            val=dispatch.compile(e.val, ctx=ctx)
-        ) for i, e in enumerate(expr.elements)
-    ])
+    elements = []
+
+    for i, e in enumerate(expr.elements):
+        telem = telems[i]
+        ttype = ttypes[telem]
+        el_path_id = irutils.tuple_indirection_path_id(path_id, telem, ttype)
+        val = dispatch.compile(e.val, ctx=ctx)
+        aspect = 'identity' if el_path_id.is_concept_path() else 'value'
+        elements.append(
+            pgast.TupleElement(path_id=el_path_id, val=val, aspect=aspect))
+
+    result = pgast.TupleVar(elements=elements)
 
     return output.output_as_value(result, ctx=ctx)
 
@@ -458,7 +487,7 @@ def compile_Mapping(
         expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
     elements = []
 
-    schema = ctx.schema
+    schema = ctx.env.schema
     str_t = schema.get('std::str')
 
     for k, v in zip(expr.keys, expr.values):
@@ -484,8 +513,8 @@ def compile_Mapping(
 @dispatch.compile.register(irast.TypeRef)
 def compile_TypeRef(
         expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
-    data_backend = ctx.backend
-    schema = ctx.schema
+    data_backend = ctx.env.backend
+    schema = ctx.env.schema
 
     if expr.subtypes:
         raise NotImplementedError()
@@ -532,95 +561,16 @@ def compile_FunctionCall(
     return result
 
 
-@dispatch.compile.register(irast.Set)
-def compile_Set(
-        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
-
-    if ctx.singleton_mode:
-        return _compile_set_in_singleton_mode(expr, ctx=ctx)
-
-    has_shape = (
-        bool(expr.shape) and
-        (ctx.expr_exposed or
-         ctx.shape_format == context.ShapeFormat.FLAT)
-    )
-
-    if ctx.clause == 'where' and ctx.rel is ctx.stmt:
-        # When referred to in WHERE
-        # we want to wrap the set CTE into
-        #    EXISTS(SELECT * FROM SetCTE WHERE SetCTE.expr)
-        with ctx.subquery() as subctx:
-            set_rel = relgen.set_to_cte(expr, ctx=subctx)
-            wrapper = subctx.query
-            rvar = dbobj.rvar_for_rel(ctx.env, set_rel)
-            wrapper.from_clause = [rvar]
-            pathctx.put_path_rvar(ctx.env, wrapper, expr.path_id, rvar)
-            relctx.pull_path_namespace(
-                target=wrapper, source=rvar, ctx=subctx)
-            wrapper.where_clause = pathctx.get_rvar_path_value_var(
-                rvar, expr.path_id, env=subctx.env)
-            relctx.enforce_path_scope(wrapper, ctx.path_scope_refs, ctx=subctx)
-
-        result = pgast.SubLink(
-            type=pgast.SubLinkType.EXISTS,
-            expr=wrapper
-        )
-
-    elif (ctx.expr_as_isolated_set or ctx.expr_as_value or
-            (ctx.clause == 'orderby' and ctx.rel is ctx.stmt)):
-        # When referred to in OFFSET/LIMIT we want to wrap the
-        # set CTE into
-        #    SELECT v FROM SetCTE
-        with ctx.subquery() as subctx:
-            source_cte = relgen.set_to_cte(expr, ctx=subctx)
-
-            relctx.include_range(
-                subctx.rel, source_cte, join_type='inner', ctx=subctx)
-
-            if has_shape:
-                _compile_shape(expr, ctx=subctx)
-
-            source_cte = subctx.rel
-
-        result = relgen.wrap_set_rel(
-            expr, source_cte, as_value=ctx.expr_as_value, ctx=ctx)
-
-    else:
-        # Otherwise we join the range directly into the current rel
-        # and make its refs available in the path namespace.
-        if ctx.clause == 'orderby':
-            join_type = 'left'
-        else:
-            join_type = 'inner'
-
-        source_cte = relgen.set_to_cte(expr, ctx=ctx)
-
-        source_rvar = relctx.include_range(
-            ctx.rel, source_cte, join_type=join_type,
-            lateral=True, ctx=ctx)
-
-        result = pathctx.get_rvar_path_value_var(
-            source_rvar, expr.path_id, env=ctx.env)
-
-        if has_shape:
-            result = _compile_shape(expr, ctx=ctx)
-
-        result = output.output_as_value(result, ctx=ctx)
-
-    return result
-
-
 @dispatch.compile.register(irast.Coalesce)
 def compile_Coalesce(
         expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
     with ctx.new() as subctx:
-        subctx.lax_paths = 1
         pg_args = [dispatch.compile(a, ctx=subctx) for a in expr.args]
     return pgast.FuncCall(name=('coalesce',), args=pg_args)
 
 
 def _tuple_to_row_expr(tuple_expr, *, ctx):
-    tuple_type = irutils.infer_type(tuple_expr, ctx.schema)
+    tuple_type = irutils.infer_type(tuple_expr, ctx.env.schema)
     subtypes = tuple_type.element_types
     row = []
     for n in subtypes:
@@ -630,47 +580,111 @@ def _tuple_to_row_expr(tuple_expr, *, ctx):
                 name=n,
                 path_id=irutils.tuple_indirection_path_id(
                     tuple_expr.path_id, n, subtypes[n])),
-            ctx.schema
+            ctx.env.schema
         )
         row.append(dispatch.compile(ref, ctx=ctx))
 
     return pgast.RowExpr(args=row)
 
 
+def _compile_set(
+        ir_set: irast.Set, *,
+        ctx: context.CompilerContextLevel) -> pgast.Base:
+
+    relgen.get_set_rvar(ir_set, ctx=ctx)
+
+    shape = _get_shape(ir_set, ctx=ctx)
+    if shape:
+        value = _compile_shape(ir_set, shape=shape, ctx=ctx)
+    else:
+        if ir_set.path_id.is_concept_path():
+            aspect = 'identity'
+        else:
+            aspect = 'value'
+
+        value = pathctx.get_path_var(
+            ctx.rel, ir_set.path_id, aspect=aspect, env=ctx.env)
+
+    return value
+
+
+def _get_shape(
+        ir_set: irast.Set, *,
+        ctx: context.CompilerContextLevel) -> \
+        typing.Optional[typing.List[irast.Set]]:
+
+    if (not ctx.expr_exposed and
+            ctx.shape_format != context.ShapeFormat.FLAT):
+        return []
+
+    shape = ir_set.shape
+
+    if not shape:
+        has_shape = (
+            isinstance(ir_set.scls, s_concepts.Concept) and
+            (ctx.expr_exposed or
+             ctx.shape_format == context.ShapeFormat.FLAT)
+        )
+
+        if has_shape:
+            # Bare reference to a concept expr
+            shape = _implicit_concept_shape(ir_set, ctx=ctx)
+
+    return shape
+
+
+def _implicit_concept_shape(
+        ir_set: irast.Set, *,
+        ctx: context.CompilerContextLevel) -> typing.List[irast.Set]:
+    id_set = irutils.get_id_path(ir_set, schema=ctx.env.schema)
+    if ir_set.path_scope is not None:
+        fence = ir_set.path_scope
+    else:
+        fence = ctx.scope_tree
+    fence.add_path(ir_set.path_id)
+    id_set.path_scope = fence.add_fence()
+    id_set.path_scope.add_path(id_set.path_id)
+    return [id_set]
+
+
 def _compile_shape(
-        ir_set: irast.Set, *, ctx: context.CompilerContextLevel) \
-        -> typing.Union[pgast.Base, pgast.TupleVar]:
+        ir_set: irast.Set, shape: typing.List[irast.Set], *,
+        ctx: context.CompilerContextLevel) -> pgast.TupleVar:
     elements = []
 
-    for e in ir_set.shape:
-        rptr = e.rptr
-        cset = irutils.get_canonical_set(e)
-        ptrcls = rptr.ptrcls
-        ptrdir = rptr.direction or s_pointers.PointerDirection.Outbound
-        is_singleton = ptrcls.singular(ptrdir)
+    with ctx.new() as shapectx:
+        shapectx.disable_semi_join.add(ir_set.path_id)
+        shapectx.unique_paths.add(ir_set.path_id)
 
-        with ctx.new() as newctx:
-            newctx.expr_as_value = (
-                not is_singleton or
-                irutils.is_subquery_set(cset) or
-                irutils.is_inner_view_reference(cset) or
-                isinstance(cset.scls, s_concepts.Concept)
-            )
-            element = dispatch.compile(e, ctx=newctx)
+        for el in shape:
+            rptr = el.rptr
+            ptrcls = rptr.ptrcls
+            ptrdir = rptr.direction or s_pointers.PointerDirection.Outbound
+            is_singleton = ptrcls.singular(ptrdir)
 
-        elements.append(astutils.tuple_element_for_shape_el(e, element))
+            if (irutils.is_subquery_set(el) or
+                    isinstance(el.scls, s_concepts.Concept) or
+                    not ptrcls.singular(ptrdir) or
+                    not ptrcls.required):
+                value = relgen.set_as_subquery(
+                    el, aggregate=not is_singleton, ctx=shapectx)
+            else:
+                value = dispatch.compile(el, ctx=shapectx)
+
+            elements.append(astutils.tuple_element_for_shape_el(el, value))
 
     result = pgast.TupleVar(elements=elements, named=True)
-    pathctx.put_path_value_var(ctx.rel, ir_set.path_id, result, env=ctx.env)
+    pathctx.put_path_value_var(
+        ctx.rel, ir_set.path_id, result, force=True, env=ctx.env)
 
     if ctx.shape_format == context.ShapeFormat.SERIALIZED:
         result = output.output_as_value(result, ctx=ctx)
         pathctx.put_path_serialized_var(
-            ctx.rel, ir_set.path_id, result, env=ctx.env)
+            ctx.rel, ir_set.path_id, result, force=True, env=ctx.env)
 
     for element in elements:
         # The ref might have already been added by the nested shape
-        # processing, so check for it.
+        # processing, so add it conditionally.
         pathctx.put_path_value_var_if_not_exists(
             ctx.rel, element.path_id, element.val, env=ctx.env)
 
@@ -679,7 +693,9 @@ def _compile_shape(
 
 def _compile_set_in_singleton_mode(
         node: irast.Set, *, ctx: context.CompilerContextLevel) -> pgast.Base:
-    if node.expr is not None:
+    if isinstance(node, irast.EmptySet):
+        return pgast.Constant(value=None)
+    elif node.expr is not None:
         return dispatch.compile(node.expr, ctx=ctx)
     else:
         if node.rptr:

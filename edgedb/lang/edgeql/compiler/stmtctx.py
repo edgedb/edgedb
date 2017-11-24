@@ -149,18 +149,16 @@ def declare_view(
     else:
         real_path_id = pathctx.get_path_id(result_type, ctx=ctx)
 
-    substmt.main_stmt = ctx.stmt
     substmt.parent_stmt = ctx.stmt.parent_stmt
-    substmt_set = irast.Set(
+    substmt.path_scope = None
+    substmt_set = setgen.scoped_set(irast.Set(
         path_id=path_id,
         real_path_id=real_path_id,
         scls=result_type,
         expr=substmt
-    )
+    ), ctx=ctx)
 
-    ctx.sets[substmt_set.path_id] = substmt_set
     ctx.substmts[(alias, None)] = substmt_set
-    ctx.stmt.substmts.append(substmt_set)
     return substmt_set
 
 
@@ -173,7 +171,7 @@ def declare_view_from_schema(
         return ctx.substmts[key]
     else:
         view_expr = qlparser.parse(viewcls.expr)
-        with ctx.newscope() as scopectx:
+        with ctx.newfence() as scopectx:
             return declare_view(view_expr, alias, ctx=scopectx)
 
 
@@ -201,9 +199,28 @@ def declare_aliased_set(
             c = s_views.View(name=view_name)
             ir_set.path_id = pathctx.get_path_id(c, ctx=ctx)
 
+        pathctx.register_path_in_scope(ir_set.path_id, ctx=ctx)
+
     if key is not None:
         ctx.substmts[key] = ir_set
 
-    pathctx.register_path_scope(ir_set.path_id, ctx=ctx)
-
     return ir_set
+
+
+def remove_aliased_set(
+        ir_set: irast.Set, alias: typing.Optional[str]=None, *,
+        ctx: context.ContextLevel) -> None:
+
+    if alias is not None:
+        key = (alias, None)
+    elif not isinstance(ir_set.scls, s_obj.Collection):
+        rptr = ir_set.rptr
+        if rptr is not None:
+            key = (rptr.ptrcls.shortname, rptr.source.path_id)
+        else:
+            key = (ir_set.path_id[0].name, None)
+    else:
+        key = None
+
+    if key is not None:
+        ctx.substmts.pop(key, None)

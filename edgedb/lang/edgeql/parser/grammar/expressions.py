@@ -702,7 +702,7 @@ class Expr(Nonterm):
         elif op == '?=':
             op = qlast.EQUIVALENT
         elif op == '?!=':
-            op = qlast.NEQIUVALENT
+            op = qlast.NEQUIVALENT
 
         self.val = qlast.BinOp(left=kids[0].val, op=op, right=kids[2].val)
 

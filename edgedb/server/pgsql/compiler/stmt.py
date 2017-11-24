@@ -5,24 +5,21 @@
 # See LICENSE for details.
 ##
 
-import typing
-
 from edgedb.lang.ir import ast as irast
-from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import concepts as s_concepts
 from edgedb.lang.schema import views as s_views
+
 from edgedb.server.pgsql import ast as pgast
 
-from . import boilerplate
+from . import astutils
+from . import clauses
 from . import context
 from . import dbobj
 from . import dispatch
 from . import dml
-from . import output
 from . import pathctx
 from . import relctx
-from . import relgen
 
 
 @dispatch.compile.register(irast.SelectStmt)
@@ -30,65 +27,54 @@ def compile_SelectStmt(
         stmt: irast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> pgast.Query:
 
-    if ctx.singleton_mode:
+    if ctx.env.singleton_mode:
         return dispatch.compile(stmt.result, ctx=ctx)
 
     parent_ctx = ctx
     with parent_ctx.substmt() as ctx:
         # Common setup.
-        boilerplate.init_stmt(stmt, ctx=ctx, parent_ctx=parent_ctx)
+        clauses.init_stmt(stmt, ctx=ctx, parent_ctx=parent_ctx)
+
+        query = ctx.stmt
 
         # Process FOR clause.
-        boilerplate.compile_iterator_expr(ctx.query, stmt, ctx=ctx)
-
-        query = ctx.query
+        clauses.compile_iterator_expr(query, stmt, ctx=ctx)
 
         # Process the result expression;
-        compile_output(stmt.result, ctx=ctx)
+        outvar = clauses.compile_output(stmt.result, ctx=ctx)
 
         # The FILTER clause.
-        query.where_clause = compile_filter_clause(stmt.where, ctx=ctx)
+        query.where_clause = astutils.extend_binop(
+            query.where_clause,
+            clauses.compile_filter_clause(stmt.where, ctx=ctx))
 
-        simple_wrapper = irutils.is_simple_wrapper(stmt)
+        if outvar.nullable and query is ctx.toplevel_stmt:
+            # A nullable var has bubbled up to the top,
+            # filter out NULLs.
+            valvar = pathctx.get_path_value_var(
+                query, stmt.result.path_id, env=ctx.env)
+            if isinstance(valvar, pgast.TupleVar):
+                valvar = pgast.ImplicitRowExpr(
+                    args=[e.val for e in valvar.elements])
 
-        if not simple_wrapper:
-            relctx.enforce_path_scope(
-                query, ctx.parent_path_scope_refs, ctx=ctx)
-
-        parent_range = relctx.get_parent_range_scope(stmt.result, ctx=ctx)
-        if parent_range is not None:
-            parent_rvar, _ = parent_range
-            parent_scope = {}
-            for path_id in parent_rvar.path_scope:
-                tr_path_id = pathctx.reverse_map_path_id(
-                    path_id, parent_ctx.view_path_id_map)
-
-                parent_scope[tr_path_id] = pathctx.LazyPathVarRef(
-                    pathctx.get_rvar_path_identity_var,
-                    ctx.env, parent_rvar, path_id)
-
-            relctx.enforce_path_scope(
-                query, parent_scope, ctx=ctx)
+            query.where_clause = astutils.extend_binop(
+                query.where_clause,
+                pgast.NullTest(arg=valvar, negated=True)
+            )
 
         # The ORDER BY clause
-        query.sort_clause = compile_orderby_clause(stmt.orderby, ctx=ctx)
+        query.sort_clause = clauses.compile_orderby_clause(
+            stmt.orderby, ctx=ctx)
 
         # The OFFSET clause
-        query.limit_offset = compile_limit_offset_clause(stmt.offset, ctx=ctx)
+        query.limit_offset = clauses.compile_limit_offset_clause(
+            stmt.offset, ctx=ctx)
 
         # The LIMIT clause
-        query.limit_count = compile_limit_offset_clause(stmt.limit, ctx=ctx)
+        query.limit_count = clauses.compile_limit_offset_clause(
+            stmt.limit, ctx=ctx)
 
-        if not parent_ctx.correct_set_assumed and not simple_wrapper:
-            enforce_uniqueness = (
-                (query is ctx.toplevel_stmt or ctx.expr_exposed) and
-                not parent_ctx.unique_set_assumed and
-                isinstance(stmt.result.scls, s_concepts.Concept)
-            )
-            query = relgen.ensure_correct_set(
-                stmt, query, enforce_uniqueness=enforce_uniqueness, ctx=ctx)
-
-        boilerplate.fini_stmt(query, ctx, parent_ctx)
+        clauses.fini_stmt(query, ctx, parent_ctx)
 
     return query
 
@@ -100,16 +86,24 @@ def compile_GroupStmt(
 
     parent_ctx = ctx
     with parent_ctx.substmt() as ctx:
-        boilerplate.init_stmt(stmt, ctx=ctx, parent_ctx=parent_ctx)
+        clauses.init_stmt(stmt, ctx=ctx, parent_ctx=parent_ctx)
 
         group_path_id = stmt.group_path_id
 
         # Process the GROUP .. BY part into a subquery.
-        with ctx.subquery() as gctx:
+        with ctx.subrel() as gctx:
             gctx.expr_exposed = False
-            gquery = gctx.query
-            compile_output(stmt.subject, ctx=gctx)
-            subj_rvar = gquery.from_clause[0]
+            gquery = gctx.rel
+            pathctx.put_path_bond(gquery, group_path_id)
+            if stmt.path_scope:
+                ctx.path_scope.update({
+                    path_id: gquery for path_id in stmt.path_scope.paths
+                })
+            relctx.update_scope(stmt.subject, gquery, ctx=gctx)
+            stmt.subject.path_scope = None
+            clauses.compile_output(stmt.subject, ctx=gctx)
+            subj_rvar = pathctx.get_path_rvar(
+                gquery, stmt.subject.path_id, aspect='value', env=gctx.env)
             relctx.ensure_bond_for_expr(
                 stmt.subject, subj_rvar.query, ctx=gctx)
 
@@ -119,11 +113,10 @@ def compile_GroupStmt(
 
             for expr in stmt.groupby:
                 with gctx.new() as subctx:
-                    subctx.path_scope_refs = gctx.parent_path_scope_refs.copy()
                     partexpr = dispatch.compile(expr, ctx=subctx)
 
                 part_clause.append(partexpr)
-                group_paths.add(expr)
+                group_paths.add(expr.path_id)
 
             # Since we will be computing arbitrary expressions
             # based on the grouped sets, it is more efficient
@@ -141,10 +134,10 @@ def compile_GroupStmt(
                 first_val = pathctx.get_path_identity_var(
                     gquery, stmt.subject.path_id, env=ctx.env)
             else:
-                with ctx.subquery() as subctx:
-                    wrapper = subctx.query
+                with ctx.subrel() as subctx:
+                    wrapper = subctx.rel
 
-                    gquery_rvar = dbobj.rvar_for_rel(ctx.env, gquery)
+                    gquery_rvar = dbobj.rvar_for_rel(gquery, env=ctx.env)
                     wrapper.from_clause = [gquery_rvar]
                     relctx.pull_path_namespace(
                         target=wrapper, source=gquery_rvar, ctx=subctx)
@@ -167,6 +160,7 @@ def compile_GroupStmt(
                         gquery_rvar, stmt.subject.path_id, env=ctx.env)
 
                     gquery = wrapper
+                    pathctx.put_path_bond(gquery, group_path_id)
 
             group_id = pgast.FuncCall(
                 name=('first_value',),
@@ -182,101 +176,90 @@ def compile_GroupStmt(
             pathctx.put_path_value_var(
                 gquery, group_path_id, group_id, env=ctx.env)
 
-            pathctx.put_path_bond(gquery, group_path_id)
-
         group_cte = pgast.CommonTableExpr(
             query=gquery,
-            name=ctx.genalias('g')
+            name=ctx.env.aliases.get('g')
         )
+
+        group_cte_rvar = dbobj.rvar_for_rel(group_cte, env=ctx.env)
 
         # Generate another subquery contaning distinct values of
         # path expressions in BY.
-        with ctx.subquery() as gvctx:
-            gvctx.path_scope = frozenset(
-                {group_path_id} | {s.path_id for s in stmt.groupby})
+        with ctx.subrel() as gvctx:
+            gvquery = gvctx.rel
+            relctx.include_rvar(gvquery, group_cte_rvar, ctx=gvctx)
 
-            relctx.replace_set_cte_subtree(
-                stmt.subject, group_cte, ctx=gvctx)
+            pathctx.put_path_bond(gvquery, group_path_id)
 
             for group_set in stmt.groupby:
-                relctx.replace_set_cte_subtree(
-                    group_set, group_cte, ctx=gvctx)
-
-                group_expr = dispatch.compile(group_set, ctx=gvctx)
+                dispatch.compile(group_set, ctx=gvctx)
                 path_id = group_set.path_id
-
-                pathctx.put_path_identity_var(
-                    gvctx.query, path_id, group_expr, env=gvctx.env)
-
-                pathctx.put_path_value_var(
-                    gvctx.query, path_id, group_expr, env=gvctx.env)
-
                 if isinstance(path_id[-1], (s_concepts.Concept, s_views.View)):
-                    pathctx.put_path_bond(gvctx.query, path_id)
+                    pathctx.put_path_bond(gvquery, path_id)
 
-            relctx.include_range(gvctx.query, group_cte.query, ctx=gvctx)
-
-            for path_id in list(gvctx.query.path_rvar_map):
-                if path_id not in gvctx.path_scope:
-                    gvctx.query.path_rvar_map.pop(path_id)
-
-            for path_id in list(gvctx.query.path_namespace):
-                if path_id not in gvctx.path_scope:
-                    gvctx.query.path_namespace.pop(path_id)
-
-            gvctx.query.distinct_clause = [
+            gvquery.distinct_clause = [
                 pathctx.get_path_identity_var(
-                    gvctx.query, group_path_id, env=ctx.env)
+                    gvquery, group_path_id, env=ctx.env)
             ]
 
+            for path_id, aspect in list(gvquery.path_rvar_map):
+                if path_id not in group_paths and path_id != group_path_id:
+                    gvquery.path_rvar_map.pop((path_id, aspect))
+
+            for path_id, aspect in list(gquery.path_rvar_map):
+                if path_id in group_paths:
+                    gquery.path_rvar_map.pop((path_id, aspect))
+                    gquery.path_namespace.pop((path_id, aspect), None)
+                    gquery.path_outputs.pop((path_id, aspect), None)
+
         groupval_cte = pgast.CommonTableExpr(
-            query=gvctx.query,
-            name=ctx.genalias('gv')
+            query=gvquery,
+            name=ctx.env.aliases.get('gv')
         )
+
+        groupval_cte_rvar = dbobj.rvar_for_rel(groupval_cte, env=ctx.env)
 
         o_stmt = stmt.result.expr
 
         # process the result expression;
-        with ctx.subquery() as selctx:
+        with ctx.subrel() as selctx:
+            selquery = selctx.rel
             outer_id = stmt.result.path_id
             inner_id = o_stmt.result.path_id
 
-            selctx.query.view_path_id_map = {
+            relctx.include_rvar(selquery, groupval_cte_rvar, group_path_id,
+                                aspect='identity', ctx=ctx)
+
+            for path_id in group_paths:
+                selctx.path_scope[path_id] = selquery
+                pathctx.put_path_rvar(selquery, path_id, groupval_cte_rvar,
+                                      aspect='value', env=ctx.env)
+
+            selctx.group_by_rels = selctx.group_by_rels.copy()
+            selctx.group_by_rels[group_path_id, stmt.subject.path_id] = \
+                group_cte
+
+            selquery.view_path_id_map = {
                 outer_id: inner_id
             }
 
-            selctx.path_scope = o_stmt.path_scope
-
-            selctx.query.ctes.append(group_cte)
-            # relctx.pop_prefix_ctes(stmt.subject.path_id, ctx=selctx)
-            relctx.replace_set_cte_subtree(
-                stmt.subject, group_cte, lax=False, ctx=selctx)
-            # When GROUP subject appears in aggregates, which by
-            # default use lax paths, we still want to use the group
-            # CTE as the source.
-            relctx.replace_set_cte_subtree(
-                stmt.subject, group_cte, lax=True, ctx=selctx)
+            selquery.ctes.append(group_cte)
 
             sortoutputs = []
 
-            selctx.query.ctes.append(groupval_cte)
-            for grouped_set in group_paths:
-                relctx.replace_set_cte_subtree(
-                    grouped_set, groupval_cte, recursive=False, ctx=selctx)
+            selquery.ctes.append(groupval_cte)
 
-            compile_output(o_stmt.result, ctx=selctx)
-
-            relctx.enforce_path_scope(
-                selctx.query, selctx.parent_path_scope_refs, ctx=selctx)
+            clauses.compile_output(o_stmt.result, ctx=selctx)
 
             # The WHERE clause
-            selctx.query.where_clause = compile_filter_clause(
-                o_stmt.where, ctx=selctx)
+            selquery.where_clause = astutils.extend_binop(
+                selquery.where_clause,
+                clauses.compile_filter_clause(o_stmt.where, ctx=selctx))
 
             for ir_sortexpr in o_stmt.orderby:
-                alias = ctx.genalias('s')
+                alias = ctx.env.aliases.get('s')
                 sexpr = dispatch.compile(ir_sortexpr.expr, ctx=selctx)
-                selctx.query.target_list.append(
+                selquery.target_list.append(
                     pgast.ResTarget(
                         val=sexpr,
                         name=alias
@@ -284,18 +267,19 @@ def compile_GroupStmt(
                 )
                 sortoutputs.append(alias)
 
-        if not gvctx.query.target_list:
-            # group expressions were not used in output, discard the
-            # GV CTE.
-            selctx.query.ctes.remove(groupval_cte)
+        if not gvquery.target_list:
+            # No values were pulled from the group-values rel,
+            # we must remove the DISTINCT clause to prevent
+            # a syntax error.
+            gvquery.distinct_clause[:] = []
 
-        query = ctx.query
-        result_rvar = relctx.include_range(
-            query, selctx.query, lateral=True, ctx=ctx)
+        query = ctx.rel
+        result_rvar = dbobj.rvar_for_rel(selquery, lateral=True, env=ctx.env)
+        relctx.include_rvar(query, result_rvar, path_id=outer_id, ctx=ctx)
 
-        for rt in selctx.query.target_list:
+        for rt in selquery.target_list:
             if rt.name is None:
-                rt.name = ctx.genalias('v')
+                rt.name = ctx.env.aliases.get('v')
             if rt.name not in sortoutputs:
                 query.target_list.append(
                     pgast.ResTarget(
@@ -326,16 +310,7 @@ def compile_GroupStmt(
                 ctx1.expr_exposed = False
                 query.limit_count = dispatch.compile(o_stmt.limit, ctx=ctx1)
 
-        if not parent_ctx.correct_set_assumed:
-            enforce_uniqueness = (
-                (query is ctx.toplevel_stmt or ctx.expr_exposed) and
-                not parent_ctx.unique_set_assumed and
-                isinstance(stmt.result.scls, s_concepts.Concept)
-            )
-            query = relgen.ensure_correct_set(
-                stmt, query, enforce_uniqueness=enforce_uniqueness, ctx=ctx)
-
-        boilerplate.fini_stmt(query, ctx, parent_ctx)
+        clauses.fini_stmt(query, ctx, parent_ctx)
 
     return query
 
@@ -353,7 +328,6 @@ def compile_InsertStmt(
 
         # Process INSERT body
         dml.process_insert_body(stmt, wrapper, insert_cte, ctx=ctx)
-        relctx.enforce_path_scope(wrapper, ctx.parent_path_scope_refs, ctx=ctx)
 
         return dml.fini_dml_stmt(stmt, wrapper, insert_cte,
                                  parent_ctx=parent_ctx, ctx=ctx)
@@ -373,7 +347,6 @@ def compile_UpdateStmt(
         # Process UPDATE body
         dml.process_update_body(stmt, wrapper, update_cte, range_cte,
                                 ctx=ctx)
-        relctx.enforce_path_scope(wrapper, ctx.parent_path_scope_refs, ctx=ctx)
 
         return dml.fini_dml_stmt(stmt, wrapper, update_cte,
                                  parent_ctx=parent_ctx, ctx=ctx)
@@ -385,7 +358,7 @@ def compile_DeleteStmt(
         ctx: context.CompilerContextLevel) -> pgast.Query:
 
     parent_ctx = ctx
-    with parent_ctx.subquery() as ctx:
+    with parent_ctx.substmt() as ctx:
         # Common DML bootstrap
         wrapper, delete_cte, range_cte = dml.init_dml_stmt(
             stmt, pgast.DeleteStmt(), parent_ctx=parent_ctx, ctx=ctx)
@@ -393,85 +366,5 @@ def compile_DeleteStmt(
         ctx.toplevel_stmt.ctes.append(range_cte)
         ctx.toplevel_stmt.ctes.append(delete_cte)
 
-        relctx.enforce_path_scope(wrapper, ctx.parent_path_scope_refs, ctx=ctx)
-
         return dml.fini_dml_stmt(stmt, wrapper, delete_cte,
                                  parent_ctx=parent_ctx, ctx=ctx)
-
-
-def compile_output(
-        ir_set: irast.Base, *, ctx: context.CompilerContextLevel) -> None:
-    with ctx.new() as newctx:
-        newctx.clause = 'result'
-        if newctx.expr_exposed is None:
-            newctx.expr_exposed = True
-        dispatch.compile(ir_set, ctx=newctx)
-        set_cte = relctx.get_set_cte(
-            irutils.get_canonical_set(ir_set), ctx=newctx)
-
-        rvar = ctx.subquery_map[ctx.rel][set_cte]
-
-        path_id = ir_set.path_id
-        if ctx.rel.view_path_id_map:
-            path_id = pathctx.reverse_map_path_id(
-                path_id, ctx.rel.view_path_id_map)
-
-        pathctx.put_path_rvar(ctx.env, ctx.rel, path_id, rvar)
-
-        if output.in_serialization_ctx(ctx):
-            pathctx.get_path_serialized_output(ctx.rel, path_id, env=ctx.env)
-        else:
-            pathctx.get_path_value_output(ctx.rel, path_id, env=ctx.env)
-
-
-def compile_filter_clause(
-        ir_set: typing.Optional[irast.Base], *,
-        ctx: context.CompilerContextLevel) -> pgast.Expr:
-    if ir_set is None:
-        return None
-
-    with ctx.new() as ctx1:
-        ctx1.clause = 'where'
-        ctx1.expr_exposed = False
-        ctx1.shape_format = context.ShapeFormat.SERIALIZED
-        relgen.init_scoped_set_ctx(ir_set, ctx=ctx1)
-        where_clause = dispatch.compile(ir_set, ctx=ctx1)
-
-    return where_clause
-
-
-def compile_orderby_clause(
-        ir_exprs: typing.List[irast.Base], *,
-        ctx: context.CompilerContextLevel) -> pgast.Expr:
-    if not ir_exprs:
-        return []
-
-    sort_clause = []
-
-    for expr in ir_exprs:
-        with ctx.new() as orderctx:
-            orderctx.clause = 'orderby'
-            relgen.init_scoped_set_ctx(expr.expr, ctx=orderctx)
-            sortexpr = pgast.SortBy(
-                node=dispatch.compile(expr.expr, ctx=orderctx),
-                dir=expr.direction,
-                nulls=expr.nones_order)
-            sort_clause.append(sortexpr)
-
-    return sort_clause
-
-
-def compile_limit_offset_clause(
-        ir_set: typing.Optional[irast.Base], *,
-        ctx: context.CompilerContextLevel) -> pgast.Expr:
-    if ir_set is None:
-        return None
-
-    with ctx.new() as ctx1:
-        relgen.init_scoped_set_ctx(ir_set, ctx=ctx1)
-        ctx1.clause = 'offsetlimit'
-        ctx1.expr_as_isolated_set = True
-        ctx1.expr_exposed = False
-        limit_offset_clause = dispatch.compile(ir_set, ctx=ctx1)
-
-    return limit_offset_clause

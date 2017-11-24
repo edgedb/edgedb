@@ -71,7 +71,7 @@ def compile_FunctionCall(
                     agg_sort=expr.agg_sort
                 )
 
-        path_scope = frozenset()
+        path_scope = None
         agg_sort = []
         agg_filter = None
         partition = []
@@ -80,10 +80,10 @@ def compile_FunctionCall(
         if is_agg:
             # When processing calls to aggregate functions,
             # we do not want to affect the statement-wide path scope,
-            # so put a newscope barrier here.  Store the scope
+            # so put a newfence barrier here.  Store the scope
             # obtained by processing the agg call in the resulting
             # IR Set.
-            with fctx.new_traced_scope() as scope_ctx:
+            with fctx.newfence() as scope_ctx:
                 scope_ctx.group_paths.clear()
 
                 args, kwargs, arg_types = \
@@ -117,7 +117,7 @@ def compile_FunctionCall(
                     agg_filter = dispatch.compile(
                         expr.agg_filter, ctx=scope_ctx)
 
-                path_scope = frozenset(scope_ctx.traced_path_scope)
+                path_scope = scope_ctx.path_scope
 
         else:
             args, kwargs, arg_types = \

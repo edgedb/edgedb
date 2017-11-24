@@ -434,9 +434,9 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
                 cmp_count := count(cmp)
             SELECT Item {name}
             FILTER
-                cmp_count = count(.tag_set1)
+                cmp_count = count(Item.tag_set1)
                 AND
-                cmp_count = count(.tag_set1 UNION cmp)
+                cmp_count = count(Item.tag_set1 UNION cmp)
             ORDER BY .name;
 
             WITH

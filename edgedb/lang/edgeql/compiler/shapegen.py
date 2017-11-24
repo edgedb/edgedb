@@ -29,6 +29,7 @@ from edgedb.lang.edgeql import errors
 from edgedb.lang.common import exceptions as edgedb_error
 from edgedb.lang.common import parsing
 
+from . import astutils
 from . import clauses
 from . import context
 from . import dispatch
@@ -97,7 +98,7 @@ def compile_shape(
             shapespec = [target_el] + list(shapespec)
 
     for shape_el in shapespec:
-        with ctx.newscope() as elctx:
+        with ctx.newfence() as elctx:
             el = compile_shape_el(
                 source_expr, shape_el,
                 scls=scls,
@@ -107,8 +108,8 @@ def compile_shape(
                 precompiled_compexpr=precompiled_exprs.get(shape_el),
                 _visited=_visited,
                 _recurse=_recurse,
-                ctx=elctx,
-                parent_ctx=ctx)
+                ctx=elctx)
+            el = setgen.scoped_set(el, ctx=elctx)
 
         # Record element may be none if ptrcls target is non-atomic
         # and recursion has been prohibited on this level to prevent
@@ -116,15 +117,9 @@ def compile_shape(
         if el is not None:
             elements.append(el)
 
-    result = irast.Set(
-        scls=source_expr.scls,
-        path_id=source_expr.path_id,
-        source=source_expr,
-        shape=elements,
-        rptr=source_expr.rptr
-    )
+    source_expr.shape = elements
 
-    return result
+    return source_expr
 
 
 def compile_shape_el(
@@ -137,7 +132,6 @@ def compile_shape_el(
         include_implicit: bool=True,
         precompiled_compexpr: typing.Optional[irast.Base]=None,
         _visited=None, _recurse=True,
-        parent_ctx: context.CompilerContext,
         ctx: context.CompilerContext) -> irast.Set:
     ctx.result_path_steps += shape_el.expr.steps
 
@@ -184,9 +178,9 @@ def compile_shape_el(
             source_expr, ptrsource, ptrname, ptr_direction, ptr_target,
             source_context=shape_el.context, ctx=ctx)
 
-        ctx.singletons.add(targetstep)
+        ctx.singletons.add(targetstep.path_id)
 
-    pathctx.register_path_scope(targetstep.path_id, ctx=parent_ctx)
+    pathctx.register_path_in_scope(targetstep.path_id, ctx=ctx)
 
     if shape_el.recurse:
         if shape_el.recurse_limit is not None:
@@ -231,15 +225,17 @@ def compile_shape_el(
             orderby=orderby,
             offset=offset,
             limit=limit,
-            path_scope=frozenset(ctx.path_scope),
         )
 
         if recurse is not None:
             substmt.recurse_ptr = ptr_node
             substmt.recurse_depth = recurse
 
-        el = setgen.generated_set(substmt, path_id=el.path_id, ctx=ctx)
-        el.rptr = ptr_node
+        wrapper = setgen.generated_set(substmt, path_id=el.path_id, ctx=ctx)
+        wrapper.rptr = ptr_node
+        wrapper.shape = el.shape
+        el.shape = []
+        el = wrapper
 
     return el
 
@@ -281,6 +277,7 @@ def compile_shape_compexpr(
 
     if precompiled_compexpr is not None:
         compexpr = precompiled_compexpr
+        qlexpr = None
     else:
         with ctx.new() as shape_expr_ctx:
             # Put current pointer class in context, so
@@ -293,8 +290,8 @@ def compile_shape_compexpr(
                 ptrcls=ptrcls,
                 direction=ptr_direction
             )
-            shape_expr_ctx.stmt_local_path_scope = set()
-            compexpr = dispatch.compile(shape_el.compexpr, ctx=shape_expr_ctx)
+            qlexpr = astutils.ensure_qlstmt(shape_el.compexpr)
+            compexpr = dispatch.compile(qlexpr, ctx=shape_expr_ctx)
 
     target_class = irutils.infer_type(compexpr, schema)
     if target_class is None:
@@ -333,13 +330,12 @@ def compile_shape_compexpr(
             else:
                 ptrcls.mapping = s_links.LinkMapping.ManyToMany
 
-    compexpr = setgen.ensure_stmt(compexpr, ctx=ctx)
-    compexpr.path_scope |= {compexpr.result.path_id}
+    compexpr = compexpr.expr
 
     if is_linkprop:
         path_id = rptr.source.path_id.extend(
             rptr.ptrcls, rptr.direction, source_expr.scls
-        ).extend(
+        ).ptr_path().extend(
             ptrcls, ptr_direction, target_class
         )
     else:
@@ -352,7 +348,9 @@ def compile_shape_compexpr(
         expr=compexpr
     )
 
-    ctx.singletons.add(targetstep)
+    ctx.singletons.add(targetstep.path_id)
+    if qlexpr is not None:
+        ctx.source_map[targetstep] = (ctx, qlexpr)
 
     targetstep.rptr = irast.Pointer(
         source=source_expr,
@@ -403,6 +401,8 @@ def compile_insert_nested_shape(
 
     ptr_node = targetstep.rptr
 
+    ret_set = targetstep.__copy__()
+
     el = compile_shape(
         targetstep,
         mutation_shape,
@@ -424,13 +424,12 @@ def compile_insert_nested_shape(
     substmt = irast.InsertStmt(
         subject=el,
         result=compile_shape(
-            targetstep,
+            ret_set,
             returning_shape,
             rptr=ptr_node,
             include_implicit=True,
             ctx=ctx
         ),
-        path_scope=frozenset(ctx.path_scope),
     )
 
     result = setgen.generated_set(substmt, ctx=ctx)
@@ -465,7 +464,6 @@ def compile_update_nested_shape(
 
     substmt = irast.SelectStmt(
         result=el,
-        path_scope=frozenset(ctx.path_scope),
     )
 
     result = setgen.generated_set(substmt, ctx=ctx)

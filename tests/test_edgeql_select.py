@@ -39,6 +39,15 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         ])
 
+    async def test_edgeql_select_unique_02(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Issue.owner{name}
+            ORDER BY Issue.owner.name;
+        ''', [[
+            {'name': 'Elvis'}, {'name': 'Yury'},
+        ]])
+
     async def test_edgeql_select_computable_01(self):
         await self.assert_query_result('''
             WITH MODULE test
@@ -81,6 +90,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_select_computable_03(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -141,6 +151,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_select_computable_05(self):
         await self.assert_query_result(r'''
             WITH
@@ -185,6 +196,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_select_computable_06(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -213,6 +225,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_select_computable_07(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -238,6 +251,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_select_computable_08(self):
         await self.assert_query_result(r"""
             # get a user + the latest issue (regardless of owner), which has
@@ -789,7 +803,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 WITH MODULE test
                 SELECT
                     User { name }
-                LIMIT User.<owner[IS Issue].number;
+                LIMIT <int>User.<owner[IS Issue].number;
             """)
 
     async def test_edgeql_select_limit_07(self):
@@ -802,7 +816,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 WITH MODULE test
                 SELECT
                     User { name }
-                OFFSET User.<owner[IS Issue].number;
+                OFFSET <int>User.<owner[IS Issue].number;
             """)
 
     async def test_edgeql_select_specialized_01(self):
@@ -1128,7 +1142,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '1'}, {'number': '4'}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_setops_06(self):
         await self.assert_query_result(r"""
             # using UNION with overlapping sets of Objects
@@ -1150,7 +1163,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [2],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_setops_07(self):
         await self.assert_query_result(r"""
             # using UNION with overlapping sets of Objects
@@ -3066,8 +3078,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                                     Issue {
                                         spent_time := (
                                             SELECT SINGLETON
-                                                sum( Issue.time_spent_log
-                                                             .spent_time)
+                                                sum(Issue.time_spent_log
+                                                         .spent_time)
                                         )
                                     }
                                 FILTER
@@ -3330,6 +3342,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['2'],
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_select_struct_04(self):
         # Object in a struct returned directly.
         await self.assert_query_result(r"""
@@ -3636,6 +3649,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 SELECT Issue.number FILTER .number > '1';
             ''')
 
+    @unittest.expectedFailure
     async def test_edgeql_partial_06(self):
         with self.assertRaisesRegex(exc.EdgeQLError,
                                     'could not resolve partial path'):
@@ -3709,15 +3723,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 ]
             }]
         ])
-
-    async def test_edgeql_select_uniqueness_01(self):
-        await self.assert_query_result(r'''
-            WITH MODULE test
-            SELECT Issue.owner{name}
-            ORDER BY Issue.owner.name;
-        ''', [[
-            {'name': 'Elvis'}, {'name': 'Yury'},
-        ]])
 
     @tb.expected_optimizer_failure
     async def test_edgeql_select_for_01(self):

@@ -44,9 +44,9 @@ class Analyzer(ast.NodeTransformer):
             relation_name = node.relation.name
             # If node.relation is a CTE, replace it with a Relation node
             # to make sure we don't do unnecessary deep copies.
-            node.relation = pgast.Relation(relname=relation_name)
+            node.relation = pgast.Relation(name=relation_name)
         elif isinstance(node.relation, pgast.Relation):
-            relation_name = node.relation.relname
+            relation_name = node.relation.name
         else:
             raise TypeError('unexpected type in RangeVar.relation')
 

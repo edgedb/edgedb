@@ -227,7 +227,7 @@ class RefsUpdater(ast.NodeVisitor):
 
         elif isinstance(ref.node, pgast.RangeVar):
             # RangeVars are normalized by analyzer.visit_RangeVar
-            alias = ref.node.relation.relname
+            alias = ref.node.relation.name
             if ref.node.alias is not None:
                 alias = ref.node.alias.aliasname
             qi.track_range_ref(alias, ref)

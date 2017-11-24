@@ -37,13 +37,13 @@ from . import func  # NOQA
 
 @dispatch.compile.register(qlast.Path)
 def compile_Path(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
+        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
     return setgen.compile_path(expr, ctx=ctx)
 
 
 @dispatch.compile.register(qlast.BinOp)
 def compile_BinOp(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
+        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
     try_folding = True
 
     if isinstance(expr.op, ast.ops.TypeCheckOperator):
@@ -66,20 +66,17 @@ def compile_BinOp(
         if folded is not None:
             return folded
 
-    if not isinstance(op_node, irast.Set):
-        return setgen.generated_set(op_node, ctx=ctx)
-    else:
-        return op_node
+    return setgen.ensure_set(op_node, ctx=ctx)
 
 
 @dispatch.compile.register(qlast.Parameter)
 def compile_Parameter(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
+        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
     pt = ctx.arguments.get(expr.name)
     if pt is not None and not isinstance(pt, s_obj.NodeClass):
         pt = s_types.normalize_type(pt, ctx.schema)
 
-    return irast.Parameter(type=pt, name=expr.name)
+    return setgen.ensure_set(irast.Parameter(type=pt, name=expr.name), ctx=ctx)
 
 
 @dispatch.compile.register(qlast.Set)
@@ -87,13 +84,18 @@ def compile_Set(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
     if expr.elements:
         if len(expr.elements) == 1:
-            return dispatch.compile(expr.elements[0], ctx=ctx)
+            with ctx.newfence() as scopectx:
+                return setgen.scoped_set(
+                    dispatch.compile(expr.elements[0], ctx=scopectx),
+                    ctx=scopectx)
         else:
             elements = flatten_set(expr)
             # If the type is some sort of Concept, then the set should
             # be made using UNION, otherwise use UNION ALL.
-            el_type = irutils.infer_type(
-                dispatch.compile(elements[0], ctx=ctx), ctx.schema)
+            with ctx.newfence() as scopectx:
+                el_type = irutils.infer_type(
+                    dispatch.compile(elements[0], ctx=scopectx), ctx.schema)
+
             if isinstance(el_type, s_concepts.Concept):
                 op = qlast.UNION
             else:
@@ -112,14 +114,15 @@ def compile_Set(
                 )
             return dispatch.compile(bigunion, ctx=ctx)
     else:
-        return irast.EmptySet()
+        return irutils.new_empty_set(ctx.schema, alias=ctx.aliases.get('e'))
 
 
 @dispatch.compile.register(qlast.Constant)
 def compile_Constant(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
     ct = s_types.normalize_type(expr.value.__class__, ctx.schema)
-    return irast.Constant(value=expr.value, type=ct)
+    return setgen.generated_set(
+        irast.Constant(value=expr.value, type=ct), ctx=ctx)
 
 
 @dispatch.compile.register(qlast.EmptyCollection)
@@ -195,7 +198,7 @@ def compile_IfElse(
 
 @dispatch.compile.register(qlast.UnaryOp)
 def compile_UnaryOp(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
+        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
     if expr.op == qlast.DISTINCT:
         return compile_distinct_op(expr, ctx=ctx)
 
@@ -207,11 +210,13 @@ def compile_UnaryOp(
     unop = irast.UnaryOp(expr=operand, op=expr.op)
     result_type = irutils.infer_type(unop, ctx.schema)
 
-    if (isinstance(operand, irast.Constant) and
+    if (isinstance(operand.expr, irast.Constant) and
             result_type.name in {'std::int', 'std::float'}):
         # Fold the operation to constant if possible
         if expr.op == ast.ops.UMINUS:
-            return irast.Constant(value=-operand.value, type=result_type)
+            return setgen.ensure_set(
+                irast.Constant(value=-operand.expr.value, type=result_type),
+                ctx=ctx)
         elif expr.op == ast.ops.UPLUS:
             return operand
 
@@ -221,28 +226,34 @@ def compile_UnaryOp(
 @dispatch.compile.register(qlast.ExistsPredicate)
 def compile_ExistsPredicate(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
-    with ctx.new_traced_scope() as aggctx:
-        # EXISTS is a special aggregate, so we need to put a scope
-        # fence for the same reasons we do for aggregates.
-        operand = dispatch.compile(expr.expr, ctx=aggctx)
-        if irutils.is_strictly_subquery_set(operand):
-            operand = operand.expr
-        ir_set = setgen.generated_set(
-            irast.ExistPred(expr=operand), ctx=aggctx)
+    with ctx.newscope() as exctx:
+        with exctx.newfence() as opctx:
+            operand = setgen.scoped_set(
+                dispatch.compile(expr.expr, ctx=opctx), ctx=opctx)
 
-        ir_set.path_scope = frozenset(aggctx.traced_path_scope)
-
-    return ir_set
+        return setgen.scoped_set(
+            irast.ExistPred(expr=operand), ctx=exctx)
 
 
 @dispatch.compile.register(qlast.Coalesce)
 def compile_Coalesce(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
     if all(isinstance(a, qlast.Set) and not a.elements for a in expr.args):
-        return irast.EmptySet()
+        return irutils.new_empty_set(ctx.schema, alias=ctx.aliases.get('e'))
 
-    args = [dispatch.compile(a, ctx=ctx) for a in expr.args]
-    return irast.Coalesce(args=args)
+    with ctx.newscope() as scopectx:
+        larg = setgen.ensure_set(
+            dispatch.compile(expr.args[0], ctx=scopectx), ctx=scopectx)
+
+        for rarg_ql in expr.args[1:]:
+            with scopectx.newscope() as nestedscopectx:
+                with nestedscopectx.newfence() as fencectx:
+                    rarg = setgen.scoped_set(
+                        dispatch.compile(rarg_ql, ctx=fencectx), ctx=fencectx)
+                larg = setgen.scoped_set(
+                    irast.Coalesce(left=larg, right=rarg), ctx=nestedscopectx)
+
+    return larg
 
 
 @dispatch.compile.register(qlast.TypeCast)
@@ -271,7 +282,7 @@ def _cast_expr(
         orig_type = irutils.infer_type(ir_expr, ctx.schema)
     except errors.EdgeQLError:
         # It is possible that the source expression is unresolved
-        # if the expr is EMPTY (or a coalesce of EMPTY).
+        # if the expr is an empty set (or a coalesce of empty sets).
         orig_type = None
 
     if isinstance(orig_type, s_obj.Tuple):
@@ -314,6 +325,13 @@ def _cast_expr(
 
         return irast.Tuple(named=new_type.named, elements=elements)
 
+    elif isinstance(ir_expr, irast.EmptySet):
+        # For the common case of casting an empty set, we simply
+        # generate a new EmptySet node of the requested type.
+        scls = typegen.ql_typeref_to_type(ql_type, ctx=ctx)
+        return irutils.new_empty_set(ctx.schema, scls=scls,
+                                     alias=ir_expr.path_id[-1].name.name)
+
     else:
         typ = typegen.ql_typeref_to_ir_typeref(ql_type, ctx=ctx)
         return irast.TypeCast(expr=ir_expr, type=typ)
@@ -337,15 +355,8 @@ def compile_TypeFilter(
             f'invalid type filter operand: {typ.name} is not a concept',
             context=expr.type.context)
 
-    return setgen.generated_set(
-        irast.TypeFilter(
-            expr=arg,
-            type=irast.TypeRef(
-                maintype=typ.name
-            )
-        ),
-        ctx=ctx
-    )
+    arg_set = setgen.ensure_set(arg, ctx=ctx)
+    return setgen.class_indirection_set(arg_set, typ, optional=False, ctx=ctx)
 
 
 @dispatch.compile.register(qlast.Indirection)
@@ -379,8 +390,8 @@ def compile_Indirection(
 
 
 def try_fold_arithmetic_binop(
-        op: ast.ops.Operator, left: irast.BinOp, right: irast.BinOp, *,
-        ctx: context.ContextLevel) -> typing.Optional[irast.Constant]:
+        op: ast.ops.Operator, left: irast.Set, right: irast.Set, *,
+        ctx: context.ContextLevel) -> typing.Optional[irast.Set]:
     """Try folding an arithmetic expr into a constant."""
     left_type = irutils.infer_type(left, ctx.schema)
     right_type = irutils.infer_type(right, ctx.schema)
@@ -392,6 +403,9 @@ def try_fold_arithmetic_binop(
     result_type = left_type
     if right_type.name == 'std::float':
         result_type = right_type
+
+    left = left.expr
+    right = right.expr
 
     if op == ast.ops.ADD:
         value = left.value + right.value
@@ -412,26 +426,23 @@ def try_fold_arithmetic_binop(
         value = None
 
     if value is not None:
-        return irast.Constant(value=value, type=result_type)
+        return setgen.ensure_set(
+            irast.Constant(value=value, type=result_type), ctx=ctx)
 
 
 def try_fold_binop(
         binop: irast.BinOp, *,
-        ctx: context.ContextLevel) -> typing.Optional[irast.Base]:
+        ctx: context.ContextLevel) -> typing.Optional[irast.Set]:
     """Try folding a binary operator expression."""
     result_type = irutils.infer_type(binop, ctx.schema)
     folded = None
 
     left = binop.left
-    if isinstance(left, irast.Set) and left.expr is not None:
-        left = left.expr
     right = binop.right
-    if isinstance(right, irast.Set) and right.expr is not None:
-        right = right.expr
     op = binop.op
 
-    if (isinstance(left, irast.Constant) and
-            isinstance(right, irast.Constant) and
+    if (isinstance(left.expr, irast.Constant) and
+            isinstance(right.expr, irast.Constant) and
             result_type.name in {'std::int', 'std::float'}):
 
         # Left and right nodes are constants.
@@ -443,28 +454,29 @@ def try_fold_binop(
 
         my_const = left
         other_binop = right
-        if isinstance(right, irast.Constant):
+        if isinstance(right.expr, irast.Constant):
             my_const, other_binop = other_binop, my_const
 
-        if (isinstance(my_const, irast.Constant) and
-                isinstance(other_binop, irast.BinOp) and
-                other_binop.op == op):
+        if (isinstance(my_const.expr, irast.Constant) and
+                isinstance(other_binop.expr, irast.BinOp) and
+                other_binop.expr.op == op):
 
-            other_const = other_binop.left
-            other_binop_node = other_binop.right
-            if isinstance(other_binop_node, irast.Constant):
+            other_const = other_binop.expr.left
+            other_binop_node = other_binop.expr.right
+            if isinstance(other_binop_node.expr, irast.Constant):
                 other_binop_node, other_const = \
                     other_const, other_binop_node
 
-            if isinstance(other_const, irast.Constant):
+            if isinstance(other_const.expr, irast.Constant):
                 new_const = try_fold_arithmetic_binop(
                     op, other_const, my_const, ctx=ctx)
 
                 if new_const is not None:
-                    folded = irast.BinOp(
+                    folded_binop = irast.BinOp(
                         left=new_const,
                         right=other_binop_node,
                         op=op)
+                    folded = setgen.ensure_set(folded_binop, ctx=ctx)
 
     return folded
 
@@ -483,6 +495,8 @@ def compile_type_check_op(
         s_pointers.PointerDirection.Outbound, None,
         expr.context, ctx=ctx)
 
+    pathctx.register_path_in_scope(left.path_id, ctx=ctx)
+
     right = typegen.process_type_ref_expr(right)
 
     return irast.BinOp(left=left, right=right, op=expr.op)
@@ -491,71 +505,55 @@ def compile_type_check_op(
 def compile_set_op(
         expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.SetOp:
     # UNION
+    with ctx.newfence() as scopectx:
+        left = setgen.scoped_set(
+            dispatch.compile(expr.left, ctx=scopectx), ctx=scopectx)
 
-    left_ql = astutils.ensure_qlstmt(expr.left)
-    right_ql = astutils.ensure_qlstmt(expr.right)
+    with ctx.newfence() as scopectx:
+        right = setgen.scoped_set(
+            dispatch.compile(expr.right, ctx=scopectx), ctx=scopectx)
 
-    left = dispatch.compile(left_ql, ctx=ctx)
-    right = dispatch.compile(right_ql, ctx=ctx)
+    result = setgen.ensure_set(
+        irast.SetOp(left=left, right=right, op=expr.op), ctx=ctx)
 
-    result = irast.SetOp(left=left.expr, right=right.expr, op=expr.op)
-    # get and validate the overall expression type
-    rtype = irutils.infer_type(result, ctx.schema)
-    path_id = pathctx.get_path_id(rtype, ctx=ctx)
-    pathctx.register_path_scope(path_id, ctx=ctx)
+    pathctx.register_path_in_scope(result.path_id, ctx=ctx)
 
     return result
 
 
 def compile_distinct_op(
         expr: qlast.UnaryOp, *, ctx: context.ContextLevel) -> irast.DistinctOp:
-    # DISTINCT
-
-    expr_ql = astutils.ensure_qlstmt(expr.operand)
-
-    operand = dispatch.compile(expr_ql, ctx=ctx)
-
-    result = irast.DistinctOp(expr=operand.expr)
-    rtype = irutils.infer_type(result, ctx.schema)
-    path_id = irast.PathId(rtype)
-    pathctx.register_path_scope(path_id, ctx=ctx)
-
-    return result
+    # DISTINCT(SET OF any A) -> SET OF any
+    with ctx.newfence() as scopectx:
+        operand = setgen.scoped_set(
+            dispatch.compile(expr.operand, ctx=scopectx), ctx=scopectx)
+    return irast.DistinctOp(expr=operand)
 
 
 def compile_equivalence_op(
-        expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.Base:
+        expr: qlast.BinOp, *,
+        ctx: context.ContextLevel) -> irast.EquivalenceOp:
+    # A ?= B ≣ EQUIV(OPTIONAL any A, OPTIONAL any B) -> std::bool
+    # Definition:
+    #   | {a = b | ∀ (a, b) ∈ A ⨯ B}, iff A != ∅ ∧ B != ∅
+    #   | {True}, iff A = B = ∅
+    #   | {False}, iff A != ∅ ∧ B = ∅
+    #   | {False}, iff A = ∅ ∧ B != ∅
     #
-    # a ?= b is defined as:
-    #   a = b IF EXISTS a AND EXISTS b ELSE EXISTS a = EXISTS b
-    # a ?!= b is defined as:
-    #   a != b IF EXISTS a AND EXISTS b ELSE EXISTS a != EXISTS b
-    #
-    op = ast.ops.EQ if expr.op == qlast.EQUIVALENT else ast.ops.NE
-
-    ex_left = qlast.ExistsPredicate(expr=expr.left)
-    ex_right = qlast.ExistsPredicate(expr=expr.right)
-
-    condition = qlast.BinOp(
-        left=ex_left,
-        right=ex_right,
-        op=ast.ops.AND
-    )
-
-    if_expr = qlast.BinOp(
-        left=expr.left,
-        right=expr.right,
-        op=op
-    )
-
-    else_expr = qlast.BinOp(
-        left=ex_left,
-        right=ex_right,
-        op=op
-    )
-
-    return compile_ifelse(
-        condition, if_expr, else_expr, expr.context, ctx=ctx)
+    # A ?!= B ≣ NEQUIV(OPTIONAL any A, OPTIONAL any B) -> std::bool
+    # Definition:
+    #   | {a != b | ∀ (a, b) ∈ A ⨯ B}, iff A != ∅ ∧ B != ∅
+    #   | {False}, iff A = B = ∅
+    #   | {True}, iff A != ∅ ∧ B = ∅
+    #   | {True}, iff A = ∅ ∧ B != ∅
+    with ctx.newscope() as scopectx:
+        return irast.EquivalenceOp(
+            left=setgen.scoped_set(
+                dispatch.compile(expr.left, ctx=scopectx), ctx=scopectx),
+            right=setgen.scoped_set(
+                dispatch.compile(expr.right, ctx=scopectx), ctx=scopectx),
+            op=expr.op
+        )
 
 
 def compile_ifelse(
@@ -564,21 +562,28 @@ def compile_ifelse(
         src_context: parsing.ParserContext, *,
         ctx: context.ContextLevel) -> irast.Base:
     if_expr = astutils.ensure_qlstmt(if_expr)
-    if_expr.where = astutils.extend_qlbinop(
-        if_expr.where, condition)
-
-    not_condition = qlast.UnaryOp(operand=condition, op=ast.ops.NOT)
     else_expr = astutils.ensure_qlstmt(else_expr)
-    else_expr.where = astutils.extend_qlbinop(
-        else_expr.where, not_condition)
 
-    with ctx.new_traced_scope() as scopectx:
-        dispatch.compile(condition, ctx=scopectx)
+    # The condition set is shared between both branches,
+    # so we must add it to the parent scope to avoid computing
+    # it twice.
+    condition = setgen.ensure_set(
+        dispatch.compile(condition, ctx=ctx), ctx=ctx)
+    pathctx.register_path_in_scope(condition.path_id, ctx=ctx)
 
-    condition_scope = scopectx.traced_path_scope
+    with ctx.newfence() as scopectx:
+        if_expr = dispatch.compile(if_expr, ctx=scopectx)
+        if_expr.expr.where = astutils.extend_irbinop(
+            if_expr.expr.where, condition)
+        if_expr = setgen.scoped_set(if_expr, ctx=scopectx)
 
-    if_expr = dispatch.compile(if_expr, ctx=ctx)
-    else_expr = dispatch.compile(else_expr, ctx=ctx)
+    with ctx.newfence() as scopectx:
+        else_expr = dispatch.compile(else_expr, ctx=scopectx)
+        else_expr.expr.where = astutils.extend_irbinop(
+            else_expr.expr.where,
+            setgen.ensure_set(
+                irast.UnaryOp(expr=condition, op=ast.ops.NOT), ctx=scopectx))
+        else_expr = setgen.scoped_set(else_expr, ctx=scopectx)
 
     if_expr_type = irutils.infer_type(if_expr, ctx.schema)
     else_expr_type = irutils.infer_type(else_expr, ctx.schema)
@@ -599,28 +604,19 @@ def compile_ifelse(
     else:
         op = qlast.UNION_ALL
 
-    local_scope_sets = frozenset(
-        ctx.sets[path_id] for path_id in condition_scope
-        if path_id in ctx.sets
-    )
-
-    return irast.SetOp(left=if_expr.expr, right=else_expr.expr,
-                       op=op, exclusive=True,
-                       local_scope_sets=local_scope_sets)
+    return irast.SetOp(left=if_expr, right=else_expr, op=op, exclusive=True)
 
 
 def compile_membership_op(
         expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.Base:
-    with ctx.new_traced_scope() as scopectx:
-        # [NOT] IN is a set function, so we need to put a scope
-        # fence.
-        left = dispatch.compile(expr.left, ctx=scopectx)
-        right = dispatch.compile(expr.right, ctx=scopectx)
-        op_node = irast.BinOp(left=left, right=right, op=expr.op)
-        ir_set = setgen.ensure_set(op_node, ctx=scopectx)
-        ir_set.path_scope = frozenset(scopectx.traced_path_scope)
+    left = dispatch.compile(expr.left, ctx=ctx)
+    with ctx.newfence() as scopectx:
+        # [NOT] IN is an aggregate, so we need to put a scope fence.
+        right = setgen.scoped_set(
+            dispatch.compile(expr.right, ctx=scopectx), ctx=scopectx)
 
-    return ir_set
+    op_node = irast.BinOp(left=left, right=right, op=expr.op)
+    return setgen.generated_set(op_node, ctx=ctx)
 
 
 def flatten_set(expr: qlast.Set) -> typing.List[qlast.Expr]:

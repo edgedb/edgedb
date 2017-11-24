@@ -71,6 +71,35 @@ def typeref_to_ast(t: so.Class) -> ql_ast.TypeName:
     return result
 
 
+def resolve_typeref(ref: so.Class, schema) -> so.Class:
+    if isinstance(ref, so.Tuple):
+        if any(isinstance(st, so.ClassRef) for st in ref.get_subtypes()):
+            subtypes = collections.OrderedDict()
+            for st_name, st in ref.element_types.items():
+                subtypes[st_name] = schema.get(st.classname)
+
+            obj = ref.__class__.from_subtypes(
+                subtypes, typemods=ref.get_typemods())
+        else:
+            obj = ref
+
+    elif isinstance(ref, so.Collection):
+        if any(isinstance(st, so.ClassRef) for st in ref.get_subtypes()):
+            subtypes = []
+            for st in ref.get_subtypes():
+                subtypes.append(schema.get(st.classname))
+
+            obj = ref.__class__.from_subtypes(
+                subtypes, typemods=ref.get_typemods())
+        else:
+            obj = ref
+
+    else:
+        obj = schema.get(ref.classname)
+
+    return obj
+
+
 def is_nontrivial_container(value):
     coll_classes = (collections.abc.Sequence, collections.abc.Set)
     trivial_classes = (str, bytes, bytearray, memoryview)

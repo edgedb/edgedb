@@ -94,11 +94,26 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_Relation(self, node):
         if node.schemaname is None:
-            self.write(common.qname(node.relname))
+            self.write(common.qname(node.name))
         else:
-            self.write(common.qname(node.schemaname, node.relname))
+            self.write(common.qname(node.schemaname, node.name))
+
+    def _visit_values_expr(self, node):
+        self.new_lines = 1
+        self.write('(')
+        self.write('VALUES')
+        self.new_lines = 1
+        self.indentation += 1
+        self.visit_list(node.values)
+        self.indentation -= 1
+        self.new_lines = 1
+        self.write(')')
 
     def visit_SelectStmt(self, node):
+        if node.values:
+            self._visit_values_expr(node)
+            return
+
         self.new_lines = 1
 
         self.write('(')
