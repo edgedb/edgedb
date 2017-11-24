@@ -1,8 +1,7 @@
 .. _ref_edgeql_paths:
 
-
 Paths
-=====
+-----
 
 Paths are fundamental building blocks of EdgeQL. A path defines a set
 of objects in EdgeDB (just like any other expression) based on their

@@ -1,21 +1,156 @@
 .. _ref_edgeql_expressions:
 
 
-Expressions
-===========
+Operators
+=========
 
 Expressions allow to manipulate, query, and modify data in EdgeQL.
 
-All expressions evaluate to sets of *objects*, *atomic values*,
+All expressions in EdgeQL evaluate to *multisets*. Informally, the
+main difference between a set and a multiset is that multiple
+instances of the same elements are allowed in a multiset. All
+multisets in EdgeQL have to contain elements of the same type. Broadly
+all types can be broken down into the following categories: *objects*,
+*atomic values*, *array*, *maps*, or *tuples*.
+
+One important consideration is that any path expression denotes a
+*multiset* of values contained in a *set* of graph nodes reachable by
+that path. This means that a path pointing to *concepts* will always
+evaluate to a *multiset* with unique elements, whereas any other path
+may evaluate to a *multiset* containing duplicate values. This is
+because only *objects* are guaranteed to be unique in the EdgeDB
+conceptual relationship graph.
+
+All expressions evaluate to multisets of *objects*, *atomic values*,
 *array*, *maps*, or *tuples*. Depending on the set sizes of the
 operands, operations produce different sets of results.
 
+It is convenient to treat all expressions as multisets, in particular
+``1`` is equivalent to ``{1}`` in EdgeQL. Also, there's no way to
+produce nested multisets in EdgeQL as an expression (although
+conceptually
+:ref:`GROUP<ref_edgeql_statements_group>` statement operates on sets
+of multisets as one of its intermediate steps). Because of that nested
+multisets are automatically flattened:
 
-Set and element operations
---------------------------
+    ``{1, 2, {3, 4}, 5}`` ≡ ``{1, 2, 3, 4, 5}``
 
-EdgeDB has two kinds of inputs on which operations are defined: sets
-and elements.
+.. note::
+
+    Those familiar with *bunch theory* will recognize that effectively
+    EdgeQL operates on bunches rather than multisets. We choose to use
+    the notation typically associated with sets, such as ``{a, b,
+    c}``, because of the need to disambiguate *tuples* from sets (or
+    bunches) without using symbols that are difficult to type.
+
+        ``a, b, c`` - is a bunch
+
+        ``(a, b, c)`` - is an EdgeQL tuple (but could be confused with
+        a bunch)
+
+        ``{a, b, c}`` - is an EdgeQL multiset (which has properties very
+        similar to a bunch)
+
+Also, for brevity the term "set" is frequently used in documentation
+to denote EdgeDB multisets.
+
+
+Set and element arguments
+-------------------------
+
+In EdgeDB operators and functions can take sets or individual elements
+as arguments. For the purpose of generalization all operators can be
+viewed as functions. Since fundamentally EdgeDB operates on sets, that
+means that all functions that are defined to take elements are
+generalized to operate on sets by applying the function to each input
+set element separately. Incidentally, since ultimately EdgeDB operates
+on sets it is conceptually convenient to treat all functions as
+returning sets as their result.
+
+.. note::
+
+    Given an *n-ary* function *f* and A\ :sub:`1`, ..., A\ :sub:`n`
+    ⊆ U, define the result set of applying the function as:
+
+        :emphasis:`f`\ (A\ :sub:`1`, ..., A\ :sub:`n`) ≡
+        { :emphasis:`f`\ (t): ∀ t ∈ A\ :sub:`1` ⨉ ... ⨉ A\ :sub:`n` }
+
+Functions that operate on sets only, don't require additional
+mechanisms to be applied to EdgeDB sets.
+
+In the general case a function can have some arguments as elements and others
+as sets. The generalized formula is the given by the following:
+
+.. note::
+
+    Given a function *F* with *n* element-parameters and *m* set-
+    parameters as well as A\ :sub:`1`, ..., A\ :sub:`n`, B\ :sub:`1`,
+    ..., B\ :sub:`m` ⊆ U, the result set of applying the function is
+    as follows:
+
+        :emphasis:`F`\ (A\ :sub:`1`, ..., A\ :sub:`n`, B\ :sub:`1`, ...,
+        B\ :sub:`m`) ≡
+
+            { :emphasis:`F`\ (a\ :sub:`1`, ..., a\ :sub:`n`, B\ :sub:`1`,
+            ..., B\ :sub:`m`): ∀ a\ :sub:`1`, ..., a\ :sub:`n` ∈ A\
+            :sub:`1` ⨉ ... ⨉ A\ :sub:`n` }
+
+One of the basic operators in EdgeQL (``IN``) is an example of such a
+mixed function and will be covered in more details below. Most
+operators and functions have all their parameters as either all sets
+or all elements.
+
+The above definitions assume that all the input sets are different
+from each other. What happens when some of the input sets are
+semantically the same? In that case there's a particular interaction
+between element-parameters and set-parameters.
+
+For simplicity we can consider the case when some 2 input sets are the
+same. Let's call them both `X`. This results in 3 possible general
+cases:
+
+- The same sets are both used as element-parameters
+
+    :emphasis:`F`\ (X, X, A\ :sub:`3`, ..., A\ :sub:`n`, B\ :sub:`1`, ...,
+    B\ :sub:`m`) ≡
+
+            { :emphasis:`F`\ (x, x, a\ :sub:`3`, ..., a\ :sub:`n`, B\ :sub:`1`,
+            ..., B\ :sub:`m`): ∀ x, a\ :sub:`3`, ..., a\ :sub:`n` ∈ X ⨉ A\
+            :sub:`3` ⨉ ... ⨉ A\ :sub:`n` }
+
+- The same sets are both used as set-parameters
+
+    :emphasis:`F`\ (A\ :sub:`1`, ..., A\ :sub:`n`, X, X, B\ :sub:`3`, ...,
+    B\ :sub:`m`) ≡
+
+            { :emphasis:`F`\ (a\ :sub:`1`, ..., a\ :sub:`n`, X, X, B\ :sub:`3`,
+            ..., B\ :sub:`m`): ∀ a\ :sub:`1`, ..., a\ :sub:`n` ∈ A\
+            :sub:`1` ⨉ ... ⨉ A\ :sub:`n` }
+
+- One of the sets is element-parameter and the other is set-parameter
+
+    :emphasis:`F`\ (X, A\ :sub:`2`, ..., A\ :sub:`n`, X, B\ :sub:`2`, ...,
+    B\ :sub:`m`) ≡
+
+            { :emphasis:`F`\ (x, a\ :sub:`2`, ..., a\ :sub:`n`, {x},
+            B\ :sub:`2`, ..., B\ :sub:`m`):
+            ∀ x, a\ :sub:`2`, ..., a\ :sub:`n` ∈
+            X ⨉ A\ :sub:`2` ⨉ ... ⨉ A\ :sub:`n` }
+
+The first two cases are fairly straightforward and intuitive. The
+third case is special and defines how EdgeDB processes queries. That
+is the basic rule from which
+:ref:`longest common prefix<ref_edgeql_paths_prefix>` property follows.
+
+EdgeQL uses ``SET OF`` qualifier in function declarations to
+disambiguate between the element-parameters and set-parameters. EdgeQL
+operator signatures can be described in a similar way to make it clear
+how they are applied.
+
+.. TODO::
+
+    This section requires a significant rewrite w.r.t. classification
+    of operations.
 
 +-------------------------------+-------------------------------+
 | Set                           | Element                       |
@@ -119,7 +254,11 @@ Set operations
 
 Statements and clauses are effectively set operations and are
 discussed in more details in the
-:ref:`Statements<ref_edgeql_statements>` section.
+:ref:`Statements<ref_edgeql_statements>` section. One of the
+building blocks used in these examples is a set literal, e.g. ``{1, 2,
+3}``. In the simplest form this expression denotes a set of elements.
+Like any other EdgeDB sets the elements all have to be of the same
+type (all sets are homogeneous).
 
 Basic set operators:
 
@@ -134,13 +273,13 @@ Basic set operators:
 
 - UNION ALL
 
-    ``UNION ALL`` is only valid for sets of atoms. It performs the set
-    union where atoms are compared by *identity* (in all other cases
-    comparisons are made by *value*). So effectively it merges two
-    sets of atoms keeping all of the members.
+    ``UNION ALL`` is only defined for entities that can form
+    multisets: *atomic values*, *array*, *maps*, or *tuples*. Formally
+    ``UNION ALL`` is a *multiset sum*, so effectively it merges two
+    multisets keeping all of their members.
 
-    For example, if we use ``UNION ALL`` on two sets ``{1, 2, 2}`` and
-    ``{2}``, we'll get the set ``{1, 2, 2, 2}``.
+    For example, if we use ``UNION ALL`` on two multisets ``{1, 2,
+    2}`` and ``{2}``, we'll get the multiset ``{1, 2, 2, 2}``.
 
 - UNION
 
@@ -171,6 +310,18 @@ Basic set operators:
         follow allows to consistently indicate that indeed all the
         individual values are desired throughout the computation.
 
+- {...}
+
+    The set literal has more advanced features in EdgeDB. Basically,
+    if any other sets are nested in it, the set literal will *flatten*
+    them out. Effectively a set literal is equivalent to applying
+    ``UNION ALL`` (or ``UNION`` for objects) to all its elements:
+
+    ``{1, 2, {3, 4}, 5}`` ≡ ``{1, 2, 3, 4, 5}``
+
+    For any two sets ``A``, ``B`` of the same type:
+    ``{A, B}`` = ``A UNION B``
+
 - EXISTS
 
     ``EXISTS`` is a set operator that returns a singleton set
@@ -180,7 +331,7 @@ Basic set operators:
     .. note::
 
         Technically, ``EXISTS`` behaves like a special built-in
-        :ref:`aggregate function<ref_edgeql_expressions_agg>`. It is
+        :ref:`aggregate function<ref_edgeql_functions_agg>`. It is
         sufficiently basic and a special case that it is an *operator*
         unlike a built-in aggregate function ``count``.
 
@@ -224,28 +375,6 @@ Basic set operators:
 
     Without the coalescing operator the above query would skip any
     ``Issue`` without priority.
-
-
-.. _ref_edgeql_expressions_agg:
-
-Aggregate functions
--------------------
-
-Aggregate functions are *set functions* mapping arbitrary sets onto
-singletons. Examples of aggregate functions include built-ins such as
-``count`` and ``array_agg``.
-
-.. code-block:: eql
-
-    # count maps a set to an integer, specifically it returns the
-    # number of elements in a set
-    SELECT count(example::Issue);
-
-    # array_agg maps a set to an array of the same type, specifically
-    # it returns the array made from all of the set elements (which
-    # can also be ordered)
-    WITH MODULE example
-    SELECT array_agg(Issue ORDER BY Issue.number);
 
 
 Element operations
@@ -293,48 +422,3 @@ of these operators require their operands to be of the same
 
 - arithmetic operators ``+``, ``-``, ``*``, ``/``, ``%`` (modulo),
   ``^`` (power)
-
-
-Regular functions
------------------
-
-Many built-in functions and user-defined functions operate on
-elements, so they are also element operations. This implies that if
-any of the input sets are empty, the result of applying an element
-function is also empty.
-
-
-Array or tuple creation
------------------------
-
-Creating an array or tuple via ``[...]`` or ``(...)`` is an element
-operation. One way of thinking about these constructors is to treat
-them exactly like functions that simply turn their arguments into an
-array or a tuple, respectively.
-
-This means that the following code will create a set of tuples with
-the first element being ``Issue`` and the second a ``str``
-representing the ``Issue.priority.name``:
-
-.. code-block:: eql
-
-    WITH MODULE example
-    SELECT (Issue, Issue.priority.name);
-
-Since ``priority`` is not a required link, not every ``Issue`` will
-have one. It is important to realize that the above query will *only*
-contain Issues with non-empty priorities. If it is desirable to have
-*all* Issues, then :ref:`coalescing<ref_edgeql_expressions_coalesce>`
-or a :ref:`shape<ref_edgeql_shapes>` query should be used instead.
-
-On the other hand the following query will include *all* Issues,
-because the tuple elements are made from the set of Issues and the set
-produced by the aggregator function ``array_agg``, which is never
-``{}``:
-
-.. code-block:: eql
-
-    WITH MODULE example
-    SELECT (Issue, array_agg(Issue.priority.name));
-
-All of the above works the same way for arrays.

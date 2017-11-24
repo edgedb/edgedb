@@ -1,5 +1,5 @@
-What is EdgeDB?
-===============
+EdgeDB Data Model
+=================
 
 Overview
 --------

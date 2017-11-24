@@ -1,8 +1,8 @@
-.. _ref_edgeql_syntax:
+.. _ref_edgeql_lexical:
 
 
-Syntax
-======
+Lexical Structure
+=================
 
 EdgeQL is a declarative language and a large part of its expressive
 power lies in the structures that describe the data. It is white space

@@ -11,7 +11,7 @@ Welcome to the EdgeDB |version| documentation.
 .. toctree::
     :maxdepth: 2
 
-    overview
+    datamodel/overview
     schema/architecture
     schema/evolution
     edgeql/index

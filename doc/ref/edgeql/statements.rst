@@ -127,6 +127,8 @@ The above query retrieves the top 3 open Issues with the closest due
 date.
 
 
+.. _ref_edgeql_statements_group:
+
 Group
 -----
 
@@ -296,6 +298,160 @@ with an Insert_ or an Update_ statement. This mode is less useful with
 a Select_ expression since a ``FILTER`` may accomplish the same end
 result.
 
+.. NOTE::
+
+    Technically, a ``FOR`` statement can be viewed as a special case
+    of ``GROUP``:
+
+    .. code-block:: eql
+
+        FOR X IN {Foo}
+        UNION (INSERT Bar {foo := X});
+
+        # can be equivalently rewritten as:
+        GROUP Foo
+        USING _ := Foo
+        BY _
+        INTO X
+        UNION (INSERT Bar {foo := X});
+
+.. _ref_edgeql_forstatement:
+
+Usage of FOR statement
+~~~~~~~~~~~~~~~~~~~~~~
+
+``FOR`` statement has some powerful features that deserve to be
+considered in detail separately. However, the common core is that
+``FOR`` iterates over elements of some arbitrary expression. Then for
+each element of the iterator some set is computed and combined via a
+``UNION`` or ``UNION ALL`` with the other such computed sets.
+
+The simplest use case is when the iterator is given by a set
+expression and it follows the general form of ``FOR x IN A ...``:
+
+.. code-block:: eql
+
+    WITH MODULE example
+    # the iterator is an explicit set of tuples, so x is an
+    # element of this set, i.e. a single tuple
+    FOR x IN {
+        (name := 'Alice', theme := 'fire'),
+        (name := 'Bob', theme := 'rain'),
+        (name := 'Carol', theme := 'clouds'),
+        (name := 'Dave', theme := 'forest')
+    }
+    # typically this is used with an INSERT, DELETE or UPDATE
+    UNION (
+        INSERT
+            User {
+                name := x.name,
+                theme := x.theme,
+            }
+    );
+
+Since ``x`` is an element of a set it is guaranteed to be a non-empty
+singleton in all of the expressions used by the ``UNION OF`` and later
+clauses of ``FOR``.
+
+Another variation this usage of ``FOR`` is a bulk ``UPDATE``. There
+are cases when a bulk update lots of external data, that cannot be
+derived from the objects being updated. That is a good use-case when a
+``FOR`` statement is appropriate.
+
+.. code-block:: eql
+
+    # Here's an example of an update that is awkward to
+    # express without the use of FOR statement
+    WITH MODULE example
+    UPDATE User
+    FILTER User.name IN {'Alice', 'Bob', 'Carol', 'Dave'}
+    SET {
+        theme := 'red'  IF .name = 'Alice' ELSE
+                 'star' IF .name = 'Bob' ELSE
+                 'dark' IF .name = 'Carol' ELSE
+                 'strawberry'
+    };
+
+    # Using a FOR statement, the above update becomes simpler to
+    # express or review for a human.
+    WITH MODULE example
+    FOR x IN {
+        (name := 'Alice', theme := 'red'),
+        (name := 'Bob', theme := 'star'),
+        (name := 'Carol', theme := 'dark'),
+        (name := 'Dave', theme := 'strawberry')
+    }
+    UNION (
+        UPDATE User
+        FILTER User.name = x.name
+        SET {
+            theme := x.theme
+        }
+    );
+
+When updating data that mostly or completely depends on the objects
+being updated there's no need to use the ``FOR`` statement and it is not
+advised to use it for performance reasons.
+
+.. code-block:: eql
+
+    WITH MODULE example
+    UPDATE User
+    FILTER User.name IN {'Alice', 'Bob', 'Carol', 'Dave'}
+    SET {
+        theme := 'halloween'
+    };
+
+    # The above can be accomplished with a FOR statement,
+    # but it is not recommended.
+    WITH MODULE example
+    FOR x IN {'Alice', 'Bob', 'Carol', 'Dave'}
+    UNION (
+        UPDATE User
+        FILTER User.name = x
+        SET {
+            theme := 'halloween'
+        }
+    );
+
+Another example of using a ``FOR`` statement is working with link
+properties. Specifying the link properties either at creation time or
+in a later step with an update is often simpler with a ``FOR``
+statement helping to associate the link target to the link property in
+an intuitive manner.
+
+.. code-block:: eql
+
+    # Expressing this without FOR statement is fairly tedious.
+    WITH
+        MODULE example,
+        U2 := User
+    FOR x IN {
+        (
+            name := 'Alice',
+            friends := [('Bob', 'coffee buff'),
+                        ('Carol', 'dog person')]
+        ),
+        (
+            name := 'Bob',
+            friends := [('Alice', 'movie buff'),
+                        ('Dave', 'cat person')]
+        )
+    }
+    UNION (
+        UPDATE User
+        FILTER User.name = x.name
+        SET {
+            friends := (
+                FOR f in {unnest(x.friends)}
+                UNION (
+                    SELECT U2 {@nickname := f.1}
+                    FILTER U2.name = f.0
+                )
+            )
+        }
+    );
+
 
 Insert
 ------
@@ -311,7 +467,7 @@ The data flow of an ``INSERT`` block can be conceptualized like this:
     WITH MODULE example
 
     INSERT
-        <obj>       # create the following object
+        <obj>   # create the following object
 
 
 
@@ -354,7 +510,7 @@ statement as an atomic operation.
     INSERT Issue {
         number := '101',
         body := 'Nested INSERT',
-        owner: User{
+        owner: User {
             name := 'Nested User'
         }
     };
@@ -470,7 +626,7 @@ The data flow of a ``DELETE`` block can be conceptualized like this:
     WITH MODULE example
 
     DELETE
-        <expr>  # create the following object
+        <expr>  # delete the following objects
 
 Here's a simple example of deleting a specific user:
 
@@ -483,3 +639,100 @@ Here's a simple example of deleting a specific user:
 Notice that there are no other clauses except ``WITH`` in the
 ``DELETE`` statement. This is because it is a mutation statement and
 not typically used to query the DB.
+
+
+.. _ref_edgeql_with:
+
+With block
+----------
+
+The ``WITH`` block in EdgeQL is used to define scope and aliases.
+
+Specifying a module
+~~~~~~~~~~~~~~~~~~~
+
+One of the more basic and common uses of the ``WITH`` block is to
+specify the default module that is used in a query. ``WITH MODULE
+<name>`` construct indicates that whenever an identifier is used
+without any module specified explicitly, the module will default to
+``<name>`` and then fall back to built-ins from ``std`` module.
+
+The following queries are exactly equivalent:
+
+.. code-block:: eql
+
+    WITH MODULE example
+    SELECT User {
+        name,
+        <owned: Issue {
+            number,
+            body
+        }
+    }
+    FILTER User.name LIKE 'Alice%';
+
+    SELECT example::User {
+        name,
+        <owned: example::Issue {
+            number,
+            body
+        }
+    }
+    FILTER example::User.name LIKE 'Alice%';
+
+
+It is also possible to define aliases modules in the ``WITH`` block.
+Consider the following query that needs to compare objects
+corresponding to concepts defined in two different modules.
+
+.. code-block:: eql
+
+    WITH
+        MODULE example,
+        f := MODULE foo
+    SELECT User {
+        name
+    }
+    FILTER .name = f::Foo.name;
+
+Another use case is for giving short aliases to long module names
+(especially if module names contain `.`).
+
+.. code-block:: eql
+
+    WITH
+        MODULE example,
+        fbz := MODULE foo.bar.baz
+    SELECT User {
+        name
+    }
+    FILTER .name = fbz::Baz.name;
+
+
+
+Views
+~~~~~
+
+It is possible to specify an aliased view in the ``WITH`` block. Since
+every aliased view exists in its own
+:ref:`sub-scope<ref_edgeql_paths_scope>`, aliases can be used to refer
+to different instances of the same *concept* in a query. For example,
+the following query will find all users who own the same number of
+issues as someone else:
+
+.. code-block:: eql
+
+    WITH
+        MODULE example,
+        U2 := User
+    # U2 and User in the SELECT clause now refer to the same concept,
+    # but different objects
+    SELECT User {
+        name,
+        issue_count := count(User.<owner[IS Issue])
+    }
+    FILTER
+        User.issue_count = count((
+            SELECT U2.<owner[IS Issue]
+            FILTER U2 != User
+        ));
