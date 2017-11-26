@@ -456,7 +456,6 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ]
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_props_cross_04(self):
         await self.assert_query_result(r'''
             # get cards that have the same count in some deck as their cost
@@ -484,7 +483,6 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ]
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_props_implication_01(self):
         await self.assert_query_result(r'''
             # count of 1 in at least some deck implies 'Fire'

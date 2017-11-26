@@ -114,7 +114,6 @@ class Cli:
         self.conn_args = conn_args
         self.cur_db = None
         self.graphql = False
-        self.optimize = False
         self.commands = type(self)._command.__kwdefaults__['_all_commands']
 
     def get_prompt(self):
@@ -135,10 +134,6 @@ class Cli:
             (pt_token.Token.Toolbar, '[F3] GraphQL: '),
             (pt_token.Token.Toolbar.On, 'On') if self.graphql else
             (pt_token.Token.Toolbar, 'Off'),
-            (pt_token.Token.Toolbar, '  '),
-            (pt_token.Token.Toolbar, '[F4] Optimize: '),
-            (pt_token.Token.Toolbar.On, 'On') if self.optimize else
-            (pt_token.Token.Toolbar, 'Off'),
         ]
 
     def build_cli(self):
@@ -153,10 +148,6 @@ class Cli:
         @key_binding_manager.registry.add_binding(pt_keys.Keys.F3)
         def _graphql_toggle(event):
             self.graphql = not self.graphql
-
-        @key_binding_manager.registry.add_binding(pt_keys.Keys.F4)
-        def _optimizer_toggle(event):
-            self.optimize = not self.optimize
 
         @key_binding_manager.registry.add_binding(pt_keys.Keys.Tab)
         def _tab(event):
@@ -318,7 +309,6 @@ class Cli:
                 try:
                     if self.graphql:
                         command = command.rstrip(';')
-                    self.connection.set_optimize(self.optimize)
                     result = self.run_coroutine(
                         self.connection.execute(
                             command, graphql=self.graphql))
@@ -349,8 +339,6 @@ class Cli:
             buf['EdgeQL->IR'] = r(timings.get('compile_eql_to_ir'))
         if timings.get('compile_ir_to_sql'):
             buf['IR->SQL'] = r(timings.get('compile_ir_to_sql'))
-        if timings.get('optimize'):
-            buf['Opt'] = r(timings.get('optimize'))
         if timings.get('execution'):
             buf['Exec'] = r(timings.get('execution'))
 

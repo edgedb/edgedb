@@ -64,7 +64,6 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_views_basic_03(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -78,7 +77,6 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_views_basic_04(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -93,7 +91,6 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_views_basic_05(self):
         await self.assert_query_result(r'''
             WITH MODULE test

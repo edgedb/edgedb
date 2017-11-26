@@ -554,7 +554,6 @@ class TestExpressions(tb.QueryTestCase):
             ],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_expr_set_03(self):
         await self.assert_query_result(r"""
             # "nested" sets are merged using UNION ALL

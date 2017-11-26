@@ -22,7 +22,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'groups_setup.eql')
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_group_simple_01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -38,7 +37,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             [4, 2],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_group_simple_02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -55,7 +53,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             [3, 1],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_group_simple_03(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -72,7 +69,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             [3, 1],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_group_simple_04(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -90,7 +86,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             [3, 1],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_group_simple_05(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -107,7 +102,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             [2, 1],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_group_expr_01(self):
         await self.assert_query_result(r'''
             GROUP
@@ -122,7 +116,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             [[2, [1, 4]], [4, [3]]],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_group_alias_01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -151,7 +144,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             [{'count': 1, 'te': True}, {'count': 3, 'te': None}],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_group_nested_01(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -227,7 +219,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             [[['1', 'Open'], ['2', 'Open'], ['3', 'Closed'], ['4', 'Closed']]]
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_group_agg_03(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -249,7 +240,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             }],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_group_agg_04(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -337,7 +327,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             [42, 42, 42, 42],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_group_by_tuple_01(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -362,7 +351,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             }],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_group_by_tuple_02(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -389,7 +377,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             }],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_group_by_tuple_03(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -422,7 +409,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             }],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_group_by_tuple_04(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -454,7 +440,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             }],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_group_by_tuple_05(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -492,7 +477,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             }],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_group_by_tuple_06(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -530,7 +514,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             }],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_group_by_tuple_07(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -598,7 +581,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             }],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_group_linkproperty_simple_01(self):
         await self.assert_query_result(r"""
             # group by link property
@@ -636,7 +618,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_group_linkproperty_simple_02(self):
         await self.assert_query_result(r"""
             # use link property inside a group aggregate
@@ -900,7 +881,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ]
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_group_atom_01(self):
         await self.assert_query_result(r"""
             WITH MODULE test

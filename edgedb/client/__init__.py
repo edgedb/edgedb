@@ -28,13 +28,6 @@ class Connection:
         self._loop = loop
         self._top_xact = None
         self._dbname = dbname
-        self._optimize = False
-
-    def set_optimize(self, flag: bool):
-        self._optimize = bool(flag)
-
-    def get_optimize(self):
-        return self._optimize
 
     async def list_dbs(self):
         return await self._protocol.list_dbs()
@@ -47,7 +40,6 @@ class Connection:
             query,
             *args,
             graphql=graphql,
-            optimize=self._optimize,
             flags=flags)
 
     def get_last_timings(self):

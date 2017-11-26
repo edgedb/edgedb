@@ -35,7 +35,7 @@ msg_header = struct.Struct('!L')
 
 class Timer:
     __slots__ = ('parse_eql', 'compile_eql_to_ir', 'compile_ir_to_sql',
-                 'optimize', 'graphql_translation', 'execution')
+                 'graphql_translation', 'execution')
 
     def __init__(self):
         for attr in self.__slots__:
@@ -147,7 +147,6 @@ class Protocol(asyncio.Protocol):
 
             fut = self._loop.create_task(
                 self._run_script(script, graphql=message.get('__graphql__'),
-                                 optimize=message.get('__optimize__'),
                                  flags=message.get('__flags__')))
             fut.add_done_callback(self._on_script_done)
 
@@ -212,8 +211,7 @@ class Protocol(asyncio.Protocol):
         result = [r['datname'] for r in result]
         return result, timer.as_dict()
 
-    async def _run_script(self, script, *,
-                          graphql=False, optimize=False, flags={}):
+    async def _run_script(self, script, *, graphql=False, flags={}):
         timer = Timer()
 
         if graphql:
@@ -228,7 +226,7 @@ class Protocol(asyncio.Protocol):
 
         for statement in statements:
             plan = planner.plan_statement(
-                statement, self.backend, flags, timer=timer, optimize=optimize)
+                statement, self.backend, flags, timer=timer)
 
             with timer.timeit('execution'):
                 result = await executor.execute_plan(plan, self)

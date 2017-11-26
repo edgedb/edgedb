@@ -2417,7 +2417,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['Elvis1', 'Elvis4', 'Yury2', 'Yury3'],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_select_cross05(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -2428,7 +2427,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [['Elvis', 'Yury'], ['Yury', 'Elvis'], ['Yury', 'Elvis']],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_select_cross06(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -2451,7 +2449,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [2],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_select_cross08(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -3237,7 +3234,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [['Closed', 2], ['Open', 2]]
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_select_tuple_02(self):
         await self.assert_query_result(r"""
             # nested tuples
@@ -3305,7 +3301,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'statuses': 2, 'issues': 4}],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_select_struct_02(self):
         # Struct in a common set expr.
         await self.assert_query_result(r"""
@@ -3321,7 +3316,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [6],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_select_struct_03(self):
         # Object in a struct.
         await self.assert_query_result(r"""
@@ -3375,7 +3369,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['Yury'],
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_select_struct_06(self):
         # Struct comparison
         await self.assert_query_result(r"""
@@ -3724,7 +3717,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         ])
 
-    @tb.expected_optimizer_failure
     async def test_edgeql_select_for_01(self):
         await self.assert_query_result(r'''
             WITH MODULE test

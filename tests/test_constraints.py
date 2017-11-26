@@ -349,7 +349,6 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
                           'schemas', 'constraints_migration',
                           'schema.eschema')
 
-    @tb.no_optimizer
     async def test_constraints_unique_migration(self):
         new_schema_f = os.path.join(os.path.dirname(__file__),
                                     'schemas', 'constraints_migration',

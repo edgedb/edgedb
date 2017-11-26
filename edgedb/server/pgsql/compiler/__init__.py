@@ -15,7 +15,6 @@ from edgedb.lang.ir import ast as irast
 
 from edgedb.server.pgsql import ast as pgast
 from edgedb.server.pgsql import codegen as pgcodegen
-from edgedb.server.pgsql import optimizer as pgopt
 
 from . import expr as _expr_compiler  # NOQA
 from . import stmt as _stmt_compiler  # NOQA
@@ -61,7 +60,7 @@ def compile_ir_to_sql(
         ir_expr: irast.Base, *,
         schema, backend=None,
         output_format: typing.Optional[OutputFormat]=None,
-        ignore_shapes: bool=False, optimize: bool=False, timer=None):
+        ignore_shapes: bool=False, timer=None):
 
     if timer is None:
         qtree = compile_ir_to_sql_tree(
@@ -77,23 +76,6 @@ def compile_ir_to_sql(
         debug.header('SQL Tree')
         debug.dump(qtree)
 
-    if optimize:
-        if debug.flags.edgeql_optimize:  # pragma: no cover
-            debug.header('SQL Tree before optimization')
-            debug.dump(qtree, _ast_include_meta=False)
-
-            codegen = _run_codegen(qtree)
-            qchunks = codegen.result
-            debug.header('SQL before optimization')
-            debug.dump_code(''.join(qchunks), lexer='sql')
-
-        opt = pgopt.Optimizer()
-        if timer is None:
-            qtree = opt.optimize(qtree)
-        else:
-            with timer.timeit('optimize'):
-                qtree = opt.optimize(qtree)
-
     argmap = qtree.argnames
 
     # Generate query text
@@ -106,8 +88,7 @@ def compile_ir_to_sql(
     qchunks = codegen.result
     arg_index = codegen.param_index
 
-    if (debug.flags.edgeql_compile or
-            debug.flags.edgeql_optimize):  # pragma: no cover
+    if debug.flags.edgeql_compile:  # pragma: no cover
         debug.header('SQL')
         debug.dump_code(''.join(qchunks), lexer='sql')
 

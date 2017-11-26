@@ -63,9 +63,6 @@ class flags(metaclass=FlagsMeta):
     edgeql_compile = Flag(
         doc="Dump EdgeQL/IR/SQL ASTs.")
 
-    edgeql_optimize = Flag(
-        doc="Dump SQL AST/Query before/after optimization.")
-
     delta_plan = Flag(
         doc="Print expanded delta command tree prior to processing.")
 

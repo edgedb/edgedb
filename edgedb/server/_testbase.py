@@ -537,57 +537,8 @@ class DDLTestCase(BaseQueryTestCase):
     ISOLATED_METHODS = False
 
 
-class QueryTestCaseMeta(TestCaseMeta):
-
-    @classmethod
-    def wrap_opt(mcls, meth):
-        @functools.wraps(meth)
-        def wrapper(self, *args, **kwargs):
-            old_opt = self.con.get_optimize()
-            self.con.set_optimize(True)
-            try:
-                self.loop.run_until_complete(meth(self, *args, **kwargs))
-            finally:
-                self.con.set_optimize(old_opt)
-
-        return wrapper
-
-    @classmethod
-    def _add_method(mcls, methname, ns, meth):
-        if getattr(meth, '_no_optimizer', False):
-            super().add_method(methname, ns, meth)
-            return
-
-        wrapper = mcls.wrap(meth)
-        if getattr(meth, '_expected_no_optimizer_failure', False):
-            wrapper = unittest.expectedFailure(wrapper)
-        wrapper.__name__ = methname + '_no_opt'
-        ns[methname + '_no_opt'] = wrapper
-
-        wrapped = mcls.wrap_opt(meth)
-        if getattr(meth, '_expected_optimizer_failure', False):
-            wrapped = unittest.expectedFailure(wrapped)
-        wrapped.__name__ = methname + '_opt'
-        ns[methname + '_opt'] = wrapped
-
-
-class QueryTestCase(BaseQueryTestCase, metaclass=QueryTestCaseMeta):
+class QueryTestCase(BaseQueryTestCase):
     pass
-
-
-def no_optimizer(obj):
-    obj._no_optimizer = True
-    return obj
-
-
-def expected_optimizer_failure(obj):
-    obj._expected_optimizer_failure = True
-    return obj
-
-
-def expected_no_optimizer_failure(obj):
-    obj._expected_no_optimizer_failure = True
-    return obj
 
 
 def get_test_cases_setup(cases):
