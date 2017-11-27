@@ -552,12 +552,12 @@ class TestIntrospection(tb.QueryTestCase):
             # Count the number of objects for each concept in module
             # test. This is impossible to do without introspection for
             # concepts that have 0 objects.
-            #
             WITH MODULE schema
             SELECT Concept {
                 name,
                 count := (
-                    SELECT SINGLETON std::count(Concept.<__class__)
+                    WITH CARDINALITY '1'
+                    SELECT std::count(Concept.<__class__)
                 )
             }
             FILTER Concept.name LIKE 'test::%'

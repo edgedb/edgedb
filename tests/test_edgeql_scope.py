@@ -74,7 +74,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_scope_tuple_02(self):
         await self.assert_sorted_query_result(r'''
             WITH
@@ -96,7 +95,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_scope_tuple_03(self):
         await self.assert_sorted_query_result(r'''
             WITH MODULE test
@@ -144,7 +142,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_scope_tuple_04(self):
         await self.assert_sorted_query_result(r'''
             WITH
@@ -406,15 +403,15 @@ class TestEdgeQLScope(tb.QueryTestCase):
             [2.25, 2.25],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_scope_tuple_09(self):
         await self.assert_sorted_query_result(r'''
             WITH MODULE test
             SELECT (
                 Card {
                     name,
-                    percent_cost := (SELECT SINGLETON
-                        <int>(100 * Card.cost / Card.<deck.deck_cost)
+                    percent_cost := (
+                        WITH CARDINALITY '1'
+                        SELECT <int>(100 * Card.cost / Card.<deck.deck_cost)
                     ),
                 },
                 Card.<deck.name
@@ -600,7 +597,8 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 } ORDER BY User.friends.name
             }
             ORDER BY (
-                    SELECT SINGLETON
+                    WITH CARDINALITY '1'
+                    SELECT
                         User.friends.name
                     FILTER User.friends@nickname = 'Firefighter'
                 ) EMPTY FIRST
@@ -657,7 +655,8 @@ class TestEdgeQLScope(tb.QueryTestCase):
                     # - the user happens to be Carol
                     # - her average deck cost is 2
                     #   (see test_edgeql_scope_tuple_08)
-                    SELECT SINGLETON
+                    WITH CARDINALITY '1'
+                    SELECT
                         # in the below expression User.friends is the
                         # longest common prefix, so we know that for
                         # each friend, the average cost will be
@@ -665,7 +664,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                         <int>(User.friends.deck_cost /
                                 count(User.friends.deck))
                     # finally, filter out the only answer we need, to
-                    # satisfy the SINGLETON requirement of the OFFSET
+                    # satisfy the CARDINALITY requirement of the OFFSET
                     FILTER User.friends@nickname = 'Firefighter'
                 );
         ''', [
@@ -744,7 +743,8 @@ class TestEdgeQLScope(tb.QueryTestCase):
                     # - the user happens to be Carol
                     # - her average deck cost is 2
                     #   (see test_edgeql_scope_tuple_08)
-                    SELECT SINGLETON
+                    WITH CARDINALITY '1'
+                    SELECT
                         # in the below expression User.friends is the
                         # longest common prefix, so we know that for
                         # each friend, the average cost will be
@@ -752,7 +752,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                         <int>(User.friends.deck_cost /
                                 count(User.friends.deck))
                     # finally, filter out the only answer we need, to
-                    # satisfy the SINGLETON requirement of the LIMIT
+                    # satisfy the CARDINALITY requirement of the LIMIT
                     FILTER User.friends@nickname = 'Firefighter'
                 );
         ''', [

@@ -93,12 +93,12 @@ concept Issue extending `foo.bar`::NamedObject, OwnedObject, Text:
     link priority to Priority
 
     link watchers to User:
-        mapping := '**'
+        cardinality := '**'
 
     link time_estimate to int
 
     link time_spent_log to LogEntry:
-        mapping := '1*'
+        cardinality := '1*'
 
     link start_date := SELECT datetime::current_datetime()
 
@@ -110,7 +110,7 @@ concept Issue extending `foo.bar`::NamedObject, OwnedObject, Text:
     link due_date to datetime
 
     link related_to to Issue:
-        mapping := '**'
+        cardinality := '**'
         """
 
     def test_eschema_syntax_concept_08(self):

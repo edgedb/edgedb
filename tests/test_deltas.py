@@ -22,7 +22,7 @@ class TestDeltas(tb.DDLTestCase):
             #
             CREATE MIGRATION test::d1 TO eschema $$
                 link name:
-                    linkproperty lang to str
+                    link property lang to str
 
                 concept NamedObject:
                     required link name to str
@@ -210,11 +210,11 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
             #
             CREATE MIGRATION test::d1 TO eschema $$
                 link name:
-                    linkproperty lang to str
+                    link property lang to str
 
                 concept NamedObject:
                     required link name to str:
-                        linkproperty lang to str:
+                        link property lang to str:
                             title := 'Language'
             $$;
 
@@ -246,24 +246,24 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
                     SET is_virtual := False;
                     SET mapping := '*1';
                     SET readonly := False;
-                }
+                };
                 ALTER LINK test::name {
                     CREATE LINK PROPERTY std::source TO test::NamedObject {
                         SET is_virtual := False;
                         SET readonly := False;
                         SET title := 'Link source';
-                    }
+                    };
                     CREATE LINK PROPERTY std::target TO std::str {
                         SET is_virtual := False;
                         SET readonly := False;
                         SET title := 'Link target';
-                    }
+                    };
                     CREATE LINK PROPERTY test::lang TO std::str {
                         SET is_virtual := False;
                         SET readonly := False;
                         SET title := 'Base link property';
-                    }
-                }
+                    };
+                };
             };
             '''
         )
@@ -274,7 +274,7 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
             #
             CREATE MIGRATION test::d2 TO eschema $$
                 link a:
-                    linkproperty a_prop to array<str>
+                    link property a_prop to array<str>
 
                 concept NamedObject:
                     required link a to array<int>
@@ -308,19 +308,19 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
             SET is_virtual := False;
             SET mapping := '*1';
             SET readonly := False;
-        }
+        };
         ALTER LINK test::a {
             CREATE LINK PROPERTY std::source TO test::NamedObject {
                 SET is_virtual := False;
                 SET readonly := False;
                 SET title := 'Link source';
-            }
+            };
             CREATE LINK PROPERTY std::target TO array<std::int> {
                 SET is_virtual := False;
                 SET readonly := False;
                 SET title := 'Link target';
-            }
-        }
+            };
+        };
     };
             '''
         )
