@@ -156,6 +156,10 @@ class T_LINKPROPERTY(Token):
     pass
 
 
+class T_DISTINCTUNION(Token):
+    pass
+
+
 def _gen_keyword_tokens():
     # Define keyword tokens
 

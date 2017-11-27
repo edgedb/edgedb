@@ -30,26 +30,23 @@ class ListNonterm(parsing.ListNonterm, element=None):
 
 
 class SetStmt(Nonterm):
-    def reduce_AliasBlock_OptForClause_SetStmtCore(self, *kids):
-        self.val = kids[2].val
-        self.val.aliases = kids[0].val
-        self.val.iterator_alias = kids[1].val.alias
-        self.val.iterator = kids[1].val.expr
-
-    def reduce_ForClause_SetStmtCore(self, *kids):
+    def reduce_AliasBlock_SetStmtCore(self, *kids):
         self.val = kids[1].val
-        self.val.iterator_alias = kids[0].val.alias
-        self.val.iterator = kids[0].val.expr
+        self.val.aliases = kids[0].val.aliases
+        self.val.cardinality = kids[0].val.cardinality
 
     def reduce_SetStmtCore(self, *kids):
         self.val = kids[0].val
 
 
 class SetStmtCore(Nonterm):
-    def reduce_SimpleGroup(self, *kids):
+    def reduce_SimpleFor(self, *kids):
         self.val = kids[0].val
 
     def reduce_SimpleSelect(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_SimpleGroup(self, *kids):
         self.val = kids[0].val
 
     def reduce_SimpleInsert(self, *kids):
@@ -62,61 +59,65 @@ class SetStmtCore(Nonterm):
         self.val = kids[0].val
 
 
-class OptSingle(Nonterm):
-    def reduce_SINGLETON(self, *kids):
-        self.val = True
-
-    def reduce_empty(self):
-        self.val = False
+class AliasedExpr(Nonterm):
+    def reduce_Identifier_TURNSTILE_Expr(self, *kids):
+        self.val = qlast.AliasedExpr(alias=kids[0].val, expr=kids[2].val)
 
 
 class OptionallyAliasedExpr(Nonterm):
-    def reduce_Identifier_TURNSTILE_Expr(self, *kids):
-        self.val = AliasedExprSpec(alias=kids[0].val, expr=kids[2].val)
+    def reduce_AliasedExpr(self, *kids):
+        val = kids[0].val
+        self.val = AliasedExprSpec(alias=val.alias, expr=val.expr)
 
     def reduce_Expr(self, *kids):
         self.val = AliasedExprSpec(alias=None, expr=kids[0].val)
 
 
+class AliasedExprList(ListNonterm, element=AliasedExpr,
+                      separator=tokens.T_COMMA):
+    pass
+
+
 # NOTE: This is intentionally not an AST node, since this structure never
 # makes it to the actual AST and exists solely for parser convenience.
-OutputExprSpec = collections.namedtuple(
-    'OutputExprSpec', ['single', 'result', 'alias'], module=__name__)
-
-
 AliasedExprSpec = collections.namedtuple(
     'AliasedExprSpec', ['alias', 'expr'], module=__name__)
 
 
-class OutputExpr(Nonterm):
-    def reduce_OptSingle_OptionallyAliasedExpr(self, *kids):
-        self.val = OutputExprSpec(
-            single=kids[0].val,
-            result=kids[1].val.expr,
-            alias=kids[1].val.alias
+# ByExpr will eventually be expanded to include more than just
+# Identifiers as its members (such as CUBE, ROLLUP and grouping sets).
+class ByExpr(Nonterm):
+    def reduce_Identifier(self, *kids):
+        self.val = qlast.Path(steps=[qlast.ClassRef(name=kids[0].val)])
+
+
+class ByExprList(ListNonterm, element=ByExpr, separator=tokens.T_COMMA):
+    pass
+
+
+class SimpleFor(Nonterm):
+    def reduce_For(self, *kids):
+        r"%reduce FOR Identifier IN Set \
+                  UNION OptionallyAliasedExpr \
+                  OptFilterClause OptSortClause OptSelectLimit"
+        self.val = qlast.ForQuery(
+            iterator_alias=kids[1].val,
+            iterator=kids[3].val,
+            result=kids[5].val.expr,
+            result_alias=kids[5].val.alias,
+            where=kids[6].val,
+            orderby=kids[7].val,
+            offset=kids[8].val[0],
+            limit=kids[8].val[1],
         )
-
-
-class ForClause(Nonterm):
-    def reduce_FOR_Identifier_IN_Expr(self, *kids):
-        self.val = AliasedExprSpec(alias=kids[1].val, expr=kids[3].val)
-
-
-class OptForClause(Nonterm):
-    def reduce_ForClause(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_empty(self, *kids):
-        self.val = AliasedExprSpec(None, None)
 
 
 class SimpleSelect(Nonterm):
     def reduce_Select(self, *kids):
-        r"%reduce SELECT OutputExpr \
+        r"%reduce SELECT OptionallyAliasedExpr \
                   OptFilterClause OptSortClause OptSelectLimit"
         self.val = qlast.SelectQuery(
-            single=kids[1].val.single,
-            result=kids[1].val.result,
+            result=kids[1].val.expr,
             result_alias=kids[1].val.alias,
             where=kids[2].val,
             orderby=kids[3].val,
@@ -127,21 +128,24 @@ class SimpleSelect(Nonterm):
 
 class SimpleGroup(Nonterm):
     def reduce_Group(self, *kids):
-        r"%reduce GROUP OptionallyAliasedExpr ByClause SimpleSelect"
-
-        select = kids[3].val
-
+        r"%reduce GROUP OptionallyAliasedExpr \
+                  USING AliasedExprList \
+                  BY ByExprList \
+                  INTO Identifier \
+                  UNION OptionallyAliasedExpr \
+                  OptFilterClause OptSortClause OptSelectLimit"
         self.val = qlast.GroupQuery(
             subject=kids[1].val.expr,
             subject_alias=kids[1].val.alias,
-            groupby=kids[2].val,
-            single=select.single,
-            result=select.result,
-            result_alias=select.result_alias,
-            where=select.where,
-            orderby=select.orderby,
-            offset=select.offset,
-            limit=select.limit,
+            using=kids[3].val,
+            by=kids[5].val,
+            into=kids[7].val,
+            result=kids[9].val.expr,
+            result_alias=kids[9].val.alias,
+            where=kids[10].val,
+            orderby=kids[11].val,
+            offset=kids[12].val[0],
+            limit=kids[12].val[1],
         )
 
 
@@ -197,12 +201,23 @@ class OptAliasBlock(Nonterm):
         self.val = kids[0].val
 
     def reduce_empty(self, *kids):
-        self.val = []
+        self.val = WithBlock(aliases=[], cardinality=None)
+
+
+WithBlock = collections.namedtuple(
+    'WithBlock', ['aliases', 'cardinality'], module=__name__)
 
 
 class AliasBlock(Nonterm):
     def reduce_WITH_AliasDeclList(self, *kids):
-        self.val = kids[1].val
+        aliases = []
+        cardinality = None
+        for w in kids[1].val:
+            if isinstance(w, str):
+                cardinality = w
+            else:
+                aliases.append(w)
+        self.val = WithBlock(aliases=aliases, cardinality=cardinality)
 
 
 class AliasDecl(Nonterm):
@@ -210,15 +225,17 @@ class AliasDecl(Nonterm):
         self.val = qlast.NamespaceAliasDecl(
             namespace='.'.join(kids[1].val))
 
+    def reduce_CARDINALITY_SCONST(self, *kids):
+        assert kids[1].val in {'1', '*'}
+        self.val = kids[1].val
+
     def reduce_Identifier_TURNSTILE_MODULE_ModuleName(self, *kids):
         self.val = qlast.NamespaceAliasDecl(
             alias=kids[0].val,
             namespace='.'.join(kids[3].val))
 
-    def reduce_Identifier_TURNSTILE_Expr(self, *kids):
-        self.val = qlast.AliasedExpr(
-            alias=kids[0].val,
-            expr=kids[2].val)
+    def reduce_AliasedExpr(self, *kids):
+        self.val = kids[0].val
 
 
 class AliasDeclList(ListNonterm, element=AliasDecl,
@@ -429,14 +446,6 @@ class OptFilterClause(Nonterm):
 
     def reduce_empty(self, *kids):
         self.val = None
-
-
-class ByClause(Nonterm):
-    def reduce_BY_ExprList(self, *kids):
-        self.val = kids[1].val
-
-    def reduce_empty(self, *kids):
-        self.val = []
 
 
 class SortClause(Nonterm):
@@ -769,9 +778,9 @@ class Expr(Nonterm):
         self.val = qlast.BinOp(left=kids[0].val, op=qlast.UNION,
                                right=kids[2].val)
 
-    def reduce_Expr_UNION_ALL_Expr(self, *kids):
-        self.val = qlast.BinOp(left=kids[0].val, op=qlast.UNION_ALL,
-                               right=kids[3].val)
+    def reduce_Expr_DISTINCTUNION_Expr(self, *kids):
+        self.val = qlast.BinOp(left=kids[0].val, op=qlast.DISTINCT_UNION,
+                               right=kids[2].val)
 
 
 class Tuple(Nonterm):
@@ -1068,58 +1077,35 @@ class LinkDirection(Nonterm):
 
 
 class FuncApplication(Nonterm):
-    def reduce_FuncApplication(self, *kids):
-        r"""%reduce NodeName LPAREN OptFuncArgList \
-                    OptFilterClause OptSortClause RPAREN \
-        """
+    def reduce_NodeName_LPAREN_OptFuncArgList_RPAREN(self, *kids):
         module = kids[0].val.module
         func_name = kids[0].val.name
         name = func_name if not module else (module, func_name)
         self.val = qlast.FunctionCall(func=name,
-                                      args=kids[2].val,
-                                      agg_filter=kids[3].val,
-                                      agg_sort=kids[4].val)
+                                      args=kids[2].val)
 
 
 class FuncExpr(Nonterm):
-    def reduce_FuncApplication_OptOverClause(self, *kids):
+    def reduce_FuncApplication(self, *kids):
         self.val = kids[0].val
-        self.val.window = kids[1].val
-
-
-class OptOverClause(Nonterm):
-    def reduce_OVER_WindowSpec(self, *kids):
-        self.val = kids[1].val
-
-    def reduce_empty(self, *kids):
-        self.val = None
-
-
-class WindowSpec(Nonterm):
-    def reduce_LPAREN_OptPartitionClause_OptSortClause_RPAREN(self, *kids):
-        self.val = qlast.WindowSpec(
-            partition=kids[1].val,
-            orderby=kids[2].val
-        )
-
-
-class OptPartitionClause(Nonterm):
-    def reduce_PARTITION_BY_ExprList(self, *kids):
-        self.val = kids[2].val
-
-    def reduce_empty(self, *kids):
-        self.val = []
 
 
 class FuncArgExpr(Nonterm):
     def reduce_Expr(self, *kids):
-        self.val = kids[0].val
+        self.val = qlast.FuncArg(arg=kids[0].val)
 
     def reduce_Identifier_TURNSTILE_Expr(self, *kids):
-        self.val = qlast.NamedArg(name=kids[0].val, arg=kids[2].val)
+        self.val = qlast.FuncArg(name=kids[0].val, arg=kids[2].val)
 
 
-class FuncArgList(ListNonterm, element=FuncArgExpr, separator=tokens.T_COMMA):
+class FuncArg(Nonterm):
+    def reduce_FuncArgExpr_OptFilterClause_OptSortClause(self, *kids):
+        self.val = kids[0].val
+        self.val.filter = kids[1].val
+        self.val.sort = kids[2].val
+
+
+class FuncArgList(ListNonterm, element=FuncArg, separator=tokens.T_COMMA):
     pass
 
 

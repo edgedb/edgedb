@@ -34,7 +34,7 @@ class Attribute(Base):
 
 
 class Constraint(Base):
-    args: qlast.Tuple  # TODO (yury): replace with `List[qlast.Base]`
+    args: typing.List[qlast.FuncArg]
     attributes: typing.List[Attribute]
     delegated: bool = False
     name: qlast.ClassRef
@@ -134,7 +134,7 @@ class FunctionDeclaration(Declaration):
     aggregate: bool = False
     initial_value: qlast.Base
     code: FunctionCode
-    set_returning: bool = False
+    set_returning: str = ''
 
 
 class LinkDeclaration(Declaration):
