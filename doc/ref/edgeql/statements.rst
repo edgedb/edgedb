@@ -4,10 +4,14 @@
 Statements
 ==========
 
-EdgeQL has Select_, Group_, Insert_, Update_, and Delete_ statements
-for managing the data in the DB. Each of these statements can also be
-used as an *expression* if it is enclosed in parentheses, in which
-case they also return a value.
+.. TODO::
+
+    This section needs a significant re-write w.r.t usage of FOR.
+
+EdgeQL has Select_, Group_, For_, Insert_, Update_, and Delete_
+statements for managing the data in the DB. Each of these statements
+can also be used as an *expression* if it is enclosed in parentheses,
+in which case they also return a value.
 
 .. note::
 
@@ -40,9 +44,6 @@ The data flow of a ``SELECT`` block can be conceptualized like this:
 .. code-block:: pseudo-eql
 
     WITH MODULE example
-    # optional generator (generally not used with SELECT)
-    FOR <it>        # repeat for every element <it>
-        IN <expr>   # of the set represented by <expr>
 
     SELECT
         <expr>  # compute a set of things
@@ -59,17 +60,11 @@ The data flow of a ``SELECT`` block can be conceptualized like this:
     OFFSET/LIMIT
         <expr>  # slice the filtered/ordered set
 
-Typically, there's little reason to use ``FOR`` clause with ``SELECT``
-as a ``FILTER`` or an explicit ``UNION`` may accomplish the same thing
-far more efficiently. Insert_ statement is the most typical use of
-``FOR`` clause.
-
 Please note that the ``ORDER BY`` clause defines ordering that can
-only be relied upon within the same lexical statement (or for
-serialized output), such as by the ``OFFSET`` and ``LIMIT`` clauses or
-enclosing aggregate functions. The final result of any statement after
-all the clauses have been applied is a *set* that lacks any inherent
-order.
+only be relied upon only if the resulting set is not used in any other
+operation. ``OFFSET`` and ``LIMIT`` clauses are the only exception to
+that rule as they preserve the inherent ordering of the underlying
+set.
 
 Consider an example using only the ``FILTER`` optional clause:
 
@@ -89,7 +84,7 @@ The above example retrieves a single user with a specific name. The
 fact that there is only one such user is a detail that can be well-
 known and important to the creator of the DB, but otherwise non-
 obvious. However, forcing the cardinality to be at most 1 by using the
-keyword ``SINGLETON`` ensures that a set with a single object or
+keyword ``CARDINALITY`` ensures that a set with a single object or
 ``{}`` is returned. This way any further code that relies on the
 result of this query can safely assume there's only one result
 available. In case EdgeDB generates more than one result for this
@@ -98,8 +93,10 @@ it easier to debug.
 
 .. code-block:: eql
 
-    WITH MODULE example
-    SELECT SINGLETON User {
+    WITH
+        MODULE example,
+        CARDINALITY '1'
+    SELECT User {
         name,
         <owned: Issue {
             number,
@@ -134,38 +131,45 @@ Group
 -----
 
 A ``GROUP`` statement is used to allow operations on set partitions.
-The input set is partitioned using expressions in the ``BY`` clause,
-and then each partition is used as input to ``SELECT``. There are
-various useful functions that require a set of values as their input -
+The input set is partitioned using expressions in the ``USING`` and
+``BY`` clauses, and then for each partition the expression in the
+``UNION`` clause is evaluated and merged with the rest of the results
+via a ``UNION ALL`` (or ``UNION`` for Objects). There are various
+useful functions that require a set of values as their input -
 aggregate functions. Simple aggregate function examples include
 ``count``, ``sum``, ``array_agg``. All of these are functions that map
 a set of values onto a single value. A ``GROUP`` statement allows to
 use aggregate functions to compute various properties of set
 partitions.
 
-The ``SELECT`` clause is used to describe the shape of the returned
-value or values, while the optional qualifier ``SINGLETON`` declares
-the cardinality of the returned set to be at most 1 (empty set is
-considered a valid result where ``SINGLETON`` is expected).
-
 The data flow of a ``GROUP`` block can be conceptualized like this:
 
 .. code-block:: pseudo-eql
 
     WITH MODULE example
-    # optional generator (generally not used with GROUP)
-    FOR <it>        # repeat for every element <it>
-        IN <expr>   # of the set represented by <expr>
 
     GROUP
-        <expr>  # compute a set of things
+        <alias0> := <expr>  # define a set to partition
+
+    USING
+
+        <alias1> := <expr>,     # define parameters to use for
+        <alias2> := <expr>,     # grouping
+        ...
+        <aliasN> := <expr>
 
     BY
-        <expr>  # divide into several sets based on some criteria
+        <alias1>, ... <aliasN>  # specify which parameters will
+                                # be used to partition the set
 
-    SELECT
+    UNION
         <expr>  # map every grouped set onto a result set,
-                # merging them all with a UNION ALL
+                # merging them all with a UNION ALL (or UNION for
+                # Objects)
+
+    INTO
+        <sub_alias> # provide an alias to refer to the subsets
+                    # in expressions
 
     # optional clause
     FILTER
@@ -179,6 +183,13 @@ The data flow of a ``GROUP`` block can be conceptualized like this:
     OFFSET/LIMIT
         <expr>  # slice the filtered/ordered set
 
+Notice that defining aliases in ``GROUP`` and ``USING`` clauses is
+mandatory. Only the names defined in ``USING`` clause are legal in the
+``BY`` clause. Also the names defined in ``GROUP`` and ``USING``
+clauses allow to unambiguously refer to the specific grouping subset
+and the relevant grouping parameter values respectively in the
+``UNION`` clause.
+
 Consider the following example of a query that gets some statistics
 about Issues, namely what's the total number of issues and time spent
 per owner:
@@ -187,11 +198,13 @@ per owner:
 
     WITH MODULE example
     GROUP Issue
-    BY Issue.owner
-    SELECT (
-        owner := Issue.owner,
-        total_issues := count(Issue),
-        total_time := sum(Issue.time_spent_log.spent_time)
+    USING Owner := Issue.owner
+    BY Owner
+    INTO I
+    UNION (
+        owner := Owner,
+        total_issues := count(I),
+        total_time := sum(I.time_spent_log.spent_time)
     );
 
 Although, this particular query may rewritten without using ``GROUP``,
@@ -206,16 +219,18 @@ conjunction with an alias of the ``SELECT`` clause result:
 
     WITH MODULE example
     GROUP Issue
-    BY Issue.owner
-    SELECT _stats = (
-        owner := Issue.owner,
-        total_issues := count(Issue),
-        total_time := sum(Issue.time_spent_log.spent_time)
+    USING Owner := Issue.owner
+    BY Owner
+    INTO I
+    UNION _stats = (
+        owner := Owner,
+        total_issues := count(I),
+        total_time := sum(I.time_spent_log.spent_time)
     )
     FILTER _stats.total_time > 10;
 
 The choice of result alias is arbitrary, same as for the ``WITH``
-block. The alias defined here exists in the scope of the ``SELECT``
+block. The alias defined here exists in the scope of the ``UNION``
 block and can be used to apply ``FILTER``, ``ORDER BY``, ``OFFSET``
 and ``LIMIT`` clauses.
 
@@ -226,21 +241,61 @@ be done by using a ``SELECT`` expression at the subject clause of the
 .. code-block:: eql
 
     WITH MODULE example
-    GROUP (
-        SELECT Issue
-        # in this GROUP only consider issues with watchers
-        FILTER EXISTS Issue.watchers
-    )
-    BY Issue.owner
-    SELECT _stats = (
-        owner := Issue.owner,
-        total_issues := count(Issue),
-        total_time := sum(Issue.time_spent_log.spent_time)
+    GROUP
+        I := (
+            SELECT Issue
+            # in this GROUP only consider issues with watchers
+            FILTER EXISTS Issue.watchers
+        )
+    USING Owner := I.owner
+    BY Owner
+    INTO I
+    UNION _stats = (
+        owner := Owner,
+        total_issues := count(I),
+        total_time := sum(I.time_spent_log.spent_time)
     )
     FILTER _stats.total_time > 10;
 
-Just as is the case with Select_, ``FOR`` clause is not typically used
-here.
+
+For
+---
+
+A ``FOR`` statement is used where mathematically a universal qualifier
+(∀) would be appropriate. It allows to compute a set based on the
+elements of some other set.
+
+The data flow of a ``FOR`` block that uses elements of a set to
+iterate over can be conceptualized like this:
+
+.. code-block:: pseudo-eql
+
+    WITH MODULE example
+
+    FOR <el>        # repeat for every element <el>
+        IN <set>    # of the set literal <set>
+
+    UNION
+        <expr>  # map every element onto a result set,
+                # merging them all with a UNION ALL
+
+    # optional clause
+    FILTER
+        <expr>  # filter the returned set of values
+
+    # optional clause
+    ORDER BY
+        <expr>  # define ordering of the filtered set
+
+    # optional clause
+    OFFSET/LIMIT
+        <expr>  # slice the filtered/ordered set
+
+Typically a simple iteration over set elements is used in conjunction
+with an Insert_ or an Update_ statement. This mode is less useful with
+a Select_ expression since a ``FILTER`` may accomplish the same end
+result.
+
 
 Insert
 ------
@@ -254,16 +309,13 @@ The data flow of an ``INSERT`` block can be conceptualized like this:
 .. code-block:: pseudo-eql
 
     WITH MODULE example
-    # optional generator
-    FOR <it>        # repeat for every element <it>
-        IN <expr>   # of the set represented by <expr>
 
     INSERT
-        <obj>           # create the following object
+        <obj>       # create the following object
 
 
 
-Notice that there are no other clauses except ``FOR`` in the
+Notice that there are no other clauses except ``WITH`` in the
 ``INSERT`` statement. This is because it is a mutation statement and
 not typically used to query the DB. It is still possible to use an
 explicit ``SELECT`` statement and treat ``INSERT`` as an expression
@@ -314,7 +366,9 @@ expression.
 
 It is also possible to create new objects based on some existing data
 either provided as an explicit list (possibly automatically generated
-by some tool) or a query.
+by some tool) or a query. A ``FOR`` statement is the basis for this
+use-case and ``INSERT`` is simply the expression in the ``UNION``
+clause.
 
 .. code-block:: eql
 
@@ -322,28 +376,28 @@ by some tool) or a query.
     # data
     WITH MODULE example
     FOR x IN {'Alice', 'Bob', 'Carol', 'Dave'}
-    INSERT User {
+    UNION (INSERT User {
         name := x
-    };
+    });
 
     # example of a bulk insert of issues based on a query
     WITH
         MODULE example,
         Elvis := (SELECT User FILTER .name = 'Elvis'),
         Open := (SELECT Status FILTER .name = 'Open')
-    FOR Q IN (SELECT User FILTER .name ILIKE 'A%')
-    INSERT Issue {
+    FOR Q IN {(SELECT User FILTER .name ILIKE 'A%')}
+    UNION (INSERT Issue {
         name := Q.name + ' access problem',
         body := 'This user was affected by recent system glitch',
         owner := Elvis,
         status := Open
-    };
+    });
 
-The clause ``FOR <x> IN <expr>`` allows to perform bulk inserts. It is
+The statement ``FOR <x> IN <set>`` allows to perform bulk inserts. It is
 equivalent to invoking ``INSERT`` statement separately once for every
 element of the set generated by the provided expression all in a
-single transaction. See :ref:`Usage of FOR clause<ref_edgeql_forclause>`
-for more details.
+single transaction. See
+:ref:`Usage of FOR statement<ref_edgeql_forstatement>` for more details.
 
 
 Update
@@ -359,9 +413,6 @@ The data flow of an ``UPDATE`` block can be conceptualized like this:
 .. code-block:: pseudo-eql
 
     WITH MODULE example
-    # optional generator (uncommon for UPDATE)
-    FOR <it>        # repeat for every element <it>
-        IN <expr>   # of the set represented by <expr>
 
     UPDATE
         <expr>  # compute a set of things
@@ -398,9 +449,9 @@ Here are a couple of examples of using the ``UPDATE`` statement:
         name := User.name + '*'
     };
 
-The clause ``FOR <x> IN <expr>`` allows to express certain bulk
-updates more clearly. See :ref:`Usage of FOR clause<ref_edgeql_forclause>`
-for more details.
+The statement ``FOR <x> IN <expr>`` allows to express certain bulk
+updates more clearly. See
+:ref:`Usage of FOR statement<ref_edgeql_forstatement>` for more details.
 
 
 Delete
@@ -417,9 +468,6 @@ The data flow of a ``DELETE`` block can be conceptualized like this:
 .. code-block:: pseudo-eql
 
     WITH MODULE example
-    # optional generator (very uncommon for DELETE)
-    FOR <it>        # repeat for every element <it>
-        IN <expr>   # of the set represented by <expr>
 
     DELETE
         <expr>  # create the following object
@@ -432,14 +480,6 @@ Here's a simple example of deleting a specific user:
     DELETE (SELECT User
             FILTER User.name = 'Alice Smith');
 
-Notice that there are no other clauses except ``FOR`` in the
+Notice that there are no other clauses except ``WITH`` in the
 ``DELETE`` statement. This is because it is a mutation statement and
-not typically used to query the DB. Even the ``FOR`` clause is very
-uncommon with the ``DELETE`` statement as most fine-tuned filtering is
-better done by a nested ``SELECT``:
-
-.. code-block:: eql
-
-    WITH MODULE example
-    DELETE (SELECT User
-            FILTER User.name = {'Alice Smith', 'Bob Johnson'});
+not typically used to query the DB.
