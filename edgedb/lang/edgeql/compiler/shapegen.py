@@ -318,7 +318,7 @@ def compile_shape_compexpr(
         ).derive(schema, ptrsource, target_class)
 
         if isinstance(shape_el.compexpr, qlast.Statement):
-            if shape_el.compexpr.single:
+            if shape_el.compexpr.cardinality == '1':
                 ptrcls.mapping = s_links.LinkMapping.ManyToOne
             else:
                 ptrcls.mapping = s_links.LinkMapping.ManyToMany

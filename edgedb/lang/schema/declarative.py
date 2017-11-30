@@ -471,8 +471,10 @@ class DeclarationLoader:
 
             args = None
             if constrdecl.args:
-                args = edgeql_codegen.generate_source(
-                    constrdecl.args, pretty=False)
+                args = ','.join([
+                    edgeql_codegen.generate_source(arg, pretty=False)
+                    for arg in constrdecl.args])
+                args = f'({args},)'
 
             subjectexpr = constrdecl.subject
             if subjectexpr is not None:

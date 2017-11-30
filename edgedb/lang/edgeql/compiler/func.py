@@ -50,25 +50,30 @@ def compile_FunctionCall(
         if is_agg:
             fctx.in_aggregate = True
 
+            # FIXME: this only works for one-variable aggregates
+            first_arg = expr.args[0]
+
             # FIXME: a stop-gap solution
             if (len(expr.args) == 1 and
-                isinstance(expr.args[0], qlast.UnaryOp) and
-                    expr.args[0].op == qlast.DISTINCT):
-
+                isinstance(first_arg.arg, qlast.UnaryOp) and
+                    first_arg.arg.op == qlast.DISTINCT):
+                new_arg = qlast.FuncArg(
+                    name=first_arg.name,
+                    arg=first_arg.arg.operand,
+                    sort=first_arg.sort,
+                    filter=first_arg.filter,
+                    context=first_arg.context,
+                )
                 expr = qlast.FunctionCall(
                     func=expr.func,
-                    args=[expr.args[0].operand],
+                    args=[new_arg],
                     agg_set_modifier=qlast.AggDISTINCT,
-                    agg_filter=expr.agg_filter,
-                    agg_sort=expr.agg_sort
                 )
             else:
                 expr = qlast.FunctionCall(
                     func=expr.func,
                     args=expr.args,
                     agg_set_modifier=qlast.AggALL,
-                    agg_filter=expr.agg_filter,
-                    agg_sort=expr.agg_sort
                 )
 
         path_scope = None
@@ -89,11 +94,11 @@ def compile_FunctionCall(
                 args, kwargs, arg_types = \
                     process_func_args(expr, funcname, ctx=scope_ctx)
 
-                if expr.agg_sort:
+                if expr.args[0].sort:
                     agg_sort = [
                         irast.SortExpr(
                             expr=dispatch.compile(e.path, ctx=scope_ctx),
-                            direction=e.direction) for e in expr.agg_sort
+                            direction=e.direction) for e in expr.args[0].sort
                     ]
 
                 elif expr.window:
@@ -113,9 +118,9 @@ def compile_FunctionCall(
 
                     window = True
 
-                if expr.agg_filter:
+                if expr.args[0].filter:
                     agg_filter = dispatch.compile(
-                        expr.agg_filter, ctx=scope_ctx)
+                        expr.args[0].filter, ctx=scope_ctx)
 
                 path_scope = scope_ctx.path_scope
 
@@ -213,12 +218,12 @@ def process_func_args(
     arg_types = []
 
     for ai, a in enumerate(expr.args):
-        if isinstance(a, qlast.NamedArg):
+        if a.name:
             arg = setgen.ensure_set(dispatch.compile(a.arg, ctx=ctx), ctx=ctx)
             kwargs[a.name] = arg
             aname = a.name
         else:
-            arg = setgen.ensure_set(dispatch.compile(a, ctx=ctx), ctx=ctx)
+            arg = setgen.ensure_set(dispatch.compile(a.arg, ctx=ctx), ctx=ctx)
             args.append(arg)
             aname = ai
 

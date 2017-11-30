@@ -520,7 +520,7 @@ def process_set_as_setop(
     with ctx.subrel() as subctx:
         subqry = subctx.rel
         # There are only two binary set operators possible coming from IR:
-        # UNION and UNION_ALL
+        # UNION and DISTINCT_UNION
         subqry.op = pgast.UNION
 
         # We cannot simply rely on Postgres to produce a distinct set,
@@ -536,7 +536,7 @@ def process_set_as_setop(
 
     # UNIONs of concepts _always_ produce distinct sets.
     distinct = (
-        expr.op != irast.UNION_ALL or
+        expr.op != irast.UNION or
         isinstance(irutils.infer_type(expr.left, ctx.env.schema),
                    s_concepts.Concept)
     )

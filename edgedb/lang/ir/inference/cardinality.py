@@ -72,7 +72,7 @@ def __infer_coalesce(ir, singletons, schema):
 
 @_infer_cardinality.register(irast.SetOp)
 def __infer_setop(ir, singletons, schema):
-    if ir.op in {qlast.UNION, qlast.UNION_ALL}:
+    if ir.op in {qlast.UNION, qlast.DISTINCT_UNION}:
         if not ir.exclusive:
             # Exclusive UNIONs are generated from IF ELSE expressions.
             result = MANY

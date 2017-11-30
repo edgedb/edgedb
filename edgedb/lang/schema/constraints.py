@@ -340,7 +340,8 @@ class CreateConstraint(ConstraintCommand,
 
         if isinstance(astnode, qlast.CreateConcreteConstraint):
             if astnode.args:
-                args_ql = qlast.Tuple(elements=astnode.args)
+                args_ql = qlast.Tuple(elements=[
+                    arg.arg for arg in astnode.args])
 
                 args_expr = s_expr.ExpressionText(
                     edgeql.generate_source(args_ql, pretty=False))

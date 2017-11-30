@@ -100,8 +100,7 @@ def is_degenerate_select(qlstmt):
         # Not a reference to a view defined in this statement
         (not isinstance(start, qlast.ClassRef) or
             start.module is not None or start.name not in views) and
-        # No FOR, FILTER, ORDER BY, OFFSET or LIMIT
-        qlstmt.iterator is None and
+        # No FILTER, ORDER BY, OFFSET or LIMIT
         qlstmt.where is None and
         qlstmt.orderby is None and
         qlstmt.offset is None and

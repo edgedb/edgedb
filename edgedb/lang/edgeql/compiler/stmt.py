@@ -69,7 +69,49 @@ def compile_SelectQuery(
         result = fini_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
 
     # Query cardinality inference must be ran in parent context.
-    if expr.single:
+    if expr.cardinality == '1':
+        stmt.result.context = expr.result.context
+        # XXX: correct cardinality inference depends on
+        # query selectivity estimator, which is not done yet.
+        # pathctx.enforce_singleton(stmt.result, ctx=ctx)
+        stmt.singleton = True
+
+    return result
+
+
+@dispatch.compile.register(qlast.ForQuery)
+def compile_ForQuery(
+        expr: qlast.ForQuery, *, ctx: context.ContextLevel) -> irast.Base:
+    with ctx.subquery() as sctx:
+        stmt = irast.SelectStmt()
+        init_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
+
+        output = expr.result
+
+        if (isinstance(output, qlast.Shape) and
+                isinstance(output.expr, qlast.Path) and
+                output.expr.steps):
+            sctx.result_path_steps = output.expr.steps
+
+        stmt.result = compile_result_clause(
+            expr.result, ctx.toplevel_shape_rptr, expr.result_alias, ctx=sctx)
+
+        stmt.where = clauses.compile_where_clause(
+            expr.where, ctx=sctx)
+
+        stmt.orderby = clauses.compile_orderby_clause(
+            expr.orderby, ctx=sctx)
+
+        stmt.offset = clauses.compile_limit_offset_clause(
+            expr.offset, ctx=sctx)
+
+        stmt.limit = clauses.compile_limit_offset_clause(
+            expr.limit, ctx=sctx)
+
+        result = fini_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
+
+    # Query cardinality inference must be ran in parent context.
+    if expr.cardinality == '1':
         stmt.result.context = expr.result.context
         # XXX: correct cardinality inference depends on
         # query selectivity estimator, which is not done yet.
@@ -271,7 +313,7 @@ def init_stmt(
 
     process_with_block(qlstmt, ctx=ctx, parent_ctx=parent_ctx)
 
-    if qlstmt.iterator is not None:
+    if isinstance(qlstmt, qlast.ForQuery):
         with ctx.newfence() as scopectx:
             # Paths in the statement must not be coalesced with
             # paths in view definitions, so the view scope must

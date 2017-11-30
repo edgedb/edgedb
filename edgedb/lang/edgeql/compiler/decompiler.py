@@ -182,12 +182,16 @@ class IRDecompiler(ast.visitor.NodeVisitor):
         else:
             args = node.args
 
+        # FIXME: hack to reconstruct args for a trivial aggregate function
+        args = [qlast.FuncArg(arg=arg) for arg in self.visit(args)]
+        if node.agg_filter or node.agg_sort:
+            args[0].sort = node.agg_sort
+            args[0].filter = (self.visit(node.agg_filter)
+                              if node.agg_filter is not None else None)
+
         result = qlast.FunctionCall(
             func=(node.func.shortname.module, node.func.shortname.name),
-            args=self.visit(args),
-            agg_sort=node.agg_sort,
-            agg_filter=(self.visit(node.agg_filter)
-                        if node.agg_filter is not None else None),
+            args=args,
         )
 
         return result

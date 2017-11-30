@@ -43,7 +43,6 @@ class SetOperator(EdgeQLOperator):
 
 
 UNION = SetOperator('UNION')
-UNION_ALL = SetOperator('UNION ALL')
 DISTINCT_UNION = SetOperator('DISTINCT UNION')
 DISTINCT = SetOperator('DISTINCT')
 
@@ -173,7 +172,7 @@ class WindowSpec(Clause):
 
 class FuncArg(Base):
     name: str
-    arg: Base
+    arg: Expr
     sort: typing.List[SortExpr]
     filter: Expr
 
@@ -325,7 +324,6 @@ class SubjStatement(Statement):
 class ReturningStatement(Statement):
     result: Expr
     result_alias: str
-    single: bool = False
 
 
 class SelectQuery(ReturningStatement):

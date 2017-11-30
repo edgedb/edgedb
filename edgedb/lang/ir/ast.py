@@ -270,7 +270,7 @@ SetOperator = qlast.SetOperator
 SetModifier = qlast.SetModifier
 
 UNION = qlast.UNION
-UNION_ALL = qlast.UNION_ALL
+DISTINCT_UNION = qlast.DISTINCT_UNION
 
 EQUIVALENT = qlast.EQUIVALENT
 NEQUIVALENT = qlast.NEQUIVALENT
