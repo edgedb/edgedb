@@ -1624,13 +1624,13 @@ commands_block(
 
 class ArgQualifier(Nonterm):
     def reduce_SET_OF(self, *kids):
-        self.val = 'set of'
+        self.val = qlast.SetQualifier.SET_OF
 
     def reduce_OPTIONAL(self, *kids):
-        self.val = 'optional'
+        self.val = qlast.SetQualifier.OPTIONAL
 
     def reduce_empty(self):
-        self.val = ''
+        self.val = qlast.SetQualifier.DEFAULT
 
 
 class CreateFunctionStmt(Nonterm, _ProcessFunctionBlockMixin):

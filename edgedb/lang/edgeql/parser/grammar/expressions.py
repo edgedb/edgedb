@@ -235,11 +235,13 @@ class AliasDecl(Nonterm):
             namespace='.'.join(kids[1].val))
 
     def reduce_CARDINALITY_SCONST(self, *kids):
-        if kids[1].val not in {'1', '*'}:
+        try:
+            car = qlast.Cardinality(kids[1].val)
+        except ValueError:
             raise EdgeQLSyntaxError(
                 'Unexpected token: {!r}'.format(kids[1]),
                 context=kids[1].context)
-        self.val = Cardinality(cardinality=kids[1].val, tok=kids[0])
+        self.val = Cardinality(cardinality=car, tok=kids[0])
 
     def reduce_Identifier_TURNSTILE_MODULE_ModuleName(self, *kids):
         self.val = qlast.NamespaceAliasDecl(

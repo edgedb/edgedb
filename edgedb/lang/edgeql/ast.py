@@ -99,6 +99,18 @@ AggDISTINCT = SetModifier.DISTINCT
 AggNONE = SetModifier.NONE
 
 
+class SetQualifier(s_enum.StrEnum):
+    SET_OF = 'SET OF'
+    OPTIONAL = 'OPTIONAL'
+    DEFAULT = ''
+
+
+class Cardinality(s_enum.StrEnum):
+    ONE = '1'
+    MANY = '*'
+    DEFAULT = ''
+
+
 class Base(ast.AST):
     __ast_hidden__ = {'context'}
     context: parsing.ParserContext
@@ -219,7 +231,7 @@ class TypeName(_TypeName):
 class FuncParam(Base):
     name: str
     type: TypeName
-    qualifier: str = ''
+    qualifier: SetQualifier = SetQualifier.DEFAULT
     variadic: bool = False
     default: Expr  # noqa (pyflakes bug)
 
@@ -313,7 +325,7 @@ class GroupExpr(Expr):
 
 class Statement(Expr):
     aliases: typing.List[typing.Union[AliasedExpr, NamespaceAliasDecl]]
-    cardinality: str
+    cardinality: Cardinality = Cardinality.DEFAULT
 
 
 class SubjStatement(Statement):
@@ -709,7 +721,7 @@ class CreateFunction(CreateObject):
     aggregate: bool = False
     initial_value: Expr
     code: FunctionCode
-    set_returning: str = ''
+    set_returning: SetQualifier = SetQualifier.DEFAULT
 
 
 class AlterFunction(AlterObject):
