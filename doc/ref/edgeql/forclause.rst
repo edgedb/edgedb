@@ -6,7 +6,7 @@ Usage of FOR statement
 
 ``FOR`` statement has some powerful features that deserve to be
 considered in detail separately. However, the common core is that
-``FOR`` iterates over elements of some complex expression. Then for
+``FOR`` iterates over elements of some arbitrary expression. Then for
 each element of the iterator some set is computed and combined via a
 ``UNION`` or ``UNION ALL`` with the other such computed sets.
 
@@ -37,7 +37,7 @@ expression and it follows the general form of ``FOR x IN A ...``:
     );
 
 Since ``x`` is an element of a set it is guaranteed to be a non-empty
-singleton in all of the expressions user by the ``UNION OF`` and later
+singleton in all of the expressions used by the ``UNION OF`` and later
 clauses of ``FOR``.
 
 Another variation this usage of ``FOR`` is a bulk ``UPDATE``. There
@@ -77,7 +77,7 @@ derived from the objects being updated. That is a good use-case when a
     );
 
 When updating data that mostly or completely depends on the objects
-being updated there's no need to use ``FOR`` statement and it is not
+being updated there's no need to use the ``FOR`` statement and it is not
 advised to use it for performance reasons.
 
 .. code-block:: eql
