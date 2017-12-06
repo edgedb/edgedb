@@ -208,13 +208,22 @@ WithBlock = collections.namedtuple(
     'WithBlock', ['aliases', 'cardinality'], module=__name__)
 
 
+Cardinality = collections.namedtuple(
+    'Cardinality', ['cardinality', 'tok'], module=__name__)
+
+
 class AliasBlock(Nonterm):
     def reduce_WITH_AliasDeclList(self, *kids):
         aliases = []
         cardinality = None
         for w in kids[1].val:
-            if isinstance(w, str):
-                cardinality = w
+            if isinstance(w, Cardinality):
+                if cardinality is None:
+                    cardinality = w.cardinality
+                else:
+                    raise EdgeQLSyntaxError(
+                        'only one CARDINALITY specification is allowed',
+                        context=w.tok.context)
             else:
                 aliases.append(w)
         self.val = WithBlock(aliases=aliases, cardinality=cardinality)
@@ -226,8 +235,11 @@ class AliasDecl(Nonterm):
             namespace='.'.join(kids[1].val))
 
     def reduce_CARDINALITY_SCONST(self, *kids):
-        assert kids[1].val in {'1', '*'}
-        self.val = kids[1].val
+        if kids[1].val not in {'1', '*'}:
+            raise EdgeQLSyntaxError(
+                'Unexpected token: {!r}'.format(kids[1]),
+                context=kids[1].context)
+        self.val = Cardinality(cardinality=kids[1].val, tok=kids[0])
 
     def reduce_Identifier_TURNSTILE_MODULE_ModuleName(self, *kids):
         self.val = qlast.NamespaceAliasDecl(

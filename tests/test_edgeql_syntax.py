@@ -1513,6 +1513,37 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT User.name FILTER (User.name = 'special');
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=26)
+    def test_edgeql_syntax_cardinality_03(self):
+        """
+        WITH CARDINALITY 'M'
+        SELECT User.name FILTER (User.name = 'special');
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=9)
+    def test_edgeql_syntax_cardinality_04(self):
+        """
+        WITH CARDINALITY '1' CREATE ACTION sample;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=9)
+    def test_edgeql_syntax_cardinality_05(self):
+        """
+        WITH
+            CARDINALITY '1',
+            MODULE test
+        DROP ACTION sample;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=4, col=13)
+    def test_edgeql_syntax_cardinality_06(self):
+        """
+        WITH
+            CARDINALITY '1',
+            CARDINALITY '1'
+        SELECT 1;
+        """
+
     def test_edgeql_syntax_with_01(self):
         """
         WITH
@@ -1526,7 +1557,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         } FILTER (foo = 'special');
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=6, col=9)
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=9)
     def test_edgeql_syntax_with_02(self):
         """
         WITH
