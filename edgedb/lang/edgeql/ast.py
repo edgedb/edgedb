@@ -43,7 +43,7 @@ class SetOperator(EdgeQLOperator):
 
 
 UNION = SetOperator('UNION')
-UNION_ALL = SetOperator('UNION ALL')
+DISTINCT_UNION = SetOperator('DISTINCT UNION')
 DISTINCT = SetOperator('DISTINCT')
 
 AND = ast.ops.AND
@@ -99,6 +99,18 @@ AggDISTINCT = SetModifier.DISTINCT
 AggNONE = SetModifier.NONE
 
 
+class SetQualifier(s_enum.StrEnum):
+    SET_OF = 'SET OF'
+    OPTIONAL = 'OPTIONAL'
+    DEFAULT = ''
+
+
+class Cardinality(s_enum.StrEnum):
+    ONE = '1'
+    MANY = '*'
+    DEFAULT = ''
+
+
 class Base(ast.AST):
     __ast_hidden__ = {'context'}
     context: parsing.ParserContext
@@ -120,6 +132,8 @@ class SortExpr(Clause):
     nones_order: str
 
 
+# TODO: this needs clean-up and refactoring to account for different
+# uses of aliases
 class AliasedExpr(Clause):
     expr: Expr
     alias: str
@@ -168,16 +182,16 @@ class WindowSpec(Clause):
     partition: typing.List[Expr]
 
 
-class NamedArg(Base):
+class FuncArg(Base):
     name: str
     arg: Expr
+    sort: typing.List[SortExpr]
+    filter: Expr
 
 
 class FunctionCall(Expr):
     func: typing.Union[tuple, str]
-    args: typing.List[Base]
-    agg_sort: typing.List[SortExpr]
-    agg_filter: Expr
+    args: typing.List[FuncArg]
     window: WindowSpec
     # FIXME: drop this completely
     agg_set_modifier: typing.Optional[SetModifier]
@@ -214,10 +228,10 @@ class TypeName(_TypeName):
     dimensions: typing.Union[typing.List[int], None]
 
 
-class FuncArg(Base):
+class FuncParam(Base):
     name: str
     type: TypeName
-    is_set: bool = False
+    qualifier: SetQualifier = SetQualifier.DEFAULT
     variadic: bool = False
     default: Expr  # noqa (pyflakes bug)
 
@@ -282,27 +296,46 @@ class Set(Expr):
     elements: typing.List[Expr]
 
 
+# Expressions used only in statemets
+#
+
+class ByExprBase(Base):
+    '''Abstract parent of all grouping sets.'''
+    pass
+
+
+class ByExpr(ByExprBase):
+    each: bool
+    expr: Expr
+
+
+class GroupBuiltin(ByExprBase):
+    name: str
+    elements: typing.List[ByExpr]
+
+
+class GroupExpr(Expr):
+    subject: Expr
+    subject_alias: str
+    by: typing.List[ByExprBase]
+
+
 # Statements
 #
 
 class Statement(Expr):
     aliases: typing.List[typing.Union[AliasedExpr, NamespaceAliasDecl]]
+    cardinality: Cardinality = Cardinality.DEFAULT
 
 
-class QueryStatement(Statement):
-    iterator: Expr
-    iterator_alias: str
-
-
-class SubjStatement(QueryStatement):
+class SubjStatement(Statement):
     subject: Expr
     subject_alias: str
 
 
-class ReturningStatement(QueryStatement):
+class ReturningStatement(Statement):
     result: Expr
     result_alias: str
-    single: bool = False
 
 
 class SelectQuery(ReturningStatement):
@@ -312,12 +345,10 @@ class SelectQuery(ReturningStatement):
     limit: Expr
 
 
-class GroupQuery(SubjStatement, ReturningStatement):
-    where: Expr
-    groupby: typing.List[Expr]
-    orderby: typing.List[SortExpr]
-    offset: Expr
-    limit: Expr
+class GroupQuery(SelectQuery, SubjStatement):
+    using: typing.List[AliasedExpr]
+    by: typing.List[Expr]
+    into: str
 
 
 class InsertQuery(SubjStatement):
@@ -331,6 +362,11 @@ class UpdateQuery(SubjStatement):
 
 class DeleteQuery(SubjStatement):
     where: Expr
+
+
+class ForQuery(SelectQuery):
+    iterator: Expr
+    iterator_alias: str
 
 
 class ShapeElement(Expr):
@@ -607,7 +643,7 @@ class DropConcreteLink(DropObject):
 
 
 class CreateConstraint(CreateExtendingObject):
-    args: typing.List[FuncArg]
+    args: typing.List[FuncParam]
     subject: typing.Optional[Expr]
 
 
@@ -680,12 +716,12 @@ class FunctionCode(Clause):
 
 
 class CreateFunction(CreateObject):
-    args: typing.List[FuncArg]
+    args: typing.List[FuncParam]
     returning: TypeName
     aggregate: bool = False
     initial_value: Expr
     code: FunctionCode
-    set_returning: bool = False
+    set_returning: SetQualifier = SetQualifier.DEFAULT
 
 
 class AlterFunction(AlterObject):
@@ -693,5 +729,5 @@ class AlterFunction(AlterObject):
 
 
 class DropFunction(DropObject):
-    args: typing.List[FuncArg]
+    args: typing.List[FuncParam]
     aggregate: bool = False

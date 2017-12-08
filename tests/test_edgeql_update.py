@@ -76,7 +76,7 @@ class TestUpdate(tb.QueryTestCase):
 
         self.original = res[-1]
 
-    async def test_edgeql_update_simple01(self):
+    async def test_edgeql_update_simple_01(self):
         orig1 = self.original[0]
 
         res = await self.con.execute(r"""
@@ -102,7 +102,7 @@ class TestUpdate(tb.QueryTestCase):
             [orig1],
         ])
 
-    async def test_edgeql_update_simple02(self):
+    async def test_edgeql_update_simple_02(self):
         orig1, orig2, orig3 = self.original
 
         res = await self.con.execute(r"""
@@ -135,7 +135,7 @@ class TestUpdate(tb.QueryTestCase):
             orig3,
         ])
 
-    async def test_edgeql_update_simple03(self):
+    async def test_edgeql_update_simple_03(self):
         orig1, orig2, orig3 = self.original
 
         res = await self.con.execute(r"""
@@ -169,7 +169,7 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
-    async def test_edgeql_update_simple04(self):
+    async def test_edgeql_update_simple_04(self):
         orig1, orig2, orig3 = self.original
 
         res = await self.con.execute(r"""
@@ -215,7 +215,7 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
-    async def test_edgeql_update_returning01(self):
+    async def test_edgeql_update_returning_01(self):
         orig1, orig2, orig3 = self.original
 
         await self.assert_query_result(r"""
@@ -238,7 +238,7 @@ class TestUpdate(tb.QueryTestCase):
             }]
         ])
 
-    async def test_edgeql_update_returning02(self):
+    async def test_edgeql_update_returning_02(self):
         orig1, orig2, orig3 = self.original
 
         res = await self.con.execute(r"""
@@ -284,12 +284,14 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
-    async def test_edgeql_update_returning03(self):
+    async def test_edgeql_update_returning_03(self):
         orig1, orig2, orig3 = self.original
 
         await self.assert_query_result(r"""
-            WITH MODULE test
-            SELECT SINGLETON (
+            WITH
+                MODULE test,
+                CARDINALITY '1'
+            SELECT (
                 UPDATE UpdateTest
                 FILTER UpdateTest.name = 'update-test2'
                 SET {
@@ -308,15 +310,16 @@ class TestUpdate(tb.QueryTestCase):
         ])
 
     @unittest.expectedFailure
-    async def test_edgeql_update_returning04(self):
+    async def test_edgeql_update_returning_04(self):
         # XXX: We're expecting an exception since the returning set is
         # not a singleton set. The specific exception needs to be
         # updated once it is implemented.
-        #
         with self.assertRaises(ValueError):
             await self.con.execute(r"""
-                WITH MODULE test
-                SELECT SINGLETON (
+                WITH
+                    MODULE test,
+                    CARDINALITY '1'
+                SELECT (
                     UPDATE UpdateTest
                     SET {
                         comment := 'updated ' + UpdateTest.comment
@@ -327,7 +330,7 @@ class TestUpdate(tb.QueryTestCase):
                 };
             """)
 
-    async def test_edgeql_update_returning06(self):
+    async def test_edgeql_update_returning_06(self):
         orig1, orig2, orig3 = self.original
 
         await self.assert_query_result(r"""
@@ -347,7 +350,7 @@ class TestUpdate(tb.QueryTestCase):
             [{'name': 'Open'}],
         ])
 
-    async def test_edgeql_update_returning07(self):
+    async def test_edgeql_update_returning_07(self):
         orig1, orig2, orig3 = self.original
 
         await self.assert_query_result(r"""
@@ -396,7 +399,7 @@ class TestUpdate(tb.QueryTestCase):
             }],
         ])
 
-    async def test_edgeql_update_generic01(self):
+    async def test_edgeql_update_generic_01(self):
         status = await self.con.execute(r"""
             WITH MODULE test
             SELECT Status.id
@@ -432,7 +435,7 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
-    async def test_edgeql_update_multiple01(self):
+    async def test_edgeql_update_multiple_01(self):
         res = await self.con.execute(r"""
             WITH MODULE test
             UPDATE UpdateTest
@@ -463,7 +466,7 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
-    async def test_edgeql_update_multiple02(self):
+    async def test_edgeql_update_multiple_02(self):
         res = await self.con.execute(r"""
             WITH MODULE test
             UPDATE UpdateTest
@@ -490,7 +493,7 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
-    async def test_edgeql_update_multiple03(self):
+    async def test_edgeql_update_multiple_03(self):
         res = await self.con.execute(r"""
             WITH MODULE test
             UPDATE UpdateTest
@@ -519,7 +522,7 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
-    async def test_edgeql_update_multiple04(self):
+    async def test_edgeql_update_multiple_04(self):
         res = await self.con.execute(r"""
             WITH
                 MODULE test,
@@ -550,7 +553,7 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
-    async def test_edgeql_update_multiple05(self):
+    async def test_edgeql_update_multiple_05(self):
         res = await self.con.execute(r"""
             WITH
                 MODULE test,
@@ -586,7 +589,7 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
-    async def test_edgeql_update_multiple06(self):
+    async def test_edgeql_update_multiple_06(self):
         res = await self.con.execute(r"""
             WITH
                 MODULE test,
@@ -624,7 +627,7 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
-    async def test_edgeql_update_props01(self):
+    async def test_edgeql_update_props_01(self):
         res = await self.con.execute(r"""
             WITH MODULE test
             UPDATE UpdateTest
@@ -666,7 +669,7 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
-    async def test_edgeql_update_props02(self):
+    async def test_edgeql_update_props_02(self):
         res = await self.con.execute(r"""
             WITH MODULE test
             UPDATE UpdateTest
@@ -696,7 +699,7 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
-    async def test_edgeql_update_props03(self):
+    async def test_edgeql_update_props_03(self):
         res = await self.con.execute(r"""
             WITH MODULE test
             UPDATE UpdateTest
@@ -732,7 +735,7 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
-    async def test_edgeql_update_props05(self):
+    async def test_edgeql_update_props_05(self):
         res = await self.con.execute(r"""
             WITH MODULE test
             UPDATE UpdateTest
@@ -765,7 +768,7 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
-    async def test_edgeql_update_props06(self):
+    async def test_edgeql_update_props_06(self):
         res = await self.con.execute(r"""
             WITH MODULE test
             UPDATE UpdateTest
@@ -798,7 +801,7 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
-    async def test_edgeql_update_props07(self):
+    async def test_edgeql_update_props_07(self):
         res = await self.con.execute(r"""
             WITH MODULE test
             UPDATE UpdateTest
@@ -829,7 +832,7 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
-    async def test_edgeql_update_props08(self):
+    async def test_edgeql_update_props_08(self):
         res = await self.con.execute(r"""
             WITH MODULE test
             UPDATE UpdateTest
@@ -872,18 +875,21 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
-    async def test_edgeql_update_for01(self):
+    @unittest.expectedFailure
+    async def test_edgeql_update_for_01(self):
         res = await self.con.execute(r"""
             WITH MODULE test
             FOR x IN {
-                (name := 'update-test1', comment := 'foo'),
-                (name := 'update-test2', comment := 'bar')
-            }
-            UPDATE UpdateTest
-            FILTER UpdateTest.name = x.name
-            SET {
-                comment := x.comment
-            };
+                    (name := 'update-test1', comment := 'foo'),
+                    (name := 'update-test2', comment := 'bar')
+                }
+            UNION (
+                UPDATE UpdateTest
+                FILTER UpdateTest.name = x.name
+                SET {
+                    comment := x.comment
+                }
+            );
 
             WITH MODULE test
             SELECT UpdateTest {

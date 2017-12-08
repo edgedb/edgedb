@@ -53,7 +53,6 @@ class GraphQLTranslatorContext:
 class GraphQLTranslator(ast.NodeVisitor):
     def visit_Document(self, node):
         # we need to index all of the fragments before we process operations
-        #
         self._context.fragments = {
             f.name: f for f in node.definitions
             if isinstance(f, gqlast.FragmentDefinition)
@@ -68,7 +67,6 @@ class GraphQLTranslator(ast.NodeVisitor):
     def visit_OperationDefinition(self, node):
         # create a dict of variables that will be marked as
         # critical or not
-        #
         self._context.vars = {
             name: [val, False]
             for name, val in self._context.variables.items()}
@@ -88,7 +86,6 @@ class GraphQLTranslator(ast.NodeVisitor):
 
         # produce the list of variables critical to the shape
         # of the query
-        #
         critvars = [(name, val) for name, (val, crit)
                     in self._context.vars.items() if crit]
         critvars.sort()
@@ -99,7 +96,6 @@ class GraphQLTranslator(ast.NodeVisitor):
         self._context.optype = 'query'
         query = None
         # populate input variables with defaults, where applicable
-        #
         if node.variables:
             self.visit(node.variables)
 
@@ -107,7 +103,6 @@ class GraphQLTranslator(ast.NodeVisitor):
 
         # special treatment of the selection_set, different from inner
         # recursion
-        #
         for selection in node.selection_set.selections:
             self._context.path = [[[module, None]]]
             selquery = qlast.SelectQuery(
@@ -129,7 +124,6 @@ class GraphQLTranslator(ast.NodeVisitor):
     def _visit_mutation(self, node):
         query = None
         # populate input variables with defaults, where applicable
-        #
         if node.variables:
             self.visit(node.variables)
 
@@ -137,13 +131,11 @@ class GraphQLTranslator(ast.NodeVisitor):
 
         # special treatment of the selection_set, different from inner
         # recursion
-        #
         for selection in node.selection_set.selections:
             self._context.path = [[[module, None]]]
 
             # in addition to figuring out the returned structure, this
             # will determine the type of mutation
-            #
             result = self._visit_query_selset(selection)
             subject = self._visit_operation_subject()
 
@@ -185,7 +177,6 @@ class GraphQLTranslator(ast.NodeVisitor):
         if self._context.optype is None:
             # operation type has not been determined, which means
             # it's one of the following mutations: 'insert', 'delete', 'update'
-            #
             parts = raw_name.split('__', 1)
             if len(parts) == 2 and parts[0] in {'insert', 'delete', 'update'}:
                 self._context.optype, name = parts
@@ -251,7 +242,6 @@ class GraphQLTranslator(ast.NodeVisitor):
 
             if field.name.endswith('__id'):
                 # existing data referenced by ID
-                #
                 ids = self.visit(field.value)
 
                 if isinstance(ids, qlast.Array):
@@ -361,7 +351,6 @@ class GraphQLTranslator(ast.NodeVisitor):
 
     def visit_VariableDefinition(self, node):
         # it is invalid to declare a non-nullable variable with a default
-        #
         if node.value is not None and not node.type.nullable:
             raise GraphQLValidationError(
                 f"variable {node.name!r} cannot be non-nullable and have a " +
@@ -378,7 +367,6 @@ class GraphQLTranslator(ast.NodeVisitor):
         val = variables[node.name][0]
         # also need to type-check here w.r.t. built-in and
         # possibly custom types
-        #
         if val is None:
             if not node.type.nullable:
                 raise GraphQLValidationError(
@@ -423,7 +411,6 @@ class GraphQLTranslator(ast.NodeVisitor):
 
         # if this field is a duplicate, that is not identical to the
         # original, throw an exception
-        #
         dup = self._context.fields[-1].get(node.name)
         if dup:
             if not ast.nodes_equal(dup, node):
@@ -437,7 +424,6 @@ class GraphQLTranslator(ast.NodeVisitor):
             self._context.fields[-1][node.name] = node
 
         # validate the field
-        #
         target = base_type = self._context.schema.get(base[0])
         for step in base[1:]:
             target = target.resolve_pointer(self._context.schema, step)
@@ -448,7 +434,6 @@ class GraphQLTranslator(ast.NodeVisitor):
             target = target.target
 
         # insert normal or specialized link
-        #
         steps = []
 
         if include_base:
@@ -492,7 +477,6 @@ class GraphQLTranslator(ast.NodeVisitor):
         is_specialized = False
 
         # validate the fragment type w.r.t. the base
-        #
         if frag.on is None:
             return
 
@@ -502,7 +486,6 @@ class GraphQLTranslator(ast.NodeVisitor):
 
         frag_path = (fragmodule, frag.on)
         # validate the base if it's nested
-        #
         if len(self._context.path) > 0:
             base = self._context.path[-1]
             base_type = self._context.schema.get(base[0])
@@ -515,11 +498,9 @@ class GraphQLTranslator(ast.NodeVisitor):
 
             if base_type.issubclass(frag_type):
                 # legal hierarchy, no change
-                #
                 pass
             elif frag_type.issubclass(base_type):
                 # specialized link, but still legal
-                #
                 is_specialized = True
             else:
                 raise GraphQLValidationError(
@@ -554,7 +535,6 @@ class GraphQLTranslator(ast.NodeVisitor):
         result = []
         for arg in args:
             # ignore the special '__data' argument
-            #
             if arg.name != '__data':
                 result.append(self.visit_Argument(
                     arg, get_path_prefix=get_path_prefix))
@@ -579,7 +559,6 @@ class GraphQLTranslator(ast.NodeVisitor):
         value = self.visit(node.value)
         if isinstance(value, qlast.Parameter):
             # check the variable value
-            #
             check_value = self._context.vars[node.value.value][0]
         elif isinstance(value, qlast.Array):
             check_value = [el.value for el in value.elements]
@@ -588,7 +567,6 @@ class GraphQLTranslator(ast.NodeVisitor):
 
         # depending on the operation used, we have a single value
         # or a sequence to validate
-        #
         if op in (ast.ops.IN, ast.ops.NOT_IN):
             self._validate_arg(name, check_value,
                                context=node.context, as_sequence=True)
@@ -596,7 +574,7 @@ class GraphQLTranslator(ast.NodeVisitor):
             # so compile this into array_cointains(right, left)
             ql_result = qlast.FunctionCall(
                 func=('std', 'array_contains'),
-                args=[value, name]
+                args=[qlast.FuncArg(arg=value), qlast.FuncArg(arg=name)]
             )
 
             if op == ast.ops.NOT_IN:
@@ -614,7 +592,6 @@ class GraphQLTranslator(ast.NodeVisitor):
     def _validate_arg(self, path, value, *, context, as_sequence=False):
         # None is always valid argument for our case, simply means
         # that no filtering is necessary
-        #
         if value is None:
             return
 

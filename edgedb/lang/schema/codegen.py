@@ -211,7 +211,7 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         self.visit_list(node.args, newlines=False)
         self.write(') -> ')
         if node.set_returning:
-            self.write('set of ')
+            self.write(node.set_returning, ' ')
         self.visit(node.returning)
         self.write(':')
         self.new_lines = 1
@@ -276,9 +276,8 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         self.write('constraint ')
         self.visit(node.name)
         if node.args:
-            assert isinstance(node.args, eqlast.Tuple)
             self.write('(')
-            self.visit_list(node.args.elements)
+            self.visit_list(node.args)
             self.write(')')
 
         if node.subject:

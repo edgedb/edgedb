@@ -373,19 +373,19 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_returning_02(self):
         res = await self.con.execute('''
             WITH MODULE test
-            SELECT SINGLETON (INSERT DefaultTest1 {
+            SELECT (INSERT DefaultTest1 {
                 foo := 'ret1',
                 num := 1,
             });
 
             WITH MODULE test
-            SELECT SINGLETON (INSERT DefaultTest1 {
+            SELECT (INSERT DefaultTest1 {
                 foo := 'ret2',
                 num := 2,
             }) {foo};
 
             WITH MODULE test
-            SELECT SINGLETON (INSERT DefaultTest1 {
+            SELECT (INSERT DefaultTest1 {
                 foo := 'ret3',
                 num := 3,
             }).num;
@@ -479,23 +479,24 @@ class TestInsert(tb.QueryTestCase):
             }],
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_insert_for_01(self):
-        res = await self.con.execute('''
+        res = await self.con.execute(r'''
             WITH MODULE test
             FOR x IN {3, 5, 7, 2}
-            INSERT InsertTest {
+            UNION (INSERT InsertTest {
                 name := 'insert for 1',
                 l2 := x,
-            };
+            });
 
             WITH MODULE test
-            FOR Q IN (SELECT InsertTest{foo := 'foo' + <str> InsertTest.l2}
-                        FILTER .name = 'insert for 1')
-            INSERT InsertTest {
+            FOR Q IN {(SELECT InsertTest{foo := 'foo' + <str> InsertTest.l2}
+                       FILTER .name = 'insert for 1')}
+            UNION (INSERT InsertTest {
                 name := 'insert for 1',
                 l2 := 35 % Q.l2,
                 l3 := Q.foo,
-            };
+            });
 
             WITH MODULE test
             SELECT InsertTest{name, l2, l3}
@@ -550,13 +551,14 @@ class TestInsert(tb.QueryTestCase):
             ]
         )
 
+    @unittest.expectedFailure
     async def test_edgeql_insert_for_02(self):
         res = await self.con.execute(r'''
             # create 1000 DefaultTest3 objects, each object is defined
             # as having a randomly generated value for 'foo'
             WITH MODULE test
             FOR x IN {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
-            INSERT DefaultTest3;
+            UNION (INSERT DefaultTest3);
 
             # statistically, randomly generated value for 'foo' should not be
             # identical for all 10 records
@@ -571,6 +573,7 @@ class TestInsert(tb.QueryTestCase):
             res[-1], [True]
         )
 
+    @unittest.expectedFailure
     async def test_edgeql_insert_for_03(self):
         res = await self.con.execute(r'''
             # Create 5 DefaultTest4 objects. The default value for
@@ -579,7 +582,7 @@ class TestInsert(tb.QueryTestCase):
             # new objects.
             WITH MODULE test
             FOR x IN {1, 2, 3, 4, 5}
-            INSERT DefaultTest4;
+            UNION (INSERT DefaultTest4);
 
             WITH MODULE test
             SELECT DefaultTest4.bar
@@ -700,25 +703,25 @@ class TestInsert(tb.QueryTestCase):
             }]
         )
 
+    @unittest.expectedFailure
     async def test_edgeql_insert_as_expr_01(self):
         res = await self.con.execute(r'''
             # insert several objects, then annotate one of the inserted batch
-            #
-            WITH
-                MODULE test,
-                I := (
-                    FOR y IN {3, 5, 7, 2}
-                    INSERT InsertTest {
-                        name := 'insert expr 1',
-                        l2 := y,
-                    }
-                )
-            FOR x IN (SELECT I ORDER BY I.l2 DESC LIMIT 1)
-            INSERT Annotation {
+            WITH MODULE test
+            FOR x IN {(
+                    SELECT _i := (
+                        FOR y IN {3, 5, 7, 2}
+                        UNION (INSERT InsertTest {
+                            name := 'insert expr 1',
+                            l2 := y,
+                        })
+                    ) ORDER BY _i.l2 DESC LIMIT 1
+                )}
+            UNION (INSERT Annotation {
                 name := 'insert expr 1',
                 note := 'largest ' + <str>x.l2,
                 subject := x
-            };
+            });
 
             WITH MODULE test
             SELECT
@@ -772,15 +775,14 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_as_expr_02(self):
         res = await self.con.execute(r'''
             # same as above, but refactored differently
-            #
             WITH
                 MODULE test,
                 _i := (
                     FOR x IN {3, 5, 7, 2}
-                    INSERT InsertTest {
+                    UNION (INSERT InsertTest {
                         name := 'insert expr 2',
                         l2 := x,
-                    }
+                    })
                 ),
                 y := (SELECT _i ORDER BY _i.l2 DESC LIMIT 1)
             INSERT Annotation {

@@ -947,17 +947,16 @@ class Index(Nonterm):
 
 class ConstraintCallArguments(Nonterm):
     def reduce_LPAREN_RPAREN(self, *kids):
-        self.val = qlast.Tuple(elements=[])
+        self.val = []
 
     def reduce_LPAREN_ParenRawString_RPAREN(self, *kids):
         call_args = kids[1].parse_as_call_args()
-        call_args = qlast.Tuple(elements=call_args)
         self.val = call_args
 
 
 class OptConstraintCallArguments(Nonterm):
     def reduce_empty(self, *kids):
-        self.val = qlast.Tuple(elements=[])
+        self.val = []
 
     def reduce_ConstraintCallArguments(self, *kids):
         self.val = kids[0].val

@@ -384,7 +384,8 @@ class BaseQueryTestCase(DatabaseTestCase):
     async def assert_sorted_query_result(self, query, key, result):
         res = await self.con.execute(query)
         # sort the query result by using the supplied key
-        res.sort(key=key)
+        for r in res:
+            r.sort(key=key)
         self.assert_data_shape(res, result)
         return res
 

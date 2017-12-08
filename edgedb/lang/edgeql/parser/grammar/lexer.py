@@ -141,6 +141,14 @@ class EdgeQLLexer(lexer.Lexer):
             common_rules,
     }
 
+    MERGE_TOKENS = {('LINK', 'PROPERTY'), ('DISTINCT', 'UNION')}
+
+    def __init__(self):
+        super().__init__()
+        # add capacity to handle a few tokens composed of 2 elements
+        self._possible_long_token = {x[0] for x in self.MERGE_TOKENS}
+        self._long_token_match = {x[1]: x[0] for x in self.MERGE_TOKENS}
+
     def token_from_text(self, rule_token, txt):
         tok = super().token_from_text(rule_token, txt)
 
@@ -153,7 +161,6 @@ class EdgeQLLexer(lexer.Lexer):
         elif rule_token == 'SCONST':
             # the process of string normalization is slightly different for
             # regular '-quoted strings and $$-quoted ones
-            #
             if txt[0] in ("'", '"'):
                 tok = tok._replace(
                     value=clean_string.sub('', txt[1:-1].replace(
@@ -163,7 +170,6 @@ class EdgeQLLexer(lexer.Lexer):
                 # be more than one pair of dollar quotes in the txt.
                 # We want to grab every other chunk from splitting the
                 # txt with the quote.
-                #
                 quote = string_quote.match(txt).group(0)
                 tok = tok._replace(
                     value=''.join((
@@ -181,20 +187,21 @@ class EdgeQLLexer(lexer.Lexer):
             if tok_type in {'WS', 'NL', 'COMMENT'}:
                 # Strip out whitespace and comments
                 continue
-            elif tok_type == 'LINK':
-                # Buffer in case this is LINK PROPERTY
+            elif tok_type in self._possible_long_token:
+                # Buffer in case this is LINK PROPERTY or UNION OF
                 if not buffer:
                     buffer.append(tok)
                 else:
                     yield from iter(buffer)
                     buffer[:] = [tok]
 
-            elif tok_type == 'PROPERTY':
+            elif tok_type in self._long_token_match:
                 prev_token = buffer[-1] if buffer else None
-                if prev_token and prev_token.type == 'LINK':
+                if (prev_token and
+                        prev_token.type == self._long_token_match[tok_type]):
                     tok = prev_token._replace(
                         value=prev_token.value + ' ' + tok.value,
-                        type='LINKPROPERTY')
+                        type=prev_token.type + tok_type)
                     buffer.pop()
                 yield tok
             else:

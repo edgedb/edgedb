@@ -38,6 +38,10 @@ allow referring to a link named "order" as ```order```).
 Names and keywords
 ------------------
 
+.. TODO::
+
+    This section needs a significant update.
+
 There are a number of *reserved* and *unreserved* keywords in EdgeQL.
 Every identifier that is not a *reserved* keyword is a valid *name*.
 *Names* are used to refer to concepts, links, link properties, etc.

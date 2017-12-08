@@ -56,8 +56,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     number,
                     aliased_number := Issue.number,
                     total_time_spent := (
-                        SELECT SINGLETON
-                            sum(Issue.time_spent_log.spent_time)
+                        WITH CARDINALITY '1'
+                        SELECT sum(Issue.time_spent_log.spent_time)
                     )
                 }
             FILTER
@@ -77,8 +77,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue {
                     number,
                     total_time_spent := (
-                        SELECT SINGLETON
-                            sum(Issue.time_spent_log.spent_time)
+                        WITH CARDINALITY '1'
+                        SELECT sum(Issue.time_spent_log.spent_time)
                     )
                 }
             FILTER
@@ -98,7 +98,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 User {
                     name,
                     shortest_own_text := (
-                        SELECT SINGLETON
+                        WITH CARDINALITY '1'
+                        SELECT
                             Text {
                                 body
                             }
@@ -127,7 +128,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 # we aren't referencing User in any way, so this works
                 # best as a subquery, rather than inline computable
                 sub := (
-                    SELECT SINGLETON
+                    WITH CARDINALITY '1'
+                    SELECT
                         Text
                     ORDER BY
                         len(Text.body) ASC
@@ -159,7 +161,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 # we aren't referencing User in any way, so this works
                 # best as a subquery, than inline computable
                 sub := (
-                    SELECT SINGLETON
+                    WITH CARDINALITY '1'
+                    SELECT
                         Text
                     ORDER BY
                         len(Text.body) ASC
@@ -170,7 +173,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 User {
                     name,
                     shortest_own_text := (
-                        SELECT SINGLETON
+                        WITH CARDINALITY '1'
+                        SELECT
                             Text {body}
                         FILTER
                             Text[IS Owned].owner = User
@@ -204,7 +208,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 User {
                     name,
                     shortest_text := (
-                        SELECT SINGLETON
+                        WITH CARDINALITY '1'
+                        SELECT
                             Text {body}
                         # a clause that references User and is always true
                         FILTER
@@ -260,7 +265,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT User{
                 name,
                 special_issue := (
-                    SELECT SINGLETON Issue {
+                    WITH CARDINALITY '1'
+                    SELECT Issue {
                         name,
                         number,
                         owner: {
@@ -345,7 +351,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH
                 MODULE test,
                 sub := (
-                    SELECT SINGLETON
+                    WITH CARDINALITY '1'
+                    SELECT
                         Text
                     ORDER BY
                         len(Text.body) ASC
@@ -363,7 +370,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH
                 MODULE test,
                 sub := (
-                    SELECT SINGLETON
+                    WITH CARDINALITY '1'
+                    SELECT
                         Text
                     ORDER BY
                         len(Text.body) ASC
@@ -381,7 +389,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH
                 MODULE test,
                 sub := (
-                    SELECT SINGLETON
+                    WITH CARDINALITY '1'
+                    SELECT
                         Text
                     ORDER BY
                         len(Text.body) ASC
@@ -1013,20 +1022,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_setops_01(self):
-        res = await self.con.execute(r'''
+        await self.assert_sorted_query_result(r"""
             WITH MODULE test
             SELECT
                 (Issue UNION Comment) {
                     Issue.name,
                     Text.body
                 };
-        ''')
-
-        # sorting manually to test basic functionality first
-        for r in res:
-            r.sort(key=lambda x: x['body'])
-
-        self.assert_data_shape(res, [
+        """, lambda x: x['body'], [
             [
                 {'body': 'EdgeDB needs to happen soon.'},
                 {'body': 'Fix regression introduced by lexer tweak.',
@@ -1077,7 +1080,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 number,
                 # open := 'yes' IF Issue.status.name = 'Open' ELSE 'no'
                 # equivalent to
-                open := (SELECT SINGLETON
+                open := (WITH CARDINALITY '1' SELECT
                     (SELECT 'yes' FILTER Issue.status.name = 'Open')
                     UNION
                     (SELECT 'no' FILTER NOT Issue.status.name = 'Open')
@@ -2581,7 +2584,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             FILTER
                 Issue.number IN {'2', '3', '4'}
                 AND
-                EXISTS sub;
+                EXISTS sub
+            ORDER BY
+                Issue.number;
             """, [
             [{'number': '2'}, {'number': '3'}, {'number': '4'}],
         ])
@@ -2627,7 +2632,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         IF EXISTS Issue.priority AND EXISTS Issue2.priority
                     ELSE
                         EXISTS Issue.priority = EXISTS Issue2.priority
-                );
+                )
+            ORDER BY
+                Issue.number;
             """, [
             [{'number': '1'}, {'number': '4'}],
         ])
@@ -2647,7 +2654,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         User = Issue.watchers
                         AND
                         User.<watchers != Issue
-                );
+                )
+            ORDER BY
+                Issue.number;
             """, [
             [{'number': '2'}, {'number': '3'}],
         ])
@@ -2670,37 +2679,29 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         Text[IS Issue].watchers = Issue.watchers
                         AND
                         Text != Issue
-                );
+                )
+            ORDER BY
+                Issue.number;
             """, [
             [{'number': '2'}, {'number': '3'}],
         ])
 
     async def test_edgeql_select_subqueries_09(self):
-        res = await self.con.execute(r"""
+        await self.assert_sorted_query_result(r"""
             WITH MODULE test
             SELECT Issue.number + (SELECT Issue.number);
-        """)
-
-        for r in res:
-            r.sort()
-
-        self.assert_data_shape(res, [
+        """, lambda x: x, [
             ['11', '22', '33', '44'],
         ])
 
     async def test_edgeql_select_subqueries_10(self):
-        res = await self.con.execute(r"""
+        await self.assert_sorted_query_result(r"""
             WITH
                 MODULE test,
                 sub := (SELECT Issue.number)
             SELECT
                 Issue.number + sub;
-        """)
-
-        for r in res:
-            r.sort()
-
-        self.assert_data_shape(res, [
+        """, lambda x: x, [
             ['11', '12', '13', '14', '21', '22', '23', '24',
              '31', '32', '33', '34', '41', '42', '43', '44']
         ])
@@ -2886,7 +2887,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     WITH U2 := (SELECT User)
                     SELECT User {
                         friend := (
-                            SELECT SINGLETON U2 FILTER U2.name = 'Yury'
+                            WITH CARDINALITY '1'
+                            SELECT U2 FILTER U2.name = 'Yury'
                         )
                     } FILTER .name = 'Elvis'
                 )
@@ -3008,7 +3010,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH
                 MODULE test,
                 sub := (
-                    SELECT SINGLETON
+                    WITH CARDINALITY '1'
+                    SELECT
                         Text {
                             foo := Text.body + '!'
                         }
@@ -3041,7 +3044,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH
                 MODULE test,
                 sub := (
-                    SELECT SINGLETON
+                    WITH CARDINALITY '1'
+                    SELECT
                         Text {
                             foo := Text.body + '!'
                         }
@@ -3074,7 +3078,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                                 SELECT
                                     Issue {
                                         spent_time := (
-                                            SELECT SINGLETON
+                                            WITH CARDINALITY '1'
+                                            SELECT
                                                 sum(Issue.time_spent_log
                                                          .spent_time)
                                         )
@@ -3322,10 +3327,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH
                 MODULE test,
                 criteria := (SELECT (
-                    user := (SELECT SINGLETON
-                             User FILTER User.name = 'Yury'),
-                    status := (SELECT SINGLETON
-                               Status FILTER Status.name = 'Open'),
+                    user := (WITH CARDINALITY '1'
+                             SELECT User FILTER User.name = 'Yury'),
+                    status := (WITH CARDINALITY '1'
+                               SELECT Status FILTER Status.name = 'Open'),
                 ))
             SELECT
                 Issue.number
@@ -3344,8 +3349,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 MODULE test
             SELECT
                 (
-                    user := (SELECT SINGLETON User{name}
-                             FILTER User.name = 'Yury')
+                    user := (WITH CARDINALITY '1'
+                             SELECT User{name} FILTER User.name = 'Yury')
                 );
             """, [
             [{
@@ -3362,8 +3367,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 MODULE test
             SELECT
                 (
-                    user := (SELECT SINGLETON
-                             User{name} FILTER User.name = 'Yury')
+                    user := (WITH CARDINALITY '1'
+                             SELECT User{name} FILTER User.name = 'Yury')
                 ).user.name;
             """, [
             ['Yury'],
@@ -3377,22 +3382,22 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 U1 := User,
                 U2 := User
             SELECT
-                (user := (SELECT SINGLETON
-                          U1{name} FILTER U1.name = 'Yury'))
+                (user := (WITH CARDINALITY '1'
+                          SELECT U1{name} FILTER U1.name = 'Yury'))
                     =
-                (user := (SELECT SINGLETON
-                          U2{name} FILTER U2.name = 'Yury'));
+                (user := (WITH CARDINALITY '1'
+                          SELECT U2{name} FILTER U2.name = 'Yury'));
 
             WITH
                 MODULE test,
                 U1 := User,
                 U2 := User
             SELECT
-                (user := (SELECT SINGLETON
-                          U1{name} FILTER U1.name = 'Yury'))
+                (user := (WITH CARDINALITY '1'
+                          SELECT U1{name} FILTER U1.name = 'Yury'))
                     =
-                (user := (SELECT SINGLETON
-                          U2{name} FILTER U2.name = 'Elvis'));
+                (user := (WITH CARDINALITY '1'
+                          SELECT U2{name} FILTER U2.name = 'Elvis'));
 
             WITH
                 MODULE test,
@@ -3400,14 +3405,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 U2 := User
             SELECT
                 (
-                    user := (SELECT SINGLETON
-                             U1{name} FILTER U1.name = 'Yury'),
+                    user := (WITH CARDINALITY '1'
+                             SELECT U1{name} FILTER U1.name = 'Yury'),
                     spam := 'ham',
                 )
                     =
                 (
-                    user := (SELECT SINGLETON
-                             U2{name} FILTER U2.name = 'Yury'),
+                    user := (WITH CARDINALITY '1'
+                             SELECT U2{name} FILTER U2.name = 'Yury'),
                 );
 
             """, [
@@ -3721,7 +3726,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             FOR x IN {1, 4}
-            SELECT Issue {
+            UNION Issue {
                 name
             }
             FILTER
@@ -3731,4 +3736,36 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ''', [[
             {'name': 'Release EdgeDB'},
             {'name': 'Regression.'},
+        ]])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_for_02(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            FOR x IN {1, 3, 4}
+            UNION (
+                SELECT Issue {
+                    name,
+                    number,
+                }
+                FILTER
+                    Issue.number > <str>x
+                ORDER BY
+                    Issue.number
+                LIMIT 2
+            )
+            ORDER BY Issue.number;
+        ''', [[
+            {
+                'name': 'Improve EdgeDB repl output rendering.',
+                'number': '2'
+            },
+            {
+                'name': 'Repl tweak.',
+                'number': '3'
+            },
+            {
+                'name': 'Regression.',
+                'number': '4'
+            },
         ]])

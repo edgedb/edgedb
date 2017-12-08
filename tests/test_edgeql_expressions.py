@@ -556,7 +556,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_set_03(self):
         await self.assert_query_result(r"""
-            # "nested" sets are merged using UNION ALL
+            # "nested" sets are merged using UNION
             SELECT _ := {{2, 3, {1, 4}, 4}, {4, 1}}
             ORDER BY _;
         """, [
@@ -898,7 +898,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_tuple_05(self):
         await self.assert_query_result(r"""
-            SELECT (1, 2) UNION (3, 4);
+            SELECT (1, 2) DISTINCT UNION (3, 4);
         """, [
             [[1, 2], [3, 4]],
         ])
@@ -959,8 +959,8 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_tuple_11(self):
         await self.assert_query_result('''\
             SELECT (1, 2) = (1, 2);
+            SELECT (1, 2) DISTINCT UNION (1, 2);
             SELECT (1, 2) UNION (1, 2);
-            SELECT (1, 2) UNION ALL (1, 2);
         ''', [
             [True],
             [[1, 2]],
@@ -1023,7 +1023,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_tuple_indirection_05(self):
         await self.assert_query_result(r"""
-            WITH _ := (SELECT (1,2) UNION (3,4)) SELECT _.0;
+            WITH _ := (SELECT (1,2) DISTINCT UNION (3,4)) SELECT _.0;
         """, [
             [1, 3],
         ])
@@ -1110,13 +1110,13 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_setop_02(self):
         await self.assert_query_result(r"""
-            SELECT 2 * ((SELECT 1) UNION (SELECT 2));
-            SELECT (SELECT 2) * (1 UNION 2);
+            SELECT 2 * ((SELECT 1) DISTINCT UNION (SELECT 2));
+            SELECT (SELECT 2) * (1 DISTINCT UNION 2);
+            SELECT 2 * (1 DISTINCT UNION 2 DISTINCT UNION 1);
             SELECT 2 * (1 UNION 2 UNION 1);
-            SELECT 2 * (1 UNION ALL 2 UNION ALL 1);
 
             WITH
-                a := (SELECT 1 UNION 2)
+                a := (SELECT 1 DISTINCT UNION 2)
             SELECT (SELECT 2) * a;
         """, [
             [2, 4],
@@ -1128,9 +1128,9 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_setop_03(self):
         await self.assert_query_result('''
-            SELECT array_agg(1 UNION ALL 2 UNION ALL 3);
-            SELECT array_agg(3 UNION ALL 2 UNION ALL 3);
-            SELECT array_agg(3 UNION ALL 3 UNION ALL 2);
+            SELECT array_agg(1 UNION 2 UNION 3);
+            SELECT array_agg(3 UNION 2 UNION 3);
+            SELECT array_agg(3 UNION 3 UNION 2);
         ''', [
             [[1, 2, 3]],
             [[3, 2, 3]],
@@ -1147,23 +1147,23 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_setop_05(self):
         await self.assert_query_result('''
-            SELECT (2 UNION ALL 2 UNION ALL 2);
+            SELECT (2 UNION 2 UNION 2);
         ''', [
             [2, 2, 2],
         ])
 
     async def test_edgeql_expr_setop_06(self):
         await self.assert_query_result('''
-            SELECT (2 UNION 2 UNION 2);
+            SELECT (2 DISTINCT UNION 2 DISTINCT UNION 2);
         ''', [
             [2],
         ])
 
     async def test_edgeql_expr_setop_07(self):
         await self.assert_query_result('''
-            SELECT (2 UNION ALL 2 UNION 2);
-            SELECT (2 UNION 2 UNION ALL 2);
-            SELECT (2 UNION ALL 1 UNION 2);
+            SELECT (2 UNION 2 DISTINCT UNION 2);
+            SELECT (2 DISTINCT UNION 2 UNION 2);
+            SELECT (2 UNION 1 DISTINCT UNION 2);
         ''', [
             [2],
             [2, 2],
@@ -1171,13 +1171,22 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_setop_08(self):
-        with self.assertRaisesRegex(
-                exc.EdgeQLError,
-                'invalid UNION ALL operand: schema::Concept is a concept'):
-            await self.con.execute('''
-                WITH MODULE schema
-                SELECT Concept UNION ALL Attribute;
-            ''')
+        res = await self.con.execute('''
+            WITH MODULE schema
+            SELECT Concept;
+
+            WITH MODULE schema
+            SELECT Attribute;
+
+            WITH MODULE schema
+            SELECT Concept UNION Attribute;
+        ''')
+        separate = [obj['id'] for obj in res[0]]
+        separate += [obj['id'] for obj in res[1]]
+        union = [obj['id'] for obj in res[2]]
+        separate.sort()
+        union.sort()
+        self.assert_data_shape(separate, union)
 
     @unittest.expectedFailure
     async def test_edgeql_expr_setop_09(self):
@@ -1288,11 +1297,11 @@ class TestExpressions(tb.QueryTestCase):
                 exc.EdgeQLError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
-                position=50):
+                position=59):
 
             await self.query('''\
                 WITH MODULE test
-                SELECT Issue UNION Text ORDER BY Issue.name;
+                SELECT Issue DISTINCT UNION Text ORDER BY Issue.name;
             ''')
 
     async def test_edgeql_expr_cardinality_07(self):
@@ -1309,12 +1318,14 @@ class TestExpressions(tb.QueryTestCase):
 
     @unittest.expectedFailure
     async def test_edgeql_expr_cardinality_08(self):
-        # we expect some sort of error because the set {1, 2} is not a
-        # SINGLETON
+        # we expect some sort of error because the set {1, 2} does not
+        # have cardinality 1
         with self.assertRaisesRegex(exc.UnknownEdgeDBError, ''):
             await self.query(r'''
-                WITH MODULE test
-                SELECT SINGLETON {1, 2};
+                WITH
+                    MODULE test,
+                    CARDINALITY '1'
+                SELECT {1, 2};
             ''')
 
     async def test_edgeql_expr_type_filter_01(self):
@@ -1468,16 +1479,143 @@ class TestExpressions(tb.QueryTestCase):
             [{'name': 'schema::Array', 'foo': {1}}],
         ])
 
+    async def test_edgeql_expr_alias_07(self):
+        await self.assert_query_result(r"""
+            # test variable masking
+            WITH x := (
+                WITH x := {2, 3} SELECT {4, 5, x}
+            )
+            SELECT x ORDER BY x;
+        """, [
+            [2, 3, 4, 5],
+        ])
+
+    async def test_edgeql_expr_alias_08(self):
+        await self.assert_query_result(r"""
+            # test variable masking
+            WITH x := (
+                FOR x IN {2, 3}
+                UNION x + 2
+            )
+            SELECT x ORDER BY x;
+        """, [
+            [4, 5],
+        ])
+
     async def test_edgeql_expr_for_01(self):
         await self.assert_query_result(r"""
             FOR x IN {1, 3, 5, 7}
-            SELECT x
+            UNION x
             ORDER BY x;
 
             FOR x IN {1, 3, 5, 7}
-            SELECT x + 1
+            UNION x + 1
             ORDER BY x;
         """, [
             [1, 3, 5, 7],
             [2, 4, 6, 8],
+        ])
+
+    async def test_edgeql_expr_for_02(self):
+        await self.assert_query_result(r"""
+            FOR x IN {2, 3}
+            UNION {x, x + 2};
+        """, [
+            {2, 3, 4, 5},
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_group_01(self):
+        await self.assert_query_result(r"""
+            WITH I := {1, 2, 3, 4}
+            GROUP I
+            USING _ := I % 2 = 0
+            BY _
+            INTO I
+            UNION _r := (
+                values := array_agg(I ORDER BY I)
+            ) ORDER BY _r.values;
+        """, [
+            [
+                {'values': [1, 3]},
+                {'values': [2, 4]}
+            ]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_group_02(self):
+        await self.assert_sorted_query_result(r'''
+            # handle a number of different aliases
+            WITH x := {(1, 2), (3, 4), (4, 2)}
+            GROUP y := x
+            USING _ := y.1
+            BY _
+            INTO y
+            UNION array_agg(y.0);
+        ''', lambda x: x, [
+            [[1, 4], [3]],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_group_03(self):
+        await self.assert_sorted_query_result(r'''
+            WITH x := {(1, 2), (3, 4), (4, 2)}
+            GROUP x
+            USING _ := x.1
+            BY _
+            INTO x
+            UNION array_agg(x.0);
+        ''', lambda x: x, [
+            [[1, 4], [3]],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_group_04(self):
+        await self.assert_query_result(r'''
+            WITH x := {(1, 2), (3, 4), (4, 2)}
+            GROUP x
+            USING B := x.1
+            BY B
+            INTO x
+            UNION (B, array_agg(x.0))
+            ORDER BY
+                B;
+        ''', [
+            [[2, [1, 4]], [4, [3]]],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_group_05(self):
+        await self.assert_query_result(r'''
+            # handle the case where the value to be computed depends
+            # on both, the grouped subset and the original set
+            WITH
+                x1 := {(1, 0), (1, 0), (1, 0), (2, 0), (3, 0), (3, 0)},
+                x2 := x1
+            GROUP y := x1
+            USING z := y.0
+            BY z
+            INTO y
+            UNION (
+                # we expect that count(x1) and count(x2) will be
+                # identical in this context, whereas count(y) will
+                # represent the size of each subset
+                z, count(y), count(x1), count(x2)
+            )
+            ORDER BY z;
+        ''', [
+            [[1, 3, 6, 6], [2, 1, 6, 6], [3, 2, 6, 6]]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_group_06(self):
+        await self.assert_query_result(r'''
+            GROUP X := {1, 1, 1, 2, 3, 3}
+            USING y := X
+            BY y
+            INTO y
+            UNION (y, count(X))
+            ORDER BY y;
+        ''', [
+            [[1, 3], [2, 1], [3, 2]]
         ])

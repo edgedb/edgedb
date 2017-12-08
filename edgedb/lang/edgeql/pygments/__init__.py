@@ -18,7 +18,7 @@ class EdgeQLLexer(RegexLexer):
             (r'\$[\w\d]+', token.Name.Variable),
             include('numbers'),
             include('strings'),
-            (r'(?i)\b(true|false|empty)\b', token.Keyword.Constant),
+            (r'(?i)\b(true|false)\b', token.Keyword.Constant),
             (r'\s+', token.Text),
             (r'.', token.Text),
         ],
@@ -29,20 +29,22 @@ class EdgeQLLexer(RegexLexer):
             (r'''(?ix)
                 \b(?<![:\.])(
                     abstract | action | after | any | array | as | asc |
-                    atom | attribute | before | by | concept |
-                    constraint | database | delegated | desc | event |
-                    extending | final | first | for | from | index |
-                    initial | last | link | map | migration | of | on |
+                    atom | attribute | before | by | cardinality |
+                    concept | constraint | database | delegated | desc |
+                    event | final | first | from | index | initial |
+                    into | last | link | map | migration | of | on |
                     policy | property | required | rename | target |
-                    then | to | transaction | tuple | value | view |
+                    then | to | transaction | tuple | using | value |
+                    view |
 
                     aggregate | all | alter | and | commit | create |
-                    delete | distinct | drop | else | exists | filter |
-                    function | get | group | if | ilike | in |
+                    delete | distinct | drop | each | else | empty |
+                    exists | explain | extending | filter |
+                    for | function | get | group | if | ilike | in |
                     insert | is | like | limit | module | not | offset |
-                    or | order | over | partition | rollback |
-                    select | set | singleton | start | update | union |
-                    with
+                    optional | or | order | over | partition |
+                    rollback | select | set | start |
+                    update | union | with
                 )\b ''', token.Keyword.Reserved),
 
             (r'\b(?i)(?<![:\.])(self|__subject__)\b',

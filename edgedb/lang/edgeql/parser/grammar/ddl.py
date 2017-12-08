@@ -151,6 +151,17 @@ class InnerDDLStmtBlock(ListNonterm, element=InnerDDLStmt):
     pass
 
 
+class DDLAliasBlock(Nonterm):
+    def reduce_OptAliasBlock(self, *kids):
+        # the purpose of this production is to make sure that DDL
+        # alias block does NOT contain cardinality clause
+        self.val = kids[0].val
+        if self.val.cardinality is not None:
+            raise EdgeQLSyntaxError(
+                'CARDINALITY specification is not allowed here',
+                context=kids[0].context)
+
+
 def _new_nonterm(clsname, clsdict={}, clskwds={}, clsbases=(Nonterm,)):
     mod = sys.modules[__name__]
 
@@ -377,7 +388,7 @@ class CreateDeltaStmt(Nonterm):
             return node
 
     def reduce_CreateDelta_TO(self, *kids):
-        r"""%reduce OptAliasBlock CREATE MIGRATION NodeName \
+        r"""%reduce DDLAliasBlock CREATE MIGRATION NodeName \
                     OptDeltaParents OptDeltaTarget \
         """
         if kids[5].val is None:
@@ -394,7 +405,8 @@ class CreateDeltaStmt(Nonterm):
                                     context=lang.context)
 
         self.val = qlast.CreateDelta(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
             parents=kids[4].val,
             language=lang.val.lower(),
@@ -402,11 +414,12 @@ class CreateDeltaStmt(Nonterm):
         )
 
     def reduce_CreateDelta_Commands(self, *kids):
-        r"""%reduce OptAliasBlock CREATE MIGRATION NodeName \
+        r"""%reduce DDLAliasBlock CREATE MIGRATION NodeName \
                     OptDeltaParents LBRACE InnerDDLStmtBlock RBRACE \
         """
         self.val = qlast.CreateDelta(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
             parents=kids[4].val,
             commands=kids[6].val
@@ -425,11 +438,12 @@ commands_block(
 
 class AlterDeltaStmt(Nonterm):
     def reduce_AlterDelta(self, *kids):
-        r"""%reduce OptAliasBlock ALTER MIGRATION NodeName \
+        r"""%reduce DDLAliasBlock ALTER MIGRATION NodeName \
                     AlterDeltaCommandsBlock \
         """
         self.val = qlast.AlterDelta(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
             commands=kids[4].val
         )
@@ -439,27 +453,30 @@ class AlterDeltaStmt(Nonterm):
 # DROP MIGRATION
 #
 class DropDeltaStmt(Nonterm):
-    def reduce_OptAliasBlock_DROP_MIGRATION_NodeName(self, *kids):
+    def reduce_DDLAliasBlock_DROP_MIGRATION_NodeName(self, *kids):
         self.val = qlast.DropDelta(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
         )
 
 
 # COMMIT MIGRATION
 class CommitDeltaStmt(Nonterm):
-    def reduce_OptAliasBlock_COMMIT_MIGRATION_NodeName(self, *kids):
+    def reduce_DDLAliasBlock_COMMIT_MIGRATION_NodeName(self, *kids):
         self.val = qlast.CommitDelta(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
         )
 
 
 # GET MIGRATION
 class GetDeltaStmt(Nonterm):
-    def reduce_OptAliasBlock_GET_MIGRATION_NodeName(self, *kids):
+    def reduce_DDLAliasBlock_GET_MIGRATION_NodeName(self, *kids):
         self.val = qlast.GetDelta(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
         )
 
@@ -468,9 +485,9 @@ class GetDeltaStmt(Nonterm):
 # CREATE DATABASE
 #
 class CreateDatabaseStmt(Nonterm):
-    def reduce_OptAliasBlock_CREATE_DATABASE_AnyNodeName(self, *kids):
-        # NOTE: OptAliasBlock is trying to avoid conflicts
-        if kids[0].val:
+    def reduce_DDLAliasBlock_CREATE_DATABASE_AnyNodeName(self, *kids):
+        # NOTE: DDLAliasBlock is trying to avoid conflicts
+        if kids[0].val.aliases:
             raise EdgeQLSyntaxError('Unexpected token: {}'.format(kids[2]),
                                     context=kids[2].context)
         self.val = qlast.CreateDatabase(name=kids[3].val)
@@ -480,9 +497,9 @@ class CreateDatabaseStmt(Nonterm):
 # DROP DATABASE
 #
 class DropDatabaseStmt(Nonterm):
-    def reduce_OptAliasBlock_DROP_DATABASE_AnyNodeName(self, *kids):
-        # NOTE: OptAliasBlock is trying to avoid conflicts
-        if kids[0].val:
+    def reduce_DDLAliasBlock_DROP_DATABASE_AnyNodeName(self, *kids):
+        # NOTE: DDLAliasBlock is trying to avoid conflicts
+        if kids[0].val.aliases:
             raise EdgeQLSyntaxError('Unexpected token: {}'.format(kids[2]),
                                     context=kids[2].context)
         self.val = qlast.DropDatabase(name=kids[3].val)
@@ -492,10 +509,11 @@ class DropDatabaseStmt(Nonterm):
 # CREATE ACTION
 #
 class CreateActionStmt(Nonterm):
-    def reduce_OptAliasBlock_CREATE_ACTION_NodeName_OptCreateCommandsBlock(
+    def reduce_DDLAliasBlock_CREATE_ACTION_NodeName_OptCreateCommandsBlock(
             self, *kids):
         self.val = qlast.CreateAction(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
             commands=kids[4].val
         )
@@ -505,10 +523,11 @@ class CreateActionStmt(Nonterm):
 # ALTER ACTION
 #
 class AlterActionStmt(Nonterm):
-    def reduce_OptAliasBlock_ALTER_ACTION_NodeName_AlterCommandsBlock(self,
+    def reduce_DDLAliasBlock_ALTER_ACTION_NodeName_AlterCommandsBlock(self,
                                                                       *kids):
         self.val = qlast.AlterAction(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
             commands=kids[4].val
         )
@@ -518,9 +537,10 @@ class AlterActionStmt(Nonterm):
 # DROP ACTION
 #
 class DropActionStmt(Nonterm):
-    def reduce_OptAliasBlock_DROP_ACTION_NodeName(self, *kids):
+    def reduce_DDLAliasBlock_DROP_ACTION_NodeName(self, *kids):
         self.val = qlast.DropAction(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
         )
 
@@ -564,11 +584,12 @@ class DropLocalPolicyStmt(Nonterm):
 #
 class CreateConstraintStmt(Nonterm):
     def reduce_CreateConstraint(self, *kids):
-        r"""%reduce OptAliasBlock \
+        r"""%reduce DDLAliasBlock \
                     CREATE CONSTRAINT NodeName OptOnExpr OptExtending \
                     OptCreateCommandsBlock"""
         self.val = qlast.CreateConstraint(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
             subject=kids[4].val,
             bases=kids[5].val,
@@ -576,12 +597,13 @@ class CreateConstraintStmt(Nonterm):
         )
 
     def reduce_CreateConstraint_CreateFunctionArgs(self, *kids):
-        r"""%reduce OptAliasBlock \
+        r"""%reduce DDLAliasBlock \
                     CREATE CONSTRAINT NodeName CreateFunctionArgs OptOnExpr \
                     OptExtending OptCreateCommandsBlock \
         """
         self.val = qlast.CreateConstraint(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
             args=kids[4].val,
             subject=kids[5].val,
@@ -592,11 +614,12 @@ class CreateConstraintStmt(Nonterm):
 
 class AlterConstraintStmt(Nonterm):
     def reduce_CreateConstraint(self, *kids):
-        r"""%reduce OptAliasBlock \
+        r"""%reduce DDLAliasBlock \
                     ALTER CONSTRAINT NodeName \
                     AlterCommandsBlock"""
         self.val = qlast.AlterConstraint(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
             commands=kids[4].val,
         )
@@ -604,10 +627,11 @@ class AlterConstraintStmt(Nonterm):
 
 class DropConstraintStmt(Nonterm):
     def reduce_CreateConstraint(self, *kids):
-        r"""%reduce OptAliasBlock \
+        r"""%reduce DDLAliasBlock \
                     DROP CONSTRAINT NodeName"""
         self.val = qlast.DropConstraint(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[2].val
         )
 
@@ -693,11 +717,12 @@ commands_block('CreateAtom', SetFieldStmt, CreateConcreteConstraintStmt)
 class CreateAtomStmt(Nonterm):
     def reduce_CreateAbstractAtomStmt(self, *kids):
         r"""%reduce \
-            OptAliasBlock CREATE ABSTRACT ATOM NodeName \
+            DDLAliasBlock CREATE ABSTRACT ATOM NodeName \
             OptExtending OptCreateAtomCommandsBlock \
         """
         self.val = qlast.CreateAtom(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[4].val,
             is_abstract=True,
             bases=kids[5].val,
@@ -706,11 +731,12 @@ class CreateAtomStmt(Nonterm):
 
     def reduce_CreateFinalAtomStmt(self, *kids):
         r"""%reduce \
-            OptAliasBlock CREATE FINAL ATOM NodeName \
+            DDLAliasBlock CREATE FINAL ATOM NodeName \
             OptExtending OptCreateAtomCommandsBlock \
         """
         self.val = qlast.CreateAtom(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[4].val,
             is_final=True,
             bases=kids[5].val,
@@ -719,11 +745,12 @@ class CreateAtomStmt(Nonterm):
 
     def reduce_CreateAtomStmt(self, *kids):
         r"""%reduce \
-            OptAliasBlock CREATE ATOM NodeName \
+            DDLAliasBlock CREATE ATOM NodeName \
             OptExtending OptCreateAtomCommandsBlock \
         """
         self.val = qlast.CreateAtom(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
             bases=kids[4].val,
             commands=kids[5].val
@@ -750,19 +777,21 @@ commands_block(
 class AlterAtomStmt(Nonterm):
     def reduce_AlterAtomStmt(self, *kids):
         r"""%reduce \
-            OptAliasBlock ALTER ATOM NodeName AlterAtomCommandsBlock \
+            DDLAliasBlock ALTER ATOM NodeName AlterAtomCommandsBlock \
         """
         self.val = qlast.AlterAtom(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
             commands=kids[4].val
         )
 
 
 class DropAtomStmt(Nonterm):
-    def reduce_OptAliasBlock_DROP_ATOM_NodeName(self, *kids):
+    def reduce_DDLAliasBlock_DROP_ATOM_NodeName(self, *kids):
         self.val = qlast.DropAtom(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val
         )
 
@@ -772,11 +801,12 @@ class DropAtomStmt(Nonterm):
 #
 class CreateAttributeStmt(Nonterm):
     def reduce_CreateAttributeWithType(self, *kids):
-        r"""%reduce OptAliasBlock \
+        r"""%reduce DDLAliasBlock \
                     CREATE ATTRIBUTE NodeName TypeName OptExtending \
                     OptCreateCommandsBlock"""
         self.val = qlast.CreateAttribute(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
             type=kids[4].val,
             bases=kids[5].val,
@@ -784,11 +814,12 @@ class CreateAttributeStmt(Nonterm):
         )
 
     def reduce_CreateAttributeWithoutType(self, *kids):
-        r"""%reduce OptAliasBlock \
+        r"""%reduce DDLAliasBlock \
                     CREATE ATTRIBUTE NodeName Extending \
                     OptCreateCommandsBlock"""
         self.val = qlast.CreateAttribute(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
             bases=kids[4].val,
             commands=kids[5].val,
@@ -800,11 +831,12 @@ class CreateAttributeStmt(Nonterm):
 #
 class DropAttributeStmt(Nonterm):
     def reduce_DropAttribute(self, *kids):
-        r"""%reduce OptAliasBlock \
+        r"""%reduce DDLAliasBlock \
                     DROP ATTRIBUTE NodeName \
         """
         self.val = qlast.DropAttribute(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
         )
 
@@ -841,12 +873,13 @@ class AlterTargetStmt(Nonterm):
 class CreateLinkPropertyStmt(Nonterm):
     def reduce_CreateLinkProperty(self, *kids):
         r"""%reduce \
-            OptAliasBlock \
+            DDLAliasBlock \
             CREATE LINKPROPERTY NodeName OptExtending \
             OptCreateCommandsBlock \
         """
         self.val = qlast.CreateLinkProperty(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
             bases=kids[4].val,
             commands=kids[5].val
@@ -869,12 +902,13 @@ commands_block(
 class AlterLinkPropertyStmt(Nonterm):
     def reduce_AlterLinkProperty(self, *kids):
         r"""%reduce \
-            OptAliasBlock \
+            DDLAliasBlock \
             ALTER LINKPROPERTY NodeName \
             AlterLinkPropertyCommandsBlock \
         """
         self.val = qlast.AlterLinkProperty(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
             commands=kids[4].val
         )
@@ -886,11 +920,12 @@ class AlterLinkPropertyStmt(Nonterm):
 class DropLinkPropertyStmt(Nonterm):
     def reduce_DropLinkProperty(self, *kids):
         r"""%reduce \
-            OptAliasBlock \
+            DDLAliasBlock \
             DROP LINKPROPERTY NodeName \
         """
         self.val = qlast.DropLinkProperty(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val
         )
 
@@ -998,12 +1033,13 @@ commands_block(
 class CreateLinkStmt(Nonterm):
     def reduce_CreateLink(self, *kids):
         r"""%reduce \
-            OptAliasBlock \
+            DDLAliasBlock \
             CREATE LINK NodeName OptExtending \
             OptCreateLinkCommandsBlock \
         """
         self.val = qlast.CreateLink(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
             bases=kids[4].val,
             commands=kids[5].val
@@ -1038,12 +1074,13 @@ commands_block(
 class AlterLinkStmt(Nonterm):
     def reduce_CreateLink(self, *kids):
         r"""%reduce \
-            OptAliasBlock \
+            DDLAliasBlock \
             ALTER LINK NodeName \
             AlterLinkCommandsBlock \
         """
         self.val = qlast.AlterLink(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
             commands=kids[4].val
         )
@@ -1066,10 +1103,11 @@ commands_block(
 class DropLinkStmt(Nonterm):
     def reduce_DropLink(self, *kids):
         r"""%reduce \
-            OptAliasBlock DROP LINK NodeName OptDropLinkCommandsBlock \
+            DDLAliasBlock DROP LINK NodeName OptDropLinkCommandsBlock \
         """
         self.val = qlast.DropLink(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
             commands=kids[4].val
         )
@@ -1185,11 +1223,12 @@ commands_block(
 class CreateConceptStmt(Nonterm):
     def reduce_CreateAbstractConceptStmt(self, *kids):
         r"""%reduce \
-            OptAliasBlock CREATE ABSTRACT CONCEPT NodeName \
+            DDLAliasBlock CREATE ABSTRACT CONCEPT NodeName \
             OptExtending OptCreateConceptCommandsBlock \
         """
         self.val = qlast.CreateConcept(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[4].val,
             bases=kids[5].val,
             is_abstract=True,
@@ -1198,11 +1237,12 @@ class CreateConceptStmt(Nonterm):
 
     def reduce_CreateRegularConceptStmt(self, *kids):
         r"""%reduce \
-            OptAliasBlock CREATE CONCEPT NodeName \
+            DDLAliasBlock CREATE CONCEPT NodeName \
             OptExtending OptCreateConceptCommandsBlock \
         """
         self.val = qlast.CreateConcept(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
             bases=kids[4].val,
             is_abstract=False,
@@ -1232,11 +1272,12 @@ commands_block(
 class AlterConceptStmt(Nonterm):
     def reduce_AlterConceptStmt(self, *kids):
         r"""%reduce \
-            OptAliasBlock ALTER CONCEPT NodeName \
+            DDLAliasBlock ALTER CONCEPT NodeName \
             AlterConceptCommandsBlock \
         """
         self.val = qlast.AlterConcept(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
             commands=kids[4].val
         )
@@ -1257,10 +1298,11 @@ commands_block(
 class DropConceptStmt(Nonterm):
     def reduce_DropConcept(self, *kids):
         r"""%reduce \
-            OptAliasBlock DROP CONCEPT NodeName OptDropConceptCommandsBlock \
+            DDLAliasBlock DROP CONCEPT NodeName OptDropConceptCommandsBlock \
         """
         self.val = qlast.DropConcept(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
             commands=kids[4].val
         )
@@ -1280,10 +1322,11 @@ commands_block(
 class CreateViewStmt(Nonterm):
     def reduce_CreateViewShortStmt(self, *kids):
         r"""%reduce \
-            OptAliasBlock CREATE VIEW NodeName TURNSTILE Expr \
+            DDLAliasBlock CREATE VIEW NodeName TURNSTILE Expr \
         """
         self.val = qlast.CreateView(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
             commands=[
                 qlast.CreateAttributeValue(
@@ -1296,11 +1339,12 @@ class CreateViewStmt(Nonterm):
 
     def reduce_CreateViewRegularStmt(self, *kids):
         r"""%reduce \
-            OptAliasBlock CREATE VIEW NodeName \
+            DDLAliasBlock CREATE VIEW NodeName \
             CreateViewCommandsBlock \
         """
         self.val = qlast.CreateView(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
             commands=kids[4].val
         )
@@ -1322,11 +1366,12 @@ commands_block(
 class AlterViewStmt(Nonterm):
     def reduce_AlterViewStmt(self, *kids):
         r"""%reduce \
-            OptAliasBlock ALTER VIEW NodeName \
+            DDLAliasBlock ALTER VIEW NodeName \
             AlterViewCommandsBlock \
         """
         self.val = qlast.AlterView(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
             commands=kids[4].val
         )
@@ -1339,10 +1384,11 @@ class AlterViewStmt(Nonterm):
 class DropViewStmt(Nonterm):
     def reduce_DropView(self, *kids):
         r"""%reduce \
-            OptAliasBlock DROP VIEW NodeName \
+            DDLAliasBlock DROP VIEW NodeName \
         """
         self.val = qlast.DropView(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
         )
 
@@ -1352,11 +1398,12 @@ class DropViewStmt(Nonterm):
 #
 class CreateEventStmt(Nonterm):
     def reduce_CreateEvent(self, *kids):
-        r"""%reduce OptAliasBlock CREATE EVENT NodeName \
+        r"""%reduce DDLAliasBlock CREATE EVENT NodeName \
                     OptExtending OptCreateCommandsBlock \
         """
         self.val = qlast.CreateEvent(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
             bases=kids[4].val,
             commands=kids[5].val
@@ -1367,10 +1414,11 @@ class CreateEventStmt(Nonterm):
 # CREATE MODULE
 #
 class CreateModuleStmt(Nonterm):
-    def reduce_OptAliasBlock_CREATE_MODULE_ModuleName_OptCreateCommandsBlock(
+    def reduce_DDLAliasBlock_CREATE_MODULE_ModuleName_OptCreateCommandsBlock(
             self, *kids):
         self.val = qlast.CreateModule(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=qlast.ClassRef(module=None, name='.'.join(kids[3].val)),
             commands=kids[4].val
         )
@@ -1380,10 +1428,11 @@ class CreateModuleStmt(Nonterm):
 # ALTER MODULE
 #
 class AlterModuleStmt(Nonterm):
-    def reduce_OptAliasBlock_ALTER_MODULE_ModuleName_AlterCommandsBlock(
+    def reduce_DDLAliasBlock_ALTER_MODULE_ModuleName_AlterCommandsBlock(
             self, *kids):
         self.val = qlast.AlterModule(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=qlast.ClassRef(module=None, name='.'.join(kids[3].val)),
             commands=kids[4].val
         )
@@ -1393,9 +1442,10 @@ class AlterModuleStmt(Nonterm):
 # DROP MODULE
 #
 class DropModuleStmt(Nonterm):
-    def reduce_OptAliasBlock_DROP_MODULE_ModuleName(self, *kids):
+    def reduce_DDLAliasBlock_DROP_MODULE_ModuleName(self, *kids):
         self.val = qlast.DropModule(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=qlast.ClassRef(module=None, name='.'.join(kids[3].val))
         )
 
@@ -1422,31 +1472,31 @@ class OptVariadic(Nonterm):
 
 
 class FuncDeclArg(Nonterm):
-    def reduce_OptVariadic_OptSetOf_TypeName_OptDefault(self, *kids):
+    def reduce_OptVariadic_ArgQualifier_TypeName_OptDefault(self, *kids):
         # variadic parameters are effectively arrays, so they cannot
         # be arrays of sets
         if kids[0].val and kids[1].val:
             raise EdgeQLSyntaxError(
                 'variadic parameter cannot be a set', context=kids[1].context)
-        self.val = qlast.FuncArg(
+        self.val = qlast.FuncParam(
             variadic=kids[0].val,
             name=None,
-            is_set=kids[1].val,
+            qualifier=kids[1].val,
             type=kids[2].val,
             default=kids[3].val
         )
 
     def reduce_kwarg(self, *kids):
         r"""%reduce OptVariadic DOLLAR Identifier COLON \
-                OptSetOf TypeName OptDefault \
+                ArgQualifier TypeName OptDefault \
         """
         if kids[0].val and kids[4].val:
             raise EdgeQLSyntaxError(
                 'variadic parameter cannot be a set', context=kids[4].context)
-        self.val = qlast.FuncArg(
+        self.val = qlast.FuncParam(
             variadic=kids[0].val,
             name=kids[2].val,
-            is_set=kids[4].val,
+            qualifier=kids[4].val,
             type=kids[5].val,
             default=kids[6].val
         )
@@ -1572,22 +1622,26 @@ commands_block(
 )
 
 
-class OptSetOf(Nonterm):
+class ArgQualifier(Nonterm):
     def reduce_SET_OF(self, *kids):
-        self.val = True
+        self.val = qlast.SetQualifier.SET_OF
+
+    def reduce_OPTIONAL(self, *kids):
+        self.val = qlast.SetQualifier.OPTIONAL
 
     def reduce_empty(self):
-        self.val = False
+        self.val = qlast.SetQualifier.DEFAULT
 
 
 class CreateFunctionStmt(Nonterm, _ProcessFunctionBlockMixin):
     def reduce_CreateFunction(self, *kids):
-        r"""%reduce OptAliasBlock CREATE FUNCTION NodeName CreateFunctionArgs \
-                ARROW OptSetOf FunctionType \
+        r"""%reduce DDLAliasBlock CREATE FUNCTION NodeName CreateFunctionArgs \
+                ARROW ArgQualifier FunctionType \
                 CreateFunctionCommandsBlock \
         """
         self.val = qlast.CreateFunction(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
             args=kids[4].val,
             returning=kids[7].val,
@@ -1598,11 +1652,12 @@ class CreateFunctionStmt(Nonterm, _ProcessFunctionBlockMixin):
 
 class DropFunctionStmt(Nonterm):
     def reduce_DropFunction(self, *kids):
-        r"""%reduce OptAliasBlock \
+        r"""%reduce DDLAliasBlock \
                 DROP FUNCTION NodeName CreateFunctionArgs \
         """
         self.val = qlast.DropFunction(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
             args=kids[4].val)
 
@@ -1617,7 +1672,7 @@ commands_block(
 
 class CreateAggregateStmt(Nonterm, _ProcessFunctionBlockMixin):
     def reduce_CreateAggregate(self, *kids):
-        r"""%reduce OptAliasBlock \
+        r"""%reduce DDLAliasBlock \
                 CREATE AGGREGATE NodeName CreateFunctionArgs \
                 ARROW FunctionType \
                 INITIAL VALUE Expr \
@@ -1633,7 +1688,8 @@ class CreateAggregateStmt(Nonterm, _ProcessFunctionBlockMixin):
                                     context=init_val.context)
 
         self.val = qlast.CreateFunction(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
             args=kids[4].val,
             returning=kids[6].val,
@@ -1650,11 +1706,12 @@ class FunctionType(Nonterm):
 
 class DropAggregateStmt(Nonterm):
     def reduce_DropAggregate(self, *kids):
-        r"""%reduce OptAliasBlock \
+        r"""%reduce DDLAliasBlock \
                 DROP AGGREGATE NodeName CreateFunctionArgs \
         """
         self.val = qlast.DropFunction(
-            aliases=kids[0].val,
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
             name=kids[3].val,
             args=kids[4].val,
             aggregate=True)

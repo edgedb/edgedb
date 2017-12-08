@@ -6,6 +6,7 @@
 ##
 
 
+import os.path
 import unittest  # NOQA
 
 from edgedb.client import exceptions as exc
@@ -13,6 +14,12 @@ from edgedb.server import _testbase as tb
 
 
 class TestEdgeQLFunctions(tb.QueryTestCase):
+    SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
+                          'issues.eschema')
+
+    SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
+                         'issues_setup.eql')
+
     async def test_edgeql_functions_array_contains_01(self):
         await self.assert_query_result(r'''
             SELECT std::array_contains(<array<int>>[], {1, 3});
@@ -44,6 +51,54 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [False],
         ])
 
+    async def test_edgeql_functions_count_01(self):
+        await self.assert_query_result(r"""
+            WITH
+                MODULE test,
+                x := (
+                    # User is simply employed as an object to be augmented
+                    SELECT User {
+                        count := 4,
+                        all_issues := Issue
+                    } FILTER .name = 'Elvis'
+                )
+            SELECT x.count = count(x.all_issues);
+        """, [
+            [True]
+        ])
+
+    async def test_edgeql_functions_count_02(self):
+        await self.assert_query_result(r"""
+            WITH
+                MODULE test,
+                x := (
+                    # User is simply employed as an object to be augmented
+                    SELECT User {
+                        count := count(Issue),
+                        all_issues := Issue
+                    } FILTER .name = 'Elvis'
+                )
+            SELECT x.count = count(x.all_issues);
+        """, [
+            [True]
+        ])
+
+    async def test_edgeql_functions_count_03(self):
+        await self.assert_query_result(r"""
+            WITH
+                MODULE test,
+                x := (
+                    # User is simply employed as an object to be augmented
+                    SELECT User {
+                        count := count(<int>Issue.number),
+                        all_issues := <int>Issue.number
+                    } FILTER .name = 'Elvis'
+                )
+            SELECT x.count = count(x.all_issues);
+        """, [
+            [True]
+        ])
+
     async def test_edgeql_functions_array_agg_01(self):
         res = await self.con.execute('''
             SELECT array_agg({1, 2, 3});
@@ -56,7 +111,20 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [[3, 3, 2]],
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_functions_array_agg_02(self):
+        res = await self.con.execute('''
+            SELECT array_agg({1, 2, 3})[0];
+            SELECT array_agg({3, 2, 3})[1];
+            SELECT array_agg({3, 3, 2})[-1];
+        ''')
+        self.assert_data_shape(res, [
+            [1],
+            [2],
+            [2],
+        ])
+
+    async def test_edgeql_functions_array_agg_03(self):
         await self.assert_query_result('''
             WITH x := {3, 1, 2}
             SELECT array_agg(x ORDER BY x);
@@ -68,7 +136,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [True],
         ])
 
-    async def test_edgeql_functions_array_agg_03(self):
+    async def test_edgeql_functions_array_agg_04(self):
         await self.assert_query_result('''
             WITH x := {3, 1, 2}
             SELECT array_contains(array_agg(x ORDER BY x), 2);
@@ -84,7 +152,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [False],
         ])
 
-    async def test_edgeql_functions_array_04(self):
+    async def test_edgeql_functions_array_agg_05(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError,
                 r'could not determine expression type'):
@@ -93,7 +161,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 SELECT array_agg({});
             """)
 
-    async def test_edgeql_functions_array_agg_05(self):
+    async def test_edgeql_functions_array_agg_06(self):
         await self.assert_query_result('''
             SELECT array_agg(<int>{});
             SELECT array_agg(DISTINCT <int>{});
@@ -106,7 +174,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_functions_array_agg_06(self):
+    async def test_edgeql_functions_array_agg_07(self):
         await self.assert_query_result('''
             SELECT array_agg((SELECT schema::Concept FILTER False));
             SELECT array_agg(
@@ -121,7 +189,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_functions_array_agg_07(self):
+    async def test_edgeql_functions_array_agg_08(self):
         await self.assert_query_result('''
             WITH x := <int>{}
             SELECT array_agg(x);
@@ -143,6 +211,50 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [
                 []
             ],
+        ])
+
+    async def test_edgeql_functions_array_agg_09(self):
+        await self.assert_query_result(r"""
+            WITH MODULE schema
+            SELECT
+                Concept {
+                    l := array_agg(
+                        Concept.links.name
+                        FILTER
+                            Concept.links.name IN {
+                                'std::id',
+                                'schema::name'
+                            }
+                        ORDER BY Concept.links.name ASC
+                    )
+                }
+            FILTER
+                Concept.name = 'schema::PrimaryClass';
+        """, [
+            [{
+                'l': ['schema::name', 'std::id']
+            }]
+        ])
+
+    async def test_edgeql_functions_array_agg_10(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT array_agg(
+                [<str>Issue.number, Issue.status.name]
+                ORDER BY Issue.number);
+        """, [
+            [[['1', 'Open'], ['2', 'Open'], ['3', 'Closed'], ['4', 'Closed']]]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_functions_array_agg_11(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT array_agg(
+                [<str>Issue.number, Issue.status.name]
+                ORDER BY Issue.number)[1];
+        """, [
+            [['2', 'Open']]
         ])
 
     async def test_edgeql_functions_array_unpack_01(self):

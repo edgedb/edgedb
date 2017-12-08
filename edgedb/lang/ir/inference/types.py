@@ -12,7 +12,6 @@ import typing
 
 from edgedb.lang.common import ast
 
-from edgedb.lang.schema import concepts as s_concepts
 from edgedb.lang.schema import inheriting as s_inh
 from edgedb.lang.schema import name as s_name
 from edgedb.lang.schema import objects as s_obj
@@ -166,7 +165,7 @@ def __infer_setop(ir, schema):
 
     # for purposes of type inference UNION and UNION ALL work almost
     # the same way
-    if ir.op in {qlast.UNION, qlast.UNION_ALL}:
+    if ir.op in {qlast.UNION, qlast.DISTINCT_UNION}:
         if left_type.issubclass(right_type):
             result = left_type
         elif right_type.issubclass(left_type):
@@ -175,13 +174,6 @@ def __infer_setop(ir, schema):
             result = s_inh.create_virtual_parent(
                 schema, [left_type, right_type])
 
-        # We know that left and right arguments are compatible.
-        # Validate that the left operand of UNION ALL is a Concept.
-        if ir.op == qlast.UNION_ALL and \
-                isinstance(left_type, s_concepts.Concept):
-            raise ql_errors.EdgeQLError(
-                f'invalid UNION ALL operand: {left_type.name} is a concept',
-                context=ir.context)
     else:
         result = infer_type(ir.left, schema)
         # create_virtual_parent will raise if types are incompatible.

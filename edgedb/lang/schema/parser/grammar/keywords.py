@@ -33,14 +33,12 @@ unreserved_keywords = frozenset([
     "index",
     "initial",
     "link",
-    "linkproperty",
     "of",
     "on",
     "required",
     "to",
     "value",
     "view",
-    "abstract",
 ])
 
 
@@ -53,7 +51,7 @@ reserved_keywords = edgeql.keywords.reserved_keywords
 
 def _check_keywords():
     # TODO: Fix linkproperty;
-    ALLOWED_NEW_UNRESERVED = {'import', 'linkproperty'}
+    ALLOWED_NEW_UNRESERVED = {'import'}
 
     invalid_unreserved_keywords = \
         edgeql.keywords.reserved_keywords.intersection(unreserved_keywords)

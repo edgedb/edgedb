@@ -90,16 +90,8 @@ def compile_Set(
                     ctx=scopectx)
         else:
             elements = flatten_set(expr)
-            # If the type is some sort of Concept, then the set should
-            # be made using UNION, otherwise use UNION ALL.
-            with ctx.newfence() as scopectx:
-                el_type = irutils.infer_type(
-                    dispatch.compile(elements[0], ctx=scopectx), ctx.schema)
-
-            if isinstance(el_type, s_concepts.Concept):
-                op = qlast.UNION
-            else:
-                op = qlast.UNION_ALL
+            # a set literal is just sugar for a UNION
+            op = qlast.UNION
 
             bigunion = qlast.BinOp(
                 left=elements[0],
@@ -597,14 +589,8 @@ def compile_ifelse(
                 if_expr_type.name, else_expr_type.name),
             context=src_context)
 
-    # If the type is some sort of Concept, then the translation should
-    # be made into UNION, otherwise to UNION ALL.
-    if isinstance(if_expr_type, s_concepts.Concept):
-        op = qlast.UNION
-    else:
-        op = qlast.UNION_ALL
-
-    return irast.SetOp(left=if_expr, right=else_expr, op=op, exclusive=True)
+    return irast.SetOp(left=if_expr, right=else_expr, op=qlast.UNION,
+                       exclusive=True)
 
 
 def compile_membership_op(
