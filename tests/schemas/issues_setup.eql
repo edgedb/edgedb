@@ -84,7 +84,7 @@ INSERT Issue {
 
 WITH
     MODULE test,
-    I := (SELECT Issue)
+    I := Issue
 INSERT Issue {
     number := '3',
     name := 'Repl tweak.',
@@ -100,7 +100,7 @@ INSERT Issue {
 
 WITH
     MODULE test,
-    I := (SELECT Issue)
+    I := Issue
 INSERT Issue {
     number := '4',
     name := 'Regression.',

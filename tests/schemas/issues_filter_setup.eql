@@ -1,14 +1,4 @@
 WITH MODULE test
-INSERT Priority {
-    name := 'High'
-};
-
-WITH MODULE test
-INSERT Priority {
-    name := 'Low'
-};
-
-WITH MODULE test
 INSERT Status {
     name := 'Open'
 };

@@ -385,6 +385,79 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT .1;
             """)
 
+    @unittest.expectedFailure
+    async def test_edgeql_expr_paths_04(self):
+        # `Issue.number` in FILTER is illegal because it shares a
+        # prefix `Issue` with `Issue.owner` which is defined in an
+        # outer scope.
+        with self.assertRaisesRegex(
+                exc.EdgeQLError, r'inconsistent path'):
+            await self.con.execute(r"""
+                WITH MODULE test
+                SELECT Issue.owner
+                FILTER Issue.number > '2';
+            """)
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_paths_05(self):
+        # `Issue.number` in FILTER is illegal because it shares a
+        # prefix `Issue` with `Issue.id` which is defined in an outer
+        # scope.
+        with self.assertRaisesRegex(
+                exc.EdgeQLError, r'inconsistent path'):
+            await self.con.execute(r"""
+                WITH MODULE test
+                SELECT Issue.id
+                FILTER Issue.number > '2';
+            """)
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_paths_06(self):
+        # `Issue.number` in the shape is illegal because it shares a
+        # prefix `Issue` with `Issue.owner` which is defined in an
+        # outer scope.
+        with self.assertRaisesRegex(
+                exc.EdgeQLError, r'inconsistent path'):
+            await self.con.execute(r"""
+                WITH MODULE test
+                SELECT Issue.owner {
+                    foo := Issue.number
+                };
+            """)
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_paths_07(self):
+        # `Issue.number` in FILTER is illegal because it shares a
+        # prefix `Issue` with `Issue.owner` which is defined in an
+        # outer scope.
+        with self.assertRaisesRegex(
+                exc.EdgeQLError, r'inconsistent path'):
+            await self.con.execute(r"""
+                WITH MODULE test
+                FOR x IN {'Elvis', 'Yury'}
+                UNION (
+                    SELECT Issue.owner
+                    FILTER Issue.owner.name = x
+                )
+                FILTER Issue.number > '2';
+            """)
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_paths_08(self):
+        # `Issue.number` in FILTER is illegal because it shares a
+        # prefix `Issue` with `Issue.owner` which is defined in an
+        # outer scope.
+        with self.assertRaisesRegex(
+                exc.EdgeQLError, r'inconsistent path'):
+            await self.con.execute(r"""
+                WITH MODULE test
+                UPDATE Issue.owner
+                FILTER Issue.number > '2'
+                SET {
+                    name := 'Foo' + Issue.number
+                };
+            """)
+
     async def test_edgeql_expr_polymorphic_01(self):
         await self.con.execute(r"""
             WITH MODULE test
@@ -1400,7 +1473,7 @@ class TestExpressions(tb.QueryTestCase):
             [5],
         ])
 
-    async def test_edgeql_expr_alias_01(self):
+    async def test_edgeql_expr_view_01(self):
         await self.assert_query_result(r"""
             WITH
                 a := {1, 2},
@@ -1411,7 +1484,7 @@ class TestExpressions(tb.QueryTestCase):
             [2],
         ])
 
-    async def test_edgeql_expr_alias_02(self):
+    async def test_edgeql_expr_view_02(self):
         await self.assert_query_result(r"""
             WITH
                 b := {2, 3}
@@ -1421,7 +1494,7 @@ class TestExpressions(tb.QueryTestCase):
             [2],
         ])
 
-    async def test_edgeql_expr_alias_03(self):
+    async def test_edgeql_expr_view_03(self):
         await self.assert_query_result(r"""
             SELECT (
                 name := 'a',
@@ -1434,7 +1507,7 @@ class TestExpressions(tb.QueryTestCase):
             [{'name': 'a', 'foo': 1}, {'name': 'a', 'foo': 2}],
         ])
 
-    async def test_edgeql_expr_alias_04(self):
+    async def test_edgeql_expr_view_04(self):
         await self.assert_query_result(r"""
             SELECT (
                 name := 'a',
@@ -1448,7 +1521,7 @@ class TestExpressions(tb.QueryTestCase):
             [{'name': 'a', 'foo': 1}],
         ])
 
-    async def test_edgeql_expr_alias_05(self):
+    async def test_edgeql_expr_view_05(self):
         await self.assert_query_result(r"""
             WITH MODULE schema
             SELECT Concept {
@@ -1463,7 +1536,7 @@ class TestExpressions(tb.QueryTestCase):
             [{'name': 'schema::Array', 'foo': {1, 2}}],
         ])
 
-    async def test_edgeql_expr_alias_06(self):
+    async def test_edgeql_expr_view_06(self):
         await self.assert_query_result(r"""
             WITH MODULE schema
             SELECT Concept {
@@ -1479,7 +1552,7 @@ class TestExpressions(tb.QueryTestCase):
             [{'name': 'schema::Array', 'foo': {1}}],
         ])
 
-    async def test_edgeql_expr_alias_07(self):
+    async def test_edgeql_expr_view_07(self):
         await self.assert_query_result(r"""
             # test variable masking
             WITH x := (
@@ -1490,7 +1563,7 @@ class TestExpressions(tb.QueryTestCase):
             [2, 3, 4, 5],
         ])
 
-    async def test_edgeql_expr_alias_08(self):
+    async def test_edgeql_expr_view_08(self):
         await self.assert_query_result(r"""
             # test variable masking
             WITH x := (

@@ -1,0 +1,138 @@
+WITH MODULE test
+INSERT Priority {
+    name := 'High'
+};
+
+WITH MODULE test
+INSERT Priority {
+    name := 'Low'
+};
+
+WITH MODULE test
+INSERT Status {
+    name := 'Open'
+};
+
+WITH MODULE test
+INSERT Status {
+    name := 'Closed'
+};
+
+
+WITH MODULE test
+INSERT User {
+    name := 'Elvis'
+};
+
+WITH MODULE test
+INSERT URL {
+    name := 'edgedb.com',
+    address := 'https://edgedb.com'
+};
+
+WITH MODULE test
+INSERT File {
+    name := 'screenshot.png'
+};
+
+WITH MODULE test
+INSERT LogEntry {
+    owner := (SELECT User FILTER User.name = 'Elvis'),
+    spent_time := -1,
+    body := 'Dummy'
+};
+
+WITH MODULE test
+INSERT LogEntry {
+    owner := (SELECT User FILTER User.name = 'Elvis'),
+    spent_time := 60,
+    body := 'Log1'
+};
+
+WITH MODULE test
+INSERT LogEntry {
+    owner := (SELECT User FILTER User.name = 'Elvis'),
+    spent_time := 90,
+    body := 'Log2'
+};
+
+WITH MODULE test
+INSERT LogEntry {
+    owner := (SELECT User FILTER User.name = 'Elvis'),
+    spent_time := 60,
+    body := 'Log3'
+};
+
+WITH MODULE test
+INSERT LogEntry {
+    owner := (SELECT User FILTER User.name = 'Elvis'),
+    spent_time := 30,
+    body := 'Log4'
+};
+
+WITH MODULE test
+INSERT Issue {
+    number := '1',
+    name := 'Issue 1',
+    body := 'Body 1',
+    owner := (SELECT User FILTER User.name = 'Elvis'),
+    status := (SELECT Status FILTER Status.name = 'Closed'),
+    time_estimate := 60,
+    time_spent_log := (SELECT LogEntry FILTER LogEntry.body = 'Log1'),
+};
+
+WITH MODULE test
+INSERT Issue {
+    number := '2',
+    name := 'Issue 2',
+    body := 'Body 2',
+    owner := (SELECT User FILTER User.name = 'Elvis'),
+    status := (SELECT Status FILTER Status.name = 'Closed'),
+    time_estimate := 90,
+    time_spent_log := (SELECT LogEntry FILTER LogEntry.body = 'Log2'),
+};
+
+WITH MODULE test
+INSERT Issue {
+    number := '3',
+    name := 'Issue 3',
+    body := 'Body 3',
+    owner := (SELECT User FILTER User.name = 'Elvis'),
+    status := (SELECT Status FILTER Status.name = 'Closed'),
+    time_estimate := 90,
+    time_spent_log := (
+        SELECT LogEntry FILTER LogEntry.body IN {'Log3','Log4'}),
+};
+
+WITH MODULE test
+INSERT Issue {
+    number := '4',
+    name := 'Issue 4',
+    body := 'Body 4',
+    owner := (SELECT User FILTER User.name = 'Elvis'),
+    status := (SELECT Status FILTER Status.name = 'Open'),
+};
+
+WITH
+    MODULE test,
+    I := Issue
+INSERT Issue {
+    number := '5',
+    name := 'Issue 5',
+    body := 'Body 5',
+    owner := (SELECT User FILTER User.name = 'Elvis'),
+    status := (SELECT Status FILTER Status.name = 'Open'),
+    related_to := (SELECT I FILTER I.number = '1'),
+};
+
+WITH
+    MODULE test,
+    I := Issue
+INSERT Issue {
+    number := '6',
+    name := 'Issue 6',
+    body := 'Body 6',
+    owner := (SELECT User FILTER User.name = 'Elvis'),
+    status := (SELECT Status FILTER Status.name = 'Open'),
+    related_to := (SELECT I FILTER I.number = '2'),
+};

@@ -55,7 +55,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
     async def test_edgeql_group_simple_03(self):
         await self.assert_query_result(r'''
             WITH MODULE test
-            GROUP Issue := Issue
+            GROUP Issue
             USING _ := Issue.time_estimate
             BY _
             INTO Issue
@@ -69,7 +69,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
     async def test_edgeql_group_simple_04(self):
         await self.assert_query_result(r'''
             WITH MODULE test
-            GROUP Issue := Issue
+            GROUP Issue
             USING _ := Issue.time_estimate
             BY _
             INTO Issue
@@ -84,7 +84,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
     async def test_edgeql_group_simple_05(self):
         await self.assert_query_result(r'''
             WITH MODULE test
-            GROUP Issue := Issue
+            GROUP Issue
             USING _ := Issue.time_estimate
             BY _
             INTO Issue
@@ -98,7 +98,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
     async def test_edgeql_group_by_01(self):
         await self.assert_query_result(r"""
             WITH MODULE test
-            GROUP Issue := Issue
+            GROUP Issue
             USING B :=  Issue.status.name
             BY B
             INTO Issue
@@ -120,7 +120,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
     async def test_edgeql_group_by_02(self):
         await self.assert_query_result(r"""
             WITH MODULE test
-            GROUP Issue := Issue
+            GROUP Issue
             USING B :=  Issue.status.name
             BY B
             INTO Issue
@@ -144,7 +144,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         await self.assert_query_result(r'''
             # re-use the same "_" alias in nested scope
             WITH MODULE test
-            GROUP Issue := Issue
+            GROUP Issue
             USING _ :=  Issue.time_estimate
             BY _
             INTO Issue
@@ -155,7 +155,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 _.te;
 
             WITH MODULE test
-            GROUP Issue := Issue
+            GROUP Issue
             USING _ :=  Issue.time_estimate
             BY _
             INTO Issue
@@ -174,7 +174,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         await self.assert_query_result(r'''
             # re-use the same "_" alias in nested scope
             WITH MODULE test
-            GROUP Issue := Issue
+            GROUP Issue
             USING _ :=  Issue.time_estimate
             BY _
             INTO Issue
@@ -237,7 +237,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
     async def test_edgeql_group_returning_01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
-            GROUP Issue := Issue
+            GROUP Issue
             USING _ :=  Issue.time_estimate
             BY _
             INTO Issue
@@ -253,7 +253,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
     async def test_edgeql_group_returning_02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
-            GROUP Issue := Issue
+            GROUP Issue
             USING B := Issue.time_estimate
             BY B
             INTO Issue
@@ -269,7 +269,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
     async def test_edgeql_group_returning_03(self):
         await self.assert_query_result(r'''
             WITH MODULE test
-            GROUP Issue := Issue
+            GROUP Issue
             USING B := Issue.status
             BY B
             INTO Issue
@@ -295,7 +295,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
     async def test_edgeql_group_returning_04(self):
         await self.assert_query_result(r'''
             WITH MODULE test
-            GROUP Issue := Issue
+            GROUP Issue
             USING _ := Issue.status
             BY _
             INTO Issue
@@ -329,7 +329,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             # a trivial group that is actually not doing anything
             # different from a plain SELECT
             WITH MODULE cards
-            GROUP Card := Card
+            GROUP Card
             USING _ :=  Card.element
             BY _
             INTO Card
@@ -356,7 +356,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             # a trivial group that is actually not doing anything
             # different from a plain SELECT
             WITH MODULE cards
-            GROUP Card := Card
+            GROUP Card
             USING _ :=  Card.element
             BY _
             INTO Card
@@ -390,7 +390,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 C2 := Card,
                 ELEMENTAL := (
                     # group cards into arrays by element
-                    GROUP Card := Card
+                    GROUP Card
                     USING _ :=  Card.element
                     BY _
                     INTO Card
@@ -478,7 +478,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 MODULE cards,
                 C2 := Card,
                 ELEMENTAL := (
-                    GROUP Card := Card
+                    GROUP Card
                     USING _ :=  Card.element
                     BY _
                     INTO Card
@@ -565,7 +565,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             WITH
                 MODULE cards,
                 C2 := Card
-            GROUP Card := Card
+            GROUP Card
             USING Element :=
                     # partition cards by element
                     Card.element
@@ -642,7 +642,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
     async def test_edgeql_group_by_tuple_01(self):
         await self.assert_query_result(r"""
             WITH MODULE test
-            GROUP Issue := Issue
+            GROUP Issue
             USING B := (Issue.status.name, Issue.time_estimate)
             BY B
             INTO Issue
@@ -670,7 +670,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
     async def test_edgeql_group_by_multiple_01(self):
         await self.assert_query_result(r"""
             WITH MODULE test
-            GROUP Issue := Issue
+            GROUP Issue
             USING
                 Stat := Issue.status.name,
                 Est := Issue.time_estimate
@@ -702,7 +702,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
     async def test_edgeql_group_by_multiple_02(self):
         await self.assert_query_result(r"""
             WITH MODULE test
-            GROUP Issue := Issue
+            GROUP Issue
             USING
                 Stat := Issue.status.name,
                 Est := Issue.time_estimate
@@ -730,7 +730,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
     async def test_edgeql_group_by_multiple_03(self):
         await self.assert_query_result(r"""
             WITH MODULE test
-            GROUP Issue := Issue
+            GROUP Issue
             USING
                 Stat := Issue.status.name,
                 Est := Issue.time_estimate
@@ -763,7 +763,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
     async def test_edgeql_group_by_multiple_04(self):
         await self.assert_query_result(r"""
             WITH MODULE test
-            GROUP Issue := Issue
+            GROUP Issue
             USING
                 Stat := Issue.status.name,
                 Est := Issue.time_estimate
@@ -840,7 +840,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
     async def test_edgeql_group_by_multiple_06(self):
         await self.assert_query_result(r"""
             WITH MODULE test
-            GROUP Issue := Issue
+            GROUP Issue
             USING
                 Stat := Issue.status.name,
                 # group by some non-trivial expression
@@ -902,7 +902,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         await self.assert_query_result(r"""
             # group by link property
             WITH MODULE cards
-            GROUP Card := Card
+            GROUP Card
             USING B :=
                     Card.<deck@count
             BY B
@@ -940,7 +940,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         await self.assert_query_result(r"""
             # use link property inside a group aggregate
             WITH MODULE cards
-            GROUP Card := Card
+            GROUP Card
             USING El :=
                     Card.element
             BY El
@@ -1205,7 +1205,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             WITH
                 MODULE test,
                 I := <int>Issue.number
-            GROUP I := I
+            GROUP I
             USING _ :=  I % 2 = 0
             BY _
             INTO I

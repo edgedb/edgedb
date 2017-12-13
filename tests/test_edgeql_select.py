@@ -905,7 +905,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         ])
 
-    async def test_edgeql_select_shape_01(self):
+    async def test_edgeql_select_view_01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{
@@ -932,7 +932,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         ])
 
-    async def test_edgeql_select_shape_02(self):
+    async def test_edgeql_select_view_02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT User{
@@ -955,7 +955,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         ])
 
-    async def test_edgeql_select_shape_03(self):
+    async def test_edgeql_select_view_03(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT User{
@@ -980,6 +980,58 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     'number': '2'
                 }]
             }],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_view_04(self):
+        await self.assert_query_result(r"""
+            WITH
+                MODULE test,
+                L := LogEntry   # there happens to only be 1 entry
+            SELECT
+                # define a view that assigns a log to every Issue
+                Issue {
+                    tsl := (Issue.time_spent_log DISTINCT UNION L)
+                }.tsl {
+                    body
+                };
+        """, [
+            [
+                # no duplicates are possible, because the expression
+                # is a path pointing to an object
+                {'body': 'Rewriting everything.'},
+            ],
+        ])
+
+    async def test_edgeql_select_view_05(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT Issue.owner {
+                name,
+                # this path extends `Issue.owner` from top scope
+                foo := Issue.owner.<owner[IS Issue]{
+                    number,
+                    # this path *also* extends `Issue.owner` from top scope
+                    bar := Issue.owner.name
+                }
+            };
+        """, [
+            [
+                {
+                    'name': 'Elvis',
+                    'foo': [
+                        {'bar': 'Elvis', 'number': '1'},
+                        {'bar': 'Elvis', 'number': '4'}
+                    ],
+                },
+                {
+                    'name': 'Yury',
+                    'foo': [
+                        {'bar': 'Yury', 'number': '2'},
+                        {'bar': 'Yury', 'number': '3'}
+                    ],
+                },
+            ],
         ])
 
     async def test_edgeql_select_instance_01(self):
@@ -1239,6 +1291,64 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ORDER BY _.name;
         """, [
             [{'name': 'Elvis'}, {'name': 'Yury'}],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_setops_10(self):
+        await self.assert_query_result(r"""
+            WITH
+                MODULE test,
+                L := LogEntry  # there happens to only be 1 entry
+            SELECT
+                (Issue.time_spent_log UNION L) {
+                    body
+                };
+        """, [
+            [
+                # duplicates are allowed in a plain UNION
+                {'body': 'Rewriting everything.'},
+                {'body': 'Rewriting everything.'},
+            ],
+        ])
+
+    async def test_edgeql_select_setops_11(self):
+        await self.assert_query_result(r"""
+            WITH
+                MODULE test,
+                L := LogEntry  # there happens to only be 1 entry
+            SELECT
+                (Issue.time_spent_log DISTINCT UNION L) {
+                    body
+                };
+        """, [
+            [
+                # no duplicates are allowed in a DISTINCT UNION
+                {'body': 'Rewriting everything.'},
+            ],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_setops_12(self):
+        await self.assert_query_result(r"""
+            WITH
+                MODULE test,
+                L := LogEntry  # there happens to only be 1 entry
+            SELECT
+                (Issue.time_spent_log UNION L, Issue).0 {
+                    body
+                };
+        """, [
+            [
+                # not only do we expect duplicates, but we actually
+                # expect 5 entries here:
+                # - 1 for the actual `time_spent_log' links from Issue
+                # - 4 from the UNION for each Issue.time_spent_log
+                {'body': 'Rewriting everything.'},
+                {'body': 'Rewriting everything.'},
+                {'body': 'Rewriting everything.'},
+                {'body': 'Rewriting everything.'},
+                {'body': 'Rewriting everything.'},
+            ],
         ])
 
     async def test_edgeql_select_order_01(self):
