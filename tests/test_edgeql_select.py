@@ -1163,7 +1163,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             FILTER
                 # Issue.priority.name ?= 'High'
                 # equivalent to this via an if/else translation
-                #
                 (SELECT Issue.priority.name = 'High'
                  FILTER EXISTS Issue.priority.name)
                 UNION
@@ -1177,17 +1176,17 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     @unittest.expectedFailure
     async def test_edgeql_select_setops_05(self):
         await self.assert_query_result(r"""
-            # using UNION with overlapping sets of Objects
+            # using DISTINCT UNION with overlapping sets of Objects
             WITH MODULE test
             SELECT _ := ((
                 # Issue 1, 4
-                SELECT User.<owner[IS Issue]
-                FILTER User.name = 'Elvis'
-            ) UNION (
+                (SELECT User
+                 FILTER User.name = 'Elvis').<owner[IS Issue]
+            ) DISTINCT UNION (
                 # Issue 1
-                SELECT User.<watchers[IS Issue]
-                FILTER User.name = 'Yury'
-            ) UNION (
+                (SELECT User
+                 FILTER User.name = 'Yury').<watchers[IS Issue]
+            ) DISTINCT UNION (
                 # Issue 1, 4
                 SELECT Issue
                 FILTER NOT EXISTS Issue.priority
@@ -1197,19 +1196,20 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '1'}, {'number': '4'}],
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_select_setops_06(self):
         await self.assert_query_result(r"""
-            # using UNION with overlapping sets of Objects
+            # using DISTINCT UNION with overlapping sets of Objects
             WITH MODULE test
             SELECT _ := count((
                 # Issue 1, 4
-                SELECT User.<owner[IS Issue]
-                FILTER User.name = 'Elvis'
-            ) UNION (
+                (SELECT User
+                 FILTER User.name = 'Elvis').<owner[IS Issue]
+            ) DISTINCT UNION (
                 # Issue 1
-                SELECT User.<watchers[IS Issue]
-                FILTER User.name = 'Yury'
-            ) UNION (
+                (SELECT User
+                 FILTER User.name = 'Yury').<watchers[IS Issue]
+            ) DISTINCT UNION (
                 # Issue 1, 4
                 SELECT Issue
                 FILTER NOT EXISTS Issue.priority
@@ -1218,6 +1218,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [2],
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_select_setops_07(self):
         await self.assert_query_result(r"""
             # using UNION with overlapping sets of Objects
@@ -1234,7 +1235,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }{number}
             ORDER BY _.number;
         """, [
-            [{'number': '1'}, {'number': '4'}],
+            [{'number': '1'}, {'number': '1'}, {'number': '4'}],
         ])
 
     @unittest.expectedFailure
@@ -1251,12 +1252,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 {
                     (
                         # Issue 1, 4
-                        SELECT User.<owner[IS Issue]
-                        FILTER User.name = 'Elvis'
+                        (SELECT User
+                         FILTER User.name = 'Elvis').<owner[IS Issue]
                     ) UNION (
                         # Issue 1
-                        SELECT User.<watchers[IS Issue]
-                        FILTER User.name = 'Yury'
+                        (SELECT User
+                         FILTER User.name = 'Yury').<watchers[IS Issue]
                     ),
                     (
                         # Issue 1, 4
@@ -1271,10 +1272,53 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }{number}
             ORDER BY _.number;
         """, [
-            [{'number': '1'}, {'number': '4'}],
+            [
+                {'number': '1'}, {'number': '1'}, {'number': '1'},
+                {'number': '1'}, {'number': '1'},
+                {'number': '4'}, {'number': '4'}, {'number': '4'},
+            ],
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_select_setops_09(self):
+        await self.assert_query_result(r"""
+            # same as above but with a DISTINCT
+            WITH MODULE test
+            SELECT _ := DISTINCT {  # equivalent to UNION for Objects
+                # Issue 1, 4
+                (
+                    SELECT Issue
+                    FILTER Issue.owner.name = 'Elvis'
+                ),
+                {
+                    (
+                        # Issue 1, 4
+                        (SELECT User
+                         FILTER User.name = 'Elvis').<owner[IS Issue]
+                    ) UNION (
+                        # Issue 1
+                        (SELECT User
+                         FILTER User.name = 'Yury').<watchers[IS Issue]
+                    ),
+                    (
+                        # Issue 1, 4
+                        SELECT Issue
+                        FILTER NOT EXISTS Issue.priority
+                    )
+                },
+                (
+                    SELECT Issue
+                    FILTER Issue.number = '1'
+                )
+            }{number}
+            ORDER BY _.number;
+        """, [
+            [
+                {'number': '1'}, {'number': '4'},
+            ],
+        ])
+
+    async def test_edgeql_select_setops_10(self):
         await self.assert_query_result(r"""
             # using UNION in a FILTER
             WITH MODULE test
@@ -1294,7 +1338,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     @unittest.expectedFailure
-    async def test_edgeql_select_setops_10(self):
+    async def test_edgeql_select_setops_11(self):
         await self.assert_query_result(r"""
             WITH
                 MODULE test,
@@ -1311,7 +1355,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_select_setops_11(self):
+    async def test_edgeql_select_setops_12(self):
         await self.assert_query_result(r"""
             WITH
                 MODULE test,
@@ -1328,7 +1372,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     @unittest.expectedFailure
-    async def test_edgeql_select_setops_12(self):
+    async def test_edgeql_select_setops_13(self):
         await self.assert_query_result(r"""
             WITH
                 MODULE test,
@@ -2046,11 +2090,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['4', '1', '3', '2'],
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_select_as_02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
-            SELECT Text[IS Issue].name
-            FILTER Text.body LIKE '%EdgeDB%'
+            SELECT (
+                SELECT Text[IS Issue]
+                FILTER Text.body LIKE '%EdgeDB%'
+            ).name
             ORDER BY Text[IS Issue].name;
         ''', [
             ['Release EdgeDB']
@@ -2892,7 +2939,24 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'name': 'Elvis'}],
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_select_subqueries_14(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT User{name}
+            FILTER
+                EXISTS (
+                    SELECT Comment
+                    FILTER
+                        Comment.owner = User
+                # adding a required link to an EXISTS should not alter
+                # the result
+                ).owner;
+            """, [
+            [{'name': 'Elvis'}],
+        ])
+
+    async def test_edgeql_select_subqueries_15(self):
         await self.assert_query_result(r"""
             # Find all issues such that there's at least one more
             # issue watched by the same user as this one, this user
@@ -2905,7 +2969,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 EXISTS Issue.watchers AND
                 EXISTS (
                     SELECT
-                        User.<watchers
+                        User
                     FILTER
                         # The User is among the watchers of this Issue
                         User = Issue.watchers AND
@@ -2925,7 +2989,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_select_subqueries_15(self):
+    async def test_edgeql_select_subqueries_16(self):
         await self.assert_query_result(r"""
             # testing IN and a subquery
             WITH MODULE test
@@ -2940,7 +3004,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'body': 'EdgeDB needs to happen soon.'}],
         ])
 
-    async def test_edgeql_select_subqueries_16(self):
+    async def test_edgeql_select_subqueries_17(self):
         await self.assert_query_result(r"""
             # get a comment whose owner is part of the users who own Issue "1"
             WITH MODULE test
@@ -3235,31 +3299,52 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             # full name of the Issue is 'Release EdgeDB'
             WITH MODULE test
-            SELECT Issue.name[2]
-            FILTER Issue.number = '1';
-            WITH MODULE test
-            SELECT Issue.name[-2]
-            FILTER Issue.number = '1';
+            SELECT (
+                SELECT Issue
+                FILTER Issue.number = '1'
+            ).name[2];
 
             WITH MODULE test
-            SELECT Issue.name[2:4]
-            FILTER Issue.number = '1';
-            WITH MODULE test
-            SELECT Issue.name[2:]
-            FILTER Issue.number = '1';
-            WITH MODULE test
-            SELECT Issue.name[:2]
-            FILTER Issue.number = '1';
+            SELECT (
+                SELECT Issue
+                FILTER Issue.number = '1'
+            ).name[-2];
 
             WITH MODULE test
-            SELECT Issue.name[2:-1]
-            FILTER Issue.number = '1';
+            SELECT (
+                SELECT Issue
+                FILTER Issue.number = '1'
+            ).name[2:4];
+
             WITH MODULE test
-            SELECT Issue.name[-2:]
-            FILTER Issue.number = '1';
+            SELECT (
+                SELECT Issue
+                FILTER Issue.number = '1'
+            ).name[2:];
+
             WITH MODULE test
-            SELECT Issue.name[:-2]
-            FILTER Issue.number = '1';
+            SELECT (
+                SELECT Issue
+                FILTER Issue.number = '1'
+            ).name[:2];
+
+            WITH MODULE test
+            SELECT (
+                SELECT Issue
+                FILTER Issue.number = '1'
+            ).name[2:-1];
+
+            WITH MODULE test
+            SELECT (
+                SELECT Issue
+                FILTER Issue.number = '1'
+            ).name[-2:];
+
+            WITH MODULE test
+            SELECT (
+                SELECT Issue
+                FILTER Issue.number = '1'
+            ).name[:-2];
             """, [
             ['l'],
             ['D'],
@@ -3276,34 +3361,61 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_slice_02(self):
         await self.assert_query_result(r"""
             WITH MODULE test
-            SELECT Issue.__class__.name
-            FILTER Issue.number = '1';
-            WITH MODULE test
-            SELECT Issue.__class__.name[2]
-            FILTER Issue.number = '1';
-            WITH MODULE test
-            SELECT Issue.__class__.name[-2]
-            FILTER Issue.number = '1';
+            SELECT (
+                SELECT Issue
+                FILTER Issue.number = '1'
+            ).__class__.name;
 
             WITH MODULE test
-            SELECT Issue.__class__.name[2:4]
-            FILTER Issue.number = '1';
-            WITH MODULE test
-            SELECT Issue.__class__.name[2:]
-            FILTER Issue.number = '1';
-            WITH MODULE test
-            SELECT Issue.__class__.name[:2]
-            FILTER Issue.number = '1';
+            SELECT (
+                SELECT Issue
+                FILTER Issue.number = '1'
+            ).__class__.name[2];
 
             WITH MODULE test
-            SELECT Issue.__class__.name[2:-1]
-            FILTER Issue.number = '1';
+            SELECT (
+                SELECT Issue
+                FILTER Issue.number = '1'
+            ).__class__.name[-2];
+
+
             WITH MODULE test
-            SELECT Issue.__class__.name[-2:]
-            FILTER Issue.number = '1';
+            SELECT (
+                SELECT Issue
+                FILTER Issue.number = '1'
+            ).__class__.name[2:4];
+
             WITH MODULE test
-            SELECT Issue.__class__.name[:-2]
-            FILTER Issue.number = '1';
+            SELECT (
+                SELECT Issue
+                FILTER Issue.number = '1'
+            ).__class__.name[2:];
+
+            WITH MODULE test
+            SELECT (
+                SELECT Issue
+                FILTER Issue.number = '1'
+            ).__class__.name[:2];
+
+
+            WITH MODULE test
+            SELECT (
+                SELECT Issue
+                FILTER Issue.number = '1'
+            ).__class__.name[2:-1];
+
+            WITH MODULE test
+            SELECT (
+                SELECT Issue
+                FILTER Issue.number = '1'
+            ).__class__.name[-2:];
+
+            WITH MODULE test
+            SELECT (
+                SELECT Issue
+                FILTER Issue.number = '1'
+            ).__class__.name[:-2];
+
         """, [
             ['test::Issue'],
             ['s'],
@@ -3442,11 +3554,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     status := (WITH CARDINALITY '1'
                                SELECT Status FILTER Status.name = 'Open'),
                 ))
-            SELECT
-                Issue.number
-            FILTER
-                Issue.owner = criteria.user
-                AND Issue.status = criteria.status;
+            SELECT (
+                SELECT
+                    Issue
+                FILTER
+                    Issue.owner = criteria.user
+                    AND Issue.status = criteria.status
+            ).number;
             """, [
             ['2'],
         ])
