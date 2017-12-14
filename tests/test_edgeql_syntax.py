@@ -2070,7 +2070,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_insertfor_03(self):
         """
-        FOR name IN {(SELECT Foo.bar FILTER (Foo.baz = TRUE))}
+        FOR name IN {(SELECT Foo.bar FILTER (Foo.bar.baz = TRUE))}
         UNION (INSERT Foo{name := name});
         """
 

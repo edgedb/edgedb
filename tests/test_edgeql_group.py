@@ -243,7 +243,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             INTO Issue
             # The issues should be partitioned into 2 sub-sets by
             # Issue.time_estimate (with values {} and 3000). Therefore
-            # we expect 2 results combined via UNION ALL.
+            # we expect 2 results combined via UNION.
             UNION 42;
         ''', [
             [42, 42],
@@ -258,7 +258,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             BY B
             INTO Issue
             # No reason to restrict the above example to doing a
-            # UNION ALL of singletons.
+            # UNION of singletons.
             UNION _ := {42, count(Issue)}
             ORDER BY _;
         ''', [

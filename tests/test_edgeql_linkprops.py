@@ -690,7 +690,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
 
             WITH MODULE test
             SELECT DISTINCT (
-                SELECT Card.<deck@count FILTER Card.element = 'Water'
+                SELECT (SELECT Card FILTER Card.element = 'Water').<deck@count
             );
         ''', [
             {1, 2, 3, 4},
@@ -704,23 +704,23 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH
                 MODULE test,
-                C := (SELECT User.deck.name FILTER User.name = 'Carol'),
-                D := (SELECT User.deck.name FILTER User.name = 'Dave')
-            SELECT _ := C UNION ALL D
-            ORDER BY _;
-
-            WITH
-                MODULE test,
-                C := (SELECT User.deck.name FILTER User.name = 'Carol'),
-                D := (SELECT User.deck.name FILTER User.name = 'Dave')
+                C := (SELECT User FILTER User.name = 'Carol').deck.name,
+                D := (SELECT User FILTER User.name = 'Dave').deck.name
             SELECT _ := C UNION D
             ORDER BY _;
 
             WITH
                 MODULE test,
-                C := (SELECT User.deck.name FILTER User.name = 'Carol'),
-                D := (SELECT User.deck.name FILTER User.name = 'Dave')
-            SELECT _ := DISTINCT (C UNION ALL D)
+                C := (SELECT User FILTER User.name = 'Carol').deck.name,
+                D := (SELECT User FILTER User.name = 'Dave').deck.name
+            SELECT _ := C DISTINCT UNION D
+            ORDER BY _;
+
+            WITH
+                MODULE test,
+                C := (SELECT User FILTER User.name = 'Carol').deck.name,
+                D := (SELECT User FILTER User.name = 'Dave').deck.name
+            SELECT _ := DISTINCT (C UNION D)
             ORDER BY _;
         ''', [
             [

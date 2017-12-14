@@ -402,9 +402,10 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_generic_01(self):
         status = await self.con.execute(r"""
             WITH MODULE test
-            SELECT Status.id
+            SELECT Status{id}
             FILTER Status.name = 'Open';
         """)
+        status = status[0][0]['id']
 
         res = await self.con.execute(r"""
             WITH MODULE test
@@ -413,7 +414,7 @@ class TestUpdate(tb.QueryTestCase):
             SET {
                 status := (
                     SELECT Object
-                    FILTER Object.id = <uuid>'""" + status[0][0] + r"""'
+                    FILTER Object.id = <uuid>'""" + status + r"""'
                 )
             };
 

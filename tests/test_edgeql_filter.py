@@ -26,7 +26,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
         await self.assert_query_result(r'''
             # Find Users who own at least one Issue with simultaneously
             # time_estimate > 9000 and due_date on 2020/01/15.
-            #
             WITH MODULE test
             SELECT User{name}
             FILTER
@@ -44,7 +43,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             # NOTE: semantically same as and01, but using OR
             # Find Users who own at least one Issue with simultaneously
             # time_estimate > 9000 and due_date on 2020/01/15.
-            #
             WITH MODULE test
             SELECT User{name}
             FILTER
@@ -74,7 +72,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             # NOTE: same as above, but more human-like
             # Find Users who own at least one Issue with simultaneously
             # time_estimate > 9000 and due_date on 2020/01/15.
-            #
             WITH MODULE test
             SELECT User{name}
             FILTER
@@ -102,7 +99,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             #
             # Find Users who own at least one Issue with simultaneously
             # time_estimate > 9000 and due_date on 2020/01/15.
-            #
             WITH
                 MODULE test,
                 U2 := User
@@ -126,7 +122,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
     async def test_edgeql_filter_not_exists01(self):
         await self.assert_query_result(r'''
             # Find Users who do not have any Issues with time_estimate
-            #
             WITH MODULE test
             SELECT User{name}
             FILTER
@@ -140,12 +135,13 @@ class TestEdgeQLFilter(tb.QueryTestCase):
     async def test_edgeql_filter_not_exists02(self):
         await self.assert_query_result(r'''
             # Find Users who have at least one Issue without time_estimates
-            #
             WITH MODULE test
-            SELECT Issue.owner{name}
-            FILTER
-                NOT EXISTS Issue.time_estimate
-            ORDER BY Issue.owner.name;
+            SELECT (
+                SELECT Issue
+                FILTER
+                    NOT EXISTS Issue.time_estimate
+                ORDER BY Issue.owner.name
+            ).owner{name};
         ''', [
             # Elvis and Yury have Issues without time_estimate.
             [{'name': 'Elvis'}, {'name': 'Yury'}],
@@ -156,7 +152,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             # NOTE: same as above, but starting with User
             #
             # Find Users who have at least one Issue without time_estimates
-            #
             WITH MODULE test
             SELECT User{name}
             FILTER
@@ -176,7 +171,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             # explicit path joining
             #
             # Find Users who have at least one Issue without time_estimates
-            #
             WITH
                 MODULE test,
                 U2 := User
@@ -200,7 +194,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             #
             # Find Users who own at least one Issue with simultaneously
             # having a time_estimate and a due_date.
-            #
             WITH MODULE test
             SELECT User{name}
             FILTER
@@ -222,7 +215,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             #
             # Find Users who own at least one Issue with simultaneously
             # time_estimate > 9000 and due_date on 2020/01/15.
-            #
             WITH MODULE test
             SELECT User{name}
             FILTER
@@ -248,7 +240,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             #
             # Find Users who own at least one Issue with simultaneously
             # time_estimate > 9000 and due_date on 2020/01/15.
-            #
             WITH
                 MODULE test,
                 U2 := User
@@ -275,7 +266,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             #
             # Find Users who own at least one Issue with simultaneously
             # time_estimate > 9000 and due_date on 2020/01/15.
-            #
             WITH
                 MODULE test,
                 U2 := User
@@ -358,24 +348,26 @@ class TestEdgeQLFilter(tb.QueryTestCase):
         await self.assert_query_result(r'''
             # base line for a cross product
             WITH MODULE test
-            SELECT Issue.number + Status.name
-            ORDER BY Issue.number THEN Status.name;
+            SELECT _ := Issue.number + Status.name
+            ORDER BY _;
 
             # interaction of filter and cross product
             WITH MODULE test
-            SELECT Issue.number + Status.name
-            FILTER
-                Issue.owner.name = 'Elvis'
-            ORDER BY Issue.number THEN Status.name;
+            SELECT _ := (
+                    SELECT Issue
+                    FILTER Issue.owner.name = 'Elvis'
+                ).number + Status.name
+            ORDER BY _;
 
             # interaction of filter and cross product
             WITH MODULE test
-            SELECT Issue.number + Status.name
+            SELECT _ := (
+                    SELECT Issue
+                    FILTER Issue.owner.name = 'Elvis'
+                ).number + Status.name
             FILTER
-                Issue.owner.name = 'Elvis'
-                AND
                 Status.name = 'Open'
-            ORDER BY Issue.number THEN Status.name;
+            ORDER BY _;
         ''', [
             ['1Closed', '1Open', '2Closed', '2Open',
              '3Closed', '3Open', '4Closed', '4Open'],
@@ -434,7 +426,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             WITH MODULE test
             SELECT count(Issue)
             # this filter is conceptually equivalent to the above
-            #
             FILTER TRUE;
         ''', [
             [4],
@@ -455,7 +446,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
         await self.assert_query_result(r'''
             # regardless of what count evaluates to, FILTER clause is
             # impossible to fulfill, so the result is empty
-            #
             WITH MODULE test
             SELECT count(Issue)
             FILTER FALSE;

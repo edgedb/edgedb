@@ -162,8 +162,10 @@ used to filter out some of these members from the result.
 .. code-block:: eql
 
     WITH MODULE example
-    SELECT Issue.time_estimate
-    FILTER Issue.owner.name = 'Alice Smith';
+    SELECT (
+        SELECT Issue
+        FILTER Issue.owner.name = 'Alice Smith'
+    ).time_estimate;
 
 The above query will return a set of time estimates for all of the
 issues owned by Alice Smith rather than the ``Issue`` objects.
