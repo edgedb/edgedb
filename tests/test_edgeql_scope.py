@@ -810,3 +810,196 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 },
             ]
         ])
+
+    async def test_edgeql_scope_nested_01(self):
+        await self.assert_query_result(r'''
+            # control query Q1
+            WITH MODULE test
+            SELECT Card.element + ' ' + Card.name
+            FILTER Card.name > Card.element
+            ORDER BY Card.name;
+        ''', [
+            ['Air Djinn', 'Air Giant eagle', 'Earth Golem', 'Fire Imp',
+             'Air Sprite']
+        ])
+
+    async def test_edgeql_scope_nested_02(self):
+        await self.assert_query_result(r'''
+            # semantically same as control query Q1, with lots of
+            # nested aliases
+            WITH
+                MODULE test,
+                A := Card
+            SELECT
+                A.element + ' ' + (WITH B := A SELECT B).name
+            FILTER
+                (WITH C := A SELECT
+                    (WITH D := C SELECT D.name) > C.element
+                )
+            ORDER BY
+                (WITH E := A SELECT E.name);
+        ''', [
+            ['Air Djinn', 'Air Giant eagle', 'Earth Golem', 'Fire Imp',
+             'Air Sprite'],
+        ])
+
+    async def test_edgeql_scope_nested_03(self):
+        await self.assert_query_result(r'''
+            # semantically same as control query Q1, with lots of
+            # nested aliases
+            WITH
+                MODULE test,
+                A := Card
+            SELECT
+                A.element + ' ' + (WITH B := A SELECT B).name
+            FILTER
+                (WITH C := A SELECT
+                    # D is defined in terms of A directly
+                    (WITH D := A SELECT D.name) > C.element
+                )
+            ORDER BY
+                (WITH E := A SELECT E.name);
+        ''', [
+            ['Air Djinn', 'Air Giant eagle', 'Earth Golem', 'Fire Imp',
+             'Air Sprite'],
+        ])
+
+    async def test_edgeql_scope_nested_04(self):
+        await self.assert_query_result(r'''
+            # semantically same as control query Q1, with lots of
+            # nested aliases reusing the same symbol
+            WITH
+                MODULE test,
+                A := Card
+            SELECT
+                B := A.element + ' ' + (WITH B := A SELECT B).name
+            FILTER
+                (WITH B := A SELECT
+                    (WITH B := A SELECT B.name) > B.element
+                )
+            ORDER BY
+                (WITH B := A SELECT B.name);
+        ''', [
+            ['Air Djinn', 'Air Giant eagle', 'Earth Golem', 'Fire Imp',
+             'Air Sprite'],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_scope_nested_05(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            # `Card.element` and `Card.name` have `Card` as the LCP,
+            # therefore the `SELECT` clause will be evaluated element-
+            # wise for each `Card`
+            SELECT Card.element + <str>count(Card.name)
+            # `Card` is a valid prefix to be used in nested scopes,
+            # because the outer scope already is using expressions
+            # that are element-wise based on `Card`
+            FILTER Card.name > Card.element
+            ORDER BY Card.name;
+        ''', [
+            ['Air1', 'Air1', 'Earth1', 'Fire1', 'Air1']
+        ])
+
+    async def test_edgeql_scope_nested_06(self):
+        await self.assert_query_result(r'''
+            # control query Q2
+            WITH MODULE test
+            # combination of element + SET OF with a common prefix
+            SELECT Card.name + <str>count(Card.owners)
+            FILTER
+                # some element filters
+                Card.name < Card.element
+                AND
+                # a SET OF filter that shares a prefix with SELECT SET
+                # OF, but is actually independent
+                count(Card.owners.friends) > 2
+            ORDER BY Card.name;
+        ''', [
+            ['Bog monster4', 'Dragon2', 'Giant turtle4']
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_scope_nested_07(self):
+        await self.assert_query_result(r'''
+            # semantically same as control query Q2, with lots of
+            # nested aliases
+            WITH
+                MODULE test,
+                A := Card
+            SELECT (WITH B := A SELECT A.name) + <str>count(A.owners)
+            FILTER
+                (WITH C := A SELECT C.name <
+                    (WITH D := C SELECT D.element))
+                AND
+                (WITH E := A
+                 SELECT count((WITH F := E SELECT F.owners.friends)) > 2
+                )
+            ORDER BY A.name;
+        ''', [
+            ['Bog monster4', 'Dragon2', 'Giant turtle4']
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_scope_nested_08(self):
+        await self.assert_query_result(r'''
+            # semantically same as control query Q2, with lots of
+            # nested aliases, all referring to the top level alias
+            WITH
+                MODULE test,
+                A := Card
+            SELECT (WITH B := A SELECT A.name) + <str>count(A.owners)
+            FILTER
+                (WITH C := A SELECT C.name <
+                    (WITH D := A SELECT D.element))
+                AND
+                (WITH E := A
+                 SELECT count((WITH F := A SELECT F.owners.friends)) > 2
+                )
+            ORDER BY A.name;
+        ''', [
+            ['Bog monster4', 'Dragon2', 'Giant turtle4']
+        ])
+
+    async def test_edgeql_scope_nested_09(self):
+        await self.assert_query_result(r'''
+            # control query Q3
+            WITH MODULE test
+            SELECT Card.name + <str>count(Card.owners);
+        ''', [
+            {'Imp1', 'Dragon2', 'Bog monster4', 'Giant turtle4', 'Dwarf2',
+             'Golem3', 'Sprite2', 'Giant eagle2', 'Djinn2'}
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_scope_nested_10(self):
+        await self.assert_query_result(r'''
+            # semantically same as control query Q3, except that some
+            # aliases are introduced
+            WITH MODULE test
+            SELECT (WITH A := Card SELECT A).name + <str>count(Card.owners);
+
+            WITH MODULE test
+            SELECT (WITH A := Card SELECT A.name) + <str>count(Card.owners);
+        ''', [
+            {'Imp1', 'Dragon2', 'Bog monster4', 'Giant turtle4', 'Dwarf2',
+             'Golem3', 'Sprite2', 'Giant eagle2', 'Djinn2'},
+            {'Imp1', 'Dragon2', 'Bog monster4', 'Giant turtle4', 'Dwarf2',
+             'Golem3', 'Sprite2', 'Giant eagle2', 'Djinn2'},
+        ])
+
+    async def test_edgeql_scope_nested_11(self):
+        await self.assert_query_result(r'''
+            # semantically same as control query Q3, except that some
+            # aliases are introduced
+            WITH MODULE test
+            SELECT Card.name + <str>count((WITH A := Card SELECT A).owners);
+
+            WITH MODULE test
+            SELECT Card.name + <str>count((WITH A := Card SELECT A.owners));
+        ''', [
+            {'Imp1', 'Dragon2', 'Bog monster4', 'Giant turtle4', 'Dwarf2',
+             'Golem3', 'Sprite2', 'Giant eagle2', 'Djinn2'},
+            {'Imp1', 'Dragon2', 'Bog monster4', 'Giant turtle4', 'Dwarf2',
+             'Golem3', 'Sprite2', 'Giant eagle2', 'Djinn2'},
+        ])
