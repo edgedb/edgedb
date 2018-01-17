@@ -709,6 +709,27 @@ Another use case is for giving short aliases to long module names
     FILTER .name = fbz::Baz.name;
 
 
+Cardinality
+~~~~~~~~~~~
+
+Typically the cardinality of an expression can be statically
+determined from the individual parts. Sometimes it is necessary to
+specify the cardinality explicitly. For example, when using
+computables in shapes it may be desirable to specify the cardinality
+of the computable because it affects serialization.
+
+.. code-block:: eql
+
+    WITH
+        MODULE example
+    SELECT User {
+        name,
+        nicknames := (
+            WITH CARDINALITY '*'
+            SELECT 'Foo'
+        )
+    };
+
 
 Views
 ~~~~~
