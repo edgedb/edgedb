@@ -158,6 +158,8 @@ String functions
 Set aggregate functions
 -----------------------
 
+.. _ref_edgeql_functions_count:
+
 .. function:: count(any) -> int
 
     Return the number of elements in a set.

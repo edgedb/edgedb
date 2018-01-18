@@ -4,17 +4,6 @@
 Fundamentals
 ============
 
-.. functional declarative statically typed language
-
-.. graphs -> data -> queries
-
-    .. schema -> paths -> shapes
-    .. data graph
-    .. multiset -> set (brevity)
-    .. set of paths -> path
-
-.. functions: SET OF / [OPTIONAL] element-wise
-
 EdgeQL is the query language used to work with EdgeDB and it has been
 designed to work with objects, their properties and relations. It is a
 declarative functional statically typed language. Conceptually every
@@ -40,23 +29,22 @@ description of all of the legal data types and link types.
 Paths
 +++++
 
-Consider a path (allowing repeating nodes and edges) through the data
-graph. The path effectively represents a mapping of the starting node
-onto the target node. An EdgeQL *path expression* represents a set of
-such paths. For example, ``Issue.owner`` is a path expression that
-represents a set of paths that start at all of the ``Issue`` nodes and
-follow the edges from the ``owner`` set. Path expressions typically
-start with a *concept* (e.g. ``Issue``) defining a set of starting
-nodes. Then a ``.``-separated sequence of links that are legally
-reachable according to the schema determines the sequence of edges
-that must be followed (e.g. ``Issue.owner`` and ``Issue.owner.email``
-are legal path expressions, but ``Issue.email`` is not). Path
-expressions themselves represent a valid set of nodes (the end-nodes
-of all the paths in the data graph). So Path expressions evaluate to
-the collection of values contained in the set of target nodes. Note
-that every path is the set denoted by the path expression **must**
-include every edge specified by the links, no partial paths are
-allowed.
+Consider a path through the data graph. The path effectively
+represents a mapping of the starting node onto the target node. An
+EdgeQL *path expression* represents a set of such paths. For example,
+``Issue.owner`` is a path expression that represents a set of paths
+that start at all of the ``Issue`` nodes and follow the edges from the
+``owner`` set. Path expressions typically start with a *concept* (e.g.
+``Issue``) defining a set of starting nodes. Then a ``.``-separated
+sequence of links that are legally reachable according to the schema
+determines the sequence of edges that must be followed (e.g.
+``Issue.owner`` and ``Issue.owner.email`` are legal path expressions,
+but ``Issue.email`` is not). Path expressions themselves represent a
+valid set of nodes (the end-nodes of all the paths in the data graph).
+So Path expressions evaluate to the collection of values contained in
+the set of target nodes. Note that every path is the set denoted by
+the path expression **must** include every edge specified by the
+links, no partial paths are allowed.
 
 In EdgeQL we use path expressions to represent the set of target nodes
 (we also treat ``Issue`` as a trivial 0-edge path where the target set
@@ -75,6 +63,25 @@ via graph edges.
     collection of values of the set of target nodes.
 
     The first element of a *path* is often called its *root*.
+
+.. _ref_edgeql_fundamentals_same:
+
+There's also a basic principle in EdgeQL that *the same symbol refers
+to the same thing* (in absence ``DETACHED`` keyword). This is fairly
+intuitive for simple expressions involving paths with a common prefix
+(shared symbol) such as:
+
+.. code-block:: eql
+
+    WITH MODULE example
+    SELECT (User.first_name, User.last_name);
+
+The query, in fact, does select a set of tuples containing first and
+last names of each user. The path prefix ``User`` refers to the same
+entity in both parts of the expression. Typically this property makes
+it easier to write concise queries without having to worry about
+accidentally introducing a cross-product from all possible
+combinations.
 
 For a complete description of paths refer to
 :ref:`this section<ref_edgeql_paths>`.
@@ -145,6 +152,231 @@ with duplicates.
 Functions
 ---------
 
+EdgeQL is a functional language in the sense that every query
+expression can be represented as a composition of set functions. So
+every clause and operator in EdgeQL are conceptually equivalent to
+some set function. User-defined functions also follow the same base
+principles.
+
+A set function takes zero or more sets as input and produces a set as
+output. For simplicity, consider a set function with only one input
+parameter. Any given input set can be handled by the function in one
+of the following ways:
+
+- Element-wise.
+
+  The output set can be derived by applying the same function to each
+  individual input element (taken as a singleton) and merging the
+  result with a union. This element-wise nature of a function is
+  typical of basic arithmetic
+  :ref:`operators<ref_edgeql_expressions_elops>`. This is also the
+  default for user-defined functions in EdgeQL.
+
+  .. code-block:: eschema
+
+    # schema definition of a function that will be
+    # applied in an element-wise fashion
+    function plus_ten(int) -> int:
+        from edgeql :>
+            SELECT $0 + 10;
+
+  In the above example only the input type without any additional
+  qualifiers is given. This means that the function will be
+  interpreted as an element-wise function. In particular this means
+  that it will *not* be called on empty sets, since the result of any
+  element-wise function applied to an empty set is an empty set.
+
+- Element-wise with special handling of the empty set.
+
+  For non-empty inputs the output set is produced exactly the same way
+  as for a regular element-wise case. However, the function will be
+  invoked for empty set input as well since it may produce some
+  special output even in this case.
+
+  .. code-block:: eschema
+
+    # schema definition of a function that will be
+    # applied in an element-wise fashion with special
+    # handling of empty input
+    function plus_ten2(optional int) -> int:
+        from edgeql :>
+            SELECT $0 + 10 IF EXISTS $0 ELSE 10;
+
+  The above example works just like ``plus_ten``, but in addition
+  produces the result of ``10`` even when the input is an empty set.
+  Note that without the ``optional`` keyword ``plus_ten2`` would be
+  functionally identical to ``plus_ten`` as it would never be invoked
+  on empty input (regardless of the fact that it is capable of
+  producing a non-empty result for it).
+
+  This type of input handling is used by many EdgeQL operators. For
+  example, it is used by the
+  :ref:`coalescing operator<ref_edgeql_expressions_elops>` ``??``.
+
+- Set as a whole.
+
+  The output set is somehow dependent on the entire input set and
+  cannot be produced by merging outputs in an element-wise fashion.
+  This is typical of
+  :ref:`aggregate functions<ref_edgeql_functions_count>`, such as
+  ``sum`` or ``count``.
+
+  .. code-block:: eschema
+
+    # schema definition of a function that will be
+    # applied to the input set as a whole
+    function conatins_ten(set of int) -> bool:
+        from edgeql :>
+            SELECT 10 IN $0;
+
+  The keywords ``set of`` mean that the input set works as a single
+  entity. The output set for ``contains_ten`` is always a boolean
+  singleton (either ``{TRUE}`` or ``{FALSE}``) and is independent of
+  the input size.
+
+It is important to note that these are technically properties of
+function *parameters* and not the function overall. It is perfectly
+possible to have a function that behaves in an element-wise fashion
+w.r.t. one parameter and is aggregate-like w.r.t. another. In fact,
+the EdgeQL :ref:`operator<ref_edgeql_expressions>` ``IN`` has exactly
+this property.
+
+There's another important interaction of function arguments. As long
+as the arguments are independent of each other (i.e. they use
+different symbols) the qualifiers in the function definition govern
+how the function is applied as per the above. However, if the
+arguments are dependent (i.e. they use the same symbols) then there's
+an additional rule to resolve how the function is applied:
+
+.. note::
+
+    If even one of the arguments is element-wise, all arguments that
+    are related to it must behave in an element-wise fashion
+    regardless of the qualifiers.
+
+This rule basically takes the principle that ":ref:`the same symbol
+refers to the same thing<ref_edgeql_fundamentals_same>`" and applies
+it to the function arguments. That's why if some symbol is interpreted
+as an element-wise argument then it must be element-wise for all other
+arguments of the same function.
+
+Consider the following query:
+
+.. code-block:: eql
+
+    # the signature of built-in 'count':
+    # function count(SET OF any) -> int
+
+    WITH MODULE example
+    SELECT count(Issue.watchers);
+
+The function ``count`` normally treats the argument set as a whole, so
+the query above counts the total number of distinct issue watchers. To
+get a count of issue watchers on a per-issue basis, the following
+query is needed:
+
+.. code-block:: eql
+
+    WITH MODULE example
+    SELECT (Issue, count(Issue.watchers));
+
+Tuples behave like element-wise functions w.r.t. all of their
+elements. This means that the symbol ``Issue`` is treated as an
+element-wise argument in this context. This, in turn, means that it
+``count`` is evaluated separately for each element of ``Issue``. So
+the result is a set of tuples containing an issue and a watchers count for
+that specific issue much like the simpler example of :ref:`user
+name<ref_edgeql_fundamentals_same>`.
+
+
+.. _ref_edgeql_fundamentals_scope:
+
+Scope
+-----
+
+.. this section is going to need some more coherence
+
+Scoping rules build on top of another rule: same symbol means the same
+thing (in particular that means that same path prefixes mean the same
+thing anywhere in the expression). Scoping rules specify when the same
+symbols may refer to *different* entities. So the full rule can be
+stated as follows:
+
+.. note::
+
+    Same symbols mean the same thing within any specific scope.
+
+Every EdgeQL statement exists in its own scope. One can also envision
+the current state of the DB as a base scope (or schema-level scope)
+within which statements are defined. This schema-level scope notion is
+relevant for understanding how ``DETACHED`` keyword works.
+
+What creates a new scope? Any time a function with a ``SET OF``
+argument is called, that argument exists in its own sub-scope (or
+nested scope). Any nested scope is affected by all the enclosing
+scopes, but any further refinement of a symbol's semantics do not
+propagate back up. This also means that parallel (or sibling) scopes
+do not affect each other's semantics.
+
+.. code-block:: eql
+
+    # Select first and last name for each user.
+    WITH MODULE example
+    SELECT (User.first_name,
+            # this mention of 'User' is the same
+            # as the one above
+            User.last_name);
+
+    # Select the counts of first and last names.
+    # This is kind of trivial, but
+    WITH MODULE example
+    SELECT (
+        # The argument to 'count' exists in its own sub-scope.
+        # User.first_name and User.last_name in that sub-scope are
+        # treated element-wise.
+        count(User.first_name + User.last_name),
+
+        # The argument to 'count' exists in a different sub-scope.
+        # User.email in this sub-scope is not related to the
+        # User.last_name above.
+        count(User.email)
+    );
+
+Due to parallel sub-scopes, both ``count`` expressions are evaluated
+on the input sets as a whole and not on a per-user basis like in a
+tuple.
+
+The ``DETACHED`` keyword creates a whole new scope, parallel to the
+statement in which it appears, nested directly in the schema-level
+scope.
+
+.. code-block:: eql
+
+    # select first and last name for each user
+    WITH MODULE example
+    SELECT (User.first_name,
+            # this mention of 'User' is the same
+            # as the one above
+            User.last_name);
+
+    # select all possible combinations of first and last names
+    WITH MODULE example
+    SELECT (User.first_name,
+            # DETACHED keyword makes this mention of 'User'
+            # completely unrelated to the one above
+            DETACHED User.last_name);
+
+One way to interpret any query is to follow these steps:
+
+1) Lexically substitute any aliases recursively until no aliases are used.
+
+2) Find all ``DETACHED`` expressions and treat them as entirely
+   separate from anything else within the statement. One way to think
+   of this is to imagine that there's actually a schema-level view
+   defined for each of the ``DETACHED`` expressions.
+
+3) Resolve whether each particular function will be evaluated element-
+   wise or not based on the ``SET OF`` scoping rules.
 
 .. THE BELOW IS STILL IN PROCESS OF REWRITING
 

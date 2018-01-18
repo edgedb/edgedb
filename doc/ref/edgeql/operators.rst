@@ -377,6 +377,8 @@ Basic set operators:
     ``Issue`` without priority.
 
 
+.. _ref_edgeql_expressions_elops:
+
 Element operations
 ------------------
 
