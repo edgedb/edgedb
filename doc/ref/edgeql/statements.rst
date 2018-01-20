@@ -4,47 +4,49 @@
 Statements
 ==========
 
-.. TODO::
+Statements in EdgeQL represent an atomic interaction with the DB. From
+the point of view of a statement all side-effects (such as DB updates)
+happen after the statement is executed. So as far as each statement is
+concerned, it is some purely functional expression evaluated on some
+specific input (DB state).
 
-    This section needs a significant re-write w.r.t usage of FOR.
-
-EdgeQL has Select_, Group_, For_, Insert_, Update_, and Delete_
-statements for managing the data in the DB. Each of these statements
-can also be used as an *expression* if it is enclosed in parentheses,
-in which case they also return a value.
+Statements consist of building blocks called `clauses`. Each `clause`
+can be represented as an equivalent set function of a certain
+signature. Understanding how :ref:`how functions
+work<ref_edgeql_fundamentals_function>` helps in understanding
+`clauses`. A statement is effectively a data pipeline made out of
+`clauses`. Unlike functions and operators `clauses` cannot be
+arbitrarily mixed, but must follow specific patterns. EdgeQL has
+Select_, Group_, For_, Insert_, Update_, and Delete_ statements for
+managing the data in the DB. Each of these statements can also be used
+as an *expression* if it is enclosed in parentheses, in which case
+they also return a value.
 
 .. note::
 
     Running ``INSERT`` and other DML statements bare in repl yields
     the cardinality of the affected set.
 
-Every statement consists of 2 blocks: :ref:`with
-block<ref_edgeql_with>` and *main* statement block. Each of the blocks
-defines its own scope which is relevant for
-:ref:`how paths are interpreted <ref_edgeql_paths>`. In the following
-examples, however, the ``WITH`` block will only be used for declaring
-the ``MODULE`` for simplicity. The *main* block is a sequence of
-clauses, where each clause is a
-:ref:`set operation<ref_edgeql_expressions_setops>` modifying the
-data the statement produces. The data flow can be seen as top-to-
-bottom from more general to the more specific. Mathematically each
-clause is a function that takes a set as input and produces a set as
-output and each such function is applied to the output of the previous
-clause.
+Every statement starts with an optional :ref:`with block<ref_edgeql_with>`.
+A ``WITH`` block defines symbols that can be used in the rest of the
+statement. To keep things simple, in the examples below ``WITH`` block
+is only used to define a default ``MODULE``. It is not necessary
+because every ``concept`` can be referred to by a fully qualified name
+(e.g. ``example::User``), but specifying a default ``MODULE`` makes it
+possible to just use short names (e.g. ``User``).
+
 
 Select
 ------
 
-A ``SELECT`` statement returns a set of objects. By default it is
-assumed to be a set of arbitrary cardinality. In case of various kinds
-of serialization this may affect how the result is treated.
-
-The data flow of a ``SELECT`` block can be conceptualized like this:
+A ``SELECT`` statement returns a set of objects. The data flow of a
+``SELECT`` block can be conceptualized like this:
 
 .. code-block:: pseudo-eql
 
     WITH MODULE example
 
+    # select clause
     SELECT
         <expr>  # compute a set of things
 
@@ -57,14 +59,18 @@ The data flow of a ``SELECT`` block can be conceptualized like this:
         <expr>  # define ordering of the filtered set
 
     # optional clause
-    OFFSET/LIMIT
+    OFFSET
+        <expr>  # slice the filtered/ordered set
+
+    # optional clause
+    LIMIT
         <expr>  # slice the filtered/ordered set
 
 Please note that the ``ORDER BY`` clause defines ordering that can
 only be relied upon only if the resulting set is not used in any other
-operation. ``OFFSET`` and ``LIMIT`` clauses are the only exception to
-that rule as they preserve the inherent ordering of the underlying
-set.
+operation. ``SELECT``, ``OFFSET`` and ``LIMIT`` clauses are the only
+exception to that rule as they preserve the inherent ordering of the
+underlying set.
 
 Consider an example using only the ``FILTER`` optional clause:
 
@@ -84,18 +90,14 @@ The above example retrieves a single user with a specific name. The
 fact that there is only one such user is a detail that can be well-
 known and important to the creator of the DB, but otherwise non-
 obvious. However, forcing the cardinality to be at most 1 by using the
-keyword ``CARDINALITY`` ensures that a set with a single object or
+``LIMIT`` clause ensures that a set with a single object or
 ``{}`` is returned. This way any further code that relies on the
 result of this query can safely assume there's only one result
-available. In case EdgeDB generates more than one result for this
-query, it is going to cause a runtime error in the EdgeDB code, making
-it easier to debug.
+available.
 
 .. code-block:: eql
 
-    WITH
-        MODULE example,
-        CARDINALITY '1'
+    WITH MODULE example
     SELECT User {
         name,
         <owned: Issue {
@@ -103,9 +105,10 @@ it easier to debug.
             body
         }
     }
-    FILTER User.name LIKE 'Alice%';
+    FILTER User.name LIKE 'Alice%'
+    LIMIT 1;
 
-Next example adds the use of ``ORDER BY`` and ``LIMIT`` clauses:
+Next example makes use of ``ORDER BY`` and ``LIMIT`` clauses:
 
 .. code-block:: eql
 
@@ -125,6 +128,55 @@ Next example adds the use of ``ORDER BY`` and ``LIMIT`` clauses:
 
 The above query retrieves the top 3 open Issues with the closest due
 date.
+
+
+Filter
+++++++
+
+The ``FILTER`` clause cannot affect anything aggregate-like in the
+preceding ``SELECT`` clause. This is due to how ``FILTER`` clause
+works. It can be conceptualized as a function like ``filter($input,
+SET OF $cond)``, where the ``$input`` represents the value of the
+preceding clause, while the ``$cond`` represents the filtering
+condition expression. Consider the following:
+
+.. code-block:: eql
+
+    WITH MODULE example
+    SELECT count(User)
+    FILTER User.name LIKE 'Alice%';
+
+The above can be conceptualized as:
+
+.. code-block:: eql
+
+    WITH MODULE example
+    SELECT filter(
+        count(User),
+        User.name LIKE 'Alice%'
+    );
+
+In this form it is more apparent that ``User`` is a ``SET OF``
+argument (of ``count``), while ``User.name LIKE 'Alice%'`` is also a
+``SET OF`` argument (of ``filter``). So the symbol ``User`` in these
+two expressions exists in 2 parallel scopes. Contrast it with:
+
+.. code-block:: eql
+
+    # This will actually only count users
+    # whose name starts with 'Alice'
+    WITH MODULE example
+    SELECT count(
+        (SELECT User
+         FILTER User.name LIKE 'Alice%')
+    );
+
+    # which can be represented as:
+    WITH MODULE example
+    SELECT count(
+        filter(User,
+               User.name LIKE 'Alice%')
+    );
 
 
 .. _ref_edgeql_statements_group:
@@ -646,6 +698,8 @@ not typically used to query the DB.
 With block
 ----------
 
+.. needs a rewrite
+
 The ``WITH`` block in EdgeQL is used to define scope and aliases.
 
 Specifying a module
@@ -757,3 +811,19 @@ issues as someone else:
             SELECT U2.<owner[IS Issue]
             FILTER U2 != User
         ));
+
+
+Transactions
+------------
+
+Statements can also be grouped into `transactions` to prevent any
+other statements altering the DB state unpredictably while the
+transaction is executing. This effectively makes a group of statements
+behave as an atomic unit. The statements in a transaction dictate an
+imperative execution sequence. Transactions can also be nested within
+each other. ``START TRANSACTION`` initiates a new (sub-)transaction.
+It can be committed to the DB making the changes visible to any other
+queries by using a ``COMMIT`` statement. Alternatively, the
+transaction changes may be discarded by using ``ROLLBACK`` statement.
+Note that ``COMMIT`` and ``ROLLBACK`` affect only the innermost
+transaction if the transactions are nested.

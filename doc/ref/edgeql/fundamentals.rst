@@ -31,10 +31,10 @@ Paths
 
 Consider a path through the data graph. The path effectively
 represents a mapping of the starting node onto the target node. An
-EdgeQL *path expression* represents a set of such paths. For example,
+EdgeQL `path expression` represents a set of such paths. For example,
 ``Issue.owner`` is a path expression that represents a set of paths
 that start at all of the ``Issue`` nodes and follow the edges from the
-``owner`` set. Path expressions typically start with a *concept* (e.g.
+``owner`` set. Path expressions typically start with a `concept` (e.g.
 ``Issue``) defining a set of starting nodes. Then a ``.``-separated
 sequence of links that are legally reachable according to the schema
 determines the sequence of edges that must be followed (e.g.
@@ -54,15 +54,15 @@ via graph edges.
 
 .. note::
 
-    For brevity, this documentation refers to a *path expression* as
-    simply a *path* everywhere else. In the rare instances when
+    For brevity, this documentation refers to a `path expression` as
+    simply a `path` everywhere else. In the rare instances when
     disambiguation is needed, *data graph path* and *path expression*
     is used explicitly.
 
-    Similarly, the *value* of a *path* is intended to mean the
+    Similarly, the `value` of a `path` is intended to mean the
     collection of values of the set of target nodes.
 
-    The first element of a *path* is often called its *root*.
+    The first element of a `path` is often called its `root`.
 
 .. _ref_edgeql_fundamentals_same:
 
@@ -84,13 +84,13 @@ accidentally introducing a cross-product from all possible
 combinations.
 
 For a complete description of paths refer to
-:ref:`this section<ref_edgeql_paths>`.
+:ref:`this section<ref_edgeql_fundamentals_path>`.
 
 Shapes
 ++++++
 
 Shapes are a way to specify entire sets of trees in the data graph.
-The first element of the shape is the *root* of the tree. The nested
+The first element of the shape is the `root` of the tree. The nested
 structure consists of various legally reachable links.
 
 .. code-block:: eql
@@ -118,36 +118,38 @@ For a complete description of shapes refer to
 Multisets
 +++++++++
 
-Every EdgeQL expression evaluates to a non-nested *multiset* (a set
+Every EdgeQL expression evaluates to a non-nested `multiset` (a set
 that allows duplicate elements) of some data. However, it's worth
-nothing that some of the basic building blocks always produce *sets*
+nothing that some of the basic building blocks always produce `sets`
 (i.e. they guarantee that there are no duplicate elements).
 Specifically paths that end with a link which is pointing to a
-*concept* (e.g. ``Issue.owner``) always produce sets of unique
+`concept` (e.g. ``Issue.owner``) always produce sets of unique
 objects. This is due to 2 properties of EdgeDB:
 
-1) No two data graph nodes contain the same *object*.
+1) No two data graph nodes contain the same `object`.
 
 2) The value of a path is given by the collection of the values within
-   the *set* of target data graph nodes.
+   the `set` of target data graph nodes.
 
 So because a path expression denotes a set of unique data graph nodes,
-it follows that it also evaluates to a unique set of *objects* from
+it follows that it also evaluates to a unique set of `objects` from
 those nodes.
 
-This is not true for a path targeting an *atom* (or any non-concept).
+This is not true for a path targeting an `atom` (or any non-concept).
 Multiple graph nodes are allowed to contain the same atomic value. So
-a path like ``Issue.time_estimate`` could evaluate to a *multiset*
+a path like ``Issue.time_estimate`` could evaluate to a `multiset`
 with duplicates.
 
 .. note::
 
-    For the sake of brevity, this documentation uses the word *sets*
+    For the sake of brevity, this documentation uses the word `sets`
     when referring to expression values. It is to be understood that
-    in the general case this implies a *multiset* instead. When a
+    in the general case this implies a `multiset` instead. When a
     disambiguation is necessary the uniqueness of elements is
     explicitly addressed.
 
+
+.. _ref_edgeql_fundamentals_function:
 
 Functions
 ---------
@@ -235,7 +237,7 @@ of the following ways:
   the input size.
 
 It is important to note that these are technically properties of
-function *parameters* and not the function overall. It is perfectly
+function `parameters` and not the function overall. It is perfectly
 possible to have a function that behaves in an element-wise fashion
 w.r.t. one parameter and is aggregate-like w.r.t. another. In fact,
 the EdgeQL :ref:`operator<ref_edgeql_expressions>` ``IN`` has exactly
@@ -378,92 +380,164 @@ One way to interpret any query is to follow these steps:
 3) Resolve whether each particular function will be evaluated element-
    wise or not based on the ``SET OF`` scoping rules.
 
-.. THE BELOW IS STILL IN PROCESS OF REWRITING
 
-For the purposes of this section we will use the following schema that
-is assumed to be part of the module ``example``:
+.. _ref_edgeql_fundamentals_path:
+
+.. potentially this section should be moved into operators since it
+   covers `.`, `.>`, `.<`, `[IS ...]`, and `@`
+
+Path Expressions
+----------------
+
+Path expressions (typically referred to as simply `paths`) are
+fundamental building blocks of EdgeQL. A path defines a set of data in
+EdgeDB (just like any other expression) based on the data type and
+relationship with other data.
+
+A path always starts with some ``concept`` as its `root` and it may
+have an arbitrary number of `steps` following various ``links``. The
+simplest path consists only of a `root` and is interpreted to mean
+'all objects of the type `root`'.
+
+.. code-block:: eql
+
+    WITH MODULE example
+    SELECT Issue;
+
+In the above example ``Issue`` is a path that represents all objects in
+the database of type ``Issue``. That is the result of the above query.
+
+.. code-block:: eql
+
+    WITH MODULE example
+    SELECT Issue.owner;
+
+The path ``Issue.owner`` consists of the `root` ``Issue`` and a `path
+step` ``.owner``. It specifies the set of all objects that can be
+reached from any object of type ``Issue`` by following its link
+``owner``. This means that the above query will only retrieve users
+that actually have at least one issue. The ``.`` operator in the path
+separates `steps` and each step corresponds to a ``link`` name that
+must be followed. By default, links are followed in the `outbound`
+direction (the direction that is actually specified in the schema).
+The direction of the link can be also specified explicitly by using
+``>`` for `outbound` and ``<`` for `inbound`. Thus, the above query can be
+rewritten more explicitly, but equivalently as:
+
+.. code-block:: eql
+
+    WITH MODULE example
+    SELECT Issue.>owner;
+
+To select all issues that actually have at least one watcher, it is
+possible to construct a path using `inbound` link:
+
+.. code-block:: eql
+
+    WITH MODULE example
+    SELECT User.<watchers;
+
+The path in the above query specifies the set of all objects that can
+be reached from ``User`` by following any ``link`` named ``watchers``
+that has ``User`` as its target, back to the source of the ``link``.
+In our case, there is only one link in the schema that is called
+``watchers``. This link belongs to ``Issue`` and indeed it has
+``User`` as its target, so the above query will get all the ``Issue``
+objects that have at least one watcher. Only links that have a concept
+as their target can be followed in the `inbound` direction. It is not
+possible to follow inbound links on atoms.
+
+Just like the direction of the step can be specified explicitly in a
+path, so can the type of the link target. In order to retrieve all the
+``SystemUsers`` that have actually created new ``Issues`` (as opposed
+to ``Comments``) the following query could be made:
+
+.. code-block:: eql
+
+    WITH MODULE example
+    SELECT Issue.owner[IS SystemUser];
+
+In the above query the `path step` is expressed as ``owner[IS
+SystemUser]``, where ``owner`` is the name of the link to follow, and
+the qualifier ``[IS ...]`` specifies a restriction on the target's
+type.
+
+This is equivalent to:
+
+.. code-block:: eql
+
+    WITH MODULE example
+    SELECT Issue.owner
+    FILTER Issue.owner IS SystemUser;
+
+The biggest difference between the two of the above representations is
+that ``[IS SystemUser]`` allows to refer to links specific to
+``SystemUser``.
+
+Finally combining all of the above, it is possible to write a query to
+retrieve all the ``Comments`` to ``Issues`` created by ``SystemUsers``:
+
+.. code-block:: eql
+
+    WITH MODULE example
+    SELECT SystemUser.<owner[IS Issue].<issue;
+
+    # or equivalently
+
+    WITH MODULE example
+    SELECT SystemUser
+        # follow the link 'owner' to a source Issue
+        .<owner[IS Issue]
+        # follow the link 'issue' to a source Comment
+        .<issue[IS Comment];
+
+.. note::
+
+    Links technically also belong to a module. Typically, the module
+    doesn't need to be specified (because it is the default module or
+    the link name is unambiguous), but sometimes it is necessary to
+    specify the link module explicitly. The entire fully-qualified
+    link name then needs to be enclosed in parentheses:
+
+    .. code-block:: eql
+
+        WITH MODULE some_module
+        SELECT A.(another_module::foo).bar;
+
+Link properties
++++++++++++++++
+
+It is possible to have a path that represents a set of link properties
+as opposed to link target values. Since link properties have to be
+atomic, the step pointing to the link property is always the last step
+in a path. The link property is accessed by using ``@`` instead
+of ``.``.
+
+Consider the following schema:
 
 .. code-block:: eschema
 
-    abstract concept Text:
-        # This is an abstract object containing text.
-        required link body to str:
-            # Maximum length of text is 10000
-            # characters.
-            constraint maxlength(10000)
+    link favorites:
+        link property rank to int
 
-    concept User extending std::Named
-    # NamedObject is a standard abstract base class,
-    # that provides a name link.
-
-    concept SystemUser extending std::User
-    # a type of user that represents various automatic systems, that
-    # might add comments to issues, perhaps based on some automatic
-    # escalation system for unresolved higher priority issues
-
-    abstract concept Owned:
-        # By default links are optional.
+    concept Post:
+        required link body to str
         required link owner to User
 
-    concept Status extending std::Dictionary
-    # Dictionary is a NamedObject variant, that enforces
-    # name uniqueness across all instances if its subclass.
-
-    concept Priority extending std::Dictionary
-
-    concept LogEntry extending OwnedObject, Text:
-        # LogEntry is an OwnedObject and a Text, so it
-        # will have all of their links and attributes,
-        # in particular, owner and text links.
-        required link spent_time to int
-
-    atom issue_num_t extending std::sequence
-    # issue_num_t is defined as a concrete sequence type,
-    # used to generate sequential issue numbers.
-
-    concept Comment extending Text, Owned:
-        required link issue to Issue
-        link parent to Comment
-
-    concept Issue extending std::Named, Owned, Text:
-
-        required link number to issue_num_t:
-            readonly := true
-            # The number values are automatically generated,
-            # and are not supposed to be directly writable.
-
-        required link status to Status
-
-        link priority to Priority
-
-        link watchers to User:
-            mapping := '**'
-            # The watchers link is mapped to User concept in
-            # many-to-many relation.  The default mapping is
-            # *1 -- many-to-one.
-
-        link time_estimate to int
-
-        link time_spent_log to LogEntry:
-            mapping := '1*'
-            # 1* -- one-to-many mapping.
-
-        link start_date to datetime:
-            default := SELECT datetime::current_datetime()
-            # The default value of start_date will be a
-            # result of the EdgeQL expression above.
-
-        link due_date to datetime
-
-        link related_to to Issue:
+    concept User extending std::Named:
+        link favorites to Post:
             mapping := '**'
 
-This schema represents the data model for an issue tracker. There
-are ``Users``, who can create an ``Issue``, add a ``Comment`` to an
-``Issue``, or add a ``LogEntry`` to document work on a particular
-``Issue``. ``Issues`` can be related to each other. A ``User`` can
-watch any ``Issue``. Every ``Issue`` has a ``Status`` and possibly a
-``Priority``.
+Then the query selecting all favorite Post sorted by their rank is:
+
+.. code-block:: eql
+
+    WITH MODULE example
+    SELECT User.favorites
+    ORDER BY User.favorites@rank;
+
+
+.. THE BELOW IS STILL IN PROCESS OF REWRITING
 
 The general structure of a simple EdgeQL query::
 
@@ -566,7 +640,7 @@ The above query will return a set of 2-tuples containing the values of issue
 expressions as a whole opaque entity or serialized for some external
 use. This construct is similar to selecting individual columns in SQL
 except that the column name is lost. If structural information is
-important *shapes* should be used instead.
+important `shapes` should be used instead.
 
 
 .. include:: paths.rst
@@ -589,8 +663,8 @@ it is always implicitly included since the shape is always based on an
 object.
 
 Shapes allow retrieving not only a set of objects, but to also
-represent that set as a *forest*, where each base object is the root
-of a *tree*. Technically, this set of trees is a directed graph
+represent that set as a `forest`, where each base object is the root
+of a `tree`. Technically, this set of trees is a directed graph
 possibly even containing cycles. However, the serialized
 representation is based on a set of trees (or nested JSON).
 
@@ -651,7 +725,7 @@ Using shapes
 ------------
 
 :ref:`Shapes<ref_edgeql_shapes>` are the way of specifying structured
-object data. They are used to get not only a set of *objects*, but
+object data. They are used to get not only a set of `objects`, but
 also a set of their relationships in a structured way. Shape
 specification can be added to any expression that denotes an object.
 Fundamentally, a shape specification does not alter the identity of
@@ -736,4 +810,4 @@ some issues the names and bodies of these issues should be included in
 the returned value. The query effectively says 'please return the set
 of *all* users and provide this specific information for each of them
 if available'. This is one of the important differences between
-*shape* specification and a :ref:`path<ref_edgeql_paths>`.
+`shape` specification and a :ref:`path<ref_edgeql_paths>`.
