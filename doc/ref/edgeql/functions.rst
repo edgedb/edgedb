@@ -57,7 +57,7 @@ Array functions
 
 .. _ref_edgeql_functions_array_agg:
 
-.. function:: array_agg(any) -> any
+.. function:: array_agg(SET OF any) -> any
 
     Return the array made from all of the input set elements. The
     ordering of the input set will be preserved if specified.
@@ -100,7 +100,7 @@ Array functions
         guaranteed.
 
 
-.. function:: array_unpack(array<any>) -> any
+.. function:: array_unpack(array<any>) -> SET OF any
 
     Return array elements as a set.
 
@@ -160,7 +160,7 @@ Set aggregate functions
 
 .. _ref_edgeql_functions_count:
 
-.. function:: count(any) -> int
+.. function:: count(SET OF any) -> int
 
     Return the number of elements in a set.
 
@@ -172,7 +172,7 @@ Set aggregate functions
         SELECT count(User);
         # returns the number of User objects in the DB
 
-.. function:: sum(number) -> number
+.. function:: sum(SET OF number) -> number
 
     Return the sum of the set of numbers. The numbers have to be
     either ``int`` or ``float``.

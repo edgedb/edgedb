@@ -67,12 +67,18 @@ A ``SELECT`` statement returns a set of objects. The data flow of a
         <expr>  # slice the filtered/ordered set
 
 Please note that the ``ORDER BY`` clause defines ordering that can
-only be relied upon only if the resulting set is not used in any other
+only be relied upon if the resulting set is not used in any other
 operation. ``SELECT``, ``OFFSET`` and ``LIMIT`` clauses are the only
 exception to that rule as they preserve the inherent ordering of the
 underlying set.
 
-Consider an example using only the ``FILTER`` optional clause:
+The first clause is ``SELECT``. It indicates that ``FILTER``, ``ORDER
+BY``, ``OFFSET``, or ``LIMIT`` clauses may follow an expression, i.e.
+it makes an expression into a ``SELECT`` statement. Without any of the
+optional clauses a ``(SELECT Expr)`` is completely equivalent to
+``Expr`` for any expression ``Expr``.
+
+Consider an example using the ``FILTER`` optional clause:
 
 .. code-block:: eql
 
@@ -163,8 +169,9 @@ two expressions exists in 2 parallel scopes. Contrast it with:
 
 .. code-block:: eql
 
-    # This will actually only count users
-    # whose name starts with 'Alice'
+    # This will actually only count users whose name starts with
+    # 'Alice'.
+
     WITH MODULE example
     SELECT count(
         (SELECT User
@@ -188,13 +195,12 @@ A ``GROUP`` statement is used to allow operations on set partitions.
 The input set is partitioned using expressions in the ``USING`` and
 ``BY`` clauses, and then for each partition the expression in the
 ``UNION`` clause is evaluated and merged with the rest of the results
-via a ``UNION ALL`` (or ``UNION`` for Objects). There are various
-useful functions that require a set of values as their input -
-aggregate functions. Simple aggregate function examples include
-``count``, ``sum``, ``array_agg``. All of these are functions that map
-a set of values onto a single value. A ``GROUP`` statement allows to
-use aggregate functions to compute various properties of set
-partitions.
+via a ``UNION``. There are various useful functions that require a set
+of values as their input - aggregate functions. Simple aggregate
+function examples include ``count``, ``sum``, ``array_agg``. All of
+these are functions that map a set of values onto a single value. A
+``GROUP`` statement allows to use aggregate functions to compute
+various properties of set partitions.
 
 The data flow of a ``GROUP`` block can be conceptualized like this:
 
@@ -203,7 +209,7 @@ The data flow of a ``GROUP`` block can be conceptualized like this:
     WITH MODULE example
 
     GROUP
-        <alias0> := <expr>  # define a set to partition
+        <alias0> := <expr>      # define a set to partition
 
     USING
 
@@ -216,14 +222,13 @@ The data flow of a ``GROUP`` block can be conceptualized like this:
         <alias1>, ... <aliasN>  # specify which parameters will
                                 # be used to partition the set
 
-    UNION
-        <expr>  # map every grouped set onto a result set,
-                # merging them all with a UNION ALL (or UNION for
-                # Objects)
-
     INTO
         <sub_alias> # provide an alias to refer to the subsets
                     # in expressions
+
+    UNION
+        <expr>  # map every grouped set onto a result set,
+                # merging them all with a UNION
 
     # optional clause
     FILTER
@@ -234,12 +239,16 @@ The data flow of a ``GROUP`` block can be conceptualized like this:
         <expr>  # define ordering of the filtered set
 
     # optional clause
-    OFFSET/LIMIT
+    OFFSET
         <expr>  # slice the filtered/ordered set
 
-Notice that defining aliases in ``GROUP`` and ``USING`` clauses is
+    # optional clause
+    LIMIT
+        <expr>  # slice the filtered/ordered set
+
+Notice that defining aliases in ``USING`` clause is
 mandatory. Only the names defined in ``USING`` clause are legal in the
-``BY`` clause. Also the names defined in ``GROUP`` and ``USING``
+``BY`` clause. Also the names defined in ``USING`` and ``INTO``
 clauses allow to unambiguously refer to the specific grouping subset
 and the relevant grouping parameter values respectively in the
 ``UNION`` clause.
@@ -267,7 +276,7 @@ works.
 
 If there's a need to only look at statistics that end up over a
 certain threshold of total time spent, a ``FILTER`` can be used in
-conjunction with an alias of the ``SELECT`` clause result:
+conjunction with an alias of the ``UNION`` clause result:
 
 .. code-block:: eql
 
@@ -285,8 +294,7 @@ conjunction with an alias of the ``SELECT`` clause result:
 
 The choice of result alias is arbitrary, same as for the ``WITH``
 block. The alias defined here exists in the scope of the ``UNION``
-block and can be used to apply ``FILTER``, ``ORDER BY``, ``OFFSET``
-and ``LIMIT`` clauses.
+block and can be used to apply ``FILTER`` and ``ORDER BY``.
 
 If there's a need to filter the *input* set of Issues, then this can
 be done by using a ``SELECT`` expression at the subject clause of the
@@ -331,7 +339,7 @@ iterate over can be conceptualized like this:
 
     UNION
         <expr>  # map every element onto a result set,
-                # merging them all with a UNION ALL
+                # merging them all with a UNION
 
     # optional clause
     FILTER
@@ -342,8 +350,13 @@ iterate over can be conceptualized like this:
         <expr>  # define ordering of the filtered set
 
     # optional clause
-    OFFSET/LIMIT
+    OFFSET
         <expr>  # slice the filtered/ordered set
+
+    # optional clause
+    LIMIT
+        <expr>  # slice the filtered/ordered set
+
 
 Typically a simple iteration over set elements is used in conjunction
 with an Insert_ or an Update_ statement. This mode is less useful with
@@ -367,16 +380,17 @@ result.
         INTO X
         UNION (INSERT Bar {foo := X});
 
+
 .. _ref_edgeql_forstatement:
 
 Usage of FOR statement
-~~~~~~~~~~~~~~~~~~~~~~
+++++++++++++++++++++++
 
 ``FOR`` statement has some powerful features that deserve to be
 considered in detail separately. However, the common core is that
 ``FOR`` iterates over elements of some arbitrary expression. Then for
 each element of the iterator some set is computed and combined via a
-``UNION`` or ``UNION ALL`` with the other such computed sets.
+``UNION`` with the other such computed sets.
 
 The simplest use case is when the iterator is given by a set
 expression and it follows the general form of ``FOR x IN A ...``:
@@ -688,9 +702,9 @@ Here's a simple example of deleting a specific user:
     DELETE (SELECT User
             FILTER User.name = 'Alice Smith');
 
-Notice that there are no other clauses except ``WITH`` in the
-``DELETE`` statement. This is because it is a mutation statement and
-not typically used to query the DB.
+Notice that there are no other clauses in the ``DELETE`` statement.
+This is because it is a mutation statement and not typically used to
+query the DB.
 
 
 .. _ref_edgeql_with:
@@ -698,12 +712,13 @@ not typically used to query the DB.
 With block
 ----------
 
-.. needs a rewrite
-
-The ``WITH`` block in EdgeQL is used to define scope and aliases.
+The ``WITH`` block in EdgeQL is used to define aliases. All aliases
+can be seen as a shorthand, performing a purely mechanical lexical
+symbol substitution. They are used as convenient syntax sugar rather
+than altering the semantics of a given query.
 
 Specifying a module
-~~~~~~~~~~~~~~~~~~~
++++++++++++++++++++
 
 One of the more basic and common uses of the ``WITH`` block is to
 specify the default module that is used in a query. ``WITH MODULE
@@ -764,7 +779,7 @@ Another use case is for giving short aliases to long module names
 
 
 Cardinality
-~~~~~~~~~~~
++++++++++++
 
 Typically the cardinality of an expression can be statically
 determined from the individual parts. Sometimes it is necessary to
@@ -784,24 +799,59 @@ of the computable because it affects serialization.
         )
     };
 
+Cardinality is normally statically inferred from the query, so
+overruling this inference may only be done to *relax* the cardinality.
+This means that the only valid cardinality specification is
+``CARDINALITY '*'``, when attempting to override a possibility that
+the cardinality is provably ``'1'``.
 
-Views
-~~~~~
 
-It is possible to specify an aliased view in the ``WITH`` block. Since
-every aliased view exists in its own
-:ref:`sub-scope<ref_edgeql_paths_scope>`, aliases can be used to refer
-to different instances of the same *concept* in a query. For example,
-the following query will find all users who own the same number of
-issues as someone else:
+Expressions
++++++++++++
+
+It may be useful to factor out a common sub-expression from a larger
+complex query. This can be done by assigning the sub-expression a new
+symbol in the ``WITH`` block.
+
+.. code-block:: eql
+
+    # Consider a query to get all users that own Issues and the
+    # comments those users made.
+    WITH MODULE example
+    SELECT Issue.owner {
+        name,
+        comments := Issue.owner.<owner[IS Comment]
+    };
+
+    # The above query can be refactored like this:
+    WITH
+        MODULE example,
+        U := Issue.owner
+    SELECT U {
+        name,
+        comments := U.<owner[IS Comment]
+    };
+
+
+Detached
+++++++++
+
+It is possible to specify an aliased view in the ``WITH`` block using
+``DETACHED`` expression. A ``DETACHED`` expression can be interpreted
+as if a schema-level view had been defined for that expression.
+Declaring ``DETACHED`` expressions in the ``WITH`` block creates a way
+to use aliases to refer to different instances of the same *concept*
+in a query. For example, the following query will find all users who
+own the same number of issues as someone else:
 
 .. code-block:: eql
 
     WITH
         MODULE example,
-        U2 := User
+        U2 := DETACHED User
     # U2 and User in the SELECT clause now refer to the same concept,
-    # but different objects
+    # but different objects, as if a schema level view U2 had been
+    # defined.
     SELECT User {
         name,
         issue_count := count(User.<owner[IS Issue])

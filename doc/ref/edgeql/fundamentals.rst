@@ -26,6 +26,8 @@ description of all of the legal data types and link types.
 
 .. insert sample schema and data graph here
 
+.. _ref_edgeql_fundamentals_paths:
+
 Paths
 +++++
 
@@ -114,6 +116,8 @@ tree given the hierarchy of links in the shape.
 For a complete description of shapes refer to
 :ref:`this section<ref_edgeql_shapes>`.
 
+
+.. _ref_edgeql_fundamentals_multisets:
 
 Multisets
 +++++++++

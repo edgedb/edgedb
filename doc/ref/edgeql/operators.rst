@@ -5,33 +5,26 @@ Operators
 =========
 
 Expressions allow to manipulate, query, and modify data in EdgeQL.
+Operators are used to build expressions out of the basic component
+parts: literals, :ref:`paths<ref_edgeql_fundamentals_paths>`,
+:ref:`shapes<ref_edgeql_shapes>`, :ref:`functions<ref_edgeql_functions>`,
+and even :ref:`statements<ref_edgeql_statements>`.
 
-All expressions in EdgeQL evaluate to *multisets*. Informally, the
-main difference between a set and a multiset is that multiple
-instances of the same elements are allowed in a multiset. All
-multisets in EdgeQL have to contain elements of the same type. Broadly
-all types can be broken down into the following categories: *objects*,
-*atomic values*, *array*, *maps*, or *tuples*.
+All expressions in EdgeQL evaluate to
 
-One important consideration is that any path expression denotes a
-*multiset* of values contained in a *set* of graph nodes reachable by
-that path. This means that a path pointing to *concepts* will always
-evaluate to a *multiset* with unique elements, whereas any other path
-may evaluate to a *multiset* containing duplicate values. This is
-because only *objects* are guaranteed to be unique in the EdgeDB
-conceptual relationship graph.
+:ref:`multisets<ref_edgeql_fundamentals_multisets>`, which this
+documentation refers to simple as `sets` for reasons of brevity. All
+sets in EdgeQL have to contain elements of the same
+:ref:`type<ref_edgeql_types>`. Broadly all types can be broken down
+into the following categories: `objects`, `atomic values`, `array`,
+`maps`, or `tuples`.
 
-All expressions evaluate to multisets of *objects*, *atomic values*,
-*array*, *maps*, or *tuples*. Depending on the set sizes of the
-operands, operations produce different sets of results.
-
-It is convenient to treat all expressions as multisets, in particular
+It is convenient to treat all expressions as `sets`, in particular
 ``1`` is equivalent to ``{1}`` in EdgeQL. Also, there's no way to
-produce nested multisets in EdgeQL as an expression (although
-conceptually
+produce nested sets in EdgeQL as an expression (although conceptually
 :ref:`GROUP<ref_edgeql_statements_group>` statement operates on sets
-of multisets as one of its intermediate steps). Because of that nested
-multisets are automatically flattened:
+of sets as one of its intermediate steps). Because of that nested
+sets are automatically flattened:
 
     ``{1, 2, {3, 4}, 5}`` ≡ ``{1, 2, 3, 4, 5}``
 
@@ -51,21 +44,19 @@ multisets are automatically flattened:
         ``{a, b, c}`` - is an EdgeQL multiset (which has properties very
         similar to a bunch)
 
-Also, for brevity the term "set" is frequently used in documentation
-to denote EdgeDB multisets.
-
 
 Set and element arguments
 -------------------------
 
 In EdgeDB operators and functions can take sets or individual elements
 as arguments. For the purpose of generalization all operators can be
-viewed as functions. Since fundamentally EdgeDB operates on sets, that
-means that all functions that are defined to take elements are
-generalized to operate on sets by applying the function to each input
-set element separately. Incidentally, since ultimately EdgeDB operates
-on sets it is conceptually convenient to treat all functions as
-returning sets as their result.
+viewed as :ref:`functions<ref_edgeql_fundamentals_functions>`. Since
+fundamentally EdgeDB operates on sets, that means that all functions
+that are defined to take elements are generalized to operate on sets
+by applying the function to each input set element separately.
+Incidentally, since ultimately EdgeDB operates on sets it is
+conceptually convenient to treat all functions as returning sets as
+their result.
 
 .. note::
 
@@ -96,9 +87,9 @@ as sets. The generalized formula is the given by the following:
             :sub:`1` ⨉ ... ⨉ A\ :sub:`n` }
 
 One of the basic operators in EdgeQL (``IN``) is an example of such a
-mixed function and will be covered in more details below. Most
-operators and functions have all their parameters as either all sets
-or all elements.
+mixed function and will be covered in more details below. Many
+operators and most library functions have all their parameters as
+either all sets or all elements.
 
 The above definitions assume that all the input sets are different
 from each other. What happens when some of the input sets are
@@ -141,6 +132,33 @@ The first two cases are fairly straightforward and intuitive. The
 third case is special and defines how EdgeDB processes queries. That
 is the basic rule from which
 :ref:`longest common prefix<ref_edgeql_paths_prefix>` property follows.
+
+The above 3 mathematical options in practice are mapped onto the
+combinations of 4 kinds of EdgeQL function parameter types:
+
+- Element-wise (default)
+- ``OPTIONAL``
+- ``SET OF``
+- ``FSET OF``
+
+The first 2 are described in the
+:ref:`functions<ref_edgeql_fundamentals_function>` section of the
+fundamentals. They act as element-parameters when interacting with
+any other types.
+
+``SET OF`` is also described in the
+:ref:`functions<ref_edgeql_fundamentals_function>` section of the
+fundamentals. It always acts as a set-parameter when interacting with
+any other types.
+
+``FSET OF`` is a special kind of parameter. It is not available in the
+EdgeQL syntax, so user-defined functions cannot have it. It is needed
+to understand how `clauses` work together as a data pipeline. It is
+also needed to define interactions of some operators (like ``UNION``
+or ``IF..ELSE``). Basically this type means that in the absence of any
+related parameters, the ``FSET OF`` parameter is acting like a ``SET
+OF`` one. However, if there's any other parameter related to it (using
+the same symbols), then it behaves like an element-parameter.
 
 EdgeQL uses ``SET OF`` qualifier in function declarations to
 disambiguate between the element-parameters and set-parameters. EdgeQL
