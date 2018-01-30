@@ -21,6 +21,7 @@ inspiration include Lorel_ and UnQL_.
     ddl
     introspection
     lexical
+    hazmat
 
 
 .. _OQL: http://en.wikipedia.org/wiki/Object_Query_Language

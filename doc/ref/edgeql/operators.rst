@@ -50,7 +50,7 @@ Set and element arguments
 
 In EdgeDB operators and functions can take sets or individual elements
 as arguments. For the purpose of generalization all operators can be
-viewed as :ref:`functions<ref_edgeql_fundamentals_functions>`. Since
+viewed as :ref:`functions<ref_edgeql_fundamentals_function>`. Since
 fundamentally EdgeDB operates on sets, that means that all functions
 that are defined to take elements are generalized to operate on sets
 by applying the function to each input set element separately.
@@ -133,105 +133,36 @@ third case is special and defines how EdgeDB processes queries. That
 is the basic rule from which
 :ref:`longest common prefix<ref_edgeql_paths_prefix>` property follows.
 
-The above 3 mathematical options in practice are mapped onto the
-combinations of 4 kinds of EdgeQL function parameter types:
+In EdgeQL there are 3 kinds of :ref:`parameter
+types<ref_edgeql_fundamentals_function>`:
 
 - Element-wise (default)
 - ``OPTIONAL``
 - ``SET OF``
-- ``FSET OF``
 
-The first 2 are described in the
-:ref:`functions<ref_edgeql_fundamentals_function>` section of the
-fundamentals. They act as element-parameters when interacting with
-any other types.
-
-``SET OF`` is also described in the
-:ref:`functions<ref_edgeql_fundamentals_function>` section of the
-fundamentals. It always acts as a set-parameter when interacting with
-any other types.
-
-``FSET OF`` is a special kind of parameter. It is not available in the
-EdgeQL syntax, so user-defined functions cannot have it. It is needed
-to understand how `clauses` work together as a data pipeline. It is
-also needed to define interactions of some operators (like ``UNION``
-or ``IF..ELSE``). Basically this type means that in the absence of any
-related parameters, the ``FSET OF`` parameter is acting like a ``SET
-OF`` one. However, if there's any other parameter related to it (using
-the same symbols), then it behaves like an element-parameter.
+The first 2 act as element-parameters when interacting with any other
+types. ``SET OF`` acts as a set-parameter when interacting with any
+other types.
 
 EdgeQL uses ``SET OF`` qualifier in function declarations to
 disambiguate between the element-parameters and set-parameters. EdgeQL
 operator signatures can be described in a similar way to make it clear
 how they are applied.
 
-.. TODO::
+In order to reduce all expression components into either paths
+(symbols) or function calls it is necessary to conceptualize what is
+the signature of the operator that wraps a statement and makes it an
+expression (syntactically it's ``(<statement>)``):
 
-    This section requires a significant rewrite w.r.t. classification
-    of operations.
+.. code-block:: eschema
 
-+-------------------------------+-------------------------------+
-| Set                           | Element                       |
-+===============================+===============================+
-| - statements (and clauses)    | - OR, AND, NOT                |
-| - UNION, UNION ALL, DISTINCT  | - =, !=                       |
-| - EXISTS                      | - <, >, <=, >=                |
-| - IF..ELSE                    | - LIKE, ILIKE                 |
-| - ??                          | - IN, NOT IN                  |
-| - all aggregate functions     | - IS, IS NOT                  |
-|                               | - +, -, \*, /, %, ^           |
-|                               | - all regular functions       |
-|                               | - creating an array           |
-|                               | - creating a tuple            |
-+-------------------------------+-------------------------------+
+    function stmt_to_expr(set of any) -> set of any
 
-Set operations treat empty set ``{}`` as one of the possible valid
-inputs, but otherwise not very special.
-
-Element operations work on set elements as opposed to sets. So
-to reconcile that with the fact that everything is a set in EdgeQL we
-define the application of an element operation in the following manner:
-
-.. note::
-
-    Given and *n-ary* operation *op* and A\ :sub:`1`, ..., A\ :sub:`n`
-    ⊆ U, define the result set of applying the operation as:
-
-    :emphasis:`op`\ (A\ :sub:`1`, ..., A\ :sub:`n`) ≡
-    { :emphasis:`op`\ (t): ∀ t ∈ A\ :sub:`1` ⨉ ... ⨉ A\ :sub:`n` }
-
-One of the consequences of this definition is that it gives a way to
-measure the maximum cardinality of the result set for a given element
-operation and input sets.
-
-Another consequence of the above definition is that if any of the
-operand sets for a element operation is ``{}``, the result is also
-``{}`` (since there are no elements produced in the Cartesian
-product). This is particularly important for comparisons and boolean
-logic operations as all of the following evaluate to ``{}``:
-
-.. code-block:: eql
-
-    SELECT TRUE OR {};
-    SELECT FALSE AND {};
-    SELECT {} = {};
-
-This can lead to subtle mistakes when using actual paths that involve
-non-required links (or the roots of which might not exists):
-
-.. code-block:: eql
-
-    # will evaluate to {} if either 'a' or 'b' link is missing on a
-    # given object Foo
-    SELECT Foo.a OR Foo.b;
-
-When the desired behavior is to treat ``{}`` as equivalent to
-``FALSE``, the coalesce ``??`` operator should be used:
-
-.. code-block:: eql
-
-    # will treat missing 'a' or 'b' links as equivalent to FALSE
-    SELECT Foo.a ?? FALSE OR Foo.b ?? FALSE;
+Basically, statements-as-expressions are treated similar to aggregates
+in terms of how they interact with what's outside of them. A parallel
+can be drawn between that and
+:ref:`array_agg<ref_edgeql_functions_array_agg>`, but instead of
+producing an array, the result is still a *set*.
 
 
 Operations and paths
@@ -267,8 +198,8 @@ Issue.number`` is the same as the cardinality of ``Issues``.
 
 .. _ref_edgeql_expressions_setops:
 
-Set operations
---------------
+Operations signatures
+---------------------
 
 Statements and clauses are effectively set operations and are
 discussed in more details in the
@@ -280,7 +211,7 @@ type (all sets are homogeneous).
 
 Basic set operators:
 
-- DISTINCT
+- DISTINCT ``SET OF`` *A*
 
     ``DISTINCT`` is a set operator that returns a new set where no
     member is equal to any other member. Considering that any two
@@ -289,58 +220,34 @@ Basic set operators:
     operator is mainly useful when applied to sets of atomic values
     (or any other non-object, such as an array or tuple).
 
-- UNION ALL
+- ``SET OF`` *A* UNION ``SET OF`` *B*
 
-    ``UNION ALL`` is only defined for entities that can form
-    multisets: *atomic values*, *array*, *maps*, or *tuples*. Formally
-    ``UNION ALL`` is a *multiset sum*, so effectively it merges two
-    multisets keeping all of their members.
+    Formally ``UNION`` is a *multiset sum*, so effectively it merges
+    two multisets keeping all of their members.
 
-    For example, if we use ``UNION ALL`` on two multisets ``{1, 2,
-    2}`` and ``{2}``, we'll get the multiset ``{1, 2, 2, 2}``.
+    For example, applying ``UNION`` to ``{1, 2, 2}`` and ``{2}``,
+    results in the multiset ``{1, 2, 2, 2}``.
 
-- UNION
+- { ``SET OF`` *A0*, ... }
 
-    ``UNION`` is a set operator that performs the set union where
-    members are compared by *value*. This operation works out
-    intuitively for objects because their identity and value are
-    equivalent. For atoms it is equivalent to: ``DISTINCT (A UNION ALL
-    B)``. In particular that means that:
-
-    ``{1, 2} UNION {2, 3}`` ≡ ``{1, 2, 3}``
-
-    ``{User1, User2} UNION {User1, User3}`` ≡ ``{User1, User2, User3}``
-
-    ``A UNION A UNION A`` ≡ ``A UNION A`` ≡ ``DISTINCT A``
-
-    .. note::
-
-        The main reason why ``UNION`` works like this is that EdgeDB
-        is optimized for working with sets of objects. So the simpler
-        ``UNION`` operator must work intuitively with those sets. It
-        would be very confusing if:
-
-        ``(A UNION B).id`` ≢ ``A.id UNION B.id``
-
-        Conversely, non-objects (e.g. atomic values) are treated
-        specially from the beginning so having a special variant
-        operator ``UNION ALL`` to preserve the set semantics they
-        follow allows to consistently indicate that indeed all the
-        individual values are desired throughout the computation.
-
-- {...}
-
-    The set literal has more advanced features in EdgeDB. Basically,
-    if any other sets are nested in it, the set literal will *flatten*
-    them out. Effectively a set literal is equivalent to applying
-    ``UNION ALL`` (or ``UNION`` for objects) to all its elements:
+    The set literal has more advanced features in EdgeDB. If any other
+    sets are nested in it, the set literal will *flatten* them out.
+    Effectively a set literal is equivalent to applying ``UNION`` to
+    all its elements:
 
     ``{1, 2, {3, 4}, 5}`` ≡ ``{1, 2, 3, 4, 5}``
 
     For any two sets ``A``, ``B`` of the same type:
     ``{A, B}`` = ``A UNION B``
 
-- EXISTS
+- ( ``SET OF`` <statement>)
+
+    Wrapping a statement into parentheses to make into expression
+    treats the entire argument set as a ``SET OF``.
+
+    ``(SELECT User)`` is the same as ``{User}``.
+
+- EXISTS ``SET OF`` *A*
 
     ``EXISTS`` is a set operator that returns a singleton set
     ``{TRUE}`` if the input set is not ``{}`` and returns
@@ -353,7 +260,7 @@ Basic set operators:
         sufficiently basic and a special case that it is an *operator*
         unlike a built-in aggregate function ``count``.
 
-- IF..ELSE
+- ``SET OF`` *A* IF *C* ELSE ``SET OF`` *B*
 
     It's worth noting that ``IF..ELSE`` is a kind of syntax sugar for
     the following expression:
@@ -366,20 +273,12 @@ Basic set operators:
             UNION
             (SELECT b FILTER NOT cond);
 
-    .. XXX is it really? what about UNION ALL version?
-
     One of the consequences of this is that if the ``cond`` expression
     is ``{}``, the whole choice expression evaluates to ``{}``.
 
 .. _ref_edgeql_expressions_coalesce:
 
-- Coalescing
-
-    Coalescing ``a ?? b`` is, in fact, perfectly equivalent to:
-
-    .. code-block:: eql
-
-        SELECT a IF EXISTS a ELSE b;
+- ``OPTIONAL`` *A* ?? ``SET OF`` *B*
 
     A typical use case of coalescing operator is to provide default
     values for optional links.
@@ -394,28 +293,11 @@ Basic set operators:
     Without the coalescing operator the above query would skip any
     ``Issue`` without priority.
 
+- *A* [NOT] IN ``SET OF`` *B*
 
-.. _ref_edgeql_expressions_elops:
-
-Element operations
-------------------
-
-Element operations are largely represented by various operators. Most
-of these operators require their operands to be of the same
-:ref:`type<ref_edgeql_types>`.
-
-- boolean operators ``OR``, ``AND``, ``NOT``
-
-- value equality operators ``=`` and ``!=``
-
-- comparison operators ``<``, ``>``, ``<=``, ``>=``
-
-- string matching operators ``LIKE`` and ``ILIKE`` that work exactly the
-  same way as in SQL
-
-- set membership operators ``IN`` and ``NOT IN`` that test whether the
-  left operand is an element in the right operand, for each element of
-  the left operand
+    Set membership operators ``IN`` and ``NOT IN`` that test whether
+    the left operand is an element in the right operand, for each
+    element of the left operand
 
   .. code-block:: eql
 
@@ -424,9 +306,38 @@ of these operators require their operands to be of the same
 
     SELECT 'Alice' IN User.name;
 
-- type-checking operators ``IS`` and ``IS NOT`` that test whether the
+    SELECT {1, 2} IN {1, 3, 5};
+    # returns [True, False]
+
+
+.. _ref_edgeql_expressions_elops:
+
+Element operations
+------------------
+
+Element operators are those that treat all of their operands as
+element-wise. Most of these operators require their operands to be of
+the same :ref:`type<ref_edgeql_types>`.
+
+- boolean operators ``OR``, ``AND``, ``NOT``
+
+- value equality operators ``=`` and ``!=``
+
+- comparison operators ``<``, ``>``, ``<=``, ``>=``
+
+- arithmetic operators ``+``, ``-``, ``*``, ``/``, ``%`` (modulo),
+  ``^`` (power)
+
+- string matching operators ``LIKE`` and ``ILIKE`` that work exactly the
+  same way as in SQL
+
+- Type-checking operators ``IS`` and ``IS NOT`` that test whether the
   left operand is of any of the types given by the comma-separated
-  list of types provided as the right operand
+  list of types provided as the right operand.
+
+  Note that the right operand is special and is not any kind of
+  expression, so it does not in any way participate in the
+  interactions of sets and longest common prefix rules.
 
   .. code-block:: eql
 
@@ -439,6 +350,3 @@ of these operators require their operands to be of the same
 
     SELECT User IS (Text, Named);
     # returns [True, ..., True], one for every user
-
-- arithmetic operators ``+``, ``-``, ``*``, ``/``, ``%`` (modulo),
-  ``^`` (power)
