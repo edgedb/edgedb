@@ -325,11 +325,10 @@ class EdgeSchemaLexer(lexer.Lexer):
         if self.logical_line_started:
             yield self.token_from_text('NL', '')
 
-        if len(self.indent) > 1:
-            # decrease indentation level at the end of input
-            while self.indent[-1] > 0:
-                self.indent.pop()
-                yield self.token_from_text('DEDENT', '')
+        # decrease indentation level at the end of input
+        while len(self.indent) > 1:
+            self.indent.pop()
+            yield self.token_from_text('DEDENT', '')
 
     def insert_token(self, toktype, token, pos='start'):
         return lexer.Token('', type=toktype, text='',
@@ -342,8 +341,14 @@ class EdgeSchemaLexer(lexer.Lexer):
 
         tok_type = token.type
 
+        # initialize the indentation if it's still empty
+        if not self.indent:
+            if tok_type == 'WS':
+                self.indent.append(token.end.column - 1)
+            else:
+                self.indent.append(0)
+
         # handle indentation
-        #
         if (self._state == STATE_WS_SENSITIVE and
                 not self.logical_line_started and
                 tok_type not in {'NEWLINE', 'WS', 'COMMENT'}):
@@ -372,7 +377,6 @@ class EdgeSchemaLexer(lexer.Lexer):
                     yield self.insert_token('DEDENT', token)
 
         # indentation of raw strings
-        #
         elif self._state == STATE_RAW_STRING:
             last_indent = self.indent[-1]
             # only valid for RAWLEADWS
@@ -399,7 +403,6 @@ class EdgeSchemaLexer(lexer.Lexer):
                 # check indentation level of each RAWLEADWS,
                 # exiting the current state and issuing a NL and DEDENT
                 # tokens if indentation falls below starting value
-                #
                 yield self.insert_token('NL', token)
 
                 while self.indent[-1] > cur_indent:
@@ -421,7 +424,6 @@ class EdgeSchemaLexer(lexer.Lexer):
                 self.logical_line_started = False
 
         # handle logical newline
-        #
         if (self.logical_line_started and
                 self._state in (STATE_WS_SENSITIVE, STATE_RAW_STRING) and
                 tok_type == 'NEWLINE'):
@@ -436,7 +438,7 @@ class EdgeSchemaLexer(lexer.Lexer):
     def lex(self):
         """Wrapper for the lexer."""
 
-        self.indent = [0]
+        self.indent = []
         self.state_stack = []
         self.logical_line_started = True
         self.prev_nw_tok = None  # previous NON-WHITEPASE token

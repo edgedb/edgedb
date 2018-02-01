@@ -291,6 +291,23 @@ concept LogEntry extending    OwnedObject,    Text:
         atom newAtom1 extending str#:
         """
 
+    @tb.must_fail(error.SchemaSyntaxError,
+                  r"Unexpected token.*INDENT", line=7, col=13)
+    def test_eschema_syntax_ws_09(self):
+        # There is no ":" at the end of the concept declaration, so
+        # the next declaration is supposed to be on the same level of
+        # indentation.
+        """
+        concept User extending std::Named
+        # NamedObject is a standard abstract base class,
+        # that provides a name link.
+
+            # A few more optional links:
+            link first_name to str
+            link last_name to str
+            link email to str
+        """
+
     def test_eschema_syntax_atom_01(self):
         """
 atom issue_num_t extending builtins::sequence
@@ -700,7 +717,7 @@ abstract link coollink
 
         function some_func($foo: std::int = 42) -> std::str:
             from sql :=
-                'SELECT \'life\'';
+                'SELECT \'life\';'
         """
 
     def test_eschema_syntax_function_03(self):
@@ -712,7 +729,7 @@ abstract link coollink
 % OK %
         function some_func($foo: std::int = 42) -> std::str:
             from edgeql :=
-                'SELECT \'life\'';
+                'SELECT \'life\';'
         """
 
     def test_eschema_syntax_function_04(self):
