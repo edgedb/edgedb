@@ -85,7 +85,7 @@ Consider an example using the ``FILTER`` optional clause:
     WITH MODULE example
     SELECT User {
         name,
-        <owned: Issue {
+        <owner: Issue {
             number,
             body
         }
@@ -106,7 +106,7 @@ available.
     WITH MODULE example
     SELECT User {
         name,
-        <owned: Issue {
+        <owner: Issue {
             number,
             body
         }
@@ -733,7 +733,7 @@ The following queries are exactly equivalent:
     WITH MODULE example
     SELECT User {
         name,
-        <owned: Issue {
+        <owner: Issue {
             number,
             body
         }
@@ -742,7 +742,7 @@ The following queries are exactly equivalent:
 
     SELECT example::User {
         name,
-        <owned: example::Issue {
+        <owner: example::Issue {
             number,
             body
         }

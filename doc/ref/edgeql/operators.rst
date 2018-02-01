@@ -131,7 +131,7 @@ cases:
 The first two cases are fairly straightforward and intuitive. The
 third case is special and defines how EdgeDB processes queries. That
 is the basic rule from which
-:ref:`longest common prefix<ref_edgeql_paths_prefix>` property follows.
+:ref:`longest common prefix<ref_edgeql_scope_prefix>` property follows.
 
 In EdgeQL there are 3 kinds of :ref:`parameter
 types<ref_edgeql_fundamentals_function>`:
@@ -169,7 +169,7 @@ Operations and paths
 --------------------
 
 There is some important interaction of the rule of
-:ref:`longest common prefix<ref_edgeql_paths_prefix>`
+:ref:`longest common prefix<ref_edgeql_scope_prefix>`
 for paths and operation cardinality. Consider the following example:
 
 .. code-block:: eql

@@ -18,6 +18,7 @@ inspiration include Lorel_ and UnQL_.
     operators
     types
     functions
+    scope
     ddl
     introspection
     lexical

@@ -647,9 +647,6 @@ except that the column name is lost. If structural information is
 important `shapes` should be used instead.
 
 
-.. include:: paths.rst
-
-
 .. _ref_edgeql_shapes:
 
 Shapes
@@ -666,11 +663,10 @@ need to explicitly include ``id`` in the shape specification because
 it is always implicitly included since the shape is always based on an
 object.
 
-Shapes allow retrieving not only a set of objects, but to also
-represent that set as a `forest`, where each base object is the root
-of a `tree`. Technically, this set of trees is a directed graph
-possibly even containing cycles. However, the serialized
-representation is based on a set of trees (or nested JSON).
+Shapes allow retrieving a set of objects as a `forest`, where each
+base object is the root of a `tree`. Technically, this set of trees is
+a directed graph possibly even containing cycles. However, the
+serialized representation is based on a set of trees (or nested JSON).
 
 Another use of shapes is *augmentation* of the object data. This can
 be useful for serialization, but also as a convenient way of computing
@@ -729,12 +725,12 @@ Using shapes
 ------------
 
 :ref:`Shapes<ref_edgeql_shapes>` are the way of specifying structured
-object data. They are used to get not only a set of `objects`, but
-also a set of their relationships in a structured way. Shape
-specification can be added to any expression that denotes an object.
-Fundamentally, a shape specification does not alter the identity of
-the objects it is attached to, because it doesn't in any way change
-the existing objects, but rather specifies additional data about them.
+object data. They are used to get a set of `objects`and their
+relationships in a structured way. Shape specification can be added to
+any expression that denotes an object. Fundamentally, a shape
+specification does not alter the identity of the objects it is
+attached to, because it doesn't in any way change the existing
+objects, but rather specifies additional data about them.
 
 For example, a query that retrieves a set of ``Issue`` objects with
 ``name`` and ``body``, but no other information (like
@@ -800,7 +796,7 @@ shape query can be used:
 The entry ``<owner`` indicates an inbound link named ``owner`` should
 be followed to its origin. The shape of the origin for owner must be
 that of an ``Issue`` (this is similar to ``User.<owner[IS Issue]``
-:ref:`path<ref_edgeql_paths>`). By default links referred to in shapes
+:ref:`path<ref_edgeql_scope>`). By default links referred to in shapes
 are considered to be outbound (like link ``status`` for the concept
 ``Issue``). Since the link ``owner`` on ``Issue`` is ``*1`` (by
 default), when it is followed in the other direction is functions as a
@@ -814,4 +810,12 @@ some issues the names and bodies of these issues should be included in
 the returned value. The query effectively says 'please return the set
 of *all* users and provide this specific information for each of them
 if available'. This is one of the important differences between
-`shape` specification and a :ref:`path<ref_edgeql_paths>`.
+`shape` specification and a :ref:`path<ref_edgeql_scope>`.
+
+Shape annotation is preserved only by operations that preserve the
+type (rather than specify a type or the result explicitly). In general
+terms, any operation that maps ``any`` onto ``any`` also preserves
+shapes, but operations that specify the types explicitly (such as
+``+``, which is polymorphic, but specifies ``int``, ``float``, or
+``str`` explicitly as the return type) effectively "remove" shape
+annotation from the result.
