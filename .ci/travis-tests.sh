@@ -4,6 +4,9 @@ set -e -x
 
 export CI_PROJECT_DIR=$TRAVIS_BUILD_DIR
 export PIP_CACHE_DIR=$(pwd)/build/pip/
+
+git clean -fdx edgedb
+
 pip --quiet install vex
 vex --python=python3 -m test pip install --quiet -U setuptools wheel pip
 vex test pip install --quiet -U -r requirements.txt
