@@ -72,7 +72,7 @@ class ConstraintMech:
     def _get_unique_refs(cls, tree):
         # Check if the expression is
         #   std::is_dictinct(<arg>) [and std::is_distinct (<arg>)...]
-        expr = tree.result
+        expr = tree.expr.expr.result
 
         astexpr = irastexpr.DistinctConjunctionExpr()
         refs = astexpr.match(expr)
@@ -157,6 +157,9 @@ class ConstraintMech:
         else:
             sql_expr = sql_tree
 
+        if isinstance(tree, irast.Statement):
+            tree = tree.expr.expr
+
         if isinstance(tree, irast.SelectStmt):
             is_multicol = isinstance(tree.result.expr, irast.Tuple)
         else:
@@ -226,7 +229,7 @@ class ConstraintMech:
         ir = ql_compiler.compile_to_ir(
             constraint.finalexpr, schema, anchors={qlast.Subject: subject})
 
-        terminal_refs = ir_utils.get_terminal_references(ir.result)
+        terminal_refs = ir_utils.get_terminal_references(ir.expr.expr.result)
         ref_tables = cls._get_ref_storage_info(schema, terminal_refs)
 
         if len(ref_tables) > 1:
@@ -500,7 +503,6 @@ class TypeMech:
             if isinstance(scls, s_links.Link):
                 cols.extend([
                     dbops.Column(name='link_type_id', type='uuid'),
-                    dbops.Column(name='std::linkid', type='uuid'),
                     dbops.Column(name='std::source', type='uuid'),
                     dbops.Column(name='std::target', type='uuid')
                 ])
@@ -521,9 +523,6 @@ class TypeMech:
                     continue
 
                 if pointer_name == 'std::source':
-                    continue
-
-                if pointer_name == 'std::linkid':
                     continue
 
                 ptr_stor_info = types.get_pointer_storage_info(

@@ -15,6 +15,7 @@ from edgedb.lang.common import parsing
 from edgedb.lang.ir import ast as irast
 
 from edgedb.lang.schema import objects as s_obj
+from edgedb.lang.schema import types as s_types
 
 from edgedb.lang.edgeql import ast as qlast
 from edgedb.lang.edgeql import errors
@@ -50,7 +51,7 @@ def process_type_ref_elem(
                 context=qlcontext)
 
         result = irast.TypeRef(
-            maintype=expr.scls.name,
+            maintype=expr.scls.material_type().name,
         )
 
     else:
@@ -62,7 +63,7 @@ def process_type_ref_elem(
 
 
 def type_to_ql_typeref(t: s_obj.Class) -> qlast.TypeName:
-    if not isinstance(t, s_obj.Collection):
+    if not isinstance(t, s_types.Collection):
         result = qlast.TypeName(
             maintype=qlast.ClassRef(
                 module=t.name.module,
@@ -110,9 +111,9 @@ def ql_typeref_to_type(
         ql_t: qlast.TypeName, *,
         ctx: context.ContextLevel) -> s_obj.Class:
     if ql_t.subtypes:
-        coll = s_obj.Collection.get_class(ql_t.maintype.name)
+        coll = s_types.Collection.get_class(ql_t.maintype.name)
 
-        if issubclass(coll, s_obj.Tuple):
+        if issubclass(coll, s_types.Tuple):
             subtypes = collections.OrderedDict()
             named = False
             for si, st in enumerate(ql_t.subtypes):

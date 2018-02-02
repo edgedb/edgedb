@@ -9,6 +9,7 @@
 
 from edgedb.lang.common import ast
 from edgedb.lang.schema import objects as s_obj
+from edgedb.lang.schema import types as s_types
 
 from edgedb.server.pgsql import ast as pgast
 from edgedb.server.pgsql import types as pg_types
@@ -28,7 +29,7 @@ def cast(
 
     schema = env.schema
 
-    if isinstance(target_type, s_obj.Collection):
+    if isinstance(target_type, s_types.Collection):
         if target_type.schema_name == 'array':
 
             if source_type.name == 'std::json':

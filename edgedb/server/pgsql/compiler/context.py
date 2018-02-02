@@ -19,6 +19,7 @@ from . import aliases
 class ContextSwitchMode(enum.Enum):
     TRANSPARENT = enum.auto()
     SUBREL = enum.auto()
+    NEWREL = enum.auto()
     SUBSTMT = enum.auto()
     NEWSCOPE = enum.auto()
 
@@ -31,6 +32,9 @@ class ShapeFormat(enum.Enum):
 class OutputFormat(enum.Enum):
     NATIVE = enum.auto()
     JSON = enum.auto()
+
+
+NO_VOLATILITY = object()
 
 
 class CompilerContextLevel(compiler.ContextLevel):
@@ -47,6 +51,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.pending_query = None
 
             self.clause = None
+            self.toplevel_clause = None
             self.expr_exposed = None
             self.volatility_ref = None
             self.group_by_rels = {}
@@ -69,6 +74,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.pending_query = prevlevel.pending_query
 
             self.clause = prevlevel.clause
+            self.toplevel_clause = prevlevel.toplevel_clause
             self.expr_exposed = prevlevel.expr_exposed
             self.volatility_ref = prevlevel.volatility_ref
             self.group_by_rels = prevlevel.group_by_rels
@@ -80,12 +86,14 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.path_scope = prevlevel.path_scope
             self.scope_tree = prevlevel.scope_tree
 
-            if mode in {ContextSwitchMode.SUBREL, ContextSwitchMode.SUBSTMT}:
+            if mode in {ContextSwitchMode.SUBREL, ContextSwitchMode.NEWREL,
+                        ContextSwitchMode.SUBSTMT}:
                 if self.pending_query and mode == ContextSwitchMode.SUBSTMT:
                     self.rel = self.pending_query
                 else:
                     self.rel = pgast.SelectStmt()
-                    self.rel_hierarchy[self.rel] = prevlevel.rel
+                    if mode != ContextSwitchMode.NEWREL:
+                        self.rel_hierarchy[self.rel] = prevlevel.rel
 
                 self.pending_query = None
                 self.clause = 'result'
@@ -98,6 +106,9 @@ class CompilerContextLevel(compiler.ContextLevel):
 
     def subrel(self):
         return self.new(ContextSwitchMode.SUBREL)
+
+    def newrel(self):
+        return self.new(ContextSwitchMode.NEWREL)
 
     def substmt(self):
         return self.new(ContextSwitchMode.SUBSTMT)
@@ -114,11 +125,12 @@ class CompilerContext(compiler.CompilerContext):
 class Environment:
     """Static compilation environment."""
 
-    def __init__(self, *, schema, output_format, backend, singleton_mode):
-        self.schema = schema
+    def __init__(self, *, schema, output_format, backend,
+                 singleton_mode, views):
         self.backend = backend
         self.singleton_mode = singleton_mode
         self.aliases = aliases.AliasGenerator()
         self.root_rels = set()
         self.rel_overlays = collections.defaultdict(list)
         self.output_format = output_format
+        self.schema = schema.get_overlay(extra=views)

@@ -503,55 +503,55 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
         ''', [
             [
                 {
-                    'expr': [True],
+                    'expr': True,
                     'name': 'Bog monster',
                     'count': [1, 3, 3, 3],
                     'element': 'Water',
                 },
                 {
-                    'expr': [False],
+                    'expr': False,
                     'name': 'Djinn',
                     'count': [1, 1],
                     'element': 'Air',
                 },
                 {
-                    'expr': [True],
+                    'expr': True,
                     'name': 'Dragon',
                     'count': [1, 2],
                     'element': 'Fire',
                 },
                 {
-                    'expr': [True],
+                    'expr': True,
                     'name': 'Dwarf',
                     'count': [3, 4],
                     'element': 'Earth',
                 },
                 {
-                    'expr': [True],
+                    'expr': True,
                     'name': 'Giant eagle',
                     'count': [1, 3],
                     'element': 'Air',
                 },
                 {
-                    'expr': [True],
+                    'expr': True,
                     'name': 'Giant turtle',
                     'count': [1, 2, 3, 3],
                     'element': 'Water',
                 },
                 {
-                    'expr': [True],
+                    'expr': True,
                     'name': 'Golem',
                     'count': [1, 2, 3],
                     'element': 'Earth',
                 },
                 {
-                    'expr': [True],
+                    'expr': True,
                     'name': 'Imp',
                     'count': [2],
                     'element': 'Fire',
                 },
                 {
-                    'expr': [True],
+                    'expr': True,
                     'name': 'Sprite',
                     'count': [4, 4],
                     'element': 'Air',
@@ -672,7 +672,6 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_props_setops_01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -696,30 +695,35 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             {1, 2, 3, 4},
             {1, 2},
             {1, 2, 3},
-            {1, 2, 3},
+            {1, 2, 3, 4},
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_props_setops_02(self):
         await self.assert_query_result(r'''
             WITH
                 MODULE test,
-                C := (SELECT User FILTER User.name = 'Carol').deck.name,
-                D := (SELECT User FILTER User.name = 'Dave').deck.name
+                C := DETACHED (
+                    SELECT User FILTER User.name = 'Carol').deck.name,
+                D := DETACHED (
+                    SELECT User FILTER User.name = 'Dave').deck.name
             SELECT _ := C UNION D
             ORDER BY _;
 
             WITH
                 MODULE test,
-                C := (SELECT User FILTER User.name = 'Carol').deck.name,
-                D := (SELECT User FILTER User.name = 'Dave').deck.name
+                C := DETACHED (
+                    SELECT User FILTER User.name = 'Carol').deck.name,
+                D := DETACHED (
+                    SELECT User FILTER User.name = 'Dave').deck.name
             SELECT _ := C DISTINCT UNION D
             ORDER BY _;
 
             WITH
                 MODULE test,
-                C := (SELECT User FILTER User.name = 'Carol').deck.name,
-                D := (SELECT User FILTER User.name = 'Dave').deck.name
+                C := DETACHED (
+                    SELECT User FILTER User.name = 'Carol').deck.name,
+                D := DETACHED (
+                    SELECT User FILTER User.name = 'Dave').deck.name
             SELECT _ := DISTINCT (C UNION D)
             ORDER BY _;
         ''', [
@@ -761,7 +765,6 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_props_setops_03(self):
         await self.assert_query_result(r'''
             WITH MODULE test

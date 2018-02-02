@@ -12,6 +12,7 @@ import typing
 
 from edgedb.lang.common import ast
 
+from edgedb.lang.schema import basetypes as s_basetypes
 from edgedb.lang.schema import inheriting as s_inh
 from edgedb.lang.schema import name as s_name
 from edgedb.lang.schema import objects as s_obj
@@ -25,7 +26,7 @@ from edgedb.lang.ir import ast as irast
 
 
 def is_polymorphic_type(t):
-    if isinstance(t, s_obj.Collection):
+    if isinstance(t, s_types.Collection):
         return any(is_polymorphic_type(st) for st in t.get_subtypes())
     else:
         return t.name == 'std::any'
@@ -57,7 +58,7 @@ def _infer_common_type(irs: typing.List[irast.Base], schema):
         arg_type = infer_type(arg, schema)
         arg_types.append(arg_type)
 
-        if isinstance(arg_type, s_obj.Collection):
+        if isinstance(arg_type, s_types.Collection):
             col_type = arg_type
 
     if not arg_types:
@@ -91,8 +92,13 @@ def __infer_none(ir, schema):
     raise ValueError('invalid infer_type(None, schema) call')
 
 
+@_infer_type.register(irast.Statement)
+def __infer_statement(ir, schema):
+    return infer_type(ir.expr, schema)
+
+
 @_infer_type.register(irast.Set)
-def __infer_set_or_shape(ir, schema):
+def __infer_set(ir, schema):
     return ir.scls
 
 
@@ -103,7 +109,7 @@ def __infer_func_call(ir, schema):
     if is_polymorphic_type(rtype):
         # Polymorphic function, determine the result type from
         # the argument type.
-        if isinstance(rtype, s_obj.Tuple):
+        if isinstance(rtype, s_types.Tuple):
             for i, arg in enumerate(ir.args):
                 if is_polymorphic_type(ir.func.paramtypes[i]):
                     arg_type = infer_type(arg, schema)
@@ -116,7 +122,7 @@ def __infer_func_call(ir, schema):
 
                     return rtype.from_subtypes(stypes, rtype.get_typemods())
 
-        elif isinstance(rtype, s_obj.Collection):
+        elif isinstance(rtype, s_types.Collection):
             for i, arg in enumerate(ir.args):
                 if is_polymorphic_type(ir.func.paramtypes[i]):
                     arg_type = infer_type(arg, schema)
@@ -133,7 +139,7 @@ def __infer_func_call(ir, schema):
             for i, arg in enumerate(ir.args):
                 if is_polymorphic_type(ir.func.paramtypes[i]):
                     arg_type = infer_type(arg, schema)
-                    if isinstance(arg_type, s_obj.Collection):
+                    if isinstance(arg_type, s_types.Collection):
                         stypes = list(arg_type.get_subtypes())
                         return stypes[-1]
 
@@ -160,8 +166,8 @@ def __infer_coalesce(ir, schema):
 
 @_infer_type.register(irast.SetOp)
 def __infer_setop(ir, schema):
-    left_type = infer_type(ir.left, schema)
-    right_type = infer_type(ir.right, schema)
+    left_type = infer_type(ir.left, schema).material_type()
+    right_type = infer_type(ir.right, schema).material_type()
 
     # for purposes of type inference UNION and UNION ALL work almost
     # the same way
@@ -222,10 +228,10 @@ def __infer_binop(ir, schema):
                           ast.ops.MembershipOperator)):
         result = schema.get('std::bool')
     else:
-        result = s_types.TypeRules.get_result(
+        result = s_basetypes.TypeRules.get_result(
             ir.op, (left_type, right_type), schema)
         if result is None:
-            result = s_types.TypeRules.get_result(
+            result = s_basetypes.TypeRules.get_result(
                 (ir.op, 'reversed'), (right_type, left_type), schema)
 
     if result is None:
@@ -258,7 +264,7 @@ def __infer_unaryop(ir, schema):
                 f'unknown unary operator: {ir.op}',
                 context=ir.context)
 
-        result = s_types.TypeRules.get_result(
+        result = s_basetypes.TypeRules.get_result(
             ir.op, (operand_type,), schema)
 
     if result is None:
@@ -290,7 +296,7 @@ def __infer_ifelse(ir, schema):
 @_infer_type.register(irast.TypeRef)
 def __infer_typeref(ir, schema):
     if ir.subtypes:
-        coll = s_obj.Collection.get_class(ir.maintype)
+        coll = s_types.Collection.get_class(ir.maintype)
         result = coll.from_subtypes(
             [infer_type(t, schema) for t in ir.subtypes])
     else:
@@ -342,7 +348,7 @@ def __infer_index(ir, schema):
 
         result = str_t
 
-    elif isinstance(node_type, s_obj.Map):
+    elif isinstance(node_type, s_types.Map):
 
         if not index_type.issubclass(node_type.key_type):
             raise ql_errors.EdgeQLError(
@@ -352,7 +358,7 @@ def __infer_index(ir, schema):
 
         result = node_type.element_type
 
-    elif isinstance(node_type, s_obj.Array):
+    elif isinstance(node_type, s_types.Array):
 
         if not index_type.issubclass(int_t):
             raise ql_errors.EdgeQLError(
@@ -381,7 +387,7 @@ def __infer_map(ir, schema):
         raise ql_errors.EdgeQLError('could not determine map values type',
                                     context=ir.context)
 
-    return s_obj.Map(key_type=key_type, element_type=element_type)
+    return s_types.Map(key_type=key_type, element_type=element_type)
 
 
 @_infer_type.register(irast.Array)
@@ -396,13 +402,13 @@ def __infer_array(ir, schema):
             'could not determine type of empty array',
             context=ir.context)
 
-    return s_obj.Array(element_type=element_type)
+    return s_types.Array(element_type=element_type)
 
 
 @_infer_type.register(irast.Tuple)
 def __infer_struct(ir, schema):
     element_types = {el.name: infer_type(el.val, schema) for el in ir.elements}
-    return s_obj.Tuple(element_types=element_types, named=ir.named)
+    return s_types.Tuple(element_types=element_types, named=ir.named)
 
 
 @_infer_type.register(irast.TupleIndirection)

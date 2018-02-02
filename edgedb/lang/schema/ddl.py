@@ -13,7 +13,7 @@ from edgedb.lang.schema import delta as s_delta
 
 # The below must be imported here to make sure we have all
 # necessary mappers from/to DDL AST.
-#
+
 from . import atoms  # NOQA
 from . import attributes  # NOQA
 from . import concepts  # NOQA
@@ -24,6 +24,7 @@ from . import links  # NOQA
 from . import lproperties  # NOQA
 from . import modules  # NOQA
 from . import policy  # NOQA
+from . import views  # NOQA
 
 
 def cmd_from_ddl(stmt, *, context=None, schema):

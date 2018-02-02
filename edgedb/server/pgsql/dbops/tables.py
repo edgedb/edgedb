@@ -73,6 +73,9 @@ class Table(composites.CompositeDBObject):
     def oid_type(self):
         return 'regclass'
 
+    def __repr__(self):
+        return f'<db.Table {self.name} at {id(self):0x}>'
+
 
 class InheritableTableObject(base.InheritableDBObject):
     @property

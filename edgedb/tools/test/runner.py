@@ -481,7 +481,7 @@ class ParallelTextTestRunner:
                 self._echo('Populating test databases... ',
                            fg='white', nl=False)
 
-                max_conns = max(10, self.num_workers * len(setup) * 2)
+                max_conns = max(100, self.num_workers * len(setup) * 2)
                 cluster = tb._init_cluster(init_settings={
                     # Make sure the server accomodates the possible
                     # number of connections from all test classes.

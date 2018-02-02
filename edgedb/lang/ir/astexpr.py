@@ -8,7 +8,6 @@
 
 from edgedb.lang.common import ast
 from edgedb.lang.common.ast import match as astmatch
-from edgedb.lang.edgeql import ast as qlast
 
 from . import astmatch as irastmatch
 
@@ -23,7 +22,6 @@ class DistinctConjunctionExpr:
             pure_distinct_expr = irastmatch.FunctionCall(
                 func=astmatch.Object(shortname='std::is_distinct'),
                 args=[astmatch.group('expr', irastmatch.Base())],
-                agg_set_modifier=qlast.AggALL
             )
 
             possibly_wrapped_distinct_expr = irastmatch.SelectStmt(

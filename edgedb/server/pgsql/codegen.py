@@ -137,6 +137,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
                     self.write(' ON (')
                     self.visit_list(node.distinct_clause, newlines=False)
                     self.write(')')
+            self.write('/*', repr(node), '*/')
             self.new_lines = 1
             self.indentation += 2
 

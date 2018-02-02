@@ -490,15 +490,15 @@ class BaseQueryTestCase(DatabaseTestCase):
                     el_shape = next(shape_iter)
                 except StopIteration:
                     self.fail(
-                        '{}: unexpected trailing elements in list'.format(
+                        '{}: unexpected trailing elements in set'.format(
                             message))
 
                 _assert_data_shape(el, el_shape)
 
             if len(shape) > i + 1:
-                if shape[i + 1] is not Ellipsis:
+                if Ellipsis not in shape:
                     self.fail(
-                        '{}: expecting more elements in list'.format(
+                        '{}: expecting more elements in set'.format(
                             message))
 
         def _assert_data_shape(data, shape):

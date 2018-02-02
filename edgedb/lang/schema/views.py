@@ -7,40 +7,14 @@
 
 
 from edgedb.lang.edgeql import ast as qlast
-from edgedb.lang.edgeql import compiler as qlcompiler
 
 from edgedb.lang.ir import utils as irutils
 
+from . import atoms
 from . import attributes
 from . import concepts
-from . import constraints
 from . import delta as sd
-from . import expr
-from . import links
-from . import modules
-from . import named
 from . import nodes
-from . import objects as so
-from . import schema as s_schema
-from . import sources
-
-
-class View(sources.Source, nodes.Node, attributes.AttributeSubject):
-    _type = 'view'
-
-    expr = so.Field(expr.ExpressionText, default=None,
-                    coerce=True, compcoef=0.909)
-
-    result_type = so.Field(so.NodeClass, None, compcoef=0.833)
-
-    def copy(self):
-        result = super().copy()
-        result.expr = self.expr
-        return result
-
-    @classmethod
-    def get_pointer_class(cls):
-        return links.Link
 
 
 class ViewCommandContext(sd.ClassCommandContext,
@@ -49,144 +23,50 @@ class ViewCommandContext(sd.ClassCommandContext,
     pass
 
 
-class ViewCommand(constraints.ConsistencySubjectCommand,
-                  attributes.AttributeSubjectCommand,
-                  nodes.NodeCommand, schema_metaclass=View,
-                  context_class=ViewCommandContext):
+class ViewCommand(nodes.NodeCommand, context_class=ViewCommandContext):
 
-    def _create_innards(self, schema, context):
-        super()._create_innards(schema, context)
-        self._process_innards(schema, context)
+    _atom_cmd_map = {
+        qlast.CreateView: atoms.CreateAtom,
+        qlast.AlterView: atoms.AlterAtom,
+        qlast.DropView: atoms.DeleteAtom,
+    }
 
-    def _alter_innards(self, schema, context, scls):
-        super()._alter_innards(schema, context, scls)
-        self._process_innards(schema, context)
-
-    def _delete_innards(self, schema, context, scls):
-        super()._delete_innards(schema, context, scls)
-        self._process_innards(schema, context)
-
-    def _process_innards(self, schema, context):
-        # Limit to Concept subcommands, as the others have
-        # been processed by the ReferencingClassCommand.
-        for op in self.get_subcommands(metaclass=concepts.Concept):
-            op.apply(schema, context=context)
+    _concept_cmd_map = {
+        qlast.CreateView: concepts.CreateConcept,
+        qlast.AlterView: concepts.AlterConcept,
+        qlast.DropView: concepts.DeleteConcept,
+    }
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context, schema):
-        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
+    def _command_for_ast_node(cls, astnode, schema, context):
+        classname = cls._classname_from_ast(astnode, context, schema)
 
-        for subcmd in astnode.commands:
-            if (isinstance(subcmd, qlast.CreateAttributeValue) and
-                    subcmd.name.name == 'expr'):
-                # compile the expression for validation
-                ir = qlcompiler.compile_ast_to_ir(
-                    subcmd.value, schema,
-                    derived_target_module=cmd.classname.module)
-                view_schema = _view_schema_from_ir(cmd.classname, ir, schema)
+        if isinstance(astnode, qlast.CreateView):
+            expr = cls._get_view_expr(astnode)
+            ir = cls._compile_view_expr(expr, classname, schema, context)
+            scls = irutils.infer_type(ir, schema)
+        else:
+            scls = schema.get(classname)
 
-                if isinstance(astnode, qlast.AlterView):
-                    prev = schema.get(cmd.classname)
-                    prev_ir = qlcompiler.compile_to_ir(
-                        prev.expr, schema,
-                        derived_target_module=cmd.classname.module)
-                    prev_view_schema = _view_schema_from_ir(
-                        cmd.classname, prev_ir, schema)
+        if isinstance(scls, atoms.Atom):
+            mapping = cls._atom_cmd_map
+        else:
+            mapping = cls._concept_cmd_map
 
-                else:
-                    prev_view_schema = _view_schema_from_ir(
-                        cmd.classname, None, schema)
-
-                derived_delta = sd.delta_schemas(
-                    view_schema, prev_view_schema, include_derived=True)
-
-                cmd.update(derived_delta.get_subcommands())
-                break
-
-        return cmd
+        return mapping[type(astnode)]
 
 
-class CreateView(ViewCommand, named.CreateNamedClass):
+class CreateView(ViewCommand):
     astnode = qlast.CreateView
 
 
-class RenameView(ViewCommand, named.RenameNamedClass):
+class RenameView(ViewCommand):
     pass
 
 
-class AlterView(ViewCommand, named.AlterNamedClass):
+class AlterView(ViewCommand):
     astnode = qlast.AlterView
 
 
-class DeleteView(ViewCommand, named.DeleteNamedClass):
+class DeleteView(ViewCommand):
     astnode = qlast.DropView
-
-    @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context, schema):
-        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
-
-        view = schema.get(cmd.classname)
-        view_ir = qlcompiler.compile_to_ir(
-            view.expr, schema,
-            derived_target_module=cmd.classname.module)
-        view_schema = _view_schema_from_ir(
-            cmd.classname, view_ir, schema)
-
-        new_view_schema = _view_schema_from_ir(
-            cmd.classname, None, schema)
-
-        derived_delta = sd.delta_schemas(
-            new_view_schema, view_schema, include_derived=True)
-
-        cmd.update(derived_delta.get_subcommands())
-
-        return cmd
-
-
-def _view_schema_from_ir(view_name, ir, schema):
-    vschema = s_schema.Schema()
-    module_shell = modules.Module(name=view_name.module)
-    vschema.add_module(module_shell)
-
-    if ir is not None:
-        ir_set = ir.result
-
-        computables = _get_set_computables(ir_set)
-        if computables:
-            view = View(name=view_name)
-            source = ir_set.scls.derive(vschema, view, add_to_schema=True,
-                                        mark_derived=True)
-            _add_derived_to_schema(source, computables, vschema)
-
-    return vschema
-
-
-def _get_set_computables(ir_set):
-    computables = []
-
-    if irutils.is_subquery_set(ir_set):
-        ir_set = ir_set.expr.result
-
-    if isinstance(ir_set.scls, concepts.Concept) and ir_set.shape:
-        for el in ir_set.shape:
-            if el.expr is not None:
-                computables.append(el)
-
-    return computables
-
-
-def _add_derived_to_schema(source, computables, schema):
-    for ir_set in computables:
-        ptr = ir_set.rptr.ptrcls
-
-        target_computables = _get_set_computables(ir_set.expr.result)
-        if target_computables:
-            target = ptr.target.derive(schema, source, ptr.shortname,
-                                       add_to_schema=True, mark_derived=True)
-            _add_derived_to_schema(target, target_computables, schema)
-        else:
-            target = ptr.target
-
-        derived = ptr.derive_copy(schema, source, target,
-                                  add_to_schema=True, mark_derived=True)
-        source.add_pointer(derived)

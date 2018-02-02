@@ -16,11 +16,13 @@ from edgedb.lang.ir import utils as irutils
 from edgedb.lang.schema import functions as s_func
 from edgedb.lang.schema import name as sn
 from edgedb.lang.schema import objects as s_obj
+from edgedb.lang.schema import types as s_types
 
 from edgedb.lang.edgeql import ast as qlast
 from edgedb.lang.edgeql import errors
 from edgedb.lang.edgeql import parser as qlparser
 
+from . import astutils
 from . import context
 from . import dispatch
 from . import setgen
@@ -45,88 +47,7 @@ def compile_FunctionCall(
                 context=expr.context)
 
         fctx.in_func_call = True
-
-        is_agg = any(f.aggregate for f in funcs)
-        if is_agg:
-            fctx.in_aggregate = True
-
-            # FIXME: this only works for one-variable aggregates
-            first_arg = expr.args[0]
-
-            # FIXME: a stop-gap solution
-            if (len(expr.args) == 1 and
-                isinstance(first_arg.arg, qlast.UnaryOp) and
-                    first_arg.arg.op == qlast.DISTINCT):
-                new_arg = qlast.FuncArg(
-                    name=first_arg.name,
-                    arg=first_arg.arg.operand,
-                    sort=first_arg.sort,
-                    filter=first_arg.filter,
-                    context=first_arg.context,
-                )
-                expr = qlast.FunctionCall(
-                    func=expr.func,
-                    args=[new_arg],
-                    agg_set_modifier=qlast.AggDISTINCT,
-                )
-            else:
-                expr = qlast.FunctionCall(
-                    func=expr.func,
-                    args=expr.args,
-                    agg_set_modifier=qlast.AggALL,
-                )
-
-        path_scope = None
-        agg_sort = []
-        agg_filter = None
-        partition = []
-        window = False
-
-        if is_agg:
-            # When processing calls to aggregate functions,
-            # we do not want to affect the statement-wide path scope,
-            # so put a newfence barrier here.  Store the scope
-            # obtained by processing the agg call in the resulting
-            # IR Set.
-            with fctx.newfence() as scope_ctx:
-                scope_ctx.group_paths.clear()
-
-                args, kwargs, arg_types = \
-                    process_func_args(expr, funcname, ctx=scope_ctx)
-
-                if expr.args[0].sort:
-                    agg_sort = [
-                        irast.SortExpr(
-                            expr=dispatch.compile(e.path, ctx=scope_ctx),
-                            direction=e.direction) for e in expr.args[0].sort
-                    ]
-
-                elif expr.window:
-                    if expr.window.orderby:
-                        agg_sort = [
-                            irast.SortExpr(
-                                expr=dispatch.compile(e.path, ctx=scope_ctx),
-                                direction=e.direction)
-                            for e in expr.window.orderby
-                        ]
-
-                    if expr.window.partition:
-                        for partition_expr in expr.window.partition:
-                            partition_expr = dispatch.compile(
-                                partition_expr, ctx=scope_ctx)
-                            partition.append(partition_expr)
-
-                    window = True
-
-                if expr.args[0].filter:
-                    agg_filter = dispatch.compile(
-                        expr.args[0].filter, ctx=scope_ctx)
-
-                path_scope = scope_ctx.path_scope
-
-        else:
-            args, kwargs, arg_types = \
-                process_func_args(expr, funcname, ctx=fctx)
+        args, kwargs, arg_types = process_func_args(expr, funcname, ctx=fctx)
 
         for funcobj in funcs:
             if check_function(funcobj, arg_types):
@@ -136,11 +57,9 @@ def compile_FunctionCall(
                 f'could not find a function variant {funcname}',
                 context=expr.context)
 
-        node = irast.FunctionCall(
-            func=funcobj, args=args, kwargs=kwargs,
-            window=window, partition=partition,
-            agg_sort=agg_sort, agg_filter=agg_filter,
-            agg_set_modifier=expr.agg_set_modifier)
+        fixup_param_scope(funcobj, args, kwargs, ctx=fctx)
+
+        node = irast.FunctionCall(func=funcobj, args=args, kwargs=kwargs)
 
         if funcobj.initial_value is not None:
             rtype = irutils.infer_type(node, fctx.schema)
@@ -150,9 +69,7 @@ def compile_FunctionCall(
             )
             node.initial_value = dispatch.compile(iv_ql, ctx=fctx)
 
-    ir_set = setgen.generated_set(node, ctx=ctx)
-    ir_set.path_scope = path_scope
-
+    ir_set = setgen.ensure_set(node, ctx=ctx)
     return ir_set
 
 
@@ -210,20 +127,36 @@ def process_func_args(
         expr: qlast.FunctionCall, funcname: sn.Name, *,
         ctx: context.ContextLevel) \
         -> typing.Tuple[
-            typing.List[irast.Base],        # args
-            typing.Dict[str, irast.Base],   # kwargs
-            typing.List[s_obj.NodeClass]]:  # arg_types
+            typing.List[irast.Base],            # args
+            typing.Dict[str, irast.Base],       # kwargs
+            typing.List[s_types.Type]]:    # arg_types
     args = []
     kwargs = {}
     arg_types = []
 
     for ai, a in enumerate(expr.args):
+        arg_ql = a.arg
+
+        if a.sort or a.filter:
+            arg_ql = astutils.ensure_qlstmt(arg_ql)
+            if a.filter:
+                arg_ql.where = astutils.extend_qlbinop(arg_ql.where, a.filter)
+
+            if a.sort:
+                arg_ql.orderby = a.sort + arg_ql.orderby
+
+        with ctx.newscope(fenced=True) as fencectx:
+            # We put on a SET OF fence preemptively in case this is
+            # a SET OF arg, which we don't know yet due to polymorphic
+            # matching.
+            arg = setgen.scoped_set(
+                dispatch.compile(arg_ql, ctx=fencectx),
+                ctx=fencectx)
+
         if a.name:
-            arg = setgen.ensure_set(dispatch.compile(a.arg, ctx=ctx), ctx=ctx)
             kwargs[a.name] = arg
             aname = a.name
         else:
-            arg = setgen.ensure_set(dispatch.compile(a.arg, ctx=ctx), ctx=ctx)
             args.append(arg)
             aname = ai
 
@@ -236,3 +169,30 @@ def process_func_args(
         arg_types.append(arg_type)
 
     return args, kwargs, arg_types
+
+
+def fixup_param_scope(
+        func: s_func.Function,
+        args: typing.List[irast.Set],
+        kwargs: typing.Dict[str, irast.Set], *,
+        ctx: context.ContextLevel) -> None:
+
+    varparam_kind = None
+
+    for i, arg in enumerate(args):
+        if varparam_kind is not None:
+            paramkind = varparam_kind
+        else:
+            paramkind = func.paramkinds[i]
+            if i + 1 == func.varparam:
+                varparam_kind = paramkind
+        if paramkind != qlast.SetQualifier.SET_OF:
+            arg.path_scope.parent.unfence(arg.path_scope)
+            arg.path_scope = None
+
+    for name, arg in kwargs.items():
+        i = func.paramnames.index(name)
+        paramkind = func.paramkinds[i]
+        if paramkind != qlast.SetQualifier.SET_OF:
+            arg.path_scope.parent.unfence(arg.path_scope)
+            arg.path_scope = None

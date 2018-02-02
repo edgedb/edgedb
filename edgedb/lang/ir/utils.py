@@ -13,11 +13,10 @@ from edgedb.lang.common import ast
 from edgedb.lang.schema import concepts as s_concepts
 from edgedb.lang.schema import links as s_links
 from edgedb.lang.schema import name as s_name
-from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import schema as s_schema
 from edgedb.lang.schema import sources as s_sources  # NOQA
-from edgedb.lang.schema import views as s_views
+from edgedb.lang.schema import types as s_types
 
 from . import ast as irast
 from .inference import amend_empty_set_type  # NOQA
@@ -152,13 +151,6 @@ def is_view_set(ir_expr):
     )
 
 
-def is_strictly_view_set(ir_expr):
-    return (
-        isinstance(ir_expr, irast.Set) and
-        ir_expr.real_path_id and ir_expr.real_path_id != ir_expr.path_id
-    )
-
-
 def is_subquery_set(ir_expr):
     return (
         isinstance(ir_expr, irast.Set) and
@@ -166,19 +158,12 @@ def is_subquery_set(ir_expr):
     )
 
 
-def is_strictly_subquery_set(ir_expr):
-    return (
-        is_subquery_set(ir_expr) and
-        not is_strictly_view_set(ir_expr)
-    )
-
-
-def is_aliased_set(ir_expr):
+def is_atomic_view_set(ir_expr):
     return (
         isinstance(ir_expr, irast.Set) and
         len(ir_expr.path_id) == 1 and
-        isinstance(ir_expr.path_id[0], s_views.View) and
-        ir_expr.path_id[0].name.module == '__aliased__'
+        ir_expr.path_id.is_atom_path() and
+        ir_expr.path_id[0].is_view()
     )
 
 
@@ -234,6 +219,19 @@ def new_empty_set(schema, *, scls=None, alias):
     return irast.EmptySet(path_id=irast.PathId(cls), scls=scls)
 
 
+def get_expression_path_id(
+        t: s_types.Type, alias: str,
+        schema: s_schema.Schema) -> irast.PathId:
+    cls_name = s_name.Name(module='__expr__', name=alias)
+    if isinstance(t, (s_types.Collection, s_types.Tuple)):
+        et = t.copy()
+        et.name = cls_name
+    else:
+        et = t.__class__(name=cls_name, bases=[t])
+        et.acquire_ancestor_inheritance(schema)
+    return irast.PathId(et)
+
+
 def new_expression_set(ir_expr, schema, path_id=None, alias=None,
                        typehint: typing.Optional[irast.TypeRef]=None):
     if isinstance(ir_expr, irast.EmptySet) and typehint is not None:
@@ -247,15 +245,7 @@ def new_expression_set(ir_expr, schema, path_id=None, alias=None,
         if not path_id:
             if alias is None:
                 raise ValueError('either path_id or alias are required')
-            cls_name = s_name.Name(module='__expr__', name=alias)
-            if isinstance(result_type, (s_obj.Collection, s_obj.Tuple)):
-                cls = result_type.copy()
-                # XXX: this is a hack
-                cls._name_cached = cls_name
-            else:
-                cls = result_type.__class__(name=cls_name, bases=[result_type])
-                cls.acquire_ancestor_inheritance(schema)
-            path_id = irast.PathId(cls)
+            path_id = get_expression_path_id(result_type, alias, schema)
 
     return irast.Set(
         path_id=path_id,

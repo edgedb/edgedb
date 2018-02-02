@@ -46,6 +46,7 @@ def ensure_qlstmt(expr):
     if not isinstance(expr, qlast.Statement):
         expr = qlast.SelectQuery(
             result=expr,
+            implicit=True,
         )
     return expr
 

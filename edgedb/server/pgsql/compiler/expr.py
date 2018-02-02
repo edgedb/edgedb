@@ -19,6 +19,7 @@ from edgedb.lang.schema import concepts as s_concepts
 from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
+from edgedb.lang.schema import types as s_types
 
 from edgedb.server.pgsql import ast as pgast
 from edgedb.server.pgsql import common
@@ -62,7 +63,7 @@ def compile_Set(
         # All other sets.
         value = _compile_set(ir_set, ctx=ctx)
 
-    return output.output_as_value(value, ctx=ctx)
+    return output.output_as_value(value, env=ctx.env)
 
 
 @dispatch.compile.register(irast.Parameter)
@@ -95,10 +96,11 @@ def compile_Constant(
 
 @dispatch.compile.register(irast.TypeCast)
 def compile_TypeCast(
-        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
+        expr: irast.TypeCast, *,
+        ctx: context.CompilerContextLevel) -> pgast.Base:
     pg_expr = dispatch.compile(expr.expr, ctx=ctx)
 
-    target_type = irutils.infer_type(expr, ctx.env.schema)
+    target_type = _infer_type(expr, ctx=ctx)
 
     if (isinstance(expr.expr, irast.EmptySet) or
             (isinstance(expr.expr, irast.Array) and
@@ -111,7 +113,7 @@ def compile_TypeCast(
             target_type=target_type, force=True, env=ctx.env)
 
     else:
-        source_type = irutils.infer_type(expr.expr, ctx.env.schema)
+        source_type = _infer_type(expr.expr, ctx=ctx)
         return typecomp.cast(
             pg_expr, source_type=source_type, target_type=target_type,
             env=ctx.env)
@@ -124,22 +126,24 @@ def compile_IndexIndirection(
     # For strings we translate this into substr calls, whereas
     # for arrays the native slice syntax is used.
     is_string = False
-    arg_type = irutils.infer_type(expr.expr, ctx.env.schema)
+    arg_type = _infer_type(expr.expr, ctx=ctx)
 
-    subj = dispatch.compile(expr.expr, ctx=ctx)
-    index = dispatch.compile(expr.index, ctx=ctx)
+    with ctx.new() as subctx:
+        subctx.expr_exposed = False
+        subj = dispatch.compile(expr.expr, ctx=subctx)
+        index = dispatch.compile(expr.index, ctx=subctx)
 
-    if isinstance(arg_type, s_obj.Map):
+    if isinstance(arg_type, s_types.Map):
         # When we compile maps we always cast keys to text,
         # hence we need to cast the index to text here.
-        index_type = irutils.infer_type(expr.index, ctx.env.schema)
+        index_type = _infer_type(expr.index, ctx=ctx)
         index = typecomp.cast(
             index,
             source_type=index_type,
             target_type=ctx.env.schema.get('std::str'),
             env=ctx.env)
 
-        if isinstance(arg_type.element_type, s_obj.Array):
+        if isinstance(arg_type.element_type, s_types.Array):
             return typecomp.cast(
                 astutils.new_binop(
                     lexpr=subj,
@@ -149,7 +153,7 @@ def compile_IndexIndirection(
                 target_type=arg_type.element_type,
                 env=ctx.env)
 
-        elif isinstance(arg_type.element_type, s_obj.Map):
+        elif isinstance(arg_type.element_type, s_types.Map):
             return astutils.new_binop(
                 lexpr=subj,
                 op='->',
@@ -219,14 +223,17 @@ def compile_SliceIndirection(
     # Handle Expr[Start:End], where Expr may be std::str or array<T>.
     # For strings we translate this into substr calls, whereas
     # for arrays the native slice syntax is used.
-    subj = dispatch.compile(expr.expr, ctx=ctx)
-    start = dispatch.compile(expr.start, ctx=ctx)
-    stop = dispatch.compile(expr.stop, ctx=ctx)
+    with ctx.new() as subctx:
+        subctx.expr_exposed = False
+        subj = dispatch.compile(expr.expr, ctx=subctx)
+        start = dispatch.compile(expr.start, ctx=subctx)
+        stop = dispatch.compile(expr.stop, ctx=subctx)
+
     one = pgast.Constant(val=1)
     zero = pgast.Constant(val=0)
 
     is_string = False
-    arg_type = irutils.infer_type(expr.expr, ctx.env.schema)
+    arg_type = _infer_type(expr.expr, ctx=ctx)
 
     if isinstance(arg_type, s_atoms.Atom):
         b = arg_type.get_topmost_base()
@@ -328,12 +335,12 @@ def compile_BinOp(
 
     else:
         if not isinstance(expr.left, irast.EmptySet):
-            left_type = irutils.infer_type(expr.left, ctx.env.schema)
+            left_type = _infer_type(expr.left, ctx=ctx)
         else:
             left_type = None
 
         if not isinstance(expr.right, irast.EmptySet):
-            right_type = irutils.infer_type(expr.right, ctx.env.schema)
+            right_type = _infer_type(expr.right, ctx=ctx)
         else:
             right_type = None
 
@@ -350,13 +357,13 @@ def compile_BinOp(
                     op == ast.ops.ADD):
                 op = '||'
 
-        if isinstance(left_type, s_obj.Tuple):
+        if isinstance(left_type, s_types.Tuple):
             left = _tuple_to_row_expr(expr.left, ctx=newctx)
             left_count = len(left.args)
         else:
             left_count = 0
 
-        if isinstance(right_type, s_obj.Tuple):
+        if isinstance(right_type, s_types.Tuple):
             right = _tuple_to_row_expr(expr.right, ctx=newctx)
             right_count = len(right.args)
         else:
@@ -460,7 +467,7 @@ def compile_TupleIndirection(
 @dispatch.compile.register(irast.Tuple)
 def compile_Tuple(
         expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
-    ttype = irutils.infer_type(expr, ctx.env.schema)
+    ttype = _infer_type(expr, ctx=ctx)
     ttypes = ttype.element_types
     telems = list(ttypes)
 
@@ -473,13 +480,11 @@ def compile_Tuple(
         ttype = ttypes[telem]
         el_path_id = irutils.tuple_indirection_path_id(path_id, telem, ttype)
         val = dispatch.compile(e.val, ctx=ctx)
-        aspect = 'identity' if el_path_id.is_concept_path() else 'value'
-        elements.append(
-            pgast.TupleElement(path_id=el_path_id, val=val, aspect=aspect))
+        elements.append(pgast.TupleElement(path_id=el_path_id, val=val))
 
     result = pgast.TupleVar(elements=elements)
 
-    return output.output_as_value(result, ctx=ctx)
+    return output.output_as_value(result, env=ctx.env)
 
 
 @dispatch.compile.register(irast.Mapping)
@@ -495,7 +500,7 @@ def compile_Mapping(
         elements.append(
             typecomp.cast(
                 dispatch.compile(k, ctx=ctx),
-                source_type=irutils.infer_type(k, schema),
+                source_type=_infer_type(k, ctx=ctx),
                 target_type=str_t,
                 env=ctx.env)
         )
@@ -570,7 +575,7 @@ def compile_Coalesce(
 
 
 def _tuple_to_row_expr(tuple_expr, *, ctx):
-    tuple_type = irutils.infer_type(tuple_expr, ctx.env.schema)
+    tuple_type = _infer_type(tuple_expr, ctx=ctx)
     subtypes = tuple_type.element_types
     row = []
     for n in subtypes:
@@ -617,34 +622,7 @@ def _get_shape(
             ctx.shape_format != context.ShapeFormat.FLAT):
         return []
 
-    shape = ir_set.shape
-
-    if not shape:
-        has_shape = (
-            isinstance(ir_set.scls, s_concepts.Concept) and
-            (ctx.expr_exposed or
-             ctx.shape_format == context.ShapeFormat.FLAT)
-        )
-
-        if has_shape:
-            # Bare reference to a concept expr
-            shape = _implicit_concept_shape(ir_set, ctx=ctx)
-
-    return shape
-
-
-def _implicit_concept_shape(
-        ir_set: irast.Set, *,
-        ctx: context.CompilerContextLevel) -> typing.List[irast.Set]:
-    id_set = irutils.get_id_path(ir_set, schema=ctx.env.schema)
-    if ir_set.path_scope is not None:
-        fence = ir_set.path_scope
-    else:
-        fence = ctx.scope_tree
-    fence.add_path(ir_set.path_id)
-    id_set.path_scope = fence.add_fence()
-    id_set.path_scope.add_path(id_set.path_id)
-    return [id_set]
+    return ir_set.shape
 
 
 def _compile_shape(
@@ -652,7 +630,7 @@ def _compile_shape(
         ctx: context.CompilerContextLevel) -> pgast.TupleVar:
     elements = []
 
-    with ctx.new() as shapectx:
+    with ctx.newscope() as shapectx:
         shapectx.disable_semi_join.add(ir_set.path_id)
         shapectx.unique_paths.add(ir_set.path_id)
 
@@ -664,10 +642,15 @@ def _compile_shape(
 
             if (irutils.is_subquery_set(el) or
                     isinstance(el.scls, s_concepts.Concept) or
-                    not ptrcls.singular(ptrdir) or
+                    not is_singleton or
                     not ptrcls.required):
-                value = relgen.set_as_subquery(
-                    el, aggregate=not is_singleton, ctx=shapectx)
+                wrapper = relgen.set_as_subquery(
+                    el, as_value=True, ctx=shapectx)
+                if not is_singleton:
+                    value = relgen.set_to_array(
+                        ir_set=el, query=wrapper, ctx=shapectx)
+                else:
+                    value = wrapper
             else:
                 value = dispatch.compile(el, ctx=shapectx)
 
@@ -677,16 +660,27 @@ def _compile_shape(
     pathctx.put_path_value_var(
         ctx.rel, ir_set.path_id, result, force=True, env=ctx.env)
 
-    if ctx.shape_format == context.ShapeFormat.SERIALIZED:
-        result = output.output_as_value(result, ctx=ctx)
-        pathctx.put_path_serialized_var(
-            ctx.rel, ir_set.path_id, result, force=True, env=ctx.env)
-
     for element in elements:
         # The ref might have already been added by the nested shape
         # processing, so add it conditionally.
         pathctx.put_path_value_var_if_not_exists(
             ctx.rel, element.path_id, element.val, env=ctx.env)
+
+    if output.in_serialization_ctx(ctx):
+        ser_elements = []
+        for el in elements:
+            ser_val = pathctx.get_path_serialized_or_value_var(
+                ctx.rel, el.path_id, env=ctx.env)
+            ser_elements.append(pgast.TupleElement(
+                path_id=el.path_id,
+                name=el.name,
+                val=ser_val
+            ))
+
+        ser_result = pgast.TupleVar(elements=ser_elements, named=True)
+        sval = output.serialize_expr(ser_result, env=ctx.env)
+        pathctx.put_path_serialized_var(
+            ctx.rel, ir_set.path_id, sval, force=True, env=ctx.env)
 
     return result
 
@@ -726,3 +720,9 @@ def _compile_set_in_singleton_mode(
             )
 
         return colref
+
+
+def _infer_type(
+        expr: irast.Base, *,
+        ctx: context.CompilerContextLevel) -> s_obj.Class:
+    return irutils.infer_type(expr, schema=ctx.env.schema)

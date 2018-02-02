@@ -14,6 +14,7 @@ from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import concepts as s_concepts
 from edgedb.lang.schema import name as s_name
+from edgedb.lang.schema import types as s_types
 
 from edgedb.lang.edgeql import ast as qlast
 from edgedb.lang.edgeql import errors
@@ -24,19 +25,28 @@ from . import context
 from . import dispatch
 from . import pathctx
 from . import setgen
-from . import shapegen
+from . import viewgen
+from . import schemactx
 from . import stmtctx
 
 
 @dispatch.compile.register(qlast.SelectQuery)
 def compile_SelectQuery(
         expr: qlast.SelectQuery, *, ctx: context.ContextLevel) -> irast.Base:
-    if astutils.is_degenerate_select(expr):
+    if astutils.is_degenerate_select(expr) and ctx.toplevel_stmt is not None:
         # Compile "SELECT Path" as "Path"
         with ctx.new() as sctx:
             process_with_block(expr, ctx=sctx, parent_ctx=ctx)
+            sctx.aliased_views = ctx.aliased_views.new_child()
+            sctx.namespaces = ctx.namespaces.copy()
+            sctx.anchors = ctx.anchors.copy()
             result = compile_result_clause(
-                expr.result, ctx.toplevel_shape_rptr, None, ctx=sctx)
+                expr.result,
+                view_scls=ctx.view_scls,
+                view_rptr=ctx.view_rptr,
+                view_name=ctx.toplevel_result_view_name,
+                ctx=sctx)
+            result = fini_stmt(result, expr, ctx=sctx, parent_ctx=ctx)
 
         return result
 
@@ -44,15 +54,21 @@ def compile_SelectQuery(
         stmt = irast.SelectStmt()
         init_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
 
-        output = expr.result
-
-        if (isinstance(output, qlast.Shape) and
-                isinstance(output.expr, qlast.Path) and
-                output.expr.steps):
-            sctx.result_path_steps = output.expr.steps
+        if stmt is not ctx.toplevel_stmt:
+            # SELECT statement inputs are fenceless SET OF.
+            # Top-level statements have a scope branch created in init_stmt.
+            if ctx.pending_path_scope is not None:
+                sctx.path_scope = ctx.pending_path_scope
+            else:
+                sctx.path_scope = ctx.path_scope.add_fence()
 
         stmt.result = compile_result_clause(
-            expr.result, ctx.toplevel_shape_rptr, expr.result_alias, ctx=sctx)
+            expr.result,
+            view_scls=ctx.view_scls,
+            view_rptr=ctx.view_rptr,
+            result_alias=expr.result_alias,
+            view_name=ctx.toplevel_result_view_name,
+            ctx=sctx)
 
         stmt.where = clauses.compile_where_clause(
             expr.where, ctx=sctx)
@@ -68,55 +84,53 @@ def compile_SelectQuery(
 
         result = fini_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
 
-    # Query cardinality inference must be ran in parent context.
-    if expr.cardinality == '1':
-        stmt.result.context = expr.result.context
-        # XXX: correct cardinality inference depends on
-        # query selectivity estimator, which is not done yet.
-        # pathctx.enforce_singleton(stmt.result, ctx=ctx)
-        stmt.singleton = True
+        if sctx.path_scope is not ctx.pending_path_scope:
+            result = setgen.scoped_set(result, ctx=sctx)
 
     return result
 
 
 @dispatch.compile.register(qlast.ForQuery)
 def compile_ForQuery(
-        expr: qlast.ForQuery, *, ctx: context.ContextLevel) -> irast.Base:
+        qlstmt: qlast.ForQuery, *, ctx: context.ContextLevel) -> irast.Base:
     with ctx.subquery() as sctx:
         stmt = irast.SelectStmt()
-        init_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
+        init_stmt(stmt, qlstmt, ctx=sctx, parent_ctx=ctx)
 
-        output = expr.result
+        with sctx.newscope(fenced=True) as scopectx:
+            iterator = qlstmt.iterator
+            if isinstance(iterator, qlast.Set) and len(iterator.elements) == 1:
+                iterator = iterator.elements[0]
 
-        if (isinstance(output, qlast.Shape) and
-                isinstance(output.expr, qlast.Path) and
-                output.expr.steps):
-            sctx.result_path_steps = output.expr.steps
+            stmt.iterator_stmt = setgen.scoped_set(
+                stmtctx.declare_view(iterator, qlstmt.iterator_alias,
+                                     ctx=scopectx),
+                ctx=scopectx)
+
+        sctx.singletons.add(stmt.iterator_stmt.path_id)
+        pathctx.register_set_in_scope(stmt.iterator_stmt, ctx=sctx)
 
         stmt.result = compile_result_clause(
-            expr.result, ctx.toplevel_shape_rptr, expr.result_alias, ctx=sctx)
+            qlstmt.result,
+            view_scls=ctx.view_scls,
+            view_rptr=ctx.view_rptr,
+            result_alias=qlstmt.result_alias,
+            view_name=ctx.toplevel_result_view_name,
+            ctx=sctx)
 
         stmt.where = clauses.compile_where_clause(
-            expr.where, ctx=sctx)
+            qlstmt.where, ctx=sctx)
 
         stmt.orderby = clauses.compile_orderby_clause(
-            expr.orderby, ctx=sctx)
+            qlstmt.orderby, ctx=sctx)
 
         stmt.offset = clauses.compile_limit_offset_clause(
-            expr.offset, ctx=sctx)
+            qlstmt.offset, ctx=sctx)
 
         stmt.limit = clauses.compile_limit_offset_clause(
-            expr.limit, ctx=sctx)
+            qlstmt.limit, ctx=sctx)
 
-        result = fini_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
-
-    # Query cardinality inference must be ran in parent context.
-    if expr.cardinality == '1':
-        stmt.result.context = expr.result.context
-        # XXX: correct cardinality inference depends on
-        # query selectivity estimator, which is not done yet.
-        # pathctx.enforce_singleton(stmt.result, ctx=ctx)
-        stmt.singleton = True
+        result = fini_stmt(stmt, qlstmt, ctx=sctx, parent_ctx=ctx)
 
     return result
 
@@ -136,41 +150,32 @@ def compile_GroupQuery(
         c.acquire_ancestor_inheritance(ctx.schema)
 
         stmt.group_path_id = pathctx.get_path_id(c, ctx=ictx)
-        pathctx.register_path_in_scope(stmt.group_path_id, ctx=ictx)
+        pathctx.register_set_in_scope(stmt.group_path_id, ctx=ictx)
 
-        with ictx.newfence() as subjctx:
+        with ictx.newscope(fenced=True) as subjctx:
             subjctx.clause = 'input'
 
             subject_set = setgen.scoped_set(
                 dispatch.compile(expr.subject, ctx=subjctx), ctx=subjctx)
 
-            stmt.subject = stmtctx.declare_aliased_set(
-                subject_set, expr.subject_alias, ctx=ictx)
+            alias = expr.subject_alias or subject_set.path_id[0].name
+            stmt.subject = stmtctx.declare_inline_view(
+                subject_set, alias, ctx=ictx)
 
             with subjctx.new() as grpctx:
-                # Prevent singleton inference of GROUP input from
-                # leaking beyond the BY clause.
-                grpctx.singletons = ictx.singletons.copy()
-                pathctx.update_singletons(subject_set, ctx=grpctx)
-
                 stmt.groupby = compile_groupby_clause(
                     expr.groupby, singletons=grpctx.singletons, ctx=grpctx)
 
-            pathctx.update_singletons(stmt.subject, ctx=ictx)
-
-        output = expr.result
-
-        if (isinstance(output, qlast.Shape) and
-                isinstance(output.expr, qlast.Path) and
-                output.expr.steps):
-            ictx.result_path_steps = output.expr.steps
-
-        with ictx.subquery() as isctx, isctx.newfence() as sctx:
+        with ictx.subquery() as isctx, isctx.newscope(fenced=True) as sctx:
             o_stmt = sctx.stmt = irast.SelectStmt()
 
             o_stmt.result = compile_result_clause(
-                expr.result, ctx.toplevel_shape_rptr,
-                expr.result_alias, ctx=sctx)
+                expr.result,
+                view_scls=ctx.view_scls,
+                view_rptr=ctx.view_rptr,
+                result_alias=expr.result_alias,
+                view_name=ctx.toplevel_result_view_name,
+                ctx=sctx)
 
             o_stmt.where = clauses.compile_where_clause(
                 expr.where, ctx=sctx)
@@ -200,28 +205,17 @@ def compile_InsertQuery(
 
         subject = dispatch.compile(expr.subject, ctx=ictx)
 
-        stmt.subject = shapegen.compile_shape(
-            subject, expr.shape,
-            require_expressions=True,
-            include_implicit=False,
+        stmt.subject = compile_query_subject(
+            subject,
+            shape=expr.shape,
+            view_rptr=ctx.view_rptr,
+            compile_views=True,
+            result_alias=expr.subject_alias,
+            is_insert=True,
             ctx=ictx)
 
-        stmt.result = subject
-
-        explicit_ptrs = {
-            el.rptr.ptrcls.shortname for el in stmt.subject.shape
-        }
-
-        for pn, ptrcls in subject.scls.pointers.items():
-            if (not ptrcls.default or
-                    pn in explicit_ptrs or
-                    ptrcls.is_special_pointer() or
-                    ptrcls.is_pure_computable()):
-                continue
-
-            targetstep = setgen.extend_path(subject, ptrcls, ctx=ictx)
-            el = setgen.computable_ptr_set(targetstep.rptr, ctx=ictx)
-            stmt.subject.shape.append(el)
+        stmt.result = setgen.class_set(
+            stmt.subject.scls.material_type(), ctx=ctx)
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
@@ -235,10 +229,7 @@ def compile_UpdateQuery(
         stmt = irast.UpdateStmt()
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
-        subject = stmtctx.declare_aliased_set(
-            dispatch.compile(expr.subject, ctx=ictx),
-            expr.subject_alias, ctx=ictx)
-
+        subject = dispatch.compile(expr.subject, ctx=ictx)
         subj_type = irutils.infer_type(subject, ictx.schema)
         if not isinstance(subj_type, s_concepts.Concept):
             raise errors.EdgeQLError(
@@ -246,16 +237,20 @@ def compile_UpdateQuery(
                 context=expr.subject.context
             )
 
+        stmt.subject = compile_query_subject(
+            subject,
+            shape=expr.shape,
+            view_rptr=ctx.view_rptr,
+            compile_views=True,
+            result_alias=expr.subject_alias,
+            is_update=True,
+            ctx=ictx)
+
+        stmt.result = setgen.class_set(
+            stmt.subject.scls.material_type(), ctx=ctx)
+
         stmt.where = clauses.compile_where_clause(
             expr.where, ctx=ictx)
-
-        stmt.result = subject.__copy__()
-
-        stmt.subject = shapegen.compile_shape(
-            subject, expr.shape,
-            require_expressions=True,
-            include_implicit=False,
-            ctx=ictx)
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
@@ -269,14 +264,10 @@ def compile_DeleteQuery(
         stmt = irast.DeleteStmt()
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
-        with ictx.newfence() as scopectx:
-            # Pretend the DELETE statement is a view.
-            subjset = setgen.scoped_set(
-                dispatch.compile(expr.subject, ctx=scopectx),
-                ctx=scopectx)
-
-        subject = stmtctx.declare_aliased_set(
-            subjset, expr.subject_alias, ctx=ictx)
+        # DELETE Expr is a delete(SET OF X), so we need a scope fence.
+        with ictx.newscope(fenced=True) as scopectx:
+            subject = setgen.scoped_set(
+                dispatch.compile(expr.subject, ctx=scopectx), ctx=scopectx)
 
         subj_type = irutils.infer_type(subject, ictx.schema)
         if not isinstance(subj_type, s_concepts.Concept):
@@ -285,7 +276,12 @@ def compile_DeleteQuery(
                 context=expr.subject.context
             )
 
-        stmt.subject = stmt.result = subject
+        stmt.subject = compile_query_subject(
+            subject, shape=None, result_alias=expr.subject_alias, ctx=ictx)
+
+        stmt.result = setgen.class_set(
+            stmt.subject.scls.material_type(), ctx=ctx)
+        stmt.result.path_id = stmt.subject.path_id
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
@@ -294,11 +290,12 @@ def compile_DeleteQuery(
 
 @dispatch.compile.register(qlast.Shape)
 def compile_Shape(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
-    subj = dispatch.compile(expr.expr, ctx=ctx)
-    ir_set = setgen.ensure_set(subj, ctx=ctx)
-    return shapegen.compile_shape(
-        ir_set, expr.elements, rptr=ir_set.rptr, ctx=ctx)
+        shape: qlast.Shape, *, ctx: context.ContextLevel) -> irast.Base:
+    expr = setgen.ensure_set(dispatch.compile(shape.expr, ctx=ctx), ctx=ctx)
+    expr.scls = viewgen.process_view(
+        scls=expr.scls, path_id=expr.path_id, elements=shape.elements, ctx=ctx)
+
+    return expr
 
 
 def init_stmt(
@@ -306,41 +303,46 @@ def init_stmt(
         ctx: context.ContextLevel, parent_ctx: context.ContextLevel) -> None:
 
     ctx.stmt = irstmt
-    irstmt.parent_stmt = parent_ctx.stmt
+    if ctx.toplevel_stmt is None:
+        parent_ctx.toplevel_stmt = ctx.toplevel_stmt = irstmt
+        parent_ctx.path_scope = ctx.path_scope = irast.ScopeFenceNode()
 
-    if irstmt.parent_stmt is None:
-        irstmt.path_scope = parent_ctx.path_scope
+    irstmt.parent_stmt = parent_ctx.stmt
 
     process_with_block(qlstmt, ctx=ctx, parent_ctx=parent_ctx)
 
-    if isinstance(qlstmt, qlast.ForQuery):
-        with ctx.newfence() as scopectx:
-            # Paths in the statement must not be coalesced with
-            # paths in view definitions, so the view scope must
-            # "ignore the parent" when paths are added to the parent
-            # scope.
-            scopectx.path_scope.ignore_parent = True
-            iterator_stmt = stmtctx.declare_view(
-                qlstmt.iterator, qlstmt.iterator_alias, ctx=scopectx)
-            irstmt.iterator_stmt = setgen.scoped_set(
-                iterator_stmt, ctx=scopectx)
-
-        ctx.singletons.add(irstmt.iterator_stmt.path_id)
-        pathctx.register_path_in_scope(irstmt.iterator_stmt.path_id, ctx=ctx)
-
 
 def fini_stmt(
-        irstmt: irast.Stmt, qlstmt: qlast.Statement, *,
+        irstmt: irast.Base, qlstmt: qlast.Statement, *,
         ctx: context.ContextLevel,
-        parent_ctx: context.ContextLevel) \
-        -> typing.Union[irast.Set, irast.Stmt]:
-    if irstmt.parent_stmt is None:
-        irstmt.argument_types = ctx.arguments
-        result = irstmt
-        irutils.infer_type(irstmt, schema=ctx.schema)
+        parent_ctx: context.ContextLevel) -> irast.Set:
+    irstmt.cardinality = qlstmt.cardinality
+
+    view_name = parent_ctx.toplevel_result_view_name
+    t = irutils.infer_type(irstmt, ctx.schema)
+
+    if t.name == view_name:
+        # The view statement did contain a view declaration and
+        # generated a view class with the requested name.
+        view = t
+        path_id = pathctx.get_path_id(view, ctx=parent_ctx)
+    elif view_name is not None:
+        # The view statement did _not_ contain a view declaration,
+        # but we still want the correct path_id.
+        view = schemactx.derive_view(t, derived_name=view_name, ctx=parent_ctx)
+        path_id = pathctx.get_path_id(view, ctx=parent_ctx)
     else:
-        result = setgen.generated_set(irstmt, ctx=ctx)
-        pathctx.register_path_in_scope(result.path_id, ctx=ctx)
+        view = None
+        path_id = None
+
+    if ctx.stmt is ctx.toplevel_stmt:
+        result = setgen.scoped_set(irstmt, path_id=path_id, ctx=ctx)
+    else:
+        result = setgen.ensure_set(irstmt, path_id=path_id, ctx=ctx)
+
+    if view is not None:
+        parent_ctx.view_sets[view] = result
+        result.scls = view
 
     return result
 
@@ -354,13 +356,7 @@ def process_with_block(
 
         elif isinstance(with_entry, qlast.AliasedExpr):
             with ctx.new() as scopectx:
-                scopectx.path_scope = parent_ctx.path_scope.add_fence()
-                # Paths in the statement must not be coalesced with
-                # paths in view definitions, so the view scope must
-                # "ignore the parent" when paths are added to the parent
-                # scope.
-                scopectx.path_scope.ignore_parent = True
-
+                scopectx.expr_exposed = False
                 stmtctx.declare_view(
                     with_entry.expr, with_entry.alias, ctx=scopectx)
 
@@ -370,33 +366,81 @@ def process_with_block(
 
 
 def compile_result_clause(
-        result: qlast.Base,
-        toplevel_rptr: typing.Optional[irast.Pointer],
-        result_alias: typing.Optional[str]=None, *,
+        result: qlast.Base, *,
+        view_scls: typing.Optional[s_types.Type]=None,
+        view_rptr: typing.Optional[context.ViewRPtr]=None,
+        view_name: typing.Optional[s_name.SchemaName]=None,
+        result_alias: typing.Optional[str]=None,
         ctx: context.ContextLevel) -> irast.Set:
     with ctx.new() as sctx:
         sctx.clause = 'result'
+        if sctx.stmt is ctx.toplevel_stmt:
+            sctx.toplevel_clause = sctx.clause
+            sctx.expr_exposed = True
 
         if isinstance(result, qlast.Shape):
-            expr = setgen.ensure_set(
-                dispatch.compile(result.expr, ctx=sctx), ctx=sctx)
+            result_expr = result.expr
             shape = result.elements
         else:
-            expr = dispatch.compile(result, ctx=sctx)
+            result_expr = result
             shape = None
 
-        pathctx.update_singletons(expr, ctx=sctx)
+        if result_alias:
+            expr = stmtctx.declare_view(
+                result_expr, alias=result_alias, temp_scope=False, ctx=sctx)
 
-        if shape is not None:
-            if expr.rptr is not None:
-                rptr = expr.rptr
-            else:
-                rptr = toplevel_rptr
+            pathctx.register_set_in_scope(expr, ctx=sctx)
+        else:
+            expr = setgen.ensure_set(
+                dispatch.compile(result_expr, ctx=sctx), ctx=sctx)
 
-            expr = shapegen.compile_shape(expr, shape, rptr=rptr, ctx=sctx)
+        result = compile_query_subject(
+            expr, shape=shape, view_rptr=view_rptr, view_name=view_name,
+            result_alias=result_alias,
+            view_scls=view_scls,
+            compile_views=ctx.stmt is ctx.toplevel_stmt,
+            ctx=sctx)
 
-    expr = stmtctx.declare_aliased_set(expr, result_alias, ctx=ctx)
-    pathctx.update_singletons(expr, ctx=ctx)
+        ctx.partial_path_prefix = result
+
+    return result
+
+
+def compile_query_subject(
+        expr: irast.Set, *,
+        shape: typing.Optional[typing.List[qlast.ShapeElement]]=None,
+        view_rptr: typing.Optional[context.ViewRPtr]=None,
+        view_name: typing.Optional[s_name.SchemaName]=None,
+        result_alias: typing.Optional[str]=None,
+        view_scls: typing.Optional[s_types.Type]=None,
+        compile_views: bool=True,
+        is_insert: bool=False,
+        is_update: bool=False,
+        ctx: context.ContextLevel) -> irast.Set:
+
+    if shape is not None and view_scls is None:
+        if (view_name is None and
+                isinstance(result_alias, s_name.SchemaName)):
+            view_name = result_alias
+        inner_path_id = expr.path_id
+
+        view_scls = viewgen.process_view(
+            scls=expr.scls, path_id=expr.path_id,
+            elements=shape, view_rptr=view_rptr,
+            view_name=view_name, is_insert=is_insert,
+            is_update=is_update, ctx=ctx)
+    else:
+        inner_path_id = None
+
+    if view_scls is not None:
+        expr.scls = view_scls
+
+    if compile_views and expr.scls is not None:
+        rptr = view_rptr.rptr if view_rptr is not None else None
+        viewgen.compile_view_shapes(expr, rptr=rptr, ctx=ctx)
+
+    if inner_path_id is not None and len(inner_path_id) == 1:
+        ctx.class_view_overrides[inner_path_id[0].name] = expr.scls
 
     return expr
 
@@ -411,18 +455,20 @@ def compile_groupby_clause(
 
     with ctx.new() as sctx:
         sctx.clause = 'groupby'
+        if sctx.stmt.parent_stmt is None:
+            sctx.toplevel_clause = sctx.clause
+
         sctx.singletons = sctx.singletons.copy()
         sctx.singletons.update(singletons)
 
         ir_groupexprs = []
         for groupexpr in groupexprs:
-            with sctx.newfence() as scopectx:
+            with sctx.newscope(fenced=True) as scopectx:
                 ir_groupexpr = setgen.scoped_set(
                     dispatch.compile(groupexpr, ctx=scopectx), ctx=scopectx)
                 ir_groupexpr.context = groupexpr.context
                 ir_groupexprs.append(ir_groupexpr)
 
                 ctx.singletons.add(ir_groupexpr.path_id)
-                ctx.group_paths.add(ir_groupexpr.path_id)
 
     return ir_groupexprs

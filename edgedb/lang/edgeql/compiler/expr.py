@@ -13,10 +13,11 @@ from edgedb.lang.common import ast
 from edgedb.lang.common import parsing
 
 from edgedb.lang.ir import ast as irast
+from edgedb.lang.ir import inference as irinference
 from edgedb.lang.ir import utils as irutils
 
+from edgedb.lang.schema import basetypes as s_basetypes
 from edgedb.lang.schema import concepts as s_concepts
-from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import types as s_types
 from edgedb.lang.schema import utils as s_utils
@@ -73,10 +74,18 @@ def compile_BinOp(
 def compile_Parameter(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
     pt = ctx.arguments.get(expr.name)
-    if pt is not None and not isinstance(pt, s_obj.NodeClass):
-        pt = s_types.normalize_type(pt, ctx.schema)
+    if pt is not None and not isinstance(pt, s_types.Type):
+        pt = s_basetypes.normalize_type(pt, ctx.schema)
 
     return setgen.ensure_set(irast.Parameter(type=pt, name=expr.name), ctx=ctx)
+
+
+@dispatch.compile.register(qlast.DetachedExpr)
+def compile_DetachedExpr(
+        expr: qlast.DetachedExpr, *, ctx: context.ContextLevel):
+    with ctx.new() as subctx:
+        subctx.path_id_namespace = subctx.aliases.get('ns')
+        return dispatch.compile(expr.expr, ctx=subctx)
 
 
 @dispatch.compile.register(qlast.Set)
@@ -84,7 +93,7 @@ def compile_Set(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
     if expr.elements:
         if len(expr.elements) == 1:
-            with ctx.newfence() as scopectx:
+            with ctx.newscope(fenced=True) as scopectx:
                 return setgen.scoped_set(
                     dispatch.compile(expr.elements[0], ctx=scopectx),
                     ctx=scopectx)
@@ -112,7 +121,7 @@ def compile_Set(
 @dispatch.compile.register(qlast.Constant)
 def compile_Constant(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
-    ct = s_types.normalize_type(expr.value.__class__, ctx.schema)
+    ct = s_basetypes.normalize_type(expr.value.__class__, ctx.schema)
     return setgen.generated_set(
         irast.Constant(value=expr.value, type=ct), ctx=ctx)
 
@@ -170,22 +179,50 @@ def compile_Mapping(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
     keys = [dispatch.compile(k, ctx=ctx) for k in expr.keys]
     values = [dispatch.compile(v, ctx=ctx) for v in expr.values]
-    return irast.Mapping(keys=keys, values=values)
+    return setgen.generated_set(irast.Mapping(keys=keys, values=values),
+                                ctx=ctx)
 
 
 @dispatch.compile.register(qlast.Array)
 def compile_Array(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
     elements = [dispatch.compile(e, ctx=ctx) for e in expr.elements]
-    return irast.Array(elements=elements)
+    return setgen.generated_set(irast.Array(elements=elements), ctx=ctx)
 
 
 @dispatch.compile.register(qlast.IfElse)
 def compile_IfElse(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
-    ifelse_op = compile_ifelse(expr.condition, expr.if_expr,
-                               expr.else_expr, expr.context, ctx=ctx)
-    return setgen.generated_set(ifelse_op, ctx=ctx)
+        expr: qlast.IfElse, *, ctx: context.ContextLevel) -> irast.Base:
+
+    condition = setgen.ensure_set(
+        dispatch.compile(expr.condition, ctx=ctx), ctx=ctx)
+
+    ql_if_expr = expr.if_expr
+    ql_else_expr = expr.else_expr
+
+    with ctx.newscope(fenced=True) as scopectx:
+        if_expr = dispatch.compile(ql_if_expr, ctx=scopectx)
+
+    with ctx.newscope(fenced=True) as scopectx:
+        else_expr = dispatch.compile(ql_else_expr, ctx=scopectx)
+
+    if_expr_type = irutils.infer_type(if_expr, ctx.schema)
+    else_expr_type = irutils.infer_type(else_expr, ctx.schema)
+
+    result = s_utils.get_class_nearest_common_ancestor(
+        [if_expr_type, else_expr_type])
+
+    if result is None:
+        raise errors.EdgeQLError(
+            'if/else clauses must be of related types, got: {}/{}'.format(
+                if_expr_type.name, else_expr_type.name),
+            context=expr.context)
+
+    return setgen.generated_set(
+        irast.IfElseExpr(
+            if_expr=if_expr, else_expr=else_expr, condition=condition),
+        ctx=ctx
+    )
 
 
 @dispatch.compile.register(qlast.UnaryOp)
@@ -218,12 +255,12 @@ def compile_UnaryOp(
 @dispatch.compile.register(qlast.ExistsPredicate)
 def compile_ExistsPredicate(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
-    with ctx.newscope() as exctx:
-        with exctx.newfence() as opctx:
+    with ctx.new() as exctx:
+        with exctx.newscope(fenced=True) as opctx:
             operand = setgen.scoped_set(
                 dispatch.compile(expr.expr, ctx=opctx), ctx=opctx)
 
-        return setgen.scoped_set(
+        return setgen.generated_set(
             irast.ExistPred(expr=operand), ctx=exctx)
 
 
@@ -233,17 +270,36 @@ def compile_Coalesce(
     if all(isinstance(a, qlast.Set) and not a.elements for a in expr.args):
         return irutils.new_empty_set(ctx.schema, alias=ctx.aliases.get('e'))
 
-    with ctx.newscope() as scopectx:
+    with ctx.new() as newctx:
         larg = setgen.ensure_set(
-            dispatch.compile(expr.args[0], ctx=scopectx), ctx=scopectx)
+            dispatch.compile(expr.args[0], ctx=newctx), ctx=newctx)
+        lcard = irinference.infer_cardinality(
+            larg, singletons=newctx.singletons,
+            schema=newctx.schema
+        )
+
+        pathctx.register_set_in_scope(larg, ctx=ctx)
+        pathctx.mark_path_as_optional(larg.path_id, ctx=ctx)
 
         for rarg_ql in expr.args[1:]:
-            with scopectx.newscope() as nestedscopectx:
-                with nestedscopectx.newfence() as fencectx:
+            with newctx.new() as nestedscopectx:
+                with nestedscopectx.newscope(fenced=True) as fencectx:
                     rarg = setgen.scoped_set(
                         dispatch.compile(rarg_ql, ctx=fencectx), ctx=fencectx)
-                larg = setgen.scoped_set(
-                    irast.Coalesce(left=larg, right=rarg), ctx=nestedscopectx)
+                    rcard = irinference.infer_cardinality(
+                        rarg, singletons=fencectx.singletons,
+                        schema=fencectx.schema
+                    )
+
+                coalesce = irast.Coalesce(
+                    left=larg, lcardinality=lcard,
+                    right=rarg, rcardinality=rcard
+                )
+                larg = setgen.generated_set(coalesce, ctx=nestedscopectx)
+                lcard = irinference.infer_cardinality(
+                    larg, singletons=nestedscopectx.singletons,
+                    schema=nestedscopectx.schema
+                )
 
     return larg
 
@@ -262,8 +318,11 @@ def compile_TypeCast(
     else:
         ir_expr = dispatch.compile(expr.expr, ctx=ctx)
 
-    return _cast_expr(expr.type, ir_expr, ctx=ctx,
-                      source_context=expr.expr.context)
+    return setgen.ensure_set(
+        _cast_expr(expr.type, ir_expr, ctx=ctx,
+                   source_context=expr.expr.context),
+        ctx=ctx
+    )
 
 
 def _cast_expr(
@@ -277,11 +336,11 @@ def _cast_expr(
         # if the expr is an empty set (or a coalesce of empty sets).
         orig_type = None
 
-    if isinstance(orig_type, s_obj.Tuple):
+    if isinstance(orig_type, s_types.Tuple):
         # For tuple-to-tuple casts we generate a new tuple
         # to simplify things on sqlgen side.
         new_type = typegen.ql_typeref_to_type(ql_type, ctx=ctx)
-        if not isinstance(new_type, s_obj.Tuple):
+        if not isinstance(new_type, s_types.Tuple):
             raise errors.EdgeQLError(
                 f'cannot cast tuple to {new_type.name}',
                 context=source_context)
@@ -332,8 +391,12 @@ def _cast_expr(
 @dispatch.compile.register(qlast.TypeFilter)
 def compile_TypeFilter(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
-    # Expr[IS Type] expressions,
-    arg = dispatch.compile(expr.expr, ctx=ctx)
+    # Expr[IS Type] expressions.
+    with ctx.newscope(fenced=True, temporary=True) as scopectx:
+        arg = setgen.ensure_set(
+            dispatch.compile(expr.expr, ctx=scopectx),
+            ctx=scopectx)
+
     arg_type = irutils.infer_type(arg, ctx.schema)
     if not isinstance(arg_type, s_concepts.Concept):
         raise errors.EdgeQLError(
@@ -347,8 +410,13 @@ def compile_TypeFilter(
             f'invalid type filter operand: {typ.name} is not a concept',
             context=expr.type.context)
 
-    arg_set = setgen.ensure_set(arg, ctx=ctx)
-    return setgen.class_indirection_set(arg_set, typ, optional=False, ctx=ctx)
+    result = setgen.class_indirection_set(arg, typ, optional=False, ctx=ctx)
+    pathctx.register_set_in_scope(result, ctx=ctx)
+    node = ctx.path_scope.find_descendant(result.path_id)
+    if node:
+        node.attach_branch(scopectx.path_scope)
+
+    return result
 
 
 @dispatch.compile.register(qlast.Indirection)
@@ -487,39 +555,51 @@ def compile_type_check_op(
         s_pointers.PointerDirection.Outbound, None,
         expr.context, ctx=ctx)
 
-    pathctx.register_path_in_scope(left.path_id, ctx=ctx)
+    pathctx.register_set_in_scope(left, ctx=ctx)
 
     right = typegen.process_type_ref_expr(right)
 
     return irast.BinOp(left=left, right=right, op=expr.op)
 
 
-def compile_set_op(
-        expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.SetOp:
-    # UNION
-    with ctx.newfence() as scopectx:
+def _compile_set_op(
+        expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.Set:
+
+    with ctx.newscope(fenced=True) as scopectx:
         left = setgen.scoped_set(
-            dispatch.compile(expr.left, ctx=scopectx), ctx=scopectx)
+            dispatch.compile(expr.left, ctx=scopectx),
+            ctx=scopectx)
 
-    with ctx.newfence() as scopectx:
+    with ctx.newscope(fenced=True) as scopectx:
         right = setgen.scoped_set(
-            dispatch.compile(expr.right, ctx=scopectx), ctx=scopectx)
+            dispatch.compile(expr.right, ctx=scopectx),
+            ctx=scopectx)
 
-    result = setgen.ensure_set(
+    return setgen.ensure_set(
         irast.SetOp(left=left, right=right, op=expr.op), ctx=ctx)
 
-    pathctx.register_path_in_scope(result.path_id, ctx=ctx)
 
-    return result
+def compile_set_op(
+        expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.Set:
+    # UNION
+    if expr.op == qlast.DISTINCT_UNION:
+        with ctx.newscope(fenced=True) as fencectx:
+            union = setgen.scoped_set(
+                _compile_set_op(expr, ctx=fencectx),
+                ctx=fencectx)
+
+        return setgen.generated_set(irast.DistinctOp(expr=union), ctx=ctx)
+    else:
+        return _compile_set_op(expr, ctx=ctx)
 
 
 def compile_distinct_op(
         expr: qlast.UnaryOp, *, ctx: context.ContextLevel) -> irast.DistinctOp:
     # DISTINCT(SET OF any A) -> SET OF any
-    with ctx.newfence() as scopectx:
+    with ctx.newscope(fenced=True) as scopectx:
         operand = setgen.scoped_set(
             dispatch.compile(expr.operand, ctx=scopectx), ctx=scopectx)
-    return irast.DistinctOp(expr=operand)
+    return setgen.generated_set(irast.DistinctOp(expr=operand), ctx=ctx)
 
 
 def compile_equivalence_op(
@@ -538,65 +618,19 @@ def compile_equivalence_op(
     #   | {False}, iff A = B = ∅
     #   | {True}, iff A != ∅ ∧ B = ∅
     #   | {True}, iff A = ∅ ∧ B != ∅
-    with ctx.newscope() as scopectx:
-        return irast.EquivalenceOp(
-            left=setgen.scoped_set(
-                dispatch.compile(expr.left, ctx=scopectx), ctx=scopectx),
-            right=setgen.scoped_set(
-                dispatch.compile(expr.right, ctx=scopectx), ctx=scopectx),
-            op=expr.op
-        )
-
-
-def compile_ifelse(
-        condition: qlast.Base,
-        if_expr: qlast.Base, else_expr: qlast.Base,
-        src_context: parsing.ParserContext, *,
-        ctx: context.ContextLevel) -> irast.Base:
-    if_expr = astutils.ensure_qlstmt(if_expr)
-    else_expr = astutils.ensure_qlstmt(else_expr)
-
-    # The condition set is shared between both branches,
-    # so we must add it to the parent scope to avoid computing
-    # it twice.
-    condition = setgen.ensure_set(
-        dispatch.compile(condition, ctx=ctx), ctx=ctx)
-    pathctx.register_path_in_scope(condition.path_id, ctx=ctx)
-
-    with ctx.newfence() as scopectx:
-        if_expr = dispatch.compile(if_expr, ctx=scopectx)
-        if_expr.expr.where = astutils.extend_irbinop(
-            if_expr.expr.where, condition)
-        if_expr = setgen.scoped_set(if_expr, ctx=scopectx)
-
-    with ctx.newfence() as scopectx:
-        else_expr = dispatch.compile(else_expr, ctx=scopectx)
-        else_expr.expr.where = astutils.extend_irbinop(
-            else_expr.expr.where,
-            setgen.ensure_set(
-                irast.UnaryOp(expr=condition, op=ast.ops.NOT), ctx=scopectx))
-        else_expr = setgen.scoped_set(else_expr, ctx=scopectx)
-
-    if_expr_type = irutils.infer_type(if_expr, ctx.schema)
-    else_expr_type = irutils.infer_type(else_expr, ctx.schema)
-
-    result = s_utils.get_class_nearest_common_ancestor(
-        [if_expr_type, else_expr_type])
-
-    if result is None:
-        raise errors.EdgeQLError(
-            'if/else clauses must be of related types, got: {}/{}'.format(
-                if_expr_type.name, else_expr_type.name),
-            context=src_context)
-
-    return irast.SetOp(left=if_expr, right=else_expr, op=qlast.UNION,
-                       exclusive=True)
+    left = setgen.ensure_set(dispatch.compile(expr.left, ctx=ctx), ctx=ctx)
+    pathctx.register_set_in_scope(left, ctx=ctx)
+    pathctx.mark_path_as_optional(left.path_id, ctx=ctx)
+    right = setgen.ensure_set(dispatch.compile(expr.right, ctx=ctx), ctx=ctx)
+    pathctx.register_set_in_scope(right, ctx=ctx)
+    pathctx.mark_path_as_optional(right.path_id, ctx=ctx)
+    return irast.EquivalenceOp(left=left, right=right, op=expr.op)
 
 
 def compile_membership_op(
         expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.Base:
     left = dispatch.compile(expr.left, ctx=ctx)
-    with ctx.newfence() as scopectx:
+    with ctx.newscope(fenced=True) as scopectx:
         # [NOT] IN is an aggregate, so we need to put a scope fence.
         right = setgen.scoped_set(
             dispatch.compile(expr.right, ctx=scopectx), ctx=scopectx)

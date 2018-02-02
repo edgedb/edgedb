@@ -332,7 +332,7 @@ class TestIntrospection(tb.QueryTestCase):
                 links: {
                     target: Array {
                         name,
-                        element_type:  {
+                        element_type: {
                             name
                         }
                     }
@@ -371,8 +371,6 @@ class TestIntrospection(tb.QueryTestCase):
             [{
                 'name': 'test::todo',
                 'link_properties': [{
-                    'name': 'std::linkid',
-                }, {
                     'name': 'std::source',
                 }, {
                     'name': 'std::target',

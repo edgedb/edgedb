@@ -8,7 +8,6 @@
 from edgedb.lang.ir import ast as irast
 
 from edgedb.lang.schema import concepts as s_concepts
-from edgedb.lang.schema import views as s_views
 
 from edgedb.server.pgsql import ast as pgast
 
@@ -37,8 +36,11 @@ def compile_SelectStmt(
 
         query = ctx.stmt
 
-        # Process FOR clause.
-        clauses.compile_iterator_expr(query, stmt, ctx=ctx)
+        iterator_set = stmt.iterator_stmt
+        if (iterator_set is not None and
+                not isinstance(stmt.result.expr, irast.MutatingStmt)):
+            # Process FOR clause.
+            clauses.compile_iterator_expr(query, iterator_set, ctx=ctx)
 
         # Process the result expression;
         outvar = clauses.compile_output(stmt.result, ctx=ctx)
@@ -194,7 +196,7 @@ def compile_GroupStmt(
             for group_set in stmt.groupby:
                 dispatch.compile(group_set, ctx=gvctx)
                 path_id = group_set.path_id
-                if isinstance(path_id[-1], (s_concepts.Concept, s_views.View)):
+                if path_id.is_concept_path():
                     pathctx.put_path_bond(gvquery, path_id)
 
             gvquery.distinct_clause = [
@@ -322,14 +324,16 @@ def compile_InsertStmt(
 
     parent_ctx = ctx
     with parent_ctx.substmt() as ctx:
-        # Common DML bootstrap
-        wrapper, insert_cte, _ = dml.init_dml_stmt(
+        # Common DML bootstrap.
+        wrapper, insert_cte, insert_rvar, _ = dml.init_dml_stmt(
             stmt, pgast.InsertStmt(), parent_ctx=parent_ctx, ctx=ctx)
 
-        # Process INSERT body
-        dml.process_insert_body(stmt, wrapper, insert_cte, ctx=ctx)
+        # Process INSERT body.
+        dml.process_insert_body(
+            stmt, wrapper, insert_cte, insert_rvar, ctx=ctx)
 
-        return dml.fini_dml_stmt(stmt, wrapper, insert_cte,
+        # Wrap up.
+        return dml.fini_dml_stmt(stmt, wrapper, insert_cte, insert_rvar,
                                  parent_ctx=parent_ctx, ctx=ctx)
 
 
@@ -340,15 +344,15 @@ def compile_UpdateStmt(
 
     parent_ctx = ctx
     with parent_ctx.substmt() as ctx:
-        # Common DML bootstrap
-        wrapper, update_cte, range_cte = dml.init_dml_stmt(
+        # Common DML bootstrap.
+        wrapper, update_cte, update_rvar, range_cte = dml.init_dml_stmt(
             stmt, pgast.UpdateStmt(), parent_ctx=parent_ctx, ctx=ctx)
 
-        # Process UPDATE body
-        dml.process_update_body(stmt, wrapper, update_cte, range_cte,
-                                ctx=ctx)
+        # Process UPDATE body.
+        dml.process_update_body(
+            stmt, wrapper, update_cte, range_cte, ctx=ctx)
 
-        return dml.fini_dml_stmt(stmt, wrapper, update_cte,
+        return dml.fini_dml_stmt(stmt, wrapper, update_cte, update_rvar,
                                  parent_ctx=parent_ctx, ctx=ctx)
 
 
@@ -360,11 +364,12 @@ def compile_DeleteStmt(
     parent_ctx = ctx
     with parent_ctx.substmt() as ctx:
         # Common DML bootstrap
-        wrapper, delete_cte, range_cte = dml.init_dml_stmt(
+        wrapper, delete_cte, delete_rvar, range_cte = dml.init_dml_stmt(
             stmt, pgast.DeleteStmt(), parent_ctx=parent_ctx, ctx=ctx)
 
         ctx.toplevel_stmt.ctes.append(range_cte)
         ctx.toplevel_stmt.ctes.append(delete_cte)
 
-        return dml.fini_dml_stmt(stmt, wrapper, delete_cte,
+        # Wrap up.
+        return dml.fini_dml_stmt(stmt, wrapper, delete_cte, delete_rvar,
                                  parent_ctx=parent_ctx, ctx=ctx)

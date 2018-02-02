@@ -7,9 +7,6 @@
 """EdgeQL compiler path scope helpers."""
 
 
-import collections
-
-from edgedb.lang.common import ast
 from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import inference as irinference
 
@@ -20,85 +17,43 @@ from edgedb.lang.edgeql import errors
 from . import context
 
 
-class SingletonPathExtractor(ast.visitor.NodeVisitor):
-    def __init__(self, roots_only=False, exclude=set()):
-        super().__init__()
-        self.paths = collections.OrderedDict()
-        self.roots_only = roots_only
-        self.exclude = exclude
-
-    def visit_Stmt(self, expr):
-        pass
-
-    def visit_Set(self, expr):
-        key = expr.path_id
-        if key in self.exclude:
-            return
-
-        if expr.expr is not None:
-            self.visit(expr.expr)
-
-        if expr.rptr is not None:
-            self.visit(expr.rptr.source)
-
-        if key and (not self.roots_only or expr.rptr is None):
-            if key not in self.paths:
-                self.paths[key] = {expr}
-            else:
-                self.paths[key].add(expr)
-
-    def visit_FunctionCall(self, expr):
-        if expr.func.aggregate:
-            pass
-        else:
-            self.generic_visit(expr)
-
-    def visit_ExistPred(self, expr):
-        pass
-
-    def visit_DistinctOp(self, expr):
-        pass
-
-    def visit_SetOp(self, expr):
-        pass
-
-    def visit_BinOp(self, expr):
-        if isinstance(expr.op, irast.SetOperator):
-            return
-
-        self.generic_visit(expr.left)
-
-        if not isinstance(expr.op, ast.ops.MembershipOperator):
-            self.generic_visit(expr.right)
-
-
 def get_path_id(scls: s_obj.Class, *,
                 ctx: context.CompilerContext) -> irast.PathId:
     return irast.PathId(scls, namespace=ctx.path_id_namespace)
 
 
-def register_path_in_scope(
-        path_id: irast.PathId, *,
+def register_set_in_scope(
+        ir_set: irast.Set, *,
         ctx: context.CompilerContext) -> None:
     if ctx.path_as_type:
         return
-    ctx.path_scope.add_path(path_id)
+    try:
+        ctx.path_scope.add_path(ir_set.path_id)
+    except irast.InvalidScopeConfiguration as e:
+        raise errors.EdgeQLError(e.args[0], context=ir_set.context) from e
+
+
+def mark_path_as_optional(
+        path_id: irast.PathId, *,
+        ctx: context.CompilerContext) -> None:
+    ctx.path_scope.mark_as_optional(path_id)
+
+
+def set_path_alias(
+        path_id: irast.PathId, alias: irast.PathId, *,
+        ctx: context.CompilerContext) -> None:
+    ctx.path_scope.set_alias(path_id, alias)
 
 
 def enforce_singleton(expr: irast.Base, *, ctx: context.ContextLevel) -> None:
-    cardinality = irinference.infer_cardinality(
-        expr, ctx.singletons, ctx.schema)
-    if cardinality != 1:
+    scope_fence = ctx.path_scope.fence.parent
+    if scope_fence is not None:
+        singletons = scope_fence.get_all_visible()
+    else:
+        singletons = set()
+    cardinality = irinference.infer_cardinality(expr, singletons, ctx.schema)
+    if cardinality != irast.Cardinality.ONE:
         raise errors.EdgeQLError(
             'possibly more than one element returned by an expression '
             'where only singletons are allowed',
             context=expr.context)
-
-
-def update_singletons(expr: irast.Base, *, ctx: context.ContextLevel) -> None:
-    extractor = SingletonPathExtractor()
-    extractor.visit(expr)
-    prefixes = extractor.paths
-    for prefix, ir_sets in prefixes.items():
-        for ir_set in ir_sets:
-            ctx.singletons.add(ir_set.path_id)

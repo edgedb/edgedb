@@ -111,7 +111,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [[3, 3, 2]],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_functions_array_agg_02(self):
         res = await self.con.execute('''
             SELECT array_agg({1, 2, 3})[0];
@@ -229,7 +228,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                     )
                 }
             FILTER
-                Concept.name = 'schema::PrimaryClass';
+                Concept.name = 'schema::Class';
         """, [
             [{
                 'l': ['schema::name', 'std::id']
@@ -251,7 +250,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(r"""
             WITH MODULE test
             SELECT array_agg(
-                [<str>Issue.number, Issue.status.name]
+                (<str>Issue.number, Issue.status.name)
                 ORDER BY Issue.number)[1];
         """, [
             [['2', 'Open']]
@@ -365,7 +364,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH
                 MODULE schema,
-                C2 := Concept
+                C2 := DETACHED Concept
             SELECT
                 count(re_match_all(Concept.name, '(\w+)')) =
                 2 * count(C2);

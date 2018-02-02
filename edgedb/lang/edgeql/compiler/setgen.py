@@ -7,6 +7,7 @@
 """EdgeQL set compilation functions."""
 
 
+import copy
 import typing
 
 from edgedb.lang.common import parsing
@@ -19,11 +20,10 @@ from edgedb.lang.schema import expr as s_expr
 from edgedb.lang.schema import links as s_links
 from edgedb.lang.schema import lproperties as s_linkprops
 from edgedb.lang.schema import nodes as s_nodes
-from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import sources as s_sources
+from edgedb.lang.schema import types as s_types
 from edgedb.lang.schema import utils as s_utils
-from edgedb.lang.schema import views as s_views
 
 from edgedb.lang.edgeql import ast as qlast
 from edgedb.lang.edgeql import errors
@@ -46,11 +46,13 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
     path_tip = None
 
     if expr.partial:
-        if ctx.result_path_steps:
-            expr.steps = ctx.result_path_steps + expr.steps
+        if ctx.partial_path_prefix is not None:
+            path_tip = ctx.partial_path_prefix
         else:
             raise errors.EdgeQLError('could not resolve partial path ',
                                      context=expr.context)
+
+    extra_scopes = {}
 
     for i, step in enumerate(expr.steps):
         if isinstance(step, qlast.Self):
@@ -74,38 +76,28 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 # Check if the starting path label is a known anchor
                 refnode = anchors.get(step.name)
 
-            if refnode is None:
-                # Finally, check if the stating path label is
-                # a query defined as a view.
-                if path_tip is not None:
-                    src_path_id = path_tip.path_id
-                else:
-                    src_path_id = None
-
-                if not step.module:
-                    refnode = ctx.substmts.get((step.name, src_path_id))
-
-                if refnode is None:
-                    schema_name = schemactx.resolve_schema_name(
-                        step.name, step.module, ctx=ctx)
-                    refnode = ctx.substmts.get((schema_name, src_path_id))
-
             if refnode is not None:
-                path_tip = refnode
+                path_tip = copy.copy(refnode)
             else:
-                # Starting path label.  Must be a valid reference to an
-                # existing Concept class, as aliases and path variables
-                # have been checked above.
                 scls = schemactx.get_schema_object(step, ctx=ctx)
-                if isinstance(scls, s_views.View):
-                    path_tip = stmtctx.declare_view_from_schema(scls, ctx=ctx)
-                else:
-                    path_tip = class_set(scls, ctx=ctx)
 
-            mapped = ctx.view_map.get(path_tip.path_id)
-            if mapped is not None:
-                path_tip = irast.Set(
-                    path_id=mapped.path_id, scls=mapped.scls)
+                if (scls.view_type is not None and
+                        scls.name not in ctx.view_nodes):
+                    # This is a schema-level view, as opposed to
+                    # a WITH-block or inline alias view.
+                    scls = stmtctx.declare_view_from_schema(scls, ctx=ctx)
+
+                path_tip = class_set(scls, ctx=ctx)
+                view_set = ctx.view_sets.get(scls)
+                if view_set is not None:
+                    path_tip.expr = view_set.expr
+                    path_tip.path_id = view_set.path_id
+                    if view_set.path_scope is not None:
+                        extra_scopes[path_tip] = view_set.path_scope
+
+                view_scls = ctx.class_view_overrides.get(scls.name)
+                if view_scls is not None:
+                    path_tip.scls = view_scls
 
         elif isinstance(step, qlast.Ptr):
             # Pointer traversal step
@@ -133,9 +125,14 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             else:
                 source = path_tip.scls
 
-            path_tip, _ = path_step(
-                path_tip, source, ptr_name, direction, ptr_target,
-                source_context=step.context, ctx=ctx)
+            with ctx.newscope(fenced=True, temporary=True) as subctx:
+                # We must treat expression Sources like the same
+                # way we would treat a reference to a view node representing
+                # the same expression.
+                path_tip, _ = path_step(
+                    path_tip, source, ptr_name, direction, ptr_target,
+                    source_context=step.context, ctx=subctx)
+                extra_scopes[path_tip] = subctx.path_scope
 
         else:
             # Arbitrary expression
@@ -143,14 +140,30 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 raise RuntimeError(
                     'unexpected expression as a non-first path item')
 
-            expr = dispatch.compile(step, ctx=ctx)
-            if isinstance(expr, irast.Set):
-                path_tip = expr
-            else:
-                path_tip = generated_set(expr, ctx=ctx)
+            with ctx.newscope(fenced=True, temporary=True) as subctx:
+                subctx.pending_path_scope = None
+                path_tip = ensure_set(
+                    dispatch.compile(step, ctx=subctx), ctx=subctx)
 
-    pathctx.register_path_in_scope(path_tip.path_id, ctx=ctx)
+            extra_scopes[path_tip] = subctx.path_scope
 
+    mapped = ctx.view_map.get(path_tip.path_id)
+    if mapped is not None:
+        path_tip = irast.Set(path_id=mapped.path_id, scls=mapped.scls)
+        path_tip.expr = mapped.expr
+
+    path_tip.context = expr.context
+    pathctx.register_set_in_scope(path_tip, ctx=ctx)
+
+    for ir_set, scope in extra_scopes.items():
+        if not scope.is_empty():
+            node = ctx.path_scope.find_descendant(ir_set.path_id)
+            if node:
+                node.attach_branch(scope)
+                if ir_set.path_scope is None:
+                    ir_set.path_scope = node
+                elif ir_set.path_scope is scope:
+                    ir_set.path_scope = None
     return path_tip
 
 
@@ -163,7 +176,7 @@ def path_step(
         ctx: context.ContextLevel) \
         -> typing.Tuple[irast.Set, s_pointers.Pointer]:
 
-    if isinstance(source, s_obj.Tuple):
+    if isinstance(source, s_types.Tuple):
         if ptr_name[0] is not None:
             el_name = '::'.join(ptr_name)
         else:
@@ -184,76 +197,21 @@ def path_step(
         return tuple_ind, None
 
     else:
-        # Check if the tip of the path has an associated shape.
-        # This would be the case for paths on views.
-        ptrcls = None
-        shape_el = None
-        view_source = None
-        view_set = None
-
-        if irutils.is_view_set(path_tip):
-            view_set = irutils.get_subquery_shape(path_tip)
-
-        if view_set is None:
-            view_set = path_tip
-
-        # Search for the pointer in the shape associated with
-        # the tip of the path, i.e. a view.
-        for shape_el in view_set.shape:
-            shape_ptrcls = shape_el.rptr.ptrcls
-            shape_pn = shape_ptrcls.shortname
-
-            if ((ptr_name[0] and ptr_name == shape_pn.as_tuple()) or
-                    ptr_name[1] == shape_pn.name):
-                # Found a match!
-                ptrcls = shape_ptrcls
-                if shape_el.expr is not None:
-                    view_source = shape_el
-                break
-
-        if ptrcls is None:
-            # Try to resolve a pointer using the schema.
-            ptrcls = resolve_ptr(
-                source, ptr_name, direction, target=ptr_target, ctx=ctx)
+        ptrcls = resolve_ptr(
+            source, ptr_name, direction, target=ptr_target, ctx=ctx)
 
         target = ptrcls.get_far_endpoint(direction)
-        if isinstance(ptrcls, s_linkprops.LinkProperty):
-            target_path_id = path_tip.path_id.ptr_path().extend(
-                ptrcls, direction, target)
-        else:
-            target_path_id = path_tip.path_id.extend(
-                ptrcls, direction, target)
 
-        if (view_source is None or shape_el.path_id != target_path_id or
-                path_tip.expr is not None):
-            orig_path_tip = path_tip
-            path_tip = extend_path(
-                path_tip, ptrcls, direction, target, ctx=ctx)
+        mapped = ctx.view_map.get(path_tip.path_id)
+        if mapped is not None:
+            path_tip = irast.Set(
+                path_id=mapped.path_id, scls=mapped.scls)
+            path_tip.expr = mapped.expr
 
-            if view_source is not None:
-                try:
-                    viewctx, ql_source = ctx.source_map[view_source]
-                except KeyError:
-                    raise RuntimeError(
-                        f'cannot find QL source for view shape '
-                        f'reference {view_source!r}') from None
+        path_tip = extend_path(
+            path_tip, ptrcls, direction, target, ctx=ctx)
 
-                with ctx.new() as subctx:
-                    subctx.namespaces = viewctx.namespaces.copy()
-                    subctx.substmts = viewctx.substmts.copy()
-                    stmtctx.remove_aliased_set(view_set, ctx=subctx)
-
-                    subctx.view_map = ctx.view_map.new_child()
-                    subctx.view_map[view_set.path_id] = orig_path_tip
-
-                    expr_set = dispatch.compile(ql_source, ctx=subctx)
-                    path_tip.expr = expr_set.expr
-        else:
-            path_tip = shape_el
-
-        if (isinstance(target, s_concepts.Concept) and
-                target.is_virtual and
-                ptr_target is not None):
+        if ptr_target is not None and target != ptr_target:
             path_tip = class_indirection_set(
                 path_tip, ptr_target, optional=False, ctx=ctx)
 
@@ -312,6 +270,7 @@ def extend_path(
         ptrcls: s_pointers.Pointer,
         direction: PtrDir=PtrDir.Outbound,
         target: typing.Optional[s_nodes.Node]=None, *,
+        force_computable: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
     """Return a Set node representing the new path tip."""
     if target is None:
@@ -344,10 +303,28 @@ def extend_path(
 
     target_set.rptr = ptr
 
-    if ptrcls.is_pure_computable():
+    if _is_computable_ptr(ptrcls, force_computable=force_computable, ctx=ctx):
         target_set = computable_ptr_set(ptr, ctx=ctx)
 
     return target_set
+
+
+def _is_computable_ptr(
+        ptrcls, *,
+        force_computable: bool,
+        ctx: context.ContextLevel) -> bool:
+    try:
+        qlexpr, qlctx = ctx.source_map[ptrcls]
+    except KeyError:
+        pass
+    else:
+        return qlexpr is not None
+
+    if ptrcls.is_pure_computable():
+        return True
+
+    if force_computable and ptrcls.default is not None:
+        return True
 
 
 def class_indirection_set(
@@ -387,15 +364,15 @@ def class_set(
 
 def generated_set(
         expr: irast.Base, path_id: typing.Optional[irast.PathId]=None, *,
-        typehint: typing.Optional[s_obj.NodeClass]=None,
+        typehint: typing.Optional[s_types.Type]=None,
         ctx: context.ContextLevel) -> irast.Set:
-    alias = ctx.aliases.get('expr')
     if typehint is not None:
         ql_typeref = s_utils.typeref_to_ast(typehint)
         ir_typeref = typegen.ql_typeref_to_ir_typeref(ql_typeref, ctx=ctx)
     else:
         ir_typeref = None
 
+    alias = ctx.aliases.get('expr')
     ir_set = irutils.new_expression_set(
         expr, ctx.schema, path_id, alias=alias, typehint=ir_typeref)
 
@@ -404,9 +381,10 @@ def generated_set(
 
 def scoped_set(
         expr: irast.Base, *,
-        typehint: typing.Optional[s_obj.NodeClass]=None,
+        typehint: typing.Optional[s_types.Type]=None,
+        path_id: typing.Optional[irast.PathId]=None,
         ctx: context.ContextLevel) -> irast.Set:
-    ir_set = ensure_set(expr, typehint=typehint, ctx=ctx)
+    ir_set = ensure_set(expr, typehint=typehint, path_id=path_id, ctx=ctx)
     if ir_set.path_scope is None:
         ir_set.path_scope = ctx.path_scope
     return ir_set
@@ -414,10 +392,11 @@ def scoped_set(
 
 def ensure_set(
         expr: irast.Base, *,
-        typehint: typing.Optional[s_obj.NodeClass]=None,
+        typehint: typing.Optional[s_types.Type]=None,
+        path_id: typing.Optional[irast.PathId]=None,
         ctx: context.ContextLevel) -> irast.Set:
     if not isinstance(expr, irast.Set):
-        expr = generated_set(expr, typehint=typehint, ctx=ctx)
+        expr = generated_set(expr, typehint=typehint, path_id=path_id, ctx=ctx)
 
     if (isinstance(expr, irast.EmptySet) and expr.scls is None and
             typehint is not None):
@@ -445,33 +424,79 @@ def computable_ptr_set(
         ctx: context.ContextLevel) -> irast.Set:
     """Return ir.Set for a pointer defined as a computable."""
     ptrcls = rptr.ptrcls
-    if not ptrcls.default:
-        raise ValueError(f'{ptrcls.shortname!r} is not a computable pointer')
-
-    if isinstance(ptrcls.default, s_expr.ExpressionText):
-        default_expr = qlparser.parse(ptrcls.default)
-    else:
-        default_expr = qlast.Constant(value=ptrcls.default)
 
     # Must use an entirely separate context, as the computable
     # expression is totally independent from the surrounding query.
     subctx = stmtctx.init_context(schema=ctx.schema)
-    # subctx.anchors['self'] = rptr.source
-    subctx.anchors[qlast.Self] = rptr.source
+    self_ = rptr.source
+    source_scls = self_.scls
+    # process_view() may generate computable pointer expressions
+    # in the form "self.linkname".  To prevent infinite recursion,
+    # self must resolve to view base type, NOT the view type itself.
+    if source_scls.is_view():
+        self_ = copy.copy(self_)
+        self_.scls = source_scls.peel_view()
+        self_.shape = []
 
-    subctx.path_id_namespace = subctx.aliases.get('ns')
+    subctx.anchors[qlast.Self] = self_
+
     subctx.aliases = ctx.aliases
-    subctx.path_scope = ctx.path_scope.add_fence()
+    subctx.stmt = ctx.stmt
+    subctx.view_scls = ptrcls.target
+    subctx.view_rptr = context.ViewRPtr(source_scls, ptrcls, rptr=rptr)
+    subctx.toplevel_stmt = ctx.toplevel_stmt
+    subctx.path_scope = ctx.path_scope
+    subctx.class_shapes = ctx.class_shapes.copy()
+    subctx.pending_path_scope = ctx.pending_path_scope
 
-    comp_ir = dispatch.compile(default_expr, ctx=subctx)
-    target_class = irutils.infer_type(comp_ir, schema=subctx.schema)
+    if isinstance(ptrcls, s_linkprops.LinkProperty):
+        source_path_id = rptr.source.path_id.ptr_path()
+    else:
+        source_path_id = rptr.target.path_id.src_path()
+
+    path_id = source_path_id.extend(
+        ptrcls, s_pointers.PointerDirection.Outbound, ptrcls.target)
+
+    subctx.path_scope.contain_path(path_id)
+
+    try:
+        qlexpr, qlctx = ctx.source_map[ptrcls]
+    except KeyError:
+        if not ptrcls.default:
+            raise ValueError(
+                f'{ptrcls.shortname!r} is not a computable pointer')
+
+        if isinstance(ptrcls.default, s_expr.ExpressionText):
+            qlexpr = qlparser.parse(ptrcls.default)
+        else:
+            qlexpr = qlast.Constant(value=ptrcls.default)
+
+        qlctx = None
+    else:
+        subctx.namespaces = qlctx.namespaces.copy()
+        subctx.aliased_views = qlctx.aliased_views.new_child()
+        if source_scls.is_view():
+            subctx.aliased_views[self_.scls.name] = None
+        subctx.source_map = qlctx.source_map.copy()
+        subctx.view_nodes = qlctx.view_nodes.copy()
+        subctx.view_sets = qlctx.view_sets.copy()
+        subctx.view_map = qlctx.view_map.new_child()
+        subctx.singletons = qlctx.singletons.copy()
+        subctx.class_shapes = qlctx.class_shapes.copy()
+
+    if qlctx is None:
+        # This is a schema-level computable expression, put all
+        # class refs into a separate namespace.
+        subctx.path_id_namespace = subctx.aliases.get('ns')
+
+    inner_path_id = pathctx.get_path_id(self_.scls, ctx=ctx)
+    subctx.view_map[inner_path_id] = rptr.source
+
+    comp_ir = dispatch.compile(qlexpr, ctx=subctx)
     comp_ir_set = scoped_set(comp_ir, ctx=subctx)
+    comp_ir_set.scls = ptrcls.target
+    comp_ir_set.path_id = path_id
+    comp_ir_set.rptr = rptr
+    rptr.target = comp_ir_set
 
-    substmt = irast.SelectStmt(result=comp_ir_set)
-
-    path_id = rptr.source.path_id.extend(
-        ptrcls, s_pointers.PointerDirection.Outbound, target_class)
-    s = generated_set(substmt, path_id=path_id, ctx=ctx)
-    s.rptr = rptr
-
-    return s
+    return comp_ir_set

@@ -39,6 +39,21 @@ class LinkProperty(pointers.Pointer):
 
         return ptr
 
+    def compare(self, other, context):
+        # Make std::source link property ignore differences in its target.
+        # This is consistent with skipping the comparison on Pointer.source
+        # in general.
+        similarity = super().compare(other, context)
+        if (not self.generic() and not other.generic() and
+                self.shortname == 'std::source' and
+                other.shortname == 'std::source'):
+            field = self.__class__.get_field('target')
+            target_coef = field.type[0].compare_values(
+                self.target, other.target, context, field.compcoef)
+            if target_coef < 1:
+                similarity /= target_coef
+        return similarity
+
     @classmethod
     def merge_targets(cls, schema, ptr, t1, t2):
         if ptr.is_endpoint_pointer():
@@ -53,9 +68,6 @@ class LinkProperty(pointers.Pointer):
 
     def singular(self, direction=pointers.PointerDirection.Outbound):
         return True
-
-    def get_exposed_behaviour(self):
-        return pointers.PointerExposedBehaviour.FirstItem
 
     def copy(self):
         result = super().copy()
@@ -96,7 +108,7 @@ class LinkPropertyCommand(pointers.PointerCommand,
 
 
 class CreateLinkProperty(LinkPropertyCommand,
-                         referencing.CreateReferencedClass):
+                         referencing.CreateReferencedInheritingClass):
     astnode = [qlast.CreateConcreteLinkProperty,
                qlast.CreateLinkProperty]
 
