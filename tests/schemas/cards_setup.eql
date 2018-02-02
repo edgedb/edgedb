@@ -100,7 +100,7 @@ INSERT User {
 # update friends list
 WITH
     MODULE test,
-    U2 := User
+    U2 := DETACHED User
 UPDATE User
 FILTER User.name = 'Alice'
 SET {
@@ -116,7 +116,7 @@ SET {
 
 WITH
     MODULE test,
-    U2 := User
+    U2 := DETACHED User
 UPDATE User
 FILTER User.name = 'Dave'
 SET {

@@ -14,6 +14,7 @@ from edgedb.lang.common import ast
 from edgedb.lang.schema import error as s_err
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
+from edgedb.lang.schema import types as s_types
 
 
 class TypeRules:
@@ -263,7 +264,7 @@ def classname_from_type(typ):
 
     classname = None
 
-    if isinstance(item_type, s_obj.NodeClass):
+    if isinstance(item_type, s_types.Type):
         classname = item_type.name
 
     elif isinstance(item_type, s_pointers.Pointer):

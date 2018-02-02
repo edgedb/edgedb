@@ -51,6 +51,7 @@ CREATE ATTRIBUTE stdattrs::is_abstract std::bool;
 CREATE ATTRIBUTE stdattrs::is_final std::bool;
 CREATE ATTRIBUTE stdattrs::is_derived std::bool;
 CREATE ATTRIBUTE stdattrs::is_virtual std::bool;
+CREATE ATTRIBUTE stdattrs::view_type std::int;
 CREATE ATTRIBUTE stdattrs::title std::str;
 CREATE ATTRIBUTE stdattrs::description std::str;
 
@@ -62,9 +63,9 @@ CREATE ATTRIBUTE stdattrs::errmessage std::str;
 CREATE ATTRIBUTE stdattrs::value std::str;
 CREATE ATTRIBUTE stdattrs::required std::bool;
 CREATE ATTRIBUTE stdattrs::readonly std::bool;
+CREATE ATTRIBUTE stdattrs::computable std::bool;
 CREATE ATTRIBUTE stdattrs::default std::str;
 CREATE ATTRIBUTE stdattrs::expression std::str;
-CREATE ATTRIBUTE stdattrs::exposed_behaviour std::str;
 CREATE ATTRIBUTE stdattrs::mapping std::str;
 CREATE ATTRIBUTE stdattrs::aggregate std::bool;
 CREATE ATTRIBUTE stdattrs::set_returning std::bool;
@@ -78,25 +79,30 @@ CREATE ATTRIBUTE stdattrs::args map<std::str, std::str>;
 CREATE FUNCTION std::lower(std::str) -> std::str
     FROM SQL FUNCTION 'lower';
 
-CREATE AGGREGATE std::sum(std::int) -> std::int
-    INITIAL VALUE 0
-    FROM SQL AGGREGATE 'sum';
+CREATE FUNCTION std::sum(SET OF std::int) -> std::int {
+    INITIAL VALUE 0;
+    FROM SQL FUNCTION 'sum';
+};
 
-CREATE AGGREGATE std::sum(std::float) -> std::float
-    INITIAL VALUE 0
-    FROM SQL AGGREGATE 'sum';
+CREATE FUNCTION std::sum(SET OF std::float) -> std::float {
+    INITIAL VALUE 0;
+    FROM SQL FUNCTION 'sum';
+};
 
-CREATE AGGREGATE std::count(std::any) -> std::int
-    INITIAL VALUE 0
-    FROM SQL AGGREGATE 'count';
+CREATE FUNCTION std::count(SET OF std::any) -> std::int {
+    INITIAL VALUE 0;
+    FROM SQL FUNCTION 'count';
+};
 
-CREATE AGGREGATE std::array_agg(std::any) -> array<std::any>
-    INITIAL VALUE []
-    FROM SQL AGGREGATE 'array_agg';
+CREATE FUNCTION std::array_agg(SET OF std::any) -> array<std::any> {
+    INITIAL VALUE [];
+    FROM SQL FUNCTION 'array_agg';
+};
 
-CREATE AGGREGATE std::is_distinct(std::any) -> std::bool
-    INITIAL VALUE True
-    FROM SQL AGGREGATE '--system--';
+CREATE FUNCTION std::is_distinct(SET OF std::any) -> std::bool {
+    INITIAL VALUE True;
+    FROM SQL FUNCTION '--system--';
+};
 
 CREATE FUNCTION std::array_unpack(array<std::any>) -> SET OF std::any
     FROM SQL FUNCTION '--system--';
@@ -287,16 +293,7 @@ CREATE LINK PROPERTY std::target {
     SET title := 'Link target';
 };
 
-CREATE LINK PROPERTY std::linkid {
-    SET title := 'Base link property';
-};
-
 CREATE LINK std::link {
-    CREATE REQUIRED LINK PROPERTY std::linkid TO std::uuid {
-        SET default := (SELECT std::uuid_generate_v1mc());
-        SET readonly := True;
-        SET title := 'Link ID';
-    };
     CREATE POLICY FOR std::cascade_session_detach TO std::cascade_loaded;
     CREATE POLICY FOR std::cascade_serialize TO std::cascade_loaded;
     CREATE POLICY FOR std::source_deleted TO std::restrict;
@@ -324,6 +321,7 @@ CREATE MODULE schema;
 
 CREATE ABSTRACT CONCEPT schema::Class {
     CREATE REQUIRED LINK schema::name TO std::str;
+    CREATE LINK schema::description TO std::str;
 };
 
 
@@ -359,29 +357,29 @@ ALTER CONCEPT std::Object {
 CREATE CONCEPT schema::Module EXTENDING schema::Class;
 
 
-CREATE ABSTRACT CONCEPT schema::Node EXTENDING schema::Class;
+CREATE ABSTRACT CONCEPT schema::Type EXTENDING schema::Class;
 
 
-CREATE CONCEPT schema::Array EXTENDING schema::Node {
-    CREATE REQUIRED LINK schema::element_type TO schema::Node;
+CREATE CONCEPT schema::Array EXTENDING schema::Type {
+    CREATE REQUIRED LINK schema::element_type TO schema::Type;
     CREATE LINK schema::dimensions TO array<std::int>;
 };
 
 
-CREATE CONCEPT schema::Map EXTENDING schema::Node {
-    CREATE REQUIRED LINK schema::element_type TO schema::Node;
-    CREATE REQUIRED LINK schema::key_type TO schema::Node;
+CREATE CONCEPT schema::Map EXTENDING schema::Type {
+    CREATE REQUIRED LINK schema::element_type TO schema::Type;
+    CREATE REQUIRED LINK schema::key_type TO schema::Type;
 };
 
 
 CREATE CONCEPT schema::TypeElement {
-    CREATE REQUIRED LINK schema::type TO schema::Node;
+    CREATE REQUIRED LINK schema::type TO schema::Type;
     CREATE REQUIRED LINK schema::num TO std::int;
     CREATE LINK schema::name TO std::str;
 };
 
 
-CREATE CONCEPT schema::Tuple EXTENDING schema::Node {
+CREATE CONCEPT schema::Tuple EXTENDING schema::Type {
     CREATE REQUIRED LINK schema::element_types TO schema::TypeElement {
         SET mapping := '1*';
     };
@@ -414,16 +412,9 @@ CREATE ABSTRACT CONCEPT schema::InheritingClass EXTENDING schema::Class {
 };
 
 
-CREATE ABSTRACT CONCEPT schema::PrimaryClass
-    EXTENDING schema::InheritingClass
-{
-    CREATE LINK schema::title TO std::str;
-    CREATE LINK schema::description TO std::str;
-};
-
-
 CREATE CONCEPT schema::Parameter {
-    CREATE REQUIRED LINK schema::type TO schema::Node;
+    CREATE REQUIRED LINK schema::type TO schema::Type;
+    CREATE REQUIRED LINK schema::kind TO std::str;
     CREATE REQUIRED LINK schema::num TO std::int;
     CREATE LINK schema::name TO std::str;
     CREATE LINK schema::default TO std::str;
@@ -431,7 +422,7 @@ CREATE CONCEPT schema::Parameter {
 };
 
 
-CREATE CONCEPT schema::Constraint EXTENDING schema::PrimaryClass {
+CREATE CONCEPT schema::Constraint EXTENDING schema::InheritingClass {
     CREATE LINK schema::expr TO std::str;
     CREATE LINK schema::subjectexpr TO std::str;
     CREATE LINK schema::finalexpr TO std::str;
@@ -466,49 +457,43 @@ CREATE ABSTRACT CONCEPT schema::Pointer EXTENDING schema::Class;
 
 
 CREATE CONCEPT schema::Atom EXTENDING
-        (schema::PrimaryClass, schema::ConsistencySubject, schema::Node) {
+        (schema::InheritingClass, schema::ConsistencySubject, schema::Type) {
     CREATE LINK schema::default TO std::str;
 };
 
 
 CREATE CONCEPT schema::Concept EXTENDING
-        (schema::PrimaryClass, schema::ConsistencySubject, schema::Node,
+        (schema::InheritingClass, schema::ConsistencySubject, schema::Type,
          schema::Source);
 
 
-CREATE CONCEPT schema::View EXTENDING
-        (schema::PrimaryClass, schema::Source) {
-    CREATE LINK schema::expr TO std::str;
-};
-
-
 CREATE CONCEPT schema::VirtualConcept EXTENDING
-        (schema::PrimaryClass, schema::ConsistencySubject, schema::Node,
+        (schema::InheritingClass, schema::ConsistencySubject, schema::Type,
          schema::Source);
 
 
 CREATE CONCEPT schema::DerivedConcept EXTENDING
-        (schema::PrimaryClass, schema::ConsistencySubject, schema::Node,
+        (schema::InheritingClass, schema::ConsistencySubject, schema::Type,
          schema::Source);
 
 
 CREATE CONCEPT schema::Link EXTENDING
-        (schema::PrimaryClass, schema::ConsistencySubject, schema::Pointer,
+        (schema::InheritingClass, schema::ConsistencySubject, schema::Pointer,
          schema::Source);
 
 
 CREATE CONCEPT schema::DerivedLink EXTENDING
-        (schema::PrimaryClass, schema::ConsistencySubject, schema::Pointer,
+        (schema::InheritingClass, schema::ConsistencySubject, schema::Pointer,
          schema::Source);
 
 
 CREATE CONCEPT schema::LinkProperty EXTENDING
-        (schema::PrimaryClass, schema::ConsistencySubject, schema::Pointer);
+        (schema::InheritingClass, schema::ConsistencySubject, schema::Pointer);
 
 
 ALTER CONCEPT schema::Pointer {
     CREATE LINK schema::source TO schema::Source;
-    CREATE LINK schema::target TO schema::Node;
+    CREATE LINK schema::target TO schema::Type;
 };
 
 
@@ -526,18 +511,11 @@ ALTER CONCEPT schema::Concept {
 };
 
 
-ALTER CONCEPT schema::View {
-    CREATE LINK schema::links TO schema::Link {
-        SET mapping := '1*';
-    };
-};
-
-
-CREATE CONCEPT schema::Function EXTENDING schema::PrimaryClass {
+CREATE CONCEPT schema::Function EXTENDING schema::Class {
     CREATE LINK schema::params TO schema::Parameter {
         SET mapping := '**';
     };
-    CREATE LINK schema::returntype TO schema::Node;
+    CREATE LINK schema::returntype TO schema::Type;
     CREATE LINK schema::aggregate TO std::bool;
     CREATE LINK schema::set_returning TO std::bool;
 };

@@ -16,8 +16,8 @@ from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import lproperties as s_lprops
-from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
+from edgedb.lang.schema import types as s_types
 
 from edgedb.server.pgsql import ast as pgast
 from edgedb.server.pgsql import types as pg_types
@@ -88,6 +88,19 @@ def get_path_var(
             src_path_id = path_id
         else:
             src_path_id = path_id.src_path()
+            # Value references to std::id link are identical to
+            # the identity reference of its source.
+            if ptrcls.is_id_pointer() and aspect == 'value':
+                if (src_path_id, 'identity') in rel.path_namespace:
+                    return rel.path_namespace[src_path_id, 'identity']
+
+            # Default concept value is its identity.
+            # NOTE: the value may be an explicit tuple, if the
+            #       set had an explicit shape.
+            if path_id.is_concept_path() and aspect == 'value':
+                if (path_id, 'identity') in rel.path_namespace:
+                    return rel.path_namespace[path_id, 'identity']
+
     else:
         ptr_info = None
         src_path_id = None
@@ -105,8 +118,11 @@ def get_path_var(
         first = None
         optional = False
         all_null = True
+        nullable = False
 
         for colref, is_null in outputs:
+            if colref.nullable:
+                nullable = True
             if first is None:
                 first = colref
             if is_null:
@@ -122,7 +138,8 @@ def get_path_var(
         # Path vars produced by UNION expressions can be "optional",
         # i.e the record is accepted as-is when such var is NULL.
         # This is necessary to correctly join heterogeneous UNIONs.
-        fieldref = dbobj.get_rvar_fieldref(None, first, optional=optional)
+        fieldref = dbobj.get_rvar_fieldref(
+            None, first, optional=optional, nullable=optional or nullable)
         put_path_var(rel, path_id, fieldref, aspect=aspect, env=env)
         return fieldref
 
@@ -147,7 +164,17 @@ def get_path_var(
             src_aspect = 'value'
         else:
             src_aspect = aspect
-        rel_rvar = get_path_rvar(rel, src_path_id, aspect=src_aspect, env=env)
+
+        if isinstance(src_path_id.rptr(), irutils.TupleIndirectionLink):
+            rel_rvar = maybe_get_path_rvar(
+                rel, src_path_id, aspect=src_aspect, env=env)
+
+            if rel_rvar is None:
+                rel_rvar = get_path_rvar(
+                    rel, src_path_id.src_path(), aspect=src_aspect, env=env)
+        else:
+            rel_rvar = get_path_rvar(
+                rel, src_path_id, aspect=src_aspect, env=env)
 
     source_rel = rel_rvar.query
 
@@ -306,7 +333,7 @@ def get_path_output_alias(
     if rptr is not None:
         ptrname = rptr.shortname
         alias_base = ptrname.name
-    elif isinstance(path_id[-1], s_obj.Collection):
+    elif isinstance(path_id[-1], s_types.Collection):
         alias_base = path_id[-1].schema_name
     else:
         alias_base = path_id[-1].name.name
@@ -444,6 +471,9 @@ def _get_rel_path_output(
         env: context.Environment) -> pgast.OutputVar:
 
     if path_id.is_concept_path():
+        if aspect == 'value':
+            aspect = 'identity'
+
         if aspect != 'identity':
             raise LookupError(
                 f'invalid request for non-atomic path {path_id} {aspect}')
@@ -452,6 +482,10 @@ def _get_rel_path_output(
                 (rel.path_id.is_type_indirection_path() and
                  path_id == rel.path_id.src_path())):
             path_id = irutils.get_id_path_id(path_id, schema=env.schema)
+    else:
+        if aspect == 'identity':
+            raise LookupError(
+                f'invalid request for atomic path {path_id} {aspect}')
 
     if path_id.rptr_dir() != s_pointers.PointerDirection.Outbound:
         raise LookupError(
@@ -468,7 +502,7 @@ def _get_rel_path_output(
         ptrcls, resolve_type=False, link_bias=False)
 
     result = pgast.ColumnRef(name=[ptr_info.column_name],
-                             nullable=rel.nullable)
+                             nullable=rel.nullable or not ptrcls.required)
     rel.path_outputs[path_id, aspect] = result
     return result
 
@@ -477,7 +511,7 @@ def find_path_output(
         rel: pgast.Query, path_id: irast.PathId, ref: pgast.Base, *,
         env: context.Environment) -> str:
     for key, other_ref in rel.path_namespace.items():
-        if _same_expr(other_ref, ref):
+        if _same_expr(other_ref, ref) and key in rel.path_outputs:
             return rel.path_outputs.get(key)
 
 
@@ -512,9 +546,9 @@ def get_path_output(
             el_path_id = reverse_map_path_id(
                 el.path_id, rel.view_path_id_map)
             element = get_path_output(
-                rel, el_path_id, aspect=el.aspect, env=env)
+                rel, el_path_id, aspect=aspect, env=env)
             elements.append(pgast.TupleElement(
-                path_id=el_path_id, name=element, aspect=el.aspect))
+                path_id=el_path_id, name=element))
         result = pgast.TupleVar(elements=elements, named=ref.named)
 
     else:
@@ -556,6 +590,16 @@ def get_path_value_output(
     return get_path_output(rel, path_id, aspect='value', env=env)
 
 
+def get_path_serialized_or_value_var(
+        rel: pgast.Query, path_id: irast.PathId, *,
+        env: context.Environment) -> pgast.OutputVar:
+
+    ref = maybe_get_path_serialized_var(rel, path_id, env=env)
+    if ref is None:
+        ref = get_path_value_var(rel, path_id, env=env)
+    return ref
+
+
 def get_path_serialized_output(
         rel: pgast.Query, path_id: irast.PathId, *,
         env: context.Environment) -> pgast.OutputVar:
@@ -568,42 +612,16 @@ def get_path_serialized_output(
     if result is not None:
         return result
 
-    ref = maybe_get_path_serialized_var(rel, path_id, env=env)
+    ref = get_path_serialized_or_value_var(rel, path_id, env=env)
 
-    if ref is None:
-        ref = get_path_var(rel, path_id, aspect='value', env=env)
+    ref = output.serialize_expr(ref, env=env)
+    alias = get_path_output_alias(path_id, aspect, env=env)
 
-    if isinstance(ref, pgast.TupleVar):
-        elements = []
-        for el in ref.elements:
-            el_path_id = reverse_map_path_id(
-                el.path_id, rel.view_path_id_map)
-            element = pgast.TupleElement(
-                path_id=el_path_id,
-                name=el.name,
-                val=get_path_var(rel, el_path_id, aspect=el.aspect, env=env),
-                aspect=el.aspect
-            )
-            elements.append(element)
-
-        r_expr = pgast.TupleVar(elements=elements, named=ref.named)
-
-        alias = env.aliases.get('s')
-        val = output.serialize_expr(r_expr, env=env)
-        restarget = pgast.ResTarget(name=alias, val=val)
-        if hasattr(rel, 'returning_list'):
-            rel.returning_list.append(restarget)
-        else:
-            rel.target_list.append(restarget)
+    restarget = pgast.ResTarget(name=alias, val=ref)
+    if hasattr(rel, 'returning_list'):
+        rel.returning_list.append(restarget)
     else:
-        ref = output.serialize_expr(ref, env=env)
-        alias = get_path_output_alias(path_id, aspect, env=env)
-
-        restarget = pgast.ResTarget(name=alias, val=ref)
-        if hasattr(rel, 'returning_list'):
-            rel.returning_list.append(restarget)
-        else:
-            rel.target_list.append(restarget)
+        rel.target_list.append(restarget)
 
     result = pgast.ColumnRef(name=[alias], nullable=ref.nullable)
     rel.path_outputs[path_id, aspect] = result

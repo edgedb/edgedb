@@ -10,11 +10,10 @@
 import collections
 import textwrap
 
-from edgedb.lang.common import adapter, nlang
+from edgedb.lang.common import adapter, nlang, typed
 
 from edgedb.lang.schema import attributes as s_attrs
 from edgedb.lang.schema import constraints as s_constraints
-from edgedb.lang.schema import derivable as s_derivable
 from edgedb.lang.schema import expr as s_expr
 from edgedb.lang.schema import functions as s_funcs
 from edgedb.lang.schema import inheriting as s_inheriting
@@ -22,6 +21,7 @@ from edgedb.lang.schema import name as sn
 from edgedb.lang.schema import named as s_named
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import referencing as s_ref
+from edgedb.lang.schema import types as s_types
 
 from . import common
 from . import dbops
@@ -521,7 +521,10 @@ def _field_to_column(field):
     elif issubclass(ftype, (s_obj.Class, s_obj.ClassCollection)):
         coltype = 'edgedb.type_t'
 
-    elif issubclass(ftype, (s_obj.StringList, s_expr.ExpressionList)):
+    elif issubclass(ftype, s_expr.ExpressionList):
+        coltype = 'text[]'
+
+    elif issubclass(ftype, typed.TypedList) and issubclass(ftype.type, str):
         coltype = 'text[]'
 
     elif issubclass(ftype, s_expr.ExpressionDict):
@@ -560,7 +563,7 @@ def get_interesting_metaclasses():
 
     metaclasses = [
         mcls for mcls in metaclasses
-        if (not issubclass(mcls, (s_obj.ClassRef, s_obj.Collection)) and
+        if (not issubclass(mcls, (s_obj.ClassRef, s_types.Collection)) and
             not isinstance(mcls, adapter.Adapter))
     ]
 
@@ -677,7 +680,7 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
                 schematab = 'edgedb.{}'.format(mcls.__name__)
 
             link_query = '''
-                SELECT DISTINCT ON ((cls.id, r.id))
+                SELECT DISTINCT ON ((cls.id, r.bases[1]))
                     cls.id  AS {src},
                     r.id    AS {tgt}
                 FROM
@@ -703,7 +706,7 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
                     INNER JOIN {reftab} r
                         ON (((r.{refattr}).types[1]).maintype = cls.ancestor)
                 ORDER BY
-                    (cls.id, r.id), cls.depth
+                    (cls.id, r.bases[1]), cls.depth
             '''.format(
                 schematab=schematab,
                 reftab='edgedb.{}'.format(refdict.ref_cls.__name__),
@@ -758,10 +761,9 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
 
                     ftype = field.type[0]
                     if issubclass(ftype,
-                                  (s_obj.Class, s_obj.NodeClass,
+                                  (s_obj.Class,
                                    s_obj.ClassCollection,
-                                   s_expr.ExpressionDict,
-                                   s_expr.ExpressionList, s_obj.StringList,
+                                   typed.AbstractTypedCollection,
                                    list, dict)):
                         continue
 
@@ -922,6 +924,7 @@ def _generate_param_view(schema):
                  WHERE name = 'schema::Parameter')
                             AS {dbname('std::__class__')},
             q.type_id       AS {dbname('schema::type')},
+            q.kind          AS {dbname('schema::kind')},
             q.num           AS {dbname('schema::num')},
             q.name          AS {dbname('schema::name')},
             q.def           AS {dbname('schema::default')},
@@ -936,15 +939,17 @@ def _generate_param_view(schema):
                  ELSE t.id END)
                             AS type_id,
                 tn.name     AS name,
-                td.expr     AS def
+                td.expr     AS def,
+                tk.kind     AS kind
              FROM
                 (SELECT
-                    id, paramtypes, paramnames, paramdefaults, varparam
+                    id, paramtypes, paramnames, paramdefaults, paramkinds,
+                    varparam
                  FROM edgedb.Function
                  UNION ALL
                  SELECT
                     id, paramtypes, NULL as paramnames, NULL as paramdefaults,
-                    NULL as varparam
+                    NULL as paramkinds, NULL as varparam
                  FROM edgedb.Constraint
                 ) AS f,
                 LATERAL UNNEST((f.paramtypes).types)
@@ -959,6 +964,10 @@ def _generate_param_view(schema):
                     LATERAL UNNEST(f.paramdefaults)
                         WITH ORDINALITY AS td(expr, num)
                     ON (t.num = td.num)
+                LEFT JOIN
+                    LATERAL UNNEST(f.paramkinds)
+                        WITH ORDINALITY AS tk(kind, num)
+                    ON (t.num = tk.num)
             ) AS q
     '''
 
@@ -1056,6 +1065,7 @@ def _generate_types_views(schema, type_fields):
         SELECT
             q.id            AS {dbname('std::id')},
             q.collection    AS {dbname('schema::name')},
+            NULL            AS {dbname('schema::description')},
             (SELECT id FROM edgedb.NamedClass
                  WHERE name = 'schema::Array')
                             AS {dbname('std::__class__')},
@@ -1076,6 +1086,7 @@ def _generate_types_views(schema, type_fields):
         SELECT
             q.id            AS {dbname('std::id')},
             q.collection    AS {dbname('schema::name')},
+            NULL            AS {dbname('schema::description')},
             (SELECT id FROM edgedb.NamedClass
                  WHERE name = 'schema::Array')
                             AS {dbname('std::__class__')},
@@ -1097,6 +1108,7 @@ def _generate_types_views(schema, type_fields):
         SELECT
             q.id            AS {dbname('std::id')},
             q.collection    AS {dbname('schema::name')},
+            NULL            AS {dbname('schema::description')},
             (SELECT id FROM edgedb.NamedClass
                  WHERE name = 'schema::Array')
                             AS {dbname('std::__class__')},
@@ -1200,7 +1212,7 @@ async def generate_views(conn, schema):
 
             if ptrstor.table_type == 'concept':
                 if (pn.name == 'name' and
-                        issubclass(mcls, (s_derivable.DerivableClass,
+                        issubclass(mcls, (s_inheriting.InheritingClass,
                                           s_funcs.Function))):
                     col_expr = 'edgedb.get_shortname({})'.format(q(pn.name))
                 else:
@@ -1240,11 +1252,12 @@ async def generate_views(conn, schema):
     fp_view = _generate_param_view(schema)
     views[fp_view.name] = fp_view
 
-    nodes_view = views[tabname(schema.get('schema::Node'))]
-    nodes_view.query += '\nUNION ALL\n' + '\nUNION ALL\n'.join(f'''
+    types_view = views[tabname(schema.get('schema::Type'))]
+    types_view.query += '\nUNION ALL\n' + '\nUNION ALL\n'.join(f'''
         (
             SELECT
                 "schema::name",
+                "schema::description",
                 "std::id",
                 "std::__class__"
             FROM

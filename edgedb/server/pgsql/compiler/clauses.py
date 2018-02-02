@@ -13,10 +13,10 @@ from edgedb.server.pgsql import ast as pgast
 
 from . import context
 from . import dispatch
+from . import output
 from . import pathctx
 from . import relctx
 from . import relgen
-from . import output
 
 
 def init_stmt(
@@ -25,9 +25,8 @@ def init_stmt(
     if ctx.toplevel_stmt is None:
         ctx.toplevel_stmt = ctx.stmt
         ctx.path_scope = ctx.path_scope.new_child({
-            path_id: ctx.stmt for path_id in stmt.path_scope.paths
+            path_id: ctx.stmt for path_id in ctx.scope_tree.paths
         })
-        ctx.scope_tree = stmt.path_scope
 
 
 def fini_stmt(
@@ -38,13 +37,9 @@ def fini_stmt(
 
 
 def compile_iterator_expr(
-        query: pgast.Query, ir_stmt: irast.Stmt, *,
+        query: pgast.Query, iterator_expr: irast.Set, *,
         ctx: context.CompilerContextLevel) \
         -> typing.Optional[pgast.BaseRangeVar]:
-
-    iterator_expr = ir_stmt.iterator_stmt
-    if iterator_expr is None:
-        return None
 
     with ctx.new() as subctx:
         subctx.rel = query
@@ -69,6 +64,8 @@ def compile_output(
         ctx: context.CompilerContextLevel) -> pgast.OutputVar:
     with ctx.new() as newctx:
         newctx.clause = 'result'
+        if newctx.stmt is newctx.toplevel_stmt:
+            newctx.toplevel_clause = newctx.clause
         if newctx.expr_exposed is None:
             newctx.expr_exposed = True
 
@@ -76,7 +73,8 @@ def compile_output(
 
         path_id = ir_set.path_id
 
-        if output.in_serialization_ctx(ctx):
+        if (output.in_serialization_ctx(ctx) and
+                newctx.stmt is newctx.toplevel_stmt):
             val = pathctx.get_path_serialized_output(
                 ctx.rel, path_id, env=ctx.env)
         else:
@@ -98,6 +96,8 @@ def compile_filter_clause(
 
     with ctx.new() as ctx1:
         ctx1.clause = 'where'
+        if ctx1.stmt is ctx1.toplevel_stmt:
+            ctx1.toplevel_clause = ctx1.clause
         ctx1.expr_exposed = False
         ctx1.shape_format = context.ShapeFormat.SERIALIZED
 
@@ -128,6 +128,8 @@ def compile_orderby_clause(
     for expr in ir_exprs:
         with ctx.new() as orderctx:
             orderctx.clause = 'orderby'
+            if orderctx.stmt is orderctx.toplevel_stmt:
+                orderctx.toplevel_clause = orderctx.clause
             orderctx.expr_exposed = False
 
             # In OPDER BY we compile ir.Set as a subquery:
@@ -152,6 +154,8 @@ def compile_limit_offset_clause(
 
     with ctx.new() as ctx1:
         ctx1.clause = 'offsetlimit'
+        if ctx1.stmt is ctx1.toplevel_stmt:
+            ctx1.toplevel_clause = ctx1.clause
         ctx1.expr_exposed = False
 
         # In OFFSET/LIMIT we compile ir.Set as a subquery:

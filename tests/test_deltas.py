@@ -147,7 +147,8 @@ class TestDeltaLinkInheritance(tb.DDLTestCase):
 
             INSERT test::Concept01 {
                 target := (SELECT test::Target1
-                             FILTER test::Target1.name = 'Target1_linkinh_2')
+                           FILTER test::Target1.name = 'Target1_linkinh_2'
+                           LIMIT 1)
             };
 
             INSERT test::Target0 {
@@ -156,13 +157,14 @@ class TestDeltaLinkInheritance(tb.DDLTestCase):
 
             INSERT test::Concept23 {
                 target := (SELECT test::Target0
-                             FILTER test::Target0.name = 'Target0_linkinh_2')
+                           FILTER test::Target0.name = 'Target0_linkinh_2'
+                           LIMIT 1)
             };
         ''')
 
         with self.assertRaisesRegex(
                 exceptions.InvalidPointerTargetError,
-                "invalid target for link 'test::Concept01\.target': "
+                "invalid target for link '\(test::Concept01\)\.target': "
                 "'test::Target0' \(expecting 'test::Target1'\)"):
             # Target0 is not allowed to be targeted by Concept01, since
             # Concept01 inherits from Concept1 which requires more specific
@@ -174,6 +176,7 @@ class TestDeltaLinkInheritance(tb.DDLTestCase):
                             test::Target0
                         FILTER
                             test::Target0.name = 'Target0_linkinh_2'
+                        LIMIT 1
                     )
                 };
             ''')

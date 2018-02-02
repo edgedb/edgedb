@@ -34,7 +34,7 @@ from edgedb.lang.schema import named as s_named
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import policy as s_policy
 from edgedb.lang.schema import referencing as s_referencing
-from edgedb.lang.schema import views as s_views
+from edgedb.lang.schema import types as s_types
 
 from edgedb.lang.common import ordered
 from edgedb.lang.common import debug
@@ -177,14 +177,14 @@ class NamedClassMetaCommand(
             indexes.append(len(typedesc) - 1)
 
         for i, (tn, t) in enumerate(types):
-            if isinstance(t, s_obj.Collection):
-                if isinstance(t, s_obj.Tuple) and t.named:
+            if isinstance(t, s_types.Collection):
+                if isinstance(t, s_types.Tuple) and t.named:
                     stypes = t.element_types.items()
                 else:
                     stypes = [(None, st) for st in t.get_subtypes()]
 
                 subtypes = self._get_typedesc(stypes, typedesc, is_root=False)
-                if isinstance(t, s_obj.Array):
+                if isinstance(t, s_types.Array):
                     dimensions = t.dimensions
                 else:
                     dimensions = []
@@ -431,9 +431,9 @@ class FunctionCommand:
         # or add another layer of abstraction for typing for complex
         # objects.
         has_anyarray = (
-            (isinstance(func.returntype, s_obj.Array) and
+            (isinstance(func.returntype, s_types.Array) and
                 func.returntype.element_type.name == 'std::any') or
-            any(isinstance(at, s_obj.Array) and
+            any(isinstance(at, s_types.Array) and
                 at.element_type.name == 'std::any' for at in func.paramtypes))
 
         args = []
@@ -736,7 +736,20 @@ class DeleteConstraint(
         return constraint
 
 
-class AtomMetaCommand(NamedClassMetaCommand):
+class ViewCapableClassMetaCommand(NamedClassMetaCommand):
+    def fill_record(self, schema):
+        rec, updates = super().fill_record(schema)
+        if rec and False:
+            expr = updates.get('expr')
+            if expr:
+                self.pgops.add(
+                    deltadbops.MangleExprClassRefs(
+                        scls=self.scls, field='expr', expr=expr, priority=3))
+
+        return rec, updates
+
+
+class AtomMetaCommand(ViewCapableClassMetaCommand):
     table = metaschema.get_metaclass_table(s_atoms.Atom)
 
     def is_sequence(self, schema, atom):
@@ -1503,7 +1516,8 @@ class DeleteSourceIndex(SourceIndexCommand, DeleteNamedClass,
         return index
 
 
-class ConceptMetaCommand(CompositeClassMetaCommand):
+class ConceptMetaCommand(ViewCapableClassMetaCommand,
+                         CompositeClassMetaCommand):
     @property
     def table(self):
         if self.scls.is_virtual:
@@ -1696,42 +1710,6 @@ class DeleteConcept(ConceptMetaCommand, adapts=s_concepts.DeleteConcept):
             self.pgops.add(dbops.DropTable(name=old_table_name, priority=3))
 
         return concept
-
-
-class ViewCommand:
-    table = metaschema.get_metaclass_table(s_views.View)
-
-    def fill_record(self, schema):
-        rec, updates = super().fill_record(schema)
-
-        if rec and False:
-            expr = updates.get('expr')
-            if expr:
-                self.pgops.add(
-                    deltadbops.MangleExprClassRefs(
-                        scls=self.scls, field='expr', expr=expr, priority=3))
-
-        return rec, updates
-
-
-class CreateView(
-        ViewCommand, CreateNamedClass, adapts=s_views.CreateView):
-    pass
-
-
-class RenameView(
-        ViewCommand, RenameNamedClass, adapts=s_views.RenameView):
-    pass
-
-
-class AlterView(
-        ViewCommand, AlterNamedClass, adapts=s_views.AlterView):
-    pass
-
-
-class DeleteView(
-        ViewCommand, DeleteNamedClass, adapts=s_views.DeleteView):
-    pass
 
 
 class ActionCommand:
@@ -2218,13 +2196,6 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
         concept = context.get(s_concepts.ConceptCommandContext)
         self.pgops.add(
             dbops.Insert(table=self.table, records=[rec], priority=1))
-
-        if not link.generic() and self.has_table(link, schema):
-            alter_table = self.get_alter_table(context)
-            constraint = dbops.PrimaryKey(
-                table_name=alter_table.name, columns=['std::linkid'])
-            alter_table.add_operation(
-                dbops.AlterTableAddConstraint(constraint))
 
         self.attach_alter_table(context)
 

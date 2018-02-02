@@ -292,7 +292,7 @@ class TestExpressions(tb.QueryTestCase):
             WITH MODULE schema
             SELECT _ := {9, 1, 13}
             FILTER _ IN (
-                # Lengths of names for schema::Map, Node, and Array are
+                # Lengths of names for schema::Map, Type, and Array are
                 # 11, 12, and 13, respectively.
                 SELECT len(Concept.name)
                 FILTER Concept.name LIKE 'schema::%'
@@ -311,7 +311,7 @@ class TestExpressions(tb.QueryTestCase):
             WITH MODULE schema
             SELECT _ := {9, 1, 13}
             FILTER _ NOT IN (
-                # Lengths of names for schema::Map, Node, and Array are
+                # Lengths of names for schema::Map, Type, and Array are
                 # 11, 12, and 13, respectively.
                 SELECT len(Concept.name)
                 FILTER Concept.name LIKE 'schema::%'
@@ -366,7 +366,6 @@ class TestExpressions(tb.QueryTestCase):
                     %s = 'Elvis';
             ''' % (case,))
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_paths_02(self):
         await self.assert_query_result(r"""
             SELECT (1, (2, 3), 4).1.0;
@@ -612,9 +611,12 @@ class TestExpressions(tb.QueryTestCase):
         await self.assert_query_result("""
             WITH
                 MODULE schema,
-                A := (SELECT Concept FILTER Concept.name ILIKE 'schema::a%'),
-                C := (SELECT Concept FILTER Concept.name ILIKE 'schema::c%'),
-                D := (SELECT Concept FILTER Concept.name ILIKE 'schema::d%')
+                A := DETACHED (
+                    SELECT Concept FILTER Concept.name ILIKE 'schema::a%'),
+                C := DETACHED (
+                    SELECT Concept FILTER Concept.name ILIKE 'schema::c%'),
+                D := DETACHED (
+                    SELECT Concept FILTER Concept.name ILIKE 'schema::d%')
             SELECT _ := {A, D, C}.name
             ORDER BY _;
         """, [
@@ -824,7 +826,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot index map.*by.*str.*int.*expected'):
+                exc.EdgeQLError, r'cannot index.*map.*by.*str.*int.*expected'):
 
             await self.con.execute(r'''
                 SELECT [1 -> 1]['1'];
@@ -1012,7 +1014,7 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_tuple_09(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError,
-                r'operator `\+` is not defined .* tuple<.*> and std::int'):
+                r'operator `\+` is not defined .*tuple<.*> and std::int'):
 
             await self.con.execute(r'''
                 SELECT (spam := 1, ham := 2) + 1;
@@ -1049,7 +1051,6 @@ class TestExpressions(tb.QueryTestCase):
             [['a', 1], ['a', 2], ['a', 3], ['b', 1], ['b', 2], ['b', 3]],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_tuple_13(self):
         await self.assert_query_result(r"""
             SELECT (1, ('a', 'b', (0.1, 0.2)), 2, 3);
@@ -1101,7 +1102,6 @@ class TestExpressions(tb.QueryTestCase):
             [1, 3],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_tuple_indirection_06(self):
         await self.assert_query_result(r"""
             SELECT (1, ('a', 'b', (0.1, 0.2)), 2, 3).0;
@@ -1115,7 +1115,6 @@ class TestExpressions(tb.QueryTestCase):
             [0.1],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_tuple_indirection_07(self):
         await self.assert_query_result(r"""
             WITH A := (1, ('a', 'b', (0.1, 0.2)), 2, 3) SELECT A.0;
@@ -1140,7 +1139,6 @@ class TestExpressions(tb.QueryTestCase):
             [1, [55, 77], 2],
         ]])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_tuple_indirection_09(self):
         await self.assert_query_result(r"""
             SELECT _ := (1, ({55, 66}, {77, 88}), 2)
@@ -1210,7 +1208,6 @@ class TestExpressions(tb.QueryTestCase):
             [[3, 3, 2]],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_setop_04(self):
         await self.assert_query_result('''
             SELECT DISTINCT {1, 2, 2, 3};
@@ -1261,29 +1258,27 @@ class TestExpressions(tb.QueryTestCase):
         union.sort()
         self.assert_data_shape(separate, union)
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_setop_09(self):
         res = await self.con.execute('''
-            SELECT DISTINCT {[1, 2], [1, 2], [2, 3]};
+            SELECT _ := DISTINCT {[1, 2], [1, 2], [2, 3]} ORDER BY _;
         ''')
         self.assert_data_shape(res, [
-            {[1, 2], [2, 3]},
+            [[1, 2], [2, 3]],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_setop_10(self):
         res = await self.con.execute('''
-            SELECT DISTINCT {(1, 2), (2, 3), (1, 2)};
-            SELECT DISTINCT {(a := 1, b := 2),
-                             (a := 2, b := 3),
-                             (a := 1, b := 2)};
+            SELECT _ := DISTINCT {(1, 2), (2, 3), (1, 2)} ORDER BY _;
+            SELECT _ := DISTINCT {(a := 1, b := 2),
+                                  (a := 2, b := 3),
+                                  (a := 1, b := 2)}
+            ORDER BY _;
         ''')
         self.assert_data_shape(res, [
-            {[1, 2], [2, 3]},
-            {{'a': 1, 'b': 2}, {'a': 2, 'b': 3}},
+            [[1, 2], [2, 3]],
+            [{'a': 1, 'b': 2}, {'a': 2, 'b': 3}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_setop_11(self):
         res = await self.con.execute('''
             WITH
@@ -1301,8 +1296,8 @@ class TestExpressions(tb.QueryTestCase):
 
         # test the results of DISTINCT directly, rather than relying
         # on an aggregate function
-        self.assertEqual(
-            len(res[0]) > len(res[1]),
+        self.assertGreater(
+            len(res[0]), len(res[1]),
             'DISTINCT len(Concept.name) failed to filter out dupplicates')
 
     async def test_edgeql_expr_cardinality_01(self):
@@ -1556,11 +1551,11 @@ class TestExpressions(tb.QueryTestCase):
         await self.assert_query_result(r"""
             # test variable masking
             WITH x := (
-                WITH x := {2, 3} SELECT {4, 5, x}
+                WITH x := {2, 3, 4} SELECT {4, 5, x}
             )
             SELECT x ORDER BY x;
         """, [
-            [2, 3, 4, 5],
+            [2, 3, 4, 4, 5],
         ])
 
     async def test_edgeql_expr_view_08(self):

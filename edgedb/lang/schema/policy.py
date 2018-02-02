@@ -14,11 +14,10 @@ from . import inheriting
 from . import name as sn
 from . import named
 from . import objects as so
-from . import primary
 from . import referencing
 
 
-class Action(primary.PrimaryClass):
+class Action(inheriting.InheritingClass):
     _type = 'action'
 
 
@@ -26,11 +25,11 @@ class ActionSet(so.ClassSet, type=Action):
     pass
 
 
-class Event(primary.PrimaryClass):
+class Event(inheriting.InheritingClass):
     _type = 'event'
 
 
-class Policy(derivable.DerivableClassBase, primary.PrimaryClass):
+class Policy(derivable.DerivableClass):
     _type = 'policy'
 
     # Policy subject, i.e object in the schema to which
@@ -249,10 +248,6 @@ class CreatePolicy(PolicyCommand, named.CreateNamedClass):
         subject_name = parent_ctx.op.classname
 
         cmd.update((
-            sd.AlterClassProperty(
-                property='bases',
-                new_value=so.ClassList()
-            ),
             sd.AlterClassProperty(
                 property='subject',
                 new_value=so.ClassRef(classname=subject_name)

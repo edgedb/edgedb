@@ -32,7 +32,6 @@ def tuple_element_for_shape_el(shape_el, value):
         path_id=shape_el.path_id,
         name=attr_name,
         val=value,
-        aspect='value'
     )
 
 

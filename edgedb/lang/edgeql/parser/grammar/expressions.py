@@ -321,15 +321,7 @@ class ShapeElement(Nonterm):
 
     def reduce_ShapePointer_TURNSTILE_Expr(self, *kids):
         self.val = kids[0].val
-        expr = kids[2].val
-        if isinstance(expr, qlast.Shape):
-            compexpr = expr.expr
-            subshape = expr.elements
-        else:
-            compexpr = expr
-            subshape = []
-        self.val.compexpr = compexpr
-        self.val.elements = subshape
+        self.val.compexpr = kids[2].val
 
 
 class ShapeElementList(ListNonterm, element=ShapeElement,
@@ -582,6 +574,7 @@ class Expr(Nonterm):
     # | Expr ?? Expr
     # | Expr UNION Expr | Expr UNION ALL Expr
     # | DISTINCT Expr
+    # | DETACHED Expr
     # | 'self' | '__subject__'
 
     def reduce_Path(self, *kids):
@@ -638,10 +631,6 @@ class Expr(Nonterm):
     def reduce_FuncExpr(self, *kids):
         self.val = kids[0].val
 
-    @parsing.precedence(precedence.P_UMINUS)
-    def reduce_EXISTS_Expr(self, *kids):
-        self.val = qlast.ExistsPredicate(expr=kids[1].val)
-
     def reduce_Tuple(self, *kids):
         self.val = kids[0].val
 
@@ -653,6 +642,18 @@ class Expr(Nonterm):
 
     def reduce_NamedTuple(self, *kids):
         self.val = kids[0].val
+
+    @parsing.precedence(precedence.P_UMINUS)
+    def reduce_EXISTS_Expr(self, *kids):
+        self.val = qlast.ExistsPredicate(expr=kids[1].val)
+
+    @parsing.precedence(precedence.P_UMINUS)
+    def reduce_DISTINCT_Expr(self, *kids):
+        self.val = qlast.UnaryOp(op=qlast.DISTINCT, operand=kids[1].val)
+
+    @parsing.precedence(precedence.P_UMINUS)
+    def reduce_DETACHED_Expr(self, *kids):
+        self.val = qlast.DetachedExpr(expr=kids[1].val)
 
     @parsing.precedence(precedence.P_UMINUS)
     def reduce_PLUS_Expr(self, *kids):
@@ -784,9 +785,6 @@ class Expr(Nonterm):
     def reduce_Expr_IF_Expr_ELSE_Expr(self, *kids):
         self.val = qlast.IfElse(
             if_expr=kids[0].val, condition=kids[2].val, else_expr=kids[4].val)
-
-    def reduce_DISTINCT_Expr(self, *kids):
-        self.val = qlast.UnaryOp(op=qlast.DISTINCT, operand=kids[1].val)
 
     def reduce_Expr_UNION_Expr(self, *kids):
         self.val = qlast.BinOp(left=kids[0].val, op=qlast.UNION,
@@ -951,7 +949,7 @@ class BaseBooleanConstant(Nonterm):
 
 
 class Path(Nonterm):
-    @parsing.precedence(precedence.P_PATHSTART)
+    @parsing.precedence(precedence.P_DOT)
     def reduce_NodeName(self, *kids):
         self.val = qlast.Path(
             steps=[qlast.ClassRef(name=kids[0].val.name,

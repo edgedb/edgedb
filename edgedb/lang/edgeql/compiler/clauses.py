@@ -25,8 +25,11 @@ def compile_where_clause(
     if where is None:
         return None
     else:
-        with ctx.newfence() as subctx:
+        with ctx.newscope(fenced=True) as subctx:
+            subctx.path_scope.unnest_fence = True
             subctx.clause = 'where'
+            if subctx.stmt.parent_stmt is None:
+                subctx.toplevel_clause = subctx.clause
             ir_expr = dispatch.compile(where, ctx=subctx)
             bool_t = ctx.schema.get('std::bool')
             ir_set = setgen.scoped_set(ir_expr, typehint=bool_t, ctx=subctx)
@@ -42,10 +45,13 @@ def compile_orderby_clause(
         return result
 
     with ctx.new() as subctx:
+        subctx.path_scope.unnest_fence = True
         subctx.clause = 'orderby'
+        if subctx.stmt.parent_stmt is None:
+            subctx.toplevel_clause = subctx.clause
 
         for sortexpr in sortexprs:
-            with subctx.newfence() as exprctx:
+            with subctx.newscope(fenced=True) as exprctx:
                 ir_sortexpr = dispatch.compile(sortexpr.path, ctx=exprctx)
                 ir_sortexpr = setgen.scoped_set(ir_sortexpr, ctx=exprctx)
                 ir_sortexpr.context = sortexpr.context
@@ -64,7 +70,12 @@ def compile_limit_offset_clause(
         expr: qlast.Base, *,
         ctx: context.ContextLevel) -> typing.Optional[irast.Set]:
     if expr is not None:
-        with ctx.newfence() as subctx:
+        with ctx.newscope(fenced=True) as subctx:
+            subctx.path_scope.unnest_fence = True
+            subctx.clause = 'offsetlimit'
+            if subctx.stmt.parent_stmt is None:
+                subctx.toplevel_clause = subctx.clause
+
             ir_expr = dispatch.compile(expr, ctx=subctx)
             int_t = ctx.schema.get('std::int')
             ir_set = setgen.scoped_set(ir_expr, typehint=int_t, ctx=subctx)

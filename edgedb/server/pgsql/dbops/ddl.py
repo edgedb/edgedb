@@ -231,7 +231,7 @@ class CreateObject(SchemaObjectOperation):
 
 class RenameObject(SchemaObjectOperation):
     def __init__(self, object, *, new_name, **kwargs):
-        super().__init__(**kwargs)
+        super().__init__(name=object.name, **kwargs)
         self.object = object
         self.altered_object = object.copy()
         self.altered_object.rename(new_name)

@@ -18,6 +18,45 @@ from . import objects as so
 from . import name as sn
 
 
+NamedClass = so.NamedClass
+
+
+class NamedClassList(so.ClassList, type=NamedClass):
+    def get_names(self):
+        return tuple(ref.name for ref in self)
+
+    def persistent_hash(self):
+        return persistent_hash(self.get_names())
+
+    @classmethod
+    def compare_values(cls, ours, theirs, context, compcoef):
+        our_names = ours.get_names() if ours else tuple()
+        their_names = theirs.get_names() if theirs else tuple()
+
+        if frozenset(our_names) != frozenset(their_names):
+            return compcoef
+        else:
+            return 1.0
+
+
+class NamedClassSet(so.ClassSet, type=NamedClass):
+    def get_names(self):
+        return frozenset(ref.name for ref in self)
+
+    def persistent_hash(self):
+        return persistent_hash(self.get_names())
+
+    @classmethod
+    def compare_values(cls, ours, theirs, context, compcoef):
+        our_names = ours.get_names() if ours else frozenset()
+        their_names = theirs.get_names() if theirs else frozenset()
+
+        if our_names != their_names:
+            return compcoef
+        else:
+            return 1.0
+
+
 class NamedClassCommand(sd.ClassCommand):
     classname = so.Field(sn.Name)
 
@@ -435,121 +474,3 @@ class DeleteNamedClass(NamedClassCommand, sd.DeleteClass):
             self._delete_finalize(schema, context, scls)
 
         return scls
-
-
-class NamedClass(so.Class):
-    name = so.Field(sn.Name, private=True, compcoef=0.640)
-
-    @classmethod
-    def mangle_name(cls, name) -> str:
-        return name.replace('::', '|')
-
-    @classmethod
-    def unmangle_name(cls, name) -> str:
-        return name.replace('|', '::')
-
-    @classmethod
-    def get_shortname(cls, fullname) -> sn.Name:
-        parts = str(fullname.name).split('@@', 1)
-        if len(parts) == 2:
-            return sn.Name(cls.unmangle_name(parts[0]))
-        else:
-            return sn.Name(fullname)
-
-    @classmethod
-    def get_specialized_name(cls, basename, *qualifiers) -> str:
-        return (cls.mangle_name(basename) +
-                '@@' +
-                '@'.join(cls.mangle_name(qualifier)
-                         for qualifier in qualifiers if qualifier))
-
-    @property
-    def shortname(self) -> sn.Name:
-        try:
-            cached = self._cached_shortname
-        except AttributeError:
-            pass
-        else:
-            # `.name` can be overridden at some point, so we
-            # want to guard our cache against that.
-            if cached[0] == self.name:
-                return cached[1]
-
-        shortname = self.get_shortname(self.name)
-        self._cached_shortname = (self.name, shortname)
-        return shortname
-
-    def delta_properties(self, delta, other, reverse=False, context=None):
-        old, new = (other, self) if not reverse else (self, other)
-
-        if old and new:
-            if old.name != new.name:
-                delta.add(old.delta_rename(new.name))
-
-        super().delta_properties(delta, other, reverse, context)
-
-    def delta_rename(self, new_name):
-        rename_class = sd.ClassCommandMeta.get_command_class_or_die(
-            RenameNamedClass, type(self))
-
-        return rename_class(classname=self.name,
-                            new_name=new_name,
-                            metaclass=self.get_canonical_class())
-
-    @classmethod
-    def compare_values(cls, ours, theirs, context, compcoef):
-        similarity = 1.0
-
-        if (ours is None) != (theirs is None):
-            similarity /= 1.2
-        elif ours is not None:
-            if (ours.__class__.get_canonical_class() !=
-                    theirs.__class__.get_canonical_class()):
-                similarity /= 1.4
-            elif ours.name != theirs.name:
-                similarity /= 1.2
-
-        return similarity
-
-    def __repr__(self):
-        cls = self.__class__
-        return f'<{cls.__module__}.{cls.__name__} "{self.name}" ' \
-               f'at 0x{id(self):x}>'
-
-    __str__ = __repr__
-
-
-class NamedClassList(so.ClassList, type=NamedClass):
-    def get_names(self):
-        return tuple(ref.name for ref in self)
-
-    def persistent_hash(self):
-        return persistent_hash(self.get_names())
-
-    @classmethod
-    def compare_values(cls, ours, theirs, context, compcoef):
-        our_names = ours.get_names() if ours else tuple()
-        their_names = theirs.get_names() if theirs else tuple()
-
-        if frozenset(our_names) != frozenset(their_names):
-            return compcoef
-        else:
-            return 1.0
-
-
-class NamedClassSet(so.ClassSet, type=NamedClass):
-    def get_names(self):
-        return frozenset(ref.name for ref in self)
-
-    def persistent_hash(self):
-        return persistent_hash(self.get_names())
-
-    @classmethod
-    def compare_values(cls, ours, theirs, context, compcoef):
-        our_names = ours.get_names() if ours else frozenset()
-        their_names = theirs.get_names() if theirs else frozenset()
-
-        if our_names != their_names:
-            return compcoef
-        else:
-            return 1.0

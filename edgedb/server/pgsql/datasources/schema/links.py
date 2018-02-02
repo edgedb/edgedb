@@ -21,14 +21,13 @@ async def fetch(
                 l.name AS name,
                 edgedb._resolve_type_name(l.bases) AS bases,
                 l.mapping,
-                l.exposed_behaviour,
                 l.required,
+                l.computable,
                 l.title,
                 l.description,
                 l.is_abstract,
                 l.is_final,
                 l.readonly,
-                l.loading,
                 l.default
             FROM
                 edgedb.link l
@@ -48,8 +47,8 @@ async def fetch_properties(
                 p.title                 AS title,
                 p.description           AS description,
                 p.required              AS required,
+                p.computable            AS computable,
                 p.readonly              AS readonly,
-                p.loading               AS loading,
                 p.default               AS default,
                 edgedb._resolve_type_name(p.source)
                                         AS source,

@@ -13,14 +13,13 @@ from edgedb.lang.edgeql import ast as qlast
 from edgedb.lang.edgeql import errors as ql_errors
 
 from . import delta as sd
-from . import derivable
 from . import error as s_errors
 from . import expr as s_expr
 from . import functions as s_func
+from . import inheriting
 from . import name as sn
 from . import named
 from . import objects as so
-from . import primary
 from . import referencing
 
 
@@ -37,7 +36,7 @@ class CumulativeBoolExpr(s_expr.ExpressionText):
         return result
 
 
-class Constraint(primary.PrimaryClass, derivable.DerivableClass):
+class Constraint(inheriting.InheritingClass):
     _type = 'constraint'
 
     expr = so.Field(s_expr.ExpressionText, default=None, compcoef=0.909,
@@ -109,7 +108,7 @@ class Constraint(primary.PrimaryClass, derivable.DerivableClass):
             tree, schema, modaliases=module_aliases,
             anchors={qlast.Subject: subject}, inline_anchors=inline_anchors)
 
-        return edgeql_tree.result, ir.result
+        return edgeql_tree.result, ir.expr.expr.result
 
     @classmethod
     def normalize_constraint_expr(cls, schema, module_aliases, expr,
@@ -291,7 +290,7 @@ class ConstraintCommandContext(sd.ClassCommandContext):
 
 
 class ConstraintCommand(
-        referencing.ReferencedClassCommand,
+        referencing.ReferencedInheritingClassCommand,
         schema_metaclass=Constraint, context_class=ConstraintCommandContext,
         referrer_context_class=ConsistencySubjectCommandContext):
 
@@ -328,7 +327,7 @@ class ConstraintCommand(
 
 
 class CreateConstraint(ConstraintCommand,
-                       referencing.CreateReferencedClass,
+                       referencing.CreateReferencedInheritingClass,
                        s_func.FunctionCommandMixin):
 
     astnode = [qlast.CreateConcreteConstraint, qlast.CreateConstraint]
@@ -355,7 +354,7 @@ class CreateConstraint(ConstraintCommand,
 
         elif isinstance(astnode, qlast.CreateConstraint):
             if astnode.args:
-                paramnames, paramdefaults, paramtypes, variadic = \
+                paramnames, paramdefaults, paramtypes, paramkinds, variadic = \
                     cls._parameters_from_ast(astnode)
 
                 if variadic:

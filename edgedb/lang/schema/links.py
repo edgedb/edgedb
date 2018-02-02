@@ -23,6 +23,7 @@ from . import pointers
 from . import policy
 from . import referencing
 from . import sources
+from . import types as s_types
 from . import utils
 
 
@@ -92,9 +93,6 @@ class Link(sources.Source, pointers.Pointer):
     mapping = so.Field(LinkMapping, default=None,
                        compcoef=0.833, coerce=True)
 
-    exposed_behaviour = so.Field(pointers.PointerExposedBehaviour,
-                                 default=None, compcoef=0.98)
-
     search = so.Field(LinkSearchConfiguration, default=None, compcoef=0.909)
 
     @classmethod
@@ -103,18 +101,9 @@ class Link(sources.Source, pointers.Pointer):
 
     @classmethod
     def get_special_pointers(cls):
-        return (sn.Name('std::linkid'),
-                sn.Name('std::source'),
-                sn.Name('std::target'))
-
-    def get_exposed_behaviour(self):
-        if self.exposed_behaviour is not None:
-            return self.exposed_behaviour
-        else:
-            if self.mapping in {LinkMapping.OneToOne, LinkMapping.ManyToOne}:
-                return pointers.PointerExposedBehaviour.FirstItem
-            else:
-                return pointers.PointerExposedBehaviour.Set
+        return (sn.Name('std::source'),
+                sn.Name('std::target'),
+                sn.Name('std::linkid'),)
 
     def init_std_props(self, schema, *, mark_derived=False,
                        add_to_schema=False, dctx=None):
@@ -164,7 +153,7 @@ class Link(sources.Source, pointers.Pointer):
             "atomicity is not determined for generic links"
         return (
             isinstance(self.target, atoms.Atom) or
-            isinstance(self.target, so.Collection)
+            isinstance(self.target, s_types.Collection)
         )
 
     def has_user_defined_properties(self):
@@ -242,7 +231,7 @@ class LinkCommand(lproperties.LinkPropertySourceCommand,
     pass
 
 
-class CreateLink(LinkCommand, referencing.CreateReferencedClass):
+class CreateLink(LinkCommand, referencing.CreateReferencedInheritingClass):
     astnode = [qlast.CreateConcreteLink, qlast.CreateLink]
     referenced_astnode = qlast.CreateConcreteLink
 
@@ -377,10 +366,6 @@ class CreateLink(LinkCommand, referencing.CreateReferencedClass):
                 sd.AlterClassProperty(
                     property='readonly',
                     new_value=True
-                ),
-                sd.AlterClassProperty(
-                    property='loading',
-                    new_value='eager'
                 )
             ))
 
@@ -427,10 +412,6 @@ class CreateLink(LinkCommand, referencing.CreateReferencedClass):
                     property='readonly',
                     new_value=True
                 ),
-                sd.AlterClassProperty(
-                    property='loading',
-                    new_value='eager'
-                )
             ))
 
             cmd.add(tgt_prop)
@@ -591,7 +572,7 @@ class AlterLink(LinkCommand, named.AlterNamedClass):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
         if isinstance(astnode, qlast.AlterConcreteLink):
-            for ap in cmd(sd.AlterClassProperty):
+            for ap in cmd.get_subcommands(type=sd.AlterClassProperty):
                 if ap.property == 'search_weight':
                     ap.property = 'search'
                     if ap.new_value is not None:
@@ -675,15 +656,15 @@ class DeleteLink(LinkCommand, named.DeleteNamedClass):
 
         concept = context.get(LinkSourceCommandContext)
 
-        for op in self.get_objects(type=lproperties.LinkPropertyCommand):
+        for op in self.get_subcommands(type=lproperties.LinkPropertyCommand):
             self._append_subcmd_ast(node, op, context)
 
         if not concept:
-            for op in self.get_objects(type=indexes.SourceIndexCommand):
+            for op in self.get_subcommands(type=indexes.SourceIndexCommand):
                 self._append_subcmd_ast(node, op, context)
 
-        for op in self.get_objects(type=constraints.ConstraintCommand):
+        for op in self.get_subcommands(type=constraints.ConstraintCommand):
             self._append_subcmd_ast(node, op, context)
 
-        for op in self.get_objects(type=policy.PolicyCommand):
+        for op in self.get_subcommands(type=policy.PolicyCommand):
             self._append_subcmd_ast(node, op, context)

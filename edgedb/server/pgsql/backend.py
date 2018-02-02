@@ -20,7 +20,6 @@ from edgedb.lang.common import markup, nlang
 from edgedb.lang.common import exceptions as edgedb_error
 
 from edgedb.lang import schema as so
-from edgedb.lang.ir import utils as ir_utils
 from edgedb.lang.schema import delta as sd
 
 from edgedb.lang.schema import attributes as s_attrs
@@ -39,10 +38,8 @@ from edgedb.lang.schema import links as s_links
 from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import modules as s_mod
 from edgedb.lang.schema import name as sn
-from edgedb.lang.schema import objects as s_obj
-from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import policy as s_policy
-from edgedb.lang.schema import views as s_views
+from edgedb.lang.schema import types as s_types
 
 from edgedb.server import query as backend_query
 from edgedb.server.pgsql import common
@@ -400,7 +397,6 @@ class Backend(s_deltarepo.DeltaProvider):
         await self.read_attributes(schema)
         await self.read_actions(schema)
         await self.read_events(schema)
-        await self.read_views(schema)
         await self.read_concepts(schema)
         await self.read_links(schema)
         await self.read_link_properties(schema)
@@ -593,11 +589,8 @@ class Backend(s_deltarepo.DeltaProvider):
             query_ir.offset = offset
             query_ir.limit = limit
 
-        # Try to infer types to check that everything is correct.
-        ir_utils.infer_type(query_ir, self.schema)
-
         argtypes = {}
-        for k, v in query_ir.argument_types.items():
+        for k, v in query_ir.params.items():
             argtypes[k] = v
 
         return Query(
@@ -682,8 +675,12 @@ class Backend(s_deltarepo.DeltaProvider):
                 'description': row['description'],
                 'is_abstract': row['is_abstract'],
                 'is_final': row['is_final'],
+                'view_type': (s_types.ViewType(row['view_type'])
+                              if row['view_type'] else None),
                 'bases': row['bases'],
                 'default': row['default'],
+                'expr': (s_expr.ExpressionText(row['expr'])
+                         if row['expr'] else None)
             }
 
             self.atom_cache[name] = atom_data
@@ -696,7 +693,9 @@ class Backend(s_deltarepo.DeltaProvider):
                 name=name, default=atom_data['default'],
                 title=atom_data['title'], description=atom_data['description'],
                 is_abstract=atom_data['is_abstract'],
-                is_final=atom_data['is_final'])
+                is_final=atom_data['is_final'],
+                view_type=atom_data['view_type'],
+                expr=atom_data['expr'])
 
             schema.add(atom)
 
@@ -747,8 +746,6 @@ class Backend(s_deltarepo.DeltaProvider):
                 'name': name,
                 'title': self.json_to_word_combination(row['title']),
                 'description': row['description'],
-                'is_abstract': row['is_abstract'],
-                'is_final': row['is_final'],
                 'aggregate': row['aggregate'],
                 'set_returning': row['set_returning'],
                 'varparam': row['varparam'],
@@ -759,6 +756,8 @@ class Backend(s_deltarepo.DeltaProvider):
                 'paramnames': row['paramnames'] if row['paramnames'] else [],
                 'paramdefaults':
                     row['paramdefaults'] if row['paramdefaults'] else [],
+                'paramkinds':
+                    row['paramkinds'] if row['paramkinds'] else [],
                 'returntype': self.unpack_typeref(row['returntype'], schema)
             }
 
@@ -830,7 +829,7 @@ class Backend(s_deltarepo.DeltaProvider):
         t = typemap[id]
 
         if t['collection'] is not None:
-            coll_type = s_obj.Collection.get_class(t['collection'])
+            coll_type = s_types.Collection.get_class(t['collection'])
             subtypes = [
                 self._unpack_typedesc_node(typemap, stid, schema)
                 for stid in t['subtypes']
@@ -841,7 +840,7 @@ class Backend(s_deltarepo.DeltaProvider):
                 typemods = None
 
             named = all(s[0] is not None for s in subtypes)
-            if issubclass(coll_type, s_obj.Tuple) and named:
+            if issubclass(coll_type, s_types.Tuple) and named:
                 st = collections.OrderedDict(subtypes)
                 typemods = {'named': named}
             else:
@@ -1066,17 +1065,6 @@ class Backend(s_deltarepo.DeltaProvider):
 
             required = r['required']
 
-            if r['loading']:
-                loading = s_pointers.PointerLoading(r['loading'])
-            else:
-                loading = None
-
-            if r['exposed_behaviour']:
-                exposed_behaviour = \
-                    s_pointers.PointerExposedBehaviour(r['exposed_behaviour'])
-            else:
-                exposed_behaviour = None
-
             if r['mapping']:
                 mapping = s_links.LinkMapping(r['mapping'])
             else:
@@ -1087,10 +1075,11 @@ class Backend(s_deltarepo.DeltaProvider):
             link = s_links.Link(
                 name=name, source=source, target=target,
                 spectargets=spectargets, mapping=mapping,
-                exposed_behaviour=exposed_behaviour, required=required,
+                required=required,
                 title=title, description=description,
                 is_abstract=r['is_abstract'], is_final=r['is_final'],
-                readonly=r['readonly'], loading=loading, default=default)
+                readonly=r['readonly'], computable=r['computable'],
+                default=default)
 
             if spectargets:
                 # Multiple specified targets,
@@ -1175,18 +1164,12 @@ class Backend(s_deltarepo.DeltaProvider):
 
             required = r['required']
             target = None
-
-            if r['loading']:
-                loading = s_pointers.PointerLoading(r['loading'])
-            else:
-                loading = None
-
             basemap[name] = bases
 
             prop = s_lprops.LinkProperty(
                 name=name, source=source, target=target, required=required,
                 title=title, description=description, readonly=r['readonly'],
-                loading=loading, default=default)
+                computable=r['computable'], default=default)
 
             if source and bases[0] not in {'std::target', 'std::source'}:
                 # The property is attached to a link, check out
@@ -1339,23 +1322,6 @@ class Backend(s_deltarepo.DeltaProvider):
         return await self._type_mech.get_type_attributes(
             type_name, connection, cache)
 
-    async def read_views(self, schema):
-        view_list = await datasources.schema.views.fetch(self.connection)
-        view_list = collections.OrderedDict((sn.Name(row['name']), row)
-                                            for row in view_list)
-
-        for name, row in view_list.items():
-            view_data = {
-                'name': name,
-                'title': self.json_to_word_combination(row['title']),
-                'description': row['description'],
-                'expr': s_expr.ExpressionText(row['expr'])
-            }
-
-            view = s_views.View(**view_data)
-
-            schema.add(view)
-
     async def read_concepts(self, schema):
         tables = await introspection.tables.fetch_tables(
             self.connection, schema_pattern='edgedb%', table_pattern='%_data')
@@ -1381,7 +1347,11 @@ class Backend(s_deltarepo.DeltaProvider):
                 'title': self.json_to_word_combination(row['title']),
                 'description': row['description'],
                 'is_abstract': row['is_abstract'],
-                'is_final': row['is_final']
+                'is_final': row['is_final'],
+                'view_type': (s_types.ViewType(row['view_type'])
+                              if row['view_type'] else None),
+                'expr': (s_expr.ExpressionText(row['expr'])
+                         if row['expr'] else None)
             }
 
             table_name = common.concept_name_to_table_name(
@@ -1405,7 +1375,9 @@ class Backend(s_deltarepo.DeltaProvider):
                 name=name, title=concept['title'],
                 description=concept['description'],
                 is_abstract=concept['is_abstract'],
-                is_final=concept['is_final'])
+                is_final=concept['is_final'],
+                view_type=concept['view_type'],
+                expr=concept['expr'])
 
             schema.add(concept)
 
@@ -1424,6 +1396,8 @@ class Backend(s_deltarepo.DeltaProvider):
             attrs = dict(row)
             attrs['name'] = sn.SchemaName(attrs['name'])
             attrs['bases'] = [schema.get(b) for b in attrs['bases']]
+            attrs['view_type'] = (s_types.ViewType(attrs['view_type'])
+                                  if attrs['view_type'] else None)
             attrs['is_derived'] = True
             concept = s_concepts.Concept(**attrs)
             schema.add(concept)

@@ -52,8 +52,10 @@ def pull_path_namespace(
 
         for path_id, aspect in s_paths:
             path_id = pathctx.reverse_map_path_id(path_id, view_path_id_map)
-            pathctx.put_path_rvar_if_not_exists(
-                target, path_id, source, aspect=aspect, env=ctx.env)
+            rvar = maybe_get_path_rvar(target, path_id, aspect=aspect, ctx=ctx)
+            if rvar is None:
+                pathctx.put_path_rvar(
+                    target, path_id, source, aspect=aspect, env=ctx.env)
 
 
 def include_rvar(
@@ -279,7 +281,6 @@ def _new_mapped_pointer_rvar(
     ptrcls = ir_ptr.ptrcls
     ptr_rvar = dbobj.range_for_pointer(ir_ptr, env=ctx.env)
     ptr_rvar.nullable = nullable
-
     # Set up references according to the link direction.
     src_ptr_info = pg_types.get_pointer_storage_info(
         ptrcls.getptr(ctx.env.schema, 'std::source'), resolve_type=False)
@@ -322,7 +323,7 @@ def new_rel_rvar(
         ir_set: irast.Set, stmt: pgast.Query, *,
         lateral: bool=True,
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
-    if irutils.is_aliased_set(ir_set):
+    if irutils.is_atomic_view_set(ir_set):
         ensure_bond_for_expr(ir_set, stmt, ctx=ctx)
 
     return dbobj.rvar_for_rel(stmt, lateral=lateral, env=ctx.env)
@@ -333,7 +334,7 @@ def new_static_class_rvar(
         lateral: bool=True,
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
     set_rvar = new_root_rvar(ir_set, ctx=ctx)
-    clsname = pgast.Constant(val=ir_set.rptr.source.scls.name)
+    clsname = pgast.Constant(val=ir_set.rptr.source.scls.material_type().name)
     nameref = dbobj.get_column(
         set_rvar, common.edgedb_name_to_pg_name('schema::name'))
     condition = astutils.new_binop(nameref, clsname, op='=')
@@ -399,8 +400,7 @@ def ensure_value_rvar(
 def ensure_bond_for_expr(
         ir_set: irast.Set, stmt: pgast.Query, *, type='int',
         ctx: context.CompilerContextLevel) -> None:
-    rt = irutils.infer_type(ir_set, ctx.env.schema)
-    if isinstance(rt, s_concepts.Concept):
+    if ir_set.path_id.is_concept_path():
         # Concepts have inherent identity
         return
 
@@ -466,25 +466,12 @@ def maybe_get_scope_stmt(
 def rel_join(
         query: pgast.Query, right_rvar: pgast.BaseRangeVar, *,
         ctx: context.CompilerContextLevel) -> None:
-    use_where = (not query.from_clause and not query.nonempty)
     condition = None
-
-    if query.nonempty and not query.from_clause:
-        left_rel = pgast.SelectStmt()
-        left_rvar = dbobj.rvar_for_rel(left_rel, env=ctx.env)
-    else:
-        left_rvar = None
 
     for path_id in right_rvar.path_scope:
         lref = maybe_get_path_var(query, path_id, aspect='identity', ctx=ctx)
         if lref is None:
             continue
-
-        if left_rvar is not None:
-            pathctx.put_path_var(left_rel, path_id, lref, aspect='identity',
-                                 env=ctx.env)
-            lref = pathctx.get_rvar_path_identity_var(
-                left_rvar, path_id, env=ctx.env)
 
         rref = pathctx.get_rvar_path_identity_var(
             right_rvar, path_id, env=ctx.env)
@@ -492,35 +479,24 @@ def rel_join(
         path_cond = astutils.join_condition(lref, rref)
         condition = astutils.extend_binop(condition, path_cond)
 
-    if use_where:
-        # A "where" JOIN is equivalent to an INNER join with
-        # its condition moved to a WHERE clause.
+    if condition is None:
+        join_type = 'cross'
+    else:
+        join_type = 'inner'
+
+    if not query.from_clause:
+        query.from_clause.append(right_rvar)
         if condition is not None:
             query.where_clause = astutils.extend_binop(
                 query.where_clause, condition)
-
-        query.from_clause.append(right_rvar)
     else:
-        if condition is None:
-            join_type = 'cross'
-        elif query.nonempty:
-            if not query.from_clause:
-                query.from_clause.append(left_rvar)
+        larg = query.from_clause[0]
+        rarg = right_rvar
 
-            join_type = 'left'
-        else:
-            join_type = 'inner'
-
-        if not query.from_clause:
-            query.from_clause.append(right_rvar)
-        else:
-            larg = query.from_clause[0]
-            rarg = right_rvar
-
-            query.from_clause[0] = pgast.JoinExpr(
-                type=join_type, larg=larg, rarg=rarg, quals=condition)
-            if join_type == 'left':
-                right_rvar.nullable = True
+        query.from_clause[0] = pgast.JoinExpr(
+            type=join_type, larg=larg, rarg=rarg, quals=condition)
+        if join_type == 'left':
+            right_rvar.nullable = True
 
     if not right_rvar.is_distinct:
         query.is_distinct = False

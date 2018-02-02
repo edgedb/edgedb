@@ -6,13 +6,8 @@
 ##
 
 
-from . import inheriting
-from . import objects as so
 from . import name as sn
-
-
-class DerivableClassCommand(inheriting.InheritingClassCommand):
-    pass
+from . import objects as so
 
 
 class DerivableClassBase:
@@ -27,10 +22,6 @@ class DerivableClassBase:
 
         return similarity
 
-    @classmethod
-    def inherit_pure(cls, schema, item, source, *, dctx=None):
-        return item
-
     def derive_name(self, source, *qualifiers):
         name = self.get_specialized_name(
             self.shortname, source.name, *qualifiers)
@@ -44,38 +35,23 @@ class DerivableClassBase:
 
     def init_derived(self, schema, source, *qualifiers, as_copy,
                      merge_bases=None, add_to_schema=False, mark_derived=False,
-                     attrs=None, dctx=None, **kwargs):
-        derived_name = self.get_derived_name(
-            source, *qualifiers, mark_derived=mark_derived)
-
-        if as_copy:
-            derived = self.copy()
-            if attrs is not None:
-                derived.update(attrs)
-            derived.name = derived_name
-
+                     attrs=None, dctx=None, name=None, **kwargs):
+        if name is None:
+            derived_name = self.get_derived_name(
+                source, *qualifiers, mark_derived=mark_derived)
         else:
-            derived_attrs = {}
+            derived_name = name
 
-            if attrs is not None:
-                derived_attrs.update(attrs)
-
-            if not derived_attrs.get('bases'):
-                derived_attrs['bases'] = [self]
-
-            derived_attrs.pop('name', None)
-
-            cls = type(self)
-            derived = cls(name=derived_name, **derived_attrs,
-                          _setdefaults_=False, _relaxrequired_=True)
+        derived = self.copy()
+        if attrs is not None:
+            derived.update(attrs)
+        derived.name = derived_name
 
         return derived
 
     def finalize_derived(self, schema, derived, *, merge_bases=None,
                          replace_original=None, add_to_schema=False,
                          mark_derived=False, attrs=None, dctx=None, **kwargs):
-
-        existing_derived = schema.get(derived.name, default=None)
 
         if merge_bases:
             derived.acquire_ancestor_inheritance(
@@ -87,6 +63,8 @@ class DerivableClassBase:
             derived.is_derived = True
 
         if add_to_schema:
+            existing_derived = schema.get(derived.name, default=None)
+
             if existing_derived is None:
                 schema.add(derived)
             elif replace_original is not None:
@@ -97,9 +75,11 @@ class DerivableClassBase:
 
     def derive_copy(self, schema, *qualifiers, merge_bases=None,
                     replace_original=None, add_to_schema=False,
-                    mark_derived=False, attrs=None, dctx=None, **kwargs):
+                    mark_derived=False, attrs=None, dctx=None,
+                    name=None, **kwargs):
         derived = self.init_derived(
-            schema, *qualifiers, as_copy=True, merge_bases=merge_bases,
+            schema, *qualifiers, name=name,
+            as_copy=True, merge_bases=merge_bases,
             attrs=attrs, add_to_schema=add_to_schema,
             mark_derived=mark_derived, dctx=dctx, **kwargs)
 
@@ -112,14 +92,15 @@ class DerivableClassBase:
 
     def derive(self, schema, source, *qualifiers, merge_bases=None,
                replace_original=None, add_to_schema=False,
-               mark_derived=False, attrs=None, dctx=None, **kwargs):
+               mark_derived=False, attrs=None, dctx=None,
+               name=None, **kwargs):
         if not self.generic():
             raise TypeError(
                 'cannot derive from specialized {} {!r}'.format(
                     self.__class__.__name__, self.name))
 
         derived = self.init_derived(
-            schema, source, *qualifiers,
+            schema, source, *qualifiers, name=name,
             as_copy=False, merge_bases=merge_bases,
             attrs=attrs, add_to_schema=add_to_schema,
             mark_derived=mark_derived, dctx=dctx, **kwargs)
@@ -132,6 +113,9 @@ class DerivableClassBase:
         return derived
 
 
-class DerivableClass(DerivableClassBase, inheriting.InheritingClass):
-    name = so.Field(sn.Name, private=True, compcoef=0.909)
-    is_derived = so.Field(bool, False, compcoef=0.909)
+class DerivableClass(so.NamedClass, DerivableClassBase):
+    @classmethod
+    def inherit_pure(cls, schema, item, source, *, dctx=None):
+        # This method is used by ReferencingClass and must be
+        # defined for all Derivables, not just Inheriting ones.
+        return item

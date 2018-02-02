@@ -985,6 +985,15 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
+    def test_edgeql_syntax_shape_39(self):
+        """
+        SELECT Foo {
+            foo := Foo {
+                name
+            }
+        };
+        """
+
     def test_edgeql_syntax_struct_01(self):
         """
         SELECT (
@@ -1608,6 +1617,28 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_with_08(self):
         """
         WITH MODULE `~all.abstract.bar` SELECT Foo;
+        """
+
+    def test_edgeql_syntax_detached_01(self):
+        """
+        WITH F := DETACHED Foo
+        SELECT F;
+        """
+
+    def test_edgeql_syntax_detached_02(self):
+        """
+        WITH F := DETACHED (SELECT Foo FILTER Bar)
+        SELECT F;
+        """
+
+    def test_edgeql_syntax_detached_03(self):
+        """
+        SELECT (DETACHED Foo, Foo);
+        """
+
+    def test_edgeql_syntax_detached_04(self):
+        """
+        SELECT DETACHED Foo.bar;
         """
 
     def test_edgeql_syntax_select_01(self):
@@ -2319,79 +2350,58 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_aggregate_01(self):
         """
-        CREATE AGGREGATE std::sum($v: std::int)
-            -> std::int
-            INITIAL VALUE 0
-            FROM SQL AGGREGATE 'test';
+        CREATE FUNCTION std::sum($v: SET OF std::int)
+            -> std::int {
+            INITIAL VALUE 0;
+            FROM SQL FUNCTION 'test';
+        };
         """
 
     def test_edgeql_syntax_ddl_aggregate_02(self):
         """
-        CREATE AGGREGATE std::sum(std::int)
-            -> std::int
-            INITIAL VALUE 0
-            FROM SQL AGGREGATE 'sum';
+        CREATE FUNCTION std::sum(SET OF std::int)
+            -> std::int {
+            INITIAL VALUE 0;
+            FROM SQL FUNCTION 'sum';
+        };
         """
 
     def test_edgeql_syntax_ddl_aggregate_03(self):
         """
-        CREATE AGGREGATE std::sum($integer: std::int)
-            -> std::int
-            INITIAL VALUE 0
-            FROM SQL AGGREGATE 'sum';
+        CREATE FUNCTION std::sum($integer: SET OF std::int)
+            -> std::int {
+            INITIAL VALUE 0;
+            FROM SQL FUNCTION 'sum';
+        };
         """
 
     def test_edgeql_syntax_ddl_aggregate_04(self):
         """
-        CREATE AGGREGATE std::sum($integer: std::int)
-            -> std::int
-            INITIAL VALUE 0
-            FROM SQL AGGREGATE 'sum';
+        CREATE FUNCTION std::sum($integer: SET OF std::int)
+            -> std::int {
+            INITIAL VALUE 0;
+            FROM SQL FUNCTION 'sum';
+        };
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected token.*FROM", line=4, col=13)
-    def test_edgeql_syntax_ddl_aggregate_05(self):
-        """
-        CREATE AGGREGATE std::sum($integer: std::int)
-            -> std::int
-            FROM SQL AGGREGATE 'sum';
-        """
-
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "AAA is not a valid language", line=4)
+                  "AAA is not a valid language", line=5)
     def test_edgeql_syntax_ddl_aggregate_06(self):
         """
-        CREATE AGGREGATE foo($string: std::str)
-            -> std::int INITIAL VALUE 0
-            FROM AAA AGGREGATE 'foo';
-        """
-
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected token.*FUNCTION", line=4, col=22)
-    def test_edgeql_syntax_ddl_aggregate_07(self):
-        """
-        CREATE AGGREGATE foo($string: std::str)
-            -> std::int INITIAL VALUE 0
-            FROM SQL FUNCTION 'foo';
+        CREATE FUNCTION foo($string: SET OF std::str)
+            -> std::int {
+            INITIAL VALUE 0;
+            FROM AAA FUNCTION 'foo';
+        };
         """
 
     def test_edgeql_syntax_ddl_aggregate_08(self):
         """
-        CREATE AGGREGATE std::count($expression: std::any)
-            -> std::int INITIAL VALUE 0
-            FROM SQL AGGREGATE 'count';
-        """
-
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected token.*SELECT 1", line=5)
-    def test_edgeql_syntax_ddl_aggregate_09(self):
-        # We don't yet support creating aggregates from any kind of code.
-        """
-        CREATE AGGREGATE foo()
-            -> std::int
-            INITIAL VALUE 0
-            FROM SQL 'SELECT 1';
+        CREATE FUNCTION std::count($expression: SET OF std::any)
+            -> std::int {
+            INITIAL VALUE 0;
+            FROM SQL FUNCTION 'count';
+        };
         """
 
     def test_edgeql_syntax_ddl_atom_01(self):
@@ -2686,14 +2696,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected token.*AGGREGATE", line=3)
-    def test_edgeql_syntax_ddl_function_18(self):
-        """
-        CREATE FUNCTION foo($string: std::str)
-        -> std::int FROM SQL AGGREGATE 'foo';
-        """
-
-    @tb.must_fail(errors.EdgeQLSyntaxError,
                   "AAA is not a valid language", line=3)
     def test_edgeql_syntax_ddl_function_19(self):
         """
@@ -2755,16 +2757,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             SET description := 'aaaa';
             FROM SQL 'SELECT 2';
         };
-        """
-
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'Unexpected token.*INITIAL', line=4, col=13)
-    def test_edgeql_syntax_ddl_function_29(self):
-        """
-        CREATE FUNCTION std::strlen(std::str = '1', *std::str)
-            -> std::int
-            INITIAL VALUE 0
-            FROM SQL FUNCTION 'strlen';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,

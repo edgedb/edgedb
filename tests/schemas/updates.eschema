@@ -1,8 +1,10 @@
 concept Status:
-    required link name to str
+    required link name to str:
+        constraint unique
 
 concept Tag:
-    required link name to str
+    required link name to str:
+        constraint unique
 
 link annotated_status:
     link property note to str

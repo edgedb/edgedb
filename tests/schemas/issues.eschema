@@ -21,7 +21,7 @@ link todo:
         default := 42
 
 
-concept User extending Named:
+concept User extending Dictionary:
     link todo to Issue:
         mapping := '**'
 
@@ -62,6 +62,7 @@ concept Issue extending Named, Owned, Text:
         readonly := true
         # The number values are automatically generated,
         # and are not supposed to be directly writable.
+        constraint unique
 
     required link status to Status:
         mapping := '*1'

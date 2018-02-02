@@ -7,6 +7,8 @@
 
 import collections
 
+from . import typed
+
 
 class NoDefault:
     pass
@@ -286,16 +288,37 @@ class Struct(metaclass=StructMeta):
             raise TypeError(msg)
 
     def _check_field_type(self, field, name, value):
-        if (
-                field.type and value is not None and
+        if (field.type and value is not None and
                 not isinstance(value, field.type)):
             if field.coerce:
+                ftype = field.type[0]
+
+                if issubclass(ftype, (typed.AbstractTypedSequence,
+                                      typed.AbstractTypedSet)):
+                    casted_value = []
+                    for v in value:
+                        if v is not None and not isinstance(v, ftype.type):
+                            v = ftype.type(v)
+                        casted_value.append(v)
+                    value = casted_value
+                elif issubclass(ftype, typed.AbstractTypedMapping):
+                    casted_value = {}
+                    for k, v in value.items():
+                        if k is not None and not isinstance(k, ftype.keytype):
+                            k = ftype.keytype(k)
+                        if (v is not None and
+                                not isinstance(v, ftype.valuetype)):
+                            v = ftype.valuetype(v)
+                        casted_value[k] = v
+
+                    value = casted_value
+
                 try:
-                    return field.type[0](value)
+                    return ftype(value)
                 except Exception as ex:
                     raise TypeError(
                         'cannot coerce {!r} value {!r} '
-                        'to {}'.format(name, value, field.type)) from ex
+                        'to {}'.format(name, value, ftype)) from ex
 
             raise TypeError(
                 '{}.{}.{}: expected {} but got {!r}'.format(

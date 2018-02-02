@@ -13,13 +13,14 @@ from edgedb.lang.edgeql import ast as ql_ast
 
 from . import name as sn
 from . import objects as so
+from . import types as s_types
 
 
 def ast_to_typeref(node: ql_ast.TypeName):
     if node.subtypes:
-        coll = so.Collection.get_class(node.maintype.name)
+        coll = s_types.Collection.get_class(node.maintype.name)
 
-        if issubclass(coll, so.Tuple):
+        if issubclass(coll, s_types.Tuple):
             subtypes = collections.OrderedDict()
             named = False
             for si, st in enumerate(node.subtypes):
@@ -46,7 +47,7 @@ def ast_to_typeref(node: ql_ast.TypeName):
 
 
 def typeref_to_ast(t: so.Class) -> ql_ast.TypeName:
-    if not isinstance(t, so.Collection):
+    if not isinstance(t, s_types.Collection):
         if isinstance(t, so.ClassRef):
             name = t.classname
         else:
@@ -72,7 +73,7 @@ def typeref_to_ast(t: so.Class) -> ql_ast.TypeName:
 
 
 def resolve_typeref(ref: so.Class, schema) -> so.Class:
-    if isinstance(ref, so.Tuple):
+    if isinstance(ref, s_types.Tuple):
         if any(isinstance(st, so.ClassRef) for st in ref.get_subtypes()):
             subtypes = collections.OrderedDict()
             for st_name, st in ref.element_types.items():
@@ -83,7 +84,7 @@ def resolve_typeref(ref: so.Class, schema) -> so.Class:
         else:
             obj = ref
 
-    elif isinstance(ref, so.Collection):
+    elif isinstance(ref, s_types.Collection):
         if any(isinstance(st, so.ClassRef) for st in ref.get_subtypes()):
             subtypes = []
             for st in ref.get_subtypes():
@@ -173,5 +174,23 @@ def get_full_inheritance_map(schema, classes):
     for p, descendants in get_inheritance_map(classes).items():
         result[p] = (set(chain(d.descendants(schema) for d in descendants)) |
                      set(descendants))
+
+    return result
+
+
+def merge_sticky_bool(ours, theirs, schema):
+    if ours is not None and theirs is not None:
+        result = max(ours, theirs)
+    else:
+        result = theirs if theirs is not None else ours
+
+    return result
+
+
+def merge_weak_bool(ours, theirs, schema):
+    if ours is not None and theirs is not None:
+        result = min(ours, theirs)
+    else:
+        result = theirs if theirs is not None else ours
 
     return result

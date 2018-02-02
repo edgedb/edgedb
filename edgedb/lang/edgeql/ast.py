@@ -157,6 +157,10 @@ class Subject(Expr):  # __subject__
     pass
 
 
+class DetachedExpr(Expr):  # DETACHED Expr
+    expr: Expr
+
+
 class Index(Base):
     index: Expr
 
@@ -343,6 +347,7 @@ class SelectQuery(ReturningStatement):
     orderby: typing.List[SortExpr]
     offset: Expr
     limit: Expr
+    implicit: bool = False
 
 
 class GroupQuery(SelectQuery, SubjStatement):
@@ -707,6 +712,10 @@ class DropAttributeValue(DropObject):
 class Language(s_enum.StrEnum):
     SQL = 'SQL'
     EdgeQL = 'EDGEQL'
+
+
+class FunctionIV(Clause):
+    val: Expr
 
 
 class FunctionCode(Clause):

@@ -9,6 +9,7 @@
 from edgedb.lang.edgeql import ast as qlast
 
 from . import delta as sd
+from . import derivable
 from . import error as schema_error
 from . import objects as so
 from . import name as sn
@@ -299,7 +300,7 @@ def create_virtual_parent(schema, children, *,
     return target
 
 
-class InheritingClass(named.NamedClass):
+class InheritingClass(derivable.DerivableClass):
     bases = so.Field(named.NamedClassList,
                      default=named.NamedClassList,
                      coerce=True, private=True, compcoef=0.714)
@@ -308,6 +309,7 @@ class InheritingClass(named.NamedClass):
                    coerce=True, default=None, derived=True)
 
     is_abstract = so.Field(bool, default=False, private=True, compcoef=0.909)
+    is_derived = so.Field(bool, False, compcoef=0.909)
     is_final = so.Field(bool, default=False, compcoef=0.909)
     is_virtual = so.Field(bool, default=False, compcoef=0.5)
 
@@ -340,6 +342,39 @@ class InheritingClass(named.NamedClass):
                         new_base=tuple(new_base_names)))
 
         return delta
+
+    def init_derived(self, schema, source, *qualifiers, as_copy,
+                     merge_bases=None, add_to_schema=False, mark_derived=False,
+                     attrs=None, dctx=None, name=None, **kwargs):
+        if name is None:
+            derived_name = self.get_derived_name(
+                source, *qualifiers, mark_derived=mark_derived)
+        else:
+            derived_name = name
+
+        if as_copy:
+            derived = super().init_derived(
+                schema, source, *qualifiers, as_copy=True,
+                merge_bases=merge_bases, add_to_schema=add_to_schema,
+                mark_derived=mark_derived, attrs=attrs, dctx=dctx, name=name,
+                **kwargs)
+
+        else:
+            derived_attrs = {}
+
+            if attrs is not None:
+                derived_attrs.update(attrs)
+
+            if not derived_attrs.get('bases'):
+                derived_attrs['bases'] = [self]
+
+            derived_attrs.pop('name', None)
+
+            cls = type(self)
+            derived = cls(name=derived_name, **derived_attrs,
+                          _setdefaults_=False, _relaxrequired_=True)
+
+        return derived
 
     def __getstate__(self):
         state = super().__getstate__()

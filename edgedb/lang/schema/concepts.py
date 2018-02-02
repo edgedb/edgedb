@@ -10,23 +10,21 @@ from edgedb.lang.edgeql import ast as qlast
 
 from . import constraints
 from . import delta as sd
-from . import derivable
 from . import inheriting
 from . import links
 from . import name as sn
 from . import named
 from . import nodes
-from . import objects as so
 from . import referencing
 from . import sources
+from . import types as s_types
 
 
-class DerivableSource(sources.Source, derivable.DerivableClass):
+class SourceNode(sources.Source, nodes.Node):
     pass
 
 
-class Concept(DerivableSource, nodes.Node,
-              constraints.ConsistencySubject, so.NodeClass):
+class Concept(SourceNode, constraints.ConsistencySubject):
     _type = 'concept'
 
     @classmethod
@@ -118,13 +116,13 @@ class Concept(DerivableSource, nodes.Node,
         return sn.Name(module='std', name='Object')
 
 
-class VirtualConcept(sources.Source, nodes.Node,
-                     constraints.ConsistencySubject, so.NodeClass):
+class VirtualConcept(SourceNode,
+                     constraints.ConsistencySubject, s_types.Type):
     pass
 
 
-class DerivedConcept(sources.Source, nodes.Node,
-                     constraints.ConsistencySubject, so.NodeClass):
+class DerivedConcept(SourceNode,
+                     constraints.ConsistencySubject, s_types.Type):
     pass
 
 
@@ -137,13 +135,20 @@ class ConceptCommandContext(sd.ClassCommandContext,
 
 class ConceptCommand(constraints.ConsistencySubjectCommand,
                      sources.SourceCommand, links.LinkSourceCommand,
-                     nodes.NodeCommand, schema_metaclass=Concept,
+                     nodes.NodeCommand,
+                     schema_metaclass=Concept,
                      context_class=ConceptCommandContext):
     def _apply_field_ast(self, context, node, op):
         if op.property == 'is_derived':
             pass
         else:
             super()._apply_field_ast(context, node, op)
+
+    @classmethod
+    def _cmd_tree_from_ast(cls, astnode, context, schema):
+        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
+        cmd = cls._handle_view_op(cmd, astnode, context, schema)
+        return cmd
 
 
 class CreateConcept(ConceptCommand, inheriting.CreateInheritingClass):

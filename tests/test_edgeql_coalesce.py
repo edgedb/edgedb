@@ -56,7 +56,6 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_atom_03(self):
         await self.assert_sorted_query_result(r'''
             WITH MODULE test
@@ -72,7 +71,6 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_atom_04(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -89,7 +87,6 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_atom_05(self):
         await self.assert_query_result(r'''
             WITH
@@ -118,7 +115,6 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
                 FILTER NOT EXISTS Issue.time_estimate;
             """)
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_atom_07(self):
         await self.assert_sorted_query_result(r'''
             WITH MODULE test
@@ -153,7 +149,6 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_atom_09(self):
         await self.assert_sorted_query_result(r'''
             # Only values present in the graph will be selected.
@@ -170,7 +165,6 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_atom_10(self):
         await self.assert_query_result(r'''
             # No open issue has a time_estimate, so the first argument
@@ -186,7 +180,6 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_atom_11(self):
         await self.assert_query_result(r'''
             # No open issue has a time_estimate, so the first argument
@@ -250,7 +243,6 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_set_01(self):
         await self.assert_sorted_query_result(r'''
             WITH MODULE test
@@ -268,7 +260,6 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_set_02(self):
         await self.assert_sorted_query_result(r'''
             WITH MODULE test
@@ -289,7 +280,6 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_set_03(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -309,7 +299,6 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_set_04(self):
         await self.assert_sorted_query_result(r'''
             WITH MODULE test
@@ -325,7 +314,6 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_set_05(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -342,7 +330,6 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             },
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_set_06(self):
         await self.assert_query_result(r'''
             WITH
@@ -399,7 +386,6 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_set_09(self):
         await self.assert_sorted_query_result(r'''
             # Only values present in the graph will be selected.
@@ -416,7 +402,6 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_set_10(self):
         await self.assert_query_result(r'''
             # No open issue has a time_estimate, so the first argument
@@ -427,12 +412,11 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
                 FILTER Issue.status.name = 'Open'
             ).time_estimate ?!= {-1, -2};
         ''', [
-            {
+            [
                 True, True,
-            },
+            ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_set_11(self):
         await self.assert_query_result(r'''
             # No open issue has a time_estimate, so the first argument
@@ -443,9 +427,9 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
                       FILTER Issue.status.name = 'Open')
             SELECT I.time_estimate ?= {-1, -2};
         ''', [
-            {
+            [
                 False, False,
-            },
+            ],
         ])
 
     async def test_edgeql_coalesce_dependent_01(self):
@@ -499,28 +483,31 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_dependent_04(self):
         await self.assert_sorted_query_result(r'''
             WITH MODULE test
-            # Same as above, but only 'Open' issues being considered.
+            # Since ?? is OPTIONAL over it's first argument,
+            # the expression is evaluated for all six issues.
             SELECT (
                 SELECT Issue
                 FILTER Issue.status.name = 'Open'
             ).time_estimate ?? -<int>Issue.number;
         ''', lambda x: x, [
             [
-                -6, -5, -4,
+                -6, -5, -4, -3, -2, -1
             ],
         ])
 
     async def test_edgeql_coalesce_dependent_05(self):
         await self.assert_sorted_query_result(r'''
+            # Unlike the above test, we refer to the
+            # same "open" subset of issues on both
+            # sides of ??, so the result set contains
+            # only three elements.
             WITH
                 MODULE test,
                 I := (SELECT Issue
                       FILTER Issue.status.name = 'Open')
-            # Same as above, but only 'Open' issues being considered.
             SELECT I.time_estimate ?? -<int>I.number;
         ''', lambda x: x, [
             [
@@ -528,12 +515,11 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_dependent_06(self):
         await self.assert_sorted_query_result(r'''
             WITH
                 MODULE test,
-                I2 := Issue
+                I2 := DETACHED Issue
             # ?? is OPTIONAL w.r.t. first argument, so it behaves like
             # an element-wise function. However, since there is no
             # common prefix, the expression gets evaluated ONLY for
@@ -545,27 +531,20 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_dependent_07(self):
         await self.assert_sorted_query_result(r'''
             WITH
-                MODULE test,
-                I2 := Issue
-            # ?? is OPTIONAL w.r.t. first argument, so it behaves like
-            # an element-wise function. However, since there is no
-            # common prefix, the expression gets evaluated ONLY for
-            # existing values of `Issue.time_estimate` (which is {}).
+                MODULE test
             SELECT (
                 SELECT Issue
                 FILTER Issue.status.name = 'Open'
-            ).time_estimate ?? -<int>I2.number;
+            ).time_estimate ?? -<int>Issue.number;
         ''', lambda x: x, [
             [
                 -6, -5, -4, -3, -2, -1,
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_dependent_08(self):
         await self.assert_sorted_query_result(r'''
             WITH MODULE test
@@ -584,23 +563,23 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_dependent_09(self):
         await self.assert_query_result(r'''
             WITH MODULE test
-            # `Issue` is now a LCP and the overall expression will be
-            # evaluated for every `Issue`.
-            SELECT (
+            # `Issue` on both sides is behind a fence, so the left-hand
+            # expression is an empty set, and the result is a union
+            # of all existing time estimates and -1.
+            SELECT _ := (
                 SELECT Issue
                 FILTER Issue.status.name = 'Open'
-            ).time_estimate ?? {Issue.time_estimate, -1};
+            ).time_estimate ?? {Issue.time_estimate, -1}
+            ORDER BY _;
         ''', [
             [
-                -1, -1, -1,
+                -1, 60, 90, 90
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_dependent_10(self):
         await self.assert_query_result(r'''
             WITH
@@ -654,7 +633,6 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_dependent_13(self):
         await self.assert_sorted_query_result(r'''
             WITH MODULE test
@@ -674,29 +652,26 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_dependent_14(self):
         await self.assert_sorted_query_result(r'''
             WITH MODULE test
-            # Same as above, but only 'Open' issues being considered.
             SELECT (
                 SELECT Issue
                 FILTER Issue.status.name = 'Open'
             ).time_estimate ?= <int>Issue.number;
         ''', lambda x: x, [
             [
-                False, False, False,
+                False, False, False, False, False, False
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_dependent_15(self):
         await self.assert_sorted_query_result(r'''
             WITH
                 MODULE test,
                 I := (SELECT Issue
                       FILTER Issue.status.name = 'Open')
-            # Same as above, but only 'Open' issues being considered.
+            # Same as dependent_13, but only 'Open' issues being considered.
             SELECT I.time_estimate ?!= I.time_spent_log.spent_time;
         ''', lambda x: x, [
             [
@@ -704,50 +679,53 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_dependent_16(self):
         await self.assert_sorted_query_result(r'''
             WITH
                 MODULE test,
-                I2 := Issue
+                I2 := DETACHED Issue
             # ?= is OPTIONAL w.r.t. both arguments, so it behaves like
             # an element-wise function. However, since there is no
             # common prefix, the expression gets evaluated ONLY for
-            # existing values of `Issue.time_estimate`.
+            # existing values of `Issue.time_estimate`, so the cardinality
+            # of the result set is 18 (3 * 6).
             SELECT Issue.time_estimate ?= <int>I2.number * 30;
         ''', lambda x: x, [
             [
+                False, False, False,
+                False, False, False,
+                False, False, False,
                 False, False, False,
                 False, False, False,
                 True, True, True,
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_dependent_17(self):
         await self.assert_sorted_query_result(r'''
             WITH
                 MODULE test,
-                I2 := Issue
+                I2 := DETACHED Issue
             # ?!= is OPTIONAL w.r.t. both arguments, so it behaves like
             # an element-wise function. However, since there is no
             # common prefix, the expression gets evaluated ONLY for
-            # existing values of `Issue.time_estimate`.
+            # existing values of `Issue.time_estimate`, where
+            # `Issue.status` is 'Open', which happens to be an empty set,
+            # but ?!= is OPTIONAL, so the cardinality of the result set is
+            # 1 * |I.number| == 6.
             SELECT (
                 SELECT Issue
                 FILTER Issue.status.name = 'Open'
             ).time_estimate ?!= <int>I2.number * 30;
         ''', lambda x: x, [
             [
-                False, False, False,
                 True, True, True,
                 True, True, True,
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_dependent_18(self):
-        await self.assert_query_result(r'''
+        await self.assert_sorted_query_result(r'''
             WITH MODULE test
             # LCP is `Issue.time_estimate`, so this should not
             # actually be evaluated for every `Issue`, but for every
@@ -759,9 +737,8 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_dependent_19(self):
-        await self.assert_query_result(r'''
+        await self.assert_sorted_query_result(r'''
             WITH MODULE test
             # `Issue` is now a LCP and the overall expression will be
             # evaluated for every `Issue`.
@@ -769,13 +746,12 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
                 SELECT Issue
                 FILTER Issue.status.name = 'Open'
             ).time_estimate ?= Issue.time_estimate * 2;
-        ''', [
+        ''', lambda x: x, [
             [
-                True, True, True,
+                False, False, False, True, True, True,
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_dependent_20(self):
         await self.assert_query_result(r'''
             WITH
@@ -792,7 +768,6 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_object_01(self):
         await self.assert_query_result(r'''
             WITH
@@ -800,9 +775,12 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
                 DUMMY := (SELECT LogEntry FILTER LogEntry.body = 'Dummy')
             SELECT Issue {
                 number,
-                time_spent_log := (Issue.time_spent_log ?? DUMMY) {
-                    spent_time
-                }
+                time_spent_log := (
+                    SELECT x := (Issue.time_spent_log ?? DUMMY) {
+                        spent_time
+                    }
+                    ORDER BY x.spent_time
+                )
             } ORDER BY Issue.number;
         ''', [
             [
@@ -819,9 +797,9 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
                 }, {
                     'number': '3',
                     'time_spent_log': [{
-                        'spent_time': 45,
+                        'spent_time': 30,
                     }, {
-                        'spent_time': 45,
+                        'spent_time': 60,
                     }],
                 }, {
                     'number': '4',
@@ -842,55 +820,56 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_object_02(self):
         await self.assert_query_result(r'''
             WITH
                 MODULE test,
                 DUMMY := (SELECT LogEntry FILTER LogEntry.body = 'Dummy')
-            SELECT (
+            SELECT x := (
                 Issue.number,
                 (Issue.time_spent_log ?? DUMMY).spent_time
-            ) ORDER BY Issue.number;
+            ) ORDER BY x.0 THEN x.1;
         ''', [
             [
                 ['1', 60],
                 ['2', 90],
-                ['3', 45],
-                ['3', 45],
+                ['3', 30],
+                ['3', 60],
                 ['4', -1],
                 ['5', -1],
                 ['6', -1],
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_object_03(self):
         await self.assert_sorted_query_result(r'''
             WITH
                 MODULE test,
                 DUMMY := (SELECT LogEntry FILTER LogEntry.body = 'Dummy')
-            SELECT (Issue.time_spent_log ?? DUMMY) {
+            SELECT x := (Issue.time_spent_log ?? DUMMY) {
                 spent_time
-            };
+            }
+            ORDER BY x.spent_time;
         ''', lambda x: x['spent_time'], [
             [
+                {'spent_time': 30},
+                {'spent_time': 60},
                 {'spent_time': 60},
                 {'spent_time': 90},
-                {'spent_time': 45},
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_object_04(self):
         await self.assert_query_result(r'''
             WITH
                 MODULE test,
                 DUMMY := (SELECT LogEntry FILTER LogEntry.body = 'Dummy')
-            SELECT ((
-                SELECT Issue
-                FILTER Issue.status.name = 'Open'
-            ).time_estimate ?? DUMMY) {
+            SELECT (
+                (SELECT Issue
+                 FILTER Issue.status.name = 'Open').time_spent_log
+                ??
+                DUMMY
+            ) {
                 spent_time
             };
         ''', [
@@ -899,7 +878,6 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_object_05(self):
         await self.assert_query_result(r'''
             WITH
@@ -909,7 +887,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
                     SELECT Issue
                     FILTER Issue.status.name = 'Open'
                 )
-            SELECT (I.time_estimate ?? DUMMY) {
+            SELECT (I.time_spent_log ?? DUMMY) {
                 spent_time
             };
         ''', [
@@ -918,7 +896,6 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_object_06(self):
         await self.assert_query_result(r'''
             WITH
@@ -932,27 +909,26 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             [
                 {
                     'number': '1',
-                    'log1': True,
+                    'log1': [True],
                 }, {
                     'number': '2',
-                    'log1': False,
+                    'log1': [False],
                 }, {
                     'number': '3',
-                    'log1': False,
+                    'log1': [False, False]
                 }, {
                     'number': '4',
-                    'log1': False,
+                    'log1': [False],
                 }, {
                     'number': '5',
-                    'log1': False,
+                    'log1': [False],
                 }, {
                     'number': '6',
-                    'log1': False,
+                    'log1': [False],
                 },
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_object_07(self):
         await self.assert_query_result(r'''
             WITH
@@ -973,7 +949,6 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_object_08(self):
         await self.assert_sorted_query_result(r'''
             WITH
@@ -985,10 +960,10 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
                 False,
                 True,
                 True,
+                True,
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_object_09(self):
         await self.assert_query_result(r'''
             WITH
@@ -997,14 +972,13 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             SELECT (
                 SELECT Issue
                 FILTER Issue.status.name = 'Open'
-            ).time_estimate ?= DUMMY;
+            ).time_spent_log ?= DUMMY;
         ''', [
             [
                 False,
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_object_10(self):
         await self.assert_query_result(r'''
             WITH
@@ -1014,7 +988,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
                     SELECT Issue
                     FILTER Issue.status.name = 'Open'
                 )
-            SELECT I.time_estimate ?!= DUMMY;
+            SELECT I.time_spent_log ?!= DUMMY;
         ''', [
             [
                 True,

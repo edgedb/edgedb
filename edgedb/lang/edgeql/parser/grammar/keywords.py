@@ -71,6 +71,7 @@ reserved_keywords = frozenset([
     "commit",
     "create",
     "delete",
+    "detached",
     "distinct",
     "drop",
     "each",

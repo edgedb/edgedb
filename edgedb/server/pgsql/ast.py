@@ -201,22 +201,18 @@ ColumnRefTypes = typing.Union[ColumnRef, _Ref]
 class TupleElement(Base):
     path_id: irast.PathId
     name: typing.Union[OutputVar, str]
-    aspect: str
     val: Base
 
     def __init__(self, path_id: irast.PathId,
                  name: typing.Optional[OutputVar]=None,
-                 val: typing.Optional[Base]=None, *,
-                 aspect: str):
+                 val: typing.Optional[Base]=None):
         self.path_id = path_id
         self.name = name
         self.val = val
-        self.aspect = aspect
 
     def __repr__(self):
         return f'<{self.__class__.__name__} ' \
-               f'name={self.name} val={self.val} path_id={self.path_id} ' \
-               f'aspect={self.aspect}>'
+               f'name={self.name} val={self.val} path_id={self.path_id}>'
 
 
 class TupleVar(OutputVar):
@@ -302,14 +298,10 @@ class Query(BaseRelation, EdgeQLPathInfo):
     # Ignore the below fields in AST visitor/transformer.
     __ast_meta__ = {'ptr_join_map', 'path_rvar_map', 'path_namespace',
                     'view_path_id_map', 'path_id_mask', 'argnames',
-                    'nullable', 'nonempty'}
+                    'nullable'}
 
     view_path_id_map: typing.Dict[irast.PathId, irast.PathId]
     path_id_mask: typing.Set[irast.PathId]
-    # True when the cardinality of the result set is guaranteed to
-    # not be zero.
-    nonempty: bool
-
     # Map of RangeVars corresponding to pointer relations.
     ptr_join_map: dict
     # Map of RangeVars corresponding to paths.

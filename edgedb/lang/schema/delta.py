@@ -22,6 +22,7 @@ from edgedb.lang.common.persistent_hash import persistent_hash
 from . import objects as so
 from . import expr as s_expr
 from . import name as s_name
+from . import types as s_types
 from . import utils
 
 
@@ -389,20 +390,22 @@ class CommandMeta(adapter.Adapter, struct.MixedStructMeta,
         adapter.Adapter.__init__(cls, name, bases, clsdict, adapts=adapts)
         struct.MixedStructMeta.__init__(cls, name, bases, clsdict)
         astnodes = clsdict.get('astnode')
+        if astnodes and not isinstance(astnodes, (list, tuple)):
+            astnodes = [astnodes]
         if astnodes:
-            if not isinstance(astnodes, (list, tuple)):
-                astnodes = [astnodes]
+            cls.register_astnodes(astnodes)
 
-            mapping = type(cls)._astnode_map
+    def register_astnodes(cls, astnodes):
+        mapping = type(cls)._astnode_map
 
-            for astnode in astnodes:
-                existing = mapping.get(astnode)
-                if existing:
-                    msg = ('duplicate EdgeQL AST node to command mapping: ' +
-                           '{!r} is already declared for {!r}')
-                    raise TypeError(msg.format(astnode, existing))
+        for astnode in astnodes:
+            existing = mapping.get(astnode)
+            if existing:
+                msg = ('duplicate EdgeQL AST node to command mapping: ' +
+                       '{!r} is already declared for {!r}')
+                raise TypeError(msg.format(astnode, existing))
 
-                mapping[astnode] = cls
+            mapping[astnode] = cls
 
 
 _void = object()
@@ -489,6 +492,12 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         else:
             return None
 
+    def discard_attribute(self, attr_name):
+        for op in self.get_subcommands(type=AlterClassProperty):
+            if op.property == attr_name:
+                self.discard(op)
+                return
+
     def adapt_value(self, field, value):
         if value is not None and not isinstance(value, field.type):
             value = field.adapt(value)
@@ -563,15 +572,22 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
             return self._get_ast(context)
 
     @classmethod
-    def command_for_ast_node(cls, astnode):
-        return type(cls)._astnode_map.get(astnode)
+    def command_for_ast_node(cls, astnode, schema, context):
+        cmdcls = type(cls)._astnode_map.get(type(astnode))
+        if hasattr(cmdcls, '_command_for_ast_node'):
+            # Delegate the choice of command class to the specific command.
+            cmdcls = cmdcls._command_for_ast_node(astnode, schema, context)
+
+        return cmdcls
 
     @classmethod
     def from_ast(cls, astnode, *, context=None, schema):
         if context is None:
             context = CommandContext()
 
-        cmdcls = cls.command_for_ast_node(type(astnode))
+        cmdcls = cls.command_for_ast_node(
+            astnode, schema=schema, context=context)
+
         if cmdcls is None:
             msg = 'cannot find command for ast node {!r}'.format(astnode)
             raise TypeError(msg)
@@ -678,6 +694,7 @@ class CommandContextWrapper:
 class CommandContext:
     def __init__(self):
         self.stack = []
+        self._cache = {}
 
     def push(self, token):
         self.stack.append(token)
@@ -720,6 +737,12 @@ class CommandContext:
         ctx = CommandContext()
         ctx.stack = ctx.stack[:1]
         return ctx
+
+    def cache_value(self, key, value):
+        self._cache[key] = value
+
+    def get_cached(self, key):
+        return self._cache.get(key)
 
     def __call__(self, token):
         return CommandContextWrapper(self, token)
@@ -907,7 +930,7 @@ class AlterClassProperty(Command):
                             v.func == 'typeref'):
                         if len(v.args) > 1:
                             # collection
-                            ct = so.Collection.get_class(v.args[0].value)
+                            ct = s_types.Collection.get_class(v.args[0].value)
                             subtypes = []
                             for st in v.args[1:]:
                                 stname = s_name.Name(v.args[1].value)

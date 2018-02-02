@@ -58,16 +58,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_05(self):
         with self.assertRaisesRegex(client_errors.EdgeQLError,
-                                    'Cannot create an aggregate function'):
+                                    'Cannot create a function'):
 
             await self.con.execute("""
                 CREATE FUNCTION test::my_lower(std::str) -> std::str
                     FROM SQL FUNCTION 'lower';
 
-                CREATE AGGREGATE test::my_lower(std::any)
-                    -> std::str
-                    INITIAL VALUE ''
-                    FROM SQL AGGREGATE 'count';
+                CREATE FUNCTION test::my_lower(SET OF std::str)
+                    -> std::str {
+                    INITIAL VALUE '';
+                    FROM SQL FUNCTION 'count';
+                };
             """)
 
         await self.con.execute("""
@@ -78,12 +79,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                                     'Cannot create a function'):
 
             await self.con.execute("""
-                CREATE AGGREGATE test::my_lower(std::any)
-                    -> std::str
-                    INITIAL VALUE ''
-                    FROM SQL AGGREGATE 'count';
+                CREATE FUNCTION test::my_lower(SET OF std::any)
+                    -> std::str {
+                    INITIAL VALUE '';
+                    FROM SQL FUNCTION 'count';
+                };
 
-                CREATE FUNCTION test::my_lower(std::str) -> std::str
+                CREATE FUNCTION test::my_lower(std::any) -> std::str
                     FROM SQL FUNCTION 'lower';
             """)
 
@@ -211,12 +213,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         await self.assert_query_result(r"""
             SELECT test::my_edgeql_func1();
-            SELECT test::my_edgeql_func2('schema::PrimaryClass').name;
+            SELECT test::my_edgeql_func2('schema::Class').name;
             SELECT test::my_edgeql_func3(1);
             SELECT test::my_edgeql_func4(42);
         """, [
             ['spam'],
-            ['schema::PrimaryClass'],
+            ['schema::Class'],
             [11],
             [[42, 1, 2, 3]]
         ])

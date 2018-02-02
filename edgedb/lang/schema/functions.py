@@ -6,6 +6,8 @@
 ##
 
 
+from edgedb.lang.common import typed
+
 from edgedb.lang.edgeql import ast as qlast
 from edgedb.lang.edgeql import errors as ql_errors
 from edgedb.lang.edgeql import codegen
@@ -15,17 +17,25 @@ from . import expr
 from . import name as sn
 from . import named
 from . import objects as so
-from . import primary
+from . import types as s_types
 from . import utils
 
 
-class Function(primary.PrimaryClass):
+class FuncParamKindList(typed.TypedList, type=qlast.SetQualifier):
+    pass
+
+
+class Function(so.NamedClass):
     _type = 'function'
 
     paramnames = so.Field(so.StringList, default=None, coerce=True,
                           compcoef=0.4)
 
     paramtypes = so.Field(so.TypeList, default=None, coerce=True,
+                          compcoef=0.4)
+
+    paramkinds = so.Field(FuncParamKindList,
+                          default=qlast.SetQualifier.DEFAULT, coerce=True,
                           compcoef=0.4)
 
     # Number of the variadic parameter (+1)
@@ -58,7 +68,7 @@ class FunctionCommandMixin:
             for pt in paramtypes:
                 if isinstance(pt, so.ClassRef):
                     quals.append(pt.classname)
-                elif isinstance(pt, so.Collection):
+                elif isinstance(pt, s_types.Collection):
                     quals.append(pt.schema_name)
                     if isinstance(pt.element_type, so.ClassRef):
                         quals.append(pt.element_type.classname)
@@ -76,9 +86,11 @@ class FunctionCommandMixin:
         paramdefaults = []
         paramnames = []
         paramtypes = []
+        paramkinds = []
         variadic = None
         for argi, arg in enumerate(astnode.args, 1):
             paramnames.append(arg.name)
+            paramkinds.append(arg.qualifier)
 
             default = None
             if arg.default is not None:
@@ -90,7 +102,7 @@ class FunctionCommandMixin:
             if arg.variadic:
                 variadic = argi
 
-        return paramnames, paramdefaults, paramtypes, variadic
+        return paramnames, paramdefaults, paramtypes, paramkinds, variadic
 
 
 class FunctionCommand(named.NamedClassCommand, FunctionCommandMixin,
@@ -109,21 +121,15 @@ class CreateFunction(named.CreateNamedClass, FunctionCommand):
         return props
 
     def _add_to_schema(self, schema):
-        func = self.scls
-
-        funcs = schema.get_functions(self.classname, None)
-        if funcs:
-            is_aggregate = funcs[-1].aggregate
-            if func.aggregate and not is_aggregate:
-                raise ql_errors.EdgeQLError(
-                    f'Cannot create an aggregate function {self.classname}: '
-                    f'a non-aggregate function with the same name '
-                    f'is already defined', context=self.source_context)
-            elif not func.aggregate and is_aggregate:
-                raise ql_errors.EdgeQLError(
-                    f'Cannot create a function {self.classname}: '
-                    f'an aggregate function with the same name '
-                    f'is already defined', context=self.source_context)
+        props = super().get_struct_properties(schema)
+        fullname = self._get_function_fullname(
+            props['name'], props.get('paramtypes'))
+        func = schema.get(fullname, None)
+        if func:
+            raise ql_errors.EdgeQLError(
+                f'Cannot create a function {self.classname}: '
+                f'a function with the same signature '
+                f'is already defined', context=self.source_context)
 
         super()._add_to_schema(schema)
 
@@ -131,7 +137,7 @@ class CreateFunction(named.CreateNamedClass, FunctionCommand):
     def _cmd_tree_from_ast(cls, astnode, context, schema):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
-        paramnames, paramdefaults, paramtypes, variadic = \
+        paramnames, paramdefaults, paramtypes, paramkinds, variadic = \
             cls._parameters_from_ast(astnode)
 
         if variadic is not None:
@@ -148,6 +154,11 @@ class CreateFunction(named.CreateNamedClass, FunctionCommand):
         cmd.add(sd.AlterClassProperty(
             property='paramtypes',
             new_value=paramtypes
+        ))
+
+        cmd.add(sd.AlterClassProperty(
+            property='paramkinds',
+            new_value=paramkinds
         ))
 
         cmd.add(sd.AlterClassProperty(
@@ -211,6 +222,6 @@ class DeleteFunction(named.DeleteNamedClass, FunctionCommand):
     def _classname_from_ast(cls, astnode, context, schema):
         name = super()._classname_from_ast(astnode, context, schema)
 
-        _, _, paramtypes, _ = cls._parameters_from_ast(astnode)
+        _, _, paramtypes, _, _ = cls._parameters_from_ast(astnode)
 
         return cls._get_function_fullname(name, paramtypes)

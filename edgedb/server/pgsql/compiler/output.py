@@ -7,6 +7,8 @@
 """Compilation helpers for output formatting and serialization."""
 
 
+from edgedb.lang.schema import lproperties as s_lprops
+
 from edgedb.server.pgsql import ast as pgast
 
 from . import context
@@ -16,38 +18,26 @@ def tuple_var_as_json_object(tvar, *, env):
     if not tvar.named:
         return pgast.FuncCall(
             name=('jsonb_build_array',),
-            args=[t.val for t in tvar.elements],
+            args=[serialize_expr(t.val, nested=True, env=env)
+                  for t in tvar.elements],
             null_safe=True, nullable=tvar.nullable)
     else:
         keyvals = []
 
-        if hasattr(tvar.elements[0].name, 'is_linkprop'):
-            # This is a shape attribute map, use a specialized version.
-            for element in tvar.elements:
-                key = element.name
-                if key.is_linkprop:
-                    key = '@' + key.name
-                else:
-                    key = key.name
-                keyvals.append(pgast.Constant(val=key))
-                if isinstance(element.val, pgast.TupleVar):
-                    val = serialize_expr(element.val, env=env)
-                else:
-                    val = element.val
-                keyvals.append(val)
-        else:
-            for element in tvar.elements:
-                name = element.path_id.rptr_name()
-                if name is None:
-                    name = element.path_id[-1].name.name
-                else:
-                    name = name.name
-                keyvals.append(pgast.Constant(val=name))
-                if isinstance(element.val, pgast.TupleVar):
-                    val = serialize_expr(element.val, env=env)
-                else:
-                    val = element.val
-                keyvals.append(val)
+        for element in tvar.elements:
+            rptr = element.path_id.rptr()
+            if rptr is None:
+                name = element.path_id[-1].name.name
+            else:
+                name = rptr.shortname.name
+                if isinstance(rptr, s_lprops.LinkProperty):
+                    name = '@' + name
+            keyvals.append(pgast.Constant(val=name))
+            if isinstance(element.val, pgast.TupleVar):
+                val = serialize_expr(element.val, env=env)
+            else:
+                val = element.val
+            keyvals.append(val)
 
         return pgast.FuncCall(
             name=('jsonb_build_object',),
@@ -64,13 +54,10 @@ def in_serialization_ctx(
 
 def output_as_value(
         expr: pgast.Base, *,
-        ctx: context.CompilerContextLevel) -> pgast.Base:
+        env: context.Environment) -> pgast.Base:
 
     if isinstance(expr, pgast.TupleVar):
-        if in_serialization_ctx(ctx):
-            val = serialize_expr(expr, env=ctx.env)
-        else:
-            val = pgast.ImplicitRowExpr(args=[e.val for e in expr.elements])
+        val = pgast.ImplicitRowExpr(args=[e.val for e in expr.elements])
     else:
         val = expr
 
@@ -78,7 +65,8 @@ def output_as_value(
 
 
 def serialize_expr_if_needed(
-        ctx: context.CompilerContextLevel, expr: pgast.Base) -> pgast.Base:
+        expr: pgast.Base, *,
+        ctx: context.CompilerContextLevel) -> pgast.Base:
     if in_serialization_ctx(ctx):
         val = serialize_expr(expr, env=ctx.env)
     else:
@@ -88,7 +76,9 @@ def serialize_expr_if_needed(
 
 
 def serialize_expr(
-        expr: pgast.Base, *, env: context.Environment) -> pgast.Base:
+        expr: pgast.Base, *,
+        nested: bool=False,
+        env: context.Environment) -> pgast.Base:
     if env.output_format == context.OutputFormat.JSON:
         if isinstance(expr, pgast.TupleVar):
             val = tuple_var_as_json_object(expr, env=env)
@@ -96,9 +86,11 @@ def serialize_expr(
             val = pgast.FuncCall(
                 name=('jsonb_build_array',), args=expr.args,
                 null_safe=True)
-        else:
+        elif not nested:
             val = pgast.FuncCall(
                 name=('to_jsonb',), args=[expr], null_safe=True)
+        else:
+            val = expr
     else:
         val = expr
 
