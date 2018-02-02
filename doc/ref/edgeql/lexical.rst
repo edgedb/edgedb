@@ -52,29 +52,33 @@ Every identifier that is not a *reserved* keyword is a valid *name*.
     keyword: `reserved_keyword` | `unreserved_keyword`
     reserved_keyword: case insensitive sequence matching any
                     : of the following
-                    : "AGGREGATE" | "ALL" | "ALTER" | "AND" |
+                    : "AGGREGATE" | "ALTER" | "AND" |
                     : "ANY" | "COMMIT" | "CREATE" |
-                    : "DELETE" | "DISTINCT" | "DROP" |
-                    : "ELSE" | "EMPTY" | "EXISTS" | "FALSE" |
-                    : "FILTER" | "FUNCTION" | "GET" |
-                    : "GROUP" | "IF" | "ILIKE" | "IN" |
-                    : "INSERT" | "IS" | "LIKE" | "LIMIT" |
-                    : "MODULE" | "NOT" | "OFFSET" | "OR" |
-                    : "ORDER" | "OVER" | "PARTITION" |
-                    : "ROLLBACK" | "SELECT" |
+                    : "DELETE" | "DETACHED" | "DISTINCT" |
+                    : "DROP" | "ELSE" | "EMPTY" | "EXISTS" |
+                    : "FALSE" | "FILTER" | "FUNCTION" |
+                    : "GET" | "GROUP" | "IF" | "ILIKE" |
+                    : "IN" | "INSERT" | "IS" | "LIKE" |
+                    : "LIMIT" | "MODULE" | "NOT" | "OFFSET" |
+                    : "OR" | "ORDER" | "OVER" |
+                    : "PARTITION" | "ROLLBACK" | "SELECT" |
                     : "SET" | "SINGLETON" | "START" | "TRUE" |
                     : "UPDATE" | "UNION" | "WITH"
     unreserved_keyword: case insensitive sequence matching any
                       : of the following
-                      : "ABSTRACT" | "ACTION" | "AFTER" | "ARRAY" |
-                      : "AS" | "ASC" | "ATOM" | "ATTRIBUTE" | "BEFORE" |
-                      : "BY" | "CONCEPT" | "CONSTRAINT" | "DATABASE" |
-                      : "DESC" | "EVENT" | "EXTENDING" | "FINAL" |
-                      : "FIRST" | "FOR" | "FROM" | "INDEX" | "INITIAL" |
-                      : "LAST" | "LINK" | "MAP" | "MIGRATION" | "OF" |
-                      : "ON" | "POLICY" | "PROPERTY" | "REQUIRED" |
-                      : "RENAME" | "TARGET" | "THEN" | "TO" |
-                      : "TRANSACTION" | "TUPLE" | "VALUE" | "VIEW"
+                      : "ABSTRACT" | "ACTION" | "AFTER" |
+                      : "ARRAY" | "AS" | "ASC" | "ATOM" |
+                      : "ATTRIBUTE" | "BEFORE" | "BY" |
+                      : "CONCEPT" | "CONSTRAINT" |
+                      : "DATABASE" | "DESC" | "EVENT" |
+                      : "EXTENDING" | "FINAL" | "FIRST" |
+                      : "FOR" | "FROM" | "INDEX" |
+                      : "INITIAL" | "LAST" | "LINK" |
+                      : "MAP" | "MIGRATION" | "OF" | "ON" |
+                      : "POLICY" | "PROPERTY" |
+                      : "REQUIRED" | "RENAME" | "TARGET" |
+                      : "THEN" | "TO" | "TRANSACTION" |
+                      : "TUPLE" | "VALUE" | "VIEW"
 
 Fully-qualified names consist of a module, ``::``, and a short name.
 They can be used in most places where a short name can appear (such as
@@ -84,60 +88,3 @@ paths and shapes).
     name: `short_name` | `fq_name`
     fq_name: `short_name` "::" `short_name` |
            : `short_name` "::" `unreserved_keyword`
-
-
-Operators
----------
-
-EdgeQL operators listed in order of precedence:
-
-+------------------+-----------+-----------+-----------+----------+
-| operator         | left      | middle    | right     | result   |
-+==================+===========+===========+===========+==========+
-| UNION ALL        | set of    | --        | set of    | set of   |
-|                  | atoms     |           | atoms     | atoms    |
-+------------------+-----------+-----------+-----------+----------+
-| UNION            | set       | --        | set       | set      |
-+------------------+-----------+-----------+-----------+----------+
-| IF .. ELSE       | set       | bool      | set       | set      |
-+------------------+-----------+-----------+-----------+----------+
-| OR               | bool      | --        | bool      | bool     |
-+------------------+-----------+-----------+-----------+----------+
-| AND              | bool      | --        | bool      | bool     |
-+------------------+-----------+-----------+-----------+----------+
-| NOT              | --        | --        | bool      | bool     |
-+------------------+-----------+-----------+-----------+----------+
-| =, !=            | any       | --        | any       | bool     |
-+------------------+-----------+-----------+-----------+----------+
-| <, >, <=, >=     | any       | --        | any       | bool     |
-+------------------+-----------+-----------+-----------+----------+
-| LIKE, ILIKE      | str       | --        | str       | str      |
-+------------------+-----------+-----------+-----------+----------+
-| IN, NOT IN       | any       | --        | sequence  | bool     |
-+------------------+-----------+-----------+-----------+----------+
-| IS, IS NOT       | any       | --        | Class,    | bool     |
-|                  |           |           | sequence  |          |
-|                  |           |           | of Classes|          |
-+------------------+-----------+-----------+-----------+----------+
-| +, -             | number    | --        | number    | number   |
-+------------------+-----------+-----------+-----------+----------+
-| \+               | str       | --        | str       | str      |
-+------------------+-----------+-----------+-----------+----------+
-| EXISTS           | --        | --        | set       | bool     |
-+------------------+-----------+-----------+-----------+----------+
-| \*, /, %         | number    | --        | number    | number   |
-+------------------+-----------+-----------+-----------+----------+
-| ??               | set       | --        | set       | set      |
-+------------------+-----------+-----------+-----------+----------+
-| DISTINCT         | --        | --        | set       | set      |
-+------------------+-----------+-----------+-----------+----------+
-| unary +, -       | --        | --        | number    | number   |
-+------------------+-----------+-----------+-----------+----------+
-| ^                | number    | --        | number    | number   |
-+------------------+-----------+-----------+-----------+----------+
-
-All set operators (``UNION ALL``, ``UNION``, ``EXISTS``,
-``DISTINCT``, ``??`` and ``IF..ELSE``) handle empty set ``{}`` as a
-normal valid input. All other operators when operating on ``{}``,
-return ``{}``. For more details see
-:ref:`how expressions work<ref_edgeql_expressions>`.

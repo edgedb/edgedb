@@ -37,3 +37,39 @@ When the desired behavior is to treat ``{}`` as equivalent to
 
     # will treat missing 'a' or 'b' links as equivalent to FALSE
     SELECT Foo.a ?? FALSE OR Foo.b ?? FALSE;
+
+Aggregates
+----------
+
+Aggregate functions operate on a set as a whole. This means that any
+externally defined ``FILTER`` clause cannot affect the contents of
+that set. Instead, if filtering is required, the ``FILTER`` must be
+applied to the argument directly:
+
+.. code-block:: eql
+
+    # here FILTER will not affect the count
+    WITH MODULE example
+    SELECT count(User)
+    FILTER User.name LIKE 'A%';
+
+    # here FILTER will change the argument of count
+    WITH MODULE example
+    SELECT count(User FILTER User.name LIKE 'A%');
+
+Operator ``IN`` is identical, but syntactically less obvious case.
+Consider the following queries:
+
+.. code-block:: eql
+
+    # here FILTER will not affect the Issue.owner in IN
+    WITH MODULE example
+    SELECT (User.name, User IN Issue.owner)
+    FILTER Issue.number <= '3';
+
+    # here FILTER will change the argument of IN
+    WITH MODULE example
+    SELECT (
+        User.name,
+        User IN (SELECT Issue.owner FILTER Issue.number <= '3')
+    );

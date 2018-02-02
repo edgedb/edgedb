@@ -14,8 +14,8 @@ All expressions in EdgeQL evaluate to
 
 :ref:`multisets<ref_edgeql_fundamentals_multisets>`, which this
 documentation refers to simple as `sets` for reasons of brevity. All
-sets in EdgeQL have to contain elements of the same
-:ref:`type<ref_edgeql_types>`. Broadly all types can be broken down
+sets in EdgeQL have to contain elements of the same :ref:`fundamental
+type<ref_edgeql_types>`. Broadly all types can be broken down
 into the following categories: `objects`, `atomic values`, `array`,
 `maps`, or `tuples`.
 
@@ -156,7 +156,9 @@ expression (syntactically it's ``(<statement>)``):
 
 .. code-block:: eschema
 
-    function stmt_to_expr(set of any) -> set of any
+    function stmt_to_expr(set of any) -> set of any:
+        from edgeql :>
+            ...
 
 Basically, statements-as-expressions are treated similar to aggregates
 in terms of how they interact with what's outside of them. A parallel
@@ -350,3 +352,31 @@ the same :ref:`type<ref_edgeql_types>`.
 
     SELECT User IS (Text, Named);
     # returns [True, ..., True], one for every user
+
+
+Operator Precedence
+-------------------
+
+EdgeQL operators listed in order of precedence from lowest to highest:
+
+.. list-table::
+    :widths: auto
+    :header-rows: 1
+
+    * - operator
+    * - ``UNION``
+    * - ``DISTINCT``
+    * - ``IF`` .. ``ELSE``
+    * - ``OR``
+    * - ``AND``
+    * - ``NOT``
+    * - ``=``, ``!=``, ``?=``, ``?!=``
+    * - ``<``, ``>``, ``<=``, ``>=``
+    * - ``LIKE``, ``ILIKE``
+    * - ``IN``, ``NOT IN``
+    * - ``IS``, ``IS NOT``
+    * - ``+``, ``-``
+    * - ``/``, ``*``, ``%``
+    * - ``??``
+    * - ``DISTINCT``, unary ``-``
+    * - ``^``

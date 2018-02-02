@@ -840,7 +840,7 @@ It is possible to specify an aliased view in the ``WITH`` block using
 ``DETACHED`` expression. A ``DETACHED`` expression can be interpreted
 as if a schema-level view had been defined for that expression.
 Declaring ``DETACHED`` expressions in the ``WITH`` block creates a way
-to use aliases to refer to different instances of the same *concept*
+to use aliases to refer to different instances of the same `concept`
 in a query. For example, the following query will find all users who
 own the same number of issues as someone else:
 
@@ -861,6 +861,10 @@ own the same number of issues as someone else:
             SELECT U2.<owner[IS Issue]
             FILTER U2 != User
         ));
+
+The use of ``DETACHED`` is not limited to `concepts`, however. It can
+be used to transform any arbitrary expression into an equivalent of a
+schema-defined view.
 
 
 Transactions

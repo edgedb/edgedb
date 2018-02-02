@@ -28,7 +28,7 @@ For the purposes of many examples it is assumed that the module
             # characters.
             constraint maxlength(10000)
 
-    concept User extending std::Named
+    concept User extending std::Named:
     # NamedObject is a standard abstract base class,
     # that provides a name link.
 
