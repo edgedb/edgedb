@@ -303,6 +303,7 @@ class BaseScopeTreeNode:
     def __init__(self, *, parent=None):
         self.children = []
         self.contained_paths = set()
+        self.set_children = set()
         self._set_parent(parent)
 
     def _set_parent(self, parent):
@@ -398,14 +399,7 @@ class BaseScopeTreeNode:
 
     def remove_child(self, node):
         self.children.remove(node)
-
-    def collapse_child(self, node):
-        self.children.remove(node)
-
-        # Reattach grandchildren directly.
-        for child in node.children:
-            child._set_parent(self)
-            self.children.append(child)
+        self.set_children.discard(node)
 
     def _remove_descendants(self, path_id, respect_fences=False, *,
                             min_depth=0, depth=0):
@@ -541,8 +535,7 @@ class ScopeBranchNode(BaseScopeTreeNode):
                     break
                 cnode = parent_fence.find_descendant(prefix)
 
-                if (cnode is not None and
-                        isinstance(cnode.parent, ScopePathNode)):
+                if cnode is not None and cnode in cnode.parent.set_children:
 
                     ppath_id = cnode.parent.path_id
                     if isinstance(ppath_id.rptr(), s_lprops.LinkProperty):
@@ -601,6 +594,8 @@ class ScopeBranchNode(BaseScopeTreeNode):
                     break
 
             parent.children.append(new_child)
+            if parent.path_id is not None:
+                parent.set_children.add(new_child)
             parent = new_child
             is_lprop = False
 
@@ -701,7 +696,7 @@ class ScopeBranchNode(BaseScopeTreeNode):
                 self.children.append(child)
 
     def unfence(self, node):
-        self.children.remove(node)
+        self.remove_child(node)
 
         for child in node.children:
             if child.path_id:
@@ -709,11 +704,6 @@ class ScopeBranchNode(BaseScopeTreeNode):
             else:
                 child._parent = weakref.ref(self)
                 self.children.append(child)
-
-    def collapse_trivial_child(self):
-        if (len(self.children) == 1 and
-                isinstance(self.children[0], ScopeBranchNode)):
-            self.collapse_child(self.children[0])
 
     @property
     def name(self):
