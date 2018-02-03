@@ -461,7 +461,6 @@ def _compile_view_shapes_in_set(
                 el_set = setgen.extend_path(
                     path_tip, ptr, force_computable=is_mutation,
                     ctx=scopectx)
-                # scopectx.path_scope.collapse_trivial_child()
                 element = setgen.scoped_set(el_set, ctx=scopectx)
                 pathctx.register_set_in_scope(element, ctx=scopectx)
                 compile_view_shapes(
