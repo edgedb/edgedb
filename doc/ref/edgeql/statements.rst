@@ -157,7 +157,7 @@ The above can be conceptualized as:
 .. code-block:: eql
 
     WITH MODULE example
-    SELECT filter(
+    SELECT _filter(
         count(User),
         User.name LIKE 'Alice%'
     );
@@ -181,9 +181,19 @@ two expressions exists in 2 parallel scopes. Contrast it with:
     # which can be represented as:
     WITH MODULE example
     SELECT count(
-        filter(User,
+        _filter(User,
                User.name LIKE 'Alice%')
     );
+
+Clause signatures
++++++++++++++++++
+
+Here is a summary of clauses that can be used with ``SELECT``:
+
+- *A* FILTER ``SET OF`` *B*
+- *A* ORDER BY ``SET OF`` *B*
+- ``SET OF`` *A* OFFSET ``SET OF`` *B*
+- ``SET OF`` *A* LIMIT ``SET OF`` *B*
 
 
 .. _ref_edgeql_statements_group:
@@ -320,6 +330,20 @@ be done by using a ``SELECT`` expression at the subject clause of the
     FILTER _stats.total_time > 10;
 
 
+Clause signatures
++++++++++++++++++
+
+Here is a summary of clauses that can be used with ``GROUP``:
+
+- GROUP *A* USING ``SET OF`` *B1*, ..., ``SET OF`` *Bn*
+- *A* BY ``SET OF`` *B* INTO *alias*
+- ``SET OF`` *A* UNION ``SET OF`` *B*
+- *A* FILTER ``SET OF`` *B*
+- *A* ORDER BY ``SET OF`` *B*
+- ``SET OF`` *A* OFFSET ``SET OF`` *B*
+- ``SET OF`` *A* LIMIT ``SET OF`` *B*
+
+
 For
 ---
 
@@ -379,6 +403,19 @@ result.
         BY _
         INTO X
         UNION (INSERT Bar {foo := X});
+
+
+Clause signatures
++++++++++++++++++
+
+Here is a summary of clauses that can be used with ``FOR``:
+
+- FOR *alias* IN ``SET OF`` *B*
+- *A* UNION ``SET OF`` *B*
+- *A* FILTER ``SET OF`` *B*
+- *A* ORDER BY ``SET OF`` *B*
+- ``SET OF`` *A* OFFSET ``SET OF`` *B*
+- ``SET OF`` *A* LIMIT ``SET OF`` *B*
 
 
 .. _ref_edgeql_forstatement:
@@ -644,7 +681,7 @@ The data flow of an ``UPDATE`` block can be conceptualized like this:
         <expr>  # filter the computed set
 
     SET
-        <expr>  # update objects based on the
+        <shape> # update objects based on the
                 # computed/filtered set
 
 Notice that there are no ``ORDER``, ``OFFSET`` or ``LIMIT`` clauses in
@@ -674,6 +711,15 @@ Here are a couple of examples of using the ``UPDATE`` statement:
 The statement ``FOR <x> IN <expr>`` allows to express certain bulk
 updates more clearly. See
 :ref:`Usage of FOR statement<ref_edgeql_forstatement>` for more details.
+
+
+Clause signatures
++++++++++++++++++
+
+Here is a summary of clauses that can be used with ``UPDATE``:
+
+- *A* FILTER ``SET OF`` *B*
+- *A* SET  ``SET OF`` *B1*, ..., ``SET OF`` *Bn*
 
 
 Delete
