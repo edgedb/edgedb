@@ -250,7 +250,40 @@ It is possible to nest arrays and tuples within each other:
         ),
     ];
 
-For more details see :ref:`how expressions work<ref_edgeql_expressions>`.
+Array or tuple creation
+-----------------------
+
+Creating an array or tuple via ``[...]`` or ``(...)`` is an element
+operation. One way of thinking about these constructors is to treat
+them exactly like functions that simply turn their arguments into an
+array or a tuple, respectively.
+
+This means that the following code will create a set of tuples with
+the first element being ``Issue`` and the second a ``str``
+representing the ``Issue.priority.name``:
+
+.. code-block:: eql
+
+    WITH MODULE example
+    SELECT (Issue, Issue.priority.name);
+
+Since ``priority`` is not a required link, not every ``Issue`` will
+have one. It is important to realize that the above query will *only*
+contain Issues with non-empty priorities. If it is desirable to have
+*all* Issues, then :ref:`coalescing<ref_edgeql_expressions_coalesce>`
+or a :ref:`shape<ref_edgeql_shapes>` query should be used instead.
+
+On the other hand the following query will include *all* Issues,
+because the tuple elements are made from the set of Issues and the set
+produced by the aggregator function ``array_agg``, which is never
+``{}``:
+
+.. code-block:: eql
+
+    WITH MODULE example
+    SELECT (Issue, array_agg(Issue.priority.name));
+
+All of the above works the same way for arrays.
 
 
 .. _ref_edgeql_types_casts:

@@ -4,47 +4,49 @@
 Statements
 ==========
 
-.. TODO::
+Statements in EdgeQL represent an atomic interaction with the DB. From
+the point of view of a statement all side-effects (such as DB updates)
+happen after the statement is executed. So as far as each statement is
+concerned, it is some purely functional expression evaluated on some
+specific input (DB state).
 
-    This section needs a significant re-write w.r.t usage of FOR.
-
-EdgeQL has Select_, Group_, For_, Insert_, Update_, and Delete_
-statements for managing the data in the DB. Each of these statements
-can also be used as an *expression* if it is enclosed in parentheses,
-in which case they also return a value.
+Statements consist of building blocks called `clauses`. Each `clause`
+can be represented as an equivalent set function of a certain
+signature. Understanding how :ref:`how functions
+work<ref_edgeql_fundamentals_function>` helps in understanding
+`clauses`. A statement is effectively a data pipeline made out of
+`clauses`. Unlike functions and operators `clauses` cannot be
+arbitrarily mixed, but must follow specific patterns. EdgeQL has
+Select_, Group_, For_, Insert_, Update_, and Delete_ statements for
+managing the data in the DB. Each of these statements can also be used
+as an *expression* if it is enclosed in parentheses, in which case
+they also return a value.
 
 .. note::
 
     Running ``INSERT`` and other DML statements bare in repl yields
     the cardinality of the affected set.
 
-Every statement consists of 2 blocks: :ref:`with
-block<ref_edgeql_with>` and *main* statement block. Each of the blocks
-defines its own scope which is relevant for
-:ref:`how paths are interpreted <ref_edgeql_paths>`. In the following
-examples, however, the ``WITH`` block will only be used for declaring
-the ``MODULE`` for simplicity. The *main* block is a sequence of
-clauses, where each clause is a
-:ref:`set operation<ref_edgeql_expressions_setops>` modifying the
-data the statement produces. The data flow can be seen as top-to-
-bottom from more general to the more specific. Mathematically each
-clause is a function that takes a set as input and produces a set as
-output and each such function is applied to the output of the previous
-clause.
+Every statement starts with an optional :ref:`with block<ref_edgeql_with>`.
+A ``WITH`` block defines symbols that can be used in the rest of the
+statement. To keep things simple, in the examples below ``WITH`` block
+is only used to define a default ``MODULE``. It is not necessary
+because every ``concept`` can be referred to by a fully qualified name
+(e.g. ``example::User``), but specifying a default ``MODULE`` makes it
+possible to just use short names (e.g. ``User``).
+
 
 Select
 ------
 
-A ``SELECT`` statement returns a set of objects. By default it is
-assumed to be a set of arbitrary cardinality. In case of various kinds
-of serialization this may affect how the result is treated.
-
-The data flow of a ``SELECT`` block can be conceptualized like this:
+A ``SELECT`` statement returns a set of objects. The data flow of a
+``SELECT`` block can be conceptualized like this:
 
 .. code-block:: pseudo-eql
 
     WITH MODULE example
 
+    # select clause
     SELECT
         <expr>  # compute a set of things
 
@@ -57,23 +59,33 @@ The data flow of a ``SELECT`` block can be conceptualized like this:
         <expr>  # define ordering of the filtered set
 
     # optional clause
-    OFFSET/LIMIT
+    OFFSET
+        <expr>  # slice the filtered/ordered set
+
+    # optional clause
+    LIMIT
         <expr>  # slice the filtered/ordered set
 
 Please note that the ``ORDER BY`` clause defines ordering that can
-only be relied upon only if the resulting set is not used in any other
-operation. ``OFFSET`` and ``LIMIT`` clauses are the only exception to
-that rule as they preserve the inherent ordering of the underlying
-set.
+only be relied upon if the resulting set is not used in any other
+operation. ``SELECT``, ``OFFSET`` and ``LIMIT`` clauses are the only
+exception to that rule as they preserve the inherent ordering of the
+underlying set.
 
-Consider an example using only the ``FILTER`` optional clause:
+The first clause is ``SELECT``. It indicates that ``FILTER``, ``ORDER
+BY``, ``OFFSET``, or ``LIMIT`` clauses may follow an expression, i.e.
+it makes an expression into a ``SELECT`` statement. Without any of the
+optional clauses a ``(SELECT Expr)`` is completely equivalent to
+``Expr`` for any expression ``Expr``.
+
+Consider an example using the ``FILTER`` optional clause:
 
 .. code-block:: eql
 
     WITH MODULE example
     SELECT User {
         name,
-        <owned: Issue {
+        <owner: Issue {
             number,
             body
         }
@@ -84,28 +96,25 @@ The above example retrieves a single user with a specific name. The
 fact that there is only one such user is a detail that can be well-
 known and important to the creator of the DB, but otherwise non-
 obvious. However, forcing the cardinality to be at most 1 by using the
-keyword ``CARDINALITY`` ensures that a set with a single object or
+``LIMIT`` clause ensures that a set with a single object or
 ``{}`` is returned. This way any further code that relies on the
 result of this query can safely assume there's only one result
-available. In case EdgeDB generates more than one result for this
-query, it is going to cause a runtime error in the EdgeDB code, making
-it easier to debug.
+available.
 
 .. code-block:: eql
 
-    WITH
-        MODULE example,
-        CARDINALITY '1'
+    WITH MODULE example
     SELECT User {
         name,
-        <owned: Issue {
+        <owner: Issue {
             number,
             body
         }
     }
-    FILTER User.name LIKE 'Alice%';
+    FILTER User.name LIKE 'Alice%'
+    LIMIT 1;
 
-Next example adds the use of ``ORDER BY`` and ``LIMIT`` clauses:
+Next example makes use of ``ORDER BY`` and ``LIMIT`` clauses:
 
 .. code-block:: eql
 
@@ -127,6 +136,68 @@ The above query retrieves the top 3 open Issues with the closest due
 date.
 
 
+Filter
+++++++
+
+The ``FILTER`` clause cannot affect anything aggregate-like in the
+preceding ``SELECT`` clause. This is due to how ``FILTER`` clause
+works. It can be conceptualized as a function like ``filter($input,
+SET OF $cond)``, where the ``$input`` represents the value of the
+preceding clause, while the ``$cond`` represents the filtering
+condition expression. Consider the following:
+
+.. code-block:: eql
+
+    WITH MODULE example
+    SELECT count(User)
+    FILTER User.name LIKE 'Alice%';
+
+The above can be conceptualized as:
+
+.. code-block:: eql
+
+    WITH MODULE example
+    SELECT _filter(
+        count(User),
+        User.name LIKE 'Alice%'
+    );
+
+In this form it is more apparent that ``User`` is a ``SET OF``
+argument (of ``count``), while ``User.name LIKE 'Alice%'`` is also a
+``SET OF`` argument (of ``filter``). So the symbol ``User`` in these
+two expressions exists in 2 parallel scopes. Contrast it with:
+
+.. code-block:: eql
+
+    # This will actually only count users whose name starts with
+    # 'Alice'.
+
+    WITH MODULE example
+    SELECT count(
+        (SELECT User
+         FILTER User.name LIKE 'Alice%')
+    );
+
+    # which can be represented as:
+    WITH MODULE example
+    SELECT count(
+        _filter(User,
+               User.name LIKE 'Alice%')
+    );
+
+Clause signatures
++++++++++++++++++
+
+Here is a summary of clauses that can be used with ``SELECT``:
+
+- *A* FILTER ``SET OF`` *B*
+- *A* ORDER BY ``SET OF`` *B*
+- ``SET OF`` *A* OFFSET ``SET OF`` *B*
+- ``SET OF`` *A* LIMIT ``SET OF`` *B*
+
+
+.. _ref_edgeql_statements_group:
+
 Group
 -----
 
@@ -134,13 +205,12 @@ A ``GROUP`` statement is used to allow operations on set partitions.
 The input set is partitioned using expressions in the ``USING`` and
 ``BY`` clauses, and then for each partition the expression in the
 ``UNION`` clause is evaluated and merged with the rest of the results
-via a ``UNION ALL`` (or ``UNION`` for Objects). There are various
-useful functions that require a set of values as their input -
-aggregate functions. Simple aggregate function examples include
-``count``, ``sum``, ``array_agg``. All of these are functions that map
-a set of values onto a single value. A ``GROUP`` statement allows to
-use aggregate functions to compute various properties of set
-partitions.
+via a ``UNION``. There are various useful functions that require a set
+of values as their input - aggregate functions. Simple aggregate
+function examples include ``count``, ``sum``, ``array_agg``. All of
+these are functions that map a set of values onto a single value. A
+``GROUP`` statement allows to use aggregate functions to compute
+various properties of set partitions.
 
 The data flow of a ``GROUP`` block can be conceptualized like this:
 
@@ -149,7 +219,7 @@ The data flow of a ``GROUP`` block can be conceptualized like this:
     WITH MODULE example
 
     GROUP
-        <alias0> := <expr>  # define a set to partition
+        <alias0> := <expr>      # define a set to partition
 
     USING
 
@@ -162,14 +232,13 @@ The data flow of a ``GROUP`` block can be conceptualized like this:
         <alias1>, ... <aliasN>  # specify which parameters will
                                 # be used to partition the set
 
-    UNION
-        <expr>  # map every grouped set onto a result set,
-                # merging them all with a UNION ALL (or UNION for
-                # Objects)
-
     INTO
         <sub_alias> # provide an alias to refer to the subsets
                     # in expressions
+
+    UNION
+        <expr>  # map every grouped set onto a result set,
+                # merging them all with a UNION
 
     # optional clause
     FILTER
@@ -180,12 +249,16 @@ The data flow of a ``GROUP`` block can be conceptualized like this:
         <expr>  # define ordering of the filtered set
 
     # optional clause
-    OFFSET/LIMIT
+    OFFSET
         <expr>  # slice the filtered/ordered set
 
-Notice that defining aliases in ``GROUP`` and ``USING`` clauses is
+    # optional clause
+    LIMIT
+        <expr>  # slice the filtered/ordered set
+
+Notice that defining aliases in ``USING`` clause is
 mandatory. Only the names defined in ``USING`` clause are legal in the
-``BY`` clause. Also the names defined in ``GROUP`` and ``USING``
+``BY`` clause. Also the names defined in ``USING`` and ``INTO``
 clauses allow to unambiguously refer to the specific grouping subset
 and the relevant grouping parameter values respectively in the
 ``UNION`` clause.
@@ -213,7 +286,7 @@ works.
 
 If there's a need to only look at statistics that end up over a
 certain threshold of total time spent, a ``FILTER`` can be used in
-conjunction with an alias of the ``SELECT`` clause result:
+conjunction with an alias of the ``UNION`` clause result:
 
 .. code-block:: eql
 
@@ -231,8 +304,7 @@ conjunction with an alias of the ``SELECT`` clause result:
 
 The choice of result alias is arbitrary, same as for the ``WITH``
 block. The alias defined here exists in the scope of the ``UNION``
-block and can be used to apply ``FILTER``, ``ORDER BY``, ``OFFSET``
-and ``LIMIT`` clauses.
+block and can be used to apply ``FILTER`` and ``ORDER BY``.
 
 If there's a need to filter the *input* set of Issues, then this can
 be done by using a ``SELECT`` expression at the subject clause of the
@@ -258,6 +330,20 @@ be done by using a ``SELECT`` expression at the subject clause of the
     FILTER _stats.total_time > 10;
 
 
+Clause signatures
++++++++++++++++++
+
+Here is a summary of clauses that can be used with ``GROUP``:
+
+- GROUP *A* USING ``SET OF`` *B1*, ..., ``SET OF`` *Bn*
+- *A* BY ``SET OF`` *B* INTO *alias*
+- ``SET OF`` *A* UNION ``SET OF`` *B*
+- *A* FILTER ``SET OF`` *B*
+- *A* ORDER BY ``SET OF`` *B*
+- ``SET OF`` *A* OFFSET ``SET OF`` *B*
+- ``SET OF`` *A* LIMIT ``SET OF`` *B*
+
+
 For
 ---
 
@@ -277,7 +363,7 @@ iterate over can be conceptualized like this:
 
     UNION
         <expr>  # map every element onto a result set,
-                # merging them all with a UNION ALL
+                # merging them all with a UNION
 
     # optional clause
     FILTER
@@ -288,13 +374,186 @@ iterate over can be conceptualized like this:
         <expr>  # define ordering of the filtered set
 
     # optional clause
-    OFFSET/LIMIT
+    OFFSET
         <expr>  # slice the filtered/ordered set
+
+    # optional clause
+    LIMIT
+        <expr>  # slice the filtered/ordered set
+
 
 Typically a simple iteration over set elements is used in conjunction
 with an Insert_ or an Update_ statement. This mode is less useful with
 a Select_ expression since a ``FILTER`` may accomplish the same end
 result.
+
+.. NOTE::
+
+    Technically, a ``FOR`` statement can be viewed as a special case
+    of ``GROUP``:
+
+    .. code-block:: eql
+
+        FOR X IN {Foo}
+        UNION (INSERT Bar {foo := X});
+
+        # can be equivalently rewritten as:
+        GROUP Foo
+        USING _ := Foo
+        BY _
+        INTO X
+        UNION (INSERT Bar {foo := X});
+
+
+Clause signatures
++++++++++++++++++
+
+Here is a summary of clauses that can be used with ``FOR``:
+
+- FOR *alias* IN ``SET OF`` *B*
+- *A* UNION ``SET OF`` *B*
+- *A* FILTER ``SET OF`` *B*
+- *A* ORDER BY ``SET OF`` *B*
+- ``SET OF`` *A* OFFSET ``SET OF`` *B*
+- ``SET OF`` *A* LIMIT ``SET OF`` *B*
+
+
+.. _ref_edgeql_forstatement:
+
+Usage of FOR statement
+++++++++++++++++++++++
+
+``FOR`` statement has some powerful features that deserve to be
+considered in detail separately. However, the common core is that
+``FOR`` iterates over elements of some arbitrary expression. Then for
+each element of the iterator some set is computed and combined via a
+``UNION`` with the other such computed sets.
+
+The simplest use case is when the iterator is given by a set
+expression and it follows the general form of ``FOR x IN A ...``:
+
+.. code-block:: eql
+
+    WITH MODULE example
+    # the iterator is an explicit set of tuples, so x is an
+    # element of this set, i.e. a single tuple
+    FOR x IN {
+        (name := 'Alice', theme := 'fire'),
+        (name := 'Bob', theme := 'rain'),
+        (name := 'Carol', theme := 'clouds'),
+        (name := 'Dave', theme := 'forest')
+    }
+    # typically this is used with an INSERT, DELETE or UPDATE
+    UNION (
+        INSERT
+            User {
+                name := x.name,
+                theme := x.theme,
+            }
+    );
+
+Since ``x`` is an element of a set it is guaranteed to be a non-empty
+singleton in all of the expressions used by the ``UNION OF`` and later
+clauses of ``FOR``.
+
+Another variation this usage of ``FOR`` is a bulk ``UPDATE``. There
+are cases when a bulk update lots of external data, that cannot be
+derived from the objects being updated. That is a good use-case when a
+``FOR`` statement is appropriate.
+
+.. code-block:: eql
+
+    # Here's an example of an update that is awkward to
+    # express without the use of FOR statement
+    WITH MODULE example
+    UPDATE User
+    FILTER User.name IN {'Alice', 'Bob', 'Carol', 'Dave'}
+    SET {
+        theme := 'red'  IF .name = 'Alice' ELSE
+                 'star' IF .name = 'Bob' ELSE
+                 'dark' IF .name = 'Carol' ELSE
+                 'strawberry'
+    };
+
+    # Using a FOR statement, the above update becomes simpler to
+    # express or review for a human.
+    WITH MODULE example
+    FOR x IN {
+        (name := 'Alice', theme := 'red'),
+        (name := 'Bob', theme := 'star'),
+        (name := 'Carol', theme := 'dark'),
+        (name := 'Dave', theme := 'strawberry')
+    }
+    UNION (
+        UPDATE User
+        FILTER User.name = x.name
+        SET {
+            theme := x.theme
+        }
+    );
+
+When updating data that mostly or completely depends on the objects
+being updated there's no need to use the ``FOR`` statement and it is not
+advised to use it for performance reasons.
+
+.. code-block:: eql
+
+    WITH MODULE example
+    UPDATE User
+    FILTER User.name IN {'Alice', 'Bob', 'Carol', 'Dave'}
+    SET {
+        theme := 'halloween'
+    };
+
+    # The above can be accomplished with a FOR statement,
+    # but it is not recommended.
+    WITH MODULE example
+    FOR x IN {'Alice', 'Bob', 'Carol', 'Dave'}
+    UNION (
+        UPDATE User
+        FILTER User.name = x
+        SET {
+            theme := 'halloween'
+        }
+    );
+
+Another example of using a ``FOR`` statement is working with link
+properties. Specifying the link properties either at creation time or
+in a later step with an update is often simpler with a ``FOR``
+statement helping to associate the link target to the link property in
+an intuitive manner.
+
+.. code-block:: eql
+
+    # Expressing this without FOR statement is fairly tedious.
+    WITH
+        MODULE example,
+        U2 := User
+    FOR x IN {
+        (
+            name := 'Alice',
+            friends := [('Bob', 'coffee buff'),
+                        ('Carol', 'dog person')]
+        ),
+        (
+            name := 'Bob',
+            friends := [('Alice', 'movie buff'),
+                        ('Dave', 'cat person')]
+        )
+    }
+    UNION (
+        UPDATE User
+        FILTER User.name = x.name
+        SET {
+            friends := (
+                FOR f in {unnest(x.friends)}
+                UNION (
+                    SELECT U2 {@nickname := f.1}
+                    FILTER U2.name = f.0
+                )
+            )
+        }
+    );
 
 
 Insert
@@ -311,7 +570,7 @@ The data flow of an ``INSERT`` block can be conceptualized like this:
     WITH MODULE example
 
     INSERT
-        <obj>       # create the following object
+        <obj>   # create the following object
 
 
 
@@ -354,7 +613,7 @@ statement as an atomic operation.
     INSERT Issue {
         number := '101',
         body := 'Nested INSERT',
-        owner: User{
+        owner: User {
             name := 'Nested User'
         }
     };
@@ -422,7 +681,7 @@ The data flow of an ``UPDATE`` block can be conceptualized like this:
         <expr>  # filter the computed set
 
     SET
-        <expr>  # update objects based on the
+        <shape> # update objects based on the
                 # computed/filtered set
 
 Notice that there are no ``ORDER``, ``OFFSET`` or ``LIMIT`` clauses in
@@ -454,6 +713,15 @@ updates more clearly. See
 :ref:`Usage of FOR statement<ref_edgeql_forstatement>` for more details.
 
 
+Clause signatures
++++++++++++++++++
+
+Here is a summary of clauses that can be used with ``UPDATE``:
+
+- *A* FILTER ``SET OF`` *B*
+- *A* SET  ``SET OF`` *B1*, ..., ``SET OF`` *Bn*
+
+
 Delete
 ------
 
@@ -470,7 +738,7 @@ The data flow of a ``DELETE`` block can be conceptualized like this:
     WITH MODULE example
 
     DELETE
-        <expr>  # create the following object
+        <expr>  # delete the following objects
 
 Here's a simple example of deleting a specific user:
 
@@ -480,6 +748,182 @@ Here's a simple example of deleting a specific user:
     DELETE (SELECT User
             FILTER User.name = 'Alice Smith');
 
-Notice that there are no other clauses except ``WITH`` in the
-``DELETE`` statement. This is because it is a mutation statement and
-not typically used to query the DB.
+Notice that there are no other clauses in the ``DELETE`` statement.
+This is because it is a mutation statement and not typically used to
+query the DB.
+
+
+.. _ref_edgeql_with:
+
+With block
+----------
+
+The ``WITH`` block in EdgeQL is used to define aliases. All aliases
+can be seen as a shorthand, performing a purely mechanical lexical
+symbol substitution. They are used as convenient syntax sugar rather
+than altering the semantics of a given query.
+
+Specifying a module
++++++++++++++++++++
+
+One of the more basic and common uses of the ``WITH`` block is to
+specify the default module that is used in a query. ``WITH MODULE
+<name>`` construct indicates that whenever an identifier is used
+without any module specified explicitly, the module will default to
+``<name>`` and then fall back to built-ins from ``std`` module.
+
+The following queries are exactly equivalent:
+
+.. code-block:: eql
+
+    WITH MODULE example
+    SELECT User {
+        name,
+        <owner: Issue {
+            number,
+            body
+        }
+    }
+    FILTER User.name LIKE 'Alice%';
+
+    SELECT example::User {
+        name,
+        <owner: example::Issue {
+            number,
+            body
+        }
+    }
+    FILTER example::User.name LIKE 'Alice%';
+
+
+It is also possible to define aliases modules in the ``WITH`` block.
+Consider the following query that needs to compare objects
+corresponding to concepts defined in two different modules.
+
+.. code-block:: eql
+
+    WITH
+        MODULE example,
+        f := MODULE foo
+    SELECT User {
+        name
+    }
+    FILTER .name = f::Foo.name;
+
+Another use case is for giving short aliases to long module names
+(especially if module names contain `.`).
+
+.. code-block:: eql
+
+    WITH
+        MODULE example,
+        fbz := MODULE foo.bar.baz
+    SELECT User {
+        name
+    }
+    FILTER .name = fbz::Baz.name;
+
+
+Cardinality
++++++++++++
+
+Typically the cardinality of an expression can be statically
+determined from the individual parts. Sometimes it is necessary to
+specify the cardinality explicitly. For example, when using
+computables in shapes it may be desirable to specify the cardinality
+of the computable because it affects serialization.
+
+.. code-block:: eql
+
+    WITH
+        MODULE example
+    SELECT User {
+        name,
+        nicknames := (
+            WITH CARDINALITY '*'
+            SELECT 'Foo'
+        )
+    };
+
+Cardinality is normally statically inferred from the query, so
+overruling this inference may only be done to *relax* the cardinality.
+This means that the only valid cardinality specification is
+``CARDINALITY '*'``, when attempting to override a possibility that
+the cardinality is provably ``'1'``.
+
+
+Expressions
++++++++++++
+
+It may be useful to factor out a common sub-expression from a larger
+complex query. This can be done by assigning the sub-expression a new
+symbol in the ``WITH`` block.
+
+.. code-block:: eql
+
+    # Consider a query to get all users that own Issues and the
+    # comments those users made.
+    WITH MODULE example
+    SELECT Issue.owner {
+        name,
+        comments := Issue.owner.<owner[IS Comment]
+    };
+
+    # The above query can be refactored like this:
+    WITH
+        MODULE example,
+        U := Issue.owner
+    SELECT U {
+        name,
+        comments := U.<owner[IS Comment]
+    };
+
+
+Detached
+++++++++
+
+It is possible to specify an aliased view in the ``WITH`` block using
+``DETACHED`` expression. A ``DETACHED`` expression can be interpreted
+as if a schema-level view had been defined for that expression.
+Declaring ``DETACHED`` expressions in the ``WITH`` block creates a way
+to use aliases to refer to different instances of the same `concept`
+in a query. For example, the following query will find all users who
+own the same number of issues as someone else:
+
+.. code-block:: eql
+
+    WITH
+        MODULE example,
+        U2 := DETACHED User
+    # U2 and User in the SELECT clause now refer to the same concept,
+    # but different objects, as if a schema level view U2 had been
+    # defined.
+    SELECT User {
+        name,
+        issue_count := count(User.<owner[IS Issue])
+    }
+    FILTER
+        User.issue_count = count((
+            SELECT U2.<owner[IS Issue]
+            FILTER U2 != User
+        ));
+
+The use of ``DETACHED`` is not limited to `concepts`, however. It can
+be used to transform any arbitrary expression into an equivalent of a
+schema-defined view.
+
+
+Transactions
+------------
+
+Statements can also be grouped into `transactions` to prevent any
+other statements altering the DB state unpredictably while the
+transaction is executing. This effectively makes a group of statements
+behave as an atomic unit. The statements in a transaction dictate an
+imperative execution sequence. Transactions can also be nested within
+each other. ``START TRANSACTION`` initiates a new (sub-)transaction.
+It can be committed to the DB making the changes visible to any other
+queries by using a ``COMMIT`` statement. Alternatively, the
+transaction changes may be discarded by using ``ROLLBACK`` statement.
+Note that ``COMMIT`` and ``ROLLBACK`` affect only the innermost
+transaction if the transactions are nested.

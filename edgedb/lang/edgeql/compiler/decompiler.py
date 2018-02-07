@@ -31,6 +31,9 @@ class IRDecompiler(ast.visitor.NodeVisitor):
         raise NotImplementedError(
             'no EdgeQL decompiler handler for {}'.format(node.__class__))
 
+    def visit_Statement(self, node):
+        return self.visit(node.expr)
+
     def visit_SelectStmt(self, node):
         result = qlast.SelectQuery()
 
@@ -64,7 +67,7 @@ class IRDecompiler(ast.visitor.NodeVisitor):
                 pname = ptrcls.shortname
 
                 if isinstance(rptr.target.scls, s_concepts.Concept):
-                    target = rptr.target.scls.name
+                    target = rptr.target.scls.shortname
                     target = qlast.ClassRef(
                         name=target.name,
                         module=target.module)
@@ -92,8 +95,8 @@ class IRDecompiler(ast.visitor.NodeVisitor):
                 else:
                     step = qlast.ClassRef(name=node.show_as_anchor)
             else:
-                step = qlast.ClassRef(name=node.scls.name.name,
-                                      module=node.scls.name.module)
+                step = qlast.ClassRef(name=node.scls.shortname.name,
+                                      module=node.scls.shortname.module)
 
             result.steps.append(step)
             result.steps.extend(reversed(links))

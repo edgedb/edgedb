@@ -9,22 +9,22 @@
 from edgedb.lang.edgeql import ast as qlast
 
 from . import delta as sd
-from . import derivable
+from . import inheriting
 from . import name as sn
 from . import named
 from . import objects as so
-from . import primary
 from . import referencing
+from . import types as s_types
 from . import utils
 
 
-class Attribute(primary.PrimaryClass):
+class Attribute(inheriting.InheritingClass):
     _type = 'attribute'
 
     type = so.Field(so.Class, compcoef=0.909)
 
 
-class AttributeValue(derivable.DerivableClass):
+class AttributeValue(inheriting.InheritingClass):
     _type = 'attribute-value'
 
     subject = so.Field(named.NamedClass, compcoef=1.0)
@@ -140,7 +140,7 @@ class CreateAttribute(AttributeCommand, named.CreateNamedClass):
     def _apply_field_ast(self, context, node, op):
         if op.property == 'type':
             tp = op.new_value
-            if isinstance(tp, so.Collection):
+            if isinstance(tp, s_types.Collection):
                 maintype = tp.schema_name
                 stt = tp.get_subtypes()
 

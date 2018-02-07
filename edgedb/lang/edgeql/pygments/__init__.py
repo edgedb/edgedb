@@ -38,8 +38,8 @@ class EdgeQLLexer(RegexLexer):
                     view |
 
                     aggregate | all | alter | and | commit | create |
-                    delete | distinct | drop | each | else | empty |
-                    exists | explain | extending | filter |
+                    delete | detached | distinct | drop | each | else |
+                    empty | exists | explain | extending | filter |
                     for | function | get | group | if | ilike | in |
                     insert | is | like | limit | module | not | offset |
                     optional | or | order | over | partition |

@@ -115,7 +115,7 @@ INSERT Issue {
 
 WITH
     MODULE test,
-    I := Issue
+    I := DETACHED Issue
 INSERT Issue {
     number := '5',
     name := 'Issue 5',
@@ -127,7 +127,7 @@ INSERT Issue {
 
 WITH
     MODULE test,
-    I := Issue
+    I := DETACHED Issue
 INSERT Issue {
     number := '6',
     name := 'Issue 6',

@@ -10,19 +10,18 @@ from edgedb.lang import edgeql
 from edgedb.lang.edgeql import ast as qlast
 
 from . import delta as sd
-from . import derivable
 from . import expr
+from . import inheriting
 from . import name as sn
 from . import named
 from . import objects as so
-from . import primary
 from . import referencing
 
 
-class SourceIndex(derivable.DerivableClass):
+class SourceIndex(inheriting.InheritingClass):
     _type = 'index'
 
-    subject = so.Field(primary.PrimaryClass)
+    subject = so.Field(so.NamedClass)
     expr = so.Field(str, compcoef=0.909)
 
     def __repr__(self):
@@ -72,7 +71,7 @@ class SourceIndexCommand(referencing.ReferencedClassCommand,
         return sn.Name(name=idx_name, module=subject_name.module)
 
     def _create_begin(self, schema, context):
-        return derivable.DerivableClassCommand._create_begin(
+        return inheriting.InheritingClassCommand._create_begin(
             self, schema, context)
 
 

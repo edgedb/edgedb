@@ -12,17 +12,17 @@ inspiration include Lorel_ and UnQL_.
 .. toctree::
     :maxdepth: 3
 
-    overview
-    types
-    syntax
-    paths
-    expressions
-    shapes
+    fundamentals
+    cheatsheet
     statements
-    with
-    forclause
+    operators
+    types
+    functions
+    scope
+    ddl
     introspection
-    builtins
+    lexical
+    hazmat
 
 
 .. _OQL: http://en.wikipedia.org/wiki/Object_Query_Language

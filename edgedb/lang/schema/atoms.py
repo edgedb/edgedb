@@ -9,6 +9,7 @@
 from edgedb.lang.edgeql import ast as qlast
 
 from . import attributes
+from . import basetypes as s_basetypes
 from . import constraints
 from . import delta as sd
 from . import expr
@@ -21,7 +22,7 @@ from . import types as s_types
 
 
 class Atom(nodes.Node, constraints.ConsistencySubject,
-           attributes.AttributeSubject, so.NodeClass):
+           attributes.AttributeSubject):
     _type = 'atom'
 
     default = so.Field(expr.ExpressionText, default=None,
@@ -46,7 +47,7 @@ class Atom(nodes.Node, constraints.ConsistencySubject,
                 ptypes = constraint.paramtypes
                 if ptypes:
                     for ptype in ptypes:
-                        if isinstance(ptype, so.Collection):
+                        if isinstance(ptype, s_types.Collection):
                             subtypes = ptype.get_subtypes()
                         else:
                             subtypes = [ptype]
@@ -70,7 +71,7 @@ class Atom(nodes.Node, constraints.ConsistencySubject,
         """Get the underlying Python type that is used to implement this Atom.
         """
         base_class = self.get_topmost_base()
-        return s_types.BaseTypeMeta.get_implementation(base_class.name)
+        return s_basetypes.BaseTypeMeta.get_implementation(base_class.name)
 
     def coerce(self, value, schema):
         base_t = self.get_implementation_type()
@@ -79,6 +80,30 @@ class Atom(nodes.Node, constraints.ConsistencySubject,
             return base_t(value)
         else:
             return value
+
+    def iscompatible(self, other: s_types.Type, schema) -> bool:
+        if self.issubclass(other) or other.issubclass(self):
+            # Atom compatibility is symmetric, i.e. a superclass instance
+            # is compatible with subclasses, as they all share the same
+            # fundamental type.
+            return True
+
+        # In lieu of schema-level cast support, use the following
+        # compatibility map to plug the hole.
+        for tn, compat_names in _compatibility_map.items():
+            t = schema.get(tn)
+            if self.issubclass(t):
+                if other.issubclass(
+                        tuple(schema.get(c) for c in compat_names)):
+                    return True
+
+        return False
+
+
+_compatibility_map = {
+    'std::str': ['std::sequence'],
+    'std::int': ['std::float'],
+}
 
 
 class AtomCommandContext(sd.ClassCommandContext,
@@ -93,7 +118,11 @@ class AtomCommand(constraints.ConsistencySubjectCommand,
                   nodes.NodeCommand,
                   schema_metaclass=Atom,
                   context_class=AtomCommandContext):
-    pass
+    @classmethod
+    def _cmd_tree_from_ast(cls, astnode, context, schema):
+        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
+        cmd = cls._handle_view_op(cmd, astnode, context, schema)
+        return cmd
 
 
 class CreateAtom(AtomCommand, inheriting.CreateInheritingClass):

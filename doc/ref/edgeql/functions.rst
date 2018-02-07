@@ -1,8 +1,31 @@
-.. _ref_edgeql_builtins:
+.. _ref_edgeql_functions:
 
 
-Built-ins
+Functions
 =========
+
+Many built-in functions and user-defined functions operate on
+elements, so they are also element operations. This implies that if
+any of the input sets are empty, the result of applying an element
+function is also empty.
+
+.. _ref_edgeql_functions_agg:
+
+Aggregate functions are *set functions* mapping arbitrary sets onto
+singletons. Examples of aggregate functions include built-ins such as
+``count`` and ``array_agg``.
+
+.. code-block:: eql
+
+    # count maps a set to an integer, specifically it returns the
+    # number of elements in a set
+    SELECT count(example::Issue);
+
+    # array_agg maps a set to an array of the same type, specifically
+    # it returns the array made from all of the set elements (which
+    # can also be ordered)
+    WITH MODULE example
+    SELECT array_agg(Issue ORDER BY Issue.number);
 
 EdgeQL has a number of built-in functions in the ``std`` module. Like
 everything else in ``std`` module it is not necessary to specify the
@@ -32,9 +55,9 @@ Polymorphic functions
 Array functions
 ---------------
 
-.. _ref_edgeql_builtins_array_agg:
+.. _ref_edgeql_functions_array_agg:
 
-.. function:: array_agg(any) -> any
+.. function:: array_agg(SET OF any) -> any
 
     Return the array made from all of the input set elements. The
     ordering of the input set will be preserved if specified.
@@ -77,7 +100,7 @@ Array functions
         guaranteed.
 
 
-.. function:: array_unpack(array<any>) -> any
+.. function:: array_unpack(array<any>) -> SET OF any
 
     Return array elements as a set.
 
@@ -135,7 +158,9 @@ String functions
 Set aggregate functions
 -----------------------
 
-.. function:: count(any) -> int
+.. _ref_edgeql_functions_count:
+
+.. function:: count(SET OF any) -> int
 
     Return the number of elements in a set.
 
@@ -147,7 +172,7 @@ Set aggregate functions
         SELECT count(User);
         # returns the number of User objects in the DB
 
-.. function:: sum(number) -> number
+.. function:: sum(SET OF number) -> number
 
     Return the sum of the set of numbers. The numbers have to be
     either ``int`` or ``float``.
@@ -161,7 +186,7 @@ Set aggregate functions
         # returns 1.0
 
 Here's a list of aggregate functions covered in other sections:
-:ref:`array_agg<ref_edgeql_builtins_array_agg>`.
+:ref:`array_agg<ref_edgeql_functions_array_agg>`.
 
 
 Date/time functions

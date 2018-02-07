@@ -9,6 +9,7 @@
 import collections.abc
 import itertools
 
+from edgedb.lang.common import nlang
 from edgedb.lang.common import persistent_hash as phash
 from edgedb.lang.common import topological
 from edgedb.lang.common.ordered import OrderedSet
@@ -58,6 +59,7 @@ class ComparisonContext:
     def __init__(self):
         self.stacks = collections.defaultdict(list)
         self.ptrs = []
+        self.memo = {}
 
     def push(self, pair):
         cls = None
@@ -168,7 +170,7 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
             self._attr_sources[name] = source
             setattr(self, name, value)
             if dctx is not None:
-                dctx.op.add(sd.AlterClassProperty(
+                dctx.current().op.add(sd.AlterClassProperty(
                     property=name,
                     new_value=value,
                     source=source
@@ -329,28 +331,15 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
 
         return delta
 
+    def _reduce_to_ref(self):
+        raise NotImplementedError
+
     def _reduce_obj_dict(self, v):
         result = {}
         comparison_v = {}
 
-        for k, p in v.items():
-            if is_named_class(p):
-                result[k] = ClassRef(classname=p.name)
-                comparison_v[k] = p.name
-
-            elif isinstance(p, Collection):
-                strefs = []
-
-                for st in p.get_subtypes():
-                    strefs.append(ClassRef(classname=st.name))
-
-                result[k] = p.__class__.from_subtypes(strefs)
-                comparison_v[k] = \
-                    (p.__class__, tuple(r.classname for r in strefs))
-
-            else:
-                result[k] = p
-                comparison_v[k] = p.classname
+        for k, scls in v.items():
+            result[k], comparison_v[k] = scls._reduce_to_ref()
 
         return result, frozenset(comparison_v.items())
 
@@ -358,24 +347,10 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
         result = []
         comparison_v = []
 
-        for p in v:
-            if is_named_class(p):
-                result.append(ClassRef(classname=p.name))
-                comparison_v.append(p.name)
-
-            elif isinstance(p, Collection):
-                strefs = []
-
-                for st in p.get_subtypes():
-                    strefs.append(ClassRef(classname=st.name))
-
-                result.append(p.__class__.from_subtypes(strefs))
-                comparison_v.append(
-                    (p.__class__, tuple(r.classname for r in strefs)))
-
-            else:
-                result.append(p)
-                comparison_v.append(p.classname)
+        for scls in v:
+            ref, comp = scls._reduce_to_ref()
+            result.append(ref)
+            comparison_v.append(comp)
 
         return result, tuple(comparison_v)
 
@@ -386,11 +361,7 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
         return result, frozenset(comparison_v)
 
     def _reduce_refs(self, value):
-        if is_named_class(value):
-            val = value.name
-            ref = ClassRef(classname=val)
-
-        elif isinstance(value, ClassDict):
+        if isinstance(value, ClassDict):
             ref, val = self._reduce_obj_dict(value)
 
         elif isinstance(value, (ClassList, TypeList)):
@@ -399,41 +370,33 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
         elif isinstance(value, ClassSet):
             ref, val = self._reduce_obj_set(value)
 
+        elif isinstance(value, Class):
+            ref, val = value._reduce_to_ref()
+
         else:
-            ref = value
-            val = value
+            ref, val = value, value
 
         return ref, val
 
     def _restore_refs(self, field_name, ref, resolve):
         ftype = self.__class__.get_field(field_name).type[0]
 
-        if is_named_class(ftype):
-            val = resolve(ref.classname)
-
-        elif issubclass(ftype, (ClassSet, ClassList)):
-            val = ftype(resolve(r.classname) for r in ref)
+        if issubclass(ftype, (ClassSet, ClassList)):
+            val = ftype(r._resolve_ref(resolve) for r in ref)
 
         elif issubclass(ftype, ClassDict):
             result = []
 
             for k, r in ref.items():
-                if isinstance(r, Collection):
-                    subtypes = []
-                    for stref in r.get_subtypes():
-                        subtypes.append(resolve(stref.classname))
-
-                    r = r.__class__.from_subtypes(subtypes)
-                else:
-                    r = resolve(r.classname)
-
-                result.append((k, r))
+                result.append((k, r._resolve_ref(resolve)))
 
             val = ftype(result)
 
+        elif issubclass(ftype, Class):
+            val = ftype._resolve_ref(resolve)
+
         else:
-            msg = 'unexpected ref type in restore_refs: {!r}'.format(ref)
-            raise ValueError(msg)
+            val = ref
 
         return val
 
@@ -665,204 +628,114 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
                 ))
 
 
+class NamedClass(Class):
+    name = Field(sn.Name, private=True, compcoef=0.670)
+    title = Field(nlang.WordCombination,
+                  default=None, compcoef=0.909, coerce=True)
+    description = Field(str, default=None, compcoef=0.909)
+
+    @classmethod
+    def mangle_name(cls, name) -> str:
+        return name.replace('::', '|')
+
+    @classmethod
+    def unmangle_name(cls, name) -> str:
+        return name.replace('|', '::')
+
+    @classmethod
+    def get_shortname(cls, fullname) -> sn.Name:
+        parts = str(fullname.name).split('@@', 1)
+        if len(parts) == 2:
+            return sn.Name(cls.unmangle_name(parts[0]))
+        else:
+            return sn.Name(fullname)
+
+    @classmethod
+    def get_specialized_name(cls, basename, *qualifiers) -> str:
+        return (cls.mangle_name(basename) +
+                '@@' +
+                '@'.join(cls.mangle_name(qualifier)
+                         for qualifier in qualifiers if qualifier))
+
+    @property
+    def shortname(self) -> sn.Name:
+        try:
+            cached = self._cached_shortname
+        except AttributeError:
+            pass
+        else:
+            # `.name` can be overridden at some point, so we
+            # want to guard our cache against that.
+            if cached[0] == self.name:
+                return cached[1]
+
+        shortname = self.get_shortname(self.name)
+        self._cached_shortname = (self.name, shortname)
+        return shortname
+
+    def delta_properties(self, delta, other, reverse=False, context=None):
+        old, new = (other, self) if not reverse else (self, other)
+
+        if old and new:
+            if old.name != new.name:
+                delta.add(old.delta_rename(new.name))
+
+        super().delta_properties(delta, other, reverse, context)
+
+    def delta_rename(self, new_name):
+        from . import delta as sd
+        from . import named
+
+        rename_class = sd.ClassCommandMeta.get_command_class_or_die(
+            named.RenameNamedClass, type(self))
+
+        return rename_class(classname=self.name,
+                            new_name=new_name,
+                            metaclass=self.get_canonical_class())
+
+    @classmethod
+    def compare_values(cls, ours, theirs, context, compcoef):
+        similarity = 1.0
+
+        if (ours is None) != (theirs is None):
+            similarity /= 1.2
+        elif ours is not None:
+            if (ours.__class__.get_canonical_class() !=
+                    theirs.__class__.get_canonical_class()):
+                similarity /= 1.4
+            elif ours.name != theirs.name:
+                similarity /= 1.2
+
+        return similarity
+
+    def __repr__(self):
+        cls = self.__class__
+        return f'<{cls.__module__}.{cls.__name__} "{self.name}" ' \
+               f'at 0x{id(self):x}>'
+
+    __str__ = __repr__
+
+    def _reduce_to_ref(self):
+        return ClassRef(classname=self.name), self.name
+
+
 class ClassRef(Class):
     classname = Field(sn.SchemaName, coerce=True)
+
+    @property
+    def name(self):
+        return self.classname
 
     def __repr__(self):
         return '<ClassRef "{}" at 0x{:x}>'.format(self.classname, id(self))
 
     __str__ = __repr__
 
+    def _reduce_to_ref(self):
+        return self, self.classname
 
-class NodeClass(Class):
-    @classmethod
-    def compare_values(cls, ours, theirs, context, compcoef):
-        if (ours is None) != (theirs is None):
-            return compcoef
-        elif ours is None:
-            return 1.0
-        else:
-            return ours.__class__.compare_values(
-                ours, theirs, context, compcoef)
-
-
-class Collection(NodeClass):
-    @property
-    def is_virtual(self):
-        # This property in necessary for compatibility with node classes.
-        return False
-
-    @property
-    def name(self):
-        try:
-            return self._name_cached
-        except AttributeError:
-            pass
-
-        subtypes = ",".join(st.name for st in self.get_subtypes())
-        self._name_cached = f'{self.schema_name}<{subtypes}>'
-        return self._name_cached
-
-    def _issubclass(self, parent):
-        if not isinstance(parent, Collection) and parent.name == 'std::any':
-            return True
-
-        if parent.__class__ is not self.__class__:
-            return False
-
-        parent_types = parent.get_subtypes()
-        my_types = self.get_subtypes()
-
-        for pt, my in zip(parent_types, my_types):
-            if pt.name != 'std::any' and not pt.issubclass(my):
-                return False
-
-        return True
-
-    def issubclass(self, parent):
-        if isinstance(parent, tuple):
-            return any(self.issubclass(p) for p in parent)
-        else:
-            if parent.name == 'std::any':
-                return True
-            else:
-                return self._issubclass(parent)
-
-    @classmethod
-    def compare_values(cls, ours, theirs, context, compcoef):
-        if ours.get_canonical_class() != theirs.get_canonical_class():
-            basecoef = 0.2
-        else:
-            my_subtypes = ours.get_subtypes()
-            other_subtypes = theirs.get_subtypes()
-
-            similarity = []
-            for i, st in enumerate(my_subtypes):
-                similarity.append(st.compare(other_subtypes[i], context))
-
-            basecoef = sum(similarity) / len(similarity)
-
-        return basecoef + (1 - basecoef) * compcoef
-
-    def get_container(self):
-        raise NotImplementedError
-
-    def get_subtypes(self):
-        raise NotImplementedError
-
-    def get_typemods(self):
-        return ()
-
-    def get_subtype(self, schema, typeref):
-        from . import atoms as s_atoms
-        from . import types as s_types
-
-        if isinstance(typeref, ClassRef):
-            eltype = schema.get(typeref.classname)
-        else:
-            eltype = typeref
-
-        if isinstance(eltype, s_atoms.Atom):
-            eltype = eltype.get_topmost_base()
-            eltype = s_types.BaseTypeMeta.get_implementation(eltype.name)
-
-        return eltype
-
-    def coerce(self, values, schema):
-        raise NotImplementedError
-
-    @classmethod
-    def get_class(cls, schema_name):
-        if schema_name == 'array':
-            return Array
-        elif schema_name == 'map':
-            return Map
-        elif schema_name == 'tuple':
-            return Tuple
-        else:
-            raise ValueError(
-                'unknown collection type: {!r}'.format(schema_name))
-
-    @classmethod
-    def from_subtypes(cls, subtypes, typemods=None):
-        raise NotImplementedError
-
-
-class IntList(typed.TypedList, type=int):
-    pass
-
-
-class Array(Collection):
-    schema_name = 'array'
-    element_type = Field(Class)
-    dimensions = Field(IntList, [], coerce=True)
-
-    def get_container(self):
-        return tuple
-
-    def get_subtypes(self):
-        return (self.element_type,)
-
-    def get_typemods(self):
-        return (self.dimensions,)
-
-    def coerce(self, items, schema):
-        container = self.get_container()
-
-        elements = []
-
-        eltype = self.get_subtype(schema, self.element_type)
-
-        for item in items:
-            if not isinstance(item, eltype):
-                item = eltype(item)
-            elements.append(item)
-
-        return container(elements)
-
-    @classmethod
-    def from_subtypes(cls, subtypes, typemods=None):
-        if len(subtypes) != 1:
-            raise ValueError(
-                f'unexpected number of subtypes, expecting 1: {subtypes!r}')
-
-        if typemods:
-            dimensions = typemods[0]
-        else:
-            dimensions = []
-
-        stype = subtypes[0]
-        if isinstance(stype, cls):
-            # There is no array of arrays, only multi-dimensional arrays.
-            element_type = stype.element_type
-            if not dimensions:
-                dimensions.append(-1)
-            dimensions += stype.dimensions
-        else:
-            element_type = stype
-            dimensions = []
-
-        return cls(element_type=element_type, dimensions=dimensions)
-
-
-class Map(Collection):
-    schema_name = 'map'
-
-    element_type = Field(Class)
-    key_type = Field(Class)
-
-    def get_container(self):
-        return dict
-
-    def get_subtypes(self):
-        return (self.key_type, self.element_type,)
-
-    @classmethod
-    def from_subtypes(cls, subtypes, typemods=None):
-        if len(subtypes) != 2:
-            raise ValueError(
-                f'unexpected number of subtypes, expecting 2: {subtypes!r}')
-        return cls(key_type=subtypes[0], element_type=subtypes[1])
+    def _resolve_ref(self, resolve):
+        return resolve(self.classname)
 
 
 class ClassCollection:
@@ -961,54 +834,3 @@ class TypeList(typed.TypedList, ClassCollection, type=Class):
 
 class StringList(typed.TypedList, type=str, accept_none=True):
     pass
-
-
-class Tuple(Collection):
-    schema_name = 'tuple'
-
-    named = Field(bool, False)
-    element_types = Field(ClassDict, coerce=True)
-
-    def get_container(self):
-        return dict
-
-    def get_subtypes(self):
-        if self.element_types:
-            return list(self.element_types.values())
-        else:
-            return []
-
-    @classmethod
-    def from_subtypes(cls, subtypes, typemods=None):
-        named = False
-        if typemods is not None:
-            named = typemods.get('named', False)
-
-        if not isinstance(subtypes, collections.abc.Mapping):
-            types = collections.OrderedDict()
-            for i, t in enumerate(subtypes):
-                types[str(i)] = t
-        else:
-            types = subtypes
-
-        return cls(element_types=types, named=named)
-
-    def get_typemods(self):
-        return {'named': self.named}
-
-    def __hash__(self):
-        return hash((
-            self.__class__,
-            self.named,
-            self.name,
-            tuple(self.element_types.items())
-        ))
-
-    def __eq__(self, other):
-        if not isinstance(other, self.__class__):
-            return False
-
-        return (
-            self.named == other.named and self.name == other.name and
-            self.element_types == other.element_types
-        )

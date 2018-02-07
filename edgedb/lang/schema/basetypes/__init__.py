@@ -6,8 +6,8 @@
 ##
 
 
-from .base import TypeRules, FunctionMeta, BaseTypeMeta  # NOQA
-from .base import classname_from_type, normalize_type  # NOQA
+from .base import TypeRules, BaseTypeMeta  # NOQA
+from .base import normalize_type  # NOQA
 
 from . import boolean  # NOQA
 from . import bytes  # NOQA

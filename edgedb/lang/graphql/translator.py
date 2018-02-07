@@ -10,7 +10,7 @@ from edgedb.lang import edgeql
 from edgedb.lang.common import ast
 from edgedb.lang.edgeql import ast as qlast
 from edgedb.lang.graphql import ast as gqlast, parser as gqlparser
-from edgedb.lang.schema import types as s_types, error as s_error
+from edgedb.lang.schema import basetypes as s_types, error as s_error
 
 from .errors import GraphQLValidationError
 

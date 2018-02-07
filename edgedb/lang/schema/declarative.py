@@ -38,6 +38,7 @@ from . import modules as s_mod
 from . import name as s_name
 from . import objects as s_obj
 from . import schema as s_schema
+from . import types as s_types
 
 
 _DECL_MAP = {
@@ -232,7 +233,7 @@ class DeclarationLoader:
         clsname = self._get_ref_name(ref.maintype)
         if ref.subtypes:
             subtypes = [self._get_ref_type(s) for s in ref.subtypes]
-            ccls = s_obj.Collection.get_class(clsname)
+            ccls = s_types.Collection.get_class(clsname)
             typ = ccls.from_subtypes(subtypes)
         else:
             typ = self._schema.get(clsname, module_aliases=self._mod_aliases)
@@ -324,7 +325,7 @@ class DeclarationLoader:
                     deps.update(constraint.paramtypes)
 
             for dep in list(deps):
-                if isinstance(dep, s_obj.Collection):
+                if isinstance(dep, s_types.Collection):
                     deps.update(dep.get_subtypes())
                     deps.discard(dep)
 
@@ -594,8 +595,7 @@ class DeclarationLoader:
                     link.mapping = mapping
 
                 if linkdecl.expr is not None:
-                    # Computables are always readonly.
-                    link.readonly = True
+                    link.computable = True
 
                 self._parse_link_props(link, linkdecl)
                 concept.add_pointer(link)
@@ -670,13 +670,13 @@ class DeclarationLoader:
             terminate_early=True)
 
         try:
-            expr_type = ir_utils.infer_type(ir.result, self._schema)
-        except Exception:
+            expr_type = ir_utils.infer_type(ir, self._schema)
+        except edgeql.EdgeQLError as e:
             raise s_err.SchemaError(
                 'could not determine the result type of the default '
                 'expression on {!s}.{!s}'.format(
                     source.name, ptr.shortname),
-                context=expr.context)
+                context=expr.context) from e
 
         ptr.default = expr_text
         ptr.normalize_defaults()
@@ -704,12 +704,12 @@ class DeclarationLoader:
             cardinality = \
                 ir_inference.infer_cardinality(ir, singletons, self._schema)
 
-            if cardinality > 1:
+            if cardinality == qlast.Cardinality.MANY:
                 ptr.mapping = s_links.LinkMapping.ManyToMany
             else:
                 ptr.mapping = s_links.LinkMapping.ManyToOne
 
-        if (not isinstance(expr_type, s_obj.NodeClass) or
+        if (not isinstance(expr_type, s_types.Type) or
                 (ptr.target is not None and
                  not expr_type.issubclass(ptr.target))):
             raise s_err.SchemaError(

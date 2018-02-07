@@ -11,7 +11,6 @@ from edgedb.lang.common.persistent_hash import persistent_hash
 from . import error as schema_error
 from . import indexes
 from . import name as sn
-from . import primary
 from . import referencing
 from . import utils
 
@@ -25,7 +24,7 @@ class SourceCommand(indexes.IndexSourceCommand):
     pass
 
 
-class Source(primary.PrimaryClass, indexes.IndexableSubject):
+class Source(indexes.IndexableSubject):
     pointers = referencing.RefDict(local_attr='own_pointers',
                                    ordered=True,
                                    backref='source',
@@ -420,8 +419,8 @@ class Source(primary.PrimaryClass, indexes.IndexableSubject):
         else:
             return self.get_nearest_common_descendant(all_sources)
 
-    def add_pointer(self, pointer):
-        self.add_classref('pointers', pointer)
+    def add_pointer(self, pointer, *, replace=False):
+        self.add_classref('pointers', pointer, replace=replace)
         if pointer.readonly and self._ro_pointers is not None:
             self._ro_pointers.add(pointer)
 

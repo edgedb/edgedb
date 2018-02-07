@@ -84,7 +84,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             name := 'Alice',
             age := 27,
             active := True,
-            score := 5
+            score := 5.0
         };
     """
 

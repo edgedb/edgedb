@@ -21,10 +21,6 @@ class P_UNION(Precedence, assoc='left', tokens=('UNION', 'DISTINCTUNION')):
     pass
 
 
-class P_DISTINCT(Precedence, assoc='left', tokens=('DISTINCT',)):
-    pass
-
-
 class P_IFELSE(Precedence, assoc='right', tokens=('IF', 'ELSE')):
     pass
 
@@ -86,6 +82,10 @@ class P_DOUBLEQMARK_OP(Precedence, assoc='right', tokens=('DOUBLEQMARK',)):
     pass
 
 
+class P_BRACE(Precedence, assoc='left', tokens=('LBRACE', 'RBRACE')):
+    pass
+
+
 class P_UMINUS(Precedence, assoc='right'):
     pass
 
@@ -95,14 +95,6 @@ class P_POW_OP(Precedence, assoc='right', tokens=('CIRCUMFLEX',)):
 
 
 class P_TYPECAST(Precedence, assoc='right'):
-    pass
-
-
-class P_PATHSTART(Precedence, assoc='nonassoc'):
-    pass
-
-
-class P_BRACE(Precedence, assoc='left', tokens=('LBRACE', 'RBRACE')):
     pass
 
 

@@ -137,13 +137,7 @@ class InnerDDLStmt(Nonterm):
     def reduce_CreateFunctionStmt(self, *kids):
         self.val = kids[0].val
 
-    def reduce_CreateAggregateStmt(self, *kids):
-        self.val = kids[0].val
-
     def reduce_DropFunctionStmt(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_DropAggregateStmt(self, *kids):
         self.val = kids[0].val
 
 
@@ -1580,6 +1574,20 @@ class FromAggregate(Nonterm):
         self.val = qlast.FunctionCode(language=lang, from_name=kids[3].val)
 
 
+class InitialValue(Nonterm):
+    def reduce_INITIAL_VALUE_Expr(self, *kids):
+        val = kids[2].val
+
+        # make sure that the initial value is a literal for now
+        #
+        if not isinstance(val, (qlast.Constant, qlast.EmptyCollection,
+                                qlast.Array, qlast.Mapping)):
+            raise EdgeQLSyntaxError("initial value must be a literal",
+                                    context=val.context)
+
+        self.val = qlast.FunctionIV(val=val)
+
+
 #
 # CREATE FUNCTION|AGGREGATE
 #
@@ -1598,6 +1606,8 @@ class _ProcessFunctionBlockMixin:
                                             context=node.context)
                 else:
                     code = node
+            elif isinstance(node, qlast.FunctionIV):
+                props['initial_value'] = node.val
             else:
                 commands.append(node)
 
@@ -1617,7 +1627,9 @@ class _ProcessFunctionBlockMixin:
 commands_block(
     'CreateFunction',
     FromFunction,
+    FromAggregate,
     SetFieldStmt,
+    InitialValue,
     opt=False
 )
 
@@ -1637,7 +1649,7 @@ class CreateFunctionStmt(Nonterm, _ProcessFunctionBlockMixin):
     def reduce_CreateFunction(self, *kids):
         r"""%reduce DDLAliasBlock CREATE FUNCTION NodeName CreateFunctionArgs \
                 ARROW ArgQualifier FunctionType \
-                CreateFunctionCommandsBlock \
+                CreateFunctionCommandsBlock
         """
         self.val = qlast.CreateFunction(
             aliases=kids[0].val.aliases,
@@ -1662,56 +1674,6 @@ class DropFunctionStmt(Nonterm):
             args=kids[4].val)
 
 
-commands_block(
-    'CreateAggregate',
-    FromAggregate,
-    SetFieldStmt,
-    opt=False
-)
-
-
-class CreateAggregateStmt(Nonterm, _ProcessFunctionBlockMixin):
-    def reduce_CreateAggregate(self, *kids):
-        r"""%reduce DDLAliasBlock \
-                CREATE AGGREGATE NodeName CreateFunctionArgs \
-                ARROW FunctionType \
-                INITIAL VALUE Expr \
-                CreateAggregateCommandsBlock \
-        """
-
-        init_val = kids[9].val
-        # make sure that the initial value is a literal for now
-        #
-        if not isinstance(init_val, (qlast.Constant, qlast.EmptyCollection,
-                                     qlast.Array, qlast.Mapping)):
-            raise EdgeQLSyntaxError("initial value must be a literal",
-                                    context=init_val.context)
-
-        self.val = qlast.CreateFunction(
-            aliases=kids[0].val.aliases,
-            cardinality=kids[0].val.cardinality,
-            name=kids[3].val,
-            args=kids[4].val,
-            returning=kids[6].val,
-            aggregate=True,
-            initial_value=init_val,
-            **self._process_function_body(kids[10])
-        )
-
-
 class FunctionType(Nonterm):
     def reduce_TypeName(self, *kids):
         self.val = kids[0].val
-
-
-class DropAggregateStmt(Nonterm):
-    def reduce_DropAggregate(self, *kids):
-        r"""%reduce DDLAliasBlock \
-                DROP AGGREGATE NodeName CreateFunctionArgs \
-        """
-        self.val = qlast.DropFunction(
-            aliases=kids[0].val.aliases,
-            cardinality=kids[0].val.cardinality,
-            name=kids[3].val,
-            args=kids[4].val,
-            aggregate=True)

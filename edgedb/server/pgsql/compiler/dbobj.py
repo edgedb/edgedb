@@ -17,6 +17,7 @@ from edgedb.lang.schema import pointers as s_pointers
 
 from edgedb.server.pgsql import ast as pgast
 from edgedb.server.pgsql import common
+from edgedb.server.pgsql import types as pgtypes
 
 from . import context
 
@@ -28,6 +29,8 @@ def range_for_material_concept(
         env: context.Environment) -> pgast.BaseRangeVar:
 
     from . import pathctx  # XXX: fix cycle
+
+    concept = concept.material_type()
 
     table_schema_name, table_name = common.concept_name_to_table_name(
         concept.name, catenate=False)
@@ -50,7 +53,7 @@ def range_for_material_concept(
         )
     )
 
-    overlays = env.rel_overlays.get(concept)
+    overlays = env.rel_overlays.get(concept.name)
     if overlays and include_overlays:
         set_ops = []
 
@@ -178,21 +181,22 @@ def range_for_ptrcls(
     linkname = ptrcls.shortname
     endpoint = ptrcls.source
 
+    tgt_col = pgtypes.get_pointer_storage_info(
+        ptrcls, resolve_type=False, link_bias=True).column_name
+
     cols = [
         'std::source',
-        'std::target'
+        tgt_col
     ]
-
-    schema = env.schema
 
     set_ops = []
 
     ptrclses = set()
 
-    for source in {endpoint} | set(endpoint.descendants(schema)):
+    for source in {endpoint} | set(endpoint.descendants(env.schema)):
         # Sift through the descendants to see who has this link
         try:
-            src_ptrcls = source.pointers[linkname]
+            src_ptrcls = source.pointers[linkname].material_type()
         except KeyError:
             # This source has no such link, skip it
             continue
@@ -217,7 +221,7 @@ def range_for_ptrcls(
 
         set_ops.append(('union', qry))
 
-        overlays = env.rel_overlays.get(src_ptrcls)
+        overlays = env.rel_overlays.get(src_ptrcls.shortname)
         if overlays and include_overlays:
             for op, cte in overlays:
                 rvar = pgast.RangeVar(
@@ -287,15 +291,17 @@ def range_from_queryset(
 def get_column(
         rvar: pgast.BaseRangeVar,
         colspec: typing.Union[pgast.ColumnRef, str], *,
-        optional: bool=False) -> pgast.ColumnRef:
+        optional: bool=False, nullable: bool=None) -> pgast.ColumnRef:
 
     if isinstance(colspec, pgast.ColumnRef):
         colname = colspec.name[-1]
-        nullable = colspec.nullable
+        if nullable is None:
+            nullable = rvar.nullable if rvar is not None else colspec.nullable
         optional = colspec.optional
     else:
         colname = colspec
-        nullable = rvar.nullable if rvar is not None else False
+        if nullable is None:
+            nullable = rvar.nullable if rvar is not None else False
         optional = optional
 
     if rvar is None:
@@ -334,7 +340,7 @@ def rvar_for_rel(
 def get_rvar_fieldref(
         rvar: typing.Optional[pgast.BaseRangeVar],
         colname: typing.Union[str, pgast.TupleVar],
-        *, optional: bool=False) \
+        *, optional: bool=False, nullable: bool=None) \
         -> typing.Union[pgast.ColumnRef, pgast.TupleVar]:
 
     if isinstance(colname, pgast.TupleVar):
@@ -344,12 +350,12 @@ def get_rvar_fieldref(
             val = get_rvar_fieldref(rvar, el.name)
             elements.append(
                 pgast.TupleElement(
-                    path_id=el.path_id, name=el.name, val=val,
-                    aspect=el.aspect))
+                    path_id=el.path_id, name=el.name, val=val))
 
         fieldref = pgast.TupleVar(elements, named=colname.named)
     else:
-        fieldref = get_column(rvar, colname, optional=optional)
+        fieldref = get_column(rvar, colname, optional=optional,
+                              nullable=nullable)
 
     return fieldref
 
@@ -357,7 +363,7 @@ def get_rvar_fieldref(
 def add_rel_overlay(
         scls: s_concepts.Concept, op: str, rel: pgast.BaseRelation, *,
         env: context.Environment) -> None:
-    overlays = env.rel_overlays[scls]
+    overlays = env.rel_overlays[scls.name]
     overlays.append((op, rel))
 
 

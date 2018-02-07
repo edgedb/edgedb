@@ -12,30 +12,20 @@ from edgedb.lang.common import enum
 
 from . import constraints
 from . import delta as sd
-from . import derivable
 from . import error as schema_error
 from . import expr as sexpr
 from . import inheriting
 from . import name as sn
 from . import objects as so
 from . import policy
-from . import primary
 from . import referencing
+from . import types as s_types
+from . import utils
 
 
 class PointerDirection(enum.StrEnum):
     Outbound = '>'
     Inbound = '<'
-
-
-class PointerLoading(enum.StrEnum):
-    Eager = 'eager'
-    Lazy = 'lazy'
-
-
-class PointerExposedBehaviour(enum.StrEnum):
-    FirstItem = 'first-item'
-    Set = 'set'
 
 
 class PointerVector(sn.Name):
@@ -82,7 +72,7 @@ class PointerCommandContext(sd.ClassCommandContext):
 
 
 class PointerCommand(constraints.ConsistencySubjectCommand,
-                     referencing.ReferencedClassCommand):
+                     referencing.ReferencedInheritingClassCommand):
 
     @classmethod
     def _extract_union_operands(cls, expr, operands):
@@ -160,9 +150,15 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
         super()._create_begin(schema, context)
 
 
-class BasePointer(primary.PrimaryClass, derivable.DerivableClass):
-    source = so.Field(primary.PrimaryClass, None, compcoef=0.933)
-    target = so.Field(so.NodeClass, None, compcoef=0.833)
+class BasePointer(inheriting.InheritingClass):
+    source = so.Field(so.Class, None, compcoef=None)
+    target = so.Field(s_types.Type, None, compcoef=0.833)
+
+    def material_type(self):
+        if self.generic():
+            raise ValueError(f'{self!r} is generic')
+
+        return self.source.material_type().pointers.get(self.shortname)
 
     def get_near_endpoint(self, direction):
         return (self.source if direction == PointerDirection.Outbound
@@ -335,56 +331,33 @@ class BasePointer(primary.PrimaryClass, derivable.DerivableClass):
             attrs=attrs, **kwargs)
 
     def is_pure_computable(self):
-        return (self.readonly and bool(self.default) and
-                not self.is_id_pointer() and
-                self.shortname not in {'std::ctime', 'std::mtime'})
+        return self.computable and bool(self.default)
 
     def is_id_pointer(self):
-        return self.shortname in {'std::linkid', 'std::id'}
+        return self.shortname in {'std::target', 'std::id'}
 
     def is_endpoint_pointer(self):
         return self.shortname in {'std::source', 'std::target'}
 
     def is_special_pointer(self):
-        return self.shortname in {'std::source', 'std::target',
-                                  'std::linkid', 'std::id'}
-
-
-def _merge_sticky_bool(ours, theirs, schema):
-    if ours is not None and theirs is not None:
-        result = max(ours, theirs)
-    else:
-        result = theirs if theirs is not None else ours
-
-    return result
+        return self.shortname in {'std::source', 'std::target', 'std::id',
+                                  'std::linkid'}
 
 
 class Pointer(BasePointer, constraints.ConsistencySubject,
               policy.PolicySubject, policy.InternalPolicySubject):
 
     required = so.Field(bool, default=False, compcoef=0.909,
-                        merge_fn=_merge_sticky_bool)
+                        merge_fn=utils.merge_sticky_bool)
     readonly = so.Field(bool, default=False, compcoef=0.909,
-                        merge_fn=_merge_sticky_bool)
-    loading = so.Field(PointerLoading, default=None, compcoef=0.909,
-                       introspectable=False)
+                        merge_fn=utils.merge_sticky_bool)
+    computable = so.Field(bool, default=None, compcoef=0.909,
+                          merge_fn=utils.merge_weak_bool)
     default = so.Field(sexpr.ExpressionText, default=None,
                        coerce=True, compcoef=0.909)
 
     def generic(self):
         return self.source is None
-
-    def get_loading_behaviour(self):
-        if self.loading is not None:
-            return self.loading
-        else:
-            if not self.generic():
-                if self.atomic() and self.singular():
-                    return PointerLoading.Eager
-                else:
-                    return PointerLoading.Lazy
-            else:
-                return None
 
     def merge_defaults(self, other):
         if not self.default:

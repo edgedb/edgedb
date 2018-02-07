@@ -268,7 +268,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             # time_estimate > 9000 and due_date on 2020/01/15.
             WITH
                 MODULE test,
-                U2 := User
+                U2 := DETACHED User
             SELECT User{name}
             FILTER
                 EXISTS (
@@ -278,8 +278,8 @@ class TestEdgeQLFilter(tb.QueryTestCase):
                         NOT (
                             NOT EXISTS I.time_estimate OR
                             NOT EXISTS (
-                                SELECT U2.<owner[IS Issue].due_date
-                                FILTER I = U2.<owner[IS Issue]
+                                (SELECT U2.<owner[IS Issue]
+                                 FILTER I = U2.<owner[IS Issue]).due_date
                             )
                         )
                 )

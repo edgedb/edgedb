@@ -7,22 +7,34 @@
 
 
 import functools
-import math
+import typing
+
+from edgedb.lang.common import ast
 
 from edgedb.lang.edgeql import ast as qlast
 from edgedb.lang.edgeql import errors as ql_errors
+
+from edgedb.lang.schema import pointers as s_pointers
+from edgedb.lang.schema import schema as s_schema
+from edgedb.lang.schema import sources as s_sources
+
 from edgedb.lang.ir import ast as irast
 
 
-ONE = 1
-MANY = math.inf
+ONE = irast.Cardinality.ONE
+MANY = irast.Cardinality.MANY
 
 
-def _common_cardinality(args, singletons, schema):
-    if all(infer_cardinality(a, singletons, schema) == ONE for a in args):
+def _max_cardinality(args):
+    if all(a == ONE for a in args):
         return ONE
     else:
         return MANY
+
+
+def _common_cardinality(args, singletons, schema):
+    return _max_cardinality(
+        infer_cardinality(a, singletons, schema) for a in args)
 
 
 @functools.singledispatch
@@ -34,6 +46,21 @@ def _infer_cardinality(ir, singletons, schema):
 def __infer_none(ir, singletons, schema):
     # Here for debugging purposes.
     raise ValueError('invalid infer_cardinality(None, schema) call')
+
+
+@_infer_cardinality.register(irast.Statement)
+def __infer_statement(ir, singletons, schema):
+    return infer_cardinality(ir.expr, singletons, schema)
+
+
+@_infer_cardinality.register(irast.EmptySet)
+def __infer_emptyset(ir, singletons, schema):
+    return ONE
+
+
+@_infer_cardinality.register(irast.TypeRef)
+def __infer_typeref(ir, singletons, schema):
+    return ONE
 
 
 @_infer_cardinality.register(irast.Set)
@@ -116,10 +143,140 @@ def __infer_typecast(ir, singletons, schema):
     return infer_cardinality(ir.expr, singletons, schema)
 
 
+def _is_ptr_or_self_ref(
+        ir_set: irast.Set,
+        srccls: s_sources.Source,
+        schema: s_schema.Schema) -> bool:
+    return (
+        ir_set.expr is None and
+        ir_set.scls == srccls or (
+            ir_set.rptr is not None and
+            srccls.getptr(schema, ir_set.rptr.ptrcls.shortname) is not None
+        )
+    )
+
+
+def _extract_filters(
+        result_set: irast.Set, ir_set: irast.Set,
+        singletons: typing.Set[irast.PathId],
+        schema: s_schema.Schema) -> typing.Sequence[s_pointers.Pointer]:
+
+    ptr_filters = []
+    expr = ir_set.expr
+    if isinstance(expr, irast.BinOp):
+        if expr.op == ast.ops.EQ:
+            if _is_ptr_or_self_ref(expr.left, result_set.scls, schema):
+                if infer_cardinality(expr.right, singletons, schema) == ONE:
+                    if expr.left.scls == result_set.scls:
+                        ptr_filters.append(expr.left.scls.pointers['std::id'])
+                    else:
+                        ptr_filters.append(expr.left.rptr.ptrcls)
+            elif _is_ptr_or_self_ref(expr.right, result_set.scls, schema):
+                if infer_cardinality(expr.left, singletons, schema) == ONE:
+                    if expr.right.scls == result_set.scls:
+                        ptr_filters.append(expr.right.scls.pointers['std::id'])
+                    else:
+                        ptr_filters.append(expr.right.rptr.ptrcls)
+
+        elif expr.op == ast.ops.AND:
+            ptr_filters.extend(
+                _extract_filters(result_set, expr.left, singletons, schema))
+            ptr_filters.extend(
+                _extract_filters(result_set, expr.right, singletons, schema))
+
+    return ptr_filters
+
+
+def _analyse_filter_clause(
+        result_set: irast.Set, filter_clause: irast.Set,
+        singletons: typing.Set[irast.PathId],
+        schema: s_schema.Schema) -> irast.Cardinality:
+
+    filtered_ptrs = _extract_filters(result_set, filter_clause,
+                                     singletons, schema)
+
+    if filtered_ptrs:
+        unique_constr = schema.get('std::unique')
+
+        for ptr in filtered_ptrs:
+            is_unique = (
+                ptr.is_id_pointer() or
+                any(c.issubclass(unique_constr)
+                    for c in ptr.constraints.values())
+            )
+            if is_unique:
+                # Bingo, got an equality filter on a link with a
+                # unique constraint
+                return ONE
+
+    return MANY
+
+
+def _infer_stmt_cardinality(
+        result_set: irast.Set, filter_clause: typing.Optional[irast.Set],
+        singletons: typing.Set[irast.PathId],
+        schema: s_schema.Schema) -> irast.Cardinality:
+    result_card = infer_cardinality(result_set, singletons, schema)
+    if result_card == ONE or filter_clause is None:
+        return result_card
+
+    return _analyse_filter_clause(
+        result_set, filter_clause, singletons, schema)
+
+
+@_infer_cardinality.register(irast.SelectStmt)
+def __infer_update_select_stmt(ir, singletons, schema):
+    if ir.cardinality:
+        return ir.cardinality
+    else:
+        if (ir.limit is not None and
+                isinstance(ir.limit.expr, irast.Constant) and
+                ir.limit.expr.value == 1):
+            # Explicit LIMIT 1 clause.
+            stmt_card = ONE
+        else:
+            stmt_card = _infer_stmt_cardinality(
+                ir.result, ir.where, singletons, schema)
+
+        if ir.iterator_stmt:
+            iter_card = infer_cardinality(ir.iterator_stmt, singletons, schema)
+            stmt_card = _max_cardinality((stmt_card, iter_card))
+
+        return stmt_card
+
+
+@_infer_cardinality.register(irast.InsertStmt)
+def __infer_insert_stmt(ir, singletons, schema):
+    if ir.cardinality:
+        return ir.cardinality
+    else:
+        if ir.iterator_stmt:
+            return infer_cardinality(ir.iterator_stmt, singletons, schema)
+        else:
+            # INSERT without a FOR is always a singleton.
+            return ONE
+
+
+@_infer_cardinality.register(irast.UpdateStmt)
+@_infer_cardinality.register(irast.DeleteStmt)
+def __infer_update_delete_stmt(ir, singletons, schema):
+    if ir.cardinality:
+        return ir.cardinality
+    else:
+        stmt_card = _infer_stmt_cardinality(
+            ir.subject, ir.where, singletons, schema)
+
+        if ir.iterator_stmt:
+            iter_card = infer_cardinality(ir.iterator_stmt, singletons, schema)
+            stmt_card = _max_cardinality((stmt_card, iter_card))
+
+        return stmt_card
+
+
 @_infer_cardinality.register(irast.Stmt)
 def __infer_stmt(ir, singletons, schema):
-    if ir.singleton:
-        return ONE
+    if ir.cardinality:
+        return ir.cardinality
     else:
         return infer_cardinality(ir.result, singletons, schema)
 

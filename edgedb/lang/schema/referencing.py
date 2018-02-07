@@ -11,7 +11,6 @@ import collections
 from edgedb.lang.common import ordered
 
 from . import delta as sd
-from . import derivable
 from . import error as schema_error
 from . import inheriting
 from . import objects as so
@@ -135,7 +134,7 @@ class ReferencingClassMeta(type(inheriting.InheritingClass)):
         return cls._refdicts_by_refclass[refcls]
 
 
-class ReferencedClassCommandMeta(type(derivable.DerivableClassCommand)):
+class ReferencedClassCommandMeta(type(named.NamedClassCommand)):
     _transparent_adapter_subclass = True
 
     def __new__(mcls, name, bases, clsdct, *,
@@ -146,7 +145,7 @@ class ReferencedClassCommandMeta(type(derivable.DerivableClassCommand)):
         return cls
 
 
-class ReferencedClassCommand(derivable.DerivableClassCommand,
+class ReferencedClassCommand(named.NamedClassCommand,
                              metaclass=ReferencedClassCommandMeta):
     _referrer_context_class = None
 
@@ -188,22 +187,6 @@ class ReferencedClassCommand(derivable.DerivableClassCommand,
                 return self.astnode[1]
             else:
                 return self.astnode
-
-    def _create_begin(self, schema, context):
-        referrer_ctx = self.get_referrer_context(context)
-        attrs = self.get_struct_properties(schema)
-        mcls = self.get_schema_metaclass()
-
-        if (referrer_ctx is not None and not attrs.get('is_derived') and
-                issubclass(mcls, derivable.DerivableClass)):
-            referrer = referrer_ctx.scls
-            metaclass = self.get_schema_metaclass()
-            basename = metaclass.get_shortname(self.classname)
-            base = schema.get(basename, type=metaclass)
-            self.scls = base.derive(schema, referrer, attrs=attrs,
-                                    add_to_schema=True, init_props=False)
-        else:
-            super()._create_begin(schema, context)
 
     def _create_innards(self, schema, context):
         super()._create_innards(schema, context)
@@ -273,7 +256,25 @@ class ReferencedClassCommand(derivable.DerivableClassCommand,
             referrer.del_classref(refdict.attr, scls.name, schema)
 
 
-class CreateReferencedClass(inheriting.CreateInheritingClass):
+class ReferencedInheritingClassCommand(
+        ReferencedClassCommand, inheriting.InheritingClassCommand):
+
+    def _create_begin(self, schema, context):
+        referrer_ctx = self.get_referrer_context(context)
+        attrs = self.get_struct_properties(schema)
+
+        if referrer_ctx is not None and not attrs.get('is_derived'):
+            mcls = self.get_schema_metaclass()
+            referrer = referrer_ctx.scls
+            basename = mcls.get_shortname(self.classname)
+            base = schema.get(basename, type=mcls)
+            self.scls = base.derive(schema, referrer, attrs=attrs,
+                                    add_to_schema=True, init_props=False)
+        else:
+            super()._create_begin(schema, context)
+
+
+class CreateReferencedInheritingClass(inheriting.CreateInheritingClass):
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
@@ -516,7 +517,7 @@ class ReferencingClass(inheriting.InheritingClass,
 
         key = obj.get_shortname(obj.name)
         existing = local_coll.get(key)
-        if existing is not None:
+        if existing is not None and not replace:
             msg = '{} {!r} is already present in {!r}'.format(
                 coll_obj, key, self.name)
             raise schema_error.SchemaError(msg)

@@ -308,6 +308,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.expr)
         self.write(')')
 
+    def visit_DetachedExpr(self, node):
+        self.write('DETACHED ')
+        self.visit(node.expr)
+
     def visit_UnaryOp(self, node):
         op = str(node.op).upper()
         self.write(op)
@@ -466,9 +470,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if node.compexpr:
             self.write(' := ')
             self.visit(node.compexpr)
-
-            if node.elements:
-                self._visit_shape(node.elements)
 
     def visit_Parameter(self, node):
         self.write('$')
@@ -956,15 +957,17 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             if node.set_returning:
                 self.write(node.set_returning.upper(), ' ')
             self.visit(node.returning)
-            if node.initial_value:
-                self.write(' INITIAL VALUE ')
-                self.visit(node.initial_value)
 
-            if node.commands:
+            if node.commands or node.initial_value:
                 self.write('{')
                 self._block_ws(1)
                 self.visit_list(node.commands, terminator=';')
                 self.new_lines = 1
+
+                if node.initial_value:
+                    self.write('INITIAL VALUE ')
+                    self.visit(node.initial_value)
+                    self.write(';')
 
             if node.code.from_name:
                 self.write(f' FROM {node.code.language} {typ} ')
@@ -974,7 +977,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.write(edgeql_quote.dollar_quote_literal(
                     node.code.code))
 
-            if node.commands:
+            if node.commands or node.initial_value:
                 self.write(';')
                 self._block_ws(-1)
                 self.write('}')

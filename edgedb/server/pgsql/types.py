@@ -16,6 +16,7 @@ from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import name as sn
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import schema as s_schema
+from edgedb.lang.schema import types as s_types
 
 from . import common
 
@@ -117,13 +118,13 @@ def pg_type_from_object(
     if isinstance(obj, s_atoms.Atom):
         return pg_type_from_atom(schema, obj, topbase=topbase)
 
-    elif isinstance(obj, s_obj.Tuple):
+    elif isinstance(obj, s_types.Tuple):
         return ('record',)
 
-    elif isinstance(obj, s_obj.Map):
+    elif isinstance(obj, s_types.Map):
         return ('jsonb',)
 
-    elif isinstance(obj, s_obj.Array):
+    elif isinstance(obj, s_types.Array):
         if obj.element_type.name == 'std::any':
             return ('anyarray',)
         else:

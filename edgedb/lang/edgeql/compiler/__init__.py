@@ -51,7 +51,6 @@ def compile_to_ir(expr,
                   anchors=None,
                   arg_types=None,
                   security_context=None,
-                  derived_target_module=None,
                   modaliases=None):
     """Compile given EdgeQL statement into EdgeDB IR."""
 
@@ -63,8 +62,7 @@ def compile_to_ir(expr,
 
     return compile_ast_to_ir(
         tree, schema, anchors=anchors, arg_types=arg_types,
-        security_context=security_context, modaliases=modaliases,
-        derived_target_module=derived_target_module)
+        security_context=security_context, modaliases=modaliases)
 
 
 def compile_ast_to_ir(tree,
@@ -74,6 +72,7 @@ def compile_ast_to_ir(tree,
                       arg_types=None,
                       security_context=None,
                       derived_target_module=None,
+                      result_view_name=None,
                       modaliases=None):
     """Compile given EdgeQL AST into EdgeDB IR."""
 
@@ -84,15 +83,17 @@ def compile_ast_to_ir(tree,
     ctx = stmtctx.init_context(
         schema=schema, anchors=anchors, modaliases=modaliases,
         security_context=security_context, arg_types=arg_types,
-        derived_target_module=derived_target_module)
+        derived_target_module=derived_target_module,
+        result_view_name=result_view_name)
 
-    ir = dispatch.compile(tree, ctx=ctx)
+    ir_set = dispatch.compile(tree, ctx=ctx)
+    ir_expr = stmtctx.fini_expression(ir_set, ctx=ctx)
 
     if debug.flags.edgeql_compile:
-        if ir.path_scope:
+        if ir_expr.expr.path_scope:
             debug.header('Scope Tree')
-            print(ir.path_scope.pformat())
+            print(ir_expr.expr.path_scope.pdebugformat())
         debug.header('EdgeDB IR')
-        debug.dump(ir)
+        debug.dump(ir_expr)
 
-    return ir
+    return ir_expr

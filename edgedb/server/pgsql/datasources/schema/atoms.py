@@ -20,6 +20,8 @@ async def fetch(
             c.description AS description,
             c.is_abstract AS is_abstract,
             c.is_final AS is_final,
+            c.view_type AS view_type,
+            c.expr AS expr,
             edgedb._resolve_type_name(c.bases) AS bases,
             c.default AS default
         FROM

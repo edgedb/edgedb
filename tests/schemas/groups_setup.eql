@@ -88,7 +88,7 @@ INSERT Issue {
 
 WITH
     MODULE test,
-    I := (SELECT Issue)
+    I := DETACHED Issue
 INSERT Issue {
     number := '3',
     name := 'Repl tweak.',
@@ -104,7 +104,7 @@ INSERT Issue {
 
 WITH
     MODULE test,
-    I := (SELECT Issue)
+    I := DETACHED Issue
 INSERT Issue {
     number := '4',
     name := 'Regression.',
@@ -238,7 +238,7 @@ INSERT User {
 # update friends list
 WITH
     MODULE cards,
-    U2 := User
+    U2 := DETACHED User
 UPDATE User
 FILTER User.name = 'Alice'
 SET {
@@ -254,7 +254,7 @@ SET {
 
 WITH
     MODULE cards,
-    U2 := User
+    U2 := DETACHED User
 UPDATE User
 FILTER User.name = 'Dave'
 SET {

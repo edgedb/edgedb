@@ -413,8 +413,8 @@ class TestUpdate(tb.QueryTestCase):
             FILTER UpdateTest.name = 'update-test3'
             SET {
                 status := (
-                    SELECT Object
-                    FILTER Object.id = <uuid>'""" + status + r"""'
+                    SELECT Status
+                    FILTER Status.id = <uuid>'""" + status + r"""'
                 )
             };
 
@@ -527,7 +527,7 @@ class TestUpdate(tb.QueryTestCase):
         res = await self.con.execute(r"""
             WITH
                 MODULE test,
-                U2 := UpdateTest
+                U2 := DETACHED UpdateTest
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test1'
             SET {
@@ -558,7 +558,7 @@ class TestUpdate(tb.QueryTestCase):
         res = await self.con.execute(r"""
             WITH
                 MODULE test,
-                U2 := UpdateTest
+                U2 := DETACHED UpdateTest
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test1'
             SET {
@@ -594,7 +594,7 @@ class TestUpdate(tb.QueryTestCase):
         res = await self.con.execute(r"""
             WITH
                 MODULE test,
-                U2 := UpdateTest
+                U2 := DETACHED UpdateTest
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test1'
             SET {
@@ -876,7 +876,6 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_update_for_01(self):
         res = await self.con.execute(r"""
             WITH MODULE test

@@ -135,6 +135,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     };
                 """)
 
+    @unittest.expectedFailure
     async def test_constraints_unique_across_ancestry(self):
         async with self._run_and_rollback():
             with self.assertRaisesRegex(exceptions.ConstraintViolationError,

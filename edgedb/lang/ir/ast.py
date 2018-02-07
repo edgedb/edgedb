@@ -9,15 +9,31 @@
 import typing
 
 from edgedb.lang.common.exceptions import EdgeDBError
-from edgedb.lang.common import ast, parsing
+from edgedb.lang.common import ast, compiler, parsing
 
 from edgedb.lang.schema import name as sn
 from edgedb.lang.schema import objects as so
 from edgedb.lang.schema import pointers as s_pointers
+from edgedb.lang.schema import types as s_types
 
 from edgedb.lang.edgeql import ast as qlast
 
 from .pathid import PathId, ScopeBranchNode, ScopeFenceNode  # noqa
+from .pathid import InvalidScopeConfiguration  # noqa
+
+
+EdgeDBMatchOperator = qlast.EdgeQLMatchOperator
+EquivalenceOperator = qlast.EquivalenceOperator
+SetOperator = qlast.SetOperator
+SetModifier = qlast.SetModifier
+SetQualifier = qlast.SetQualifier
+Cardinality = qlast.Cardinality
+
+UNION = qlast.UNION
+DISTINCT_UNION = qlast.DISTINCT_UNION
+
+EQUIVALENT = qlast.EQUIVALENT
+NEQUIVALENT = qlast.NEQUIVALENT
 
 
 class ASTError(EdgeDBError):
@@ -54,8 +70,7 @@ class Set(Base):
 
     path_id: PathId
     path_scope: ScopeBranchNode
-    real_path_id: PathId
-    scls: so.NodeClass
+    scls: s_types.Type
     source: Base
     view_source: Base
     expr: Base
@@ -69,6 +84,15 @@ class Set(Base):
             f'<ir.Set \'{self.path_id or self.scls.name}\' at 0x{id(self):x}>'
 
 
+class Statement(Base):
+
+    expr: Set
+    views: typing.Dict[sn.Name, s_types.Type]
+    params: typing.Dict[str, s_types.Type]
+    source_map: typing.Dict[s_pointers.Pointer,
+                            typing.Tuple[qlast.Expr, compiler.ContextLevel]]
+
+
 class Expr(Base):
     pass
 
@@ -80,7 +104,7 @@ class EmptySet(Set):
 class Constant(Expr):
 
     value: object
-    type: so.NodeClass
+    type: s_types.Type
 
     def __init__(self, *args, type, **kwargs):
         if type is None:
@@ -91,7 +115,7 @@ class Constant(Expr):
 class Parameter(Base):
 
     name: str
-    type: so.NodeClass
+    type: s_types.Type
 
 
 class TupleElement(Base):
@@ -156,15 +180,16 @@ class EquivalenceOp(BaseBinOp):
 
 class IfElseExpr(Expr):
 
-    condition: Base
-    if_expr: Base  # noqa (pyflakes bug)
-    else_expr: Base  # noqa (pyflakes bug)
-    singleton: bool = False
+    condition: Set
+    if_expr: Set  # noqa (pyflakes bug)
+    else_expr: Set  # noqa (pyflakes bug)
 
 
 class Coalesce(Base):
     left: Set
+    lcardinality: Cardinality = Cardinality.DEFAULT
     right: Set
+    rcardinality: Cardinality = Cardinality.DEFAULT
 
 
 class SortExpr(Base):
@@ -224,9 +249,8 @@ class TypeCast(Expr):
 class Stmt(Base):
 
     name: str
-    path_scope: ScopeBranchNode
     result: Base
-    singleton: bool
+    cardinality: Cardinality = Cardinality.DEFAULT
     parent_stmt: Base
     iterator_stmt: Base
 
@@ -262,15 +286,3 @@ class UpdateStmt(MutatingStmt):
 class DeleteStmt(MutatingStmt):
 
     where: Base
-
-
-EdgeDBMatchOperator = qlast.EdgeQLMatchOperator
-EquivalenceOperator = qlast.EquivalenceOperator
-SetOperator = qlast.SetOperator
-SetModifier = qlast.SetModifier
-
-UNION = qlast.UNION
-DISTINCT_UNION = qlast.DISTINCT_UNION
-
-EQUIVALENT = qlast.EQUIVALENT
-NEQUIVALENT = qlast.NEQUIVALENT

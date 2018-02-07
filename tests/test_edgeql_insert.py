@@ -479,7 +479,6 @@ class TestInsert(tb.QueryTestCase):
             }],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_insert_for_01(self):
         res = await self.con.execute(r'''
             WITH MODULE test
@@ -551,7 +550,6 @@ class TestInsert(tb.QueryTestCase):
             ]
         )
 
-    @unittest.expectedFailure
     async def test_edgeql_insert_for_02(self):
         res = await self.con.execute(r'''
             # create 1000 DefaultTest3 objects, each object is defined
@@ -564,7 +562,7 @@ class TestInsert(tb.QueryTestCase):
             # identical for all 10 records
             WITH
                 MODULE test,
-                DT3 := DefaultTest3
+                DT3 := DETACHED DefaultTest3
             SELECT count(
                 DefaultTest3 FILTER DefaultTest3.foo != DT3.foo) > 0;
         ''')
@@ -573,7 +571,6 @@ class TestInsert(tb.QueryTestCase):
             res[-1], [True]
         )
 
-    @unittest.expectedFailure
     async def test_edgeql_insert_for_03(self):
         res = await self.con.execute(r'''
             # Create 5 DefaultTest4 objects. The default value for
@@ -613,7 +610,7 @@ class TestInsert(tb.QueryTestCase):
             # identical for all 10 records
             WITH
                 MODULE test,
-                DT3 := DefaultTest3
+                DT3 := DETACHED DefaultTest3
             SELECT count(
                 DefaultTest3 FILTER DefaultTest3.foo != DT3.foo) > 0;
         ''')

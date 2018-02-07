@@ -86,7 +86,7 @@ def main():
 
     try:
         cluster.init()
-        cluster.start()
+        cluster.start(port='dynamic')
     except BaseException:
         if os.path.exists(data_dir):
             shutil.rmtree(data_dir)
