@@ -613,6 +613,52 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         ])
 
+    @unittest.expectedFailure
+    async def test_edgeql_scope_filter_05(self):
+        await self.assert_query_result(r'''
+            # User.name is wrapped into a SELECT, so it's a SET OF
+            # w.r.t FILTER
+            WITH MODULE test
+            SELECT (SELECT User.name)
+            FILTER User.name = 'Alice';
+        ''', [
+            {'Alice', 'Bob', 'Carol', 'Dave'}
+        ])
+
+    async def test_edgeql_scope_filter_06(self):
+        await self.assert_query_result(r'''
+            # User is wrapped into a SELECT, so it's a SET OF
+            # w.r.t FILTER
+            WITH MODULE test
+            SELECT (SELECT User).name
+            FILTER User.name = 'Alice';
+        ''', [
+            {'Alice', 'Bob', 'Carol', 'Dave'}
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_scope_filter_07(self):
+        await self.assert_query_result(r'''
+            # User.name is a SET OF argument of ??, so it's unaffected
+            # by the FILTER
+            WITH MODULE test
+            SELECT ({} ?? User.name)
+            FILTER User.name = 'Alice';
+        ''', [
+            {'Alice', 'Bob', 'Carol', 'Dave'}
+        ])
+
+    async def test_edgeql_scope_filter_08(self):
+        await self.assert_query_result(r'''
+            # User is a SET OF argument of ??, so it's unaffected
+            # by the FILTER
+            WITH MODULE test
+            SELECT ({} ?? User).name
+            FILTER User.name = 'Alice';
+        ''', [
+            {'Alice', 'Bob', 'Carol', 'Dave'}
+        ])
+
     async def test_edgeql_scope_order_01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
