@@ -3013,6 +3013,24 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'body': 'EdgeDB needs to happen soon.'}],
         ])
 
+    async def test_edgeql_select_subqueries_18(self):
+        await self.assert_query_result(r"""
+            # here, DETACHED doesn't do anything special, because the
+            # symbol U2 is reused on both sides of '+'
+            WITH
+                MODULE test,
+                U2 := DETACHED User
+            SELECT U2.name + U2.name;
+
+            # DETACHED is reused on both sides of '+' directly
+            WITH MODULE test
+            SELECT (DETACHED User).name + (DETACHED User).name;
+
+            """, [
+            {'ElvisElvis', 'YuryYury'},
+            {'ElvisElvis', 'ElvisYury', 'YuryElvis', 'YuryYury'},
+        ])
+
     async def test_edgeql_select_view_indirection_01(self):
         await self.assert_query_result(r"""
             # Direct reference to a computable element in a subquery
