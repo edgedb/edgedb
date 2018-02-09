@@ -384,39 +384,39 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT .1;
             """)
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_paths_04(self):
         # `Issue.number` in FILTER is illegal because it shares a
         # prefix `Issue` with `Issue.owner` which is defined in an
         # outer scope.
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'inconsistent path'):
+                exc.EdgeQLError,
+                r"'Issue.number' changes the interpretation of 'Issue'"):
             await self.con.execute(r"""
                 WITH MODULE test
                 SELECT Issue.owner
                 FILTER Issue.number > '2';
             """)
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_paths_05(self):
         # `Issue.number` in FILTER is illegal because it shares a
         # prefix `Issue` with `Issue.id` which is defined in an outer
         # scope.
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'inconsistent path'):
+                exc.EdgeQLError,
+                r"'Issue.number' changes the interpretation of 'Issue'"):
             await self.con.execute(r"""
                 WITH MODULE test
                 SELECT Issue.id
                 FILTER Issue.number > '2';
             """)
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_paths_06(self):
         # `Issue.number` in the shape is illegal because it shares a
         # prefix `Issue` with `Issue.owner` which is defined in an
         # outer scope.
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'inconsistent path'):
+                exc.EdgeQLError,
+                r"'Issue.number' changes the interpretation of 'Issue'"):
             await self.con.execute(r"""
                 WITH MODULE test
                 SELECT Issue.owner {
@@ -430,7 +430,8 @@ class TestExpressions(tb.QueryTestCase):
         # prefix `Issue` with `Issue.owner` which is defined in an
         # outer scope.
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'inconsistent path'):
+                exc.EdgeQLError,
+                r"'Issue.number' changes the interpretation of 'Issue'"):
             await self.con.execute(r"""
                 WITH MODULE test
                 FOR x IN {'Elvis', 'Yury'}
@@ -441,19 +442,34 @@ class TestExpressions(tb.QueryTestCase):
                 FILTER Issue.number > '2';
             """)
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_paths_08(self):
         # `Issue.number` in FILTER is illegal because it shares a
         # prefix `Issue` with `Issue.owner` which is defined in an
         # outer scope.
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'inconsistent path'):
+                exc.EdgeQLError,
+                r"'Issue.number' changes the interpretation of 'Issue'"):
             await self.con.execute(r"""
                 WITH MODULE test
                 UPDATE Issue.owner
                 FILTER Issue.number > '2'
                 SET {
-                    name := 'Foo' + Issue.number
+                    name := 'Foo'
+                };
+            """)
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_paths_09(self):
+        # `Issue` in SET is illegal because it shares a prefix `Issue`
+        # with `Issue.related_to` which is defined in an outer scope.
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r"'Issue' changes the interpretation of 'Issue'"):
+            await self.con.execute(r"""
+                WITH MODULE test
+                UPDATE Issue.related_to
+                SET {
+                    related_to := Issue
                 };
             """)
 
