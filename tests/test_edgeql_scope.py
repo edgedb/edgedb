@@ -1080,3 +1080,110 @@ class TestEdgeQLScope(tb.QueryTestCase):
             {'Imp1', 'Dragon2', 'Bog monster4', 'Giant turtle4', 'Dwarf2',
              'Golem3', 'Sprite2', 'Giant eagle2', 'Djinn2'},
         ])
+
+    async def test_edgeql_scope_detached_01(self):
+        names = {'Alice', 'Bob', 'Carol', 'Dave'}
+
+        await self.assert_query_result(r"""
+            # U2 is a combination of DETACHED and non-DETACHED expression
+            WITH
+                MODULE test,
+                U2 := User.name + DETACHED User.name
+            SELECT U2 + U2;
+
+            WITH
+                MODULE test,
+                U2 := User.name + DETACHED User.name
+            SELECT User.name + DETACHED User.name + U2;
+
+            # DETACHED is reused directly
+            WITH MODULE test
+            SELECT User.name + DETACHED User.name +
+                   User.name + DETACHED User.name;
+            """, [
+            {u + u for u in
+                (a + b
+                    for a in names
+                    for b in names)},
+            {a + b + a + c
+                for a in names
+                for b in names
+                for c in names},
+            {a + b + a + c
+                for a in names
+                for b in names
+                for c in names},
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_scope_detached_02(self):
+        # calculate some useful base expression
+        names = await self.con.execute(r"""
+            WITH MODULE test
+            SELECT User.name + <str>count(User.deck);
+        """)
+        names = names[0]
+
+        await self.assert_query_result(r"""
+            # Let's say we need a tournament where everybody will play
+            # with everybody twice.
+            WITH
+                MODULE test,
+                # calculate some expression ("full" name)
+                U0 := User.name + <str>count(User.deck),
+                # make that expression DETACHED so that we can do
+                # cross product
+                U1 := DETACHED U0
+            SELECT U0 + ' vs ' + U1
+            # get rid of players matching themselves
+            FILTER U0 != U1;
+        """, [
+            {f'{a} vs {b}' for a in names for b in names if a != b},
+        ])
+
+    # @unittest.expectedFailure
+    async def _test_edgeql_scope_detached_03(self):
+        # XXX: this test causes the system to take way too long to
+        # compute the result
+        names = {'Alice', 'Bob', 'Carol', 'Dave'}
+
+        # No good narrative here, just a bigger cross-product
+        # computed in straight-forward and alternative ways.
+        await self.assert_query_result(r"""
+            WITH
+                MODULE test,
+                # make 3 copies of User.name
+                U0 := DETACHED User.name,
+                U1 := DETACHED User.name,
+                U2 := DETACHED User.name
+            SELECT User.name + U0 + U1 + U2;
+
+            # same thing, but building it up differently
+            WITH
+                MODULE test,
+                # calculate some expression ("full" name)
+                U0 := User.name,
+                # make that expression DETACHED so that we can do
+                # cross product
+                U1 := DETACHED U0,
+                # cross product of players
+                U2 := U0 + U1,
+                # a copy of the players cross product
+                U3 := DETACHED U2
+            # compute what is effectively a cross product of a cross
+            # product of names (expecting 256 results)
+            SELECT U2 + U3;
+            # should be equivalent to:
+            # SELECT U0 + DETACHED U0 + DETACHED (U0 + DETACHED U0)
+            """, [
+            {a + b + c + d
+                for a in names
+                for b in names
+                for c in names
+                for d in names},
+            {a + b + c + d
+                for a in names
+                for b in names
+                for c in names
+                for d in names},
+        ])
