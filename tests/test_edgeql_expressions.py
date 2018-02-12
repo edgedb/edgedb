@@ -1586,6 +1586,35 @@ class TestExpressions(tb.QueryTestCase):
             [4, 5],
         ])
 
+    async def test_edgeql_expr_view_09(self):
+        await self.assert_sorted_query_result(r"""
+            # set some base cases
+            WITH a := {1, 2}
+            SELECT a + a;
+            # normally all atomic set literals are "DETACHED"
+            SELECT {1, 2} + {1, 2};
+
+            # DETACHED literals
+            WITH a := {1, 2}
+            SELECT a + DETACHED a;
+
+            WITH
+                a := {1, 2},
+                b := DETACHED a
+            SELECT a + b;
+
+            WITH
+                a := {1, 2},
+                b := DETACHED a
+            SELECT b + b;
+        """, lambda x: x, [
+            [2, 4],
+            [2, 3, 3, 4],
+            [2, 3, 3, 4],
+            [2, 3, 3, 4],
+            [2, 4],
+        ])
+
     async def test_edgeql_expr_for_01(self):
         await self.assert_query_result(r"""
             FOR x IN {1, 3, 5, 7}
