@@ -1586,6 +1586,7 @@ class TestExpressions(tb.QueryTestCase):
             [4, 5],
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_expr_view_09(self):
         await self.assert_sorted_query_result(r"""
             # set some base cases
