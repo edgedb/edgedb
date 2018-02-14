@@ -960,3 +960,25 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
                 {'name': 'tv'},
             ],
         ])
+
+    async def test_edgeql_links_map_05(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE test,
+                I := (SELECT Item ORDER BY Item.name)
+            SELECT (comp := array_agg(I.components),
+                    count := count(I.components));
+        ''', [
+            [
+                {
+                    'comp': [
+                        {'legs': 4, 'board': 2},
+                        {'legs': 1, 'bulbs': 3},
+                        {'bulbs': 4, 'screen': 1, 'buttons': 42},
+                        {'legs': 4, 'board': 1},
+                        {'screen': 1}
+                    ],
+                    'count': 5
+                }
+            ]
+        ])
