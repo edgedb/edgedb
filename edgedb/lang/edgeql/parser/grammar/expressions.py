@@ -790,10 +790,6 @@ class Expr(Nonterm):
         self.val = qlast.BinOp(left=kids[0].val, op=qlast.UNION,
                                right=kids[2].val)
 
-    def reduce_Expr_DISTINCTUNION_Expr(self, *kids):
-        self.val = qlast.BinOp(left=kids[0].val, op=qlast.DISTINCT_UNION,
-                               right=kids[2].val)
-
 
 class Tuple(Nonterm):
     def reduce_LPAREN_Expr_COMMA_OptExprList_RPAREN(self, *kids):

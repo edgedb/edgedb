@@ -43,7 +43,6 @@ class SetOperator(EdgeQLOperator):
 
 
 UNION = SetOperator('UNION')
-DISTINCT_UNION = SetOperator('DISTINCT UNION')
 DISTINCT = SetOperator('DISTINCT')
 
 AND = ast.ops.AND

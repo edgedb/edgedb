@@ -989,7 +989,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_tuple_05(self):
         await self.assert_query_result(r"""
-            SELECT (1, 2) DISTINCT UNION (3, 4);
+            SELECT (1, 2) UNION (3, 4);
         """, [
             [[1, 2], [3, 4]],
         ])
@@ -1050,12 +1050,12 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_tuple_11(self):
         await self.assert_query_result('''\
             SELECT (1, 2) = (1, 2);
-            SELECT (1, 2) DISTINCT UNION (1, 2);
             SELECT (1, 2) UNION (1, 2);
+            SELECT DISTINCT ((1, 2) UNION (1, 2));
         ''', [
             [True],
-            [[1, 2]],
             [[1, 2], [1, 2]],
+            [[1, 2]],
         ])
 
     async def test_edgeql_expr_tuple_12(self):
@@ -1113,7 +1113,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_tuple_indirection_05(self):
         await self.assert_query_result(r"""
-            WITH _ := (SELECT (1,2) DISTINCT UNION (3,4)) SELECT _.0;
+            WITH _ := (SELECT (1,2) UNION (3,4)) SELECT _.0;
         """, [
             [1, 3],
         ])
@@ -1197,13 +1197,13 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_setop_02(self):
         await self.assert_query_result(r"""
-            SELECT 2 * ((SELECT 1) DISTINCT UNION (SELECT 2));
-            SELECT (SELECT 2) * (1 DISTINCT UNION 2);
-            SELECT 2 * (1 DISTINCT UNION 2 DISTINCT UNION 1);
+            SELECT 2 * ((SELECT 1) UNION (SELECT 2));
+            SELECT (SELECT 2) * (1 UNION 2);
+            SELECT 2 * DISTINCT (1 UNION 2 UNION 1);
             SELECT 2 * (1 UNION 2 UNION 1);
 
             WITH
-                a := (SELECT 1 DISTINCT UNION 2)
+                a := (SELECT 1 UNION 2)
             SELECT (SELECT 2) * a;
         """, [
             [2, 4],
@@ -1240,20 +1240,16 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_setop_06(self):
         await self.assert_query_result('''
-            SELECT (2 DISTINCT UNION 2 DISTINCT UNION 2);
+            SELECT DISTINCT (2 UNION 2 UNION 2);
         ''', [
             [2],
         ])
 
     async def test_edgeql_expr_setop_07(self):
         await self.assert_query_result('''
-            SELECT (2 UNION 2 DISTINCT UNION 2);
-            SELECT (2 DISTINCT UNION 2 UNION 2);
-            SELECT (2 UNION 1 DISTINCT UNION 2);
+            SELECT DISTINCT (2 UNION 2) UNION 2;
         ''', [
-            [2],
             [2, 2],
-            {1, 2},
         ])
 
     async def test_edgeql_expr_setop_08(self):
@@ -1381,11 +1377,11 @@ class TestExpressions(tb.QueryTestCase):
                 exc.EdgeQLError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
-                position=59):
+                position=50):
 
             await self.query('''\
                 WITH MODULE test
-                SELECT Issue DISTINCT UNION Text ORDER BY Issue.name;
+                SELECT Issue UNION Text ORDER BY Issue.name;
             ''')
 
     async def test_edgeql_expr_cardinality_07(self):

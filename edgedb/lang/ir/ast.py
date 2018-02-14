@@ -30,7 +30,6 @@ SetQualifier = qlast.SetQualifier
 Cardinality = qlast.Cardinality
 
 UNION = qlast.UNION
-DISTINCT_UNION = qlast.DISTINCT_UNION
 
 EQUIVALENT = qlast.EQUIVALENT
 NEQUIVALENT = qlast.NEQUIVALENT

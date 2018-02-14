@@ -430,7 +430,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             FILTER
                 cmp_count = count(Item.tag_set1)
                 AND
-                cmp_count = count(Item.tag_set1 DISTINCT UNION cmp)
+                cmp_count = count(DISTINCT (Item.tag_set1 UNION cmp))
             ORDER BY .name;
 
             WITH
@@ -441,7 +441,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             FILTER
                 cmp_count = count(.tag_set2)
                 AND
-                cmp_count = count(.tag_set2 DISTINCT UNION cmp)
+                cmp_count = count(DISTINCT (.tag_set2 UNION cmp))
             ORDER BY .name;
         ''', [
             [
@@ -465,7 +465,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             FILTER
                 cmp_count = count(Item.tag_set1)
                 AND
-                cmp_count = count(Item.tag_set1 DISTINCT UNION cmp)
+                cmp_count = count(DISTINCT (Item.tag_set1 UNION cmp))
             ORDER BY .name;
 
             WITH
@@ -477,7 +477,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             FILTER
                 cmp_count = count(Item.tag_set2)
                 AND
-                cmp_count = count(Item.tag_set2 DISTINCT UNION cmp)
+                cmp_count = count(DISTINCT (Item.tag_set2 UNION cmp))
             ORDER BY .name;
         ''', [
             [
