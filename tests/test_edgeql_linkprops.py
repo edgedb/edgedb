@@ -702,15 +702,6 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                     SELECT User FILTER User.name = 'Carol').deck.name,
                 D := DETACHED (
                     SELECT User FILTER User.name = 'Dave').deck.name
-            SELECT _ := C DISTINCT UNION D
-            ORDER BY _;
-
-            WITH
-                MODULE test,
-                C := DETACHED (
-                    SELECT User FILTER User.name = 'Carol').deck.name,
-                D := DETACHED (
-                    SELECT User FILTER User.name = 'Dave').deck.name
             SELECT _ := DISTINCT (C UNION D)
             ORDER BY _;
         ''', [
@@ -728,16 +719,6 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                 'Golem',
                 'Golem',
                 'Sprite',
-                'Sprite'
-            ],
-            [
-                'Bog monster',
-                'Djinn',
-                'Dragon',
-                'Dwarf',
-                'Giant eagle',
-                'Giant turtle',
-                'Golem',
                 'Sprite'
             ],
             [
