@@ -103,6 +103,11 @@ class EdgeSchemaLexer(lexer.Lexer):
         next_state=STATE_KEEP,
         regexp=r'`.+?`')
 
+    comment_rule = Rule(
+        token='COMMENT',
+        next_state=STATE_KEEP,
+        regexp=r'\#[^\n]*$')
+
     # Basic keywords
     keyword_rules = [Rule(token=tok[0],
                           next_state=STATE_KEEP,
@@ -144,9 +149,7 @@ class EdgeSchemaLexer(lexer.Lexer):
              next_state=STATE_ATTRIBUTE_RAW_TYPE,
              regexp=r'\bATTRIBUTE\b'),
 
-        Rule(token='COMMENT',
-             next_state=STATE_KEEP,
-             regexp=r'\#[^\n]*$'),
+        comment_rule,
 
         Rule(token='WS',
              next_state=STATE_KEEP,
@@ -247,10 +250,11 @@ class EdgeSchemaLexer(lexer.Lexer):
 
             string_rule,
             qident_rule,
+            comment_rule,
 
             Rule(token='RAWSTRING',
                  next_state=STATE_KEEP,
-                 regexp=r'''[^:<`'"\n][^:<`'"$\n]*'''),
+                 regexp=r'''[^:<`'"\n#][^:<`'"$\n#]*'''),
         ],
         STATE_RAW_STRING: [
             Rule(token='NEWLINE',
