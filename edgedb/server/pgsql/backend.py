@@ -1463,8 +1463,8 @@ class Backend(s_deltarepo.DeltaProvider):
         return None
 
     def atom_from_pg_type(self, type_expr, atom_schema, schema):
-
-        typname, typmods = self.parse_pg_type(type_expr)
+        typname = (type_expr,)
+        typmods = None
         domain_name = typname[-1]
         atom_name = self.domain_to_atom_map.get((atom_schema, domain_name))
 
