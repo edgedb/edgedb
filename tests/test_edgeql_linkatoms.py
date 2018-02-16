@@ -21,7 +21,19 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'inventory_setup.eql')
 
+    @unittest.expectedFailure
     async def test_edgeql_links_basic_01(self):
+        await self.assert_query_result(r'''
+            # this test fails if the ...args are not in fact a map
+            WITH MODULE schema
+            SELECT (
+                SELECT Atom FILTER Atom.name = 'std::decimal_rounding_t'
+            ).constraints.args['no_such_arg'];
+        ''', [
+            [],
+        ])
+
+    async def test_edgeql_links_basic_02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Item {
