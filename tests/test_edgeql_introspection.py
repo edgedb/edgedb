@@ -7,6 +7,7 @@
 
 
 import os.path
+import unittest
 
 from edgedb.server import _testbase as tb
 
@@ -21,7 +22,7 @@ class TestIntrospection(tb.QueryTestCase):
     TEARDOWN = """
     """
 
-    async def test_edgeql_introspection_concept01(self):
+    async def test_edgeql_introspection_concept_01(self):
         await self.assert_query_result(r"""
             WITH MODULE schema
             SELECT `Concept` {
@@ -47,7 +48,7 @@ class TestIntrospection(tb.QueryTestCase):
             ]
         ])
 
-    async def test_edgeql_introspection_concept02(self):
+    async def test_edgeql_introspection_concept_02(self):
         await self.assert_query_result(r"""
             WITH MODULE schema
             SELECT `Concept` {
@@ -74,7 +75,7 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         ])
 
-    async def test_edgeql_introspection_concept03(self):
+    async def test_edgeql_introspection_concept_03(self):
         await self.assert_query_result(r"""
             WITH MODULE schema
             SELECT `Concept` {
@@ -99,7 +100,7 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         ])
 
-    async def test_edgeql_introspection_concept04(self):
+    async def test_edgeql_introspection_concept_04(self):
         await self.assert_query_result(r"""
             WITH MODULE schema
             SELECT `Concept` {
@@ -147,7 +148,7 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         ])
 
-    async def test_edgeql_introspection_concept05(self):
+    async def test_edgeql_introspection_concept_05(self):
         await self.assert_query_result(r"""
             WITH MODULE schema
             SELECT `Concept` {
@@ -193,7 +194,7 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         ])
 
-    async def test_edgeql_introspection_concept06(self):
+    async def test_edgeql_introspection_concept_06(self):
         await self.assert_query_result(r"""
             # get all links, mappings and target names for Comment
             WITH MODULE schema
@@ -261,7 +262,7 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         ])
 
-    async def test_edgeql_introspection_concept07(self):
+    async def test_edgeql_introspection_concept_07(self):
         await self.assert_query_result(r"""
             # get all user-defined concepts with at least one ** link
             WITH MODULE schema
@@ -283,7 +284,7 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         ])
 
-    async def test_edgeql_introspection_concept08(self):
+    async def test_edgeql_introspection_concept_08(self):
         await self.assert_query_result(r"""
             # get all user-defined concepts with at least one 1* link
             WITH MODULE schema
@@ -303,7 +304,7 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         ])
 
-    async def test_edgeql_introspection_concept09(self):
+    async def test_edgeql_introspection_concept_09(self):
         await self.assert_query_result(r"""
             # get all user-defined concepts with at least one 1* link
             WITH MODULE schema
@@ -324,7 +325,7 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         ])
 
-    async def test_edgeql_introspection_concept10(self):
+    async def test_edgeql_introspection_concept_10(self):
         await self.assert_query_result(r"""
             # get all user-defined concepts with at least one 1* link
             WITH MODULE schema
@@ -355,7 +356,7 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         ])
 
-    async def test_edgeql_introspection_link01(self):
+    async def test_edgeql_introspection_link_01(self):
         await self.assert_query_result(r"""
             WITH MODULE schema
             SELECT `Link` {
@@ -380,7 +381,7 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         ])
 
-    async def test_edgeql_introspection_constraint01(self):
+    async def test_edgeql_introspection_constraint_01(self):
         await self.assert_query_result(r"""
             SELECT schema::Constraint {
                 name,
@@ -413,7 +414,7 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         ])
 
-    async def test_edgeql_introspection_constraint02(self):
+    async def test_edgeql_introspection_constraint_02(self):
         await self.assert_query_result(r"""
             SELECT schema::Constraint {
                 name,
@@ -446,7 +447,7 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         ])
 
-    async def test_edgeql_introspection_meta01(self):
+    async def test_edgeql_introspection_meta_01(self):
         # make sure that ALL schema Classes are std::Objects
         res = await self.con.execute(r"""
             WITH MODULE schema
@@ -458,7 +459,7 @@ class TestIntrospection(tb.QueryTestCase):
 
         self.assert_data_shape(res[1], [True] * res[0][0])
 
-    async def test_edgeql_introspection_meta02(self):
+    async def test_edgeql_introspection_meta_02(self):
         await self.assert_query_result(r"""
             WITH MODULE schema
             SELECT Class {
@@ -508,7 +509,33 @@ class TestIntrospection(tb.QueryTestCase):
             ]
         ])
 
-    async def test_edgeql_introspection_count01(self):
+    async def test_edgeql_introspection_meta_03(self):
+        res = await self.con.execute(r'''
+            WITH MODULE schema
+            SELECT `Type`;
+        ''')
+        # just test that there's a non-empty return set for this query
+        self.assertTrue(res[0])
+
+    @unittest.expectedFailure
+    async def test_edgeql_introspection_meta_04(self):
+        await self.assert_query_result(r'''
+            WITH MODULE schema
+            SELECT Atom[IS Class] IS Atom LIMIT 1;
+        ''', [
+            [True],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_introspection_meta_05(self):
+        await self.assert_query_result(r'''
+            WITH MODULE schema
+            SELECT Atom[IS Object] IS Atom LIMIT 1;
+        ''', [
+            [True],
+        ])
+
+    async def test_edgeql_introspection_count_01(self):
         await self.con.execute(r"""
             WITH MODULE test
             INSERT Priority {
