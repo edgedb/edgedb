@@ -384,39 +384,39 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT .1;
             """)
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_paths_04(self):
         # `Issue.number` in FILTER is illegal because it shares a
         # prefix `Issue` with `Issue.owner` which is defined in an
         # outer scope.
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'inconsistent path'):
+                exc.EdgeQLError,
+                r"'Issue.number' changes the interpretation of 'Issue'"):
             await self.con.execute(r"""
                 WITH MODULE test
                 SELECT Issue.owner
                 FILTER Issue.number > '2';
             """)
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_paths_05(self):
         # `Issue.number` in FILTER is illegal because it shares a
         # prefix `Issue` with `Issue.id` which is defined in an outer
         # scope.
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'inconsistent path'):
+                exc.EdgeQLError,
+                r"'Issue.number' changes the interpretation of 'Issue'"):
             await self.con.execute(r"""
                 WITH MODULE test
                 SELECT Issue.id
                 FILTER Issue.number > '2';
             """)
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_paths_06(self):
         # `Issue.number` in the shape is illegal because it shares a
         # prefix `Issue` with `Issue.owner` which is defined in an
         # outer scope.
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'inconsistent path'):
+                exc.EdgeQLError,
+                r"'Issue.number' changes the interpretation of 'Issue'"):
             await self.con.execute(r"""
                 WITH MODULE test
                 SELECT Issue.owner {
@@ -430,7 +430,8 @@ class TestExpressions(tb.QueryTestCase):
         # prefix `Issue` with `Issue.owner` which is defined in an
         # outer scope.
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'inconsistent path'):
+                exc.EdgeQLError,
+                r"'Issue.number' changes the interpretation of 'Issue'"):
             await self.con.execute(r"""
                 WITH MODULE test
                 FOR x IN {'Elvis', 'Yury'}
@@ -441,19 +442,34 @@ class TestExpressions(tb.QueryTestCase):
                 FILTER Issue.number > '2';
             """)
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_paths_08(self):
         # `Issue.number` in FILTER is illegal because it shares a
         # prefix `Issue` with `Issue.owner` which is defined in an
         # outer scope.
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'inconsistent path'):
+                exc.EdgeQLError,
+                r"'Issue.number' changes the interpretation of 'Issue'"):
             await self.con.execute(r"""
                 WITH MODULE test
                 UPDATE Issue.owner
                 FILTER Issue.number > '2'
                 SET {
-                    name := 'Foo' + Issue.number
+                    name := 'Foo'
+                };
+            """)
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_paths_09(self):
+        # `Issue` in SET is illegal because it shares a prefix `Issue`
+        # with `Issue.related_to` which is defined in an outer scope.
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r"'Issue' changes the interpretation of 'Issue'"):
+            await self.con.execute(r"""
+                WITH MODULE test
+                UPDATE Issue.related_to
+                SET {
+                    related_to := Issue
                 };
             """)
 
@@ -973,7 +989,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_tuple_05(self):
         await self.assert_query_result(r"""
-            SELECT (1, 2) DISTINCT UNION (3, 4);
+            SELECT (1, 2) UNION (3, 4);
         """, [
             [[1, 2], [3, 4]],
         ])
@@ -1034,12 +1050,12 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_tuple_11(self):
         await self.assert_query_result('''\
             SELECT (1, 2) = (1, 2);
-            SELECT (1, 2) DISTINCT UNION (1, 2);
             SELECT (1, 2) UNION (1, 2);
+            SELECT DISTINCT ((1, 2) UNION (1, 2));
         ''', [
             [True],
-            [[1, 2]],
             [[1, 2], [1, 2]],
+            [[1, 2]],
         ])
 
     async def test_edgeql_expr_tuple_12(self):
@@ -1097,7 +1113,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_tuple_indirection_05(self):
         await self.assert_query_result(r"""
-            WITH _ := (SELECT (1,2) DISTINCT UNION (3,4)) SELECT _.0;
+            WITH _ := (SELECT (1,2) UNION (3,4)) SELECT _.0;
         """, [
             [1, 3],
         ])
@@ -1181,13 +1197,13 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_setop_02(self):
         await self.assert_query_result(r"""
-            SELECT 2 * ((SELECT 1) DISTINCT UNION (SELECT 2));
-            SELECT (SELECT 2) * (1 DISTINCT UNION 2);
-            SELECT 2 * (1 DISTINCT UNION 2 DISTINCT UNION 1);
+            SELECT 2 * ((SELECT 1) UNION (SELECT 2));
+            SELECT (SELECT 2) * (1 UNION 2);
+            SELECT 2 * DISTINCT (1 UNION 2 UNION 1);
             SELECT 2 * (1 UNION 2 UNION 1);
 
             WITH
-                a := (SELECT 1 DISTINCT UNION 2)
+                a := (SELECT 1 UNION 2)
             SELECT (SELECT 2) * a;
         """, [
             [2, 4],
@@ -1224,20 +1240,16 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_setop_06(self):
         await self.assert_query_result('''
-            SELECT (2 DISTINCT UNION 2 DISTINCT UNION 2);
+            SELECT DISTINCT (2 UNION 2 UNION 2);
         ''', [
             [2],
         ])
 
     async def test_edgeql_expr_setop_07(self):
         await self.assert_query_result('''
-            SELECT (2 UNION 2 DISTINCT UNION 2);
-            SELECT (2 DISTINCT UNION 2 UNION 2);
-            SELECT (2 UNION 1 DISTINCT UNION 2);
+            SELECT DISTINCT (2 UNION 2) UNION 2;
         ''', [
-            [2],
             [2, 2],
-            {1, 2},
         ])
 
     async def test_edgeql_expr_setop_08(self):
@@ -1365,11 +1377,11 @@ class TestExpressions(tb.QueryTestCase):
                 exc.EdgeQLError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
-                position=59):
+                position=50):
 
             await self.query('''\
                 WITH MODULE test
-                SELECT Issue DISTINCT UNION Text ORDER BY Issue.name;
+                SELECT Issue UNION Text ORDER BY Issue.name;
             ''')
 
     async def test_edgeql_expr_cardinality_07(self):
@@ -1570,6 +1582,36 @@ class TestExpressions(tb.QueryTestCase):
             [4, 5],
         ])
 
+    @unittest.expectedFailure
+    async def test_edgeql_expr_view_09(self):
+        await self.assert_sorted_query_result(r"""
+            # set some base cases
+            WITH a := {1, 2}
+            SELECT a + a;
+            # normally all atomic set literals are "DETACHED"
+            SELECT {1, 2} + {1, 2};
+
+            # DETACHED literals
+            WITH a := {1, 2}
+            SELECT a + DETACHED a;
+
+            WITH
+                a := {1, 2},
+                b := DETACHED a
+            SELECT a + b;
+
+            WITH
+                a := {1, 2},
+                b := DETACHED a
+            SELECT b + b;
+        """, lambda x: x, [
+            [2, 4],
+            [2, 3, 3, 4],
+            [2, 3, 3, 4],
+            [2, 3, 3, 4],
+            [2, 4],
+        ])
+
     async def test_edgeql_expr_for_01(self):
         await self.assert_query_result(r"""
             FOR x IN {1, 3, 5, 7}
@@ -1686,4 +1728,31 @@ class TestExpressions(tb.QueryTestCase):
             ORDER BY y;
         ''', [
             [[1, 3], [2, 1], [3, 2]]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_schema_01(self):
+        res = await self.con.execute(r'''
+            WITH MODULE schema
+            SELECT `Type`;
+        ''')
+        # just test that there's a non-empty return set for this query
+        self.assertTrue(res[0])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_schema_02(self):
+        await self.assert_query_result(r'''
+            WITH MODULE schema
+            SELECT Atom[IS Class] IS Atom LIMIT 1;
+        ''', [
+            [True],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_schema_03(self):
+        await self.assert_query_result(r'''
+            WITH MODULE schema
+            SELECT Atom[IS Object] IS Atom LIMIT 1;
+        ''', [
+            [True],
         ])

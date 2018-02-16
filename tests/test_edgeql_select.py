@@ -1174,17 +1174,17 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_setops_05(self):
         await self.assert_query_result(r"""
-            # using DISTINCT UNION with overlapping sets of Objects
+            # using DISTINCT on a UNION with overlapping sets of Objects
             WITH MODULE test
-            SELECT _ := ((
+            SELECT _ := DISTINCT ((
                 # Issue 1, 4
                 (SELECT User
                  FILTER User.name = 'Elvis').<owner[IS Issue]
-            ) DISTINCT UNION (
+            ) UNION (
                 # Issue 1
                 (SELECT User
                  FILTER User.name = 'Yury').<watchers[IS Issue]
-            ) DISTINCT UNION (
+            ) UNION (
                 # Issue 1, 4
                 SELECT Issue
                 FILTER NOT EXISTS Issue.priority
@@ -1196,21 +1196,21 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_setops_06(self):
         await self.assert_query_result(r"""
-            # using DISTINCT UNION with overlapping sets of Objects
+            # using DISTINCT on a UNION with overlapping sets of Objects
             WITH MODULE test
-            SELECT _ := count((
+            SELECT _ := count(DISTINCT ((
                 # Issue 1, 4
                 (SELECT User
                  FILTER User.name = 'Elvis').<owner[IS Issue]
-            ) DISTINCT UNION (
+            ) UNION (
                 # Issue 1
                 (SELECT User
                  FILTER User.name = 'Yury').<watchers[IS Issue]
-            ) DISTINCT UNION (
+            ) UNION (
                 # Issue 1, 4
                 SELECT Issue
                 FILTER NOT EXISTS Issue.priority
-            ));
+            )));
         """, [
             [2],
         ])
@@ -1359,12 +1359,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 MODULE test,
                 L := LogEntry  # there happens to only be 1 entry
             SELECT
-                (Issue.time_spent_log DISTINCT UNION L) {
+                (DISTINCT (Issue.time_spent_log UNION L)) {
                     body
                 };
         """, [
             [
-                # no duplicates are allowed in a DISTINCT UNION
+                # no duplicates are allowed due to DISTINCT
                 {'body': 'Rewriting everything.'},
             ],
         ])
@@ -3011,6 +3011,24 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 );
             """, [
             [{'body': 'EdgeDB needs to happen soon.'}],
+        ])
+
+    async def test_edgeql_select_subqueries_18(self):
+        await self.assert_query_result(r"""
+            # here, DETACHED doesn't do anything special, because the
+            # symbol U2 is reused on both sides of '+'
+            WITH
+                MODULE test,
+                U2 := DETACHED User
+            SELECT U2.name + U2.name;
+
+            # DETACHED is reused on both sides of '+' directly
+            WITH MODULE test
+            SELECT (DETACHED User).name + (DETACHED User).name;
+
+            """, [
+            {'ElvisElvis', 'YuryYury'},
+            {'ElvisElvis', 'ElvisYury', 'YuryElvis', 'YuryYury'},
         ])
 
     async def test_edgeql_select_view_indirection_01(self):

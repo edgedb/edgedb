@@ -1873,15 +1873,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT DISTINCT {1, 2, 2, 3};
         """
 
-    def test_edgeql_syntax_set_07(self):
-        """
-        SELECT (1 DISTINCT UNION 2 DISTINCT UNION 2);
-
-% OK %
-
-        SELECT ((1 DISTINCT UNION 2) DISTINCT UNION 2);
-        """
-
     def test_edgeql_syntax_insert_01(self):
         """
         INSERT Foo;

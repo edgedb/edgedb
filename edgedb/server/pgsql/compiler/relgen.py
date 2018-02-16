@@ -761,8 +761,8 @@ def process_set_as_setop(
 
     with ctx.subrel() as subctx:
         subqry = subctx.rel
-        # There are only two binary set operators possible coming from IR:
-        # UNION and DISTINCT_UNION
+        # There is only one binary set operators possible coming from IR:
+        # UNION
         subqry.op = pgast.UNION
         subqry.all = True
         subqry.larg = larg

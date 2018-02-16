@@ -21,7 +21,19 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'inventory_setup.eql')
 
+    @unittest.expectedFailure
     async def test_edgeql_links_basic_01(self):
+        await self.assert_query_result(r'''
+            # this test fails if the ...args are not in fact a map
+            WITH MODULE schema
+            SELECT (
+                SELECT Atom FILTER Atom.name = 'std::decimal_rounding_t'
+            ).constraints.args['no_such_arg'];
+        ''', [
+            [],
+        ])
+
+    async def test_edgeql_links_basic_02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Item {
@@ -430,7 +442,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             FILTER
                 cmp_count = count(Item.tag_set1)
                 AND
-                cmp_count = count(Item.tag_set1 DISTINCT UNION cmp)
+                cmp_count = count(DISTINCT (Item.tag_set1 UNION cmp))
             ORDER BY .name;
 
             WITH
@@ -441,7 +453,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             FILTER
                 cmp_count = count(.tag_set2)
                 AND
-                cmp_count = count(.tag_set2 DISTINCT UNION cmp)
+                cmp_count = count(DISTINCT (.tag_set2 UNION cmp))
             ORDER BY .name;
         ''', [
             [
@@ -465,7 +477,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             FILTER
                 cmp_count = count(Item.tag_set1)
                 AND
-                cmp_count = count(Item.tag_set1 DISTINCT UNION cmp)
+                cmp_count = count(DISTINCT (Item.tag_set1 UNION cmp))
             ORDER BY .name;
 
             WITH
@@ -477,7 +489,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             FILTER
                 cmp_count = count(Item.tag_set2)
                 AND
-                cmp_count = count(Item.tag_set2 DISTINCT UNION cmp)
+                cmp_count = count(DISTINCT (Item.tag_set2 UNION cmp))
             ORDER BY .name;
         ''', [
             [
@@ -959,4 +971,26 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
                 {'name': 'teapot'},
                 {'name': 'tv'},
             ],
+        ])
+
+    async def test_edgeql_links_map_05(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE test,
+                I := (SELECT Item ORDER BY Item.name)
+            SELECT (comp := array_agg(I.components),
+                    count := count(I.components));
+        ''', [
+            [
+                {
+                    'comp': [
+                        {'legs': 4, 'board': 2},
+                        {'legs': 1, 'bulbs': 3},
+                        {'bulbs': 4, 'screen': 1, 'buttons': 42},
+                        {'legs': 4, 'board': 1},
+                        {'screen': 1}
+                    ],
+                    'count': 5
+                }
+            ]
         ])

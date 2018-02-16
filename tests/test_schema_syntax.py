@@ -279,6 +279,18 @@ concept LogEntry extending    OwnedObject,    Text:
                title := 'Start Date'
         """
 
+    def test_eschema_syntax_ws_07(self):
+        """
+        atom newAtom extending str#:
+        """
+
+    def test_eschema_syntax_ws_08(self):
+        """
+        atom newAtom0 extending str#:
+
+        atom newAtom1 extending str#:
+        """
+
     def test_eschema_syntax_atom_01(self):
         """
 atom issue_num_t extending builtins::sequence

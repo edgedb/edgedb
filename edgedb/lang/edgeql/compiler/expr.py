@@ -582,15 +582,7 @@ def _compile_set_op(
 def compile_set_op(
         expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.Set:
     # UNION
-    if expr.op == qlast.DISTINCT_UNION:
-        with ctx.newscope(fenced=True) as fencectx:
-            union = setgen.scoped_set(
-                _compile_set_op(expr, ctx=fencectx),
-                ctx=fencectx)
-
-        return setgen.generated_set(irast.DistinctOp(expr=union), ctx=ctx)
-    else:
-        return _compile_set_op(expr, ctx=ctx)
+    return _compile_set_op(expr, ctx=ctx)
 
 
 def compile_distinct_op(

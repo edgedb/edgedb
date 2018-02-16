@@ -25,7 +25,7 @@ class TestTransactions(tb.QueryTestCase):
         };
     """
 
-    async def test_transaction_regular(self):
+    async def test_transaction_regular_01(self):
         self.assertIsNone(self.con._top_xact)
         tr = self.con.transaction()
         self.assertIsNone(self.con._top_xact)
@@ -58,7 +58,7 @@ class TestTransactions(tb.QueryTestCase):
 
         self.assertEqual(result[0], [])
 
-    async def test_transaction_nested(self):
+    async def test_transaction_nested_01(self):
         self.assertIsNone(self.con._top_xact)
         tr = self.con.transaction()
         self.assertIsNone(self.con._top_xact)
@@ -122,6 +122,53 @@ class TestTransactions(tb.QueryTestCase):
 
         recs = result[0]
         self.assertEqual(len(recs), 0)
+
+    async def test_transaction_nested_02(self):
+        await self.assert_query_result(r"""
+            # test some explicit nested transactions without errors
+            SELECT test::TransactionTest{name};
+
+            START TRANSACTION;
+                INSERT test::TransactionTest{name:='q1'};
+                INSERT test::TransactionTest{name:='q2'};
+                SELECT test::TransactionTest.name;
+
+                START TRANSACTION;
+                    INSERT test::TransactionTest{name:='w1'};
+                    SELECT test::TransactionTest.name;
+                ROLLBACK;
+                SELECT test::TransactionTest.name;
+
+                START TRANSACTION;
+                    INSERT test::TransactionTest{name:='e1'};
+                    SELECT test::TransactionTest.name;
+                COMMIT;
+                SELECT test::TransactionTest.name;
+
+            ROLLBACK;
+            SELECT test::TransactionTest.name;
+        """, [
+            [],
+            None,  # transaction start
+            [1],  # insert
+            [1],  # insert
+            {'q1', 'q2'},
+
+            None,  # transaction start
+            [1],  # insert
+            {'q1', 'q2', 'w1'},
+            None,  # transaction rollback
+            {'q1', 'q2'},
+
+            None,  # transaction start
+            [1],  # insert
+            {'q1', 'q2', 'e1'},
+            None,  # transaction commit
+            {'q1', 'q2', 'e1'},
+
+            None,  # transaction rollback
+            [],
+        ])
 
     async def test_transaction_interface_errors(self):
         self.assertIsNone(self.con._top_xact)

@@ -76,7 +76,7 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
 
     @classmethod
     def _extract_union_operands(cls, expr, operands):
-        if expr.op in {qlast.UNION, qlast.DISTINCT_UNION}:
+        if expr.op == qlast.UNION:
             cls._extract_union_operands(expr.op_larg, operands)
             cls._extract_union_operands(expr.op_rarg, operands)
         else:
@@ -90,7 +90,7 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
                 if isinstance(sub.new_value, sexpr.ExpressionText):
                     expr = edgeql.parse(sub.new_value)
 
-                    if expr.op in {qlast.UNION, qlast.DISTINCT_UNION}:
+                    if expr.op == qlast.UNION:
                         candidates = []
                         cls._extract_union_operands(expr, candidates)
                         deflt = []

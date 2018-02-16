@@ -77,11 +77,10 @@ class TestUpdate(tb.QueryTestCase):
         self.original = res[-1]
 
     async def test_edgeql_update_simple_01(self):
-        orig1 = self.original[0]
-
         res = await self.con.execute(r"""
             WITH MODULE test
             UPDATE UpdateTest
+            # bad name doesn't exist, so no update is expected
             FILTER UpdateTest.name = 'bad name'
             SET {
                 status := (SELECT Status FILTER Status.name = 'Closed')
@@ -94,12 +93,12 @@ class TestUpdate(tb.QueryTestCase):
                 status: {
                     name
                 }
-            } FILTER UpdateTest.name = 'update-test1';
+            };
         """)
 
         self.assert_data_shape(res, [
             [0],
-            [orig1],
+            self.original,
         ])
 
     async def test_edgeql_update_simple_02(self):
@@ -290,52 +289,6 @@ class TestUpdate(tb.QueryTestCase):
         await self.assert_query_result(r"""
             WITH
                 MODULE test,
-                CARDINALITY '1'
-            SELECT (
-                UPDATE UpdateTest
-                FILTER UpdateTest.name = 'update-test2'
-                SET {
-                    comment := 'updated ' + UpdateTest.comment
-                }
-            ) {
-                name,
-                comment,
-            };
-        """, [
-            [{
-                'id': orig2['id'],
-                'name': 'update-test2',
-                'comment': 'updated second',
-            }]
-        ])
-
-    @unittest.expectedFailure
-    async def test_edgeql_update_returning_04(self):
-        # XXX: We're expecting an exception since the returning set is
-        # not a singleton set. The specific exception needs to be
-        # updated once it is implemented.
-        with self.assertRaises(ValueError):
-            await self.con.execute(r"""
-                WITH
-                    MODULE test,
-                    CARDINALITY '1'
-                SELECT (
-                    UPDATE UpdateTest
-                    SET {
-                        comment := 'updated ' + UpdateTest.comment
-                    }
-                ) {
-                    name,
-                    comment,
-                };
-            """)
-
-    async def test_edgeql_update_returning_06(self):
-        orig1, orig2, orig3 = self.original
-
-        await self.assert_query_result(r"""
-            WITH
-                MODULE test,
                 U := (
                     UPDATE UpdateTest
                     FILTER UpdateTest.name = 'update-test2'
@@ -350,7 +303,7 @@ class TestUpdate(tb.QueryTestCase):
             [{'name': 'Open'}],
         ])
 
-    async def test_edgeql_update_returning_07(self):
+    async def test_edgeql_update_returning_04(self):
         orig1, orig2, orig3 = self.original
 
         await self.assert_query_result(r"""
@@ -434,6 +387,48 @@ class TestUpdate(tb.QueryTestCase):
                     'name': 'Open',
                 },
             },
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_update_filter_01(self):
+        res = await self.con.execute(r"""
+            WITH MODULE test
+            UPDATE (SELECT UpdateTest)
+            # this FILTER is irrelevant because UpdateTest is wrapped
+            # into a SET OF by SELECT
+            FILTER UpdateTest.name = 'bad name'
+            SET {
+                comment := 'bad test'
+            };
+
+            WITH MODULE test
+            SELECT UpdateTest.comment;
+        """)
+
+        self.assert_data_shape(res, [
+            [3],
+            ['bad test'] * 3,
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_update_filter_02(self):
+        res = await self.con.execute(r"""
+            WITH MODULE test
+            UPDATE ({} ?? UpdateTest)
+            # this FILTER is irrelevant because UpdateTest is wrapped
+            # into a SET OF by ??
+            FILTER UpdateTest.name = 'bad name'
+            SET {
+                comment := 'bad test'
+            };
+
+            WITH MODULE test
+            SELECT UpdateTest.comment;
+        """)
+
+        self.assert_data_shape(res, [
+            [3],
+            ['bad test'] * 3,
         ])
 
     async def test_edgeql_update_multiple_01(self):
@@ -626,6 +621,262 @@ class TestUpdate(tb.QueryTestCase):
                     '@note': 'note3',
                 }],
             },
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_update_multiple_07(self):
+        res = await self.con.execute(r"""
+            # make tests related to the other 2
+            WITH
+                MODULE test,
+                UT := DETACHED UpdateTest
+            UPDATE UpdateTest
+            SET {
+                related := (SELECT UT FILTER UT != UpdateTest)
+            };
+
+            WITH MODULE test
+            SELECT UpdateTest{
+                name,
+                related: {name} ORDER BY .name
+            } ORDER BY .name;
+
+            # now update related tests based on existing related tests
+            WITH
+                MODULE test,
+                UT := DETACHED UpdateTest
+            UPDATE UpdateTest
+            SET {
+                # since there are 2 tests in each FILTER, != is
+                # guaranteed to be TRUE for at least one of them
+                related := (SELECT UT FILTER UT != UpdateTest.related)
+            };
+
+            WITH MODULE test
+            SELECT UpdateTest{
+                name,
+                related: {name} ORDER BY .name
+            } ORDER BY .name;
+        """)
+
+        self.assert_data_shape(res, [
+            [3],
+            [
+                {
+                    'name': 'update-test1',
+                    'related': [
+                        {'name': 'update-test2'},
+                        {'name': 'update-test3'},
+                    ],
+                },
+                {
+                    'name': 'update-test2',
+                    'related': [
+                        {'name': 'update-test1'},
+                        {'name': 'update-test3'},
+                    ],
+                },
+                {
+                    'name': 'update-test3',
+                    'related': [
+                        {'name': 'update-test1'},
+                        {'name': 'update-test2'},
+                    ],
+                },
+            ],
+            [3],
+            [
+                {
+                    'name': 'update-test1',
+                    'related': [
+                        {'name': 'update-test1'},
+                        {'name': 'update-test2'},
+                        {'name': 'update-test3'},
+                    ],
+                },
+                {
+                    'name': 'update-test2',
+                    'related': [
+                        {'name': 'update-test1'},
+                        {'name': 'update-test2'},
+                        {'name': 'update-test3'},
+                    ],
+                },
+                {
+                    'name': 'update-test3',
+                    'related': [
+                        {'name': 'update-test1'},
+                        {'name': 'update-test2'},
+                        {'name': 'update-test3'},
+                    ],
+                },
+            ],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_update_multiple_08(self):
+        res = await self.con.execute(r"""
+            # make tests related to the other 2
+            WITH
+                MODULE test,
+                UT := DETACHED UpdateTest
+            UPDATE UpdateTest
+            SET {
+                related := (SELECT UT FILTER UT != UpdateTest)
+            };
+
+            WITH MODULE test
+            SELECT UpdateTest{
+                name,
+                related: {name} ORDER BY .name
+            } ORDER BY .name;
+
+            # now update related tests based on existing related tests
+            WITH
+                MODULE test,
+                UT := DETACHED UpdateTest
+            UPDATE UpdateTest
+            SET {
+                # this should make the related test be the same as parent
+                related := (SELECT UT FILTER UT NOT IN UpdateTest.related)
+            };
+
+            WITH MODULE test
+            SELECT UpdateTest{
+                name,
+                related: {name} ORDER BY .name
+            } ORDER BY .name;
+        """)
+
+        self.assert_data_shape(res, [
+            [3],
+            [
+                {
+                    'name': 'update-test1',
+                    'related': [
+                        {'name': 'update-test2'},
+                        {'name': 'update-test3'},
+                    ],
+                },
+                {
+                    'name': 'update-test2',
+                    'related': [
+                        {'name': 'update-test1'},
+                        {'name': 'update-test3'},
+                    ],
+                },
+                {
+                    'name': 'update-test3',
+                    'related': [
+                        {'name': 'update-test1'},
+                        {'name': 'update-test2'},
+                    ],
+                },
+            ],
+            [3],
+            [
+                {
+                    'name': 'update-test1',
+                    'related': [
+                        {'name': 'update-test1'},
+                    ],
+                },
+                {
+                    'name': 'update-test2',
+                    'related': [
+                        {'name': 'update-test2'},
+                    ],
+                },
+                {
+                    'name': 'update-test3',
+                    'related': [
+                        {'name': 'update-test3'},
+                    ],
+                },
+            ],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_update_multiple_09(self):
+        res = await self.con.execute(r"""
+            # make each test related to 'update-test1'
+            WITH
+                MODULE test,
+                UT := DETACHED (
+                    SELECT UpdateTest FILTER UpdateTest.name = 'update-test1'
+                )
+            UPDATE UpdateTest
+            SET {
+                related := UT
+            };
+
+            WITH MODULE test
+            SELECT UpdateTest{
+                name,
+                related: {name} ORDER BY .name
+            } ORDER BY .name;
+
+            # now update related tests
+            WITH MODULE test
+            # there's only one item in the UPDATE set
+            UPDATE UpdateTest.related
+            SET {
+                # every test is .<related to 'update-test1'
+                related := UpdateTest.related.<related
+            };
+
+            WITH MODULE test
+            SELECT UpdateTest{
+                name,
+                related: {name} ORDER BY .name
+            } ORDER BY .name;
+        """)
+
+        self.assert_data_shape(res, [
+            [3],
+            [
+                {
+                    'name': 'update-test1',
+                    'related': [
+                        {'name': 'update-test1'},
+                    ],
+                },
+                {
+                    'name': 'update-test2',
+                    'related': [
+                        {'name': 'update-test1'},
+                    ],
+                },
+                {
+                    'name': 'update-test3',
+                    'related': [
+                        {'name': 'update-test1'},
+                    ],
+                },
+            ],
+            [1],
+            [
+                {
+                    'name': 'update-test1',
+                    'related': [
+                        {'name': 'update-test1'},
+                        {'name': 'update-test2'},
+                        {'name': 'update-test3'},
+                    ],
+                },
+                {
+                    'name': 'update-test2',
+                    'related': [
+                        {'name': 'update-test1'},
+                    ],
+                },
+                {
+                    'name': 'update-test3',
+                    'related': [
+                        {'name': 'update-test1'},
+                    ],
+                },
+            ],
         ])
 
     async def test_edgeql_update_props_01(self):

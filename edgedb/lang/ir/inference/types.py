@@ -171,7 +171,7 @@ def __infer_setop(ir, schema):
 
     # for purposes of type inference UNION and UNION ALL work almost
     # the same way
-    if ir.op in {qlast.UNION, qlast.DISTINCT_UNION}:
+    if ir.op == qlast.UNION:
         if left_type.issubclass(right_type):
             result = left_type
         elif right_type.issubclass(left_type):
