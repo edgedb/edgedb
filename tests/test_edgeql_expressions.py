@@ -1729,3 +1729,12 @@ class TestExpressions(tb.QueryTestCase):
         ''', [
             [[1, 3], [2, 1], [3, 2]]
         ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_module_01(self):
+        res = await self.con.execute(r'''
+            WITH MODULE schema
+            SELECT `Type`;
+        ''')
+        # just test that there's a non-empty return set for this query
+        self.assertTrue(res[0])
