@@ -475,10 +475,12 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                 "(__expr__::expr~4).>(test::name)[IS std::str]": {
                     "(__expr__::expr~4)": {
                         "FENCE": {
-                            "(test::User).>(test::friends)[IS test::User]",
                             "FENCE": {
-                                "(test::User).>(test::friends)[IS test::User]\
-@(test::nickname)[IS std::str]"
+                                "(test::User).>(test::friends)[IS test::User]",
+                                "FENCE": {
+                                    "(test::User)\
+.>(test::friends)[IS test::User]@(test::nickname)[IS std::str]"
+                                }
                             }
                         }
                     }

@@ -34,7 +34,7 @@ from . import stmtctx
 def compile_SelectQuery(
         expr: qlast.SelectQuery, *, ctx: context.ContextLevel) -> irast.Base:
     if astutils.is_degenerate_select(expr) and ctx.toplevel_stmt is not None:
-        # Compile "SELECT Path" as "Path"
+        # Compile implicit "SELECT Path" as "Path"
         with ctx.new() as sctx:
             process_with_block(expr, ctx=sctx, parent_ctx=ctx)
             sctx.aliased_views = ctx.aliased_views.new_child()
@@ -55,12 +55,17 @@ def compile_SelectQuery(
         init_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
 
         if stmt is not ctx.toplevel_stmt:
-            # SELECT statement inputs are fenceless SET OF.
             # Top-level statements have a scope branch created in init_stmt.
             if ctx.pending_path_scope is not None:
                 sctx.path_scope = ctx.pending_path_scope
             else:
                 sctx.path_scope = ctx.path_scope.add_fence()
+
+        if expr.offset is not None or expr.limit is not None:
+            # LIMIT and OFFSET are infix operators with both
+            # operands being SET OF, so we need to compile
+            # the body of the statement behind a fence.
+            sctx.path_scope = sctx.path_scope.add_fence()
 
         stmt.result = compile_result_clause(
             expr.result,
@@ -76,11 +81,15 @@ def compile_SelectQuery(
         stmt.orderby = clauses.compile_orderby_clause(
             expr.orderby, ctx=sctx)
 
-        stmt.offset = clauses.compile_limit_offset_clause(
-            expr.offset, ctx=sctx)
+        if expr.offset is not None or expr.limit is not None:
+            with sctx.new() as olctx:
+                olctx.path_scope = sctx.path_scope.parent
 
-        stmt.limit = clauses.compile_limit_offset_clause(
-            expr.limit, ctx=sctx)
+                stmt.offset = clauses.compile_limit_offset_clause(
+                    expr.offset, ctx=olctx)
+
+                stmt.limit = clauses.compile_limit_offset_clause(
+                    expr.limit, ctx=olctx)
 
         result = fini_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
 
@@ -96,6 +105,19 @@ def compile_ForQuery(
     with ctx.subquery() as sctx:
         stmt = irast.SelectStmt()
         init_stmt(stmt, qlstmt, ctx=sctx, parent_ctx=ctx)
+
+        if stmt is not ctx.toplevel_stmt:
+            # Top-level statements have a scope branch created in init_stmt.
+            if ctx.pending_path_scope is not None:
+                sctx.path_scope = ctx.pending_path_scope
+            else:
+                sctx.path_scope = ctx.path_scope.add_fence()
+
+        if qlstmt.offset is not None or qlstmt.limit is not None:
+            # LIMIT and OFFSET are infix operators with both
+            # operands being SET OF, so we need to compile
+            # the body of the statement behind a fence.
+            sctx.path_scope = sctx.path_scope.add_fence()
 
         with sctx.newscope(fenced=True) as scopectx:
             iterator = qlstmt.iterator
@@ -124,11 +146,14 @@ def compile_ForQuery(
         stmt.orderby = clauses.compile_orderby_clause(
             qlstmt.orderby, ctx=sctx)
 
-        stmt.offset = clauses.compile_limit_offset_clause(
-            qlstmt.offset, ctx=sctx)
+        if qlstmt.offset is not None or qlstmt.limit is not None:
+            sctx.path_scope = sctx.path_scope.parent
 
-        stmt.limit = clauses.compile_limit_offset_clause(
-            qlstmt.limit, ctx=sctx)
+            stmt.offset = clauses.compile_limit_offset_clause(
+                qlstmt.offset, ctx=sctx)
+
+            stmt.limit = clauses.compile_limit_offset_clause(
+                qlstmt.limit, ctx=sctx)
 
         result = fini_stmt(stmt, qlstmt, ctx=sctx, parent_ctx=ctx)
 
