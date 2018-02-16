@@ -1729,29 +1729,3 @@ class TestExpressions(tb.QueryTestCase):
         ''', [
             [[1, 3], [2, 1], [3, 2]]
         ])
-
-    async def test_edgeql_expr_schema_01(self):
-        res = await self.con.execute(r'''
-            WITH MODULE schema
-            SELECT `Type`;
-        ''')
-        # just test that there's a non-empty return set for this query
-        self.assertTrue(res[0])
-
-    @unittest.expectedFailure
-    async def test_edgeql_expr_schema_02(self):
-        await self.assert_query_result(r'''
-            WITH MODULE schema
-            SELECT Atom[IS Class] IS Atom LIMIT 1;
-        ''', [
-            [True],
-        ])
-
-    @unittest.expectedFailure
-    async def test_edgeql_expr_schema_03(self):
-        await self.assert_query_result(r'''
-            WITH MODULE schema
-            SELECT Atom[IS Object] IS Atom LIMIT 1;
-        ''', [
-            [True],
-        ])
