@@ -706,7 +706,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_scope_offset_02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -796,7 +795,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_scope_limit_02(self):
         await self.assert_query_result(r'''
             WITH MODULE test

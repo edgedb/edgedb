@@ -78,7 +78,7 @@ def is_ql_path(qlexpr):
 
 
 def is_degenerate_select(qlstmt):
-    if not isinstance(qlstmt, qlast.SelectQuery):
+    if not isinstance(qlstmt, qlast.SelectQuery) or not qlstmt.implicit:
         return False
 
     qlexpr = qlstmt.result

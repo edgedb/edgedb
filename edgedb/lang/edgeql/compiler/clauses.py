@@ -71,11 +71,7 @@ def compile_limit_offset_clause(
         ctx: context.ContextLevel) -> typing.Optional[irast.Set]:
     if expr is not None:
         with ctx.newscope(fenced=True) as subctx:
-            subctx.path_scope.unnest_fence = True
             subctx.clause = 'offsetlimit'
-            if subctx.stmt.parent_stmt is None:
-                subctx.toplevel_clause = subctx.clause
-
             ir_expr = dispatch.compile(expr, ctx=subctx)
             int_t = ctx.schema.get('std::int')
             ir_set = setgen.scoped_set(ir_expr, typehint=int_t, ctx=subctx)
