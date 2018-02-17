@@ -776,16 +776,6 @@ class TestGraphQLParser(GraphQLSyntaxTest):
 
     def test_graphql_syntax_var02(self):
         r"""
-        query ($names: [String]!) {
-            User(name__in: $names) {
-                id
-                name
-            }
-        }
-        """
-
-    def test_graphql_syntax_var03(self):
-        r"""
         query A($atOtherHomes: Boolean) {
           ...HouseTrainedFragment
         }

@@ -15,11 +15,6 @@ from edgedb.lang.schema import basetypes as s_types, error as s_error
 from .errors import GraphQLValidationError
 
 
-GQL_OPS_MAP = {
-    '__eq': ast.ops.EQ, '__ne': ast.ops.NE,
-    '__in': ast.ops.IN, '__ni': ast.ops.NOT_IN,
-}
-
 PY_COERCION_MAP = {
     str: (s_types.string.Str, s_types.uuid.UUID),
     int: (s_types.int.Int, s_types.numeric.Float, s_types.numeric.Decimal,
@@ -122,74 +117,10 @@ class GraphQLTranslator(ast.NodeVisitor):
         return query
 
     def _visit_mutation(self, node):
-        query = None
-        # populate input variables with defaults, where applicable
-        if node.variables:
-            self.visit(node.variables)
-
-        module = self._get_module(node.directives)
-
-        # special treatment of the selection_set, different from inner
-        # recursion
-        for selection in node.selection_set.selections:
-            self._context.path = [[[module, None]]]
-
-            # in addition to figuring out the returned structure, this
-            # will determine the type of mutation
-            result = self._visit_query_selset(selection)
-            subject = self._visit_operation_subject()
-
-            if self._context.optype == 'delete':
-                result.expr = qlast.DeleteQuery(
-                    subject=qlast.SelectQuery(
-                        result=subject,
-                        where=self._visit_where(selection.arguments)
-                    ),
-                )
-            elif self._context.optype == 'insert':
-                if len(selection.arguments) > 1:
-                    raise GraphQLValidationError(
-                        f"too many arguments for {selection.name!r}",
-                        context=selection.context)
-
-                result.expr = qlast.InsertQuery(
-                    subject=subject,
-                    shape=self._visit_data(selection.arguments),
-                )
-            elif self._context.optype == 'update':
-                result.expr = qlast.UpdateQuery(
-                    subject=subject,
-                    shape=self._visit_data(selection.arguments),
-                    where=self._visit_where(selection.arguments),
-                )
-
-            if query is None:
-                query = qlast.SelectQuery(result=result)
-
-            else:
-                raise GraphQLValidationError(
-                    f"unexpected field {selection.name!r}",
-                    context=selection.context)
-
-        return query
-
-    def get_concept_name(self, raw_name, context):
-        if self._context.optype is None:
-            # operation type has not been determined, which means
-            # it's one of the following mutations: 'insert', 'delete', 'update'
-            parts = raw_name.split('__', 1)
-            if len(parts) == 2 and parts[0] in {'insert', 'delete', 'update'}:
-                self._context.optype, name = parts
-                return name
-            else:
-                raise GraphQLValidationError(
-                    f"unexpected field {raw_name!r}", context=context)
-
-        else:
-            return raw_name
+        raise NotImplementedError
 
     def _visit_query_selset(self, selection):
-        concept = self.get_concept_name(selection.name, selection.context)
+        concept = selection.name
         base = self._context.path[0][0] = (self._context.path[0][0][0],
                                            concept)
         self._context.fields.append({})
@@ -211,98 +142,6 @@ class GraphQLTranslator(ast.NodeVisitor):
         self._context.fields.pop()
 
         return expr
-
-    def _visit_operation_subject(self):
-        base = self._context.path[0][0]
-        return qlast.Path(
-            steps=[qlast.ClassRef(module=base[0], name=base[1])],
-        )
-
-    def _visit_data(self, arguments):
-        if not arguments:
-            return None
-
-        for arg in arguments:
-            if arg.name == '__data':
-                return self._visit_mutation_data(arg.value)
-
-    def _cast_value(self, value, typename):
-        return qlast.TypeCast(
-            expr=value,
-            type=qlast.TypeName(
-                maintype=qlast.ClassRef(module='std', name=typename)
-            )
-        )
-
-    def _visit_mutation_data(self, node):
-        result = []
-
-        for field in node.value:
-            shape = value = None
-
-            if field.name.endswith('__id'):
-                # existing data referenced by ID
-                ids = self.visit(field.value)
-
-                if isinstance(ids, qlast.Array):
-                    op = ast.ops.IN
-                    ids = qlast.Array(
-                        elements=[self._cast_value(el, 'uuid')
-                                  for el in ids.elements]
-                    )
-                else:
-                    op = ast.ops.EQ
-                    ids = self._cast_value(ids, 'uuid')
-
-                name = field.name[:-4]
-                value = qlast.SelectQuery(
-                    result=qlast.Path(
-                        steps=[
-                            qlast.ClassRef(
-                                module='std', name='Object')]
-                    ),
-                    where=qlast.BinOp(
-                        left=qlast.Path(
-                            steps=[
-                                qlast.ClassRef(
-                                    module='std',
-                                    name='Object'
-                                ),
-                                qlast.Ptr(
-                                    ptr=qlast.ClassRef(
-                                        name='id'
-                                    )
-                                )
-                            ]
-                        ),
-                        op=op,
-                        right=ids,
-                    )
-                )
-
-            else:
-                name = field.name
-
-                if isinstance(field.value, gqlast.ObjectLiteral):
-                    shape = self._visit_mutation_data(field.value)
-                else:
-                    value = self.visit(field.value)
-
-            result.append(qlast.ShapeElement(
-                expr=qlast.Path(
-                    steps=[
-                        qlast.Ptr(
-                            ptr=qlast.ClassRef(
-                                name=name
-                            )
-                        )
-                    ]
-                ),
-                compexpr=value,
-                elements=shape or [],
-            ))
-
-        return result
 
     def _visit_where(self, arguments):
         if not arguments:
@@ -534,26 +373,17 @@ class GraphQLTranslator(ast.NodeVisitor):
     def _visit_arguments(self, args, *, get_path_prefix):
         result = []
         for arg in args:
-            # ignore the special '__data' argument
-            if arg.name != '__data':
-                result.append(self.visit_Argument(
-                    arg, get_path_prefix=get_path_prefix))
+            result.append(self.visit_Argument(
+                arg, get_path_prefix=get_path_prefix))
 
         return result
 
     def visit_Argument(self, node, *, get_path_prefix):
-        if node.name[-4:] in GQL_OPS_MAP:
-            op = GQL_OPS_MAP[node.name[-4:]]
-            name_parts = node.name[:-4]
-        else:
-            op = ast.ops.EQ
-            name_parts = node.name
+        op = ast.ops.EQ
+        name_parts = node.name
 
         name = get_path_prefix()
-        name.extend(
-            qlast.Ptr(ptr=qlast.ClassRef(name=part))
-            for part in name_parts.split('__')
-        )
+        name.append(qlast.Ptr(ptr=qlast.ClassRef(name=name_parts)))
         name = qlast.Path(steps=name)
 
         value = self.visit(node.value)
