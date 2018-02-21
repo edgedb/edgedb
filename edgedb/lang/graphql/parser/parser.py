@@ -6,7 +6,7 @@
 ##
 
 
-from edgedb.lang.common import parsing
+from edgedb.lang.common import debug, parsing
 from edgedb.lang.common.ast import NodeVisitor
 from edgedb.lang.graphql import ast as gqlast
 
@@ -133,6 +133,9 @@ class Validator(NodeVisitor):
 
 
 class GraphQLParser(parsing.Parser):
+    def get_debug(self):
+        return debug.flags.graphql_parser
+
     def get_parser_spec_module(self):
         from .grammar import document
         return document

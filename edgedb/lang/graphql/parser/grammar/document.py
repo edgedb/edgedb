@@ -69,7 +69,7 @@ class NameNotONTok(NameTokNonTerm, exceptions=('ON',)):
     pass
 
 
-class NameNotBoolTok(NameTokNonTerm, exceptions=('TRUE', 'FALSE')):
+class NameNotBoolTok(NameTokNonTerm, exceptions=('TRUE', 'FALSE', 'NULL')):
     pass
 
 
@@ -86,13 +86,13 @@ class BaseValue(Nonterm):
     def reduce_FALSE(self, *kids):
         self.val = gqlast.BooleanLiteral(value=False)
 
+    def reduce_NULL(self, *kids):
+        self.val = gqlast.NullLiteral()
+
     def reduce_STRING(self, *kids):
         self.val = gqlast.StringLiteral(value=kids[0].normalized_value)
 
     def reduce_NameNotBoolTok(self, *kids):
-        if kids[0].val == 'null':
-            raise GraphQLParserError(
-                "'null' not allowed as value", context=kids[0].context)
         self.val = gqlast.EnumLiteral(value=kids[0].val)
 
     def reduce_LSBRACKET_RSBRACKET(self, *kids):

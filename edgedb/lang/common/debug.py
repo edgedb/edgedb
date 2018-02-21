@@ -63,6 +63,9 @@ class flags(metaclass=FlagsMeta):
     edgeql_compile = Flag(
         doc="Dump EdgeQL/IR/SQL ASTs.")
 
+    graphql_parser = Flag(
+        doc="Debug GraphQL parser (rebuild grammar verbosly).")
+
     delta_plan = Flag(
         doc="Print expanded delta command tree prior to processing.")
 

@@ -165,6 +165,9 @@ class GraphQLSourceGenerator(codegen.SourceGenerator):
     def visit_EnumLiteral(self, node):
         self.write(node.value)
 
+    def visit_NullLiteral(self, node):
+        self.write('null')
+
     def visit_Variable(self, node):
         self.write(node.value)
 

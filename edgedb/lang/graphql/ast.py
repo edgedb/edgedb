@@ -68,6 +68,10 @@ class EnumLiteral(Literal):
     pass
 
 
+class NullLiteral(Literal):
+    value: None
+
+
 class ListLiteral(Literal):
     def topython(self):
         return [val.topython() for val in self.value]
