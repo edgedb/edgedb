@@ -134,6 +134,18 @@ class Field(Selection):
     selection_set: object
 
 
+class SchemaField(Field):
+    pass
+
+
+class TypeField(Field):
+    pass
+
+
+class TypenameField(Field):
+    pass
+
+
 class FragmentSpread(Selection):
     name: object
     directives: list

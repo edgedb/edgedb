@@ -73,6 +73,11 @@ class NameNotBoolTok(NameTokNonTerm, exceptions=('TRUE', 'FALSE', 'NULL')):
     pass
 
 
+class NameNotDunderTok(NameTokNonTerm,
+                       exceptions=('SCHEMA', 'TYPE', 'TYPENAME',)):
+    pass
+
+
 class BaseValue(Nonterm):
     def reduce_INTEGER(self, *kids):
         self.val = gqlast.IntegerLiteral(value=kids[0].normalized_value)
@@ -253,6 +258,7 @@ class OptSelectionSet(Nonterm):
 
 class Field(Nonterm):
     def reduce_AliasedField_OptArgs_OptDirectives_OptSelectionSet(self, *kids):
+        # there are some special fields that need to be checked here
         self.val = kids[0].val
         self.val.arguments = kids[1].val
         self.val.directives = kids[2].val
@@ -260,11 +266,26 @@ class Field(Nonterm):
 
 
 class AliasedField(Nonterm):
-    def reduce_NameTok(self, *kids):
-        self.val = gqlast.Field(name=kids[0].val)
+    def reduce_FieldName(self, *kids):
+        self.val = kids[0].val
 
-    def reduce_NameTok_COLON_NameTok(self, *kids):
-        self.val = gqlast.Field(alias=kids[0].val, name=kids[2].val)
+    def reduce_NameTok_COLON_FieldName(self, *kids):
+        self.val = kids[2].val
+        self.val.alias = kids[0].val
+
+
+class FieldName(Nonterm):
+    def reduce_SCHEMA(self, *kids):
+        self.val = gqlast.SchemaField(name=kids[0].val)
+
+    def reduce_TYPE(self, *kids):
+        self.val = gqlast.TypeField(name=kids[0].val)
+
+    def reduce_TYPENAME(self, *kids):
+        self.val = gqlast.TypenameField(name=kids[0].val)
+
+    def reduce_NameNotDunderTok(self, *kids):
+        self.val = gqlast.Field(name=kids[0].val)
 
 
 class FragmentSpread(Nonterm):
