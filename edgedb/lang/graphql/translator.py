@@ -262,15 +262,16 @@ class GraphQLTranslator(ast.NodeVisitor):
         else:
             self._context.fields[-1][node.name] = node
 
-        # validate the field
-        target = base_type = self._context.schema.get(base[0])
-        for step in base[1:]:
-            target = target.resolve_pointer(self._context.schema, step)
-            if target is None:
-                raise GraphQLValidationError(
-                    f"field {step!r} is invalid for {base_type.name.name}",
-                    context=node.context)
-            target = target.target
+        if node.name != '__typename':
+            # validate the field
+            target = base_type = self._context.schema.get(base[0])
+            for step in base[1:]:
+                target = target.resolve_pointer(self._context.schema, step)
+                if target is None:
+                    raise GraphQLValidationError(
+                        f"field {step!r} is invalid for {base_type.name.name}",
+                        context=node.context)
+                target = target.target
 
         # insert normal or specialized link
         steps = []
@@ -285,10 +286,31 @@ class GraphQLTranslator(ast.NodeVisitor):
             )
         ))
 
-        spec = qlast.ShapeElement(
-            expr=qlast.Path(steps=steps),
-            where=self._visit_path_where(node.arguments)
-        )
+        # handle __typename
+        if node.name == '__typename':
+            # create the computable path
+            path = [step
+                    for psteps in self._context.path
+                    for step in psteps][:-1]
+            path = path[0:1] + [step for step in path if type(step) is str]
+            path += ['__class__', 'name']
+            typename = [
+                qlast.ClassRef(module=path[0][0], name=path[0][1])
+            ]
+            typename.extend(
+                qlast.Ptr(ptr=qlast.ClassRef(name=name))
+                for name in path[1:]
+            )
+
+            spec = qlast.ShapeElement(
+                expr=qlast.Path(steps=steps),
+                compexpr=qlast.Path(steps=typename),
+            )
+        else:
+            spec = qlast.ShapeElement(
+                expr=qlast.Path(steps=steps),
+                where=self._visit_path_where(node.arguments)
+            )
 
         if node.selection_set is not None:
             self._context.fields.append({})

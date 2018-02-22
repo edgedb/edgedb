@@ -15,9 +15,6 @@ UNRESERVED_KEYWORD, RESERVED_KEYWORD = keyword_types
 # NOTE: Please update the pygments lexer with any keyword changes made here
 
 unreserved_keywords = frozenset([
-    "__schema",
-    "__type",
-    "__typename",
     "false",
     "fragment",
     "mutation",

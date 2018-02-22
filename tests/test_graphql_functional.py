@@ -88,7 +88,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
         };
     """
 
-    async def test_graphql_functional_query01(self):
+    async def test_graphql_functional_query_01(self):
         result = await self.con.execute(r"""
             query @edgedb(module: "test") {
                 Setting {
@@ -109,7 +109,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             }],
         ])
 
-    async def test_graphql_functional_query02(self):
+    async def test_graphql_functional_query_02(self):
         result = await self.con.execute(r"""
             query @edgedb(module: "test") {
                 User {
@@ -146,7 +146,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             }],
         ])
 
-    async def test_graphql_functional_query03(self):
+    async def test_graphql_functional_query_03(self):
         result = await self.con.execute(r"""
             query @edgedb(module: "test") {
                 User(name: "John") {
@@ -171,7 +171,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             }],
         ])
 
-    async def test_graphql_functional_fragment02(self):
+    async def test_graphql_functional_fragment_02(self):
         result = await self.con.execute(r"""
             fragment userFrag on User @edgedb(module: "test") {
                 age
@@ -191,5 +191,45 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 'name': 'Alice',
                 'age': 27,
                 'score': 5,
+            }],
+        ])
+
+    async def test_graphql_functional_typename_01(self):
+        result = await self.con.execute(r"""
+            query @edgedb(module: "test") {
+                User {
+                    name
+                    __typename
+                    groups {
+                        id
+                        name
+                        __typename
+                    }
+                }
+            }
+        """, graphql=True)
+
+        result[0].sort(key=lambda x: x['name'])
+        self.assert_data_shape(result, [
+            [{
+                'name': 'Alice',
+                '__typename': 'test::User',
+                'groups': None
+            }, {
+                'name': 'Jane',
+                '__typename': 'test::User',
+                'groups': [{
+                    'id': uuid.UUID,
+                    'name': 'upgraded',
+                    '__typename': 'test::UserGroup',
+                }]
+            }, {
+                'name': 'John',
+                '__typename': 'test::User',
+                'groups': [{
+                    'id': uuid.UUID,
+                    'name': 'basic',
+                    '__typename': 'test::UserGroup',
+                }]
             }],
         ])
