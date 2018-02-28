@@ -29,6 +29,7 @@ from edgedb.lang.edgeql import ast as qlast
 from edgedb.lang.edgeql import errors
 from edgedb.lang.edgeql import parser as qlparser
 
+from . import astutils
 from . import context
 from . import dispatch
 from . import pathctx
@@ -38,6 +39,12 @@ from . import typegen
 
 
 PtrDir = s_pointers.PointerDirection
+
+
+def new_set(*, ctx: context.ContextLevel, **kwargs) -> irast.Set:
+    ir_set = irast.Set(**kwargs)
+    ctx.all_sets.append(ir_set)
+    return ir_set
 
 
 def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
@@ -141,7 +148,6 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     'unexpected expression as a non-first path item')
 
             with ctx.newscope(fenced=True, temporary=True) as subctx:
-                subctx.pending_path_scope = None
                 path_tip = ensure_set(
                     dispatch.compile(step, ctx=subctx), ctx=subctx)
 
@@ -149,8 +155,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
 
     mapped = ctx.view_map.get(path_tip.path_id)
     if mapped is not None:
-        path_tip = irast.Set(path_id=mapped.path_id, scls=mapped.scls)
-        path_tip.expr = mapped.expr
+        path_tip = new_set(path_id=mapped.path_id, scls=mapped.scls,
+                           expr=mapped.expr, ctx=ctx)
 
     path_tip.context = expr.context
     pathctx.register_set_in_scope(path_tip, ctx=ctx)
@@ -204,9 +210,8 @@ def path_step(
 
         mapped = ctx.view_map.get(path_tip.path_id)
         if mapped is not None:
-            path_tip = irast.Set(
-                path_id=mapped.path_id, scls=mapped.scls)
-            path_tip.expr = mapped.expr
+            path_tip = new_set(path_id=mapped.path_id, scls=mapped.scls,
+                               expr=mapped.expr, ctx=ctx)
 
         path_tip = extend_path(
             path_tip, ptrcls, direction, target, ctx=ctx)
@@ -271,6 +276,7 @@ def extend_path(
         direction: PtrDir=PtrDir.Outbound,
         target: typing.Optional[s_nodes.Node]=None, *,
         force_computable: bool=False,
+        unnest_fence: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
     """Return a Set node representing the new path tip."""
     if target is None:
@@ -290,9 +296,7 @@ def extend_path(
     else:
         path_id = source_set.path_id.extend(ptrcls, direction, target)
 
-    target_set = irast.Set()
-    target_set.scls = target
-    target_set.path_id = path_id
+    target_set = new_set(scls=target, path_id=path_id, ctx=ctx)
 
     ptr = irast.Pointer(
         source=source_set,
@@ -304,7 +308,8 @@ def extend_path(
     target_set.rptr = ptr
 
     if _is_computable_ptr(ptrcls, force_computable=force_computable, ctx=ctx):
-        target_set = computable_ptr_set(ptr, ctx=ctx)
+        target_set = computable_ptr_set(
+            ptr, unnest_fence=unnest_fence, ctx=ctx)
 
     return target_set
 
@@ -333,8 +338,7 @@ def class_indirection_set(
         optional: bool,
         ctx: context.ContextLevel) -> irast.Set:
 
-    poly_set = irast.Set()
-    poly_set.scls = target_scls
+    poly_set = new_set(scls=target_scls, ctx=ctx)
     rptr = source_set.rptr
     if rptr is not None and not rptr.ptrcls.singular(rptr.direction):
         cardinality = s_links.LinkMapping.ManyToMany
@@ -359,7 +363,7 @@ def class_indirection_set(
 def class_set(
         scls: s_nodes.Node, *, ctx: context.ContextLevel) -> irast.Set:
     path_id = pathctx.get_path_id(scls, ctx=ctx)
-    return irast.Set(path_id=path_id, scls=scls)
+    return new_set(path_id=path_id, scls=scls, ctx=ctx)
 
 
 def generated_set(
@@ -375,6 +379,7 @@ def generated_set(
     alias = ctx.aliases.get('expr')
     ir_set = irutils.new_expression_set(
         expr, ctx.schema, path_id, alias=alias, typehint=ir_typeref)
+    ctx.all_sets.append(ir_set)
 
     return ir_set
 
@@ -421,6 +426,7 @@ def ensure_stmt(expr: irast.Base, *, ctx: context.ContextLevel) -> irast.Stmt:
 
 def computable_ptr_set(
         rptr: irast.Pointer, *,
+        unnest_fence: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
     """Return ir.Set for a pointer defined as a computable."""
     ptrcls = rptr.ptrcls
@@ -447,7 +453,7 @@ def computable_ptr_set(
     subctx.toplevel_stmt = ctx.toplevel_stmt
     subctx.path_scope = ctx.path_scope
     subctx.class_shapes = ctx.class_shapes.copy()
-    subctx.pending_path_scope = ctx.pending_path_scope
+    subctx.all_sets = ctx.all_sets
 
     if isinstance(ptrcls, s_linkprops.LinkProperty):
         source_path_id = rptr.source.path_id.ptr_path()
@@ -467,7 +473,7 @@ def computable_ptr_set(
                 f'{ptrcls.shortname!r} is not a computable pointer')
 
         if isinstance(ptrcls.default, s_expr.ExpressionText):
-            qlexpr = qlparser.parse(ptrcls.default)
+            qlexpr = astutils.ensure_qlstmt(qlparser.parse(ptrcls.default))
         else:
             qlexpr = qlast.Constant(value=ptrcls.default)
 
@@ -483,20 +489,25 @@ def computable_ptr_set(
         subctx.view_map = qlctx.view_map.new_child()
         subctx.singletons = qlctx.singletons.copy()
         subctx.class_shapes = qlctx.class_shapes.copy()
+        subctx.path_id_namespace = qlctx.path_id_namespace
 
     if qlctx is None:
         # This is a schema-level computable expression, put all
         # class refs into a separate namespace.
-        subctx.path_id_namespace = subctx.aliases.get('ns')
+        subctx.path_id_namespace = (subctx.aliases.get('ns'),)
+    else:
+        inner_path_id = pathctx.get_path_id(self_.scls, ctx=subctx)
+        subctx.view_map[inner_path_id] = rptr.source
 
-    inner_path_id = pathctx.get_path_id(self_.scls, ctx=ctx)
-    subctx.view_map[inner_path_id] = rptr.source
+    if isinstance(qlexpr, qlast.Statement) and unnest_fence:
+        subctx.stmt_metadata[qlexpr] = context.StatementMetadata(
+            is_unnest_fence=True)
 
-    comp_ir = dispatch.compile(qlexpr, ctx=subctx)
-    comp_ir_set = scoped_set(comp_ir, ctx=subctx)
+    comp_ir_set = dispatch.compile(qlexpr, ctx=subctx)
     comp_ir_set.scls = ptrcls.target
     comp_ir_set.path_id = path_id
     comp_ir_set.rptr = rptr
+
     rptr.target = comp_ir_set
 
     return comp_ir_set

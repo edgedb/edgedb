@@ -19,7 +19,7 @@ from edgedb.lang.schema import types as s_types
 from edgedb.lang.edgeql import ast as qlast
 
 from .pathid import PathId, ScopeBranchNode, ScopeFenceNode  # noqa
-from .pathid import InvalidScopeConfiguration  # noqa
+from .pathid import InvalidScopeConfiguration, WeakNamespace  # noqa
 
 
 EdgeDBMatchOperator = qlast.EdgeQLMatchOperator

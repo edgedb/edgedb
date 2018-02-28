@@ -34,13 +34,6 @@ class PathAspect(s_enum.StrEnum):
     SERIALIZED = 'serialized'
 
 
-class ScopeMask:
-    pass
-
-
-scope_mask = ScopeMask()
-
-
 def map_path_id(
         path_id: irast.PathId,
         path_id_map: typing.Dict[irast.PathId, irast.PathId]) -> irast.PathId:

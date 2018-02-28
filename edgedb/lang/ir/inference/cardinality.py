@@ -65,9 +65,11 @@ def __infer_typeref(ir, singletons, schema):
 
 @_infer_cardinality.register(irast.Set)
 def __infer_set(ir, singletons, schema):
-    if ir.path_id in singletons:
-        return ONE
-    elif ir.rptr is not None:
+    for path_id in ir.path_id.iter_weak_namespace_prefixes():
+        if path_id in singletons:
+            return ONE
+
+    if ir.rptr is not None:
         if ir.rptr.ptrcls.singular(ir.rptr.direction):
             return infer_cardinality(ir.rptr.source, singletons, schema)
         else:

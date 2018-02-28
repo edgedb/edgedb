@@ -26,8 +26,6 @@ from edgedb.lang.edgeql import parser as qlparser
 from . import astutils
 from . import context
 from . import dispatch
-from . import pathctx
-from . import schemactx
 from . import setgen
 
 
@@ -63,6 +61,15 @@ def init_context(
 def fini_expression(
         ir: irast.Base, *,
         ctx: context.ContextLevel) -> irast.Statement:
+    for ir_set in ctx.all_sets:
+        if ir_set.path_id.namespace:
+            ir_set.path_id = ir_set.path_id.strip_weak_namespaces()
+
+    if ir.path_scope is not None:
+        for node in ir.path_scope.get_all_path_nodes(include_subpaths=True):
+            if node.path_id.namespace:
+                node.path_id = node.path_id.strip_weak_namespaces()
+
     result = irast.Statement(
         expr=ir,
         params=ctx.arguments,
@@ -136,51 +143,29 @@ def populate_anchors(
         ctx.anchors[anchor] = step
 
 
-def declare_inline_view(
-        ir_set: irast.Set, alias: str, *,
-        ctx: context.ContextLevel) -> irast.Set:
-
-    if not ir_set.scls.is_view():
-        hint = alias or 'view'
-        c = schemactx.derive_view(
-            ir_set.scls, derived_name_quals=[ctx.aliases.get(hint)], ctx=ctx)
-        path_scope = ir_set.path_scope
-        ir_set.path_scope = None
-        ir_set = setgen.generated_set(irast.SelectStmt(result=ir_set),
-                                      path_id=pathctx.get_path_id(c, ctx=ctx),
-                                      ctx=ctx)
-        ir_set.scls = c
-        ir_set.path_scope = path_scope
-    else:
-        c = ir_set.scls
-
-    ctx.aliased_views[alias] = c
-    ctx.view_sets[c] = ir_set
-
-    return ir_set
-
-
 def declare_view(
         expr: qlast.Base, alias: str, *,
-        temp_scope: bool=True,
+        fully_detached: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
     expr = astutils.ensure_qlstmt(expr)
 
-    if temp_scope:
-        scopemgr = ctx.newscope(temporary=True, fenced=True)
-    else:
-        scopemgr = ctx.new()
-
-    with scopemgr as subctx:
-        if not temp_scope and expr.implicit:
-            subctx.pending_path_scope = ctx.path_scope
+    with ctx.newscope(temporary=True, fenced=True) as subctx:
+        if not fully_detached:
+            # Detach the view namespace and record the prefix
+            # in the parent statement's fence node.
+            subctx.path_id_namespace = (
+                subctx.path_id_namespace +
+                (irast.WeakNamespace(ctx.aliases.get('ns')),))
+            ctx.path_scope.namespaces.add(subctx.path_id_namespace[-1])
 
         if isinstance(alias, s_name.SchemaName):
             basename = alias
         else:
             basename = s_name.SchemaName(module='__view__', name=alias)
 
-        subctx.stmt = ctx.stmt.parent_stmt
+        if ctx.stmt is not None:
+            subctx.stmt = ctx.stmt.parent_stmt
+
         view_name = s_name.SchemaName(
             module='_',
             name=s_obj.NamedClass.get_specialized_name(
@@ -190,15 +175,14 @@ def declare_view(
         )
         subctx.toplevel_result_view_name = view_name
 
-        substmt = setgen.ensure_set(
-            dispatch.compile(expr, ctx=subctx), ctx=subctx)
+        view_set = dispatch.compile(expr, ctx=subctx)
+        # The view path id _itself_ should not be in the nested
+        # namespace.
+        view_set.path_id = view_set.path_id.replace_namespace(
+            ctx.path_id_namespace)
+        ctx.aliased_views[alias] = view_set.scls
 
-        if temp_scope:
-            substmt.path_scope = subctx.path_scope
-
-        ctx.aliased_views[alias] = substmt.scls
-
-    return substmt
+    return view_set
 
 
 def declare_view_from_schema(
@@ -208,20 +192,16 @@ def declare_view_from_schema(
     if vc is not None:
         return vc
 
-    subctx = init_context(schema=ctx.schema)
-    subctx.stmt = ctx.stmt
-    subctx.path_id_namespace = ctx.aliases.get('ns')
-    subctx.path_scope = ctx.path_scope
-    subctx.toplevel_stmt = ctx.toplevel_stmt
+    with ctx.detached() as subctx:
+        view_expr = qlparser.parse(viewcls.expr)
+        declare_view(view_expr, alias=viewcls.name,
+                     fully_detached=True, ctx=subctx)
 
-    view_expr = qlparser.parse(viewcls.expr)
-    declare_view(view_expr, alias=viewcls.name, ctx=subctx)
-
-    vc = subctx.aliased_views[viewcls.name]
-    ctx.view_class_map[viewcls] = vc
-    ctx.source_map.update(subctx.source_map)
-    ctx.aliased_views[viewcls.name] = subctx.aliased_views[viewcls.name]
-    ctx.view_nodes[vc.name] = vc
-    ctx.view_sets[vc] = subctx.view_sets[vc]
+        vc = subctx.aliased_views[viewcls.name]
+        ctx.view_class_map[viewcls] = vc
+        ctx.source_map.update(subctx.source_map)
+        ctx.aliased_views[viewcls.name] = subctx.aliased_views[viewcls.name]
+        ctx.view_nodes[vc.name] = vc
+        ctx.view_sets[vc] = subctx.view_sets[vc]
 
     return vc

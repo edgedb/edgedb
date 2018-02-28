@@ -89,7 +89,8 @@ class EdgeQLPathInfo(Base):
 
     # Ignore the below fields in AST visitor/transformer.
     __ast_meta__ = {
-        'path_scope', 'path_outputs', 'path_id', 'is_distinct', 'value_scope'
+        'path_scope', 'path_outputs', 'path_id', 'is_distinct', 'value_scope',
+        'path_id_mask'
     }
 
     # The path id represented by the node.
@@ -106,6 +107,8 @@ class EdgeQLPathInfo(Base):
 
     # Map of res target names corresponding to paths.
     path_outputs: typing.Dict[irast.PathId, OutputVar]
+
+    path_id_mask: typing.Set[irast.PathId]
 
 
 class BaseRangeVar(Base):
@@ -297,11 +300,9 @@ class Query(BaseRelation, EdgeQLPathInfo):
 
     # Ignore the below fields in AST visitor/transformer.
     __ast_meta__ = {'ptr_join_map', 'path_rvar_map', 'path_namespace',
-                    'view_path_id_map', 'path_id_mask', 'argnames',
-                    'nullable'}
+                    'view_path_id_map', 'argnames', 'nullable'}
 
     view_path_id_map: typing.Dict[irast.PathId, irast.PathId]
-    path_id_mask: typing.Set[irast.PathId]
     # Map of RangeVars corresponding to pointer relations.
     ptr_join_map: dict
     # Map of RangeVars corresponding to paths.

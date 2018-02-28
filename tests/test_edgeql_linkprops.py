@@ -682,7 +682,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             {1, 2, 3, 4},
             {1, 2},
             {1, 2, 3},
-            {1, 2, 3, 4},
+            {1, 2, 3},
         ])
 
     async def test_edgeql_props_setops_02(self):

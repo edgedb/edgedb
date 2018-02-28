@@ -344,6 +344,8 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             [],
         ])
 
+    # XXX: this test is not longer correct with respect to inline aliases.
+    @unittest.expectedFailure
     async def test_edgeql_filter_flow03(self):
         await self.assert_query_result(r'''
             # base line for a cross product
