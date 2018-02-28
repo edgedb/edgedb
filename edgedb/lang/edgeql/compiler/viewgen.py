@@ -11,7 +11,6 @@ import functools
 import typing
 
 from edgedb.lang.ir import ast as irast
-from edgedb.lang.ir import inference as irinference
 from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import links as s_links
@@ -222,6 +221,7 @@ def _normalize_view_ptr_expr(
                 view_scls, ptrcls, is_insert=is_insert, is_update=is_update)
 
             sub_path_id = path_id.extend(ptrcls, target=ptrcls.target)
+            ctx.path_scope.add_path(sub_path_id)
 
             if is_update:
                 for subel in shape_el.elements or []:
@@ -309,8 +309,8 @@ def _normalize_view_ptr_expr(
                 ptrcls_is_derived = True
                 ptrcls = derived_ptrcls
 
-        if irinference.infer_cardinality(
-                irexpr, ctx.singletons, ctx.schema) == irast.Cardinality.MANY:
+        inferred_cardinality = pathctx.infer_cardinality(irexpr, ctx=ctx)
+        if inferred_cardinality == irast.Cardinality.MANY:
             ptr_cardinality = s_links.LinkMapping.ManyToMany
         else:
             ptr_cardinality = s_links.LinkMapping.ManyToOne
@@ -453,24 +453,40 @@ def _compile_view_shapes_in_set(
             shape_ptrs.append((ir_set, ptr))
 
     if shape_ptrs:
-        for path_tip, ptr in shape_ptrs:
-            pathctx.register_set_in_scope(path_tip, ctx=ctx)
+        if (isinstance(ir_set.expr, irast.SelectStmt) and
+                (ir_set.expr.offset is not None or
+                 ir_set.expr.limit is not None)):
+            # The OFFSET/LIMIT query is a wrapper set up to
+            # track the scope correctly, make sure we don't
+            # mess that scope up, as the shape's source expression
+            # should remain behind the SET OF fence of LIMIT.
+            with ctx.new() as scopectx:
+                scopectx.path_scope = ir_set.expr.result.path_scope
+                pathctx.register_set_in_scope(ir_set, ctx=scopectx)
+        else:
+            pathctx.register_set_in_scope(ir_set, ctx=ctx)
 
-            with ctx.newscope(fenced=True) as scopectx:
-                scopectx.path_scope.unnest_fence = True
-                el_set = setgen.extend_path(
-                    path_tip, ptr, force_computable=is_mutation,
-                    ctx=scopectx)
-                element = setgen.scoped_set(el_set, ctx=scopectx)
-                pathctx.register_set_in_scope(element, ctx=scopectx)
+        for path_tip, ptr in shape_ptrs:
+            element = setgen.extend_path(
+                path_tip, ptr, force_computable=is_mutation,
+                unnest_fence=True, ctx=ctx)
+            if element.path_scope is None:
+                element.path_scope = ctx.path_scope.add_fence()
+
+            with ctx.new() as scopectx:
+                scopectx.path_scope = element.path_scope
                 compile_view_shapes(
-                    element, parent_view_type=scls.view_type,
-                    ctx=scopectx)
+                    element, parent_view_type=scls.view_type, ctx=scopectx)
 
             ir_set.shape.append(element)
 
     elif ir_set.expr is not None:
-        compile_view_shapes(ir_set.expr, ctx=ctx)
+        if ir_set.path_scope is not None:
+            with ctx.new() as scopectx:
+                scopectx.path_scope = ir_set.path_scope
+                compile_view_shapes(ir_set.expr, ctx=scopectx)
+        else:
+            compile_view_shapes(ir_set.expr, ctx=ctx)
 
 
 @compile_view_shapes.register(irast.SelectStmt)

@@ -51,8 +51,8 @@ class PathId:
             self._is_ptr = False
 
     def __hash__(self):
-        return hash((self.__class__, self._norm_path, self._namespace,
-                     self._is_ptr))
+        return hash((
+            self.__class__, self._norm_path, self._namespace, self._is_ptr))
 
     def __eq__(self, other):
         if not isinstance(other, PathId):
@@ -101,7 +101,14 @@ class PathId:
             return ''
 
         if self._namespace:
-            result += f'{self._namespace}@@'
+            ns_str = []
+            for item in self._namespace:
+                if isinstance(item, WeakNamespace):
+                    ns_str.append(f'[{item}]')
+                else:
+                    ns_str.append(item)
+
+            result += f'{"@".join(ns_str)}@@'
 
         path = self._norm_path
 
@@ -131,6 +138,31 @@ class PathId:
         return result
 
     __repr__ = __str__
+
+    def replace_namespace(self, namespace):
+        result = self.__class__()
+        result._path = self._path
+        result._norm_path = self._norm_path
+        result._namespace = namespace
+        result._is_ptr = self._is_ptr
+        return result
+
+    def strip_weak_namespaces(self):
+        stripped_ns = tuple(bit for bit in self._namespace
+                            if not isinstance(bit, WeakNamespace))
+        return self.replace_namespace(stripped_ns)
+
+    def iter_weak_namespace_prefixes(self):
+        yield self
+
+        if not self._namespace:
+            return
+
+        for i, bit in enumerate(reversed(self._namespace)):
+            if not isinstance(bit, WeakNamespace):
+                break
+
+            yield self.replace_namespace(self._namespace[:-(i + 1)])
 
     def pformat(self):
         """Pretty PathId format for user-visible messages."""
@@ -289,6 +321,14 @@ class PathId:
                 '__type__::optindirection',
             )
 
+    @property
+    def namespace(self):
+        return self._namespace
+
+
+class WeakNamespace(str):
+    pass
+
 
 class InvalidScopeConfiguration(Exception):
     def __init__(self, msg: str, *,
@@ -317,6 +357,22 @@ class BaseScopeTreeNode:
             self._parent = None
             self._parent_fence = None
 
+    def _paths_equal(self, path_id_1, path_id_2, namespaces):
+        if path_id_1 is None or path_id_2 is None:
+            return False
+
+        if namespaces:
+            ns1 = path_id_1.namespace
+            ns2 = path_id_2.namespace
+
+            if ns1 and ns1[-1] in namespaces:
+                path_id_1 = path_id_1.replace_namespace(ns1[:-1])
+
+            if ns2 and ns2[-1] in namespaces:
+                path_id_2 = path_id_2.replace_namespace(ns2[:-1])
+
+        return path_id_1 == path_id_2
+
     @property
     def name(self):
         raise NotImplementedError
@@ -344,9 +400,9 @@ class BaseScopeTreeNode:
         ]
 
     def get_all_paths(self):
-        return {n.path_id for n in self._get_all_paths()}
+        return {n.path_id for n in self.get_all_path_nodes()}
 
-    def _get_all_paths(self, include_subpaths=False):
+    def get_all_path_nodes(self, include_subpaths=False):
         paths = set()
 
         if getattr(self, 'path_id', None):
@@ -357,7 +413,7 @@ class BaseScopeTreeNode:
 
         for c in self.children:
             if include_subpaths or not self_is_path or c.path_id is None:
-                paths.update(c._get_all_paths(
+                paths.update(c.get_all_path_nodes(
                     include_subpaths=include_subpaths))
 
         return paths
@@ -397,12 +453,34 @@ class BaseScopeTreeNode:
 
         return paths
 
+    def attach_child(self, node):
+        node._set_parent(self)
+        self.children.append(node)
+
     def remove_child(self, node):
         self.children.remove(node)
         self.set_children.discard(node)
 
+    def _strip_ns(self, node, namespaces):
+        if not namespaces:
+            return node
+
+        for subnode in node._get_subpaths():
+            if (subnode.path_id.namespace and
+                    subnode.path_id.namespace[-1] in namespaces):
+                subnode.path_id = subnode.path_id.replace_namespace(
+                    subnode.path_id.namespace[:-1])
+
+        return node
+
     def _remove_descendants(self, path_id, respect_fences=False, *,
-                            min_depth=0, depth=0):
+                            min_depth=0, depth=0, namespaces=None):
+        if self.namespaces:
+            my_namespaces = set(self.namespaces)
+            if namespaces is not None:
+                my_namespaces.update(namespaces)
+            namespaces = my_namespaces
+
         descendants = []
         if path_id in self.contained_paths:
             return None
@@ -414,25 +492,34 @@ class BaseScopeTreeNode:
 
             if child.children:
                 descendants_in_child = child._remove_descendants(
-                    path_id, respect_fences=respect_fences, depth=depth + 1)
+                    path_id, respect_fences=respect_fences, depth=depth + 1,
+                    namespaces=namespaces)
                 if descendants_in_child:
                     descendants.extend(descendants_in_child)
 
-            if min_depth <= depth and child.path_id == path_id:
+            if (min_depth <= depth and
+                    self._paths_equal(child.path_id, path_id, namespaces)):
                 self.remove_child(child)
-                descendants.append(child)
+                descendants.append(self._strip_ns(child, namespaces))
 
         return descendants
 
-    def find_descendant(self, path_id, *, respect_fences=True):
+    def find_descendant(self, path_id, *, respect_fences=True,
+                        namespaces=None):
+        if self.namespaces:
+            my_namespaces = set(self.namespaces)
+            if namespaces is not None:
+                my_namespaces.update(namespaces)
+            namespaces = my_namespaces
+
         for child in list(self.children):
             if type(child) is ScopeFenceNode and respect_fences:
                 continue
 
-            if child.path_id == path_id:
+            if self._paths_equal(child.path_id, path_id, namespaces):
                 return child
             elif child.children:
-                found = child.find_descendant(path_id)
+                found = child.find_descendant(path_id, namespaces=namespaces)
                 if found is not None:
                     return found
 
@@ -454,13 +541,16 @@ class BaseScopeTreeNode:
         if node.path_id is not None:
             if path_id == node.path_id:
                 return node
-            else:
-                node = node.parent
+
+        namespaces = set()
 
         while node is not None:
             for child in node.children:
-                if child.path_id == path_id:
+                if self._paths_equal(child.path_id, path_id, namespaces):
                     return child
+
+            if node.namespaces:
+                namespaces.update(node.namespaces)
 
             node = node.parent
 
@@ -510,6 +600,13 @@ class ScopeBranchNode(BaseScopeTreeNode):
         self.path_id = None
         self.protect_parent = False
         self.unnest_fence = False
+        # Set of namespaces used by paths in this branch.
+        # When a path node is pulled up from this branch,
+        # and its namespace matches anything in `namespaces`,
+        # the namespace will be stripped.  This is used to
+        # implement "semi-detached" semantics used by
+        # views declared in a WITH block.
+        self.namespaces = set()
 
     def __repr__(self):
         return f'<ScopeBranchNode at {id(self):0x}>'
@@ -519,8 +616,7 @@ class ScopeBranchNode(BaseScopeTreeNode):
             node.path_id, respect_fences=respect_fences, min_depth=1)
         if descendants:
             d0 = self._merge_nodes(descendants)
-            d0._set_parent(self)
-            self.children.append(d0)
+            self.attach_child(d0)
             return True
 
         parent_fence = self._parent_fence
@@ -593,10 +689,13 @@ class ScopeBranchNode(BaseScopeTreeNode):
                 else:
                     break
 
-            parent.children.append(new_child)
+            parent.attach_child(new_child)
             if parent.path_id is not None:
                 parent.set_children.add(new_child)
-            parent = new_child
+
+            if not (is_lprop or prefix.is_linkprop_path()):
+                parent = new_child
+
             is_lprop = False
 
         return new_node
@@ -606,12 +705,12 @@ class ScopeBranchNode(BaseScopeTreeNode):
 
     def add_fence(self):
         scope_node = ScopeFenceNode(parent=self)
-        self.children.append(scope_node)
+        self.attach_child(scope_node)
         return scope_node
 
     def add_branch(self):
         node = ScopeBranchNode(parent=self)
-        self.children.append(node)
+        self.attach_child(node)
         return node
 
     def mark_as_optional(self, path_id):
@@ -632,10 +731,13 @@ class ScopeBranchNode(BaseScopeTreeNode):
             if child.path_id:
                 existing = self.find_child(child.path_id)
                 if existing:
-                    child = self._merge_nodes([child, existing])
+                    if child is existing:
+                        # Same node
+                        continue
+                    else:
+                        child = self._merge_nodes([child, existing])
 
-            self.children.append(child)
-            child._set_parent(self)
+            self.attach_child(child)
 
     def _merge_nodes(self, descendants):
         d0 = descendants[0]
@@ -648,16 +750,17 @@ class ScopeBranchNode(BaseScopeTreeNode):
         descendants = other._remove_descendants(path_id)
         if descendants:
             d0 = self._merge_nodes(descendants)
-            if (d0.path_id is not None and self.path_id is not None and
+            if d0 is self:
+                pass
+            elif (d0.path_id is not None and self.path_id is not None and
                     d0.path_id == self.path_id):
                 self._merge_children(d0)
             else:
-                d0._set_parent(self)
-                self.children.append(d0)
+                self.attach_child(d0)
             return True
 
     def attach_branch(self, node):
-        for cpath in node._get_all_paths():
+        for cpath in node.get_all_path_nodes():
             for cnode in cpath._get_subpaths():
                 path_id = cnode.path_id
                 ours = self.is_visible(path_id)
@@ -692,8 +795,7 @@ class ScopeBranchNode(BaseScopeTreeNode):
                     child.path_id == self.path_id):
                 self._merge_children(child)
             else:
-                child._set_parent(self)
-                self.children.append(child)
+                self.attach_child(child)
 
     def unfence(self, node):
         self.remove_child(node)
@@ -702,8 +804,7 @@ class ScopeBranchNode(BaseScopeTreeNode):
             if child.path_id:
                 self.add_path(child.path_id)
             else:
-                child._parent = weakref.ref(self)
-                self.children.append(child)
+                self.attach_child(child)
 
     @property
     def name(self):

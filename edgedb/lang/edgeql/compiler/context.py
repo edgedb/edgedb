@@ -30,6 +30,7 @@ class ContextSwitchMode(enum.Enum):
     NEWSCOPE_TEMP = enum.auto()
     NEWFENCE = enum.auto()
     NEWFENCE_TEMP = enum.auto()
+    DETACHED = enum.auto()
 
 
 class ViewRPtr:
@@ -41,6 +42,15 @@ class ViewRPtr:
         self.rptr = rptr
         self.is_insert = is_insert
         self.is_update = is_update
+
+
+class StatementMetadata:
+    is_unnest_fence: bool
+    ignore_offset_limit: bool
+
+    def __init__(self, *, is_unnest_fence=False, ignore_offset_limit=False):
+        self.is_unnest_fence = is_unnest_fence
+        self.ignore_offset_limit = ignore_offset_limit
 
 
 class ContextLevel(compiler.ContextLevel):
@@ -64,6 +74,12 @@ class ContextLevel(compiler.ContextLevel):
     arguments: typing.Dict[str, so.Class]
     """A mapping of statement parameter types passed to the compiler
     programmatically."""
+
+    all_sets: typing.List[irast.Set]
+    """A list of all Set instances generated."""
+
+    stmt_metadata: typing.Dict[qlast.Statement, StatementMetadata]
+    """Extra statement metadata needed by the compiler, but not in AST."""
 
     source_map: typing.Dict[s_pointers.Pointer,
                             typing.Tuple[qlast.Expr, compiler.ContextLevel]]
@@ -99,7 +115,7 @@ class ContextLevel(compiler.ContextLevel):
     singletons: typing.Set[irast.Set]
     """A set of Set nodes for which the cardinality is ONE in this context."""
 
-    path_id_namespace: str
+    path_id_namespace: typing.Tuple[str, ...]
     """A namespace to use for all path ids."""
 
     view_map: typing.Dict[irast.PathId, irast.Set]
@@ -111,9 +127,6 @@ class ContextLevel(compiler.ContextLevel):
 
     path_scope: irast.ScopeBranchNode
     """Path scope tree, with per-lexical-scope levels."""
-
-    pending_path_scope: irast.ScopeBranchNode
-    """Path scope tree to be used with the next FSETOF statement."""
 
     in_aggregate: bool
     """True if the current location is inside an aggregate function call."""
@@ -143,6 +156,8 @@ class ContextLevel(compiler.ContextLevel):
             self.anchors = {}
             self.namespaces = {}
             self.arguments = {}
+            self.all_sets = []
+            self.stmt_metadata = {}
 
             self.source_map = {}
             self.view_nodes = {}
@@ -156,11 +171,10 @@ class ContextLevel(compiler.ContextLevel):
             self.toplevel_stmt = None
             self.stmt = None
             self.singletons = set()
-            self.path_id_namespace = None
+            self.path_id_namespace = tuple()
             self.view_map = collections.ChainMap()
             self.class_shapes = collections.defaultdict(list)
             self.path_scope = None
-            self.pending_path_scope = None
             self.in_aggregate = False
             self.view_scls = None
             self.expr_exposed = False
@@ -176,6 +190,8 @@ class ContextLevel(compiler.ContextLevel):
             self.derived_target_module = prevlevel.derived_target_module
             self.aliases = prevlevel.aliases
             self.arguments = prevlevel.arguments
+            self.all_sets = prevlevel.all_sets
+            self.stmt_metadata = prevlevel.stmt_metadata
 
             self.source_map = prevlevel.source_map
             self.view_nodes = prevlevel.view_nodes
@@ -203,7 +219,6 @@ class ContextLevel(compiler.ContextLevel):
                 self.clause = None
                 self.stmt = None
                 self.singletons = prevlevel.singletons.copy()
-                self.pending_path_scope = None
                 self.in_aggregate = False
                 self.path_as_type = False
 
@@ -212,6 +227,30 @@ class ContextLevel(compiler.ContextLevel):
                 self.view_rptr = None
                 self.toplevel_result_view_name = None
 
+            elif mode == ContextSwitchMode.DETACHED:
+                self.anchors = prevlevel.anchors.copy()
+                self.namespaces = prevlevel.namespaces.copy()
+                self.aliased_views = collections.ChainMap()
+                self.view_class_map = {}
+                self.class_view_overrides = {}
+
+                self.source_map = {}
+                self.view_nodes = {}
+                self.view_sets = {}
+                self.path_id_namespace = (self.aliases.get('ns'),)
+
+                self.view_rptr = None
+                self.view_scls = None
+                self.clause = None
+                self.stmt = None
+                self.singletons = set()
+                self.in_aggregate = False
+                self.path_as_type = False
+
+                self.partial_path_prefix = None
+
+                self.view_rptr = None
+                self.toplevel_result_view_name = None
             else:
                 self.anchors = prevlevel.anchors
                 self.namespaces = prevlevel.namespaces
@@ -222,7 +261,6 @@ class ContextLevel(compiler.ContextLevel):
                 self.clause = prevlevel.clause
                 self.stmt = prevlevel.stmt
 
-                self.pending_path_scope = prevlevel.pending_path_scope
                 self.in_aggregate = prevlevel.in_aggregate
                 self.path_as_type = prevlevel.path_as_type
 
@@ -237,12 +275,10 @@ class ContextLevel(compiler.ContextLevel):
             if mode in {ContextSwitchMode.NEWSCOPE,
                         ContextSwitchMode.NEWSCOPE_TEMP}:
                 self.path_scope = prevlevel.path_scope.add_branch()
-                self.pending_path_scope = self.path_scope
 
             if mode in {ContextSwitchMode.NEWFENCE,
                         ContextSwitchMode.NEWFENCE_TEMP}:
                 self.path_scope = prevlevel.path_scope.add_fence()
-                self.pending_path_scope = self.path_scope
 
             if mode in {ContextSwitchMode.NEWFENCE_TEMP,
                         ContextSwitchMode.NEWSCOPE_TEMP}:
@@ -267,6 +303,9 @@ class ContextLevel(compiler.ContextLevel):
             mode = ContextSwitchMode.NEWSCOPE
 
         return self.new(mode)
+
+    def detached(self):
+        return self.new(ContextSwitchMode.DETACHED)
 
 
 class CompilerContext(compiler.CompilerContext):

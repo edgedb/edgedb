@@ -67,9 +67,7 @@ def get_set_rvar(
 
     scope_stmt = relctx.maybe_get_scope_stmt(path_id, ctx=ctx)
 
-    if scope_stmt is pathctx.scope_mask:
-        scope_stmt = None
-    elif scope_stmt is not None:
+    if scope_stmt is not None:
         rvar = pathctx.maybe_get_path_rvar(
             scope_stmt, ir_set.path_id, aspect='value', env=ctx.env)
     else:
@@ -99,7 +97,8 @@ def get_set_rvar(
 
         if scope_stmt is None:
             scope_stmt = ctx.rel
-            subctx.path_scope[path_id] = scope_stmt
+            if ir_set.path_scope and ir_set.path_scope.is_visible(path_id):
+                subctx.path_scope[path_id] = scope_stmt
 
         stmt.name = ctx.env.aliases.get(get_set_rel_alias(ir_set))
 
@@ -492,18 +491,17 @@ def process_set_as_link_property_ref(
         if link_rvar is None:
             link_rvar = relctx.new_pointer_rvar(
                 ir_source.rptr, src_rvar=src_rvar, link_bias=True, ctx=newctx)
-            rvars.append((link_rvar, link_path_id, 'value'))
 
-            if isinstance(ir_set.scls, s_concepts.Concept):
-                target_rvar = relctx.new_root_rvar(ir_source, ctx=newctx)
-                rvars.append((target_rvar, ir_set.path_id, 'identity'))
-        else:
-            target_rvar = pathctx.maybe_get_path_rvar(
-                source_scope_stmt, link_path_id.tgt_path(),
-                aspect='value', env=ctx.env)
-            if target_rvar is None:
-                target_rvar = relctx.new_root_rvar(ir_source, ctx=newctx)
-                rvars.append((target_rvar, link_path_id.tgt_path(), 'value'))
+        rvars.append((link_rvar, link_path_id, 'value'))
+
+        target_rvar = pathctx.maybe_get_path_rvar(
+            source_scope_stmt, link_path_id.tgt_path(),
+            aspect='value', env=ctx.env)
+
+        if target_rvar is None:
+            target_rvar = relctx.new_root_rvar(ir_source, ctx=newctx)
+
+        rvars.append((target_rvar, link_path_id.tgt_path(), 'value'))
 
     return SetRVars(main=link_rvar, new=rvars)
 
@@ -583,6 +581,7 @@ def process_set_as_path(
             srcrel, lateral=True, env=srcctx.env)
         relctx.include_rvar(stmt, src_rvar, path_id=ir_source.path_id,
                             aspect='value', ctx=ctx)
+        stmt.path_id_mask.add(ir_source.path_id)
 
     else:
         src_rvar = get_set_rvar(ir_source, ctx=ctx)
@@ -639,7 +638,8 @@ def process_set_as_subquery(
         if is_atom_path:
             source_is_visible = True
         else:
-            source_is_visible = ctx.scope_tree.is_visible(ir_source.path_id)
+            source_is_visible = ctx.scope_tree.parent_fence.is_visible(
+                ir_source.path_id)
 
         if source_is_visible:
             get_set_rvar(ir_set.rptr.source, ctx=ctx)

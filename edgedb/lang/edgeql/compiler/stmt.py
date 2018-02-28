@@ -54,47 +54,56 @@ def compile_SelectQuery(
         stmt = irast.SelectStmt()
         init_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
 
-        if stmt is not ctx.toplevel_stmt:
-            # Top-level statements have a scope branch created in init_stmt.
-            if ctx.pending_path_scope is not None:
-                sctx.path_scope = ctx.pending_path_scope
-            else:
-                sctx.path_scope = ctx.path_scope.add_fence()
+        compile_limit_offset = False
 
         if expr.offset is not None or expr.limit is not None:
             # LIMIT and OFFSET are infix operators with both
             # operands being SET OF, so we need to compile
             # the body of the statement behind a fence.
-            sctx.path_scope = sctx.path_scope.add_fence()
+            metadata = ctx.stmt_metadata.get(expr)
+            if metadata is None:
+                metadata = context.StatementMetadata()
+                ctx.stmt_metadata[expr] = metadata
 
-        stmt.result = compile_result_clause(
-            expr.result,
-            view_scls=ctx.view_scls,
-            view_rptr=ctx.view_rptr,
-            result_alias=expr.result_alias,
-            view_name=ctx.toplevel_result_view_name,
-            ctx=sctx)
+            if not metadata.ignore_offset_limit:
+                metadata.ignore_offset_limit = True
+                compile_limit_offset = True
 
-        stmt.where = clauses.compile_where_clause(
-            expr.where, ctx=sctx)
+        if compile_limit_offset:
+            sctx.toplevel_result_view_name = ctx.toplevel_result_view_name
 
-        stmt.orderby = clauses.compile_orderby_clause(
-            expr.orderby, ctx=sctx)
+            stmt.result = compile_result_clause(
+                expr,
+                view_scls=ctx.view_scls,
+                view_rptr=ctx.view_rptr,
+                ctx=sctx)
 
-        if expr.offset is not None or expr.limit is not None:
-            with sctx.new() as olctx:
-                olctx.path_scope = sctx.path_scope.parent
+            if ctx.toplevel_result_view_name:
+                alias = ctx.aliases.get('expr')
+                stmt.result.path_id = irutils.get_expression_path_id(
+                    stmt.result.scls, alias, ctx.schema)
 
-                stmt.offset = clauses.compile_limit_offset_clause(
-                    expr.offset, ctx=olctx)
+            stmt.offset = clauses.compile_limit_offset_clause(
+                expr.offset, ctx=sctx)
 
-                stmt.limit = clauses.compile_limit_offset_clause(
-                    expr.limit, ctx=olctx)
+            stmt.limit = clauses.compile_limit_offset_clause(
+                expr.limit, ctx=sctx)
+        else:
+            stmt.result = compile_result_clause(
+                expr.result,
+                view_scls=ctx.view_scls,
+                view_rptr=ctx.view_rptr,
+                result_alias=expr.result_alias,
+                view_name=ctx.toplevel_result_view_name,
+                ctx=sctx)
+
+            stmt.where = clauses.compile_where_clause(
+                expr.where, ctx=sctx)
+
+            stmt.orderby = clauses.compile_orderby_clause(
+                expr.orderby, ctx=sctx)
 
         result = fini_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
-
-        if sctx.path_scope is not ctx.pending_path_scope:
-            result = setgen.scoped_set(result, ctx=sctx)
 
     return result
 
@@ -105,13 +114,6 @@ def compile_ForQuery(
     with ctx.subquery() as sctx:
         stmt = irast.SelectStmt()
         init_stmt(stmt, qlstmt, ctx=sctx, parent_ctx=ctx)
-
-        if stmt is not ctx.toplevel_stmt:
-            # Top-level statements have a scope branch created in init_stmt.
-            if ctx.pending_path_scope is not None:
-                sctx.path_scope = ctx.pending_path_scope
-            else:
-                sctx.path_scope = ctx.path_scope.add_fence()
 
         if qlstmt.offset is not None or qlstmt.limit is not None:
             # LIMIT and OFFSET are infix operators with both
@@ -331,6 +333,12 @@ def init_stmt(
     if ctx.toplevel_stmt is None:
         parent_ctx.toplevel_stmt = ctx.toplevel_stmt = irstmt
         parent_ctx.path_scope = ctx.path_scope = irast.ScopeFenceNode()
+    else:
+        ctx.path_scope = parent_ctx.path_scope.add_fence()
+
+    metadata = ctx.stmt_metadata.get(qlstmt)
+    if metadata is not None and metadata.is_unnest_fence:
+        ctx.path_scope.unnest_fence = True
 
     irstmt.parent_stmt = parent_ctx.stmt
 
@@ -360,10 +368,7 @@ def fini_stmt(
         view = None
         path_id = None
 
-    if ctx.stmt is ctx.toplevel_stmt:
-        result = setgen.scoped_set(irstmt, path_id=path_id, ctx=ctx)
-    else:
-        result = setgen.ensure_set(irstmt, path_id=path_id, ctx=ctx)
+    result = setgen.scoped_set(irstmt, path_id=path_id, ctx=ctx)
 
     if view is not None:
         parent_ctx.view_sets[view] = result
@@ -411,13 +416,13 @@ def compile_result_clause(
             shape = None
 
         if result_alias:
-            expr = stmtctx.declare_view(
-                result_expr, alias=result_alias, temp_scope=False, ctx=sctx)
+            stmtctx.declare_view(result_expr, alias=result_alias, ctx=sctx)
+            result_expr = qlast.Path(
+                steps=[qlast.ClassRef(name=result_alias)]
+            )
 
-            pathctx.register_set_in_scope(expr, ctx=sctx)
-        else:
-            expr = setgen.ensure_set(
-                dispatch.compile(result_expr, ctx=sctx), ctx=sctx)
+        expr = setgen.ensure_set(
+            dispatch.compile(result_expr, ctx=sctx), ctx=sctx)
 
         result = compile_query_subject(
             expr, shape=shape, view_rptr=view_rptr, view_name=view_name,

@@ -83,8 +83,7 @@ def compile_Parameter(
 @dispatch.compile.register(qlast.DetachedExpr)
 def compile_DetachedExpr(
         expr: qlast.DetachedExpr, *, ctx: context.ContextLevel):
-    with ctx.new() as subctx:
-        subctx.path_id_namespace = subctx.aliases.get('ns')
+    with ctx.detached() as subctx:
         return dispatch.compile(expr.expr, ctx=subctx)
 
 

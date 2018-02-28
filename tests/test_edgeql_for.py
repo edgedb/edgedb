@@ -33,7 +33,6 @@ class TestEdgeQLFor(tb.QueryTestCase):
             [[a, b] for a in cards for b in cards],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_for_cross_02(self):
         await self.assert_sorted_query_result(r'''
             WITH MODULE test
@@ -109,7 +108,6 @@ class TestEdgeQLFor(tb.QueryTestCase):
             }
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_for_mix_02(self):
         await self.assert_sorted_query_result(r'''
             WITH MODULE test
@@ -158,7 +156,6 @@ class TestEdgeQLFor(tb.QueryTestCase):
             ]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_for_mix_04(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -185,7 +182,6 @@ class TestEdgeQLFor(tb.QueryTestCase):
             }
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_for_filter_02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -207,7 +203,6 @@ class TestEdgeQLFor(tb.QueryTestCase):
             }
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_for_filter_03(self):
         await self.assert_query_result(r'''
             WITH MODULE test

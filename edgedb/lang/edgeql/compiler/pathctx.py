@@ -23,12 +23,16 @@ def get_path_id(scls: s_obj.Class, *,
 
 
 def register_set_in_scope(
-        ir_set: irast.Set, *,
+        ir_set: irast.Set, *, path_scope: irast.ScopeBranchNode=None,
         ctx: context.CompilerContext) -> None:
     if ctx.path_as_type:
         return
+
+    if path_scope is None:
+        path_scope = ctx.path_scope
+
     try:
-        ctx.path_scope.add_path(ir_set.path_id)
+        path_scope.add_path(ir_set.path_id)
     except irast.InvalidScopeConfiguration as e:
         raise errors.EdgeQLError(e.args[0], context=ir_set.context) from e
 
@@ -45,13 +49,19 @@ def set_path_alias(
     ctx.path_scope.set_alias(path_id, alias)
 
 
-def enforce_singleton(expr: irast.Base, *, ctx: context.ContextLevel) -> None:
-    scope_fence = ctx.path_scope.fence.parent
+def infer_cardinality(
+        expr: irast.Base, *, ctx: context.ContextLevel) -> irast.Cardinality:
+    scope_fence = ctx.path_scope.parent_fence
     if scope_fence is not None:
         singletons = scope_fence.get_all_visible()
     else:
         singletons = set()
-    cardinality = irinference.infer_cardinality(expr, singletons, ctx.schema)
+
+    return irinference.infer_cardinality(expr, singletons, ctx.schema)
+
+
+def enforce_singleton(expr: irast.Base, *, ctx: context.ContextLevel) -> None:
+    cardinality = infer_cardinality(expr, ctx=ctx)
     if cardinality != irast.Cardinality.ONE:
         raise errors.EdgeQLError(
             'possibly more than one element returned by an expression '

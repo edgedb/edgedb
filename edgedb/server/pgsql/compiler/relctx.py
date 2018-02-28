@@ -52,6 +52,10 @@ def pull_path_namespace(
 
         for path_id, aspect in s_paths:
             path_id = pathctx.reverse_map_path_id(path_id, view_path_id_map)
+
+            if path_id in source.query.path_id_mask:
+                continue
+
             rvar = maybe_get_path_rvar(target, path_id, aspect=aspect, ctx=ctx)
             if rvar is None:
                 pathctx.put_path_rvar(
@@ -117,8 +121,6 @@ def _get_path_rvar(
                 pathctx.put_path_rvar(stmt, path_id, rvar, aspect=aspect,
                                       env=ctx.env)
             return rvar, path_id
-        if path_id in qry.path_id_mask:
-            break
         if qry.view_path_id_map:
             path_id = pathctx.reverse_map_path_id(
                 path_id, qry.view_path_id_map)
@@ -390,7 +392,9 @@ def ensure_value_rvar(
 
     rvar = maybe_get_path_rvar(stmt, ir_set.path_id, aspect='value', ctx=ctx)
     if rvar is None:
-        scope_stmt = get_scope_stmt(ir_set.path_id, ctx=ctx)
+        scope_stmt = maybe_get_scope_stmt(ir_set.path_id, ctx=ctx)
+        if scope_stmt is None:
+            scope_stmt = ctx.rel
         rvar = new_root_rvar(ir_set, ctx=ctx)
         include_rvar(scope_stmt, rvar, ctx=ctx)
 
@@ -435,12 +439,11 @@ def update_scope(
     ctx.scope_tree = ir_set.path_scope
     ctx.path_scope = ctx.path_scope.new_child()
     child_paths = set(ir_set.path_scope.paths)
-    grandchild_paths = ir_set.path_scope.get_all_paths() - child_paths
     ctx.path_scope.update({p: stmt for p in child_paths})
-    # Mask grandchild paths, so outer statements don't get picked
-    # up accidentally.
-    ctx.path_scope.update({p: pathctx.scope_mask for p in grandchild_paths})
-    stmt.path_id_mask.update(grandchild_paths)
+    for child_path in ir_set.path_scope.get_all_paths():
+        parent_scope = ctx.scope_tree.parent
+        if parent_scope is None or not parent_scope.is_visible(child_path):
+            stmt.path_id_mask.add(child_path)
 
 
 def get_scope_stmt(

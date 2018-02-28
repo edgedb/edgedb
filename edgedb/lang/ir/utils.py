@@ -81,33 +81,6 @@ def is_aggregated_expr(ir):
     return bool(set(ast.find_children(ir, flt)))
 
 
-def extend_path(schema, source_set, ptr):
-    scls = source_set.scls
-
-    if isinstance(ptr, str):
-        ptrcls = scls.resolve_pointer(schema, ptr)
-    else:
-        ptrcls = ptr
-
-    path_id = source_set.path_id.extend(
-        ptrcls, s_pointers.PointerDirection.Outbound, ptrcls.target)
-
-    target_set = irast.Set()
-    target_set.scls = ptrcls.target
-    target_set.path_id = path_id
-
-    ptr = irast.Pointer(
-        source=source_set,
-        target=target_set,
-        ptrcls=ptrcls,
-        direction=s_pointers.PointerDirection.Outbound
-    )
-
-    target_set.rptr = ptr
-
-    return target_set
-
-
 def get_id_path_id(
         path_id: irast.PathId, *,
         schema: s_schema.Schema) -> irast.PathId:
@@ -118,13 +91,6 @@ def get_id_path_id(
         source.resolve_pointer(schema, 'std::id'),
         s_pointers.PointerDirection.Outbound,
         schema.get('std::uuid'))
-
-
-def get_id_path(ir_set: irast.Set, *, schema: s_schema.Schema) -> irast.Set:
-    if not isinstance(ir_set.scls, s_concepts.Concept):
-        return ir_set
-    else:
-        return extend_path(schema, ir_set, 'std::id')
 
 
 def get_subquery_shape(ir_expr):
