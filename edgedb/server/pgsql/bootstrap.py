@@ -162,6 +162,31 @@ async def _init_std_schema(conn):
     await metaschema.generate_views(conn, bk.schema)
 
 
+async def _init_graphql_schema(conn, cluster, loop):
+    logger.info('Bootstrapping graphql module...')
+
+    from edgedb.lang import schema as edgedb_schema
+    from edgedb.server import protocol as edgedb_protocol
+
+    protocol = edgedb_protocol.Protocol(cluster, loop=loop)
+    protocol.backend = await backend.open_database(conn)
+
+    with open(os.path.join(os.path.dirname(edgedb_schema.__file__),
+                           '_graphql.eschema'), 'r') as f:
+        schema = f.read()
+
+    script = f'''
+        CREATE MODULE graphql;
+        CREATE MIGRATION graphql::d0 TO eschema $${schema}$$;
+        COMMIT MIGRATION graphql::d0;
+    '''
+    with open(os.path.join(os.path.dirname(edgedb_schema.__file__),
+                           '_graphql.eql'), 'r') as f:
+        script += f.read()
+
+    await protocol._run_script(script)
+
+
 async def _ensure_edgedb_default_database(conn):
     result = await _get_db_info(conn, edgedb_defines.EDGEDB_DEFAULT_DB)
     if not result:
@@ -188,6 +213,7 @@ async def bootstrap(cluster, loop=None):
             try:
                 await _ensure_meta_schema(conn)
                 await _init_std_schema(conn)
+                await _init_graphql_schema(conn, cluster, loop)
             finally:
                 await conn.close()
 

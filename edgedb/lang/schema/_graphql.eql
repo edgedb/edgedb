@@ -1,0 +1,64 @@
+##
+# Copyright (c) 2018 MagicStack Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
+# create some graphql items
+# types
+FOR k IN {<graphql::typeKind>{
+            'SCALAR', 'OBJECT', 'INTERFACE', 'UNION', 'ENUM',
+            'INPUT_OBJECT', 'LIST', 'NON_NULL'}}
+UNION (
+    INSERT graphql::_Type {
+        kind := k
+    }
+);
+
+# create our directives
+WITH MODULE graphql
+INSERT Directive {
+    name := 'include',
+    description := 'Directs the executor to include this field or fragment ' +
+                   'only when the `if` argument is true.',
+    locations := <directiveLocation>{
+        "FIELD", "FRAGMENT_SPREAD", "INLINE_FRAGMENT"},
+};
+
+WITH MODULE graphql
+INSERT Directive {
+    name := 'skip',
+    description := 'Directs the executor to skip this field or fragment ' +
+                   'when the `if` argument is true.',
+    locations := <directiveLocation>{
+        "FIELD", "FRAGMENT_SPREAD", "INLINE_FRAGMENT"},
+};
+
+WITH MODULE graphql
+INSERT Directive {
+    name := 'deprecated',
+    description :=
+        'Marks an element of a GraphQL schema as no longer supported.',
+    locations := <directiveLocation>{
+        "FIELD"},
+};
+
+WITH MODULE graphql
+INSERT Directive {
+    name := 'edgedb',
+    description :=
+        'Special EdgeDB compatibility directive that specifies which module' +
+        ' is being used.',
+    locations := <directiveLocation>{
+        'QUERY', 'MUTATION', 'FRAGMENT_DEFINITION', 'FRAGMENT_SPREAD',
+        'INLINE_FRAGMENT'},
+};
+
+# create Query
+WITH MODULE graphql
+INSERT Query {
+    name := 'Query',
+    kind := <typeKind>'OBJECT',
+};

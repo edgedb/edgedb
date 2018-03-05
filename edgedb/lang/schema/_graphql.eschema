@@ -1,0 +1,31 @@
+##
+# Copyright (c) 2018 MagicStack Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
+atom typeKind extending str:
+     constraint enum(['SCALAR', 'OBJECT', 'INTERFACE', 'UNION', 'ENUM',
+                      'INPUT_OBJECT', 'LIST', 'NON_NULL'])
+
+atom directiveLocation extending str:
+     constraint enum(['QUERY', 'MUTATION', 'FIELD', 'FRAGMENT_DEFINITION',
+                      'FRAGMENT_SPREAD', 'INLINE_FRAGMENT'])
+
+abstract concept Nameable:
+    link name to str
+    link description to str
+
+abstract concept Named extending Nameable:
+    required link name to str
+
+concept _Type:
+    required link kind to typeKind
+
+concept Directive extending Named:
+    required link locations to directiveLocation:
+        mapping := '1*'
+
+concept Query extending Named, _Type
