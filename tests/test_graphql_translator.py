@@ -238,6 +238,32 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
+    def test_graphql_translation_query_06(self):
+        r"""
+        query mixed @edgedb(module: "test") {
+            User {
+                name
+            }
+            Setting {
+                name,
+            }
+        }
+
+% OK %
+
+        # query mixed
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User){
+                    name
+                }),
+            Setting := (SELECT
+                (test::Setting) {
+                    name
+                })
+        };
+
+        """
     def test_graphql_translation_fragment_01(self):
         r"""
         fragment groupFrag on UserGroup @edgedb(module: "test") {

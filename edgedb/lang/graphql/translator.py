@@ -150,7 +150,6 @@ class GraphQLTranslator(ast.NodeVisitor):
 
     def _visit_query(self, node):
         self._context.optype = 'query'
-        query = None
         # populate input variables with defaults, where applicable
         if node.variables:
             self.visit(node.variables)
@@ -159,34 +158,27 @@ class GraphQLTranslator(ast.NodeVisitor):
 
         # special treatment of the selection_set, different from inner
         # recursion
+        query = qlast.SelectQuery(
+            result=qlast.Shape(
+                expr=qlast.Path(
+                    steps=[qlast.ClassRef(name='Query', module='graphql')]
+                ),
+                elements=[]
+            ),
+        )
         for selection in node.selection_set.selections:
             self._context.path = [[[module, None]]]
-            selquery = qlast.SelectQuery(
-                result=qlast.Shape(
+            query.result.elements.append(
+                qlast.ShapeElement(
                     expr=qlast.Path(
-                        steps=[qlast.ClassRef(name='Query', module='graphql')]
+                        steps=[qlast.ClassRef(name=selection.name)]
                     ),
-                    elements=[
-                        qlast.ShapeElement(
-                            expr=qlast.Path(
-                                steps=[qlast.ClassRef(name=selection.name)]
-                            ),
-                            compexpr=qlast.SelectQuery(
-                                result=self._visit_query_selset(selection),
-                                where=self._visit_where(selection.arguments)
-                            ),
-                        )
-                    ]
-                ),
-            )
-            if query is None:
-                query = selquery
-            else:
-                query = qlast.SelectQuery(
-                    op=qlast.UNION,
-                    op_larg=query,
-                    op_rarg=selquery
+                    compexpr=qlast.SelectQuery(
+                        result=self._visit_query_selset(selection),
+                        where=self._visit_where(selection.arguments)
+                    ),
                 )
+            )
 
         return query
 
