@@ -31,6 +31,67 @@ GQL_TYPE_NAMES_MAP = {
     'ID': s_types.uuid.UUID,
 }
 
+__SCHEMA = {
+    'types': '[__Type!]!',
+    'queryType': '__Type!',
+    'mutationType': '__Type',
+    'directives': '[__Directive!]!',
+}
+
+__TYPE = {
+    'kind': '__TypeKind!',
+    'name': 'String',
+    'description': 'String',
+
+    # OBJECT and INTERFACE only
+    'fields': '[__Field!]',
+
+    # OBJECT only
+    'interfaces': '[__Type!]',
+
+    # INTERFACE and UNION only
+    'possibleTypes': '[__Type!]',
+
+    # ENUM only
+    'enumValues': '[__EnumValue!]',
+
+    # INPUT_OBJECT only
+    'inputFields': '[__InputValue!]',
+
+    # NON_NULL and LIST only
+    'ofType': '__Type',
+}
+
+__FIELD = {
+    'name': 'String!',
+    'description': 'String',
+    'args': '[__InputValue!]!',
+    'type': '__Type!',
+    'isDeprecated': 'Boolean!',
+    'deprecationReason': 'String',
+}
+
+__INPUTVALUE = {
+    'name': 'String!',
+    'description': 'String',
+    'type': '__Type!',
+    'defaultValue': 'String',
+}
+
+__ENUMVAUE = {
+    'name': 'String!',
+    'description': 'String',
+    'isDeprecated': 'Boolean!',
+    'deprecationReason': 'String',
+}
+
+__DIRECTIVE = {
+    'name': 'String!',
+    'description': 'String',
+    'locations': '[__DirectiveLocation!]!',
+    'args': '[__InputValue!]!',
+}
+
 
 class GraphQLTranslatorContext:
     def __init__(self, *, schema, variables):
@@ -101,10 +162,23 @@ class GraphQLTranslator(ast.NodeVisitor):
         for selection in node.selection_set.selections:
             self._context.path = [[[module, None]]]
             selquery = qlast.SelectQuery(
-                result=self._visit_query_selset(selection),
-                where=self._visit_where(selection.arguments)
+                result=qlast.Shape(
+                    expr=qlast.Path(
+                        steps=[qlast.ClassRef(name='Query', module='graphql')]
+                    ),
+                    elements=[
+                        qlast.ShapeElement(
+                            expr=qlast.Path(
+                                steps=[qlast.ClassRef(name=selection.name)]
+                            ),
+                            compexpr=qlast.SelectQuery(
+                                result=self._visit_query_selset(selection),
+                                where=self._visit_where(selection.arguments)
+                            ),
+                        )
+                    ]
+                ),
             )
-
             if query is None:
                 query = selquery
             else:
@@ -121,23 +195,34 @@ class GraphQLTranslator(ast.NodeVisitor):
 
     def _visit_query_selset(self, selection):
         concept = selection.name
-        base = self._context.path[0][0] = (self._context.path[0][0][0],
-                                           concept)
         self._context.fields.append({})
 
-        try:
-            self._context.schema.get(base)
-        except s_error.SchemaError:
-            raise GraphQLValidationError(
-                f"{base[1]!r} does not exist in the schema module {base[0]!r}",
-                context=selection.context)
+        if concept == '__typename':
+            # handle special meta-fields
+            expr = self.visit(selection)
+        else:
+            # handle regular fields
+            base = self._context.path[0][0] = (self._context.path[0][0][0],
+                                               concept)
 
-        expr = qlast.Shape(
-            expr=qlast.Path(
-                steps=[qlast.ClassRef(module=base[0], name=base[1])]
-            ),
-            elements=self.visit(selection.selection_set)
-        )
+            if concept in {'__schema', '__type'}:
+                # handle special meta-fields
+                expr = self.visit(selection)
+            else:
+                try:
+                    self._context.schema.get(base)
+                except s_error.SchemaError:
+                    raise GraphQLValidationError(
+                        f"{base[1]!r} does not exist in the schema " +
+                        f"module {base[0]!r}",
+                        context=selection.context)
+
+                expr = qlast.Shape(
+                    expr=qlast.Path(
+                        steps=[qlast.ClassRef(module=base[0], name=base[1])]
+                    ),
+                    elements=self.visit(selection.selection_set)
+                )
 
         self._context.fields.pop()
 
@@ -243,11 +328,7 @@ class GraphQLTranslator(ast.NodeVisitor):
 
         return elements
 
-    def visit_Field(self, node):
-        base = self._context.path[-1]
-        base.append(node.name)
-        include_base = self._context.include_base[-1]
-
+    def _is_duplicate_field(self, node):
         # if this field is a duplicate, that is not identical to the
         # original, throw an exception
         dup = self._context.fields[-1].get(node.name)
@@ -257,21 +338,29 @@ class GraphQLTranslator(ast.NodeVisitor):
                     f"field {node.name!r} has ambiguous definition",
                     context=node.context)
             else:
-
-                return
+                return True
         else:
             self._context.fields[-1][node.name] = node
 
-        if node.name != '__typename':
-            # validate the field
-            target = base_type = self._context.schema.get(base[0])
-            for step in base[1:]:
-                target = target.resolve_pointer(self._context.schema, step)
-                if target is None:
-                    raise GraphQLValidationError(
-                        f"field {step!r} is invalid for {base_type.name.name}",
-                        context=node.context)
-                target = target.target
+        return False
+
+    def visit_Field(self, node):
+        base = self._context.path[-1]
+        base.append(node.name)
+        include_base = self._context.include_base[-1]
+
+        if self._is_duplicate_field(node):
+            return
+
+        target = base_type = self._context.schema.get(base[0])
+
+        for step in base[1:]:
+            target = target.resolve_pointer(self._context.schema, step)
+            if target is None:
+                raise GraphQLValidationError(
+                    f"field {step!r} is invalid for {base_type.name.name}",
+                    context=node.context)
+            target = target.target
 
         # insert normal or specialized link
         steps = []
@@ -286,8 +375,57 @@ class GraphQLTranslator(ast.NodeVisitor):
             )
         ))
 
-        # handle __typename
-        if node.name == '__typename':
+        spec = qlast.ShapeElement(
+            expr=qlast.Path(steps=steps),
+            where=self._visit_path_where(node.arguments)
+        )
+
+        if node.selection_set is not None:
+            self._context.fields.append({})
+            spec.elements = self.visit(node.selection_set)
+            self._context.fields.pop()
+        base.pop()
+
+        return spec
+
+    def visit_TypenameField(self, node):
+        base = self._context.path[-1]
+        base.append(node.name)
+        include_base = self._context.include_base[-1]
+
+        if self._is_duplicate_field(node):
+            return
+
+        # insert normal or specialized link
+        steps = []
+
+        if include_base:
+            steps.append(qlast.ClassRef(
+                module=base[0][0], name=base[0][1]))
+
+        steps.append(qlast.Ptr(
+            ptr=qlast.ClassRef(
+                name=node.name
+            )
+        ))
+
+        if not base[0][1]:
+            # this field may appear as the top-level Query field
+            spec = qlast.ShapeElement(
+                expr=qlast.Path(steps=steps),
+                compexpr=qlast.Constant(value='Query'),
+            )
+        elif base[0][1] == '__schema':
+            spec = qlast.ShapeElement(
+                expr=qlast.Path(steps=steps),
+                compexpr=qlast.Constant(value='__Schema'),
+            )
+        elif base[0][1] == '__type':
+            spec = qlast.ShapeElement(
+                expr=qlast.Path(steps=steps),
+                compexpr=qlast.Constant(value='__Type'),
+            )
+        else:
             # create the computable path
             path = [step
                     for psteps in self._context.path
@@ -306,10 +444,70 @@ class GraphQLTranslator(ast.NodeVisitor):
                 expr=qlast.Path(steps=steps),
                 compexpr=qlast.Path(steps=typename),
             )
-        else:
+
+        if node.selection_set is not None:
+            self._context.fields.append({})
+            spec.elements = self.visit(node.selection_set)
+            self._context.fields.pop()
+        base.pop()
+
+        return spec
+
+    def visit_SchemaField(self, node):
+        base = self._context.path[-1]
+        base.append(node.name)
+        include_base = self._context.include_base[-1]
+
+        if self._is_duplicate_field(node):
+            return
+
+        # insert normal or specialized link
+        steps = []
+
+        if include_base:
+            steps.append(qlast.ClassRef(
+                module=base[0][0], name=base[0][1]))
+
+        steps.append(qlast.Ptr(
+            ptr=qlast.ClassRef(
+                name=node.name
+            )
+        ))
+
+        if not base[0][1]:
+            # this field may appear as the top-level Query field
             spec = qlast.ShapeElement(
                 expr=qlast.Path(steps=steps),
-                where=self._visit_path_where(node.arguments)
+                compexpr=qlast.Constant(value='Query'),
+            )
+        elif base[0][1] == '__schema':
+            spec = qlast.ShapeElement(
+                expr=qlast.Path(steps=steps),
+                compexpr=qlast.Constant(value='__Schema'),
+            )
+        elif base[0][1] == '__type':
+            spec = qlast.ShapeElement(
+                expr=qlast.Path(steps=steps),
+                compexpr=qlast.Constant(value='__Type'),
+            )
+        else:
+            # create the computable path
+            path = [step
+                    for psteps in self._context.path
+                    for step in psteps][:-1]
+            path = path[0:1] + [step for step in path if type(step) is str]
+            path += ['__class__', 'name']
+            typename = [
+                qlast.ClassRef(module=path[0][0], name=path[0][1])
+            ]
+            typename.extend(
+                qlast.Ptr(ptr=qlast.ClassRef(name=name))
+                for name in path[1:]
+            )
+
+            spec = qlast.ShapeElement(
+                expr=qlast.Path(steps=steps),
+                compexpr=qlast.Path(steps=typename),
             )
 
         if node.selection_set is not None:

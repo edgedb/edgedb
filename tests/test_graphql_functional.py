@@ -98,16 +98,16 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             }
         """, graphql=True)
 
-        result[0].sort(key=lambda x: x['name'])
-        self.assert_data_shape(result, [
-            [{
+        result[0][0]['Setting'].sort(key=lambda x: x['name'])
+        self.assert_data_shape(result, [[{
+            'Setting': [{
                 'name': 'perks',
                 'value': 'full',
             }, {
                 'name': 'template',
                 'value': 'blue',
             }],
-        ])
+        }]])
 
     async def test_graphql_functional_query_02(self):
         result = await self.con.execute(r"""
@@ -123,9 +123,9 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             }
         """, graphql=True)
 
-        result[0].sort(key=lambda x: x['name'])
-        self.assert_data_shape(result, [
-            [{
+        result[0][0]['User'].sort(key=lambda x: x['name'])
+        self.assert_data_shape(result, [[{
+            'User': [{
                 'name': 'Alice',
                 'age': 27,
                 'groups': None
@@ -144,7 +144,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     'name': 'basic',
                 }]
             }],
-        ])
+        }]])
 
     async def test_graphql_functional_query_03(self):
         result = await self.con.execute(r"""
@@ -160,8 +160,8 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             }
         """, graphql=True)
 
-        self.assert_data_shape(result, [
-            [{
+        self.assert_data_shape(result, [[{
+            'User': [{
                 'name': 'John',
                 'age': 25,
                 'groups': [{
@@ -169,7 +169,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     'name': 'basic',
                 }]
             }],
-        ])
+        }]])
 
     async def test_graphql_functional_fragment_02(self):
         result = await self.con.execute(r"""
@@ -186,13 +186,13 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             }
         """, graphql=True)
 
-        self.assert_data_shape(result, [
-            [{
+        self.assert_data_shape(result, [[{
+            'NamedObject': [{
                 'name': 'Alice',
                 'age': 27,
                 'score': 5,
             }],
-        ])
+        }]])
 
     async def test_graphql_functional_typename_01(self):
         result = await self.con.execute(r"""
@@ -209,9 +209,9 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             }
         """, graphql=True)
 
-        result[0].sort(key=lambda x: x['name'])
-        self.assert_data_shape(result, [
-            [{
+        result[0][0]['User'].sort(key=lambda x: x['name'])
+        self.assert_data_shape(result, [[{
+            'User': [{
                 'name': 'Alice',
                 '__typename': 'test::User',
                 'groups': None
@@ -232,4 +232,4 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     '__typename': 'test::UserGroup',
                 }]
             }],
-        ])
+        }]])
