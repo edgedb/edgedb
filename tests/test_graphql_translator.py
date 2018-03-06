@@ -1994,3 +1994,54 @@ class TestGraphQLTranslation(TranslatorTest):
                 })
         };
         """
+
+    def test_graphql_translation_schema_01(self):
+        r"""
+        query @edgedb(module: "test") {
+            __schema {
+                __typename
+            }
+        }
+
+% OK %
+
+        SELECT (graphql::Query) {
+            __schema:= (
+                SELECT (graphql::Query) {
+                    __typename := '__Schema'
+                }
+            )
+        };
+        """
+
+    def test_graphql_translation_schema_02(self):
+        r"""
+        query @edgedb(module: "test") {
+            __schema {
+                __typename
+            }
+            __schema {
+                __typename
+            }
+        }
+
+% OK %
+
+        SELECT (graphql::Query) {
+            __schema:= (
+                SELECT (graphql::Query) {
+                    __typename := '__Schema'
+                }
+            )
+        };
+        """
+
+    @tb.must_fail(GraphQLValidationError, line=3, col=22)
+    def test_graphql_translation_schema_03(self):
+        r"""
+        query @edgedb(module: "test") {
+            __schema(name: "foo") {
+                __typename
+            }
+        }
+        """
