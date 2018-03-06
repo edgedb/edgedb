@@ -1995,6 +1995,19 @@ class TestGraphQLTranslation(TranslatorTest):
         };
         """
 
+    def test_graphql_translation_typename_02(self):
+        r"""
+        query {
+            __typename
+        }
+
+% OK %
+
+        SELECT (graphql::Query) {
+            __typename := 'Query'
+        };
+        """
+
     def test_graphql_translation_schema_01(self):
         r"""
         query @edgedb(module: "test") {
@@ -2006,7 +2019,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT (graphql::Query) {
-            __schema:= (
+            __schema := (
                 SELECT (graphql::Query) {
                     __typename := '__Schema'
                 }
@@ -2044,4 +2057,23 @@ class TestGraphQLTranslation(TranslatorTest):
                 __typename
             }
         }
+        """
+
+    def test_graphql_translation_type_01(self):
+        r"""
+        query @edgedb(module: "test") {
+            __type(name: "User") {
+                __typename
+            }
+        }
+
+% OK %
+
+        SELECT (graphql::Query) {
+            __type:= (
+                SELECT (graphql::Query) {
+                    __typename := '__Type'
+                }
+            )
+        };
         """
