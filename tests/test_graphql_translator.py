@@ -2062,6 +2062,32 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
+    def test_graphql_translation_schema_04(self):
+        r"""
+        query @edgedb(module: "test") {
+            __schema {
+                directives {
+                    name
+                    description
+                    locations
+                }
+            }
+        }
+
+% OK %
+
+        SELECT (graphql::Query) {
+            __schema := (SELECT (graphql::Query) {
+                    directives:= (SELECT (graphql::Directive){
+                        name,
+                        description,
+                        locations
+                    })
+                }
+            )
+        };
+        """
+
     def test_graphql_translation_type_01(self):
         r"""
         query @edgedb(module: "test") {

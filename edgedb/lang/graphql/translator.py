@@ -302,8 +302,10 @@ class GraphQLTranslator(ast.NodeVisitor):
         if self._is_duplicate_field(node):
             return
 
-        target = self.get_type(base[0])
+        # FIXME: the parent type may be better offloaded to context
+        prevt = target = self.get_type(base[0])
         for step in base[1:]:
+            prevt = target
             target = self.get_field_type(target, step, context=node.context)
 
         # insert normal or specialized link
@@ -317,15 +319,40 @@ class GraphQLTranslator(ast.NodeVisitor):
             )
         ))
 
-        spec = qlast.ShapeElement(
-            expr=qlast.Path(steps=steps),
-            where=self._visit_path_where(node.arguments)
-        )
+        # determine if there needs to be extra subqueries
+        if prevt.shadow:
+            shape = spec = qlast.ShapeElement(
+                expr=qlast.Path(steps=steps),
+                where=self._visit_path_where(node.arguments)
+            )
+        else:
+            # if the parent is NOT a shadowed type, we need an explicit SELECT
+            spec = qlast.ShapeElement(
+                expr=qlast.Path(
+                    steps=[qlast.Ptr(
+                        ptr=qlast.ClassRef(
+                            name=node.name
+                        )
+                    )]
+                ),
+                compexpr=qlast.SelectQuery(
+                    result=qlast.Shape(
+                        expr=qlast.Path(
+                            steps=[qlast.ClassRef(
+                                name=target.edb_base.name.name,
+                                module=target.edb_base.name.module,
+                            )]
+                        )
+                    )
+                )
+            )
+            shape = spec.compexpr.result
 
         if node.selection_set is not None:
             self._context.fields.append({})
-            spec.elements = self.visit(node.selection_set)
+            shape.elements = self.visit(node.selection_set)
             self._context.fields.pop()
+            shape.where = self._visit_path_where(node.arguments)
         base.pop()
 
         return spec
