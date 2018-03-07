@@ -28,4 +28,4 @@ concept Directive extending Named:
     required link locations to directiveLocation:
         mapping := '1*'
 
-concept Query extending Named, _Type
+concept Query extending Named

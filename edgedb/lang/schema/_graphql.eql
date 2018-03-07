@@ -60,5 +60,4 @@ INSERT Directive {
 WITH MODULE graphql
 INSERT Query {
     name := 'Query',
-    kind := <typeKind>'OBJECT',
 };
