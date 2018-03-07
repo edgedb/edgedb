@@ -13,7 +13,8 @@ from edgedb.lang.graphql import ast as gqlast, parser as gqlparser
 from edgedb.lang.schema import error as s_error
 
 from .errors import GraphQLValidationError
-from .types import PY_COERCION_MAP, GQL_TYPE_NAMES_MAP, GQLType, GQL_TYPE_MAP
+from .types import (PY_COERCION_MAP, GQL_TYPE_NAMES_MAP, _GQLType,
+                    GQLSchema, GQLType)
 
 
 class GraphQLTranslatorContext:
@@ -27,6 +28,19 @@ class GraphQLTranslatorContext:
         self.path = []
         self.optype = None
         self.include_base = [False]
+        self.gql_type_map = {
+            '__schema': GQLSchema(schema),
+            '__type': GQLType(schema),
+        }
+
+
+def normalize_name(name):
+    if isinstance(name, str):
+        return name
+    elif name[1] in {'__schema', '__type', '__typename'}:
+        return name[1]
+    else:
+        return f'{name[0]}::{name[1]}'
 
 
 class GraphQLTranslator(ast.NodeVisitor):
@@ -34,26 +48,42 @@ class GraphQLTranslator(ast.NodeVisitor):
         # the type may be from the EdgeDB schema or some special
         # GraphQL type/adapter
         assert not isinstance(name, str)
+        norm = normalize_name(name)
 
-        try:
-            return (GQL_TYPE_MAP.get(name[1]) or
-                    self._context.schema.get(name))
+        result = self._context.gql_type_map.get(norm)
 
-        except s_error.SchemaError:
-            if context:
-                raise GraphQLValidationError(
-                    f"{name[1]!r} does not exist in the schema " +
-                    f"module {name[0]!r}",
-                    context=context)
-            raise
+        if result:
+            return result
+        else:
+            try:
+                result = self._context.schema.get(name)
+                result = _GQLType(
+                    edb_base=result,
+                    schema=self._context.schema,
+                    shadow=True,
+                )
+                self._context.gql_type_map[norm] = result
+                return result
+
+            except s_error.SchemaError:
+                if context:
+                    raise GraphQLValidationError(
+                        f"{name[1]!r} does not exist in the schema " +
+                        f"module {name[0]!r}",
+                        context=context)
+                raise
 
     def get_field_type(self, base, name, *, context=None):
-        target = base.resolve_pointer(self._context.schema, name)
-        if target is None and context:
-            raise GraphQLValidationError(
-                f"field {name!r} is invalid for {base.name.name}",
-                context=context)
-        return target.target
+        target = base.get_field_type(name)
+        if target is None:
+            if context:
+                raise GraphQLValidationError(
+                    f"field {name!r} is invalid for {base.short_name}",
+                    context=context)
+        else:
+            self._context.gql_type_map[target.name] = target
+
+        return target
 
     def visit_Document(self, node):
         # we need to index all of the fragments before we process operations
@@ -273,17 +303,14 @@ class GraphQLTranslator(ast.NodeVisitor):
             return
 
         target = self.get_type(base[0])
-
         for step in base[1:]:
             target = self.get_field_type(target, step, context=node.context)
 
         # insert normal or specialized link
         steps = []
-
         if include_base:
             steps.append(qlast.ClassRef(
                 module=base[0][0], name=base[0][1]))
-
         steps.append(qlast.Ptr(
             ptr=qlast.ClassRef(
                 name=node.name
@@ -331,35 +358,41 @@ class GraphQLTranslator(ast.NodeVisitor):
             )
             # reset the base
             self._context.path[0][0] = (base[0], None)
-        elif base[0][1] == '__schema':
-            spec = qlast.ShapeElement(
-                expr=qlast.Path(steps=steps),
-                compexpr=qlast.Constant(value='__Schema'),
-            )
-        elif base[0][1] == '__type':
-            spec = qlast.ShapeElement(
-                expr=qlast.Path(steps=steps),
-                compexpr=qlast.Constant(value='__Type'),
-            )
-        else:
-            # create the computable path
-            path = [step
-                    for psteps in self._context.path
-                    for step in psteps]
-            path = path[0:1] + [step for step in path if type(step) is str]
-            path += ['__class__', 'name']
-            typename = [
-                qlast.ClassRef(module=path[0][0], name=path[0][1])
-            ]
-            typename.extend(
-                qlast.Ptr(ptr=qlast.ClassRef(name=name))
-                for name in path[1:]
-            )
 
-            spec = qlast.ShapeElement(
-                expr=qlast.Path(steps=steps),
-                compexpr=qlast.Path(steps=typename),
-            )
+        else:
+            # get the prefix field type
+            target = self.get_type(base[0])
+            for step in base[1:]:
+                target = self.get_field_type(target, step,
+                                             context=node.context)
+
+            if not target.shadow:
+                # the parent is a special graphql type of some sort
+                spec = qlast.ShapeElement(
+                    expr=qlast.Path(steps=steps),
+                    compexpr=qlast.Constant(value=target.name),
+                )
+            else:
+                # shadowed EdgeDB concepts are pretty straight-forward
+
+                # create the computable path
+                path = [step
+                        for psteps in self._context.path
+                        for step in psteps]
+                path = path[0:1] + [step for step in path if type(step) is str]
+                path += ['__class__', 'name']
+                typename = [
+                    qlast.ClassRef(module=path[0][0], name=path[0][1])
+                ]
+                typename.extend(
+                    qlast.Ptr(ptr=qlast.ClassRef(name=name))
+                    for name in path[1:]
+                )
+
+                spec = qlast.ShapeElement(
+                    expr=qlast.Path(steps=steps),
+                    compexpr=qlast.Path(steps=typename),
+                )
 
         if node.selection_set:
             raise GraphQLValidationError(
@@ -498,38 +531,29 @@ class GraphQLTranslator(ast.NodeVisitor):
                 is_specialized = True
             else:
                 raise GraphQLValidationError(
-                    f"{base_type.name.name} and {frag_type.name.name} " +
+                    f"{base_type.short_name} and {frag_type.short_name} " +
                     "are not related", context=spread.context)
 
         self._context.path.append([frag_path])
         self._context.include_base.append(is_specialized)
 
     def _visit_top_field(self, selection):
-        concept = selection.name
         where = None
 
-        if concept == '__typename':
-            # handle special meta-fields
-            expr = self.visit(selection)
-        else:
-            # handle regular fields
-            base = self._context.path[0][0]
-            base_type = self.get_type(base, context=selection.context)
+        # handle regular fields
+        base = self._context.path[0][0]
+        base_type = self.get_type(base, context=selection.context)
 
-            if isinstance(base_type, GQLType):
-                # handle special meta-fields
-                expr = self.visit(selection)
-            else:
-                self._context.fields.append({})
-                expr = qlast.Shape(
-                    expr=qlast.Path(
-                        steps=[qlast.ClassRef(module=base[0], name=base[1])]
-                    ),
-                    elements=self.visit(selection.selection_set)
-                )
-                self._context.fields.pop()
-                if expr:
-                    where = self._visit_where(selection.arguments)
+        self._context.fields.append({})
+        expr = qlast.Shape(
+            expr=qlast.Path(
+                steps=[qlast.ClassRef(module=base[0], name=base[1])]
+            ),
+            elements=self.visit(selection.selection_set)
+        )
+        self._context.fields.pop()
+        if expr:
+            where = self._visit_where(selection.arguments)
 
         if expr:
             return qlast.ShapeElement(

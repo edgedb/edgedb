@@ -1548,7 +1548,8 @@ class TestGraphQLTranslation(TranslatorTest):
         };
         """
 
-    @tb.must_fail(GraphQLValidationError, 'are not related', line=9, col=17)
+    @tb.must_fail(GraphQLValidationError,
+                  'UserGroup and User are not related', line=9, col=17)
     def test_graphql_translation_fragment_type_04(self):
         r"""
         fragment userFrag on User @edgedb(module: "test") {
@@ -1563,7 +1564,8 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @tb.must_fail(GraphQLValidationError, 'are not related', line=8, col=13)
+    @tb.must_fail(GraphQLValidationError,
+                  'UserGroup and User are not related', line=8, col=13)
     def test_graphql_translation_fragment_type_05(self):
         r"""
         fragment userFrag on User @edgedb(module: "test") {
